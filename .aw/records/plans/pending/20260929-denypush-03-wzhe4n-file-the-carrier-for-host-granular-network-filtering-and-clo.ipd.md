@@ -6,8 +6,7 @@
 - Scope: Verify the durable backlog carrier for host-granular network filtering (`sv9ce4`, filed at authoring time) is intact and honestly worded, point spec 5.2 at it, and verify the Set's end state reports honestly: no artifact claims push denial, no finding code was reintroduced, and the capability report matches what was actually probed. Records and verification only; no product code. NOTE the title says "File" because the filename derives from it and was minted before the carrier was moved earlier; the carrier is FILED at authoring time and this plan VERIFIES it, which is the stronger arrangement and is explained in E-01.
 - Scope-Paths: .aw/records/backlog/open, .aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md
 - Item-Dependencies: executed:pi3bk8
-- Status: approved
-- Readiness: go-pending-approval
+- Status: draft
 - From-Spec: 25kzda
 - Work-Kind: feature
 - Priority: low
@@ -17,9 +16,9 @@
 - Highest E allocated: 04
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: wzhe4n
-- Approval: 2026-09-30, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-06 draft (aw set): demoted approved -> draft: APPROVAL WITHDRAWN: returned to authoring by gradcover 52opph: uncovered obligation: - THE CARRIER OUTLIVES THE SET. Backlog `sv9ce4` is filed before any child runs, so the unbuilt half
 - 2026-09-30 approved (aw set): status set to approved
 - 2026-09-30 reviewed (opencode its_direct/pt3-claude-opus-5-1m-us): plan-review complete: APPROVE WITH REVISIONS APPLIED; PR-901..PR-908 all fixed
 
