@@ -7,6 +7,9 @@
 - Scope-Paths: .aw/records/plans/pending/20261001-netnsfilter-00-m0kl28-build-host-granular-outbound-egress-filtering-as-a-probed-no.ipd.md
 - Item-Dependencies: none
 - Status: to-review
+- Coverage: fail
+- Coverage-Fingerprint: b0a8608603fbad6b4db5caf9160bb183b4e755a47dcd23af448358d8570df1f1
+- Coverage-Checked: 2026-10-06 by uri/its_direct/pt3-claude-opus-5.5-1m-us
 - From-Backlog: sv9ce4
 - From-Spec: 25kzda
 - Work-Kind: feature
@@ -19,6 +22,7 @@
 
 ## Workflow history
 
+- 2026-10-06 coverage fail (aw oc run): fingerprint b0a8608603fb, model uri/its_direct/pt3-claude-opus-5.5-1m-us
 - 2026-10-01 to-review (opencode its_direct/pt3-claude-opus-5-1m-us): authored review-ready while graduating backlog `sv9ce4`. Authoring was preceded by MEASURING the mechanism end to end, recorded as research `akmzyq`, because the item's own premise (that user namespaces are unavailable and the direction is therefore unmeasurable) did not reproduce on the authoring host.
 - 2026-10-01 draft (opencode its_direct/pt3-claude-opus-5-1m-us): created.
 
@@ -211,6 +215,14 @@ specific failure this Set guards against is a contract written to a hoped-for ca
   reporting code that reads as a proof of push denial. The honest input to that decision is research
   `akmzyq`'s "what is NOT established" list. Carried by `wcbpqf`, which already holds this area's
   maintainer decisions, so the question does not vanish when these plans reach `executed`.
+
+## Coverage findings
+
+- "- `python3 -m pytest` run BARE, green, with the actual summary line pasted. Bare is required: the"
+- "- `aw ipd lint` reports conforming over all five plans in Set `netnsfilter`."
+- "- `aw check` reports no NEW finding naming an artifact this Set touched. JUDGED AS A DELTA, not by"
+- "- `aw sanitize --agent` exits zero. This Set pastes probe output and namespace command output, which"
+- "- `aw host capabilities opencode` run and its ACTUAL output pasted, showing the new row and its note."
 
 ## Validation and cross-check (verify before reporting the Set complete)
 
