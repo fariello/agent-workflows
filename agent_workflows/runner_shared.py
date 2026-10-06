@@ -18899,6 +18899,8 @@ class ProbeOutcome(NamedTuple):
     calls: int
     detail: str = ""
     quotes: tuple[str, ...] = ()
+    written: bool = False
+    committed: bool = False
 
     @property
     def blocks(self) -> bool:
@@ -18915,6 +18917,7 @@ def probe_orchestrator(
     asker: Any = None,
     runner: Any = None,
     counter: list | None = None,
+    commit: bool | None = None,
 ) -> ProbeOutcome:
     """Decide ONE orchestrator, consulting its plan coverage record FIRST.
 
@@ -18961,6 +18964,10 @@ def probe_orchestrator(
         if answer != PROBE_ANSWER_COULD_NOT_ASK:
             break
 
+    do_commit = commit if commit is not None else options.get("commit", True)
+    written = False
+    committed = False
+
     if answer == PROBE_ANSWER_NO_EXECUTIONS:
         write_res = coverage_record.write(
             target.path,
@@ -18968,10 +18975,12 @@ def probe_orchestrator(
             quotes=(),
             model=model,
             tool=f"aw {host} run",
-            commit=True,
+            commit=do_commit,
             host=host,
             repo=Path(repo),
         )
+        written = write_res.written
+        committed = write_res.committed
         if write_res.detail:
             detail = f"{detail} ({write_res.detail})" if detail else write_res.detail
     elif answer == PROBE_ANSWER_EXECUTIONS and quotes:
@@ -18981,10 +18990,12 @@ def probe_orchestrator(
             quotes=quotes,
             model=model,
             tool=f"aw {host} run",
-            commit=True,
+            commit=do_commit,
             host=host,
             repo=Path(repo),
         )
+        written = write_res.written
+        committed = write_res.committed
         if write_res.detail:
             detail = f"{detail} ({write_res.detail})" if detail else write_res.detail
 
@@ -18995,6 +19006,8 @@ def probe_orchestrator(
         calls=calls,
         detail=detail,
         quotes=quotes,
+        written=written,
+        committed=committed,
     )
 
 

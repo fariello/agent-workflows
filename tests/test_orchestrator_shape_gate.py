@@ -392,10 +392,38 @@ class TheGateIsSitedBeforeRunDirAndPrepareOnlyRefuses(unittest.TestCase):
 
     def test_prepare_only_succeeds_on_conforming_queue(self):
         """--prepare-only succeeds on a conforming queue, creating run_dir and skipping probe."""
+        from tests.test_ipd_lint import _conforming_child
+        from agent_workflows import coverage_record
+
         for label, module in BOTH_HOSTS:
             with self.subTest(host=label):
                 repo = self.make_repo(
                     CONFORMING_ORCH_TEXT, "20260924-fixconf-00-fix001.ipd.md"
+                )
+                p_dir = repo / ".aw" / "records" / "plans" / "pending"
+                c1_text = (
+                    _conforming_child()
+                    .replace("- Set: x", "- Set: fixconf")
+                    .replace("- Order: 1", "- Order: 1")
+                    .replace("- Id: abc123", "- Id: chd001")
+                )
+                c2_text = (
+                    _conforming_child()
+                    .replace("- Set: x", "- Set: fixconf")
+                    .replace("- Order: 1", "- Order: 2")
+                    .replace("- Id: abc123", "- Id: chd002")
+                )
+                (p_dir / "20260924-fixconf-01-chd001.ipd.md").write_text(
+                    c1_text, encoding="utf-8"
+                )
+                (p_dir / "20260924-fixconf-02-chd002.ipd.md").write_text(
+                    c2_text, encoding="utf-8"
+                )
+                coverage_record.write(
+                    p_dir / "20260924-fixconf-00-fix001.ipd.md",
+                    "pass",
+                    model="fixture",
+                    tool="test",
                 )
                 args = module.build_parser().parse_args(
                     ["start", "fix001", "--repo", str(repo), "--prepare-only"]

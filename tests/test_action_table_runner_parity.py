@@ -96,9 +96,11 @@ def _write_plan(
     lines.append("## Detailed Implementation Checklist (TODO)")
     lines.append("")
     if kind == "orchestrator":
+        c_ord = 9 if setid == "parset" else 1
+        c_id = f"p{c_ord:03d}cc" if setid == "parset" else "chld01"
         lines.extend(
             [
-                "- [ ] E-01 CONFIRM chld01 REACHED executed",
+                f"- [ ] E-01 CONFIRM {c_id} REACHED executed",
                 "  - Depends on: none",
                 "  - Expected outcome: done",
                 "  - Execution state: pending",
@@ -107,7 +109,7 @@ def _write_plan(
                 "",
                 "| Order | Id | Status | Plan | Depends on |",
                 "|---|---|---|---|---|",
-                "| 01 | chld01 | pending | .aw/records/plans/pending/20260927-demo-01-chld01-test.ipd.md | none |",
+                f"| {c_ord:02d} | {c_id} | pending | .aw/records/plans/pending/20260927-{setid}-{c_ord:02d}-{c_id}-test.ipd.md | none |",
                 "",
                 "## Completion criteria (the whole Set is done only when)",
                 "",
@@ -190,6 +192,10 @@ def _write_plan(
         ]
     )
     file_path.write_text("\n".join(lines), encoding="utf-8")
+    if kind == "orchestrator":
+        from agent_workflows import coverage_record
+
+        coverage_record.write(file_path, "pass", model="fixture", tool="test")
     return file_path
 
 

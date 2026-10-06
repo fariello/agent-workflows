@@ -923,6 +923,12 @@ RULE_REGISTRY: Dict[str, RuleSpec] = {
     "research.frontmatter-key-repeated": RuleSpec(
         "error", ASSURANCE_REPOSITORY, DET_DETERMINISTIC, ""
     ),
+    # gradcover Order 03 (qs00nc E-06, spec 25kzda 2.5d): review-readiness check over
+    # pending orchestrators heading for review/approval (`to-review`, `reviewed`, `approved`,
+    # `auto-approved`). Registered `error` severity, repository assurance, deterministic.
+    "check.orchestrator-not-review-ready": RuleSpec(
+        "error", ASSURANCE_REPOSITORY, DET_DETERMINISTIC, ""
+    ),
 }
 
 # Conservative default for an unregistered rule id: treat it as an error-severity, repository-class,
@@ -1523,6 +1529,18 @@ def check_content(
                 check_plan_spec_link_missing(
                     repo_root,
                     include_untracked=include_untracked,
+                )
+            )
+        except Exception:
+            pass
+        # gradcover Order 03 (qs00nc E-06, spec 25kzda 2.5d): review-readiness check over
+        # pending orchestrators heading for review/approval (`to-review`, `reviewed`, `approved`,
+        # `auto-approved`). Reached by BOTH `aw check plans` and the `aw check all` fan-out.
+        # Error severity, fail-isolated in the same shape as its neighbours.
+        try:
+            drift.extend(
+                check_orchestrator_not_review_ready(
+                    repo_root, include_untracked=include_untracked
                 )
             )
         except Exception:
@@ -8689,4 +8707,66 @@ def check_ipd_lint_reach(
                 ),
             )
         )
+    return drift
+
+
+_ORCH_NOT_REVIEW_READY_RULE = "check.orchestrator-not-review-ready"
+
+
+def check_orchestrator_not_review_ready(
+    repo_root: Path, include_untracked: bool = False
+) -> List[_core.Drift]:
+    """Flag pending orchestrators heading for review/approval that are not review-ready (spec 25kzda 2.5d).
+
+    Scoped to pending orchestrators whose status is `to-review`, `reviewed`, `approved` or `auto-approved`.
+    Draft orchestrators and terminal plans are skipped.
+    """
+    drift: List[_core.Drift] = []
+    try:
+        from agent_workflows import orchestrator_readiness as _orch
+        from agent_workflows import ipd_schema as _schema
+
+        memberships = _orch.resolve_all_set_memberships(repo_root)
+    except Exception:
+        return drift
+
+    for p in _iter_type_files(repo_root, "plans", include_untracked=include_untracked):
+        if "pending" not in p.parts:
+            continue
+        try:
+            text = p.read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            continue
+
+        m_kind = _re.search(r"^- Kind:\s*(\S+)", text, _re.MULTILINE)
+        if (
+            not m_kind
+            or m_kind.group(1).strip("'\"").lower() != _schema.KIND_ORCHESTRATOR
+        ):
+            continue
+
+        m_stat = _re.search(r"^- Status:\s*(\S+)", text, _re.MULTILINE)
+        stat = m_stat.group(1).strip("'\"").lower() if m_stat else "draft"
+        if stat not in ("to-review", "reviewed", "approved", "auto-approved"):
+            continue
+
+        m_set = _re.search(r"^- Set:\s*([^\n]+)", text, _re.MULTILINE)
+        raw_set = m_set.group(1).strip() if m_set else ""
+        setid = raw_set.split("(")[0].strip().split()[0].strip() if raw_set else ""
+        active_membership = memberships.get(setid) if memberships else None
+
+        ready_res = _orch.review_readiness(
+            repo_root, p, ask=False, membership=active_membership
+        )
+        if not ready_res.ready:
+            for f in ready_res.findings:
+                detail = f"{f.code} ({f.subject}): {f.detail}; remedy: {f.remedy}"
+                drift.append(
+                    enrich_drift(
+                        _core.Drift(str(p), _ORCH_NOT_REVIEW_READY_RULE, detail),
+                        observed=f"{f.code} on {f.subject}",
+                        required="orchestrator must be review-ready before review or approval",
+                        recovery=f.remedy,
+                    )
+                )
     return drift

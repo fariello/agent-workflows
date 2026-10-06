@@ -1973,6 +1973,44 @@ def _build_parser() -> argparse.ArgumentParser:
         "--dir", default=None, help="Repo root (default: current directory)."
     )
 
+    # gradcover Order 03 (qs00nc E-03, spec 25kzda 2.5d): `aw ipd coverage` orchestrator review readiness.
+    p_ipd_coverage = ipd_sub.add_parser(
+        "coverage",
+        parents=[common],
+        help="Check orchestrator review readiness and record probe coverage verdict.",
+        description=(
+            "Check orchestrator review readiness (spec 25kzda 2.5d). For each selected orchestrator, "
+            "evaluates child table completeness, child review-readiness, row alignment, and probes "
+            "semantic coverage against a model host when needed. Writes the coverage record into "
+            "the plan and creates a path-scoped commit unless --no-commit is passed."
+        ),
+    )
+    p_ipd_coverage.add_argument(
+        "targets",
+        nargs="*",
+        default=[],
+        help="One or more orchestrator selectors (id6, setid, or path).",
+    )
+    p_ipd_coverage.add_argument(
+        "--host",
+        choices=["oc", "agy"],
+        default=None,
+        help="Model host runner to probe semantic coverage (default: resolved from launch profile, fallback 'oc').",
+    )
+    p_ipd_coverage.add_argument(
+        "--model",
+        default=None,
+        help="Model identifier override for semantic coverage probe.",
+    )
+    p_ipd_coverage.add_argument(
+        "--no-commit",
+        action="store_true",
+        help="Suppress path-scoped git commit after writing coverage record.",
+    )
+    p_ipd_coverage.add_argument(
+        "--dir", default=None, help="Repo root (default: current directory)."
+    )
+
     # agentadhere Phase 2 (IPD 8dto0g): atomic workflow primitives that validate-then-act via the
     # phase-1 engine and produce evidence at the action boundary. `aw work begin`, `aw test`,
     # `aw commit`, `aw finish`. Delegates to work_cmd (reusing worktree_lease/git_commit_helper/
@@ -15758,6 +15796,10 @@ def _dispatch(argv: Optional[Sequence[str]]) -> int:
             from agent_workflows import ipd_lifecycle
 
             return ipd_lifecycle.run_finalize(args)
+        if ipd_cmd == "coverage":
+            from agent_workflows import orchestrator_readiness
+
+            return orchestrator_readiness.run_coverage(args, term, context=context)
         # awcmdsurf Order 04: `ipd board` and bare `aw ipd` both show the IPD board.
         if ipd_cmd == "board" or ipd_cmd is None:
             return _run_plans(args, term, context=context)

@@ -2497,6 +2497,9 @@ class TheHumanFacingGateIsUNCHANGED(RollupTransitionCase):
 
         # 1. Orchestrator with receipt still faces E/V checkpoint on ordinary finalize
         orch = self.make_set("human", [("aaa111", 1, "executed", "executed")])
+        from agent_workflows import coverage_record
+
+        coverage_record.write(orch, "pass", model="fixture", tool="test")
         begin = LC.begin(
             self.root, orch, "tester/probe", timestamp="2026-09-06T00:00:00Z"
         )
@@ -3342,6 +3345,14 @@ class TheActionDecisionIsSHAREDCode(unittest.TestCase):
                         "# IPD: synthetic child\n\n"
                         "- Date: 2026-09-06\n- Kind: child\n- Id: chiq01\n- Set: qbuild\n- Order: 1\n- Status: executed\n",
                         encoding="utf-8",
+                    )
+                    from agent_workflows import coverage_record
+
+                    coverage_record.write(
+                        d_pending / "20260906-qbuild-00-orcq01-synthetic.ipd.md",
+                        "pass",
+                        model="synthetic",
+                        tool="test",
                     )
                     subprocess.run(["git", "add", "-A"], cwd=root, check=True)
                     subprocess.run(["git", "commit", "-qm", "s"], cwd=root, check=True)

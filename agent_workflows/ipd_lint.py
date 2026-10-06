@@ -22,7 +22,7 @@ from __future__ import annotations
 import argparse
 import re
 from pathlib import Path
-from typing import Dict, FrozenSet, Iterable, List, NamedTuple, Optional, Tuple
+from typing import Any, Dict, FrozenSet, Iterable, List, NamedTuple, Optional, Tuple
 
 from agent_workflows import ipd_schema as S
 from agent_workflows import lifecycle_dirs as _LD
@@ -97,6 +97,8 @@ C_SIZE_DENSITY = "IPD-Z602"
 C_SCOPE_PATHS = "IPD-M106"  # Scope-Paths declared-scope allowlist (Order oorry1)
 C_PRIORITY = "IPD-M110"  # Priority missing / unresolved / invalid at ready-to-execute gate (planprio lkexaw)
 C_WORK_KIND = "IPD-M111"  # Work-Kind missing / unresolved / invalid at ready-to-execute gate (planprio lkexaw)
+# gradcover Order 03 (qs00nc): coverage record complete and attested in ## Workflow history (spec 25kzda 2.5e)
+C_COVERAGE_RECORD = "IPD-M112"
 C_NAME = "IPD-N001"  # filename does not match the plan grammar (awcheck Order 03)
 # orchtyped `dpdyed` (spec `r07vma` R1a/R3/R7): an Order-0 orchestrator's checklist row is not a
 # well-formed TYPED CHILD-TRACKING ROW. Sited in the `IPD-S4xx` state/SHAPE family because that is
@@ -104,6 +106,8 @@ C_NAME = "IPD-N001"  # filename does not match the plan grammar (awcheck Order 0
 # IMPORTED values of every `C_*` constant rather than by grepping the source (three constants are
 # multi-line assignments a single-line grep misses: `IPD-S406`, `IPD-M107`, `IPD-M108`).
 C_ORCH_ROW = "IPD-S407"
+# gradcover Order 03 (qs00nc): orchestrator review readiness (spec 25kzda Section 2.5d)
+C_ORCH_NOT_READY = "IPD-S408"
 # IPD-C8xx is the CITATION-ANCHOR area, opened fresh by citeanchor `mzc019` rather than extending
 # IPD-I3xx (the id-family group, which concerns E-*/V-* identifiers and has nothing to do with
 # citations). Codes are stable and are NEVER recycled; IPD-D701 is RETIRED and must not be revived.
@@ -1250,6 +1254,95 @@ def check_readiness_attestation(doc: ParsedDoc) -> List[Diagnostic]:
     ]
 
 
+_COVERAGE_HIST_RE = re.compile(
+    r"^-\s+(?:\d{4}-\d{2}-\d{2})\s+coverage\s+(pass|fail)\b.*?fingerprint\s+([0-9a-fA-F]+)",
+    re.MULTILINE,
+)
+
+
+def check_coverage_record(doc: ParsedDoc, text: str) -> List[Diagnostic]:
+    """IPD-M112: coverage record must be complete and attested in workflow history."""
+    cov = doc.meta_fields.get(S.META_COVERAGE)
+    fp = doc.meta_fields.get(S.META_COVERAGE_FINGERPRINT)
+    chk = doc.meta_fields.get(S.META_COVERAGE_CHECKED)
+
+    has_cov = cov is not None
+    has_fp = fp is not None
+    has_chk = chk is not None
+
+    if not (has_cov or has_fp or has_chk):
+        return []
+
+    id6 = (doc.meta_fields.get("Id") or "").strip() or "<id6>"
+    remedy_msg = f"Fix it with `aw ipd coverage {id6}`."
+
+    if not (has_cov and has_fp and has_chk):
+        missing = []
+        if not has_cov:
+            missing.append(S.META_COVERAGE)
+        if not has_fp:
+            missing.append(S.META_COVERAGE_FINGERPRINT)
+        if not has_chk:
+            missing.append(S.META_COVERAGE_CHECKED)
+        return [
+            Diagnostic(
+                0,
+                0,
+                C_COVERAGE_RECORD,
+                f"coverage record is incomplete: missing {', '.join(missing)}. {remedy_msg}",
+            )
+        ]
+
+    cov_val = str(cov).strip().lower()
+    if cov_val not in ("pass", "fail"):
+        return [
+            Diagnostic(
+                0,
+                0,
+                C_COVERAGE_RECORD,
+                f"coverage record has invalid value '{cov}'; expected 'pass' or 'fail'. {remedy_msg}",
+            )
+        ]
+
+    if cov_val == "fail":
+        has_findings = any(h.title == S.H_COVERAGE_FINDINGS for h in doc.h2)
+        if not has_findings:
+            return [
+                Diagnostic(
+                    0,
+                    0,
+                    C_COVERAGE_RECORD,
+                    f"coverage record reports 'fail' but plan lacks a '## Coverage findings' section. {remedy_msg}",
+                )
+            ]
+
+    fp_clean = str(fp).strip()
+    prefix = fp_clean[:12] if len(fp_clean) >= 12 else fp_clean
+    history_text = "\n".join(line for _lineno, line in doc.history_lines)
+
+    matched = False
+    for m in _COVERAGE_HIST_RE.finditer(history_text):
+        hist_verdict = m.group(1).lower()
+        hist_fp = m.group(2)
+        if hist_verdict == cov_val and (
+            hist_fp.startswith(prefix) or prefix.startswith(hist_fp)
+        ):
+            matched = True
+            break
+
+    if not matched:
+        return [
+            Diagnostic(
+                0,
+                0,
+                C_COVERAGE_RECORD,
+                f"coverage record ({cov_val}) has no matching 'coverage' line in '## Workflow history' with fingerprint prefix {prefix}. {remedy_msg}",
+            )
+        ]
+
+    return []
+
+
 def check_checkpoint(
     doc: ParsedDoc, checkpoint: str, directory: Optional[str]
 ) -> List[Diagnostic]:
@@ -2040,6 +2133,7 @@ def lint_text(
     diags: List[Diagnostic] = []  # type: ignore[no-redef]  # benign re-annotation in disjoint branch
     diags += check_metadata(doc, directory)
     diags += check_readiness_attestation(doc)
+    diags += check_coverage_record(doc, text)
     diags += check_headings(doc)
     diags += check_ids_and_bijection(doc)
     diags += check_states(doc)
@@ -2108,6 +2202,9 @@ def lint_file(
     checkpoint: str = "author",
     legacy: bool = False,
     citation_anchors: bool = False,
+    suppress_s408: bool = False,
+    membership: Optional[Any] = None,
+    membership_cache: Optional[Dict[str, Any]] = None,
 ) -> LintResult:
     text = path.read_text(encoding="utf-8")
     # Parse ONCE and share the parse with the pure linter below, so the repo-aware checks that follow
@@ -2166,6 +2263,16 @@ def lint_file(
     result = _merge_review_escalation(path, result, text, checkpoint, doc)
     result = _merge_durable_carrier(path, result, text, checkpoint, doc)
     result = _merge_setid_length_advisory(path, result, doc)
+    result = _merge_orchestrator_readiness(
+        path,
+        result,
+        text,
+        checkpoint,
+        doc,
+        suppress_s408=suppress_s408,
+        membership=membership,
+        membership_cache=membership_cache,
+    )
     if citation_anchors:
         existing = {(a.line, a.col, a.code, a.message) for a in result.advisories}
         extra_adv = [
@@ -2179,6 +2286,72 @@ def lint_file(
                 list(result.diagnostics),
                 list(result.advisories) + extra_adv,
             )
+    return result
+
+
+def _merge_orchestrator_readiness(
+    path: Path,
+    result: LintResult,
+    text: str,
+    checkpoint: str,
+    doc: ParsedDoc,
+    *,
+    suppress_s408: bool = False,
+    membership: Optional[Any] = None,
+    membership_cache: Optional[Dict[str, Any]] = None,
+) -> LintResult:
+    """IPD-S408: orchestrator review readiness (spec 25kzda 2.5d)."""
+    if suppress_s408:
+        return result
+    if checkpoint not in ("review-finalize", "pre-execution", "author"):
+        return result
+    if doc.meta_fields.get("Kind") != S.KIND_ORCHESTRATOR:
+        return result
+    if _is_terminal_dir(_dir_of(path)):
+        return result
+
+    try:
+        from agent_workflows import orchestrator_readiness as _orch_readiness
+
+        repo_root = path.resolve().parent
+        for anc in path.resolve().parents:
+            if (anc / ".aw").is_dir() or (anc / ".agents").is_dir():
+                repo_root = anc
+                break
+
+        active_membership = membership
+        if active_membership is None and membership_cache is not None:
+            raw_set = (doc.meta_fields.get("Set") or "").strip()
+            setid = raw_set.split("(")[0].strip().split()[0].strip() if raw_set else ""
+            active_membership = membership_cache.get(setid)
+
+        ready_res = _orch_readiness.review_readiness(
+            repo_root, path, ask=False, membership=active_membership
+        )
+        if not ready_res.ready:
+            s408_diags = [
+                Diagnostic(
+                    0,
+                    0,
+                    C_ORCH_NOT_READY,
+                    f"{f.code} ({f.subject}): {f.detail}; remedy: {f.remedy}",
+                )
+                for f in ready_res.findings
+            ]
+            if checkpoint in ("review-finalize", "pre-execution"):
+                return LintResult(
+                    S.DISPOSITION_ERROR,
+                    list(result.diagnostics) + s408_diags,
+                    list(result.advisories),
+                )
+            elif checkpoint == "author":
+                return LintResult(
+                    result.disposition,
+                    list(result.diagnostics),
+                    list(result.advisories) + s408_diags,
+                )
+    except Exception:
+        pass
     return result
 
 
@@ -2692,12 +2865,20 @@ def run_lint(args: argparse.Namespace) -> int:
                 S.DISPOSITION_ERROR: 0,
             }
             all_diags: list[OutDiag] = []
+            membership_cache = None
+            try:
+                from agent_workflows import orchestrator_readiness as _orch_readiness
+
+                membership_cache = _orch_readiness.resolve_all_set_memberships(root)
+            except Exception:
+                pass
             for f in files:
                 res = lint_file(
                     f,
                     checkpoint=checkpoint,
                     legacy=legacy,
                     citation_anchors=citation_anchors,
+                    membership_cache=membership_cache,
                 )
                 diags, disp = _with_name_check(res, f, legacy)
                 counts[disp] = counts.get(disp, 0) + 1
@@ -2792,6 +2973,21 @@ def run_lint(args: argparse.Namespace) -> int:
 
         any_error = False
         all_diags = []
+        membership_cache = None
+        if paths:
+            try:
+                from agent_workflows import orchestrator_readiness as _orch_readiness
+
+                repo_root = paths[0].resolve().parent
+                for anc in paths[0].resolve().parents:
+                    if (anc / ".aw").is_dir() or (anc / ".agents").is_dir():
+                        repo_root = anc
+                        break
+                membership_cache = _orch_readiness.resolve_all_set_memberships(
+                    repo_root
+                )
+            except Exception:
+                pass
         for path in paths:
             if not path.is_file():
                 err_msg = f"not a file: {path}"
@@ -2810,6 +3006,7 @@ def run_lint(args: argparse.Namespace) -> int:
                 checkpoint=checkpoint,
                 legacy=legacy,
                 citation_anchors=citation_anchors,
+                membership_cache=membership_cache,
             )
             diags, disp = _with_name_check(res, path, legacy)
             if disp == S.DISPOSITION_ERROR:

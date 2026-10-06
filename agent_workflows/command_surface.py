@@ -855,6 +855,17 @@ COMMAND_INVENTORY: Tuple[CommandDeclaration, ...] = (
         ),
         exit_contract=(0, 1, 2),
     ),
+    # gradcover Order 03 (qs00nc E-03, spec 25kzda 2.5d): check orchestrator review readiness.
+    CommandDeclaration(
+        command="ipd coverage",
+        command_class="check",
+        human_recipe="check",
+        agent_record_kind="result",
+        mutation_gate="none",
+        empty_error_renderer="renderer_boundary",
+        legacy_flags=("--host", "--model", "--no-commit", "--agent", "--json"),
+        exit_contract=(0, 1, 2),
+    ),
     CommandDeclaration(
         command="ipd set",
         command_class="mutation",
