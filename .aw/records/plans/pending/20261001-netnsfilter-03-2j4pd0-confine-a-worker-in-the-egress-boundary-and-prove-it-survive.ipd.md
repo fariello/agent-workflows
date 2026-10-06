@@ -6,7 +6,7 @@
 - Scope: Wire the egress boundary into the hardened execution profile so a confined worker reaches allow-listed destinations through the broker and nothing else, create the namespace in the PARENT, drop `CAP_NET_ADMIN` before handing off, and prove non-evadability by attempting teardown from inside and verifying refusal from OUTSIDE. Hardened remains opt-in and fails closed where the capability is absent.
 - Scope-Paths: agent_workflows/host_sandbox_profile.py, agent_workflows/oc_runipd.py, agent_workflows/egress_policy.py, tests/test_host_sandbox_profile.py, tests/test_egress_confinement.py
 - Item-Dependencies: executed:rozdkp
-- Status: to-review
+- Status: draft
 - From-Backlog: sv9ce4
 - From-Spec: 25kzda
 - Work-Kind: feature
@@ -18,6 +18,7 @@
 - Id: 2j4pd0
 
 ## Workflow history
+- 2026-10-06 draft (aw set): demoted to-review -> draft: returned to authoring by gradcover 52opph: uncovered obligation: Bare pytest run green with actual summary line pasted
 
 - 2026-10-01 to-review (opencode its_direct/pt3-claude-opus-5-1m-us): authored review-ready while graduating backlog `sv9ce4`. The non-evadability requirement in E-03 is the direct result of MEASURING the naive arrangement being torn down in one command during authoring, and then measuring the corrected arrangement refusing the same attempt (research `akmzyq` Finding 6).
 - 2026-10-01 draft (opencode its_direct/pt3-claude-opus-5-1m-us): created.

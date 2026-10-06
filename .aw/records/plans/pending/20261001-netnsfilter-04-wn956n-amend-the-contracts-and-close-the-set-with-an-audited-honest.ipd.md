@@ -6,7 +6,7 @@
 - Scope: Amend spec `25kzda` 5.2, `host_sandbox_profile`'s module docstring, and the operator documentation for the hardened profile to state exactly what the Set proved and what it did not, and AUDIT the end state for overclaim by running commands rather than reading plans. Records, documentation and verification only; no product behavior changes.
 - Scope-Paths: .aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md, agent_workflows/host_sandbox_profile.py, docs/runner-profiles.md, CHANGELOG.md
 - Item-Dependencies: executed:2j4pd0
-- Status: to-review
+- Status: draft
 - From-Backlog: sv9ce4
 - From-Spec: 25kzda
 - Work-Kind: feature
@@ -18,6 +18,7 @@
 - Id: wn956n
 
 ## Workflow history
+- 2026-10-06 draft (aw set): demoted to-review -> draft: returned to authoring by gradcover 52opph: uncovered obligation: Bare pytest run green with actual summary line pasted
 
 - 2026-10-01 to-review (opencode its_direct/pt3-claude-opus-5-1m-us): authored review-ready while graduating backlog `sv9ce4`. The audit's search terms are FIXED here with their authoring-time counts measured, because the sibling Set's review found that an unnamed grep lets an executor pick the narrowest term and pass honestly.
 - 2026-10-01 draft (opencode its_direct/pt3-claude-opus-5-1m-us): created.

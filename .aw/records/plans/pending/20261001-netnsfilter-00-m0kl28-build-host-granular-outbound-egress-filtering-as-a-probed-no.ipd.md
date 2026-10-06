@@ -6,7 +6,7 @@
 - Scope: Orchestrate the Set that builds destination-granular egress filtering as a PROBED, per-host, fail-closed capability: a two-sided hermetic probe, a parent-owned policy and broker, worker confinement that survives an agent's teardown attempt, and the contract amendments plus an audited honest capability report. The Set must not produce any artifact claiming push denial beyond what it measures, and gates no action.
 - Scope-Paths: .aw/records/plans/pending/20261001-netnsfilter-00-m0kl28-build-host-granular-outbound-egress-filtering-as-a-probed-no.ipd.md
 - Item-Dependencies: none
-- Status: to-review
+- Status: draft
 - Coverage: fail
 - Coverage-Fingerprint: b0a8608603fbad6b4db5caf9160bb183b4e755a47dcd23af448358d8570df1f1
 - Coverage-Checked: 2026-10-06 by uri/its_direct/pt3-claude-opus-5.5-1m-us
@@ -21,6 +21,7 @@
 - Id: m0kl28
 
 ## Workflow history
+- 2026-10-06 draft (aw set): demoted to-review -> draft: returned to authoring by gradcover 52opph: uncovered obligation: Bare pytest run green with actual summary line pasted
 
 - 2026-10-06 coverage fail (aw oc run): fingerprint b0a8608603fb, model uri/its_direct/pt3-claude-opus-5.5-1m-us
 - 2026-10-01 to-review (opencode its_direct/pt3-claude-opus-5-1m-us): authored review-ready while graduating backlog `sv9ce4`. Authoring was preceded by MEASURING the mechanism end to end, recorded as research `akmzyq`, because the item's own premise (that user namespaces are unavailable and the direction is therefore unmeasurable) did not reproduce on the authoring host.
