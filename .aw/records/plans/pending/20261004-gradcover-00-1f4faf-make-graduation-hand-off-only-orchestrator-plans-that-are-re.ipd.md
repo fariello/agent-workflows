@@ -8,6 +8,9 @@
 - Item-Dependencies: none
 - Status: approved
 - Readiness: go-pending-approval
+- Coverage: pass
+- Coverage-Fingerprint: 1c9d11692fee4dd64b1eed26bce8004b430d5a68f0aeee742e92f26bd7da4292
+- Coverage-Checked: 2026-10-06 by uri/its_direct/pt3-claude-opus-5.5-1m-us
 - From-Spec: none
 - Work-Kind: bug
 - Priority: high
@@ -20,6 +23,7 @@
 - Approval: 2026-10-06, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-06 coverage pass (aw oc run): fingerprint 1c9d11692fee, model uri/its_direct/pt3-claude-opus-5.5-1m-us
 - 2026-10-06 approved (aw set): status set to approved
 - 2026-10-06 re-scope (opencode its_direct/pt3-claude-opus-5.5-1m-us): from the /plan-review of `wytlly` (finding PR-008): Order 12 now declares every child whose behavior its scenarios exercise (`nnsa2o`, `24qw39`, `26m1nb`, `r2wa38`, `qs00nc`, `8mabmu`), not only `sbiv1j`, `dalmk4`, `5etev3`; E-12 and the child-table row updated. Its Run C also approves its fixture orchestrator before orchestrating, since a `reviewed` orchestrator is not dispatched. The review verdict and readiness of this plan are unchanged.
 - 2026-10-06 re-scope (opencode its_direct/pt3-claude-opus-5.5-1m-us): from the /plan-review of `sbiv1j` (findings PR-001, PR-008): Order 10's `check.graduation-incomplete` is grandfathered by a new stamped cutover (88 of 189 graduated items have no active handoff, measured), and it now declares `26m1nb` and `r2wa38`; E-10 and the child-table row updated. Completion criterion 5's 'reports an already-`graduated` item whose plan has fallen back' applies to graduations after that cutover. The review verdict and readiness of this plan are unchanged.
