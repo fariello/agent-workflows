@@ -1,5 +1,5 @@
 - Id: ildjse
-- Status: graduated
+- Status: open
 - Graduated-To: runwire
 - Set: runverdict
 - Priority: medium
@@ -7,6 +7,7 @@
 - Summary: Wire the run state machine into the two host runners, which import none of run_state, verify_roles or run_recovery
 
 ## Workflow history
+- 2026-10-06 open (aw set): i18yaz returned to authoring: uncovered obligation: Bare pytest compared against a baseline measured before any edit; re-run graduation to complete the handoff
 - 2026-10-01 graduated (aw backlog): graduated: 32jpl1, eow7p4, i18yaz
 - 2026-09-22 created (aw backlog): Found while executing plan 1bfppy.
 

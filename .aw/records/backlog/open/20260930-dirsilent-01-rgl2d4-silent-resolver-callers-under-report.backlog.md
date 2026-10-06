@@ -1,5 +1,5 @@
 - Id: rgl2d4
-- Status: graduated
+- Status: open
 - Blocks-Release: next
 - Set: dirsilent
 - Priority: medium
@@ -7,6 +7,7 @@
 - Summary: The other ~35 resolve_verb_repo_root callers fall back silently for a non-surveyable --dir: specs check and backlog check report conformance having examined ZERO artifacts at a project subdirectory
 
 ## Workflow history
+- 2026-10-06 open (aw set): axozpe returned to authoring: uncovered obligation: Check by reading each converted call site for a call to the primitive; re-run graduation to complete the handoff
 - 2026-10-02 graduated (aw backlog): status -> graduated
 - 2026-09-30 created (aw backlog): Filed while authoring plan lmyeas (from backlog 5gmi12), which scoped this but deliberately converted only the two verbs that already guard.
 

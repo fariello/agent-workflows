@@ -1,5 +1,5 @@
 - Id: qbz8i1
-- Status: graduated
+- Status: open
 - Graduated-To: qbz8i1
 - Blocks-Release: next
 - Set: qbz8i1
@@ -8,6 +8,7 @@
 - Summary: aw specs new and aw releases new write an unvalidated --summary into front matter, so a newline in it injects real metadata (a smuggled - Blocks-Release: next parses as the record gate) and both checkers report clean
 
 ## Workflow history
+- 2026-10-06 open (aw set): xhr0dj returned to authoring: uncovered obligation: The Set-level gate an executor must apply after the last child; re-run graduation to complete the handoff
 - 2026-09-29 set (aw backlog): graduated by run run-20260929T021205Z-3914774: ribg85, uz05bl, xhr0dj, ynhst5
 - 2026-09-28 created (aw backlog): aw specs new and aw releases new write an unvalidated --summary into front matter, so a newline in it injects real metadata (a smuggled - Blocks-Release: next parses as the record gate) and both checkers report clean
 

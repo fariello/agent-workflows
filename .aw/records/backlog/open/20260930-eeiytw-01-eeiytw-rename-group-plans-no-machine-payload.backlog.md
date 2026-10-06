@@ -1,5 +1,5 @@
 - Id: eeiytw
-- Status: graduated
+- Status: open
 - Graduated-To: eeiytw
 - Blocks-Release: next
 - Set: eeiytw
@@ -8,6 +8,7 @@
 - Summary: aw rename plans and aw group plans emit no aw.agent/v1 payload at all under --json/--agent, and print a nested index-refresh line onto stdout
 
 ## Workflow history
+- 2026-10-06 open (aw set): z2l43n returned to authoring: uncovered obligation: Close backlog item eeiytw by making both verbs emit exactly one parseable aw.agent/v1 record; re-run graduation to complete the handoff
 - 2026-10-01 graduated (aw backlog): graduated by run run-20261001T221821Z-1985969: gzb2rq, vfqjc0, x7unul, z2l43n
 - 2026-09-30 created (aw backlog): Filed by /plan-review of plan wgp0g3 2026-09-30 to carry that plan's F-12 deferral.
 

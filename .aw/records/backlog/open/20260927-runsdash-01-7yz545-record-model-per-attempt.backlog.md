@@ -1,5 +1,5 @@
 - Id: 7yz545
-- Status: graduated
+- Status: open
 - Graduated-To: attmodel
 - Set: runsdash
 - Priority: medium
@@ -7,6 +7,7 @@
 - Summary: Record the resolved model id per attempt in run state so run analytics can compare models (about 2/3 of runs record no model today)
 
 ## Workflow history
+- 2026-10-06 open (aw set): 1u4olp returned to authoring: uncovered obligation: The Set-level obligations are: the three children's test files all present and green; re-run graduation to complete the handoff
 - 2026-09-30 set (aw backlog): graduated by run run-20260930T053024Z-3198670: 1u4olp, czut8j, ov2c9n, r5fk4k
 - 2026-09-27 created (aw backlog): Record the resolved model id per attempt in run state so run analytics can compare models (about 2/3 of runs record no model today)
 

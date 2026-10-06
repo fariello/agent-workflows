@@ -1,5 +1,5 @@
 - Id: ariaau
-- Status: graduated
+- Status: open
 - Graduated-To: malgate
 - Set: malgate
 - Priority: medium
@@ -7,6 +7,7 @@
 - Summary: Audit every gate and check for ones that exist only to stop a malicious agent (GUIDING_PRINCIPLES P15) and keep, simplify, or delete each
 
 ## Workflow history
+- 2026-10-06 open (aw set): qtz0us returned to authoring: uncovered obligation: Three checks span the children and cannot be performed by any child alone, which is why they live here.; re-run graduation to complete the handoff
 - 2026-09-30 set (aw backlog): graduated by run run-20260930T053024Z-3198670: 38pxaz, bec7ee, dmjp0u, qtz0us
 - 2026-09-26 created (aw backlog): Filed 2026-09-26 at the maintainer's request (lifegate dvonrn D5), for hand-off to another agent.
 

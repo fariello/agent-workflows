@@ -1,5 +1,5 @@
 - Id: vy20et
-- Status: graduated
+- Status: open
 - Graduated-To: reqids
 - Set: reqids
 - Priority: medium
@@ -7,6 +7,7 @@
 - Summary: Specs have no machine-readable requirement-ID convention, so SPEC-PLAN-TRACE (every spec requirement covered by a plan E item, every acceptance criterion by a V item) cannot be built: specify a convention and parser
 
 ## Workflow history
+- 2026-10-06 open (aw set): 9wzlou returned to authoring: uncovered obligation: Close backlog vy20et by shipping both halves it asks for; re-run graduation to complete the handoff
 - 2026-09-30 set (aw backlog): graduated by run run-20260930T053053Z-3200037: 9wzlou, jjh4aj, rtvdak
 - 2026-09-26 created (aw backlog): Filed during /spec-review of z7nbn1 per maintainer ruling 2026-09-26: SPEC-PLAN-TRACE deferred out of z7nbn1 until a requirement-ID convention and parser exist as their own spec.
 

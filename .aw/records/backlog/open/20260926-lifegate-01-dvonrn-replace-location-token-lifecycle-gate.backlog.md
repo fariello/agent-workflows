@@ -1,5 +1,5 @@
 - Id: dvonrn
-- Status: graduated
+- Status: open
 - Graduated-To: lifegate
 - Blocks-Release: next
 - Set: lifegate
@@ -8,6 +8,7 @@
 - Summary: replace the location-plus-token lifecycle gate with one plan-scoped 'a live runner holds this plan' check, allow begin/finalize anywhere, and nudge toward the lane
 
 ## Workflow history
+- 2026-10-06 open (aw set): u4glub returned to authoring: uncovered obligation: Four checks span the children and cannot be performed by any child alone, which is why they live here.; re-run graduation to complete the handoff
 - 2026-09-30 set (aw backlog): graduated by run run-20260930T053059Z-3200713: e25iy9, m47znv, u4glub, urv602
 - 2026-09-27 same-status (aw set): bug gates the next release (AGENTS.md: every live bug gates the next release)
 - 2026-09-27 open (aw set): Design complete: all decisions D1-D8 settled with the maintainer on 2026-09-26; ready to graduate into a plan.

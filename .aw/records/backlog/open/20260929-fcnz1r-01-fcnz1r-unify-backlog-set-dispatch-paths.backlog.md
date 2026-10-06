@@ -1,5 +1,5 @@
 - Id: fcnz1r
-- Status: graduated
+- Status: open
 - Graduated-To: setdisp
 - Set: fcnz1r
 - Priority: medium
@@ -7,6 +7,7 @@
 - Summary: Unify the two aw backlog set dispatch paths so a behavior wired into one spelling cannot be missing from the other
 
 ## Workflow history
+- 2026-10-06 open (aw set): 63zo2f returned to authoring: uncovered obligation: The bare suite pytest after the final child compared by name against baseline; re-run graduation to complete the handoff
 - 2026-10-01 graduated (aw backlog): graduated: 63zo2f, afdmn6, c6f6sj, m1jlwm, m94eht, vhiqo6
 - 2026-09-29 created (aw backlog): Unify the two aw backlog set dispatch paths so a behavior wired into one spelling cannot be missing from the other
 

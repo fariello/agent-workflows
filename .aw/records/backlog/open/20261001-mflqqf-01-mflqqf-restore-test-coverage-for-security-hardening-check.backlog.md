@@ -1,5 +1,5 @@
 - Id: mflqqf
-- Status: graduated
+- Status: open
 - Graduated-To: mflqqf
 - Set: mflqqf
 - Priority: high
@@ -7,6 +7,7 @@
 - Summary: Restore test coverage for security hardening checkers and packaging boundary
 
 ## Workflow history
+- 2026-10-06 open (aw set): u57rfv returned to authoring: uncovered obligation: This plan runs no test itself; validation is an inspection of what the children actually produced; re-run graduation to complete the handoff
 - 2026-10-02 graduated (aw backlog): graduated by run run-20261001T222151Z-2118435: d0lg63, gqyold, u57rfv
 - 2026-10-01 created (aw backlog): Restore test coverage for security hardening checkers and packaging boundary
 
