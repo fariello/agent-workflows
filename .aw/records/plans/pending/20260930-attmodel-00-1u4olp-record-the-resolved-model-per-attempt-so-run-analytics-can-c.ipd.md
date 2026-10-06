@@ -7,6 +7,9 @@
 - Scope-Paths: .aw/records/plans/pending/20260930-attmodel-00-1u4olp-record-the-resolved-model-per-attempt-so-run-analytics-can-c.ipd.md
 - Item-Dependencies: none
 - Status: to-review
+- Coverage: fail
+- Coverage-Fingerprint: 628403857f3620e3eaf30ee4e4edcf82562caeb69e904ef482b1de7550ee2992
+- Coverage-Checked: 2026-10-06 by uri/its_direct/pt3-claude-opus-5.5-1m-us
 - Work-Kind: feature
 - Priority: medium
 - From-Backlog: 7yz545
@@ -18,6 +21,7 @@
 
 ## Workflow history
 
+- 2026-10-06 coverage fail (aw oc run): fingerprint 628403857f36, model uri/its_direct/pt3-claude-opus-5.5-1m-us
 - 2026-09-30 to-review (opencode its_direct/pt3-claude-opus-5-1m-us): Graduated from backlog `7yz545` as a Set of three rather than one plan, because authoring measured that the item's one-line request decomposes into a producer, a host observation and three consumers with different risk profiles and different failure modes. TWO CORRECTIONS TO THE ITEM ARE RECORDED IN THE CHILDREN THAT OWN THEM RATHER THAN HERE. (1) The item says the OpenCode model comes "from the session's assistant message modelID"; the `--format json` stream carries NO model id (measured: a complete turn emitted `step_start`, `text`, `step_finish` and nothing naming a model), so `ov2c9n` takes a different and executed route, `opencode export`. (2) The item under-reports the defect: it frames the problem as missing coverage, and coverage is only two thirds of it, since the dashboard mis-attributes every verifier row even on a fully-attributed run, and the comparison arm is fed an empty list regardless of coverage. Both are owned by `r5fk4k`.
 - 2026-09-30 draft (opencode its_direct/pt3-claude-opus-5-1m-us): created.
 
@@ -198,6 +202,13 @@ baseline re-derived at execution rather than taken from any plan here.
 - Status: resolved
 - Owner: author
 - Resolution or deferral rationale: NO, AND THE SET WAS AUTHORED TO THAT RULE DELIBERATELY. The repository's orchestrator-coverage gate refuses to retire a parent that carries work no child covers, because retirement skips the pre-transition E/V checkpoint on the premise that a parent's own items are performed by nobody. Every E-item in this file is a CONFIRMATION that a named child reached `executed`, and every deliverable in the Concern and Goal is owned by one of the three children: the producer by `czut8j`, the observation by `ov2c9n`, all three consumers plus the doc by `r5fk4k`. The two residues in completion criterion 9 are explicitly NOT deliverables of this Set (they are named as filed-elsewhere), which is the honest treatment rather than parking them on the parent where they would be marked complete having never been performed.
+
+## Coverage findings
+
+- "The Set-level obligations are: the three children's test files all present and green; the"
+- "three shipped dashboard model tests green and UNEDITED; and a bare `python3 -m pytest` green with the"
+- "baseline re-derived at execution rather than taken from any plan here."
+- "Validation and cross-check (verify before reporting the Set complete)"
 
 ## Validation and cross-check (verify before reporting the Set complete)
 
