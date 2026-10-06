@@ -8,6 +8,9 @@
 - Item-Dependencies: none
 - Status: approved
 - Readiness: go-pending-approval
+- Coverage: fail
+- Coverage-Fingerprint: 174d25c7615db68a1d03528b95fb77f9305a2782df8b9d4e2031d9a4b6061979
+- Coverage-Checked: 2026-10-06 by uri/its_direct/pt3-claude-opus-5.5-1m-us
 - From-Spec: 25kzda
 - Work-Kind: feature
 - Priority: medium
@@ -20,6 +23,7 @@
 - Approval: 2026-10-01, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-06 coverage fail (aw oc run): fingerprint 174d25c7615d, model uri/its_direct/pt3-claude-opus-5.5-1m-us
 - 2026-10-01 approved (aw set): status set to approved
 - 2026-10-01 reviewed (opencode/its_direct/pt3-claude-opus-5-1m-us): plan-review complete; 5 findings all fixed; the human approval gate is now runner-enforced via a state:spec:approved edge written by Order 01 E-09
 
@@ -153,6 +157,13 @@ in which case that amendment belongs to the plan the spec names rather than to t
 - Status: resolved
 - Owner: none
 - Resolution or deferral rationale: this orchestrator has no open design question of its own. The Set's three real questions (the mandatory-requirement marker, adopt-or-amend `25kzda` 4.8, and whether dotted section/paragraph ids count as a requirement namespace) all belong to Order 01, which records them with measured options and recommendations and places them in the spec's own open-questions section for human ratification at spec approval. Duplicating them here would create two places for one answer.
+
+## Coverage findings
+
+- "Close backlog `vy20et` by shipping both halves it asks for"
+- "NOT THE COUNT: re-derive the co-editor population at execution with"
+- "Order 02's E-01 refusal and this plan's V-02 REMAIN as the second layer, because the edge proves the status field says `approved` while only the spec's own history proves a human"
+- "and it has reached `approved` by human attestation (`aw spec set approved <id6> --by-human`), which no agent may perform."
 
 ## Validation and cross-check (verify before reporting the Set complete)
 
