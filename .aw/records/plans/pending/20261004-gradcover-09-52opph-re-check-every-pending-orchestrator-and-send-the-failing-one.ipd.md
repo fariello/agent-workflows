@@ -38,27 +38,27 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: measure
 
-- [ ] E-01 Re-derive the population at execution time (do not trust the list in Concern): every plan under `.aw/records/plans/pending/` whose metadata `- Kind:` is `orchestrator` (read with `ipd_lint.parse`, never a whole-file substring scan). Run `python3 -m agent_workflows ipd coverage <id6> --agent` for each (it commits each recorded answer itself, one path-scoped commit per plan, `8mabmu` E-07 / `qs00nc` E-03; there is no `--commit` flag, only `--no-commit`, which must NOT be passed here) and save every record. An orchestrator whose answer is `could-not-ask` or `unknown` (the probe could not be asked, or its answer was unusable) is NOT a not-ready verdict: retry it once later in the run, and if it still has no answer, leave it and its Set exactly as they are and list it in the report as unmeasured. Likewise an orchestrator the tool skipped because its plan file had another party's uncommitted edit is unmeasured, not failed. Plans of Set `gradcover` are measured but are never demoted by E-02 or E-03 (if `1f4faf` is not ready, stop after E-01 and report its findings). Build a table: orchestrator id6, status, source backlog or spec id6 and its status, ready yes/no/unmeasured, and each finding (code, subject, quoted passage, verbatim). STOP AND REPORT, without demoting that Set, when a finding names a child that is NOT a row of the orchestrator's `## Child IPDs` table or that sits in a terminal directory: measured at review, Set `denypush` (`l4vw9o`, `approved`) holds `d5ntkj` under `not-executed/`, which is not in its table; spec `25kzda` 2.5d condition 2 judges the table's children, so such a finding would be an implementation defect in Order 03, and demoting an approved Set on it would withdraw an approval for a reason the contract does not give.
+- [x] E-01 Re-derive the population at execution time (do not trust the list in Concern): every plan under `.aw/records/plans/pending/` whose metadata `- Kind:` is `orchestrator` (read with `ipd_lint.parse`, never a whole-file substring scan). Run `python3 -m agent_workflows ipd coverage <id6> --agent` for each (it commits each recorded answer itself, one path-scoped commit per plan, `8mabmu` E-07 / `qs00nc` E-03; there is no `--commit` flag, only `--no-commit`, which must NOT be passed here) and save every record. An orchestrator whose answer is `could-not-ask` or `unknown` (the probe could not be asked, or its answer was unusable) is NOT a not-ready verdict: retry it once later in the run, and if it still has no answer, leave it and its Set exactly as they are and list it in the report as unmeasured. Likewise an orchestrator the tool skipped because its plan file had another party's uncommitted edit is unmeasured, not failed. Plans of Set `gradcover` are measured but are never demoted by E-02 or E-03 (if `1f4faf` is not ready, stop after E-01 and report its findings). Build a table: orchestrator id6, status, source backlog or spec id6 and its status, ready yes/no/unmeasured, and each finding (code, subject, quoted passage, verbatim). STOP AND REPORT, without demoting that Set, when a finding names a child that is NOT a row of the orchestrator's `## Child IPDs` table or that sits in a terminal directory: measured at review, Set `denypush` (`l4vw9o`, `approved`) holds `d5ntkj` under `not-executed/`, which is not in its table; spec `25kzda` 2.5d condition 2 judges the table's children, so such a finding would be an implementation defect in Order 03, and demoting an approved Set on it would withdraw an approval for a reason the contract does not give.
   - Depends on: none
   - Expected outcome: every measured pending orchestrator carries a committed `- Coverage:` record with its history line; every unmeasured one is named with its reason; the table is pasted into V-01.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: make the records truthful
 
-- [ ] E-02 For each NOT-ready orchestrator OUTSIDE Set `gradcover` whose status is `to-review`, `reviewed`, `approved` or `auto-approved` (an unmeasured one from E-01 is never demoted): set every child of its Set that is in `pending/` and not already `draft` to `draft`, then the orchestrator, using `aw ipd set draft <id6> --message "returned to authoring by gradcover 52opph: <one-line findings summary>" --yes --no-commit`. Never set a child in a terminal directory (`executed/`, `superseded/`, `not-executed/`); the setter's terminal-reopen guard would refuse it, and it is not part of the unfinished work. BEFORE demoting a Set, run `python3 -m agent_workflows runs --active --agent` and skip (and report) any Set one of whose plans is queued or held in a lane by an active run, because demoting a plan under a live run strands that run's lane rather than stopping it. Re-read each plan immediately before its setter call. After the Set's setter calls, commit that Set's changed plan files in one `aw commit <this plan> -- <paths>` call naming each file, then verify with `git diff --cached --name-only` per the shared-checkout rule.
+- [x] E-02 For each NOT-ready orchestrator OUTSIDE Set `gradcover` whose status is `to-review`, `reviewed`, `approved` or `auto-approved` (an unmeasured one from E-01 is never demoted): set every child of its Set that is in `pending/` and not already `draft` to `draft`, then the orchestrator, using `aw ipd set draft <id6> --message "returned to authoring by gradcover 52opph: <one-line findings summary>" --yes --no-commit`. Never set a child in a terminal directory (`executed/`, `superseded/`, `not-executed/`); the setter's terminal-reopen guard would refuse it, and it is not part of the unfinished work. BEFORE demoting a Set, run `python3 -m agent_workflows runs --active --agent` and skip (and report) any Set one of whose plans is queued or held in a lane by an active run, because demoting a plan under a live run strands that run's lane rather than stopping it. Re-read each plan immediately before its setter call. After the Set's setter calls, commit that Set's changed plan files in one `aw commit <this plan> -- <paths>` call naming each file, then verify with `git diff --cached --name-only` per the shared-checkout rule.
   - Depends on: E-01
   - Expected outcome: every such orchestrator and its pending children read `- Status: draft` with the setter's `demoted <from> -> draft` history line (and `APPROVAL WITHDRAWN` where the source was approved) and no `- Readiness:` line; no file under a terminal directory changed; every skipped Set is named with its reason.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 For each orchestrator demoted in E-02, set its source back: a `graduated` backlog item to `open` with `aw backlog set open <id6> --message "<orchestrator id6> returned to authoring: <summary>; re-run graduation to complete the handoff"`; a source spec at `implementing` to `approved` with `aw specs set <path> --status approved --message ...` (legal: `attention_contract.SPEC_TRANSITIONS['implementing']` contains `approved`, measured at review), otherwise record it for the maintainer. Measured at review, neither spec source is `implementing` (`25kzda` is `approved`; `wy9aru`, cited by `63zo2f`, is `to-review`), so no spec setter call is expected; re-derive at execution. `aw backlog set open` MOVES the item file from `backlog/graduated/` to `backlog/open/`, so the commit names both the old and the new path; pass `--message` and commit once after all items with `aw commit <this plan> -- <old and new paths>`. Leave an already-`open` item unchanged and append a note instead (`aw backlog set` with the same status and a message, which records a same-status history line).
+- [x] E-03 For each orchestrator demoted in E-02, set its source back: a `graduated` backlog item to `open` with `aw backlog set open <id6> --message "<orchestrator id6> returned to authoring: <summary>; re-run graduation to complete the handoff"`; a source spec at `implementing` to `approved` with `aw specs set <path> --status approved --message ...` (legal: `attention_contract.SPEC_TRANSITIONS['implementing']` contains `approved`, measured at review), otherwise record it for the maintainer. Measured at review, neither spec source is `implementing` (`25kzda` is `approved`; `wy9aru`, cited by `63zo2f`, is `to-review`), so no spec setter call is expected; re-derive at execution. `aw backlog set open` MOVES the item file from `backlog/graduated/` to `backlog/open/`, so the commit names both the old and the new path; pass `--message` and commit once after all items with `aw commit <this plan> -- <old and new paths>`. Leave an already-`open` item unchanged and append a note instead (`aw backlog set` with the same status and a message, which records a same-status history line).
   - Depends on: E-02
   - Expected outcome: every affected backlog item reads `- Status: open` with the history line; `aw check backlog` and `aw check release-gates` report no new finding (the `Blocks-Release` gate is unchanged).
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 Report every APPROVAL WITHDRAWN by E-02 by id6 (orchestrators and children) with its findings quoted verbatim, so the maintainer can dispute a probe verdict, so the maintainer sees each approval that was withdrawn and why, then run `python3 -m agent_workflows check plans` and confirm `check.orchestrator-not-review-ready` reports nothing.
+- [x] E-04 Report every APPROVAL WITHDRAWN by E-02 by id6 (orchestrators and children) with its findings quoted verbatim, so the maintainer can dispute a probe verdict, so the maintainer sees each approval that was withdrawn and why, then run `python3 -m agent_workflows check plans` and confirm `check.orchestrator-not-review-ready` reports nothing.
   - Depends on: E-03
   - Expected outcome: `aw check plans` lists no orchestrator under `check.orchestrator-not-review-ready` other than the unmeasured and skipped ones the report names; the report names every withdrawn approval (orchestrator AND child, by id6, with its previous status) and, for each partly executed Set, which children were already executed and which were demoted.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -123,25 +123,150 @@ No spec or document is edited. The records are brought into line with spec `25kz
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste the population command and its output, then the table (one row per orchestrator: id6, status, source and source status, ready/unmeasured, findings with quotes). Name every unmeasured orchestrator with its reason and every STOP raised for a finding outside the child table. Paste the count of `aw ipd coverage` calls that asked the model versus read a current record, and the commit that recorded the answers.
   - Observed evidence:
-  - Result: pending
+    Population command:
+    ```sh
+    python3 -c "import pathlib; from agent_workflows.ipd_lint import parse
+    pending = pathlib.Path('.aw/records/plans/pending')
+    res = [parse(p.read_text()).meta_fields.get('Id') for p in sorted(pending.glob('*.md')) if parse(p.read_text()).meta_fields.get('Kind') == 'orchestrator']
+    print(f'Total pending orchestrators: {len(res)}')
+    print(res)"
+    ```
+    Output:
+    ```
+    Total pending orchestrators: 17
+    ['95jk4s', 'l4vw9o', 'xhr0dj', '1u4olp', 'u4glub', 'qtz0us', '9wzlou', 'i18yaz', 'itamry', 'z2l43n', 'l8wvv3', 'm0kl28', '63zo2f', 'axozpe', '4qv834', 'u57rfv', '1f4faf']
+    ```
 
-- [ ] V-02 validates E-02
+    Population and findings table:
+    | Orchestrator | Status | Source | Source Status | Ready? | Findings (Code, Subject, Detail) |
+    |---|---|---|---|---|---|
+    | `1f4faf` | approved | none | n/a | yes | none (clean) |
+    | `95jk4s` | approved | backlog:gyv9tf | graduated | yes | none (clean) |
+    | `l4vw9o` | approved | backlog:oq05nc | graduated | no | `coverage-fail`, l4vw9o, uncovered obligation: - THE CARRIER OUTLIVES THE SET. Backlog `sv9ce4` is filed before any child runs, so the unbuilt half |
+    | `xhr0dj` | to-review | backlog:qbz8i1 | graduated | no | `coverage-fail`, xhr0dj, uncovered obligation: The Set-level gate an executor must apply after the last child, because no single child can assert it: `aw specs check --agent`, `aw check specs --agent`, `aw check releases --agent` and `aw check all` must ALL report clean or conforms on the repository tree, and `python3 -m pytest` (bare) must be green. |
+    | `1u4olp` | to-review | backlog:7yz545 | graduated | no | `coverage-fail`, 1u4olp, uncovered obligation: The Set-level obligations are: the three children's test files all present and green; the three shipped dashboard model tests green and UNEDITED; and a bare `python3 -m pytest` green with the baseline re-derived at execution rather than taken from any plan here. Validation and cross-check (verify before reporting the Set complete) |
+    | `u4glub` | to-review | backlog:dvonrn | graduated | no | `coverage-fail`, u4glub, uncovered obligation: Four checks span the children and cannot be performed by any child alone, which is why they live here.; - THE REFUSAL SURFACE SHRANK AND DID NOT MOVE.; - THE ENVIRONMENT FENCE HELD ACROSS THE SET.; - THE TWO QUESTIONS STAYED DISTINCT.; - EXACTLY ONE CHILD AMENDED A SPEC.; - THE SET-LEVEL CROSS-CHECKS a reviewer should apply, since no child can apply them alone, are the four in Cross-IPD validation above.; 2. THE TWO MEASURED DEFECTS ARE CLOSED AND PINNED AS TEST CASES, not asserted in prose.; 3. NOTHING KEYS ON LOCATION ANY MORE.; 4. NO SECRET REMAINS.; 6. THE WORKER-LABEL CHECK STILL WORKS AND STILL RUNS FIRST |
+    | `qtz0us` | to-review | backlog:ariaau | graduated | no | `coverage-fail`, qtz0us, uncovered obligation: Three checks span the children and cannot be performed by any child alone, which is why they live here.; THE AUDIT-TO-ACTION RECONCILIATION; THE DISCLAIMER FENCE HELD ACROSS BOTH REMEDIATION CHILDREN; THE SPEC SURFACE IS RECONCILED SET-WIDE; THE SET-LEVEL CROSS-CHECK a reviewer should apply; 3. EVERY SIMPLIFY OR DELETE ROW IN THAT RECORD HAS AN ACTOR; 5. NOTHING P15 REQUIRES KEPT WAS REMOVED |
+    | `9wzlou` | approved | backlog:vy20et, spec:25kzda | graduated, approved | no | `coverage-fail`, 9wzlou, uncovered obligation: Close backlog `vy20et` by shipping both halves it asks for; NOT THE COUNT: re-derive the co-editor population at execution with; Order 02's E-01 refusal and this plan's V-02 REMAIN as the second layer, because the edge proves the status field says `approved` while only the spec's own history proves a human; and it has reached `approved` by human attestation (`aw spec set approved <id6> --by-human`), which no agent may perform. |
+    | `i18yaz` | to-review | backlog:ildjse | graduated | no | `coverage-fail`, i18yaz, uncovered obligation: - `python3 -m pytest` run BARE; - The four cross-IPD checks above; - NO SECOND STATE MACHINE; - NO PRIVATE HOST COPY; - VOCABULARY UNCHANGED; - THE LEDGER FENCE HELD; - The full suite passes with actual pasted output; - `run_recovery` remains unimported by both drivers |
+    | `itamry` | to-review | backlog:0livgf | open | yes | none (clean) |
+    | `z2l43n` | to-review | backlog:eeiytw | graduated | no | `coverage-fail`, z2l43n, uncovered obligation: Close backlog item `eeiytw` by making both verbs emit exactly one parseable `aw.agent/v1` record; The Set-wide end-to-end check; Bare `python3 -m pytest` green; `aw check all` clean; Confirm `aw rename research --json` and `aw research mv --json` each emit exactly ONE record; Confirm the three are consistent in sequence; Confirm no loose assertion survives beside the strict one; Confirm no `.spec.md` file is in any child's Scope-Paths; Confirm no manifest path ever enters a commit; Confirm no child silently overwrote the other party's change; `json.loads(stdout)` SUCCEEDS; `aw rename all` / `aw group all` emit exactly ONE record; No emitted record contains an absolute filesystem path; `aw index plans` and `aw research index` run directly still print their own outcome lines; A commit made by `aw rename plans --apply --commit` contains no manifest path. |
+    | `l8wvv3` | to-review | backlog:h0tiaw | open | no | `coverage-fail`, l8wvv3, uncovered obligation: - NO ORPHANED GOLDEN AND NO ORPHANED SYMBOL; - THE BARE SUITE DELTA IS EMPTY ACROSS THE SET; - THE TWO NEW MODULES DO NOT RE-ASSERT WHAT ALREADY PASSES ELSEWHERE; - `aw ipd lint --phase pre-transition` conforming |
+    | `m0kl28` | to-review | backlog:sv9ce4, spec:25kzda | graduated, approved | no | `coverage-fail`, m0kl28, uncovered obligation: - `python3 -m pytest` run BARE, green; - `aw ipd lint` reports conforming over all five plans in Set `netnsfilter`; - `aw check` reports no NEW finding; - `aw sanitize --agent` exits zero; - `aw host capabilities opencode` run and its ACTUAL output pasted |
+    | `63zo2f` | to-review | backlog:fcnz1r, spec:wy9aru | graduated, to-review | no | `coverage-fail`, 63zo2f, uncovered obligation: - The bare suite `python3 -m pytest` after the final child compared BY NAME against baseline; - `AW_NO_REEXEC=1 aw check release-gates`; - For each child, every `V-*` carries pasted evidence; - The cross-IPD checks in "Cross-IPD validation"; - NO AXIS IS FIXED TWICE, AND NO AXIS IS FIXED BY NOBODY; - NO CARRIER IS CLOSED ON A PARTIAL FIX; - THE THREE RETROSPECTIVE PARITY FILES PASS AFTER EVERY CHILD; - NO CHILD READS PRODUCTION SOURCE TO PROVE UNIFICATION; - `tests/test_set_dispatch_parity.py` passes identically under local timezone and TZ=UTC; - The bare suite's failure SET is unchanged except for tests explicitly named in advance; - Every axis spec `wy9aru` Section 7 assigns elsewhere remains OPEN |
+    | `axozpe` | to-review | backlog:rgl2d4 | graduated | no | `coverage-fail`, axozpe, uncovered obligation: Check by reading each converted call site for a call to the primitive; Order 03 routes six sites INTO the resolver; 4. THE REFUSAL HAS EXACTLY ONE DEFINITION IN THE PACKAGE; 7. THE BARE SUITE SHOWS NO NEW FAILING NODE ID |
+    | `4qv834` | to-review | backlog:s8veyk | graduated | no | `coverage-fail`, 4qv834, uncovered obligation: - THE TWO CHILDREN SHARE TWO FILES AND MUST NOT HAVE FOUGHT OVER THEM; - THE SECOND CHILD DID NOT REINTRODUCE WHAT THE FIRST REMOVED; - THE SHIPPED CAPABILITY TESTS PASS AS A WHOLE; - THE ADJACENT PRE-EXISTING FAILURE IS EXPLAINED ONCE, FOR THE SET; Scope of this plan's own validation; 7. NO FENCE WAS CROSSED |
+    | `u57rfv` | to-review | backlog:mflqqf | graduated | no | `coverage-fail`, u57rfv, uncovered obligation: This plan runs no test itself. Its validation is an inspection of what the children actually produced; A child that reports green by excluding a node has not satisfied its own contract; Verify this against the files on disk; Confirm no child acquired one; CONFIRM THE ITEM IS NOT CLOSED BY EITHER CHILD ALONE; If one child is revised to claim a green baseline; Child 01 does amend a DOCUMENT and declares it; Both children require every filesystem input and every built distribution to live under tmp_path or tempfile, and git status --short empty |
+
+    Unmeasured orchestrators: 0 (none; all 17 were measured).
+    STOP conditions raised: 0 (no finding named a child outside the child table or in a terminal directory).
+    Model probe calls: 17 asked the model, 0 read existing record.
+    Commits recording answers: 17 commits (`3e30d85b0` through `3b07e4094`).
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: paste the `runs --active` output, each `aw ipd set draft` command and its output (including the `DEMOTED` / `APPROVAL WITHDRAWN` warning), and each `aw commit` result. Paste `grep -n '^- Status:\|^- Readiness:'` for every demoted plan showing `draft` and no Readiness, and the new history line on each. Paste `git diff --name-only <pre-E-02 HEAD>..HEAD` showing no file under `executed/`, `superseded/` or `not-executed/` changed.
   - Observed evidence:
-  - Result: pending
+    `python3 -m agent_workflows runs --active --agent` output before E-02:
+    ```json
+    {"runs": []}
+    ```
 
-- [ ] V-03 validates E-03
+    14 Sets demoted and committed:
+    - Set `denypush`: `pi3bk8` (approved -> draft), `wzhe4n` (approved -> draft), `l4vw9o` (approved -> draft). Committed: `2d503cdbe`
+    - Set `reqids`: `rtvdak` (approved -> draft), `9wzlou` (approved -> draft). Committed: `fd43487f7`, `02dff664f`
+    - Set `qbz8i1`: `xhr0dj` (to-review -> draft). Committed: `3953b01f5`
+    - Set `attmodel`: `1u4olp` (to-review -> draft). Committed: `845129195`
+    - Set `lifegate`: `urv602` (approved -> draft), `e25iy9` (approved -> draft), `m47znv` (approved -> draft), `u4glub` (to-review -> draft). Committed: `66158bd3d`
+    - Set `malgate`: `qtz0us` (to-review -> draft). Committed: `941e9adaf`
+    - Set `runwire`: `eow7p4` (to-review -> draft), `i18yaz` (to-review -> draft). Committed: `6b853dd4c`
+    - Set `eeiytw`: `x7unul` (to-review -> draft), `vfqjc0` (to-review -> draft), `gzb2rq` (to-review -> draft), `z2l43n` (to-review -> draft). Committed: `fe834da3e`
+    - Set `h0tiaw`: `dq9bj9` (to-review -> draft), `9i2hge` (to-review -> draft), `l8wvv3` (to-review -> draft). Committed: `98fbbe47e`
+    - Set `netnsfilter`: `nxh5s4` (approved -> draft), `rozdkp` (to-review -> draft), `2j4pd0` (to-review -> draft), `wn956n` (to-review -> draft), `m0kl28` (to-review -> draft). Committed: `c11ad5242`
+    - Set `setdisp`: `afdmn6` (to-review -> draft), `m1jlwm` (to-review -> draft), `m94eht` (to-review -> draft), `vhiqo6` (to-review -> draft), `63zo2f` (to-review -> draft). Committed: `65924fe5b`
+    - Set `dirsilent`: `i6mby8` (to-review -> draft), `jei45f` (to-review -> draft), `sjsb04` (to-review -> draft), `rlhmt9` (to-review -> draft), `axozpe` (to-review -> draft). Committed: `544d78a0e`
+    - Set `hostcapgate`: `y9m1ya` (to-review -> draft), `4qv834` (to-review -> draft). Committed: `f7497bbdf`
+    - Set `mflqqf`: `u57rfv` (to-review -> draft). Committed: `f8c982d45`
+
+    Status and Readiness verification across all 39 demoted plans:
+    Every one of the 39 plans reads `- Status: draft` and carries no `- Readiness:` line. Each carries the setter's history line `demoted <from> -> draft` (with `APPROVAL WITHDRAWN` for the 9 previously approved plans).
+    `git diff --name-only 3b07e4094..02bfc7618` confirms all changed files are under `.aw/records/plans/pending/` and `.aw/records/backlog/`; zero files under `executed/`, `superseded/`, or `not-executed/` were modified.
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: paste each `aw backlog set open` (and any spec setter) command and output; `grep -n '^- Status:\|^- Blocks-Release:'` for each reopened item showing `open` and its gate unchanged; `aw check backlog` and `aw check release-gates` before and after with no new finding.
   - Observed evidence:
-  - Result: pending
+    Backlog setters:
+    13 items moved from `graduated` to `open`: `oq05nc`, `vy20et`, `qbz8i1`, `7yz545`, `dvonrn`, `ariaau`, `ildjse`, `eeiytw`, `sv9ce4`, `fcnz1r`, `rgl2d4`, `s8veyk`, `mflqqf`.
+    1 item appended same-status note: `h0tiaw` (`open -> open`).
+    Spec setters: 0 (neither `25kzda` nor `wy9aru` is `implementing`).
+    Committed in `02bfc76189ba08160a9b8993c993544d0005787c` naming 27 paths (13 deleted old paths in `graduated/`, 13 new paths in `open/`, 1 modified path in `open/`).
 
-- [ ] V-04 validates E-04
+    `grep -n '^- Status:\|^- Blocks-Release:'` results:
+    - `20260921-oq05nc-01-oq05nc`: `- Status: open`
+    - `20260926-reqids-01-vy20et`: `- Status: open`
+    - `20260928-qbz8i1-01-qbz8i1`: `- Status: open`, `- Blocks-Release: next`
+    - `20260927-runsdash-01-7yz545`: `- Status: open`
+    - `20260926-lifegate-01-dvonrn`: `- Status: open`, `- Blocks-Release: next`
+    - `20260926-malgate-01-ariaau`: `- Status: open`
+    - `20260922-runverdict-01-ildjse`: `- Status: open`
+    - `20260930-eeiytw-01-eeiytw`: `- Status: open`, `- Blocks-Release: next`
+    - `20261001-h0tiaw-01-2wowfy`: `- Status: open`
+    - `20260929-denypush-01-sv9ce4`: `- Status: open`
+    - `20260929-fcnz1r-01-fcnz1r`: `- Status: open`
+    - `20260930-dirsilent-01-rgl2d4`: `- Status: open`, `- Blocks-Release: next`
+    - `20260930-runwire-01-s8veyk`: `- Status: open`
+    - `20261001-mflqqf-01-mflqqf`: `- Status: open`
+
+    `python3 -m agent_workflows check backlog`: 6 findings before and after (zero new findings).
+    `python3 -m agent_workflows check release-gates`: conforms before and after (0 errors, 0 warnings, 0 info).
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: paste `python3 -m agent_workflows check plans` after, showing no `check.orchestrator-not-review-ready` finding; paste the list of withdrawn approvals (id6, previous status, findings) and each one's `APPROVAL WITHDRAWN` history line. Paste `aw attention --format json` before and after for the moved items. Paste `aw ipd lint` on this plan conforming, `aw sanitize --agent`, and `git diff --cached --name-only` immediately before committing.
   - Observed evidence:
-  - Result: pending
+    `python3 -m agent_workflows check plans` after:
+    `grep "check.orchestrator-not-review-ready"` returned exit code 1 (no match; zero findings).
+
+    Withdrawn approvals list (9 total):
+    - Orchestrators (2):
+      - `l4vw9o` (approved -> draft): `uncovered obligation: - THE CARRIER OUTLIVES THE SET. Backlog sv9ce4 is filed before any child runs, so the unbuilt half`
+        History: `- 2026-10-06 draft (aw set): demoted approved -> draft: APPROVAL WITHDRAWN: returned to authoring by gradcover 52opph: uncovered obligation: - THE CARRIER OUTLIVES THE SET. Backlog sv9ce4 is filed before any child runs, so the unbuilt half`
+      - `9wzlou` (approved -> draft): `uncovered obligation: Close backlog vy20et by shipping both halves it asks for`
+        History: `- 2026-10-06 draft (aw set): demoted approved -> draft: APPROVAL WITHDRAWN: returned to authoring by gradcover 52opph: uncovered obligation: Close backlog vy20et by shipping both halves it asks for`
+    - Children (7):
+      - `pi3bk8` (approved -> draft, Set `denypush`)
+      - `wzhe4n` (approved -> draft, Set `denypush`)
+      - `rtvdak` (approved -> draft, Set `reqids`)
+      - `urv602` (approved -> draft, Set `lifegate`)
+      - `e25iy9` (approved -> draft, Set `lifegate`)
+      - `m47znv` (approved -> draft, Set `lifegate`)
+      - `nxh5s4` (approved -> draft, Set `netnsfilter`)
+
+    Partly executed Sets split:
+    - `denypush`: `x2dwu5` executed; `d5ntkj` not-executed; `pi3bk8`, `wzhe4n`, `l4vw9o` demoted.
+    - `reqids`: `jjh4aj` executed; `rtvdak`, `9wzlou` demoted.
+    - `qbz8i1`: `uz05bl`, `ribg85`, `ynhst5` executed; `xhr0dj` demoted.
+    - `attmodel`: `czut8j`, `ov2c9n`, `r5fk4k` executed; `1u4olp` demoted.
+    - `malgate`: `bec7ee`, `38pxaz`, `dmjp0u` executed; `qtz0us` demoted.
+    - `runwire`: `32jpl1` executed; `eow7p4`, `i18yaz` demoted.
+    - `setdisp`: `c6f6sj` executed; `afdmn6`, `m1jlwm`, `m94eht`, `vhiqo6`, `63zo2f` demoted.
+    - `hostcapgate`: `bqtgmo` executed; `y9m1ya`, `4qv834` demoted.
+    - `mflqqf`: `gqyold`, `d0lg63` executed; `u57rfv` demoted.
+    - `eeiytw`, `h0tiaw`, `dirsilent`: 0 executed; all plans demoted.
+
+    `aw attention --format json`:
+    - 13 backlog items (`oq05nc`, `vy20et`, `qbz8i1`, `7yz545`, `dvonrn`, `ariaau`, `ildjse`, `eeiytw`, `sv9ce4`, `fcnz1r`, `rgl2d4`, `s8veyk`, `mflqqf`): `active (graduated) -> ready (open)`
+    - `h0tiaw`: `ready (open) -> ready (open)`
+    - 14 orchestrators: `ready (approved/to-review) -> ready (draft)`
+
+    `aw ipd lint` on `52opph`: conforming.
+    `aw sanitize --agent`: clean.
+    `git diff --cached --name-only`: verified empty before staging, and only `52opph` plan path staged for commit.
+  - Result: pass
 
 ## Approval and execution gate
 
