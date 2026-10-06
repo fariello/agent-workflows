@@ -2,10 +2,10 @@
 
 - Subject-Id: r2wa38
 - Subject-Type: ipd
-- Reviewed-At: 2026-10-04
+- Reviewed-At: 2026-10-06
 - Reviewer: opencode/its_direct/pt3-claude-opus-5.5-1m-us
 - Verdict: APPROVE WITH REVISIONS APPLIED
-- Findings: PR-001 (HIGH, fixed), PR-002 (MEDIUM, fixed), PR-003 (MEDIUM, fixed), PR-004 (MEDIUM, fixed), PR-005 (LOW, fixed)
+- Findings: round 2: PR-006 (MEDIUM, fixed), PR-007 (MEDIUM, fixed), PR-008 (MEDIUM, fixed), PR-009 (LOW, fixed)
 
 ## Round 1
 
@@ -39,3 +39,34 @@ of `runner_shared.execute_item_core` (verifier call order, `host_name = "agy" if
 |----|----------|--------|-------------------------|-------|------------|
 | D-1 | Avoid the double report of `IPD-S408` how? | Set verifier first, filter `IPD-S408` from the per-plan output | exempt orchestrators from the per-plan lint (loses its other checks); accept two findings | `_check_ipd_conformance` copies every diagnostic | yes |
 | D-2 | Integration probe seam? | Patch `runner_shared.ask_orchestrator_probe` | thread an `asker` through `execute_item_core` (new production parameter used only by tests) | `probe_orchestrator` default seam | yes |
+
+## Round 2
+
+Re-review after the 2026-10-04 maintainer ruling moved the coverage answer into the plan (`25kzda` 2.5e). Lane
+`review-sweep-run-20261006T040814Z-944` at HEAD `a95a8deaf`; plan committed and byte-identical to the sealed lane input
+(no snapshot). `- Kind: child`, `IPD-S407` n/a. `aw ipd lint --phase author` clean before, `review-finalize` clean after.
+Orders 00 to 03 are `reviewed`, none executed. Re-measured in `runner_shared.execute_item_core`: both production branches
+call `commit_backlog_production_output` / `commit_spec_production_output` BEFORE the verifier block; backlog verifiers
+`backlog_graduate_count`, `backlog_graduate_ipd`, `backlog_gate_handoff`, then `if findings:` (fail-gate, `record_refusal`,
+`record_lane_preserved`), else the `open` precondition, `aw backlog set ... graduated`, `commit_backlog_transition_output`,
+then `backlog_graduate_legitimacy` (clause 3: production commit must be an ancestor of the item's latest commit). Spec
+branch mirrors it. `production_checks._check_ipd_conformance` copies every `review-finalize` lint diagnostic.
+`frozen_retry_budget` calls `state.get`. Every integration test in `tests/test_backlog_production.py` runs
+`--no-isolate-worktree` in a `git init` repo; neither existing production test file produces a `Kind: orchestrator` plan.
+The bare suite (run for `26m1nb`) fails only `tests/test_readiness_absence_invariant.py`, which flags this plan for carrying
+`- Readiness:` at `to-review`; the `reviewed` transition below clears it.
+
+### Findings
+
+| ID | Severity | Scope | Area | Evidence | Finding | Remediation Risk | Decision | Resolution |
+|----|----------|-------|------|----------|---------|------------------|----------|------------|
+| PR-006 | MEDIUM | IN-SCOPE | A data integrity | `runner_shared.execute_item_core` backlog branch: `commit_backlog_production_output(` precedes `_pc.backlog_graduate_count(`; `8mabmu` E-07 commit-at-write; `production_checks.backlog_graduate_legitimacy` clause 3 | E-02 left "confirm the production commit runs after the Set verifier, or re-commit" to the executor; the code shows it runs before, and Order 02 already commits the record. | C:Low; U:Low; S:Low; F:Low; Overall:Low | FIXED | E-02 states the ordering, why legitimacy still holds, forbids a second commit path, adds a stop condition; V-02 demands the check. |
+| PR-007 | MEDIUM | IN-SCOPE | A correctness | `runner_shared.frozen_retry_budget` `raw = (state.get("options") or {})...` | E-01's signature defaulted `state=None` while also passing `frozen_retry_budget(state)`, which raises on `None`. | C:Low; U:Low; S:Low; F:Low; Overall:Low | FIXED | `state` is required, with the reason. |
+| PR-008 | MEDIUM | IN-SCOPE | E reachability | `tests/test_backlog_production.py` `--no-isolate-worktree` in every integration case | E-04 demanded the record "committed on the integrated branch", which these fixtures never create. | C:Low; U:Low; S:Low; F:Low; Overall:Low | FIXED | Rewritten to `git status` clean and `git log` showing production then coverage commit; V-04 updated. |
+| PR-009 | LOW | IN-SCOPE | G executability | E-04 names two mutations; Expected outcome and Required tests said "the mutation" | Count drift; `tests/test_orchestrator_readiness.py` (Order 03's tests) not in the targeted run. | C:Low; U:Low; S:Low; F:Low; Overall:Low | FIXED | Reconciled; file added. |
+
+### Decisions
+
+| ID | Question | Chosen | Alternatives considered | Basis | Reversible |
+|----|----------|--------|-------------------------|-------|------------|
+| D-1 | Who commits the coverage record written during production? | `probe_orchestrator` (Order 02), after the production commit | re-commit in the branch (second commit path); fold into the transition commit (mis-attributes) | `8mabmu` E-07; production commit ordering measured | yes |
