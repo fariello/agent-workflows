@@ -6,7 +6,7 @@
 - Scope: Orchestrate three children that together apply P15 to the shipped gates: `bec7ee` writes the durable audit record enumerating every mechanism with its keep / simplify / delete decision and evidence, `38pxaz` deletes the five unowned raising predicates in `wtiso_gate` plus the dangling test citations that claim they are pinned and amends spec `7ckptx` accordingly, and `dmjp0u` reframes the comment sites whose stated justification for a mechanism is a hostile agent. This plan holds ORCHESTRATION ONLY: every deliverable belongs to a child, and this file contributes no code, no test, no record and no spec edit of its own. EXCLUDES, in every child without exception: the driver attestation token and the `lane_worktree_active` location guess (designed in backlog `dvonrn`), re-deciding the four items backlog `ariaau` marks ALREADY DECIDED, rewording any honest-limit disclaimer that names a hostile agent in order to deny protecting against one, and restoring any test file deleted by the 2026-09-24 suite trim.
 - Scope-Paths: .aw/records/plans/pending/20260930-malgate-00-qtz0us-apply-p15-to-the-existing-gates-audit-every-anti-malice-chec.ipd.md
 - Item-Dependencies: none
-- Status: to-review
+- Status: draft
 - Coverage: fail
 - Coverage-Fingerprint: bc636fe12725a3d4c73ed5e66391ca47fb8baa65bdda248b26e3c4b71ff29d75
 - Coverage-Checked: 2026-10-06 by uri/its_direct/pt3-claude-opus-5.5-1m-us
@@ -20,6 +20,7 @@
 - Id: qtz0us
 
 ## Workflow history
+- 2026-10-06 draft (aw set): demoted to-review -> draft: returned to authoring by gradcover 52opph: uncovered obligation: Three checks span the children and cannot be performed by any child alone, which is why they live here.
 
 - 2026-10-06 coverage fail (aw oc run): fingerprint bc636fe12725, model uri/its_direct/pt3-claude-opus-5.5-1m-us
 - 2026-09-30 to-review (opencode its_direct/pt3-claude-opus-5-1m-us): Graduated backlog `ariaau` as a Set of three children rather than one plan, because authoring measured three separable pieces of work with different risk profiles and different validation shapes. TWO MEASUREMENTS CHANGED THE SET'S SHAPE FROM THE ITEM'S DESCRIPTION. FIRST, the item states the `wtiso_gate.py` predicates are "Pinned by tests/test_containment_predicates.py", which implied a plan shape of 'retire the pin, then delete'; that file does not exist, having been deleted in commit `19313eed` (the 2026-09-24 suite trim), so nothing pins them, the module cites two deleted files as live enforcement at three sites, and Order 02's deletion is both smaller and safer than the item implies while gaining a citation strike the item does not mention. SECOND, the item's instruction to find comments "citing a 'determined same-user agent' or 'malicious' agent as the justification for a check" reads as a vocabulary sweep, and measurement inverted it: the large majority of hits are honest-limit DISCLAIMERS that name the hostile agent precisely in order to deny protecting against one, and those are the model P15 itself cites, so Order 03 is narrow and its primary obligation is a classification rather than a replacement. A third measurement widened Order 02: all NINE `wtiso_gate` predicates have zero product callers, not only the five raising stubs, so the honest subject is the module's whole disposition.
