@@ -2,10 +2,10 @@
 
 - Subject-Id: qs00nc
 - Subject-Type: ipd
-- Reviewed-At: 2026-10-04
+- Reviewed-At: 2026-10-06
 - Reviewer: opencode/its_direct/pt3-claude-opus-5.5-1m-us
-- Verdict: REVIEWED - OPEN QUESTIONS
-- Findings: PR-001 (HIGH, fixed), PR-002 (HIGH, fixed), PR-003 (MEDIUM, fixed), PR-004 (HIGH, fixed), PR-005 (MEDIUM, fixed), PR-006 (MEDIUM, fixed), PR-007 (LOW, fixed)
+- Verdict: APPROVE WITH REVISIONS APPLIED
+- Findings: PR-001 (HIGH, fixed), PR-002 (HIGH, fixed), PR-003 (MEDIUM, fixed), PR-004 (HIGH, fixed), PR-005 (MEDIUM, fixed), PR-006 (MEDIUM, fixed), PR-007 (LOW, fixed), PR-008 (HIGH, fixed), PR-009 (MEDIUM, fixed), PR-010 (LOW, fixed), PR-011 (LOW, fixed), PR-012 (LOW, fixed)
 
 ## Round 1
 
@@ -46,3 +46,43 @@ lints `legacy/not evaluated`; `read_set_membership` 0.30 to 0.48 s warm per Set 
 | D-2 | Where does `ipd coverage` get its model/host? | `runner_profiles.resolve` composed into `state["options"]`, plus `--host`/`--model` | a new probe-only resolver (second path) | `probe_argv` reads `state["options"]`; plan text already named `runner_profiles.resolve` | yes |
 | D-3 | Bound the sweep cost how? | One plans-tree read per invocation, 1 s warm budget, measured | cache across invocations (stale risk); accept per-orchestrator reads | measured 0.3 to 0.48 s per Set x 17; AGENTS.md perceptibility rule | yes |
 | D-4 | Command class for `ipd coverage`? | `check`, `result`, exit `(0,1,2)` | `mutation` (it writes only the gitignored verdict store, like `ipd begin`'s local receipt) | `command_surface` `ipd begin` declaration comment | yes |
+
+## Round 2
+
+Re-review in isolated lane `review-sweep-run-20261006T040814Z-944` at HEAD `c950886a8`, after the
+2026-10-04 maintainer ruling (coverage answer stored in the plan) and the round-2 revision of Order 02
+(`8mabmu`, now committing the record at write). The plan was byte-identical to the sealed lane input
+(rev-4); no snapshot needed. `Kind: child`. Both lint phases `clean` before and after, each with one
+pre-existing `IPD-Z602` (info) on E-03. OQ-03 is `Blocking: no`, `resolved`, `Owner: maintainer`,
+confirming round 1's PR-001 as fixed.
+
+MEASURED: a temporary pytest plugin (written under the gitignored `.aw/state/`, removed afterwards)
+wrapped `ipd_lint.lint_file` across the bare `python3 -m pytest` run (5082 passed, 1 failed, unrelated:
+`test_readiness_absence_invariant` flags four `to-review` gradcover plans carrying `Readiness:` in this
+lane, a live-corpus artifact of the in-flight Set) and recorded every test in which an
+`orchestrator` plan PASSED lint at `review-finalize` or `pre-execution`. Four tests, all at
+`pre-execution`: `tests/test_orchestrator_retirement.py` (2), `tests/test_orchestrator_shape_gate.py`
+(1), `tests/test_action_table_runner_parity.py` (1). Each depends on that pass today and none of their
+fixtures carries a coverage record. Symbols confirmed: `read_set_membership`,
+`find_unauthored_child_rows`, `SetMember`, `resolve_retry_budget` in `runner_shared`;
+`orchestrator_row_conformance`, `check_readiness_attestation`, `C_ORCH_ROW` in `ipd_lint`;
+`is_in_terminal_directory` in `run_selection_policy`; `CommandDeclaration` fields in `command_surface`;
+the conformance sweep's universe is `check`/`read`/`bare` + `result` leaves run with no extra argv
+(`tests/test_agent_surface_conformance.py` `compute_conformance_universe`).
+
+### Findings
+
+| ID | Severity | Scope | Area | Evidence | Finding | Remediation Risk | Decision | Resolution |
+|----|----------|-------|------|----------|---------|------------------|----------|------------|
+| PR-008 | HIGH | UNDER-SCOPE | D (anti-regression) | lint-spy measurement above; `runner_shared.enforce_freeze_time_refusal` (`pre-execution` for `approved`); `ipd_lifecycle.begin_plan` pre-execution gate; qs00nc E-04 (absent record is an error at `pre-execution`); qs00nc Scope-Paths (six paths, no existing test file) | After E-04, every synthetic `approved` orchestrator without a coverage record is refused at freeze time and at `aw ipd begin`, so four existing runner tests turn red, in files the plan did not declare. The plan's bare-suite reconciliation would surface it only at execution, with no step to fix it. | C:Low; U:Low; S:Low; F:Medium; Overall:Medium | FIXED | New E-08/V-08: re-derive the list, add a tool-written `coverage_record.write` pass to each failing fixture, change no assertion. Three files added to Scope-Paths; E-05 now depends on E-08. |
+| PR-009 | MEDIUM | IN-SCOPE | C (one mechanism) | qs00nc E-03 "`--commit` flag ... without it the edited plans are left for the operator"; `8mabmu` E-07 (round 2) "`coverage_record.write` takes `commit=True` from `probe_orchestrator` and makes one path-scoped commit" | Two contradictory commit behaviors for the same write: Order 02 commits at write, Order 03 left it uncommitted by default. | C:Low; U:Low; S:Low; F:Low; Overall:Low | FIXED | E-03 defers to Order 02's commit-at-write and adds `--no-commit` (mirroring `aw ipd set`), reporting written/committed per plan. |
+| PR-010 | LOW | IN-SCOPE | E (evidence feasibility) | qs00nc Required tests and V-03 "restore `axozpe` with `git checkout -- <path>`" | Under commit-at-write the record is committed, so `git checkout` restores nothing. | all Low | FIXED | Real-tree run uses `--no-commit` then `git checkout`; V-03 names the revert alternative. |
+| PR-011 | LOW | IN-SCOPE | C (interface) | qs00nc E-01 signature lacks `retry_budget`; `5etev3` E-02 "passing `retry_budget=frozen_retry_budget(state)` through to the probe"; `probe_orchestrator(..., retry_budget: int, ...)` | Order 04 passes a parameter the shared function does not declare. | all Low | FIXED | E-01 adds `retry_budget`, defaulting to `resolve_retry_budget(None, repo=repo)`. |
+| PR-012 | LOW | IN-SCOPE | G (accuracy) | V-02 "both remedies" vs E-02's five; Scope check "one test file"; V-05 "six declared paths" | Wording and counts stale after revision. | all Low | FIXED | Corrected. |
+
+### Decisions
+
+| ID | Question | Chosen | Alternatives considered | Basis | Reversible |
+|----|----------|--------|-------------------------|-------|------------|
+| D-5 | Fix the four broken fixtures, or exempt synthetic plans / downgrade the absent-record finding at `pre-execution`? | Fix the fixtures with a tool-written record | exempt fixtures (a test-only path in production); make absent-record advisory at `pre-execution` (contradicts maintainer's OQ-03 ruling and `hm1h3l` D.1) | maintainer ruling recorded in OQ-03; P16 (tests drive real behavior) | yes |
+| D-6 | Who commits the record written by `aw ipd coverage`? | Order 02's commit-at-write, with `--no-commit` to suppress | a second commit path in the verb | `8mabmu` E-07 / D-4 | yes |
