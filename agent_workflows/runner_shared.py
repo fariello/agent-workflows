@@ -18180,60 +18180,11 @@ def evaluate_set_retirement(repo: Path, setid: str) -> RetirementDecision:
 #: it as blocking: the entire point of the gate is that silence stops meaning safe. A tri-state
 #: rather than `Optional[bool]` because a cached FAIL and an absent entry are different facts and a
 #: caller that cannot tell them apart cannot report the right thing.
+#: Note: The machine-local verdict store (orchestrator-probe-verdicts.json) was retired
+#: by spec 25kzda Section 2.5e; coverage answers are stored in the plan itself via coverage_record.
 PROBE_VERDICT_PASS = "pass"
 PROBE_VERDICT_FAIL = "fail"
 PROBE_VERDICT_UNKNOWN = "unknown"
-
-#: The store's schema version, so a later shape change can be detected rather than mis-parsed.
-PROBE_VERDICT_STORE_SCHEMA_VERSION = 1
-
-#: The store's filename under the checkout's `.aw/state/runtime/` control tree.
-_PROBE_VERDICT_STORE_NAME = "orchestrator-probe-verdicts.json"
-
-#: How long a recorded verdict stays trustworthy, in days.
-#:
-#: WHY A BOUND AT ALL, given the digest already proves the orchestrator has not changed: a digest
-#: match says nothing about whether the ANSWER is still trustworthy. This cache stores LLM output,
-#: and an unbounded cache of LLM verdicts eventually answers for a model nobody would ask. The store
-#: records WHICH model answered for that reason, and this bound is what makes that record actionable
-#: instead of decorative.
-#:
-#: WHY 30 DAYS. It is long enough that the cache actually saves the re-probes it exists to save
-#: (an orchestrator typically sits in `pending/` for days to weeks), and short enough that a verdict
-#: cannot outlive the model generation that produced it by much - vendor model turnover here is
-#: measured in weeks. Callers may override per read; nothing hardcodes it at a call site.
-DEFAULT_PROBE_VERDICT_MAX_AGE_DAYS = 30
-
-#: Why a stored verdict was NOT served, so a caller can say which guard rejected it rather than only
-#: that something did. Empty when the verdict WAS served.
-PROBE_STALE_MISS = "no-entry"
-PROBE_STALE_CORRUPT = "unreadable-entry"
-PROBE_STALE_MODEL_CHANGED = "model-changed"
-PROBE_STALE_TOO_OLD = "older-than-bound"
-
-
-class ProbeVerdict(NamedTuple):
-    """A cache READ result: the verdict actually served, plus what the store held.
-
-    `verdict` is one of the three `PROBE_VERDICT_*` values and is the ONLY field a gate may act on.
-    `recorded_verdict`, `recorded_at` and `model` describe the stored entry (empty when there was
-    none), so a caller can report "a fail was recorded by <model> on <date> but is past the bound"
-    rather than a bare `unknown`. `stale_reason` is one of the `PROBE_STALE_*` values, or empty when
-    the stored verdict was served as-is.
-
-    READS ONLY. Nothing here writes, and a read never repairs the store.
-    """
-
-    verdict: str
-    recorded_verdict: str = ""
-    recorded_at: str = ""
-    model: str = ""
-    stale_reason: str = ""
-
-    @property
-    def is_hit(self) -> bool:
-        """True iff a stored verdict was SERVED (not merely present)."""
-        return not self.stale_reason
 
 
 def _probe_prose_sections() -> tuple[str, ...]:
@@ -18388,205 +18339,6 @@ def probe_cache_digest(orchestrator_text: str) -> str:
     return hashlib.sha256(serialized.encode("utf-8")).hexdigest()
 
 
-def probe_verdict_store_path(repo_root: Path) -> Path:
-    """The verdict store: `<checkout>/.aw/state/runtime/orchestrator-probe-verdicts.json`.
-
-    ROUTED THROUGH `ipd_lifecycle.checkout_control_root`, never composed as `repo_root/".aw"/...`,
-    for the reason backlog `dh0uno` recorded: an in-lane invocation's `repo_root` is the LANE, so
-    hand-composition produced a SECOND control store the driver could not see and lane teardown then
-    deleted. Every linked worktree of a checkout therefore resolves to ONE store, which is what makes
-    a verdict recorded inside a lane visible to the driver that launched it.
-
-    Sited beside the begin receipts and the finalize journals (`state/`), which is machine-local by
-    framework policy: `install_wizard` raises `InvalidPolicyError` for a policy that would TRACK
-    `state_runtime`, and the framework-owned `.aw/.gitignore` ships an anchored `/state/` entry in
-    BOTH `_AW_GITIGNORE_TEMPLATE` and the `_ensure_aw_gitignore` back-fill (landed 2026-09-12,
-    commit `ee38864c`), so the file is ignored in a fresh ADOPTER and not only here. That matters
-    because the entries record LLM verdicts against machine-local plan content; a tracked store would
-    be a leak-sanitizer concern, not merely untidiness.
-    """
-
-    from agent_workflows import (
-        ipd_lifecycle as _lifecycle,
-    )  # local: see the section note above
-
-    return (
-        _lifecycle.checkout_control_root(repo_root)
-        / "state"
-        / "runtime"
-        / _PROBE_VERDICT_STORE_NAME
-    )
-
-
-def _read_probe_verdict_store(repo_root: Path) -> dict[str, Any]:
-    """The store's `entries` mapping, or `{}` when it is absent, unreadable or malformed.
-
-    A CORRUPT STORE READS AS EMPTY rather than raising. The cache is an optimization: a caller that
-    crashes because a JSON file was truncated by a power loss has converted a saved token into a
-    failed run, and the fail-closed direction here is a MISS, which blocks. So every error path
-    returns `{}` and the gate re-probes.
-    """
-
-    path = probe_verdict_store_path(repo_root)
-    try:
-        raw = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, ValueError):
-        return {}
-    if not isinstance(raw, dict):
-        return {}
-    entries = raw.get("entries")
-    if not isinstance(entries, dict):
-        return {}
-    return entries
-
-
-def record_probe_verdict(
-    repo_root: Path,
-    digest: str,
-    verdict: str,
-    *,
-    model: str | None,
-    recorded_at: str | None = None,
-) -> Path:
-    """Store `verdict` under `digest`, with WHEN and WHICH MODEL answered. Returns the store path.
-
-    BOTH POLARITIES ARE CACHED, per the maintainer's OQ-01 ruling, and re-evaluate-on-change is what
-    makes a cached FAIL safe: the remedy for "this orchestrator carries uncovered work" is to move
-    that work into a new child, which edits BOTH the parent's checklist text and its child table,
-    and the digest covers both. So a genuine fix changes the key and discards the entry; a stale
-    complaint cannot be served. `tests/test_orchestrator_probe_cache.py` proves that with the fixture
-    the ruling specified, and proves the test can FAIL by mutating the digest to ignore the rows.
-
-    `model` may be `None`. That is not defensive: `runner_profiles.resolve` returns `model=None` with
-    provenance `host-default` whenever no flag, named profile or per-runner default supplies one, and
-    the runner prints `model=(host default)` for it, so a run frequently cannot name the model it is
-    about to use. It is recorded as an empty string and :func:`read_probe_verdict` decides what an
-    absent model means (see its docstring).
-
-    Writes ATOMICALLY through :func:`atomic_write_json` (the module's existing helper), so a crash
-    mid-write cannot leave a half-written store; and it merges rather than replaces, so recording one
-    verdict never discards another orchestrator's.
-    """
-
-    if verdict not in (PROBE_VERDICT_PASS, PROBE_VERDICT_FAIL):
-        raise ValueError(
-            "a probe verdict store holds only "
-            f"{PROBE_VERDICT_PASS!r} or {PROBE_VERDICT_FAIL!r}; refusing to record "
-            f"{verdict!r}. {PROBE_VERDICT_UNKNOWN!r} is the ABSENCE of an answer and "
-            "recording it would turn 'not probed' into a stored fact"
-        )
-    entries = dict(_read_probe_verdict_store(repo_root))
-    entries[str(digest)] = {
-        "verdict": verdict,
-        "recorded_at": recorded_at or utc_now(),
-        "model": model or "",
-    }
-    path = probe_verdict_store_path(repo_root)
-    atomic_write_json(
-        path,
-        {
-            "schema_version": PROBE_VERDICT_STORE_SCHEMA_VERSION,
-            "entries": entries,
-        },
-    )
-    return path
-
-
-def read_probe_verdict(
-    repo_root: Path,
-    digest: str,
-    *,
-    model: str | None = None,
-    max_age_days: int = DEFAULT_PROBE_VERDICT_MAX_AGE_DAYS,
-    now: "dt.datetime | None" = None,
-) -> ProbeVerdict:
-    """Read the verdict for `digest`, FAILING CLOSED to `unknown`.
-
-    A MISS IS `unknown`, NEVER `pass`. "Not probed" and "probed and cleared" are different facts,
-    and a cache whose miss looked like a pass would silently restore the exact
-    silence-means-safe behavior this gate exists to end.
-
-    THE STALENESS RULE, and it discriminates rather than rejecting everything:
-
-      1. NO ENTRY, or an entry that is not a usable object / carries no recognized verdict ->
-         `unknown` (`no-entry` / `unreadable-entry`).
-      2. OLDER THAN `max_age_days` -> `unknown` (`older-than-bound`). This is the guard that ALWAYS
-         applies, deliberately, and see (3) for why that phrasing is load-bearing.
-      3. RECORDED BY A DIFFERENT MODEL than the caller names -> `unknown` (`model-changed`).
-         A verdict is only as good as its author, so a run using a different model re-probes.
-      4. Otherwise the recorded verdict is served as-is.
-
-    THE `model=None` CASE IS DECIDED, NOT DISCOVERED, because it is the COMMON case: measured,
-    `runner_profiles.resolve` returns `model=None` with provenance `host-default` whenever nothing
-    supplies one. DECISION: when EITHER side's model is unknown (the caller passes `None`/empty, or
-    the entry recorded none), the model comparison is SKIPPED and the TIME BOUND alone decides.
-    The rejected alternative was "an unknown model never matches", i.e. re-probe: it is superficially
-    the fail-closed choice, but since the host-default case is routine it would make the cache miss
-    almost always, which is a cache that does not exist. It would also be a rule whose primary key is
-    a value that is usually absent. The time bound still applies in full, so an unnameable model
-    buys age tolerance and nothing else; the honest limit, stated rather than hidden, is that a
-    verdict from an unnamed model A can be served to a run that is also using an unnamed model B
-    within the bound.
-
-    An unparseable `recorded_at` is treated as INFINITELY OLD (`older-than-bound`), never as fresh:
-    the failure direction for a timestamp we cannot read is to re-probe.
-    """
-
-    entries = _read_probe_verdict_store(repo_root)
-    raw = entries.get(str(digest))
-    if raw is None:
-        return ProbeVerdict(
-            verdict=PROBE_VERDICT_UNKNOWN, stale_reason=PROBE_STALE_MISS
-        )
-    if not isinstance(raw, dict):
-        return ProbeVerdict(
-            verdict=PROBE_VERDICT_UNKNOWN, stale_reason=PROBE_STALE_CORRUPT
-        )
-    recorded = str(raw.get("verdict") or "")
-    recorded_at = str(raw.get("recorded_at") or "")
-    recorded_model = str(raw.get("model") or "")
-    if recorded not in (PROBE_VERDICT_PASS, PROBE_VERDICT_FAIL):
-        return ProbeVerdict(
-            verdict=PROBE_VERDICT_UNKNOWN,
-            recorded_verdict=recorded,
-            recorded_at=recorded_at,
-            model=recorded_model,
-            stale_reason=PROBE_STALE_CORRUPT,
-        )
-
-    stale = ProbeVerdict(
-        verdict=PROBE_VERDICT_UNKNOWN,
-        recorded_verdict=recorded,
-        recorded_at=recorded_at,
-        model=recorded_model,
-    )
-
-    # (2) The bound that always applies.
-    moment = now or dt.datetime.now(dt.timezone.utc)
-    if moment.tzinfo is None:
-        moment = moment.replace(tzinfo=dt.timezone.utc)
-    try:
-        stamped = dt.datetime.fromisoformat(recorded_at)
-    except ValueError:
-        return stale._replace(stale_reason=PROBE_STALE_TOO_OLD)
-    if stamped.tzinfo is None:
-        stamped = stamped.replace(tzinfo=dt.timezone.utc)
-    if (moment - stamped) > dt.timedelta(days=max_age_days):
-        return stale._replace(stale_reason=PROBE_STALE_TOO_OLD)
-
-    # (3) The model guard, skipped when either side cannot name a model (see the docstring).
-    current_model = (model or "").strip()
-    if current_model and recorded_model and current_model != recorded_model:
-        return stale._replace(stale_reason=PROBE_STALE_MODEL_CHANGED)
-
-    return ProbeVerdict(
-        verdict=recorded,
-        recorded_verdict=recorded,
-        recorded_at=recorded_at,
-        model=recorded_model,
-    )
-
-
 # ==================================================================================================
 # orchprobe-03 (`m7gvuz`): THE PRE-RUN ORCHESTRATOR COVERAGE PROBE AND ITS GATE
 # (spec `77tr3o` R-5's premise, made CHECKED rather than assumed)
@@ -18627,6 +18379,7 @@ def read_probe_verdict(
 #: answer into `unknown`, which blocks every run rather than failing visibly.
 PROBE_SENTINEL_EXECUTIONS = "ORCHESTRATOR: CONTAINS EXECUTIONS"
 PROBE_SENTINEL_NO_EXECUTIONS = "ORCHESTRATOR: CONTAINS NO EXECUTIONS"
+PROBE_QUOTE_PREFIX = "QUOTE: "
 
 #: The FOUR states a probe attempt can reach (the maintainer's OQ-02 ruling; see the section note).
 #:
@@ -18685,6 +18438,13 @@ PROBE_PROMPT_TEMPLATE = (
     "a child's work are ALL legitimate ORCHESTRATION. A checklist naming the children is therefore "
     "EXPECTED and is NOT an execution. Do not report it as one.\n"
     "\n"
+    "WORK ASSIGNED TO A NAMED CHILD IS COVERED. An obligation stated in the orchestrator's prose "
+    "that the excerpt assigns to a child listed in the `### Child IPDs table` section of the excerpt, "
+    "naming that child by its id6 OR by an Order number that appears in the table's Order column "
+    '(for example "Order 04 carries ..." when the table has a `04` row), is COVERED and must not be '
+    'quoted. Assignment to an unnamed "later child", to a plan outside the table, or to the '
+    "orchestrator itself does NOT count.\n"
+    "\n"
     "WHAT *IS* WORK NO CHILD COVERS. An item that produces a deliverable of its own (a research "
     "artifact, a document, a code or record change); an item that establishes a baseline or a "
     "measurement BEFORE any child runs; an item that reconciles records, runs a repo-wide suite, "
@@ -18693,15 +18453,22 @@ PROBE_PROMPT_TEMPLATE = (
     'a sentence like "the database must be migrated before the children run" is work no child '
     "covers.\n"
     "\n"
-    "HOW TO DECIDE A HARD CASE: any doubt resolves to CONTAINS EXECUTIONS. A missed instance is "
-    "reported complete having never been performed or verified, so under-reporting is far more "
-    "expensive than over-reporting.\n"
+    "HOW TO DECIDE A HARD CASE: for obligations with no named owner, any doubt resolves to "
+    "CONTAINS EXECUTIONS. A missed instance is reported complete having never been performed or "
+    "verified, so under-reporting is far more expensive than over-reporting.\n"
     "\n"
-    "ANSWER FORMAT. Reply with EXACTLY ONE of these two lines and NOTHING else - no preamble, no "
-    "explanation, no code fence, no second line:\n"
+    "ANSWER FORMAT. Reply with the verdict sentinel on the first line:\n"
     "\n"
     "{executions}\n"
     "{no_executions}\n"
+    "\n"
+    "When the verdict is {no_executions}, reply with EXACTLY that line and NOTHING else - no "
+    "preamble, no explanation, no code fence, no second line.\n"
+    "\n"
+    "When the verdict is {executions}, follow it with one `{quote_prefix}<verbatim passage>` line per "
+    "uncovered obligation copied exactly from the excerpt. Copy each quote EXACTLY as it appears in "
+    "the excerpt, including backticks, pipes and capitalization, on one line. Do not include preamble, "
+    "explanation, or code fences.\n"
     "\n"
     "THE ORCHESTRATOR'S EXCERPT FOLLOWS. It is its checklist item action text, its child table, "
     "plus its unattached prose sections, which is everything the question depends on.\n"
@@ -18713,13 +18480,14 @@ PROBE_PROMPT_TEMPLATE = (
 def render_probe_prompt(excerpt: str) -> str:
     """The probe prompt for one bounded excerpt, composed from :data:`PROBE_PROMPT_TEMPLATE`.
 
-    ONE composer, so the two sentinel constants reach the prompt from the same objects the parser
+    ONE composer, so the sentinel constants reach the prompt from the same objects the parser
     compares against and the two cannot drift.
     """
 
     return PROBE_PROMPT_TEMPLATE.format(
         executions=PROBE_SENTINEL_EXECUTIONS,
         no_executions=PROBE_SENTINEL_NO_EXECUTIONS,
+        quote_prefix=PROBE_QUOTE_PREFIX,
         excerpt=excerpt or "(the excerpt was empty)",
     )
 
@@ -18777,46 +18545,81 @@ def orchestrator_probe_excerpt(orchestrator_text: str) -> str:
     return "\n".join(lines) + "\n"
 
 
-def classify_probe_reply(reply: str | None, *, transport_ok: bool = True) -> str:
+class ProbeClassification(NamedTuple):
+    """The structured classification of one probe reply."""
+
+    answer: str
+    quotes: tuple[str, ...] = ()
+    discarded: int = 0
+
+
+def classify_probe_reply(
+    reply: str | None,
+    *,
+    excerpt: str = "",
+    transport_ok: bool = True,
+) -> ProbeClassification:
     """Classify one probe reply into the FOUR states, failing closed ON A DELIVERED ANSWER.
 
-    Returns one of :data:`PROBE_ANSWER_NO_EXECUTIONS`, :data:`PROBE_ANSWER_EXECUTIONS`,
-    :data:`PROBE_ANSWER_UNKNOWN`, :data:`PROBE_ANSWER_COULD_NOT_ASK`.
+    Returns a :class:`ProbeClassification` with `answer` set to one of
+    :data:`PROBE_ANSWER_NO_EXECUTIONS`, :data:`PROBE_ANSWER_EXECUTIONS`,
+    :data:`PROBE_ANSWER_UNKNOWN`, :data:`PROBE_ANSWER_COULD_NOT_ASK`,
+    along with `quotes` and `discarded` count.
 
-    STRICT ON PURPOSE. Only the two EXACT sentinels are accepted. An answer that ARRIVED but is
-    unusable - extra prose, a refusal, a reply carrying BOTH sentinels, a reply reporting a problem -
-    is `unknown`, which blocks exactly as `executions` does. A permissive parser here would convert a
-    confused model into a silent pass, which is the failure this whole gate exists to prevent.
-
-    `transport_ok=False` IS THE OTHER HALF, AND IT IS NOT THE SAME THING. The maintainer's OQ-02
-    ruling splits COULD-NOT-ASK from ASKED-AND-GOT-NONSENSE deliberately, so this function must not
-    collapse them: an unreachable host, a missing binary, a timeout or a rate limit yields
-    `could-not-ask`, which E-10 retries and then WARNS PAST rather than blocking on. Only a reply the
-    host actually DELIVERED can be judged `unknown`. An empty reply is likewise `could-not-ask`: there
-    is nothing there to have been confused BY.
+    STRICT ON PURPOSE.
+    - First non-empty line must equal one sentinel.
+    - After "contains no executions" any further non-empty line is `unknown`.
+    - After "contains executions" every further non-empty line must start with :data:`PROBE_QUOTE_PREFIX`
+      (any other line makes the whole answer `unknown`).
+    - A `QUOTE:` line whose text does not occur in the excerpt after collapsing runs of whitespace is
+      DISCARDED and counted, not fatal (spec `25kzda` 2.5b A.3).
+    - At least one valid quote is required, else `unknown`.
+    - Both sentinels anywhere in the reply text is `unknown`.
+    - Empty reply or `transport_ok=False` stays `could-not-ask`.
     """
 
-    text = (reply or "").strip()
-    if not transport_ok or not text:
-        return PROBE_ANSWER_COULD_NOT_ASK
-    # EQUALITY, not membership, which is what makes this parser strict. Extra prose around a correct
-    # sentinel is `unknown` because a model that would not follow a two-line format is a model whose
-    # judgement on a subtler question is not evidence of anything.
-    #
-    # NEITHER SENTINEL IS A SUBSTRING OF THE OTHER (`CONTAINS EXECUTIONS` vs `CONTAINS NO
-    # EXECUTIONS`), so the both-present case is detected by counting each independently. An early
-    # revision of this function subtracted one count from the other and thereby classified the
-    # correct `CONTAINS NO EXECUTIONS` reply as `unknown`, which would have blocked every run; the
-    # test module pins both single cases for that reason.
-    yes_hits = text.count(PROBE_SENTINEL_EXECUTIONS)
-    no_hits = text.count(PROBE_SENTINEL_NO_EXECUTIONS)
+    raw_text = (reply or "").strip()
+    if not transport_ok or not raw_text:
+        return ProbeClassification(PROBE_ANSWER_COULD_NOT_ASK, (), 0)
+
+    # Both sentinels anywhere: unknown (the model did not choose)
+    yes_hits = raw_text.count(PROBE_SENTINEL_EXECUTIONS)
+    no_hits = raw_text.count(PROBE_SENTINEL_NO_EXECUTIONS)
     if yes_hits and no_hits:
-        return PROBE_ANSWER_UNKNOWN  # both sentinels: the model did not choose
-    if text == PROBE_SENTINEL_EXECUTIONS:
-        return PROBE_ANSWER_EXECUTIONS
-    if text == PROBE_SENTINEL_NO_EXECUTIONS:
-        return PROBE_ANSWER_NO_EXECUTIONS
-    return PROBE_ANSWER_UNKNOWN
+        return ProbeClassification(PROBE_ANSWER_UNKNOWN, (), 0)
+
+    lines = [line.strip() for line in raw_text.splitlines() if line.strip()]
+    if not lines:
+        return ProbeClassification(PROBE_ANSWER_COULD_NOT_ASK, (), 0)
+
+    first_line = lines[0]
+    if first_line == PROBE_SENTINEL_NO_EXECUTIONS:
+        if len(lines) > 1:
+            return ProbeClassification(PROBE_ANSWER_UNKNOWN, (), 0)
+        return ProbeClassification(PROBE_ANSWER_NO_EXECUTIONS, (), 0)
+
+    if first_line == PROBE_SENTINEL_EXECUTIONS:
+        if len(lines) == 1:
+            return ProbeClassification(PROBE_ANSWER_UNKNOWN, (), 0)
+        norm_excerpt = " ".join(excerpt.split())
+        valid_quotes: list[str] = []
+        discarded_count = 0
+        for line in lines[1:]:
+            if not line.startswith(PROBE_QUOTE_PREFIX):
+                return ProbeClassification(PROBE_ANSWER_UNKNOWN, (), 0)
+            quote_text = line[len(PROBE_QUOTE_PREFIX) :].strip()
+            norm_quote = " ".join(quote_text.split())
+            if norm_quote and norm_quote in norm_excerpt:
+                valid_quotes.append(quote_text)
+            else:
+                discarded_count += 1
+        if not valid_quotes:
+            return ProbeClassification(PROBE_ANSWER_UNKNOWN, (), discarded_count)
+        return ProbeClassification(
+            PROBE_ANSWER_EXECUTIONS, tuple(valid_quotes), discarded_count
+        )
+
+    return ProbeClassification(PROBE_ANSWER_UNKNOWN, (), 0)
 
 
 def probe_reply_text(stdout: str, *, host: str) -> str:
@@ -18961,8 +18764,8 @@ def ask_orchestrator_probe(
     host: str,
     repo: Path | str,
     runner: Any = None,
-) -> tuple[str, str]:
-    """Ask the probe ONCE. Returns `(answer, detail)` where `answer` is one of the four states.
+) -> tuple[str, str, tuple[str, ...]]:
+    """Ask the probe ONCE. Returns `(answer, detail, quotes)` where `answer` is one of the four states.
 
     `runner` is the injected spawn seam, `(argv, cwd, timeout) -> (exit_code, stdout, stderr)`,
     exactly the shape `host_runner.RunnerFn` already defines. EVERY TEST INJECTS IT: a test that
@@ -18999,28 +18802,39 @@ def ask_orchestrator_probe(
                 completed.stderr or "",
             )
     except FileNotFoundError as exc:
-        return PROBE_ANSWER_COULD_NOT_ASK, f"the host binary is not on PATH: {exc}"
+        return PROBE_ANSWER_COULD_NOT_ASK, f"the host binary is not on PATH: {exc}", ()
     except subprocess.TimeoutExpired:
         return (
             PROBE_ANSWER_COULD_NOT_ASK,
             f"the probe turn exceeded {PROBE_ASK_TIMEOUT_SECONDS:.0f}s",
+            (),
         )
     except OSError as exc:  # pragma: no cover - defensive: a spawn that could not start
-        return PROBE_ANSWER_COULD_NOT_ASK, f"the probe turn could not be spawned: {exc}"
+        return (
+            PROBE_ANSWER_COULD_NOT_ASK,
+            f"the probe turn could not be spawned: {exc}",
+            (),
+        )
     reply = probe_reply_text(stdout or "", host=host)
     transport_ok = int(exit_code) not in (
         _PROBE_SPAWN_FAIL_EXIT,
         _PROBE_TIMEOUT_EXIT,
     )
-    answer = classify_probe_reply(reply, transport_ok=transport_ok)
-    if answer == PROBE_ANSWER_COULD_NOT_ASK:
+    classification = classify_probe_reply(
+        reply, excerpt=excerpt, transport_ok=transport_ok
+    )
+    if classification.answer == PROBE_ANSWER_COULD_NOT_ASK:
         detail = (
             (stderr or "").strip().splitlines()[-1]
             if (stderr or "").strip()
             else f"exit {exit_code} with no answer delivered"
         )
-        return answer, detail
-    return answer, reply
+        return classification.answer, detail, ()
+    detail = reply
+    if classification.discarded > 0:
+        disc_note = f"{classification.discarded} quoted line(s) did not match the excerpt and were discarded"
+        detail = f"{reply}\n({disc_note})" if reply else disc_note
+    return classification.answer, detail, classification.quotes
 
 
 class ProbeTarget(NamedTuple):
@@ -19084,6 +18898,7 @@ class ProbeOutcome(NamedTuple):
     cached: bool
     calls: int
     detail: str = ""
+    quotes: tuple[str, ...] = ()
 
     @property
     def blocks(self) -> bool:
@@ -19101,38 +18916,30 @@ def probe_orchestrator(
     runner: Any = None,
     counter: list | None = None,
 ) -> ProbeOutcome:
-    """Decide ONE orchestrator, consulting child 02's verdict cache FIRST.
+    """Decide ONE orchestrator, consulting its plan coverage record FIRST.
 
-    A CACHE HIT SPENDS NOTHING. A miss, or any change to the E-item action text or the child table
-    (the two inputs `probe_cache_digest` covers), probes and records the result, so a genuine FIX -
-    moving the uncovered work into a new child, which edits BOTH of those - discards the stale
-    complaint by construction.
-
-    THE COULD-NOT-ASK PATH IS THE MAINTAINER'S OQ-02 RULING (E-10). A transport failure is retried up
-    to `retry_budget` ADDITIONAL attempts and then returned as `could-not-ask` for the caller to warn
-    past; it is NOT converted into a block. An `unknown` - an answer the host delivered and that is
-    unusable - is returned immediately and DOES block, because retrying a confused model is how a
-    fail-closed gate is talked into passing.
-
-    `retry_budget` is the run's OWN `--retry-budget`, resolved once by
-    :func:`resolve_retry_budget`; no second retry knob is introduced (see the gate's docstring for
-    why, and for what its default measures).
+    A current coverage record (matching the plan's current text) spends 0 model calls
+    and serves the recorded quotes. An absent or out-of-date record asks the model and
+    records the result in the plan, committed at once.
     """
+    from agent_workflows import coverage_record
 
     options = state.get("options") or {}
     model = options.get("model") or ""
-    cached = read_probe_verdict(Path(repo), target.digest, model=model)
-    if cached.is_hit:
+    rec = coverage_record.read(target.text)
+    if coverage_record.is_current(target.text):
+        ans = (
+            PROBE_ANSWER_NO_EXECUTIONS
+            if rec.verdict == coverage_record.COVERAGE_PASS
+            else PROBE_ANSWER_EXECUTIONS
+        )
         return ProbeOutcome(
             id6=target.id6,
-            answer=(
-                PROBE_ANSWER_NO_EXECUTIONS
-                if cached.verdict == PROBE_VERDICT_PASS
-                else PROBE_ANSWER_EXECUTIONS
-            ),
+            answer=ans,
             cached=True,
             calls=0,
-            detail=f"served from the verdict cache (recorded {cached.recorded_at})",
+            detail=f"served from the plan coverage record (checked {rec.date} by {rec.model})",
+            quotes=rec.quotes,
         )
 
     ask = asker if asker is not None else ask_orchestrator_probe
@@ -19140,24 +18947,54 @@ def probe_orchestrator(
     calls = 0
     answer = PROBE_ANSWER_COULD_NOT_ASK
     detail = "not attempted"
+    quotes: tuple[str, ...] = ()
     for _attempt in range(max(0, int(retry_budget)) + 1):
-        answer, detail = ask(state, excerpt, host=host, repo=Path(repo), runner=runner)
+        res = ask(state, excerpt, host=host, repo=Path(repo), runner=runner)
+        if len(res) == 2:
+            answer, detail = res
+            quotes = ()
+        else:
+            answer, detail, quotes = res
         calls += 1
         if counter is not None:
             counter.append(target.id6)
         if answer != PROBE_ANSWER_COULD_NOT_ASK:
             break
-    if answer in (PROBE_ANSWER_NO_EXECUTIONS, PROBE_ANSWER_EXECUTIONS):
-        record_probe_verdict(
-            Path(repo),
-            target.digest,
-            PROBE_VERDICT_PASS
-            if answer == PROBE_ANSWER_NO_EXECUTIONS
-            else PROBE_VERDICT_FAIL,
-            model=model or None,
+
+    if answer == PROBE_ANSWER_NO_EXECUTIONS:
+        write_res = coverage_record.write(
+            target.path,
+            coverage_record.COVERAGE_PASS,
+            quotes=(),
+            model=model,
+            tool=f"aw {host} run",
+            commit=True,
+            host=host,
+            repo=Path(repo),
         )
+        if write_res.detail:
+            detail = f"{detail} ({write_res.detail})" if detail else write_res.detail
+    elif answer == PROBE_ANSWER_EXECUTIONS and quotes:
+        write_res = coverage_record.write(
+            target.path,
+            coverage_record.COVERAGE_FAIL,
+            quotes=quotes,
+            model=model,
+            tool=f"aw {host} run",
+            commit=True,
+            host=host,
+            repo=Path(repo),
+        )
+        if write_res.detail:
+            detail = f"{detail} ({write_res.detail})" if detail else write_res.detail
+
     return ProbeOutcome(
-        id6=target.id6, answer=answer, cached=False, calls=calls, detail=detail
+        id6=target.id6,
+        answer=answer,
+        cached=False,
+        calls=calls,
+        detail=detail,
+        quotes=quotes,
     )
 
 
@@ -19166,6 +19003,7 @@ def probe_refusal_remedy(
     id6: str,
     *,
     pal: Palette | None = None,
+    quotes: Sequence[str] = (),
 ) -> str:
     """WHAT TO DO about an orchestrator carrying uncovered work. THE WORDING IS THE DELIVERABLE.
 
@@ -19181,13 +19019,20 @@ def probe_refusal_remedy(
     function. A remedy naming the wrong host is a defect even though the identity check passes.
     """
     styled_id6 = pal(id6, "bold", "yellow") if pal else id6
+    quotes_part = ""
+    if quotes:
+        formatted = []
+        for q in quotes:
+            truncated = q if len(q) <= 160 else q[:157] + "..."
+            formatted.append(f'"{truncated}"')
+        quotes_part = f" Uncovered passage(s): {', '.join(formatted)}."
     return (
-        f"ADD A CHILD for the uncovered work: author a child plan of {styled_id6}'s Set that owns it, add "
-        f"its row to the orchestrator's `## Child IPDs` table, and leave the parent's existing "
-        f"checklist in place. Do NOT delete the parent's items - that checklist is what makes "
+        f"ADD A CHILD for the uncovered work:{quotes_part} author a child plan of {styled_id6}'s Set that owns it, add "
+        f"its row to the orchestrator's `## Child IPDs` table, or assign this obligation by id6 to a child in the `## Child IPDs` table, "
+        f"and leave the parent's existing checklist in place. Do NOT delete the parent's items (do not delete the checklist) - that checklist is what makes "
         f"`execute <setid>` complete when no runner is involved. Then re-run "
-        f"`{labels.command}`; the verdict cache re-probes automatically because both edits change "
-        f"what it keys on. To launch anyway, accepting that the parent's own items will be reported "
+        f"`{labels.command}`; the coverage answer recorded in the plan is re-checked automatically when the plan's checked text changes. "
+        f"To launch anyway, accepting that the parent's own items will be reported "
         f"complete having never been performed or verified, pass "
         f"`--allow-uncovered-orchestrator-work '<why you accept it>'`."
     )
@@ -19197,6 +19042,7 @@ def format_orchestrator_probe_refusal(
     labels: HostLabels,
     blocking_id6s: Sequence[str],
     *,
+    outcomes: Sequence[ProbeOutcome] | None = None,
     unknown: bool = False,
     color: bool | None = None,
 ) -> str:
@@ -19223,20 +19069,50 @@ def format_orchestrator_probe_refusal(
         "The runner retires an orchestrator once its children are `executed` and SKIPS the",
         "pre-transition E/V checkpoint, so that work would be reported complete having never",
         "been performed or verified.",
-        "",
-        "ADD A CHILD for the uncovered work:",
-        f"  1. Author a child plan of {target_phrase} that owns it.",
-        "  2. Add its row to the orchestrator's `## Child IPDs` table.",
-        "  3. Leave the parent's existing checklist in place. Do NOT delete the parent's",
-        "     items; that checklist is what makes `execute <setid>` complete when no runner",
-        "     is involved.",
-        f"  4. Re-run `{labels.command}`; the verdict cache re-probes automatically",
-        "     because both edits change what it keys on.",
-        "",
-        "To launch anyway, accepting that the parent's own items will be reported complete",
-        "having never been performed or verified, pass:",
-        "  --allow-uncovered-orchestrator-work '<why you accept it>'",
     ]
+
+    if outcomes:
+        quotes_section: list[str] = []
+        for o in outcomes:
+            styled_id = pal(o.id6, "bold", "yellow")
+            if o.quotes:
+                quotes_section.append(
+                    f"Uncovered obligation(s) reported for {styled_id}:"
+                )
+                for q in o.quotes:
+                    t_q = q if len(q) <= 160 else q[:157] + "..."
+                    quotes_section.append(f'  - "{t_q}"')
+                quotes_section.append(
+                    "Remedy: assign this obligation by id6 to a child in the `## Child IPDs` table, "
+                    "or add a child that performs it and a row for it; do not delete the checklist."
+                )
+            elif o.answer == PROBE_ANSWER_UNKNOWN:
+                raw_first = (o.detail or "").splitlines()[0] if o.detail else ""
+                t_raw = raw_first if len(raw_first) <= 160 else raw_first[:157] + "..."
+                quotes_section.append(
+                    f'For {styled_id}: the probe\'s answer was unusable: "{t_raw}"'
+                )
+        if quotes_section:
+            lines.append("")
+            lines.extend(quotes_section)
+
+    lines.extend(
+        [
+            "",
+            "ADD A CHILD for the uncovered work:",
+            f"  1. Author a child plan of {target_phrase} that owns it.",
+            "  2. Add its row to the orchestrator's `## Child IPDs` table.",
+            "  3. Leave the parent's existing checklist in place. Do NOT delete the parent's",
+            "     items; that checklist is what makes `execute <setid>` complete when no runner",
+            "     is involved.",
+            f"  4. Re-run `{labels.command}`; the coverage answer recorded in the plan is re-checked automatically",
+            "     when the plan's checked text changes.",
+            "",
+            "To launch anyway, accepting that the parent's own items will be reported complete",
+            "having never been performed or verified, pass:",
+            "  --allow-uncovered-orchestrator-work '<why you accept it>'",
+        ]
+    )
     return "\n".join(lines)
 
 
@@ -19244,12 +19120,13 @@ def format_orchestrator_probe_prompt(
     labels: HostLabels,
     blocking_id6s: Sequence[str],
     *,
+    outcomes: Sequence[ProbeOutcome] | None = None,
     unknown: bool = False,
     color: bool | None = None,
 ) -> str:
     """Format the interactive prompt for the orchestrator coverage probe gate."""
     body = format_orchestrator_probe_refusal(
-        labels, blocking_id6s, unknown=unknown, color=color
+        labels, blocking_id6s, outcomes=outcomes, unknown=unknown, color=color
     )
     return (
         f"\n{body}\n\nType '{PROBE_CONFIRM_PHRASE}' to launch anyway, "
@@ -19422,7 +19299,7 @@ def enforce_orchestrator_probe_gate(
     blocking_id6s = [o.id6 for o in blocking]
     styled_names = ", ".join(pal(x, "bold", "yellow") for x in blocking_id6s)
     names = ", ".join(blocking_id6s)
-    reason = (
+    base_reason = (
         f"the orchestrator coverage probe reports that {names} carr"
         + ("ies" if len(blocking) == 1 else "y")
         + " work no child covers"
@@ -19435,7 +19312,28 @@ def enforce_orchestrator_probe_gate(
         "pre-transition E/V checkpoint, so that work would be reported complete having never been "
         "performed or verified"
     )
-    remedy = probe_refusal_remedy(labels, blocking[0].id6)
+    quote_additions: list[str] = []
+    for o in blocking:
+        if o.quotes:
+            for q in o.quotes:
+                t_q = q if len(q) <= 160 else q[:157] + "..."
+                quote_additions.append(f'[{o.id6}] "{t_q}"')
+        elif o.answer == PROBE_ANSWER_UNKNOWN:
+            first_l = (o.detail or "").splitlines()[0] if o.detail else ""
+            t_l = first_l if len(first_l) <= 160 else first_l[:157] + "..."
+            quote_additions.append(
+                f'[{o.id6}] the probe\'s answer was unusable: "{t_l}"'
+            )
+    if quote_additions:
+        remedy_clause = (
+            " Remedy: assign this obligation by id6 to a child in the `## Child IPDs` table, "
+            "or add a child that performs it and a row for it; do not delete the checklist."
+        )
+        reason = base_reason + ": " + "; ".join(quote_additions) + "." + remedy_clause
+    else:
+        reason = base_reason
+
+    remedy = probe_refusal_remedy(labels, blocking[0].id6, quotes=blocking[0].quotes)
     refusal = None
     for outcome in blocking:
         item = by_id.get(outcome.id6)
@@ -19482,6 +19380,7 @@ def enforce_orchestrator_probe_gate(
         prompt_text = format_orchestrator_probe_prompt(
             labels,
             blocking_id6s,
+            outcomes=blocking,
             unknown=any(o.answer == PROBE_ANSWER_UNKNOWN for o in blocking),
             color=color,
         )
@@ -19530,6 +19429,7 @@ def enforce_orchestrator_probe_gate(
     refusal_message = format_orchestrator_probe_refusal(
         labels,
         blocking_id6s,
+        outcomes=blocking,
         unknown=any(o.answer == PROBE_ANSWER_UNKNOWN for o in blocking),
         color=color,
     )

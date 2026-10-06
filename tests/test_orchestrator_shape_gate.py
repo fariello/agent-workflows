@@ -616,7 +616,7 @@ class TestOrchestratorProbeFormatting(unittest.TestCase):
         )
         self.assertIn("3. Leave the parent's existing checklist in place.", formatted)
         self.assertIn(
-            "4. Re-run `aw oc run`; the verdict cache re-probes automatically",
+            "4. Re-run `aw oc run`; the coverage answer recorded in the plan is re-checked automatically",
             formatted,
         )
         # Override option

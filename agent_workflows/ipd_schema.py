@@ -57,6 +57,9 @@ H_VALIDATION_ORCH = (
     "Validation and cross-check (verify before reporting the Set complete)"
 )
 H_APPROVAL_GATE = "Approval and execution gate"
+# Optional coverage findings heading (spec 25kzda Section 2.5e, plan 8mabmu):
+H_COVERAGE_FINDINGS = "Coverage findings"
+OPTIONAL_H2: FrozenSet[str] = frozenset((H_COVERAGE_FINDINGS,))
 # Orchestrator-only headings:
 H_CHILD_IPDS = "Child IPDs, sequence, and dependencies"
 H_COMPLETION = "Completion criteria (the whole Set is done only when)"
@@ -336,6 +339,13 @@ READINESS_VALUES: FrozenSet[str] = frozenset(("go", "go-pending-approval", "no-g
 # workflow's vocabulary `go` means the clean bar is met AND the human already approved, a strictly
 # stronger condition than `go-pending-approval`, so refusing it would be surprising.
 READINESS_APPROVABLE: FrozenSet[str] = frozenset(("go", "go-pending-approval"))
+# Coverage record fields (spec 25kzda Section 2.5e; Set gradcover, IPD 8mabmu).
+# Recognized but OPTIONAL (not in META_REQUIRED) so existing plans do not fail IPD-M103.
+META_COVERAGE = "Coverage"
+META_COVERAGE_FINGERPRINT = "Coverage-Fingerprint"
+META_COVERAGE_CHECKED = "Coverage-Checked"
+COVERAGE_VALUES: FrozenSet[str] = frozenset(("pass", "fail"))
+
 # The full set of recognized field names (unknown fields are errors for new IPDs).
 META_RECOGNIZED: FrozenSet[str] = frozenset(
     META_REQUIRED
@@ -353,6 +363,9 @@ META_RECOGNIZED: FrozenSet[str] = frozenset(
         META_PRIORITY,
         META_WORK_KIND,
         META_READINESS,
+        META_COVERAGE,
+        META_COVERAGE_FINGERPRINT,
+        META_COVERAGE_CHECKED,
     )
 )
 

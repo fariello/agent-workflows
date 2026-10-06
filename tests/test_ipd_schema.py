@@ -405,6 +405,24 @@ class MetadataFieldVocabularyTests(unittest.TestCase):
             False,
             "the third of the trio; a HYPHEN-containing name",
         ),
+        (
+            "Coverage",
+            "META_COVERAGE",
+            False,
+            "OPTIONAL coverage record field (spec 25kzda 2.5e, IPD 8mabmu E-03); records orchestrator coverage verdict",
+        ),
+        (
+            "Coverage-Fingerprint",
+            "META_COVERAGE_FINGERPRINT",
+            False,
+            "OPTIONAL coverage record field (spec 25kzda 2.5e, IPD 8mabmu E-03); records fingerprint of checked plan text",
+        ),
+        (
+            "Coverage-Checked",
+            "META_COVERAGE_CHECKED",
+            False,
+            "OPTIONAL coverage record field (spec 25kzda 2.5e, IPD 8mabmu E-03); records date and model of check",
+        ),
     )
 
     def test_every_recognized_field_has_the_requiredness_the_schema_promises(self):
