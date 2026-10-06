@@ -12,6 +12,9 @@
 - Scope-Paths: .aw/records/plans/pending/20261002-hostcapgate-00-4qv834-make-the-probed-runner-safety-capabilities-gate-a-real-actio.ipd.md
 - Item-Dependencies: none
 - Status: to-review
+- Coverage: fail
+- Coverage-Fingerprint: 5f4117b908d1e2168db7007615002b600a656028c91284f7e40e512e64028ff4
+- Coverage-Checked: 2026-10-06 by uri/its_direct/pt3-claude-opus-5.5-1m-us
 - Work-Kind: chore
 - Priority: medium
 - From-Backlog: s8veyk
@@ -23,6 +26,7 @@
 
 ## Workflow history
 
+- 2026-10-06 coverage fail (aw oc run): fingerprint 5f4117b908d1, model uri/its_direct/pt3-claude-opus-5.5-1m-us
 - 2026-10-02 to-review (opencode/its_direct/pt3-claude-opus-5-1m-us): Authored from backlog `s8veyk` in lane worktree `s8veyk` at HEAD `6310b3e4`. The item's central claim HELD on re-measurement (one requirement row, empty `required`, verdict gates nothing). FOUR MEASUREMENTS SHAPED THIS SET, and two of them contradict or extend the item.
   FIRST, THE ITEM'S STATED BLOCKER IS ALREADY CLEARED. It says the work includes establishing that hosts in real use pass the probe. They do, on every host reported (`opencode`, `antigravity`, `scripted`), with a probe that is in-process and platform-independent rather than kernel-gated. So this Set is not an investigation; it is a build with one measured refusal case (a descriptor requested for a platform the interpreter is not running on, which `detect_host_capabilities` gates behind `plat == running_platform`).
   SECOND, THE ITEM NAMES ONE EMPTY TABLE AND THERE ARE TWO. `RUNNER_ACTION_TO_CONTRACT_ACTION` is also `{}`. A plan that fixed only `ACTION_CAPABILITY_REQUIREMENTS` would ship a verifiably useless change, so Order 02 owns both halves and its V-items prove the mapping separately from the row.
@@ -150,6 +154,15 @@ N/A with reason: no `.spec.md` is amended and none appears in this plan's or eit
 - Resolution or deferral rationale: DEFAULT IS THE NARROW GATE, and both children are written to it. The alternative (wait until a mutating action can require the whole spec row) is unreachable on measured ground: one of the row's named guarantees (`commit_gateway`) is represented by a field that is DECLARED AND NEVER PROBED because the enforcement does not exist here, and six more have no field at all, so "wait for the full row" means "never", while the strict probe that DOES pass keeps gating nothing. The narrow gate converts one assumed guarantee into a checked one at the cost of one row and one mapping entry, and it records the remaining six as `unrepresented` so the gap stays visible rather than being closed by omission.
   THE HONEST COST OF THE DEFAULT, so the maintainer can overrule it cheaply: a reader of the changed code could conclude the runner now enforces a mutation boundary, when what it enforces is one capability out of eight. All three documents in this Set say so explicitly, and Order 02's E-04 requires the operator-facing comments to say it too. Non-blocking because the narrow default is strictly safer than both alternatives: it refuses less than a wide gate and more than an empty one.
   - Carrier-Declined: There is nothing outstanding to carry. The question has a recorded default that is complete and safe, and the alternative ("keep the gate empty") is the status quo this Set exists to change rather than an unfixed defect, while the wider alternative is blocked by capabilities that measurably cannot be represented today. The visibility of that limit is handled inside the diff (the `unrepresented` tuple, plus Order 02's E-04 comments), which is a more durable location than a backlog row.
+
+## Coverage findings
+
+- "- THE TWO CHILDREN SHARE TWO FILES AND MUST NOT HAVE FOUGHT OVER THEM. Both declare `agent_workflows/host_sandbox_profile.py` and `agent_workflows/runner_shared.py`. Confirm the regions are disjoint: `bqtgmo` touches `_capture_turn_argv`'s interception plus the descriptor freeze and its dispatch read, while `y9m1ya` touches the action-class constant, `ACTION_CLASSES`, the requirement row, and the runner mapping with its comment. Report any overlap found rather than assuming the declaration prevented one."
+- "- THE SECOND CHILD DID NOT REINTRODUCE WHAT THE FIRST REMOVED. After both land, confirm the dispatch path still performs no per-item probe, since `y9m1ya` edits the same function's neighborhood and a careless rehydration-to-probe reversion would silently restore the hazard while every one of its own tests still passed."
+- "- THE SHIPPED CAPABILITY TESTS PASS AS A WHOLE, not just the two new modules. `tests/test_host_capability_extension.py` is edited by `y9m1ya` E-06 and guards the fail-OPEN omissions this Set could commit; run that module in full and confirm its four properties are intact rather than loosened."
+- "- THE ADJACENT PRE-EXISTING FAILURE IS EXPLAINED ONCE, FOR THE SET. `test_run_finding_reachability.py::TestRunFindingReachability::test_unreachable_binding_refusal_fires_under_perturbation` fails at the Set's base commit AND perturbs the `RUN-HOST-CAPABILITY` row this Set changes the requirements behind. Both children must re-measure it; this item confirms the two explanations agree and that neither child's change altered its outcome."
+- "Scope of this plan's own validation, stated so it is not mistaken for the children's: confirm each of the seven completion criteria above against the children's PASTED evidence and against a live interpreter rather than against this plan's prose; confirm the five cross-IPD properties above, naming any overlap, reversion or disagreement found; and cite no test result that did not come from a child's own recorded evidence, re-read from the executed plan rather than remembered."
+- "7. NO FENCE WAS CROSSED. `supports_commit_gateway` is required by no action; the three constants `01reg8` deleted are not reinstated; no probe was added or altered; no `.spec.md` was modified; and the suite is at or above each lane's re-measured baseline with every pre-existing failure accounted for individually."
 
 ## Validation and cross-check (verify before reporting the Set complete)
 
