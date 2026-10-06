@@ -7,6 +7,9 @@
 - Scope-Paths: .aw/records/plans/pending/20261001-driftbound-00-itamry-enforce-the-descriptive-bound-on-a-composed-drift-detail-str.ipd.md
 - Item-Dependencies: none
 - Status: to-review
+- Coverage: pass
+- Coverage-Fingerprint: 7d1b71157b63a52d747210a3cf7e8e84be6cd61e567c5fb00afc6d3223c3cb57
+- Coverage-Checked: 2026-10-06 by uri/its_direct/pt3-claude-opus-5.5-1m-us
 - Work-Kind: chore
 - Priority: low
 - From-Backlog: 0livgf
@@ -18,6 +21,7 @@
 
 ## Workflow history
 
+- 2026-10-06 coverage pass (aw oc run): fingerprint 7d1b71157b63, model uri/its_direct/pt3-claude-opus-5.5-1m-us
 - 2026-10-01 to-review (opencode its_direct/pt3-claude-opus-5-1m-us): Authored from backlog `0livgf` as the parent of a two-child Set. THE SPLIT IS FORCED BY A MEASURED ORDERING CONSTRAINT, not by size. Driven in this lane: with a validating `Drift` constructor patched in, the exception propagates OUT of `check_engine.check_durable_carrier` on the FIRST over-bound finding, so `aw check` CRASHES rather than reporting; and the same evaluator backs `aw ipd lint --phase pre-transition`, so the plan transition gate would break too. Meanwhile the lane producer's worst reachable composition is 370 characters against a 300 bound, so the refusal landing before the lane fix would raise inside `aw attention --check` on a sufficiently long worktree path. Hence Order 01 (bound the lane) strictly precedes Order 02 (refuse at the type), declared as `- Item-Dependencies: executed:9sbfea` on the child rather than left to Set order. THE TWO CHILDREN ALSO DIFFER IN CONTRACT AUTHORITY, which is the second reason not to merge them: Order 02 must AMEND spec Section 8.8 (whose subject today is an authored artifact field, not a tool-composed detail), while Order 01 needs no amendment, and keeping the spec edit in exactly one child means one plan in the Set declares the `.spec.md` path.
 - 2026-10-01 draft (opencode its_direct/pt3-claude-opus-5-1m-us): created.
 
