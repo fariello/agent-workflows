@@ -8,6 +8,9 @@
 - Item-Dependencies: none
 - Status: approved
 - Readiness: go-pending-approval
+- Coverage: fail
+- Coverage-Fingerprint: 6029f33b97417c53f0b243f783da8cd471337088bd81360900899a4ccc237323
+- Coverage-Checked: 2026-10-06 by uri/its_direct/pt3-claude-opus-5.5-1m-us
 - Work-Kind: feature
 - Priority: low
 - From-Backlog: oq05nc
@@ -19,6 +22,7 @@
 - Approval: 2026-09-30, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-06 coverage fail (aw oc run): fingerprint 6029f33b9741, model uri/its_direct/pt3-claude-opus-5.5-1m-us
 - 2026-09-30 approved (aw set): status set to approved
 - 2026-09-30 reviewed (aw set): status set to reviewed
 
@@ -216,6 +220,10 @@ minted from the original title and is left stable.
   design is handed off, while the code for a complete boundary is deliberately not written. The
   residual mechanism does not stay attached to `oq05nc` as unfinished business; it moves to backlog
   `sv9ce4`, which is what makes closing `oq05nc` honest rather than a quiet abandonment.
+
+## Coverage findings
+
+- "- THE CARRIER OUTLIVES THE SET. Backlog `sv9ce4` is filed before any child runs, so the unbuilt half"
 
 ## Validation and cross-check (verify before reporting the Set complete)
 
