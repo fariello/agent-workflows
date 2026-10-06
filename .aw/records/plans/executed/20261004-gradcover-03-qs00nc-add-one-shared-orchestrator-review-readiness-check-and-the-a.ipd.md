@@ -6,7 +6,7 @@
 - Scope: Add the shared function and its result type, the `aw ipd coverage` subcommand, the `IPD-S408` lint rule, and the `check.orchestrator-not-review-ready` check rule. IN: a new module `agent_workflows/orchestrator_readiness.py` holding `review_readiness(repo, plan_path, *, ask=False, ...)` and its result; wiring in `ipd_lint.py` (rule `IPD-S408` at `review-finalize`/`pre-execution`, advisory at `author`; and rule `IPD-M112`, which refuses a coverage record that is incomplete or has no matching history line, at every checkpoint), `check_engine.py` (rule over pending orchestrators), `cli.py` (subcommand), and `command_surface.py` (the subcommand's `CommandDeclaration`, required by `tests/test_command_surface_declarations.py` `test_zero_undeclared_parser_leaves`); one new test file; and the minimal fixture update in the three existing test files whose synthetic `approved` orchestrators must keep passing `pre-execution` lint (E-08). OUT: any status setter (Order 05); any runner gate or retirement change (Order 04); production verification (Order 06); prompt or template text (Order 11); the probe's prompt or parser (Order 02, already executed).
 - Scope-Paths: agent_workflows/orchestrator_readiness.py, agent_workflows/ipd_lint.py, agent_workflows/check_engine.py, agent_workflows/cli.py, agent_workflows/command_surface.py, tests/test_orchestrator_readiness.py, tests/test_orchestrator_retirement.py, tests/test_orchestrator_shape_gate.py, tests/test_action_table_runner_parity.py
 - Item-Dependencies: executed:8mabmu
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - From-Spec: none
 - Work-Kind: bug
@@ -17,9 +17,9 @@
 - Highest E allocated: 08
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: qs00nc
-- Approval: 2026-10-06, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-06 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: qs00nc verified (set gradcover, attempt 1). [Scope reconciliation - out-of-scope agent_workflows/runner_shared.py: changed by the plan's approved execution (auto-reconciled by aw agy run)]
 - 2026-10-06 approved (aw set): status set to approved
 - 2026-10-06 reviewed (aw set): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-008..PR-012 (round 2, all fixed)
 - 2026-10-06 /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-008 to PR-012 (round 2). Fixed: new E-08/V-08 for four existing runner tests whose synthetic approved orchestrators must pass `pre-execution` lint, measured by a lint spy over the bare suite (PR-008); `--commit` reconciled with Order 02's commit-at-write, now `--no-commit` (PR-009); real-tree `axozpe` restore made commit-aware (PR-010); `retry_budget` threaded through `ask=True` (PR-011); V-02 remedy wording, scope counts (PR-012). Round-1 PR-001 confirmed fixed by the maintainer's 2026-10-04 ruling.
