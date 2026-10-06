@@ -2,10 +2,10 @@
 
 - Subject-Id: 26m1nb
 - Subject-Type: ipd
-- Reviewed-At: 2026-10-04
+- Reviewed-At: 2026-10-06
 - Reviewer: opencode/its_direct/pt3-claude-opus-5.5-1m-us
 - Verdict: APPROVE WITH REVISIONS APPLIED
-- Findings: PR-001 (HIGH, fixed), PR-002 (HIGH, fixed), PR-003 (MEDIUM, fixed), PR-004 (MEDIUM, fixed), PR-005 (MEDIUM, fixed), PR-006 (LOW, fixed), PR-007 (LOW, fixed)
+- Findings: round 2: PR-008 (HIGH, fixed), PR-009 (MEDIUM, fixed), PR-010 (LOW, fixed), PR-011 (LOW, fixed)
 
 ## Round 1
 
@@ -44,3 +44,37 @@ cases (a) and (c), `tests/test_ipd_lifecycle_backward_edges.py` case 4. Live tre
 | D-1 | History-line shape for a demotion? | Target status as token, `demoted <from> -> <to>: <reason>` as message | a new `demoted` token (invisible to the lifecycle event stream) | `_plan_status_events`; `check_lifecycle_transitions` | yes |
 | D-2 | Agent-surface form of the demotion warning? | Inside the terminal `result` record | a separate record (invalid kind) | `agent_schema.RECORD_KINDS` | yes |
 | D-3 | Is the same-rank `approved <-> auto-approved` move gated or treated as backward? | Neither | treat as backward (requires `--message` for a lateral move) | `_PLAN_STATUS_RANKS` | yes |
+
+## Round 2
+
+Re-review after the 2026-10-04 maintainer ruling moved the coverage answer into the plan (`25kzda` 2.5e). Lane
+`review-sweep-run-20261006T040814Z-944` at HEAD `cabcc453b`; plan committed and byte-identical to the sealed lane input
+(no snapshot). `- Kind: child`, `IPD-S407` n/a. `aw ipd lint --phase author` and `review-finalize` both report only the
+`info` advisory `IPD-Z602` on E-06, accepted as in round 1. Orders 00 to 03 are `reviewed`, none executed.
+
+Measured: a spy wrapping `status_set.apply_status_change` over the bare suite (`1 failed, 5082 passed, 2 skipped`; the one
+failure is `tests/test_readiness_absence_invariant.py`, which flags this plan and `r2wa38` for carrying `- Readiness:` at
+`to-review`, cleared for this plan by the `reviewed` transition below) recorded every non-terminal backward plan move:
+nine, of which five pass no `--message`, three in `tests/test_plan_transition_gate.py` case (c) (already in E-06) and two in
+`tests/test_status_set.py` (not in scope). Live tree: `aw check plans` reports five `check.lifecycle-transition-invalid`
+findings, unchanged from round 1. `aw ipd set reviewed axozpe --dry-run` today previews the write (no gate yet), so the
+real-tree evidence remains reachable only after E-01. In-tree production callers of a backward plan move: none found
+(argv builders in `runner_shared` issue only `auto-approved`, `begin`, `finalize`, and spec/backlog setters; `work_cmd`
+`aw finish` moves forward). `runner_shared.set_plan_approved` drives `aw set auto-approved`; its failures are caught by the
+queue builder and `execute_item_core`.
+
+### Findings
+
+| ID | Severity | Scope | Area | Evidence | Finding | Remediation Risk | Decision | Resolution |
+|----|----------|-------|------|----------|---------|------------------|----------|------------|
+| PR-008 | HIGH | UNDER-SCOPE | D anti-regression | `tests/test_status_set.py` `TestApprovedWritesApprovalField.test_approval_field_stripped_when_leaving_approved` (`approved -> reviewed`, no `--message`) and `ApprovalGateTests.test_the_override_is_not_recorded_when_it_had_no_effect` (`reviewed -> to-review`, no `--message`); measured by setter spy | E-05's `--message` requirement breaks two tests outside the declared files. | C:Low; U:Low; S:Low; F:Low; Overall:Low | FIXED | E-06 names both, requires re-derivation by bare suite; file added to Scope-Paths; V-06 updated. |
+| PR-009 | MEDIUM | UNDER-SCOPE | C operability | `runner_shared.set_plan_approved` (`aw set auto-approved ... --yes`); queue build `set_plan_approved_fn` in `try/except`; `/plan-review` sets `reviewed` through the setter | Setter-routed orchestrator promotions by the runner and `/plan-review` inherit the new gate and will refuse without a coverage record; the plan did not state or test this. | C:Low; U:Low; S:Low; F:Low; Overall:Low | FIXED | OQ-03 records the inheritance and the designed remedy (Order 07, Order 11); E-04 adds an `aw set auto-approved` refusal case; V-04 demands it. |
+| PR-010 | LOW | IN-SCOPE | E contract / consistency | E-01 "absent or stale verdict"; `agent_schema.RECORD_KINDS` | Stale verdict wording after the ruling; refusal record shape unspecified. | C:Low; U:Low; S:Low; F:Low; Overall:Low | FIXED | Wording now says coverage record; agent refusal is one `result` record carrying code, subject and remedy. |
+| PR-011 | LOW | IN-SCOPE | G executability | gate "a caller found by E-04's search" (the search is in E-06); "six Scope-Paths"; targeted test list | Cross-reference and count drift; `tests/test_scaffold_history_clock.py` (asserts no `check.lifecycle-transition-invalid`) missing from targeted run. | C:Low; U:Low; S:Low; F:Low; Overall:Low | FIXED | Corrected references and counts; test added. |
+
+### Decisions
+
+| ID | Question | Chosen | Alternatives considered | Basis | Reversible |
+|----|----------|--------|-------------------------|-------|------------|
+| D-1 | Should the runner's `aw set auto-approved` bypass the orchestrator gate? | No; it inherits the gate | an actor-keyed exemption (re-opens the bypass `d7bnhc` closed) | `status_set` approval-gate comment "a caller-side check is exactly what a DIFFERENT caller skips"; `25kzda` 2.5d CONSUMERS (Order 01) | yes |
+| D-2 | Fix the two `test_status_set.py` tests how? | Add `--message`, assertions unchanged | exempt `-> reviewed` from the message rule (contradicts Order 01 E.1 "EVERY BACKWARD MOVE IS LOUD") | `hm1h3l` E.1 | yes |
