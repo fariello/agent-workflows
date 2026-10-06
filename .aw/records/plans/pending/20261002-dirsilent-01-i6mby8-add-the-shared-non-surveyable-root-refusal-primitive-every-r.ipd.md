@@ -6,7 +6,7 @@
 - Scope: ADD one shared, reusable refusal primitive to `project_context` that a repo-scoped verb calls to turn a non-surveyable resolved root into (a) the human stderr text and (b) the machine summary + next-action inputs, derived from `classify_project_dir`. IN: the primitive and its return shape; a `no_project_message`-equivalent human string for the inside-a-project and no-project cases reusing the shipped wording so no verb invents its own; the PATH-FREE machine summary string plus the correct `NextAction` (none for the inside-a-project case, the shipped `aw install .` only for the genuine git-repo-without-AW case); and a regression test pinning the primitive's three outcomes, its path-free machine output, and the `aw install .` negative. OUT: converting ANY verb to call it (Order 02 converts the two validators, Order 03 the bypass sites, Order 04 the remainder); REFACTORING `attention.run` or `cli._run_plans` onto it (deliberately deferred to Order 04 so this plan cannot regress two shipped surfaces); changing `classify_project_dir`, `is_project_dir`, `_is_project_marker`, `find_project_root`, or `resolve_verb_repo_root` (body OR docstring); making anything CLIMB from an explicit `--dir`; changing the exit-code contract; and widening `agent_schema`.
 - Scope-Paths: agent_workflows/project_context.py, tests/test_nonsurveyable_root_refusal.py
 - Item-Dependencies: none
-- Status: to-review
+- Status: draft
 - Work-Kind: bug
 - Priority: medium
 - From-Backlog: rgl2d4
@@ -18,6 +18,7 @@
 - Id: i6mby8
 
 ## Workflow history
+- 2026-10-06 draft (aw set): demoted to-review -> draft: returned to authoring by gradcover 52opph: uncovered obligation: Check by reading each converted call site for a call to the primitive
 
 - 2026-10-02 to-review (opencode its_direct/pt3-claude-opus-5-1m-us): Authored from backlog item `rgl2d4`. GATE NOTE: item `rgl2d4` carries `- Blocks-Release: next`, which this plan INHERITS as required.
   THIS PLAN EXISTS BECAUSE THE CLASSIFIER IS NOT ENOUGH, which is the one place this Set departs from the item's framing. The item says the remaining work "is adopting that classifier at the remaining callers", implying the only missing piece was the predicate. Measured here (F-02): the two converted verbs each carry a ~45-line hand-rolled emission block, and those two blocks are near-identical. The classifier is the easy half; the REFUSAL (message wording, path-free machine record, exit codes, the `aw install .` negative) is the half that was copied, and copying it again at a dozen sites would reproduce the `lmyeas` F-14 falsehood a dozen times. So this plan adds the shared emitter FIRST and the later Orders call it.

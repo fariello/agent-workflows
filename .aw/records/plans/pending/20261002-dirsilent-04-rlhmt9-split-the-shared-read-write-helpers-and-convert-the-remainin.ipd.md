@@ -6,7 +6,7 @@
 - Scope: Make the read/write policy EXPRESSIBLE and then apply it to the remaining read-class callers. IN: splitting the three MEASURED mixed helpers (`releases._release_repo_root`, `research_refs._repo_root`, `research_archive._roots`) into a read-class and a write-class entry point; adding Order 01's refusal to the READ verbs those helpers serve; refactoring `attention.run` and `cli._run_plans` onto Order 01's primitive to retire the two hand-rolled copies; a fresh census recorded in the plan rather than in code; and a regression test pinning each converted read verb's refusal and each write verb's unchanged behavior. OUT: adding a refusal to ANY write-class verb (`lmyeas` OQ-01 decided against it and F-05 re-measures why); making anything climb from an explicit `--dir`; changing `resolve_verb_repo_root`'s body; changing what any converted verb reads or reports for a surveyable root; the two validators (Order 02) and the six bypass sites (Order 03); and splitting a helper this plan measures as single-class, which would be churn with no policy to express.
 - Scope-Paths: agent_workflows/releases.py, agent_workflows/research_refs.py, agent_workflows/research_archive.py, agent_workflows/attention.py, agent_workflows/cli.py, tests/test_read_class_callers_refuse.py
 - Item-Dependencies: executed:i6mby8, executed:jei45f, executed:sjsb04
-- Status: to-review
+- Status: draft
 - Work-Kind: bug
 - Priority: medium
 - From-Backlog: rgl2d4
@@ -18,6 +18,7 @@
 - Id: rlhmt9
 
 ## Workflow history
+- 2026-10-06 draft (aw set): demoted to-review -> draft: returned to authoring by gradcover 52opph: uncovered obligation: Check by reading each converted call site for a call to the primitive
 
 - 2026-10-02 to-review (opencode its_direct/pt3-claude-opus-5-1m-us): Authored from backlog item `rgl2d4`. GATE NOTE: item `rgl2d4` carries `- Blocks-Release: next`, which this plan INHERITS as required.
   THIS PLAN PERFORMS THE PREREQUISITE THE ITEM NAMES, and it CORRECTS the item's list on measurement. The item names SIX shared helpers. Measured here by walking each helper's callers and classifying each caller as read or write: only THREE are genuinely MIXED (`releases._release_repo_root`, `research_refs._repo_root`, `research_archive._roots`). Of the other three, `plans_index._dirs` and `research_index._roots` serve verbs that are ALL write-class because the index verbs regenerate `INDEX.json`/`INDEX.md`, and `prompts_index._dirs` has exactly ONE caller. A single-class helper needs no split: splitting it would be churn with no policy to express, which is the opposite of the item's stated reason for the split (F-01, F-02).

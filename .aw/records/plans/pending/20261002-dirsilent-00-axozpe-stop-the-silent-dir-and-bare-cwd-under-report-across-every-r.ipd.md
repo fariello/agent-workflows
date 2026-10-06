@@ -6,7 +6,7 @@
 - Scope: ORCHESTRATION ONLY. This plan sequences four children and contributes no implementation, no test and no deliverable of its own. Every artifact is owned by exactly one child and named in the child table below. IN: the dependency order, the Set-level completion criteria, and the cross-child consistency checks. OUT: everything the children do, which is the shared refusal primitive (Order 01), the two fail-closed validators (Order 02), the six resolver-bypass sites (Order 03), and the shared read/write helper split plus the remaining read-class callers and the duplication retirement (Order 04). This plan also does NOT reopen the no-climb decision `lmyeas` OQ-01 settled, and does NOT add a refusal to any write-class verb.
 - Scope-Paths: .aw/records/plans/pending/20261002-dirsilent-01-i6mby8-add-the-shared-non-surveyable-root-refusal-primitive-every-r.ipd.md, .aw/records/plans/pending/20261002-dirsilent-02-jei45f-convert-the-two-fail-closed-validators-specs-check-and-backl.ipd.md, .aw/records/plans/pending/20261002-dirsilent-03-sjsb04-route-the-six-resolver-bypass-sites-through-resolve-verb-rep.ipd.md, .aw/records/plans/pending/20261002-dirsilent-04-rlhmt9-split-the-shared-read-write-helpers-and-convert-the-remainin.ipd.md
 - Item-Dependencies: none
-- Status: to-review
+- Status: draft
 - Coverage: fail
 - Coverage-Fingerprint: b59fda92b7d914389f7b46014b3a883915e98daae683ce245f55d8ad16abc222
 - Coverage-Checked: 2026-10-06 by uri/its_direct/pt3-claude-opus-5.5-1m-us
@@ -21,6 +21,7 @@
 - Id: axozpe
 
 ## Workflow history
+- 2026-10-06 draft (aw set): demoted to-review -> draft: returned to authoring by gradcover 52opph: uncovered obligation: Check by reading each converted call site for a call to the primitive
 
 - 2026-10-06 coverage fail (aw oc run): fingerprint b59fda92b7d9, model uri/its_direct/pt3-claude-opus-5.5-1m-us
 - 2026-10-02 to-review (opencode its_direct/pt3-claude-opus-5-1m-us): Authored from backlog item `rgl2d4`. GATE NOTE: item `rgl2d4` carries `- Blocks-Release: next`, which this plan and all four children INHERIT as required.
