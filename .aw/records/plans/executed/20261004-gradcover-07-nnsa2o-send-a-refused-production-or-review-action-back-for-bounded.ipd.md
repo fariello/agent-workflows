@@ -6,7 +6,7 @@
 - Scope: IN: classify `BACKLOG-GRADUATE-SET` and `SPEC-PLAN-SET` findings (and only those, among production findings) as a bounded correction: build a correction packet listing each finding's subject, quoted passage and remedy; resume the production session with it inside the same lane; re-run the full production verifier list after the turn; repeat up to the frozen `--retry-budget`; then fail honestly. Add `IPD-REVIEW-ORCHESTRATOR-READY` after a review turn on an orchestrator: call `orchestrator_readiness.review_readiness(..., ask=True)` on the reviewed text; if not ready, return the plan to `to-review` through the setter, and remand the review for a bounded correction with the same packet; on exhaustion leave it `to-review` with the findings recorded and no `- Readiness:` written. OUT: any other production finding's retry class (they keep their current dispositions); the readiness check itself (Order 03); the duplicate-handoff rule (Order 08).
 - Scope-Paths: agent_workflows/runner_shared.py, tests/test_production_correction_turn.py
 - Item-Dependencies: executed:r2wa38, executed:26m1nb
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - From-Spec: none
 - Work-Kind: bug
@@ -17,9 +17,9 @@
 - Highest E allocated: 05
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: nnsa2o
-- Approval: 2026-10-06, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-06 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: nnsa2o verified (set gradcover, attempt 1).
 - 2026-10-06 approved (aw set): status set to approved
 - 2026-10-06 reviewed (aw set): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-001..PR-007 (all fixed)
 - 2026-10-06 /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001 to PR-007. Fixed: demotion leaves `- Readiness:` standing (measured), stripped by Order 05 and dependency added (PR-001); review trigger no longer "plan reads reviewed", since Order 05 makes the agent's own `aw set reviewed` refuse without a record, with site and disposition specified (PR-002); review correction delivered by session resume, not re-queue, since the review prompt is a bare slash command (PR-003); production commit baseline and session shapes stated (PR-004); E-04 surfaces limited to ones reachable within scope (PR-005); gate contract (PR-006); remedy reuse, test list, stale wording (PR-007).
