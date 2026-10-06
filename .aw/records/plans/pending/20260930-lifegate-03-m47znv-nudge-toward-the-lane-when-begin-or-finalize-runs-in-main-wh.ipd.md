@@ -6,8 +6,7 @@
 - Scope: Print ONE advisory line when `begin` or `finalize` runs in the main checkout while a lane or feature branch for that same plan exists, saying that finalizing there keeps main cleaner. It is advisory ONLY: it never changes an exit code, never withholds a transition, never gates anything, and never asks a question. Uses the lane records that already exist (the `.aw/worktrees/` lane directories and their owner records, and the plan's own lane branch name) to answer "does a lane for this plan exist", which is a DIFFERENT and weaker question than Order 01's liveness predicate answers and deliberately does not reuse it. EXCLUDES every refusal and every change to any gate: if this plan changes what any verb accepts or refuses, it is wrong. EXCLUDES the holder check, the token deletion and the override, all of which are Order 02's. EXCLUDES making the preference enforceable in any way.
 - Scope-Paths: agent_workflows/ipd_lifecycle.py, agent_workflows/runner_shared.py, tests/test_lifecycle_lane_nudge.py
 - Item-Dependencies: executed:e25iy9
-- Status: approved
-- Readiness: go-pending-approval
+- Status: draft
 - Work-Kind: bug
 - Priority: low
 - From-Backlog: dvonrn
@@ -17,9 +16,9 @@
 - Highest E allocated: 04
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: m47znv
-- Approval: 2026-10-01, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-06 draft (aw set): demoted approved -> draft: APPROVAL WITHDRAWN: returned to authoring by gradcover 52opph: uncovered obligation: Four checks span the children and cannot be performed by any child alone, which is why they live here.
 - 2026-10-01 approved (aw set): status set to approved
 
 - 2026-10-01 reviewed (opencode its_direct/pt3-claude-opus-5-1m-us): /plan-review verdict APPROVE WITH REVISIONS APPLIED; PR-001 (BLOCKER) through PR-003 all FIXED in place; new F-9 and F-10; OQ-01 and OQ-02 both resolved at review. Structural lint conformed at `author` with ZERO findings and again at `review-finalize`. RE-MEASURED every material claim: F-1 (the runner finalizes in the lane), F-2 (`WORKTREES_SUBDIR`, `OWNERS_SUBDIR`, `lane_branch_name`, `lane_id_from_branch`, `read_lane_owner` all present), F-3, F-5 (`nested_aw_message` keeps both streams and strips exactly `_CHECKOUT_PIN_NOTICE_PREFIX`), F-6 (both handlers' `--agent`/`--json` branch), F-7 and F-8 all HOLD. THE DOMINANT FINDING IS THAT THE PLAN'S OWN OUTPUT FENCE DOES NOT COVER HALF ITS SURFACE: `driver_begin` passes neither `--agent` nor `--json`, so it runs in HUMAN mode, captures stderr, and returns `nested_aw_message(stdout, stderr)` STDERR FIRST while stripping only one prefix; only `driver_finalize` requests `--json`. On a recovery attempt a prior lane exists, the nudge fires, and an unrelated begin refusal is recorded led by the nudge, which is the exact defect `nested_aw_message` was written to fix (measured on run-20260925T174509Z-636951, where "the real refusal was lost"). E-03 now requires one of three recorded fixes, preferring a fixed prefix added to the stripped set, which pulls `runner_shared.py` into `- Scope-Paths:`. One measurement correction: F-4's claim that a stdout line "could land inside a parsed payload" is false, because `parse_finalize_payload` is a deliberately TOLERANT parser that locates a balanced `{...}` and returns `None` rather than raising, precisely because the success path already prefixes stdout with `plans index --check: clean`; stderr remains correct for the `--json` byte-identity and refusal-contract reasons instead. One claim corrected in the plan's favour: the `aw set executed` delegation DOES inherit the nudge through `status_set._delegate_plan_executed_to_finalize`, so that deferral row's hope is confirmed rather than left open. The scope check's assertion that the runner "will therefore never see the nudge" was false for begin and is corrected. Human approval is still required. (Review record: `.aw/records/reviews/20260930-lifegate-03-m47znv-nudge-toward-the-lane-when-begin-or-finalize-runs-in-main-wh.review.md`.)
