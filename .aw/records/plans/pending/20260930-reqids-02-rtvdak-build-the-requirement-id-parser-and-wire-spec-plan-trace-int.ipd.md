@@ -6,8 +6,7 @@
 - Scope: IN: (a) a requirement-ID parser reading a spec's declared requirement ids and acceptance-criterion ids per the convention Order 01's spec defines, with the declaration-site rule honored so a MENTIONED id is not counted as a DECLARED one; (b) `production_checks.spec_plan_trace`, a sibling of the three shipped verifiers, returning the same `[(code, subject, message)]` shape and rendering `25kzda` 4.8's message template; (c) its call at the spec-production site in `runner_shared` beside the existing three `findings.extend` calls; (d) the cutover feature key registered in `config.KNOWN_FEATURE_CUTOVERS` so grandfathering is stamped per repository, not hardcoded; (e) behavioral tests in the style of `tests/test_spec_production.py`, including the grandfathered-spec and no-ids PASS cases. OUT: retrofitting any existing spec's requirement ids; a corpus-wide `aw check` rule; a requirements-outstanding `aw attention` view; a partial spec status; a plan-side requirement declaration field; `implemented` computed from coverage; and any edit to `25kzda` unless Order 01's spec decided AMEND, in which case the amendment is carried by whatever plan that spec names and not silently here.
 - Scope-Paths: agent_workflows/production_checks.py, agent_workflows/config.py, agent_workflows/runner_shared.py, tests/test_spec_production.py, tests/test_production_checks_trace.py, .aw/records/plans/pending/20260930-reqids-02-rtvdak-build-the-requirement-id-parser-and-wire-spec-plan-trace-int.ipd.md
 - Item-Dependencies: executed:jjh4aj, state:spec:approved:89xjll
-- Status: approved
-- Readiness: go-pending-approval
+- Status: draft
 - From-Spec: 25kzda
 - Work-Kind: feature
 - Priority: medium
@@ -17,9 +16,9 @@
 - Highest E allocated: 08
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: rtvdak
-- Approval: 2026-10-01, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-06 draft (aw set): demoted approved -> draft: APPROVAL WITHDRAWN: returned to authoring by gradcover 52opph: uncovered obligation: Close backlog `vy20et` by shipping both halves it asks for
 - 2026-10-01 same-status (aw set): set Item-Dependencies to executed:jjh4aj, state:spec:approved:89xjll
 - 2026-10-01 approved (aw set): status set to approved
 
