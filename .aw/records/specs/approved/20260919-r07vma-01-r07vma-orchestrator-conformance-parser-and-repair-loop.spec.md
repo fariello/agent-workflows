@@ -18,6 +18,7 @@
 
 ## Workflow history
 
+- 2026-10-06 note (aw specs): AMENDED 2026-10-04 (plan hm1h3l, Set gradcover): R9's probe bullet records the quoted-evidence answer and named-child credit, and both controls now feed the 25kzda 2.5d review-readiness function; Section 3a limit 1 updated; limit 5 rewritten because the omitted-final-child case is now detected by 25kzda 2.5d.
 - 2026-09-28 note (aw specs): Section 3a limit 1 noted by 3brgb6: orchestrator coverage probe now actually reads Completion criteria and Cross-IPD validation prose sections
 - 2026-09-19 approved (aw specs, --by-human): APPROVED by the human maintainer (Gabriele Fariello) 2026-09-19, recorded by the agent at their explicit instruction in session. Approval covers the design as hardened through two review rounds: R1a's typed child-tracking row as the enforcement mechanism (chosen over a prose vocabulary after the maintainer resolved OQ-02 as TYPED), R1b's rule that a cross-child check is a final child with sibling dependencies, the bounded review-time repair loop with honest exhaustion, the batch-report-then-refuse run gate, and the RETENTION of the semantic coverage probe beside the new control per 25kzda 2.5b. The maintainer is on notice of the principal cost: ZERO of 32 live orchestrator rows conform to the new grammar, so every one of the 11 pending orchestrators needs its checklist rewritten, and the migration route is the implementing plan's to choose under acceptance criterion 12. OQ-01 (keeping authoring instructions from drifting from the enforcing code) remains open and non-blocking.
 ## 1. The problem, and what the existing control does not reach
@@ -178,7 +179,7 @@ scoped to a DIFFERENT and narrower question than the probe's, and the two coexis
   STRUCTURE rather than judging wording, and it is the thing review can repair in a loop.
 - THE PROBE answers "does this orchestrator carry work no child covers, including work stated only in
   prose?" It is semantic, and it remains the control for the continuation lines and the orchestrator's
-  prose sections, which R1a explicitly does NOT parse.
+  prose sections, which R1a explicitly does NOT parse. It quotes each passage it judges uncovered (spec `25kzda` 2.5b), and it credits an obligation the orchestrator's prose explicitly assigns by id6 to a child in its own `## Child IPDs` table. Both the shape check and the probe verdict are inputs to the single review-readiness function of spec `25kzda` 2.5d, which is how R3's "one implementation" extends to the status setters and the production action.
 
 Neither subsumes the other, and the ordering is shape check first (free, and repairable at review) then
 probe (costly, and the backstop for prose). A run the shape check refuses never reaches the probe, so the
@@ -332,8 +333,7 @@ than one with a narrow scope.
 1. A CONFORMING CHECKLIST IS NOT EVIDENCE THAT AN ORCHESTRATOR CARRIES NO UNCOVERED WORK. It is evidence
    that every ROW is a well-formed child-tracking row. R1a deliberately does not parse the continuation
    lines, the `## Completion criteria` section, or the `## Cross-IPD validation` section, and an
-   obligation can still be written there. That residue is the semantic probe's job, which is why `25kzda`
-   2.5b's prohibition still binds and the probe is retained.
+   obligation can still be written there. That residue is the semantic probe's job, which is why `25kzda` 2.5b's prohibition still binds and the probe is retained. Since Set `gradcover`, the probe's finding is a quoted passage rather than a bare verdict, and an obligation explicitly assigned in prose to a named child is credited, so the residue the probe reports is the residue an author can act on.
 2. THE SHAPE CHECK HAS NO RECALL QUESTION FOR ROWS, AND AN UNQUANTIFIED ONE FOR PROSE. Within a row the
    check is structural, so "recall" does not apply: a deliverable cannot take the typed form. Outside a
    row it has no reach at all. An implementer should measure how much of the real violation population
@@ -346,10 +346,7 @@ than one with a narrow scope.
    put it in the prose R1a does not read, and plausibly phrase it past a probe too. The controls raise the
    cost of the ACCIDENTAL violation, which is the measured failure mode (`rh5tt6`, and the 2026-09-06
    `Readiness` incident, were both pattern-completion rather than deception).
-5. THE TYPED SHAPE IS A CONSTRAINT ON THE ROW, NOT A PROOF ABOUT THE SET. It guarantees that what a row
-   SAYS is a child-tracking obligation. It does not guarantee the Set's children actually cover the Set's
-   work: a parent can conform perfectly while its author simply omitted a needed final child. R1b names
-   the remedy but nothing detects the omission, and this spec does not claim to.
+5. THE TYPED SHAPE IS A CONSTRAINT ON THE ROW, NOT A PROOF ABOUT THE SET. It guarantees that what a row SAYS is a child-tracking obligation. Since Set `gradcover` the omission of a needed final child IS detected, but by a different control: the review-readiness check of spec `25kzda` 2.5d, whose coverage condition reports any whole-Set obligation no listed child is named as performing, and which gates the orchestrator's status and its source's graduation. The row grammar itself still proves nothing about the Set.
 6. THE MIGRATION IS NOT DESIGNED HERE. Section 5 cost 3 states that 11 orchestrators need rewriting and
    names the cutover pattern; choosing between a cutover, a sweep, and a grandfather clause is the
    implementing plan's decision, and a wrong choice there could strand a Set mid-flight.

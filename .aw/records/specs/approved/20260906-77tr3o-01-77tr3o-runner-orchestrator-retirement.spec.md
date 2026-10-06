@@ -14,6 +14,7 @@
 
 ## Workflow history
 
+- 2026-10-06 note (aw specs): AMENDED 2026-10-04 (plan hm1h3l, Set gradcover): R-12 scoped to runs that may retire an orchestrator and extended to a re-check at the retirement point; R-12 point 3 clarified that a refusing readiness lint rule is permitted and that R-5's rejection concerns exemptions only; new R-13 requires the 25kzda 2.5d readiness check at every status change and production handoff that would claim an orchestrator's Set is ready.
 - 2026-09-25 note (aw specs): AMENDED 2026-09-25 (statusvocab 9x7otz / cyamvi): canonical terminal status vocabulary updated (fail-depend, fail-merge, fail-gate, fail-verify, fail-begin, fail-lane, not-run, interrupted). Legacy terminal status tokens (including dependency-blocked, integration-blocked, merge-needs-human, merge-conflict, merge-refused, substantially-complete, failed-safely, not-attempted) remain readable forever for backward compatibility on historical run records (via TERMINAL_STATUS_ALIASES), but are no longer written by the runner.
 - 2026-09-24 note (aw specs): AMENDED 2026-09-24 (IPD kjqqzf): R-12(3)'s stale "zero occurrences of 'orchestrator'" sentence is corrected to reflect the behavioral Kind-parity property (the pre-transition checkpoint produces identical findings for an orchestrator and a child), matching the replacement of the source-text pin with a behavioral test in tests/test_orchestrator_retirement.py::TheRejectedShapeWasNotTaken after IPD-S407 landed in ipd_lint.py.
 - 2026-09-21 note (aw specs): AMENDED 2026-09-21 (maintainer-directed rename): the non-success terminal status list now names merge-needs-human and merge-refused rather than integration-blocked and merge-conflict. A pure one-for-one renaming of the same two statuses; the retirement rule itself is unchanged, and both pre-rename spellings remain recognized at read time via runner_shared.LEGACY_INTEGRATION_STATUS_ALIASES so an already-recorded run still classifies identically. Verified: tests/test_orchestrator_retirement.py passes.
@@ -211,9 +212,7 @@ so the asymmetry is known in passing but unfixed.
   V-02. So a parent-only deliverable was marked complete having been neither performed nor verified,
   which is exactly the outcome R-5 intended to make impossible.
 
-  THEREFORE: before a run spends an agent turn, allocates a lane worktree, or opens a session, it MUST
-  establish for every orchestrator IN ITS QUEUE whether that orchestrator carries work no child
-  covers, and MUST refuse (unattended) or prompt (interactive) when it does. The check is specified in
+  THEREFORE: before a run that may RETIRE an orchestrator spends an agent turn, allocates a lane worktree, or opens a session, it MUST establish, for every orchestrator in its queue whose action in that run is `orchestrate`, whether that orchestrator carries work no child covers, and MUST refuse (unattended) or prompt (interactive) when it does; and immediately before it retires one, it MUST re-establish that answer for the orchestrator's current text (spec `25kzda` 2.5b). The check is specified in
   spec `25kzda` Section 2.5b, which owns its mechanism, its caching, its four-state answer, and its
   override; this requirement is what makes it OWED rather than optional, and states the three
   properties that follow from R-5 specifically:
@@ -227,18 +226,13 @@ so the asymmetry is known in passing but unfixed.
      executions gets complied with by DELETING the parent's checklist, and that checklist is what
      makes `execute <setid>` complete and ordered when no runner is involved. Deleting it causes the
      lost work this spec exists to prevent.
-  3. THE CHECK IS NOT A LINTER RULE, AND R-5's REJECTION OF SHAPE (a) STANDS UNCHANGED. The
-     pre-transition E/V checkpoint preserves Kind-parity (producing identical findings for an
-     orchestrator and a child; pinned behaviorally by `TheRejectedShapeWasNotTaken`), and does not
-     exempt an orchestrator from evidence. Two independent reasons: the dangerous case is stated in
-     PROSE and matches no syntax, so a pattern match catches only the tidy mistake; and measured over
-     the live corpus every plan carrying `- Kind: orchestrator` carries checklist items, most of them
-     legitimate orchestration, so a syntactic rule's false positives would drive exactly the
-     deletion (2) forbids.
+  3. THE COVERAGE CHECK DOES NOT EXEMPT AN ORCHESTRATOR FROM EVIDENCE, AND R-5's REJECTION OF SHAPE (a) STANDS UNCHANGED. The pre-transition E/V checkpoint preserves Kind-parity (identical findings for an orchestrator and a child; pinned behaviorally by `TheRejectedShapeWasNotTaken`). What R-5 rejected is a lint EXEMPTION that lets an orchestrator reach `executed` with less evidence. A lint rule that REFUSES an orchestrator which is not ready for review (spec `25kzda` 2.5d, `IPD-S408`) is the opposite direction: it adds a refusal at `review-finalize` and `pre-execution`, never relaxes `pre-transition`, and reads the coverage record stored in the plan rather than asking a model. It is therefore permitted and is required by R-13. The two reasons a SYNTACTIC substitute for the semantic probe is still forbidden are unchanged: the dangerous case is stated in prose and matches no syntax, and a syntactic rule's false positives would drive deletion of the checklist (point 2).
 
   An override exists for a maintainer who accepts the risk deliberately, and it MUST record a
   JUSTIFICATION rather than a bare boolean: the risk accepted is that a parent's items will be
   reported complete unperformed, and a record that says only "someone allowed this" cannot be audited.
+
+- R-13 AN ORCHESTRATOR MAY NOT BE MARKED READY WHILE ITS SET IS NOT. Added 2026-10-04 by Set `gradcover` (plan `hm1h3l`). R-12 checks coverage at run time, which is too late: by then the orchestrator has been handed off as `to-review`, its backlog item set `graduated`, and a run is refused with nobody positioned to fix it (measured 2026-10-03: 13 orchestrators, 11 of them from `graduated` items). So the same question is asked EARLIER, at every point that would claim the Set is ready: an orchestrator plan MUST NOT be set `to-review`, `reviewed`, `approved` or `auto-approved`, and a production action MUST NOT set its source `graduated` or `implementing`, unless the orchestrator passes the review-readiness check of spec `25kzda` Section 2.5d. The check is ONE function shared by every consumer (spec `r07vma` R3). Its refusal names the constructive action exactly as R-12 point 2 requires.
 
 ## 4. Deliberately out of scope
 
