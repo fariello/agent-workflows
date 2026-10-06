@@ -7,8 +7,8 @@
 - Scope-Paths: .aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md, .aw/records/specs/approved/20260906-77tr3o-01-77tr3o-runner-orchestrator-retirement.spec.md, .aw/records/specs/approved/20260919-r07vma-01-r07vma-orchestrator-conformance-parser-and-repair-loop.spec.md, .aw/records/specs/implemented/20260802-1904-01-ipd-structure-and-linting.spec.md, .aw/records/specs/implemented/20260726-1340-01-ipd-spec.spec.md
 - Item-Dependencies: none
 - From-Spec: none
-- Status: to-review
-- Readiness: no-go
+- Status: reviewed
+- Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: high
 - Blocks-Release: f33nrj
@@ -19,6 +19,8 @@
 - Id: hm1h3l
 
 ## Workflow history
+- 2026-10-06 reviewed (aw set): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-008..PR-010 (round 2, all fixed)
+- 2026-10-06 /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-008 to PR-010 (round 2). Fixed: 2.5d condition 2 now exempts executed children from the author lint, matching `qs00nc` F-06/E-01 (PR-008); D.1's author-advisory sentence moved from rule 20 (`IPD-M112`, an error at every checkpoint) to rule 19 (`IPD-S408`), matching `qs00nc` E-04 (PR-009); 2.5e history-line fingerprint stated as the 12-hex prefix `8mabmu` E-03 writes (PR-010). Round-1 PR-006 confirmed fixed by the maintainer's 2026-10-04 ruling (OQ-03 resolved).
 - 2026-10-05 to-review (aw set): returned to review after revision: maintainer ruling 2026-10-04 stores the coverage answer in the plan (25kzda 2.5e), resolving blocking OQ-03; every affected plan was rewritten to match
 - 2026-10-04 note (opencode its_direct/pt3-claude-opus-5.5-1m-us): revised after review. OQ-03 RESOLVED by the maintainer (2026-10-04): the coverage answer is stored in the plan, not in the gitignored cache. Added `25kzda` Section 2.5e (where the answer is recorded, who writes it, how it is attested, exclusion from the execution-receipt fingerprint) and lint rule 20 (`IPD-M112`); A.2, A.3, A.6 condition 4, B.2 and D.1 now read the plan's record.
 - 2026-10-04 re-scope (opencode its_direct/pt3-claude-opus-5.5-1m-us): from the /plan-review of `qs00nc` (finding PR-001): OQ-03 Context gains the freeze-gate ordering (`enforce_freeze_time_refusal` lints approved plans at `pre-execution` before the run-start probe). Context only; the question, options and verdict are unchanged.
@@ -125,7 +127,7 @@ A.6 ADD a new Section 2.5d immediately after Section 2.5c:
 > An orchestrator plan (`- Kind: orchestrator`) is READY FOR REVIEW only when ALL of these hold, evaluated by ONE shared function (one implementation, several consumers, the pattern of spec `r07vma` R3):
 >
 > 1. every row of its `## Child IPDs` table names a child plan that exists in the plans tree (an unresolvable or open-ended row such as `03+` is not ready, as in spec `77tr3o` OQ-2);
-> 2. every such child carries `- Status:` `to-review`, `reviewed`, `approved`, `auto-approved` or `executed`, and passes `aw ipd lint` at the `author` checkpoint;
+> 2. every such child carries `- Status:` `to-review`, `reviewed`, `approved`, `auto-approved` or `executed`; a child that is NOT in a terminal directory also passes `aw ipd lint` at the `author` checkpoint (a child under `executed/` with `- Status: executed` is ready without being linted, because the linter reports every terminal-directory plan as `legacy/not evaluated`, which is not a passing disposition);
 > 3. its checklist rows conform to spec `r07vma` R1a (`IPD-S407`);
 > 4. the plan carries a coverage record (Section 2.5e) whose verdict is `pass` and whose fingerprint matches the plan's CURRENT text.
 >
@@ -148,7 +150,7 @@ A.6 ADD a new Section 2.5d immediately after Section 2.5c:
 >
 > A record is CURRENT when its fingerprint equals the fingerprint of the plan's current text. Ticking a checkbox, filling evidence, or appending history does not change the fingerprint. Any edit to the parts the question reads does, and makes the record OUT OF DATE, which every consumer treats exactly as an absent record (the four asking consumers ask again; `aw ipd set`, `aw ipd lint` and `aw check` report it, naming `aw ipd coverage <id6>`).
 >
-> ONLY THE TOOL WRITES THE RECORD. `aw ipd coverage`, the production action, the post-review check and the retirement-time re-check write all fields together, and append a matching `## Workflow history` line `coverage <pass|fail> (<tool>): fingerprint <hex>, model <model>`. A coverage record with no matching history line is refused by `aw ipd lint` (rule `IPD-M112`), the same defense `- Readiness:` has (`IPD-M107`). This does not make forgery impossible; it makes a hand-written record visible in review and in git history, which is the standard the repository already accepts for `- Readiness:`.
+> ONLY THE TOOL WRITES THE RECORD. `aw ipd coverage`, the production action, the post-review check and the retirement-time re-check write all fields together, and append a matching `## Workflow history` line `coverage <pass|fail> (<tool>): fingerprint <first 12 hex digits of Coverage-Fingerprint>, model <model>`. A coverage record with no matching history line is refused by `aw ipd lint` (rule `IPD-M112`), the same defense `- Readiness:` has (`IPD-M107`). This does not make forgery impossible; it makes a hand-written record visible in review and in git history, which is the standard the repository already accepts for `- Readiness:`.
 >
 > THE RECORD IS NOT PART OF THE PLAN'S EXECUTION CONTRACT. The coverage fields, the `## Coverage findings` section and their history lines are excluded from the begin-receipt fingerprint (`ipd_lifecycle.frozen_region_digest`) and from the coverage fingerprint itself, so recording an answer neither invalidates an execution receipt nor changes the text it describes.
 >
@@ -226,8 +228,8 @@ C.4 History line: `AMENDED 2026-10-04 (plan hm1h3l, Set gradcover): R9's probe b
 
 D.1 Section 10 "Deterministic linter contract" (the `aw ipd lint` MUST-check list, the list beginning "For a new or migrated IPD, it MUST check at least"): ADD item 19 after item 18:
 
-> 19. for an orchestrator plan at the `review-finalize` and `pre-execution` checkpoints, that it is ready for review per spec `25kzda` Section 2.5d (`IPD-S408`), evaluating conditions 1 to 3 directly and condition 4 by READING the plan's own coverage record (spec `25kzda` 2.5e), never by asking a model. An absent coverage record, or one whose fingerprint does not match the current text, is an error that names `aw ipd coverage <id6>` as the remedy. Because the record is in the plan, the result is the same on every clone and in CI.
-> 20. that a coverage record (`- Coverage:`, `- Coverage-Fingerprint:`, `- Coverage-Checked:`) is either wholly absent or complete, and is matched by a `coverage` line in `## Workflow history` (`IPD-M112`), at every checkpoint. At the `author` checkpoint the rule is advisory only, so a plan being written is not refused for children not yet written.
+> 19. for an orchestrator plan at the `review-finalize` and `pre-execution` checkpoints, that it is ready for review per spec `25kzda` Section 2.5d (`IPD-S408`), evaluating conditions 1 to 3 directly and condition 4 by READING the plan's own coverage record (spec `25kzda` 2.5e), never by asking a model. An absent coverage record, or one whose fingerprint does not match the current text, is an error that names `aw ipd coverage <id6>` as the remedy. Because the record is in the plan, the result is the same on every clone and in CI. At the `author` checkpoint the rule is advisory only, so a plan being written is not refused for children not yet written.
+> 20. that a coverage record (`- Coverage:`, `- Coverage-Fingerprint:`, `- Coverage-Checked:`) is either wholly absent or complete, and is matched by a `coverage` line in `## Workflow history` (`IPD-M112`), at every checkpoint, as an error (an incomplete or unattested record is a defect at any stage, unlike a missing child).
 
 D.2 ADD a paragraph immediately after the MUST-check list:
 
