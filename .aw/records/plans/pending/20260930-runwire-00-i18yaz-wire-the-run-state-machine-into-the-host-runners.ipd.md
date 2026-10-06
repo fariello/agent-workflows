@@ -10,7 +10,7 @@
   EXCLUDES, AND THIS FENCE IS THE MOST IMPORTANT PART OF THIS PLAN. (1) NO LEDGER. Making a driver run write a hash-chained `ledger.jsonl` so `run_engine.RunEngine` and therefore `run_recovery` become reachable is EXPLICITLY OPEN and is NOT decided here; `runner_shared`'s own comment says "WHETHER A DRIVER RUN SHOULD WRITE A LEDGER IS STILL OPEN ... Nobody may cite this section as a decision to abandon the ledger design", and approved spec `25kzda` concedes the ledger is built but unwired. `run_recovery` is therefore UNREACHABLE BY CONSTRUCTION from a driver run and this Set does not import it; see OQ-01. (2) NO REQUEUE. The `correction_required -> runnable` transition remains unimplemented (`1bfppy` OQ-01). (3) NO VOCABULARY REPLACEMENT. No driver status token is renamed, removed, or re-spelled, and `TERMINAL_STATES` keeps every member: a translation is ADDITIVE and a rename would break `run_viewer`, `runner_shutdown.KNOWN_ITEM_STATUSES`, `artifact_audit` and the attention mapping at once. (4) NO NEW REFUSAL from the transition check (Order 01 is report-only); Order 02 DOES refuse, and its fence says exactly where.
 - Scope-Paths: .aw/records/plans/pending/20260930-runwire-00-i18yaz-wire-the-run-state-machine-into-the-host-runners.ipd.md
 - Item-Dependencies: none
-- Status: to-review
+- Status: draft
 - Coverage: fail
 - Coverage-Fingerprint: 086243502328ca25458e4bf8d45aadbc015a5e2718b37f52ecfd6ba295d391b8
 - Coverage-Checked: 2026-10-06 by uri/its_direct/pt3-claude-opus-5.5-1m-us
@@ -24,6 +24,7 @@
 - Id: i18yaz
 
 ## Workflow history
+- 2026-10-06 draft (aw set): demoted to-review -> draft: returned to authoring by gradcover 52opph: uncovered obligation: Bare pytest compared against a baseline measured before any edit
 
 - 2026-10-06 coverage fail (aw oc run): fingerprint 086243502328, model uri/its_direct/pt3-claude-opus-5.5-1m-us
 - 2026-09-30 to-review (opencode/its_direct/pt3-claude-opus-5-1m-us): Authored from backlog `ildjse` in lane worktree `ildjse` at HEAD `cedab274`. EVERY claim in the item was re-measured rather than trusted, and the item held up on its central claim: both drivers still import none of the three modules (zero grep matches each). THREE THINGS THE ITEM DID NOT SAY that shaped this Set.

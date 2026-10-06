@@ -11,7 +11,7 @@
   EXCLUDES: changing the verifier PROMPT or its verdict schema; changing `map_verdict` or the verdict table (`1bfppy`'s, and it is correct); adding a `verify_disp` token (measured to render as a bare `-` in `run_viewer`); the `correction_required -> runnable` requeue; wiring `run_recovery` or a ledger; and adding an `ACTION_CAPABILITY_REQUIREMENTS` row (see OQ-02 - that is a capability-policy change with its own refusal surface).
 - Scope-Paths: agent_workflows/runner_shared.py, tests/test_runwire_verifier_authority.py
 - Item-Dependencies: executed:32jpl1
-- Status: to-review
+- Status: draft
 - Work-Kind: chore
 - Priority: medium
 - From-Backlog: ildjse
@@ -22,6 +22,7 @@
 - Id: eow7p4
 
 ## Workflow history
+- 2026-10-06 draft (aw set): demoted to-review -> draft: returned to authoring by gradcover 52opph: uncovered obligation: Bare pytest compared against a baseline measured before any edit
 
 - 2026-09-30 to-review (opencode/its_direct/pt3-claude-opus-5-1m-us): Authored from backlog `ildjse` in lane worktree `ildjse` at HEAD `cedab274`. THE BACKLOG ITEM SAYS ONLY "nothing checks its authority"; this plan exists because that phrase turned out to name a CHECKABLE, ALREADY-BUILT guarantee rather than an abstraction. Three measurements shaped it. FIRST, `_v_session` occurs exactly ONCE in `runner_shared.py` (the destructuring that discards it), while the execute turn's session id IS persisted as `attempt["session_id"]`, so the comparison needs no new data collection - only the comparison. SECOND, the refusal already ships twice (`agy_verifier.assert_distinct_sessions`, and `run_fresh_verifier`'s `enforce_role_action` call) and `verify_roles.ROLE_CONTRACTS['verifier'].state_authority` grants precisely the three verification edges. THIRD, and decisively, `host_sandbox_profile` PROBES `supports_fresh_verifier_session` and `ACTION_CAPABILITY_REQUIREMENTS` has exactly ONE row (`ACTION_READ_ONLY`, `required=()`), so the probe's verdict gates no action at all; the module's own docstring warns that a contract that never refuses leaves "a caller [believing] verification was independent", which is the runner's current state.
   SEVERITY STATED HONESTLY RATHER THAN INFLATED: oc's verifier launch passes `fresh_session=True` and omits `--session` for such a turn, so a collision is unlikely by construction and NO collision is known to have occurred. This is therefore a GUARD, and the plan says so in its Concern rather than implying a live leak. The adjacent class HAS bitten this repository (`lanesess` `xd9sll`, four lanes lost to a cross-tree session), which is why a cheap check on a silent-failure path is worth having. DEPENDS ON ORDER 01 because the authority question ("may this actor make `verifying -> correction_required`?") is only askable once something knows the item is AT `verifying`, which is Order 01's translation; re-deriving the position here would create the second state machine the Set exists to prevent.
