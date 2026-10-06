@@ -6,7 +6,7 @@
 - Scope: IN: sequence the five children that take the `set` family from two implementations per verb to one, in an order that ships the two release-gated bug fixes WITHOUT waiting on a blocking maintainer decision, and that lands a differential harness before any behavior moves. OUT: every axis spec `wy9aru` Section 7 assigns elsewhere (the UTC-versus-local clock, the history label, the same-status dedup, the sidecar write order, the dead `apply` read, the defaulted message, the backlog transition table, the closed-item audit, the hand-edit gate, the dead `aw prompts set` verb), each with a named carrier.
 - Scope-Paths: .aw/records/plans/pending/20261001-setdisp-00-63zo2f-unify-the-forked-aw-backlog-set-and-aw-specs-set-dispatch-pa.ipd.md
 - Item-Dependencies: none
-- Status: to-review
+- Status: draft
 - Coverage: fail
 - Coverage-Fingerprint: 9f031836a1c2a592884ef82c5f36abeb07ece1eedabb9df56b7a886597cc3275
 - Coverage-Checked: 2026-10-06 by uri/its_direct/pt3-claude-opus-5.5-1m-us
@@ -21,6 +21,7 @@
 - Id: 63zo2f
 
 ## Workflow history
+- 2026-10-06 draft (aw set): demoted to-review -> draft: returned to authoring by gradcover 52opph: uncovered obligation: The bare suite pytest after the final child compared by name against baseline
 
 - 2026-10-06 coverage fail (aw oc run): fingerprint 9f031836a1c2, model uri/its_direct/pt3-claude-opus-5.5-1m-us
 - 2026-10-01 to-review (opencode/its_direct/pt3-claude-opus-5-1m-us): authored from backlog `fcnz1r`. Spec `wy9aru` was authored alongside this Set to supply the canonicity rulings `fcnz1r` says are needed before any code moves; two previously-unknown gate bypasses were MEASURED while authoring and filed as release-gated carriers (`h4fiwa`, `fv4b6s`), plus one dead verb (`68sur3`). This orchestrator carries ONLY the child-completion checklist; every deliverable belongs to a child.

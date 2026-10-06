@@ -6,7 +6,7 @@
 - Scope: IN: reduce `specs.run_set` to an argument-normalizing adapter that delegates to `status_set.run_set_command`, preserving its name and callable signature; carry its three genuinely-own behaviors into the shared engine as explicitly type-scoped parameters (the post-write `validate_spec` refusal, the `--date` override, the sidecar append); inherit the shared engine's selector vocabulary per `wy9aru` 4.5 and OQ-2; keep every refusal from both sides per `wy9aru` 4.7. OUT, each with a reason recorded under "Deferred": the backlog path (child 05); the two gate bypasses (child 03, which must land first); every axis `wy9aru` Section 7 assigns elsewhere; any change to what a spec status MEANS or to the transition table.
 - Scope-Paths: agent_workflows/specs.py, agent_workflows/status_set.py, agent_workflows/cli.py, tests/test_specs_set_adapter.py, .aw/records/specs/implemented/20260818-1525-02-sidecar-metadata-and-history.spec.md, CHANGELOG.md
 - Item-Dependencies: executed:m1jlwm, state:spec:approved:wy9aru
-- Status: to-review
+- Status: draft
 - Work-Kind: chore
 - Priority: medium
 - From-Backlog: fcnz1r
@@ -18,6 +18,7 @@
 - Id: m94eht
 
 ## Workflow history
+- 2026-10-06 draft (aw set): demoted to-review -> draft: returned to authoring by gradcover 52opph: uncovered obligation: The bare suite pytest after the final child compared by name against baseline
 
 - 2026-10-01 to-review (opencode/its_direct/pt3-claude-opus-5-1m-us): authored from backlog `fcnz1r` under spec `wy9aru`. THIS PLAN IS GATED ON `wy9aru` OQ-1 (the sidecar ruling), which is BLOCKING on a maintainer call, and E-03 cannot be authored until that call is made: it implements whichever answer the maintainer gives. The two engines were read in full at HEAD `ec857565a` and the base suite measured bare (`3512 passed, 2 skipped`). This plan declares a SPEC EDIT (`1525-02`), announced per `AGENTS.md` because the sidecar's writer SITE moves.
 - 2026-10-01 draft (opencode/its_direct/pt3-claude-opus-5-1m-us): created.

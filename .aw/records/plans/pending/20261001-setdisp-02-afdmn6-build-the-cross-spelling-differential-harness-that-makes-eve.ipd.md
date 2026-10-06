@@ -6,7 +6,7 @@
 - Scope: IN: author one differential harness that drives BOTH spellings of `aw backlog set` and BOTH spellings of `aw specs set` over identical fixtures and asserts agreement on every axis spec `wy9aru` Section 4 rules canonical AND that already agrees today, with the axes `wy9aru` Section 7 assigns elsewhere normalized by SHAPE; record the axes that currently DISAGREE as explicit, individually justified expected-difference assertions, so each later child can flip exactly one of them and show the flip. OUT, each with a reason recorded under "Deferred": any production code change whatsoever (this child is tests only); any dispatch move (children 04, 05); the two gate bypasses (child 03); fixing any axis `wy9aru` Section 7 assigns elsewhere.
 - Scope-Paths: tests/test_set_dispatch_parity.py
 - Item-Dependencies: executed:c6f6sj
-- Status: to-review
+- Status: draft
 - From-Spec: wy9aru
 - Work-Kind: chore
 - Priority: medium
@@ -18,6 +18,7 @@
 - Id: afdmn6
 
 ## Workflow history
+- 2026-10-06 draft (aw set): demoted to-review -> draft: returned to authoring by gradcover 52opph: uncovered obligation: The bare suite pytest after the final child compared by name against baseline
 - 2026-10-01 same-status (aw set): status unchanged (to-review)
 
 - 2026-10-01 to-review (opencode/its_direct/pt3-claude-opus-5-1m-us): authored from backlog `fcnz1r` under spec `wy9aru`. This child adds NO production code and is the safety net the two migration children depend on. The axis inventory was derived by reading `status_set.run_set_command`/`apply_status_change`/`validate_transition_allowed`, `backlog.run_set` and `specs.run_set` in full at HEAD `ec857565a`, and the two gate bypasses in the inventory were MEASURED (filed `h4fiwa`, `fv4b6s`).

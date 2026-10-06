@@ -6,7 +6,7 @@
 - Scope: IN: reduce `backlog.run_set` to an argument-normalizing adapter delegating to `status_set.run_set_command`, preserving its name and callable signature and keeping `--gate-dir` working as an engine parameter; adopt the shared engine's `git mv` relocation per spec `wy9aru` 4.2; adopt the shared engine's ambiguous-selector refusal per 4.5; carry the backlog-only validations into the shared engine per 4.7; verify `runner_shared.close_backlog_item` still works. OUT, each with a reason recorded under "Deferred": the specs path (child 04, which must land first); every axis `wy9aru` Section 7 assigns elsewhere, each with its own carrier; closing any of the carriers whose defects this migration incidentally removes, except where the plan's own evidence proves the fix complete.
 - Scope-Paths: agent_workflows/backlog.py, agent_workflows/status_set.py, agent_workflows/cli.py, tests/test_backlog_set_adapter.py, CHANGELOG.md
 - Item-Dependencies: executed:m94eht
-- Status: to-review
+- Status: draft
 - Work-Kind: chore
 - Priority: medium
 - From-Backlog: fcnz1r
@@ -18,6 +18,7 @@
 - Id: vhiqo6
 
 ## Workflow history
+- 2026-10-06 draft (aw set): demoted to-review -> draft: returned to authoring by gradcover 52opph: uncovered obligation: The bare suite pytest after the final child compared by name against baseline
 
 - 2026-10-01 to-review (opencode/its_direct/pt3-claude-opus-5-1m-us): authored from backlog `fcnz1r` under spec `wy9aru`. This is the Set's terminal child and the one that actually closes the recurring class for the verb `fcnz1r` names. It inherits child 04's sidecar ruling (`wy9aru` OQ-1) rather than re-deciding it. The two engines were read in full at HEAD `ec857565a`; the base suite measured bare (`3512 passed, 2 skipped`).
 - 2026-10-01 draft (opencode/its_direct/pt3-claude-opus-5-1m-us): created.
