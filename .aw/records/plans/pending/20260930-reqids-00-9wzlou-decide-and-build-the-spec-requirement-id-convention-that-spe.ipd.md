@@ -6,8 +6,7 @@
 - Scope: Coordinate two children: Order 01 authors the convention, retrofit policy and TRACE contract as a spec and hands it to human review; Order 02 builds the parser, the `spec_plan_trace` verifier, its production wiring and its tests, gated on that spec being approved. This orchestrator performs no product change of its own and writes no spec, no parser and no test.
 - Scope-Paths: .aw/records/plans/pending/20260930-reqids-00-9wzlou-decide-and-build-the-spec-requirement-id-convention-that-spe.ipd.md
 - Item-Dependencies: none
-- Status: approved
-- Readiness: go-pending-approval
+- Status: draft
 - Coverage: fail
 - Coverage-Fingerprint: 174d25c7615db68a1d03528b95fb77f9305a2782df8b9d4e2031d9a4b6061979
 - Coverage-Checked: 2026-10-06 by uri/its_direct/pt3-claude-opus-5.5-1m-us
@@ -20,9 +19,9 @@
 - Highest E allocated: 02
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: 9wzlou
-- Approval: 2026-10-01, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-06 draft (aw set): demoted approved -> draft: APPROVAL WITHDRAWN: returned to authoring by gradcover 52opph: uncovered obligation: Close backlog `vy20et` by shipping both halves it asks for
 - 2026-10-06 coverage fail (aw oc run): fingerprint 174d25c7615d, model uri/its_direct/pt3-claude-opus-5.5-1m-us
 - 2026-10-01 approved (aw set): status set to approved
 - 2026-10-01 reviewed (opencode/its_direct/pt3-claude-opus-5-1m-us): plan-review complete; 5 findings all fixed; the human approval gate is now runner-enforced via a state:spec:approved edge written by Order 01 E-09
