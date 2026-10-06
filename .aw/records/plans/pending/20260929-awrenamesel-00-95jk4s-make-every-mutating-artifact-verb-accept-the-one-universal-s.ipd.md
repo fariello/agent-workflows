@@ -8,6 +8,9 @@
 - Item-Dependencies: none
 - Status: approved
 - Readiness: go-pending-approval
+- Coverage: pass
+- Coverage-Fingerprint: 623227788c9b49ed14d5eaf7a232b772c0ec1d1edc26f1b14d6241ae4cf0381c
+- Coverage-Checked: 2026-10-06 by uri/its_direct/pt3-claude-opus-5.5-1m-us
 - Work-Kind: bug
 - Priority: medium
 - From-Backlog: gyv9tf
@@ -20,6 +23,7 @@
 - Approval: 2026-09-30, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-06 coverage pass (aw oc run): fingerprint 623227788c9b, model uri/its_direct/pt3-claude-opus-5.5-1m-us
 - 2026-09-30 approved (aw set): status set to approved
 - 2026-09-29 reviewed (opencode/its_direct-pt3-claude-opus-5-1m-us): plan-review: APPROVE WITH REVISIONS APPLIED; PR-501 (MEDIUM), PR-502 (MEDIUM), PR-503 (MEDIUM), PR-504 (LOW), all FIXED. All ten findings reproduced; IPD-S407 conforms with no repair loop. Cross-plan findings fixed in owning child eby93o.
 
