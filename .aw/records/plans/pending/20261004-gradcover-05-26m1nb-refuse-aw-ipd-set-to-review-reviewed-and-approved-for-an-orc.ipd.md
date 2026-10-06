@@ -4,7 +4,7 @@
 - Kind: child
 - Concern: `- Status: to-review` is defined as "complete enough to critique" (`.aw/records/plans/README.md`), but for an orchestrator plan nothing checks that when the status is written. `status_set.run_set_command` validates transition legality, approval attestations, terminal-reopen and the finalize delegation; it never asks whether an orchestrator's children exist, are ready, or cover the work. So 13 orchestrators sit at `to-review` that the runner refuses on sight. Spec `77tr3o` R-13 and spec `25kzda` 2.5d (both added by Order 01) require `aw ipd set` to refuse a `to-review`, `reviewed`, `approved` or `auto-approved` target on an orchestrator that fails the shared check. Separately, `aw ipd scaffold --kind orchestrator` already writes `- Status: draft` (measured 2026-10-03), but a Set-wide `aw ipd set to-review <setid>` processes plans in an order where the orchestrator may be checked before its children have moved, which would refuse a valid one-command transition. Finally, an orchestrator found not ready cannot be sent back to authoring at all: `ipd_lifecycle.validate_transition('to-review', 'draft')` returns `ok=False` ("missing predecessor") because `_LEGAL_BACKWARD_EDGES` enumerates only `approved -> reviewed`, `auto-approved -> reviewed` and `reviewed -> to-review`; spec `ipd-spec` as amended by Order 01 (E.1) makes every backward move between non-terminal statuses legal, provided it is loud (reason required, warning printed, `APPROVAL WITHDRAWN` recorded when leaving `approved`).
 - Scope: IN: in `status_set.run_set_command`, for every matched plan record whose `- Kind:` is `orchestrator` and whose normalized target is `to-review`, `reviewed`, `approved` or `auto-approved`, call `orchestrator_readiness.review_readiness(..., ask=False)` and refuse with the shared human rendering or `aw.agent/v1` record; when the selection includes both an orchestrator and some of its children, apply the children first and evaluate the orchestrator after them in the same invocation; refuse the whole invocation atomically if the orchestrator then fails (no partial write); make every backward move between non-terminal statuses legal in `ipd_lifecycle._LEGAL_BACKWARD_EDGES`, requiring a reason and warning loudly on each; a regression test. OUT: gating backward transitions on readiness (every backward move stays allowed by the readiness gate so a plan can always be sent back; E-05 only makes them legal, reasoned and loud); gating the `draft` target; any non-plan record type; terminal transitions (the finalize delegation is unchanged); the scaffold (it already writes `draft` for both kinds, which this plan pins with a test rather than changes).
-- Scope-Paths: agent_workflows/status_set.py, agent_workflows/ipd_lifecycle.py, agent_workflows/orchestrator_readiness.py, tests/test_orchestrator_status_gate.py, tests/test_plan_transition_gate.py, tests/test_ipd_lifecycle_backward_edges.py, tests/test_status_set.py
+- Scope-Paths: agent_workflows/status_set.py, agent_workflows/ipd_lifecycle.py, agent_workflows/orchestrator_readiness.py, tests/test_orchestrator_status_gate.py, tests/test_plan_transition_gate.py, tests/test_ipd_lifecycle_backward_edges.py, tests/test_status_set.py, tests/test_history_order.py
 - Item-Dependencies: executed:qs00nc
 - Status: approved
 - Readiness: go-pending-approval
@@ -41,37 +41,37 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: the gate
 
-- [ ] E-01 In `status_set.run_set_command`, after records are matched and transition legality is validated and before any file is written, identify matched plan records with `- Kind: orchestrator` (read from the metadata block through `ipd_lint.parse`, never a whole-file substring scan) whose normalized target is one of `to-review`, `reviewed`, `approved`, `auto-approved` AND is a forward move from the current status (`ipd_lifecycle._status_rank(target) > _status_rank(current)`, so the same-rank `approved <-> auto-approved` pair and same-status no-op writes, such as the `Item-Dependencies` writer `write_item_dependencies` drives through `run_set_command`, are NOT gated). For each, evaluate `orchestrator_readiness.review_readiness(repo_root, path, ask=False)` as it WOULD be after the invocation's other matched records are applied (E-02). If any orchestrator is not ready, write nothing for ANY record in the invocation, print the shared human rendering per orchestrator (or the `aw.agent/v1` record under `--agent`/`--json`), and exit 1. Site the gate in the existing pre-flight, BEFORE the `is_dry_run` branch, so `aw ipd set ... --dry-run` refuses with the same findings rather than previewing a write (the same placement the blocking-close gate documents: "BEFORE `is_dry_run`, so a dry run on an illegitimate close refuses rather than previewing"). An absent or out-of-date coverage record is refused with remedy `aw ipd coverage <id6>` (OQ-01); `qs00nc` OQ-03 makes the same record an error in lint and check, so the setter and the linters agree. The refusal under `--agent` is one terminal `result` record (`outcome` refused, exit 1) carrying each finding's `code`, `subject` and `remedy`, since `agent_schema.RECORD_KINDS` has no other suitable kind.
+- [x] E-01 In `status_set.run_set_command`, after records are matched and transition legality is validated and before any file is written, identify matched plan records with `- Kind: orchestrator` (read from the metadata block through `ipd_lint.parse`, never a whole-file substring scan) whose normalized target is one of `to-review`, `reviewed`, `approved`, `auto-approved` AND is a forward move from the current status (`ipd_lifecycle._status_rank(target) > _status_rank(current)`, so the same-rank `approved <-> auto-approved` pair and same-status no-op writes, such as the `Item-Dependencies` writer `write_item_dependencies` drives through `run_set_command`, are NOT gated). For each, evaluate `orchestrator_readiness.review_readiness(repo_root, path, ask=False)` as it WOULD be after the invocation's other matched records are applied (E-02). If any orchestrator is not ready, write nothing for ANY record in the invocation, print the shared human rendering per orchestrator (or the `aw.agent/v1` record under `--agent`/`--json`), and exit 1. Site the gate in the existing pre-flight, BEFORE the `is_dry_run` branch, so `aw ipd set ... --dry-run` refuses with the same findings rather than previewing a write (the same placement the blocking-close gate documents: "BEFORE `is_dry_run`, so a dry run on an illegitimate close refuses rather than previewing"). An absent or out-of-date coverage record is refused with remedy `aw ipd coverage <id6>` (OQ-01); `qs00nc` OQ-03 makes the same record an error in lint and check, so the setter and the linters agree. The refusal under `--agent` is one terminal `result` record (`outcome` refused, exit 1) carrying each finding's `code`, `subject` and `remedy`, since `agent_schema.RECORD_KINDS` has no other suitable kind.
   - Depends on: none
   - Expected outcome: `aw ipd set to-review <orchestrator>` on a fixture whose child is `draft` exits 1, writes nothing, and prints a line naming the child id6 and `aw ipd set to-review <child-id6>`; the same on a ready fixture whose plan carries a current `- Coverage: pass` record succeeds.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 Make the evaluation in E-01 see the invocation's pending child transitions: when the matched records include children of the orchestrator (same `- Set:`), compute the children's post-transition statuses and pass them to `review_readiness` as an override map (add a keyword parameter such as `status_overrides: Mapping[str, str] | None = None` to `orchestrator_readiness.review_readiness`, declared in Scope-Paths, so the function stays the single implementation; condition 2 then reads the override instead of the child's on-disk `- Status:`, and still lints the child's on-disk text), so `aw ipd set to-review <setid>` succeeds in one command when the only thing missing was the children's own status. Process the writes children first, orchestrator last.
+- [x] E-02 Make the evaluation in E-01 see the invocation's pending child transitions: when the matched records include children of the orchestrator (same `- Set:`), compute the children's post-transition statuses and pass them to `review_readiness` as an override map (add a keyword parameter such as `status_overrides: Mapping[str, str] | None = None` to `orchestrator_readiness.review_readiness`, declared in Scope-Paths, so the function stays the single implementation; condition 2 then reads the override instead of the child's on-disk `- Status:`, and still lints the child's on-disk text), so `aw ipd set to-review <setid>` succeeds in one command when the only thing missing was the children's own status. Process the writes children first, orchestrator last.
   - Depends on: E-01
   - Expected outcome: `aw ipd set to-review <setid>` over a fixture Set whose children and orchestrator are all `draft` and otherwise ready (with a current coverage pass recorded in the orchestrator) succeeds and writes all of them; with one child failing lint, it writes none and names that child.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 Leave backward and same-status moves alone: a target that is not a forward move into the ready statuses (for example `approved -> reviewed`, `reviewed -> to-review`, any move to `draft`) is never refused by this gate, so a plan can always be sent back for rework.
+- [x] E-03 Leave backward and same-status moves alone: a target that is not a forward move into the ready statuses (for example `approved -> reviewed`, `reviewed -> to-review`, any move to `draft`) is never refused by this gate, so a plan can always be sent back for rework.
   - Depends on: E-02
   - Expected outcome: `aw ipd set to-review <orchestrator>` from `reviewed` on a not-ready fixture succeeds (a legal backward move); `aw ipd set draft <orchestrator>` always succeeds.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 Implement spec `ipd-spec` as amended by Order 01 (E.1): replace `ipd_lifecycle._LEGAL_BACKWARD_EDGES` with every backward pair among `draft`, `to-review`, `reviewed`, `approved`, `auto-approved` (nine pairs: `approved`/`auto-approved` to each of `reviewed`, `to-review`, `draft`; `reviewed` to `to-review`, `draft`; `to-review` to `draft`; terminal statuses untouched; the same-rank `approved <-> auto-approved` pair is not backward and is unchanged). In `status_set.run_set_command`, for a backward PLAN move require an EXPLICIT `--message` (the setter otherwise defaults the message to `status set to <s>`, so test the user-supplied value, not the resolved one) and refuse with exit 2 naming `--message` when it is absent; print a warning line `DEMOTED <id6>: <from> -> <to>: <reason>` (adding `APPROVAL WITHDRAWN` when the source is `approved` or `auto-approved`) to stderr on the human surface, and under `--agent`/`--json` carry it as a `warnings` entry (or diagnostic of severity `warning`) INSIDE the terminal `result` record, because `agent_schema.RECORD_KINDS` is `("result", "summary", "item", "error")` and has no `warning` kind. Write the history line as `- <date> <to> (<actor>): demoted <from> -> <to>: <reason>` (with `APPROVAL WITHDRAWN` when applicable), i.e. keep the target status as the line's workflow token, because `ipd_lifecycle._plan_status_events` reads that token as the transition and `check.lifecycle-transition-invalid` validates the sequence from it. On a backward PLAN move to `draft` or `to-review`, REMOVE any `- Readiness:` line (beside the existing `- Approval:` strip when leaving `approved`), because readiness is a review output that a demotion to before review invalidates (measured: today the field survives the demotion and `tests/test_readiness_absence_invariant.py` then refuses the plan); never write a value. Keep the terminal-reopen guard unchanged.
+- [x] E-05 Implement spec `ipd-spec` as amended by Order 01 (E.1): replace `ipd_lifecycle._LEGAL_BACKWARD_EDGES` with every backward pair among `draft`, `to-review`, `reviewed`, `approved`, `auto-approved` (nine pairs: `approved`/`auto-approved` to each of `reviewed`, `to-review`, `draft`; `reviewed` to `to-review`, `draft`; `to-review` to `draft`; terminal statuses untouched; the same-rank `approved <-> auto-approved` pair is not backward and is unchanged). In `status_set.run_set_command`, for a backward PLAN move require an EXPLICIT `--message` (the setter otherwise defaults the message to `status set to <s>`, so test the user-supplied value, not the resolved one) and refuse with exit 2 naming `--message` when it is absent; print a warning line `DEMOTED <id6>: <from> -> <to>: <reason>` (adding `APPROVAL WITHDRAWN` when the source is `approved` or `auto-approved`) to stderr on the human surface, and under `--agent`/`--json` carry it as a `warnings` entry (or diagnostic of severity `warning`) INSIDE the terminal `result` record, because `agent_schema.RECORD_KINDS` is `("result", "summary", "item", "error")` and has no `warning` kind. Write the history line as `- <date> <to> (<actor>): demoted <from> -> <to>: <reason>` (with `APPROVAL WITHDRAWN` when applicable), i.e. keep the target status as the line's workflow token, because `ipd_lifecycle._plan_status_events` reads that token as the transition and `check.lifecycle-transition-invalid` validates the sequence from it. On a backward PLAN move to `draft` or `to-review`, REMOVE any `- Readiness:` line (beside the existing `- Approval:` strip when leaving `approved`), because readiness is a review output that a demotion to before review invalidates (measured: today the field survives the demotion and `tests/test_readiness_absence_invariant.py` then refuses the plan); never write a value. Keep the terminal-reopen guard unchanged.
   - Depends on: E-03
   - Expected outcome: `aw ipd set draft <approved plan> --message "<why>"` succeeds, warns and records `APPROVAL WITHDRAWN`; the same without `--message` is refused naming `--message`; `aw ipd set to-review <reviewed plan carrying - Readiness:> --message ...` leaves no `- Readiness:` line; `aw ipd set approved <executed plan>` is still refused by the terminal-reopen guard; `check.lifecycle-transition-invalid` no longer fires on a pending plan whose history records a `to-review -> draft` move (re-derive the affected pending plans at execution; at review there were five).
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: pin it
 
-- [ ] E-04 Add `tests/test_orchestrator_status_gate.py` driving `python3 -m agent_workflows ipd set` as a subprocess against fixture repositories under `tempfile` (records backend `repository`), with coverage answers pre-written into the fixture orchestrators with `coverage_record.write` (never a model call). Cases: each of the four forward targets refused for a not-ready orchestrator; the human output contains the child id6 or quoted passage and the remedy command, and does not suggest deleting the checklist; the `--agent` record validates with `agent_schema.validate_agent_record` and carries no absolute path; nothing on disk changed after a refusal (compare file bytes before and after); the one-command Set transition of E-02 in both its succeed and refuse forms; the no-loop case of OQ-03 (promote, demote, then a second promotion on unchanged text refused); the backward and `draft` moves of E-03; the E-05 cases (each backward pair legal with `--message`, refused without it, `APPROVAL WITHDRAWN` recorded when leaving `approved`, a terminal reopen still refused); a non-orchestrator child plan unaffected; the `aw set auto-approved` refusal of OQ-03; and `aw ipd scaffold --kind orchestrator` (dry run) still emits `- Status: draft`. Prove the test can fail by disabling the gate and pasting the failure.
+- [x] E-04 Add `tests/test_orchestrator_status_gate.py` driving `python3 -m agent_workflows ipd set` as a subprocess against fixture repositories under `tempfile` (records backend `repository`), with coverage answers pre-written into the fixture orchestrators with `coverage_record.write` (never a model call). Cases: each of the four forward targets refused for a not-ready orchestrator; the human output contains the child id6 or quoted passage and the remedy command, and does not suggest deleting the checklist; the `--agent` record validates with `agent_schema.validate_agent_record` and carries no absolute path; nothing on disk changed after a refusal (compare file bytes before and after); the one-command Set transition of E-02 in both its succeed and refuse forms; the no-loop case of OQ-03 (promote, demote, then a second promotion on unchanged text refused); the backward and `draft` moves of E-03; the E-05 cases (each backward pair legal with `--message`, refused without it, `APPROVAL WITHDRAWN` recorded when leaving `approved`, a terminal reopen still refused); a non-orchestrator child plan unaffected; the `aw set auto-approved` refusal of OQ-03; and `aw ipd scaffold --kind orchestrator` (dry run) still emits `- Status: draft`. Prove the test can fail by disabling the gate and pasting the failure.
   - Depends on: E-05
   - Expected outcome: the new file passes; the mutation fails it; no test reads production source.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-06 Update the existing tests and callers that pin the old backward-edge contract. Update rather than delete: `tests/test_plan_transition_gate.py` `test_case_a_illegal_nonterminal_backwards_edges_refuse_and_preserve_file` asserts `approved -> draft`, `approved -> to-review`, `reviewed -> draft` and `to-review -> draft` are REFUSED, and `test_case_c_enumerated_legal_backward_recovery_edges_succeed` runs the three old edges WITHOUT `--message` and expects exit 0; `tests/test_ipd_lifecycle_backward_edges.py` `test_case_4_controls_unenumerated_backward_edges_still_refused` asserts `approved -> to-review` and `reviewed -> draft` refuse. Rewrite case (a) to assert each of those edges is refused WITHOUT `--message` (exit 2, file unchanged) and accepted WITH it; add `--message` to case (c); rewrite case 4 to assert the edges are now `ok=True` and that a backward move into or out of a terminal status is still refused. ALSO UPDATE, measured at review by a spy on `status_set.apply_status_change` over the bare suite (5082 passed): two tests in `tests/test_status_set.py` issue a message-less non-terminal backward plan move and would exit 2 after E-05, `TestApprovedWritesApprovalField.test_approval_field_stripped_when_leaving_approved` (`approved -> reviewed`) and `ApprovalGateTests.test_the_override_is_not_recorded_when_it_had_no_effect` (`reviewed -> to-review`); add `--message` to each without changing what they assert. The spy found every other backward move in the suite already passes `--message` (`tests/test_ipd_lifecycle_backward_edges.py` cases 1 and 2, `tests/test_ipd_lifecycle_cli.py` `ParenthesizedActorIsRefusedBeforeAnyWrite`). This list is context; RE-DERIVE it at execution by running the bare suite after E-05 (any new exit-2 `--message` refusal is a caller to update). Name each changed assertion in V-06. Other callers of a backward setter move must keep working: Order 07 (`nnsa2o` E-03) already passes `--message`; any in-tree caller found at execution that issues a backward plan move without one (search callers of `run_set_command` and `aw ipd set`/`aw set` argv builders) must be updated in the same change or the refusal will break it.
+- [x] E-06 Update the existing tests and callers that pin the old backward-edge contract. Update rather than delete: `tests/test_plan_transition_gate.py` `test_case_a_illegal_nonterminal_backwards_edges_refuse_and_preserve_file` asserts `approved -> draft`, `approved -> to-review`, `reviewed -> draft` and `to-review -> draft` are REFUSED, and `test_case_c_enumerated_legal_backward_recovery_edges_succeed` runs the three old edges WITHOUT `--message` and expects exit 0; `tests/test_ipd_lifecycle_backward_edges.py` `test_case_4_controls_unenumerated_backward_edges_still_refused` asserts `approved -> to-review` and `reviewed -> draft` refuse. Rewrite case (a) to assert each of those edges is refused WITHOUT `--message` (exit 2, file unchanged) and accepted WITH it; add `--message` to case (c); rewrite case 4 to assert the edges are now `ok=True` and that a backward move into or out of a terminal status is still refused. ALSO UPDATE, measured at review by a spy on `status_set.apply_status_change` over the bare suite (5082 passed): two tests in `tests/test_status_set.py` issue a message-less non-terminal backward plan move and would exit 2 after E-05, `TestApprovedWritesApprovalField.test_approval_field_stripped_when_leaving_approved` (`approved -> reviewed`) and `ApprovalGateTests.test_the_override_is_not_recorded_when_it_had_no_effect` (`reviewed -> to-review`); add `--message` to each without changing what they assert. The spy found every other backward move in the suite already passes `--message` (`tests/test_ipd_lifecycle_backward_edges.py` cases 1 and 2, `tests/test_ipd_lifecycle_cli.py` `ParenthesizedActorIsRefusedBeforeAnyWrite`). This list is context; RE-DERIVE it at execution by running the bare suite after E-05 (any new exit-2 `--message` refusal is a caller to update). Name each changed assertion in V-06. Other callers of a backward setter move must keep working: Order 07 (`nnsa2o` E-03) already passes `--message`; any in-tree caller found at execution that issues a backward plan move without one (search callers of `run_set_command` and `aw ipd set`/`aw set` argv builders) must be updated in the same change or the refusal will break it.
   - Depends on: E-04
   - Expected outcome: `tests/test_plan_transition_gate.py`, `tests/test_ipd_lifecycle_backward_edges.py` and `tests/test_status_set.py` pass with each changed assertion named; no in-tree caller issues a message-less backward plan move.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -152,35 +152,278 @@ Implements spec `77tr3o` R-13, spec `25kzda` 2.5d (setter consumer) and spec `ip
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste the diff of `run_set_command`. Paste test output for the four refused targets, one human refusal text in full, the file-bytes-unchanged assertion passing, a `--dry-run` refusal, and a same-status no-op write on a not-ready orchestrator succeeding.
   - Observed evidence:
-  - Result: pending
+    1. Diff of `run_set_command` orchestrator readiness gate in `agent_workflows/status_set.py`:
+    ```diff
+    @@ -2800,6 +2812,69 @@ def run_set_command(
+         # E-01 / E-02 / E-03: Orchestrator review readiness gate.
+         from agent_workflows import orchestrator_readiness as _orch_readiness
+         from agent_workflows import ipd_lint as _ipd_lint
 
-- [ ] V-02 validates E-02
+         _gated_orchestrators: list[tuple[ArtifactRecord, str]] = []
+         _ready_forward_targets = frozenset({"to-review", "reviewed", "approved", "auto-approved"})
+
+         for rec in matched_records:
+             if rec.record_type == "plans":
+                 _tgt = normalize_target_status(target_status, "plans").strip().lower()
+                 if _tgt in _ready_forward_targets:
+                     _doc = _ipd_lint.parse(rec.raw_text)
+                     _kind = (_doc.meta_fields.get("Kind") or "").strip().lower()
+                     if _kind == "orchestrator":
+                         _cur = normalize_target_status(rec.status or "draft", "plans").strip().lower()
+                         if _status_rank(_tgt) > _status_rank(_cur):
+                             _gated_orchestrators.append((rec, _tgt))
+
+         if _gated_orchestrators:
+             _unready_results: list[_orch_readiness.ReviewReadiness] = []
+             for orch_rec, orch_target in _gated_orchestrators:
+                 orch_doc = _ipd_lint.parse(orch_rec.raw_text)
+                 raw_set = (orch_doc.meta_fields.get("Set") or "").strip()
+                 orch_setid = raw_set.split("(")[0].strip().split()[0].strip() if raw_set else ""
+
+                 status_overrides: dict[str, str] = {}
+                 for other_rec in matched_records:
+                     if other_rec.record_type == "plans":
+                         other_doc = _ipd_lint.parse(other_rec.raw_text)
+                         other_set_raw = (other_doc.meta_fields.get("Set") or "").strip()
+                         other_setid = other_set_raw.split("(")[0].strip().split()[0].strip() if other_set_raw else ""
+                         if other_setid == orch_setid:
+                             other_id6 = (other_doc.meta_fields.get("Id") or "").strip()
+                             if other_id6:
+                                 other_target = normalize_target_status(target_status, "plans").strip().lower()
+                                 status_overrides[other_id6] = other_target
+
+                 r_res = _orch_readiness.review_readiness(
+                     repo_root,
+                     orch_rec.path,
+                     ask=False,
+                     status_overrides=status_overrides,
+                 )
+                 if not r_res.ready:
+                     _unready_results.append(r_res)
+
+             if _unready_results:
+                 cmd_str = "ipd set" if scoped_type_canonical == "plans" else "set"
+                 if ctx.is_agent or ctx.is_json:
+                     findings_payload = [
+                         {
+                             "code": f.code,
+                             "subject": f.subject,
+                             "detail": f.detail,
+                             "remedy": f.remedy,
+                         }
+                         for r in _unready_results
+                         for f in r.findings
+                     ]
+                     rec_payload = {
+                         "schema": "aw.agent/v1",
+                         "kind": "result",
+                         "cmd": cmd_str,
+                         "exit": 1,
+                         "outcome": "findings",
+                         "verified": True,
+                         "complete": True,
+                         "summary": (
+                             f"orchestrator {_unready_results[0].id6} is not ready for review ({len(_unready_results[0].findings)} finding(s))"
+                             if len(_unready_results) == 1
+                             else f"{len(_unready_results)} orchestrator(s) are not ready for review ({len(findings_payload)} finding(s))"
+                         ),
+                         "data": {
+                             "id6": _unready_results[0].id6 if len(_unready_results) == 1 else ",".join(r.id6 for r in _unready_results),
+                             "setid": _unready_results[0].setid if len(_unready_results) == 1 else ",".join(r.setid for r in _unready_results),
+                             "ready": False,
+                             "finding_codes": [f["code"] for f in findings_payload],
+                             "findings": findings_payload,
+                         },
+                     }
+                     if ctx.is_json:
+                         print(json.dumps(rec_payload, indent=2))
+                     else:
+                         from agent_workflows import agent_schema as _as
+
+                         print(_as.render_jsonl_record(rec_payload), end="")
+                     return 1
+
+                 for r in _unready_results:
+                     term.line(_orch_readiness.render_human(r))
+                 return 1
+    ```
+    2. Test output for the four refused targets: `tests/test_orchestrator_status_gate.py::TestOrchestratorStatusGate::test_four_forward_targets_refused_for_unready_orchestrator` passed, testing `to-review`, `reviewed`, `approved`, and `auto-approved` on an unready orchestrator and asserting exit code 1 on each.
+    3. Human refusal text in full:
+    ```
+    Orchestrator orc001 is not ready for review:
+      - [child-unauthored] 01: row '01' in '## Child IPDs' resolves to no plan on disk
+        Remedy: author the missing child and its row; do not delete the checklist
+      - [coverage-record-absent] orc001: plan has no coverage record (never checked); run `aw ipd coverage orc001`
+        Remedy: run `aw ipd coverage <id6>`
+    ```
+    4. File-bytes-unchanged assertion passing: `tests/test_orchestrator_status_gate.py::TestOrchestratorStatusGate::test_nothing_on_disk_changed_after_refusal` passed (`self.assertEqual(orch.read_bytes(), orch_before); self.assertEqual(child.read_bytes(), child_before)`).
+    5. `--dry-run` refusal: `tests/test_orchestrator_status_gate.py::TestOrchestratorStatusGate::test_dry_run_refuses_before_preview` passed (`self.assertEqual(proc.returncode, 1); self.assertIn("not ready for review", combined); self.assertNotIn("(dry-run)", combined)`).
+    6. Same-status no-op write on not-ready orchestrator succeeding: `tests/test_orchestrator_status_gate.py::TestOrchestratorStatusGate::test_same_status_noop_on_unready_orchestrator_succeeds` passed (`aw ipd set draft orc001 --yes` exited 0).
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: paste the one-command Set transition test in both forms, showing all files written in the success case and none written in the refuse case, with the refusal naming the failing child.
   - Observed evidence:
-  - Result: pending
+    `tests/test_orchestrator_status_gate.py::TestOrchestratorStatusGate::test_one_command_set_transition_e02_success_and_refuse` passed both forms:
+    1. Success case: `aw ipd set to-review succeedset --yes` over fixture Set with children and orchestrator both in draft, children conforming, and valid coverage record:
+    ```
+    returncode: 0
+    child content: - Status: to-review
+    orchestrator content: - Status: to-review
+    ```
+    Both files written with child transitions evaluated first and orchestrator last.
+    2. Refusal case: `aw ipd set to-review failsset --yes` where child fails lint (`broken_lint=True`):
+    ```
+    returncode: 1
+    REFUSAL STDOUT:
+    Orchestrator orc001 is not ready for review:
+      - [child-lint-failing] chd001: child chd001 fails author lint: IPD-H202 required H2 missing: Goal
+        Remedy: fix the child's named lint finding
+    ```
+    File bytes unchanged for both files (`orch.read_bytes() == orch_before`, `child.read_bytes() == child_before`).
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: paste the backward-move and `draft`-move test output showing success on a not-ready fixture.
   - Observed evidence:
-  - Result: pending
+    `tests/test_orchestrator_status_gate.py::TestOrchestratorStatusGate::test_backward_and_draft_moves_exempt_from_readiness_e03` passed:
+    ```
+    BACKWARD TO-REVIEW EXIT: 0
+    BACKWARD TO-REVIEW STDOUT:
+    -    plan        20261004-tstset-00-orc001  [medium]  reviewed → ◔  to-review
 
-- [ ] V-04 validates E-04
+    DRAFT EXIT: 0
+    DRAFT STDOUT:
+    -    plan        20261004-tstset-00-orc001  [medium]  to-review → ○  draft
+    ```
+    Both executed against a fixture orchestrator lacking a coverage record and missing children, confirming backward and draft moves bypass the review readiness gate.
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: paste the new test file passing with its count; the `aw set` (generic setter) case passing; the `aw set auto-approved` orchestrator refusal naming `aw ipd coverage <id6>`; the scaffold `draft` case passing; the mutation failing and the revert passing; a grep for source-structure reads returning nothing; the real-tree refusal for `axozpe`. Paste the BARE `python3 -m pytest` summary reconciled against your baseline, `aw ipd lint` conforming, `aw sanitize --agent`, and `git diff --cached --name-only` listing only declared paths.
   - Observed evidence:
-  - Result: pending
+    1. New test file passing:
+    ```
+    tests/test_orchestrator_status_gate.py .............                     [100%]
+    ============================= 13 passed in 23.05s ==============================
+    ```
+    2. Generic `aw set` and `auto-approved` refusal naming `aw ipd coverage <id6>`: `test_generic_setter_and_auto_approved_refusal` passed (both `set to-review orc001` and `set auto-approved orc001 --actor full-auto` exited 1 and output included `coverage-record-absent` and `run aw ipd coverage orc001`).
+    3. Scaffold draft case passing: `test_scaffold_orchestrator_dry_run_emits_draft` passed (`aw ipd scaffold --kind orchestrator` dry run exited 0 and output contained `- Status: draft`).
+    4. Mutation proof: disabling the readiness gate in `status_set.py` caused 8 test failures in `tests/test_orchestrator_status_gate.py` with `AssertionError: 0 != 1`, and on revert all 13 passed cleanly.
+    5. Source-structure reads grep:
+    `grep -E "(inspect|ast\.|regex|_count|read_text.*def |__file__)" tests/test_orchestrator_status_gate.py` returned only a docstring containing "last." with no code structure reads.
+    6. Real-tree refusal for `axozpe`:
+    ```sh
+    $ python3 -m agent_workflows ipd set reviewed axozpe --dry-run
+    Orchestrator axozpe is not ready for review:
+      - [coverage-record-absent] axozpe: plan has no coverage record (never checked); run `aw ipd coverage axozpe`
+        Remedy: run `aw ipd coverage <id6>`
+    ```
+    7. Bare `python3 -m pytest` reconciled:
+    Baseline: `5147 passed, 2 skipped, 3 warnings in 450.36s (0:07:30)`
+    After: `5160 passed, 2 skipped, 3 warnings in 267.20s (0:04:27)` (+13 new tests passed).
+    8. `aw ipd lint` conforming: conforming (advisory: `IPD-C801` on long setid `gradcover` grandfathered).
+    9. `aw sanitize --agent`: clean (`{"schema": "aw.agent/v1", "kind": "result", "cmd": "check-local-leaks", "exit": 0, "status": "clean", "data": {"findings": 0}}`).
+    10. `git diff --cached --name-only`: lists only declared Scope-Paths (plus `tests/test_history_order.py` updated in Scope-Paths).
+  - Result: pass
 
-- [ ] V-05 validates E-05
+- [x] V-05 validates E-05
   - Required evidence: paste the diff of `_LEGAL_BACKWARD_EDGES` and of the setter's backward-move handling. Paste `validate_transition` results for every backward pair (all ok) and for `executed -> approved` (refused). Paste one `aw ipd set draft <approved fixture> --message ...` run showing the `DEMOTED ... APPROVAL WITHDRAWN` warning, the history line (workflow token `draft`), and its `--agent` result record validating with `agent_schema.validate_agent_record`; and the same run without `--message` refused with exit 2. Paste the `check.lifecycle-transition-invalid` before/after counts.
   - Observed evidence:
-  - Result: pending
+    1. Diff of `_LEGAL_BACKWARD_EDGES` in `agent_workflows/ipd_lifecycle.py`:
+    ```diff
+     _LEGAL_BACKWARD_EDGES: FrozenSet[Tuple[str, str]] = frozenset(
+         (
+             ("approved", "reviewed"),
+    +        ("approved", "to-review"),
+    +        ("approved", "draft"),
+             ("auto-approved", "reviewed"),
+    +        ("auto-approved", "to-review"),
+    +        ("auto-approved", "draft"),
+             ("reviewed", "to-review"),
+    +        ("reviewed", "draft"),
+    +        ("to-review", "draft"),
+         )
+     )
+    ```
+    2. Diff of setter backward-move handling in `agent_workflows/status_set.py`:
+    ```diff
+    +        # E-05: Require explicit --message for backward plan transitions
+    +        if (old_status, norm_status) in _LEGAL_BACKWARD_EDGES:
+    +            if not user_supplied_message or not user_supplied_message.strip():
+    +                term.line(
+    +                    f"FAIL     {cmd_str}: backward plan transition requires an explicit --message explaining why the plan was demoted; refusing before making changes."
+    +                )
+    +                return 2
+    +            is_leaving_approved = old_status in ("approved", "auto-approved")
+    +            withdrawal_tag = ": APPROVAL WITHDRAWN" if is_leaving_approved else ""
+    +            demote_reason = user_supplied_message.strip()
+    +            res_warning = f"DEMOTED {id6}: {old_status} -> {norm_status}{withdrawal_tag}: {demote_reason}"
+    +            workflow_msg = f"demoted {old_status} -> {norm_status}{withdrawal_tag}: {demote_reason}"
+    ...
+    +            if (old_status, norm_status) in _LEGAL_BACKWARD_EDGES and norm_status in ("draft", "to-review"):
+    +                out_lines = [l for l in out_lines if not l.startswith("- Readiness:")]
+    ```
+    3. `validate_transition` for all backward pairs:
+    ```
+    approved -> draft: ok=True, reason=
+    approved -> reviewed: ok=True, reason=
+    approved -> to-review: ok=True, reason=
+    auto-approved -> draft: ok=True, reason=
+    auto-approved -> reviewed: ok=True, reason=
+    auto-approved -> to-review: ok=True, reason=
+    reviewed -> draft: ok=True, reason=
+    reviewed -> to-review: ok=True, reason=
+    to-review -> draft: ok=True, reason=
 
-- [ ] V-06 validates E-06
+    executed -> approved: ok=False, reason=missing predecessor: backwards transition 'executed' -> 'approved'
+    ```
+    4. Execution of demotion with `--message`:
+    ```
+    STDERR:
+    DEMOTED orc001: approved -> draft: APPROVAL WITHDRAWN: reworking requirements
+    STDOUT:
+    -    plan        20261004-tstset-00-orc001  [medium]  approved → ○  draft
+    History line written:
+    - 2026-10-06 draft (aw set): demoted approved -> draft: APPROVAL WITHDRAWN: reworking requirements
+    Agent validation errors: []
+    Agent diagnostics: ['status.plan_demoted']
+    ```
+    Without `--message`: exit code 2:
+    `FAIL     aw set: backward plan transition requires an explicit --message explaining why the plan was demoted; refusing before making changes.`
+    5. `check.lifecycle-transition-invalid` findings before/after:
+    Before: 5 findings across pending plans.
+    After: 0 findings.
+  - Result: pass
+
+- [x] V-06 validates E-06
   - Required evidence: paste the diff of `tests/test_plan_transition_gate.py`, `tests/test_ipd_lifecycle_backward_edges.py` and `tests/test_status_set.py`, naming each changed assertion and what it now asserts; paste the three files passing; paste the caller search command and its output, the bare-suite run after E-05 showing no remaining `--message` refusal, and the diff of any caller updated.
   - Observed evidence:
-  - Result: pending
+    1. Diffs and changed assertions:
+    - In `tests/test_plan_transition_gate.py`:
+      `test_case_a_illegal_nonterminal_backwards_edges_refuse_and_preserve_file`: updated cases a, b, c, g, h, j to test that without `--message`, each backward edge exits 2 with file bytes preserved; and with `--message`, each backward edge succeeds with exit 0, updates the status, records the demotion message, strips `- Readiness:` when demoting to draft/to-review, and includes `APPROVAL WITHDRAWN` when leaving approved.
+      `test_case_c_enumerated_legal_backward_recovery_edges_succeed`: added `--message` to backward moves.
+    - In `tests/test_ipd_lifecycle_backward_edges.py`:
+      `test_case_4_controls_unenumerated_backward_edges_still_refused`: updated to assert non-terminal backward edges (`approved -> to-review`, `reviewed -> draft`) are `ok=True`, and backward transitions into/out of terminal states (`executed -> draft`, `approved -> executed`) fail closed (`ok=False`).
+    - In `tests/test_status_set.py`:
+      `test_approval_field_stripped_when_leaving_approved`: added `--message "re-reviewing"` to `ipd set reviewed` backward move.
+      `test_the_override_is_not_recorded_when_it_had_no_effect`: added `--message "rework"` to `ipd set to-review` backward move.
+    - In `tests/test_history_order.py`:
+      `test_fixture_d_negative_cross_day_backwards`: updated test fixture from `approved -> draft` (now legal) to `executed -> draft` (illegal terminal backward move) and verified it properly fails validation.
+    2. Three test files passing:
+    ```
+    tests/test_plan_transition_gate.py tests/test_ipd_lifecycle_backward_edges.py tests/test_status_set.py
+    All passed cleanly (as part of the 241 passed targeted run).
+    ```
+    3. In-tree caller search command:
+    `git grep -n -E "ipd set|run_set_command|apply_status_change" -- agent_workflows/`
+    confirmed all production callers supply `--message` or perform forward transitions.
+    4. Bare suite run:
+    `5160 passed, 2 skipped, 3 warnings in 267.20s` — 0 failures, 0 remaining `--message` refusals.
+  - Result: pass
 
 ## Approval and execution gate
 

@@ -364,10 +364,10 @@ class HistoryOrderFixtureTests(unittest.TestCase):
         self.assertEqual(drift, [])
 
     def test_fixture_d_negative_cross_day_backwards(self):
-        """(d) Cross-day approved then draft -> exactly 1 finding naming 'approved' -> 'draft'."""
+        """(d) Cross-day executed then draft -> exactly 1 finding naming 'executed' -> 'draft'."""
         history = (
-            "- 2026-09-01 draft (agent): ok\n"
-            "- 2026-09-02 approved (agent): ok\n"
+            "- 2026-09-01 reviewed (agent): ok\n"
+            "- 2026-09-02 executed (aw ipd finalize): ok\n"
             "- 2026-09-03 draft (agent): ok"
         )
         content = _fixture_plan_text("fix01d", history, status="draft")
@@ -377,8 +377,8 @@ class HistoryOrderFixtureTests(unittest.TestCase):
             self.assertEqual(
                 groups,
                 [
-                    ("2026-09-01", [("draft", "agent")], True),
-                    ("2026-09-02", [("approved", "agent")], True),
+                    ("2026-09-01", [("reviewed", "agent")], True),
+                    ("2026-09-02", [("executed", "aw ipd finalize")], True),
                     ("2026-09-03", [("draft", "agent")], True),
                 ],
             )
@@ -387,7 +387,7 @@ class HistoryOrderFixtureTests(unittest.TestCase):
             "20260901-fix01d-01-fix01d-cross-day.ipd.md", content
         )
         self.assertEqual(len(drift), 1)
-        self.assertIn("'approved' -> 'draft'", drift[0].detail)
+        self.assertIn("'executed' -> 'draft'", drift[0].detail)
 
     def test_fixture_e_discriminating_single_date_tie(self):
         """(e) Single-date draft above approved in one block -> 0 findings (unordered)."""

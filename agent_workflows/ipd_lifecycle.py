@@ -992,15 +992,20 @@ _FINALIZE_ACTORS: FrozenSet[str] = frozenset(
     ("aw ipd finalize", "aw finalize", "ipd finalize")
 )
 
-# The legal backward lifecycle transitions (spec 2vev8j Section 4.8).
-# Permits recovery of an approved or auto-approved plan back to reviewed (spec 25kzda Section 4.5),
-# and re-review of a reviewed plan back to to-review (maintainer ruling 2026-09-26, backlog qzo6dn).
-# All other backwards transitions fail closed.
+# The legal backward lifecycle transitions (spec ipd-spec E.1 as amended 2026-10-04, plan hm1h3l).
+# Permits every backward pair among draft, to-review, reviewed, approved, auto-approved (nine pairs).
+# A backward move into a terminal status, and any move out of a terminal status, stays illegal.
 _LEGAL_BACKWARD_EDGES: FrozenSet[Tuple[str, str]] = frozenset(
     (
         ("approved", "reviewed"),
+        ("approved", "to-review"),
+        ("approved", "draft"),
         ("auto-approved", "reviewed"),
+        ("auto-approved", "to-review"),
+        ("auto-approved", "draft"),
         ("reviewed", "to-review"),
+        ("reviewed", "draft"),
+        ("to-review", "draft"),
     )
 )
 

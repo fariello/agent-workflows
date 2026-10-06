@@ -27,8 +27,9 @@ class TestPlanTransitionGate(StatusSetTestBase):
         )
 
     def test_case_a_illegal_nonterminal_backwards_edges_refuse_and_preserve_file(self):
-        # Pre-change measurement at HEAD ab1d5d20: all four edges returned rc=0 and rewrote
-        # the on-disk - Status: line to the illegal target status.
+        # Spec ipd-spec E.1 as amended by hm1h3l (26m1nb): every non-terminal backward move
+        # requires an explicit --message. Without --message, the setter refuses with exit 2
+        # and preserves the file; with --message, the transition succeeds (exit 0).
         edges = [
             ("approved", "draft"),
             ("approved", "to-review"),
@@ -41,16 +42,40 @@ class TestPlanTransitionGate(StatusSetTestBase):
             plan = self.create_plan(filename, id6, "testset", status=src)
             before = plan.read_text(encoding="utf-8")
 
+            # Refused without --message (rc=2)
             rc = cli.main(
                 ["ipd", "set", dst, id6, "--yes", "--dir", str(self.repo_root)]
             )
-            self.assertEqual(rc, 1, f"Expected rc=1 for illegal edge {src} -> {dst}")
+            self.assertEqual(
+                rc, 2, f"Expected rc=2 for backward edge without message {src} -> {dst}"
+            )
             self.assertTrue(plan.exists())
             self.assertEqual(
                 plan.read_text(encoding="utf-8"),
                 before,
                 f"File content must be byte-identical after refused transition {src} -> {dst}",
             )
+
+            # Accepted with --message (rc=0)
+            rc_with_msg = cli.main(
+                [
+                    "ipd",
+                    "set",
+                    dst,
+                    id6,
+                    "--message",
+                    "demoting for rework",
+                    "--yes",
+                    "--dir",
+                    str(self.repo_root),
+                ]
+            )
+            self.assertEqual(
+                rc_with_msg,
+                0,
+                f"Expected rc=0 for backward edge with message {src} -> {dst}",
+            )
+            self.assertIn(f"- Status: {dst}", plan.read_text(encoding="utf-8"))
 
     def test_case_b_refusal_across_both_real_spellings(self):
         # Spelling 1: aw set <status> <selector>
@@ -64,7 +89,7 @@ class TestPlanTransitionGate(StatusSetTestBase):
         rc1 = cli.main(
             ["set", "draft", "sp0001", "--yes", "--dir", str(self.repo_root)]
         )
-        self.assertEqual(rc1, 1)
+        self.assertEqual(rc1, 2)
         self.assertEqual(plan1.read_text(encoding="utf-8"), before1)
 
         # Spelling 2: aw ipd set <status> <selector>
@@ -78,11 +103,11 @@ class TestPlanTransitionGate(StatusSetTestBase):
         rc2 = cli.main(
             ["ipd", "set", "draft", "sp0002", "--yes", "--dir", str(self.repo_root)]
         )
-        self.assertEqual(rc2, 1)
+        self.assertEqual(rc2, 2)
         self.assertEqual(plan2.read_text(encoding="utf-8"), before2)
 
     def test_case_c_enumerated_legal_backward_recovery_edges_succeed(self):
-        # Three enumerated legal backward recovery edges in _LEGAL_BACKWARD_EDGES:
+        # Backward recovery edges require explicit --message and succeed:
         # 1. approved -> reviewed
         plan1 = self.create_plan(
             "20260901-testset-01-lg0001-plan.ipd.md",
@@ -91,7 +116,17 @@ class TestPlanTransitionGate(StatusSetTestBase):
             status="approved",
         )
         rc1 = cli.main(
-            ["ipd", "set", "reviewed", "lg0001", "--yes", "--dir", str(self.repo_root)]
+            [
+                "ipd",
+                "set",
+                "reviewed",
+                "lg0001",
+                "--message",
+                "recovering",
+                "--yes",
+                "--dir",
+                str(self.repo_root),
+            ]
         )
         self.assertEqual(rc1, 0)
         self.assertIn("- Status: reviewed", plan1.read_text(encoding="utf-8"))
@@ -104,7 +139,17 @@ class TestPlanTransitionGate(StatusSetTestBase):
             status="auto-approved",
         )
         rc2 = cli.main(
-            ["ipd", "set", "reviewed", "lg0002", "--yes", "--dir", str(self.repo_root)]
+            [
+                "ipd",
+                "set",
+                "reviewed",
+                "lg0002",
+                "--message",
+                "recovering",
+                "--yes",
+                "--dir",
+                str(self.repo_root),
+            ]
         )
         self.assertEqual(rc2, 0)
         self.assertIn("- Status: reviewed", plan2.read_text(encoding="utf-8"))
@@ -117,7 +162,17 @@ class TestPlanTransitionGate(StatusSetTestBase):
             status="reviewed",
         )
         rc3 = cli.main(
-            ["ipd", "set", "to-review", "lg0003", "--yes", "--dir", str(self.repo_root)]
+            [
+                "ipd",
+                "set",
+                "to-review",
+                "lg0003",
+                "--message",
+                "recovering",
+                "--yes",
+                "--dir",
+                str(self.repo_root),
+            ]
         )
         self.assertEqual(rc3, 0)
         self.assertIn("- Status: to-review", plan3.read_text(encoding="utf-8"))
@@ -285,14 +340,17 @@ class TestPlanTransitionGate(StatusSetTestBase):
                     str(self.repo_root),
                 ]
             )
-        self.assertEqual(rc, 1)
+        self.assertEqual(rc, 2)
         payload = json.loads(buf.getvalue().strip())
-        self.assertEqual(payload.get("exit"), 1)
-        self.assertEqual(payload.get("outcome"), "findings")
+        self.assertEqual(payload.get("exit"), 2)
+        self.assertEqual(payload.get("outcome"), "cannot-run")
         diagnostics = payload.get("diagnostics", [])
         self.assertTrue(
-            any(d.get("rule") == "status.invalid_transition" for d in diagnostics),
-            f"Expected rule 'status.invalid_transition' in diagnostics: {diagnostics}",
+            any(
+                d.get("rule") == "status.backward_plan_message_required"
+                for d in diagnostics
+            ),
+            f"Expected rule 'status.backward_plan_message_required' in diagnostics: {diagnostics}",
         )
 
     def test_case_h_dry_run_on_illegal_edge_refuses_without_previewing(self):
@@ -316,7 +374,7 @@ class TestPlanTransitionGate(StatusSetTestBase):
                     str(self.repo_root),
                 ]
             )
-        self.assertEqual(rc, 1)
+        self.assertEqual(rc, 2)
         combined = buf.getvalue() + err_buf.getvalue()
         self.assertNotIn("dry-run", combined.lower().split("refusing")[0])
         self.assertIn("refusing before making changes", combined.lower())
@@ -374,7 +432,7 @@ class TestPlanTransitionGate(StatusSetTestBase):
             rc = cli.main(
                 ["ipd", "set", "draft", id6, "--yes", "--dir", str(self.repo_root)]
             )
-            self.assertEqual(rc, 1, f"Expected rc=1 for uppercase source {st} -> draft")
+            self.assertEqual(rc, 2, f"Expected rc=2 for uppercase source {st} -> draft")
             self.assertTrue(plan.exists())
             self.assertEqual(
                 plan.read_text(encoding="utf-8"),

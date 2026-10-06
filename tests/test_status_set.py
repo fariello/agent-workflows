@@ -887,7 +887,16 @@ class TestApprovedWritesApprovalField(StatusSetTestBase):
         )
         self.assertIn("- Approval:", plan.read_text(encoding="utf-8"))
         rc = cli.main(
-            ["set", "reviewed", "ap0002", "--yes", "--dir", str(self.repo_root)]
+            [
+                "set",
+                "reviewed",
+                "ap0002",
+                "--message",
+                "demoting",
+                "--yes",
+                "--dir",
+                str(self.repo_root),
+            ]
         )
         self.assertEqual(rc, 0)
         self.assertNotIn("- Approval:", plan.read_text(encoding="utf-8"))
@@ -1537,6 +1546,8 @@ class ApprovalGateTests(StatusSetTestBase):
                 "to-review",
                 "oq0002",
                 "--allow-open-questions",
+                "--message",
+                "recheck",
                 "--yes",
                 "--dir",
                 str(self.repo_root),

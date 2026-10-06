@@ -188,16 +188,24 @@ class IpdLifecycleBackwardEdgesTest(unittest.TestCase):
         )
 
     def test_case_4_controls_unenumerated_backward_edges_still_refused(self):
-        """Case 4: un-enumerated backward edges return ok=False and aw commit refuses."""
+        """Case 4: non-terminal backward edges are now ok; backward moves into or out of terminal are refused."""
         c1 = ipd_lifecycle.validate_transition("approved", "to-review")
-        self.assertFalse(c1.ok)
-        self.assertIn("backwards transition", c1.reason)
+        self.assertTrue(c1.ok, f"approved -> to-review should be ok, got {c1}")
 
         c2 = ipd_lifecycle.validate_transition("reviewed", "draft")
-        self.assertFalse(c2.ok)
-        self.assertIn("backwards transition", c2.reason)
+        self.assertTrue(c2.ok, f"reviewed -> draft should be ok, got {c2}")
 
-        # Scratch plan whose history records reviewed then draft (newest first)
+        # Moving backward out of a terminal status is still refused
+        c3 = ipd_lifecycle.validate_transition("executed", "approved")
+        self.assertFalse(c3.ok)
+        self.assertIn("backwards transition", c3.reason)
+
+        # Premature move directly into terminal is still refused
+        c4 = ipd_lifecycle.validate_transition("draft", "executed")
+        self.assertFalse(c4.ok)
+        self.assertIn("terminal transition", c4.reason)
+
+        # Scratch plan whose history records executed then approved (illegal move out of terminal)
         control_plan = """# IPD: Demo work plan
 
 - Date: 2026-08-28
@@ -206,7 +214,8 @@ class IpdLifecycleBackwardEdgesTest(unittest.TestCase):
 - Scope: A real scope statement.
 - Scope-Paths: src/, tests/
 - Item-Dependencies: none
-- Status: draft
+- Status: approved
+- Approval: 2026-08-30, human ("approved"): reapproved
 - Priority: medium
 - Work-Kind: chore
 - Set: wk
@@ -216,7 +225,8 @@ class IpdLifecycleBackwardEdgesTest(unittest.TestCase):
 - Id: wk0001
 
 ## Workflow history
-- 2026-08-29 draft (aw set): back to draft
+- 2026-08-30 approved (aw set): demoted executed -> approved
+- 2026-08-29 executed (aw ipd finalize): finalized
 - 2026-08-28 reviewed (aw set): reviewed
 
 ## Goal
@@ -243,7 +253,7 @@ A real goal statement.
         self.plan_path.write_text(control_plan, encoding="utf-8")
         subprocess.run(["git", "add", str(self.plan_path)], cwd=self.root, check=True)
         subprocess.run(
-            ["git", "commit", "-q", "-m", "update plan to draft"],
+            ["git", "commit", "-q", "-m", "update plan to illegal terminal transition"],
             cwd=self.root,
             check=True,
         )

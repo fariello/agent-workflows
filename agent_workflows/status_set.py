@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import argparse
 import contextlib
+import json
 import re
 import shlex
 import sys
@@ -997,13 +998,14 @@ def same_status_message_is_duplicate(
 
 
 class StatusChangeResult(tuple):
-    """Result of apply_status_change: a 2-tuple (dest_path, norm_status) with rewritten_paths attribute."""
+    """Result of apply_status_change: a 2-tuple (dest_path, norm_status) with rewritten_paths and optional warning attributes."""
 
     def __new__(
         cls,
         dest_path: Path,
         norm_status: str,
         rewritten_paths: list[str] | None = None,
+        warning: str | None = None,
     ):
         return super().__new__(cls, (dest_path, norm_status))
 
@@ -1012,10 +1014,12 @@ class StatusChangeResult(tuple):
         dest_path: Path,
         norm_status: str,
         rewritten_paths: list[str] | None = None,
+        warning: str | None = None,
     ) -> None:
         self.dest_path = dest_path
         self.norm_status = norm_status
         self.rewritten_paths = list(rewritten_paths or [])
+        self.warning = warning
 
 
 def inherit_from_backlog_release_gate(
@@ -1121,7 +1125,27 @@ def apply_status_change(
         status_tag = norm_status
         default_message = f"status set to {norm_status}"
 
-    message = getattr(args, "message", None) or default_message
+    _is_backward_plan = False
+    _demotion_warning: str | None = None
+    if rec.record_type == "plans":
+        from agent_workflows.ipd_lifecycle import _LEGAL_BACKWARD_EDGES
+
+        if (old_status, norm_status) in _LEGAL_BACKWARD_EDGES:
+            _is_backward_plan = True
+            reason = (getattr(args, "message", None) or "").strip()
+            plan_id = rec.id6 or rec.path.name
+            if old_status in ("approved", "auto-approved"):
+                _demotion_warning = f"DEMOTED {plan_id}: {old_status} -> {norm_status}: APPROVAL WITHDRAWN: {reason}"
+                message = f"demoted {old_status} -> {norm_status}: APPROVAL WITHDRAWN: {reason}"
+            else:
+                _demotion_warning = (
+                    f"DEMOTED {plan_id}: {old_status} -> {norm_status}: {reason}"
+                )
+                message = f"demoted {old_status} -> {norm_status}: {reason}"
+        else:
+            message = getattr(args, "message", None) or default_message
+    else:
+        message = getattr(args, "message", None) or default_message
     actor = getattr(args, "actor", None) or "aw set"
     # THE BACKSTOP for the actor-shape gate (plan fn2l1u E-07). `validate_transition_allowed` refuses
     # this in the CLI pre-flight with a clean one-line message; this raise catches a DIRECT caller of
@@ -1551,6 +1575,16 @@ def apply_status_change(
             for line_item in new_lines
             if not re.match(r"^- Approval:\s*", line_item)
         ]
+    if (
+        rec.record_type == "plans"
+        and _is_backward_plan
+        and norm_status in ("draft", "to-review")
+    ):
+        new_lines = [
+            line_item
+            for line_item in new_lines
+            if not re.match(r"^- Readiness:\s*", line_item)
+        ]
 
     # The IPD schema REQUIRES an `- Approval:` field exactly when Status is `approved`
     # (ipd_schema.APPROVAL_STATUSES; enforced as IPD-M104). `auto-approved` is a
@@ -1633,7 +1667,7 @@ def apply_status_change(
     ) and not is_dup
 
     if not content_changed and not path_changed and not _write_history_anyway:
-        return StatusChangeResult(rec.path, norm_status, [])
+        return StatusChangeResult(rec.path, norm_status, [], warning=_demotion_warning)
 
     # Write the Workflow history record. NEWEST-FIRST, NOT appended: the `insert(i + 1, ...)` below
     # PREPENDS the new record directly under the `## Workflow history` heading, so the FIRST record
@@ -1743,7 +1777,9 @@ def apply_status_change(
             changes=citation_changes,
         )
 
-    return StatusChangeResult(dest_path, norm_status, rewritten_citations)
+    return StatusChangeResult(
+        dest_path, norm_status, rewritten_citations, warning=_demotion_warning
+    )
 
 
 def _auto_index_types(
@@ -2709,6 +2745,185 @@ def run_set_command(
         term.status("fail", f"{_summary}\nRefusing; nothing was written:\n{_listing}")
         return 2
 
+    # E-05: Require an explicit --message for every backward plan transition.
+    from agent_workflows.ipd_lifecycle import _LEGAL_BACKWARD_EDGES, _status_rank
+
+    _explicit_message = (getattr(args, "message", None) or "").strip()
+    _backward_plan_moves: list[tuple[ArtifactRecord, str, str]] = []
+    for rec in matched_records:
+        if rec.record_type == "plans":
+            _cur = (
+                normalize_target_status(rec.status or "draft", "plans").strip().lower()
+            )
+            _tgt = normalize_target_status(target_status, "plans").strip().lower()
+            if (_cur, _tgt) in _LEGAL_BACKWARD_EDGES:
+                _backward_plan_moves.append((rec, _cur, _tgt))
+
+    if _backward_plan_moves and not _explicit_message:
+        _err_summary = "aw set: backward plan transition requires an explicit --message"
+        if ctx.is_agent or ctx.is_json:
+            res = CommandResult(
+                command="set",
+                status="cannot-run",
+                exit_code=2,
+                summary=_err_summary,
+                diagnostics=[
+                    Diagnostic(
+                        location=str(r.path),
+                        rule="status.backward_plan_message_required",
+                        detail=f"demoting plan from '{c}' to '{t}' requires an explicit --message",
+                        severity="error",
+                    )
+                    for r, c, t in _backward_plan_moves
+                ],
+                next_actions=[
+                    NextAction(
+                        command=_retry_command(
+                            args,
+                            raw_args,
+                            scoped_type=scoped_type,
+                            extra=['--message "<reason>"'],
+                        ),
+                        description="Specify --message with the demotion reason",
+                    )
+                ],
+                verified=False,
+                complete=False,
+            )
+            return get_renderer(ctx).emit(res, ctx)
+        term.status(
+            "fail",
+            f"{_err_summary} explaining why the plan was demoted; refusing before making changes.",
+        )
+        return 2
+
+    # E-01 / E-02 / E-03: Orchestrator review readiness gate.
+    from agent_workflows import orchestrator_readiness as _orch_readiness
+    from agent_workflows import ipd_lint as _ipd_lint
+
+    _gated_orchestrators: list[tuple[ArtifactRecord, str]] = []
+    _ready_forward_targets = frozenset(
+        {"to-review", "reviewed", "approved", "auto-approved"}
+    )
+
+    for rec in matched_records:
+        if rec.record_type == "plans":
+            _tgt = normalize_target_status(target_status, "plans").strip().lower()
+            if _tgt in _ready_forward_targets:
+                _doc = _ipd_lint.parse(rec.raw_text)
+                _kind = (_doc.meta_fields.get("Kind") or "").strip().lower()
+                if _kind == "orchestrator":
+                    _cur = (
+                        normalize_target_status(rec.status or "draft", "plans")
+                        .strip()
+                        .lower()
+                    )
+                    if _status_rank(_tgt) > _status_rank(_cur):
+                        _gated_orchestrators.append((rec, _tgt))
+
+    if _gated_orchestrators:
+        _unready_results: list[_orch_readiness.ReviewReadiness] = []
+        for orch_rec, orch_target in _gated_orchestrators:
+            orch_doc = _ipd_lint.parse(orch_rec.raw_text)
+            raw_set = (orch_doc.meta_fields.get("Set") or "").strip()
+            orch_setid = (
+                raw_set.split("(")[0].strip().split()[0].strip() if raw_set else ""
+            )
+
+            status_overrides: dict[str, str] = {}
+            for other_rec in matched_records:
+                if other_rec.record_type == "plans":
+                    other_doc = _ipd_lint.parse(other_rec.raw_text)
+                    other_set_raw = (other_doc.meta_fields.get("Set") or "").strip()
+                    other_setid = (
+                        other_set_raw.split("(")[0].strip().split()[0].strip()
+                        if other_set_raw
+                        else ""
+                    )
+                    if other_setid == orch_setid:
+                        other_id6 = (other_doc.meta_fields.get("Id") or "").strip()
+                        if other_id6:
+                            other_target = (
+                                normalize_target_status(target_status, "plans")
+                                .strip()
+                                .lower()
+                            )
+                            status_overrides[other_id6] = other_target
+
+            r_res = _orch_readiness.review_readiness(
+                repo_root,
+                orch_rec.path,
+                ask=False,
+                status_overrides=status_overrides,
+            )
+            if not r_res.ready:
+                _unready_results.append(r_res)
+
+        if _unready_results:
+            cmd_str = "ipd set" if scoped_type_canonical == "plans" else "set"
+            if ctx.is_agent or ctx.is_json:
+                findings_payload = [
+                    {
+                        "code": f.code,
+                        "subject": f.subject,
+                        "detail": f.detail,
+                        "remedy": f.remedy,
+                    }
+                    for r in _unready_results
+                    for f in r.findings
+                ]
+                rec_payload = {
+                    "schema": "aw.agent/v1",
+                    "kind": "result",
+                    "cmd": cmd_str,
+                    "exit": 1,
+                    "outcome": "findings",
+                    "verified": True,
+                    "complete": True,
+                    "summary": (
+                        f"orchestrator {_unready_results[0].id6} is not ready for review ({len(_unready_results[0].findings)} finding(s))"
+                        if len(_unready_results) == 1
+                        else f"{len(_unready_results)} orchestrator(s) are not ready for review ({len(findings_payload)} finding(s))"
+                    ),
+                    "data": {
+                        "id6": _unready_results[0].id6
+                        if len(_unready_results) == 1
+                        else ",".join(r.id6 for r in _unready_results),
+                        "setid": _unready_results[0].setid
+                        if len(_unready_results) == 1
+                        else ",".join(r.setid for r in _unready_results),
+                        "ready": False,
+                        "finding_codes": [f["code"] for f in findings_payload],
+                        "findings": findings_payload,
+                    },
+                }
+                if ctx.is_json:
+                    print(json.dumps(rec_payload, indent=2))
+                else:
+                    from agent_workflows import agent_schema as _as
+
+                    print(_as.render_jsonl_record(rec_payload), end="")
+                return 1
+
+            for r in _unready_results:
+                term.line(_orch_readiness.render_human(r))
+            return 1
+
+    # E-02: Sort writes so children are applied first, orchestrators last.
+    def _plan_is_orchestrator(r: ArtifactRecord) -> int:
+        if r.record_type != "plans":
+            return 0
+        from agent_workflows import ipd_lint as _ipd_lint_sort
+
+        doc = _ipd_lint_sort.parse(r.raw_text)
+        return (
+            1
+            if (doc.meta_fields.get("Kind") or "").strip().lower() == "orchestrator"
+            else 0
+        )
+
+    matched_records.sort(key=_plan_is_orchestrator)
+
     is_dry_run = getattr(args, "dry_run", False)
     yes = getattr(args, "yes", False) or getattr(args, "assume_yes", False)
 
@@ -2820,6 +3035,7 @@ def run_set_command(
     results: list[tuple[Path, str, ArtifactRecord, bool]] = []
     touched_types: set[str] = set()
     touched_paths: list[str] = []
+    demotion_warnings: list[tuple[Path, str]] = []
     for rec in matched_records:
         old_text = rec.raw_text
         res = apply_status_change(
@@ -2830,6 +3046,8 @@ def run_set_command(
             close_verdict=backlog_close_verdicts.get(rec.path),
         )
         dest_path, norm_stat = res
+        if getattr(res, "warning", None):
+            demotion_warnings.append((dest_path, res.warning))
         new_text = dest_path.read_text(encoding="utf-8") if dest_path.exists() else ""
         changed = (old_text != new_text) or (dest_path.resolve() != rec.path.resolve())
         results.append((dest_path, norm_stat, rec, changed))
@@ -2878,30 +3096,46 @@ def run_set_command(
             target_status,
             scoped_type_canonical,
         )
+        demotion_diags = [
+            Diagnostic(
+                location=str(path),
+                rule="status.plan_demoted",
+                detail=w,
+                severity="warning",
+            )
+            for path, w in demotion_warnings
+        ]
+        res_data: dict[str, Any] = {
+            "items": [
+                {
+                    "path": str(dest),
+                    "type": rec.record_type,
+                    "old_status": rec.status,
+                    "new_status": norm_stat,
+                    "changed": changed,
+                }
+                for dest, norm_stat, rec, changed in results
+            ]
+        }
+        if demotion_warnings:
+            res_data["warnings"] = [w for _, w in demotion_warnings]
         res = CommandResult(
             command="set",
             status="clean",
             exit_code=0,
             summary=f"updated status on {len([r for r in results if r[3]])} artifact(s)",
             changes=changes,
-            data={
-                "items": [
-                    {
-                        "path": str(dest),
-                        "type": rec.record_type,
-                        "old_status": rec.status,
-                        "new_status": norm_stat,
-                        "changed": changed,
-                    }
-                    for dest, norm_stat, rec, changed in results
-                ]
-            },
+            diagnostics=demotion_diags,
+            data=res_data,
             verified=True,
             complete=True,
         )
         return get_renderer(ctx).emit(res, ctx)
 
     _auto_index_types(touched_types, repo_root)
+
+    for _, w in demotion_warnings:
+        sys.stderr.write(f"{w}\n")
 
     for dest, norm_stat, rec, changed in results:
         term.line(
