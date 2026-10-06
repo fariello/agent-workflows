@@ -6,7 +6,7 @@
 - Scope: Orchestrate three children that together make a model attributable per attempt and make the consumers read it. This plan holds ORCHESTRATION ONLY: every deliverable belongs to a child (`czut8j` the frozen per-attempt producer, `ov2c9n` the host-observed model, `r5fk4k` the three consumers), and this file contributes no code, no test, no doc and no record of its own. EXCLUDES, in every child without exception: back-filling history, moving `MODEL_COVERAGE_THRESHOLD` from its declared 0.80, editing the retained `CORPUS_BASELINE` snapshot, adding a new CLI flag (which would require amending spec `25kzda` Section 2.1), and making anything GATE or REFUSE on a model value.
 - Scope-Paths: .aw/records/plans/pending/20260930-attmodel-00-1u4olp-record-the-resolved-model-per-attempt-so-run-analytics-can-c.ipd.md
 - Item-Dependencies: none
-- Status: to-review
+- Status: draft
 - Coverage: fail
 - Coverage-Fingerprint: 628403857f3620e3eaf30ee4e4edcf82562caeb69e904ef482b1de7550ee2992
 - Coverage-Checked: 2026-10-06 by uri/its_direct/pt3-claude-opus-5.5-1m-us
@@ -20,6 +20,7 @@
 - Id: 1u4olp
 
 ## Workflow history
+- 2026-10-06 draft (aw set): demoted to-review -> draft: returned to authoring by gradcover 52opph: uncovered obligation: The Set-level obligations are: the three children's test files all present and green
 
 - 2026-10-06 coverage fail (aw oc run): fingerprint 628403857f36, model uri/its_direct/pt3-claude-opus-5.5-1m-us
 - 2026-09-30 to-review (opencode its_direct/pt3-claude-opus-5-1m-us): Graduated from backlog `7yz545` as a Set of three rather than one plan, because authoring measured that the item's one-line request decomposes into a producer, a host observation and three consumers with different risk profiles and different failure modes. TWO CORRECTIONS TO THE ITEM ARE RECORDED IN THE CHILDREN THAT OWN THEM RATHER THAN HERE. (1) The item says the OpenCode model comes "from the session's assistant message modelID"; the `--format json` stream carries NO model id (measured: a complete turn emitted `step_start`, `text`, `step_finish` and nothing naming a model), so `ov2c9n` takes a different and executed route, `opencode export`. (2) The item under-reports the defect: it frames the problem as missing coverage, and coverage is only two thirds of it, since the dashboard mis-attributes every verifier row even on a fully-attributed run, and the comparison arm is fed an empty list regardless of coverage. Both are owned by `r5fk4k`.
