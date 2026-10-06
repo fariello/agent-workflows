@@ -929,6 +929,12 @@ RULE_REGISTRY: Dict[str, RuleSpec] = {
     "check.orchestrator-not-review-ready": RuleSpec(
         "error", ASSURANCE_REPOSITORY, DET_DETERMINISTIC, ""
     ),
+    # gradcover Order 10 (sbiv1j E-04, spec 77tr3o R-13): graduation completeness check over
+    # graduated backlog items and implementing specs. Registered error severity, repository
+    # assurance, deterministic.
+    "check.graduation-incomplete": RuleSpec(
+        "error", ASSURANCE_REPOSITORY, DET_DETERMINISTIC, ""
+    ),
 }
 
 # Conservative default for an unregistered rule id: treat it as an error-severity, repository-class,
@@ -1355,6 +1361,17 @@ def check_content(
                     drift.extend(check_spec_test_citations_for_text(repo_root, p, text))
             except OSError:
                 continue
+        try:
+            drift.extend(
+                check_graduation_incomplete(
+                    repo_root,
+                    "specs",
+                    include_untracked=include_untracked,
+                    include_retired=include_retired,
+                )
+            )
+        except Exception:
+            pass
     elif record_type == "backlog":
         from agent_workflows import backlog as _backlog
 
@@ -1368,6 +1385,17 @@ def check_content(
                 drift.extend(_backlog.validate_item(p, p.read_text(encoding="utf-8")))
             except OSError:
                 continue
+        try:
+            drift.extend(
+                check_graduation_incomplete(
+                    repo_root,
+                    "backlog",
+                    include_untracked=include_untracked,
+                    include_retired=include_retired,
+                )
+            )
+        except Exception:
+            pass
     elif record_type == "plans":
         from agent_workflows import plans_index as _pidx
 
@@ -4219,6 +4247,7 @@ _META_BLOCKS_RELEASE_RE = _re.compile(r"(?m)^- Blocks-Release:[ \t]*(\S+)[ \t]*$
 # gh409m byzkr7 E-05: widened to (.+?) matching backlog._CLOSE_EVIDENCE_RE, while stripping trailing space.
 _META_CLOSE_EVIDENCE_RE = _re.compile(r"(?m)^- Close-Evidence:[ \t]*(.+?)[ \t]*$")
 _META_FROM_BACKLOG_RE = _re.compile(r"(?m)^- From-Backlog:[ \t]*([^\n]*?)[ \t]*$")
+_ITEM_FROM_SPEC_RE = _re.compile(r"(?m)^-[ \t]*From-Spec:[ \t]*(\S+)[ \t]*$")
 _PLAN_STATUS_RE = _re.compile(r"(?m)^- Status:[ \t]*(\S+)[ \t]*$")
 
 
@@ -4321,6 +4350,8 @@ def find_from_backlog_plans(repo_root: Path, item_id6: str) -> List[Tuple[Path, 
     See `find_from_backlog_artifacts` below for the full cost analysis and measurement.
     """
     out: List[Tuple[Path, str]] = []
+    if not item_id6:
+        return out
     for p, text in _iter_plan_ipds(repo_root):
         val = _from_backlog_value(text)
         if val == item_id6:
@@ -4337,6 +4368,8 @@ def find_from_backlog_specs(repo_root: Path, item_id6: str) -> List[Tuple[Path, 
     See `find_from_backlog_artifacts` below for the full cost analysis and measurement.
     """
     out: List[Tuple[Path, str]] = []
+    if not item_id6:
+        return out
     for p, text in _iter_spec_records(repo_root):
         val = _from_backlog_value(text)
         if val == item_id6:
@@ -4381,6 +4414,21 @@ def find_from_backlog_artifacts(
     return list(find_from_backlog_plans(repo_root, item_id6)) + list(
         find_from_backlog_specs(repo_root, item_id6)
     )
+
+
+def find_from_spec_plans(repo_root: Path, spec_id6: str) -> List[Tuple[Path, str]]:
+    """Every plan whose `- From-Spec:` names `spec_id6`. Returns [(path, blocks_release_or_'')].
+
+    SINGLE-ITEM ONLY (IPD jpn6hy): mirrors `find_from_backlog_plans`.
+    """
+    out: List[Tuple[Path, str]] = []
+    if not spec_id6:
+        return out
+    for p, text in _iter_plan_ipds(repo_root):
+        m = _ITEM_FROM_SPEC_RE.search(text)
+        if m and m.group(1).strip() == spec_id6:
+            out.append((p, _read_blocks_release(text) or ""))
+    return out
 
 
 # --------------------------------------------------------------------------------------
@@ -5188,6 +5236,423 @@ def _item_close_date(item_text: str) -> Optional[str]:
         return None
     compact = date_str.replace("-", "").strip()
     return compact if len(compact) >= 8 else None
+
+
+class HandoffReadyFinding(NamedTuple):
+    """One reason a source's handoff is not ready (sbiv1j E-01)."""
+
+    code: str
+    plan_id6: str
+    detail: str
+    remedy: str
+
+
+class HandoffReadyResult(NamedTuple):
+    """The aggregate handoff-readiness evaluation for a source artifact."""
+
+    ready: bool
+    findings: Tuple[HandoffReadyFinding, ...] = ()
+
+
+_READY_PLAN_STATUSES: FrozenSet[str] = frozenset(
+    {"to-review", "reviewed", "approved", "auto-approved", "executed"}
+)
+
+
+def evaluate_handoff_ready(
+    repo_root: Path,
+    source_type: str,
+    source_id6: str,
+    *,
+    carrier_index: Optional[Dict[str, List[Tuple[Path, Optional[str]]]]] = None,
+    plan_setid_index: Optional[Dict[str, List[GraduationArtifact]]] = None,
+) -> HandoffReadyResult:
+    """Evaluate whether all handed-off plans for a source are ready (gradcover sbiv1j E-01).
+
+    source_type: 'backlog' | 'spec'
+    source_id6: the source artifact's 6-character identifier.
+
+    A handoff plan is an active (non-terminal-directory) plan whose `- From-Backlog:` (for backlog)
+    or `- From-Spec:` (for spec) names the source. A spec carrying `- From-Backlog:` also counts
+    as a handoff for a backlog source and is ready when its status is `approved` or later.
+
+    Findings:
+      - no handoff at all;
+      - a plan below `to-review`;
+      - a plan failing `ipd_lint.lint_file(..., checkpoint="author", suppress_s408=True)`;
+      - an orchestrator failing `orchestrator_readiness.review_readiness(..., ask=False)`.
+
+    A completed handoff is ready: when every linked plan sits in a terminal directory
+    (`executed/`, `superseded/`, `not-executed/`) and at least one is `executed`, there is no
+    active plan and that is not a finding.
+
+    A source whose `- Graduated-To:` names a Set that resolves but whose plans carry no
+    `- From-Backlog:` is judged by that Set's plans instead.
+    """
+    repo_root = Path(repo_root)
+    source_kind = "backlog" if source_type in ("backlog", "backlog_item") else "spec"
+    if not source_id6:
+        return HandoffReadyResult(
+            ready=False,
+            findings=(
+                HandoffReadyFinding(
+                    "no-handoff",
+                    None,
+                    f"no handoff plan or spec found for {source_type} {source_id6}",
+                    f"author a plan or spec with `- From-{source_type.title()}: {source_id6}`",
+                ),
+            ),
+        )
+
+    plan_paths: List[Path] = []
+    spec_paths: List[Path] = []
+
+    if source_kind == "backlog":
+        if carrier_index is not None:
+            raw_carriers = carrier_index.get(source_id6, [])
+        else:
+            raw_carriers = find_from_backlog_artifacts(repo_root, source_id6)
+        for p, _br in raw_carriers:
+            if p.name.endswith(".ipd.md"):
+                if p not in plan_paths:
+                    plan_paths.append(p)
+            elif p.name.endswith(".spec.md"):
+                if p not in spec_paths:
+                    spec_paths.append(p)
+    else:
+        raw_carriers = find_from_spec_plans(repo_root, source_id6)
+        for p, _br in raw_carriers:
+            if p not in plan_paths:
+                plan_paths.append(p)
+
+    # If no From-Backlog / From-Spec carriers found, fall back to Graduated-To Set
+    if not plan_paths and not spec_paths:
+        grad_setids = read_source_graduated_to(
+            repo_root, source_id6, source_kind=source_kind
+        )
+        if grad_setids:
+            if plan_setid_index is not None:
+                for s in grad_setids:
+                    for art in plan_setid_index.get(s, []):
+                        p = (repo_root / art.path).resolve()
+                        if p.is_file() and p not in plan_paths:
+                            plan_paths.append(p)
+            else:
+                for s in grad_setids:
+                    for p, text in _iter_plan_ipds(repo_root):
+                        s_id, _ = _parse_setid(text)
+                        if s_id == s and p not in plan_paths:
+                            plan_paths.append(p)
+
+    if not plan_paths and not spec_paths:
+        rem = (
+            f"author a plan or spec with `- From-Backlog: {source_id6}`"
+            if source_kind == "backlog"
+            else f"author a plan with `- From-Spec: {source_id6}`"
+        )
+        return HandoffReadyResult(
+            False,
+            (
+                HandoffReadyFinding(
+                    "no-handoff",
+                    "",
+                    f"no handoff plan or spec found for {source_type} {source_id6}",
+                    rem,
+                ),
+            ),
+        )
+
+    # Classify plans: active vs terminal
+    terminal_segs = ("executed", "superseded", "not-executed")
+    active_plans: List[Path] = []
+    terminal_plans: List[Path] = []
+    for p in plan_paths:
+        if any(seg in p.parts for seg in terminal_segs):
+            terminal_plans.append(p)
+        else:
+            active_plans.append(p)
+
+    # Completed handoff check
+    has_executed = any("executed" in p.parts for p in terminal_plans)
+    if plan_paths and not active_plans and not spec_paths:
+        if has_executed:
+            return HandoffReadyResult(True, ())
+        rem = (
+            f"author an active plan with `- From-Backlog: {source_id6}`"
+            if source_kind == "backlog"
+            else f"author an active plan with `- From-Spec: {source_id6}`"
+        )
+        return HandoffReadyResult(
+            False,
+            (
+                HandoffReadyFinding(
+                    "no-handoff",
+                    "",
+                    f"all handoff plans for {source_type} {source_id6} are terminal with none executed",
+                    rem,
+                ),
+            ),
+        )
+
+    findings: List[HandoffReadyFinding] = []
+
+    # Active plans evaluation
+    from agent_workflows import ipd_lint as _ipd_lint
+
+    for p in active_plans:
+        try:
+            text = p.read_text(encoding="utf-8")
+        except OSError:
+            continue
+        plan_id6 = _read_declared_id(text) or p.name
+        plan_status = _read_plan_status(text) or ""
+        if plan_status not in _READY_PLAN_STATUSES:
+            findings.append(
+                HandoffReadyFinding(
+                    "plan-status-not-ready",
+                    plan_id6,
+                    f"plan {plan_id6} has status {plan_status!r} (must be to-review or later)",
+                    f"bring the plan to `to-review` with `aw ipd set to-review {plan_id6}`",
+                )
+            )
+        else:
+            lint_res = _ipd_lint.lint_file(p, checkpoint="author", suppress_s408=True)
+            if not lint_res.passing:
+                diag_summary = "; ".join(
+                    f"{d.code} {d.message}" for d in lint_res.diagnostics
+                )
+                findings.append(
+                    HandoffReadyFinding(
+                        "plan-lint-failing",
+                        plan_id6,
+                        f"plan {plan_id6} fails author lint: {diag_summary}",
+                        "fix the plan's named lint finding",
+                    )
+                )
+
+        m_kind = _re.search(r"^- Kind:\s*(\S+)", text, _re.MULTILINE)
+        if m_kind and m_kind.group(1).strip("'\"").lower() == "orchestrator":
+            from agent_workflows import orchestrator_readiness as _orch
+
+            orch_res = _orch.review_readiness(repo_root, p, ask=False)
+            if not orch_res.ready:
+                for f in orch_res.findings:
+                    detail_str = (
+                        f.detail
+                        if not f.subject or f.detail.startswith(f.subject)
+                        else f"{f.subject}: {f.detail}"
+                    )
+                    findings.append(
+                        HandoffReadyFinding(
+                            f.code,
+                            plan_id6,
+                            detail_str,
+                            f.remedy,
+                        )
+                    )
+
+    # Spec carriers evaluation
+    for sp in spec_paths:
+        try:
+            stext = sp.read_text(encoding="utf-8")
+        except OSError:
+            continue
+        spec_id6 = _read_declared_id(stext) or sp.name
+        spec_status = _status_meta(stext) or ""
+        if spec_status not in ("approved", "implementing", "implemented"):
+            findings.append(
+                HandoffReadyFinding(
+                    "spec-status-not-ready",
+                    spec_id6,
+                    f"spec {spec_id6} has status {spec_status!r} (must be approved, implementing, or implemented)",
+                    f"bring the spec to `approved` with `aw specs set approved {spec_id6}`",
+                )
+            )
+
+    if findings:
+        return HandoffReadyResult(False, tuple(findings))
+    return HandoffReadyResult(True, ())
+
+
+def render_handoff_ready_human(
+    result: HandoffReadyResult, source_type: str, source_id6: str
+) -> str:
+    """Render a human-readable summary of handoff readiness."""
+    if result.ready:
+        return f"handoff for {source_type} {source_id6} is ready."
+    lines = [f"handoff for {source_type} {source_id6} is not ready:"]
+    for f in result.findings:
+        subj = f" [{f.plan_id6}]" if f.plan_id6 else ""
+        lines.append(f"  - [{f.code}]{subj} {f.detail}")
+        if f.remedy:
+            lines.append(f"    Remedy: {f.remedy}")
+    return "\n".join(lines)
+
+
+_GRADUATED_LINE_RE = _re.compile(
+    r"^- (?P<date>\d{4}-\d{2}-\d{2}) (?:graduated\b|set\b.*?\bgraduated\b)",
+    _re.IGNORECASE,
+)
+
+
+def _item_graduated_date(item_text: str) -> Optional[str]:
+    """Derive the newest graduated date (compact YYYYMMDD) for a backlog item from its history.
+
+    Reuses `attention._history_section_lines` to bound the history section.
+    Returns compact YYYYMMDD, or None if no graduation record is found.
+    """
+    from agent_workflows import attention as _att
+
+    lines = _att._history_section_lines(item_text)
+    for line in lines:
+        m = _GRADUATED_LINE_RE.match(line)
+        if m:
+            compact = m.group("date").replace("-", "").strip()
+            return compact if len(compact) >= 8 else None
+    return None
+
+
+_IMPLEMENTING_LINE_RE = _re.compile(
+    r"^- (?P<date>\d{4}-\d{2}-\d{2}) (?:implementing\b|set\b.*?\bimplementing\b)",
+    _re.IGNORECASE,
+)
+
+
+def _spec_implementing_date(spec_text: str) -> Optional[str]:
+    """Derive the newest implementing transition date (compact YYYYMMDD) for a spec from its history.
+
+    Reuses `attention._history_section_lines` to bound the history section.
+    Returns compact YYYYMMDD, or None if no implementing record is found.
+    """
+    from agent_workflows import attention as _att
+
+    lines = _att._history_section_lines(spec_text)
+    for line in lines:
+        m = _IMPLEMENTING_LINE_RE.match(line)
+        if m:
+            compact = m.group("date").replace("-", "").strip()
+            return compact if len(compact) >= 8 else None
+    return None
+
+
+def check_graduation_incomplete(
+    repo_root: Path,
+    record_type: str = "backlog",
+    *,
+    include_untracked: bool = False,
+    include_retired: bool = False,
+) -> List[_core.Drift]:
+    """Flag graduated backlog items or implementing specs whose handoff is not ready (sbiv1j E-04).
+
+    Grandfathered by cutover 'graduation_ready': only artifacts whose transition date is on
+    or after the cutover are evaluated. Older transitions are grandfathered.
+    """
+    from agent_workflows import config as _cfg
+
+    repo_root = Path(repo_root)
+    drift: List[_core.Drift] = []
+    cutover = _cfg.resolve_cutover_date(repo_root, "graduation_ready", compact=True)
+    if not cutover:
+        return drift
+
+    if record_type == "backlog":
+        candidates: List[Tuple[Path, str, str]] = []
+        for p in _iter_type_files(
+            repo_root,
+            "backlog",
+            include_untracked=include_untracked,
+            include_retired=include_retired,
+        ):
+            try:
+                text = p.read_text(encoding="utf-8")
+            except OSError:
+                continue
+            if _status_meta(text) == "graduated":
+                grad_date = _item_graduated_date(text)
+                if grad_date and grad_date >= cutover:
+                    item_id6 = _read_item_id(text) or p.stem
+                    candidates.append((p, text, item_id6))
+
+        if not candidates:
+            return drift
+
+        carrier_idx = _from_backlog_carrier_index(repo_root)
+        plan_setid_idx = build_plan_setid_index(repo_root)
+
+        for p, _text, item_id6 in candidates:
+            res = evaluate_handoff_ready(
+                repo_root,
+                "backlog",
+                item_id6,
+                carrier_index=carrier_idx,
+                plan_setid_index=plan_setid_idx,
+            )
+            if not res.ready:
+                codes = ", ".join(f.code for f in res.findings)
+                details = "; ".join(f.detail for f in res.findings)
+                try:
+                    rel_p = str(p.resolve().relative_to(repo_root.resolve()))
+                except ValueError:
+                    rel_p = str(p)
+                drift.append(
+                    _core.Drift(
+                        rel_p,
+                        "check.graduation-incomplete",
+                        f"handoff for backlog {item_id6} is not ready: {details}",
+                        observed=f"handoff not ready ({codes})",
+                        required="all handed-off plans complete, >= to-review, lint at author, and orchestrators ready",
+                        recovery=f"aw backlog set open {item_id6} and re-run graduation",
+                        severity="error",
+                        assurance=ASSURANCE_REPOSITORY,
+                        determinism=DET_DETERMINISTIC,
+                    )
+                )
+
+    elif record_type == "specs":
+        candidates_spec: List[Tuple[Path, str, str]] = []
+        for p in _iter_type_files(
+            repo_root,
+            "specs",
+            include_untracked=include_untracked,
+            include_retired=include_retired,
+        ):
+            try:
+                text = p.read_text(encoding="utf-8")
+            except OSError:
+                continue
+            if _status_meta(text) == "implementing":
+                impl_date = _spec_implementing_date(text)
+                if impl_date and impl_date >= cutover:
+                    spec_id6 = _read_declared_id(text) or p.name
+                    candidates_spec.append((p, text, spec_id6))
+
+        if not candidates_spec:
+            return drift
+
+        for p, _text, spec_id6 in candidates_spec:
+            res = evaluate_handoff_ready(repo_root, "spec", spec_id6)
+            if not res.ready:
+                codes = ", ".join(f.code for f in res.findings)
+                details = "; ".join(f.detail for f in res.findings)
+                try:
+                    rel_p = str(p.resolve().relative_to(repo_root.resolve()))
+                except ValueError:
+                    rel_p = str(p)
+                drift.append(
+                    _core.Drift(
+                        rel_p,
+                        "check.graduation-incomplete",
+                        f"handoff for spec {spec_id6} is not ready: {details}",
+                        observed=f"handoff not ready ({codes})",
+                        required="all handed-off plans complete, >= to-review, lint at author, and orchestrators ready",
+                        recovery=f"aw specs set approved {rel_p} if legal, else fix plan",
+                        severity="error",
+                        assurance=ASSURANCE_REPOSITORY,
+                        determinism=DET_DETERMINISTIC,
+                    )
+                )
+
+    return drift
 
 
 def check_release_gate_consistency(

@@ -77,6 +77,90 @@ Test goal.
         p.write_text(content, encoding="utf-8")
         return p
 
+    def create_conforming_plan(
+        self,
+        filename: str,
+        id6: str,
+        set_id: str,
+        *,
+        status: str = "to-review",
+        backlog_id6: str | None = None,
+        spec_id6: str | None = None,
+        scope_paths: str = "README.md",
+        disposition: str = "pending",
+    ) -> Path:
+        p = self.repo_root / ".aw" / "records" / "plans" / disposition / filename
+        p.parent.mkdir(parents=True, exist_ok=True)
+        bkl = f"- From-Backlog: {backlog_id6}\n" if backlog_id6 else ""
+        spc = f"- From-Spec: {spec_id6}\n" if spec_id6 else ""
+        content = f"""# IPD: Test Plan {id6}
+
+- Date: 2026-08-22
+- Kind: child
+- Concern: Test concern.
+- Scope: Test scope.
+- Status: {status}
+- Work-Kind: chore
+- Priority: medium
+- Set: {set_id}
+- Order: 1
+- Id: {id6}
+{bkl}{spc}- Scope-Paths: {scope_paths}
+- Highest E allocated: 01
+- Author: test
+- Item-Dependencies: none
+
+## Workflow history
+
+- 2026-08-22 {status} (author): created.
+
+## Goal
+Test goal {id6}.
+
+## Detailed Implementation Checklist (TODO)
+### Task group 1: work
+- [ ] E-01 Work item
+  - Depends on: none
+  - Expected outcome: done
+  - Execution state: pending
+
+## Project conventions discovered (Step 0)
+None.
+
+## Findings
+None.
+
+## Proposed changes (ordered, validatable)
+1. E-01 do work.
+
+## Deferred / out of scope (with reason)
+- None.
+
+## Scope check
+- None.
+
+## Required tests / validation
+- None.
+
+## Spec / documentation sync
+- None.
+
+## Open questions
+- None.
+
+## Validation and cross-check (verify before reporting done)
+- [ ] V-01 validates E-01
+  - Required evidence: check.
+  - Observed evidence:
+  - Result: pending
+
+## Approval and execution gate
+- Size assessment: standard
+- Cohesion rationale: not required
+"""
+        p.write_text(content, encoding="utf-8")
+        return p
+
     def create_spec(
         self, filename: str, id6: str, set_id: str, status: str = "draft"
     ) -> Path:
@@ -3954,22 +4038,15 @@ class TestScopePathCitationRewriteSetter(StatusSetTestBase):
             "bkset",
             status="open",
         )
-        plan_file = (
-            self.repo_root
-            / ".aw"
-            / "records"
-            / "plans"
-            / "pending"
-            / "20261001-test-01-pl0001-plan.ipd.md"
-        )
         old_citation = f".aw/records/backlog/open/{bk.name}"
-        initial_plan_text = (
-            f"# IPD: Test Plan\n"
-            f"- Id: pl0001\n"
-            f"- Scope-Paths: {old_citation}, helper.py\n\n"
-            f"Prose citation: {old_citation}\n"
+        plan_file = self.create_conforming_plan(
+            "20261001-test-01-pl0001-plan.ipd.md",
+            "pl0001",
+            "bkset",
+            backlog_id6="bk0001",
+            scope_paths=f"{old_citation}, helper.py",
         )
-        plan_file.write_text(initial_plan_text, encoding="utf-8")
+        initial_plan_text = plan_file.read_text(encoding="utf-8")
 
         res = support.run_cli(
             "backlog", "set", "graduated", "bk0001", "--yes", cwd=self.repo_root
@@ -4004,16 +4081,12 @@ class TestScopePathCitationRewriteSetter(StatusSetTestBase):
             "bkset",
             status="open",
         )
-        p1_norm = (
-            self.repo_root
-            / ".aw"
-            / "records"
-            / "plans"
-            / "pending"
-            / "20261001-test-01-pl0001-norm.ipd.md"
-        )
-        p1_norm.write_text(
-            f"# IPD\n- Id: pl0001\n- Scope-Paths: .aw/records/backlog/open/{bk1.name}\n"
+        p1_norm = self.create_conforming_plan(
+            "20261001-test-01-pl0001-norm.ipd.md",
+            "pl0001",
+            "bkset",
+            backlog_id6="bk0001",
+            scope_paths=f".aw/records/backlog/open/{bk1.name}",
         )
         p1_rcpt = (
             self.repo_root
@@ -4057,16 +4130,12 @@ class TestScopePathCitationRewriteSetter(StatusSetTestBase):
             "bkset",
             status="open",
         )
-        p2_norm = (
-            self.repo_root
-            / ".aw"
-            / "records"
-            / "plans"
-            / "pending"
-            / "20261001-test-01-pl0003-norm.ipd.md"
-        )
-        p2_norm.write_text(
-            f"# IPD\n- Id: pl0003\n- Scope-Paths: .aw/records/backlog/open/{bk2.name}\n"
+        p2_norm = self.create_conforming_plan(
+            "20261001-test-01-pl0003-norm.ipd.md",
+            "pl0003",
+            "bkset",
+            backlog_id6="bk0002",
+            scope_paths=f".aw/records/backlog/open/{bk2.name}",
         )
         p2_rcpt = (
             self.repo_root
@@ -4110,16 +4179,12 @@ class TestScopePathCitationRewriteSetter(StatusSetTestBase):
             "spset",
             status="approved",
         )
-        p3_norm = (
-            self.repo_root
-            / ".aw"
-            / "records"
-            / "plans"
-            / "pending"
-            / "20261001-test-01-pl0005-norm.ipd.md"
-        )
-        p3_norm.write_text(
-            f"# IPD\n- Id: pl0005\n- Scope-Paths: .aw/records/specs/approved/{sp3.name}\n"
+        p3_norm = self.create_conforming_plan(
+            "20261001-test-01-pl0005-norm.ipd.md",
+            "pl0005",
+            "spset",
+            spec_id6="sp0003",
+            scope_paths=f".aw/records/specs/approved/{sp3.name}",
         )
         p3_rcpt = (
             self.repo_root
@@ -4187,6 +4252,7 @@ class TestScopePathCitationRewriteSetter(StatusSetTestBase):
             "- Set: bkset\n"
             "- Order: 1\n"
             "- Id: tst001\n"
+            "- From-Backlog: bk0003\n"
             "- Approval: 2026-09-30, approved\n\n"
             "## Workflow history\n"
             "- 2026-09-30: approved\n\n"
@@ -4255,16 +4321,12 @@ class TestScopePathCitationRewriteSetter(StatusSetTestBase):
             "bkset",
             status="open",
         )
-        p_norm = (
-            self.repo_root
-            / ".aw"
-            / "records"
-            / "plans"
-            / "pending"
-            / "20261001-test-01-pl0007-norm.ipd.md"
-        )
-        p_norm.write_text(
-            f"# IPD\n- Id: pl0007\n- Scope-Paths: .aw/records/backlog/open/{bk.name}\n"
+        self.create_conforming_plan(
+            "20261001-test-01-pl0007-norm.ipd.md",
+            "pl0007",
+            "bkset",
+            backlog_id6="bk0004",
+            scope_paths=f".aw/records/backlog/open/{bk.name}",
         )
         p_rcpt = (
             self.repo_root
@@ -4331,16 +4393,12 @@ class TestScopePathCitationRewriteSetter(StatusSetTestBase):
             "bkset",
             status="open",
         )
-        p_j_norm = (
-            self.repo_root
-            / ".aw"
-            / "records"
-            / "plans"
-            / "pending"
-            / "20261001-test-01-pl0010-norm.ipd.md"
-        )
-        p_j_norm.write_text(
-            f"# IPD\n- Id: pl0010\n- Scope-Paths: .aw/records/backlog/open/{bk_j.name}\n"
+        self.create_conforming_plan(
+            "20261001-test-01-pl0010-norm.ipd.md",
+            "pl0010",
+            "bkset",
+            backlog_id6="bk0009",
+            scope_paths=f".aw/records/backlog/open/{bk_j.name}",
         )
         p_j_rcpt = (
             self.repo_root
@@ -4390,16 +4448,12 @@ class TestScopePathCitationRewriteSetter(StatusSetTestBase):
             "bkset",
             status="open",
         )
-        plan_file = (
-            self.repo_root
-            / ".aw"
-            / "records"
-            / "plans"
-            / "pending"
-            / "20261001-test-01-pl0009-plan.ipd.md"
-        )
-        plan_file.write_text(
-            f"# IPD: Plan\n- Id: pl0009\n- Scope-Paths: .aw/records/backlog/open/{bk.name}\n"
+        self.create_conforming_plan(
+            "20261001-test-01-pl0009-plan.ipd.md",
+            "pl0009",
+            "bkset",
+            backlog_id6="bk0005",
+            scope_paths=f".aw/records/backlog/open/{bk.name}",
         )
 
         support.git(self.repo_root, "add", "-A")

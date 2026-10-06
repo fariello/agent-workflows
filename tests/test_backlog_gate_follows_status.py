@@ -97,6 +97,72 @@ def _find_item(repo: Path, item_id: str) -> Path:
     return matches[0]
 
 
+def _write_conforming_plan(
+    repo: Path,
+    *,
+    id6: str = "pl0001",
+    backlog_id6: str = "bk0001",
+    set_id: str = "demo",
+) -> Path:
+    plan_dir = repo / ".aw" / "records" / "plans" / "pending"
+    plan_dir.mkdir(parents=True, exist_ok=True)
+    p = plan_dir / f"20260901-{set_id}-01-{id6}-plan.ipd.md"
+    p.write_text(
+        f"# IPD: Plan {id6}\n\n"
+        "- Date: 2026-09-01\n"
+        "- Kind: child\n"
+        "- Concern: Test concern.\n"
+        "- Scope: Test scope.\n"
+        "- Status: to-review\n"
+        "- Work-Kind: chore\n"
+        "- Priority: medium\n"
+        f"- Set: {set_id}\n"
+        "- Order: 1\n"
+        f"- Id: {id6}\n"
+        f"- From-Backlog: {backlog_id6}\n"
+        "- Scope-Paths: README.md\n"
+        "- Highest E allocated: 01\n"
+        "- Author: test\n"
+        "- Item-Dependencies: none\n\n"
+        "## Workflow history\n"
+        "- 2026-09-01 to-review (test): created\n\n"
+        "## Goal\n"
+        f"Goal {id6}.\n\n"
+        "## Detailed Implementation Checklist (TODO)\n"
+        "### Task group 1: work\n"
+        "- [ ] E-01 Work item\n"
+        "  - Depends on: none\n"
+        "  - Expected outcome: done\n"
+        "  - Execution state: pending\n\n"
+        "## Project conventions discovered (Step 0)\n"
+        "None.\n\n"
+        "## Findings\n"
+        "None.\n\n"
+        "## Proposed changes (ordered, validatable)\n"
+        "1. E-01 do work.\n\n"
+        "## Deferred / out of scope (with reason)\n"
+        "- None.\n\n"
+        "## Scope check\n"
+        "- None.\n\n"
+        "## Required tests / validation\n"
+        "- None.\n\n"
+        "## Spec / documentation sync\n"
+        "- None.\n\n"
+        "## Open questions\n"
+        "- None.\n\n"
+        "## Validation and cross-check (verify before reporting done)\n"
+        "- [ ] V-01 validates E-01\n"
+        "  - Required evidence: check.\n"
+        "  - Observed evidence:\n"
+        "  - Result: pending\n\n"
+        "## Approval and execution gate\n"
+        "- Size assessment: standard\n"
+        "- Cohesion rationale: not required\n",
+        encoding="utf-8",
+    )
+    return p
+
+
 class TestBacklogGateFollowsStatus(unittest.TestCase):
     """Pin the five live routes and three negative fence properties."""
 
@@ -173,6 +239,7 @@ class TestBacklogGateFollowsStatus(unittest.TestCase):
             item_path = _create_item(
                 repo, status="open", work_kind="bug", item_id="bk0002"
             )
+            _write_conforming_plan(repo, backlog_id6="bk0002")
 
             out, err = io.StringIO(), io.StringIO()
             with redirect_stdout(out), redirect_stderr(err):
@@ -199,6 +266,7 @@ class TestBacklogGateFollowsStatus(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             repo = _setup_repo(Path(tmp))
             _create_item(repo, status="open", work_kind="bug", item_id="bk0002")
+            _write_conforming_plan(repo, backlog_id6="bk0002")
 
             out, err = io.StringIO(), io.StringIO()
             with redirect_stdout(out), redirect_stderr(err):

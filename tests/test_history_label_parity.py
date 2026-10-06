@@ -38,9 +38,77 @@ def _normalize_history_record(record: str) -> str:
     return _ACTOR_PAREN.sub("(HIST_ACTOR)", record.strip())
 
 
+def _write_conforming_plan(
+    root: Path,
+    *,
+    id6: str = "pl0001",
+    backlog_id6: str = "bk0001",
+    set_id: str = "demo",
+) -> Path:
+    plan_dir = root / ".aw" / "records" / "plans" / "pending"
+    plan_dir.mkdir(parents=True, exist_ok=True)
+    p = plan_dir / f"20260901-{set_id}-01-{id6}-plan.ipd.md"
+    p.write_text(
+        f"# IPD: Plan {id6}\n\n"
+        "- Date: 2026-09-01\n"
+        "- Kind: child\n"
+        "- Concern: Test concern.\n"
+        "- Scope: Test scope.\n"
+        "- Status: to-review\n"
+        "- Work-Kind: chore\n"
+        "- Priority: medium\n"
+        f"- Set: {set_id}\n"
+        "- Order: 1\n"
+        f"- Id: {id6}\n"
+        f"- From-Backlog: {backlog_id6}\n"
+        "- Scope-Paths: README.md\n"
+        "- Highest E allocated: 01\n"
+        "- Author: test\n"
+        "- Item-Dependencies: none\n\n"
+        "## Workflow history\n"
+        "- 2026-09-01 to-review (test): created\n\n"
+        "## Goal\n"
+        f"Goal {id6}.\n\n"
+        "## Detailed Implementation Checklist (TODO)\n"
+        "### Task group 1: work\n"
+        "- [ ] E-01 Work item\n"
+        "  - Depends on: none\n"
+        "  - Expected outcome: done\n"
+        "  - Execution state: pending\n\n"
+        "## Project conventions discovered (Step 0)\n"
+        "None.\n\n"
+        "## Findings\n"
+        "None.\n\n"
+        "## Proposed changes (ordered, validatable)\n"
+        "1. E-01 do work.\n\n"
+        "## Deferred / out of scope (with reason)\n"
+        "- None.\n\n"
+        "## Scope check\n"
+        "- None.\n\n"
+        "## Required tests / validation\n"
+        "- None.\n\n"
+        "## Spec / documentation sync\n"
+        "- None.\n\n"
+        "## Open questions\n"
+        "- None.\n\n"
+        "## Validation and cross-check (verify before reporting done)\n"
+        "- [ ] V-01 validates E-01\n"
+        "  - Required evidence: check.\n"
+        "  - Observed evidence:\n"
+        "  - Result: pending\n\n"
+        "## Approval and execution gate\n"
+        "- Size assessment: standard\n"
+        "- Cohesion rationale: not required\n",
+        encoding="utf-8",
+    )
+    return p
+
+
 def _setup_backlog_repo(root: Path) -> None:
     for sub in ("open", "graduated", "done", "blocked", "parked"):
         (root / ".aw" / "records" / "backlog" / sub).mkdir(parents=True, exist_ok=True)
+    _write_conforming_plan(root, id6="pl0001", backlog_id6="bk0001")
+    _write_conforming_plan(root, id6="pl0002", backlog_id6="bk0002")
 
 
 class HistoryLabelParityTests(unittest.TestCase):

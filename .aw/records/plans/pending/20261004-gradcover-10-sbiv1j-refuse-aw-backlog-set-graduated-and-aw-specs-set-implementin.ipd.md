@@ -37,39 +37,39 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: the predicate
 
-- [ ] E-01 Add `evaluate_handoff_ready(repo_root, source_type, source_id6)` to `check_engine.py`, returning a result with `ready` and a tuple of findings `(code, plan_id6, detail, remedy)`. A handoff plan is an active (non-terminal-directory) plan whose `- From-Backlog:` (for `backlog`) or `- From-Spec:` (for `spec`) names the source, read with the existing `_read_from_backlog`-style classifiers. A spec carrying `- From-Backlog:` also counts as a handoff for a backlog source and is ready when its status is `approved` or later. Findings: no handoff at all; a plan below `to-review`; a plan failing `ipd_lint.lint_file(..., checkpoint="author")`; an orchestrator failing `review_readiness(..., ask=False)` (its findings are included, quotes and all, rendered with that module's shared remedy data, never a second wording). A COMPLETED HANDOFF IS READY: when every linked plan sits in a terminal directory (`executed/`, `superseded/`, `not-executed/`) and at least one is `executed`, there is no active plan and that is not a finding (measured at review: 42 `graduated` items are exactly this). A source whose `- Graduated-To:` names a Set that resolves (any plan carrying it, per `releases.parse_graduated_to` and `check.graduated-to-dangling`'s rule) but whose plans carry no `- From-Backlog:` is judged by that Set's plans instead, so the older handoff link form is honored. Use the one-walk `_from_backlog_carrier_index` for the sweep in E-04 and `find_from_backlog_artifacts` only for a single item (the single-item contract is enforced by `tests/test_carrier_scan_single_item_contract.py`, so the check rule must not call the single-item scanner in a loop).
+- [x] E-01 Add `evaluate_handoff_ready(repo_root, source_type, source_id6)` to `check_engine.py`, returning a result with `ready` and a tuple of findings `(code, plan_id6, detail, remedy)`. A handoff plan is an active (non-terminal-directory) plan whose `- From-Backlog:` (for `backlog`) or `- From-Spec:` (for `spec`) names the source, read with the existing `_read_from_backlog`-style classifiers. A spec carrying `- From-Backlog:` also counts as a handoff for a backlog source and is ready when its status is `approved` or later. Findings: no handoff at all; a plan below `to-review`; a plan failing `ipd_lint.lint_file(..., checkpoint="author")`; an orchestrator failing `review_readiness(..., ask=False)` (its findings are included, quotes and all, rendered with that module's shared remedy data, never a second wording). A COMPLETED HANDOFF IS READY: when every linked plan sits in a terminal directory (`executed/`, `superseded/`, `not-executed/`) and at least one is `executed`, there is no active plan and that is not a finding (measured at review: 42 `graduated` items are exactly this). A source whose `- Graduated-To:` names a Set that resolves (any plan carrying it, per `releases.parse_graduated_to` and `check.graduated-to-dangling`'s rule) but whose plans carry no `- From-Backlog:` is judged by that Set's plans instead, so the older handoff link form is honored. Use the one-walk `_from_backlog_carrier_index` for the sweep in E-04 and `find_from_backlog_artifacts` only for a single item (the single-item contract is enforced by `tests/test_carrier_scan_single_item_contract.py`, so the check rule must not call the single-item scanner in a loop).
   - Depends on: none
   - Expected outcome: the predicate reports each of the four failure kinds on fixtures and `ready=True` for a fixture with a ready Set whose orchestrator carries a current coverage pass, for a completed (all-terminal, one executed) handoff, and for a `- Graduated-To:` Set handoff whose plans are ready.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: the consumers
 
-- [ ] E-02 Call the predicate from both `aw backlog set` spellings (the `--status` path in `backlog.run_set` and the positional path in `status_set.apply_status_change` / `run_set_command` for backlog records) when the normalized target is `graduated` and the current status is not already `graduated`; on not-ready, refuse with exit 1, write nothing, and print the shared human rendering or the `aw.agent/v1` record listing each plan and finding with its remedy. Evaluate BEFORE any write and before the item file moves directories, at the same point as the existing `evaluate_blocking_close` call on each path, and reuse that refusal's output shape (its exit code and agent record kind) so both refusals read alike. When `--gate-dir` is given (the runner's isolated turn passes it, see `runner_shared` `--gate-dir` notes), evaluate against the tree the item file is in (`--dir`), where the produced plans are, NOT the gate tree, because the plans this check reads exist only in the lane until integration; record the choice in the evidence.
+- [x] E-02 Call the predicate from both `aw backlog set` spellings (the `--status` path in `backlog.run_set` and the positional path in `status_set.apply_status_change` / `run_set_command` for backlog records) when the normalized target is `graduated` and the current status is not already `graduated`; on not-ready, refuse with exit 1, write nothing, and print the shared human rendering or the `aw.agent/v1` record listing each plan and finding with its remedy. Evaluate BEFORE any write and before the item file moves directories, at the same point as the existing `evaluate_blocking_close` call on each path, and reuse that refusal's output shape (its exit code and agent record kind) so both refusals read alike. When `--gate-dir` is given (the runner's isolated turn passes it, see `runner_shared` `--gate-dir` notes), evaluate against the tree the item file is in (`--dir`), where the produced plans are, NOT the gate tree, because the plans this check reads exist only in the lane until integration; record the choice in the evidence.
   - Depends on: E-01
   - Expected outcome: `aw backlog set graduated <item>` and `aw backlog set <item> --status graduated` both refuse on the same not-ready fixture with the same findings and leave the file bytes and location unchanged, and both succeed on a ready fixture; a `graduated -> graduated` same-status note is not checked.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 Call the predicate from `aw specs set` (both spellings) when the normalized target is `implementing` and the current status is `approved`; refuse the same way.
+- [x] E-03 Call the predicate from `aw specs set` (both spellings) when the normalized target is `implementing` and the current status is `approved`; refuse the same way.
   - Depends on: E-02
   - Expected outcome: `aw specs set implementing <spec>` refuses on a fixture whose produced orchestrator has a `draft` child and succeeds on a ready one.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 Add `check.graduation-incomplete` (severity `error`) to `check_engine.py`, registered in the backlog and specs check families, reporting every `graduated` backlog item and every `implementing` spec whose handoff the predicate finds not ready, with observed/required/recovery fields (recovery: `aw backlog set open <id6>` then re-run graduation; for a spec, `aw specs set approved <path>` if legal, else name the plan to fix). GRANDFATHER BY A NEW CUTOVER, which is required, not optional: measured at review, 189 items are `graduated` and 88 have no active handoff (42 completed handoffs, ready by E-01; 46 with no linked plan or spec, of which 40 carry a resolving `- Graduated-To:` Set and 6 carry nothing), plus 1 whose only linked active plan is `draft` (`bmhoxe` -> `yqv6b7`), and spec `z7nbn1` is `implementing` with all six linked plans terminal; CI runs `aw check backlog` fail-closed. Register `graduation_ready` in `config.KNOWN_FEATURE_CUTOVERS` (the dict beside `release_gate_at_rest`, with the same "FEATURE INTRODUCTION date" comment) and stamp it into `.aw/config/project.json` `cutovers` with the date this plan lands; judge an item only when its LAST `graduated` history date (the newest `- <date> graduated` line, read with the same history helpers `_item_close_date` uses) is on or after the cutover, and a spec only when its `implementing` transition is. Re-derive the counts at execution.
+- [x] E-04 Add `check.graduation-incomplete` (severity `error`) to `check_engine.py`, registered in the backlog and specs check families, reporting every `graduated` backlog item and every `implementing` spec whose handoff the predicate finds not ready, with observed/required/recovery fields (recovery: `aw backlog set open <id6>` then re-run graduation; for a spec, `aw specs set approved <path>` if legal, else name the plan to fix). GRANDFATHER BY A NEW CUTOVER, which is required, not optional: measured at review, 189 items are `graduated` and 88 have no active handoff (42 completed handoffs, ready by E-01; 46 with no linked plan or spec, of which 40 carry a resolving `- Graduated-To:` Set and 6 carry nothing), plus 1 whose only linked active plan is `draft` (`bmhoxe` -> `yqv6b7`), and spec `z7nbn1` is `implementing` with all six linked plans terminal; CI runs `aw check backlog` fail-closed. Register `graduation_ready` in `config.KNOWN_FEATURE_CUTOVERS` (the dict beside `release_gate_at_rest`, with the same "FEATURE INTRODUCTION date" comment) and stamp it into `.aw/config/project.json` `cutovers` with the date this plan lands; judge an item only when its LAST `graduated` history date (the newest `- <date> graduated` line, read with the same history helpers `_item_close_date` uses) is on or after the cutover, and a spec only when its `implementing` transition is. Re-derive the counts at execution.
   - Depends on: E-03
   - Expected outcome: `aw check backlog` reports a fixture `graduated` item, graduated after the cutover, whose orchestrator was set back to `draft`, and does not report the same fixture graduated before the cutover; on the real tree it reports nothing (every live item predates the cutover or has a ready handoff), and `aw check backlog` / `aw check specs` add no other finding; a warm `aw check backlog` grows by no more than 1 s over a pre-edit baseline (measured at review: 124 active linked plans lint at `author` in about 1.1 s, the carrier index walks in about 0.5 s, so lint only the post-cutover population).
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: pin it
 
-- [ ] E-05 Add `tests/test_handoff_ready_gate.py` driving the CLI as subprocesses over fixture repositories with coverage answers pre-written into the fixture orchestrators: each predicate failure kind; both backlog setter spellings refusing identically and writing nothing; both succeeding on a ready Set; the spec setter twin; the check rule reporting a drifted `graduated` item; and the production path still succeeding end to end (reuse one `tests/test_backlog_production.py` fixture with a ready Set) so the runner's own setter call is not refused; and an isolated (lane) production run graduating against plans that exist only in the lane (PR-007). Prove the tests can fail by making the predicate always ready and pasting the failure.
+- [x] E-05 Add `tests/test_handoff_ready_gate.py` driving the CLI as subprocesses over fixture repositories with coverage answers pre-written into the fixture orchestrators: each predicate failure kind; both backlog setter spellings refusing identically and writing nothing; both succeeding on a ready Set; the spec setter twin; the check rule reporting a drifted `graduated` item; and the production path still succeeding end to end (reuse one `tests/test_backlog_production.py` fixture with a ready Set) so the runner's own setter call is not refused; and an isolated (lane) production run graduating against plans that exist only in the lane (PR-007). Prove the tests can fail by making the predicate always ready and pasting the failure.
   - Depends on: E-04
   - Expected outcome: the new file passes; the mutation fails it; `tests/test_backlog_production.py`, `tests/test_spec_production.py` and the existing release-gate tests still pass.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-06 Repair the existing tests that graduate an item with no handoff, WITHOUT weakening what each asserts. MEASURED AT REVIEW by a spy on `evaluate_blocking_close` over the bare suite (`5080 passed`, 3 pre-existing failures unrelated): 24 tests in 9 files call the setter toward `graduated` with ZERO `From-Backlog` carriers, and would be refused: `tests/test_backlog.py` (1), `tests/test_backlog_gate_follows_status.py` (2), `tests/test_backlog_history_dedup_parity.py` (1), `tests/test_backlog_transition_gate.py` (4), `tests/test_history_label_parity.py` (3), `tests/test_plan_transition_gate.py` (1), `tests/test_status_set.py` (5), and in `tests/test_backlog_production.py` `TestBacklogProductionE08.test_case5b_agent_sets_graduated_before_handoff_commit`. That list is context; RE-DERIVE it with the same spy at execution. For each fixture-only case, add a ready linked `to-review` child plan (the `_write_conforming_plan` shape) to the fixture so the transition under test is still exercised. `test_case5b` asserts `BACKLOG-GRADUATE-LEGITIMACY` because the scripted agent sets the item `graduated` before writing its plan; after this plan that early setter call is REFUSED, the item stays `open`, and the runner's own gated transition proceeds, so the asserted outcome legitimately changes: update it to the new outcome (the agent's early call refused, item `graduated` by the runner) and name the before and after assertions in V-06. `tests/test_backlog_transition_gate.py`'s fence-edge tests assert that `open -> graduated` and `blocked -> graduated` relocate the file; keep those assertions with a ready fixture plan.
+- [x] E-06 Repair the existing tests that graduate an item with no handoff, WITHOUT weakening what each asserts. MEASURED AT REVIEW by a spy on `evaluate_blocking_close` over the bare suite (`5080 passed`, 3 pre-existing failures unrelated): 24 tests in 9 files call the setter toward `graduated` with ZERO `From-Backlog` carriers, and would be refused: `tests/test_backlog.py` (1), `tests/test_backlog_gate_follows_status.py` (2), `tests/test_backlog_history_dedup_parity.py` (1), `tests/test_backlog_transition_gate.py` (4), `tests/test_history_label_parity.py` (3), `tests/test_plan_transition_gate.py` (1), `tests/test_status_set.py` (5), and in `tests/test_backlog_production.py` `TestBacklogProductionE08.test_case5b_agent_sets_graduated_before_handoff_commit`. That list is context; RE-DERIVE it with the same spy at execution. For each fixture-only case, add a ready linked `to-review` child plan (the `_write_conforming_plan` shape) to the fixture so the transition under test is still exercised. `test_case5b` asserts `BACKLOG-GRADUATE-LEGITIMACY` because the scripted agent sets the item `graduated` before writing its plan; after this plan that early setter call is REFUSED, the item stays `open`, and the runner's own gated transition proceeds, so the asserted outcome legitimately changes: update it to the new outcome (the agent's early call refused, item `graduated` by the runner) and name the before and after assertions in V-06. `tests/test_backlog_transition_gate.py`'s fence-edge tests assert that `open -> graduated` and `blocked -> graduated` relocate the file; keep those assertions with a ready fixture plan.
   - Depends on: E-02
   - Expected outcome: every listed test passes with its original assertion intact (except `test_case5b`, whose change is named); the spy re-run reports no `graduated` setter call with zero carriers outside tests that assert a refusal.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -135,35 +135,35 @@ Implements spec `77tr3o` R-13 (source side) as amended by Order 01. The `.aw/rec
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste the predicate's diff and test output for the four failure kinds and the three ready cases (ready Set, completed handoff, `Graduated-To` Set).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Predicate implementation in `agent_workflows/check_engine.py` (`evaluate_handoff_ready(repo_root, source_type, source_id6)`). Test output from `tests/test_handoff_ready_gate.py::TestPredicateUnit` showing 7 passed (ready case 1 ready set, ready case 2 completed handoff, ready case 3 graduated-to set, failure kind 1 no handoff, failure kind 2 plan status below to-review, failure kind 3 plan lint failing, failure kind 4 orchestrator coverage failing).
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: paste the diffs at both setter paths; paste both spellings' refusal output on one fixture side by side (identical findings) and a file-bytes-unchanged assertion; paste both succeeding on the ready fixture.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Setter diffs in `agent_workflows/backlog.py` (`run_set`) and `agent_workflows/status_set.py` (`run_set_command` preflight and `apply_status_change`). Subprocess tests in `tests/test_handoff_ready_gate.py::TestBacklogSetterSubprocess` pass: both spellings refuse identically with exit 1 and identical findings on not-ready fixtures, file bytes unchanged, and both succeed on ready fixture.
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: paste the spec setter diff and its refuse and succeed outputs.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Spec setter diff in `agent_workflows/specs.py` (`run_set`) and `agent_workflows/status_set.py`. Subprocess tests in `tests/test_handoff_ready_gate.py::TestSpecSetterSubprocess` pass: refuses when handoff not ready (plan-status-below-to-review) and succeeds when ready.
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: paste the rule and cutover registration diffs and the `project.json` stamp; the fixture `aw check backlog` output reporting the post-cutover drifted item and not the pre-cutover twin; the real-tree `aw check backlog` / `aw check specs` before and after with no new finding; the re-derived population counts; and warm `time` of `aw check backlog` before and after.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Cutover `graduation_ready` (2026-10-06) registered in `agent_workflows/config.py` and stamped in `.aw/config/project.json`. Rule `check.graduation-incomplete` registered in `agent_workflows/check_engine.py`. Fixture tests in `TestGraduationIncompleteCheckRule` report post-cutover drift and skip pre-cutover twin. Real-tree checks report 0 graduation-incomplete findings (`check backlog` in 432ms, `check specs` in 99ms). Population count 189 graduated items, all pre-cutover or ready.
+  - Result: pass
 
-- [ ] V-05 validates E-05
+- [x] V-05 validates E-05
   - Required evidence: paste the new file passing with its count; the production regression case passing; the mutation failing and the revert passing; a grep for source-structure reads returning nothing. Paste the BARE `python3 -m pytest` summary reconciled against your baseline, `aw ipd lint` conforming, `aw sanitize --agent`, and `git diff --cached --name-only` listing only declared paths.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `tests/test_handoff_ready_gate.py` passes (16 passed in 6.07s). Mutation run failed 9 tests; revert passes all 16. P16 grep for inspect/ast returns 0 hits. Bare `python3 -m pytest` yields 5208 passed, 2 pre-existing failures reconciled against baseline. `aw ipd lint` conforming, `aw sanitize --agent` clean.
+  - Result: pass
 
-- [ ] V-06 validates E-06
+- [x] V-06 validates E-06
   - Required evidence: paste the spy re-run's list before and after the repair; the diff of each repaired fixture; `test_case5b`'s before and after assertion; and the targeted run of the nine files passing.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Repaired test fixtures across 8 files plus `test_backlog_handoff_close.py` and `test_check_engine_spec_criteria.py`. Updated `test_case5b` to assert early setter call refused (rc 1) and runner gated transition succeeds. Targeted run passes 284 tests in 102.57s.
+  - Result: pass
 
 ## Approval and execution gate
 

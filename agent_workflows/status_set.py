@@ -2616,6 +2616,116 @@ def run_set_command(
 
         backlog_close_verdicts[rec.path] = verdict
 
+    # gradcover sbiv1j E-02 / E-03: refuse aw backlog set graduated and aw specs set implementing
+    # when handoff is not ready. Evaluated in the pre-flight loop before any file write or move.
+    for rec in matched_records:
+        norm_target = normalize_target_status(target_status, rec.record_type)
+        if (
+            rec.record_type == "backlog"
+            and norm_target == "graduated"
+            and rec.status != "graduated"
+        ):
+            handoff_res = _ce.evaluate_handoff_ready(repo_root, "backlog", rec.id6)
+            if not handoff_res.ready:
+                prefix = (
+                    "aw backlog set"
+                    if (scoped_type_canonical == "backlog" or scoped_type == "backlog")
+                    else "aw set"
+                )
+                if ctx.is_agent or ctx.is_json:
+                    res = CommandResult(
+                        command="set",
+                        status="findings",
+                        exit_code=1,
+                        summary=f"refused: handoff for backlog {rec.id6} is not ready",
+                        diagnostics=[
+                            Diagnostic(
+                                location=str(rec.path),
+                                rule="check.graduation-incomplete",
+                                detail=f"[{f.code}] {f.detail}",
+                                severity="error",
+                            )
+                            for f in handoff_res.findings
+                        ],
+                        data={
+                            "id6": rec.id6,
+                            "source_type": "backlog",
+                            "ready": False,
+                            "findings": [
+                                {
+                                    "code": f.code,
+                                    "plan_id6": f.plan_id6,
+                                    "detail": f.detail,
+                                    "remedy": f.remedy,
+                                }
+                                for f in handoff_res.findings
+                            ],
+                        },
+                    )
+                    return get_renderer(ctx).emit(res, ctx)
+                sys.stderr.write(
+                    f"{prefix}: refused: handoff for backlog {rec.id6} is not ready.\n"
+                )
+                for f in handoff_res.findings:
+                    subj = f" [{f.plan_id6}]" if f.plan_id6 else ""
+                    sys.stderr.write(f"  - [{f.code}]{subj} {f.detail}\n")
+                    if f.remedy:
+                        sys.stderr.write(f"    Remedy: {f.remedy}\n")
+                return 1
+
+        if (
+            rec.record_type == "specs"
+            and norm_target == "implementing"
+            and rec.status == "approved"
+        ):
+            handoff_res = _ce.evaluate_handoff_ready(repo_root, "spec", rec.id6)
+            if not handoff_res.ready:
+                prefix = (
+                    "aw specs set"
+                    if (scoped_type_canonical == "specs" or scoped_type == "specs")
+                    else "aw set"
+                )
+                if ctx.is_agent or ctx.is_json:
+                    res = CommandResult(
+                        command="set",
+                        status="findings",
+                        exit_code=1,
+                        summary=f"refused: handoff for spec {rec.id6} is not ready",
+                        diagnostics=[
+                            Diagnostic(
+                                location=str(rec.path),
+                                rule="check.graduation-incomplete",
+                                detail=f"[{f.code}] {f.detail}",
+                                severity="error",
+                            )
+                            for f in handoff_res.findings
+                        ],
+                        data={
+                            "id6": rec.id6,
+                            "source_type": "spec",
+                            "ready": False,
+                            "findings": [
+                                {
+                                    "code": f.code,
+                                    "plan_id6": f.plan_id6,
+                                    "detail": f.detail,
+                                    "remedy": f.remedy,
+                                }
+                                for f in handoff_res.findings
+                            ],
+                        },
+                    )
+                    return get_renderer(ctx).emit(res, ctx)
+                sys.stderr.write(
+                    f"{prefix}: refused: handoff for spec {rec.id6} is not ready.\n"
+                )
+                for f in handoff_res.findings:
+                    subj = f" [{f.plan_id6}]" if f.plan_id6 else ""
+                    sys.stderr.write(f"  - [{f.code}]{subj} {f.detail}\n")
+                    if f.remedy:
+                        sys.stderr.write(f"    Remedy: {f.remedy}\n")
+                return 1
+
     # ipdgates Order wezhxg: a request to move a PLAN to `executed` (or its `done` alias) MUST NOT
     # use the raw ungated move - it transparently DELEGATES into the gated `aw ipd finalize`
     # transaction (begin receipt + scope reconciliation + three gates + attributed history +

@@ -1321,6 +1321,12 @@ KNOWN_FEATURE_CUTOVERS: Dict[str, str] = {
     # The value is the FEATURE INTRODUCTION date, not the enforcement boundary;
     # `sync_cutovers_on_install` stamps the per-repo boundary from it.
     "release_gate_at_rest": "2026-10-01",
+    # gradcover `sbiv1j` E-04: graduation completeness check. Registered for the reason the block comment
+    # gives: WITHOUT the entry `resolve_cutover_date` falls through to its tier-3 `None` in any
+    # repository that has not hand written the key, and `check_engine.check_graduation_incomplete`
+    # would skip every item. The value is the FEATURE INTRODUCTION date, not the enforcement boundary;
+    # `sync_cutovers_on_install` stamps the per-repo boundary from it.
+    "graduation_ready": "2026-10-06",
 }
 
 

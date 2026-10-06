@@ -845,6 +845,24 @@ def run_set(args) -> int:
                 sys.stderr.write(f"  {reason}\n")
             return 1
 
+    # gradcover sbiv1j E-03: refuse aw specs set implementing when handoff is not ready.
+    if new == "implementing" and old == "approved":
+        from agent_workflows import check_engine as _ce
+
+        m_id = _SPEC_ID_RE.search(text)
+        spec_id6 = m_id.group(1) if m_id else core.extract_id6(path.name) or path.name
+        handoff_res = _ce.evaluate_handoff_ready(_repo_root_of(path), "spec", spec_id6)
+        if not handoff_res.ready:
+            sys.stderr.write(
+                f"aw specs set: refused: handoff for spec {spec_id6} is not ready.\n"
+            )
+            for f in handoff_res.findings:
+                subj = f" [{f.plan_id6}]" if f.plan_id6 else ""
+                sys.stderr.write(f"  - [{f.code}]{subj} {f.detail}\n")
+                if f.remedy:
+                    sys.stderr.write(f"    Remedy: {f.remedy}\n")
+            return 1
+
     # gate handling
     out = lines
     if new == "deferred":

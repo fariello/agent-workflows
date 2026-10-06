@@ -1015,6 +1015,61 @@ class BacklogPreservationTests(unittest.TestCase):
                 "- 2026-09-26 created (tester): initial\n",
                 encoding="utf-8",
             )
+            plan_dir = r / ".aw" / "records" / "plans" / "pending"
+            plan_dir.mkdir(parents=True, exist_ok=True)
+            (plan_dir / "20260926-bar-01-pl0001-plan.ipd.md").write_text(
+                "# IPD: Test Plan pl0001\n\n"
+                "- Date: 2026-09-26\n"
+                "- Kind: child\n"
+                "- Concern: Test concern.\n"
+                "- Scope: Test scope.\n"
+                "- Status: to-review\n"
+                "- Work-Kind: chore\n"
+                "- Priority: medium\n"
+                "- Set: bar\n"
+                "- Order: 1\n"
+                "- Id: pl0001\n"
+                "- From-Backlog: bk0002\n"
+                "- Scope-Paths: README.md\n"
+                "- Highest E allocated: 01\n"
+                "- Author: test\n"
+                "- Item-Dependencies: none\n\n"
+                "## Workflow history\n"
+                "- 2026-09-26 to-review (test): created\n\n"
+                "## Goal\n"
+                "Goal pl0001.\n\n"
+                "## Detailed Implementation Checklist (TODO)\n"
+                "### Task group 1: work\n"
+                "- [ ] E-01 Work item\n"
+                "  - Depends on: none\n"
+                "  - Expected outcome: done\n"
+                "  - Execution state: pending\n\n"
+                "## Project conventions discovered (Step 0)\n"
+                "None.\n\n"
+                "## Findings\n"
+                "None.\n\n"
+                "## Proposed changes (ordered, validatable)\n"
+                "1. E-01 do work.\n\n"
+                "## Deferred / out of scope (with reason)\n"
+                "- None.\n\n"
+                "## Scope check\n"
+                "- None.\n\n"
+                "## Required tests / validation\n"
+                "- None.\n\n"
+                "## Spec / documentation sync\n"
+                "- None.\n\n"
+                "## Open questions\n"
+                "- None.\n\n"
+                "## Validation and cross-check (verify before reporting done)\n"
+                "- [ ] V-01 validates E-01\n"
+                "  - Required evidence: check.\n"
+                "  - Observed evidence:\n"
+                "  - Result: pending\n\n"
+                "## Approval and execution gate\n"
+                "- Size assessment: standard\n"
+                "- Cohesion rationale: not required\n",
+                encoding="utf-8",
+            )
 
             with redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
                 rc = cli.main(

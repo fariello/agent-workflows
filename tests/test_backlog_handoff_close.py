@@ -117,6 +117,7 @@ def _write_plan(
 ) -> Path:
     fb_line = f"- From-Backlog: {from_backlog}\n" if from_backlog else ""
     br_line = f"- Blocks-Release: {blocks_release}\n" if blocks_release else ""
+    appr_line = "- Approval: test\n" if status == "approved" else ""
     plan_path = (
         repo
         / ".aw"
@@ -125,16 +126,59 @@ def _write_plan(
         / bucket
         / f"20260926-testset-01-{plan_id}-test-plan.ipd.md"
     )
+    plan_path.parent.mkdir(parents=True, exist_ok=True)
     plan_path.write_text(
         f"# IPD: Test plan {plan_id}\n\n"
-        f"- Id: {plan_id}\n"
+        "- Date: 2026-09-26\n"
+        "- Kind: child\n"
+        "- Concern: Test concern.\n"
+        "- Scope: Test\n"
         f"- Status: {status}\n"
+        f"{appr_line}"
+        "- Work-Kind: chore\n"
+        "- Priority: medium\n"
+        "- Set: testset\n"
+        "- Order: 1\n"
+        f"- Id: {plan_id}\n"
         f"{fb_line}"
         f"{br_line}"
-        f"- Set: testset\n"
-        f"- Scope: Test\n"
-        f"- Scope-Paths: foo.py\n\n"
-        f"## Goal\nTest\n",
+        "- Scope-Paths: foo.py\n"
+        "- Highest E allocated: 01\n"
+        "- Author: test\n"
+        "- Item-Dependencies: none\n\n"
+        "## Workflow history\n"
+        f"- 2026-09-26 {status} (test): created\n\n"
+        "## Goal\nTest\n\n"
+        "## Detailed Implementation Checklist (TODO)\n"
+        "### Task group 1: work\n"
+        "- [ ] E-01 Work item\n"
+        "  - Depends on: none\n"
+        "  - Expected outcome: done\n"
+        "  - Execution state: pending\n\n"
+        "## Project conventions discovered (Step 0)\n"
+        "None.\n\n"
+        "## Findings\n"
+        "None.\n\n"
+        "## Proposed changes (ordered, validatable)\n"
+        "1. E-01 do work.\n\n"
+        "## Deferred / out of scope (with reason)\n"
+        "- None.\n\n"
+        "## Scope check\n"
+        "- None.\n\n"
+        "## Required tests / validation\n"
+        "- None.\n\n"
+        "## Spec / documentation sync\n"
+        "- None.\n\n"
+        "## Open questions\n"
+        "- None.\n\n"
+        "## Validation and cross-check (verify before reporting done)\n"
+        "- [ ] V-01 validates E-01\n"
+        "  - Required evidence: check.\n"
+        "  - Observed evidence:\n"
+        "  - Result: pending\n\n"
+        "## Approval and execution gate\n"
+        "- Size assessment: standard\n"
+        "- Cohesion rationale: not required\n",
         encoding="utf-8",
     )
     subprocess.run(["git", "add", str(plan_path)], cwd=repo, check=True)

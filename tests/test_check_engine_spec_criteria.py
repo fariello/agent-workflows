@@ -145,7 +145,8 @@ class CheckEngineSpecCriteriaTests(unittest.TestCase):
         forbidden = [
             k
             for k in check_engine.RULE_REGISTRY
-            if "graduation" in k or "duplicate" in k
+            if ("graduation" in k and k != "check.graduation-incomplete")
+            or "duplicate" in k
         ]
         self.assertEqual(forbidden, [])
 

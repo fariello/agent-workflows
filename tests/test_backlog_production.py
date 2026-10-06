@@ -862,7 +862,7 @@ class TestBacklogProductionE08(unittest.TestCase):
 
     def test_case5b_agent_sets_graduated_before_handoff_commit(self):
         """Case (5b): agent sets item graduated itself before writing plan:
-        transition precedes handoff commit -> fails naming BACKLOG-GRADUATE-LEGITIMACY.
+        early call refused with exit 1; item remains open during turn; runner's subsequent transition succeeds.
         """
         for host_label, mod in _HOSTS:
             with self.subTest(host=host_label):
@@ -898,8 +898,8 @@ class TestBacklogProductionE08(unittest.TestCase):
                     ):
                         work_dir = kwargs.get("work_dir")
                         target = Path(work_dir) if work_dir else Path(state["repo"])
-                        # Sets graduated before writing plan
-                        subprocess.run(
+                        # Sets graduated before writing plan: refused because handoff is not ready
+                        res = subprocess.run(
                             [
                                 "python3",
                                 "-m",
@@ -914,8 +914,19 @@ class TestBacklogProductionE08(unittest.TestCase):
                                 "--no-commit",
                             ],
                             cwd=target,
-                            check=True,
+                            capture_output=True,
+                            text=True,
                         )
+                        self.assertEqual(res.returncode, 1)
+                        self.assertIn(
+                            "handoff for backlog bkl202 is not ready",
+                            res.stdout + res.stderr,
+                        )
+                        open_items = list(
+                            target.glob(".aw/records/backlog/open/*bkl202*.backlog.md")
+                        )
+                        self.assertTrue(len(open_items) == 1 and open_items[0].exists())
+
                         _write_conforming_plan(
                             target, id6="pln202", backlog_id6="bkl202", gate="next"
                         )
@@ -931,9 +942,14 @@ class TestBacklogProductionE08(unittest.TestCase):
                         (run_dir / "state.json").read_text(encoding="utf-8")
                     )
                     item = state["queue"][0]
-                    self.assertEqual(item["status"], "fail-gate")
-                    refusal = item.get("refusal") or {}
-                    self.assertEqual(refusal.get("code"), "BACKLOG-GRADUATE-LEGITIMACY")
+                    self.assertEqual(item["status"], "executed")
+                    grad_items = list(
+                        repo.glob(".aw/records/backlog/graduated/*bkl202*.backlog.md")
+                    )
+                    self.assertEqual(len(grad_items), 1)
+                    self.assertIn(
+                        "- Status: graduated", grad_items[0].read_text(encoding="utf-8")
+                    )
 
     def test_case5c_rollback_lands_on_disk(self):
         """Case (5c): after a post-transition failure the rollback actually lands:

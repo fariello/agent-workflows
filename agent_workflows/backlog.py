@@ -350,6 +350,14 @@ def parse_item(text: str) -> BacklogItem:
             # metadata block ends at the first non-bullet, non-blank line or the first H2
             if line.startswith("## "):
                 break
+            # Allow leading H1 title (e.g. # Backlog Item bk0001) before bullet metadata
+            if (
+                line.startswith("# ")
+                and not line.startswith("## ")
+                and item.id is None
+                and item.status is None
+            ):
+                continue
             # a non-bullet content line: metadata block is over
             if line.strip() and not line.startswith("- "):
                 break
@@ -1798,6 +1806,22 @@ def run_set(args) -> int:
         return 1
     if verdict.severity == "warn":
         sys.stderr.write(f"aw backlog set: warning: {verdict.reason}.\n")
+
+    # gradcover sbiv1j E-02: refuse aw backlog set graduated when handoff is not ready.
+    # Evaluated against repo_root (where lane plans exist), NOT gate_root.
+    if norm_new_status == "graduated" and prior_status != "graduated":
+        item_id = item.id or core.extract_id6(src.name) or src.stem
+        handoff_res = _ce.evaluate_handoff_ready(repo_root, "backlog", item_id)
+        if not handoff_res.ready:
+            sys.stderr.write(
+                f"aw backlog set: refused: handoff for backlog {item_id} is not ready.\n"
+            )
+            for f in handoff_res.findings:
+                subj = f" [{f.plan_id6}]" if f.plan_id6 else ""
+                sys.stderr.write(f"  - [{f.code}]{subj} {f.detail}\n")
+                if f.remedy:
+                    sys.stderr.write(f"    Remedy: {f.remedy}\n")
+            return 1
 
     # gateatrest f7igdu E-03: write the cited evidence durably on an evidence-satisfied close.
     # Keyed on verdict.path == "SATISFIED", never on args.evidence presence alone.
