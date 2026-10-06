@@ -219,12 +219,12 @@ class TestSpecProductionUnitE10(unittest.TestCase):
             findings = production_checks.spec_plan_count(repo, "spc001", set())
             self.assertEqual(findings, [])
 
-            # 3. Duplicate live plan in baseline -> fails duplicate clause
+            # 3. Baseline pln001 plus new pnew01 in same Set -> passes under amended rule
             _write_conforming_plan(repo, id6="pnew01", spec_id6="spc001")
-            findings_dup = production_checks.spec_plan_count(repo, "spc001", {"pln001"})
-            self.assertEqual(len(findings_dup), 1)
-            self.assertEqual(findings_dup[0][0], "SPEC-PLAN-COUNT")
-            self.assertIn("reconcile duplicates", findings_dup[0][2])
+            findings_same_set = production_checks.spec_plan_count(
+                repo, "spc001", {"pln001"}
+            )
+            self.assertEqual(findings_same_set, [])
 
     def test_spec_plan_conformance(self):
         with tempfile.TemporaryDirectory() as td:
@@ -639,7 +639,9 @@ class TestSpecProductionE08(unittest.TestCase):
                     ):
                         work_dir = kwargs.get("work_dir")
                         target = Path(work_dir) if work_dir else Path(state["repo"])
-                        _write_conforming_plan(target, id6="pnew01", spec_id6="spc105")
+                        _write_conforming_plan(
+                            target, id6="pnew01", spec_id6="spc105", setid="second"
+                        )
                         return 0, "session", rdir / "log.txt", ["cmd"]
 
                     with _patch_host_agent(mod, fake_agent):

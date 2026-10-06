@@ -227,20 +227,19 @@ class TestBacklogProductionUnitE10(unittest.TestCase):
             self.assertEqual(findings, [])
 
             # 3. New plan missing From-Backlog -> fails
-            _write_conforming_plan(repo, id6="pln002", backlog_id6=None)
+            p_unlinked = _write_conforming_plan(repo, id6="pln002", backlog_id6=None)
             findings_unlinked = production_checks.backlog_graduate_count(
                 repo, "bkl001", set()
             )
             self.assertEqual(len(findings_unlinked), 1)
             self.assertEqual(findings_unlinked[0][0], "BACKLOG-GRADUATE-COUNT")
 
-            # 4. Duplicate live plan in baseline -> fails duplicate clause
+            # 4. Active plan in baseline (continued output) -> passes under amended rule
+            p_unlinked.unlink()
             findings_dup = production_checks.backlog_graduate_count(
                 repo, "bkl001", {"pln001"}
             )
-            self.assertEqual(len(findings_dup), 1)
-            self.assertEqual(findings_dup[0][0], "BACKLOG-GRADUATE-COUNT")
-            self.assertIn("reconcile them", findings_dup[0][2])
+            self.assertEqual(findings_dup, [])
 
     def test_backlog_graduate_ipd(self):
         with tempfile.TemporaryDirectory() as td:

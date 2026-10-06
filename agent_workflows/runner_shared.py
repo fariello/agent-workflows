@@ -3608,12 +3608,14 @@ def commit_spec_production_output(
     *,
     host_label: str,
     run_id: str | None = None,
+    continued_plan_ids: set[str] | None = None,
 ) -> tuple[str | None, tuple[str, ...], tuple[str, ...]]:
     """Commit newly produced plan files under pending/ and report out-of-scope files (E-04).
 
     Returns `(commit_sha_or_None, committed_paths, out_of_scope_paths)`.
-    Only new plan files (under .aw/records/plans/pending/ or .agents/plans/pending/
-    whose id6 is not in baseline_plan_ids) are committed.
+    New plan files (under .aw/records/plans/pending/ or .agents/plans/pending/
+    whose id6 is not in baseline_plan_ids) and modified continued plan files
+    (in continued_plan_ids) are committed.
     Any other changed or untracked file is classified as out_of_scope.
     """
     from agent_workflows import production_checks
@@ -3625,13 +3627,29 @@ def commit_spec_production_output(
     if rc != 0 or not out.strip():
         return None, (), ()
     status_paths: list[str] = []
+    deleted_paths: set[str] = set()
+    renamed_paths: set[str] = set()
     for line in out.splitlines():
         if not line.strip():
             continue
+        status_code = line[:2]
         entry = line[3:] if len(line) > 3 else ""
-        if " -> " in entry:
-            old, new = entry.split(" -> ", 1)
-            status_paths.extend([old.strip().strip('"'), new.strip().strip('"')])
+        if " -> " in entry or "R" in status_code:
+            if " -> " in entry:
+                old, new = entry.split(" -> ", 1)
+                old_clean = old.strip().strip('"')
+                new_clean = new.strip().strip('"')
+                renamed_paths.add(old_clean)
+                renamed_paths.add(new_clean)
+                status_paths.extend([old_clean, new_clean])
+            else:
+                p_clean = entry.strip().strip('"')
+                renamed_paths.add(p_clean)
+                status_paths.append(p_clean)
+        elif "D" in status_code:
+            p_clean = entry.strip().strip('"')
+            deleted_paths.add(p_clean)
+            status_paths.append(p_clean)
         elif entry.strip():
             status_paths.append(entry.strip().strip('"'))
     status_paths = sorted({p for p in status_paths if p})
@@ -3661,9 +3679,19 @@ def commit_spec_production_output(
                     )
                 except OSError:
                     p_id = ""
-            if p_id and p_id not in baseline_plan_ids:
-                allowed.append(p_str)
-                continue
+            if p_id:
+                if p_id not in baseline_plan_ids:
+                    allowed.append(p_str)
+                    continue
+                if (
+                    continued_plan_ids
+                    and p_id in continued_plan_ids
+                    and full_p.is_file()
+                    and p_str not in deleted_paths
+                    and p_str not in renamed_paths
+                ):
+                    allowed.append(p_str)
+                    continue
         out_of_scope.append(p_str)
 
     if not allowed:
@@ -3764,12 +3792,14 @@ def commit_backlog_production_output(
     *,
     host_label: str,
     run_id: str | None = None,
+    continued_plan_ids: set[str] | None = None,
 ) -> tuple[str | None, tuple[str, ...], tuple[str, ...]]:
     """Commit newly produced plan files under pending/ and report out-of-scope files for backlog item (E-04).
 
     Returns `(commit_sha_or_None, committed_paths, out_of_scope_paths)`.
-    Only new plan files (under .aw/records/plans/pending/ or .agents/plans/pending/
-    whose id6 is not in baseline_plan_ids) are committed.
+    New plan files (under .aw/records/plans/pending/ or .agents/plans/pending/
+    whose id6 is not in baseline_plan_ids) and modified continued plan files
+    (in continued_plan_ids) are committed.
     Any other changed or untracked file is classified as out_of_scope.
     """
     from agent_workflows import production_checks
@@ -3781,13 +3811,29 @@ def commit_backlog_production_output(
     if rc != 0 or not out.strip():
         return None, (), ()
     status_paths: list[str] = []
+    deleted_paths: set[str] = set()
+    renamed_paths: set[str] = set()
     for line in out.splitlines():
         if not line.strip():
             continue
+        status_code = line[:2]
         entry = line[3:] if len(line) > 3 else ""
-        if " -> " in entry:
-            old, new = entry.split(" -> ", 1)
-            status_paths.extend([old.strip().strip('"'), new.strip().strip('"')])
+        if " -> " in entry or "R" in status_code:
+            if " -> " in entry:
+                old, new = entry.split(" -> ", 1)
+                old_clean = old.strip().strip('"')
+                new_clean = new.strip().strip('"')
+                renamed_paths.add(old_clean)
+                renamed_paths.add(new_clean)
+                status_paths.extend([old_clean, new_clean])
+            else:
+                p_clean = entry.strip().strip('"')
+                renamed_paths.add(p_clean)
+                status_paths.append(p_clean)
+        elif "D" in status_code:
+            p_clean = entry.strip().strip('"')
+            deleted_paths.add(p_clean)
+            status_paths.append(p_clean)
         elif entry.strip():
             status_paths.append(entry.strip().strip('"'))
     status_paths = sorted({p for p in status_paths if p})
@@ -3817,9 +3863,19 @@ def commit_backlog_production_output(
                     )
                 except OSError:
                     p_id = ""
-            if p_id and p_id not in baseline_plan_ids:
-                allowed.append(p_str)
-                continue
+            if p_id:
+                if p_id not in baseline_plan_ids:
+                    allowed.append(p_str)
+                    continue
+                if (
+                    continued_plan_ids
+                    and p_id in continued_plan_ids
+                    and full_p.is_file()
+                    and p_str not in deleted_paths
+                    and p_str not in renamed_paths
+                ):
+                    allowed.append(p_str)
+                    continue
         out_of_scope.append(p_str)
 
     if not allowed:
@@ -26902,6 +26958,49 @@ def build_review_prompt(
     return command + "\n" + lane_containment.isolation_notice(lane_root)
 
 
+def _append_continue_handoff_section(
+    lines: list[str],
+    root: Path,
+    source_type: str,
+    source_id6: str,
+) -> None:
+    from agent_workflows import orchestrator_readiness as _orch_readiness
+    from agent_workflows import production_checks as _pc
+
+    existing = _pc.existing_handoff_plans(root, source_type, source_id6)
+    if not existing:
+        return
+
+    lines.append("")
+    lines.append("## Continue this handoff")
+    lines.append("")
+    lines.append("Production Contract items 1 and 2 apply to NEW plans only.")
+    lines.append("")
+    lines.append("Existing plans:")
+    for plan in existing:
+        try:
+            rel_p = str(plan.path.relative_to(root)).replace("\\", "/")
+        except ValueError:
+            rel_p = str(plan.path).replace("\\", "/")
+        lines.append(f"- {rel_p} (- Status: {plan.status})")
+        if plan.kind == "orchestrator":
+            readiness = _orch_readiness.review_readiness(root, plan.path, ask=False)
+            rendered = _orch_readiness.render_human(readiness)
+            for r_line in rendered.splitlines():
+                lines.append(f"  {r_line}")
+    lines.append("")
+    lines.append(
+        "These plans are the existing handoff for this item. Fix them in place; "
+        "do not write a second Set, and do not delete, move, supersede or retire any of them. "
+        "Add a child plan only for work no existing child performs, give it the same `- Set:`, "
+        "and add its row to the orchestrator's `## Child IPDs` table. Bring each `draft` plan "
+        "to `to-review` once it is complete, children before the orchestrator "
+        "(`aw ipd set to-review <setid>` orders a Set children-first); run `aw ipd coverage <orchestrator-id6>` "
+        "before setting the orchestrator. Edit a `reviewed` or `approved` plan only when a finding names it, "
+        'and then return it to `to-review` with `aw ipd set to-review <id6> --message "<why>"`.'
+    )
+
+
 def build_spec_production_prompt(
     item: dict[str, Any],
     state: dict[str, Any],
@@ -26933,11 +27032,16 @@ def build_spec_production_prompt(
         "5. Every produced plan must have concrete `- Scope-Paths:` (not empty, not TODO, not grandfathered) and resolved `- Item-Dependencies:` (not unresolved).",
         "6. Every produced plan must lint conforming via `aw ipd lint`.",
         "7. Do NOT modify the approved spec's requirements.",
-        "",
-        "## Prohibitions",
-        "1. Do NOT change the spec's `- Status:` (the runner sets `implementing` upon verification).",
-        "2. Do NOT execute any plan you write (this turn is authoring only).",
     ]
+    _append_continue_handoff_section(lines, root, "spec", spec_id6)
+    lines.extend(
+        [
+            "",
+            "## Prohibitions",
+            "1. Do NOT change the spec's `- Status:` (the runner sets `implementing` upon verification).",
+            "2. Do NOT execute any plan you write (this turn is authoring only).",
+        ]
+    )
     if lane_root is not None:
         lines.append("")
         lines.append(lane_containment.isolation_notice(lane_root))
@@ -26975,11 +27079,16 @@ def build_backlog_production_prompt(
         "5. Every produced plan must have concrete `- Scope-Paths:` (not empty, not TODO, not grandfathered) and resolved `- Item-Dependencies:` (not unresolved).",
         "6. Every produced plan must lint conforming via `aw ipd lint`.",
         "7. Do NOT modify the backlog item's requirements.",
-        "",
-        "## Prohibitions",
-        "1. Do NOT change the backlog item's `- Status:` (the runner sets `graduated` upon verification; do not set it `done`).",
-        "2. Do NOT execute any plan you write (this turn is authoring only).",
     ]
+    _append_continue_handoff_section(lines, root, "backlog", item_id6)
+    lines.extend(
+        [
+            "",
+            "## Prohibitions",
+            "1. Do NOT change the backlog item's `- Status:` (the runner sets `graduated` upon verification; do not set it `done`).",
+            "2. Do NOT execute any plan you write (this turn is authoring only).",
+        ]
+    )
     if lane_root is not None:
         lines.append("")
         lines.append(lane_containment.isolation_notice(lane_root))
@@ -33241,12 +33350,17 @@ def execute_item_core(
         plan_path = queue_plan_path_for(repo, item)
     baseline_plan_ids: set[str] = set()
     status_before: str | None = None
+    continued_plan_ids: set[str] = set()
+    existing_before: list[Any] = []
     if is_spec_production or is_backlog_production:
         from agent_workflows import check_engine as _ce
         from agent_workflows import production_checks as _pc
 
         for p, text in _ce._iter_plan_ipds(repo):
             baseline_plan_ids.add(_pc._extract_plan_id(p, text))
+        src_type = "spec" if is_spec_production else "backlog"
+        existing_before = _pc.existing_handoff_plans(repo, src_type, item["id6"])
+        continued_plan_ids = {p.id6 for p in existing_before}
     if is_backlog_production:
         from agent_workflows import backlog as _backlog
 
@@ -33767,6 +33881,45 @@ def execute_item_core(
                 file=sys.stderr,
             )
             return
+
+    if (
+        (is_spec_production or is_backlog_production)
+        and wt_handle is None
+        and continued_plan_ids
+    ):
+        rc, out, _ = _run_git(repo, ["status", "--porcelain"])
+        if rc == 0 and out.strip():
+            dirty_paths: set[str] = set()
+            for line in out.splitlines():
+                if not line.strip():
+                    continue
+                entry = line[3:] if len(line) > 3 else ""
+                if " -> " in entry:
+                    old, new = entry.split(" -> ", 1)
+                    dirty_paths.add(old.strip().strip('"'))
+                    dirty_paths.add(new.strip().strip('"'))
+                elif entry.strip():
+                    dirty_paths.add(entry.strip().strip('"'))
+            dropped: set[str] = set()
+            for p in existing_before:
+                try:
+                    rel_p = str(p.path.relative_to(repo)).replace("\\", "/")
+                except ValueError:
+                    rel_p = str(p.path).replace("\\", "/")
+                if rel_p in dirty_paths or str(p.path) in dirty_paths:
+                    dropped.add(p.id6)
+                    append_jsonl(
+                        run_dir / "events.jsonl",
+                        {
+                            "at": utc_now(),
+                            "event": "continued-plan-pre-dirty-dropped",
+                            "id6": item["id6"],
+                            "plan_id": p.id6,
+                            "path": rel_p,
+                        },
+                    )
+            if dropped:
+                continued_plan_ids = continued_plan_ids - dropped
 
     if self_finalize and not is_review and not is_production:
         actor = driver_actor(state, labels=host_labels)
@@ -35741,6 +35894,7 @@ def execute_item_core(
                     baseline_plan_ids,
                     host_label=host_labels.command,
                     run_id=str(state.get("run_id") or "") or None,
+                    continued_plan_ids=continued_plan_ids,
                 )
             )
             if prod_commit:
@@ -35777,7 +35931,14 @@ def execute_item_core(
                     file=sys.stderr,
                 )
 
-            # Discover all newly produced plans in target_tree
+            # Discover existing linked plans and newly produced plans in target_tree
+            existing_linked_plans = [
+                p
+                for p in _pc.existing_handoff_plans(target_tree, "spec", item["id6"])
+                if p.id6 in baseline_plan_ids
+            ]
+            continued_ids = {p.id6 for p in existing_linked_plans}
+
             new_produced_paths: list[Path] = []
             new_produced_plans: list[tuple[str, Path]] = []
             for p, text in _ce._iter_plan_ipds(target_tree):
@@ -35785,6 +35946,12 @@ def execute_item_core(
                 if p_id not in baseline_plan_ids:
                     new_produced_paths.append(p)
                     new_produced_plans.append((p_id, p))
+
+            all_verified_plans = [
+                *[(p.id6, p.path) for p in existing_linked_plans],
+                *new_produced_plans,
+            ]
+            all_verified_paths = [p for _id, p in all_verified_plans]
 
             findings: list[tuple[str, str, str]] = []
             if exit_code != 0:
@@ -35809,7 +35976,7 @@ def execute_item_core(
                     _pc.spec_plan_set(
                         target_tree,
                         item["id6"],
-                        new_produced_paths,
+                        all_verified_paths,
                         host=host_name,
                         run_id=str(state.get("run_id") or ""),
                         state=state,
@@ -35819,16 +35986,17 @@ def execute_item_core(
                     _pc.spec_plan_conformance(
                         target_tree,
                         item["id6"],
-                        new_produced_paths,
+                        all_verified_paths,
                         host=host_name,
                         run_id=str(state.get("run_id") or ""),
+                        continued_ids=continued_ids,
                     )
                 )
                 findings.extend(
                     _pc.spec_plan_gate_carry(
                         target_tree,
                         item["id6"],
-                        new_produced_paths,
+                        all_verified_paths,
                         host=host_name,
                     )
                 )
@@ -35924,6 +36092,7 @@ def execute_item_core(
                     baseline_plan_ids,
                     host_label=host_labels.command,
                     run_id=str(state.get("run_id") or "") or None,
+                    continued_plan_ids=continued_plan_ids,
                 )
                 if c_commit:
                     attempt["spec_production_commit"] = c_commit
@@ -35940,7 +36109,16 @@ def execute_item_core(
                         },
                     )
 
-                # Re-discover newly produced plans in target_tree
+                # Re-discover existing linked plans and newly produced plans in target_tree
+                existing_linked_plans = [
+                    p
+                    for p in _pc.existing_handoff_plans(
+                        target_tree, "spec", item["id6"]
+                    )
+                    if p.id6 in baseline_plan_ids
+                ]
+                continued_ids = {p.id6 for p in existing_linked_plans}
+
                 new_produced_paths = []
                 new_produced_plans = []
                 for p, text in _ce._iter_plan_ipds(target_tree):
@@ -35948,6 +36126,12 @@ def execute_item_core(
                     if p_id not in baseline_plan_ids:
                         new_produced_paths.append(p)
                         new_produced_plans.append((p_id, p))
+
+                all_verified_plans = [
+                    *[(p.id6, p.path) for p in existing_linked_plans],
+                    *new_produced_plans,
+                ]
+                all_verified_paths = [p for _id, p in all_verified_plans]
 
                 findings_before = list(findings)
                 findings = []
@@ -35973,7 +36157,7 @@ def execute_item_core(
                         _pc.spec_plan_set(
                             target_tree,
                             item["id6"],
-                            new_produced_paths,
+                            all_verified_paths,
                             host=host_name,
                             run_id=str(state.get("run_id") or ""),
                             state=state,
@@ -35983,16 +36167,17 @@ def execute_item_core(
                         _pc.spec_plan_conformance(
                             target_tree,
                             item["id6"],
-                            new_produced_paths,
+                            all_verified_paths,
                             host=host_name,
                             run_id=str(state.get("run_id") or ""),
+                            continued_ids=continued_ids,
                         )
                     )
                     findings.extend(
                         _pc.spec_plan_gate_carry(
                             target_tree,
                             item["id6"],
-                            new_produced_paths,
+                            all_verified_paths,
                             host=host_name,
                         )
                     )
@@ -36073,7 +36258,7 @@ def execute_item_core(
 
                 run_id_val = str(state.get("run_id") or "")
                 produced_ids_str = ", ".join(
-                    sorted(p_id for p_id, _p in new_produced_plans)
+                    sorted(p_id for p_id, _p in all_verified_plans)
                 )
                 trans_msg = (
                     f"produced by run {run_id_val}: {produced_ids_str}"
@@ -36129,7 +36314,7 @@ def execute_item_core(
                 if disposition != "fail-gate":
                     # Record generated next actions
                     gen_actions = []
-                    for p_id, p in sorted(new_produced_plans, key=lambda x: x[0]):
+                    for p_id, p in sorted(all_verified_plans, key=lambda x: x[0]):
                         try:
                             rel_p = str(p.relative_to(target_tree)).replace("\\", "/")
                         except ValueError:
@@ -36242,6 +36427,7 @@ def execute_item_core(
                     baseline_plan_ids,
                     host_label=host_labels.command,
                     run_id=str(state.get("run_id") or "") or None,
+                    continued_plan_ids=continued_plan_ids,
                 )
             )
             if prod_commit:
@@ -36280,6 +36466,14 @@ def execute_item_core(
                     file=sys.stderr,
                 )
 
+            # Discover existing linked plans and newly produced plans in target_tree
+            existing_linked_plans = [
+                p
+                for p in _pc.existing_handoff_plans(target_tree, "backlog", item["id6"])
+                if p.id6 in baseline_plan_ids
+            ]
+            continued_ids = {p.id6 for p in existing_linked_plans}
+
             # Discover all newly produced plans in target_tree
             new_produced_paths: list[Path] = []  # type: ignore[no-redef]  # benign re-annotation in disjoint branch
             new_produced_plans: list[tuple[str, Path]] = []  # type: ignore[no-redef]  # benign re-annotation in disjoint branch
@@ -36288,6 +36482,12 @@ def execute_item_core(
                 if p_id not in baseline_plan_ids:
                     new_produced_paths.append(p)
                     new_produced_plans.append((p_id, p))
+
+            all_verified_plans = [
+                *[(p.id6, p.path) for p in existing_linked_plans],
+                *new_produced_plans,
+            ]
+            all_verified_paths = [p for _id, p in all_verified_plans]
 
             findings: list[tuple[str, str, str]] = []  # type: ignore[no-redef]  # benign re-annotation in disjoint branch
             if exit_code != 0:
@@ -36312,7 +36512,7 @@ def execute_item_core(
                     _pc.backlog_graduate_set(
                         target_tree,
                         item["id6"],
-                        new_produced_paths,
+                        all_verified_paths,
                         host=host_name,
                         run_id=str(state.get("run_id") or ""),
                         state=state,
@@ -36322,16 +36522,17 @@ def execute_item_core(
                     _pc.backlog_graduate_ipd(
                         target_tree,
                         item["id6"],
-                        new_produced_paths,
+                        all_verified_paths,
                         host=host_name,
                         run_id=str(state.get("run_id") or ""),
+                        continued_ids=continued_ids,
                     )
                 )
                 findings.extend(
                     _pc.backlog_gate_handoff(
                         target_tree,
                         item["id6"],
-                        new_produced_paths,
+                        all_verified_paths,
                         host=host_name,
                     )
                 )
@@ -36438,6 +36639,7 @@ def execute_item_core(
                     baseline_plan_ids,
                     host_label=host_labels.command,
                     run_id=str(state.get("run_id") or "") or None,
+                    continued_plan_ids=continued_plan_ids,
                 )
                 if c_commit:
                     attempt["backlog_production_commit"] = c_commit
@@ -36454,7 +36656,16 @@ def execute_item_core(
                         },
                     )
 
-                # Re-discover newly produced plans in target_tree
+                # Re-discover existing linked plans and newly produced plans in target_tree
+                existing_linked_plans = [
+                    p
+                    for p in _pc.existing_handoff_plans(
+                        target_tree, "backlog", item["id6"]
+                    )
+                    if p.id6 in baseline_plan_ids
+                ]
+                continued_ids = {p.id6 for p in existing_linked_plans}
+
                 new_produced_paths = []
                 new_produced_plans = []
                 for p, text in _ce._iter_plan_ipds(target_tree):
@@ -36462,6 +36673,12 @@ def execute_item_core(
                     if p_id not in baseline_plan_ids:
                         new_produced_paths.append(p)
                         new_produced_plans.append((p_id, p))
+
+                all_verified_plans = [
+                    *[(p.id6, p.path) for p in existing_linked_plans],
+                    *new_produced_plans,
+                ]
+                all_verified_paths = [p for _id, p in all_verified_plans]
 
                 findings_before = list(findings)
                 findings = []
@@ -36487,7 +36704,7 @@ def execute_item_core(
                         _pc.backlog_graduate_set(
                             target_tree,
                             item["id6"],
-                            new_produced_paths,
+                            all_verified_paths,
                             host=host_name,
                             run_id=str(state.get("run_id") or ""),
                             state=state,
@@ -36497,16 +36714,17 @@ def execute_item_core(
                         _pc.backlog_graduate_ipd(
                             target_tree,
                             item["id6"],
-                            new_produced_paths,
+                            all_verified_paths,
                             host=host_name,
                             run_id=str(state.get("run_id") or ""),
+                            continued_ids=continued_ids,
                         )
                     )
                     findings.extend(
                         _pc.backlog_gate_handoff(
                             target_tree,
                             item["id6"],
-                            new_produced_paths,
+                            all_verified_paths,
                             host=host_name,
                         )
                     )
@@ -36637,7 +36855,7 @@ def execute_item_core(
                         )
                 else:
                     produced_ids_str = ", ".join(
-                        sorted(p_id for p_id, _p in new_produced_plans)
+                        sorted(p_id for p_id, _p in all_verified_plans)
                     )
                     trans_msg = (
                         f"graduated by run {run_id_val}: {produced_ids_str}"
@@ -36648,10 +36866,10 @@ def execute_item_core(
                     # Check --graduated-to if all produced plans share ONE set
                     set_args: list[str] = []
                     produced_sets = set()
-                    for _pid, p in new_produced_plans:
+                    for _pid, p in all_verified_plans:
                         try:
                             txt = p.read_text(encoding="utf-8")
-                            m_s = re.search(r"(?m)^-[ \t]*Set:[ \t]*(\S+)[ \t]*$", txt)
+                            m_s = re.search(r"(?m)^-[ \t]*Set:[ \t]*(\S+)", txt)
                             if m_s:
                                 s_val = m_s.group(1).strip()
                                 if s_val:
@@ -36749,7 +36967,7 @@ def execute_item_core(
                             _pc.backlog_cross_tree(
                                 target_tree,
                                 item["id6"],
-                                new_produced_paths,
+                                all_verified_paths,
                                 host=host_name,
                             )
                         )
@@ -36839,7 +37057,7 @@ def execute_item_core(
                             # Success! Record generated_next_actions and integrate
                             gen_actions = []
                             for p_id, p in sorted(
-                                new_produced_plans, key=lambda x: x[0]
+                                all_verified_plans, key=lambda x: x[0]
                             ):
                                 try:
                                     rel_p = str(p.relative_to(target_tree)).replace(

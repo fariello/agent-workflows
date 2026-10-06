@@ -14,7 +14,7 @@ from __future__ import annotations
 import re
 import sys
 from pathlib import Path
-from typing import Any, Mapping, Sequence
+from typing import Any, Container, Mapping, NamedTuple, Sequence
 
 from agent_workflows import check_engine as _ce
 from agent_workflows import ipd_lint as _lint
@@ -25,7 +25,72 @@ _PLAN_ID_RE = re.compile(r"(?m)^-[ \t]*Id:[ \t]*([0-9a-z]{6})[ \t]*$")
 _ITEM_DEPS_RE = re.compile(r"(?m)^-[ \t]*Item-Dependencies:[ \t]*(.*?)[ \t]*$")
 _SCOPE_PATHS_RE = re.compile(r"(?m)^-[ \t]*Scope-Paths:[ \t]*(.*?)[ \t]*$")
 _ITEM_FROM_BACKLOG_RE = re.compile(r"(?m)^-[ \t]*From-Backlog:[ \t]*([^\n]*?)[ \t]*$")
+_SET_RE = re.compile(r"(?m)^-[ \t]*Set:[ \t]*(\S+)")
 _TERMINAL_DISPOSITIONS = frozenset(("executed", "superseded", "not-executed"))
+
+
+class HandoffPlan(NamedTuple):
+    """An active plan linking a backlog item or spec in a production handoff."""
+
+    path: Path
+    id6: str
+    status: str
+    kind: str
+    set: str | None
+
+    @property
+    def set_id(self) -> str | None:
+        return self.set
+
+
+def existing_handoff_plans(
+    repo: Path,
+    source_type: str,
+    source_id6: str,
+    *,
+    exclude_ids: Container[str] | None = None,
+) -> list[HandoffPlan]:
+    """Return active (non-terminal-disposition) plans linking the source in path order."""
+    repo = Path(repo)
+    source_id6 = str(source_id6).strip().lower()
+    results: list[HandoffPlan] = []
+    for p, text in _ce._iter_plan_ipds(repo):
+        disp = _ce._plan_disposition(repo, p)
+        if disp in _TERMINAL_DISPOSITIONS:
+            continue
+        p_id = _extract_plan_id(p, text)
+        if exclude_ids is not None and p_id in exclude_ids:
+            continue
+
+        if source_type in ("backlog", "From-Backlog"):
+            from_bkl = _read_from_backlog(text)
+            if not from_bkl or from_bkl.lower() != source_id6:
+                continue
+        elif source_type in ("spec", "From-Spec"):
+            m_from = _ce._ITEM_FROM_SPEC_RE.search(text)
+            from_spec = m_from.group(1).strip() if m_from else None
+            if not from_spec or from_spec.lower() != source_id6:
+                continue
+        else:
+            continue
+
+        m_status = _ce._PLAN_STATUS_RE.search(text)
+        status = m_status.group(1).strip() if m_status else ""
+        doc = _lint.parse(text)
+        kind = (doc.meta_fields.get("Kind") or "").strip()
+        m_set = _SET_RE.search(text)
+        set_val = m_set.group(1).strip() if m_set else None
+
+        results.append(
+            HandoffPlan(
+                path=p,
+                id6=p_id,
+                status=status,
+                kind=kind,
+                set=set_val,
+            )
+        )
+    return sorted(results, key=lambda x: str(x.path))
 
 
 def _read_from_backlog(text: str) -> str | None:
@@ -74,12 +139,9 @@ def spec_plan_count(
     *,
     host: str = "<host>",
 ) -> list[tuple[str, str, str]]:
-    """Verify SPEC-PLAN-COUNT: at least one new plan linked to spec, every new plan carries From-Spec,
-    and no duplicate active plan already existed for this spec in the baseline.
-
-    Pass criterion (25kzda 4.8):
-      At least one new IPD links to the spec for this authoring action, every one carries From-Spec,
-      and no duplicate active plan already existed for the same phase.
+    """Verify SPEC-PLAN-COUNT: accepts existing active plans carrying From-Spec as continued output,
+    refusing only when (a) no active linked plan remains, (b) an unlinked new plan was created,
+    or (c) this action introduced a second Set.
     """
     repo = Path(repo)
     baseline_ids: set[str] = set()
@@ -89,44 +151,76 @@ def spec_plan_count(
         else:
             baseline_ids = set(baseline_plan_ids)
 
-    # Check for duplicate active plan already existing in baseline
-    duplicate_active = False
-    new_plans: list[tuple[str, Path, str]] = []
+    all_linked = existing_handoff_plans(repo, "spec", spec_id6)
+    pre_existing_linked = [p for p in all_linked if p.id6 in baseline_ids]
+    new_linked = [p for p in all_linked if p.id6 not in baseline_ids]
+
+    # Find new plans linking a different spec (or none)
+    unlinked_new_plans: list[str] = []
     for p, text in _ce._iter_plan_ipds(repo):
         p_id = _extract_plan_id(p, text)
-        disp = _ce._plan_disposition(repo, p)
-        m_from = _ce._ITEM_FROM_SPEC_RE.search(text)
-        from_spec = m_from.group(1).strip() if m_from else None
+        if p_id not in baseline_ids:
+            m_from = _ce._ITEM_FROM_SPEC_RE.search(text)
+            from_spec = m_from.group(1).strip() if m_from else None
+            if from_spec != spec_id6:
+                unlinked_new_plans.append(p_id)
 
-        if p_id in baseline_ids:
-            if disp not in _TERMINAL_DISPOSITIONS and from_spec == spec_id6:
-                duplicate_active = True
-        else:
-            new_plans.append((p_id, p, text))
-
-    new_linked_plans = [
-        (p_id, p)
-        for (p_id, p, text) in new_plans
-        if (
-            _ce._ITEM_FROM_SPEC_RE.search(text) is not None
-            and _ce._ITEM_FROM_SPEC_RE.search(text).group(1).strip() == spec_id6
-        )
-    ]
-
-    has_unlinked_new_plan = False
-    for p_id, p, text in new_plans:
-        m_from = _ce._ITEM_FROM_SPEC_RE.search(text)
-        if not m_from or m_from.group(1).strip() != spec_id6:
-            has_unlinked_new_plan = True
-
-    count = len(new_linked_plans)
-    if duplicate_active or count == 0 or has_unlinked_new_plan:
+    # Condition (a): after the turn there is no active plan linking the spec at all
+    if not all_linked:
         msg = (
-            f"[SPEC-PLAN-COUNT] Spec {spec_id6} produced {count} new linked IPDs; "
+            f"[SPEC-PLAN-COUNT] Spec {spec_id6} produced 0 new linked IPDs; "
             "expected at least one, each carrying From-Spec. Quarantine the authoring action, "
             f"reconcile duplicates, run aw check all, then: aw {host} run {spec_id6}"
         )
         return [("SPEC-PLAN-COUNT", spec_id6, msg)]
+
+    # Condition (b): a new plan links a different spec (or none)
+    if unlinked_new_plans:
+        unlinked_str = ", ".join(sorted(unlinked_new_plans))
+        msg = (
+            f"[SPEC-PLAN-COUNT] Spec {spec_id6} produced new plan(s) ({unlinked_str}) "
+            f"linking a different spec or none; expected each carrying From-Spec. Quarantine the authoring action, "
+            f"reconcile duplicates, run aw check all, then: aw {host} run {spec_id6}"
+        )
+        return [("SPEC-PLAN-COUNT", spec_id6, msg)]
+
+    # Condition (c): THIS ACTION INTRODUCED A SECOND SET
+    pre_existing_sets = {
+        p.set if p.set is not None else p.id6 for p in pre_existing_linked
+    }
+    if pre_existing_linked:
+        conflicting_new = [
+            np
+            for np in new_linked
+            if (np.set if np.set is not None else np.id6) not in pre_existing_sets
+        ]
+        if conflicting_new:
+            pre_ids_str = ", ".join(sorted(p.id6 for p in pre_existing_linked))
+            pre_sets_str = ", ".join(sorted(pre_existing_sets))
+            new_ids_str = ", ".join(sorted(np.id6 for np in conflicting_new))
+            new_sets_str = ", ".join(
+                sorted(
+                    {np.set if np.set is not None else np.id6 for np in conflicting_new}
+                )
+            )
+            msg = (
+                f"[SPEC-PLAN-COUNT] Spec {spec_id6} introduced a second Set: "
+                f"pre-existing active plan(s) ({pre_ids_str}) carry Set(s) {pre_sets_str}, "
+                f"but new plan(s) ({new_ids_str}) carry Set(s) {new_sets_str}. "
+                f"Quarantine the authoring action, reconcile duplicates, run aw check all, then: aw {host} run {spec_id6}"
+            )
+            return [("SPEC-PLAN-COUNT", spec_id6, msg)]
+    else:
+        new_sets = {np.set if np.set is not None else np.id6 for np in new_linked}
+        if len(new_sets) > 1:
+            all_new_ids = ", ".join(sorted(np.id6 for np in new_linked))
+            new_sets_str = ", ".join(sorted(new_sets))
+            msg = (
+                f"[SPEC-PLAN-COUNT] Spec {spec_id6} introduced multiple Sets: "
+                f"new plan(s) ({all_new_ids}) span Sets {new_sets_str}. "
+                f"Quarantine the authoring action, reconcile duplicates, run aw check all, then: aw {host} run {spec_id6}"
+            )
+            return [("SPEC-PLAN-COUNT", spec_id6, msg)]
 
     return []
 
@@ -136,6 +230,8 @@ def _check_ipd_conformance(
     p_raw: Path | str,
     expected_origin_field: str,
     expected_origin_id6: str,
+    *,
+    continued_ids: Container[str] | None = None,
 ) -> tuple[str, list[tuple[str, str]]]:
     """Validate common IPD conformance requirements (used by spec and backlog production).
 
@@ -158,16 +254,26 @@ def _check_ipd_conformance(
     if disp != "pending":
         diags.append(("check.plan-bucket", f"plan is in {disp!r}, expected 'pending'"))
 
-    # 2. Status: to-review
+    # 2. Status: to-review (or legitimate status for continued plans)
     m_status = _ce._PLAN_STATUS_RE.search(text)
     status_val = m_status.group(1).strip() if m_status else ""
-    if status_val != "to-review":
-        diags.append(
-            (
-                "check.plan-status",
-                f"plan status is {status_val!r}, expected 'to-review'",
+    is_continued = continued_ids is not None and plan_id in continued_ids
+    if is_continued:
+        if status_val not in ("to-review", "reviewed", "approved", "auto-approved"):
+            diags.append(
+                (
+                    "check.plan-status",
+                    f"plan status is {status_val!r}, expected 'to-review', 'reviewed', 'approved', or 'auto-approved'",
+                )
             )
-        )
+    else:
+        if status_val != "to-review":
+            diags.append(
+                (
+                    "check.plan-status",
+                    f"plan status is {status_val!r}, expected 'to-review'",
+                )
+            )
 
     # 3. Origin link: carries expected_origin_id6
     if expected_origin_field == "From-Spec":
@@ -302,6 +408,7 @@ def spec_plan_conformance(
     *,
     host: str = "<host>",
     run_id: str = "<run-id>",
+    continued_ids: Container[str] | None = None,
 ) -> list[tuple[str, str, str]]:
     """Verify SPEC-PLAN-CONFORMANCE: each produced plan is canonical, to-review, in pending/,
     carries From-Spec, concrete Scope-Paths, resolved Item-Dependencies, and conformant E/V checklists.
@@ -314,7 +421,9 @@ def spec_plan_conformance(
     findings: list[tuple[str, str, str]] = []
 
     for p_raw in produced_paths:
-        plan_id, diags = _check_ipd_conformance(repo, p_raw, "From-Spec", spec_id6)
+        plan_id, diags = _check_ipd_conformance(
+            repo, p_raw, "From-Spec", spec_id6, continued_ids=continued_ids
+        )
         for code, detail in diags:
             msg = (
                 f"[SPEC-PLAN-CONFORMANCE] Generated IPD {plan_id} for spec {spec_id6} "
@@ -397,11 +506,9 @@ def backlog_graduate_count(
     *,
     host: str = "<host>",
 ) -> list[tuple[str, str, str]]:
-    """Verify BACKLOG-GRADUATE-COUNT: at least one new active IPD was created and every one
-    links to the graduated backlog ID.
-
-    Pass criterion (25kzda 4.9):
-      At least one new active IPD was created and every one links to the graduated backlog ID.
+    """Verify BACKLOG-GRADUATE-COUNT: accepts existing active plans carrying From-Backlog as continued output,
+    refusing only when (a) no active linked plan remains, (b) an unlinked new plan was created,
+    or (c) this action introduced a second Set.
     """
     repo = Path(repo)
     baseline_ids: set[str] = set()
@@ -411,38 +518,74 @@ def backlog_graduate_count(
         else:
             baseline_ids = set(baseline_plan_ids)
 
-    duplicate_active = False
-    new_plans: list[tuple[str, Path, str]] = []
+    all_linked = existing_handoff_plans(repo, "backlog", item_id6)
+    pre_existing_linked = [p for p in all_linked if p.id6 in baseline_ids]
+    new_linked = [p for p in all_linked if p.id6 not in baseline_ids]
+
+    # Find new plans linking a different item (or none)
+    unlinked_new_plans: list[str] = []
     for p, text in _ce._iter_plan_ipds(repo):
         p_id = _extract_plan_id(p, text)
-        disp = _ce._plan_disposition(repo, p)
-        from_bkl = _read_from_backlog(text)
+        if p_id not in baseline_ids:
+            if _read_from_backlog(text) != item_id6:
+                unlinked_new_plans.append(p_id)
 
-        if p_id in baseline_ids:
-            if disp not in _TERMINAL_DISPOSITIONS and from_bkl == item_id6:
-                duplicate_active = True
-        else:
-            new_plans.append((p_id, p, text))
-
-    new_linked_plans = [
-        (p_id, p)
-        for (p_id, p, text) in new_plans
-        if _read_from_backlog(text) == item_id6
-    ]
-
-    has_unlinked_new_plan = False
-    for p_id, p, text in new_plans:
-        if _read_from_backlog(text) != item_id6:
-            has_unlinked_new_plan = True
-
-    count = len(new_linked_plans)
-    if duplicate_active or count == 0 or has_unlinked_new_plan:
+    # Condition (a): after the turn there is no active plan linking the item at all
+    if not all_linked:
         msg = (
-            f"[BACKLOG-GRADUATE-COUNT] Backlog {item_id6} produced {count} linked IPDs; "
+            f"[BACKLOG-GRADUATE-COUNT] Backlog {item_id6} produced 0 linked IPDs; "
             "expected at least one, each carrying From-Backlog. Quarantine the action, "
             f"reconcile them, run aw check all, then: aw {host} run {item_id6}"
         )
         return [("BACKLOG-GRADUATE-COUNT", item_id6, msg)]
+
+    # Condition (b): a new plan links a different item (or none)
+    if unlinked_new_plans:
+        unlinked_str = ", ".join(sorted(unlinked_new_plans))
+        msg = (
+            f"[BACKLOG-GRADUATE-COUNT] Backlog {item_id6} produced new plan(s) ({unlinked_str}) "
+            f"linking a different item or none; expected each carrying From-Backlog. Quarantine the action, "
+            f"reconcile them, run aw check all, then: aw {host} run {item_id6}"
+        )
+        return [("BACKLOG-GRADUATE-COUNT", item_id6, msg)]
+
+    # Condition (c): THIS ACTION INTRODUCED A SECOND SET
+    pre_existing_sets = {
+        p.set if p.set is not None else p.id6 for p in pre_existing_linked
+    }
+    if pre_existing_linked:
+        conflicting_new = [
+            np
+            for np in new_linked
+            if (np.set if np.set is not None else np.id6) not in pre_existing_sets
+        ]
+        if conflicting_new:
+            pre_ids_str = ", ".join(sorted(p.id6 for p in pre_existing_linked))
+            pre_sets_str = ", ".join(sorted(pre_existing_sets))
+            new_ids_str = ", ".join(sorted(np.id6 for np in conflicting_new))
+            new_sets_str = ", ".join(
+                sorted(
+                    {np.set if np.set is not None else np.id6 for np in conflicting_new}
+                )
+            )
+            msg = (
+                f"[BACKLOG-GRADUATE-COUNT] Backlog {item_id6} introduced a second Set: "
+                f"pre-existing active plan(s) ({pre_ids_str}) carry Set(s) {pre_sets_str}, "
+                f"but new plan(s) ({new_ids_str}) carry Set(s) {new_sets_str}. "
+                f"Quarantine the action, reconcile them, run aw check all, then: aw {host} run {item_id6}"
+            )
+            return [("BACKLOG-GRADUATE-COUNT", item_id6, msg)]
+    else:
+        new_sets = {np.set if np.set is not None else np.id6 for np in new_linked}
+        if len(new_sets) > 1:
+            all_new_ids = ", ".join(sorted(np.id6 for np in new_linked))
+            new_sets_str = ", ".join(sorted(new_sets))
+            msg = (
+                f"[BACKLOG-GRADUATE-COUNT] Backlog {item_id6} introduced multiple Sets: "
+                f"new plan(s) ({all_new_ids}) span Sets {new_sets_str}. "
+                f"Quarantine the action, reconcile them, run aw check all, then: aw {host} run {item_id6}"
+            )
+            return [("BACKLOG-GRADUATE-COUNT", item_id6, msg)]
 
     return []
 
@@ -515,6 +658,7 @@ def backlog_graduate_ipd(
     *,
     host: str = "<host>",
     run_id: str = "<run-id>",
+    continued_ids: Container[str] | None = None,
 ) -> list[tuple[str, str, str]]:
     """Verify BACKLOG-GRADUATE-IPD: each produced plan is canonical, to-review, in pending/,
     carries From-Backlog, concrete Scope-Paths, resolved Item-Dependencies, and conformant E/V checklists.
@@ -527,7 +671,9 @@ def backlog_graduate_ipd(
     findings: list[tuple[str, str, str]] = []
 
     for p_raw in produced_paths:
-        plan_id, diags = _check_ipd_conformance(repo, p_raw, "From-Backlog", item_id6)
+        plan_id, diags = _check_ipd_conformance(
+            repo, p_raw, "From-Backlog", item_id6, continued_ids=continued_ids
+        )
         for code, detail in diags:
             msg = (
                 f"[BACKLOG-GRADUATE-IPD] IPD {plan_id} generated from backlog {item_id6} "
