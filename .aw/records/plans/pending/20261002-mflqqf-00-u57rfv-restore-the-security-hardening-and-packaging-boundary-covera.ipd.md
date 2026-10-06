@@ -6,7 +6,7 @@
 - Scope: Orchestrate the two children that close the measured remainder of item `mflqqf`: Order 01 restores the security-hardening boundary coverage, fixes the loopback fail-open, covers the module's single production integration point, and corrects the document that overclaims; Order 02 adds only the packaging properties the already-restored wheel guard does not reach. This plan itself touches no product file and performs no work of its own beyond confirming its children and the cross-child properties stated below. Out of scope for the whole Set: wiring any boundary checker into `aw check` or a hook, the `RedactionPolicy` case-sensitivity defect (recorded by Order 01, lives in another module), restoring the deleted benchmark arms, and re-asserting the two packaging properties `tests/test_packaging.py` already covers.
 - Scope-Paths: .aw/records/plans/pending/20261002-mflqqf-00-u57rfv-restore-the-security-hardening-and-packaging-boundary-covera.ipd.md
 - Item-Dependencies: none
-- Status: to-review
+- Status: draft
 - Coverage: fail
 - Coverage-Fingerprint: 7b7957ed92486511725fb1633c7880f6f0e2fc92688232aa030d1c04edffbc0e
 - Coverage-Checked: 2026-10-06 by uri/its_direct/pt3-claude-opus-5.5-1m-us
@@ -20,6 +20,7 @@
 - Id: u57rfv
 
 ## Workflow history
+- 2026-10-06 draft (aw set): demoted to-review -> draft: returned to authoring by gradcover 52opph: uncovered obligation: This plan runs no test itself; validation is an inspection of what the children actually produced
 
 - 2026-10-06 coverage fail (aw oc run): fingerprint 7b7957ed9248, model uri/its_direct/pt3-claude-opus-5.5-1m-us
 - 2026-10-02 to-review (opencode its_direct/pt3-claude-opus-5-1m-us): Authored from backlog item `mflqqf` in lane worktree `mflqqf` at HEAD `4fbbc8386`. FOUR MEASUREMENTS SHAPED THIS SET, and two of them contradict the item.
