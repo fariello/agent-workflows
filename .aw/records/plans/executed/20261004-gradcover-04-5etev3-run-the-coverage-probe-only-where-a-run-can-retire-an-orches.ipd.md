@@ -6,7 +6,7 @@
 - Scope: IN: restrict the run-start gate's targets to queued orchestrators whose frozen action is `orchestrate`; announce, in one line, how many queued orchestrators were not probed because the run cannot retire them; call the Order 03 shared check `orchestrator_readiness.review_readiness(..., ask=True)` inside `dispatch_orchestrator_item` on the `ORCH_DISPATCH_RETIRE` path immediately before `ipd_lifecycle.retire_orchestrator`, turning a not-ready COVERAGE result (condition 4 only; conditions 1 to 3 stay with the existing retirement gates, OQ-02) into the existing `ORCH_REASON_FINALIZE_REFUSED` termination with the findings as detail; keep the override flag and phrase scoped to the run-start gate only. OUT: the probe's prompt and parser (Order 02); the readiness function itself (Order 03); the retirement predicate `evaluate_set_retirement` and the transition `retire_orchestrator` (unchanged); the shape gate `enforce_orchestrator_shape_gate` (unchanged; it still runs over every queued orchestrator because it is free and deterministic).
 - Scope-Paths: agent_workflows/runner_shared.py, agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, tests/test_orchestrator_probe_scope.py, tests/test_orchestrator_retirement.py
 - Item-Dependencies: executed:qs00nc
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - From-Spec: none
 - Work-Kind: bug
@@ -17,9 +17,9 @@
 - Highest E allocated: 04
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: 5etev3
-- Approval: 2026-10-06, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-06 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: 5etev3 verified (set gradcover, attempt 1).
 - 2026-10-06 approved (aw set): status set to approved
 - 2026-10-06 reviewed (aw set): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-007..PR-011 (round 2, all fixed)
 - 2026-10-06 /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-007 to PR-011 (round 2). Fixed: retirement re-check refuses on coverage findings only, so a `superseded` child or a `pending/` child at `executed` no longer blocks retirement (`31y86f`; PR-007); dirty-plan ordering settled from Order 02's commit-at-write (PR-008); asker/runner seams for dispatch and host-argv test specified and demonstrated (PR-009); existing tests needing a record measured and named, stale "seed a verdict" wording replaced (PR-010); third mutation, test list and V-items reconciled (PR-011).
