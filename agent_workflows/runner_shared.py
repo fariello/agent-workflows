@@ -23698,6 +23698,654 @@ def handle_verification_refusal(
 
 
 # ==================================================================================================
+# gradcover (nnsa2o): BOUNDED CORRECTION FOR REFUSED PRODUCTION AND REVIEW ACTIONS
+# ==================================================================================================
+
+#: Separate counter key for production set retry attempts.
+PRODUCTION_SET_RETRY_COUNT_KEY: str = "production_set_retry_attempts"
+
+#: Idempotency keys spent for production set retries.
+PRODUCTION_SET_RETRY_KEYS_KEY: str = "production_set_retry_keys"
+
+#: Separate counter key for review orchestrator retry attempts.
+REVIEW_ORCHESTRATOR_RETRY_COUNT_KEY: str = "review_orchestrator_retry_attempts"
+
+#: Idempotency keys spent for review orchestrator retries.
+REVIEW_ORCHESTRATOR_RETRY_KEYS_KEY: str = "review_orchestrator_retry_keys"
+
+#: Set-level production refusal codes eligible for bounded correction.
+PRODUCTION_SET_RETRYABLE_FINDING_CODES: frozenset[str] = frozenset(
+    {"BACKLOG-GRADUATE-SET", "SPEC-PLAN-SET"}
+)
+
+
+def production_set_retry_attempts(item: Mapping[str, Any]) -> int:
+    """How many Set-level production corrections this item has already consumed. Never negative."""
+    raw = item.get(PRODUCTION_SET_RETRY_COUNT_KEY)
+    if isinstance(raw, bool) or not isinstance(raw, int):
+        return 0
+    return max(0, raw)
+
+
+def production_set_retry_idempotency_key(
+    item: Mapping[str, Any], attempt_no: int
+) -> str:
+    """The key identifying ONE production Set correction, so a repeated decision cannot double-spend."""
+    return f"{item.get('id6') or '?'}:production-set-attempt-{int(attempt_no)}"
+
+
+def production_set_retry_key_already_spent(item: Mapping[str, Any], key: str) -> bool:
+    """Has this exact production Set correction already been recorded?"""
+    recorded = item.get(PRODUCTION_SET_RETRY_KEYS_KEY)
+    return isinstance(recorded, list) and key in recorded
+
+
+class ProductionSetRetryDecision(NamedTuple):
+    """What to do about failed production Set verifications."""
+
+    retry: bool
+    exhausted: bool
+    reason: str
+    attempts: int
+    budget: int
+    key: str
+
+
+def production_set_findings_are_retryable(
+    findings: Sequence[Any],
+) -> tuple[bool, str]:
+    """Check if all findings are in the retryable Set-level production classes."""
+    if not findings:
+        return False, "no findings provided"
+    for f in findings:
+        code = getattr(f, "code", None) if not isinstance(f, (list, tuple)) else f[0]
+        if code not in PRODUCTION_SET_RETRYABLE_FINDING_CODES:
+            return (
+                False,
+                f"finding code {code!r} is not in the retryable Set-level production classes "
+                f"({' or '.join(sorted(PRODUCTION_SET_RETRYABLE_FINDING_CODES))})",
+            )
+    return (
+        True,
+        f"all findings are in retryable Set-level production classes "
+        f"({' or '.join(sorted(PRODUCTION_SET_RETRYABLE_FINDING_CODES))})",
+    )
+
+
+def production_set_retry_decision(
+    item: Mapping[str, Any],
+    state: Mapping[str, Any],
+    findings: Sequence[Any],
+    attempt_no: int,
+) -> ProductionSetRetryDecision:
+    """Decide RETRY / FAIL-GATE for failed production Set verifications (spec 25kzda 5.5, IPD nnsa2o E-01)."""
+    used = production_set_retry_attempts(item)
+    budget = frozen_retry_budget(state)
+    key = production_set_retry_idempotency_key(item, attempt_no)
+    retryable, why = production_set_findings_are_retryable(findings)
+    if not retryable:
+        return ProductionSetRetryDecision(
+            retry=False,
+            exhausted=False,
+            reason=why,
+            attempts=used,
+            budget=budget,
+            key=key,
+        )
+    if production_set_retry_key_already_spent(item, key):
+        return ProductionSetRetryDecision(
+            retry=False,
+            exhausted=False,
+            reason=(
+                f"production Set correction {key} was ALREADY recorded for this item, "
+                f"so this decision spends nothing (idempotency, as `plan_retry` guarantees for a repeated key)"
+            ),
+            attempts=used,
+            budget=budget,
+            key=key,
+        )
+    if used >= budget:
+        return ProductionSetRetryDecision(
+            retry=False,
+            exhausted=True,
+            reason=(
+                f"production Set verification failed in a retryable class and the run's correction "
+                f"budget is exhausted ({used} of {budget} correction attempt"
+                f"{'' if budget == 1 else 's'} spent), so the item is FAILED rather than resumed"
+            ),
+            attempts=used,
+            budget=budget,
+            key=key,
+        )
+    return ProductionSetRetryDecision(
+        retry=True,
+        exhausted=False,
+        reason=(
+            f"production Set verification failed in a retryable class, so the session is being resumed "
+            f"for a bounded correction turn; correction attempt {used + 1} of {budget}"
+        ),
+        attempts=used,
+        budget=budget,
+        key=key,
+    )
+
+
+def review_orchestrator_retry_attempts(item: Mapping[str, Any]) -> int:
+    """How many review orchestrator corrections this item has already consumed. Never negative."""
+    raw = item.get(REVIEW_ORCHESTRATOR_RETRY_COUNT_KEY)
+    if isinstance(raw, bool) or not isinstance(raw, int):
+        return 0
+    return max(0, raw)
+
+
+def review_orchestrator_retry_idempotency_key(
+    item: Mapping[str, Any], attempt_no: int
+) -> str:
+    """The key identifying ONE review orchestrator correction."""
+    return f"{item.get('id6') or '?'}:review-orchestrator-attempt-{int(attempt_no)}"
+
+
+def review_orchestrator_retry_key_already_spent(
+    item: Mapping[str, Any], key: str
+) -> bool:
+    """Has this exact review orchestrator correction already been recorded?"""
+    recorded = item.get(REVIEW_ORCHESTRATOR_RETRY_KEYS_KEY)
+    return isinstance(recorded, list) and key in recorded
+
+
+class ReviewOrchestratorRetryDecision(NamedTuple):
+    """What to do about failed review orchestrator readiness."""
+
+    retry: bool
+    exhausted: bool
+    reason: str
+    attempts: int
+    budget: int
+    key: str
+
+
+def review_orchestrator_retry_decision(
+    item: Mapping[str, Any],
+    state: Mapping[str, Any],
+    attempt_no: int,
+) -> ReviewOrchestratorRetryDecision:
+    """Decide RETRY / FAIL-GATE for review orchestrator readiness (IPD nnsa2o E-03)."""
+    used = review_orchestrator_retry_attempts(item)
+    budget = frozen_retry_budget(state)
+    key = review_orchestrator_retry_idempotency_key(item, attempt_no)
+    if review_orchestrator_retry_key_already_spent(item, key):
+        return ReviewOrchestratorRetryDecision(
+            retry=False,
+            exhausted=False,
+            reason=(
+                f"review orchestrator correction {key} was ALREADY recorded for this item, "
+                f"so this decision spends nothing"
+            ),
+            attempts=used,
+            budget=budget,
+            key=key,
+        )
+    if used >= budget:
+        return ReviewOrchestratorRetryDecision(
+            retry=False,
+            exhausted=True,
+            reason=(
+                f"review orchestrator readiness failed and the run's correction "
+                f"budget is exhausted ({used} of {budget} correction attempt"
+                f"{'' if budget == 1 else 's'} spent)"
+            ),
+            attempts=used,
+            budget=budget,
+            key=key,
+        )
+    return ReviewOrchestratorRetryDecision(
+        retry=True,
+        exhausted=False,
+        reason=(
+            f"review orchestrator readiness failed, so the review session is being resumed "
+            f"for a bounded correction turn; correction attempt {used + 1} of {budget}"
+        ),
+        attempts=used,
+        budget=budget,
+        key=key,
+    )
+
+
+def build_production_set_correction_prompt(
+    item: Mapping[str, Any],
+    findings: Sequence[Any],
+    target_tree: Path,
+    attempt_no: int,
+    decision: ProductionSetRetryDecision,
+) -> str:
+    """Build the correction prompt for a production Set-level failure (IPD nnsa2o E-02)."""
+    from agent_workflows import check_engine as _ce
+    from agent_workflows import orchestrator_readiness as _orch_readiness
+    from agent_workflows import production_checks as _pc
+
+    lines = [
+        f"# Correction Turn: Production Set Verification for {item.get('id6', '')}",
+        "",
+        f"This is bounded correction turn {decision.attempts + 1} of {decision.budget}.",
+        "Production verification failed because one or more orchestrator plans in this Set are not ready for review.",
+        "",
+        "## Invariants and Rules",
+        "",
+        "- Every whole-Set obligation must name the child that performs it (author a new child plan and table row for work no child performs, and never delete the checklist).",
+        "- Edit only plans in this Set.",
+        "",
+        "## Findings per Not-Ready Orchestrator",
+        "",
+    ]
+
+    for f in findings:
+        code = getattr(f, "code", None) if not isinstance(f, (list, tuple)) else f[0]
+        subj = getattr(f, "subject", None) if not isinstance(f, (list, tuple)) else f[1]
+        msg = getattr(f, "msg", None) if not isinstance(f, (list, tuple)) else f[2]
+
+        lines.append(f"### Orchestrator `{subj}` ({code})")
+        lines.append("")
+
+        readiness_findings = None
+        for p, text in _ce._iter_plan_ipds(target_tree):
+            p_id = _pc._extract_plan_id(p, text)
+            if p_id == subj:
+                readiness = _orch_readiness.review_readiness(target_tree, p, ask=False)
+                if readiness.findings:
+                    readiness_findings = readiness.findings
+                break
+
+        if readiness_findings:
+            for rf in readiness_findings:
+                remedy = _orch_readiness.REMEDIES.get(rf.code, rf.remedy)
+                remedy_rendered = (
+                    str(remedy)
+                    .replace("<id6>", subj)
+                    .replace("<child-id6>", str(rf.subject))
+                )
+                lines.append(f"- **Finding Subject**: `{rf.subject}`")
+                lines.append(f"  - **Finding Code**: `{rf.code}`")
+                lines.append(f"  - **Quoted Passage / Detail**: {rf.detail}")
+                lines.append(f"  - **Remedy**: {remedy_rendered}")
+        else:
+            lines.append(f"- **Detail**: {msg}")
+            lines.append(
+                "- **Remedy**: Assign the quoted obligation by id6 to a child in the table or add a child for it; do not delete the checklist."
+            )
+        lines.append("")
+
+    return "\n".join(lines)
+
+
+def build_review_orchestrator_correction_prompt(
+    item: Mapping[str, Any],
+    readiness: Any,
+    plan_status: str,
+    attempt_no: int,
+    decision: ReviewOrchestratorRetryDecision,
+) -> str:
+    """Build the correction prompt for a review orchestrator remand (IPD nnsa2o E-03)."""
+    from agent_workflows import orchestrator_readiness as _orch_readiness
+
+    id6 = str(item.get("id6") or "")
+    lines = [
+        f"# Correction Turn: Orchestrator Review for {id6}",
+        "",
+        f"This is bounded correction turn {decision.attempts + 1} of {decision.budget}.",
+    ]
+    if not readiness.ready:
+        lines.extend(
+            [
+                "The review turn ended with the orchestrator not ready for review.",
+                "",
+                "## Invariants and Rules",
+                "",
+                "- Every whole-Set obligation must name the child that performs it (author a new child plan and table row for work no child performs, and never delete the checklist).",
+                "- Edit only plans in this Set.",
+                "",
+                "## Findings",
+                "",
+            ]
+        )
+        for rf in readiness.findings:
+            remedy = _orch_readiness.REMEDIES.get(rf.code, rf.remedy)
+            remedy_rendered = (
+                str(remedy)
+                .replace("<id6>", id6)
+                .replace("<child-id6>", str(rf.subject))
+            )
+            lines.append(f"- **Finding Subject**: `{rf.subject}`")
+            lines.append(f"  - **Finding Code**: `{rf.code}`")
+            lines.append(f"  - **Quoted Passage / Detail**: {rf.detail}")
+            lines.append(f"  - **Remedy**: {remedy_rendered}")
+        lines.append("")
+    else:
+        lines.extend(
+            [
+                "The orchestrator coverage check is now passing and the coverage record exists in the plan.",
+                "However, the plan still reads `to-review` because the setter call was refused before the record existed.",
+                "",
+                f"Please re-run the `reviewed` transition for {id6} now that the coverage record is present.",
+                "",
+            ]
+        )
+    return "\n".join(lines)
+
+
+def handle_review_orchestrator_readiness(
+    *,
+    tree: Path,
+    item: dict[str, Any],
+    attempt: MutableMapping[str, Any],
+    state: MutableMapping[str, Any],
+    run_dir: Path,
+    attempt_no: int,
+    raw_launcher: Callable[..., Any],
+    host_labels: HostLabels,
+    tracker: Any,
+    work_dir: str | None,
+    wt_handle: Any,
+    plan_path: Path,
+    disposition: str,
+    exit_code: int,
+    save_state: Callable[[Path, Any], Any],
+    append_jsonl: Callable[..., Any],
+) -> str:
+    """Handle post-review orchestrator readiness verification and bounded corrections (IPD nnsa2o E-03)."""
+    if exit_code != 0:
+        return disposition
+
+    if queue_entry_type(item) != "ipd":
+        return disposition
+
+    from agent_workflows import ipd_lint as _lint
+    from agent_workflows import orchestrator_readiness as _orch_readiness
+
+    repo = Path(state.get("repo", "."))
+    plan_file: Path | None = None
+    try:
+        rel = plan_path.relative_to(repo)
+        candidate = tree / rel
+        if candidate.is_file():
+            plan_file = candidate
+    except Exception:
+        pass
+    if plan_file is None:
+        if plan_path.is_file():
+            plan_file = plan_path
+        else:
+            try:
+                candidate = queue_artifact_path(tree, item)
+                if candidate.is_file():
+                    plan_file = candidate
+            except Exception:
+                pass
+    if plan_file is None or not plan_file.is_file():
+        return disposition
+
+    try:
+        doc = _lint.parse(plan_file.read_text(encoding="utf-8"))
+    except Exception:
+        return disposition
+
+    kind = (doc.meta_fields.get("Kind") or "").strip()
+    if kind != "orchestrator":
+        return disposition
+
+    host_name = "agy" if "agy" in getattr(host_labels, "id", "") else "oc"
+    pal = Palette(should_color(sys.stderr))
+
+    while True:
+        readiness = _orch_readiness.review_readiness(
+            tree,
+            plan_file,
+            ask=True,
+            state=state,
+            host=host_name,
+            retry_budget=frozen_retry_budget(state),
+        )
+        # Re-read plan status from disk
+        doc_after = _lint.parse(plan_file.read_text(encoding="utf-8"))
+        p_status = (doc_after.meta_fields.get("Status") or "").strip()
+
+        # Outcome (a): ready and plan reads reviewed or later
+        if readiness.ready and p_status in (
+            "reviewed",
+            "approved",
+            "auto-approved",
+            "executed",
+        ):
+            return "reviewed"
+
+        # Check retry decision
+        used_turns = review_orchestrator_retry_attempts(item)
+        rev_dec = review_orchestrator_retry_decision(
+            item, state, attempt_no + used_turns
+        )
+
+        if not readiness.ready:
+            # Outcome (b): not ready
+            findings_summary = (
+                "; ".join(f"{f.subject}: {f.detail}" for f in readiness.findings)
+                .replace('"', "'")
+                .replace("\n", " ")
+            )
+            used_turns = review_orchestrator_retry_attempts(item)
+            reason_msg = f"Orchestrator {item['id6']} review readiness refused: {findings_summary}"
+            if not rev_dec.retry and used_turns > 0:
+                reason_msg = f"correction budget exhausted ({used_turns} correction turn{'s' if used_turns != 1 else ''} spent); {reason_msg}"
+
+            record_refusal(
+                item,
+                code="IPD-REVIEW-ORCHESTRATOR-READY",
+                reason=reason_msg,
+                remedy=f"{host_labels.command} {item['id6']}",
+            )
+            print(
+                pal(
+                    f"  \u2717 Review refused [IPD-REVIEW-ORCHESTRATOR-READY]: {findings_summary}",
+                    "red",
+                ),
+                file=sys.stderr,
+            )
+
+            # If plan reads reviewed, return it to to-review
+            if p_status == "reviewed":
+                cmd = pinned_module_argv(
+                    [
+                        "ipd",
+                        "set",
+                        "to-review",
+                        item["id6"],
+                        "--message",
+                        findings_summary,
+                        "--yes",
+                        "--no-commit",
+                        "--dir",
+                        str(tree),
+                    ]
+                )
+                try:
+                    run_checked(cmd, cwd=tree, env_builder=pinned_child_env)
+                    subprocess.run(["git", "add", str(plan_file)], cwd=tree, check=True)
+                    subprocess.run(
+                        [
+                            "git",
+                            "commit",
+                            "-m",
+                            f"demote {item['id6']} to to-review: {findings_summary}",
+                        ],
+                        cwd=tree,
+                        check=True,
+                    )
+                except Exception as exc:
+                    print(
+                        pal(f"  ! Demotion commit failed: {exc}", "yellow"),
+                        file=sys.stderr,
+                    )
+        else:
+            # Outcome (c): ready but plan still reads to-review
+            used_turns = review_orchestrator_retry_attempts(item)
+            reason_msg = f"Orchestrator {item['id6']} is ready but status remains to-review (transition not executed)"
+            if not rev_dec.retry and used_turns > 0:
+                reason_msg = f"correction budget exhausted ({used_turns} correction turn{'s' if used_turns != 1 else ''} spent); {reason_msg}"
+            record_refusal(
+                item,
+                code="IPD-REVIEW-ORCHESTRATOR-READY",
+                reason=reason_msg,
+                remedy=f"{host_labels.command} {item['id6']}",
+            )
+
+        if not rev_dec.retry:
+            # On exhaustion or budget 0
+            return "fail-gate"
+
+        # Remand!
+        item[REVIEW_ORCHESTRATOR_RETRY_COUNT_KEY] = rev_dec.attempts + 1
+        item.setdefault(REVIEW_ORCHESTRATOR_RETRY_KEYS_KEY, []).append(rev_dec.key)
+
+        findings_given = (
+            [
+                f._asdict() if hasattr(f, "_asdict") else str(f)
+                for f in readiness.findings
+            ]
+            if not readiness.ready
+            else ["plan status remains to-review"]
+        )
+
+        prompt_text = build_review_orchestrator_correction_prompt(
+            item, readiness, p_status, attempt_no, rev_dec
+        )
+        corr_prompt_path = write_prompt(
+            run_dir,
+            item,
+            prompt_text,
+            attempt_no,
+            suffix="review-orchestrator-correction",
+        )
+
+        corr_session = attempt.get("session_id")
+        try:
+            if host_labels == OC_HOST_LABELS:
+                corr_res = resume_via_launcher(
+                    raw_launcher,
+                    (
+                        state,
+                        run_dir,
+                        item,
+                        plan_path,
+                        corr_prompt_path,
+                        attempt_no,
+                    ),
+                    {
+                        "log_suffix": f"review-orchestrator-correction-{rev_dec.attempts + 1}",
+                        "label_suffix": "review-orchestrator-correction",
+                        "tracker": tracker,
+                        "work_dir": work_dir,
+                        "resume_session": corr_session,
+                    },
+                )
+            else:
+                corr_res = resume_via_launcher(
+                    raw_launcher,
+                    (
+                        state,
+                        run_dir,
+                        item,
+                        corr_prompt_path,
+                        attempt_no,
+                    ),
+                    {
+                        "session_id": corr_session,
+                        "use_continue": False,
+                        "log_suffix": f"review-orchestrator-correction-{rev_dec.attempts + 1}",
+                        "label_suffix": "review-orchestrator-correction",
+                        "work_dir": work_dir,
+                        "tracker": tracker,
+                    },
+                )
+        except (KeyboardInterrupt, StallTimeout):
+            raise
+
+        if isinstance(corr_res, tuple) and len(corr_res) > 1 and corr_res[1]:
+            attempt["session_id"] = corr_res[1]
+
+        if work_dir:
+            from agent_workflows import lane_containment
+
+            with contextlib.suppress(Exception):
+                lane_containment.collect_lane_submissions(
+                    run_dir=run_dir,
+                    item=item,
+                    run_id=state["run_id"],
+                    lane_root=Path(work_dir),
+                    plan_path=plan_path,
+                    attempt=attempt_no,
+                )
+
+        if wt_handle is not None:
+            commit_review_lane_output(
+                repo=Path(state.get("repo", ".")),
+                handle=wt_handle,
+                id6=item["id6"],
+                host_label=host_labels.command,
+                run_id=str(state.get("run_id") or "") or None,
+            )
+        else:
+            commit_review_shared_output(
+                repo=Path(state.get("repo", ".")),
+                id6=item["id6"],
+                host_label=host_labels.command,
+            )
+
+        next_readiness = _orch_readiness.review_readiness(
+            tree,
+            plan_file,
+            ask=False,
+            state=state,
+            host=host_name,
+            retry_budget=frozen_retry_budget(state),
+        )
+        findings_after = (
+            [
+                f._asdict() if hasattr(f, "_asdict") else str(f)
+                for f in next_readiness.findings
+            ]
+            if not next_readiness.ready
+            else []
+        )
+
+        corr_rec = {
+            "correction_key": rev_dec.key,
+            "key": rev_dec.key,
+            "action": "review-orchestrator-correction",
+            "attempt": attempt_no,
+            "turn": rev_dec.attempts + 1,
+            "findings_given": findings_given,
+            "findings_after": findings_after,
+            "at": utc_now(),
+        }
+        item.setdefault("attempts", []).append(corr_rec)
+        attempt.setdefault("corrections", []).append(corr_rec)
+        attempt["findings_given"] = findings_given
+        attempt["findings_after"] = findings_after
+        attempt["correction_turns"] = rev_dec.attempts + 1
+
+        append_jsonl(
+            run_dir / "events.jsonl",
+            {
+                "at": utc_now(),
+                "event": "review-orchestrator-correction",
+                "id6": item["id6"],
+                "attempt": attempt_no,
+                "correction_turn": rev_dec.attempts + 1,
+                "budget": rev_dec.budget,
+                "key": rev_dec.key,
+            },
+        )
+
+
+# ==================================================================================================
 # THE PRE-WORK SUITE BASELINE (integearn-05, `9lyg5h`)
 #
 # WHAT THIS IS FOR, AND THE ONE SENTENCE THAT MUST NOT BE "IMPROVED" AWAY:
@@ -28162,6 +28810,24 @@ def write_report(
     lines.extend(
         format_generated_next_actions_section(state, host_command=labels.command)
     )
+    # gradcover (nnsa2o) E-04: render correction turns per corrected item in execution-report.md
+    corr_items: list[tuple[str, int]] = []
+    for q_item in state.get("queue", []):
+        if not isinstance(q_item, Mapping):
+            continue
+        q_id6 = str(q_item.get("id6") or "").strip()
+        q_prod_used = production_set_retry_attempts(q_item)
+        q_rev_used = review_orchestrator_retry_attempts(q_item)
+        q_total_used = q_prod_used + q_rev_used
+        if q_total_used > 0:
+            corr_items.append((q_id6, q_total_used))
+
+    if corr_items:
+        lines.extend(["", "## Correction turns", ""])
+        for c_id6, c_count in corr_items:
+            lines.append(
+                f"- `{c_id6}`: {c_count} correction turn{'s' if c_count != 1 else ''}"
+            )
     lines.extend(
         [
             "",
@@ -34852,114 +35518,146 @@ def execute_item_core(
                     )
                 save_state(run_dir, state)
 
-            # runconcur-01 (`vddpml`) E-03: a REVIEW's publish is serialized too. It skips the
-            # revalidation gate (a review produces nothing to revalidate), but it still runs a real
-            # `git merge` onto `main`, which is the only thing this lock arbitrates over. Leaving it
-            # unserialized would let a review sweep advance main under an executing peer's validation,
-            # which is the same measured harm with a cheaper turn behind it.
-            review_integrated, review_reason, review_kind = (
-                integrate_under_repository_lock(
-                    repo,
-                    item,
-                    wt_handle,
-                    state=state,
-                    holder_label=integration_lock_holder_label(state),
-                    integrate=lambda _item, _handle: integrate_review_lane_branch(
-                        repo, _handle, _item["id6"]
-                    ),
-                    progress=integration_lock_progress_reporter(),
-                    run_checked=globals()["run_checked"],
-                )
+            review_orch_disp = handle_review_orchestrator_readiness(
+                tree=Path(wt_handle.path),
+                item=item,
+                attempt=attempt,
+                state=state,
+                run_dir=run_dir,
+                attempt_no=attempt_no,
+                raw_launcher=raw_launcher,
+                host_labels=host_labels,
+                tracker=tracker,
+                work_dir=work_dir,
+                wt_handle=wt_handle,
+                plan_path=plan_path,
+                disposition=disposition,
+                exit_code=exit_code,
+                save_state=save_state,
+                append_jsonl=append_jsonl,
             )
-            attempt["review_integrated"] = review_integrated
-            attempt["review_integration_reason"] = review_reason
-            attempt["review_integration_kind"] = review_kind
-            item["review_integrated"] = review_integrated
-            save_state(run_dir, state)
-            append_jsonl(
-                run_dir / "events.jsonl",
-                {
-                    "at": utc_now(),
-                    "event": (
-                        "review-lane-integrated"
-                        if review_integrated
-                        else "review-lane-not-integrated"
-                    ),
-                    "id6": item["id6"],
-                    "branch": wt_handle.branch,
-                    "kind": review_kind,
-                    "detail": review_reason,
-                },
-            )
-            if not review_integrated:
-                item["review_integration_refusal"] = review_reason
-                # `i4ak5n` E-03: ROUTE THE REFUSAL THROUGH THE SHARED LADDER WRITE SITE, which is what
-                # the execute path already does. Before this, the review path recorded the refusal,
-                # printed it, and moved on - so a TRANSIENT refusal (main holding an un-owned dirty
-                # path, which a shared checkout produces routinely) stranded a completed review turn
-                # permanently, while the IDENTICAL refusal on an execute turn was retried for free. The
-                # message the operator read even promised the re-attempt ("it is re-attempted once the
-                # base is clean", `format_local_changes_refusal_reason`), and nothing re-attempted it.
-                #
-                # `record_integration_refusal`, NOT `decide_integration_deferral`: the latter is PURE
-                # and is called only from inside the former. The write site is what counts the attempt
-                # DURABLY (so a resume cannot restart the budget), asks for the verdict, writes the
-                # status, and emits the rung-naming event. Wiring to the pure function would
-                # reimplement the counting and the event.
-                #
-                # NO TERMINAL ARM IS CARVED OUT FOR REVIEWS. All four of the shared decision's terminal
-                # reasons apply unchanged: a non-deferrable kind, `--on-integration-blocked=block`, an
-                # exhausted budget, and a zero budget. A review that defers is re-attempted by the SAME
-                # rungs an execute item uses, and one that does not stays exactly as terminal as today.
-                review_decision = record_integration_refusal(
+            if review_orch_disp == "fail-gate":
+                disposition = "fail-gate"
+                attempt["disposition"] = "fail-gate"
+                item["status"] = "fail-gate"
+                lane_containment.record_lane_preserved(
                     run_dir=run_dir,
-                    state=state,
                     item=item,
-                    attempt=attempt,
-                    integ_kind=review_kind,
-                    integ_reason=review_reason,
-                    branch=wt_handle.branch,
-                    save_state=save_state,
-                    append_jsonl=append_jsonl,
+                    handle=wt_handle,
+                    reason="review orchestrator readiness failed; lane preserved for inspection",
+                    reason_codes=("review-orchestrator-failed",),
                 )
-                # THE DISPOSITION THE TURN EARNED IS PRESERVED BESIDE THE LADDER STATUS, and then the
-                # ladder's status BECOMES this turn's disposition. Both halves are required and the
-                # second was measured: `record_integration_refusal` writes `item["status"]`, but
-                # `execute_item_core` later does an unconditional `item["status"] = disposition`, so
-                # without this the ladder's `merge-retry` was overwritten back to `reviewed` and
-                # `deferred_integration_items` selected NOTHING - the wiring would have been present
-                # and inert. This mirrors exactly what the EXECUTE arm below already does
-                # (`disposition = fail_status`), so the two paths agree about which value wins.
-                #
-                # The earned verdict is kept on the ATTEMPT, where every other per-turn fact lives, so a
-                # successful re-attempt can RESTORE it rather than invent one (see
-                # `finish_integrated_review_item`).
-                attempt["review_disposition"] = disposition
-                disposition = review_decision.status
                 save_state(run_dir, state)
-                # E-07: REPORT THE DEFERRAL AND THE REMEDY, not merely the refusal. A message that
-                # states a condition with no route is one an operator learns to skim, and a message that
-                # promises a re-attempt which never happens is worse than one that promises nothing.
-                for line in format_review_integration_refusal_report(
-                    id6=str(item["id6"]),
-                    branch=wt_handle.branch,
-                    kind=review_kind,
-                    reason=review_reason,
-                    decision=review_decision,
-                ):
+            else:
+                # runconcur-01 (`vddpml`) E-03: a REVIEW's publish is serialized too. It skips the
+                # revalidation gate (a review produces nothing to revalidate), but it still runs a real
+                # `git merge` onto `main`, which is the only thing this lock arbitrates over. Leaving it
+                # unserialized would let a review sweep advance main under an executing peer's validation,
+                # which is the same measured harm with a cheaper turn behind it.
+                review_integrated, review_reason, review_kind = (
+                    integrate_under_repository_lock(
+                        repo,
+                        item,
+                        wt_handle,
+                        state=state,
+                        holder_label=integration_lock_holder_label(state),
+                        integrate=lambda _item, _handle: integrate_review_lane_branch(
+                            repo, _handle, _item["id6"]
+                        ),
+                        progress=integration_lock_progress_reporter(),
+                        run_checked=globals()["run_checked"],
+                    )
+                )
+                attempt["review_integrated"] = review_integrated
+                attempt["review_integration_reason"] = review_reason
+                attempt["review_integration_kind"] = review_kind
+                item["review_integrated"] = review_integrated
+                save_state(run_dir, state)
+                append_jsonl(
+                    run_dir / "events.jsonl",
+                    {
+                        "at": utc_now(),
+                        "event": (
+                            "review-lane-integrated"
+                            if review_integrated
+                            else "review-lane-not-integrated"
+                        ),
+                        "id6": item["id6"],
+                        "branch": wt_handle.branch,
+                        "kind": review_kind,
+                        "detail": review_reason,
+                    },
+                )
+                if not review_integrated:
+                    item["review_integration_refusal"] = review_reason
+                    # `i4ak5n` E-03: ROUTE THE REFUSAL THROUGH THE SHARED LADDER WRITE SITE, which is what
+                    # the execute path already does. Before this, the review path recorded the refusal,
+                    # printed it, and moved on - so a TRANSIENT refusal (main holding an un-owned dirty
+                    # path, which a shared checkout produces routinely) stranded a completed review turn
+                    # permanently, while the IDENTICAL refusal on an execute turn was retried for free. The
+                    # message the operator read even promised the re-attempt ("it is re-attempted once the
+                    # base is clean", `format_local_changes_refusal_reason`), and nothing re-attempted it.
+                    #
+                    # `record_integration_refusal`, NOT `decide_integration_deferral`: the latter is PURE
+                    # and is called only from inside the former. The write site is what counts the attempt
+                    # DURABLY (so a resume cannot restart the budget), asks for the verdict, writes the
+                    # status, and emits the rung-naming event. Wiring to the pure function would
+                    # reimplement the counting and the event.
+                    #
+                    # NO TERMINAL ARM IS CARVED OUT FOR REVIEWS. All four of the shared decision's terminal
+                    # reasons apply unchanged: a non-deferrable kind, `--on-integration-blocked=block`, an
+                    # exhausted budget, and a zero budget. A review that defers is re-attempted by the SAME
+                    # rungs an execute item uses, and one that does not stays exactly as terminal as today.
+                    review_decision = record_integration_refusal(
+                        run_dir=run_dir,
+                        state=state,
+                        item=item,
+                        attempt=attempt,
+                        integ_kind=review_kind,
+                        integ_reason=review_reason,
+                        branch=wt_handle.branch,
+                        save_state=save_state,
+                        append_jsonl=append_jsonl,
+                    )
+                    # THE DISPOSITION THE TURN EARNED IS PRESERVED BESIDE THE LADDER STATUS, and then the
+                    # ladder's status BECOMES this turn's disposition. Both halves are required and the
+                    # second was measured: `record_integration_refusal` writes `item["status"]`, but
+                    # `execute_item_core` later does an unconditional `item["status"] = disposition`, so
+                    # without this the ladder's `merge-retry` was overwritten back to `reviewed` and
+                    # `deferred_integration_items` selected NOTHING - the wiring would have been present
+                    # and inert. This mirrors exactly what the EXECUTE arm below already does
+                    # (`disposition = fail_status`), so the two paths agree about which value wins.
+                    #
+                    # The earned verdict is kept on the ATTEMPT, where every other per-turn fact lives, so a
+                    # successful re-attempt can RESTORE it rather than invent one (see
+                    # `finish_integrated_review_item`).
+                    attempt["review_disposition"] = disposition
+                    disposition = review_decision.status
+                    save_state(run_dir, state)
+                    # E-07: REPORT THE DEFERRAL AND THE REMEDY, not merely the refusal. A message that
+                    # states a condition with no route is one an operator learns to skim, and a message that
+                    # promises a re-attempt which never happens is worse than one that promises nothing.
+                    for line in format_review_integration_refusal_report(
+                        id6=str(item["id6"]),
+                        branch=wt_handle.branch,
+                        kind=review_kind,
+                        reason=review_reason,
+                        decision=review_decision,
+                    ):
+                        print(
+                            pal(
+                                line,
+                                "cyan" if line.lstrip().startswith("->") else "yellow",
+                            ),
+                            file=sys.stderr,
+                        )
+                else:
                     print(
                         pal(
-                            line, "cyan" if line.lstrip().startswith("->") else "yellow"
-                        ),
-                        file=sys.stderr,
+                            f"  \u2713 review {item['id6']} integrated to main ({review_reason})",
+                            "cyan",
+                        )
                     )
-            else:
-                print(
-                    pal(
-                        f"  \u2713 review {item['id6']} integrated to main ({review_reason})",
-                        "cyan",
-                    )
-                )
         elif is_review and wt_handle is None:
             extra_allowed = []
             if queue_entry_type(item) != "ipd":
@@ -35007,6 +35705,30 @@ def execute_item_core(
                 attempt["review_integrated"] = True
                 item["review_integrated"] = True
             save_state(run_dir, state)
+
+            review_orch_disp = handle_review_orchestrator_readiness(
+                tree=repo,
+                item=item,
+                attempt=attempt,
+                state=state,
+                run_dir=run_dir,
+                attempt_no=attempt_no,
+                raw_launcher=raw_launcher,
+                host_labels=host_labels,
+                tracker=tracker,
+                work_dir=None,
+                wt_handle=None,
+                plan_path=plan_path,
+                disposition=disposition,
+                exit_code=exit_code,
+                save_state=save_state,
+                append_jsonl=append_jsonl,
+            )
+            if review_orch_disp == "fail-gate":
+                disposition = "fail-gate"
+                attempt["disposition"] = "fail-gate"
+                item["status"] = "fail-gate"
+                save_state(run_dir, state)
         elif is_spec_production:
             target_tree = Path(work_dir) if work_dir else repo
             from agent_workflows import check_engine as _ce
@@ -35111,18 +35833,224 @@ def execute_item_core(
                     )
                 )
 
+            # Production correction turn loop (nnsa2o E-02)
+            while findings:
+                used_turns = production_set_retry_attempts(item)
+                prod_dec = production_set_retry_decision(
+                    item, state, findings, attempt_no + used_turns
+                )
+                if not prod_dec.retry:
+                    break
+
+                item[PRODUCTION_SET_RETRY_COUNT_KEY] = prod_dec.attempts + 1
+                item.setdefault(PRODUCTION_SET_RETRY_KEYS_KEY, []).append(prod_dec.key)
+
+                prompt_text = build_production_set_correction_prompt(
+                    item, findings, target_tree, attempt_no, prod_dec
+                )
+                corr_prompt_path = write_prompt(
+                    run_dir,
+                    item,
+                    prompt_text,
+                    attempt_no,
+                    suffix="set-correction",
+                )
+
+                corr_session = attempt.get("session_id")
+                try:
+                    if host_labels == OC_HOST_LABELS:
+                        corr_res = resume_via_launcher(
+                            raw_launcher,
+                            (
+                                state,
+                                run_dir,
+                                item,
+                                plan_path,
+                                corr_prompt_path,
+                                attempt_no,
+                            ),
+                            {
+                                "log_suffix": f"set-correction-{prod_dec.attempts + 1}",
+                                "label_suffix": "set-correction",
+                                "tracker": tracker,
+                                "work_dir": work_dir,
+                                "resume_session": corr_session,
+                            },
+                        )
+                    else:
+                        corr_res = resume_via_launcher(
+                            raw_launcher,
+                            (
+                                state,
+                                run_dir,
+                                item,
+                                corr_prompt_path,
+                                attempt_no,
+                            ),
+                            {
+                                "session_id": corr_session,
+                                "use_continue": False,
+                                "log_suffix": f"set-correction-{prod_dec.attempts + 1}",
+                                "label_suffix": "set-correction",
+                                "work_dir": work_dir,
+                                "tracker": tracker,
+                            },
+                        )
+                except (KeyboardInterrupt, StallTimeout):
+                    raise
+
+                if isinstance(corr_res, tuple) and len(corr_res) > 1 and corr_res[1]:
+                    attempt["session_id"] = corr_res[1]
+
+                corr_exit = (
+                    corr_res[0] if isinstance(corr_res, tuple) and corr_res else 0
+                )
+
+                if work_dir:
+                    with contextlib.suppress(Exception):
+                        lane_containment.collect_lane_submissions(
+                            run_dir=run_dir,
+                            item=item,
+                            run_id=state["run_id"],
+                            lane_root=Path(work_dir),
+                            plan_path=plan_path,
+                            attempt=attempt_no,
+                        )
+
+                # Commit production output with original baseline_plan_ids
+                c_commit, c_paths, c_out_of_scope = commit_spec_production_output(
+                    target_tree,
+                    item["id6"],
+                    baseline_plan_ids,
+                    host_label=host_labels.command,
+                    run_id=str(state.get("run_id") or "") or None,
+                )
+                if c_commit:
+                    attempt["spec_production_commit"] = c_commit
+                    attempt["spec_production_committed_paths"] = list(c_paths)
+                    append_jsonl(
+                        run_dir / "events.jsonl",
+                        {
+                            "at": utc_now(),
+                            "event": "spec-production-output-committed",
+                            "id6": item["id6"],
+                            "attempt": attempt_no,
+                            "commit": c_commit,
+                            "paths": list(c_paths),
+                        },
+                    )
+
+                # Re-discover newly produced plans in target_tree
+                new_produced_paths = []
+                new_produced_plans = []
+                for p, text in _ce._iter_plan_ipds(target_tree):
+                    p_id = _pc._extract_plan_id(p, text)
+                    if p_id not in baseline_plan_ids:
+                        new_produced_paths.append(p)
+                        new_produced_plans.append((p_id, p))
+
+                findings_before = list(findings)
+                findings = []
+                if corr_exit != 0:
+                    findings.append(
+                        (
+                            "SPEC-PRODUCTION-FAILED",
+                            item["id6"],
+                            f"Agent production turn failed with exit code {corr_exit}.",
+                        )
+                    )
+                else:
+                    host_name = "agy" if "agy" in host_labels.id else "oc"
+                    findings.extend(
+                        _pc.spec_plan_count(
+                            target_tree,
+                            item["id6"],
+                            baseline_plan_ids,
+                            host=host_name,
+                        )
+                    )
+                    findings.extend(
+                        _pc.spec_plan_set(
+                            target_tree,
+                            item["id6"],
+                            new_produced_paths,
+                            host=host_name,
+                            run_id=str(state.get("run_id") or ""),
+                            state=state,
+                        )
+                    )
+                    findings.extend(
+                        _pc.spec_plan_conformance(
+                            target_tree,
+                            item["id6"],
+                            new_produced_paths,
+                            host=host_name,
+                            run_id=str(state.get("run_id") or ""),
+                        )
+                    )
+                    findings.extend(
+                        _pc.spec_plan_gate_carry(
+                            target_tree,
+                            item["id6"],
+                            new_produced_paths,
+                            host=host_name,
+                        )
+                    )
+
+                findings_given_list = [
+                    list(f) if isinstance(f, (list, tuple)) else str(f)
+                    for f in findings_before
+                ]
+                findings_after_list = [
+                    list(f) if isinstance(f, (list, tuple)) else str(f)
+                    for f in findings
+                ]
+                corr_rec = {
+                    "correction_key": prod_dec.key,
+                    "key": prod_dec.key,
+                    "action": "production-set-correction",
+                    "attempt": attempt_no,
+                    "turn": prod_dec.attempts + 1,
+                    "findings_given": findings_given_list,
+                    "findings_after": findings_after_list,
+                    "at": utc_now(),
+                }
+                item.setdefault("attempts", []).append(corr_rec)
+                attempt.setdefault("corrections", []).append(corr_rec)
+                attempt["correction_turns"] = prod_dec.attempts + 1
+                attempt["findings_given"] = findings_given_list
+                attempt["findings_after"] = findings_after_list
+
+                append_jsonl(
+                    run_dir / "events.jsonl",
+                    {
+                        "at": utc_now(),
+                        "event": "production-set-correction",
+                        "id6": item["id6"],
+                        "attempt": attempt_no,
+                        "correction_turn": prod_dec.attempts + 1,
+                        "budget": prod_dec.budget,
+                        "key": prod_dec.key,
+                        "findings_count": len(findings),
+                    },
+                )
+
             if findings:
                 disposition = "fail-gate"
+                used_turns = production_set_retry_attempts(item)
                 for code, _subj, msg in findings:
                     print(
                         pal(f"  \u2717 Spec production refused [{code}]: {msg}", "red"),
                         file=sys.stderr,
                     )
                 for code, _subj, msg in reversed(findings):
+                    reason_msg = msg
+                    if used_turns > 0:
+                        reason_msg = f"correction budget exhausted ({used_turns} correction turn{'s' if used_turns != 1 else ''} spent); {msg}"
                     record_refusal(
                         item,
                         code=code,
-                        reason=msg,
+                        reason=reason_msg,
                         remedy=f"{host_labels.command} {item['id6']}",
                     )
                 if wt_handle is not None:
@@ -35419,8 +36347,222 @@ def execute_item_core(
                 except Exception:
                     pass
 
+            # Production correction turn loop (nnsa2o E-02)
+            while findings:
+                used_turns = production_set_retry_attempts(item)
+                prod_dec = production_set_retry_decision(
+                    item, state, findings, attempt_no + used_turns
+                )
+                if not prod_dec.retry:
+                    break
+
+                item[PRODUCTION_SET_RETRY_COUNT_KEY] = prod_dec.attempts + 1
+                item.setdefault(PRODUCTION_SET_RETRY_KEYS_KEY, []).append(prod_dec.key)
+
+                prompt_text = build_production_set_correction_prompt(
+                    item, findings, target_tree, attempt_no, prod_dec
+                )
+                corr_prompt_path = write_prompt(
+                    run_dir,
+                    item,
+                    prompt_text,
+                    attempt_no,
+                    suffix="set-correction",
+                )
+
+                corr_session = attempt.get("session_id")
+                try:
+                    if host_labels == OC_HOST_LABELS:
+                        corr_res = resume_via_launcher(
+                            raw_launcher,
+                            (
+                                state,
+                                run_dir,
+                                item,
+                                plan_path,
+                                corr_prompt_path,
+                                attempt_no,
+                            ),
+                            {
+                                "log_suffix": f"set-correction-{prod_dec.attempts + 1}",
+                                "label_suffix": "set-correction",
+                                "tracker": tracker,
+                                "work_dir": work_dir,
+                                "resume_session": corr_session,
+                            },
+                        )
+                    else:
+                        corr_res = resume_via_launcher(
+                            raw_launcher,
+                            (
+                                state,
+                                run_dir,
+                                item,
+                                corr_prompt_path,
+                                attempt_no,
+                            ),
+                            {
+                                "session_id": corr_session,
+                                "use_continue": False,
+                                "log_suffix": f"set-correction-{prod_dec.attempts + 1}",
+                                "label_suffix": "set-correction",
+                                "work_dir": work_dir,
+                                "tracker": tracker,
+                            },
+                        )
+                except (KeyboardInterrupt, StallTimeout):
+                    raise
+
+                if isinstance(corr_res, tuple) and len(corr_res) > 1 and corr_res[1]:
+                    attempt["session_id"] = corr_res[1]
+
+                corr_exit = (
+                    corr_res[0] if isinstance(corr_res, tuple) and corr_res else 0
+                )
+
+                if work_dir:
+                    with contextlib.suppress(Exception):
+                        lane_containment.collect_lane_submissions(
+                            run_dir=run_dir,
+                            item=item,
+                            run_id=state["run_id"],
+                            lane_root=Path(work_dir),
+                            plan_path=plan_path,
+                            attempt=attempt_no,
+                        )
+
+                # Commit production output with original baseline_plan_ids
+                c_commit, c_paths, c_out_of_scope = commit_backlog_production_output(
+                    target_tree,
+                    item["id6"],
+                    baseline_plan_ids,
+                    host_label=host_labels.command,
+                    run_id=str(state.get("run_id") or "") or None,
+                )
+                if c_commit:
+                    attempt["backlog_production_commit"] = c_commit
+                    attempt["backlog_production_committed_paths"] = list(c_paths)
+                    append_jsonl(
+                        run_dir / "events.jsonl",
+                        {
+                            "at": utc_now(),
+                            "event": "backlog-production-output-committed",
+                            "id6": item["id6"],
+                            "attempt": attempt_no,
+                            "commit": c_commit,
+                            "paths": list(c_paths),
+                        },
+                    )
+
+                # Re-discover newly produced plans in target_tree
+                new_produced_paths = []
+                new_produced_plans = []
+                for p, text in _ce._iter_plan_ipds(target_tree):
+                    p_id = _pc._extract_plan_id(p, text)
+                    if p_id not in baseline_plan_ids:
+                        new_produced_paths.append(p)
+                        new_produced_plans.append((p_id, p))
+
+                findings_before = list(findings)
+                findings = []
+                if corr_exit != 0:
+                    findings.append(
+                        (
+                            "BACKLOG-PRODUCTION-FAILED",
+                            item["id6"],
+                            f"Agent production turn failed with exit code {corr_exit}.",
+                        )
+                    )
+                else:
+                    host_name = "agy" if "agy" in host_labels.id else "oc"
+                    findings.extend(
+                        _pc.backlog_graduate_count(
+                            target_tree,
+                            item["id6"],
+                            baseline_plan_ids,
+                            host=host_name,
+                        )
+                    )
+                    findings.extend(
+                        _pc.backlog_graduate_set(
+                            target_tree,
+                            item["id6"],
+                            new_produced_paths,
+                            host=host_name,
+                            run_id=str(state.get("run_id") or ""),
+                            state=state,
+                        )
+                    )
+                    findings.extend(
+                        _pc.backlog_graduate_ipd(
+                            target_tree,
+                            item["id6"],
+                            new_produced_paths,
+                            host=host_name,
+                            run_id=str(state.get("run_id") or ""),
+                        )
+                    )
+                    findings.extend(
+                        _pc.backlog_gate_handoff(
+                            target_tree,
+                            item["id6"],
+                            new_produced_paths,
+                            host=host_name,
+                        )
+                    )
+
+                    # Advisory cross-tree check for mid-graduation warnings (E-02)
+                    try:
+                        for _drift in _ce.release_gate_warnings(target_tree):
+                            if item["id6"] in str(_drift.location):
+                                print(
+                                    f"[BACKLOG-CROSS-TREE] Warning: {_drift.rule}: {_drift.detail}",
+                                    file=sys.stderr,
+                                )
+                    except Exception:
+                        pass
+
+                findings_given_list = [
+                    list(f) if isinstance(f, (list, tuple)) else str(f)
+                    for f in findings_before
+                ]
+                findings_after_list = [
+                    list(f) if isinstance(f, (list, tuple)) else str(f)
+                    for f in findings
+                ]
+                corr_rec = {
+                    "correction_key": prod_dec.key,
+                    "key": prod_dec.key,
+                    "action": "production-set-correction",
+                    "attempt": attempt_no,
+                    "turn": prod_dec.attempts + 1,
+                    "findings_given": findings_given_list,
+                    "findings_after": findings_after_list,
+                    "at": utc_now(),
+                }
+                item.setdefault("attempts", []).append(corr_rec)
+                attempt.setdefault("corrections", []).append(corr_rec)
+                attempt["correction_turns"] = prod_dec.attempts + 1
+                attempt["findings_given"] = findings_given_list
+                attempt["findings_after"] = findings_after_list
+
+                append_jsonl(
+                    run_dir / "events.jsonl",
+                    {
+                        "at": utc_now(),
+                        "event": "production-set-correction",
+                        "id6": item["id6"],
+                        "attempt": attempt_no,
+                        "correction_turn": prod_dec.attempts + 1,
+                        "budget": prod_dec.budget,
+                        "key": prod_dec.key,
+                        "findings_count": len(findings),
+                    },
+                )
+
             if findings:
                 disposition = "fail-gate"
+                used_turns = production_set_retry_attempts(item)
                 for code, _subj, msg in findings:
                     print(
                         pal(
@@ -35430,10 +36572,13 @@ def execute_item_core(
                         file=sys.stderr,
                     )
                 for code, _subj, msg in reversed(findings):
+                    reason_msg = msg
+                    if used_turns > 0:
+                        reason_msg = f"correction budget exhausted ({used_turns} correction turn{'s' if used_turns != 1 else ''} spent); {msg}"
                     record_refusal(
                         item,
                         code=code,
-                        reason=msg,
+                        reason=reason_msg,
                         remedy=f"{host_labels.command} {item['id6']}",
                     )
                 if wt_handle is not None:
