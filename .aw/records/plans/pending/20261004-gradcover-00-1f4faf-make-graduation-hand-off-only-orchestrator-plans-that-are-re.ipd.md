@@ -2,12 +2,12 @@
 
 - Date: 2026-10-04
 - Kind: orchestrator
-- Concern: Graduating a backlog item (or producing plans from an approved spec) through `aw oc run` / `aw agy run` routinely hands off an orchestrator plan that the next run refuses. Measured 2026-10-03: three `--action review` runs over 53 queued plans were refused before any agent turn because the orchestrator coverage probe judged 13 of the 16 pending orchestrator plans (`i18yaz`, `u4glub`, `z2l43n`, `1u4olp`, `63zo2f`, `itamry`, `u57rfv`, `4qv834`, `l8wvv3`, `qtz0us`, `axozpe`, `m0kl28`, `xhr0dj`) to "carry work no child covers"; 11 of their 13 source backlog items already read `graduated`. Four separate defects combine: (1) the production prompt (`runner_shared.build_backlog_production_prompt`, and its spec twin) says nothing about orchestrator plans or coverage; (2) the orchestrator skeleton `aw ipd scaffold --kind orchestrator` writes `- TODO: whole-Set completion criteria.`, `- TODO: cross-IPD consistency / no-drift / dependency checks.` and `TODO: how the executed plan is verified.`, which are exactly the sections the probe reads and its prompt calls uncovered work; (3) production verification (`production_checks._check_ipd_conformance`, reached through `backlog_graduate_ipd` and `spec_plan_conformance`) checks each produced plan alone and never the Set, so it sets the source `graduated` / `implementing` with a refused orchestrator; (4) the probe itself gates every queued orchestrator regardless of whether the run can retire it, answers with a bare verdict line that names nothing, and does not credit work the orchestrator explicitly assigns to a named child (`axozpe` states in its `Scope check` that child `rlhmt9` owns the final measurement and was still refused). Nothing checks orchestrator readiness when `- Status:` is set, so `to-review` currently asserts something no tool verified.
-- Scope: ORCHESTRATION ONLY. This plan sequences thirteen child plans and contributes no implementation, no test and no deliverable of its own. Every artifact is owned by exactly one child and named in the child table. IN: the dependency order, the Set-level completion criteria with the child that owns each, and the cross-child consistency checks. OUT: everything the children do, namely the four spec amendments (Order 01), the probe's answer format and named-owner rule (Order 02), the shared review-readiness check and the `aw ipd coverage` verb (Order 03), the probe's scoping and its retirement-time re-check (Order 04), the `aw ipd set` refusal, the loud backward moves and the pinned scaffold default (Order 05), the production action's Set-level check (Order 06), the bounded correction turns (Order 07), resuming an unfinished handoff (Order 08), re-checking the 13 refused orchestrators (Order 09), the `aw backlog set graduated` / `aw specs set implementing` refusal (Order 10), the authoring instructions (Order 11), the end-to-end proof (Order 12), and the `From-Spec` nudge fix (Order 13). This Set does NOT redesign record handling into an object model (a separate discussion), and does NOT add any `C-*`/`Owner:` requirement-ownership syntax (deliberately deferred, see Deferred).
+- Concern: Graduating a backlog item (or producing plans from an approved spec) through `aw oc run` / `aw agy run` routinely hands off an orchestrator plan that the next run refuses. Measured 2026-10-03: three `--action review` runs over 53 queued plans were refused before any agent turn because the orchestrator coverage probe judged 13 of the 16 pending orchestrator plans (`i18yaz`, `u4glub`, `z2l43n`, `1u4olp`, `63zo2f`, `itamry`, `u57rfv`, `4qv834`, `l8wvv3`, `qtz0us`, `axozpe`, `m0kl28`, `xhr0dj`) to "carry work no child covers"; 11 of their 13 source backlog items already read `graduated`. Four separate defects combine: (1) the production prompt (`runner_shared.build_backlog_production_prompt`, and its spec twin) says nothing about orchestrator plans or coverage; (2) the orchestrator skeleton `aw ipd scaffold --kind orchestrator` writes `- TODO: whole-Set completion criteria.`, `- TODO: cross-IPD consistency / no-drift / dependency checks.` and `TODO: how the executed plan is verified.`, which are exactly the sections the probe reads and its prompt calls uncovered work; (3) production verification (`production_checks._check_ipd_conformance`, reached through `backlog_graduate_ipd` and `spec_plan_conformance`) checks each produced plan alone and never the Set, so it sets the source `graduated` / `implementing` with a refused orchestrator; (4) the probe itself gates every queued orchestrator regardless of whether the run can retire it, answers with a bare verdict line that names nothing, and does not credit work the orchestrator explicitly assigns to a named child (`axozpe` states in its `Required tests / validation` that Order 04, which its own child table resolves to `rlhmt9`, carries the final cross-child measurement, and was still refused). Nothing checks orchestrator readiness when `- Status:` is set, so `to-review` currently asserts something no tool verified.
+- Scope: ORCHESTRATION ONLY. This plan sequences thirteen child plans and contributes no implementation, no test and no deliverable of its own. Every artifact is owned by exactly one child and named in the child table. IN: the dependency order, the Set-level completion criteria with the child that owns each, and the cross-child consistency checks. OUT: everything the children do, namely the amendments to five specs (Order 01), the probe's answer format and named-owner rule (Order 02), the shared review-readiness check and the `aw ipd coverage` verb (Order 03), the probe's scoping and its retirement-time re-check (Order 04), the `aw ipd set` refusal, the loud backward moves and the pinned scaffold default (Order 05), the production action's Set-level check (Order 06), the bounded correction turns (Order 07), resuming an unfinished handoff (Order 08), re-checking the 13 refused orchestrators (Order 09), the `aw backlog set graduated` / `aw specs set implementing` refusal (Order 10), the authoring instructions (Order 11), the end-to-end proof (Order 12), and the `From-Spec` nudge fix (Order 13). This Set does NOT redesign record handling into an object model (a separate discussion), and does NOT add any `C-*`/`Owner:` requirement-ownership syntax (deliberately deferred, see Deferred).
 - Scope-Paths: .aw/records/plans/pending/20261004-gradcover-01-hm1h3l-amend-the-run-retirement-conformance-and-ipd-specs-for-orche.ipd.md, .aw/records/plans/pending/20261004-gradcover-02-8mabmu-make-the-coverage-probe-quote-the-work-it-found-and-credit-w.ipd.md, .aw/records/plans/pending/20261004-gradcover-03-qs00nc-add-one-shared-orchestrator-review-readiness-check-and-the-a.ipd.md, .aw/records/plans/pending/20261004-gradcover-04-5etev3-run-the-coverage-probe-only-where-a-run-can-retire-an-orches.ipd.md, .aw/records/plans/pending/20261004-gradcover-05-26m1nb-refuse-aw-ipd-set-to-review-reviewed-and-approved-for-an-orc.ipd.md, .aw/records/plans/pending/20261004-gradcover-06-r2wa38-check-the-whole-set-before-a-production-action-hands-off-a-b.ipd.md, .aw/records/plans/pending/20261004-gradcover-07-nnsa2o-send-a-refused-production-or-review-action-back-for-bounded.ipd.md, .aw/records/plans/pending/20261004-gradcover-08-24qw39-let-a-production-action-resume-an-unfinished-handoff-instead.ipd.md, .aw/records/plans/pending/20261004-gradcover-09-52opph-re-check-every-pending-orchestrator-and-send-the-failing-one.ipd.md, .aw/records/plans/pending/20261004-gradcover-10-sbiv1j-refuse-aw-backlog-set-graduated-and-aw-specs-set-implementin.ipd.md, .aw/records/plans/pending/20261004-gradcover-11-dalmk4-state-the-orchestrator-coverage-rule-in-the-production-promp.ipd.md, .aw/records/plans/pending/20261004-gradcover-12-wytlly-prove-end-to-end-that-a-graduation-yields-an-orchestrator-th.ipd.md, .aw/records/plans/pending/20261004-gradcover-13-jm27py-stop-the-from-spec-nudge-for-a-plan-that-declares-no-spec-so.ipd.md
 - Item-Dependencies: none
-- Status: to-review
-- Readiness: no-go
+- Status: reviewed
+- Readiness: go-pending-approval
 - From-Spec: none
 - Work-Kind: bug
 - Priority: high
@@ -19,6 +19,8 @@
 - Id: 1f4faf
 
 ## Workflow history
+- 2026-10-06 reviewed (aw set): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-007..PR-010 (round 2, all fixed)
+- 2026-10-06 /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-007 to PR-010 (round 2). Fixed: self-gating window after Order 03 stated with its remedy (PR-007); `axozpe` evidence corrected to its `Required tests / validation` and Order 04 (PR-008); "four spec amendments" corrected to five specs (PR-009); V-* status grep made `-m1` so it cannot match open-question `- Status:` lines (PR-010). Round-1 PR-006 confirmed fixed by the maintainer's 2026-10-04 ruling (OQ-03 resolved, non-blocking).
 - 2026-10-05 to-review (aw set): returned to review after revision: maintainer ruling 2026-10-04 stores the coverage answer in the plan (25kzda 2.5e), resolving blocking OQ-03; every affected plan was rewritten to match
 - 2026-10-04 note (opencode its_direct/pt3-claude-opus-5.5-1m-us): revised after review. OQ-03 RESOLVED by the maintainer (2026-10-04): the coverage answer is stored in the plan. Child-table purposes for Orders 01, 02, 03, 06 and 09 and completion criteria 2, 3 and 8 updated to match; the Set's children were revised the same day and returned to `to-review`.
 - 2026-10-04 re-scope (opencode its_direct/pt3-claude-opus-5.5-1m-us): from the /plan-review of `qs00nc` (finding PR-001): OQ-03 Context gains the freeze-gate ordering (`enforce_freeze_time_refusal` lints approved plans at `pre-execution` before the run-start probe). Context only; the question, options and verdict are unchanged.
@@ -135,7 +137,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 7. Every refusal and every `aw runs` row the probe produces quotes the passage it judged uncovered, and work explicitly assigned to a child in the orchestrator's own child table is not reported as uncovered. Owner: `8mabmu`.
 8. Every pending orchestrator plan in the repository carries a committed coverage record; each one that fails is `draft` with its backlog item `open`, including any that were `approved`, whose withdrawn approvals are named. Owner: `52opph`.
 9. The production prompts, the orchestrator skeleton, the managed `AGENTS.md` block and `/plan-review` state the rule that every whole-Set obligation names the child that performs it. Owner: `dalmk4`.
-10. The four spec amendments are in place and each child cites the amended section it implements. Owner: `hm1h3l`.
+10. The amendments to the five specs Order 01 edits are in place and each child cites the amended section it implements. Owner: `hm1h3l`.
 11. `check.plan-spec-link-missing` stays silent for a plan declaring `- From-Spec: none` or editing the cited spec, and still fires when the link is undeclared. Owner: `jm27py`.
 12. Every backward plan status move requires a reason, warns, and records `APPROVAL WITHDRAWN` when it leaves `approved`; a second move on unchanged text is refused. Owner: `26m1nb`.
 13. The bare suite shows no new failing node id at any child boundary. Owner: each child for its own boundary; `wytlly` for the final run.
@@ -151,6 +153,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 - ORDER 09 NEVER DEMOTES THIS SET. This Set's own orchestrator and unexecuted children are pending while Order 09 runs; Order 09 measures them and stops and reports if `1f4faf` is not ready, rather than returning a mid-execution Set to `draft`.
 - ORDER 09 PRECEDES ORDER 10. Order 10 makes `check.graduation-incomplete` an `aw check` error; if it landed first, the 11 already-`graduated` items whose orchestrators fail would turn `aw check` red in CI before they were reopened.
 - EACH CHILD RE-MEASURES ITS OWN SUITE BASELINE. No child trusts a baseline written at authoring.
+- THIS SET BECOMES SUBJECT TO ITS OWN GATE MID-EXECUTION. From the moment Order 03 (`qs00nc`) lands, this orchestrator is a pending `Kind: orchestrator` plan with no coverage record, so `check.orchestrator-not-review-ready` reports it, and if it is `approved` a NEW run (a resume or a second `aw oc run gradcover`) is refused whole at freeze time by `IPD-S408` at `pre-execution` (`runner_shared.enforce_freeze_time_refusal` lints approved IPDs at that checkpoint). That refusal is loud and names its own remedy, `aw ipd coverage 1f4faf`, an ordinary operator act and not work of this plan; Order 09 (`52opph`) records this plan's answer durably; and the retirement-time re-check (Order 04, `5etev3`) asks if no current record exists. A run already in progress is unaffected, because the freeze gate runs once at run start.
 
 ## Deferred / out of scope (with reason)
 
@@ -202,67 +205,67 @@ This plan runs no tests of its own and ships no code. Each child validates itsel
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'.
 
 - [ ] V-01 validates E-01
-  - Required evidence: paste `grep -n '^- Status:' <hm1h3l plan path>` showing `- Status: executed`, and the path showing it under `.aw/records/plans/executed/`.
+  - Required evidence: paste `grep -m1 -n '^- Status:' <hm1h3l plan path>` showing `- Status: executed`, and the path showing it under `.aw/records/plans/executed/`.
   - Observed evidence:
   - Result: pending
 
 - [ ] V-02 validates E-02
-  - Required evidence: paste `grep -n '^- Status:' <8mabmu plan path>` showing `- Status: executed`, and the path showing it under `.aw/records/plans/executed/`.
+  - Required evidence: paste `grep -m1 -n '^- Status:' <8mabmu plan path>` showing `- Status: executed`, and the path showing it under `.aw/records/plans/executed/`.
   - Observed evidence:
   - Result: pending
 
 - [ ] V-03 validates E-03
-  - Required evidence: paste `grep -n '^- Status:' <qs00nc plan path>` showing `- Status: executed`, and the path showing it under `.aw/records/plans/executed/`.
+  - Required evidence: paste `grep -m1 -n '^- Status:' <qs00nc plan path>` showing `- Status: executed`, and the path showing it under `.aw/records/plans/executed/`.
   - Observed evidence:
   - Result: pending
 
 - [ ] V-04 validates E-04
-  - Required evidence: paste `grep -n '^- Status:' <5etev3 plan path>` showing `- Status: executed`, and the path showing it under `.aw/records/plans/executed/`.
+  - Required evidence: paste `grep -m1 -n '^- Status:' <5etev3 plan path>` showing `- Status: executed`, and the path showing it under `.aw/records/plans/executed/`.
   - Observed evidence:
   - Result: pending
 
 - [ ] V-05 validates E-05
-  - Required evidence: paste `grep -n '^- Status:' <26m1nb plan path>` showing `- Status: executed`, and the path showing it under `.aw/records/plans/executed/`.
+  - Required evidence: paste `grep -m1 -n '^- Status:' <26m1nb plan path>` showing `- Status: executed`, and the path showing it under `.aw/records/plans/executed/`.
   - Observed evidence:
   - Result: pending
 
 - [ ] V-06 validates E-06
-  - Required evidence: paste `grep -n '^- Status:' <r2wa38 plan path>` showing `- Status: executed`, and the path showing it under `.aw/records/plans/executed/`.
+  - Required evidence: paste `grep -m1 -n '^- Status:' <r2wa38 plan path>` showing `- Status: executed`, and the path showing it under `.aw/records/plans/executed/`.
   - Observed evidence:
   - Result: pending
 
 - [ ] V-07 validates E-07
-  - Required evidence: paste `grep -n '^- Status:' <nnsa2o plan path>` showing `- Status: executed`, and the path showing it under `.aw/records/plans/executed/`.
+  - Required evidence: paste `grep -m1 -n '^- Status:' <nnsa2o plan path>` showing `- Status: executed`, and the path showing it under `.aw/records/plans/executed/`.
   - Observed evidence:
   - Result: pending
 
 - [ ] V-08 validates E-08
-  - Required evidence: paste `grep -n '^- Status:' <24qw39 plan path>` showing `- Status: executed`, and the path showing it under `.aw/records/plans/executed/`.
+  - Required evidence: paste `grep -m1 -n '^- Status:' <24qw39 plan path>` showing `- Status: executed`, and the path showing it under `.aw/records/plans/executed/`.
   - Observed evidence:
   - Result: pending
 
 - [ ] V-09 validates E-09
-  - Required evidence: paste `grep -n '^- Status:' <52opph plan path>` showing `- Status: executed`, and the path showing it under `.aw/records/plans/executed/`.
+  - Required evidence: paste `grep -m1 -n '^- Status:' <52opph plan path>` showing `- Status: executed`, and the path showing it under `.aw/records/plans/executed/`.
   - Observed evidence:
   - Result: pending
 
 - [ ] V-10 validates E-10
-  - Required evidence: paste `grep -n '^- Status:' <sbiv1j plan path>` showing `- Status: executed`, and the path showing it under `.aw/records/plans/executed/`.
+  - Required evidence: paste `grep -m1 -n '^- Status:' <sbiv1j plan path>` showing `- Status: executed`, and the path showing it under `.aw/records/plans/executed/`.
   - Observed evidence:
   - Result: pending
 
 - [ ] V-11 validates E-11
-  - Required evidence: paste `grep -n '^- Status:' <dalmk4 plan path>` showing `- Status: executed`, and the path showing it under `.aw/records/plans/executed/`.
+  - Required evidence: paste `grep -m1 -n '^- Status:' <dalmk4 plan path>` showing `- Status: executed`, and the path showing it under `.aw/records/plans/executed/`.
   - Observed evidence:
   - Result: pending
 
 - [ ] V-12 validates E-12
-  - Required evidence: paste `grep -n '^- Status:' <wytlly plan path>` showing `- Status: executed`, and the path showing it under `.aw/records/plans/executed/`.
+  - Required evidence: paste `grep -m1 -n '^- Status:' <wytlly plan path>` showing `- Status: executed`, and the path showing it under `.aw/records/plans/executed/`.
   - Observed evidence:
   - Result: pending
 
 - [ ] V-13 validates E-13
-  - Required evidence: paste `grep -n '^- Status:' <jm27py plan path>` showing `- Status: executed`, and the path showing it under `.aw/records/plans/executed/`.
+  - Required evidence: paste `grep -m1 -n '^- Status:' <jm27py plan path>` showing `- Status: executed`, and the path showing it under `.aw/records/plans/executed/`.
   - Observed evidence:
   - Result: pending
 
