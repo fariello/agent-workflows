@@ -7,6 +7,9 @@
 - Scope-Paths: .aw/records/plans/pending/20261002-mflqqf-00-u57rfv-restore-the-security-hardening-and-packaging-boundary-covera.ipd.md
 - Item-Dependencies: none
 - Status: to-review
+- Coverage: fail
+- Coverage-Fingerprint: 7b7957ed92486511725fb1633c7880f6f0e2fc92688232aa030d1c04edffbc0e
+- Coverage-Checked: 2026-10-06 by uri/its_direct/pt3-claude-opus-5.5-1m-us
 - Work-Kind: security
 - Priority: high
 - From-Backlog: mflqqf
@@ -18,6 +21,7 @@
 
 ## Workflow history
 
+- 2026-10-06 coverage fail (aw oc run): fingerprint 7b7957ed9248, model uri/its_direct/pt3-claude-opus-5.5-1m-us
 - 2026-10-02 to-review (opencode its_direct/pt3-claude-opus-5-1m-us): Authored from backlog item `mflqqf` in lane worktree `mflqqf` at HEAD `4fbbc8386`. FOUR MEASUREMENTS SHAPED THIS SET, and two of them contradict the item.
   FIRST, THE SECURITY HALF OF THE ITEM HOLDS EXACTLY: all seven named checkers have zero test callers, and the deleted suite is real and gone.
   SECOND, A PURE RESTORATION WOULD HAVE BEEN WORTHLESS AND I DID NOT SHIP ONE. The recovered suite PASSES against current source (`10 passed`), so restoring it would have added a green file and found nothing. Probing the uncovered surface directly found a fail-open the deleted suite had no row for, and that is now the sharpest item in Order 01.
@@ -119,6 +123,17 @@ The Set-wide bar is "NO NEWLY FAILING TEST" measured against each executor's own
 - Status: resolved
 - Owner: none
 - Resolution or deferral rationale: RESOLVED, AND THE RESOLUTION CHANGED BECAUSE THE AUTHORING TURN REMOVED THE REASON TO HESITATE. The question was whether the item must stay open to own the sharp edges this Set records but does not fix. It need not: each of those findings now has its OWN durable carrier (`go20fk` for the `RedactionPolicy` case sensitivity, `fe6aro` for the `redact_worker_output` masking overclaim, `wc5c5e` for the load-sensitive suite nodes), so closing `mflqqf` drops nothing, which was the only real risk. The item's own subject, restored coverage on the two boundary surfaces, is fully delivered by the two children. So `mflqqf` may close `done` once BOTH carriers are `executed`, and until then it stays `graduated` because a close on one carrier's evidence would drop the other half. Note the mechanical constraint that makes this safe either way: the item carries no `- Blocks-Release:` gate, so no close-legitimacy gate is at stake.
+
+## Coverage findings
+
+- "This plan runs no test itself. Its validation is an inspection of what the children actually produced, performed in a separate pass from their execution, so the evidence below is a REVIEW of pasted child evidence and not a re-run of it."
+- "A child that reports green by excluding a node has not satisfied its own contract and must not be accepted here."
+- "Verify this against the files on disk rather than against this table."
+- "Confirm no child acquired one."
+- "CONFIRM THE ITEM IS NOT CLOSED BY EITHER CHILD ALONE: the item has TWO carriers, so it stays `graduated` until both are executed, and a close on one carrier's evidence would drop the other half."
+- "If one child is revised to claim a green baseline, that is drift and must be caught here."
+- "Child 01 does amend a DOCUMENT (`docs/security.md`) and declares it; confirm the declaration is still present, since an undeclared spec or doc edit is what the finalize scope gate exists to catch."
+- "Both children require every filesystem input and every built distribution to live under `tmp_path` or `tempfile`, and both require `git status --short` empty after their runs. Confirm both children's evidence shows it."
 
 ## Validation and cross-check (verify before reporting the Set complete)
 
