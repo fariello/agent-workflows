@@ -6,7 +6,7 @@
 - Scope: IN: change `backlog_graduate_count` and `spec_plan_count` to accept existing active plans that carry the same source link as this action's continued output, refusing only a second Set (active plans for the same source spanning more than one `- Set:`) or a new plan linking a different source; give the production prompts a "continue this handoff" section, emitted only when such plans exist, listing each existing plan's path, status and the shared readiness check's findings, and instructing the agent to fix those plans rather than write a parallel Set; include existing plans in the Set-level verification (Order 06's verifier receives existing plus new paths). OUT: the readiness check (Order 03); the correction loop (Order 07); retiring or superseding existing plans (a human decision); recovering work left only in a preserved lane from an earlier run (the lane is already preserved and nameable by `aw runs`; integrating it is a separate operator action).
 - Scope-Paths: agent_workflows/production_checks.py, agent_workflows/runner_shared.py, tests/test_production_resume_handoff.py, tests/test_backlog_production.py, tests/test_spec_production.py
 - Item-Dependencies: executed:nnsa2o, executed:26m1nb
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - From-Spec: none
 - Work-Kind: bug
@@ -17,9 +17,9 @@
 - Highest E allocated: 05
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: 24qw39
-- Approval: 2026-10-06, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-06 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: 24qw39 verified (set gradcover, attempt 1).
 - 2026-10-06 approved (aw set): status set to approved
 - 2026-10-06 reviewed (aw set): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-001..PR-008 (all fixed)
 
