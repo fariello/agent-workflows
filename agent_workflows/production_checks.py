@@ -206,13 +206,93 @@ def _check_ipd_conformance(
             ("check.item-dependencies", "Item-Dependencies contains 'unresolved'")
         )
 
-    # 6. Lints conforming at review-finalize
-    lint_res = _lint.lint_file(p, checkpoint="review-finalize")
+    # 6. Lints conforming at review-finalize (IPD-S408 de-duplicated: owned by Set verifier)
+    lint_res = _lint.lint_file(p, checkpoint="review-finalize", suppress_s408=True)
     if lint_res.disposition != _lint.S.DISPOSITION_CONFORMING:
         for diag in lint_res.diagnostics:
+            if diag.code == _lint.C_ORCH_NOT_READY:
+                continue
             diags.append((diag.code, diag.message))
 
     return plan_id, diags
+
+
+def _format_orchestrator_findings(
+    findings: Sequence[Any],
+    plan_id: str,
+) -> str:
+    parts: list[str] = []
+    for f in findings:
+        remedy = (
+            str(f.remedy)
+            .replace("<id6>", plan_id)
+            .replace("<child-id6>", str(f.subject))
+        )
+        if remedy in str(f.detail):
+            parts.append(f"{f.subject}: {f.detail}")
+        else:
+            parts.append(f"{f.subject}: {f.detail}; {remedy}")
+    return "; ".join(parts)
+
+
+def spec_plan_set(
+    repo: Path,
+    spec_id6: str,
+    produced_paths: Sequence[Path | str],
+    *,
+    host: str,
+    run_id: str,
+    state: Mapping[str, Any],
+    asker: Any = None,
+    runner: Any = None,
+) -> list[tuple[str, str, str]]:
+    """Verify SPEC-PLAN-SET: every produced orchestrator plan is ready for review.
+
+    Pass criterion (25kzda 4.8):
+      Every produced orchestrator plan, evaluated by Section 2.5d (the probe may be asked).
+      Every produced orchestrator is ready for review; a passing verdict is recorded for its current text.
+    """
+    repo = Path(repo)
+    findings: list[tuple[str, str, str]] = []
+
+    from agent_workflows import orchestrator_readiness as _orch_readiness
+    from agent_workflows import runner_shared as _rs
+
+    retry_budget = _rs.frozen_retry_budget(state)
+
+    for p_raw in produced_paths:
+        p = Path(p_raw)
+        if not p.is_absolute():
+            p = repo / p
+        try:
+            text = p.read_text(encoding="utf-8")
+        except OSError:
+            continue
+        doc = _lint.parse(text)
+        if (doc.meta_fields.get("Kind") or "").strip() != "orchestrator":
+            continue
+
+        plan_id = _extract_plan_id(p, text)
+        readiness = _orch_readiness.review_readiness(
+            repo,
+            p,
+            ask=True,
+            host=host,
+            state=state,
+            asker=asker,
+            runner=runner,
+            retry_budget=retry_budget,
+        )
+        if not readiness.ready:
+            findings_str = _format_orchestrator_findings(readiness.findings, plan_id)
+            msg = (
+                f"[SPEC-PLAN-SET] Orchestrator {plan_id} produced from spec {spec_id6} "
+                f"is not ready for review: {findings_str}. "
+                f"Fix it with the IPD authoring tools, then: aw {host} run resume {run_id}"
+            )
+            findings.append(("SPEC-PLAN-SET", plan_id, msg))
+
+    return findings
 
 
 def spec_plan_conformance(
@@ -365,6 +445,67 @@ def backlog_graduate_count(
         return [("BACKLOG-GRADUATE-COUNT", item_id6, msg)]
 
     return []
+
+
+def backlog_graduate_set(
+    repo: Path,
+    item_id6: str,
+    produced_paths: Sequence[Path | str],
+    *,
+    host: str,
+    run_id: str,
+    state: Mapping[str, Any],
+    asker: Any = None,
+    runner: Any = None,
+) -> list[tuple[str, str, str]]:
+    """Verify BACKLOG-GRADUATE-SET: every produced orchestrator plan is ready for review.
+
+    Pass criterion (25kzda 4.9):
+      Every produced orchestrator plan, evaluated by Section 2.5d (the probe may be asked).
+      Every produced orchestrator is ready for review; a passing verdict is recorded for its current text;
+      only then may the item be set graduated.
+    """
+    repo = Path(repo)
+    findings: list[tuple[str, str, str]] = []
+
+    from agent_workflows import orchestrator_readiness as _orch_readiness
+    from agent_workflows import runner_shared as _rs
+
+    retry_budget = _rs.frozen_retry_budget(state)
+
+    for p_raw in produced_paths:
+        p = Path(p_raw)
+        if not p.is_absolute():
+            p = repo / p
+        try:
+            text = p.read_text(encoding="utf-8")
+        except OSError:
+            continue
+        doc = _lint.parse(text)
+        if (doc.meta_fields.get("Kind") or "").strip() != "orchestrator":
+            continue
+
+        plan_id = _extract_plan_id(p, text)
+        readiness = _orch_readiness.review_readiness(
+            repo,
+            p,
+            ask=True,
+            host=host,
+            state=state,
+            asker=asker,
+            runner=runner,
+            retry_budget=retry_budget,
+        )
+        if not readiness.ready:
+            findings_str = _format_orchestrator_findings(readiness.findings, plan_id)
+            msg = (
+                f"[BACKLOG-GRADUATE-SET] Orchestrator {plan_id} produced from backlog {item_id6} "
+                f"is not ready for review: {findings_str}. "
+                f"Fix it with the IPD authoring tools, then: aw {host} run resume {run_id}"
+            )
+            findings.append(("BACKLOG-GRADUATE-SET", plan_id, msg))
+
+    return findings
 
 
 def backlog_graduate_ipd(

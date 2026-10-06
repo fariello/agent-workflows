@@ -35084,6 +35084,16 @@ def execute_item_core(
                     )
                 )
                 findings.extend(
+                    _pc.spec_plan_set(
+                        target_tree,
+                        item["id6"],
+                        new_produced_paths,
+                        host=host_name,
+                        run_id=str(state.get("run_id") or ""),
+                        state=state,
+                    )
+                )
+                findings.extend(
                     _pc.spec_plan_conformance(
                         target_tree,
                         item["id6"],
@@ -35368,6 +35378,16 @@ def execute_item_core(
                         item["id6"],
                         baseline_plan_ids,
                         host=host_name,
+                    )
+                )
+                findings.extend(
+                    _pc.backlog_graduate_set(
+                        target_tree,
+                        item["id6"],
+                        new_produced_paths,
+                        host=host_name,
+                        run_id=str(state.get("run_id") or ""),
+                        state=state,
                     )
                 )
                 findings.extend(

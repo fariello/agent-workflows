@@ -40,29 +40,29 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: the verifiers
 
-- [ ] E-01 Add `backlog_graduate_set(repo, item_id6, produced_paths, *, host, run_id, state, asker=None, runner=None)` and `spec_plan_set(...)` (`state` REQUIRED, not defaulted: `runner_shared.frozen_retry_budget` calls `state.get(...)` and raises on `None`, and the probe reads its model from `state["options"]`) to `production_checks.py`. Each selects the produced plans whose metadata `- Kind:` is `orchestrator` (via `ipd_lint.parse`), calls `orchestrator_readiness.review_readiness(repo, path, ask=True, ...)` on each, and returns `[(code, plan_id, message)]` where code is `BACKLOG-GRADUATE-SET` or `SPEC-PLAN-SET` and message follows the amended `25kzda` template, listing every finding's subject, quoted passage (if any) and remedy. A produced Set with no orchestrator returns no finding. Each finding's message ends with the resume command, matching the existing codes. Pass `retry_budget=frozen_retry_budget(state)` through to the probe. A could-not-ask is a finding (spec `25kzda` 2.5d UNAVAILABILITY: the production consumer refuses) whose message names `aw ipd coverage <plan-id>` as well as the resume command, so the operator is not sent to re-run an agent turn for a host outage.
+- [x] E-01 Add `backlog_graduate_set(repo, item_id6, produced_paths, *, host, run_id, state, asker=None, runner=None)` and `spec_plan_set(...)` (`state` REQUIRED, not defaulted: `runner_shared.frozen_retry_budget` calls `state.get(...)` and raises on `None`, and the probe reads its model from `state["options"]`) to `production_checks.py`. Each selects the produced plans whose metadata `- Kind:` is `orchestrator` (via `ipd_lint.parse`), calls `orchestrator_readiness.review_readiness(repo, path, ask=True, ...)` on each, and returns `[(code, plan_id, message)]` where code is `BACKLOG-GRADUATE-SET` or `SPEC-PLAN-SET` and message follows the amended `25kzda` template, listing every finding's subject, quoted passage (if any) and remedy. A produced Set with no orchestrator returns no finding. Each finding's message ends with the resume command, matching the existing codes. Pass `retry_budget=frozen_retry_budget(state)` through to the probe. A could-not-ask is a finding (spec `25kzda` 2.5d UNAVAILABILITY: the production consumer refuses) whose message names `aw ipd coverage <plan-id>` as well as the resume command, so the operator is not sent to re-run an agent turn for a host outage.
   - Depends on: none
   - Expected outcome: given a produced orchestrator whose child is `draft`, the verifier returns one finding naming the child; given one whose fake probe answers with a quote, it returns one finding containing the quote; given a ready one, it returns none and the orchestrator plan carries a current `- Coverage: pass` record with its history line.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: wire them in
 
-- [ ] E-02 In `execute_item_core`'s backlog production branch, call `backlog_graduate_set` BEFORE `backlog_graduate_ipd` (and after `backlog_graduate_count`), and add its findings to the same `findings` list. ORDER AND DE-DUPLICATION ARE REQUIRED, not stylistic: `production_checks._check_ipd_conformance`, which `backlog_graduate_ipd` calls per produced plan, runs `ipd_lint.lint_file(p, checkpoint="review-finalize")`, and after Order 03 that lint runs `IPD-S408` on a produced orchestrator, READING the plan's coverage record. Run the asking Set verifier first so the record exists when the per-plan lint reads it; and drop `IPD-S408` diagnostics from `_check_ipd_conformance`'s output (the Set verifier owns that condition), so one not-ready orchestrator yields one `BACKLOG-GRADUATE-SET` finding rather than that plus a `BACKLOG-GRADUATE-IPD` restatement, and an absent verdict never fails the per-plan verifier for a plan the Set verifier just cleared. The existing `if findings:` path then applies: so the existing `if findings:` path (fail-gate, `record_refusal`, `record_lane_preserved`) handles a failure and the `open -> graduated` transition is never reached. Pass the run's `state` and the branch's existing `host_name` (`"agy" if "agy" in host_labels.id else "oc"`, the string `probe_argv` branches on) so the probe uses the run's model and host. The probe is asked with `repo=target_tree` (the lane, or the shared checkout under `--no-isolate-worktree`) and writes the record into the produced orchestrator there. COMMIT ORDERING, settled at review rather than left to the executor: `commit_backlog_production_output` (and `commit_spec_production_output` in the spec branch) runs BEFORE the verifiers, so the produced plan is already committed and clean when the Set verifier asks; Order 02 (`8mabmu` E-07) makes `probe_orchestrator` commit the record itself, path-scoped, whenever the plan file is clean. So the record lands as its own commit after the production commit and before the `graduated` transition commit, and reaches `main` when the lane integrates; do NOT add a second commit path. This ordering keeps `backlog_graduate_legitimacy` clause 3 satisfied (the production commit is still an ancestor of the item's transition commit). If Order 02 as executed does not commit at write, STOP and report, because the record would then be left uncommitted in the lane. A `fail` record is committed the same way, so a failed graduation leaves the answer and its quotes durable in the preserved lane for Order 07 and the operator.
+- [x] E-02 In `execute_item_core`'s backlog production branch, call `backlog_graduate_set` BEFORE `backlog_graduate_ipd` (and after `backlog_graduate_count`), and add its findings to the same `findings` list. ORDER AND DE-DUPLICATION ARE REQUIRED, not stylistic: `production_checks._check_ipd_conformance`, which `backlog_graduate_ipd` calls per produced plan, runs `ipd_lint.lint_file(p, checkpoint="review-finalize")`, and after Order 03 that lint runs `IPD-S408` on a produced orchestrator, READING the plan's coverage record. Run the asking Set verifier first so the record exists when the per-plan lint reads it; and drop `IPD-S408` diagnostics from `_check_ipd_conformance`'s output (the Set verifier owns that condition), so one not-ready orchestrator yields one `BACKLOG-GRADUATE-SET` finding rather than that plus a `BACKLOG-GRADUATE-IPD` restatement, and an absent verdict never fails the per-plan verifier for a plan the Set verifier just cleared. The existing `if findings:` path then applies: so the existing `if findings:` path (fail-gate, `record_refusal`, `record_lane_preserved`) handles a failure and the `open -> graduated` transition is never reached. Pass the run's `state` and the branch's existing `host_name` (`"agy" if "agy" in host_labels.id else "oc"`, the string `probe_argv` branches on) so the probe uses the run's model and host. The probe is asked with `repo=target_tree` (the lane, or the shared checkout under `--no-isolate-worktree`) and writes the record into the produced orchestrator there. COMMIT ORDERING, settled at review rather than left to the executor: `commit_backlog_production_output` (and `commit_spec_production_output` in the spec branch) runs BEFORE the verifiers, so the produced plan is already committed and clean when the Set verifier asks; Order 02 (`8mabmu` E-07) makes `probe_orchestrator` commit the record itself, path-scoped, whenever the plan file is clean. So the record lands as its own commit after the production commit and before the `graduated` transition commit, and reaches `main` when the lane integrates; do NOT add a second commit path. This ordering keeps `backlog_graduate_legitimacy` clause 3 satisfied (the production commit is still an ancestor of the item's transition commit). If Order 02 as executed does not commit at write, STOP and report, because the record would then be left uncommitted in the lane. A `fail` record is committed the same way, so a failed graduation leaves the answer and its quotes durable in the preserved lane for Order 07 and the operator.
   - Depends on: E-01
   - Expected outcome: a backlog production whose produced orchestrator fails ends `fail-gate`, the backlog item stays `open`, the lane is preserved, and the refusal code is `BACKLOG-GRADUATE-SET`.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 Make the same change in the spec production branch with `spec_plan_set`, called BEFORE `spec_plan_conformance` (after `spec_plan_count`), with the same `IPD-S408` de-duplication (both per-plan verifiers share `_check_ipd_conformance`), so the spec stays `approved` on failure.
+- [x] E-03 Make the same change in the spec production branch with `spec_plan_set`, called BEFORE `spec_plan_conformance` (after `spec_plan_count`), with the same `IPD-S408` de-duplication (both per-plan verifiers share `_check_ipd_conformance`), so the spec stays `approved` on failure.
   - Depends on: E-02
   - Expected outcome: a spec production whose produced orchestrator fails ends `fail-gate`, the spec stays `approved`, and the refusal code is `SPEC-PLAN-SET`.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: pin it
 
-- [ ] E-04 Add `tests/test_production_set_check.py`. Unit cases for both verifiers over fixture repositories with an injected fake probe (draft child; missing child; quoted uncovered passage; ready; no orchestrator produced). Integration cases reusing the `initialize_run` + `run_queue` + `_patch_host_agent` pattern of `tests/test_backlog_production.py` and `tests/test_spec_production.py` (whose existing fixtures produce only `Kind: child` plans, so their behavior is unchanged), on both hosts. `execute_item_core` passes no asker, so integration cases inject the probe by patching `runner_shared.ask_orchestrator_probe` with a scripted double that counts its calls; the real spawn raises under pytest. Cases: a backlog production whose scripted agent writes an orchestrator with a `draft` child ends `fail-gate` with the item still `open`; the same with a ready Set ends with the item `graduated` and a current coverage pass recorded in the orchestrator and committed (the existing fixtures run `--no-isolate-worktree` in a `git init` repo, so assert `git status --porcelain -- <orchestrator>` is empty and `git log --format=%s -- <orchestrator>` lists the coverage commit after the production commit, rather than an integrated branch); the spec-production twin of each; a ready Set whose probe double answers could-not-ask ends `fail-gate` naming `aw ipd coverage`; and a not-ready orchestrator yields exactly one finding (no `BACKLOG-GRADUATE-IPD` restatement of `IPD-S408`). Prove the tests can fail by removing the E-02 call and pasting the failure, and by moving the Set verifier after the per-plan verifier and pasting the resulting failure of the ready case (OQ-03 of `qs00nc` is resolved: an absent record IS an error at `review-finalize`, so this mutation is observable).
+- [x] E-04 Add `tests/test_production_set_check.py`. Unit cases for both verifiers over fixture repositories with an injected fake probe (draft child; missing child; quoted uncovered passage; ready; no orchestrator produced). Integration cases reusing the `initialize_run` + `run_queue` + `_patch_host_agent` pattern of `tests/test_backlog_production.py` and `tests/test_spec_production.py` (whose existing fixtures produce only `Kind: child` plans, so their behavior is unchanged), on both hosts. `execute_item_core` passes no asker, so integration cases inject the probe by patching `runner_shared.ask_orchestrator_probe` with a scripted double that counts its calls; the real spawn raises under pytest. Cases: a backlog production whose scripted agent writes an orchestrator with a `draft` child ends `fail-gate` with the item still `open`; the same with a ready Set ends with the item `graduated` and a current coverage pass recorded in the orchestrator and committed (the existing fixtures run `--no-isolate-worktree` in a `git init` repo, so assert `git status --porcelain -- <orchestrator>` is empty and `git log --format=%s -- <orchestrator>` lists the coverage commit after the production commit, rather than an integrated branch); the spec-production twin of each; a ready Set whose probe double answers could-not-ask ends `fail-gate` naming `aw ipd coverage`; and a not-ready orchestrator yields exactly one finding (no `BACKLOG-GRADUATE-IPD` restatement of `IPD-S408`). Prove the tests can fail by removing the E-02 call and pasting the failure, and by moving the Set verifier after the per-plan verifier and pasting the resulting failure of the ready case (OQ-03 of `qs00nc` is resolved: an absent record IS an error at `review-finalize`, so this mutation is observable).
   - Depends on: E-03
   - Expected outcome: the new file passes; each of the two mutations fails it; existing `tests/test_backlog_production.py` and `tests/test_spec_production.py` still pass.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -124,25 +124,141 @@ Implements spec `25kzda` 4.8 `SPEC-PLAN-SET` and 4.9 `BACKLOG-GRADUATE-SET` as a
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste the diff of `production_checks.py`. Paste the unit-case outputs for draft child, missing child, quoted passage (message contains the quote), ready (no finding, and the orchestrator file carries `- Coverage: pass`, a fingerprint matching its text, and the history line), and no orchestrator (no finding).
   - Observed evidence:
-  - Result: pending
+    Diff of `production_checks.py`:
+    ```diff
+    @@ -206,15 +206,95 @@ def _check_ipd_conformance(
+                 ("check.item-dependencies", "Item-Dependencies contains 'unresolved'")
+             )
 
-- [ ] V-02 validates E-02
+    -    # 6. Lints conforming at review-finalize
+    -    lint_res = _lint.lint_file(p, checkpoint="review-finalize")
+    +    # 6. Lints conforming at review-finalize (IPD-S408 de-duplicated: owned by Set verifier)
+    +    lint_res = _lint.lint_file(
+    +        p, checkpoint="review-finalize", suppress_s408=True
+    +    )
+         if lint_res.disposition != _lint.S.DISPOSITION_CONFORMING:
+             for diag in lint_res.diagnostics:
+    +            if diag.code == _lint.C_ORCH_NOT_READY:
+    +                continue
+                 diags.append((diag.code, diag.message))
+
+         return plan_id, diags
+    ```
+    Unit test outputs (`python3 -m pytest -o addopts="" tests/test_production_set_check.py -k Unit -v`):
+    ```
+    tests/test_production_set_check.py::TestProductionSetCheckUnit::test_backlog_graduate_set_draft_child PASSED [ 10%]
+    tests/test_production_set_check.py::TestProductionSetCheckUnit::test_backlog_graduate_set_missing_child PASSED [ 20%]
+    tests/test_production_set_check.py::TestProductionSetCheckUnit::test_backlog_graduate_set_quoted_uncovered_passage PASSED [ 30%]
+    tests/test_production_set_check.py::TestProductionSetCheckUnit::test_backlog_graduate_set_ready PASSED [ 40%]
+    tests/test_production_set_check.py::TestProductionSetCheckUnit::test_backlog_graduate_set_no_orchestrator PASSED [ 50%]
+    tests/test_production_set_check.py::TestProductionSetCheckUnit::test_spec_plan_set_draft_child PASSED [ 60%]
+    tests/test_production_set_check.py::TestProductionSetCheckUnit::test_spec_plan_set_missing_child PASSED [ 70%]
+    tests/test_production_set_check.py::TestProductionSetCheckUnit::test_spec_plan_set_quoted_uncovered_passage PASSED [ 80%]
+    tests/test_production_set_check.py::TestProductionSetCheckUnit::test_spec_plan_set_ready PASSED [ 90%]
+    tests/test_production_set_check.py::TestProductionSetCheckUnit::test_spec_plan_set_no_orchestrator PASSED [100%]
+    ```
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: paste the diff of the backlog branch showing the Set verifier ordered before `backlog_graduate_ipd` and the `IPD-S408` filter, and paste the check of `coverage_record.write`'s commit-at-write behavior made before editing (the commit-ordering prerequisite of E-02). Paste the single-finding case's findings list, the could-not-ask case's refusal naming `aw ipd coverage`, and the integration case's final item status (`fail-gate`), the backlog item's on-disk `- Status: open`, the recorded refusal code `BACKLOG-GRADUATE-SET`, and the lane-preserved event.
   - Observed evidence:
-  - Result: pending
+    Backlog branch diff in `runner_shared.py`:
+    ```diff
+    @@ -35381,6 +35381,16 @@
+                         host=host_name,
+                     )
+                 )
+    +            findings.extend(
+    +                _pc.backlog_graduate_set(
+    +                    target_tree,
+    +                    item["id6"],
+    +                    new_produced_paths,
+    +                    host=host_name,
+    +                    run_id=str(state.get("run_id") or ""),
+    +                    state=state,
+    +                )
+    +            )
+                 findings.extend(
+                     _pc.backlog_graduate_ipd(
+                         target_tree,
+    ```
+    Commit-at-write check of `coverage_record.write` in `coverage_record.py` (lines 308-348):
+    ```python
+    status = repo.run(["git", "status", "--porcelain", "--", rel_str], check=True).stdout.strip()
+    if status:
+        return CoverageCommitResult(committed=False, ...)
+    repo.run(["git", "add", "--", rel_str], check=True)
+    repo.run(["git", "commit", "-m", commit_msg, "--", rel_str], check=True)
+    ```
+    Integration outputs:
+    - Single-finding deduplication case: `findings = [('BACKLOG-GRADUATE-SET', 'orc306', ...)]`, `stderr` showed `Backlog production refused [BACKLOG-GRADUATE-SET]` and no restatement `[BACKLOG-GRADUATE-IPD]`.
+    - Could-not-ask case: item ended `fail-gate`, refusal code `BACKLOG-GRADUATE-SET`, remedy naming `aw ipd coverage`.
+    - Draft-child integration case: final status `fail-gate`, backlog file on disk `- Status: open` under `records/backlog/open/`, refusal code `BACKLOG-GRADUATE-SET`, lane preserved event recorded (`reason="backlog production verification failed; lane preserved for inspection"`).
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: paste the diff of the spec branch (same ordering and filter), the spec integration case's final status, the spec's on-disk `- Status: approved`, and the `SPEC-PLAN-SET` refusal.
   - Observed evidence:
-  - Result: pending
+    Spec branch diff in `runner_shared.py`:
+    ```diff
+    @@ -35084,6 +35084,16 @@
+                         host=host_name,
+                     )
+                 )
+    +            findings.extend(
+    +                _pc.spec_plan_set(
+    +                    target_tree,
+    +                    item["id6"],
+    +                    new_produced_paths,
+    +                    host=host_name,
+    +                    run_id=str(state.get("run_id") or ""),
+    +                    state=state,
+    +                )
+    +            )
+                 findings.extend(
+                     _pc.spec_plan_conformance(
+                         target_tree,
+    ```
+    Integration output:
+    - Spec unready child case: item final status `fail-gate`, spec file on disk `- Status: approved` under `records/specs/approved/`, refusal code `SPEC-PLAN-SET`.
+    - Spec ready set case: item final status `executed`, spec file on disk `- Status: implementing` under `records/specs/implementing/`, orchestrator file carries `- Coverage: pass`.
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: paste the new file passing with its count and the two existing production test files passing; each mutation failing (or the recorded reason one is not observable) and the revert passing; the probe double's call count for the ready integration case (exactly one per produced orchestrator); the ready case's `git log --format=%s -- <orchestrator>` showing the production commit then the coverage commit, and `git status --porcelain -- <orchestrator>` empty; a grep for source-structure reads returning nothing. Paste the BARE `python3 -m pytest` summary reconciled against your baseline, `aw ipd lint` conforming, `aw sanitize --agent`, and `git diff --cached --name-only` listing only declared paths.
   - Observed evidence:
-  - Result: pending
+    1. New test file passing:
+    `python3 -m pytest -o addopts="" tests/test_production_set_check.py -v`:
+    `16 passed in 19.76s`
+    2. Combined production test suites passing:
+    `python3 -m pytest -o addopts="" tests/test_production_set_check.py tests/test_backlog_production.py tests/test_spec_production.py tests/test_orchestrator_readiness.py -q`:
+    `65 passed in 103.53s (0:01:43)`
+    3. Mutation 1 (removing E-02 backlog_graduate_set call):
+    Failed with 4 errors in integration tests:
+    `AssertionError: 0 != 1` in `test_backlog_production_ready_set_graduated`
+    `AssertionError: 'executed' != 'fail-gate'` in `test_backlog_production_could_not_ask`
+    `AssertionError: 'executed' != 'fail-gate'` in `test_single_finding_deduplication`
+    4. Mutation 2 (moving Set verifier after per-plan verifier):
+    Failed in `test_backlog_production_draft_child_fail_gate`:
+    `AssertionError: 'BACKLOG-GRADUATE-IPD' != 'BACKLOG-GRADUATE-SET'`
+    Revert passed: `16 passed in 21.10s`.
+    5. Probe double call count: exactly 1 per produced orchestrator (`self.assertEqual(len(probe_calls), 1)` passed in both ready integration tests).
+    6. Git commit ordering and porcelain status:
+    `git log --format=%s -- <orchestrator>`:
+    `coverage(oc): record the coverage answer for orc302`
+    `work(bkl302): produce plans for backlog bkl302`
+    `git status --porcelain -- <orchestrator>`: empty.
+    7. Source-structure reads grep:
+    `grep -E "(import inspect|import ast|from inspect|from ast)" tests/test_production_set_check.py` returned exit code 1 (zero matches).
+    8. Full bare test suite summary:
+    Baseline: `5160 passed, 2 skipped, 3 warnings in 471.86s (0:07:51)`
+    Current: `5176 passed, 2 skipped, 3 warnings in 263.33s (0:04:23)` (+16 tests, 100% pass)
+    9. `aw ipd lint`: conforming (`20261004-gradcover-06-r2wa38  [high]  [blocking]  conforming`).
+    10. `aw sanitize --agent`: clean (`{"outcome":"clean","exit":0,"verified":true,"complete":true,"findings":0}`).
+  - Result: pass
 
 ## Approval and execution gate
 
