@@ -6,7 +6,7 @@
 - Scope: IN: in `check_plan_spec_link_missing`, treat two declarations as an answer: (a) `- From-Spec:` set to an explicit "no spec source" sentinel (`none` or `-`), and (b) the plan's `- Scope-Paths:` containing the cited spec's own file path (the plan edits that spec, which `AGENTS.md` requires to be declared there); keep `unresolved` and a missing field as "not answered"; update the shipped test that pins `-` as firing, and add tests. OUT: the meaning of `-` in `aw ipd set --from-spec -` (it still REMOVES the line, so it stays "not answered"; only a written `- From-Spec: -` value counts); `source_link_is_absent` and every other caller of it (production counting, gate handoff and dangling checks keep treating `none` as no link); the rule's severity.
 - Scope-Paths: agent_workflows/check_engine.py, tests/test_check_engine_from_spec_missing.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - From-Spec: none
 - Work-Kind: bug
@@ -17,9 +17,9 @@
 - Highest E allocated: 03
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: jm27py
-- Approval: 2026-10-06, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-06 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: jm27py verified (set gradcover, attempt 1).
 - 2026-10-06 approved (aw set): status set to approved
 - 2026-10-04 reviewed (aw set): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-001..PR-005
 
