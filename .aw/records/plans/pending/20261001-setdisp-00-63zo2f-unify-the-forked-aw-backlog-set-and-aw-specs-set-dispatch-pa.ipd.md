@@ -7,6 +7,9 @@
 - Scope-Paths: .aw/records/plans/pending/20261001-setdisp-00-63zo2f-unify-the-forked-aw-backlog-set-and-aw-specs-set-dispatch-pa.ipd.md
 - Item-Dependencies: none
 - Status: to-review
+- Coverage: fail
+- Coverage-Fingerprint: 9f031836a1c2a592884ef82c5f36abeb07ece1eedabb9df56b7a886597cc3275
+- Coverage-Checked: 2026-10-06 by uri/its_direct/pt3-claude-opus-5.5-1m-us
 - Work-Kind: chore
 - Priority: medium
 - From-Backlog: fcnz1r
@@ -19,6 +22,7 @@
 
 ## Workflow history
 
+- 2026-10-06 coverage fail (aw oc run): fingerprint 9f031836a1c2, model uri/its_direct/pt3-claude-opus-5.5-1m-us
 - 2026-10-01 to-review (opencode/its_direct/pt3-claude-opus-5-1m-us): authored from backlog `fcnz1r`. Spec `wy9aru` was authored alongside this Set to supply the canonicity rulings `fcnz1r` says are needed before any code moves; two previously-unknown gate bypasses were MEASURED while authoring and filed as release-gated carriers (`h4fiwa`, `fv4b6s`), plus one dead verb (`68sur3`). This orchestrator carries ONLY the child-completion checklist; every deliverable belongs to a child.
 - 2026-10-01 draft (opencode/its_driver/pt3-claude-opus-5-1m-us): created.
 
@@ -156,6 +160,20 @@ the child claimed:
 - Status: resolved
 - Owner: author
 - Resolution or deferral rationale: RESOLVED by spec `wy9aru` Section 4.1 in favor of `status_set` as the surviving implementation, with `backlog.run_set` and `specs.run_set` reduced to thin adapters that keep their names and signatures. Three reasons, in order of weight: it is already the shared engine (four reachable verbs plus `aw finish` reach it, against one each for the others), it already holds the capabilities the flag paths lack (multi-selector batch, setid resolution, `--force`, structured output), and `2lcqno`'s setid semantics plus `z7nbn1`'s one-action-table thesis are both already implemented there. Extracting a new module would mean rewriting four working callers to gain nothing the delegation does not already give.
+
+## Coverage findings
+
+- "- The bare suite `python3 -m pytest` after the final child, with the `N passed` line pasted, and its failure SET compared BY NAME against the baseline re-derived before the Set began. Counts alone are insufficient: `tests/test_backlog.py::BacklogPreservationTests::test_release_exempt_setter_roundtrip_and_parity` is red at base for part of every day on the local-versus-UTC clock skew, so an unchanged count can hide a real change and a changed count can mean only that the clock moved."
+- "- `AW_NO_REEXEC=1 aw check release-gates`, since the Set closes at least two release-gated carriers."
+- "- For each child, every `V-*` carries pasted evidence rather than an assertion of success. A `V-*` whose "Observed evidence" is empty or paraphrased fails this check even if the child is marked executed."
+- "- The cross-IPD checks in "Cross-IPD validation" above, each answered explicitly."
+- "- NO AXIS IS FIXED TWICE, AND NO AXIS IS FIXED BY NOBODY. Check the eight expected-difference assertions child 02 records against the flips children 03, 04 and 05 claim: each must be flipped by exactly one child, and any assertion still unflipped at the end must correspond to a Section 7 axis with a live carrier. An assertion flipped by two children means one of them widened past its reviewed scope."
+- "- NO CARRIER IS CLOSED ON A PARTIAL FIX. Children 03 and 05 both close backlog items. For each close, confirm the item's OWN scope is satisfied, not merely that this Set touched the area: the clock items name five local-clock call sites in `backlog.py` and the Set removes one, so closing one of them would assert a repository-wide fix that did not happen (`AGENTS.md` close-legitimacy rule)."
+- "- THE THREE RETROSPECTIVE PARITY FILES PASS AFTER EVERY CHILD, not only at the end. Each exists because an asymmetry on that axis caused a release-blocking defect, so they are the Set's regression surface: a failure means a migration reintroduced one of the three defects the Set exists to prevent."
+- "- NO CHILD READS PRODUCTION SOURCE TO PROVE UNIFICATION. Confirm no test added by any child uses `inspect`, `ast`, regex or substring search over production source, counts callers, or asserts docstring text (`AGENTS.md`, GUIDING_PRINCIPLES P16, `wy9aru` S1). "There is now one implementation" is the single most tempting claim to pin with `grep`, and a code-structure pin is forbidden outright."
+- "- `tests/test_set_dispatch_parity.py` passes identically under the machine's local timezone and under `TZ=UTC`, so no cross-spelling assertion carries a clock dependency."
+- "- The bare suite's failure SET is unchanged except for tests the children explicitly named in advance."
+- "- Every axis spec `wy9aru` Section 7 assigns elsewhere remains OPEN under its own carrier, except where a child's measured evidence proves its item COMPLETE against the item's own scope."
 
 ## Validation and cross-check (verify before reporting the Set complete)
 
