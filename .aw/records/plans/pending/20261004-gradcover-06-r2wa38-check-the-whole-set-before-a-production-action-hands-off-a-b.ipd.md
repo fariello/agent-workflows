@@ -6,7 +6,7 @@
 - Scope: IN: two new verifiers in `production_checks.py`, `backlog_graduate_set` and `spec_plan_set`, each calling `orchestrator_readiness.review_readiness(..., ask=True)` for every newly produced plan with `- Kind: orchestrator` and returning one finding per not-ready condition with the code and message template of the amended spec; calling them in both production branches of `execute_item_core` after the existing per-plan verifiers and before the source transition; on success, the verdict is already recorded by `review_readiness`, so the produced Set enters the next run with a cached pass; on failure, the existing finding path applies unchanged (fail-gate, refusal recorded, lane preserved, source left `open`/`approved`). OUT: the correction turn (Order 07); continuing an unfinished handoff (Order 08); the prompt text (Order 11); the readiness function (Order 03).
 - Scope-Paths: agent_workflows/production_checks.py, agent_workflows/runner_shared.py, tests/test_production_set_check.py
 - Item-Dependencies: executed:qs00nc
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - From-Spec: none
 - Work-Kind: bug
@@ -17,8 +17,10 @@
 - Highest E allocated: 04
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: r2wa38
+- Approval: 2026-10-06, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-06 approved (aw set): status set to approved
 - 2026-10-06 reviewed (aw set): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-006..PR-009 (round 2, all fixed)
 - 2026-10-06 /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-006 to PR-009 (round 2). Fixed: commit ordering settled from code (production commit precedes the verifiers; Order 02 commits the record at write; no second commit path; stop condition) (PR-006); `state` made required since `frozen_retry_budget(None)` raises (PR-007); integration evidence rewritten for the `--no-isolate-worktree` fixtures, which have no integrated branch (PR-008); mutation count, test list (PR-009).
 - 2026-10-05 to-review (aw set): returned to review after revision: maintainer ruling 2026-10-04 stores the coverage answer in the plan (25kzda 2.5e), resolving blocking OQ-03; every affected plan was rewritten to match

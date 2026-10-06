@@ -6,7 +6,7 @@
 - Scope: IN: in `check_plan_spec_link_missing`, treat two declarations as an answer: (a) `- From-Spec:` set to an explicit "no spec source" sentinel (`none` or `-`), and (b) the plan's `- Scope-Paths:` containing the cited spec's own file path (the plan edits that spec, which `AGENTS.md` requires to be declared there); keep `unresolved` and a missing field as "not answered"; update the shipped test that pins `-` as firing, and add tests. OUT: the meaning of `-` in `aw ipd set --from-spec -` (it still REMOVES the line, so it stays "not answered"; only a written `- From-Spec: -` value counts); `source_link_is_absent` and every other caller of it (production counting, gate handoff and dangling checks keep treating `none` as no link); the rule's severity.
 - Scope-Paths: agent_workflows/check_engine.py, tests/test_check_engine_from_spec_missing.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - From-Spec: none
 - Work-Kind: bug
@@ -17,8 +17,10 @@
 - Highest E allocated: 03
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: jm27py
+- Approval: 2026-10-06, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-06 approved (aw set): status set to approved
 - 2026-10-04 reviewed (aw set): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-001..PR-005
 
 - 2026-10-04 /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001 to PR-005. Spec-edit exemption made literal-file only (PR-001); remedy text names all three answers and the hand-edit form of `none` (PR-002); `hm1h3l` given `- From-Spec: none` so the Set is actually silenced (PR-003); quote/case normalization and extra tests (PR-004); gate honesty rule and F-03 context (PR-005).

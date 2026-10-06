@@ -6,7 +6,7 @@
 - Scope: IN: change `backlog_graduate_count` and `spec_plan_count` to accept existing active plans that carry the same source link as this action's continued output, refusing only a second Set (active plans for the same source spanning more than one `- Set:`) or a new plan linking a different source; give the production prompts a "continue this handoff" section, emitted only when such plans exist, listing each existing plan's path, status and the shared readiness check's findings, and instructing the agent to fix those plans rather than write a parallel Set; include existing plans in the Set-level verification (Order 06's verifier receives existing plus new paths). OUT: the readiness check (Order 03); the correction loop (Order 07); retiring or superseding existing plans (a human decision); recovering work left only in a preserved lane from an earlier run (the lane is already preserved and nameable by `aw runs`; integrating it is a separate operator action).
 - Scope-Paths: agent_workflows/production_checks.py, agent_workflows/runner_shared.py, tests/test_production_resume_handoff.py, tests/test_backlog_production.py, tests/test_spec_production.py
 - Item-Dependencies: executed:nnsa2o, executed:26m1nb
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - From-Spec: none
 - Work-Kind: bug
@@ -17,8 +17,10 @@
 - Highest E allocated: 05
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: 24qw39
+- Approval: 2026-10-06, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-06 approved (aw set): status set to approved
 - 2026-10-06 reviewed (aw set): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-001..PR-008 (all fixed)
 
 - 2026-10-06 /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001 to PR-008. Fixed: new E-05 commits the agent's edits to EXISTING handoff plans, which the production commit helpers classify out of scope today (measured), so a resumed handoff's fixes would never be committed (PR-001); the parallel-Set rule fails only a Set this action INTRODUCES, since four approved specs already have active plans in 2 to 7 Sets (measured) (PR-002); existing plans pass the per-plan verifier at `to-review` or later rather than exactly `to-review` (59 linked active plans are `approved`, measured) (PR-003); the continue section names the backward-move and children-first rules and forbids deleting or moving existing plans, `26m1nb` added to dependencies (PR-004); `--graduated-to` and the transition message read existing plus new plans (PR-005); prompt reads the lane tree; Set-less plan grouping (PR-006); the two pinned duplicate-rule tests named and declared (PR-007); gate contract (PR-008).

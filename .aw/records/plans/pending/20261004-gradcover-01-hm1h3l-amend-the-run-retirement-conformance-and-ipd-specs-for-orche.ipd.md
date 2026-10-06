@@ -7,7 +7,7 @@
 - Scope-Paths: .aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md, .aw/records/specs/approved/20260906-77tr3o-01-77tr3o-runner-orchestrator-retirement.spec.md, .aw/records/specs/approved/20260919-r07vma-01-r07vma-orchestrator-conformance-parser-and-repair-loop.spec.md, .aw/records/specs/implemented/20260802-1904-01-ipd-structure-and-linting.spec.md, .aw/records/specs/implemented/20260726-1340-01-ipd-spec.spec.md
 - Item-Dependencies: none
 - From-Spec: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: high
@@ -17,8 +17,10 @@
 - Highest E allocated: 06
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: hm1h3l
+- Approval: 2026-10-06, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-06 approved (aw set): status set to approved
 - 2026-10-06 re-scope (opencode its_direct/pt3-claude-opus-5.5-1m-us): from the /plan-review of `5etev3` (finding PR-007): the retirement-time re-check (A.2) refuses on condition 4 (coverage) only, because conditions 1 to 3 are enforced at retirement by `evaluate_set_retirement` and the `IPD-S407` gate, and condition 2's ready list excludes `superseded`, which retirement accepts (backlog `31y86f`). When inserting A.6, the executor should make the CONSUMERS/UNAVAILABILITY sentences say so ("the retirement-time re-check, which decides on condition 4 only"). Wording clarification; the review verdict of this plan is unchanged.
 - 2026-10-06 reviewed (aw set): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-008..PR-010 (round 2, all fixed)
 - 2026-10-06 /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-008 to PR-010 (round 2). Fixed: 2.5d condition 2 now exempts executed children from the author lint, matching `qs00nc` F-06/E-01 (PR-008); D.1's author-advisory sentence moved from rule 20 (`IPD-M112`, an error at every checkpoint) to rule 19 (`IPD-S408`), matching `qs00nc` E-04 (PR-009); 2.5e history-line fingerprint stated as the 12-hex prefix `8mabmu` E-03 writes (PR-010). Round-1 PR-006 confirmed fixed by the maintainer's 2026-10-04 ruling (OQ-03 resolved).

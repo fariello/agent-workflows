@@ -6,7 +6,7 @@
 - Scope: IN: add a "Orchestrator plans" section to both production prompts; change the three orchestrator skeleton placeholders to text that requires a named owner; amend the managed `AGENTS.md` block in `engine.py` (the "Acting on a backlog item" step (5) precondition, and the "ORCHESTRATOR COVERAGE GATE" paragraph's scope, quote and named-owner sentences) and regenerate this repository's `AGENTS.md` from it through the installer's merge path (`engine.merge_aw_block` with the repository manifest), not by hand, updating only the `AGENTS.md#aw:pointer` record in `.aw/system/managed-sections.json`; regenerate the byte-parity orchestrator template `.aw/system/workflows/assess/templates/orchestrator-ipd.md` from `build_skeleton`; add a review-readiness subsection to `.aw/system/workflows/plan-review/plan-review.md` and the two `plan-review-long` step files that already carry the `IPD-S407` subsection. OUT: any gate or check (Orders 03 to 10); the skeleton's child-plan sections; any other managed-block paragraph.
 - Scope-Paths: agent_workflows/runner_shared.py, agent_workflows/ipd_authoring.py, .aw/system/workflows/assess/templates/orchestrator-ipd.md, agent_workflows/engine.py, AGENTS.md, .aw/system/managed-sections.json, .aw/system/workflows/plan-review/plan-review.md, .aw/system/workflows/plan-review-long/02-review-and-revise.md, .aw/system/workflows/plan-review-long/03-resolve-and-finalize.md, tests/test_authoring_coverage_guidance.py
 - Item-Dependencies: executed:26m1nb, executed:5etev3, executed:r2wa38, executed:sbiv1j
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - From-Spec: none
 - Work-Kind: bug
@@ -17,8 +17,10 @@
 - Highest E allocated: 05
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: dalmk4
+- Approval: 2026-10-06, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-06 approved (aw set): status set to approved
 - 2026-10-06 reviewed (aw set): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-001..PR-008 (all fixed)
 
 - 2026-10-06 /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001 to PR-008. Fixed: `- Item-Dependencies:` gains `5etev3`, `r2wa38`, `sbiv1j`, whose gates the new text describes (PR-001); E-03 regeneration driven through `merge_aw_block` with the manifest after a self-heal pass, because the recorded `AGENTS.md#aw:pointer` hash is stale and an installer refresh would silently keep the old section (measured), manifest added to scope (PR-002); the byte-parity orchestrator template regenerated in E-02 and added to scope (PR-003); the three new orchestrator placeholders added to `_AUTHORING_PLACEHOLDERS`, since the stub predicate matches only listed markers and never a `TODO:` prefix (measured), with a kind-aware `Required tests` override specified (PR-004); E-01 item (4) states what `aw ipd coverage` does in a production turn (PR-005); E-03 named-child sentence credits an Order number as `8mabmu` does (PR-006); E-04 placement per file (PR-007); E-05 both layouts and a second mutation, targeted test list, gate honesty and scope fence (PR-008).

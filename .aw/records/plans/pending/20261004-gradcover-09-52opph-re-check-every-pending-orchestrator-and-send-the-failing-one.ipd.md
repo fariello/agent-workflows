@@ -6,7 +6,7 @@
 - Scope: RECORDS ONLY. IN: run `aw ipd coverage` over every pending orchestrator plan, which records the answer IN EACH PLAN (`25kzda` 2.5e), and commit those plan edits; for each NOT-ready orchestrator at `to-review` or `reviewed`, return it and every child of its Set that is still in `pending/` to `draft` with `aw ipd set draft <id6> --message "<findings>"` (children first is not required for a backward move; every backward move requires `--message`), and set its source backlog item from `graduated` back to `open` with `aw backlog set open <id6> --message "<orchestrator id6> not ready for review: <findings>"` (a source spec at `implementing` is set back to `approved` the same way, if any); for each NOT-ready orchestrator at `approved` or `auto-approved`, demote it the same way (loudly, recording `APPROVAL WITHDRAWN`), because an approved Set that is not ready is unsafe to execute; paste every verdict and every quoted finding into this plan's evidence. EXCLUDED FROM DEMOTION: every plan of Set `gradcover` itself (this plan's own Set, including orchestrator `1f4faf`); record its verdict, and if it is not ready STOP and report the quoted findings to the maintainer rather than demoting a Set that is mid-execution. OUT: fixing any orchestrator's content (done afterwards by re-running graduation on each reopened item, which Order 08 makes possible); any code change; touching any plan outside the affected Sets.
 - Scope-Paths: .aw/records/plans/pending/, .aw/records/backlog/open/, .aw/records/backlog/graduated/, .aw/records/specs/approved/, .aw/records/specs/implementing/
 - Item-Dependencies: executed:24qw39, executed:26m1nb
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - From-Spec: none
 - Work-Kind: bug
@@ -17,8 +17,10 @@
 - Highest E allocated: 04
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: 52opph
+- Approval: 2026-10-06, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-06 approved (aw set): status set to approved
 - 2026-10-06 reviewed (aw set): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-001..PR-008 (all fixed)
 - 2026-10-06 /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001 to PR-008. Fixed: E-01 drops the `--commit` flag `qs00nc` replaced with default-commit plus `--no-commit` (PR-001); a could-not-ask or unusable answer never demotes (PR-002); terminal-directory children (`not-executed`, `superseded`) are never set and a finding naming a child outside the `## Child IPDs` table stops for the maintainer, since `l4vw9o`'s Set holds a `not-executed` child not in its table (measured) (PR-003); a plan queued or held in a lane by an active run is not demoted (PR-004); one setter-plus-commit discipline including the backlog file's move across directories (PR-005); withdrawn approvals listed per child with the executed/demoted split for partly executed Sets (PR-006); spec-source facts re-measured (PR-007); gate contract (PR-008).
 - 2026-10-04 note (opencode its_direct/pt3-claude-opus-5.5-1m-us): wording updated for the maintainer ruling 2026-10-04: `aw ipd coverage` now writes each answer into the plan, and the sweep commits those edits.
