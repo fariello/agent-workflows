@@ -6,7 +6,7 @@
 - Scope: IN: restore the seven renderer-level gates as a DEFAULT-COLLECTED module over the same four reviewed `CommandResult` fixtures, recovered from `git show 19313eed7^:tests/test_cli_quality_gates.py` rather than rewritten; give all twelve `.golden` files a reader; resolve the drifted `check_findings.human.golden` by regenerating it with the full diff quoted as evidence; and reconcile `CONTRIBUTING.md` step 6 against the enforced set this Set actually lands, promise by promise. OUT: the structural matrix gate, the exemption-registry cleanup and the `command_surface.py` comment reconciliation (sibling `dq9bj9`); the expensive live scenario sweep and the vacuous human-banner parity gate over live leaves (carrier `2wowfy`); any change to `agent_workflows/renderers.py`, `agent_workflows/result_types.py`, `agent_workflows/agent_schema.py` or `agent_workflows/term.py`, since every gate here measures GREEN against today's code and a production edit would mean the gate was authored to its own convenience.
 - Scope-Paths: tests/test_cli_quality_gates.py, tests/fixtures/conformance_goldens/check_findings.human.golden, CONTRIBUTING.md
 - Item-Dependencies: executed:dq9bj9
-- Status: to-review
+- Status: draft
 - Work-Kind: chore
 - Priority: low
 - From-Backlog: h0tiaw
@@ -17,6 +17,7 @@
 - Id: 9i2hge
 
 ## Workflow history
+- 2026-10-06 draft (aw set): demoted to-review -> draft: returned to authoring by gradcover 52opph: uncovered obligation: No orphaned golden and no orphaned symbol, checked across both children together
 
 - 2026-10-01 to-review (opencode its_direct/pt3-claude-opus-5-1m-us): Authored from backlog `h0tiaw` as Order 02 of Set `h0tiaw` (orchestrator `l8wvv3`), which carries the Set-wide reasoning. Every claim was MEASURED in this lane at HEAD `b6792ad4a`. THIS CHILD IS WHERE THE ITEM'S FRAMING WAS MEASURED WRONG: it filed the concern as "latent coverage debt, not a live defect", and one golden has in fact already drifted, so a reviewed artifact is stale right now. The item's second open question ("whether the intended contract is still the one the helpers encode") is answered favorably for this half: all seven gates were driven in-process against today's code and ALL SEVEN PASS, in 0.790s total, so unlike sibling `dq9bj9` (which must widen a pin that went false) nothing here asserts an obsolete promise. The ONE exception is the drifted golden, and OQ-01 resolves its direction from evidence rather than defaulting: the live render is the correct one because the golden's suggested commands lack the `--apply` every mutating verb in this repository requires, so the golden is regenerated and not the code. `aw ipd lint --phase author` reports conforming.
 - 2026-10-01 draft (opencode its_direct/pt3-claude-opus-5-1m-us): created.
