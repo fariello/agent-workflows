@@ -7,6 +7,9 @@
 - Scope-Paths: .aw/records/plans/pending/20261001-h0tiaw-00-l8wvv3-decide-what-survives-of-the-dormant-conformance-harness-and.ipd.md
 - Item-Dependencies: none
 - Status: to-review
+- Coverage: fail
+- Coverage-Fingerprint: 51a73bc827677433d6efa1612d6e15d018d9f162943812c0c14f3c51b9c19d30
+- Coverage-Checked: 2026-10-06 by uri/its_direct/pt3-claude-opus-5.5-1m-us
 - Work-Kind: chore
 - Priority: low
 - From-Backlog: h0tiaw
@@ -18,6 +21,7 @@
 
 ## Workflow history
 
+- 2026-10-06 coverage fail (aw oc run): fingerprint 51a73bc82767, model uri/its_direct/pt3-claude-opus-5.5-1m-us
 - 2026-10-01 to-review (opencode its_direct/pt3-claude-opus-5-1m-us): Authored from backlog item `h0tiaw`, graduating it. The item asked two open questions and BOTH ARE ANSWERED HERE FROM REPOSITORY EVIDENCE rather than deferred. "Whether the driver was ever written (check git history)": YES, two of them, and `git show 19313eed7^:tests/test_cli_conformance_matrix.py` plus `git show 19313eed7^:tests/test_cli_quality_gates.py` recover both verbatim, so this is a restoration from a known-good source and not a reconstruction from a docstring. "Whether the intended contract is still the one the helpers encode, since reviving a stale harness can assert obsolete promises": PARTLY, and the measurement is what splits this Set in two. The item's own framing ("latent coverage debt, not a live defect") was MEASURED AND IS WRONG ON ONE POINT: `check_findings.human.golden` has already drifted from today's render, so a reviewed-bytes artifact is stale right now, which is a live (if low-impact) defect and not merely latent debt. Three of the harness's encoded promises are OBSOLETE and this Set deliberately does NOT revive them: the human-banner fact-parity gate is vacuous on all 16 live-safe leaves, `test_declared_absent_leaves_are_only_the_known_prompts_family` pins a set that has since grown from one member to two, and two `known_broken` exemptions cite an owner that is now `done`. The rest are sound and cheap. THIS ORCHESTRATOR CARRIES ONLY the child-completion checklist; every deliverable belongs to a child.
 - 2026-10-01 draft (opencode its_direct/pt3-claude-opus-5-1m-us): created.
 
@@ -281,6 +285,13 @@ and the third (the "dead surface with no live importer" note) obsolete.
   stale. Child 02 must nonetheless QUOTE the full diff as evidence rather than regenerating silently,
   because `AW_CONFORMANCE_UPDATE_GOLDENS=1` regeneration with no review is how a golden stops being a
   reviewed artifact, and that is a precondition for this gate being worth anything at all.
+
+## Coverage findings
+
+- "- NO ORPHANED GOLDEN AND NO ORPHANED SYMBOL, checked across both children together rather than within"
+- "- THE BARE SUITE DELTA IS EMPTY ACROSS THE SET, not merely per child. Each child runs `python3 -m pytest`"
+- "- THE TWO NEW MODULES DO NOT RE-ASSERT WHAT ALREADY PASSES ELSEWHERE. `test_command_surface_declarations.py`"
+- "- `aw ipd lint --phase pre-transition` conforming on this plan before the terminal move, and `aw check`"
 
 ## Validation and cross-check (verify before reporting the Set complete)
 
