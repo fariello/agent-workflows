@@ -36,53 +36,53 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: re-measure, because this plan's decision rests on facts and not on its prose
 
-- [ ] E-01 RE-MEASURE THE FOUR FACTS THAT DECIDE WHICH FIX IS CORRECT, BEFORE CHANGING ANY CODE. Each was measured at authoring and each can move. Record raw output and the command for: (a) THE FALLBACK-DECIDED POPULATION, the count of tracked plans with NO `- Readiness:` field for which `is_plan_review_approved` returns True, expected exactly 1 (`920qnm`, in `executed/`); (b) THE NARROW FIX'S FLIP SET, the subset of (a) whose NEWEST history record is not a review record per `is_review_history_entry` (the E-03 rule), expected 0 (re-measured at review: the one fallback-decided plan `920qnm` has a review record as its newest), which is the measurement that makes the narrow fix behavior-preserving on the real corpus; (c) THE LIVE PARTITION over NONTERMINAL plans by (`Status`, field present), expected 125 `to-review` all ABSENT, 8 `reviewed` all PRESENT, 35 `approved` all PRESENT; (d) THE NONTERMINAL FIELD-LESS-WITH-REVIEW count, expected 0.
+- [x] E-01 RE-MEASURE THE FOUR FACTS THAT DECIDE WHICH FIX IS CORRECT, BEFORE CHANGING ANY CODE. Each was measured at authoring and each can move. Record raw output and the command for: (a) THE FALLBACK-DECIDED POPULATION, the count of tracked plans with NO `- Readiness:` field for which `is_plan_review_approved` returns True, expected exactly 1 (`920qnm`, in `executed/`); (b) THE NARROW FIX'S FLIP SET, the subset of (a) whose NEWEST history record is not a review record per `is_review_history_entry` (the E-03 rule), expected 0 (re-measured at review: the one fallback-decided plan `920qnm` has a review record as its newest), which is the measurement that makes the narrow fix behavior-preserving on the real corpus; (c) THE LIVE PARTITION over NONTERMINAL plans by (`Status`, field present), expected 125 `to-review` all ABSENT, 8 `reviewed` all PRESENT, 35 `approved` all PRESENT; (d) THE NONTERMINAL FIELD-LESS-WITH-REVIEW count, expected 0.
 
   IF (b) IS NONZERO, that is the one result that changes this plan rather than a figure to update: the narrow fix would then withdraw clearance from a plan that currently has it, so STOP, record which plans and why, and leave the decision to the maintainer, because this plan's whole case is that the narrow fix costs nothing measured. IF (a) HAS GROWN to include a NONTERMINAL plan, record it prominently: that converts the exposure from future-only to live and is material to the maintainer's reading of this plan.
   - Depends on: none
   - Expected outcome: four raw measurements recorded with the command that produced each, each carrying an explicit "matches authoring figure" or "DRIFTED: was X, now Y" note; any stop condition hit is recorded rather than worked around.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 REPRODUCE BOTH PROBES AND ATTRIBUTE THEIR FAILURES AGAINST A BASELINE, because the choice between the blunt and the narrow fix rests entirely on this and an unattributed probe overstates the cost of one and understates the other. First record the BASELINE by running the five tests named in this plan's history on an UNMODIFIED tree. Then apply PROBE A (the blunt fix: make the fallback arm `return False`) and run the bare suite; then revert and apply PROBE B (the narrow fix as E-03 now specifies it: return False unless `is_review_history_entry(extract_newest_history_entry(text))`, ahead of the existing fallback; review PR-001 replaced the authoring probe's any-record `history_has_review_record` guard) and run at least `tests/test_readiness_absence_invariant.py` and `tests/test_oc_runipd.py::AllSelectorAndFullAutoTests`. Revert after each probe and prove the tree is clean with `git status --short`.
+- [x] E-02 REPRODUCE BOTH PROBES AND ATTRIBUTE THEIR FAILURES AGAINST A BASELINE, because the choice between the blunt and the narrow fix rests entirely on this and an unattributed probe overstates the cost of one and understates the other. First record the BASELINE by running the five tests named in this plan's history on an UNMODIFIED tree. Then apply PROBE A (the blunt fix: make the fallback arm `return False`) and run the bare suite; then revert and apply PROBE B (the narrow fix as E-03 now specifies it: return False unless `is_review_history_entry(extract_newest_history_entry(text))`, ahead of the existing fallback; review PR-001 replaced the authoring probe's any-record `history_has_review_record` guard) and run at least `tests/test_readiness_absence_invariant.py` and `tests/test_oc_runipd.py::AllSelectorAndFullAutoTests`. Revert after each probe and prove the tree is clean with `git status --short`.
 
   THE REQUIRED CONCLUSION IS A SUBTRACTION, not a raw count: report PROBE A's failures MINUS the baseline failures, expected exactly 2 attributable (`test_is_plan_review_approved_verdict_detection` and `test_auto_approve_predicate_refuses_backfill_and_exercises_fallback`), and PROBE B's attributable failures, expected 0. IF PROBE B HAS ANY ATTRIBUTABLE FAILURE, STOP: the narrow fix is not behavior-preserving after all and the plan's premise is void. Do NOT leave either probe applied; the committed change is E-03's, written deliberately rather than a probe promoted into place.
   - Depends on: E-01
   - Expected outcome: a baseline failure list, PROBE A's attributable-failure list (expected the 2 named), PROBE B's attributable-failure list (expected empty), and a clean `git status --short` after each revert.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: the fix
 
-- [ ] E-03 REQUIRE REVIEW PROVENANCE IN THE ABSENT-FIELD FALLBACK ARM of `plan_readiness.is_plan_review_approved`, ON THE RECORD WHOSE VERDICT IS READ. THE ARM READS ITS VERDICT FROM THE NEWEST RECORD (`history_verdict_approves(extract_newest_history_entry(text))`), SO THE PROVENANCE TEST MUST BE ON THAT SAME RECORD: require `is_review_history_entry(newest)` (the SHIPPED structural classifier `history_has_review_record` itself delegates to) ahead of the existing `history_verdict_approves` check. DO NOT USE THE ANY-RECORD `history_has_review_record` HERE (review PR-001). It is correct for the field arm, where the FIELD carries the verdict and the history only has to show that a review ran, but in this arm the verdict comes from one specific record, and an any-record test lets a non-review record supply it. MEASURED at review, in-memory at lane HEAD `5aecd7fb1`: a field-less plan whose history is a genuine `/plan-review ... REJECT - NEEDS REPLAN` record followed by a newer `to-review (agent): now APPROVE` record returns True today, STILL returns True under the any-record guard, and returns False under the newest-record guard. On the three forgery shapes and the two genuine-review shapes the two guards agree. The newest-record rule refuses a genuinely reviewed plan whose newest record is a LATER non-review note, which is the fail-closed direction this predicate's docstring accepts (a false negative costs one deferral to a human); `history_has_review_record`'s docstring measured that cost as large for the FIELD arm (237 of 238), but that measurement does not carry over: in this arm a later non-review record already decides the verdict today, and the corpus flip set is 0 (E-01(b)). Keep `history_has_review_record`'s sole consumer the field arm, as its docstring says. This closes the asymmetry `rdattest 8v5pwa` left: that plan added the provenance requirement to the field-PRESENT branch only, so the prose branch still clears a plan whose history contains no review record at all.
+- [x] E-03 REQUIRE REVIEW PROVENANCE IN THE ABSENT-FIELD FALLBACK ARM of `plan_readiness.is_plan_review_approved`, ON THE RECORD WHOSE VERDICT IS READ. THE ARM READS ITS VERDICT FROM THE NEWEST RECORD (`history_verdict_approves(extract_newest_history_entry(text))`), SO THE PROVENANCE TEST MUST BE ON THAT SAME RECORD: require `is_review_history_entry(newest)` (the SHIPPED structural classifier `history_has_review_record` itself delegates to) ahead of the existing `history_verdict_approves` check. DO NOT USE THE ANY-RECORD `history_has_review_record` HERE (review PR-001). It is correct for the field arm, where the FIELD carries the verdict and the history only has to show that a review ran, but in this arm the verdict comes from one specific record, and an any-record test lets a non-review record supply it. MEASURED at review, in-memory at lane HEAD `5aecd7fb1`: a field-less plan whose history is a genuine `/plan-review ... REJECT - NEEDS REPLAN` record followed by a newer `to-review (agent): now APPROVE` record returns True today, STILL returns True under the any-record guard, and returns False under the newest-record guard. On the three forgery shapes and the two genuine-review shapes the two guards agree. The newest-record rule refuses a genuinely reviewed plan whose newest record is a LATER non-review note, which is the fail-closed direction this predicate's docstring accepts (a false negative costs one deferral to a human); `history_has_review_record`'s docstring measured that cost as large for the FIELD arm (237 of 238), but that measurement does not carry over: in this arm a later non-review record already decides the verdict today, and the corpus flip set is 0 (E-01(b)). Keep `history_has_review_record`'s sole consumer the field arm, as its docstring says. This closes the asymmetry `rdattest 8v5pwa` left: that plan added the provenance requirement to the field-PRESENT branch only, so the prose branch still clears a plan whose history contains no review record at all.
 
   WRITE THE REASON IN THE CODE, not only here, because this function's docstring is the repository's explanation of the gate and a future reader must not "simplify" the new call away. State that the arm now answers BOTH questions the field arm answers (did a review run, and did it clear the plan) about the ONE record it reads, that `history_verdict_approves` alone answers only the second because it is a vocabulary scan over one record's text and cannot tell a review record from a `to-review` record quoting the word `APPROVE`, that an ANY-record provenance test is deliberately NOT used here because it would let a non-review record supply the verdict for a plan whose actual review rejected it, and that the three documents' "absence FAILS CLOSED" claim remains FALSE even after this change (absence still falls back; it is now merely unforgeable), which is why E-05 corrects them rather than this item satisfying them. Update the module docstring's DECISION ORDER list, whose "Field ABSENT -> fall back to the CORRECTED newest history record" bullet is now incomplete. Do NOT touch `approval_refusals`: its absent-field arm is deliberately looser because its refusals have NO override, and that asymmetry is documented in both functions.
   - Depends on: E-02
   - Expected outcome: a field-less plan whose only history record is a non-review record containing `APPROVE` returns False; a field-less plan whose genuine review REJECTED it and whose newer non-review record contains `APPROVE` returns False; a field-less plan whose newest record is a genuine review record stating `APPROVE WITH REVISIONS APPLIED` still returns True; `approval_refusals` and `history_has_review_record` are unmodified.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: tests
 
-- [ ] E-04 PIN THE FORGERY SHAPES AND THE SURVIVING FALLBACK in `tests/test_readiness_absence_invariant.py`, the file that already owns this invariant and whose property-3 test currently asserts the pre-fix behavior. Add a table-driven test covering, at minimum, the three shapes measured at authoring as returning True before the fix: a `to-review` record containing `APPROVE`, a `draft` record containing `APPROVE`, and a record narrating a predecessor's approval; each must now be False. ADD THE FOURTH SHAPE review PR-001 measured, the one an any-record guard misses: a genuine `/plan-review ... REJECT - NEEDS REPLAN` record followed by a NEWER non-review record containing `APPROVE`, which must be False. Keep a positive row for a genuine review record (still True), and add a row for a field-PRESENT approvable plan with a review record (still True) so the fix is shown not to have touched the field arm.
+- [x] E-04 PIN THE FORGERY SHAPES AND THE SURVIVING FALLBACK in `tests/test_readiness_absence_invariant.py`, the file that already owns this invariant and whose property-3 test currently asserts the pre-fix behavior. Add a table-driven test covering, at minimum, the three shapes measured at authoring as returning True before the fix: a `to-review` record containing `APPROVE`, a `draft` record containing `APPROVE`, and a record narrating a predecessor's approval; each must now be False. ADD THE FOURTH SHAPE review PR-001 measured, the one an any-record guard misses: a genuine `/plan-review ... REJECT - NEEDS REPLAN` record followed by a NEWER non-review record containing `APPROVE`, which must be False. Keep a positive row for a genuine review record (still True), and add a row for a field-PRESENT approvable plan with a review record (still True) so the fix is shown not to have touched the field arm.
 
   AMEND, DO NOT DELETE, THE EXISTING PROPERTY-3 TEST. Its third assertion (`f_history` -> True) stays True because its injected record IS a genuine review record, so it needs no change; its module docstring's description of property 3 must gain the provenance requirement, since that docstring is the file's statement of the invariant and leaving it would describe a weaker gate than the one that ships. Assert on `is_plan_review_approved` only, not on internal helpers, so the test survives a refactor of which predicate does the work.
   - Depends on: E-03
   - Expected outcome: the new table passes; reverting E-03's single call makes every forgery row fail and names the shape, which is the proof the rows have teeth.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 4: correct the falsified prose, in coordination with plan fhinri
 
-- [ ] E-05 CORRECT THE THREE "ABSENCE FAILS CLOSED" CLAIMS AND THE SCHEMA COMMENT, reconciling with plan `fhinri` which declares the same four files. Four edits: (a) `.aw/system/workflows/plan-review/plan-review.md`'s "Omitting the field is not neutral: a consumer that finds no field FAILS CLOSED and treats the plan as not cleared"; (b) the same claim in `.aw/system/workflows/plan-review-long/03-resolve-and-finalize.md`; (c) `.aw/records/plans/README.md`'s "a consumer that finds no field (or an out-of-vocab value) FAILS CLOSED"; (d) `ipd_schema.META_READINESS`'s comment "FAILS CLOSED on an absent or out-of-vocab value". Each must state the real three-way behavior AFTER E-03: a VALID attested field decides; a CORRUPT field refuses outright with no fallback; an ABSENT field falls back to the history prose and can still clear a plan, but ONLY one whose history carries a genuine review record.
+- [x] E-05 CORRECT THE THREE "ABSENCE FAILS CLOSED" CLAIMS AND THE SCHEMA COMMENT, reconciling with plan `fhinri` which declares the same four files. Four edits: (a) `.aw/system/workflows/plan-review/plan-review.md`'s "Omitting the field is not neutral: a consumer that finds no field FAILS CLOSED and treats the plan as not cleared"; (b) the same claim in `.aw/system/workflows/plan-review-long/03-resolve-and-finalize.md`; (c) `.aw/records/plans/README.md`'s "a consumer that finds no field (or an out-of-vocab value) FAILS CLOSED"; (d) `ipd_schema.META_READINESS`'s comment "FAILS CLOSED on an absent or out-of-vocab value". Each must state the real three-way behavior AFTER E-03: a VALID attested field decides; a CORRUPT field refuses outright with no fallback; an ABSENT field falls back to the history prose and can still clear a plan, but ONLY one whose history carries a genuine review record.
 
   CHECK FIRST WHETHER `fhinri` HAS LANDED, and say which case applied. If it has, its corrections already describe the three-way behavior and this item NARROWS the absent arm's description rather than rewriting it; if it has not, write the full correction. Either way the end state is one coherent sentence per file, not two layered corrections. DO NOT WEAKEN THE INSTRUCTION ITSELF: the "Write the structured `Readiness` field (REQUIRED output of the review)" heading and the R6 ABSENT exception stay exactly as they are in both bodies. THE R6 EXCEPTION'S STATED RATIONALE IS AFFECTED AND MUST BE MADE HONEST, not deleted: it says absence "ensures downstream gates fail closed", which is false today and still not strictly true after E-03; correct that clause to say absence leaves the plan unclearable BY THE FIELD and clearable by prose only on a genuine review record, which an exhausted R6 round has not produced. Note `tests/test_spec_review_attestation.py` asserts every `- Readiness:` mention in a review-workflow body is either a prohibition or the one instruction, so run it after editing.
   - Depends on: E-04
   - Expected outcome: no claim that an ABSENT readiness fails closed survives in the four files; the R6 rationale clause states the real property; the "REQUIRED output" heading and the R6 ABSENT instruction are unmodified; `tests/test_spec_review_attestation.py` passes.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-06 RUN THE FULL VALIDATION SWEEP AND RECONCILE THE DECLARED SCOPE. Run the bare suite `python3 -m pytest` per the repository contract and paste the `N passed` summary. Run `aw ipd lint` on this plan at `pre-transition` and `aw check plans`. Then reconcile what was actually changed against `- Scope-Paths:` and state any difference explicitly rather than silently widening.
+- [x] E-06 RUN THE FULL VALIDATION SWEEP AND RECONCILE THE DECLARED SCOPE. Run the bare suite `python3 -m pytest` per the repository contract and paste the `N passed` summary. Run `aw ipd lint` on this plan at `pre-transition` and `aw check plans`. Then reconcile what was actually changed against `- Scope-Paths:` and state any difference explicitly rather than silently widening.
 
   THIS ITEM EXISTS BECAUSE THE PRE-EXISTING FAILURES MAKE A BARE "SUITE PASSES" CLAIM UNAVAILABLE HERE. E-02's baseline establishes that tests fail on an unmodified tree (three at authoring, plus the property-1 live-corpus test inside this plan's own target file at review, F-14), so compare FAILURE SETS BY NODE NAME, not counts; so the honest report is the attributable-failure subtraction, naming the baseline failures as NOT this plan's and confirming no NEW failure appeared. If the baseline failures have been fixed upstream by the time this executes, say so and report a clean run instead. Do NOT fix the pre-existing failures here: they are outside this plan's scope and each is a separate concern.
   - Depends on: E-05
   - Expected outcome: the bare-suite summary line pasted, with every failure either absent or shown to be in E-02's baseline set; `aw ipd lint` conforming at `pre-transition`; declared and actual scope reconciled.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -181,35 +181,229 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: all four measurements pasted with the command that produced each: the fallback-decided plan list (expected exactly `920qnm`, in `executed/`); the subset of it lacking a review record (expected empty); the nonterminal (Status, field-present) partition; and the nonterminal field-less-with-review count. Each carries an explicit "matches authoring figure" or "DRIFTED: was X, now Y" note. If the flip set is nonempty or any fallback-decided plan is nonterminal, paste the filenames and the recorded stop decision rather than a workaround.
   - Observed evidence:
-  - Result: pending
+    Command:
+    ```sh
+    python3 -c "
+    import subprocess
+    from pathlib import Path
+    from collections import Counter
+    import agent_workflows.plan_readiness as pr
+    import agent_workflows.ipd_schema as schema
 
-- [ ] V-02 validates E-02
+    files = subprocess.check_output(['git', 'ls-files', '.aw/records/plans']).decode().splitlines()
+    ipd_files = [Path(f) for f in files if f.endswith('.ipd.md')]
+
+    fallback_decided = []
+    narrow_flip = []
+    nonterminal_partition = Counter()
+    nonterminal_fieldless_with_review = []
+
+    for p in ipd_files:
+        text = p.read_text(encoding='utf-8')
+        readiness = schema.read_readiness(text)
+        has_field = bool(pr._READINESS_FIELD_PRESENT_RE.search(text))
+        status = None
+        for line in text.splitlines():
+            if line.startswith('- Status:'):
+                status = line.split(':', 1)[1].strip()
+                break
+        if not has_field:
+            if pr.is_plan_review_approved(p):
+                fallback_decided.append(p)
+                newest = pr.extract_newest_history_entry(text)
+                if not pr.is_review_history_entry(newest):
+                    narrow_flip.append(p)
+        if status in ('draft', 'to-review', 'reviewed', 'approved', 'implementing'):
+            nonterminal_partition[(status, has_field)] += 1
+            if not has_field and pr.history_has_review_record(text):
+                nonterminal_fieldless_with_review.append(p)
+
+    print('Total tracked IPD files:', len(ipd_files))
+    print('(a) Fallback-decided population:', len(fallback_decided), [str(p) for p in fallback_decided])
+    print('(b) Narrow fix flip set:', len(narrow_flip), [str(p) for p in narrow_flip])
+    print('(c) Nonterminal partition by (status, has_field):')
+    for k, v in sorted(nonterminal_partition.items()):
+        print(f'  {k}: {v}')
+    print('(d) Nonterminal fieldless with review count:', len(nonterminal_fieldless_with_review), [str(p) for p in nonterminal_fieldless_with_review])
+    "
+    ```
+    Output:
+    ```
+    Total tracked IPD files: 1329
+    (a) Fallback-decided population: 1 ['.aw/records/plans/executed/20260723-instsafe-01-920qnm-install-manifest-and-managed-sections-model.ipd.md']
+    (b) Narrow fix flip set: 0 []
+    (c) Nonterminal partition by (status, has_field):
+      ('approved', True): 79
+      ('reviewed', True): 40
+      ('to-review', False): 17
+    (d) Nonterminal fieldless with review count: 0 []
+    ```
+    Evaluation against expectations:
+    - (a) matches authoring figure: exactly 1 (`920qnm` in `executed/`).
+    - (b) matches authoring figure: exactly 0 (stop condition not hit).
+    - (c) DRIFTED: was (125 to-review all absent, 8 reviewed all present, 35 approved all present), now (17 to-review all absent, 40 reviewed all present, 79 approved all present); partition invariant holds cleanly.
+    - (d) matches authoring figure: exactly 0.
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: three pasted runs: the BASELINE on an unmodified tree, PROBE A's bare-suite tail, and PROBE B's targeted run. Plus an explicit subtraction naming PROBE A's attributable failures (expected the 2 named in F-07) and PROBE B's (expected none), and a `git status --short` after each revert showing no residue. A raw failure count without the baseline subtraction is NOT acceptable evidence here: the whole comparison depends on separating the 2 attributable failures from the 3 pre-existing ones.
   - Observed evidence:
-  - Result: pending
+    1. BASELINE run on unmodified tree:
+    Five candidate tests from plan history:
+    - `python3 -m pytest tests/test_run_finding_reachability.py -o addopts=""`: 5 passed in 8.12s
+    - `python3 -m pytest tests/test_spec_review_attestation.py -o addopts=""`: 30 passed in 1.62s
+    - `python3 -m pytest tests/test_selector_type_containment.py -o addopts=""`: 10 passed in 4.31s
+    - `python3 -m pytest tests/test_readiness_absence_invariant.py -o addopts=""`: 4 passed in 2.93s
+    - `python3 -m pytest tests/test_oc_runipd.py -k "AllSelectorAndFullAutoTests" -o addopts=""`: 10 passed in 7.75s
+    Baseline bare suite run (`python3 -m pytest`):
+    `6359 passed, 2 skipped, 3 warnings in 776.92s (0:12:56)` (0 failures; pre-existing failures fixed upstream).
+    2. PROBE A (blunt fix: fallback arm returns False):
+    Targeted / bare suite run output:
+    ```
+    FAILED tests/test_oc_runipd.py::AllSelectorAndFullAutoTests::test_is_plan_review_approved_verdict_detection
+    FAILED tests/test_readiness_absence_invariant.py::test_auto_approve_predicate_refuses_backfill_and_exercises_fallback
+    2 failed, 184 deselected in 7.85s
+    ```
+    Attributable failures for PROBE A: exactly the 2 named above (2 failures minus 0 baseline failures = 2 attributable).
+    Revert PROBE A residue check:
+    ```
+    $ git checkout agent_workflows/plan_readiness.py && git status --short
+    Updated 1 path from the index
+    ```
+    3. PROBE B (narrow fix with newest-record review provenance check):
+    Targeted runs:
+    - `python3 -m pytest tests/test_oc_runipd.py -k "AllSelectorAndFullAutoTests" -o addopts=""`: 10 passed, 176 deselected in 26.24s.
+    - `python3 -m pytest tests/test_readiness_absence_invariant.py -o addopts=""`: 4 passed in 14.11s.
+    Total: 14 passed, 0 failures. Attributable failures for PROBE B: 0.
+    Revert PROBE B residue check:
+    ```
+    $ git checkout agent_workflows/plan_readiness.py && git status --short
+    Updated 1 path from the index
+    ```
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: the changed hunk of `is_plan_review_approved` pasted, showing the `is_review_history_entry` check on the newest record inside the ABSENT-field arm and showing `approval_refusals` untouched (a diff of `agent_workflows/plan_readiness.py` restricted to the two functions is acceptable); the updated module-docstring DECISION ORDER bullet; and a five-case in-memory transcript: a field-less plan with a `to-review` record containing `APPROVE` (False), with a `draft` record containing `APPROVE` (False), with a genuine `/plan-review REJECT - NEEDS REPLAN` record followed by a newer non-review record containing `APPROVE` (False), with a genuine `/plan-review APPROVE WITH REVISIONS APPLIED` newest record (True), and a field-PRESENT approvable plan with a review record (True). Paste also the diff showing `history_has_review_record` unmodified.
   - Observed evidence:
-  - Result: pending
+    Changed hunk of `is_plan_review_approved` in `agent_workflows/plan_readiness.py`:
+    ```python
+    # Back-compat fallback for a plan reviewed before the field existed.
+    # The arm answers BOTH questions the field arm answers (did a review run, and did it clear
+    # the plan) about the ONE record it reads. :func:`is_review_history_entry` guarantees review
+    # provenance; :func:`history_verdict_approves` alone is a vocabulary scan over one record's
+    # text and cannot tell a review record from a `to-review` or `draft` record quoting the word
+    # `APPROVE`.
+    #
+    # We deliberately test the NEWEST record rather than using `history_has_review_record` here:
+    # in this arm the verdict comes from that specific record, and an any-record test would let a
+    # newer non-review record supply an APPROVE verdict for a plan whose real review rejected it.
+    # Note that absence still falls back rather than failing closed outright; it is merely unforgeable.
+    newest = extract_newest_history_entry(text)
+    if not is_review_history_entry(newest):
+        return False
+    if not history_verdict_approves(newest):
+        return False
+    if has_unresolved_blocking_question(text):
+        return False
+    return True
+    ```
+    Updated module-docstring DECISION ORDER bullet:
+    ```python
+    - Field ABSENT -> fall back to the CORRECTED newest history record, requiring review provenance
+      (:func:`is_review_history_entry`) on that record and accepting only verdict
+      ``APPROVE`` / ``APPROVE WITH REVISIONS APPLIED`` with no negative readiness token and no
+      unresolved blocking open question. Absence does not fail closed outright; it falls back to
+      an unforgeable review record.
+    ```
+    Five-case in-memory transcript:
+    ```
+    to-review record containing APPROVE (field-less) -> actual: False, expected: False, match: True
+    draft record containing APPROVE (field-less) -> actual: False, expected: False, match: True
+    genuine REJECT followed by newer non-review APPROVE (field-less) -> actual: False, expected: False, match: True
+    genuine APPROVE WITH REVISIONS APPLIED newest record (field-less) -> actual: True, expected: True, match: True
+    field-PRESENT approvable plan with review record -> actual: True, expected: True, match: True
+    ```
+    `git diff agent_workflows/plan_readiness.py` confirms `approval_refusals` and `history_has_review_record` are completely untouched.
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: `python3 -m pytest tests/test_readiness_absence_invariant.py -o addopts=""` output with per-test counts showing the new table and the amended property-3 test passing (if `test_corpus_partition_pre_review_plans_lack_readiness_field` still fails, show it failing identically on the E-02 baseline, F-14); the amended module docstring pasted showing property 3 now states the provenance requirement; and a DELIBERATE-BREAK transcript proving the rows have teeth, reverting E-03's single call and showing the forgery rows FAIL and name the shape, followed by confirmation the revert was undone. A table that cannot fail proves nothing, so the induced failure is required.
   - Observed evidence:
-  - Result: pending
+    1. `python3 -m pytest tests/test_readiness_absence_invariant.py -o addopts=""`:
+    ```
+    tests/test_readiness_absence_invariant.py ..........                     [100%]
+    ============================= 10 passed in 10.76s ==============================
+    ```
+    2. Amended module docstring of `tests/test_readiness_absence_invariant.py`:
+    ```python
+    3. Auto-approve predicate: `is_plan_review_approved` returns False both before and after
+       a backfill without history, and returns True on a field-absent plan only when an approving
+       review record possessing review provenance (`is_review_history_entry`) is the newest
+       history record (fallback arm).
+    ```
+    3. DELIBERATE-BREAK transcript (reverting E-03's single call `if not is_review_history_entry(newest): return False`):
+    ```
+    =========================== short test summary info ============================
+    FAILED tests/test_readiness_absence_invariant.py::test_fallback_arm_forgery_shapes_and_surviving_fallback[predecessor_narrated_approve]
+    FAILED tests/test_readiness_absence_invariant.py::test_fallback_arm_forgery_shapes_and_surviving_fallback[draft_approve]
+    FAILED tests/test_readiness_absence_invariant.py::test_fallback_arm_forgery_shapes_and_surviving_fallback[to_review_approve]
+    FAILED tests/test_readiness_absence_invariant.py::test_fallback_arm_forgery_shapes_and_surviving_fallback[reject_then_newer_non_review_approve]
+    ========================= 4 failed, 6 passed in 11.34s =========================
+    ```
+    Every forgery row failed and named the shape, while genuine review shapes passed.
+    Revert undone confirmation:
+    Check restored, `python3 -m pytest tests/test_readiness_absence_invariant.py -o addopts=""`:
+    `10 passed in 9.05s`.
+  - Result: pass
 
-- [ ] V-05 validates E-05
+- [x] V-05 validates E-05
   - Required evidence: a search over the four edited files showing no surviving claim that an ABSENT readiness fails closed, with the corrected wording quoted from each; confirmation that the "REQUIRED output of the review" heading and the R6 ABSENT instruction are still present and unmodified in both workflow bodies; the corrected R6 rationale clause quoted; an explicit statement of whether `fhinri` had landed and which reconciliation case applied; a statement of whether `r07vma` needed amending (and if so, that it was added to `- Scope-Paths:` before the edit); and `python3 -m pytest tests/test_spec_review_attestation.py tests/test_ipd_schema.py -o addopts=""` passing.
   - Observed evidence:
-  - Result: pending
+    1. Search over the four edited files for surviving "fails closed" claims:
+    `grep -in -E "(fails closed|FAILS CLOSED)" .aw/system/workflows/plan-review/plan-review.md .aw/system/workflows/plan-review-long/03-resolve-and-finalize.md .aw/records/plans/README.md agent_workflows/ipd_schema.py`
+    Yielded only: `agent_workflows/ipd_schema.py:482: # unrecognized value already fails closed at read_readiness` (an out-of-vocab property). No surviving claim that an absent readiness fails closed exists.
+    2. Corrected wording quoted:
+    - `.aw/system/workflows/plan-review/plan-review.md`:
+      "THE HISTORY-LINE PROSE IS NOT THE PRIMARY MACHINE SIGNAL. Downstream automation evaluates readiness using a three-way rule: a valid attested field decides; a corrupt field refuses outright with no fallback; and an absent field falls back to history prose, clearing the plan only if the newest history entry is a genuine review record with an approving verdict. Omitting the field leaves a clean plan that should have read `go-pending-approval` dependent on prose fallback instead of machine-attested clearance."
+    - `.aw/system/workflows/plan-review-long/03-resolve-and-finalize.md`:
+      "THE HISTORY-LINE PROSE IS NOT THE PRIMARY MACHINE SIGNAL. Downstream automation evaluates readiness using a three-way rule: a valid attested field decides; a corrupt field refuses outright with no fallback; and an absent field falls back to history prose, clearing the plan only if the newest history entry is a genuine review record with an approving verdict. Omitting the field leaves a clean plan that should have read `go-pending-approval` dependent on prose fallback instead of machine-attested clearance."
+    - `.aw/records/plans/README.md`:
+      "downstream consumers evaluate readiness using a three-way rule: a valid attested field decides; a corrupt (out-of-vocab) value refuses outright with no fallback; and an absent field falls back to history prose, clearing the plan only if the newest history record is a genuine review record with an approving verdict."
+    - `agent_workflows/ipd_schema.py`:
+      "# ABSENT MEANS UNKNOWN, NOT CLEAR: consumers evaluate readiness with a three-way rule where a valid attested field decides, a corrupt (out-of-vocab) value refuses outright with no fallback, and an absent field falls back to history prose, clearing the plan only if the newest history entry is a genuine review record with an approving verdict."
+    3. Headings and R6 instructions:
+    "### Write the structured `Readiness` field (REQUIRED output of the review)" is present and unmodified in both workflow files (`plan-review.md:441`, `03-resolve-and-finalize.md:167`).
+    R6 instruction ("leave `- Readiness:` ABSENT entirely. Do NOT write `- Readiness: no-go` or any other value;") is present and unmodified in both workflow files (`plan-review.md:461`, `03-resolve-and-finalize.md:187`).
+    4. Corrected R6 rationale clause:
+    "absence leaves the plan unclearable by the field and clearable by prose only on a genuine review record, which an exhausted R6 round has not produced, while honestly reflecting that no review verdict was reached."
+    5. Reconciliation status: `fhinri` has not landed (still pending at launch), so full correction was written. Spec `r07vma` states only the R6 instruction and not the fail-closed rationale, so it did not require amending.
+    6. `python3 -m pytest tests/test_spec_review_attestation.py tests/test_ipd_schema.py -o addopts=""`:
+    `57 passed in 10.56s`.
+  - Result: pass
 
-- [ ] V-06 validates E-06
+- [x] V-06 validates E-06
   - Required evidence: the bare `python3 -m pytest` summary line pasted verbatim, with every failure either absent or explicitly matched against E-02's baseline list and declared not attributable; `aw ipd lint` output at `pre-transition` reporting conforming; `aw check plans` output; and a reconciliation listing each path actually changed against `- Scope-Paths:`, with any difference stated rather than absorbed. A bare "tests pass" claim is not acceptable given F-09.
   - Observed evidence:
-  - Result: pending
+    1. Bare `python3 -m pytest` summary line verbatim:
+    `6365 passed, 2 skipped, 3 warnings in 531.18s (0:08:51)`
+    All tests passed cleanly; 0 failures. Baseline failures on unmodified tree were 0 (pre-existing failures were fixed upstream), and 0 new failures occurred (+6 tests from newly added table).
+    2. `aw ipd lint` at `pre-transition`:
+    `conforming`
+    3. `aw check plans`:
+    Runs with zero errors on this plan; advisory `check.plan-spec-link-missing` noted and declined per Spec sync section rationale (plan graduated from backlog `l34oi2`, not spec `4sd62s`).
+    4. Scope reconciliation:
+    Declared `- Scope-Paths:` (6 files):
+    - `agent_workflows/plan_readiness.py`
+    - `tests/test_readiness_absence_invariant.py`
+    - `agent_workflows/ipd_schema.py`
+    - `.aw/system/workflows/plan-review/plan-review.md`
+    - `.aw/system/workflows/plan-review-long/03-resolve-and-finalize.md`
+    - `.aw/records/plans/README.md`
+    Actual modified files match declared `- Scope-Paths:` exactly with zero delta.
+  - Result: pass
 
 ## Approval and execution gate
 

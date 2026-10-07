@@ -153,11 +153,11 @@ For a plan whose own first `- Kind:` bullet reads `orchestrator` (read from the 
 **Honest exhaustion (R6):** If the orchestrator repair loop (budget of 2 attempts) exhausts with
 `IPD-S407` violations unresolved, the plan remains `- Status: to-review`, the findings are recorded
 in the review round, and `- Readiness:` is left ABSENT. Do NOT write `- Readiness:` at all in this
-path (not `no-go` and not a pass); absence is legal, silent, and fails closed downstream.
+path (not `no-go` and not a pass); absence is legal, silent, and leaves the plan unclearable by the field (and clearable by prose only on a genuine review record, which this path does not write).
 
 Beside `review-finalize`, for an orchestrator, review readiness is checked with `aw ipd coverage <id6>` (`IPD-S408`). `aw ipd set reviewed` refuses an orchestrator with unresolved coverage findings (Order 05), so the reviewer resolves each quoted finding by assigning it by id6 to a child in the table or by adding a child plan and its row (never by deleting the checklist).
 
-**Honest exhaustion for review readiness (`IPD-S408` / R6):** If the orchestrator review readiness repair loop (budget of 2 attempts) exhausts with findings unresolved, the plan remains `- Status: to-review`, the findings are recorded in the review round, and `- Readiness:` is left ABSENT. Do NOT write `- Readiness:` at all in this path (not `no-go` and not a pass); absence is legal, silent, and fails closed downstream.
+**Honest exhaustion for review readiness (`IPD-S408` / R6):** If the orchestrator review readiness repair loop (budget of 2 attempts) exhausts with findings unresolved, the plan remains `- Status: to-review`, the findings are recorded in the review round, and `- Readiness:` is left ABSENT. Do NOT write `- Readiness:` at all in this path (not `no-go` and not a pass); absence is legal, silent, and leaves the plan unclearable by the field (and clearable by prose only on a genuine review record, which this path does not write).
 
 Apply the project's review-complete status. If it uses `Status`, set `reviewed`
 unless the contract requires another value.
@@ -181,16 +181,11 @@ Map it from the readiness vocabulary in Section 4:
 | GO - PENDING HUMAN APPROVAL | `go-pending-approval` |
 | NO-GO | `no-go` |
 
-THE HISTORY-LINE PROSE IS NOT THE MACHINE SIGNAL. Automation reads this field and only this
-field; whatever readiness wording appears in the history line is for humans. Omitting the
-field is not neutral: a consumer that finds no field FAILS CLOSED and treats the plan as not
-cleared, so a clean plan that should have read `go-pending-approval` simply will not be
-picked up. Write exactly one of the three values, lowercase, with no extra words.
+THE HISTORY-LINE PROSE IS NOT THE PRIMARY MACHINE SIGNAL. Downstream automation evaluates readiness using a three-way rule: a valid attested field decides; a corrupt field refuses outright with no fallback; and an absent field falls back to history prose, clearing the plan only if the newest history entry is a genuine review record with an approving verdict. Omitting the field leaves a clean plan that should have read `go-pending-approval` dependent on prose fallback instead of machine-attested clearance. Write exactly one of the three values, lowercase, with no extra words.
 
 **Exception for exhausted orchestrator repair loop (`IPD-S407` / `IPD-S408` / R6):** If an orchestrator's
 checklist repair loop or coverage repair loop exhausts its budget of 2 attempts unresolved, leave `- Readiness:` ABSENT
-entirely. Do NOT write `- Readiness: no-go` or any other value; absence ensures downstream gates fail
-closed while honestly reflecting that no review verdict was reached.
+entirely. Do NOT write `- Readiness: no-go` or any other value; absence leaves the plan unclearable by the field and clearable by prose only on a genuine review record, which an exhausted R6 round has not produced, while honestly reflecting that no review verdict was reached.
 
 Append or update:
 

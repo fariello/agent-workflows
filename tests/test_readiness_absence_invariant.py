@@ -7,8 +7,9 @@ Asserts the four properties underlying the decision not to backfill the optional
 2. Linter refusal: inserting `- Readiness: go-pending-approval` onto a field-absent pending
    plan yields a blocking IPD-M107 diagnostic.
 3. Auto-approve predicate: `is_plan_review_approved` returns False both before and after
-   a backfill without history, and returns True on a field-absent plan when an approving
-   review record exists in history (fallback arm).
+   a backfill without history, and returns True on a field-absent plan only when an approving
+   review record possessing review provenance (`is_review_history_entry`) is the newest
+   history record (fallback arm).
 4. Recheck verb: `recheck_conditions` reports `may_write=False` refusing an absent field.
 """
 
@@ -225,7 +226,7 @@ def test_linter_refuses_backfilled_readiness_field_with_m107():
 
 
 def test_auto_approve_predicate_refuses_backfill_and_exercises_fallback(tmp_path: Path):
-    """Property 3: is_plan_review_approved returns False before/after backfill, and True with approving history."""
+    """Property 3: is_plan_review_approved returns False before/after backfill, and True with approving review history."""
     # tmp_path is required because is_plan_review_approved takes a Path rather than text.
     _subject_name, orig_text = get_field_absent_pending_plan_fixture(REPO_ROOT)
 
@@ -256,6 +257,101 @@ def test_auto_approve_predicate_refuses_backfill_and_exercises_fallback(tmp_path
     f_history = tmp_path / "history_approved.ipd.md"
     f_history.write_text(history_approved_text, encoding="utf-8")
     assert plan_readiness.is_plan_review_approved(f_history) is True
+
+
+@pytest.mark.parametrize(
+    "shape_name,readiness_field,history_records,expected",
+    [
+        (
+            "to-review record containing APPROVE",
+            None,
+            [
+                "- 2026-09-01 to-review (agent): Authored. Will be APPROVE once the maintainer looks."
+            ],
+            False,
+        ),
+        (
+            "draft record containing APPROVE",
+            None,
+            ["- 2026-09-01 draft (author): Initial draft, looks like APPROVE."],
+            False,
+        ),
+        (
+            "record narrating predecessor approval containing APPROVE",
+            None,
+            [
+                "- 2026-09-01 to-review (agent): Inherits approval from predecessor abc123 APPROVE."
+            ],
+            False,
+        ),
+        (
+            "genuine REJECT followed by newer non-review APPROVE",
+            None,
+            [
+                "- 2026-09-02 to-review (agent): addressed feedback, now APPROVE",
+                "- 2026-09-01 /plan-review (opencode/x): REJECT - NEEDS REPLAN",
+            ],
+            False,
+        ),
+        (
+            "genuine review record fallback on field-absent plan",
+            None,
+            [
+                "- 2026-09-01 /plan-review (opencode/x): APPROVE WITH REVISIONS APPLIED; PR-001 fixed."
+            ],
+            True,
+        ),
+        (
+            "field-present approvable plan with review record",
+            "go-pending-approval",
+            [
+                "- 2026-09-01 /plan-review (opencode/x): APPROVE WITH REVISIONS APPLIED; PR-001 fixed."
+            ],
+            True,
+        ),
+    ],
+    ids=[
+        "to_review_approve",
+        "draft_approve",
+        "predecessor_narrated_approve",
+        "reject_then_newer_non_review_approve",
+        "genuine_review_fallback",
+        "field_present_with_review",
+    ],
+)
+def test_fallback_arm_forgery_shapes_and_surviving_fallback(
+    tmp_path: Path,
+    shape_name: str,
+    readiness_field: Optional[str],
+    history_records: List[str],
+    expected: bool,
+):
+    """Pin the four forgery shapes as False and genuine review shapes as True under is_plan_review_approved."""
+    lines = [
+        "- Id: tst001",
+        "- Status: reviewed",
+    ]
+    if readiness_field:
+        lines.append(f"- Readiness: {readiness_field}")
+    lines.extend(
+        [
+            "# Test Plan",
+            "",
+            "## Workflow history",
+        ]
+    )
+    lines.extend(history_records)
+    lines.extend(
+        [
+            "",
+            "## Goal",
+            "Test goal.",
+        ]
+    )
+    plan_file = tmp_path / "plan.ipd.md"
+    plan_file.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    actual = plan_readiness.is_plan_review_approved(plan_file)
+    assert actual is expected, f"Shape '{shape_name}' expected {expected}, got {actual}"
 
 
 def test_recheck_verb_refuses_field_absent_plan(tmp_path: Path):
