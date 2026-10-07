@@ -105,6 +105,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 - Retired `.agents/` strings in installed READMEs and messages are fixed elsewhere.
   - Carrier: jbnkkh
+  - Carrier-Evidence: .aw/records/plans/executed/20261006-instbugs-06-jbnkkh-remove-retired-paths-statuses-and-naming-rules-from-installe.ipd.md
 - The inbox README existence is delivered elsewhere.
   - Carrier: xzlu9b
 - The whole-Set fresh-install regression that re-runs this check end to end.

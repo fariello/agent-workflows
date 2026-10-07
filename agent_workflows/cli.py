@@ -9518,7 +9518,9 @@ def _orient(term: Term) -> None:
     term.line(
         "  /release-review, /assess <concern>, /advise <persona>, /verify, /setup-repo"
     )
-    term.line("Or from any agent: 'Read and execute .agents/workflows/index.md'.")
+    term.line(
+        "Or from any agent: 'Read and execute the workflows index under .aw/system/workflows/ (or .agents/workflows/ in a legacy layout)'."
+    )
     _teach(term)
 
 
