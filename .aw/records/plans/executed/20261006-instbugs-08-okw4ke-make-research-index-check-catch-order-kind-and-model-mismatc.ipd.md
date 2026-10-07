@@ -6,7 +6,7 @@
 - Scope: IN: extend the name-versus-front-matter comparison in `research_index._doc_entry` to `order` (plain string compare: `validate_frontmatter` already rejects any `order` that is not a two-digit `NN` string and returns before the comparison, so both sides are canonical `NN`), `kind` (front matter normalized through `research_contract.normalize_kind` before comparing, since `parse_name` already normalizes the filename side), and `model` (front matter normalized through `research_contract.normalize_model`; compared ONLY when the filename carries a model facet, because spec `20260730-2152-01` Section 4.4 makes the facet optional in the name and always present in front matter, so a front-matter-only model is legal); one drift line per field naming both values; tests. OUT: the rename path (fixed by `ax8eg1`); adding new front-matter fields; changing the drift code name (`name-frontmatter-mismatch` is reused so existing consumers keep working).
 - Scope-Paths: agent_workflows/research_index.py, tests/test_research_index_name_fm_mismatch.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Blocks-Release: f33nrj
 - Work-Kind: bug
@@ -16,9 +16,9 @@
 - Highest E allocated: 04
 - Author: antigravity/claude-opus-5.5
 - Id: okw4ke
-- Approval: 2026-10-07, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-07 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: okw4ke verified (set instbugs, attempt 1).
 - 2026-10-07 approved (aw set): status set to approved
 - 2026-10-07 same-status (aw set): gate on release 2.0.0 (f33nrj) at the maintainer's instruction 2026-10-06: all instbugs plans block 2.0.0
 
@@ -36,29 +36,29 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: re-establish
 
-- [ ] E-01 Re-measure at the execution HEAD: in a temp git repo installed with `AW_NO_REEXEC=1 HOME=<tmp> aw install . -y --preset private-target`, create two research files with `aw research new --set prb --kind research-report --apply` (one plain, one with `--model gpt56`, which puts the facet in the name) and run `aw research index` once. Then, one probe at a time and restoring the file after each: (a) plain file front matter `order: 01` -> `order: 05`; (b) plain file `kind: research-report` -> `kind: findings`; (c) model file `model: gpt56` -> `model: sonnet5`; (d) model file `model: gpt56` -> `model:` (empty). Run `aw research index --check` after each and paste output and exit status. If any probe is already flagged `name-frontmatter-mismatch`, record that and drop that field from E-02.
+- [x] E-01 Re-measure at the execution HEAD: in a temp git repo installed with `AW_NO_REEXEC=1 HOME=<tmp> aw install . -y --preset private-target`, create two research files with `aw research new --set prb --kind research-report --apply` (one plain, one with `--model gpt56`, which puts the facet in the name) and run `aw research index` once. Then, one probe at a time and restoring the file after each: (a) plain file front matter `order: 01` -> `order: 05`; (b) plain file `kind: research-report` -> `kind: findings`; (c) model file `model: gpt56` -> `model: sonnet5`; (d) model file `model: gpt56` -> `model:` (empty). Run `aw research index --check` after each and paste output and exit status. If any probe is already flagged `name-frontmatter-mismatch`, record that and drop that field from E-02.
   - Depends on: none
   - Expected outcome: four "clean" exit-0 results pasted with the HEAD sha (reproduced at review: (a), (b), (d) and a `model: reconciliation` swap all exited 0 with no mismatch line).
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: fix
 
-- [ ] E-02 In `research_index._doc_entry`, directly after the existing `id` and `set` comparisons (the block commented "# name-vs-frontmatter consistency"), add three comparisons emitting `name-frontmatter-mismatch` in the same message style: `order` (`fm.get("order") != parsed.order`, e.g. "order 05 != name 01"); `kind` (`normalize_kind(fm kind).value != parsed.kind`, so a legacy alias such as `kind: research` on a `.research-report.md` file is NOT a mismatch); `model`, only when `parsed.model` is not None (`normalize_model(fm model, repo_root=repo_root).value` against `parsed.model`, with an empty or absent front matter `model` reported as e.g. "model (empty) != name gpt56"). Do NOT flag a front matter `model` on a filename with no model facet (spec Section 4.4).
+- [x] E-02 In `research_index._doc_entry`, directly after the existing `id` and `set` comparisons (the block commented "# name-vs-frontmatter consistency"), add three comparisons emitting `name-frontmatter-mismatch` in the same message style: `order` (`fm.get("order") != parsed.order`, e.g. "order 05 != name 01"); `kind` (`normalize_kind(fm kind).value != parsed.kind`, so a legacy alias such as `kind: research` on a `.research-report.md` file is NOT a mismatch); `model`, only when `parsed.model` is not None (`normalize_model(fm model, repo_root=repo_root).value` against `parsed.model`, with an empty or absent front matter `model` reported as e.g. "model (empty) != name gpt56"). Do NOT flag a front matter `model` on a filename with no model facet (spec Section 4.4).
   - Depends on: E-01
   - Expected outcome: each E-01 probe now produces exactly one `name-frontmatter-mismatch` line naming the field and both values, and `--check` exits non-zero; a front-matter-only model and a normalized kind alias still check clean.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 Run `aw research index --check` on this repository's own research tree and on a fresh install. This repository's check is NOT clean for unrelated reasons (at review HEAD `5d7909cc6` it exits 1 with `dangling-citation`, `adopted-without-consumer`, `stale-state-to-promote` and one `frontmatter-invalid` line, none in scope), so the bar here is the `name-frontmatter-mismatch` subset: re-derive it at execution by filtering the output for that code. Any such line is a real mismatch: list it and correct the file's front matter to follow the filename (the canonical identity, OQ-01), not suppress it. A correction edits a research file outside `- Scope-Paths:`; justify it at finalize with `--scope-reason`.
+- [x] E-03 Run `aw research index --check` on this repository's own research tree and on a fresh install. This repository's check is NOT clean for unrelated reasons (at review HEAD `5d7909cc6` it exits 1 with `dangling-citation`, `adopted-without-consumer`, `stale-state-to-promote` and one `frontmatter-invalid` line, none in scope), so the bar here is the `name-frontmatter-mismatch` subset: re-derive it at execution by filtering the output for that code. Any such line is a real mismatch: list it and correct the file's front matter to follow the filename (the canonical identity, OQ-01), not suppress it. A correction edits a research file outside `- Scope-Paths:`; justify it at finalize with `--scope-reason`.
   - Depends on: E-02
   - Expected outcome: zero `name-frontmatter-mismatch` lines in this repository after any corrections (each correction listed; at review the new rules applied by hand to the 128 valid records found none), and the fresh target prints "index --check: clean".
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: pin it
 
-- [ ] E-04 Add `tests/test_research_index_name_fm_mismatch.py`: build a research tree in a temp git repo through `aw research new --apply` driven as a subprocess with `HOME`/`XDG_CONFIG_HOME` isolated to the temp dir (precedent: `tests/test_research_date_containment.py` `setUp`). Flagged cases (assert exit non-zero and a `name-frontmatter-mismatch` line naming the field): order `05` on `NN=01`; kind `findings` on `.research-report.md`; model `sonnet5` and model empty on a `.gpt56.` name. Clean cases (assert exit 0 and no `name-frontmatter-mismatch`): the untouched files; `kind: research` on `.research-report.md`; `model: gpt56` on a name without a model facet. Prove the order case can fail by removing the order comparison and pasting the failure, then restore it.
+- [x] E-04 Add `tests/test_research_index_name_fm_mismatch.py`: build a research tree in a temp git repo through `aw research new --apply` driven as a subprocess with `HOME`/`XDG_CONFIG_HOME` isolated to the temp dir (precedent: `tests/test_research_date_containment.py` `setUp`). Flagged cases (assert exit non-zero and a `name-frontmatter-mismatch` line naming the field): order `05` on `NN=01`; kind `findings` on `.research-report.md`; model `sonnet5` and model empty on a `.gpt56.` name. Clean cases (assert exit 0 and no `name-frontmatter-mismatch`): the untouched files; `kind: research` on `.research-report.md`; `model: gpt56` on a name without a model facet. Prove the order case can fail by removing the order comparison and pasting the failure, then restore it.
   - Depends on: E-03
   - Expected outcome: the new tests pass; the mutation fails; assertions are on CLI exit code and output only (P16).
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -119,25 +119,153 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: PASTE the four pre-edit probe outputs (a)-(d) with exit status and the HEAD sha.
   - Observed evidence:
-  - Result: pending
+    Execution HEAD: d115a40dc07130a551738d42eb978550b770f5ba
+    With manifest refreshed via `aw research index` prior to each check:
+    Probe (a) plain file front matter `order: 01` -> `order: 05`:
+      Exit: 0
+      Stdout: index --check: clean
+    Probe (b) plain file `kind: research-report` -> `kind: findings`:
+      Exit: 0
+      Stdout: index --check: clean
+    Probe (c) model file `model: gpt56` -> `model: sonnet5`:
+      Exit: 0
+      Stdout: index --check: clean
+    Probe (d) model file `model: gpt56` -> `model:` (empty):
+      Exit: 0
+      Stdout: index --check: clean
+    Note: When `aw research index` is only run once prior to probes, probes (a) and (b) exit 0 with clean check, while (c) and (d) exit 1 with `stale-index-stale` because in-memory DocEntry.model reflects the front matter edit; crucially, none of (a)-(d) emit `name-frontmatter-mismatch` at execution HEAD before the fix.
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: PASTE the same four probes post-edit, each showing its one `name-frontmatter-mismatch` line naming the field and both values and the non-zero exit status, plus the two clean controls (`kind: research` on `.research-report.md`; `model: gpt56` on a name without a model facet) exiting 0, and the `git diff` of `agent_workflows/research_index.py`.
   - Observed evidence:
-  - Result: pending
+    Post-edit probes:
+    Probe (a) order 05:
+      Exit: 1
+      Stdout: 20261007-prb-01-9jk2q0-probe.research-report.md: name-frontmatter-mismatch: order 05 != name 01
+    Probe (b) kind findings:
+      Exit: 1
+      Stdout: 20261007-prb-01-9jk2q0-probe.research-report.md: name-frontmatter-mismatch: kind findings != name research-report
+    Probe (c) model sonnet5:
+      Exit: 1
+      Stdout: 20261007-prb-02-lllh67-probemodel.gpt56.research-report.md: name-frontmatter-mismatch: model sonnet5 != name gpt56
+    Probe (d) model (empty):
+      Exit: 1
+      Stdout: 20261007-prb-02-lllh67-probemodel.gpt56.research-report.md: name-frontmatter-mismatch: model (empty) != name gpt56
 
-- [ ] V-03 validates E-03
+    Clean controls:
+    Control 1 (`kind: research` on `.research-report.md`):
+      Exit: 0
+      Stdout: index --check: clean
+    Control 2 (`model: gpt56` on plain name with index refreshed):
+      Exit: 0
+      Stdout: index --check: clean
+
+    `git diff agent_workflows/research_index.py`:
+    ```diff
+    diff --git a/agent_workflows/research_index.py b/agent_workflows/research_index.py
+    index 77b8bfe58..20a46cbfc 100644
+    --- a/agent_workflows/research_index.py
+    +++ b/agent_workflows/research_index.py
+    @@ -128,6 +128,50 @@ def _doc_entry(
+                     f"set {fm.get('set')} != name {parsed.set_id}",
+                 )
+             )
+    +    if fm.get("order") != parsed.order:
+    +        drift.append(
+    +            Drift(
+    +                rel,
+    +                "name-frontmatter-mismatch",
+    +                f"order {fm.get('order')} != name {parsed.order}",
+    +            )
+    +        )
+    +    fm_kind = fm.get("kind")
+    +    norm_kind = (
+    +        R.normalize_kind(str(fm_kind)).value
+    +        if fm_kind is not None
+    +        else None
+    +    )
+    +    if norm_kind != parsed.kind:
+    +        drift.append(
+    +            Drift(
+    +                rel,
+    +                "name-frontmatter-mismatch",
+    +                f"kind {fm_kind} != name {parsed.kind}",
+    +            )
+    +        )
+    +    if parsed.model is not None:
+    +        raw_model = fm.get("model")
+    +        if raw_model is None or (isinstance(raw_model, str) and not raw_model.strip()):
+    +            drift.append(
+    +                Drift(
+    +                    rel,
+    +                    "name-frontmatter-mismatch",
+    +                    f"model (empty) != name {parsed.model}",
+    +                )
+    +            )
+    +        else:
+    +            raw_str = str(raw_model).strip()
+    +            norm_res = R.normalize_model(raw_str, repo_root=repo_root)
+    +            norm_model = norm_res.value if norm_res.ok else raw_str
+    +            if norm_model != parsed.model:
+    +                drift.append(
+    +                    Drift(
+    +                        rel,
+    +                        "name-frontmatter-mismatch",
+    +                        f"model {raw_model} != name {parsed.model}",
+    +                    )
+    +                )
+         topic_val = fm.get("topic")
+         topic_list = [str(t) for t in topic_val] if isinstance(topic_val, list) else []
+         consumed_val = fm.get("consumed-by")
+    ```
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: PASTE `aw research index --check 2>&1 | grep -c name-frontmatter-mismatch` on this repository (0, after any corrections) and the full fresh-target output ("index --check: clean"), plus the list of corrected files and their front matter diffs, or "none".
   - Observed evidence:
-  - Result: pending
+    `aw research index --check 2>&1 | grep -c name-frontmatter-mismatch`:
+    0
+    Fresh target output:
+    Exit: 0
+    Stdout:
+    index --check: clean
+    Corrected files: none
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: PASTE the narrowed run of the new test file (all flagged and clean cases passing), the mutation failure output for the order case, the narrowed run of `tests/test_research_index.py`, and the bare `python3 -m pytest` summary line before and after.
   - Observed evidence:
-  - Result: pending
+    Narrowed run of new test file `tests/test_research_index_name_fm_mismatch.py`:
+    ```
+    ======================== 7 passed in 71.02s (0:01:11) =========================
+    ```
+
+    Mutation failure output for order case (commenting out order comparison):
+    ```
+    FAILED tests/test_research_index_name_fm_mismatch.py::ResearchIndexNameFmMismatchTests::test_flagged_order_mismatch
+    AssertionError: 0 == 0
+    ======================= 1 failed, 6 deselected in 28.26s =======================
+    ```
+
+    Narrowed run of `tests/test_research_index.py`:
+    ```
+    ============================== 44 passed in 0.73s ==============================
+    ```
+
+    Bare `python3 -m pytest` summary before:
+    ```
+    6386 passed, 2 skipped, 3 warnings in 738.43s (0:12:18)
+    ```
+
+    Bare `python3 -m pytest` summary after:
+    ```
+    6393 passed, 2 skipped, 3 warnings in 154.10s (0:02:34)
+    ```
+  - Result: pass
 
 ## Approval and execution gate
 

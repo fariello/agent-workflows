@@ -128,6 +128,46 @@ def _doc_entry(
                 f"set {fm.get('set')} != name {parsed.set_id}",
             )
         )
+    if fm.get("order") != parsed.order:
+        drift.append(
+            Drift(
+                rel,
+                "name-frontmatter-mismatch",
+                f"order {fm.get('order')} != name {parsed.order}",
+            )
+        )
+    fm_kind = fm.get("kind")
+    norm_kind = R.normalize_kind(str(fm_kind)).value if fm_kind is not None else None
+    if norm_kind != parsed.kind:
+        drift.append(
+            Drift(
+                rel,
+                "name-frontmatter-mismatch",
+                f"kind {fm_kind} != name {parsed.kind}",
+            )
+        )
+    if parsed.model is not None:
+        raw_model = fm.get("model")
+        if raw_model is None or (isinstance(raw_model, str) and not raw_model.strip()):
+            drift.append(
+                Drift(
+                    rel,
+                    "name-frontmatter-mismatch",
+                    f"model (empty) != name {parsed.model}",
+                )
+            )
+        else:
+            raw_str = str(raw_model).strip()
+            norm_res = R.normalize_model(raw_str, repo_root=repo_root)
+            norm_model = norm_res.value if norm_res.ok else raw_str
+            if norm_model != parsed.model:
+                drift.append(
+                    Drift(
+                        rel,
+                        "name-frontmatter-mismatch",
+                        f"model {raw_model} != name {parsed.model}",
+                    )
+                )
     topic_val = fm.get("topic")
     topic_list = [str(t) for t in topic_val] if isinstance(topic_val, list) else []
     consumed_val = fm.get("consumed-by")
