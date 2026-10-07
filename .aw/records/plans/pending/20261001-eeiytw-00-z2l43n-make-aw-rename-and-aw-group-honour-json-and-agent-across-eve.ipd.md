@@ -7,8 +7,8 @@
 - Scope-Paths: .aw/records/plans/pending/20261001-eeiytw-01-x7unul-carry-the-rename-and-group-facts-out-of-the-backends-in-a-ty.ipd.md, .aw/records/plans/pending/20261001-eeiytw-02-vfqjc0-emit-the-aw-agent-v1-payload-once-at-the-rename-and-group-di.ipd.md, .aw/records/plans/pending/20261001-eeiytw-03-gzb2rq-silence-the-nested-index-refresh-and-pin-the-machine-surface.ipd.md
 - Item-Dependencies: none
 - Status: draft
-- Coverage: fail
-- Coverage-Fingerprint: 12f5ccbc860eb2073b75b5de481d6a26b6d283926ddc59ff16b01e1d8607a2e9
+- Coverage: pass
+- Coverage-Fingerprint: 714c6c0da3911beb73bc12cf00656822b56f9e55ee97f689e8afce07a85e56f0
 - Coverage-Checked: 2026-10-07 by uri/its_direct/pt3-claude-opus-5.5-1m-us
 - Work-Kind: bug
 - Priority: low
@@ -21,6 +21,7 @@
 - Id: z2l43n
 
 ## Workflow history
+- 2026-10-07 coverage pass (aw oc run): fingerprint 714c6c0da391, model uri/its_direct/pt3-claude-opus-5.5-1m-us
 - 2026-10-07 coverage fail (aw oc run): fingerprint 12f5ccbc860e, model uri/its_direct/pt3-claude-opus-5.5-1m-us
 - 2026-10-06 draft (aw set): demoted to-review -> draft: returned to authoring by gradcover 52opph: uncovered obligation: Close backlog item eeiytw by making both verbs emit exactly one parseable aw.agent/v1 record
 
@@ -127,10 +128,6 @@ Each check below is performed by Order 03 `gzb2rq`, the last child, as part of i
 - Status: resolved
 - Owner: none
 - Resolution or deferral rationale: RESOLVED: NO, and the two have DIFFERENT reasons, which is why neither is carried. `aw index` genuinely has the same missing-payload defect (measured), but it also has a live open item against it, `4uw9gy`, whose own text warns that `--limit` on `index` means a hot-window size that IS honoured in the human path and that a fixer must not unify it with the other verbs; adding `index` here would collide with that item's territory and risk breaking a working feature to fix an unrelated one. `aw archive` is not a contract violation at all: its `command_surface` declaration lists neither `--json` nor `--agent` in `legacy_flags`, so no promise is being broken, and it dispatches through `_run_archive` rather than `_run_noun_verb`, so it would not even benefit from Order 02's emit site. Giving it the flags is a feature a maintainer should choose. The honest consequence, stated so this Set's `- Blocks-Release:` gate is not read as a wider claim than it is: after this Set, the missing-payload defect class is closed on `rename`, `group` and the two research spellings, and remains open on `index` and `archive`. REVERSIBLE: yes; either could be added by a later plan without undoing anything here.
-
-## Coverage findings
-
-- "Close backlog item `eeiytw` by making both verbs emit exactly one parseable `aw.agent/v1` record on stdout under `--json` and `--agent`, on every artifact type, on preview, apply and refusal, so that `json.loads(stdout)` succeeds where it raises today."
 
 ## Validation and cross-check (verify before reporting the Set complete)
 
