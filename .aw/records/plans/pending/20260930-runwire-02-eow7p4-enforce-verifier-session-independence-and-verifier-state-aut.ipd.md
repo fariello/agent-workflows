@@ -11,7 +11,7 @@
   EXCLUDES: changing the verifier PROMPT or its verdict schema; changing `map_verdict` or the verdict table (`1bfppy`'s, and it is correct); adding a `verify_disp` token (measured to render as a bare `-` in `run_viewer`); the `correction_required -> runnable` requeue; wiring `run_recovery` or a ledger; and adding an `ACTION_CAPABILITY_REQUIREMENTS` row (see OQ-02 - that is a capability-policy change with its own refusal surface).
 - Scope-Paths: agent_workflows/runner_shared.py, tests/test_runwire_verifier_authority.py
 - Item-Dependencies: executed:32jpl1
-- Status: draft
+- Status: to-review
 - Work-Kind: chore
 - Priority: medium
 - From-Backlog: ildjse
@@ -22,6 +22,7 @@
 - Id: eow7p4
 
 ## Workflow history
+- 2026-10-07 to-review (aw set): returned to review: Set-level checks owned by eow7p4 E-05 (runs last); coverage pass recorded; open questions non-blocking
 - 2026-10-07 note (opencode its_direct/pt3-claude-opus-5.5-1m-us): added E-05/V-05, the Set-level checks orchestrator `i18yaz` carried with no owner; this plan runs last, after `32jpl1`. Measurement only; no scope change.
 - 2026-10-06 draft (aw set): demoted to-review -> draft: returned to authoring by gradcover 52opph: uncovered obligation: Bare pytest compared against a baseline measured before any edit
 

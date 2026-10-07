@@ -10,7 +10,7 @@
   EXCLUDES, AND THIS FENCE IS THE MOST IMPORTANT PART OF THIS PLAN. (1) NO LEDGER. Making a driver run write a hash-chained `ledger.jsonl` so `run_engine.RunEngine` and therefore `run_recovery` become reachable is EXPLICITLY OPEN and is NOT decided here; `runner_shared`'s own comment says "WHETHER A DRIVER RUN SHOULD WRITE A LEDGER IS STILL OPEN ... Nobody may cite this section as a decision to abandon the ledger design", and approved spec `25kzda` concedes the ledger is built but unwired. `run_recovery` is therefore UNREACHABLE BY CONSTRUCTION from a driver run and this Set does not import it; see OQ-01. (2) NO REQUEUE. The `correction_required -> runnable` transition remains unimplemented (`1bfppy` OQ-01). (3) NO VOCABULARY REPLACEMENT. No driver status token is renamed, removed, or re-spelled, and `TERMINAL_STATES` keeps every member: a translation is ADDITIVE and a rename would break `run_viewer`, `runner_shutdown.KNOWN_ITEM_STATUSES`, `artifact_audit` and the attention mapping at once. (4) NO NEW REFUSAL from the transition check (Order 01 is report-only); Order 02 DOES refuse, and its fence says exactly where.
 - Scope-Paths: .aw/records/plans/pending/20260930-runwire-00-i18yaz-wire-the-run-state-machine-into-the-host-runners.ipd.md
 - Item-Dependencies: none
-- Status: draft
+- Status: to-review
 - Coverage: pass
 - Coverage-Fingerprint: 0ff0457383ab974d5a170cf2e77bf1ca7be2d465cd954e37b86425a3e4aa2c5e
 - Coverage-Checked: 2026-10-07 by uri/its_direct/pt3-claude-opus-5.5-1m-us
@@ -24,6 +24,7 @@
 - Id: i18yaz
 
 ## Workflow history
+- 2026-10-07 to-review (aw set): returned to review: Set-level checks owned by eow7p4 E-05 (runs last); coverage pass recorded; open questions non-blocking
 - 2026-10-07 coverage pass (aw oc run): fingerprint 0ff0457383ab, model uri/its_direct/pt3-claude-opus-5.5-1m-us
 - 2026-10-07 note (opencode its_direct/pt3-claude-opus-5.5-1m-us): each criterion and Set-level check now leads with its owner; the cross-child checks are owned by `eow7p4` E-05, which runs last.
 - 2026-10-06 draft (aw set): demoted to-review -> draft: returned to authoring by gradcover 52opph: uncovered obligation: Bare pytest compared against a baseline measured before any edit
