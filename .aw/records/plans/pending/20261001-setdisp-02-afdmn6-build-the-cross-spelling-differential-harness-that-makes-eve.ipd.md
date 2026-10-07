@@ -6,7 +6,8 @@
 - Scope: IN: author one differential harness that drives BOTH spellings of `aw backlog set` and BOTH spellings of `aw specs set` over identical fixtures and asserts agreement on every axis spec `wy9aru` Section 4 rules canonical AND that already agrees today, with the axes `wy9aru` Section 7 assigns elsewhere normalized by SHAPE; record the axes that currently DISAGREE as explicit, individually justified expected-difference assertions, so each later child can flip exactly one of them and show the flip. OUT, each with a reason recorded under "Deferred": any production code change whatsoever (this child is tests only); any dispatch move (children 04, 05); the two gate bypasses (child 03); fixing any axis `wy9aru` Section 7 assigns elsewhere.
 - Scope-Paths: tests/test_set_dispatch_parity.py
 - Item-Dependencies: executed:c6f6sj
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
 - From-Spec: wy9aru
 - Work-Kind: chore
 - Priority: medium
@@ -18,6 +19,8 @@
 - Id: afdmn6
 
 ## Workflow history
+- 2026-10-07 /plan-review (opencode uri/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005, PR-006, PR-007
+- 2026-10-07 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-001..PR-007 FIXED
 - 2026-10-07 to-review (aw set): returned to review: Set-level checks now owned by new Order 06 7zb4ny; coverage pass recorded; open questions are non-blocking executor measurements
 - 2026-10-06 draft (aw set): demoted to-review -> draft: returned to authoring by gradcover 52opph: uncovered obligation: The bare suite pytest after the final child compared by name against baseline
 - 2026-10-01 same-status (aw set): status unchanged (to-review)
@@ -39,7 +42,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 - [ ] E-01 Author `tests/test_set_dispatch_parity.py` with the shared fixture machinery and the NORMALIZATION helpers, before any axis assertion. The module must drive real CLI surfaces via `cli.main` over temporary git repositories, following the pattern `tests/test_history_provenance.py` and `tests/test_backlog_positional_close_gate.py` already use, and must pass `--no-commit` on every invocation so no test commits into its fixture.
 
-    THE TWO NORMALIZERS ARE THE LOAD-BEARING PART AND THEIR ABSENCE IS A MEASURED FAILURE MODE, not a hypothetical one. (1) DATE, normalized BY SHAPE with a regex on `^- \d{4}-\d{2}-\d{2} `, never by reading a clock in the test. The two engines read DIFFERENT CLOCKS (`status_set` UTC, `backlog` local), so an un-normalized cross-spelling comparison is red for part of every day: `tests/test_backlog.py::BacklogPreservationTests::test_release_exempt_setter_roundtrip_and_parity` is exactly that test and plan `jbipfa` F-09 measured it red at base. Reading a clock in the test reintroduces the same race. (2) ACTOR, normalized by substituting the parenthesized writer identity, because `(aw backlog)` versus `(aw set)` is a DELIBERATE difference (`jbipfa` declines to unify it: the parenthesis names the writer, and the two writers genuinely differ).
+    THE TWO NORMALIZERS ARE THE LOAD-BEARING PART AND THEIR ABSENCE IS A MEASURED FAILURE MODE, not a hypothetical one. (1) DATE, normalized BY SHAPE with a regex on `^- \d{4}-\d{2}-\d{2} `, never by reading a clock in the test. AT AUTHORING the two engines read DIFFERENT CLOCKS (`status_set` UTC, `backlog` local), and `tests/test_backlog.py::BacklogPreservationTests::test_release_exempt_setter_roundtrip_and_parity` was measured red at base for that reason (`jbipfa` F-09). SINCE THEN `5ivkdh` (commit `3c55295a3`) moved every history writer onto `artifact_core.utc_history_date`, so `backlog._reattach_history` and `status_set.apply_status_change` now share the UTC clock (re-verified at review). The normalizer is STILL REQUIRED: spec `wy9aru` S3 mandates it until the clock axis is closed by its owners, and a test comparing two writes across a UTC midnight would still race. Reading a clock in the test reintroduces that race. (2) ACTOR, normalized by substituting the parenthesized writer identity, because `(aw backlog)` versus `(aw set)` is a DELIBERATE difference (`jbipfa` declines to unify it: the parenthesis names the writer, and the two writers genuinely differ).
 
     EVERY CROSS-SPELLING COMPARISON MUST ALSO PASS AN EXPLICIT `--message`, because the DEFAULTED messages differ (`status -> <s>` versus `status set to <s>`, measured in `jbipfa` F-10) and that is a third axis assigned elsewhere.
 
@@ -54,7 +57,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 - [ ] E-02 Assert AGREEMENT for `aw backlog set`, on every axis that agrees today. Each must be a named test asserting a specific observable, never a whole-file diff, so a failure names the axis rather than printing two blobs.
 
-    Cover at minimum: the resulting STATUS value in the file; the resulting FILE LOCATION (the status directory the item ends in); the gate-field clearing behavior on a transition out of `blocked` (both must clear `Gate-Kind`/`Gate-Ref`); the release-gate close predicate refusal on an illegitimate blocking close (both must refuse, rc 1, nothing written); the gate DEFAULT applied when a `bug` transitions into a live status; `--blocks-release` set and cleared; `--graduated-to` canonicalization; `--priority` and `--work-kind` writes; the preservation of every PRIOR history record; and the number of records appended (exactly one on a genuine transition).
+    Cover at minimum: the resulting STATUS value in the file; the resulting FILE LOCATION (the status directory the item ends in); the gate-field clearing behavior on a transition out of `blocked` (both must clear `Gate-Kind`/`Gate-Ref`); the release-gate close predicate refusal on an illegitimate blocking close (both must refuse, rc 1, nothing written); the gate DEFAULT applied when a `bug` transitions into a live status; `--blocks-release` set and cleared; `--graduated-to` canonicalization; `--priority` and `--work-kind` writes; the preservation of every PRIOR history record; the number of records appended (exactly one on a genuine transition); the unsafe-descriptive refusal on `--message` and `--gate-ref` (both refuse an embedded newline at rc 2 and write nothing, measured at review; reclassified from E-04 (h)); and the relocation's `git status --porcelain` shape under `--no-commit` (both leave a ` D` of the source plus an untracked destination, measured at review; reclassified from E-04 (c), see that item for why this is NOT the canonical shape).
 
     THREE OF THESE OVERLAP EXISTING TEST FILES AND THAT DUPLICATION IS DELIBERATE, so do not "consolidate" them away: `tests/test_backlog_positional_close_gate.py`, `tests/test_backlog_gate_follows_status.py` and `tests/test_status_set.py::TestGateFieldClearingOnStatusChange` each exist because an asymmetry on that axis ALREADY caused a defect. They pin the axis as a POLICY; this harness pins it as PARITY under a migration. Removing either leaves one of the two questions unasked. State that reasoning in a module comment.
   - Depends on: E-01
@@ -75,18 +78,20 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
     Cover each of these, which were read off the two engines and, where marked MEASURED, reproduced:
     (a) MEASURED: positional `specs set implemented` SUCCEEDS without `--evidence` while `--status` REFUSES (`h4fiwa`; child 03 flips it to refuse-on-both);
     (b) MEASURED: positional `specs set deferred --gate-kind <invalid>` SUCCEEDS and writes the invalid kind while `--status` REFUSES (`fv4b6s`; child 03 flips it);
-    (c) relocation shape: the positional path produces a single staged `R` rename in `git status --porcelain` while `backlog.run_set` produces a delete plus an untracked file (`wy9aru` 4.2 rules `git mv` canonical; child 05 flips it);
+    (c) RECLASSIFIED AT REVIEW, NOW AN AGREEMENT AXIS IN E-02. Authoring assumed the positional path yields a single staged `R` rename. Measured at review on a tracked backlog item with `--no-commit`: `apply_status_change` does call `artifact_core.git_mv` (which alone yields `R  a -> b`), but `status_set._offer_self_commit` then runs `git reset --quiet HEAD -- <paths>` on the touched paths, which UNSTAGES the rename, so the positional spelling ends in ` D <src>` plus `?? <dest>`, the SAME shape `backlog.run_set`'s write-then-unlink produces. Neither spelling produces the `wy9aru` 4.2 / AC-5 canonical rename today. Assert the observed shape as agreement in E-02, with a comment naming `_offer_self_commit`'s reset as the cause and stating that `wy9aru` AC-5 is NOT met by either spelling, so the adapter move alone will not flip it. Do NOT fix it here (production code is out of scope);
     (d) the sidecar: `aw backlog set --status` appends a `record_history` entry and the positional spelling appends none (`wy9aru` 4.3 rules on it, and its OQ-1 is BLOCKING, so this assertion records the state the maintainer's answer will change);
-    (e) multi-selector: an ambiguous selector makes the positional spelling REFUSE while `backlog.run_set` acts on one arbitrary match (`wy9aru` 4.5 rules the refusal canonical);
+    (e) multi-selector, CORRECTED AT REVIEW: with a SETID selector matching two items, `backlog.run_set` transitions ONLY the first match (`res.paths[0]`, rc 0) while the positional spelling transitions BOTH (rc 0, no refusal); with an ambiguous SUBSTRING selector BOTH spellings refuse at rc 2. So the divergence is one-versus-all on a setid, not refuse-versus-act; assert exactly that, and assert the substring case as agreement. `wy9aru` 4.5 rules the shared engine's selector vocabulary canonical;
     (f) `specs set --status` accepts a PATH ONLY while the positional spelling resolves an id6 or setid (`wy9aru` OQ-2, non-blocking);
     (g) `--work-kind`/`--priority` enum refusal: `backlog.run_set` refuses an invalid value at exit 2 while the shared engine writes it (relies on argparse `choices` alone, so the refusal is reachable only when the function is called directly);
-    (h) the unsafe-descriptive refusal on `--message`/`--gate-ref`, present on `backlog.run_set` only.
+    (h) RECLASSIFIED AT REVIEW, NOW AN AGREEMENT AXIS IN E-02: `4gwgo3` (commit `a165cb65b`, after the authoring HEAD) added the unsafe-descriptive refusal to the shared engine, and both spellings now refuse `--message`/`--gate-ref` carrying a newline at rc 2 with nothing written.
+
+    RE-MEASURE ALL EIGHT AT EXECUTION and classify each as AGREE or DIFFER from what you observe, not from this list: (c) and (h) were already found stale at review, so the list is a starting point and not a bar. Record the final classification per axis in V-04.
 
     FOR EACH, THE COMMENT MUST SAY WHICH SIDE IS CANONICAL PER `wy9aru` AND WHICH CHILD FLIPS IT. A bare "these differ" assertion is a trap: a later executor reading it cannot tell whether the difference is a bug being preserved deliberately or a contract being pinned, and the safe-looking action (deleting the test) destroys the Set's attribution.
 
     WHERE AN AXIS CANNOT BE REACHED THROUGH A CLI SURFACE, say so and call the function directly, naming why. Item (g) is the known case: argparse `choices` rejects an invalid `--work-kind` before dispatch, so the FUNCTION-level asymmetry is only observable via a direct call. That is still an outcome assertion (the returned code and the written file), so P16 holds.
   - Depends on: E-01
-  - Expected outcome: a set of named expected-difference tests, every one PASSING at base by asserting the CURRENT divergence, each carrying a comment naming the owning artifact, the canonical side per `wy9aru`, and the child that will flip it.
+  - Expected outcome: a set of named expected-difference tests (six at review: (a), (b), (d), (e), (f), (g)), every one PASSING at base by asserting the CURRENT divergence, each carrying a comment naming the owning artifact, the canonical side per `wy9aru`, and the child that will flip it; plus a per-axis classification of all eight, with any axis that measured as agreement moved to E-02 and named as reclassified.
   - Execution state: pending
 
 ### Task group 4: prove the harness can fail
@@ -104,7 +109,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 - Cite code by SYMBOL (`module.function`) or by a quoted content string, with a line number only appended to one of those and never alone: an offset expires before this plan executes (spec `ipd-structure-and-linting` Section 10.2; advisory `IPD-C801`).
 - OUTCOME TESTS ONLY (`AGENTS.md`, GUIDING_PRINCIPLES P16, spec `wy9aru` S1). Every test here drives a CLI surface (or, for one named unreachable case, a function) and asserts on exit codes, written files and emitted output. None may read production source with `inspect`/`ast`/regex, count callers, or assert docstring text.
-- Run the suite BARE: `python3 -m pytest`. `pyproject.toml` `addopts` already supplies `-q -n auto --dist=worksteal -m 'not slow'`; `-n0` is forbidden (several times slower here) and a second `-q` suppresses the `N passed` line this plan requires pasted.
+- Run the suite BARE: `python3 -m pytest`. `pyproject.toml` `addopts` already supplies `-q -n auto --dist=worksteal -m 'not slow and not livecorpus'`; `-n0` is forbidden (several times slower here) and a second `-q` suppresses the `N passed` line this plan requires pasted.
 - `aw` re-execs into the checkout's own package unless `AW_NO_REEXEC=1` is set; inside a lane worktree it prints a notice naming both paths. Set `AW_NO_REEXEC=1` on every `aw` invocation so the lane's own code runs and the notice does not pollute pasted evidence.
 - The inline history block's boundary is a measured subtlety documented in `backlog._prior_history_records`: the block ends at the first line that is neither blank nor a column-zero `- ` bullet, and a record MUST start at column zero, because an unbounded scan once promoted five indented prose-quoted example lines into an item's provenance. Read history through that helper or `attention._history_section_lines`; never re-derive the boundary.
 - The repository has ZERO uses of `xfail` (measured: no test file contains the token). So an expected-difference assertion must be written as a POSITIVE assertion of the current divergence, not as an expected failure; E-04 is shaped accordingly.
@@ -122,6 +127,7 @@ The axis inventory was derived by reading the three engines in full at HEAD `ec8
 | F-04 | MEDIUM (NORMALIZATION) | `status_set.apply_status_change` stamps `datetime.datetime.now(datetime.timezone.utc).date()`; `backlog._reattach_history` stamps `datetime.date.today()`. `jbipfa` F-09 measured the resulting cross-spelling test red at base, green under `TZ=UTC`. | **AN UN-NORMALIZED CROSS-SPELLING COMPARISON IS RED FOR PART OF EVERY DAY, AND THAT HAS BEEN OBSERVED IN THIS REPOSITORY'S OWN SUITE.** This is why E-01 requires shape-based date normalization before any axis assertion exists, and why the harness must not read a clock. The axis itself is release-gated elsewhere (`2wae2x`/`fnb8pl`/`lq2w86`) and must not be fixed here. |
 | F-05 | LOW (TOOLING CONSTRAINT) | Searched the whole `tests/` tree for `xfail`: zero occurrences. | **THE REPOSITORY DOES NOT USE EXPECTED-FAILURE MARKERS**, so E-04's expected differences must be positive assertions of the current divergence. That is better for this purpose anyway: a positive assertion names the current value, so the later flip is a one-line, reviewable change rather than the removal of a marker. |
 | F-06 | N/A (BASELINE) | `python3 -m pytest` at HEAD `ec857565a`: `3512 passed, 2 skipped, 3 warnings in 111.12s (0:01:51)`. | **THE BASE IS GREEN AT THIS HEAD BUT THAT IS TIME-DEPENDENT** (F-04's clock skew makes one existing cross-spelling test red for part of each day). RE-DERIVE the baseline and compare failure SETS BY NAME, never against this count. |
+| F-08 | HIGH (MEASURED AT REVIEW) | Scratch repo, tracked backlog item, `--no-commit`: flag spelling -> ` D open/<f>` + `?? parked/<f>`; positional spelling -> identical, because `status_set._offer_self_commit` runs `git reset --quiet HEAD -- <paths>` after `artifact_core.git_mv` staged `R`. Setid selector over two items: flag moved one, positional moved both; substring selector: both rc 2. `--message`/`--gate-ref` with a newline: both rc 2. | **THREE OF E-04'S EIGHT AXES WERE STALE OR WRONG AT REVIEW.** (c) and (h) now agree; (e) differs in a different way than authored. Also: neither spelling meets `wy9aru` AC-5's single-rename property today, which the migration children assume the shared engine already provides. |
 | F-07 | MEDIUM (REACHABILITY) | `backlog.run_set` validates `--work-kind`/`--priority` against its enums and exits 2; the shared engine performs no function-level enum validation and relies on argparse `choices`. | **ONE ASYMMETRY IS NOT REACHABLE THROUGH THE CLI AT ALL**, because argparse rejects the invalid value before dispatch. E-04 item (g) therefore calls the function directly and says why. This is still an outcome assertion (return code plus written file), so P16 holds; a reader who assumes every case can be driven through `cli.main` will otherwise conclude the axis does not exist. |
 
 ## Proposed changes (ordered, validatable)
@@ -129,7 +135,7 @@ The axis inventory was derived by reading the three engines in full at HEAD `ec8
 1. `tests/test_set_dispatch_parity.py`: fixture machinery, the date and actor normalizers, and a self-test proving the normalizers substitute (E-01).
 2. Same file: backlog agreement assertions, all green at base (E-02).
 3. Same file: specs agreement assertions, all green at base (E-03).
-4. Same file: expected-difference assertions for the eight currently-diverging axes, each naming its owner and the child that flips it (E-04).
+4. Same file: expected-difference assertions for the axes that measure as diverging (six at review), each naming its owner and the child that flips it, plus the per-axis classification of all eight candidates (E-04).
 5. No production file is touched by this plan at all. The probes in E-05 are throwaway and reverted.
 
 ## Deferred / out of scope (with reason)
@@ -196,7 +202,7 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Observed evidence:
   - Result: pending
 - [ ] V-04 validates E-04
-  - Required evidence: pasted per-test output listing all eight expected-difference tests as passed at base; for each, the quoted comment naming the owning artifact, the canonical side per `wy9aru`, and the child that flips it; and the answer to OQ-01 stating which axes required a direct function call and why.
+  - Required evidence: a per-axis table for all eight candidates (a)-(h) giving the classification OBSERVED at execution (AGREE or DIFFER) with the command output that decided it; pasted per-test output listing every DIFFER test as passed at base; for (c), (e) and (h), the pasted porcelain/rc output showing the corrected shapes recorded at review still hold (or what changed); for each DIFFER test, the quoted comment naming the owning artifact, the canonical side per `wy9aru`, and the child that flips it; and the answer to OQ-01 stating which axes required a direct function call and why.
   - Observed evidence:
   - Result: pending
 - [ ] V-05 validates E-05
@@ -222,7 +228,15 @@ with `git diff --cached --name-only` before committing, and re-verify after any 
 because a rejecting hook can leave paths in the index that you never staged. A production file in the
 staged set means an E-05 probe was not reverted: stop and revert it rather than committing it.
 
+Scope fence: `- Scope-Paths:` is a DECLARATION so the runner can reconcile afterwards, not a stop
+order; a genuinely required out-of-scope edit is made and then justified to `aw ipd finalize` with a
+`--scope-reason`. (The E-05 production-file case above is different: it is a reverted probe, and
+committing it is never correct.)
+
 Post-gate lifecycle: on completion, `aw ipd lint --phase pre-transition` must report conforming and
 every `V-*` above must carry pasted evidence before the plan moves to
-`.aw/records/plans/executed/`. Do not set the backlog item `fcnz1r` to any status: the orchestrator
+`.aw/records/plans/executed/`. Under `aw oc run` / `aw agy run` the runner performs that transition
+(self-finalize after verification); do NOT run `aw ipd finalize` yourself there. Executed by hand, the
+executor runs `aw ipd finalize` once the lint conforms. Never hand-roll a `git mv` to `executed/` or
+hand-edit `- Status: executed`. Do not set the backlog item `fcnz1r` to any status: the orchestrator
 `63zo2f` owns its disposition.
