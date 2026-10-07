@@ -6,7 +6,7 @@
 - Scope: Orchestrate the three children that close backlog item `eeiytw`: carry the facts out of the backends (Order 01), emit the payload once at each dispatch site (Order 02), and silence the nested manifest-refresh line so stdout is strictly parseable (Order 03). This plan performs NO work of its own; every deliverable belongs to a child.
 - Scope-Paths: .aw/records/plans/pending/20261001-eeiytw-01-x7unul-carry-the-rename-and-group-facts-out-of-the-backends-in-a-ty.ipd.md, .aw/records/plans/pending/20261001-eeiytw-02-vfqjc0-emit-the-aw-agent-v1-payload-once-at-the-rename-and-group-di.ipd.md, .aw/records/plans/pending/20261001-eeiytw-03-gzb2rq-silence-the-nested-index-refresh-and-pin-the-machine-surface.ipd.md
 - Item-Dependencies: none
-- Status: draft
+- Status: to-review
 - Coverage: pass
 - Coverage-Fingerprint: 714c6c0da3911beb73bc12cf00656822b56f9e55ee97f689e8afce07a85e56f0
 - Coverage-Checked: 2026-10-07 by uri/its_direct/pt3-claude-opus-5.5-1m-us
@@ -21,6 +21,7 @@
 - Id: z2l43n
 
 ## Workflow history
+- 2026-10-07 to-review (aw set): returned to review: every Set-level check the coverage probe quoted now names its owning child (Order 03 gzb2rq) and the backlog close is the runner's; coverage pass recorded
 - 2026-10-07 coverage pass (aw oc run): fingerprint 714c6c0da391, model uri/its_direct/pt3-claude-opus-5.5-1m-us
 - 2026-10-07 coverage fail (aw oc run): fingerprint 12f5ccbc860e, model uri/its_direct/pt3-claude-opus-5.5-1m-us
 - 2026-10-06 draft (aw set): demoted to-review -> draft: returned to authoring by gradcover 52opph: uncovered obligation: Close backlog item eeiytw by making both verbs emit exactly one parseable aw.agent/v1 record
