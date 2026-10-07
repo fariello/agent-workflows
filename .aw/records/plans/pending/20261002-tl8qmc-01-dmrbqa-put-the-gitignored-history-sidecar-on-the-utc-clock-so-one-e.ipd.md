@@ -109,6 +109,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Carrier-Evidence: .aw/records/plans/executed/20261001-7qvs1c-01-5ivkdh-unify-every-artifact-history-date-onto-the-utc-clock-ruled-b.ipd.md
 - THE CROSS-SPELLING TIMEZONE GUARD IS NOT BUILT HERE. `ayhveg` owns the derived, timezone-parameterized differential guard over the setter surface, including the spec-family divergence no filed item mentions. F-06 records why its comparison and this plan's are different axes.
   - Carrier: ayhveg
+  - Carrier-Evidence: .aw/records/plans/executed/20261001-a2zpzq-01-ayhveg-give-the-utc-history-date-ruling-a-durable-cross-spelling-gu.ipd.md
 - THE SCAFFOLD AND PLAN-FAMILY `created` RECORDS ARE NOT TOUCHED. `9wcei0` and `rfyrvp` each own an `ipd_authoring` site, and this plan declares no `ipd_authoring.py` path.
   - Carrier: 9wcei0
   - Carrier-Evidence: .aw/records/plans/executed/20261002-jvw1kg-01-9wcei0-stamp-the-scaffold-s-draft-history-record-from-the-utc-clock.ipd.md

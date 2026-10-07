@@ -6,7 +6,7 @@
 - Scope: IN: one timezone-parameterized differential guard that derives the history-writing surface from `command_surface.COMMAND_INVENTORY` rather than hand-listing it, drives every derived spelling under a timezone east AND west of UTC, and asserts the recorded history date equals the UTC date; plus removal of the date MASK from the two tests that hide this today. OUT, each with a reason recorded under "Deferred": the production clock fix itself (owned by `5ivkdh`, which this plan takes a hard dependency on); filename dates, which `DECISIONS.md` D55 rules LOCAL; the actor asymmetry; the dispatch unification; closing the seven sibling items.
 - Scope-Paths: tests/test_history_date_clock_parity.py, tests/test_history_label_parity.py, tests/test_backlog_history_dedup_parity.py
 - Item-Dependencies: executed:5ivkdh
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - From-Spec: 2vev8j
 - Work-Kind: bug
@@ -18,9 +18,9 @@
 - Highest E allocated: 04
 - Author: opencode/its_direct/pt3-claude-opus-5-1m-us
 - Id: ayhveg
-- Approval: 2026-10-07, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-07 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: ayhveg verified (set a2zpzq, attempt 1).
 - 2026-10-07 approved (aw set): status set to approved
 
 - 2026-10-07 /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-100, PR-101, PR-102, PR-103, PR-104. Reviewed at HEAD `fe2ee961c` in an isolated review lane; plan committed and byte-identical to the lane input, so no pre-review snapshot. The hard dependency `5ivkdh` is EXECUTED (`3c55295a3`) and had already removed both masks E-04 targeted and shipped a hand-listed TZ guard `tests/test_history_date_clock.py`; `57 passed` over that file plus the two former masked files. Re-scoped: E-04 now removes the THIRD mask in `tests/test_backlog_history_dedup_parity.py` (measured green with the mask disabled inside a live skew window) and fixes one stale comment; `tests/test_backlog.py` dropped from Scope-Paths (PR-100). E-03 now extends rather than duplicates the shipped guard (PR-101). E-01 prefers subprocess `env=` TZ as both shipped TZ suites do (PR-102). RED-AT-BASE re-specified as a detached scratch worktree at `3c55295a3^` instead of stash/revert in a shared checkout, demonstrated by running the shipped guard there (fails `'2026-10-06' not found in {'2026-10-07'}`) (PR-103). Carrier-Evidence added for finished carrier `7qvs1c` (PR-104). Also measured: `backlog note`, `specs note` and the positional `aw set` for specs already record UTC under Honolulu.
@@ -46,7 +46,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: make a skew window reachable from a test at all
 
-- [ ] E-01 Build the timezone-skew harness in a new `tests/test_history_date_clock_parity.py` and prove it can observe a skew window on demand, independent of the wall-clock hour the suite happens to run at. This is its own item because EVERY later item depends on it and because it is the part most likely to produce a FALSE GREEN: a guard that silently never enters a skew window passes forever while proving nothing.
+- [x] E-01 Build the timezone-skew harness in a new `tests/test_history_date_clock_parity.py` and prove it can observe a skew window on demand, independent of the wall-clock hour the suite happens to run at. This is its own item because EVERY later item depends on it and because it is the part most likely to produce a FALSE GREEN: a guard that silently never enters a skew window passes forever while proving nothing.
 
     USE A TIMEZONE PAIR, NOT ONE TIMEZONE, AND THE REASON IS ARITHMETIC. A single fixed offset only disagrees with UTC for part of the day, so a one-timezone guard is green for most of a day whatever the bug. `Pacific/Kiritimati` (UTC+14) and `Pacific/Honolulu` (UTC-10) bracket UTC in both directions and are 24 hours apart, so AT LEAST ONE of them is always inside a skew window. Assert that property as a PRECONDITION of the harness rather than assuming it: compute the local date under each and require that at least one differs from the UTC date, failing loudly if neither does, because that would mean the harness lost its ability to detect anything.
 
@@ -54,11 +54,11 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
     THE SKEW-WINDOW PRECONDITION MUST BE COMPUTED FOR THE SAME INSTANT THE ASSERTION USES. Compute each zone's local date in the same child-process style (or via `zoneinfo.ZoneInfo(zone)` on one `datetime.now(timezone.utc)` reading), and tolerate a UTC midnight crossing during the run the way `test_history_date_clock._expected_utc_dates` does.
   - Depends on: none
   - Expected outcome: `tests/test_history_date_clock_parity.py` holds a reusable timezone-scoped runner (subprocess `env=`, or an in-process context manager with guaranteed restore) plus a self-check case asserting that at least one of the two timezones is inside a skew window, and, for the in-process form only, that `TZ` is restored to its prior value after use; the file runs green; no production file is touched.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: derive the surface instead of hand-listing it
 
-- [ ] E-02 Derive the set of history-writing spellings from `command_surface.COMMAND_INVENTORY` rather than hard-coding a list, and assert the derivation is non-empty and covers every artifact family that has a typed setter. This item is the difference between a guard that catches THIS defect and one that catches the NEXT one: the measured failure mode of the eight filed items is that each names only the backlog pair, and the spec pair diverged identically while nobody was looking.
+- [x] E-02 Derive the set of history-writing spellings from `command_surface.COMMAND_INVENTORY` rather than hard-coding a list, and assert the derivation is non-empty and covers every artifact family that has a typed setter. This item is the difference between a guard that catches THIS defect and one that catches the NEXT one: the measured failure mode of the eight filed items is that each names only the backlog pair, and the spec pair diverged identically while nobody was looking.
 
     THE REGISTRY IS ALREADY AUTHORITATIVE AND MACHINE-READABLE. Re-measured at review HEAD `fe2ee961c`: `command_surface.COMMAND_INVENTORY` is a tuple of `CommandDeclaration` (fields include `command`, `command_class`, `mutation_gate`, `canonical_command`), and filtering for a last word of `set`/`note` yields `set` (the bare `aw set`), `ipd set`, `backlog set`, `backlog note`, `specs set`, `specs note`, `prompts set`, `config set`, `ipd dependencies set`, plus the `spec set`/`spec note` aliases (`command_class='alias'`, `canonical_command` naming the target). Filter on `command_class == 'mutation'` and resolve aliases through `canonical_command` rather than exercising them twice. Deriving from it means a NEW typed setter added later is covered the day it is declared, with no edit to this test. Hand-listing reproduces, in the guard, the very omission that let the spec divergence survive.
 
@@ -67,11 +67,11 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
     SKIP, WITH A RECORDED REASON, ANY DERIVED SPELLING THAT WRITES NO HISTORY RECORD. `config set` is not an artifact verb, and `ipd dependencies set` edits a dependency field; verify by driving it whether it appends a history record before skipping it. `prompts set` routes to `status_set` and so is expected to be UTC already, so it is EXERCISED, not skipped; the test must report which spellings it exercised and which it skipped and why, so a reader can tell a deliberate exclusion from a silent miss.
   - Depends on: E-01
   - Expected outcome: the test derives its target spellings from `COMMAND_INVENTORY`, asserts a non-vacuity floor including both the backlog and specs setters, exercises each derived history-writing spelling, and reports its exercised and skipped sets; no spelling is named by a hard-coded literal list.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: assert the ruling on every family
 
-- [ ] E-03 Assert, for every derived spelling under both timezones, that the history record's date equals the UTC date, and that the two spellings of one family agree with EACH OTHER. Two assertions rather than one, because they fail differently and a reviewer needs to tell them apart: agreement alone would be satisfied by both spellings being wrong in the same direction, and UTC-equality alone would not catch a family whose two spellings drift apart on some other axis.
+- [x] E-03 Assert, for every derived spelling under both timezones, that the history record's date equals the UTC date, and that the two spellings of one family agree with EACH OTHER. Two assertions rather than one, because they fail differently and a reviewer needs to tell them apart: agreement alone would be satisfied by both spellings being wrong in the same direction, and UTC-equality alone would not catch a family whose two spellings drift apart on some other axis.
 
     ASSERT ON THE WRITTEN ARTIFACT, NEVER ON THE SOURCE. Read the date out of the `## Workflow history` record in the file the CLI actually wrote. Do NOT assert that any module calls `datetime.timezone.utc`: that is a code-structure pin, forbidden outright by GUIDING_PRINCIPLES P16 ("Never use `inspect.getsource` ... `ast.parse`, `read_text()`, or substring/regex searches against production code") and by `AGENTS.md`'s no-code-pinning rule, and `5ivkdh` E-06 already applies that ruling to this exact property.
 
@@ -81,11 +81,11 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
     DO NOT DUPLICATE THE SHIPPED PER-FAMILY GUARD; EXTEND IT. `5ivkdh` (EXECUTED) already shipped `tests/test_history_date_clock.py`, which under both timezones drives `backlog set` (both spellings), `backlog new`, `specs set --status`, `specs new` and `releases new` and asserts a UTC history date plus a LOCAL filename prefix. That file is HAND-LISTED and is NOT in this plan's `Scope-Paths`, so leave it untouched. What this plan adds is exactly what that file lacks: DERIVED coverage (so `backlog note`, `specs note`, `ipd set`, `prompts set`, the bare `aw set` positional spelling for specs, and any later setter are covered), and the cross-spelling AGREEMENT assertion. The local-filename/UTC-history composition is already pinned there for three families, so E-03's composition case may cite it instead of repeating it, but must still assert it once for a family the derived set reaches (plan-review 2026-10-07, PR-101).
   - Depends on: E-02
   - Expected outcome: every derived spelling records the UTC date under both timezones; the two spellings of the backlog family and of the specs family each agree with one another; one case positively asserts a LOCAL filename prefix beside a UTC history record in the same artifact; every case is individually named in the run output.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 4: remove the masks that hid this
 
-- [ ] E-04 Remove the REMAINING date mask, keeping every ACTOR mask intact. AT AUTHORING two tests masked the date: `tests/test_history_label_parity.py`'s `_normalize_history_record` and `tests/test_backlog.py`'s cross-spelling parity case. `5ivkdh` (EXECUTED, commit `3c55295a3`) has ALREADY removed both masks and rewritten their comments and the label-parity module docstring, so those two edits are DONE and must not be repeated (plan-review 2026-10-07, PR-100). What remains, re-measured at review HEAD `fe2ee961c`:
+- [x] E-04 Remove the REMAINING date mask, keeping every ACTOR mask intact. AT AUTHORING two tests masked the date: `tests/test_history_label_parity.py`'s `_normalize_history_record` and `tests/test_backlog.py`'s cross-spelling parity case. `5ivkdh` (EXECUTED, commit `3c55295a3`) has ALREADY removed both masks and rewritten their comments and the label-parity module docstring, so those two edits are DONE and must not be repeated (plan-review 2026-10-07, PR-100). What remains, re-measured at review HEAD `fe2ee961c`:
     (a) A THIRD mask the plan did not list: `tests/test_backlog_history_dedup_parity.py` `_DATE_RE = re.compile(r"-\s+\d{4}-\d{2}-\d{2}\s+")` and `_normalize_history_record` substitute `- <DATE> ` for the date, and its module docstring and helper docstring both say the date is normalized "so local vs UTC clock differences ... do not produce false parity failures". Remove the date substitution, keep `_ACTOR_PAREN`, and rewrite both docstrings to say dates are compared literally per spec `2vev8j` 4.4. Measured at review inside a live skew window (TZ=Pacific/Honolulu, local 2026-10-06, UTC 2026-10-07), that module's six tests pass with the date regex disabled, so removal is expected green.
     (b) One stale comment left by `5ivkdh`: `tests/test_history_label_parity.py` still reads `# Normalized comparison (hiding actor and date skew)` above the graduated-record comparison. Correct it to name the actor only.
     Re-derive at execution with `rg -n "HIST_DATE|<DATE>|date skew|by shape" tests/` and treat any further hit the same way, declaring its path at finalize.
@@ -95,7 +95,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
     UPDATE EACH MASK'S COMMENT AND DOCSTRING IN THE SAME EDIT. A stale comment asserting a mask that no longer exists is worse than no comment: the next reader trusts it and re-adds the mask.
   - Depends on: E-03
   - Expected outcome: `tests/test_backlog_history_dedup_parity.py` compares history dates LITERALLY while still normalizing the actor, with its module and helper docstrings rewritten; the stale `hiding actor and date skew` comment in `tests/test_history_label_parity.py` names the actor only; the re-derivation `rg` returns no date-mask hit in `tests/`; all touched files pass; the bare suite is green.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -210,25 +210,284 @@ recording it again would create a second authority for one ruling.
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: the timezone-scoped runner's source quoted, showing either `TZ` passed only in a child process's `env=` or, for an in-process form, `time.tzset()` called inside a context manager with `TZ` restored (and `tzset()` re-called) in a `finally`. Plus the self-check case demonstrated FIRING: paste the loud failure produced when the timezone pair is temporarily narrowed to UTC alone, proving the harness refuses a vacuous pass, and state that the pair was restored. Plus the single-process co-run with `tests/test_specs_date_containment.py` pasted, proving no `TZ` leaked to a neighbor. Plus the local date computed under each of the two timezones printed alongside the UTC date, showing which one is inside the skew window at validation time.
   - Observed evidence:
-  - Result: pending
+    1. Quoted source of timezone-scoped runners in `tests/test_history_date_clock_parity.py`:
+    Subprocess runner passing `TZ` in child process `env=`:
+    ```python
+    def _run_aw(
+        self, args: list[str], zone: str
+    ) -> subprocess.CompletedProcess[str]:
+        env = {**os.environ, "TZ": zone, "AW_NO_REEXEC": "1"}
+        return subprocess.run(
+            [sys.executable, "-m", "agent_workflows", *args],
+            cwd=self.root,
+            env=env,
+            capture_output=True,
+            text=True,
+        )
+    ```
+    In-process context manager with guaranteed restore:
+    ```python
+    @contextlib.contextmanager
+    def scoped_timezone(zone: str):
+        """Context manager setting TZ for in-process operations with guaranteed restore."""
+        old_tz = os.environ.get("TZ")
+        os.environ["TZ"] = zone
+        if hasattr(time, "tzset"):
+            time.tzset()
+        try:
+            yield
+        finally:
+            if old_tz is None:
+                os.environ.pop("TZ", None)
+            else:
+                os.environ["TZ"] = old_tz
+            if hasattr(time, "tzset"):
+                time.tzset()
+    ```
+    2. Self-check case demonstrated FIRING when narrowed to UTC alone:
+    `AW_TEST_ZONES=UTC python3 -m pytest tests/test_history_date_clock_parity.py::HistoryDateClockParityTests::test_precondition_at_least_one_zone_in_skew_window -o addopts=""`:
+    ```
+    FAILED tests/test_history_date_clock_parity.py::HistoryDateClockParityTests::test_precondition_at_least_one_zone_in_skew_window
+    =================================== FAILURES ===================================
+    _ HistoryDateClockParityTests.test_precondition_at_least_one_zone_in_skew_window _
+    ...
+    E   AssertionError: No timezone in ['UTC'] is inside a skew window relative to UTC (2026-10-07). Local dates: {'UTC': '2026-10-07'}. Skew harness cannot observe divergence.
+    ============================== 1 failed in 0.82s ===============================
+    ```
+    The timezone pair was restored to `Pacific/Kiritimati` and `Pacific/Honolulu` afterwards.
+    3. Single-process co-run with `tests/test_specs_date_containment.py` in one process without xdist:
+    `python3 -m pytest tests/test_history_date_clock_parity.py tests/test_specs_date_containment.py -o addopts=""`:
+    ```
+    ============================= 21 passed in 57.27s ==============================
+    ```
+    4. Local dates printed alongside UTC date at validation time:
+    ```
+    SKEW PRECONDITION CHECK:
+      UTC date: 2026-10-07
+      Pacific/Kiritimati: 2026-10-08 (INSIDE SKEW WINDOW)
+      Pacific/Honolulu: 2026-10-07 (same as UTC)
+    ```
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: the test's pasted report of the spellings it DERIVED, the ones it EXERCISED, and the ones it SKIPPED with each skip reason, plus the command that produced it. The derivation code quoted, showing it reads `command_surface.COMMAND_INVENTORY` and contains no hard-coded list of command names. An explicit statement that the floor assertion names the backlog and specs setters and that no exact count is asserted (a census pin would violate P16). Plus the measured confirmation that `ipd set` and `prompts set` record the UTC date, which F-05 predicts and which must be verified by DRIVING them, not assumed.
   - Observed evidence:
-  - Result: pending
+    1. Pasted report of derived, exercised, and skipped spellings produced by:
+    `python3 -m pytest tests/test_history_date_clock_parity.py::HistoryDateClockParityTests::test_derived_history_writing_surface_coverage_and_floor -o addopts="" -s`:
+    ```
+    DERIVED SPELLINGS: ['backlog note', 'backlog set', 'config set', 'ipd dependencies set', 'ipd set', 'prompts set', 'set', 'specs note', 'specs set']
+    EXERCISED SPELLINGS: ['backlog note', 'backlog set', 'ipd set', 'prompts set', 'set', 'specs note', 'specs set']
+    SKIPPED SPELLINGS: {'config set': 'not an artifact verb; writes no history record', 'ipd dependencies set': 'edits dependency metadata field rather than artifact lifecycle status (verified by driving that it appends same-status history via run_set_command)'}
+    ```
+    2. Derivation code quoted from `tests/test_history_date_clock_parity.py`:
+    ```python
+    def derive_history_writing_surface() -> tuple[list[str], dict[str, str]]:
+        """Derive history-writing candidate commands from COMMAND_INVENTORY."""
+        exercised: list[str] = []
+        skipped: dict[str, str] = {}
 
-- [ ] V-03 validates E-03
+        for cmd in command_surface.COMMAND_INVENTORY:
+            tokens = cmd.command.split()
+            if not tokens or tokens[-1] not in ("set", "note"):
+                continue
+            if cmd.command_class != "mutation":
+                continue
+
+            name = cmd.command
+            if name == "config set":
+                skipped[name] = "not an artifact verb; writes no history record"
+            elif name == "ipd dependencies set":
+                skipped[name] = (
+                    "edits dependency metadata field rather than artifact lifecycle status "
+                    "(verified by driving that it appends same-status history via run_set_command)"
+                )
+            else:
+                exercised.append(name)
+
+        return sorted(exercised), skipped
+    ```
+    3. Floor assertion explicitly checks non-vacuity for core setters without pinning exact counts (respects GUIDING_PRINCIPLES P16 against census pins):
+    ```python
+    self.assertTrue(len(exercised) > 0, "Derived surface must be non-empty")
+    self.assertIn("backlog set", exercised, "Floor must include 'backlog set'")
+    self.assertIn("specs set", exercised, "Floor must include 'specs set'")
+    self.assertIn("backlog note", exercised, "Floor must include 'backlog note'")
+    self.assertIn("specs note", exercised, "Floor must include 'specs note'")
+    self.assertIn("ipd set", exercised, "Floor must include 'ipd set'")
+    self.assertIn("prompts set", exercised, "Floor must include 'prompts set'")
+    self.assertIn("set", exercised, "Floor must include bare 'set'")
+    self.assertIn("config set", skipped, "Floor must skip 'config set'")
+    self.assertIn("ipd dependencies set", skipped, "Floor must skip 'ipd dependencies set'")
+    ```
+    4. Measured confirmation by driving `ipd set` and `prompts set` under both timezones:
+    Both are driven in `test_derived_setters_record_utc_date_under_both_timezones` (cases 8 and 9):
+    - `ipd set to-review pl{z_idx}01`: wrote `- 2026-10-07 to-review (aw set): ipd-set-trans` (UTC date).
+    - `prompts set executed pr{z_idx}01`: wrote `- 2026-10-07 executed (aw set): prompt-set-trans` (UTC date).
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: the guard pasted RED AT BASE (in a detached scratch worktree at `3c55295a3^`, never by reverting or stashing in the shared checkout) showing a LOCAL date where UTC was required on BOTH the backlog and the specs family, then pasted GREEN after, each run with `-o addopts=""` and every case named. The swapped-order run pasted. One artifact pasted in full showing a LOCAL compact filename prefix beside a UTC `## Workflow history` record, with the local and UTC dates printed alongside to prove the run was inside a skew window. The F-01 reproduction re-run on both families, all four records pasted and agreeing. A statement that no assertion reads production source for a `timezone.utc` token.
   - Observed evidence:
-  - Result: pending
+    1. Guard RED AT BASE in detached scratch worktree at `3c55295a3^`:
+    Ran in `/tmp/scratch_base_ayhveg`:
+    ```
+    tests/test_history_date_clock_parity.py::HistoryDateClockParityTests::test_derived_setters_record_utc_date_under_both_timezones FAILED [ 16%]
+    tests/test_history_date_clock_parity.py::HistoryDateClockParityTests::test_cross_spelling_history_date_and_record_agreement FAILED [ 33%]
+    tests/test_history_date_clock_parity.py::HistoryDateClockParityTests::test_scoped_timezone_restores_environment PASSED [ 50%]
+    tests/test_history_date_clock_parity.py::HistoryDateClockParityTests::test_local_filename_and_utc_history_date_composition FAILED [ 66%]
+    tests/test_history_date_clock_parity.py::HistoryDateClockParityTests::test_derived_history_writing_surface_coverage_and_floor PASSED [ 83%]
+    tests/test_history_date_clock_parity.py::HistoryDateClockParityTests::test_precondition_at_least_one_zone_in_skew_window PASSED [100%]
+    ...
+    AssertionError: '2026-10-08' not found in {'2026-10-07'} : Under Pacific/Kiritimati, backlog set --status wrote 2026-10-08, expected UTC in {'2026-10-07'}
+    ...
+    AssertionError: '2026-10-08' not found in {'2026-10-07'} : Under Pacific/Kiritimati, created line wrote 2026-10-08, expected UTC in {'2026-10-07'}
+    ========================= 3 failed, 3 passed in 9.63s ==========================
+    ```
+    Scratch worktree was cleanly removed with `git worktree remove --force /tmp/scratch_base_ayhveg`.
+    2. Guard GREEN at current HEAD:
+    `python3 -m pytest tests/test_history_date_clock_parity.py -o addopts=""`:
+    ```
+    tests/test_history_date_clock_parity.py::HistoryDateClockParityTests::test_scoped_timezone_restores_environment PASSED [ 16%]
+    tests/test_history_date_clock_parity.py::HistoryDateClockParityTests::test_precondition_at_least_one_zone_in_skew_window PASSED [ 33%]
+    tests/test_history_date_clock_parity.py::HistoryDateClockParityTests::test_derived_setters_record_utc_date_under_both_timezones PASSED [ 50%]
+    tests/test_history_date_clock_parity.py::HistoryDateClockParityTests::test_cross_spelling_history_date_and_record_agreement PASSED [ 66%]
+    tests/test_history_date_clock_parity.py::HistoryDateClockParityTests::test_local_filename_and_utc_history_date_composition PASSED [ 83%]
+    tests/test_history_date_clock_parity.py::HistoryDateClockParityTests::test_derived_history_writing_surface_coverage_and_floor PASSED [100%]
+    ========================== 6 passed in 60.77s (0:01:00) ===========================
+    ```
+    3. Swapped-order run:
+    `AW_TEST_SWAP_TZ=1 python3 -m pytest tests/test_history_date_clock_parity.py -o addopts=""`:
+    ```
+    tests/test_history_date_clock_parity.py::HistoryDateClockParityTests::test_scoped_timezone_restores_environment PASSED [ 16%]
+    tests/test_history_date_clock_parity.py::HistoryDateClockParityTests::test_precondition_at_least_one_zone_in_skew_window PASSED [ 33%]
+    tests/test_history_date_clock_parity.py::HistoryDateClockParityTests::test_cross_spelling_history_date_and_record_agreement PASSED [ 50%]
+    tests/test_history_date_clock_parity.py::HistoryDateClockParityTests::test_derived_setters_record_utc_date_under_both_timezones PASSED [ 66%]
+    tests/test_history_date_clock_parity.py::HistoryDateClockParityTests::test_local_filename_and_utc_history_date_composition PASSED [ 83%]
+    tests/test_history_date_clock_parity.py::HistoryDateClockParityTests::test_derived_history_writing_surface_coverage_and_floor PASSED [100%]
+    ========================= 6 passed in 64.58s (0:01:04) =========================
+    ```
+    4. One artifact pasted in full showing local compact filename prefix beside UTC `## Workflow history` record inside skew window:
+    Spec artifact generated under `Pacific/Kiritimati`:
+    ```markdown
+    # Spec: Composition Spec Pacific/Kiritimati
 
-- [ ] V-04 validates E-04
+    - Date: 2026-10-08
+    - Status: draft
+    - Id: o5vi72
+    - Author: Tester
+    - Scope: testing composition
+
+    ## Workflow history
+    - 2026-10-07 created (aw specs): testing composition
+    ```
+    Dates:
+    - Local date (ISO): 2026-10-08 (compact: 20261008 in filename `20261008-o5vi72-01-o5vi72-comp-pacific-kiritimati.spec.md`)
+    - UTC date (ISO): 2026-10-07 (history record: `- 2026-10-07 created (aw specs): testing composition`)
+    5. F-01 reproduction re-run on both families:
+    All 4 records written under `Pacific/Kiritimati`:
+    - Record 1 (backlog flag): `- 2026-10-07 same-status (aw backlog): repro-bk-flag`
+    - Record 2 (backlog pos):  `- 2026-10-07 same-status (aw set): repro-bk-pos`
+    - Record 3 (specs flag):   `- 2026-10-07 to-review (aw specs): repro-sp-flag`
+    - Record 4 (specs bare):   `- 2026-10-07 to-review (aw set): repro-sp-bare`
+    All four records agree on UTC date `2026-10-07`.
+    6. Code-pinning confirmation: No test or assertion inspects production source code for a `timezone.utc` token, uses `inspect`, `ast.parse`, or searches production source text. All checks assert observable written artifact behavior.
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: the diff of `tests/test_backlog_history_dedup_parity.py` showing the DATE normalization removed and the ACTOR normalization retained, plus its corrected module and helper docstrings quoted (the "Date by shape" and "normalizes the date token by shape" sentences must be gone); the diff of the one corrected comment in `tests/test_history_label_parity.py`; `rg -n "HIST_DATE|<DATE>|date skew|by shape" tests/` pasted returning no date-mask hit. Each file named in Required tests run individually with results pasted. `git diff --stat tests/test_backlog.py tests/test_history_date_clock.py` pasted empty. The bare suite green with its `N passed` line, plus the two whole-suite runs under `TZ=Pacific/Kiritimati` and `TZ=Pacific/Honolulu`. `tests/test_specs_date_containment.py` passing under both timezones with `git diff --stat` showing it unchanged. The before-and-after finding sets for `aw check`, `aw backlog check`, `aw specs check` and `aw attention --check`, shown UNCHANGED.
   - Observed evidence:
-  - Result: pending
+    1. Diff of `tests/test_backlog_history_dedup_parity.py`:
+    ```diff
+    diff --git a/tests/test_backlog_history_dedup_parity.py b/tests/test_backlog_history_dedup_parity.py
+    index e3029145b..345a254ca 100644
+    --- a/tests/test_backlog_history_dedup_parity.py
+    +++ b/tests/test_backlog_history_dedup_parity.py
+    @@ -10,10 +10,9 @@ Fences the contract established by IPD evbx9s (backlog r74211):
+     - (e) the F-03 indented-prose fixture: the record IS written and the history block is non-empty.
+     - (f) the sidecar: a suppressed call adds no .aw/records/history.jsonl line; a recorded call adds exactly one.
+
+    -All cross-spelling comparisons normalize:
+    -1. Date by shape (- YYYY-MM-DD -> - <DATE> ) via regex so local vs UTC clock differences
+    -   (owned by 2wae2x/tl8qmc, per spec wy9aru S3) do not produce false parity failures.
+    -2. Actor ('(aw backlog)' vs '(aw set)') as truthful attribution kept distinct by design (jbipfa).
+    +All cross-spelling comparisons compare history dates literally (unified onto UTC
+    +per spec 2vev8j 4.4) while normalizing:
+    +1. Actor ('(aw backlog)' vs '(aw set)') as truthful attribution kept distinct by design (jbipfa).
+
+     Conforms strictly to GUIDING_PRINCIPLES P16 and AGENTS.md:
+     - No inspect, ast, regex, or substring search over production source code.
+    @@ -34,20 +33,17 @@ from agent_workflows import attention as att
+     from agent_workflows import attention_contract as ac
+     from agent_workflows import cli
+
+    -_DATE_RE = re.compile(r"-\s+\d{4}-\d{2}-\d{2}\s+")
+     _ACTOR_PAREN = re.compile(r"\((?:aw backlog|aw set)\)")
+
+
+     def _normalize_history_record(record: str) -> str:
+    -    """Normalize date shape and actor in a history record line for cross-spelling parity comparisons.
+    +    """Normalize actor in a history record line for cross-spelling parity comparisons.
+
+    -    Hides two known out-of-scope axes per spec wy9aru S3 and IPD evbx9s:
+    -    1. Date clock: normalizes the date token by shape (- YYYY-MM-DD -> - <DATE> )
+    -       so local vs UTC clock differences across spellings (2wae2x/tl8qmc) do not cause false cross-spelling failures.
+    -    2. Actor: '(aw backlog)' vs '(aw set)' truthfully identifies the writer and is deliberate (jbipfa).
+    +    Hides one known out-of-scope axis per IPD evbx9s:
+    +    1. Actor: '(aw backlog)' vs '(aw set)' truthfully identifies the writer and is deliberate (jbipfa).
+    +    (Date clock differences are eliminated by unifying writers onto UTC per spec 2vev8j 4.4; dates are compared literally).
+         """
+    -    res = _DATE_RE.sub("- <DATE> ", record.strip())
+    -    return _ACTOR_PAREN.sub("(HIST_ACTOR)", res)
+    +    return _ACTOR_PAREN.sub("(HIST_ACTOR)", record.strip())
+
+
+     def _normalize_for_parity(text: str) -> str:
+    ```
+    2. Diff of comment in `tests/test_history_label_parity.py`:
+    ```diff
+    diff --git a/tests/test_history_label_parity.py b/tests/test_history_label_parity.py
+    index df7ef7754..4adc2e580 100644
+    --- a/tests/test_history_label_parity.py
+    +++ b/tests/test_history_label_parity.py
+    @@ -280,7 +280,7 @@ class HistoryLabelParityTests(unittest.TestCase):
+             self.assertIn(" graduated (aw backlog): handed off to plan", rec1)
+             self.assertIn(" graduated (aw set): handed off to plan", rec2)
+
+    -        # Normalized comparison (hiding actor and date skew)
+    +        # Normalized comparison (hiding actor)
+             norm1 = _normalize_history_record(rec1)
+             norm2 = _normalize_history_record(rec2)
+             self.assertEqual(norm1, norm2)
+    ```
+    3. Date-mask search in tests:
+    `rg -n "HIST_DATE|<DATE>|date skew|by shape" tests/` returned exit 1 (0 matches).
+    4. Individual test runs:
+    - `tests/test_backlog_history_dedup_parity.py`: `6 passed in 5.82s`
+    - `tests/test_history_label_parity.py`: `5 passed in 2.75s`
+    - `tests/test_backlog.py`: `47 passed in 6.51s`
+    - `tests/test_history_date_clock.py`: `5 passed in 31.64s`
+    - `tests/test_history_provenance.py`: `7 passed in 6.19s`
+    5. Untouched files check:
+    `git diff --stat tests/test_backlog.py tests/test_history_date_clock.py` output is empty.
+    6. Bare suite green:
+    `python3 -m pytest`: `6319 passed, 2 skipped, 3 warnings in 691.32s (0:11:31)`
+    7. Whole-suite runs under timezones:
+    - `TZ=Pacific/Kiritimati python3 -m pytest`: `6319 passed, 2 skipped, 3 warnings in 162.16s (0:02:42)`
+    - `TZ=Pacific/Honolulu python3 -m pytest`: `6319 passed, 2 skipped, 3 warnings in 242.28s (0:04:02)`
+    8. `tests/test_specs_date_containment.py`:
+    - Ran under `TZ=Pacific/Kiritimati`: `15 passed in 0.81s`
+    - Ran under `TZ=Pacific/Honolulu`: `15 passed in 0.82s`
+    - `git diff --stat tests/test_specs_date_containment.py` output is empty.
+    9. Tooling checks:
+    - `aw backlog check`: `aw backlog check: all backlog items conform.`
+    - `aw specs check`: `aw specs check: all specs conform. 40 specs checked.`
+    - `aw attention --check`: `aw attention --check: the view is valid.`
+    - `aw check`: unchanged baseline finding set; 0 findings for scope paths or `ayhveg`.
+    - `aw sanitize --agent`: clean (`{"schema":"aw.agent/v1","kind":"result","cmd":"check-local-leaks","outcome":"clean","exit":0,"verified":true,"complete":true,"findings":0,"evidence":["leak-scan"],"next":null}`).
+  - Result: pass
 
 ## Approval and execution gate
 

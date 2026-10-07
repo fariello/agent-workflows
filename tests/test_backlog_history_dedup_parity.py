@@ -10,10 +10,9 @@ Fences the contract established by IPD evbx9s (backlog r74211):
 - (e) the F-03 indented-prose fixture: the record IS written and the history block is non-empty.
 - (f) the sidecar: a suppressed call adds no .aw/records/history.jsonl line; a recorded call adds exactly one.
 
-All cross-spelling comparisons normalize:
-1. Date by shape (- YYYY-MM-DD -> - <DATE> ) via regex so local vs UTC clock differences
-   (owned by 2wae2x/tl8qmc, per spec wy9aru S3) do not produce false parity failures.
-2. Actor ('(aw backlog)' vs '(aw set)') as truthful attribution kept distinct by design (jbipfa).
+All cross-spelling comparisons compare history dates literally (unified onto UTC
+per spec 2vev8j 4.4) while normalizing:
+1. Actor ('(aw backlog)' vs '(aw set)') as truthful attribution kept distinct by design (jbipfa).
 
 Conforms strictly to GUIDING_PRINCIPLES P16 and AGENTS.md:
 - No inspect, ast, regex, or substring search over production source code.
@@ -34,20 +33,17 @@ from agent_workflows import attention as att
 from agent_workflows import attention_contract as ac
 from agent_workflows import cli
 
-_DATE_RE = re.compile(r"-\s+\d{4}-\d{2}-\d{2}\s+")
 _ACTOR_PAREN = re.compile(r"\((?:aw backlog|aw set)\)")
 
 
 def _normalize_history_record(record: str) -> str:
-    """Normalize date shape and actor in a history record line for cross-spelling parity comparisons.
+    """Normalize actor in a history record line for cross-spelling parity comparisons.
 
-    Hides two known out-of-scope axes per spec wy9aru S3 and IPD evbx9s:
-    1. Date clock: normalizes the date token by shape (- YYYY-MM-DD -> - <DATE> )
-       so local vs UTC clock differences across spellings (2wae2x/tl8qmc) do not cause false cross-spelling failures.
-    2. Actor: '(aw backlog)' vs '(aw set)' truthfully identifies the writer and is deliberate (jbipfa).
+    Hides one known out-of-scope axis per IPD evbx9s:
+    1. Actor: '(aw backlog)' vs '(aw set)' truthfully identifies the writer and is deliberate (jbipfa).
+    (Date clock differences are eliminated by unifying writers onto UTC per spec 2vev8j 4.4; dates are compared literally).
     """
-    res = _DATE_RE.sub("- <DATE> ", record.strip())
-    return _ACTOR_PAREN.sub("(HIST_ACTOR)", res)
+    return _ACTOR_PAREN.sub("(HIST_ACTOR)", record.strip())
 
 
 def _normalize_for_parity(text: str) -> str:

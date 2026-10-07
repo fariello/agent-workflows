@@ -132,6 +132,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Carrier-Evidence: .aw/records/plans/executed/20261001-7qvs1c-01-5ivkdh-unify-every-artifact-history-date-onto-the-utc-clock-ruled-b.ipd.md
 - THE ENFORCING TIMEZONE GUARD IS NOT BUILT HERE. `ayhveg` owns it, including the SPEC-family divergence that no filed item mentions. This plan depends on it rather than reproducing it.
   - Carrier: ayhveg
+  - Carrier-Evidence: .aw/records/plans/executed/20261001-a2zpzq-01-ayhveg-give-the-utc-history-date-ruling-a-durable-cross-spelling-gu.ipd.md
 - THE `resolve_evidence_artifact` GATE HOLE IS NOT FIXED HERE (F-07). It is a distinct defect in the close predicate, not in the clock, and fixing a shared gate predicate while closing items through that same gate would make this plan both the subject and the judge of its own close calls.
   - Carrier: 7lfe87
 - FILENAME DATE PREFIXES ARE NOT TOUCHED. `DECISIONS.md` D55 ("Human-facing timestamps use LOCAL time, not UTC") is a current ruling that deliberately reverses an earlier UTC directive. The two clocks compose as written, and reversing D55 would need its own maintainer decision.
