@@ -6,7 +6,7 @@
 - Scope: Add ONE deterministic Markdown escaper to `attention_contract` and apply it to `detail_text` at the three board detail-emission sites in `attention.py` plus the fourth site `attention.format_plan_detail_line` (which reproduces the board's detail line "identically to `aw att -d`" in the run banner; found at review), plus a control-character neutralizer applied at the same sites. Add the A14 fixture that does not exist. EXCLUDES the JSON and `--agent` surfaces (measured already safe) and excludes making a metacharacter a `--check` violation.
 - Scope-Paths: agent_workflows/attention_contract.py, agent_workflows/attention.py, tests/test_attention_output_safety.py, .aw/records/specs/implemented/20260808-1945-01-attention-registry-and-cross-tree-status.spec.md, CHANGELOG.md
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -16,8 +16,10 @@
 - Highest E allocated: 06
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: qpw45x
+- Approval: 2026-10-07, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-07 approved (aw set): status set to approved
 - 2026-10-07 reviewed (opencode/its_direct/pt3-claude-opus-5.5-1m-us): /plan-review: APPROVE WITH REVISIONS APPLIED; round 2 (status had been reset to to-review and `Readiness` removed by `8c460a9a1`). PR-007 (MEDIUM, fixed): executed plan `0obt4k` widened `_CONTROL_CHAR_RE` to the nine bidi code points and amended Section 8.8 after round 1, so E-01's quoted regex, its 'do not widen' rationale, OQ-05 and the bidi Deferred row were stale; E-01/V-01/E-05 now expect bidi neutralization through the shared regex, OQ-05 is resolved, the Deferred row and Under-scope line are reconciled. PR-008 (LOW, fixed): E-05 prescribed pytest `monkeypatch` for a `unittest`-style module; now `mock.patch.dict(os.environ)`. PR-009 (LOW, fixed): V-04's pre-change ESC-line count marked as context, re-measured (916 at `ca03f0c56`). Re-verified at `ca03f0c56`: F-1/F-3 reproduce on `_render_item_row`; four emission sites unchanged; `--no-color --details` and `--format markdown --details` byte-identical; forced-color markdown emits ESC; `FORCE_COLOR=1` makes `Term(color=None).color` True; no Markdown library importable; test module absent. PR-010 (LOW, fixed): review record Round 1 PR-005 row had an unescaped pipe (REV-P001) that made review-finalize lint fail; escaped in place, syntax only, noted in Round 2.
 
 - 2026-10-02 /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005, PR-006. Readiness go-pending-approval. PR-001 added the fourth emission site `attention.format_plan_detail_line` (run banner; promises output identical to `aw att -d`) to E-03/E-05/V-03 (F-17). PR-002 corrected E-04's mechanism: forcing the local `colored` flag leaves `term.color` true and `render_board` re-derives color from the term, so the Term must be built `color=False` (F-18, measured). PR-003 resolved the contradiction between OQ-02 and A14 (which requires a table-breaking string to FAIL as a violation): E-06 now amends only that A14 clause instead of claiming A14 is satisfied unchanged (F-19). PR-004 replaced the hand-appended amendment note with `aw specs note`, matching the spec's three prior amendment records. PR-005 V-04 now counts ESC bytes over the whole output rather than `head -12`; corpus counts are re-measured at execution (review saw 3191 details vs 2820); E-06 records all five unescaped characters, not three. PR-006 gate gained the missing execution-contract elements (scope fence wording, finalize ownership) and the suite is compared by failing node-id set; addopts quote corrected. Review record `.aw/records/reviews/20261001-llnvwj-01-qpw45x-escape-markdown-metacharacters-in-the-attention-board-s-deta.review.md`.

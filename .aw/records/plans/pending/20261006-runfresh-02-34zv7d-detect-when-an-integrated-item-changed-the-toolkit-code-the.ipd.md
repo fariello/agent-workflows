@@ -6,7 +6,7 @@
 - Scope: IN: a new module `agent_workflows/loaded_code.py` with (a) `fingerprint(root)`: a sha256 over the sorted relative paths and contents of every `agent_workflows/**/*.py` under `root`; (b) `loaded_code_record()`: the package root the CURRENT process imported `agent_workflows` from (`runner_shared.runner_package_root()`), its fingerprint, the time, and whether that root is the checkout the run targets; (c) `code_changed(repo)`: compares the record of the CURRENT process (kept in process memory, set when the process first called `loaded_code_record` or `code_changed`) with the fingerprint of the same root on disk now, returning `changed`, the old and new fingerprints, and a `restartable` flag that is False when the imported root is not the run's repository; writing the start record into `state["driver"]["loaded_code"]` (a list, first entry at creation) in `initialize_run_core`; a test file. OUT: acting on a change (Order 03); recording lint findings (Order 04).
 - Scope-Paths: agent_workflows/loaded_code.py, agent_workflows/runner_shared.py, tests/test_loaded_code.py
 - Item-Dependencies: executed:0bjke0
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - From-Spec: none
 - Work-Kind: bug
@@ -17,8 +17,10 @@
 - Highest E allocated: 04
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: 34zv7d
+- Approval: 2026-10-07, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-07 approved (aw set): status set to approved
 - 2026-10-07 reviewed (aw set): plan-review: APPROVE WITH REVISIONS APPLIED
 
 - 2026-10-07 /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005

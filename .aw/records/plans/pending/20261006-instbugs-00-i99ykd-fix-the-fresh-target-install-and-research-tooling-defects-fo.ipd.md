@@ -6,7 +6,7 @@
 - Scope: ORCHESTRATION ONLY. This plan sequences eleven child plans and contributes no implementation, no test and no deliverable of its own. Every artifact is owned by exactly one child named in the child table. IN: dependency order, the triage that assigns each present-at-HEAD defect to exactly one child, the Set-level completion criteria with the owning child of each, and the cross-child checks with the owning child of each. OUT: everything the children do (listed per row in the child table), and the D13 companion-file feature, recorded as backlog `bh1cy5`.
 - Scope-Paths: .aw/records/plans/pending/20261006-instbugs-00-i99ykd-fix-the-fresh-target-install-and-research-tooling-defects-fo.ipd.md
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Coverage: pass
 - Coverage-Fingerprint: 5891d6bc5dee78106d0c0e40f9cb0c8ed4aae79fe167b54d977f5074ae15da0b
@@ -19,8 +19,10 @@
 - Highest E allocated: 11
 - Author: antigravity/claude-opus-5.5
 - Id: i99ykd
+- Approval: 2026-10-07, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-07 approved (aw set): status set to approved
 - 2026-10-07 same-status (aw set): gate on release 2.0.0 (f33nrj) at the maintainer's instruction 2026-10-06: all instbugs plans block 2.0.0
 - 2026-10-07 reviewed (aw set): plan-review
 

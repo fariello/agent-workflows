@@ -6,7 +6,7 @@
 - Scope: IN: one regression test module that builds a scratch git repo containing only `package.json`, runs a fresh `aw install` with the private-target preset non-interactively, and asserts that every original observation of the report is gone (D01 version consistency, D02, D03, D04, D05, D06, D07, D08, D09, D10 check half, D11, D12, D14, D15, N1, N2), plus the three cross-child checks; a full bare suite run; a user-facing CHANGELOG entry. OUT: re-fixing anything (a failing assertion here sends the defect back to its owning child as a corrective plan); the wheel-build proof of D01 (owned by `whz0oi`'s own test, because building a wheel is too slow for this module); D13 companion files (backlog `bh1cy5`); the D15 upgrade-warning half and the D10 rename half, which already have pins (see Findings F-07).
 - Scope-Paths: tests/test_fresh_target_install_regression.py, CHANGELOG.md
 - Item-Dependencies: executed:whz0oi, executed:gzsfqn, executed:ka0g86, executed:okw4ke, executed:ic4eg0, executed:zye6k4
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Blocks-Release: f33nrj
 - Work-Kind: chore
@@ -16,8 +16,10 @@
 - Highest E allocated: 04
 - Author: antigravity/claude-opus-5.5
 - Id: kck7a5
+- Approval: 2026-10-07, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-07 approved (aw set): status set to approved
 - 2026-10-07 reviewed (opencode/its_direct/pt3-claude-opus-5.5-1m-us): plan-review
 - 2026-10-07 same-status (aw set): gate on release 2.0.0 (f33nrj) at the maintainer's instruction 2026-10-06: all instbugs plans block 2.0.0
 

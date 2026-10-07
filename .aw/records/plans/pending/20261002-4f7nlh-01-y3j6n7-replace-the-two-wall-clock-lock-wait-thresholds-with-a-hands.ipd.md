@@ -6,7 +6,7 @@
 - Scope: Rewrite `test_two_process_lock_wait_succeeds` and `test_finalize_lock_WAITS_for_a_short_lived_live_holder` in `tests/test_ipd_lifecycle_cli.py` to release their holder on a handshake and to assert on observed poll attempts plus lock ownership. No production code changes.
 - Scope-Paths: tests/test_ipd_lifecycle_cli.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: low
@@ -17,8 +17,10 @@
 - Highest E allocated: 04
 - Author: opencode
 - Id: y3j6n7
+- Approval: 2026-10-07, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-07 approved (aw set): status set to approved
 - 2026-10-07 reviewed (aw set): /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005. Re-verified both tests and the wait_until ordering at a2b959f5a; probed the mutation and found functools.partial(timeout=0) is a silent no-op and a closing lambda recurses, so validation now names a default-arg-capture mock that measured TransactionLockError polls 0; restored the dropped take-on-release property as a poll bound; made the liveness assertion satisfiable via per-poll samples; added finalize ownership, scope fence, and backlog filing for E-04.
 
 - 2026-10-02 draft (opencode): created.

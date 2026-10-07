@@ -6,7 +6,7 @@
 - Scope: IN: one shared function in `runner_shared`, `restart_on_new_code_if_needed(run_dir, state, *, host_labels, previous_id6, stop_level, replace=None, package_root=None)`, that calls `loaded_code.code_changed(repo, package_root=package_root)` and acts on a pure decision (`none`, `restart`, `unavailable`, `limit-reached`); on `restart` it appends a `driver-restarted` event and a new `state["driver"]["loaded_code"]` entry, increments `state["driver_restarts"]`, saves state, releases the run lock it finds in a process-level registry that `runner_shared.run_lock` maintains, flushes stdio, and replaces the process with the host's `resume` of the same run (POSIX `os.execv`; Windows child-and-exit). Call it from both hosts' `run_queue` loops once per iteration, after `_observe_between_turn_stop` and before `cascade_dependency_blocked`, and nowhere else. Never restart while a stop is requested (the existing stop path runs instead) or when nothing is left to dispatch. Show the restart count in the run summary. At the limit, record a run-level `driver-restart-limit` event and refusal and end the loop with the remainder `queued`. OUT: restarting inside an item; re-dispatching finished items; any change to `resume`'s semantics; detecting the change (Order 02); recording lint findings (Order 04); the full scripted-host end-to-end run (Order 05, `hohlc6`, which asserts the restart through the real driver on both hosts).
 - Scope-Paths: agent_workflows/runner_shared.py, agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, agent_workflows/render_stream.py, tests/test_driver_restart.py
 - Item-Dependencies: executed:34zv7d
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - From-Spec: none
 - Work-Kind: bug
@@ -17,8 +17,10 @@
 - Highest E allocated: 05
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: re15ol
+- Approval: 2026-10-07, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-07 approved (aw set): status set to approved
 
 - 2026-10-07 cross-reference (opencode its_direct/pt3-claude-opus-5.5-1m-us): conventions note on the fresh `tool-identity-verified` assertion now points at `hohlc6` E-05 (added by the `hohlc6` review, finding PR-008); no requirement of this plan changed.
 - 2026-10-07 reviewed (aw set): plan-review: APPROVE WITH REVISIONS APPLIED

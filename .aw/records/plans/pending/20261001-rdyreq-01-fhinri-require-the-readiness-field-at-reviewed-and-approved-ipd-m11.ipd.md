@@ -6,7 +6,7 @@
 - Scope: Close the hole with a Status-keyed metadata rule and correct the three prose claims the measurement falsified. IN: (a) a new blocking lint rule `IPD-M113` in `ipd_lint.py` requiring a non-empty `- Readiness:` when `- Status:` is `reviewed` or in `ipd_schema.READY_TO_EXECUTE`, keyed on STATUS and not on checkpoint, so the R6 path (which leaves `to-review`) is outside it by construction and needs no exemption clause; (b) its tests in `tests/test_ipd_lint.py`, table-driven beside `ReadinessAttestationTests`, including the R6-shaped case and a whole-corpus sweep; (c) the three prose corrections, replacing the false blanket "FAILS CLOSED on absent" with what the code does (CORRUPT fails closed; ABSENT falls back to prose, and is now refused upstream by `IPD-M113` at `reviewed`); (d) a Section 4.4 amendment to spec `ipd-structure-and-linting` recording `IPD-M113`, which is where `IPD-M109`, `IPD-M110` and `IPD-M111` each recorded themselves. OUT: changing `IPD-M107`, whose provenance check is orthogonal and complementary (M107 polices a field that should not be there; M113 polices one that should); changing `plan_readiness.is_plan_review_approved`'s fallback behavior, which is a BEHAVIOR change to the auto-approve gate and belongs in its own reviewed plan (see Deferred, OQ-02); adding a `--readiness` flag to any setter, which would hand an agent exactly the hand-writing licence `AGENTS.md` forbids; retiring `IPD-M107` per spec `4sd62s`; and any backfill of the field onto a plan lacking one, which plan `fx5op3` already decided against and this plan does not reopen.
 - Scope-Paths: agent_workflows/ipd_lint.py, tests/test_ipd_lint.py, .aw/records/specs/implemented/20260802-1904-01-ipd-structure-and-linting.spec.md, .aw/system/workflows/plan-review/plan-review.md, .aw/system/workflows/plan-review-long/03-resolve-and-finalize.md, .aw/records/plans/README.md, agent_workflows/ipd_schema.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - From-Backlog: l0ixig
 - Work-Kind: followup
@@ -16,8 +16,10 @@
 - Highest E allocated: 08
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: fhinri
+- Approval: 2026-10-07, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-07 approved (aw set): status set to approved
 - 2026-10-07 reviewed (aw set): plan-review: APPROVE WITH REVISIONS APPLIED
 
 - 2026-10-07 /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005, PR-006, PR-007, PR-008. Reviewed at HEAD `fe2ee961c` in an isolated review lane; plan byte-identical to the lane input, so no pre-review snapshot. Re-measured (gitignored probes): `IPD-M112` is now taken by `C_COVERAGE_RECORD`, so the rule becomes `IPD-M113` (PR-001); partition and five-checkpoint blast radius still zero, but the authored R6 stop condition would fire on 2 hand-stripped `to-review` plans that are outside the gated set, so it is re-specified as (c') (PR-002); a human `--by-human` direct approval of an unreviewed plan yields `approved` with no Readiness and lints clean today, which this rule would refuse at `aw ipd begin`, now measured as E-01(e) and resolved as a deliberate tightening in OQ-03 (PR-003); corpus sweep marked `livecorpus` (PR-004); spec site corrected to Sections 4.4 and 10 and split into E-08/V-08 per `IPD-Z602` (PR-005); suite compared by failure set with the pre-existing `livecorpus` failure named (PR-006); gate given paste-output, scope-fence declaration, conditional finalize and Readiness ownership (PR-007); prose edits coordinated with now-approved `l56tyz` (PR-008).

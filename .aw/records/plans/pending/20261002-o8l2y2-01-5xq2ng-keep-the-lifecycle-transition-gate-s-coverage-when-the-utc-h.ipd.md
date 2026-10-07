@@ -6,7 +6,7 @@
 - Scope: IN: one `info`-severity companion rule that reports when a plan's history carries two or more distinct lifecycle statuses yet the gate validated ZERO transitions, so the gate's own blindness is visible in its output; and an outcome test that pins the reported-not-silent property across the date-collapse. OUT, each with a reason recorded under "Deferred": the production clock fix (`5ivkdh`); the cross-spelling guard (`ayhveg`); the scaffold site (`9wcei0`); the plan-family `created` site (`rfyrvp`); the duplicate convergence (`qjm4bg`); implementing spec 4.3's `seq`; changing the direction classifier; and relaxing or strengthening the existing `error` rule's verdicts.
 - Scope-Paths: agent_workflows/check_engine.py, tests/test_lifecycle_gate_coverage.py, CHANGELOG.md
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -18,8 +18,10 @@
 - Highest E allocated: 04
 - Author: opencode/its_direct/pt3-claude-opus-5-1m-us
 - Id: 5xq2ng
+- Approval: 2026-10-07, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-07 approved (aw set): status set to approved
 - 2026-10-07 reviewed (aw set): plan-review: APPROVE WITH REVISIONS APPLIED
 
 - 2026-10-07 /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-101, PR-102, PR-103, PR-104, PR-105, PR-106. Round 2 at HEAD `fe2ee961c` in an isolated review lane; plan byte-identical to the lane input, so no pre-review snapshot. Re-replayed the walk (gitignored probe): 137 pending plans, 104 validated, 62 multi-status zeros (all with an `ordered=False` group), 18 single-status zeros, the <=1-day collapse 104 -> 68 with 21 plans losing all; existing rule now returns 0 findings. Thesis holds. Fixed: siblings `5ivkdh`/`9wcei0` executed and `rfyrvp` superseded, so stale carrier/spec prose reconciled (PR-101); live counts and F-04/F-06/F-08 re-measured with all bars still re-derived (PR-102); wiring corrected to `check_content`'s plans branch, which `check_type` composes (PR-103); unsatisfiable 'only finding is the new rule exits 0' replaced by the canonical two-limb severity + `drift_exit_code` proof (PR-104); collateral to other `check_content` callers named with a report-not-edit rule (PR-105); gate rewritten: forged-looking Readiness sentence removed, paste-output rule added, scope fence made a declaration instead of a STOP, finalize ownership made conditional on runner vs hand execution, OQ-01 owner recorded (PR-106).

@@ -6,7 +6,7 @@
 - Scope: IN: route the two `record_history` sidecar date defaults onto the same shared UTC helper `5ivkdh` adds, in the compact `YYYYMMDD` shape the sidecar schema already uses, preserving each function's explicit-`date` precedence; and add the outcome test that pins ONE event's inline and sidecar copies to the SAME date under a skew timezone, which is the property no existing test covers. OUT, each with a reason recorded under "Deferred": the inline history writers and the shared helper itself (owned by `5ivkdh`, taken as a hard dependency); the cross-spelling timezone guard (`ayhveg`); the scaffold and plan-family `created` records (`9wcei0`, `rfyrvp`); the lifecycle-gate coverage companion (`5xq2ng`); the duplicate-item convergence that closes this plan's own source item (`qjm4bg`); FILENAME dates, which `DECISIONS.md` D55 rules LOCAL; and migrating the sidecar to the per-artifact tracked journal of `2vev8j` 4.2, which that spec itself declares out of its own scope (N3).
 - Scope-Paths: agent_workflows/record_history.py, tests/test_history_date_clock_sidecar.py
 - Item-Dependencies: executed:5ivkdh
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - From-Spec: 2vev8j
 - Work-Kind: bug
@@ -18,8 +18,10 @@
 - Highest E allocated: 02
 - Author: opencode/its_direct/pt3-claude-opus-5-1m-us
 - Id: dmrbqa
+- Approval: 2026-10-07, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-07 approved (aw set): status set to approved
 - 2026-10-07 reviewed (aw set): plan-review
 
 - 2026-10-06 /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005, PR-006, PR-007. Reviewed at HEAD `fe2ee961c` in an isolated review-sweep lane; plan committed and byte-identical to the lane input, so no pre-review snapshot. `5ivkdh` is EXECUTED (dependency satisfiable) and the predicted disagreement is now LIVE: under `TZ=Pacific/Honolulu` (local 2026-10-06, UTC 2026-10-07) a real `aw backlog set --status open` wrote inline `- 2026-10-07 same-status ...` and sidecar `"date": "20261006"`; `aw record-history` rendered `- 20261006 ...`. Both sites still read `_date.today().strftime("%Y%m%d")`; `artifact_core.utc_history_date()` ships with no compact variant by `5ivkdh` E-01's explicit decision. Revisions: E-01 derives compact via `_core.utc_history_date().replace("-", "")` instead of adding an `artifact_core` variant, which was an undeclared path and contradicted the shipped decision (PR-001); E-02 drops the stale 'zero tests set TZ' premise, copies the shipped subprocess-TZ pattern, prefers always-skewed `XXX-24`/`XXX+23:59` zones (XXX-20 measured NOT skewed at 03:42 UTC), and notes `tests/test_history_date_clock.py` never reads the sidecar (PR-002); explicit-`date` precedence pinned by direct calls since no CLI surface reaches it (PR-003); test-first ordering made machine-visible and `git stash`/revert replaced (PR-004); baseline re-derived by node id since `8c460a9a1` fixed the authoring three (PR-005); CHANGELOG note that 5ivkdh's entry is currently false for the sidecar (PR-006); gate gains conditional finalize ownership and plan-file commit (PR-007).

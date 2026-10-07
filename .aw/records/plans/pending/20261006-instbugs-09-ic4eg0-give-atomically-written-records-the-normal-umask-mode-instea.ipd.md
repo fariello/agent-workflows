@@ -6,7 +6,7 @@
 - Scope: IN: give `artifact_core.atomic_write` a mode rule: a NEW file gets `0o666 & ~umask`, a REPLACED file keeps its existing mode; audit every other `mkstemp`/`NamedTemporaryFile` temp-then-replace site in `agent_workflows/` and classify each as TRACKED-RECORD (a file a user or repository reads as content: route it through the shared rule) or PRIVATE (locks, journals, receipts, run state under `.aw/state/` or a run dir, per-user config, identifying hints: left at 0600 with no code change, the classification recorded in V-03); tests. OUT: changing modes of files already on disk (a tracked file's committed mode is unaffected; users can `chmod` existing 0600 files, and the plan notes the one-liner in its evidence); git's own mode bits.
 - Scope-Paths: agent_workflows/artifact_core.py, agent_workflows/manifest.py, agent_workflows/leak_sanitizer.py, agent_workflows/oc_models.py, agent_workflows/ipd_lifecycle.py, agent_workflows/layout_inventory.py, agent_workflows/workflow_cli.py, agent_workflows/run_analytics_report.py, tests/test_atomic_write_mode.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Blocks-Release: f33nrj
 - Work-Kind: bug
@@ -16,8 +16,10 @@
 - Highest E allocated: 04
 - Author: antigravity/claude-opus-5.5
 - Id: ic4eg0
+- Approval: 2026-10-07, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-07 approved (aw set): status set to approved
 - 2026-10-07 same-status (aw set): gate on release 2.0.0 (f33nrj) at the maintainer's instruction 2026-10-06: all instbugs plans block 2.0.0
 
 - 2026-10-07 reviewed (aw set): /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-008. Reviewed at lane HEAD `3c7058184`; plan committed and byte-identical to the lane input, so no pre-review snapshot. Reproduced 0600 for research, adopt, ipd scaffold, backlog new and `managed-sections.json`, and a 640 plan reset to 600 by `aw ipd set` (F-05); demonstrated the chmod mechanism (F-06). Fixed: umask read mechanism named, `/proc/self/status` with fallback, shared helper (PR-001); Scope-Paths and E-03 reclassified per site, adding `manifest`, `leak_sanitizer`, `oc_models` (PR-002); allowlist vs user-hints split inside `leak_sanitizer._atomic_write` (PR-003); no comment churn on PRIVATE sites (PR-004); exact E-01 verbs, subprocess-only umask, POSIX guard, `managed-sections` and PRIVATE controls in E-04 (PR-005); preserve-rule consequence for already-0600 files stated (PR-006); `Carrier-Declined:` replaces the malformed carrier failing `check.ipd-uncarried-obligation`, `- Blocks-Release: next` added (PR-007); gate gains honesty rule, scope fence, temp HOME, conditional finalize ownership (PR-008). `project_layout` mkstemp fd leak reported to the maintainer.

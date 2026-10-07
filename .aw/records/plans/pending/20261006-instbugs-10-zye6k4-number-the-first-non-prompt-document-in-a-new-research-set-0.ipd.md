@@ -6,7 +6,7 @@
 - Scope: IN: when a NEW set's first document is not a `research-prompt`, number it `01` (a `research-prompt` opening a new set stays `00`); existing sets keep max+1; add `--order NN` to `aw research new` and `aw adopt` (refused if that order is already taken in the set); amend spec Section 5.1 to match Section 4.6 and record the amendment with `aw specs note`; adjust the research README template line if wording needs it; tests. OUT: renaming existing files numbered `00` that are not prompts (maintainer ruling: existing files are not renamed); the comparison scaffold (already correct); companion files (backlog `bh1cy5`).
 - Scope-Paths: agent_workflows/research_cmd.py, agent_workflows/artifact_adopt.py, agent_workflows/cli.py, .aw/records/specs/implemented/20260730-2152-01-agents-artifact-organization.spec.md, .aw/system/workflows/templates/agents-docs-research-README.md, tests/test_research_first_order.py, tests/test_research_cmd_create.py, tests/test_artifact_adopt.py, tests/test_research_date_containment.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Blocks-Release: f33nrj
 - Work-Kind: bug
@@ -16,8 +16,10 @@
 - Highest E allocated: 05
 - Author: antigravity/claude-opus-5.5
 - Id: zye6k4
+- Approval: 2026-10-07, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-07 approved (aw set): status set to approved
 - 2026-10-07 same-status (aw set): gate on release 2.0.0 (f33nrj) at the maintainer's instruction 2026-10-06: all instbugs plans block 2.0.0
 
 - 2026-10-07 reviewed (aw set): /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-006. Reviewed at lane HEAD `24891c7c0`; plan committed and byte-identical to the lane input, so no pre-review snapshot. Reproduced D12 for new-set report, prompt, singleton and adopt in a scratch target (F-05); a throwaway-copy mutation of exactly the proposed rule failed five existing tests (F-06). Fixed: the five tests pinning the old `00` rule are named in E-02 and their files added to Scope-Paths (PR-001); singleton path probed and tested (PR-002); `--order` threading, exit 2, range, refusal before mint or write, and `--order 00` into an existing set specified (PR-003); spec 5.1 Inputs list gains `--order`, `aw specs check` and the spec-edit rationale added (PR-004); `Carrier-Declined:` replaces the malformed carrier failing `check.ipd-uncarried-obligation`, `- Blocks-Release: next` added (PR-005); gate gains honesty rule, scope fence, spec-edit declaration, temp HOME and conditional finalize ownership (PR-006).

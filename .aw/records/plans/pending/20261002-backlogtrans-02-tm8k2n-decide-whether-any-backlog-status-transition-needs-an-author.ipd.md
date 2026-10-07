@@ -6,7 +6,7 @@
 - Scope: Settle the question with a RECORDED RULING rather than with a table built on speculation, and let the measurement decide. The plan measures who actually performs each of the five backlog transitions, finds that automation legitimately performs three of the five targets, and on that basis recommends that backlog get NO `by_human` authority table; it then writes that ruling into `DECISIONS.md` and the backlog README and pins it by outcome with a regression fence. The deliverable is the decision plus the fence, NOT a new table.
 - Scope-Paths: DECISIONS.md, .aw/records/backlog/README.md, tests/test_backlog_transition_authority.py
 - Item-Dependencies: executed:cc2m29
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -16,8 +16,10 @@
 - Highest E allocated: 07
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: tm8k2n
+- Approval: 2026-10-07, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-07 approved (aw set): status set to approved
 - 2026-10-07 reviewed (aw set): status transition for the /plan-review record below
 
 - 2026-10-07 /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001 (MEDIUM, fixed: F-08's attribution premise corrected by F-11, swept through E-01, E-04, E-05, V-05, OQ-01, Proposed change 1), PR-002 (MEDIUM, fixed: F-12 records `cc2m29`'s landed README and table; E-05 extends its `### Reopen policy` instead of duplicating), PR-003 (MEDIUM, fixed: conditional runner/executor finalize and scope fence), PR-004 (LOW, fixed: V-03(b) probe must be an in-process `-p` plugin under gitignored `tmp/`, the `cc2m29` precedent). Re-measured at HEAD `382e2622e`: F-01 both spellings exit 2 `unrecognized arguments: --by-human`; F-04 argv sites present; F-07 done -> open exits 0 on both spellings with or without `--allow-terminal-reopen`. Review record `.aw/records/reviews/20261002-backlogtrans-02-tm8k2n-decide-whether-any-backlog-status-transition-needs-an-author.review.md`.

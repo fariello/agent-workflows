@@ -12,7 +12,7 @@
   OUT, each for a stated reason. ROUTE (b), A WARNING `Diagnostic`, is REFUSED rather than deferred, on F-03's live reproduction: it would inflate a clean repo's `findings` from 0 to 1. FIXING THE SEVERITY-BLIND `findings` TALLY in `result_types.to_agent_record` is a repo-wide `aw.agent/v1` contract change touching every verb, measured in F-04 as owned by NO pending plan, and is filed as a carrier rather than absorbed into a one-key addition. THE VERSIONED `--format json`/`--json` PAYLOAD gains nothing: `render_json` is a `schema_version: 4` consumer contract with a test asserting that value, so a new top-level key is a deliberate bump (OQ-01, carried). `attention.inbox_waiting` ITSELF is not modified: it shipped with `olmvgw` and its listing-only safety property is relied upon here, not revisited. THE `--check` AND `--check --agent` PATHS gain nothing, because a waiting local gitignored drop is not a repository defect and must never reach the exit code. THE HUMAN BOARD is not touched: its line already ships. `attention_contract.py` is NOT declared and a felt need to edit it means the count has leaked into classification.
 - Scope-Paths: agent_workflows/attention.py, tests/test_attention.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -22,8 +22,10 @@
 - Highest E allocated: 04
 - Author: opencode/its_direct/pt3-claude-opus-5-1m-us
 - Id: qp8fn1
+- Approval: 2026-10-07, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-07 approved (aw set): status set to approved
 - 2026-10-07 reviewed (aw set): status transition for the /plan-review record below
 
 - 2026-10-07 /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001 (MEDIUM, fixed: the gate's finalize instruction now carries conditional runner/executor ownership). Re-measured at HEAD `07bc746c7`: F-02 (identical `--agent` evidence `["attention"]` with 0 and 2 drops; board footer present), F-03 (one warning `Diagnostic` -> `findings: 1`, `outcome: clean`), F-04 (no pending plan's Scope-Paths declares `result_types.py`; `3ouico` open), F-05/F-06 (`sanitize_evidence_item` returns `key:val` for scalars; `layout --agent` emits `record_classes:11`), and the `--json` path is `render_json` at `schema_version: 4`. Review record `.aw/records/reviews/20261002-awinbox-04-qp8fn1-give-an-explicit-agent-consumer-the-inbox-waiting-drops-coun.review.md`.

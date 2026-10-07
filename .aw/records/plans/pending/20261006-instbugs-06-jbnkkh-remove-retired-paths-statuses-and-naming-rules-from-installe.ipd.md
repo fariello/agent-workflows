@@ -6,7 +6,7 @@
 - Scope: IN: make every one of those texts LAYOUT-AWARE (the `.aw` layout names `.aw/...` paths; a kept legacy `.agents/` layout keeps its own paths, since `--keep-legacy` is supported) or layout-neutral; switch the research README to `todo`, state that hot states are statuses in the flat root (not directories), and label `intake` as a legacy alias; replace the uninstalled spec citation with a reference that resolves in a target (`aw research --help` and the installed `.aw/system/workflows/index.md`); make the specs README state the current id6 grammar minted by `aw specs new` with legacy names grandfathered; repair an already-installed target's research and specs READMEs when (and only when) they are byte-for-byte a known shipped stale text, reusing the `classify_records_root_readme` known-stale pattern; add a bundle-scan test. OUT: `.agents/skills/` (the cross-tool Agent Skills location the installer deliberately writes; NOT retired); the installed workflow bundle `.aw/system/**` (a verbatim copy of this repository's workflow bodies, whose `.agents/` mentions are owned by those bodies' own plans and by Order 07's dangling-reference check); code docstrings and comments citing `.agents/docs/specs/...` (not installed into targets, not agent-facing in a target); the managed AGENTS.md block (Order 07 `ka0g86`).
 - Scope-Paths: .aw/system/workflows/templates/agents-docs-research-README.md, .aw/system/workflows/templates/agents-docs-specs-README.md, .aw/records/specs/README.md, agent_workflows/engine.py, agent_workflows/cli.py, tests/test_installed_text_current.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -16,8 +16,10 @@
 - Highest E allocated: 06
 - Author: antigravity/claude-opus-5.5
 - Id: jbnkkh
+- Approval: 2026-10-07, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-07 approved (aw set): status set to approved
 - 2026-10-07 same-status (aw set): gate on release 2.0.0 (f33nrj) at the maintainer's instruction 2026-10-06: all instbugs plans block 2.0.0
 - 2026-10-07 reviewed (aw set): plan-review
 

@@ -6,7 +6,7 @@
 - Scope: Judge the research tree's descriptive front-matter values with the shared `attention_contract.is_safe_descriptive` predicate under the already-catalogued `attention.unsafe-field` id, emitted from `research_index.check_drift` (NOT from `validate_frontmatter`, which would DROP the doc from the index); repair the three over-length committed summaries FIRST so the rule ships fail-closed with no grandfather tier. The id is already in `RULE_IDS` and already registered in `RULE_REGISTRY` at `error`, so this mints no policy.
 - Scope-Paths: agent_workflows/research_index.py, tests/test_research_unsafe_field.py, .aw/records/research/reference/202609/20260905-hostskill-04-6asl6q-host-skill-runtime-discovery-and-authoring.reconciliation.reconciliation-report.md, .aw/records/research/reference/202609/20260905-awmetastore-05-6mye7n-where-aw-metadata-should-live.reconciliation.reconciliation-report.md, .aw/records/research/archive/202609/20260905-awmetastore-06-g5f3zq-aw-artifact-metadata-storage-research-report.gemini31prodeepthink.research-report.md
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -17,8 +17,10 @@
 - Highest E allocated: 05
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: xnogdl
+- Approval: 2026-10-07, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-07 approved (aw set): status set to approved
 - 2026-10-07 reviewed (opencode/its_direct/pt3-claude-opus-5.5-1m-us): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-001..PR-004, all FIXED. Reviewed in lane review-sweep-run-20261007T032752Z-4094028 at HEAD 250466250; review record .aw/records/reviews/20261002-cvxbbu-01-xnogdl-give-the-research-checker-the-unsafe-descriptive-field-rule.review.md. Census, registry, F-06 drop and F-07 gate re-measured and hold. PR-001: executed jnpl08 now reports the injected duplicate status via research.frontmatter-key-repeated, so E-05 LIMIT ONE asserts that and the unreported blocks-release residue. PR-002: LIMIT TWO no longer pins raw aw attention output, which reviewed plan qpw45x will change. PR-003: stale deftzy evidence path, CLI driver and baseline counts refreshed. PR-004: E-03 stop narrowed to the no-consumer case.
 
 - 2026-10-02 to-review (opencode its_direct/pt3-claude-opus-5-1m-us): Authored from backlog `cvxbbu`, the checker-half carrier filed by pending plan `deftzy` (Set `7w6zsl`), which closes the research WRITE paths. Every claim the item makes REPRODUCES at HEAD `f81b44e62`: `validate_frontmatter` judges `summary` for nothing, the ANSI value passes all three gates, the bytes reach `INDEX.md` and `aw attention`, and the census still finds exactly 3 over-bound summaries (n grew 124 -> 127, same three files, median still 108). TWO AUTHORED CORRECTIONS to the item, both measured. FIRST, the item says the rule "probably needs no minting" because `attention.unsafe-field` is catalogued and `ynhst5` "is registering it": that registration has LANDED, so `check_engine.RULE_REGISTRY` already carries it at `error` and E-04 of the sibling is DONE; this plan adds a call site only and touches no registry. SECOND, and this is the design-deciding finding the item does not contain: emitting the rule from `validate_frontmatter` would make every offending doc `frontmatter-invalid`, which `research_index._doc_entry` treats as fatal and DROPS the doc from the index entirely (driven: entries fell 1 -> 0 on a fixture), so the fix would delete three records from the manifest to report a summary-length problem. The emitter therefore belongs in `check_drift`, beside the four existing research drift rules. Also measured and recorded as context rather than scope: default `aw check research` reaches NO research content validator at all, because the `research` branch of `check_engine.check_content` is gated `if dirs and include_retired`, exactly as its `plans` twin is.

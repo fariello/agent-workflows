@@ -6,7 +6,7 @@
 - Scope: Make the ALLOCATED LANE IDENTITY a recorded fact on the begin receipt rather than an inferred one. Add an additive, OPTIONAL `lane` block to the begin receipt (schema v3: `branch`, `lane_id`, `base_commit`, `disposition`, `recorded_at`) written by a NEW `ipd_lifecycle` updater that MUST NOT touch `base_head` or any digest; call that updater from `runner_shared.execute_item_core` at the single self-finalize allocation site, immediately after the `attempt["worktree_*"]` fields are written, because the lane does not exist when `driver_begin` runs; and make `check_engine._plan_execution_tree` PREFER the recorded branch when the receipt carries one, falling back UNCHANGED to today's `enumerate_lane_candidates` selection (landed by `iqtt8d`) when it does not. EXCLUDES re-issuing or re-freezing the receipt (the rejected half of the backlog item's direction 2; see F-5), EXCLUDES changing `base_head`, any digest, `receipt_is_current`, or anything finalize reconciles on (F-5), EXCLUDES the candidate-enumerating resolver plan `iqtt8d` owns (F-7 explains why both are wanted and how they compose), EXCLUDES changing `check.scope-drift`'s severity or its ancestry guard (F-6), and EXCLUDES the `aw work begin` lease path, which allocates a lane but writes no receipt (F-8).
 - Scope-Paths: agent_workflows/ipd_lifecycle.py, agent_workflows/runner_shared.py, agent_workflows/check_engine.py, tests/test_receipt_lane_record.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: followup
 - Priority: low
@@ -16,8 +16,10 @@
 - Highest E allocated: 08
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: 42ertq
+- Approval: 2026-10-07, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-07 approved (aw set): status set to approved
 - 2026-10-07 reviewed (aw set): plan-review round 2
 
 - 2026-10-06 /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-101, PR-102, PR-103. Round 2 re-review at HEAD `fe2ee961c` in an isolated review-sweep lane; plan committed and byte-identical to the lane input, so no pre-review snapshot. Round 1's `- Readiness:` had been stripped by `8c460a9a1` because the plan was left at `to-review`; this round sets `reviewed`. PREMISES RE-VERIFIED: F-13 shape (i) STILL REPRODUCES at this HEAD via `support.scope_drift_repo` (second allocation `aw/lane/abc123_attempt2 attempt-scoped`, `_plan_execution_tree` selects canonical `abc123`, `check_scope_drift` emits `check.scope-drift` severity `error` `'stale.py'`); `_plan_execution_tree` signature still `(repo_root, plan_id, base_head)`; `RECEIPT_SCHEMA_VERSION = 2`; begin precedes `allocate_isolation_worktree` in the self-finalize `if isolate:` arm of `execute_item_core`; `tests/test_scope_drift_lane_resolution.py`, `tests/test_check_scope_drift.py`, `tests/test_check_engine_release_gate.py`, `tests/test_finalize_stale_plan_path.py` = `59 passed`. Revisions: E-02/V-02 name the `record_scope_reasons` no-bump counter-precedent and the distinguishing reason, and E-06 (c)/V-06 add a lane-less v3 receipt (PR-101); E-06 (e)/(f)/V-03/V-06 name the reachable in-tree `execute_item_core` harness, its receipt-less `driver_begin` patch, how to force an attempt-scoped handle, and drive both `driver_module`s (PR-102); gate gains scope-fence-as-declaration, plan-file commit, resolved-OQ statement, and conditional finalize ownership (PR-103).

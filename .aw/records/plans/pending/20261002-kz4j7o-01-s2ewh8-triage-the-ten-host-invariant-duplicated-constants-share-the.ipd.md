@@ -6,7 +6,7 @@
 - Scope: Triage all ten individually and act on the measurement. SHARE the three genuinely host-invariant immutable values (`DEFAULT_RUNBOOK_TEXT`, `DEFAULT_STALL_TIMEOUT`, `LANE_PROMPT_TIMEOUT`) by pointing each host at one `runner_shared` definition. DELETE the four with zero readers (`OUTPUT_MODES`, `_ID_RE`, `_STATUS_RE`, `_close_process_streams`) from both hosts, since a shared home for dead surface preserves the surface rather than removing the hazard. DECLINE the three per-host ones with their reasons recorded in the code. No behavior change: every resolved value, every argv, and the grace-tuning seam are identical before and after.
 - Scope-Paths: agent_workflows/runner_shared.py, agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, tests/test_forkresid_shared_shells.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -16,8 +16,10 @@
 - Highest E allocated: 06
 - Author: opencode/its_direct-pt3-claude-opus-5-1m-us
 - Id: s2ewh8
+- Approval: 2026-10-07, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-07 approved (aw set): status set to approved
 - 2026-10-07 reviewed (opencode/its_direct/pt3-claude-opus-5.5-1m-us): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-001 (MEDIUM, fixed: suite bar by failing node-id set; F-11 failures may be fixed by 8c460a9a1), PR-002 (LOW, fixed: b02ohu/76ic0k are executed), PR-003 (MEDIUM, fixed: out-of-scope STOPs converted to declarations; runner/hand finalize ownership and kz4j7o close added), PR-004 (LOW, fixed: E-03 checks the runagy vars() shim for re readers; none measured), PR-005 (LOW, fixed: stale _close_process_streams docstring example noted). Re-verified at ca03f0c56: ten names defined in both hosts, four dead names have no reader, agy re used only by the two compiles, three share candidates equal across hosts, ruff F401/F821 clean, test_runagy 11 failed/14 passed baseline.
 
 - 2026-10-02 to-review (opencode/its_direct-pt3-claude-opus-5-1m-us): authored from backlog `kz4j7o`. THE TRIAGE THE ITEM ASKS FOR WAS PERFORMED AT AUTHORING TIME, because the item's question is empirical ("each of the ten needs its own judgement rather than a mechanical move") and an unmeasured plan would have had to guess all ten answers. HEADLINE, and it contradicts the item's own stated fix direction: the item proposes "likely sharing the plain immutable values (`DEFAULT_RUNBOOK_TEXT`, `OUTPUT_MODES`, the three timeouts) and explicitly declining `_LANE_PROMPT_DISABLED`". Measured, FOUR of the ten have ZERO readers anywhere in the tree and are DEAD, including `OUTPUT_MODES`, which the item lists as a share candidate. Giving a dead constant a shared home would preserve the duplicate surface under a new name and leave a reader believing it is consulted; deletion is the correct fix and it also removes the divergence hazard completely rather than relocating it. A second correction: the item frames `DEFAULT_STALL_TIMEOUT` as "already a THREE-way case ... with both hosts holding their own `900.0` literal and ignoring it", and the hosts do NOT ignore it (each reads its own at four call sites); `LANE_PROMPT_TIMEOUT` is the undisclosed three-way case, equal to `runner_shared.GATE_PROMPT_TIMEOUT` by design and documented as such in that constant's own comment. A third: the item declines `_SIGINT_GRACE_SECONDS`/`_SIGTERM_GRACE_SECONDS` by implication only; they are declined here EXPLICITLY and on a measured reason (a shipped test tunes them per host), with the probe showing reference-initialization would in fact have preserved the seam, so the decline rests on the pair being genuinely per-host policy rather than on a mechanical obstacle. Nothing is pushed.

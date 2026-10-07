@@ -6,7 +6,7 @@
 - Scope: Correct the one false sentence in the `config get` inline `description=` to the DRIVEN behavior, add a default-visible regression guard that fails on a re-introduced exit-code promise, and record the fix in the changelog. No handler, exit code, flag, or `help=` string changes.
 - Scope-Paths: agent_workflows/cli.py, tests/test_config.py, CHANGELOG.md, .aw/records/research/20260924-cliinv-00-ffi66q-aw-cli-command-inventory.survey.md
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -17,8 +17,10 @@
 - Highest E allocated: 06
 - Author: opencode model=its_direct/pt3-claude-opus-5-1m-us
 - Id: w89bo8
+- Approval: 2026-10-07, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-07 approved (aw set): status set to approved
 - 2026-10-07 reviewed (opencode/its_direct/pt3-claude-opus-5.5-1m-us): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-001..PR-004, all FIXED. Reviewed in lane review-sweep-run-20261007T032752Z-4094028 at HEAD 2745954be; review record .aw/records/reviews/20261001-uip0z6-01-w89bo8-replace-the-false-exit-code-claim-in-the-config-get-help-wit.review.md. Re-drove F-01/F-03 (all match). PR-001: ypnk56 has EXECUTED, so the slow set is green (237 passed) and the bare run is 2 failed, 5219 passed, 2 skipped (unrelated live-corpus failures); E-06/V-06 now re-derive the baseline at the executing HEAD and compare failing-node sets. PR-002: OQ-01 named config show as a route to the unset/empty distinction; driven, config show aw_home prints the identical row in both states; E-02/OQ-01/F-04/V-02 corrected. PR-003: E-03 description guard made concrete (negative falsehood token plus positive authored anchor). PR-004: stale ypnk56-pending and backlog-transition wording swept from the scope fence and gate.
 
 - 2026-10-01 to-review (opencode model=its_direct/pt3-claude-opus-5-1m-us): Graduated from backlog `uip0z6`; inherits `Blocks-Release: next` per the live-bug gate. Authored review-ready with every claim DRIVEN rather than reasoned, as the item explicitly demands ("Any replacement must be DRIVEN, not reasoned: this defect exists because a plausible sentence was never run"). Reproduced the item's measurements at the lane HEAD and widened them: the item's three unset keys all exit 0 printing empty, two further recognized keys (`defaults.backup`, `repos.search`) exit 0 printing a value, only `no.such.key` exits 2, and `config get` is 335 characters against a 76-character help. THREE AUTHORING FINDINGS WENT BEYOND THE ITEM. First, the promised distinction is not merely unimplemented but UNREPRESENTABLE: `config.normalize` DROPS an empty string, so no config file can hold "set to an empty value" for any string key and no future exit code could expose it (F-03); this is why the fix must not promise a weaker version of the same distinction. Second, the item's suggested replacement wording ("prints an empty line and exits 0") needs one correction: the unset and set-to-empty cases are INDISTINGUISHABLE under `--json` too, which returns `null` for both, so the honest sentence must name `config show` or the file as the only route (F-04). Third, the same false claim is MIRRORED in a tracked research survey (`ffi66q`), which is in scope to correct because leaving it makes the next reader re-derive the defect (F-05). One SIBLING AUDIT was performed as the item asks: `config show`, `set`, `add`, `remove`, and `is` descriptions were each driven and are ACCURATE, so only `config get` is wrong (F-06).

@@ -6,7 +6,7 @@
 - Scope: Move ONE helper into `agent_workflows/attention_contract.py` as a public `refuse_unsafe_descriptive`, adopting the specs copy's empty-verb-suppressing `prefix` form as the single surviving behavior, and make `backlog`, `specs`, `status_set`, `releases`, and `research_cmd` all route to it. The hoisted function keeps the EXACT four-parameter shape `(verb, flag, value, *, bound_length=True)`, keeps the `bound_length` parameter (whose asymmetry is NOT uniform across trees and must not be collapsed: `specs` needs `bound_length=False` for `--message`, `backlog` needs it for `--message`, and `status_set` needs it for `--message`, while every other call site is bounded), and keeps every message string byte-identical for a NONEMPTY verb, which is what makes this a move rather than a renegotiation. Retain thin module-private aliases `backlog._refuse_unsafe_descriptive` and `specs._refuse_unsafe_descriptive` because two shipped tests reference them by module attribute (`tests/test_backlog_descriptive_safety.py` asserts `hasattr(B, "_refuse_unsafe_descriptive")` and `tests/test_specs_releases_descriptive_safety.py` asserts the same on `S`), and removing them would break a passing suite for no user-visible gain. DELIBERATELY NOT IN SCOPE: the separately spelled inline `--gate-summary` refusal in `specs.run_set`, whose distinct wording `aw specs set: --gate-summary must be a bounded single control-char-free line` is pinned verbatim by a shipped non-regression test; folding it in would change a shipped message as collateral of a refactor, which is the exact failure mode `dtg7dz` declined and `uz05bl` OQ-02 reaffirmed (see Deferred). Also not in scope: the per-tree exit-code asymmetry (specs returns 1 at three call sites and 2 at three; backlog returns 2 at all six), which lives at the CALL sites and not in the helper.
 - Scope-Paths: agent_workflows/attention_contract.py, agent_workflows/backlog.py, agent_workflows/specs.py, agent_workflows/status_set.py, agent_workflows/releases.py, agent_workflows/research_cmd.py, tests/test_descriptive_refusal_hoist.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -16,8 +16,10 @@
 - Highest E allocated: 07
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: 685iq8
+- Approval: 2026-10-07, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-07 approved (aw set): status set to approved
 
 - 2026-10-07 /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-005, PR-006. Round 2, reviewed at HEAD `fe2ee961c` in an isolated review lane; plan committed and byte-identical to the lane input, so no pre-review snapshot. Re-verified: executed plan `deftzy` shipped a FIFTH route, `research_cmd._refuse_unsafe_descriptive` (research_cmd.py:163), a shim probing `getattr(attention_contract, "refuse_unsafe_descriptive", None)` with a `backlog` fallback, which E-02 silently flips; the plan still called `deftzy` pending and left the route to a follow-up. Probe over 11 verbs x 2 modes x 12 values across the four live routes: `nonempty 0 empty 14`. Five existing safety test files `96 passed`; `aw releases new` scratch run prints `aw releases new: --version must not contain embedded newlines` rc=2. Fixed: research route brought into scope as E-07/V-07 with `research_cmd.py` in Scope-Paths, verb set made re-derivable and extended (PR-005); stale `53 passed` bar replaced by a pre-edit comparison over five files including `test_research_descriptive_safety.py` and `test_bidi_control_rejection.py` (PR-006).
 - 2026-10-07 reviewed (aw set): plan-review round 2: PR-005 research_cmd route brought into scope

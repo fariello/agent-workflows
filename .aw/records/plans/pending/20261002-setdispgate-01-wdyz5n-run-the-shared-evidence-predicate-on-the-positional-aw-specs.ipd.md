@@ -6,7 +6,7 @@
 - Scope: IN: make the `implementing -> implemented` evidence requirement fire on every surface reaching `status_set.validate_transition_allowed`, by CONSUMING the existing `specs._evidence_resolvable` predicate rather than writing a second copy; register `--evidence` on the untyped `aw set` parser and declare it in that command's `CommandDeclaration`, so the refusal is satisfiable rather than merely unreachable; repair the one existing test this breaks; and pin the parity as paired outcome tests on both spellings. OUT, each with a reason recorded under "Deferred": the `deferred` gate-kind validation bypass (a separate measured defect under its own release-gated carrier `fv4b6s`); removing the `cli.main` dispatch fork itself (the durable fix, gated on a blocking maintainer decision); changing what `_evidence_resolvable` ACCEPTS; the post-write `validate_spec` conformance refusal; and the three pre-existing suite failures this plan neither causes nor fixes.
 - Scope-Paths: agent_workflows/status_set.py, agent_workflows/specs.py, agent_workflows/cli.py, agent_workflows/command_surface.py, tests/test_specs_evidence_gate_parity.py, tests/test_status_set.py, CHANGELOG.md
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: high
@@ -17,8 +17,10 @@
 - Highest E allocated: 06
 - Author: opencode/its_direct/pt3-claude-opus-5-1m-us
 - Id: wdyz5n
+- Approval: 2026-10-07, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-07 approved (aw set): status set to approved
 - 2026-10-07 reviewed (aw set): /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005, PR-006. Re-measured F-01/F-02 at review HEAD 9ccffaca3. Found the --status spelling already refuses an implemented no-op, so E-04's no-op fence is unpaired by design; required the stale legacy path fixed in both messages; replaced a nonexistent set agreement test with an E-04 assertion; surfaced that aw set --evidence also feeds the backlog close gate; corrected the stale h4fiwa open expectation (it is graduated); named m94eht as the overlapping sibling; added the scope fence and finalize ownership; replaced git stash with a scratch worktree.
 
 - 2026-10-02 to-review (opencode/its_direct/pt3-claude-opus-5-1m-us): authored from backlog `h4fiwa`. The item's measurement was re-reproduced at this tree's HEAD `31b5ed6b9` rather than trusted, and the reproduction WIDENED it: two further surfaces (`aw set implemented`, `aw set specs implemented`) share the bypass and were not in the item. The fix's blast radius was measured by applying the fix in-memory and running the five candidate specs/status modules, which identified exactly ONE breaking test by name. Both of the item's open design questions (`_evidence_resolvable`'s accepted layout, and whether the repair can use `aw set --evidence`) were resolved from measurement and are recorded in "Findings".

@@ -6,7 +6,7 @@
 - Scope: Amend the approved spec `uonrjg` so every citation it makes resolves at HEAD, and add behavioral coverage for the two criteria the sweep found genuinely unasserted. No renderer behavior changes.
 - Scope-Paths: .aw/records/specs/approved/20260913-uonrjg-01-uonrjg-cross-artifact-lifecycle-symbols-and-ansi-status-styling.spec.md, tests/test_lifecycle_style.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - From-Spec: uonrjg
 - Work-Kind: chore
@@ -17,8 +17,10 @@
 - Highest E allocated: 07
 - Author: aw oc run model=agent
 - Id: xtensb
+- Approval: 2026-10-07, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-07 approved (aw set): status set to approved
 - 2026-10-07 reviewed (aw set): /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005, PR-006. Re-verified S1-S5 and F4 at a93c72277; found a sixth stale offset (Section 12a point 3, contract doc 159-163) the symbol-only sweep missed and added an offset grep; re-walked the census (252/34/286, miss 29) and fixed the counting definition; made the A5 counterfactual reachable via mock.patch.object; made A19 non-vacuous with a consumer-level backlog Work-Kind pair; replaced count bars; added scope fence and finalize ownership.
 
 - 2026-10-02 draft (aw oc run model=agent): created.

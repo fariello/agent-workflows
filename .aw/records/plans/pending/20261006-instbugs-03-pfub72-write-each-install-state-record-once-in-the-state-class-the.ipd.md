@@ -6,7 +6,7 @@
 - Scope: IN: one writer for the install snapshot and the install history, writing under `state/durable/` (`install.json`, `history/installs.jsonl`); the snapshot carries the running version (`agent_workflows.__version__`) and no absolute home path; `persist_project_policy` stops writing state (it keeps writing `config/project.json` and `config/local.json`); an upgrade migrates any root-level `state/install.json` and `state/history/installs.jsonl` into `state/durable/` (merging history lines without duplication) and removes the root copies; readers (`config._find_install_history_cutover`) read the durable path first and keep the legacy root as a fallback. OUT: the git policy of `state_durable` (Order 02 `gi1w75`); what is staged (Order 04 `gzsfqn`); any other `state/runtime/` producer.
 - Scope-Paths: agent_workflows/install_history.py, agent_workflows/install_wizard.py, agent_workflows/config.py, agent_workflows/engine.py, tests/test_install_state_records.py, tests/test_config.py
 - Item-Dependencies: executed:gi1w75
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Blocks-Release: f33nrj
 - From-Spec: kw5y2s
@@ -17,8 +17,10 @@
 - Highest E allocated: 05
 - Author: antigravity/claude-opus-5.5
 - Id: pfub72
+- Approval: 2026-10-07, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-07 approved (aw set): status set to approved
 - 2026-10-07 same-status (aw set): gate on release 2.0.0 (f33nrj) at the maintainer's instruction 2026-10-06: all instbugs plans block 2.0.0
 
 - 2026-10-07 reviewed (aw set): /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-008. Reviewed at lane HEAD `2493daf03`; plan committed and byte-identical to the lane input, so no pre-review snapshot. Reproduced D05 and N2 in a scratch target with a distinctive temp HOME, and found the `aw_home` leak appears only on reinstall (F-05); measured that `check-local-leaks` reports clean on the gitignored state tree (F-06). Fixed: leak oracle replaced with a direct HOME-name search (PR-001); nested policy excluded by a portable-field whitelist instead of top-level-only `_redact_details`, reinstall added to E-01, V-02 and E-05 (PR-002); E-04 migration placement, ordering, reporting, dry run and reader reorder specified, `tests/test_config.py` added to Scope-Paths (PR-003); third test-only writer `project_layout.install_system_tree` recorded (PR-004); V-03 behavioral evidence (PR-005); spec `install/` vs `install.json` divergence noted and `- From-Spec: kw5y2s` added (PR-006); `- Blocks-Release: next` (PR-007); gate gains honesty rule, scope fence, temp HOME and conditional finalize ownership (PR-008).

@@ -6,7 +6,7 @@
 - Scope: IN: one integration test module (marked `slow`) that builds a fixture git repository under `tempfile` which IS a toolkit checkout (a copy of `agent_workflows` at the fixture root, so `checkout_pin.check_and_reexec` sees matching roots and Order 02's `is_target_checkout` is True), holding a Set of one approved orchestrator (with a current pass coverage record) and one approved child, plus a fake host executable whose child turn edits the fixture's `ipd_schema.META_RECOGNIZED` to add a new field and writes `- <Field>: x` into the orchestrator plan, then commits both on `main` in the fixture. Drives `python -m agent_workflows <oc|agy> run start <setid> --no-isolate-worktree --no-self-finalize --no-validate` as a SUBPROCESS with cwd at the fixture root, for both hosts. Asserts with the restart enabled: one `driver-restarted` event, the orchestrator retired to `executed/` with no refusal. Asserts with `AW_NO_DRIVER_RESTART=1`: the retirement is refused, the item ends `fail-depend`, and the refusal names `IPD-M103` and the new field (Order 04). Then the bare suite. OUT: any production code change; any real model call; lane worktrees, self-finalize and integration (each has its own suites; they would add the fixture's own test suite to the run and are not needed to reproduce the mechanism, see review PR-001).
 - Scope-Paths: tests/test_runfresh_end_to_end.py
 - Item-Dependencies: executed:re15ol, executed:vvqr34
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - From-Spec: none
 - Work-Kind: bug
@@ -17,8 +17,10 @@
 - Highest E allocated: 05
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: hohlc6
+- Approval: 2026-10-07, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-07 approved (aw set): status set to approved
 
 - 2026-10-07 reviewed (aw set): plan-review: APPROVE WITH REVISIONS APPLIED
 - 2026-10-07 /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005, PR-006, PR-007, PR-008

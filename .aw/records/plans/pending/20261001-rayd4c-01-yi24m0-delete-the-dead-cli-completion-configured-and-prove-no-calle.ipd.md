@@ -6,7 +6,7 @@
 - Scope: Delete `cli._completion_configured` outright and repoint the one stale back-reference inside `cli._completion_state`'s docstring at `completion.is_completion_installed`, which is the function that actually still performs the PRESENCE check the sentence is describing. Verify (and correct only if regressed) the test docstring in `tests/test_completion.py` that formerly named the dead function; executed plan `s2yf26` already corrected it (PR-001). Prove by full-suite run that no caller, no test, and no dynamic lookup loses a behavior. EXCLUDES touching `completion.is_completion_installed`, which has a live production caller and is NOT dead (`cli._configure_completion` calls it); EXCLUDES any change to `cli._completion_state`'s or `cli._completion_tip`'s BEHAVIOR; EXCLUDES adding any dead-code detector, lint rule, or tool (see `## Deferred`); EXCLUDES a test asserting the symbol is absent, which would be the code-pinning GUIDING_PRINCIPLES P16 forbids (see `## Deferred`).
 - Scope-Paths: agent_workflows/cli.py, tests/test_completion.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -16,8 +16,10 @@
 - Highest E allocated: 02
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: yi24m0
+- Approval: 2026-10-07, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-07 approved (aw set): status set to approved
 - 2026-10-07 reviewed (aw set): /plan-review APPROVE WITH REVISIONS APPLIED; PR-001..PR-003
 
 - 2026-10-07 /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003. `s2yf26` has since EXECUTED (`00c460141`) and already corrected the test docstring, so E-02 is now verify-only and the repo-wide grep bar now expects exactly one hit (an absence assertion in `tests/test_completion_stale_notice.py`); hardcoded test counts replaced by executor-derived baselines; gate states runner/executor finalize ownership.

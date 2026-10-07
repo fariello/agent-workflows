@@ -6,7 +6,7 @@
 - Scope: IN: make an answer that could not be recorded a finding, not a pass. In `orchestrator_readiness.review_readiness`, when `ask=True` and the probe answered (pass or fail) but `written` is False, add a finding `coverage-record-not-written` naming the reason from the write result and the remedy (commit or stash the plan's changes, or pass `--no-commit` to write without committing), so `ready` is False; carry the write result's detail on `ProbeOutcome` as its own field instead of folding it into `detail`; print the reason in `run_coverage`'s human output; exit 1 (findings), not 0. Decide and record the write behavior for a dirty plan: write the record without committing it (so the answer is not lost) and report `committed: false` with the reason, rather than discarding the answer, unless measured evidence shows that writing into a dirty file can sweep in someone else's edit through a later commit, in which case keep refusing and say so. OUT: the coverage record format; the probe prompt; the run-start gate's handling (it already records a known hole when it cannot proceed cleanly; confirm it does not report a pass for an unwritten answer and fix it in the same way if it does).
 - Scope-Paths: agent_workflows/orchestrator_readiness.py, agent_workflows/runner_shared.py, agent_workflows/coverage_record.py, tests/test_coverage_not_written.py, tests/test_orchestrator_probe_quotes.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - From-Spec: none
 - Work-Kind: bug
@@ -17,8 +17,10 @@
 - Highest E allocated: 04
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: 7kczdo
+- Approval: 2026-10-07, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-07 approved (aw set): status set to approved
 - 2026-10-07 reviewed (aw set): plan-review: APPROVE WITH REVISIONS APPLIED
 
 - 2026-10-07 /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005

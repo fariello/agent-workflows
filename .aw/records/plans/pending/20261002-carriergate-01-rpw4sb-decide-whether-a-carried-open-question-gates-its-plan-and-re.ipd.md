@@ -6,7 +6,7 @@
 - Scope: Answer the maintainer's question, and build ONLY the half that does not depend on the answer. TWO deliverables. FIRST, a new `info`-tier `aw check` rule `check.ipd-carrier-ungated` reporting a carried open question whose plan declares no dependency edge on that carrier, so the population is VISIBLE and re-derivable on demand instead of by hand-written script. `info`, not the `warning` the item scouted, because F-06/F-07 measure that `warning` exits 1 and `aw check plans` is a gate this repository enforces fail-closed in CI. SECOND, the documentation the item asks for either way: state in `.aw/records/plans/README.md` AND in the installed template that `Carrier` is a durable-ownership handle and NOT a dispatch gate, and that gating is a separate hand-declared edge. EXCLUDES the enforcement decision itself, which is the maintainer's (OQ-01) and which F-08 shows cannot be implemented as the item proposes. EXCLUDES any change to `evaluate_carrier_obligation`, to the three carrier escapes, to `edge_satisfied`, or to the `aw ipd set approved` gate. EXCLUDES the two adjacent defects this authoring found (F-09, F-10), whose carriers are named.
 - Scope-Paths: agent_workflows/check_engine.py, .aw/records/plans/README.md, .aw/system/workflows/templates/plans-README.md, tests/test_carrier_ungated_rule.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: followup
 - Priority: low
@@ -16,8 +16,10 @@
 - Highest E allocated: 05
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: rpw4sb
+- Approval: 2026-10-07, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-07 approved (aw set): status set to approved
 - 2026-10-07 reviewed (aw set): status transition for the /plan-review record below
 
 - 2026-10-07 /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001 (MEDIUM, fixed: gate no longer orders a duplicate filing of `bs850k`), PR-002 (MEDIUM, fixed: E-05 fixture must create the carrier as a live backlog item so case (e) can exit 0), PR-003 (MEDIUM, fixed: conditional runner/executor finalize ownership and scope-fence wording), PR-004 (LOW, fixed: V-05/E-05 bar on behaviors not a test count; F-07 shell-exit drift noted). Review record `.aw/records/reviews/20261002-carriergate-01-rpw4sb-decide-whether-a-carried-open-question-gates-its-plan-and-re.review.md`.

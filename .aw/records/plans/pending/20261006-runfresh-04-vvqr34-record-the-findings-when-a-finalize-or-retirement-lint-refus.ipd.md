@@ -6,7 +6,7 @@
 - Scope: IN: in `runner_shared`, one helper that renders a refusal's findings as a single line (`findings (N): <f1>; <f2>; ...`, capped at 20 with `; ... and K more`), applied in `dispatch_orchestrator_item`'s RETIRE-refused branch so the `retirement transition refused: ...` detail (and therefore the recorded `Refusal` reason, `orchestrator_refusal_detail`, and the `orchestrator-deferred` event detail) names every finding; confirm by observation that `aw runs` and the run summary's diagnostics block render it; tests, including a guard that the child `aw ipd finalize` path prints each finding exactly once. OUT: changing any `FinalizeResult.message` in `ipd_lifecycle` (the CLI already renders `findings` as diagnostics, so appending them to the message would print every finding twice; review PR-001); changing which findings a lint produces; changing any renderer (measured at review: neither truncates a refusal reason); the restart (Order 03).
 - Scope-Paths: agent_workflows/runner_shared.py, tests/test_finalize_refusal_findings.py
 - Item-Dependencies: executed:0bjke0
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - From-Spec: none
 - Work-Kind: bug
@@ -17,8 +17,10 @@
 - Highest E allocated: 03
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: vvqr34
+- Approval: 2026-10-07, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-07 approved (aw set): status set to approved
 
 - 2026-10-07 reviewed (aw set): plan-review: APPROVE WITH REVISIONS APPLIED
 - 2026-10-07 /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005

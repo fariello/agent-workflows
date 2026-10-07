@@ -6,7 +6,7 @@
 - Scope: IN: (1) every file the install writes into a TRACKED class (per the policy's git policies after Order 02) is staged together with the framework files and appears in the "Installed or updated" listing, so the suggested commit (or the `-y` auto-commit) captures the whole install; (2) the run-scratch and other gitignore advisories are computed after every ignore file the run writes; (3) the closing report states what actually happened: the summary describes the staged set without claiming a final outcome, and exactly one closing line follows the commit offer: committed (with the commit sha), staged-not-committed with the command to run, or commit failed. OUT: what is written and where (Orders 02 and 03); ignored classes are never staged (they stay ignored); the separate listing of the gitignored `.aw/workflow-artifacts/README.md` as `[added]` (see Deferred).
 - Scope-Paths: agent_workflows/engine.py, agent_workflows/cli.py, agent_workflows/install_wizard.py, tests/test_install_report_truth.py
 - Item-Dependencies: executed:pfub72
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Blocks-Release: f33nrj
 - Work-Kind: bug
@@ -16,8 +16,10 @@
 - Highest E allocated: 05
 - Author: antigravity/claude-opus-5.5
 - Id: gzsfqn
+- Approval: 2026-10-07, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-07 approved (aw set): status set to approved
 - 2026-10-07 reviewed (opencode/its_direct/pt3-claude-opus-5.5-1m-us): plan-review
 - 2026-10-07 same-status (aw set): gate on release 2.0.0 (f33nrj) at the maintainer's instruction 2026-10-06: all instbugs plans block 2.0.0
 

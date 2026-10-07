@@ -6,7 +6,7 @@
 - Scope: IN: extend the name-versus-front-matter comparison in `research_index._doc_entry` to `order` (plain string compare: `validate_frontmatter` already rejects any `order` that is not a two-digit `NN` string and returns before the comparison, so both sides are canonical `NN`), `kind` (front matter normalized through `research_contract.normalize_kind` before comparing, since `parse_name` already normalizes the filename side), and `model` (front matter normalized through `research_contract.normalize_model`; compared ONLY when the filename carries a model facet, because spec `20260730-2152-01` Section 4.4 makes the facet optional in the name and always present in front matter, so a front-matter-only model is legal); one drift line per field naming both values; tests. OUT: the rename path (fixed by `ax8eg1`); adding new front-matter fields; changing the drift code name (`name-frontmatter-mismatch` is reused so existing consumers keep working).
 - Scope-Paths: agent_workflows/research_index.py, tests/test_research_index_name_fm_mismatch.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Blocks-Release: f33nrj
 - Work-Kind: bug
@@ -16,8 +16,10 @@
 - Highest E allocated: 04
 - Author: antigravity/claude-opus-5.5
 - Id: okw4ke
+- Approval: 2026-10-07, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-07 approved (aw set): status set to approved
 - 2026-10-07 same-status (aw set): gate on release 2.0.0 (f33nrj) at the maintainer's instruction 2026-10-06: all instbugs plans block 2.0.0
 
 - 2026-10-07 reviewed (aw set): /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-007. Reviewed at lane HEAD `5d7909cc6`; plan committed and byte-identical to the lane input, so no pre-review snapshot. Reproduced D10's check half in a scratch `private-target` install (F-04) and applied the proposed rules to this repo's 128 valid research records (F-05, 0 hits). Fixed: `order: 1` cannot reach the comparison because `validate_frontmatter` rejects it first, so the integer compare and the `order: 1` clean test were unreachable (PR-001); model-on-one-side rule contradicted spec Section 4.4, which makes a front-matter-only model legal; now compared only when the name carries the facet (PR-002); kind and model front matter normalized like `parse_name` so legacy aliases are not false mismatches (PR-003); E-03 demanded a clean `--check` on this repo, which exits 1 for unrelated drift; bar narrowed to the `name-frontmatter-mismatch` subset (PR-004); E-01/V-01 probes made concrete and reproducible, with the model-name case added (PR-005); `- Blocks-Release: next` per the live-bug rule (PR-006); gate gains honesty rule, scope fence, temp HOME, conditional finalize ownership and replaces `aw ipd set executed` (PR-007). `aw check research`/`all` not reporting this drift class recorded in Scope check and reported to the maintainer.

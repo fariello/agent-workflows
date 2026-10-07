@@ -6,7 +6,7 @@
 - Scope: Extend the executed conformance contract from the read surface to the mutation surface, with the write-isolation design `f36de0` deferred, and fix the eleven leaves the extension proves broken. IN: a session-scoped installed-project fixture (install once, clone per leaf) that makes driving a mutating verb safe and cheap; a mutation arm of the sweep computed from the same `discover_parser_leaves` predicate so a NEW mutation leaf is enforced on arrival; per-leaf assertions matching the mutation contract rather than the read contract, meaning the four `f36de0` properties PLUS the Section 11.3 preview fields and a no-absolute-path assertion; routing the eleven prose-emitting handlers through `get_renderer(ctx).emit(...)`; and a tree-untouched assertion so the suite proves the fixture isolates writes instead of assuming it. OUT (each with a reason, none incidental): `aw rename plans` and `aw group plans`, whose identical missing-payload defect is ALREADY OWNED by open backlog `eeiytw` at `Blocks-Release: next` with its own named fix sites (`plans_refs.py`, `artifact_rename.py`), so fixing them here would duplicate a filed item and steal its validation; the mutation leaves requiring positional arguments (48 at authoring, 43 re-measured at review HEAD `ebb42a70e`; E-02 re-derives the number), which need a per-leaf valid-argument fixture that is a second design problem and is recorded as a measured ceiling in the registry rather than hidden; `install`, `setup`, `migrate-layout` and `uninstall`, which bootstrap or destroy the fixture the sweep runs inside and so cannot be driven by it; the seven leaves whose `--agent` exit is produced by ARGPARSE (or an early required-flag check) before any handler runs, which is a parser-level concern and not a dropped emit, and which is ALREADY OWNED by open backlog `91pjax` (`Blocks-Release: next`), filed 2026-10-02 specifically to take this handoff; widening `agent_schema.VALID_OUTCOMES` or touching `emit`'s signature; and any static analysis of production source, which AGENTS.md P16 forbids outright.
 - Scope-Paths: tests/conformance_matrix.py, tests/test_agent_surface_conformance.py, agent_workflows/cli.py, agent_workflows/research_index.py, agent_workflows/research_archive.py, agent_workflows/oc_models.py, .aw/records/backlog/open/20260930-eeiytw-01-eeiytw-rename-group-plans-no-machine-payload.backlog.md, .aw/records/backlog/open/20261002-91pjax-01-91pjax-argparse-refusal-silent-on-agent-surface.backlog.md
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -17,8 +17,10 @@
 - Highest E allocated: 06
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: vfv2db
+- Approval: 2026-10-07, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-07 approved (aw set): status set to approved
 - 2026-10-07 reviewed (aw set): /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-007 all FIXED. Re-measured at HEAD ebb42a70e (F-12..F-15): defects still live; PYTHONPATH pin (arm would import another tree), git identity for template, separate mutation registry, conditional 11.3 checks, storage reattach exit-1 mapping, 91pjax replaces lbbo9s as F-07 carrier, isolation re-tiered. Record: .aw/records/reviews/20261001-w78faq-01-vfv2db-drive-every-mutation-class-machine-surface-in-an-isolated-pr.review.md
 
 - 2026-10-01 to-review (opencode its_direct/pt3-claude-opus-5-1m-us): Graduated from backlog item `w78faq`, which is `Work-Kind: followup` and carries NO release gate. THIS PLAN RAISES BOTH, and a reviewer should check that judgement first because it is the one authoring decision that changes the plan's obligations.

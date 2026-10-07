@@ -6,7 +6,7 @@
 - Scope: IN: (a) in `runner_shared.evaluate_backlog_close`, stop returning before non-IPD carriers are judged, so a MIXED carrier set requires every IPD carrier executed AND every spec carrier `implemented`, reusing `check_engine._carrier_is_executed` as the single spec-state authority rather than adding a second status reader; (b) keep the two SHIPPED rules exactly as they are, namely the IPD-only rule (every IPD carrier executed) and the no-IPD rule (artifact existence, spec status deliberately not consulted); (c) tests pinning the mixed refusal, the mixed allowance once the spec is `implemented`, and both unchanged single-kind rules; (d) correct the carrier-kind comment block and `BacklogCloseVerdict.rule`'s docstring, which both describe a partition the fix changes the meaning of; (e) a CHANGELOG entry. OUT: the inner gate `check_engine.evaluate_blocking_close` and its SATISFIED arm (see Deferred: the masking is a CONSEQUENCE here, and narrowing SATISFIED is a separate decision over every hand close); `release_gate_warnings` staying plans-only (`2o5wka` E-05 left it so deliberately); the F-06 ungated-sibling residue that `2o5wka` OQ-02 defers with a trigger; the `rule` string values in the verdict (consumed by recorded run state).
 - Scope-Paths: agent_workflows/runner_shared.py, tests/test_outer_close_spec_carrier.py, CHANGELOG.md
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -17,8 +17,10 @@
 - Highest E allocated: 05
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: 5eygjt
+- Approval: 2026-10-07, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-07 approved (aw set): status set to approved
 - 2026-10-07 reviewed (aw set): plan-review round 2
 
 - 2026-10-06 /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-101, PR-102, PR-103. Round 2 re-review at HEAD `fe2ee961c` in an isolated review-sweep lane; plan committed and byte-identical to the lane input, so no pre-review snapshot. Round 1's `- Readiness:` had been stripped by `8c460a9a1` (plan left at `to-review`); this round sets `reviewed`. PREMISES RE-VERIFIED: F-01 reproduces (scratch fixture from `tests/test_backlog_handoff_close.py` helpers, earned = executed plan: `close=True rule='ipd'` with BOTH carriers discovered, spec `approved`; inner gate without evidence `legitimate=False`); `evaluate_backlog_close` body unchanged in shape (`return` inside `if ipds:`, `others` unread); `IPD carrier(s) not executed: ` prefix still asserted by `tests/test_inlane_retirement_lands.py`; carrier `wfswdb` exists in `backlog/open/`; `tests/test_backlog_handoff_close.py`, `tests/test_inlane_retirement_lands.py`, `tests/test_carrier_scan_single_item_contract.py`, `tests/test_runner_delegation_and_host_independence.py` = `73 passed`. Revisions: E-04 requires a non-empty `earned_paths` in cases (1)-(5), without which case (1) passes pre-fix for the not-earned reason (PR-101); E-02 now depends on E-04 so the mandated test-first order is machine-visible (PR-102); gate gains scope-fence-as-declaration, plan-file commit, OQ statement, conditional finalize ownership (PR-103).
