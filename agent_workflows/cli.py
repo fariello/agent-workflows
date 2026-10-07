@@ -4418,6 +4418,15 @@ def _build_parser() -> argparse.ArgumentParser:
                 action="store_true",
                 help="Apply the setid length rules to PRE-cutover artifacts too (no grandfathering).",
             )
+            # grandfathered heh05a E-04 / OQ-02: opt-in advisory reporting of historical release-gate
+            # close findings that closed before the stamped cutover date. Advisory info only; never
+            # sets a nonzero exit code and cannot fail CI.
+            _p.add_argument(
+                "--grandfathered",
+                dest="grandfathered",
+                action="store_true",
+                help="Report grandfathered release-gate close findings (advisory info; does not set an exit code).",
+            )
             _p.add_argument(
                 "--source-citations",
                 dest="source_citations",
@@ -13459,7 +13468,10 @@ def _run_check(
     if raw_type in ("release-gates", "release-gate", "release_gates", "release_gate"):
         norm = "release-gates"
         target_types = ["backlog", "specs", "plans", "releases"]
-        drift = ce.check_release_gates(repo_root)
+        drift = ce.check_release_gates(
+            repo_root,
+            grandfathered=bool(getattr(args, "grandfathered", False)),
+        )
     else:
         try:
             norm = at.normalize_type(raw_type)
@@ -13489,6 +13501,7 @@ def _run_check(
                 collisions=(norm == "all"),
                 include_retired=include_retired,
                 strict_setid_length=bool(getattr(args, "strict_setid_length", False)),
+                grandfathered=bool(getattr(args, "grandfathered", False)),
             )
         except Exception:
             fn = at.resolve_backend(norm, "check")

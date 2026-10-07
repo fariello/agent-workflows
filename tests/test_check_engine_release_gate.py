@@ -505,10 +505,11 @@ class TestCheckEngineReleaseGate(unittest.TestCase):
             self.assertNotIn("check.blocking-item-closed-without-gate", rules)
 
     def test_whole_family_rules_constant(self) -> None:
-        """RELEASE_GATE_RULES lists all 8 release-gate family rules."""
+        """RELEASE_GATE_RULES lists all 9 release-gate family rules."""
         expected = {
             "check.live-bug-ungated",
             "check.blocking-item-closed-without-gate",
+            "check.blocking-close-grandfathered",
             "check.from-backlog-gate-mismatch",
             "check.blocks-release-dangling",
             "check.release-sentinel-absent",
@@ -1943,6 +1944,587 @@ class TestCheckEngineReleaseGate(unittest.TestCase):
             findings = check_engine.check_release_gates(repo)
             rules = [d.rule for d in findings]
             self.assertEqual(rules.count("check.blocking-item-closed-without-gate"), 1)
+
+    def test_rule_blocking_close_grandfathered_pre_cutover_reported(self) -> None:
+        """heh05a E-05 case 1: pre-cutover illegitimate close reported under check.blocking-close-grandfathered."""
+        with TemporaryDirectory() as tmp:
+            repo = _create_minimal_repo(Path(tmp))
+            subprocess.run(["git", "-C", str(repo), "init", "-q"], check=True)
+            subprocess.run(
+                ["git", "-C", str(repo), "config", "user.name", "Test"], check=True
+            )
+            subprocess.run(
+                ["git", "-C", str(repo), "config", "user.email", "test@test.com"],
+                check=True,
+            )
+            cfg_dir = repo / ".aw" / "config"
+            cfg_dir.mkdir(parents=True, exist_ok=True)
+            (cfg_dir / "project.json").write_text(
+                json.dumps({"cutovers": {"release_gate_at_rest": "2026-10-01"}}),
+                encoding="utf-8",
+            )
+            done_file = (
+                repo
+                / ".aw"
+                / "records"
+                / "backlog"
+                / "done"
+                / "20260920-item01-01-item01-done-bug.backlog.md"
+            )
+            done_file.write_text(
+                "- Id: item01\n"
+                "- Status: done\n"
+                "- Blocks-Release: next\n"
+                "- Set: item01\n"
+                "- Priority: medium\n"
+                "- Work-Kind: bug\n"
+                "- Summary: Pre-cutover close without handoff\n\n"
+                "## Workflow history\n"
+                "- 2026-09-20 done (aw set): status set to done\n",
+                encoding="utf-8",
+            )
+            subprocess.run(["git", "-C", str(repo), "add", "--", "."], check=True)
+            subprocess.run(
+                ["git", "-C", str(repo), "commit", "-m", "commit done item"], check=True
+            )
+
+            findings = check_engine.check_release_gates(repo, grandfathered=True)
+            gf_findings = [
+                d for d in findings if d.rule == "check.blocking-close-grandfathered"
+            ]
+            self.assertEqual(len(gf_findings), 1)
+            self.assertEqual(gf_findings[0].severity, "info")
+            # Directly assert exit-code property on returned drift list
+            self.assertEqual(_core.drift_exit_code(findings), 0)
+
+    def test_rule_blocking_close_grandfathered_default_call_silent(self) -> None:
+        """heh05a E-05 case 2: default calls produce zero findings on pre-cutover fixture (regression guard)."""
+        with TemporaryDirectory() as tmp:
+            repo = _create_minimal_repo(Path(tmp))
+            subprocess.run(["git", "-C", str(repo), "init", "-q"], check=True)
+            subprocess.run(
+                ["git", "-C", str(repo), "config", "user.name", "Test"], check=True
+            )
+            subprocess.run(
+                ["git", "-C", str(repo), "config", "user.email", "test@test.com"],
+                check=True,
+            )
+            cfg_dir = repo / ".aw" / "config"
+            cfg_dir.mkdir(parents=True, exist_ok=True)
+            (cfg_dir / "project.json").write_text(
+                json.dumps({"cutovers": {"release_gate_at_rest": "2026-10-01"}}),
+                encoding="utf-8",
+            )
+            done_file = (
+                repo
+                / ".aw"
+                / "records"
+                / "backlog"
+                / "done"
+                / "20260920-item01-01-item01-done-bug.backlog.md"
+            )
+            done_file.write_text(
+                "- Id: item01\n"
+                "- Status: done\n"
+                "- Blocks-Release: next\n"
+                "- Set: item01\n"
+                "- Priority: medium\n"
+                "- Work-Kind: bug\n"
+                "- Summary: Pre-cutover close without handoff\n\n"
+                "## Workflow history\n"
+                "- 2026-09-20 done (aw set): status set to done\n",
+                encoding="utf-8",
+            )
+            subprocess.run(["git", "-C", str(repo), "add", "--", "."], check=True)
+            subprocess.run(
+                ["git", "-C", str(repo), "commit", "-m", "commit done item"], check=True
+            )
+
+            # Default call with no flag
+            findings = check_engine.check_release_gates(repo)
+            self.assertEqual(findings, [])
+            # Direct check_release_gate_consistency with default grandfathered=False
+            consistency_at_rest = check_engine.check_release_gate_consistency(
+                repo, at_rest=True
+            )
+            self.assertEqual(consistency_at_rest, [])
+            consistency_default = check_engine.check_release_gate_consistency(repo)
+            self.assertEqual(consistency_default, [])
+
+    def test_rule_blocking_close_partition_post_cutover_illegitimate(self) -> None:
+        """heh05a E-05 case 3: post-cutover illegitimate close remains in check.blocking-item-closed-without-gate."""
+        with TemporaryDirectory() as tmp:
+            repo = _create_minimal_repo(Path(tmp))
+            subprocess.run(["git", "-C", str(repo), "init", "-q"], check=True)
+            subprocess.run(
+                ["git", "-C", str(repo), "config", "user.name", "Test"], check=True
+            )
+            subprocess.run(
+                ["git", "-C", str(repo), "config", "user.email", "test@test.com"],
+                check=True,
+            )
+            cfg_dir = repo / ".aw" / "config"
+            cfg_dir.mkdir(parents=True, exist_ok=True)
+            (cfg_dir / "project.json").write_text(
+                json.dumps({"cutovers": {"release_gate_at_rest": "2026-10-01"}}),
+                encoding="utf-8",
+            )
+            done_file = (
+                repo
+                / ".aw"
+                / "records"
+                / "backlog"
+                / "done"
+                / "20261005-item01-01-item01-done-bug.backlog.md"
+            )
+            done_file.write_text(
+                "- Id: item01\n"
+                "- Status: done\n"
+                "- Blocks-Release: next\n"
+                "- Set: item01\n"
+                "- Priority: medium\n"
+                "- Work-Kind: bug\n"
+                "- Summary: Post-cutover close without handoff\n\n"
+                "## Workflow history\n"
+                "- 2026-10-05 done (aw set): status set to done\n",
+                encoding="utf-8",
+            )
+            subprocess.run(["git", "-C", str(repo), "add", "--", "."], check=True)
+            subprocess.run(
+                ["git", "-C", str(repo), "commit", "-m", "commit done item"], check=True
+            )
+
+            findings = check_engine.check_release_gates(repo, grandfathered=True)
+            rules = [d.rule for d in findings]
+            self.assertIn("check.blocking-item-closed-without-gate", rules)
+            self.assertNotIn("check.blocking-close-grandfathered", rules)
+
+    def test_rule_blocking_close_grandfathered_undatable_close(self) -> None:
+        """heh05a E-05 case 4: item with undatable close history lands in check.blocking-close-grandfathered."""
+        with TemporaryDirectory() as tmp:
+            repo = _create_minimal_repo(Path(tmp))
+            subprocess.run(["git", "-C", str(repo), "init", "-q"], check=True)
+            subprocess.run(
+                ["git", "-C", str(repo), "config", "user.name", "Test"], check=True
+            )
+            subprocess.run(
+                ["git", "-C", str(repo), "config", "user.email", "test@test.com"],
+                check=True,
+            )
+            cfg_dir = repo / ".aw" / "config"
+            cfg_dir.mkdir(parents=True, exist_ok=True)
+            (cfg_dir / "project.json").write_text(
+                json.dumps({"cutovers": {"release_gate_at_rest": "2026-10-01"}}),
+                encoding="utf-8",
+            )
+            done_file = (
+                repo
+                / ".aw"
+                / "records"
+                / "backlog"
+                / "done"
+                / "item01-done-bug.backlog.md"
+            )
+            done_file.write_text(
+                "- Id: item01\n"
+                "- Status: done\n"
+                "- Blocks-Release: next\n"
+                "- Set: item01\n"
+                "- Priority: medium\n"
+                "- Work-Kind: bug\n"
+                "- Summary: Undatable close\n\n"
+                "## Workflow history\n"
+                "- done (aw set): status set to done\n",
+                encoding="utf-8",
+            )
+            subprocess.run(["git", "-C", str(repo), "add", "--", "."], check=True)
+            subprocess.run(
+                ["git", "-C", str(repo), "commit", "-m", "commit done item"], check=True
+            )
+
+            findings = check_engine.check_release_gates(repo, grandfathered=True)
+            rules = [d.rule for d in findings]
+            self.assertIn("check.blocking-close-grandfathered", rules)
+            self.assertNotIn("check.blocking-item-closed-without-gate", rules)
+            gf = [
+                d for d in findings if d.rule == "check.blocking-close-grandfathered"
+            ][0]
+            self.assertIn("undatable close", gf.detail)
+            self.assertEqual(_core.drift_exit_code(findings), 0)
+
+    def test_rule_blocking_close_grandfathered_ungated_done_item_silent(self) -> None:
+        """heh05a E-05 case 5: ungated done item produces zero findings under grandfathered check."""
+        with TemporaryDirectory() as tmp:
+            repo = _create_minimal_repo(Path(tmp))
+            subprocess.run(["git", "-C", str(repo), "init", "-q"], check=True)
+            subprocess.run(
+                ["git", "-C", str(repo), "config", "user.name", "Test"], check=True
+            )
+            subprocess.run(
+                ["git", "-C", str(repo), "config", "user.email", "test@test.com"],
+                check=True,
+            )
+            cfg_dir = repo / ".aw" / "config"
+            cfg_dir.mkdir(parents=True, exist_ok=True)
+            (cfg_dir / "project.json").write_text(
+                json.dumps({"cutovers": {"release_gate_at_rest": "2026-10-01"}}),
+                encoding="utf-8",
+            )
+            done_file = (
+                repo
+                / ".aw"
+                / "records"
+                / "backlog"
+                / "done"
+                / "20260920-item01-01-item01-done-feat.backlog.md"
+            )
+            done_file.write_text(
+                "- Id: item01\n"
+                "- Status: done\n"
+                "- Set: item01\n"
+                "- Priority: medium\n"
+                "- Work-Kind: feature\n"
+                "- Summary: Ungated feature\n\n"
+                "## Workflow history\n"
+                "- 2026-09-20 done (aw set): status set to done\n",
+                encoding="utf-8",
+            )
+            subprocess.run(["git", "-C", str(repo), "add", "--", "."], check=True)
+            subprocess.run(
+                ["git", "-C", str(repo), "commit", "-m", "commit done item"], check=True
+            )
+
+            findings = check_engine.check_release_gates(repo, grandfathered=True)
+            self.assertEqual(findings, [])
+
+    def test_rule_blocking_close_grandfathered_executed_carrier_silent(self) -> None:
+        """heh05a E-05 case 6: pre-cutover item with executed same-gate carrier is clean."""
+        with TemporaryDirectory() as tmp:
+            repo = _create_minimal_repo(Path(tmp))
+            subprocess.run(["git", "-C", str(repo), "init", "-q"], check=True)
+            subprocess.run(
+                ["git", "-C", str(repo), "config", "user.name", "Test"], check=True
+            )
+            subprocess.run(
+                ["git", "-C", str(repo), "config", "user.email", "test@test.com"],
+                check=True,
+            )
+            cfg_dir = repo / ".aw" / "config"
+            cfg_dir.mkdir(parents=True, exist_ok=True)
+            (cfg_dir / "project.json").write_text(
+                json.dumps({"cutovers": {"release_gate_at_rest": "2026-10-01"}}),
+                encoding="utf-8",
+            )
+            done_file = (
+                repo
+                / ".aw"
+                / "records"
+                / "backlog"
+                / "done"
+                / "20260920-item01-01-item01-done-bug.backlog.md"
+            )
+            done_file.write_text(
+                "- Id: item01\n"
+                "- Status: done\n"
+                "- Blocks-Release: next\n"
+                "- Set: item01\n"
+                "- Priority: medium\n"
+                "- Work-Kind: bug\n"
+                "- Summary: Pre-cutover bug with executed carrier\n\n"
+                "## Workflow history\n"
+                "- 2026-09-20 done (aw set): status set to done\n",
+                encoding="utf-8",
+            )
+            carrier_file = (
+                repo
+                / ".aw"
+                / "records"
+                / "plans"
+                / "executed"
+                / "20260920-plan01-01-plan01-fix-bug.ipd.md"
+            )
+            carrier_file.write_text(
+                "# IPD: Fix bug\n\n"
+                "- Id: plan01\n"
+                "- Status: executed\n"
+                "- Blocks-Release: next\n"
+                "- From-Backlog: item01\n"
+                "- Set: item01\n",
+                encoding="utf-8",
+            )
+            subprocess.run(["git", "-C", str(repo), "add", "--", "."], check=True)
+            subprocess.run(
+                [
+                    "git",
+                    "-C",
+                    str(repo),
+                    "commit",
+                    "-m",
+                    "commit done item and executed plan",
+                ],
+                check=True,
+            )
+
+            findings = check_engine.check_release_gates(repo, grandfathered=True)
+            self.assertEqual(findings, [])
+
+    def test_rule_blocking_close_grandfathered_dedup_staged_and_on_disk(self) -> None:
+        """heh05a E-05 case 7: staged pre-cutover item reported once under blocking-item-closed-without-gate."""
+        with TemporaryDirectory() as tmp:
+            repo = _create_minimal_repo(Path(tmp))
+            subprocess.run(["git", "-C", str(repo), "init", "-q"], check=True)
+            subprocess.run(
+                ["git", "-C", str(repo), "config", "user.name", "Test"], check=True
+            )
+            subprocess.run(
+                ["git", "-C", str(repo), "config", "user.email", "test@test.com"],
+                check=True,
+            )
+            cfg_dir = repo / ".aw" / "config"
+            cfg_dir.mkdir(parents=True, exist_ok=True)
+            (cfg_dir / "project.json").write_text(
+                json.dumps({"cutovers": {"release_gate_at_rest": "2026-10-01"}}),
+                encoding="utf-8",
+            )
+            done_file = (
+                repo
+                / ".aw"
+                / "records"
+                / "backlog"
+                / "done"
+                / "20260920-item01-01-item01-done-bug.backlog.md"
+            )
+            done_file.write_text(
+                "- Id: item01\n"
+                "- Status: done\n"
+                "- Blocks-Release: next\n"
+                "- Set: item01\n"
+                "- Priority: medium\n"
+                "- Work-Kind: bug\n"
+                "- Summary: Pre-cutover bug staged in commit\n\n"
+                "## Workflow history\n"
+                "- 2026-09-20 done (aw set): status set to done\n",
+                encoding="utf-8",
+            )
+            # Item is staged in git index
+            subprocess.run(["git", "-C", str(repo), "add", "--", "."], check=True)
+
+            findings = check_engine.check_release_gates(repo, grandfathered=True)
+            rules = [d.rule for d in findings]
+            self.assertEqual(rules.count("check.blocking-item-closed-without-gate"), 1)
+            self.assertEqual(rules.count("check.blocking-close-grandfathered"), 0)
+
+    def test_rule_blocking_close_grandfathered_cohort_details(self) -> None:
+        """heh05a E-05 case 8: detail distinguishes no-carrier vs unexecuted-carrier cohorts."""
+        with TemporaryDirectory() as tmp:
+            repo = _create_minimal_repo(Path(tmp))
+            subprocess.run(["git", "-C", str(repo), "init", "-q"], check=True)
+            subprocess.run(
+                ["git", "-C", str(repo), "config", "user.name", "Test"], check=True
+            )
+            subprocess.run(
+                ["git", "-C", str(repo), "config", "user.email", "test@test.com"],
+                check=True,
+            )
+            cfg_dir = repo / ".aw" / "config"
+            cfg_dir.mkdir(parents=True, exist_ok=True)
+            (cfg_dir / "project.json").write_text(
+                json.dumps({"cutovers": {"release_gate_at_rest": "2026-10-01"}}),
+                encoding="utf-8",
+            )
+            # Item A: no carrier
+            done_a = (
+                repo
+                / ".aw"
+                / "records"
+                / "backlog"
+                / "done"
+                / "20260920-item01-01-item01-no-carrier.backlog.md"
+            )
+            done_a.write_text(
+                "- Id: item01\n"
+                "- Status: done\n"
+                "- Blocks-Release: next\n"
+                "- Set: item01\n"
+                "- Priority: medium\n"
+                "- Work-Kind: bug\n"
+                "- Summary: No carrier\n\n"
+                "## Workflow history\n"
+                "- 2026-09-20 done (aw set): status set to done\n",
+                encoding="utf-8",
+            )
+            # Item B: carrier present but pending (not executed)
+            done_b = (
+                repo
+                / ".aw"
+                / "records"
+                / "backlog"
+                / "done"
+                / "20260921-item02-01-item02-pending-carrier.backlog.md"
+            )
+            done_b.write_text(
+                "- Id: item02\n"
+                "- Status: done\n"
+                "- Blocks-Release: next\n"
+                "- Set: item02\n"
+                "- Priority: medium\n"
+                "- Work-Kind: bug\n"
+                "- Summary: Pending carrier\n\n"
+                "## Workflow history\n"
+                "- 2026-09-21 done (aw set): status set to done\n",
+                encoding="utf-8",
+            )
+            carrier_b = (
+                repo
+                / ".aw"
+                / "records"
+                / "plans"
+                / "pending"
+                / "20260921-plan02-01-plan02-pending.ipd.md"
+            )
+            carrier_b.write_text(
+                "# IPD: Pending carrier\n\n"
+                "- Id: plan02\n"
+                "- Status: pending\n"
+                "- Blocks-Release: next\n"
+                "- From-Backlog: item02\n"
+                "- Set: item02\n",
+                encoding="utf-8",
+            )
+            subprocess.run(["git", "-C", str(repo), "add", "--", "."], check=True)
+            subprocess.run(
+                [
+                    "git",
+                    "-C",
+                    str(repo),
+                    "commit",
+                    "-m",
+                    "commit items and pending carrier",
+                ],
+                check=True,
+            )
+
+            findings = check_engine.check_release_gates(repo, grandfathered=True)
+            gf = [d for d in findings if d.rule == "check.blocking-close-grandfathered"]
+            self.assertEqual(len(gf), 2)
+
+            detail_by_loc = {d.location: d.detail for d in gf}
+            loc_a = [loc for loc in detail_by_loc if "item01" in loc][0]
+            loc_b = [loc for loc in detail_by_loc if "item02" in loc][0]
+
+            self.assertIn("cohort: no same-gate carrier", detail_by_loc[loc_a])
+            self.assertNotIn("aw backlog set done", detail_by_loc[loc_a])
+            self.assertIn("grandfathered", detail_by_loc[loc_a])
+
+            self.assertIn(
+                "cohort: same-gate carrier(s) present but not all executed",
+                detail_by_loc[loc_b],
+            )
+            self.assertNotIn("aw backlog set done", detail_by_loc[loc_b])
+            self.assertIn("grandfathered", detail_by_loc[loc_b])
+
+    def test_rule_blocking_close_grandfathered_no_cutover_configured(self) -> None:
+        """heh05a E-05 case 9: without cutover configured, illegitimate close reports under grandfathered."""
+        with TemporaryDirectory() as tmp:
+            repo = _create_minimal_repo(Path(tmp))
+            subprocess.run(["git", "-C", str(repo), "init", "-q"], check=True)
+            subprocess.run(
+                ["git", "-C", str(repo), "config", "user.name", "Test"], check=True
+            )
+            subprocess.run(
+                ["git", "-C", str(repo), "config", "user.email", "test@test.com"],
+                check=True,
+            )
+            # No cutover in project.json
+            done_file = (
+                repo
+                / ".aw"
+                / "records"
+                / "backlog"
+                / "done"
+                / "20260920-item01-01-item01-done-bug.backlog.md"
+            )
+            done_file.write_text(
+                "- Id: item01\n"
+                "- Status: done\n"
+                "- Blocks-Release: next\n"
+                "- Set: item01\n"
+                "- Priority: medium\n"
+                "- Work-Kind: bug\n"
+                "- Summary: No cutover configured\n\n"
+                "## Workflow history\n"
+                "- 2026-09-20 done (aw set): status set to done\n",
+                encoding="utf-8",
+            )
+            subprocess.run(["git", "-C", str(repo), "add", "--", "."], check=True)
+            subprocess.run(
+                ["git", "-C", str(repo), "commit", "-m", "commit done item"], check=True
+            )
+
+            findings = check_engine.check_release_gates(repo, grandfathered=True)
+            gf = [d for d in findings if d.rule == "check.blocking-close-grandfathered"]
+            self.assertEqual(len(gf), 1)
+            self.assertIn("no cutover configured", gf[0].detail)
+            self.assertEqual(_core.drift_exit_code(findings), 0)
+
+    def test_rule_blocking_close_grandfathered_sweep_parity(self) -> None:
+        """heh05a E-05 case 10: check_types sweep parity with check_release_gates for grandfathered findings."""
+        with TemporaryDirectory() as tmp:
+            repo = _create_minimal_repo(Path(tmp))
+            subprocess.run(["git", "-C", str(repo), "init", "-q"], check=True)
+            subprocess.run(
+                ["git", "-C", str(repo), "config", "user.name", "Test"], check=True
+            )
+            subprocess.run(
+                ["git", "-C", str(repo), "config", "user.email", "test@test.com"],
+                check=True,
+            )
+            cfg_dir = repo / ".aw" / "config"
+            cfg_dir.mkdir(parents=True, exist_ok=True)
+            (cfg_dir / "project.json").write_text(
+                json.dumps({"cutovers": {"release_gate_at_rest": "2026-10-01"}}),
+                encoding="utf-8",
+            )
+            done_file = (
+                repo
+                / ".aw"
+                / "records"
+                / "backlog"
+                / "done"
+                / "20260920-item01-01-item01-done-bug.backlog.md"
+            )
+            done_file.write_text(
+                "- Id: item01\n"
+                "- Status: done\n"
+                "- Blocks-Release: next\n"
+                "- Set: item01\n"
+                "- Priority: medium\n"
+                "- Work-Kind: bug\n"
+                "- Summary: Parity test item\n\n"
+                "## Workflow history\n"
+                "- 2026-09-20 done (aw set): status set to done\n",
+                encoding="utf-8",
+            )
+            subprocess.run(["git", "-C", str(repo), "add", "--", "."], check=True)
+            subprocess.run(
+                ["git", "-C", str(repo), "commit", "-m", "commit done item"], check=True
+            )
+
+            gate_findings = check_engine.check_release_gates(repo, grandfathered=True)
+            sweep_findings = check_engine.check_types(repo, ["all"], grandfathered=True)
+
+            gate_locs = sorted(
+                d.location
+                for d in gate_findings
+                if d.rule == "check.blocking-close-grandfathered"
+            )
+            sweep_locs = sorted(
+                d.location
+                for d in sweep_findings
+                if d.rule == "check.blocking-close-grandfathered"
+            )
+            self.assertEqual(len(gate_locs), 1)
+            self.assertEqual(gate_locs, sweep_locs)
 
 
 if __name__ == "__main__":

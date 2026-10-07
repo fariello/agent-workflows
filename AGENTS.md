@@ -245,7 +245,10 @@ to the same `evaluate_blocking_close` predicate and gates the `done` case only. 
 are local, not cloned by default, and skippable with `--no-verify`; the portable authority is the
 `aw check release-gates` rule family (`aw check` / `aw check all`) and CI, never the local hook alone.
 The check rule examines every `done` backlog item on disk, grandfathered per item against the repository's
-stamped cutover date. In CI, `aw check release-gates` runs as a named fail-closed step in `tests.yml`.
+stamped cutover date; the grandfathered residue is reportable on demand via `aw check release-gates --grandfathered`
+(or `aw check all --grandfathered`), an advisory `info`-severity surface (`check.blocking-close-grandfathered`) that
+never sets an exit code and reports a population policy deliberately exempts rather than actionable defects. In CI,
+`aw check release-gates` runs as a named fail-closed step in `tests.yml`.
 
 ## Research prompts about THIS repository (repo-local rule)
 
