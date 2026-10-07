@@ -7,9 +7,9 @@
 - Scope-Paths: .aw/records/plans/pending/20260929-qbz8i1-00-xhr0dj-refuse-an-unsafe-descriptive-value-at-spec-and-release-creat.ipd.md
 - Item-Dependencies: none
 - Status: draft
-- Coverage: fail
-- Coverage-Fingerprint: c97ac056fead113ba7cdd2211015a2387b5473f844406d83b3e7a1025250ed91
-- Coverage-Checked: 2026-10-06 by uri/its_direct/pt3-claude-opus-5.5-1m-us
+- Coverage: pass
+- Coverage-Fingerprint: ac87cdabcc3c90cf965224925cf7b0292df14314abafe181e9f3523eb6f4eb99
+- Coverage-Checked: 2026-10-07 by uri/its_direct/pt3-claude-opus-5.5-1m-us
 - Work-Kind: bug
 - Priority: medium
 - From-Backlog: qbz8i1
@@ -21,6 +21,7 @@
 - Id: xhr0dj
 
 ## Workflow history
+- 2026-10-07 coverage pass (aw oc run): fingerprint ac87cdabcc3c, model uri/its_direct/pt3-claude-opus-5.5-1m-us
 - 2026-10-07 note (opencode its_direct/pt3-claude-opus-5.5-1m-us): every child is executed; each completion criterion and the Set-level gate now names the child that performed it.
 - 2026-10-06 draft (aw set): demoted to-review -> draft: returned to authoring by gradcover 52opph: uncovered obligation: The Set-level gate an executor must apply after the last child
 
@@ -145,10 +146,6 @@ Owner of each Set-level check below: Order 03 `ynhst5`, which ran last and whose
 - Status: resolved
 - Owner: none
 - Resolution or deferral rationale: RESOLVED FROM MEASUREMENT: three plans, because no single mechanism closes all three defects and a combined plan would have implied otherwise. Driven: `attention_contract.is_safe_descriptive('../../../../outside/pwned')` returns **True**, so the descriptive guard Order 01 adds provably cannot detect Order 02's traversal; and a newline-injected value is split into separate lines before any validator runs, so Order 03's checker rule provably cannot detect Order 01's vector. The shared-file argument is real but weak: Orders 01 and 02 both edit `specs.run_new`, in different statements, and the runner isolates lanes and merges through a revalidation gate, so overlap costs a merge rather than correctness. The decisive consideration is REVIEWABILITY of evidence: each child needs a differently-shaped falsification (a parsed forged status, an escaped file on disk, a validator returning `[]`), and one plan would have carried three unrelated pre-fix runs under one checklist where a reviewer could not tell which finding each one falsified. Order 03 additionally edits two committed `.spec.md` records, which is a declared spec edit the runners announce; keeping that in its own plan means a reviewer can judge that records repair on its own.
-
-## Coverage findings
-
-- "The Set-level gate an executor must apply after the last child, because no single child can assert it: `aw specs check --agent`, `aw check specs --agent`, `aw check releases --agent` and `aw check all` must ALL report clean or conforms on the repository tree, and `python3 -m pytest` (bare) must be green."
 
 ## Validation and cross-check (verify before reporting the Set complete)
 
