@@ -1,5 +1,5 @@
 - Id: tapqf2
-- Status: graduated
+- Status: done
 - Graduated-To: tapqf2
 - Set: tapqf2
 - Priority: low
@@ -7,6 +7,7 @@
 - Summary: 883 of 2820 artifact descriptive fields exceed the Section 8.8 length bound, so MAX_DESCRIPTIVE_LEN is corpus-violating at the attention renderer's input set
 
 ## Workflow history
+- 2026-10-07 done (aw backlog): closed by aw agy run: IPD pl1lbb executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20261002-tapqf2-01-pl1lbb-split-the-section-8-8-descriptive-length-bound-into-a-one-li.ipd.md); evidence .aw/records/plans/executed/20261002-tapqf2-01-pl1lbb-split-the-section-8-8-descriptive-length-bound-into-a-one-li.ipd.md
 - 2026-10-02 graduated (aw backlog): graduated by run run-20261001T221821Z-1985969: pl1lbb
 - 2026-10-01 created (aw backlog): 883 of 2820 artifact descriptive fields exceed the Section 8.8 length bound, so MAX_DESCRIPTIVE_LEN is corpus-violating at the attention renderer's input set
 
