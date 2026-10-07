@@ -6,7 +6,7 @@
 - Scope: Route all six bypass sites through `resolve_verb_repo_root` so a bare invocation CLIMBS like its siblings, and refuse a non-surveyable root on the survey-class verbs using Order 01's primitive. IN: replacing the six hand-rolled resolutions with the resolver; adding the refusal to `cli._run_check`, `cli._run_find`, `cli._run_search`, `cli._run_record_history` and `cli._run_graduation`; fixing `doctor.run`'s resolution so it stops reporting an installed project as not-installed; and a regression test pinning the bare-cwd climb, the explicit-`--dir` refusal, and the controls for all six. OUT: changing `resolve_verb_repo_root` itself (body or docstring); making anything climb from an EXPLICIT `--dir`; changing what any of the six verbs CHECKS, FINDS or REPORTS for a correctly resolved root; `doctor`'s probe set or its 0/1 exit convention; the two fail-closed validators (Order 02); the shared read/write helper split and the remaining resolver callers (Order 04); and refactoring `attention.run` or `cli._run_plans` (Order 04).
 - Scope-Paths: agent_workflows/cli.py, agent_workflows/doctor.py, tests/test_resolver_bypass_sites_climb.py
 - Item-Dependencies: executed:i6mby8
-- Status: draft
+- Status: to-review
 - Work-Kind: bug
 - Priority: medium
 - From-Backlog: rgl2d4
@@ -18,6 +18,7 @@
 - Id: sjsb04
 
 ## Workflow history
+- 2026-10-07 to-review (aw set): returned to review: each Set-level check the coverage probe quoted now names its owning child; coverage pass recorded
 - 2026-10-06 draft (aw set): demoted to-review -> draft: returned to authoring by gradcover 52opph: uncovered obligation: Check by reading each converted call site for a call to the primitive
 
 - 2026-10-02 to-review (opencode its_direct/pt3-claude-opus-5-1m-us): Authored from backlog item `rgl2d4`. GATE NOTE: item `rgl2d4` carries `- Blocks-Release: next`, which this plan INHERITS as required.

@@ -6,7 +6,7 @@
 - Scope: ORCHESTRATION ONLY. This plan sequences four children and contributes no implementation, no test and no deliverable of its own. Every artifact is owned by exactly one child and named in the child table below. IN: the dependency order, the Set-level completion criteria, and the cross-child consistency checks. OUT: everything the children do, which is the shared refusal primitive (Order 01), the two fail-closed validators (Order 02), the six resolver-bypass sites (Order 03), and the shared read/write helper split plus the remaining read-class callers and the duplication retirement (Order 04). This plan also does NOT reopen the no-climb decision `lmyeas` OQ-01 settled, and does NOT add a refusal to any write-class verb.
 - Scope-Paths: .aw/records/plans/pending/20261002-dirsilent-01-i6mby8-add-the-shared-non-surveyable-root-refusal-primitive-every-r.ipd.md, .aw/records/plans/pending/20261002-dirsilent-02-jei45f-convert-the-two-fail-closed-validators-specs-check-and-backl.ipd.md, .aw/records/plans/pending/20261002-dirsilent-03-sjsb04-route-the-six-resolver-bypass-sites-through-resolve-verb-rep.ipd.md, .aw/records/plans/pending/20261002-dirsilent-04-rlhmt9-split-the-shared-read-write-helpers-and-convert-the-remainin.ipd.md
 - Item-Dependencies: none
-- Status: draft
+- Status: to-review
 - Coverage: pass
 - Coverage-Fingerprint: e490f67c8c6c1267bdbb4db59ce7f603e9d6b607a7cd1816c1d3af01ecfa294a
 - Coverage-Checked: 2026-10-07 by uri/its_direct/pt3-claude-opus-5.5-1m-us
@@ -21,6 +21,7 @@
 - Id: axozpe
 
 ## Workflow history
+- 2026-10-07 to-review (aw set): returned to review: each Set-level check the coverage probe quoted now names its owning child; coverage pass recorded
 - 2026-10-07 coverage pass (aw oc run): fingerprint e490f67c8c6c, model uri/its_direct/pt3-claude-opus-5.5-1m-us
 - 2026-10-06 draft (aw set): demoted to-review -> draft: returned to authoring by gradcover 52opph: uncovered obligation: Check by reading each converted call site for a call to the primitive
 

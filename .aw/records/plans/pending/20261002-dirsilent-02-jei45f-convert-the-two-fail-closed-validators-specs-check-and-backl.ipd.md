@@ -6,7 +6,7 @@
 - Scope: Make both validators REFUSE, rather than greenwash, when their resolved root is not a surveyable AW project root, using the primitive Order 01 adds. IN: the guard in `specs.run_check` and `backlog.run_check`; the human refusal on stderr naming the enclosing root and the corrected command; the machine `cannot-run` record at exit 2 with a path-free summary; PRESERVING the `specs check <path>` single-file form, which deliberately does not consult the root at all (F-04); and a regression test pinning the refusal, the machine record, and the three controls. OUT: changing what either validator CHECKS or any `validate_spec` / `validate_item` rule; changing the `checked` count semantics for a surveyable root; converting any other verb (Orders 03 and 04); touching `aw check`, `aw find` or `aw search`, which under-report through a DIFFERENT mechanism and are Order 03's (F-05); the shared read/write helper split (Order 04); and refactoring `attention.run` or `cli._run_plans`.
 - Scope-Paths: agent_workflows/specs.py, agent_workflows/backlog.py, tests/test_validator_nonsurveyable_dir.py
 - Item-Dependencies: executed:i6mby8
-- Status: draft
+- Status: to-review
 - Work-Kind: bug
 - Priority: medium
 - From-Backlog: rgl2d4
@@ -18,6 +18,7 @@
 - Id: jei45f
 
 ## Workflow history
+- 2026-10-07 to-review (aw set): returned to review: each Set-level check the coverage probe quoted now names its owning child; coverage pass recorded
 - 2026-10-06 draft (aw set): demoted to-review -> draft: returned to authoring by gradcover 52opph: uncovered obligation: Check by reading each converted call site for a call to the primitive
 
 - 2026-10-02 to-review (opencode its_direct/pt3-claude-opus-5-1m-us): Authored from backlog item `rgl2d4`. GATE NOTE: item `rgl2d4` carries `- Blocks-Release: next`, which this plan INHERITS as required.
