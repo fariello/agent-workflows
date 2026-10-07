@@ -8,8 +8,8 @@
 - Item-Dependencies: none
 - Status: draft
 - Coverage: fail
-- Coverage-Fingerprint: 174d25c7615db68a1d03528b95fb77f9305a2782df8b9d4e2031d9a4b6061979
-- Coverage-Checked: 2026-10-06 by uri/its_direct/pt3-claude-opus-5.5-1m-us
+- Coverage-Fingerprint: 72b185ccc9451beab4fb60edb985522941b787890b45f8079df6d9a50c96c717
+- Coverage-Checked: 2026-10-07 by uri/its_direct/pt3-claude-opus-5.5-1m-us
 - From-Spec: 25kzda
 - Work-Kind: feature
 - Priority: medium
@@ -21,6 +21,7 @@
 - Id: 9wzlou
 
 ## Workflow history
+- 2026-10-07 coverage fail (aw oc run): fingerprint 72b185ccc945, model uri/its_direct/pt3-claude-opus-5.5-1m-us
 - 2026-10-07 note (opencode its_direct/pt3-claude-opus-5.5-1m-us): each completion criterion and cross-cutting property now names its owner; the backlog close is the runner's.
 - 2026-10-06 draft (aw set): demoted approved -> draft: APPROVAL WITHDRAWN: returned to authoring by gradcover 52opph: uncovered obligation: Close backlog `vy20et` by shipping both halves it asks for
 - 2026-10-06 coverage fail (aw oc run): fingerprint 174d25c7615d, model uri/its_direct/pt3-claude-opus-5.5-1m-us
@@ -160,10 +161,7 @@ in which case that amendment belongs to the plan the spec names rather than to t
 
 ## Coverage findings
 
-- "Close backlog `vy20et` by shipping both halves it asks for"
-- "NOT THE COUNT: re-derive the co-editor population at execution with"
-- "Order 02's E-01 refusal and this plan's V-02 REMAIN as the second layer, because the edge proves the status field says `approved` while only the spec's own history proves a human"
-- "and it has reached `approved` by human attestation (`aw spec set approved <id6> --by-human`), which no agent may perform."
+- "Order 02's E-01 refusal and this plan's V-02 REMAIN as the second layer"
 
 ## Validation and cross-check (verify before reporting the Set complete)
 
