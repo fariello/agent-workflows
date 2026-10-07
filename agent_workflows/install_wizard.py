@@ -3,7 +3,7 @@
 This module implements the pure wizard state machine, four approved presets,
 custom placement validation, exact pre-write plan preview, update checkpoints,
 and atomic policy persistence specified by
-``.agents/docs/specs/20260810-1447-01-physical-aw-hierarchy-placement-and-migration.spec.md``.
+``.aw/records/specs/implemented/20260810-1447-01-physical-aw-hierarchy-placement-and-migration.spec.md``.
 
 Invariants:
 - SEPARATION: Choice logic and policy validation are separate from terminal rendering.
@@ -107,7 +107,8 @@ def get_preset_defaults(
             RootClass.SYSTEM.value: Placement.TARGET_TRACKED.value,
             RootClass.CONFIG_PROJECT.value: Placement.TARGET_TRACKED.value,
             RootClass.CONFIG_LOCAL.value: Placement.TARGET_IGNORED.value,
-            RootClass.STATE_DURABLE.value: Placement.TARGET_TRACKED.value,
+            # .aw/.gitignore ignores /state/ (engine._AW_GITIGNORE_TEMPLATE, D92 leak containment)
+            RootClass.STATE_DURABLE.value: Placement.TARGET_IGNORED.value,
             RootClass.STATE_RUNTIME.value: Placement.TARGET_IGNORED.value,
             RootClass.RECORDS.value: Placement.TARGET_TRACKED.value,
         }
@@ -115,7 +116,8 @@ def get_preset_defaults(
             RootClass.SYSTEM.value: GitPolicy.TARGET_GIT.value,
             RootClass.CONFIG_PROJECT.value: GitPolicy.TARGET_GIT.value,
             RootClass.CONFIG_LOCAL.value: GitPolicy.IGNORED.value,
-            RootClass.STATE_DURABLE.value: GitPolicy.TARGET_GIT.value,
+            # .aw/.gitignore ignores /state/ (engine._AW_GITIGNORE_TEMPLATE, D92 leak containment)
+            RootClass.STATE_DURABLE.value: GitPolicy.IGNORED.value,
             RootClass.STATE_RUNTIME.value: GitPolicy.IGNORED.value,
             RootClass.RECORDS.value: GitPolicy.TARGET_GIT.value,
         }
@@ -208,7 +210,8 @@ def get_preset_defaults(
             RootClass.SYSTEM.value: Placement.TARGET_TRACKED.value,
             RootClass.CONFIG_PROJECT.value: Placement.TARGET_TRACKED.value,
             RootClass.CONFIG_LOCAL.value: Placement.TARGET_IGNORED.value,
-            RootClass.STATE_DURABLE.value: Placement.TARGET_TRACKED.value,
+            # .aw/.gitignore ignores /state/ (engine._AW_GITIGNORE_TEMPLATE, D92 leak containment)
+            RootClass.STATE_DURABLE.value: Placement.TARGET_IGNORED.value,
             RootClass.STATE_RUNTIME.value: Placement.TARGET_IGNORED.value,
             RootClass.RECORDS.value: Placement.TARGET_TRACKED.value,
         }
@@ -216,7 +219,8 @@ def get_preset_defaults(
             RootClass.SYSTEM.value: GitPolicy.TARGET_GIT.value,
             RootClass.CONFIG_PROJECT.value: GitPolicy.TARGET_GIT.value,
             RootClass.CONFIG_LOCAL.value: GitPolicy.IGNORED.value,
-            RootClass.STATE_DURABLE.value: GitPolicy.TARGET_GIT.value,
+            # .aw/.gitignore ignores /state/ (engine._AW_GITIGNORE_TEMPLATE, D92 leak containment)
+            RootClass.STATE_DURABLE.value: GitPolicy.IGNORED.value,
             RootClass.STATE_RUNTIME.value: GitPolicy.IGNORED.value,
             RootClass.RECORDS.value: GitPolicy.TARGET_GIT.value,
         }
@@ -391,39 +395,33 @@ def render_pre_write_plan(
             return "~" + p[len(home_dir) :]
         return p
 
-    aw_home_str = policy.aw_home or str(Path.home() / ".aw")
-    aw_home_formatted = _format_path(aw_home_str)
     repo_formatted = _format_path(repo_path)
 
+    resolver_error: Optional[str] = None
+    resolved_roots: Dict[str, str] = {}
     try:
         ctx = resolve_project_context(
             target_repo=repo_path,
             aw_home=policy.aw_home,
             delivery_mode=policy.delivery_mode,
             records_backend=policy.records_backend,
+            preset=policy.preset,
+            role=policy.role,
+            companion_dir=policy.companion_dir,
         )
         if ctx.physical_classes:
-            resolved_roots = {
-                k: _format_path(str(v)) for k, v in ctx.physical_classes.items()
-            }
-        else:
-            resolved_roots = {
-                k: _format_path(str(v)) for k, v in ctx.logical_roots.items()
-            }
-    except Exception:
+            for cls_name, raw_p in ctx.physical_classes.items():
+                fmt = _format_path(str(raw_p))
+                if cls_name not in (
+                    RootClass.CONFIG_PROJECT.value,
+                    RootClass.CONFIG_LOCAL.value,
+                ):
+                    if not fmt.endswith("/"):
+                        fmt += "/"
+                resolved_roots[cls_name] = fmt
+    except Exception as exc:
+        resolver_error = str(exc)
         resolved_roots = {}
-
-    for cls in ROOT_CLASSES:
-        placement = policy.placements.get(cls, "")
-        if placement == Placement.HOME_UNTRACKED.value or "home" in placement:
-            resolved_roots[cls] = (
-                f"{aw_home_formatted}/projects/{Path(repo_path).name}/.aw/{cls}"
-            )
-        elif placement == Placement.COMPANION_TRACKED.value or "companion" in placement:
-            comp = _format_path(policy.companion_dir or f"{repo_path}.aw")
-            resolved_roots[cls] = f"{comp}/.aw/{cls}"
-        else:
-            resolved_roots[cls] = f"{repo_formatted}/.aw/{cls}"
 
     lines = []
     lines.append(term.colorize("AW Pre-Write Physical Layout & Consent Plan", "bold"))
@@ -435,7 +433,10 @@ def render_pre_write_plan(
     lines.append(term.colorize("Resolved Physical Classes & Git Policies:", "bold"))
 
     for cls in ROOT_CLASSES:
-        path_str = resolved_roots.get(cls, f"resolved-{cls}")
+        if resolver_error:
+            path_str = f"unresolved ({resolver_error})"
+        else:
+            path_str = resolved_roots.get(cls, "unresolved")
         placement = policy.placements.get(cls, "unknown")
         git_pol = policy.git_policies.get(cls, "untracked")
         owner = (
@@ -461,7 +462,7 @@ def render_pre_write_plan(
         )
     else:
         lines.append(
-            "  Target Delta:     .aw/system/, .aw/config/project.json, .aw/state/durable created/updated."
+            "  Target Delta:     .aw/system/, .aw/config/project.json (tracked); .aw/config/local.json, .aw/state/ (written-but-ignored) created/updated."
         )
 
     if policy.records_backend == RecordsBackend.COMPANION.value:

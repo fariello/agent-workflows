@@ -646,6 +646,7 @@ def resolve_project_context(
     user_config_dir: Optional[str] = None,
     preset: Optional[str] = None,
     role: Optional[str] = None,
+    companion_dir: Optional[str] = None,
 ) -> ProjectContext:
     """Pure, side-effect-free resolver for AW project context (spec Section 9 & 17).
 
@@ -1030,8 +1031,12 @@ def resolve_project_context(
     ):
         records_root = _canonical_path(os.path.join(repo_abs, ".aw", "records"))
     elif resolved_records_backend == RecordsBackend.COMPANION.value:
-        companion_dir = merged_local_binding.get("companion_dir") or f"{repo_abs}.aw"
-        records_root = _canonical_path(os.path.join(companion_dir, "records"))
+        eff_companion_dir = (
+            companion_dir
+            or merged_local_binding.get("companion_dir")
+            or f"{repo_abs}.aw"
+        )
+        records_root = _canonical_path(os.path.join(eff_companion_dir, "records"))
     else:  # HOME
         records_root = _canonical_path(os.path.join(project_aw_dir, "records"))
 
@@ -1089,11 +1094,8 @@ def resolve_project_context(
         and resolved_delivery_mode == DeliveryMode.TRACKED.value
         else GitPolicy.IGNORED.value,
         RootClass.CONFIG_LOCAL.value: GitPolicy.IGNORED.value,
-        RootClass.STATE_DURABLE.value: GitPolicy.TARGET_GIT.value
-        if resolved_preset
-        in (Preset.PRIVATE_TARGET.value, ProjectRole.SOURCE_CHECKOUT.value)
-        and resolved_delivery_mode == DeliveryMode.TRACKED.value
-        else (
+        # .aw/.gitignore ignores /state/ (engine._AW_GITIGNORE_TEMPLATE, D92 leak containment)
+        RootClass.STATE_DURABLE.value: (
             GitPolicy.COMPANION_GIT.value
             if resolved_preset == Preset.PUBLIC_TARGET_PRIVATE_COMPANION.value
             else GitPolicy.IGNORED.value

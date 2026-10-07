@@ -40,7 +40,7 @@ from . import __version__, config, discovery, engine, versioning
 from . import lifecycle_style as _LS
 from . import run_dispatch as _run_dispatch
 from . import term as _term_mod
-from .project_schema import DeliveryMode, Preset, RecordsBackend
+from .project_schema import DeliveryMode, GitPolicy, Preset, RecordsBackend
 from .result_types import ConflictingFlagsError, OutputMode, select_output
 from .term import Term
 
@@ -7743,6 +7743,25 @@ def _run_install(args: argparse.Namespace, term: Term) -> int:
                     companion_dir=str(comp_p),
                     dry_run=False,
                 )
+
+            # Check for state_durable policy upgrade normalization (D92 leak containment; IPD gi1w75 E-04)
+            existing_proj = repo_root / ".aw" / "config" / "project.json"
+            if existing_proj.is_file():
+                try:
+                    with open(existing_proj, "r", encoding="utf-8") as f:
+                        old_data = json.load(f)
+                    if (
+                        old_data.get("git_policies", {}).get("state_durable")
+                        == GitPolicy.TARGET_GIT.value
+                        and policy.git_policies.get("state_durable")
+                        == GitPolicy.IGNORED.value
+                    ):
+                        term.status(
+                            "info",
+                            "Normalizing state_durable git policy from target-git to ignored (D92 leak containment; .aw/.gitignore ignores /state/).",
+                        )
+                except Exception:
+                    pass
 
             # Persist confirmed policy to .aw/config/project.json and local.json
             persist_project_policy(
