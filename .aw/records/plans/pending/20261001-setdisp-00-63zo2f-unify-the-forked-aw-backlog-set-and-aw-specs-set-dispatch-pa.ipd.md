@@ -154,8 +154,8 @@ OWNER: every check in this section and every whole-Set item in Completion criter
 ## Required tests / validation
 
 This orchestrator runs no tests of its own; every test belongs to a child and is listed in that child's
-"Required tests / validation". What is verified HERE is that each child's evidence EXISTS and SAYS what
-the child claimed:
+"Required tests / validation". Every whole-Set check below is performed by Order 06 `7zb4ny` (E-01 to E-06),
+after the last migration child, and NOT by this plan:
 
 - For each child, `AW_NO_REEXEC=1 aw ipd lint --phase post-transition` conforming, and the plan present in `.aw/records/plans/executed/`.
 - For each child, every `V-*` carries pasted evidence rather than an assertion of success. A `V-*` whose "Observed evidence" is empty or paraphrased fails this check even if the child is marked executed.
