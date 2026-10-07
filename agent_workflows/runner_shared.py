@@ -27001,6 +27001,16 @@ def _append_continue_handoff_section(
     )
 
 
+_ORCHESTRATOR_PLANS_SECTION = (
+    "",
+    "## Orchestrator plans (when you write a Set)",
+    "1. Every item under `## Completion criteria`, `## Cross-IPD validation` and `## Required tests / validation` names, by id6, the child plan in this Set's `## Child IPDs` table that performs it.",
+    "2. Work no existing child performs gets a NEW child plan and a table row, never a step on the orchestrator.",
+    "3. The orchestrator's checklist contains only `CONFIRM <child-id6> REACHED <status>` rows, and you never delete it.",
+    "4. Before you finish, run `aw ipd coverage <orchestrator-id6>` and fix every quoted finding it prints; it records its answer in the orchestrator plan, and the runner checks the whole Set again after your turn (`BACKLOG-GRADUATE-SET` / `SPEC-PLAN-SET`, Order 06), so an unfixed finding fails the item.",
+)
+
+
 def build_spec_production_prompt(
     item: dict[str, Any],
     state: dict[str, Any],
@@ -27034,6 +27044,7 @@ def build_spec_production_prompt(
         "7. Do NOT modify the approved spec's requirements.",
     ]
     _append_continue_handoff_section(lines, root, "spec", spec_id6)
+    lines.extend(_ORCHESTRATOR_PLANS_SECTION)
     lines.extend(
         [
             "",
@@ -27081,6 +27092,7 @@ def build_backlog_production_prompt(
         "7. Do NOT modify the backlog item's requirements.",
     ]
     _append_continue_handoff_section(lines, root, "backlog", item_id6)
+    lines.extend(_ORCHESTRATOR_PLANS_SECTION)
     lines.extend(
         [
             "",

@@ -162,6 +162,16 @@ If `IPD-S407` violations are reported:
 (Only while the linter does not yet exist may a run record say `machine preflight unavailable:
 bootstrap`; once `aw ipd lint` is available that exception no longer applies.)
 
+#### Orchestrator review readiness (`IPD-S408`)
+Beside `review-finalize`, for any plan whose own first `- Kind:` bullet reads `orchestrator`, check review readiness with `aw ipd coverage <id6>`.
+
+If coverage findings are reported:
+1. **Bounded repair loop:** Resolve each quoted finding by assigning it by id6 to a child in the `## Child IPDs` table or by adding a child plan and its row (never by deleting the checklist), up to an attempt budget of 2.
+2. **Attempt logging:** Log every attempt into the current `## Round <n>` of the typed review record (`.aw/records/reviews/<...>.review.md`, append-only per round; not the workflow history), recording the attempt number, what `aw ipd coverage` reported, and what changed.
+3. **Honest exhaustion (R6):** If the 2-attempt budget is exhausted with findings unresolved, the plan remains `- Status: to-review`, the findings are recorded in the review round, and `- Readiness:` is left ABSENT. Do NOT write `- Readiness:` at all in this path (not `no-go` and not a pass); absence is the correct state, it is silent, and it makes downstream gates fail closed.
+
+`aw ipd set reviewed` refuses an orchestrator with unresolved coverage findings (Order 05), so the reviewer resolves the findings before setting the status.
+
 ### Pre-review commit
 Before editing:
 1. Inspect repository status.
@@ -451,8 +461,8 @@ field is not neutral: a consumer that finds no field FAILS CLOSED and treats the
 cleared, so a clean plan that should have read `go-pending-approval` simply will not be
 picked up. Write exactly one of the three values, lowercase, with no extra words.
 
-**Exception for exhausted orchestrator repair loop (`IPD-S407` / R6):** If an orchestrator's
-checklist repair loop exhausts its budget of 2 attempts unresolved, leave `- Readiness:` ABSENT
+**Exception for exhausted orchestrator repair loop (`IPD-S407` / `IPD-S408` / R6):** If an orchestrator's
+checklist repair loop or coverage repair loop exhausts its budget of 2 attempts unresolved, leave `- Readiness:` ABSENT
 entirely. Do NOT write `- Readiness: no-go` or any other value; absence ensures downstream gates fail
 closed while honestly reflecting that no review verdict was reached.
 

@@ -110,6 +110,17 @@ For a plan whose own first `- Kind:` bullet reads `orchestrator` (read from the 
    what the check reported, what changed, and the row count before and after (`rows: N -> M`) to
    distinguish relocation from deletion.
 
+### Orchestrator review readiness (`IPD-S408`)
+
+For a plan whose own first `- Kind:` bullet reads `orchestrator` (read from the plan's own first
+`- Kind:` bullet in front matter; never use a whole-file containment scan like
+`grep -l 'Kind: orchestrator'`, which misclassifies child plans quoting the bullet such as `m7gvuz`):
+
+1. **Verify review readiness (`IPD-S408`):** Run `aw ipd coverage <id6>` on the orchestrator under review.
+2. **Bounded repair loop:** If coverage findings are reported, resolve each quoted finding by assigning it by id6 to a child in the `## Child IPDs` table or by adding a child plan and its row (never by deleting the checklist), up to an attempt budget of 2.
+3. **Attempt logging:** Log every attempt into the current `## Round <n>` of the typed review record (`.aw/records/reviews/<...>.review.md`, append-only per round; not the workflow history), recording what `aw ipd coverage` reported and what changed.
+4. **Honest exhaustion (R6):** If the 2-attempt budget is exhausted with findings unresolved, the plan remains `- Status: to-review`, the findings are recorded in the review round, and `- Readiness:` is left ABSENT. Do NOT write `- Readiness:` at all in this path; absence is the correct state, it is silent, and it makes downstream gates fail closed. State that `aw ipd set reviewed` refuses such an orchestrator after Order 05, so the reviewer resolves the findings before setting the status.
+
 For cross-plan findings, fix the owning plan and cross-reference dependent
 plans. Do not duplicate requirements.
 
@@ -140,3 +151,4 @@ Do not proceed until:
 - [ ] Revised plans remain concise, coherent, and executable.
 - [ ] Replan findings identify the minimum required new direction.
 - [ ] Orchestrator checklist rows conform to `IPD-S407` or are logged for honest exhaustion in Step 3.
+- [ ] Orchestrator review readiness conforms to `IPD-S408` (via `aw ipd coverage <id6>`) or is logged for honest exhaustion in Step 3.

@@ -66,8 +66,13 @@ _SECTION_BODY = {
         "|---|---|---|---|---|\n"
         "| 01 | `c0ch01` | TODO child plan filename | TODO what it does. | none |"
     ),
-    S.H_COMPLETION: "- TODO: whole-Set completion criteria.",
-    S.H_CROSS_IPD: "- TODO: cross-IPD consistency / no-drift / dependency checks.",
+    S.H_COMPLETION: '- TODO: each whole-Set criterion, ending with "Owner: <child-id6>" naming the child plan that performs it.',
+    S.H_CROSS_IPD: "- TODO: each cross-child consistency check, naming the child plan (by id6) that performs it; a check no child performs needs a new child plan.",
+}
+
+# Kind-aware section body overrides for orchestrator plans (IPD dalmk4 E-02).
+_ORCH_SECTION_BODY = {
+    S.H_REQUIRED_TESTS: "TODO: this plan runs no tests; name the child plan (by id6) that performs the whole-Set measurement.",
 }
 
 _EXEC_INTRO = (
@@ -147,6 +152,9 @@ _AUTHORING_PLACEHOLDERS = (
     "  - Required evidence: TODO falsifiable evidence.",
     "### OQ-01: TODO a question",
     "TODO: approval + execution gate prose",
+    _SECTION_BODY[S.H_COMPLETION],
+    _SECTION_BODY[S.H_CROSS_IPD],
+    _ORCH_SECTION_BODY[S.H_REQUIRED_TESTS],
     UNASSIGNED_MARKER,  # any remaining unassigned `E-NEW` leaf means still authoring
 )
 
@@ -326,7 +334,10 @@ def build_skeleton(
             body = _SECTION_BODY.get(h, "TODO.")
             lines.append(body.format(date=hist_date, author=author))
         else:
-            body = _SECTION_BODY.get(h, "TODO.")
+            if kind == S.KIND_ORCHESTRATOR and h in _ORCH_SECTION_BODY:
+                body = _ORCH_SECTION_BODY[h]
+            else:
+                body = _SECTION_BODY.get(h, "TODO.")
             lines.append(body.format(date=when, author=author))
         lines.append("")
     return "\n".join(lines).rstrip("\n") + "\n"

@@ -44,11 +44,11 @@ Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids
 
 ## Completion criteria (the whole Set is done only when)
 
-- TODO: whole-Set completion criteria.
+- TODO: each whole-Set criterion, ending with "Owner: <child-id6>" naming the child plan that performs it.
 
 ## Cross-IPD validation
 
-- TODO: cross-IPD consistency / no-drift / dependency checks.
+- TODO: each cross-child consistency check, naming the child plan (by id6) that performs it; a check no child performs needs a new child plan.
 
 ## Deferred / out of scope (with reason)
 
@@ -61,7 +61,7 @@ TODO: deferred / out of scope, with reason (or 'none').
 
 ## Required tests / validation
 
-TODO: how the executed plan is verified.
+TODO: this plan runs no tests; name the child plan (by id6) that performs the whole-Set measurement.
 
 ## Open questions
 
