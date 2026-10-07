@@ -6,7 +6,8 @@
 - Scope: Give the retry predicate a PRODUCER-DERIVED signal so a host failure is retryable under either spelling while every gate refusal stays refused, and pin the canonicalization hazard with a test. EXCLUDES widening the retryable CLASS SET (no new spec 5.5 class becomes retryable), EXCLUDES changing `TERMINAL_STATES`/`KNOWN_ITEM_STATUSES` membership, and EXCLUDES touching `finalize_retry_decision`.
 - Scope-Paths: agent_workflows/runner_shared.py, tests/test_retry_class_mapping.py, .aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md
 - Item-Dependencies: none
-- Status: to-review
+- Status: reviewed
+- Readiness: no-go
 - From-Spec: 25kzda
 - Work-Kind: chore
 - Priority: medium
@@ -18,6 +19,8 @@
 - Id: p47qfu
 
 ## Workflow history
+- 2026-10-07 reviewed (aw set): status transition for the /plan-review record below
+- 2026-10-07 /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): REJECT - NEEDS REPLAN; PR-001 (BLOCKER, replan: the F-03 marker producers never reach `turn_failure_is_retryable`, see F-12), PR-002 (HIGH, open: rung-5 side-effect discrimination is a maintainer decision, OQ-02), PR-003 (LOW, fixed: V-02 cross-reference). Review record `.aw/records/reviews/20261002-vmrhj0-01-p47qfu-make-the-turn-retry-allowlist-key-on-what-happened-not-on-wh.review.md`.
 - 2026-10-02 same-status (aw set): link the spec this plan amends (check.plan-spec-link-missing)
 
 - 2026-10-02 draft (opencode its_direct/pt3-claude-opus-5-1m-us): created.
@@ -94,6 +97,7 @@ Every row was measured in this lane at HEAD `eebcbef00` by importing the shipped
 | F-08 | The legacy row cannot simply be RETIRED from the table, because three live constants still write that exact token. | `TURN_RETRY_EXHAUSTED_STATUS == 'failed-safely'`, `FINALIZE_RETRY_EXHAUSTED_STATUS == 'failed-safely'`, `lane_containment.BOUND_EXPIRY_DISPOSITION == 'failed-safely'`. The first is documented as a deliberate reuse because `KNOWN_ITEM_STATUSES` is closed. |
 | F-09 | The retry machinery is LIVE-WIRED, so this is a real code path and not a dormant surface. | `handle_turn_failure_retry` is called from `runner_shared.execute_item_core` and re-exported by both hosts; `turn_retry_decision` -> `turn_failure_is_retryable` is reached from it; and the call site's comment states it is placed deliberately before the unconditional `item["status"] = disposition` line. |
 | F-10 | `reconcile_disposition`'s nonzero-exit fallback is the reachable producer of the NON-retryable spelling for a host-failure class. | Its documented rung 5 ends `return ("fail-verify" if exit_code == 0 else "fail-gate")`, and the main execute path calls it (`disposition, outcome = reconcile_disposition(repo, item, run_dir, exit_code, plan_repo=...)`) with that disposition flowing into `handle_turn_failure_retry`. Spec 5.5 names "host nonzero exit that did not create an ambiguous side effect" retryable. |
+| F-12 | (REVIEW, 2026-10-07, HEAD `0b09c3347`) NONE OF THE THREE F-03 PRODUCERS EVER REACHES `turn_failure_is_retryable`, so E-01/E-02's marker route is DEAD WIRING and the reachable case in the Concern (F-10) carries no marker. | The predicate's ONLY production caller chain is `execute_item_core` -> `handle_turn_failure_retry` -> `turn_retry_decision` -> `turn_failure_is_retryable` (the sole `handle_turn_failure_retry(` call is inside `execute_item_core`, after `reconcile_disposition`). (1) `refuse_undispatchable_typed_entry` runs in `oc_runipd.run_queue`/`agy_runipd.run_queue` BEFORE `execute_item` and the caller `continue`s on True, so the item is never executed. (2) Both hosts' `except DriverError as exc:` arms (`runnable["driver_error"] = str(exc)`) run AFTER `execute_item` has RAISED out of `execute_item_core`, i.e. after the retry site was skipped. (3) No disposition assignment inside `execute_item_core` writes `failed-safely`; the only one that reaches the predicate is `handle_finalize_refusal`'s `FINALIZE_RETRY_EXHAUSTED_STATUS`, which carries `finalize_refusal` and is refused by the predicate's second guard. Measured: `reconcile_disposition(repo, {id6, configured_file:'nope.ipd.md', action:'execute'}, run_dir, 1)` returns `fail-gate`, and `turn_failure_is_retryable` on that item returns `(False, "... lifecycle gate or clean-base gate refused ...")`; the item has no `driver_error`, so the post-E-02 predicate returns the same. |
 | F-11 | Budget exhaustion writing a retryable token does NOT loop, so this plan need not change the arithmetic. | `turn_retry_decision` compares `turn_retry_attempts(item)` against `frozen_retry_budget(state)` and the performer increments the counter before saving state, so "total dispatches for one item can never exceed `budget + 1`" holds even though `TURN_RETRY_EXHAUSTED_STATUS` is itself in the allowlist. |
 
 ## Proposed changes (ordered, validatable)
@@ -141,6 +145,15 @@ Every row was measured in this lane at HEAD `eebcbef00` by importing the shipped
 - Status: open
 - Owner: executor
 - Resolution or deferral rationale: NON-BLOCKING because both options satisfy every E-item and V-item; the choice is an implementation detail the executor settles from evidence, and E-01 instructs it to record which it chose and why. The evidence favors DERIVATION: F-04 measures that `driver_error` is assigned at exactly the three host-failure producers in F-03 and nowhere else, so the signal already exists and a fourth write would be redundant. The reason it is not simply decided here is that `driver_error` is also READ as a legacy diagnostics key for three specific statuses (noted in `handle_turn_failure_retry`'s comment about the diagnostics block), so an executor may find a semantic collision that argues for a dedicated key. Either way the predicate's contract in E-02 is identical, which is why this does not block review.
+- REVIEW NOTE 2026-10-07: superseded in substance by OQ-02. F-12 measures that neither option reaches the predicate, so this choice is moot until OQ-02 is answered.
+
+### OQ-02: Which turn outcomes should count as a retryable host failure, and where does the evidence for that come from?
+
+- Blocking: yes
+- Finding: PR-002
+- Status: open
+- Owner: maintainer
+- Resolution or deferral rationale: RAISED BY /plan-review 2026-10-07 (verdict REJECT - NEEDS REPLAN). F-12 measures that the plan's marker producers (`driver_error` writers) never meet `turn_failure_is_retryable`, so E-01/E-02 as written would pass their unit tests and change nothing in a real run, while the one reachable case the Concern names, `reconcile_disposition`'s rung-5 nonzero-exit fallback (`fail-gate` with no outcome file), stays non-retryable. A sound replan has to set a marker AT THE POINT THE RUN LEARNS THE HOST FAILED INSIDE `execute_item_core`, most plausibly rung 5 of `reconcile_disposition` when `exit_code != 0`, and possibly a spawn failure from `spawn_executor`. The decision that is the maintainer's: spec 5.5 limits the retryable class to a nonzero exit "that did not create an ambiguous side effect", and rung 5 cannot tell a clean crash from an agent that changed files or ran gates before it exited nonzero. Options: (a) retry rung-5 nonzero exits only when the lane worktree shows no commits and no dirty paths since the turn began; (b) retry every rung-5 nonzero exit, because the correction turn resumes the isolated lane anyway; (c) keep today's fail-closed behavior and narrow this plan to a spec-table and comment fix plus the canonicalization pin. (a) and (b) newly spend paid correction turns on failures that are refused today, which is a risk-appetite call. Answer this, then re-author E-01, E-02, V-01, V-02, F-03, F-04, F-07 and the Scope check to match, and re-review.
 
 ## Validation and cross-check (verify before reporting done)
 
@@ -152,7 +165,7 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Result: pending
 
 - [ ] V-02 validates E-02
-  - Required evidence: paste a Python session driving the real predicate and printing all five verdicts named in E-01's expected outcome: marker + `fail-gate` -> True with a reason naming the marker; bare `fail-gate` -> False with the gate reason; marker + deliberate stop -> False on the STOP reason; marker + `finalize_refusal` -> False on the FINALIZE reason; and an unknown token -> False on the fail-closed "no entry" reason.
+  - Required evidence: paste a Python session driving the real predicate and printing all five verdicts named in E-02's expected outcome: marker + `fail-gate` -> True with a reason naming the marker; bare `fail-gate` -> False with the gate reason; marker + deliberate stop -> False on the STOP reason; marker + `finalize_refusal` -> False on the FINALIZE reason; and an unknown token -> False on the fail-closed "no entry" reason.
   - Observed evidence:
   - Result: pending
 
