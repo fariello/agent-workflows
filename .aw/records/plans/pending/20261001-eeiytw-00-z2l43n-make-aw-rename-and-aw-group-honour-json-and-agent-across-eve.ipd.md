@@ -8,8 +8,8 @@
 - Item-Dependencies: none
 - Status: draft
 - Coverage: fail
-- Coverage-Fingerprint: c90c03dc9e479cb56c4f7bbed582b5690010b3d795205cbc8755498075d3aa7f
-- Coverage-Checked: 2026-10-06 by uri/its_direct/pt3-claude-opus-5.5-1m-us
+- Coverage-Fingerprint: 12f5ccbc860eb2073b75b5de481d6a26b6d283926ddc59ff16b01e1d8607a2e9
+- Coverage-Checked: 2026-10-07 by uri/its_direct/pt3-claude-opus-5.5-1m-us
 - Work-Kind: bug
 - Priority: low
 - From-Backlog: eeiytw
@@ -21,6 +21,7 @@
 - Id: z2l43n
 
 ## Workflow history
+- 2026-10-07 coverage fail (aw oc run): fingerprint 12f5ccbc860e, model uri/its_direct/pt3-claude-opus-5.5-1m-us
 - 2026-10-06 draft (aw set): demoted to-review -> draft: returned to authoring by gradcover 52opph: uncovered obligation: Close backlog item eeiytw by making both verbs emit exactly one parseable aw.agent/v1 record
 
 - 2026-10-06 coverage fail (aw oc run): fingerprint c90c03dc9e47, model uri/its_direct/pt3-claude-opus-5.5-1m-us
@@ -130,20 +131,6 @@ Each check below is performed by Order 03 `gzb2rq`, the last child, as part of i
 ## Coverage findings
 
 - "Close backlog item `eeiytw` by making both verbs emit exactly one parseable `aw.agent/v1` record on stdout under `--json` and `--agent`, on every artifact type, on preview, apply and refusal, so that `json.loads(stdout)` succeeds where it raises today."
-- "The Set-wide end-to-end check, run once after Order 03: `json.loads(stdout)` succeeding for `aw rename plans --apply --json` and `aw group plans --apply --json` in a throwaway repo, which are the exact two commands backlog item `eeiytw` names."
-- "Bare `python3 -m pytest` green against the executor's own clean-tree baseline after each child."
-- "`aw check all` clean on this repository (Order 02 edits a documentation file), `aw sanitize --agent` clean, and `aw ipd lint --phase pre-transition` conforming on each child."
-- "Confirm `aw rename research --json` and `aw research mv --json` each emit exactly ONE `aw.agent/v1` record, counted explicitly, not merely "at least one"."
-- "Confirm the three are consistent in sequence: identical after 01, identical after 02, and differing after 03 by exactly the manifest line and nothing else."
-- "Confirm no loose assertion survives beside the strict one, because a passing loose assertion would hide a later regression in the strict property."
-- "Confirm no `.spec.md` file is in any child's `- Scope-Paths:` (none should be: the Set makes code obey contracts already written) and that the single documentation amendment is the one Order 02 declares (`docs/cli-output-contract.md` Section 5's `complete` value), with Section 11.3's rule text untouched."
-- "Confirm no manifest path (`INDEX.json`, `INDEX.md`) ever enters a commit, which `MutationResult`'s own docstring prohibits citing idxuntrack `4r0qp1` E-03."
-- "Confirm no child silently overwrote the other party's change."
-- "`json.loads(stdout)` SUCCEEDS for `aw rename <type> --json` and `aw group <type> --json` on at least `plans`, `specs`, `backlog` and `research`, on preview AND apply."
-- "`aw rename all` / `aw group all` emit exactly ONE record for the whole invocation, not one per expanded type, carrying the mixed outcome (the successful change AND the no-match diagnostics) that the `all` expansion really produces."
-- "No emitted record contains an absolute filesystem path, and `aw sanitize --agent` is clean."
-- "`aw index plans` and `aw research index` run directly still print their own outcome lines, proving the nested CALLER was silenced and not the verb."
-- "A commit made by `aw rename plans --apply --commit` contains no manifest path."
 
 ## Validation and cross-check (verify before reporting the Set complete)
 
