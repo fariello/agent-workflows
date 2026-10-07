@@ -1116,11 +1116,9 @@ COMMAND_INVENTORY: Tuple[CommandDeclaration, ...] = (
     # - 7: `EXIT_NOT_A_LEDGER` from `_build_engine`'s `NotALedgerError` arm via `_emit_not_a_ledger`.
     #
     # Two negatives are deliberate:
-    # (a) NOTHING IS REMOVED HERE, and in particular 3 IS GENUINELY REACHABLE on this leaf, unlike on
-    # `runs resume` where plan `ck0vya` removed it: `next`'s 3 comes from a plain `if/else` on
-    # `runnable_ids` in `_run_next` and needs no `UnknownOutcomeError`, no `STATE_RUNNING`, and no
-    # ephemeral engine state, so the reasoning that made 3 unreachable on `resume` does not transfer
-    # and must not be copied across.
+    # (a) Exit 3 is reachable on both `runs next` and `runs resume`, by different mechanisms:
+    # `next`'s 3 comes from its `runnable_ids` check (`return EXIT_OK if runnable_ids else EXIT_BLOCKED`),
+    # while `resume`'s 3 comes from `UnknownOutcomeError` when an interrupted step is detected.
     # (b) 1 IS ABSENT DELIBERATELY: `_run_next` never returns `EXIT_INCOMPLETE`, and adding it would
     # oblige a `domain_failure` conformance scenario in `tests/conformance_matrix.required_scenarios`,
     # which keys precisely on `1 in decl.exit_contract` for a `read` class, for an outcome this verb
@@ -1159,20 +1157,20 @@ COMMAND_INVENTORY: Tuple[CommandDeclaration, ...] = (
     # `command_class="read"`: `runs resume` reconstructs state and reports resumable steps without
     # writing to the ledger or disk, matching `runs next` and `RUNS_VIEWER_LEAF_NAMES`.
     #
-    # `exit_contract=(0, 2, 5, 7)`:
+    # `exit_contract=(0, 2, 3, 5, 7)`:
     # - 0: successful report of resumable steps or pending state.
     # - 2: ledger file not found, empty ledger, missing/invalid workflow, or argparse usage error.
+    # - 3: `EXIT_BLOCKED` from `_run_resume`'s `except run_recovery.UnknownOutcomeError` arm, restored
+    #   by plan `hrdmfy` via durable `step_started` records.
     # - 5: `EXIT_CORRUPTED_LEDGER` from `LedgerCorruption` (e.g. broken hash chain or unparseable JSON).
     # - 7: `EXIT_NOT_A_LEDGER` from `NotALedgerError` (e.g. non-ledger JSONL missing envelope fields).
     #
     # Two negatives are deliberate:
-    # (a) Exit 3 is REMOVED AS UNREACHABLE, not as undesirable: `_run_resume` returns `EXIT_BLOCKED`
-    # only in its `except run_recovery.UnknownOutcomeError` arm. `run_recovery.detect_unknown_outcomes`
-    # raises only for a step whose reconstructed state is `run_state.STATE_RUNNING` with
-    # `last_attempt_state is None`. However, `STATE_RUNNING` is absent from `run_ledger_schema.ATTEMPT_STATES`,
-    # so `RunLedgerStore.append` refuses any `step_attempt` carrying it (`RL-E030`). The sole producer
-    # of `STATE_RUNNING` is `run_engine.start_step`'s in-process `_ephemeral_step_states` dict, which a
-    # separate CLI process cannot observe. Removing 3 documents a latent bug rather than blessing it (backlog tzqvjn).
+    # (a) Exit 3 is RESTORED AS REACHABLE by plan `hrdmfy`: `_run_resume` returns `EXIT_BLOCKED` from
+    # its `except run_recovery.UnknownOutcomeError` arm when `run_recovery.detect_unknown_outcomes`
+    # detects an interrupted step (`run_state.STATE_RUNNING` with `last_attempt_state is None`).
+    # Plan `hrdmfy` made this state durable across processes by appending a `step_started` record
+    # at start, which `reconstruct_state` replays order-aware to reconstruct `running`/`None`.
     # (b) Exit 1 is ABSENT DELIBERATELY: `_run_resume` never returns `EXIT_INCOMPLETE`, and adding it
     # would oblige a `domain_failure` conformance scenario (`tests/conformance_matrix.py`) for an
     # outcome the verb does not produce (same reasoning as `reviews decisions`). The contract is not
@@ -1186,7 +1184,7 @@ COMMAND_INVENTORY: Tuple[CommandDeclaration, ...] = (
         mutation_gate="none",
         empty_error_renderer="renderer_boundary",
         legacy_flags=("--workflow", "--agent", "--json"),
-        exit_contract=(0, 2, 5, 7),
+        exit_contract=(0, 2, 3, 5, 7),
     ),
     CommandDeclaration(
         command="run cancel",

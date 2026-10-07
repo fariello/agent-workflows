@@ -12,6 +12,7 @@ schema version, so a record is attributable and reproducible):
   * run                - a run's identity + the frozen workflow/requirement digests it executes.
   * requirement_set    - the frozen set of MUST requirements + scope fence + validations for a run.
   * requirement_revision - a semantic change to the frozen set (invalidates affected evidence).
+  * step_started       - a started execution step (E-*): step + attempt.
   * step_attempt       - an attempt at an execution step (E-*): performed/blocked/failed.
   * tool_event         - a captured command/tool invocation (argv, cwd, exit, output refs).
   * evidence_envelope  - a bundle of provenance binding a claim to reproducible state.
@@ -85,6 +86,7 @@ RECORD_KINDS_V1: FrozenSet[str] = frozenset(
 # attributable and hash-chained. A record carrying one of these MUST declare schema_version 2.
 RECORD_KINDS_V2_ONLY: FrozenSet[str] = frozenset(
     (
+        "step_started",
         "question_raised",
         "question_disposition",
         "human_answer",
@@ -197,6 +199,7 @@ _KIND_FIELDS: Dict[str, Tuple[Tuple[str, type], ...]] = {
         ("new_digest", str),
         ("reason", str),
     ),
+    "step_started": (("step", str), ("attempt", int)),
     "step_attempt": (("step", str), ("state", str), ("attempt", int)),
     "tool_event": (
         ("argv", list),

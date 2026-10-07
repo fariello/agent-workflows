@@ -49,6 +49,8 @@ from __future__ import annotations
 
 import io
 import json
+import subprocess
+import sys
 import tempfile
 import threading
 import unittest
@@ -871,6 +873,84 @@ class TestResumeCancelCrash(unittest.TestCase):
         with self.assertRaises(run_recovery.UnknownOutcomeError) as ctx:
             run_recovery.resume(eng)
         self.assertEqual(ctx.exception.step_id, "S-01")
+
+    def test_interrupted_retry_detected_across_fresh_engine(self) -> None:
+        """An interrupted retry (started, failed, started again) is detected by order-based replay.
+
+        Seeded by appending records directly to the store, because the engine cannot re-start a
+        failed step directly. Pins the order-based replay requirement against a set-based one.
+        """
+        store = _seed_store(self.tmp, ["R-01"])
+        store.append(
+            {
+                "schema_version": schema.LEDGER_SCHEMA_VERSION,
+                "kind": "step_started",
+                "run_id": RUN_ID,
+                "actor": "runtime",
+                "step": "S-01",
+                "attempt": 1,
+                "parent": "",
+            }
+        )
+        store.append(
+            {
+                "schema_version": schema.LEDGER_SCHEMA_VERSION,
+                "kind": "step_attempt",
+                "run_id": RUN_ID,
+                "actor": "executor",
+                "step": "S-01",
+                "state": "failed",
+                "attempt": 1,
+                "parent": "",
+            }
+        )
+        store.append(
+            {
+                "schema_version": schema.LEDGER_SCHEMA_VERSION,
+                "kind": "step_started",
+                "run_id": RUN_ID,
+                "actor": "runtime",
+                "step": "S-01",
+                "attempt": 2,
+                "parent": "",
+            }
+        )
+        fresh_eng = _engine(store)
+        snap = fresh_eng.reconstruct_state()
+        step = snap.steps["S-01"]
+        self.assertEqual(step.state, "running")
+        self.assertIsNone(step.last_attempt_state)
+        self.assertEqual(run_recovery.detect_unknown_outcomes(fresh_eng), ("S-01",))
+        with self.assertRaises(run_recovery.UnknownOutcomeError):
+            run_recovery.resume(fresh_eng)
+
+    def test_concurrent_start_step_on_same_step_serialized(self) -> None:
+        """Two engines over one file racing start_step yield one success and one IllegalTransitionError."""
+        store = _seed_store(self.tmp, ["R-01"])
+        results: list[str] = []
+        barrier = threading.Barrier(2)
+
+        def worker() -> None:
+            eng = _engine(store)
+            eng.release_step("S-01")
+            barrier.wait()
+            try:
+                eng.start_step("S-01")
+                results.append("ok")
+            except run_state.IllegalTransitionError:
+                results.append("illegal_transition")
+
+        t1 = threading.Thread(target=worker)
+        t2 = threading.Thread(target=worker)
+        t1.start()
+        t2.start()
+        t1.join()
+        t2.join()
+
+        self.assertEqual(sorted(results), ["illegal_transition", "ok"])
+        recs = store.read_records()
+        started_recs = [r for r in recs if r["kind"] == "step_started"]
+        self.assertEqual(len(started_recs), 1)
 
     def test_reconcile_unknown_outcome_requires_explicit_state(self) -> None:
         """Kept separate: an `assertRaises` and a BEFORE/AFTER pair around one mutation.
@@ -1697,60 +1777,58 @@ class TestRunCliSubcommands(unittest.TestCase):
         )
 
     def test_resume_cli_reports_unknown_outcome_condition(self) -> None:
-        """Kept separate: the only CLI test with PATCHED COLLABORATORS, which no table row has.
+        """Kept separate: unpatched CLI test driving a subprocess over a started step.
 
-        The resume CLI surfaces the UNKNOWN_OUTCOME sentinel when a side effect is interrupted. The
-        `running` state is EPHEMERAL and not persisted, so no ledger a table row could seed produces
-        this condition in a fresh CLI process; reaching the branch at all requires patching
-        `detect_unknown_outcomes` and `resume`. Folding that into the invocation table would mean
-        every other row carrying patches it must not apply.
+        A started step is durable, so a separate CLI process detects unknown_outcome and exits 3.
         """
         self._seed_incomplete()
 
-        # Force the interrupted-side-effect branch: patch detection + resume to raise as if a step
-        # were left running mid-flight (running state is ephemeral and not persisted across procs).
-        def _fake_detect(_engine: Any) -> "tuple[str, ...]":
-            return ("S-01",)
+        res_start = subprocess.run(
+            [
+                sys.executable,
+                "-m",
+                "agent_workflows",
+                "run",
+                "start",
+                str(self.ledger),
+                "--workflow",
+                self._workflow_file(),
+                "--step",
+                "S-01",
+            ],
+            capture_output=True,
+            text=True,
+        )
+        self.assertEqual(res_start.returncode, run_cli.EXIT_OK)
 
-        def _fake_resume(_engine: Any) -> Any:
-            raise run_recovery.UnknownOutcomeError("S-01")
-
-        with (
-            patch.object(run_recovery, "detect_unknown_outcomes", _fake_detect),
-            patch.object(run_recovery, "resume", _fake_resume),
-        ):
-            rc, out = self._cli(
+        res = subprocess.run(
+            [
+                sys.executable,
+                "-m",
+                "agent_workflows",
                 "runs",
                 "resume",
                 str(self.ledger),
                 "--workflow",
                 self._workflow_file(),
                 "--json",
-            )
-        self.assertEqual(rc, run_cli.EXIT_BLOCKED)
-        data = json.loads(out)
+            ],
+            capture_output=True,
+            text=True,
+        )
+        self.assertEqual(res.returncode, run_cli.EXIT_BLOCKED)
+        data = json.loads(res.stdout)
         self.assertEqual(data["condition"], run_recovery.UNKNOWN_OUTCOME)
         self.assertIn("S-01", data["unknown_outcome_steps"])
 
     def test_resume_refuses_unknown_outcome(self) -> None:
-        """Kept separate: an `assertRaises` at the RECOVERY layer, not a CLI invocation at all.
-
-        The comment below records why this cannot be a CLI test: `running` is ephemeral, so the
-        condition is only observable in-process. It lives in this class because it is the in-process
-        counterpart of the patched CLI test above, and the two together are what show the sentinel is
-        real rather than only mocked.
-        """
+        """Kept separate: an `assertRaises` at the RECOVERY layer, not a CLI invocation at all."""
         store = self._store()
         store.append(_run_record())
         store.append(_requirement_set(["R-01"]))
         eng = _engine(store)
         eng.release_step("S-01")
         eng.start_step("S-01")
-        # persist a running side-effect marker so a fresh CLI process detects it: the ledger has a
-        # step_attempt only if recorded; to make it visible we record a running via a torn state is
-        # not possible, so we assert the detection at the recovery layer through the in-process ledger
-        # by recording NO terminal attempt. The CLI reconstructs S-01 as pending (running is
-        # ephemeral), so unknown_outcome is only observable in-process; assert that path directly.
         self.assertEqual(run_recovery.detect_unknown_outcomes(eng), ("S-01",))
         with self.assertRaises(run_recovery.UnknownOutcomeError):
             run_recovery.resume(eng)

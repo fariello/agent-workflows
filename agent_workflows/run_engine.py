@@ -185,6 +185,15 @@ class RunEngine:
                 if rec_run_id:
                     run_id = rec_run_id
 
+            elif kind == "step_started":
+                has_started_execution = True
+                sid = str(rec.get("step", ""))
+                if sid in self._workflow_steps:
+                    step_states[sid] = run_state.STATE_RUNNING
+                    self._ephemeral_step_states[sid] = run_state.STATE_RUNNING
+                    step_last_attempt_state[sid] = None
+                    step_last_attempt_actor[sid] = None
+
             elif kind == "step_attempt":
                 has_started_execution = True
                 sid = str(rec.get("step", ""))
@@ -335,20 +344,34 @@ class RunEngine:
 
     def start_step(self, step_id: str, actor: str = "runtime") -> StepSnapshot:
         """Transition a runnable step to running."""
-        snapshot = self.reconstruct_state()
-        step = snapshot.steps.get(step_id)
-        if step is None:
-            raise KeyError(f"Unknown step {step_id}")
+        with self._store.writer_lock(timeout=self._lock_timeout):
+            snapshot = self.reconstruct_state()
+            step = snapshot.steps.get(step_id)
+            if step is None:
+                raise KeyError(f"Unknown step {step_id}")
 
-        run_state.check_transition(
-            step.state,
-            run_state.STATE_RUNNING,
-            actor,
-            predicate_values={"lease_acquired_and_packet_emitted": True},
-        )
+            run_state.check_transition(
+                step.state,
+                run_state.STATE_RUNNING,
+                actor,
+                predicate_values={"lease_acquired_and_packet_emitted": True},
+            )
 
-        self._ephemeral_step_states[step_id] = run_state.STATE_RUNNING
-        return self.reconstruct_state().steps[step_id]
+            attempt_num = step.attempts + 1
+            self._store.append_held(
+                {
+                    "schema_version": schema.LEDGER_SCHEMA_VERSION,
+                    "kind": "step_started",
+                    "run_id": self._run_id,
+                    "actor": actor,
+                    "step": step_id,
+                    "attempt": attempt_num,
+                    "parent": "",
+                }
+            )
+
+            self._ephemeral_step_states[step_id] = run_state.STATE_RUNNING
+            return self.reconstruct_state().steps[step_id]
 
     def record_step_attempt(
         self,

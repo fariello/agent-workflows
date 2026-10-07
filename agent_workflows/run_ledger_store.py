@@ -399,6 +399,55 @@ class RunLedgerStore:
         prev_hash = compute_record_hash(last_raw)
         return last_seq + 1, prev_hash
 
+    def append_held(
+        self,
+        record: Mapping[str, Any],
+        *,
+        redaction_policy: Optional[RedactionPolicy] = None,
+    ) -> Dict[str, Any]:
+        """Append one Order-02 validated record assuming writer_lock is already held."""
+        next_seq, prev_hash = self._get_tail_state()
+
+        rec_to_write: Dict[str, Any] = copy.deepcopy(dict(record))
+        rec_to_write["seq"] = next_seq
+        rec_to_write["prev_hash"] = prev_hash
+
+        if not rec_to_write.get("timestamp"):
+            rec_to_write["timestamp"] = datetime.datetime.now(
+                datetime.timezone.utc
+            ).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+        active_policy = redaction_policy or self._redaction_policy
+        if active_policy is not None:
+            rec_to_write, _ = active_policy.redact(rec_to_write)
+
+        # Validate record against Order-02 schema
+        val_res = schema.validate_record(rec_to_write)
+        if not val_res.ok:
+            raise SchemaInvalidRecordError(next_seq, val_res.findings)
+
+        # Anti-false-completion state check: first record must be kind run
+        if next_seq == 0 and rec_to_write.get("kind") != "run":
+            raise SchemaInvalidRecordError(
+                0,
+                (Finding("RL-E041", "kind", "first ledger record must be kind 'run'"),),
+            )
+
+        # Canonical JSON line
+        line_str = json.dumps(rec_to_write, sort_keys=True, separators=(",", ":"))
+        line_bytes = (line_str + "\n").encode("utf-8")
+
+        self._path.parent.mkdir(parents=True, exist_ok=True)
+        # Atomic append + fsync
+        fd = os.open(str(self._path), os.O_WRONLY | os.O_CREAT | os.O_APPEND, 0o644)
+        try:
+            os.write(fd, line_bytes)
+            os.fsync(fd)
+        finally:
+            os.close(fd)
+
+        return rec_to_write
+
     def append(
         self,
         record: Mapping[str, Any],
@@ -407,51 +456,7 @@ class RunLedgerStore:
     ) -> Dict[str, Any]:
         """Append one Order-02 validated record. Atomically assigns seq, prev_hash, and timestamp."""
         with self.writer_lock():
-            next_seq, prev_hash = self._get_tail_state()
-
-            rec_to_write: Dict[str, Any] = copy.deepcopy(dict(record))
-            rec_to_write["seq"] = next_seq
-            rec_to_write["prev_hash"] = prev_hash
-
-            if not rec_to_write.get("timestamp"):
-                rec_to_write["timestamp"] = datetime.datetime.now(
-                    datetime.timezone.utc
-                ).strftime("%Y-%m-%dT%H:%M:%SZ")
-
-            active_policy = redaction_policy or self._redaction_policy
-            if active_policy is not None:
-                rec_to_write, _ = active_policy.redact(rec_to_write)
-
-            # Validate record against Order-02 schema
-            val_res = schema.validate_record(rec_to_write)
-            if not val_res.ok:
-                raise SchemaInvalidRecordError(next_seq, val_res.findings)
-
-            # Anti-false-completion state check: first record must be kind run
-            if next_seq == 0 and rec_to_write.get("kind") != "run":
-                raise SchemaInvalidRecordError(
-                    0,
-                    (
-                        Finding(
-                            "RL-E041", "kind", "first ledger record must be kind 'run'"
-                        ),
-                    ),
-                )
-
-            # Canonical JSON line
-            line_str = json.dumps(rec_to_write, sort_keys=True, separators=(",", ":"))
-            line_bytes = (line_str + "\n").encode("utf-8")
-
-            self._path.parent.mkdir(parents=True, exist_ok=True)
-            # Atomic append + fsync
-            fd = os.open(str(self._path), os.O_WRONLY | os.O_CREAT | os.O_APPEND, 0o644)
-            try:
-                os.write(fd, line_bytes)
-                os.fsync(fd)
-            finally:
-                os.close(fd)
-
-            return rec_to_write
+            return self.append_held(record, redaction_policy=redaction_policy)
 
     def read_records(self, *, verify: bool = True) -> List[Dict[str, Any]]:
         """Read all records from ledger. If verify=True, fails closed on any corruption.
