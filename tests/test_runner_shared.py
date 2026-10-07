@@ -198,6 +198,32 @@ class DriverErrorUnificationTests(unittest.TestCase):
         )
 
 
+class CrossHostReadIdReExportTests(unittest.TestCase):
+    """s4jctz / h0zk2g E-03: both hosts expose `_read_id` bound to permissive `read_front_matter_id`."""
+
+    def test_cross_host_read_id_permissive_reader_reexport(self):
+        from agent_workflows import selectors
+
+        # (a) Assert object identity for both hosts against selectors.read_front_matter_id
+        self.assertIs(oc_runipd._read_id, selectors.read_front_matter_id)
+        self.assertIs(agy_runipd._read_id, selectors.read_front_matter_id)
+
+        # (b) Call the bound reader and assert observable return on permissive spellings
+        # that distinguish it from the strict internal reader (which returns None on tab and two spaces).
+        standard = "- Id: abc123"
+        two_spaces = "-  Id: abc123"
+        tab_separated = "-\tId: abc123"
+
+        for label, host_fn in (
+            ("oc_runipd", oc_runipd._read_id),
+            ("agy_runipd", agy_runipd._read_id),
+        ):
+            with self.subTest(host=label):
+                self.assertEqual(host_fn(standard), "abc123")
+                self.assertEqual(host_fn(two_spaces), "abc123")
+                self.assertEqual(host_fn(tab_separated), "abc123")
+
+
 class BehaviorThroughWrapperTests(unittest.TestCase):
     """The behavior half the injected symbols' fingerprint exemption is backed by."""
 

@@ -827,16 +827,19 @@ from agent_workflows.runner_shared import (
 # copies tolerated any whitespace after the `-` while `selectors`' internal readers require
 # exactly one space, and that strictness is a documented `aw find` matching contract.
 #
-# `_read_id`'s `# noqa: F401` IS LOAD-BEARING, not clutter (rununify 06 `sy7uwh`). Once
-# `parse_plan_file` moved to `runner_shared`, this module stopped CALLING `_read_id` itself, so
-# `ruff --fix` deleted the import as unused -- and that silently broke a contract, because
-# `tests/test_runner_refork_guard.py` (deleted in `19313eed`; no live guard currently enforces this)
-# required BOTH runners to keep exposing `_read_id` bound to `selectors.read_front_matter_id`
-# (measured: two tests failed with `oc_runipd._read_id is MISSING`). The re-export is retained per
-# `s4jctz`. The `as <same-name>` form alone was NOT enough (ruff removed it again on the next hook
-# run), and this module's `__all__` does not list the private readers, so the suppression is the
-# mechanism that keeps the re-export alive. `_read_status` is still called locally and so needs none.
-from agent_workflows.selectors import read_front_matter_id as _read_id  # noqa: F401 - a DELIBERATE re-export; tests/test_runner_refork_guard.py deleted in 19313eed, retained per s4jctz
+# `_read_id` F401 handling is re-homed onto __all__ (s4jctz / h0zk2g). Once
+# `parse_plan_file` moved to `runner_shared`, this module stopped calling `_read_id` itself.
+# Historical note (rununify 06 `sy7uwh`): `ruff --fix` previously deleted the import as unused,
+# and an earlier comment noted `as <same-name>` was not enough under the ruff of its time
+# (though modern and hook-pinned ruff v0.4.4 both recognize `as <same-name>` as an intentional export).
+# Because this module defines `__all__` containing leading-underscore names, `_read_id` is now
+# declared in `__all__`, providing an export mechanism that ruff honors without a noqa directive.
+# In contrast, `agy_runipd` has no `__all__` and retains a noqa F401 directive.
+# Consumer asymmetry: `agy_runipd._read_id` has a live caller via `tools/ipdrunner/runagy.py`
+# consumed in `tools/ipdrunner/test_runagy.py`; `oc_runipd._read_id` has no local caller, but is
+# retained for cross-host symmetry and guarded by `tests/test_runner_shared.py`.
+# (Note: `_read_status` is exposed on neither host; status reading is done via `selectors`.)
+from agent_workflows.selectors import read_front_matter_id as _read_id
 
 # The durable stop-request record and the cooperative-checkpoint poll (spec `c4gd2h` R7-R9/R11)
 # live in the shared ``runner_stop`` module so both drivers consult ONE mechanism.
@@ -854,6 +857,7 @@ LANE_SCRATCH_SUBDIR = ".aw/lane-scratch"
 # Re-exported from render_stream for backward-compatible access via ``oc_runipd``.
 __all__ = [
     "_ANSI_CODES",
+    "_read_id",
     "_ANSI_RESET",
     "_ANSI_STRIP_RE",
     "activity_for_item",
