@@ -110,7 +110,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 - NARROWING `docs/cli-output-contract.md` SECTION 6. Out of scope by F-07. That section is the normative contract; its unqualified `--limit` row becomes true when `4uw9gy` lands, and editing a normative contract to match a temporary implementation gap is the wrong direction. This plan makes the REFERENCE agree with the contract, not the reverse.
   - Carrier: 4uw9gy
 - `aw find --limit` BEING INERT IN HUMAN MODE TOO (F-04). `wdazvp` and its plan `okiso1` own the `find` token-control surface, so the observation is handed to that plan rather than filed as a third overlapping record, which would fragment one defect across three places. If `okiso1` executes without covering the human path, that is the moment to file a fresh item.
-  - Carrier: okiso1
+  - Carrier: no88yi
 - WIRING `docs_check` INTO `aw check` OR A PRE-COMMIT HOOK. Out of scope here, and explicitly out of scope for sibling plan `t9lcdu` as well, which is restoring that module's own coverage and says so in its scope. E-03's test module is the enforcement this plan ships.
   - Carrier-Declined: This is not an obligation this plan incurs or discharges; it is a pre-existing architectural choice of the repository (the `docs_check` module has had exactly one consumer, `release_readiness.gate_docs_checks`, since it was written) that is named here only to explain why E-03 adds a test module instead of a check rule. Nothing vanishes when this plan reaches `executed`: the unwired module is unchanged by this plan and remains exactly as discoverable afterwards as before.
 

@@ -79,7 +79,7 @@ Two escape hatches tune the token cost:
 Clean empty query result (`exit: 0`):
 
 ```json
-{"schema":"aw.agent/v1","kind":"result","cmd":"find","outcome":"clean","exit":0,"verified":true,"complete":true,"findings":0,"evidence":[{"key":"find-count","status":"verified","value":{"count":0,"selectors":["89bby9"],"type":"plans"}}],"next":"aw find plans"}
+{"schema":"aw.agent/v1","kind":"summary","cmd":"find","outcome":"clean","exit":0,"total":0,"emitted":0,"omitted":0,"complete":true}
 ```
 
 
