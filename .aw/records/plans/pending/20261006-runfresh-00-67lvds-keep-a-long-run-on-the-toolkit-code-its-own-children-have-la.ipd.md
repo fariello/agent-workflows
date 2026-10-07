@@ -6,9 +6,10 @@
 - Scope: ORCHESTRATION ONLY. This plan sequences six children and contributes no implementation, no test and no deliverable of its own. IN: the dependency order, the Set-level completion criteria with the child that owns each, and the cross-child checks. OUT: everything the children do: the spec amendment (Order 01), detecting that an integrated item changed the toolkit code (Order 02), restarting the driver on current code and resuming the same run (Order 03), recording lint findings on a finalize or retirement refusal (Order 04), the end-to-end proof (Order 05), and stopping `aw ipd coverage` and the other asking checks from reporting a plan ready when its coverage answer was not saved (Order 06).
 - Scope-Paths: .aw/records/plans/pending/20261006-runfresh-01-0bjke0-amend-the-run-spec-so-a-run-restarts-on-the-toolkit-code-its.ipd.md, .aw/records/plans/pending/20261006-runfresh-02-34zv7d-detect-when-an-integrated-item-changed-the-toolkit-code-the.ipd.md, .aw/records/plans/pending/20261006-runfresh-03-re15ol-restart-the-runner-on-the-current-code-between-items-and-res.ipd.md, .aw/records/plans/pending/20261006-runfresh-04-vvqr34-record-the-findings-when-a-finalize-or-retirement-lint-refus.ipd.md, .aw/records/plans/pending/20261006-runfresh-05-hohlc6-prove-a-run-that-changes-its-own-linter-retires-its-orchestr.ipd.md, .aw/records/plans/pending/20261006-runfresh-06-7kczdo-never-report-a-coverage-answer-as-recorded-when-it-was-not-w.ipd.md
 - Item-Dependencies: none
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
 - Coverage: pass
-- Coverage-Fingerprint: 1e0ad585ff6c4fb5f2d3e277a5df4a5e918d88d8ecb078e298c5f4d141b7efdb
+- Coverage-Fingerprint: 075fd266849a7dcfd932bad79dc221ef06fdd2ec8d62a5b35af69eb8fb77c2df
 - Coverage-Checked: 2026-10-06 by uri/its_direct/pt3-claude-opus-5.5-1m-us
 - From-Spec: none
 - Work-Kind: bug
@@ -21,6 +22,9 @@
 - Id: 67lvds
 
 ## Workflow history
+- 2026-10-07 reviewed (aw set): plan-review: APPROVE WITH REVISIONS APPLIED
+- 2026-10-06 coverage pass (aw oc run): fingerprint 075fd266849a, model uri/its_direct/pt3-claude-opus-5.5-1m-us
+- 2026-10-07 /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005, PR-006
 - 2026-10-06 coverage pass (aw oc run): fingerprint 1e0ad585ff6c, model uri/its_direct/pt3-claude-opus-5.5-1m-us
 - 2026-10-06 note (opencode its_direct/pt3-claude-opus-5.5-1m-us): added Order 06 `7kczdo` at the maintainer's instruction, for the silent loss of a coverage answer on a plan with uncommitted changes, found while recording this plan's own answer.
 
@@ -80,7 +84,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ## Completion criteria (the whole Set is done only when)
 
-1. A run whose integrated item changed any `agent_workflows/**/*.py` file in the checkout the driver runs from restarts its driver on the current code before dispatching the next item, and resumes the same run directory with the same queue, statuses, frozen options and session map. Owner: `re15ol` implements it; `hohlc6` measures it end to end.
+1. A run whose integrated item changed any `agent_workflows/**/*.py` file in the checkout the driver runs from restarts its driver on the current code before dispatching the next item, and resumes the same run directory with the same queue, statuses, frozen options and session map (carried by `resume` reloading `state.json`). Owner: `re15ol` implements it; `hohlc6` measures it end to end (the state comparison in its E-02).
 2. Every restart is recorded in the run's events (old and new code fingerprints, the item that caused it, the restart count) and shown in the run summary. Owner: `re15ol`.
 3. A run cannot restart forever: a restart is attempted only when the code actually differs from what the current process loaded, and a per-run limit stops the run with a named refusal if exceeded. Owner: `re15ol`.
 4. A run started from a package that is not the checkout's own (for example an installed copy) never restarts and records once that it will not, because restarting would not pick up the checkout's code. Owner: `34zv7d` (classification), `re15ol` (behavior).
@@ -91,9 +95,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ## Cross-IPD validation
 
-- ONE DETECTOR. Order 03 calls Order 02's function and no other comparison of code; checked by outcome in Order 05 (a fixture change to a non-Python file does not restart; a change to an `agent_workflows/*.py` file does).
-- NO STATE IS LOST ACROSS A RESTART. Order 03's resume path is the existing `resume` command, which already reloads the run from `state.json`; Order 05 asserts the queue, every item's status and attempts, and the frozen options are byte-identical before and after the restart except for the new restart record.
-- THE CHILD-PINNING CONTRACT IS PRESERVED. Nested `aw` calls stay pinned to the driver's own package (`runner_shared.pinned_child_env`, `assert_child_tool_identity`, spec `7ckptx` A8). After a restart the driver's own package is the current code, so the pin follows it; Order 03 must reset the per-process identity cache rather than weaken the check.
+- ONE DETECTOR. Order 03 calls Order 02's `loaded_code.code_changed` and no other comparison of code. Checked by outcome: Order 02 V-01/V-02 show a `.md` or `__pycache__` edit leaves the fingerprint unchanged and a `.py` edit changes it and is named; Order 03 E-01's decision function returns `none` when `code_changed` reports unchanged; Order 05 E-02 shows the `.py` edit restarts the real driver.
+- NO STATE IS LOST ACROSS A RESTART. Order 03's resume path is the existing `resume` command, which reloads the whole run (queue, item statuses and attempts, frozen options, `set_sessions`) from `state.json`, so preservation holds by construction rather than by new code. Order 05 E-02 measures it: it compares the `state.json` snapshot the restart saved with the final one, ignoring the restart fields, and asserts the child's status, attempts and the frozen options are unchanged. That comparison is the Set's evidence for criterion 1; nothing in this Set claims a byte-identical whole-state equality.
+- THE CHILD-PINNING CONTRACT IS PRESERVED. Nested `aw` calls stay pinned to the driver's own package (`runner_shared.pinned_child_env`, `assert_child_tool_identity`, spec `7ckptx` A8). After a restart the driver's own package is the current code, so the pin follows it. The identity cache `runner_shared._TOOL_IDENTITY_VERIFIED` is a module-level dict, so the replacement process starts with it empty and re-verifies; Order 03 adds no reset code and must not weaken the check, and Orders 03 and 05 assert a fresh `tool-identity-verified` event after the `driver-restarted` event.
 - EACH CHILD RE-MEASURES ITS OWN SUITE BASELINE.
 
 ## Deferred / out of scope (with reason)
@@ -109,7 +113,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ## Scope check
 
-- Over-scope: none. `- Scope-Paths:` lists only the five child plans.
+- Over-scope: none. `- Scope-Paths:` lists only the six child plans.
 - Under-scope: nothing is parked on this plan. The end-to-end proof is Order 05.
 - IF A REVIEWER FINDS UNCOVERED WORK, the remedy is to ADD A CHILD and a row to the table, not to add an item here and not to delete the checklist.
 
@@ -124,39 +128,39 @@ This plan runs no tests of its own. Each child validates itself; the Set-level p
 - Blocking: no
 - Status: resolved
 - Owner: author
-- Resolution or deferral rationale: RESOLVED: yes, and the risk is bounded. The defect this Set fixes only bites a step that reads code changed earlier in the same run. Orders 02 to 05 each change runner code, but no later child's success depends on the DRIVER using those changes: each child's own validation runs in its lane as a fresh process. The one step that does read changed code is the final orchestrator retirement, which reads only metadata fields this Set does not add. If the retirement still refuses, the hand resume (`aw ipd finalize 67lvds ... --apply`) runs on current code and completes it, exactly as it did for `1f4faf`.
+- Resolution or deferral rationale: RESOLVED: yes, and the risk is bounded. The defect this Set fixes only bites a step that reads code changed earlier in the same run. Orders 02 to 05 each change runner code, but no later child's success depends on the DRIVER using those changes: each child's own validation runs in its lane as a fresh process. The one step that does read changed code is the final orchestrator retirement. Its lint reads only metadata fields this Set does not add (Order 02 adds run-state fields, not plan metadata), and its coverage re-check runs `orchestrator_readiness` code that Order 06 changes only for the case where an answer was not saved; this plan's answer is already recorded and committed (`- Coverage: pass`). Once Order 03 is integrated, the driver also restarts itself onto current code before later items. If the retirement still refuses, the hand resume (`aw ipd finalize 67lvds ... --apply`) runs on current code and completes it, exactly as it did for `1f4faf`.
 
 ## Validation and cross-check (verify before reporting the Set complete)
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'.
 
 - [ ] V-01 validates E-01
-  - Required evidence: paste `grep -n '^- Status:' <0bjke0 plan path>` showing `- Status: executed`, and the path showing it under `.aw/records/plans/executed/`.
+  - Required evidence: paste `grep -n '^- Status:' <0bjke0 plan path>` showing the front-matter (first) `- Status:` line reading `executed` (later `- Status:` lines are open-question states), and the path showing it under `.aw/records/plans/executed/`.
   - Observed evidence:
   - Result: pending
 
 - [ ] V-02 validates E-02
-  - Required evidence: paste `grep -n '^- Status:' <34zv7d plan path>` showing `- Status: executed`, and the path showing it under `.aw/records/plans/executed/`.
+  - Required evidence: paste `grep -n '^- Status:' <34zv7d plan path>` showing the front-matter (first) `- Status:` line reading `executed` (later `- Status:` lines are open-question states), and the path showing it under `.aw/records/plans/executed/`.
   - Observed evidence:
   - Result: pending
 
 - [ ] V-03 validates E-03
-  - Required evidence: paste `grep -n '^- Status:' <re15ol plan path>` showing `- Status: executed`, and the path showing it under `.aw/records/plans/executed/`.
+  - Required evidence: paste `grep -n '^- Status:' <re15ol plan path>` showing the front-matter (first) `- Status:` line reading `executed` (later `- Status:` lines are open-question states), and the path showing it under `.aw/records/plans/executed/`.
   - Observed evidence:
   - Result: pending
 
 - [ ] V-04 validates E-04
-  - Required evidence: paste `grep -n '^- Status:' <vvqr34 plan path>` showing `- Status: executed`, and the path showing it under `.aw/records/plans/executed/`.
+  - Required evidence: paste `grep -n '^- Status:' <vvqr34 plan path>` showing the front-matter (first) `- Status:` line reading `executed` (later `- Status:` lines are open-question states), and the path showing it under `.aw/records/plans/executed/`.
   - Observed evidence:
   - Result: pending
 
 - [ ] V-05 validates E-05
-  - Required evidence: paste `grep -n '^- Status:' <hohlc6 plan path>` showing `- Status: executed`, and the path showing it under `.aw/records/plans/executed/`.
+  - Required evidence: paste `grep -n '^- Status:' <hohlc6 plan path>` showing the front-matter (first) `- Status:` line reading `executed` (later `- Status:` lines are open-question states), and the path showing it under `.aw/records/plans/executed/`.
   - Observed evidence:
   - Result: pending
 
 - [ ] V-06 validates E-06
-  - Required evidence: paste `grep -n '^- Status:' <7kczdo plan path>` showing `- Status: executed`, and the path showing it under `.aw/records/plans/executed/`.
+  - Required evidence: paste `grep -n '^- Status:' <7kczdo plan path>` showing the front-matter (first) `- Status:` line reading `executed` (later `- Status:` lines are open-question states), and the path showing it under `.aw/records/plans/executed/`.
   - Observed evidence:
   - Result: pending
 
