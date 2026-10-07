@@ -6,7 +6,7 @@
 - Scope: Make the ALLOCATED LANE IDENTITY a recorded fact on the begin receipt rather than an inferred one. Add an additive, OPTIONAL `lane` block to the begin receipt (schema v3: `branch`, `lane_id`, `base_commit`, `disposition`, `recorded_at`) written by a NEW `ipd_lifecycle` updater that MUST NOT touch `base_head` or any digest; call that updater from `runner_shared.execute_item_core` at the single self-finalize allocation site, immediately after the `attempt["worktree_*"]` fields are written, because the lane does not exist when `driver_begin` runs; and make `check_engine._plan_execution_tree` PREFER the recorded branch when the receipt carries one, falling back UNCHANGED to today's `enumerate_lane_candidates` selection (landed by `iqtt8d`) when it does not. EXCLUDES re-issuing or re-freezing the receipt (the rejected half of the backlog item's direction 2; see F-5), EXCLUDES changing `base_head`, any digest, `receipt_is_current`, or anything finalize reconciles on (F-5), EXCLUDES the candidate-enumerating resolver plan `iqtt8d` owns (F-7 explains why both are wanted and how they compose), EXCLUDES changing `check.scope-drift`'s severity or its ancestry guard (F-6), and EXCLUDES the `aw work begin` lease path, which allocates a lane but writes no receipt (F-8).
 - Scope-Paths: agent_workflows/ipd_lifecycle.py, agent_workflows/runner_shared.py, agent_workflows/check_engine.py, tests/test_receipt_lane_record.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: followup
 - Priority: low
@@ -16,9 +16,9 @@
 - Highest E allocated: 08
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: 42ertq
-- Approval: 2026-10-07, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-07 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: 42ertq verified (set m94le9, attempt 1).
 - 2026-10-07 approved (aw set): status set to approved
 - 2026-10-07 reviewed (aw set): plan-review round 2
 
