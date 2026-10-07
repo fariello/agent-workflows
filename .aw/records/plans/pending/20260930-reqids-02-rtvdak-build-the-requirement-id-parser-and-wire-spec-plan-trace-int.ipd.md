@@ -6,7 +6,8 @@
 - Scope: IN: (a) a requirement-ID parser reading a spec's declared requirement ids and acceptance-criterion ids per the convention Order 01's spec defines, with the declaration-site rule honored so a MENTIONED id is not counted as a DECLARED one; (b) `production_checks.spec_plan_trace`, a sibling of the three shipped verifiers, returning the same `[(code, subject, message)]` shape and rendering `25kzda` 4.8's message template; (c) its call at the spec-production site in `runner_shared` beside the existing three `findings.extend` calls; (d) the cutover feature key registered in `config.KNOWN_FEATURE_CUTOVERS` so grandfathering is stamped per repository, not hardcoded; (e) behavioral tests in the style of `tests/test_spec_production.py`, including the grandfathered-spec and no-ids PASS cases. OUT: retrofitting any existing spec's requirement ids; a corpus-wide `aw check` rule; a requirements-outstanding `aw attention` view; a partial spec status; a plan-side requirement declaration field; `implemented` computed from coverage; and any edit to `25kzda` unless Order 01's spec decided AMEND, in which case the amendment is carried by whatever plan that spec names and not silently here.
 - Scope-Paths: agent_workflows/production_checks.py, agent_workflows/config.py, agent_workflows/runner_shared.py, tests/test_spec_production.py, tests/test_production_checks_trace.py, .aw/records/plans/pending/20260930-reqids-02-rtvdak-build-the-requirement-id-parser-and-wire-spec-plan-trace-int.ipd.md
 - Item-Dependencies: executed:jjh4aj, state:spec:approved:89xjll
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
 - From-Spec: 25kzda
 - Work-Kind: feature
 - Priority: medium
@@ -18,6 +19,7 @@
 - Id: rtvdak
 
 ## Workflow history
+- 2026-10-07 reviewed (opencode uri/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-006 fixed
 - 2026-10-07 /plan-review (opencode uri/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001 (HIGH), PR-002 (HIGH), PR-003 (MEDIUM), PR-004 (MEDIUM), PR-005 (LOW), PR-006 (LOW) all FIXED. Still held by `state:spec:approved:89xjll` (spec `reviewed`, its OQ-04/OQ-05 open). Review record `.aw/records/reviews/20261007-reqids-02-rtvdak-build-the-requirement-id-parser.review.md`.
 - 2026-10-07 to-review (aw set): returned to review: each criterion and cross-cutting property names its owner (rtvdak); coverage pass recorded. rtvdak still waits on spec 89xjll's human approval through its state:spec:approved edge
 - 2026-10-07 note (opencode its_direct/pt3-claude-opus-5.5-1m-us): V-01 now also quotes the spec's `--by-human` approval history line, the second-layer check orchestrator `9wzlou` assigns here.
