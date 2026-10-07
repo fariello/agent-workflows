@@ -63,6 +63,8 @@ THIS ORCHESTRATOR CARRIES ORCHESTRATION ONLY AND NO WORK OF ITS OWN. Every item 
 
 ## Completion criteria (the whole Set is done only when)
 
+OWNERSHIP, stated once for every criterion and cross-check below: Order 03 `gzb2rq` performs the Set-wide end-to-end checks after the last child (its E-04 and V-04 assert strict `json.loads(stdout)` on all four types, the human-surface change, the manifest `Change`, the commit path-set and the two index verbs, and run the bare suite against its own baseline); Orders 01 `x7unul` and 02 `vfqjc0` each prove their own byte-equality and parseability claims and run the bare suite at their own boundary. This plan performs none of them.
+
 - All three children are in `.aw/records/plans/executed/` with `- Status: executed`, each with every `V-*` item carrying concrete pasted evidence.
 - `json.loads(stdout)` SUCCEEDS for `aw rename <type> --json` and `aw group <type> --json` on at least `plans`, `specs`, `backlog` and `research`, on preview AND apply. This is the item's headline claim and the Set is not done without it on the `plans` type specifically, which is the one the item names.
 - Under `--agent`, every non-blank stdout line parses and exactly ONE carries `schema == "aw.agent/v1"`, on the same types and paths.
@@ -76,6 +78,8 @@ THIS ORCHESTRATOR CARRIES ORCHESTRATION ONLY AND NO WORK OF ITS OWN. Every item 
 - Bare `python3 -m pytest` is green against the executor's own clean-tree baseline, with the two pre-existing live-corpus failures recorded in each child's Findings confirmed still pre-existing and not absorbed as targets.
 
 ## Cross-IPD validation
+
+Each check below is performed by Order 03 `gzb2rq`, the last child, as part of its V-04, unless it names another child.
 
 - NO DOUBLE-EMIT ACROSS THE TWO DISPATCH SITES. Orders 02 and 03 both touch the research path, and `research_refs` is reachable from two call sites. Confirm `aw rename research --json` and `aw research mv --json` each emit exactly ONE `aw.agent/v1` record, counted explicitly, not merely "at least one". The repository already learned this lesson for the sibling concern: `_run_noun_verb`'s own comment records that the self-commit offer is placed at the dispatch site "ONCE ... (PR-012: never inside a shared backend, or `aw group research` would double-fire)".
 - THE BYTE-EQUALITY CLAIMS MUST COMPOSE RATHER THAN CONTRADICT. Order 01 asserts human stdout is byte-identical; Order 02 asserts the same six invocations stay byte-identical and that suppression fires only under a machine flag; Order 03 then DELIBERATELY changes human stdout on those same invocations. Confirm the three are consistent in sequence: identical after 01, identical after 02, and differing after 03 by exactly the manifest line and nothing else. If Order 03's diff removes anything more, the Set's human-surface claim is false.
@@ -103,9 +107,9 @@ THIS ORCHESTRATOR CARRIES ORCHESTRATION ONLY AND NO WORK OF ITS OWN. Every item 
 ## Required tests / validation
 
 - Each child's own `## Required tests / validation` section, in full. This plan adds no test of its own.
-- The Set-wide end-to-end check, run once after Order 03: `json.loads(stdout)` succeeding for `aw rename plans --apply --json` and `aw group plans --apply --json` in a throwaway repo, which are the exact two commands backlog item `eeiytw` names.
-- Bare `python3 -m pytest` green against the executor's own clean-tree baseline after each child.
-- `aw check all` clean on this repository (Order 02 edits a documentation file), `aw sanitize --agent` clean, and `aw ipd lint --phase pre-transition` conforming on each child.
+- The Set-wide end-to-end check, performed by Order 03 `gzb2rq` (V-04 (e)): `json.loads(stdout)` succeeding for `aw rename plans --apply --json` and `aw group plans --apply --json` in a throwaway repo, which are the exact two commands backlog item `eeiytw` names.
+- Bare `python3 -m pytest` green against the executor's own clean-tree baseline after each child, run by each child in its final V-item.
+- `aw check all` clean on this repository (Order 02 `vfqjc0` edits a documentation file and checks it), `aw sanitize --agent` clean, and `aw ipd lint --phase pre-transition` conforming on each child, each run by that child before its own terminal move.
 
 ## Open questions
 
