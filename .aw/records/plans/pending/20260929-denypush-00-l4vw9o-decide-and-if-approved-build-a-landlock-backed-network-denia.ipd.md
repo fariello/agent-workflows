@@ -20,6 +20,7 @@
 - Id: l4vw9o
 
 ## Workflow history
+- 2026-10-07 note (opencode its_direct/pt3-claude-opus-5.5-1m-us): the carrier bullet the coverage probe quoted describes a backlog item that already exists (`sv9ce4`, open), not a step; reworded to say so.
 - 2026-10-06 draft (aw set): demoted approved -> draft: APPROVAL WITHDRAWN: returned to authoring by gradcover 52opph: uncovered obligation: - THE CARRIER OUTLIVES THE SET. Backlog `sv9ce4` is filed before any child runs, so the unbuilt half
 - 2026-10-06 coverage fail (aw oc run): fingerprint 6029f33b9741, model uri/its_direct/pt3-claude-opus-5.5-1m-us
 - 2026-09-30 approved (aw set): status set to approved
@@ -144,8 +145,9 @@ minted from the original title and is left stable.
   one this trap trips, so it must not be simplified away. SECOND, no plan in the Set may state the bit
   NUMERICALLY. Every child and the research refer to `LANDLOCK_ACCESS_NET_CONNECT_TCP` by NAME, which is
   why none of them inherited this error, and that convention is now load-bearing rather than incidental.
-- THE CARRIER OUTLIVES THE SET. Backlog `sv9ce4` is filed before any child runs, so the unbuilt half
-  is visible to `aw attention` even if this Set is never executed or is abandoned partway.
+- [Already true; no step owed] THE CARRIER OUTLIVES THE SET. Backlog `sv9ce4` already exists (filed at
+  authoring, `- Status: open` in `.aw/records/backlog/open/`), so the unbuilt half is visible to `aw attention`
+  even if this Set is never executed or is abandoned partway. Nothing is filed by this plan or any child.
 
 ## Deferred / out of scope (with reason)
 
