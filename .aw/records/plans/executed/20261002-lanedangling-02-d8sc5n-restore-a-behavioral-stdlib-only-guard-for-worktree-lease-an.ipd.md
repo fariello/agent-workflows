@@ -6,7 +6,7 @@
 - Scope: Replace the dangling citation in `inspect_lane`'s docstring with a citation to a NEW behavioral guard, and add that guard at `tests/test_worktree_lease_stdlib_only.py`. The guard asserts the OUTCOME (importing `worktree_lease` pulls in no first-party module beyond the package `__init__`'s own) in an isolated subprocess, reading no production source text. It also positively asserts that `lane_merged_into_target`'s function-local `runner_shared` import still works, so the guard cannot be satisfied by breaking the lazy delegation. EXCLUDES the two OTHER dangling citations of the same dead file that authoring measured in `runner_shared.py` (the signal-handler ones), which the rollup item `iosmvn` owns, and EXCLUDES re-adding the deleted test's `append_jsonl(`/`run_dir` substring assertions, which are source-parses.
 - Scope-Paths: agent_workflows/worktree_lease.py, tests/test_worktree_lease_stdlib_only.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: low
@@ -17,9 +17,9 @@
 - Highest E allocated: 06
 - Author: opencode/its_direct/pt3-claude-opus-5-1m-us
 - Id: d8sc5n
-- Approval: 2026-10-03, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-07 executed (opencode): finalize d8sc5n verified lane [Scope attribution - 166 changed path(s) OUTSIDE Scope-Paths were DISREGARDED as not attributable to this execution (evidence: run-record-exact), so no --scope-reason was demanded for them: .aw/config/project.json, .aw/records/backlog/graduated/20260921-oq05nc-01-oq05nc-os-level-push-denial-boundary.backlog.md, .aw/records/backlog/graduated/20260922-runverdict-01-ildjse-wire-run-state-machine-into-the-host-runners.backlog.md, .aw/records/backlog/graduated/20260926-lifegate-01-dvonrn-replace-location-token-lifecycle-gate.backlog.md, .aw/records/backlog/graduated/20260926-malgate-01-ariaau-audit-anti-malice-gates.backlog.md (... and 161 more; see disregarded_no_evidence_paths in the finalize evidence)]
 - 2026-10-03 approved (aw set): status set to approved
 - 2026-10-02 reviewed (aw set): status set to reviewed
 
