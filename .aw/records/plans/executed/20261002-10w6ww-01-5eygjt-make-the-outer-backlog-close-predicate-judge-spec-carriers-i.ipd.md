@@ -6,7 +6,7 @@
 - Scope: IN: (a) in `runner_shared.evaluate_backlog_close`, stop returning before non-IPD carriers are judged, so a MIXED carrier set requires every IPD carrier executed AND every spec carrier `implemented`, reusing `check_engine._carrier_is_executed` as the single spec-state authority rather than adding a second status reader; (b) keep the two SHIPPED rules exactly as they are, namely the IPD-only rule (every IPD carrier executed) and the no-IPD rule (artifact existence, spec status deliberately not consulted); (c) tests pinning the mixed refusal, the mixed allowance once the spec is `implemented`, and both unchanged single-kind rules; (d) correct the carrier-kind comment block and `BacklogCloseVerdict.rule`'s docstring, which both describe a partition the fix changes the meaning of; (e) a CHANGELOG entry. OUT: the inner gate `check_engine.evaluate_blocking_close` and its SATISFIED arm (see Deferred: the masking is a CONSEQUENCE here, and narrowing SATISFIED is a separate decision over every hand close); `release_gate_warnings` staying plans-only (`2o5wka` E-05 left it so deliberately); the F-06 ungated-sibling residue that `2o5wka` OQ-02 defers with a trigger; the `rule` string values in the verdict (consumed by recorded run state).
 - Scope-Paths: agent_workflows/runner_shared.py, tests/test_outer_close_spec_carrier.py, CHANGELOG.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -17,9 +17,9 @@
 - Highest E allocated: 05
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: 5eygjt
-- Approval: 2026-10-07, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-07 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: 5eygjt verified (set 10w6ww, attempt 1).
 - 2026-10-07 approved (aw set): status set to approved
 - 2026-10-07 reviewed (aw set): plan-review round 2
 
@@ -45,44 +45,44 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: confirm the premises before changing a shipped close predicate
 
-- [ ] E-01 RE-MEASURE F-01, F-02, F-03 AND F-05 AT EXECUTION HEAD and paste the outputs, because this plan changes a gate that decides whether release-blocking work can be declared done, and every premise is a dated measurement on code three other plans have edited in the last week (`2a6phj`, `2o5wka`, `4nbvfr`). Re-drive the scratch fixture (one `git init` tree, NO worktree and NO `--dir`/`--gate-dir` split, since this defect needs neither) and confirm: the outer predicate still returns `close=True` on the mixed executed-plan-plus-`approved`-spec shape (F-01); the inner gate still REFUSES the same shape when no evidence is cited and still ALLOWS it via SATISFIED when the outer verdict's citation is passed (F-02); the real setter on the runner's own argv still exits 0 and moves the item to `done/` (F-03); and the commit-scoped backstop `check_engine.check_release_gate_consistency` still reports ZERO findings on that staged close (F-05). ALSO re-run the F-06 live-corpus census (counts by carrier shape, each mixed item's spec status, and whether any item is now in the fully exploitable state), since V-01 (e) demands it.
+- [x] E-01 RE-MEASURE F-01, F-02, F-03 AND F-05 AT EXECUTION HEAD and paste the outputs, because this plan changes a gate that decides whether release-blocking work can be declared done, and every premise is a dated measurement on code three other plans have edited in the last week (`2a6phj`, `2o5wka`, `4nbvfr`). Re-drive the scratch fixture (one `git init` tree, NO worktree and NO `--dir`/`--gate-dir` split, since this defect needs neither) and confirm: the outer predicate still returns `close=True` on the mixed executed-plan-plus-`approved`-spec shape (F-01); the inner gate still REFUSES the same shape when no evidence is cited and still ALLOWS it via SATISFIED when the outer verdict's citation is passed (F-02); the real setter on the runner's own argv still exits 0 and moves the item to `done/` (F-03); and the commit-scoped backstop `check_engine.check_release_gate_consistency` still reports ZERO findings on that staged close (F-05). ALSO re-run the F-06 live-corpus census (counts by carrier shape, each mixed item's spec status, and whether any item is now in the fully exploitable state), since V-01 (e) demands it.
   - Depends on: none
   - Expected outcome: four pasted measurements naming the HEAD they ran at, agreeing with F-01, F-02, F-03 and F-05, plus the re-run F-06 census confirming its SHAPE.
   - IF A PREMISE HAS GENUINELY EXPIRED, STOP AND RE-SCOPE rather than proceeding. The one reversal that matters: if the outer predicate now returns `close=False` on the mixed shape unaided, this plan has been overtaken and the correct act is to say so with the contradicting output and stop, not to re-apply a fix that is already present. A SECOND, subtler reversal to check for: if the inner gate now refuses the mixed shape even WITH the evidence citation, then the masking half of the concern is closed and this plan narrows to the outer predicate alone, which is still worth doing (the outer predicate is consulted on the UNGATED majority where the inner gate has nothing to say) but must be reported as a narrowed scope rather than silently executed.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: judge non-IPD carriers in the mixed case
 
-- [ ] E-02 FIX `runner_shared.evaluate_backlog_close` SO `others` IS JUDGED IN THE MIXED CASE. Inside the `if ipds:` branch, after the existing `unexecuted` IPD scan and BEFORE the earned-close check, also require every non-IPD carrier to be terminal. Judge a spec with `check_engine._carrier_is_executed`, which is the SHIPPED authority the inner gate uses (it reads `- Status: implemented` for a `.spec.md` and tests for an `executed` path segment for a plan); do NOT add a second spec-status reader, and do NOT reimplement the check by inspecting the spec's directory, because `_carrier_is_executed`'s docstring records that a spec's truth lives in its `- Status:` field and `tests/test_backlog_handoff_close.py` case (9) pins the field winning over the directory. Fold the unimplemented spec paths into the SAME refusal so a mixed item with both an unexecuted plan and an unimplemented spec reports both, naming each carrier kind. PRESERVE THE EXISTING PREFIX `IPD carrier(s) not executed: ` VERBATIM whenever at least one IPD carrier is unexecuted, and append the spec half as a separate clause (for example `; spec carrier(s) not implemented: <paths>`); when only specs refuse, use the spec clause alone. This is load-bearing, not style: `tests/test_inlane_retirement_lands.py` asserts `assertIn("IPD carrier(s) not executed", close_rec.get("reason", ""))` on a recorded run-state verdict (verified at review 2026-10-02), and that reason is also what `render_unclosed_report` prints to operators.
+- [x] E-02 FIX `runner_shared.evaluate_backlog_close` SO `others` IS JUDGED IN THE MIXED CASE. Inside the `if ipds:` branch, after the existing `unexecuted` IPD scan and BEFORE the earned-close check, also require every non-IPD carrier to be terminal. Judge a spec with `check_engine._carrier_is_executed`, which is the SHIPPED authority the inner gate uses (it reads `- Status: implemented` for a `.spec.md` and tests for an `executed` path segment for a plan); do NOT add a second spec-status reader, and do NOT reimplement the check by inspecting the spec's directory, because `_carrier_is_executed`'s docstring records that a spec's truth lives in its `- Status:` field and `tests/test_backlog_handoff_close.py` case (9) pins the field winning over the directory. Fold the unimplemented spec paths into the SAME refusal so a mixed item with both an unexecuted plan and an unimplemented spec reports both, naming each carrier kind. PRESERVE THE EXISTING PREFIX `IPD carrier(s) not executed: ` VERBATIM whenever at least one IPD carrier is unexecuted, and append the spec half as a separate clause (for example `; spec carrier(s) not implemented: <paths>`); when only specs refuse, use the spec clause alone. This is load-bearing, not style: `tests/test_inlane_retirement_lands.py` asserts `assertIn("IPD carrier(s) not executed", close_rec.get("reason", ""))` on a recorded run-state verdict (verified at review 2026-10-02), and that reason is also what `render_unclosed_report` prints to operators.
   - Depends on: E-01, E-04
   - ORDERING: perform E-04 (write the tests and observe cases (1) and (5) failing) BEFORE this item, despite the numbering; `Depends on` below says so, so an executor walking the checklist top to bottom does not edit `runner_shared.py` first and forfeit V-04's before-state.
   - Expected outcome: on the mixed executed-plan-plus-`approved`-spec shape, `evaluate_backlog_close` returns `close=False` with a reason naming the spec; with that spec at `implemented`, it returns `close=True` exactly as before.
   - HONOR THE OVERRIDE FOR SPECS TOO, OR STATE WHY NOT. The `if _rel(plan) in overrides: continue` skip exists because a lane's own just-finalized carrier is legitimately terminal while `repo` still shows it otherwise (`9iq461` E-03). A spec carrier can be the lane's own finalized artifact in exactly the same way, so apply the same `overrides` skip to the non-IPD scan. Measured at authoring, `lane_executed_carrier_override` populates its mapping from the queue item's own plan path, so a spec is not currently produced there; applying the skip is therefore inert today and is the correct shape for when it is not. Say which of the two you did in the E-item's note, because an inconsistent override policy between the two carrier kinds is the kind of asymmetry that becomes a defect later.
   - FAIL CLOSED EXACTLY AS THE IPD SCAN DOES. `_carrier_is_executed` swallows `OSError` and returns False, so an unreadable spec counts as NOT terminal, which is the safe direction and needs no extra handling. Do not wrap it in a `try` that converts a read failure into an optimistic skip.
   - DO NOT TOUCH THE NO-IPD BRANCH. The `others`-only rule below the `if ipds:` block is the maintainer-resolved existence test (`zhr6mc` OQ-01), and `aw check` has no rule compensating for it; changing it would close a spec-only item later rather than sooner and is a different decision. The whole fix is inside `if ipds:`.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 CORRECT THE TWO DOCUMENTATION SITES THIS FALSIFIES, in the same commit as E-02, because both currently describe the partition in a way the fix changes. (1) The `CARRIER_KIND_IPD` comment block states the rule as "carriers include >= 1 IPD -> the item promised CODE, so it closes only when every IPD carrier is in a terminal `executed` state": extend that bullet to say every non-IPD carrier must ALSO be terminal in the mixed case, and keep the no-IPD bullet verbatim. (2) `BacklogCloseVerdict.rule`'s docstring reads "`ipd` (every IPD carrier executed) | `other` (the artifact exists)": state that `ipd` now means every carrier of EITHER kind is terminal. Record in the comment that the mixed rule converges onto `check_engine.evaluate_blocking_close`'s HANDOFF arm as tightened by `2o5wka`, and cite that plan, so a later reader finds the decision rather than re-deriving it.
+- [x] E-03 CORRECT THE TWO DOCUMENTATION SITES THIS FALSIFIES, in the same commit as E-02, because both currently describe the partition in a way the fix changes. (1) The `CARRIER_KIND_IPD` comment block states the rule as "carriers include >= 1 IPD -> the item promised CODE, so it closes only when every IPD carrier is in a terminal `executed` state": extend that bullet to say every non-IPD carrier must ALSO be terminal in the mixed case, and keep the no-IPD bullet verbatim. (2) `BacklogCloseVerdict.rule`'s docstring reads "`ipd` (every IPD carrier executed) | `other` (the artifact exists)": state that `ipd` now means every carrier of EITHER kind is terminal. Record in the comment that the mixed rule converges onto `check_engine.evaluate_blocking_close`'s HANDOFF arm as tightened by `2o5wka`, and cite that plan, so a later reader finds the decision rather than re-deriving it.
   - Depends on: E-02
   - Expected outcome: neither site describes the pre-fix behavior, and the comment names `2o5wka` as the decision this converges onto.
   - DO NOT CHANGE THE `rule` STRING VALUES. `CARRIER_KIND_IPD`/`CARRIER_KIND_OTHER` are written into `item["backlog_close"]["rule"]` in recorded run state and read back by `aw runs`, so renaming them to describe the new semantics would invalidate existing records to improve a label. Change the prose, not the constants.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: pin the behavior
 
-- [ ] E-04 ADD BEHAVIORAL TESTS in a new `tests/test_outer_close_spec_carrier.py`, written BEFORE E-02 is applied so each is observed failing first, and driven through `runner_shared.evaluate_backlog_close` on `git init` scratch fixtures with real files on disk. Cases: (1) MIXED, executed plan plus `approved` spec -> `close is False` with the spec's path in the reason; (2) the same fixture with the spec at `implemented` -> `close is True`, proving the fix refuses on spec STATE rather than on spec PRESENCE; (3) IPD-ONLY regression, one executed plan and no spec -> `close is True`, so the shipped rule is untouched; (4) SPEC-ONLY regression, a single `draft` spec and no plan -> `close is True` with `rule == 'other'`, which pins that the maintainer's existence rule survives and is the case most at risk from an over-broad fix; (5) MIXED with an unexecuted plan AND an unimplemented spec -> `close is False` with BOTH named, pinning the combined refusal list; (6) the earned-close gate still dominates, a mixed all-terminal fixture with an EMPTY earned set -> `close is False` for the not-earned reason, proving E-02 did not reorder the checks. PASS A NON-EMPTY `earned_paths` IN EVERY OTHER CASE, and say which (plan-review round 2): cases (1), (2), (3) and (5) pass the executed plan's repo-relative path (`str(plan.resolve().relative_to(repo.resolve()))`), and case (4) passes the spec's. This is load-bearing for V-04, not style: with an empty earned set the pre-fix predicate already returns `close=False` ("this run executed none of its carriers") on the mixed shape, so case (1) would PASS before the fix and prove nothing. Assert the reason CONTENT names the spec, so a case (1) that refuses for the not-earned reason fails. Re-driven at review HEAD `fe2ee961c` with `tests/test_backlog_handoff_close.py`'s `_write_plan`/`_write_spec` helpers: earned = the plan path gives `close=True rule='ipd'` with the spec `approved`, which is the pre-fix failure case (1) must observe.
+- [x] E-04 ADD BEHAVIORAL TESTS in a new `tests/test_outer_close_spec_carrier.py`, written BEFORE E-02 is applied so each is observed failing first, and driven through `runner_shared.evaluate_backlog_close` on `git init` scratch fixtures with real files on disk. Cases: (1) MIXED, executed plan plus `approved` spec -> `close is False` with the spec's path in the reason; (2) the same fixture with the spec at `implemented` -> `close is True`, proving the fix refuses on spec STATE rather than on spec PRESENCE; (3) IPD-ONLY regression, one executed plan and no spec -> `close is True`, so the shipped rule is untouched; (4) SPEC-ONLY regression, a single `draft` spec and no plan -> `close is True` with `rule == 'other'`, which pins that the maintainer's existence rule survives and is the case most at risk from an over-broad fix; (5) MIXED with an unexecuted plan AND an unimplemented spec -> `close is False` with BOTH named, pinning the combined refusal list; (6) the earned-close gate still dominates, a mixed all-terminal fixture with an EMPTY earned set -> `close is False` for the not-earned reason, proving E-02 did not reorder the checks. PASS A NON-EMPTY `earned_paths` IN EVERY OTHER CASE, and say which (plan-review round 2): cases (1), (2), (3) and (5) pass the executed plan's repo-relative path (`str(plan.resolve().relative_to(repo.resolve()))`), and case (4) passes the spec's. This is load-bearing for V-04, not style: with an empty earned set the pre-fix predicate already returns `close=False` ("this run executed none of its carriers") on the mixed shape, so case (1) would PASS before the fix and prove nothing. Assert the reason CONTENT names the spec, so a case (1) that refuses for the not-earned reason fails. Re-driven at review HEAD `fe2ee961c` with `tests/test_backlog_handoff_close.py`'s `_write_plan`/`_write_spec` helpers: earned = the plan path gives `close=True rule='ipd'` with the spec `approved`, which is the pre-fix failure case (1) must observe.
   - Depends on: E-01
   - Expected outcome: a new test file whose cases (1) and (5) fail before E-02 and pass after, while (2), (3), (4) and (6) pass both before and after.
   - TEST OUTCOMES, NOT CODE STRUCTURE. Assert on returned `BacklogCloseVerdict` fields and on reason CONTENT (a carrier path appearing in the reason). Do NOT assert the reason's exact full string, which is prose another plan may reword, and do NOT use `inspect`/`ast`/regex over `runner_shared.py` to assert that `others` is now read; that is a code-pinning test and `GUIDING_PRINCIPLES` P16 forbids it. The fix is observable in the verdict, so test it there.
   - PASTE THE BEFORE-STATE FOR CASES (1) AND (5). A test that passes both before and after the fix proves nothing about this plan, so V-04 requires the failing run at the pre-fix tree; produce it by running the new file BEFORE E-02 edits `runner_shared.py` (the ordering this plan already mandates), not by `git stash` or a revert, which in a shared checkout can sweep or discard another party's work (AGENTS.md forbids a bare `git stash`). If the ordering was missed, obtain the pre-fix module with `git show HEAD:agent_workflows/runner_shared.py` into a gitignored scratch location and import it there, leaving the working tree untouched. Case (4) is the inverse obligation: it must pass BEFORE as well, since it is a regression guard on behavior this plan must not change.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 RUN THE FULL SUITE and compare against a RE-DERIVED baseline rather than a remembered count, then add a CHANGELOG entry under the topmost pending release heading (there is no literal `Unreleased` heading; at review the top section is `## 2.0.0 (pending)`), describing the behavior change in one sentence (the runner's close predicate now requires a mixed item's spec carriers to be implemented). RE-DERIVE THE BASELINE by running the bare suite at execution HEAD BEFORE any production edit and recording its failing node ids; that list, not the authoring list below, is the bar. The baseline matters here because the tree may not be green: measured at authoring, `python3 -m pytest` reports `3 failed, 4624 passed, 2 skipped` with the three failures being `tests/test_spec_review_attestation.py::GrandfatheringAndCheckerTests::test_every_real_spec_in_this_repository_still_conforms`, `tests/test_selector_type_containment.py::test_must_not_refuse_matrix` and `tests/test_run_finding_reachability.py::TestRunFindingReachability::test_unreachable_binding_refusal_fires_under_perturbation`, none of which touch backlog closing. Compare BY NODE ID, not by count.
+- [x] E-05 RUN THE FULL SUITE and compare against a RE-DERIVED baseline rather than a remembered count, then add a CHANGELOG entry under the topmost pending release heading (there is no literal `Unreleased` heading; at review the top section is `## 2.0.0 (pending)`), describing the behavior change in one sentence (the runner's close predicate now requires a mixed item's spec carriers to be implemented). RE-DERIVE THE BASELINE by running the bare suite at execution HEAD BEFORE any production edit and recording its failing node ids; that list, not the authoring list below, is the bar. The baseline matters here because the tree may not be green: measured at authoring, `python3 -m pytest` reports `3 failed, 4624 passed, 2 skipped` with the three failures being `tests/test_spec_review_attestation.py::GrandfatheringAndCheckerTests::test_every_real_spec_in_this_repository_still_conforms`, `tests/test_selector_type_containment.py::test_must_not_refuse_matrix` and `tests/test_run_finding_reachability.py::TestRunFindingReachability::test_unreachable_binding_refusal_fires_under_perturbation`, none of which touch backlog closing. Compare BY NODE ID, not by count.
   - Depends on: E-02, E-03, E-04
   - Expected outcome: the post-change failing node-id set equals the RE-DERIVED pre-change set (no node id added), plus the new test file passing, both pasted as the runner's own output.
   - RUN IT BARE, as `python3 -m pytest`. `pyproject.toml` `addopts` already supplies `-q -n auto --dist=worksteal` and the marker deselection, so do not add `-n0` (several times slower here), do not add a second `-q` (which compounds to `-qq` and suppresses the `N passed` line this item requires), and do not pass `-p no:randomly`.
   - IF A FOURTH FAILURE APPEARS, IT IS THIS PLAN'S. The likeliest candidate is a test elsewhere that constructs a mixed-carrier fixture and expects the old permissive verdict. Measured at authoring, none exists: no in-tree test calls `evaluate_backlog_close` at all (the file that did, `tests/test_runner_backlog_close.py`, was deleted in the suite trim `19313eed7`), which is also why E-04 adds a new file rather than extending one. If one has appeared since, fix the test only if the old expectation was pinning the defect, and say so; never weaken the new refusal to keep a test green.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -172,30 +172,108 @@ All measurements at HEAD `ec525cbe46e836af0e9a7350eee7c0055cb0e076`, on scratch 
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: five pasted measurements from execution HEAD, each naming the HEAD sha they ran at: (a) the outer verdict on the mixed executed-plan-plus-`approved`-spec fixture, which must read `close=True ... rule='ipd'`, PLUS the printed carrier list showing the spec WAS discovered (this pair is what proves the defect is control flow and not lookup); (b) both inner verdicts on that same fixture, the no-evidence one reading `legitimate=False` and naming the spec, and the with-citation one reading `legitimate=True, path='SATISFIED'`; (c) the two real-setter runs with exit codes and resulting item paths, exit 0 into `done/` with `--evidence` and exit 1 left in `open/` without; (d) `check_release_gate_consistency` on the staged close reporting zero findings; (e) the F-06 live-corpus census re-run, pasting the counts and the per-item spec statuses. For (e) the claim to confirm is the SHAPE and not the exact numbers: a small mixed population, every mixed item carrying a non-`implemented` spec, and NO item in the fully exploitable state. If an item HAS become fully exploitable since authoring (all IPD carriers executed, item not yet `done`, spec not implemented), NAME it and record that the fix is now corrective for that item rather than purely preventive. If any premise reversed, the required evidence is instead a written STOP quoting the contradicting output and naming which of the two reversals in E-01 occurred.
   - Observed evidence:
-  - Result: pending
+    All five measurements driven at execution HEAD `ff874af43f933a6a951996c0a0ff9b8bedcf24c0`:
+    (a) Discovered carriers and outer verdict on mixed executed-plan-plus-approved-spec fixture:
+    `Discovered carriers: [(PosixPath('/tmp/repo/.aw/records/plans/executed/20260926-testset-01-pln001-test-plan.ipd.md'), 'next'), (PosixPath('/tmp/repo/.aw/records/specs/approved/20260926-spc001-01-spc001-test-spec.spec.md'), 'next')]`
+    `evaluate_backlog_close: BacklogCloseVerdict(close=True, reason='every IPD carrier is executed and this run executed .aw/records/plans/executed/20260926-testset-01-pln001-test-plan.ipd.md', evidence='.aw/records/plans/executed/20260926-testset-01-pln001-test-plan.ipd.md', rule='ipd')`
+    (b) Both inner gate verdicts on that same fixture:
+    Without evidence: `CloseVerdict(legitimate=False, severity='error', reason="gate 'next' is handed off to From-Backlog carrier(s) (20260926-testset-01-pln001-test-plan.ipd.md, 20260926-spc001-01-spc001-test-spec.spec.md) but the work has not shipped (carrier is not executed/implemented)", fixes=('aw backlog set itm001 --status graduated (keep the item as a release blocker until the plan executes)', 'cite satisfying evidence: `aw backlog set done <item> --evidence <in-tree artifact path>`', 'explicitly release the gate first: `aw backlog set done <item> --blocks-release -`'), path=None, rule=None)`
+    With evidence: `CloseVerdict(legitimate=True, severity='ok', reason="gate 'next' satisfied by resolvable evidence '.aw/records/plans/executed/20260926-testset-01-pln001-test-plan.ipd.md'", fixes=(), path='SATISFIED', rule=None)`
+    (c) Real-setter runs:
+    With evidence: exit code 0; item in done/: `['20260920-itm001-01-itm001-test-item.backlog.md']`.
+    Without evidence: exit code 1; stderr: `aw backlog set: refused: gate 'next' is handed off to From-Backlog carrier(s) (20260926-testset-01-pln001-test-plan.ipd.md, 20260926-spc001-01-spc001-test-spec.spec.md) but the work has not shipped (carrier is not executed/implemented).`; item in open/: `['20260920-itm001-01-itm001-test-item.backlog.md']`.
+    (d) Backstop consistency check on staged close:
+    `check_release_gate_consistency(repo_root=repo)`: findings count 0 (`[]`).
+    (e) Live-corpus census re-run:
+    Total backlog sources carrying >= 1 carrier: 617
+    IPD-only: 608
+    Spec-only: 1
+    Mixed: 8
+    Mixed items details:
+      0k74my (backlog status: done): plans=[btot17=executed], specs=[w15vzb=approved], fully_exploitable=False
+      7u9kbm (backlog status: done): plans=[mp289j=executed], specs=[i4gpto=draft], fully_exploitable=False
+      fcnz1r (backlog status: open): plans=[c6f6sj=executed, 63zo2f=pending, afdmn6=pending, m1jlwm=pending, m94eht=pending, vhiqo6=pending, 7zb4ny=pending], specs=[wy9aru=to-review], fully_exploitable=False
+      kjzlgw (backlog status: done): plans=[v58bvy=executed, zpbx7o=executed, 2ouj70=executed, gq6m2u=executed, 1qxuke=executed, foi1b3=executed, m0z0ti=executed, 71vjbn=executed], specs=[c4gd2h=implementing], fully_exploitable=False
+      kxkc04 (backlog status: done): plans=[84j8d7=executed, 5942n7=executed, ueg5cf=executed, pgq326=executed], specs=[77tr3o=approved], fully_exploitable=False
+      rxya25 (backlog status: done): plans=[u06zo2=executed], specs=[llbr2b=to-review], fully_exploitable=False
+      vqv9im (backlog status: graduated): plans=[h0zljh=executed, 4fodkt=executed, tch3bo=pending], specs=[7ckptx=approved], fully_exploitable=False
+      vy20et (backlog status: open): plans=[jjh4aj=executed, 9wzlou=pending, rtvdak=pending], specs=[89xjll=reviewed], fully_exploitable=False
+    Fully exploitable items count: 0. None of the premises reversed.
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: the mixed fixture's outer verdict re-run AFTER the fix, reading `close=False` with the spec's path present in the reason, pasted beside the SAME fixture's pre-fix `close=True` verdict so the change is visible as a pair rather than asserted. PLUS the same fixture with the spec moved to `- Status: implemented` reading `close=True`, which proves the refusal keys on spec STATE and not on spec PRESENCE. PLUS the combined-refusal fixture (unexecuted plan AND unimplemented spec) showing BOTH carriers named in one reason. PLUS a one-line statement of which override policy E-02 applied to the non-IPD scan and why.
   - Observed evidence:
-  - Result: pending
+    Pre-fix verdict on mixed fixture (plan executed, spec approved):
+    `BacklogCloseVerdict(close=True, reason='every IPD carrier is executed and this run executed .aw/records/plans/executed/20260926-testset-01-pln001-test-plan.ipd.md', evidence='.aw/records/plans/executed/20260926-testset-01-pln001-test-plan.ipd.md', rule='ipd')`
+    Post-fix verdict on same mixed fixture:
+    `BacklogCloseVerdict(close=False, reason='spec carrier(s) not implemented: .aw/records/specs/approved/20260926-spc001-01-spc001-test-spec.spec.md', evidence=None, rule=None)`
+    Same fixture with spec moved to `- Status: implemented`:
+    `BacklogCloseVerdict(close=True, reason='every IPD carrier is executed and this run executed .aw/records/plans/executed/20260926-testset-01-pln001-test-plan.ipd.md', evidence='.aw/records/plans/executed/20260926-testset-01-pln001-test-plan.ipd.md', rule='ipd')`
+    Combined-refusal fixture (unexecuted plan AND unimplemented spec):
+    `BacklogCloseVerdict(close=False, reason='IPD carrier(s) not executed: .aw/records/plans/pending/20260926-testset-01-pln001-test-plan.ipd.md; spec carrier(s) not implemented: .aw/records/specs/approved/20260926-spc001-01-spc001-test-spec.spec.md', evidence=None, rule=None)`
+    Override policy: E-02 applied the identical `if _rel(other) in overrides: continue` skip to the non-IPD scan as the IPD scan, maintaining symmetrical override semantics across carrier kinds.
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: a quoted diff or excerpt of BOTH corrected documentation sites, the `CARRIER_KIND_IPD` comment block and `BacklogCloseVerdict.rule`'s docstring, showing that neither still describes the pre-fix behavior, that the mixed rule is stated, that the no-IPD existence bullet is unchanged, and that `2o5wka` is cited as the decision converged onto. PLUS confirmation that the `CARRIER_KIND_IPD`/`CARRIER_KIND_OTHER` constant VALUES are byte-identical to before (`git diff` showing no change to the assignment lines), since recorded run state reads them back.
   - Observed evidence:
-  - Result: pending
+    Excerpt from `git diff agent_workflows/runner_shared.py`:
+    ```diff
+    @@ -39745,7 +39745,9 @@ def dependency_reasons(item: dict[str, Any], state: dict[str, Any]) -> list[str]
+     # The carrier-kind partition. The closing rule turns on whether the item's requested output INCLUDES
+     # AN IPD, not on the carrier's type per se (zhr6mc OQ-01, resolved by the maintainer):
+     #   * carriers include >= 1 IPD -> the item promised CODE, so it closes only when every IPD carrier
+    -#     is in a terminal `executed` state;
+    +#     is in a terminal `executed` state, and in the mixed case every non-IPD carrier must ALSO be
+    +#     terminal (specs `implemented`, converging onto check_engine.evaluate_blocking_close's HANDOFF
+    +#     arm as tightened by 2o5wka);
+     #   * carriers include NO IPD   -> the item asked for the ARTIFACT, so it is done as soon as that
+     #     artifact EXISTS. Spec status is deliberately NOT consulted: an unreviewed, unapproved spec
+     #     still satisfies "create a spec", and approval is the spec's own lifecycle (`aw specs`).
+    @@ -39768,7 +39770,7 @@ class BacklogCloseVerdict(NamedTuple):
+                   the E-06 unclosed-item reason. Never a bare boolean, because "we did not close it" is
+                   useless to the operator without the cause.
+         evidence: the repo-relative carrier path to cite as `--evidence` when closing, else None.
+    -    rule:     `ipd` (every IPD carrier executed) | `other` (the artifact exists) | None (no close).
+    +    rule:     `ipd` (every carrier of either kind is terminal) | `other` (the artifact exists) | None (no close).
+         """
+    ```
+    Confirmation: `CARRIER_KIND_IPD = "ipd"` and `CARRIER_KIND_OTHER = "other"` assignment lines are untouched and byte-identical (verified by inspection of git diff above).
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: the new test file's run output BEFORE the fix, showing cases (1) and (5) FAILING and cases (2), (3), (4) and (6) PASSING, and the run AFTER the fix showing all six passing. Both runs pasted with their pytest summary lines. A test file that passes identically before and after FAILS this item, because it would not be pinning this plan's change. Also state explicitly how the pre-fix state was obtained (run before E-02, or the `git show HEAD:` scratch import) and confirm the working tree was not stashed or reverted.
   - Observed evidence:
-  - Result: pending
+    Pre-fix test run output (`python3 -m pytest tests/test_outer_close_spec_carrier.py -v` run before E-02 was edited in `runner_shared.py`, with working tree untouched, neither stashed nor reverted):
+    ```
+    FAILED tests/test_outer_close_spec_carrier.py::TestOuterCloseSpecCarrier::test_case_5_mixed_unexecuted_plan_and_unimplemented_spec_refuses_both
+    FAILED tests/test_outer_close_spec_carrier.py::TestOuterCloseSpecCarrier::test_case_1_mixed_executed_plan_plus_approved_spec_refuses
+    ========================= 2 failed, 4 passed in 15.54s =========================
+    ```
+    Post-fix test run output (`python3 -m pytest tests/test_outer_close_spec_carrier.py -v`):
+    ```
+    ============================== 6 passed in 16.69s ==============================
+    ```
+    All 6 test cases passed after E-02.
+  - Result: pass
 
-- [ ] V-05 validates E-05
+- [x] V-05 validates E-05
   - Required evidence: the bare `python3 -m pytest` summary line pasted verbatim, plus the list of failing NODE IDS compared against the baseline E-05 re-derived at execution HEAD before the edit (also pasted). Baseline failures may be present; any node id not in the baseline must be explained or fixed. ALSO paste `tests/test_backlog_handoff_close.py` and `tests/test_carrier_scan_single_item_contract.py` passing, since those are the two files most likely to be disturbed by a change to carrier judging. PLUS the CHANGELOG entry as committed.
   - Observed evidence:
-  - Result: pending
+    Re-derived baseline at execution HEAD `ff874af43f933a6a951996c0a0ff9b8bedcf24c0`:
+    `5233 passed, 2 skipped, 3 warnings in 634.36s (0:10:34)` (0 failed, failing node ids: none).
+    Post-change bare full suite run output:
+    `5239 passed, 2 skipped, 3 warnings in 532.46s (0:08:52)` (0 failed, failing node ids: none, exactly +6 tests passed corresponding to the 6 cases in tests/test_outer_close_spec_carrier.py).
+    Targeted regression test suites:
+    `python3 -m pytest tests/test_backlog_handoff_close.py tests/test_carrier_scan_single_item_contract.py tests/test_inlane_retirement_lands.py`:
+    `50 passed in 38.00s`.
+    CHANGELOG entry committed under `## 2.0.0 (pending)`:
+    `- Fixed: the runner's backlog close predicate now requires a mixed item's spec carriers to be implemented before closing the item.`
+  - Result: pass
 
 ## Approval and execution gate
 
