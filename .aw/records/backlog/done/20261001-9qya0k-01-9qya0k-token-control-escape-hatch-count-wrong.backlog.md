@@ -1,5 +1,5 @@
 - Id: 9qya0k
-- Status: graduated
+- Status: done
 - Graduated-To: 9qya0k
 - Set: 9qya0k
 - Priority: low
@@ -7,6 +7,7 @@
 - Summary: docs/cli-agent-protocol.md Token control section says 'Two escape hatches' while its own surface has three
 
 ## Workflow history
+- 2026-10-07 done (aw backlog): closed by aw agy run: IPD moegsl executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20261002-9qya0k-01-moegsl-correct-the-token-control-escape-hatch-count-in-docs-cli-age.ipd.md); evidence .aw/records/plans/executed/20261002-9qya0k-01-moegsl-correct-the-token-control-escape-hatch-count-in-docs-cli-age.ipd.md
 - 2026-10-02 graduated (aw backlog): graduated by run run-20261001T221821Z-1985969: moegsl
 - 2026-10-01 created (aw backlog): Filed while authoring plan c4btis (backlog qm04zi) as the carrier for a documentation wart that plan deliberately did not fix.
 
