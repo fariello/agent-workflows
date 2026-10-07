@@ -7,9 +7,9 @@
 - Scope-Paths: .aw/records/plans/pending/20260930-lifegate-00-u4glub-replace-the-location-plus-token-lifecycle-gate-with-one-plan.ipd.md
 - Item-Dependencies: none
 - Status: draft
-- Coverage: fail
-- Coverage-Fingerprint: 738eddaa0f018fd5147fa381a527d43c44363bf42e0a2ad90c4004b5753fe596
-- Coverage-Checked: 2026-10-06 by uri/its_direct/pt3-claude-opus-5.5-1m-us
+- Coverage: pass
+- Coverage-Fingerprint: 3e499960104c3151bf13ec8d2fb4f6fc196eb9282e2fce29538e1de4e3861510
+- Coverage-Checked: 2026-10-07 by uri/its_direct/pt3-claude-opus-5.5-1m-us
 - Work-Kind: bug
 - Priority: high
 - From-Backlog: dvonrn
@@ -21,6 +21,7 @@
 - Id: u4glub
 
 ## Workflow history
+- 2026-10-07 coverage pass (aw oc run): fingerprint 3e499960104c, model uri/its_direct/pt3-claude-opus-5.5-1m-us
 - 2026-10-07 note (opencode its_direct/pt3-claude-opus-5.5-1m-us): each criterion and Set-level check now leads with its owner; the four cross-child checks are owned by `m47znv` E-05, which runs last.
 - 2026-10-06 draft (aw set): demoted to-review -> draft: returned to authoring by gradcover 52opph: uncovered obligation: Four checks span the children. [Owner of all four: `m47znv` E-05/V-05, which runs last, after `urv602` and `e25iy9`, against the combined diff. This plan performs none of them.]
 
@@ -239,19 +240,6 @@ Four checks span the children and cannot be performed by any child alone, which 
 - Owner: reviewer
 - Resolution or deferral rationale: No, and the two are already deconflicted in writing rather than by luck. `malgate`'s orchestrator and all three of its children EXPLICITLY exclude "the driver attestation token and the `lane_worktree_active` location guess (designed in backlog `dvonrn`)" from every child without exception, and its own deferred section names `dvonrn` as the carrier. The file overlap is narrow and non-colliding: `malgate`'s `dmjp0u` edits `ipd_lifecycle.py` comment text and fences out the region this Set deletes. Ordering considerations point the other way if anything: this Set carries `Blocks-Release: next` on a `bug`, while `malgate` is a `chore`, so making a release-blocking fix wait on a cleanup sweep would invert the priority. NOT BLOCKING because both Sets read each other's fences and neither declares a dependency on the other, so either order works; the one real consequence is that whichever runs second sees a slightly smaller comment surface than its plan describes, which its own E-01 re-measurement catches.
 - Carrier-Declined: No carrier is owed. Both orderings are fully realizable with the plans as written, no deliverable goes unbuilt either way, and the deconfliction is already recorded in both Sets' scope fences rather than needing a new artifact.
-
-## Coverage findings
-
-- "Four checks span the children and cannot be performed by any child alone, which is why they live here."
-- "- THE REFUSAL SURFACE SHRANK AND DID NOT MOVE. Read Orders 01, 02 and 03 together and confirm the Set's"
-- "- THE ENVIRONMENT FENCE HELD ACROSS THE SET. `AW_RUN_ID` reaches the worker for commit trailers and the"
-- "- THE TWO QUESTIONS STAYED DISTINCT. Order 01's predicate answers"
-- "- EXACTLY ONE CHILD AMENDED A SPEC. Only `e25iy9` may touch a `.spec.md` (`7ckptx` and `llbr2b`). Confirm"
-- "- THE SET-LEVEL CROSS-CHECKS a reviewer should apply, since no child can apply them alone, are the four in Cross-IPD validation above."
-- "2. THE TWO MEASURED DEFECTS ARE CLOSED AND PINNED AS TEST CASES, not asserted in prose. A human's own"
-- "3. NOTHING KEYS ON LOCATION ANY MORE. `lane_worktree_active` does not exist, neither remaining gate tests"
-- "4. NO SECRET REMAINS. `AW_DRIVER_ATTEST`, the token file, its minting, its verification, its caching and"
-- "6. THE WORKER-LABEL CHECK STILL WORKS AND STILL RUNS FIRST, including the environment fence: a"
 
 ## Validation and cross-check (verify before reporting the Set complete)
 
