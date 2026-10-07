@@ -6,7 +6,8 @@
 - Scope: Orchestrate the Set that builds destination-granular egress filtering as a PROBED, per-host, fail-closed capability: a two-sided hermetic probe, a parent-owned policy and broker, worker confinement that survives an agent's teardown attempt, and the contract amendments plus an audited honest capability report. The Set must not produce any artifact claiming push denial beyond what it measures, and gates no action.
 - Scope-Paths: .aw/records/plans/pending/20261001-netnsfilter-00-m0kl28-build-host-granular-outbound-egress-filtering-as-a-probed-no.ipd.md
 - Item-Dependencies: none
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
 - Coverage: pass
 - Coverage-Fingerprint: a2cc304d9eb745094864f11d9f794247cd9612cdbab744dafde75d455e5f726c
 - Coverage-Checked: 2026-10-07 by uri/its_direct/pt3-claude-opus-5.5-1m-us
@@ -21,6 +22,7 @@
 - Id: m0kl28
 
 ## Workflow history
+- 2026-10-07 reviewed (aw set): /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005, PR-006. Reviewed at HEAD 2f90a295f. E-01 no longer claims a parent-owned baseline; the real-remote git completion criterion is replaced by child 2j4pd0 E-05's hermetic same-port test; V-01..V-04 demand pasted status, post-transition lint and quoted child evidence; gate corrected for sv9ce4 being open and gains the scope-fence wording; OQ-02 (non-blocking, maintainer) notes wcbpqf's text does not yet carry it. Review record .aw/records/reviews/20261001-netnsfilter-00-m0kl28-build-host-granular-outbound-egress-filtering-as-a-probed-no.review.md.
 - 2026-10-07 to-review (aw set): returned to review: Set-level validation sweep owned by wn956n E-05/V-05; coverage pass recorded; open questions are non-blocking
 - 2026-10-07 coverage pass (aw oc run): fingerprint a2cc304d9eb7, model uri/its_direct/pt3-claude-opus-5.5-1m-us
 - 2026-10-06 draft (aw set): demoted to-review -> draft: returned to authoring by gradcover 52opph: uncovered obligation: Bare pytest run green with actual summary line pasted
@@ -50,8 +52,8 @@ and verify children and produce no artifact of their own.
 
 - [ ] E-01 CONFIRM nxh5s4 REACHED executed
   - Depends on: none
-  Confirm child 01 (`nxh5s4`, probe host-granular egress filtering) reached `executed`, with its two-sided verdict recorded. Confirms, before any other child runs, that this Set's premise holds on the executing host.
-  - Expected outcome: A recorded per-host capability baseline naming which children are validatable here. The probe is built and returns a two-sided verdict.
+  Confirm child 01 (`nxh5s4`, probe host-granular egress filtering) reached `executed`, with its two-sided verdict recorded in ITS OWN V-01. This item reads that record and produces nothing of its own; a False verdict is a legitimate outcome (fail-closed), after which child 03's namespace tests skip with a stated reason rather than the Set stalling.
+  - Expected outcome: `nxh5s4` is in `executed/` and its V-01 carries the pasted `(bool, note)` for the real host, so the executing host's namespace availability is known before child 02 runs.
   - Execution state: pending
 
 - [ ] E-02 CONFIRM rozdkp REACHED executed
@@ -95,7 +97,10 @@ specific failure this Set guards against is a contract written to a hoped-for ca
 - The probe returns False, with an explanatory note and no exception, on a host that cannot create a
   network namespace. Fail-closed is a REQUIREMENT of done, not a degraded outcome.
 - A confined worker can reach an allow-listed destination and cannot reach a denied one on the SAME
-  port, demonstrated with a real `git` invocation against a real remote.
+  port, demonstrated by child 03 E-05/V-05 with a REAL confined subprocess against PARENT-HELD
+  endpoints (hermetic, no external network). A real `git ls-remote` against a real remote was
+  measured at authoring (research `akmzyq` Findings 3 and 4) and is context, not a gate any child
+  re-runs, because a test that needs the public internet is not a reproducible acceptance check.
 - The confined worker's attempt to tear down its own boundary is REFUSED, verified from outside the
   sandbox by the parent.
 - Spec `25kzda` 5.2 and `host_sandbox_profile`'s module docstring state what is now probed and what
@@ -218,28 +223,32 @@ OWNER: every check below is performed by Order 04 `wn956n`, the last child (its 
   reporting code that reads as a proof of push denial. The honest input to that decision is research
   `akmzyq`'s "what is NOT established" list. Carried by `wcbpqf`, which already holds this area's
   maintainer decisions, so the question does not vanish when these plans reach `executed`.
+  REVIEW NOTE (2026-10-07): `wcbpqf` is `graduated` and its only handoff plan, `d5ntkj`, is in
+  `not-executed/`, and its body names only the `denypush` decisions. It still surfaces as `active`
+  in `aw attention`, so the carrier is visible, but the maintainer should add this question to it
+  (or file a fresh carrier) when ruling on `denypush`, since nothing in its text yet mentions it.
 
 ## Validation and cross-check (verify before reporting the Set complete)
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
 - [ ] V-01 validates E-01
-  - Required evidence: Child 01 (`nxh5s4`) reached `executed` in `.aw/records/plans/executed/` with its two-sided probe verdict and namespace availability recorded in its evidence.
+  - Required evidence: The pasted `- Status: executed` line of `nxh5s4` from `.aw/records/plans/executed/`, the pasted `aw ipd lint --phase post-transition --agent` result for it, and its V-01 real-host `(bool, note)` QUOTED from its record (not re-run here).
   - Observed evidence:
   - Result: pending
 
 - [ ] V-02 validates E-02
-  - Required evidence: Child 02 (`rozdkp`) reached `executed` with test output showing an unlisted destination refused and parent-owned filtering broker verified.
+  - Required evidence: The pasted `- Status: executed` line of `rozdkp` and its post-transition lint result, plus its V-01 (unlisted destination DENIED) and V-03 (broker decision log, parent process) evidence QUOTED from its record.
   - Observed evidence:
   - Result: pending
 
 - [ ] V-03 validates E-03
-  - Required evidence: Child 03 (`2j4pd0`) reached `executed` with outside-the-sandbox confirmation that a teardown attempt was refused and `CAP_NET_ADMIN` dropped.
+  - Required evidence: The pasted `- Status: executed` line of `2j4pd0` and its post-transition lint result, plus its V-03 (teardown REFUSED with the parent's own unpiped view of the rules afterwards) and V-05 (same-port partition, or the stated skip reason) evidence QUOTED from its record.
   - Observed evidence:
   - Result: pending
 
 - [ ] V-04 validates E-04
-  - Required evidence: Child 04 (`wn956n`) reached `executed` with audit against overclaim and contract amendments in `25kzda` 5.2 verified.
+  - Required evidence: The pasted `- Status: executed` line of `wn956n` and its post-transition lint result, plus its V-02 (spec `25kzda` 5.2 diff), V-04 (overclaim audit) and V-05 (bare-suite summary line, `aw check` delta, `aw sanitize --agent` exit 0) evidence QUOTED from its record.
   - Observed evidence:
   - Result: pending
 
@@ -278,5 +287,9 @@ LIFECYCLE TRANSITION. This plan is an ORCHESTRATOR: under `aw oc run` / `aw agy 
 RETIRES it to `executed` once every child is `executed` on disk, spending no agent turn, so do not
 invoke `aw ipd finalize` on it in a runner-driven execution. A HAND execution of the Set runs the
 children in Order and then finalizes this plan last. Never hand-edit `- Status:` and never hand-roll
-a `git mv` into `executed/`. Backlog `sv9ce4` must NOT be set `done` by any plan here: the runner
-sets `graduated`, which is the accurate state while the boundary is designed and handed off.
+a `git mv` into `executed/`. Backlog `sv9ce4` must NOT be set `done` by any plan here. It is
+currently `open` (the 2026-10-06 coverage demotion reopened it with "re-run graduation to complete
+the handoff"), so graduation must be RE-RUN once this Set is back at `to-review` or later; the
+correct state after that is `graduated`, never `done`, while the boundary is designed and handed off.
+Scope fence: each plan's `Scope-Paths` is a DECLARATION; an out-of-scope edit is made and then
+justified at finalize with `--scope-reason`, never a reason to stop.
