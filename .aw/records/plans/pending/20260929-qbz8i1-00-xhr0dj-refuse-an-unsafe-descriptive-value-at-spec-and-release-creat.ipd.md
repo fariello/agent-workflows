@@ -6,7 +6,7 @@
 - Scope: Orchestrate three children that together close the descriptive-value write paths (`uz05bl`), the filename derivation (`ribg85`), and the checker coverage (`ynhst5`) for the `specs` and `releases` trees. This plan holds ORCHESTRATION ONLY: every deliverable belongs to a child, and this file contributes no code, no test and no records repair of its own. EXCLUDES, in every child without exception: minting a new rule id, changing `attention_contract.is_safe_descriptive` or `MAX_DESCRIPTIVE_LEN`, changing the on-disk record grammar, guarding the shared positional `aw <tree> set` setter, and bounding a history-record message on LENGTH.
 - Scope-Paths: .aw/records/plans/pending/20260929-qbz8i1-00-xhr0dj-refuse-an-unsafe-descriptive-value-at-spec-and-release-creat.ipd.md
 - Item-Dependencies: none
-- Status: draft
+- Status: to-review
 - Coverage: pass
 - Coverage-Fingerprint: ac87cdabcc3c90cf965224925cf7b0292df14314abafe181e9f3523eb6f4eb99
 - Coverage-Checked: 2026-10-07 by uri/its_direct/pt3-claude-opus-5.5-1m-us
@@ -21,6 +21,7 @@
 - Id: xhr0dj
 
 ## Workflow history
+- 2026-10-07 to-review (aw set): returned to review: every child executed; each completion criterion and the Set-level gate names its owning child; coverage pass recorded
 - 2026-10-07 coverage pass (aw oc run): fingerprint ac87cdabcc3c, model uri/its_direct/pt3-claude-opus-5.5-1m-us
 - 2026-10-07 note (opencode its_direct/pt3-claude-opus-5.5-1m-us): every child is executed; each completion criterion and the Set-level gate now names the child that performed it.
 - 2026-10-06 draft (aw set): demoted to-review -> draft: returned to authoring by gradcover 52opph: uncovered obligation: The Set-level gate an executor must apply after the last child
