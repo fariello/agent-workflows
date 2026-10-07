@@ -7,6 +7,7 @@
 - Scope-Paths: .aw/records/plans/pending/20261006-instbugs-00-i99ykd-fix-the-fresh-target-install-and-research-tooling-defects-fo.ipd.md
 - Item-Dependencies: none
 - Status: to-review
+- Blocks-Release: f33nrj
 - Coverage: pass
 - Coverage-Fingerprint: 5891d6bc5dee78106d0c0e40f9cb0c8ed4aae79fe167b54d977f5074ae15da0b
 - Coverage-Checked: 2026-10-06 by uri/its_direct/pt3-claude-opus-5.5-1m-us
@@ -19,6 +20,7 @@
 - Id: i99ykd
 
 ## Workflow history
+- 2026-10-07 same-status (aw set): gate on release 2.0.0 (f33nrj) at the maintainer's instruction 2026-10-06: all instbugs plans block 2.0.0
 
 - 2026-10-06 coverage pass (aw oc run): fingerprint 5891d6bc5dee, model uri/its_direct/pt3-claude-opus-5.5-1m-us
 - 2026-10-07 draft (antigravity/claude-opus-5.5): created.

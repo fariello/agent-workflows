@@ -7,6 +7,7 @@
 - Scope-Paths: agent_workflows/engine.py, agent_workflows/doctor.py, AGENTS.md, tests/test_agents_block_target_neutral.py
 - Item-Dependencies: executed:xzlu9b, executed:jbnkkh
 - Status: to-review
+- Blocks-Release: f33nrj
 - Work-Kind: bug
 - Priority: high
 - Set: instbugs
@@ -16,6 +17,7 @@
 - Id: ka0g86
 
 ## Workflow history
+- 2026-10-07 same-status (aw set): gate on release 2.0.0 (f33nrj) at the maintainer's instruction 2026-10-06: all instbugs plans block 2.0.0
 
 - 2026-10-07 draft (antigravity/claude-opus-5.5): created.
 - 2026-10-07 to-review (antigravity/claude-opus-5.5): authored as Order 07 of Set `instbugs` after reading the 125-line `AGENTS.md` a HEAD (`474b037a9`) install wrote into a package.json-only scratch target, and locating each AW-only paragraph in `engine.agents_pointer_prose`.

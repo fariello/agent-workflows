@@ -7,6 +7,7 @@
 - Scope-Paths: tests/test_fresh_target_install_regression.py, CHANGELOG.md
 - Item-Dependencies: executed:whz0oi, executed:gzsfqn, executed:ka0g86, executed:okw4ke, executed:ic4eg0, executed:zye6k4
 - Status: to-review
+- Blocks-Release: f33nrj
 - Work-Kind: chore
 - Priority: high
 - Set: instbugs
@@ -16,6 +17,7 @@
 - Id: kck7a5
 
 ## Workflow history
+- 2026-10-07 same-status (aw set): gate on release 2.0.0 (f33nrj) at the maintainer's instruction 2026-10-06: all instbugs plans block 2.0.0
 
 - 2026-10-07 draft (antigravity/claude-opus-5.5): created.
 - 2026-10-07 to-review (antigravity/claude-opus-5.5): authored as Order 11 of Set `instbugs`, the whole-Set proof, from the orchestrator's Findings triage and its cross-IPD validation list.

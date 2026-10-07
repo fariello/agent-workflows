@@ -7,6 +7,7 @@
 - Scope-Paths: agent_workflows/install_wizard.py, agent_workflows/project_schema.py, tests/test_install_consent_truth.py
 - Item-Dependencies: none
 - Status: to-review
+- Blocks-Release: f33nrj
 - Work-Kind: bug
 - Priority: high
 - Set: instbugs
@@ -16,6 +17,7 @@
 - Id: gi1w75
 
 ## Workflow history
+- 2026-10-07 same-status (aw set): gate on release 2.0.0 (f33nrj) at the maintainer's instruction 2026-10-06: all instbugs plans block 2.0.0
 
 - 2026-10-07 draft (antigravity/claude-opus-5.5): created.
 - 2026-10-07 to-review (antigravity/claude-opus-5.5): authored as Order 02 of Set `instbugs` after reproducing D04 (code reading of the overwrite loop) and D15 (scratch `project.json`) at HEAD `474b037a9`.

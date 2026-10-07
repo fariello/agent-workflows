@@ -7,6 +7,7 @@
 - Scope-Paths: agent_workflows/research_index.py, tests/test_research_index_name_fm_mismatch.py
 - Item-Dependencies: none
 - Status: to-review
+- Blocks-Release: f33nrj
 - Work-Kind: bug
 - Priority: medium
 - Set: instbugs
@@ -16,6 +17,7 @@
 - Id: okw4ke
 
 ## Workflow history
+- 2026-10-07 same-status (aw set): gate on release 2.0.0 (f33nrj) at the maintainer's instruction 2026-10-06: all instbugs plans block 2.0.0
 
 - 2026-10-07 draft (antigravity/claude-opus-5.5): created.
 - 2026-10-07 to-review (antigravity/claude-opus-5.5): authored as Order 08 of Set `instbugs` after probing `aw research index --check` in a scratch target with deliberately mismatched `order` and `kind` front matter (both reported clean) and reading the comparison in `research_index`.

@@ -7,6 +7,7 @@
 - Scope-Paths: agent_workflows/install_history.py, agent_workflows/install_wizard.py, agent_workflows/config.py, agent_workflows/engine.py, tests/test_install_state_records.py
 - Item-Dependencies: executed:gi1w75
 - Status: to-review
+- Blocks-Release: f33nrj
 - Work-Kind: bug
 - Priority: high
 - Set: instbugs
@@ -16,6 +17,7 @@
 - Id: pfub72
 
 ## Workflow history
+- 2026-10-07 same-status (aw set): gate on release 2.0.0 (f33nrj) at the maintainer's instruction 2026-10-06: all instbugs plans block 2.0.0
 
 - 2026-10-07 draft (antigravity/claude-opus-5.5): created.
 - 2026-10-07 to-review (antigravity/claude-opus-5.5): authored as Order 03 of Set `instbugs` after reproducing D05 in a scratch target at HEAD `474b037a9` and finding N2 while tracing the two writers.

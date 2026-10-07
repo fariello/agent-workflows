@@ -7,6 +7,7 @@
 - Scope-Paths: .aw/system/workflows/templates/agents-docs-research-README.md, .aw/system/workflows/templates/agents-docs-specs-README.md, agent_workflows/engine.py, agent_workflows/cli.py, tests/test_installed_text_current.py
 - Item-Dependencies: none
 - Status: to-review
+- Blocks-Release: f33nrj
 - Work-Kind: bug
 - Priority: medium
 - Set: instbugs
@@ -16,6 +17,7 @@
 - Id: jbnkkh
 
 ## Workflow history
+- 2026-10-07 same-status (aw set): gate on release 2.0.0 (f33nrj) at the maintainer's instruction 2026-10-06: all instbugs plans block 2.0.0
 
 - 2026-10-07 draft (antigravity/claude-opus-5.5): created.
 - 2026-10-07 to-review (antigravity/claude-opus-5.5): authored as Order 06 of Set `instbugs` after grepping a fresh HEAD install (`474b037a9`) and the install log for every stale string the report names, and locating each string's source.

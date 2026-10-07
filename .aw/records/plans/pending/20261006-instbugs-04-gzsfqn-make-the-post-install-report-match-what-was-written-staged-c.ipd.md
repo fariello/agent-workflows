@@ -7,6 +7,7 @@
 - Scope-Paths: agent_workflows/engine.py, agent_workflows/cli.py, agent_workflows/install_wizard.py, tests/test_install_report_truth.py
 - Item-Dependencies: executed:pfub72
 - Status: to-review
+- Blocks-Release: f33nrj
 - Work-Kind: bug
 - Priority: medium
 - Set: instbugs
@@ -16,6 +17,7 @@
 - Id: gzsfqn
 
 ## Workflow history
+- 2026-10-07 same-status (aw set): gate on release 2.0.0 (f33nrj) at the maintainer's instruction 2026-10-06: all instbugs plans block 2.0.0
 
 - 2026-10-07 draft (antigravity/claude-opus-5.5): created.
 - 2026-10-07 to-review (antigravity/claude-opus-5.5): authored as Order 04 of Set `instbugs` after reproducing D03 and finding N1 in a scratch target at HEAD `474b037a9`.

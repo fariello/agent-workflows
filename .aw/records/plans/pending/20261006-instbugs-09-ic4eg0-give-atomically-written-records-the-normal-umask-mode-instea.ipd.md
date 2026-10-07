@@ -7,6 +7,7 @@
 - Scope-Paths: agent_workflows/artifact_core.py, agent_workflows/ipd_lifecycle.py, agent_workflows/manifest.py, agent_workflows/layout_inventory.py, agent_workflows/project_layout.py, agent_workflows/work_cmd.py, agent_workflows/workflow_cli.py, agent_workflows/comms_broker.py, agent_workflows/comms_acks.py, agent_workflows/runner_shared.py, agent_workflows/run_analytics_report.py, tests/test_atomic_write_mode.py
 - Item-Dependencies: none
 - Status: to-review
+- Blocks-Release: f33nrj
 - Work-Kind: bug
 - Priority: medium
 - Set: instbugs
@@ -16,6 +17,7 @@
 - Id: ic4eg0
 
 ## Workflow history
+- 2026-10-07 same-status (aw set): gate on release 2.0.0 (f33nrj) at the maintainer's instruction 2026-10-06: all instbugs plans block 2.0.0
 
 - 2026-10-07 draft (antigravity/claude-opus-5.5): created.
 - 2026-10-07 to-review (antigravity/claude-opus-5.5): authored as Order 09 of Set `instbugs` after measuring `-rw-------` on files from `aw research new --apply` and `aw adopt --apply` in a scratch target under umask 022 and listing every `mkstemp` caller in `agent_workflows/`.

@@ -7,6 +7,7 @@
 - Scope-Paths: hatch_build.py, pyproject.toml, agent_workflows/__init__.py, agent_workflows/versioning.py, agent_workflows/doctor.py, tests/test_installed_version_reporting.py
 - Item-Dependencies: none
 - Status: to-review
+- Blocks-Release: f33nrj
 - Work-Kind: bug
 - Priority: high
 - Set: instbugs
@@ -16,6 +17,7 @@
 - Id: whz0oi
 
 ## Workflow history
+- 2026-10-07 same-status (aw set): gate on release 2.0.0 (f33nrj) at the maintainer's instruction 2026-10-06: all instbugs plans block 2.0.0
 
 - 2026-10-07 draft (antigravity/claude-opus-5.5): created.
 - 2026-10-07 to-review (antigravity/claude-opus-5.5): authored as Order 01 of Set `instbugs` after reproducing D01 at HEAD `474b037a9`; the cause is a stale bundled VERSION file, not the git-at-runtime cause the report guessed.

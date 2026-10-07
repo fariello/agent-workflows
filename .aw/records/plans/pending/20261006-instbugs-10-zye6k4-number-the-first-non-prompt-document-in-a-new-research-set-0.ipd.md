@@ -7,6 +7,7 @@
 - Scope-Paths: agent_workflows/research_cmd.py, agent_workflows/artifact_adopt.py, agent_workflows/cli.py, .aw/records/specs/implemented/20260730-2152-01-agents-artifact-organization.spec.md, .aw/system/workflows/templates/agents-docs-research-README.md, tests/test_research_first_order.py
 - Item-Dependencies: none
 - Status: to-review
+- Blocks-Release: f33nrj
 - Work-Kind: bug
 - Priority: medium
 - Set: instbugs
@@ -16,6 +17,7 @@
 - Id: zye6k4
 
 ## Workflow history
+- 2026-10-07 same-status (aw set): gate on release 2.0.0 (f33nrj) at the maintainer's instruction 2026-10-06: all instbugs plans block 2.0.0
 
 - 2026-10-07 draft (antigravity/claude-opus-5.5): created.
 - 2026-10-07 to-review (antigravity/claude-opus-5.5): authored as Order 10 of Set `instbugs` after reproducing `00` on a new-set `research-report` from both `aw research new --apply` and `aw adopt --apply`, and recording the maintainer's 2026-10-06 ruling (OQ-01).

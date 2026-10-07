@@ -7,6 +7,7 @@
 - Scope-Paths: .aw/system/workflows/templates/aw-inbox-README.md, .aw/inbox/README.md, .aw/.gitignore, agent_workflows/engine.py, .aw/system/workflows/getting-started/getting-started.md, tests/test_install_inbox_lane.py
 - Item-Dependencies: none
 - Status: to-review
+- Blocks-Release: f33nrj
 - Work-Kind: bug
 - Priority: medium
 - Set: instbugs
@@ -16,6 +17,7 @@
 - Id: xzlu9b
 
 ## Workflow history
+- 2026-10-07 same-status (aw set): gate on release 2.0.0 (f33nrj) at the maintainer's instruction 2026-10-06: all instbugs plans block 2.0.0
 
 - 2026-10-07 draft (antigravity/claude-opus-5.5): created.
 - 2026-10-07 to-review (antigravity/claude-opus-5.5): authored as Order 05 of Set `instbugs` after reproducing D14 in a scratch target at HEAD `474b037a9` and confirming the force-added README in this repository.
