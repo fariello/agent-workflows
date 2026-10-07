@@ -94,7 +94,7 @@ runner CAN hold Order 02 until a human approves the spec, and it should: a gate 
 must not be left to an executing agent's self-discipline. Order 02 must therefore ADD
 `state:spec:approved:<spec-id6>` to its `- Item-Dependencies:` once the id6 exists, which is why Order
 01's E-09 now owns writing it through the setter (the id6 is minted at Order 01 execution time, so it
-cannot be authored in advance). Order 02's E-01 refusal and this plan's V-02 REMAIN as the second layer,
+cannot be authored in advance). Order 02's E-01 refusal and its V-01 (which quotes the spec's `--by-human` approval line from the spec's own history) REMAIN as the second layer,
 because the edge proves the status field says `approved` while only the spec's own history proves a human
 attested it with `--by-human`. THIRD,
 NEITHER CHILD MAY EDIT AN EXISTING `.spec.md`: Order 01 creates one and Order 02 declares none, so the
