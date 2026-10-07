@@ -7,6 +7,9 @@
 - Scope-Paths: .aw/records/plans/pending/20261007-fixfirst-00-lxb1ew-fix-first-send-agent-caused-run-failures-back-to-the-agent-i.ipd.md
 - Item-Dependencies: none
 - Status: draft
+- Coverage: pass
+- Coverage-Fingerprint: f5a0e34276e300468af2f08e87f79f3246696cdef361af818d2fa4ad180d565a
+- Coverage-Checked: 2026-10-07 by uri/its_direct/pt3-claude-opus-5.5-1m-us
 - Work-Kind: bug
 - Priority: high
 - From-Backlog: coivul
@@ -20,6 +23,7 @@
 
 ## Workflow history
 
+- 2026-10-07 coverage pass (aw oc run): fingerprint f5a0e34276e3, model uri/its_direct/pt3-claude-opus-5.5-1m-us
 - 2026-10-07 draft (opencode its_direct/pt3-claude-opus-5.5-1m-us): created.
 
 ## Goal
