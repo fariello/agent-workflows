@@ -8,7 +8,7 @@
 - Item-Dependencies: none
 - Status: draft
 - Coverage: fail
-- Coverage-Fingerprint: 02581037a7418ea12ef9a0fda3b18392a80b5e707192e32626a82116cbeaa3ff
+- Coverage-Fingerprint: 84f4f14ca27600a2ab1a9d7f3b1d818308380fa548597ec0f9096dec9370ee3b
 - Coverage-Checked: 2026-10-07 by uri/its_direct/pt3-claude-opus-5.5-1m-us
 - Work-Kind: chore
 - Priority: medium
@@ -21,6 +21,7 @@
 - Id: 63zo2f
 
 ## Workflow history
+- 2026-10-07 coverage fail (aw oc run): fingerprint 84f4f14ca276, model uri/its_direct/pt3-claude-opus-5.5-1m-us
 - 2026-10-07 coverage fail (aw oc run): fingerprint 02581037a741, model uri/its_direct/pt3-claude-opus-5.5-1m-us
 - 2026-10-07 coverage fail (aw oc run): fingerprint 256303951ead, model uri/its_direct/pt3-claude-opus-5.5-1m-us
 - 2026-10-07 note (opencode its_direct/pt3-claude-opus-5.5-1m-us): added Order 06 `7zb4ny`, which performs the Set-level checks this plan listed with no owner (the coverage probe's 2026-10-06 findings); child table, checklist and Scope-Paths updated.
@@ -175,7 +176,7 @@ after the last migration child, and NOT by this plan:
 
 ## Coverage findings
 
-- "- The bare suite `python3 -m pytest` after the final child, with the `N passed` line pasted, and its failure SET compared BY NAME against the baseline re-derived before the Set began. Counts alone are insufficient: `tests/test_backlog.py::BacklogPreservationTests::test_release_exempt_setter_roundtrip_and_parity` is red at base for part of every day on the local-versus-UTC clock skew, so an unchanged count can hide a real change and a changed count can mean only that the clock moved."
+- "its failure SET compared BY NAME against the baseline re-derived before the Set began."
 
 ## Validation and cross-check (verify before reporting the Set complete)
 
