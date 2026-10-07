@@ -6,7 +6,7 @@
 - Scope: Replace `_rewrite_line`'s two POSIX-only substitutions with a delegation to the already-landed `agent_schema.redact_home_paths`, which covers all three classes drive-preservingly; stop the rewriter firing on the placeholder forms the detector deliberately allows; and pin one row per detector rule in the fix path. Does NOT unify the two duplicated detector definitions, does NOT change any detection pattern, severity, allowlist or exit-code contract, and does NOT touch the identity/private-repo/session classes that are correctly left for a human.
 - Scope-Paths: agent_workflows/leak_sanitizer.py, tests/test_leak_sanitizer.py, CONTRIBUTING.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: followup
 - Priority: low
@@ -16,9 +16,9 @@
 - Highest E allocated: 06
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: g8q99a
-- Approval: 2026-10-03, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-07 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: g8q99a verified (set 9cff1j, attempt 1).
 - 2026-10-03 approved (aw set): status set to approved
 - 2026-10-02 reviewed (aw set): plan-review complete; REVIEWED - OPEN QUESTIONS (OQ-01 non-blocking, maintainer)
 
