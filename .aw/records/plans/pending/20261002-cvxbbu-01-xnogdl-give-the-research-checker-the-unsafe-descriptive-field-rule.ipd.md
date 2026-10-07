@@ -7,6 +7,7 @@
 - Scope-Paths: agent_workflows/research_index.py, tests/test_research_unsafe_field.py, .aw/records/research/reference/202609/20260905-hostskill-04-6asl6q-host-skill-runtime-discovery-and-authoring.reconciliation.reconciliation-report.md, .aw/records/research/reference/202609/20260905-awmetastore-05-6mye7n-where-aw-metadata-should-live.reconciliation.reconciliation-report.md, .aw/records/research/archive/202609/20260905-awmetastore-06-g5f3zq-aw-artifact-metadata-storage-research-report.gemini31prodeepthink.research-report.md
 - Item-Dependencies: none
 - Status: reviewed
+- Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
 - From-Backlog: cvxbbu
