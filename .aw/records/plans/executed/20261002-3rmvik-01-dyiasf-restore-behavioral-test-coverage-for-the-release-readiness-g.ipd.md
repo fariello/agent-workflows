@@ -9,7 +9,7 @@
   OUT, each for a stated reason. The LIVE-TREE `ipd_lint` RED (F-04) is NOT fixed here: it is a property of 49 lint findings across other agents' pending plans, not of this module, and clearing another plan's open blocking question is both outside these `- Scope-Paths:` and not this item's subject; this plan instead ensures no restored test asserts it (F-09, carrier filed). The THREE OTHER INERT GATE PARAMETERS (`drift_files`, `undispositioned`, `stale_claims`) are not wired to producers here: that is backlog `usggph`'s subject and each needs its own producer. WIRING `gate_docs_checks` to `docs_check.check_docs_dir` is owned by pending plan `wix4xe` (Set `tj9dq9`), which declares `agent_workflows/release_readiness.py` in its own `- Scope-Paths:`; this plan must not duplicate it (F-10). Adding an `aw` subcommand that renders the report, or calling `build_report` from CI or a hook, are new public surfaces and process decisions, not test restoration. The three PRE-EXISTING suite failures at the authoring base are not fixed (F-08, each already carried).
 - Scope-Paths: tests/test_release_readiness.py, agent_workflows/release_readiness.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: medium
@@ -19,9 +19,9 @@
 - Highest E allocated: 08
 - Author: opencode/its_direct/pt3-claude-opus-5-1m-us
 - Id: dyiasf
-- Approval: 2026-10-03, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-07 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: dyiasf verified (set 3rmvik, attempt 1).
 - 2026-10-03 approved (aw set): status set to approved
 - 2026-10-02 reviewed (aw set): status set to reviewed
 
