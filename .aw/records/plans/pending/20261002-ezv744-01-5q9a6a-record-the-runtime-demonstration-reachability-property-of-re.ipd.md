@@ -39,16 +39,16 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: record the property in the contract
 
-- [ ] E-01 RE-MEASURE the four premises this plan rests on, at the executing HEAD, and RECORD what you find BEFORE editing anything.
+- [x] E-01 RE-MEASURE the four premises this plan rests on, at the executing HEAD, and RECORD what you find BEFORE editing anything.
 
   (a) THE RULE'S SHIPPED TEXT, which is what E-02 compresses rather than re-derives: extract the bullet beginning `- **Runtime-demonstration reachability` from `.aw/system/workflows/plan-review/plan-review.md` and from `.aw/system/workflows/plan-review-long/review-rubric.md`, report both lengths and whether the two strings are equal (F-01 measured 1846 characters each, equal). (b) THE SIBLING PARAGRAPH YOU ARE WRITING BESIDE: print spec Section 5.4 in full, sliced from `### 5.4 Evidence requirements` to `### 5.5 `, and confirm the durability paragraph beginning `` `Required evidence:` is authored before approval and executed later `` is present along with the closing sentence `The linter checks presence and state consistency. It MUST NOT claim that evidence is authentic, relevant, or sufficient.` (c) THE WORD COLLISION that E-02 must disambiguate: count occurrences of `reachab` (case-insensitive) in the spec and quote each with its surrounding sentence; F-03 measured exactly ONE, in Section 9.2. (d) THE CONTENDED-PATH SET, which is what F-08 corrects and what the dependency edge rests on: search every plan under `.aw/records/plans/pending/` and `.aw/records/plans/reusable/` for the spec's filename in a `- Scope-Paths:` line, and for each hit report its `- Id:`, `- Status:` and WHICH spec section its items amend. F-08 measured two besides this plan: `0nxa8o` (`approved`, amends Sections 5.3, 5.4 and 14) and `fhinri` (`to-review`, amends Section 4.4 only). THIS IS A RE-DERIVATION, NOT A CONFIRMATION of an empty set: the first draft of this plan asserted the set was empty and was wrong, which is exactly why the item re-measures rather than trusts.
 
   IF (c) MEASURES MORE THAN ONE OCCURRENCE, do not stop: report the additional occurrences and check whether any already states this property, because a second author landing it first would make E-02 a duplication rather than an addition. IF (d) FINDS ANY PLAN AMENDING SECTION 5.4 THAT IS NOT `0nxa8o`, STOP AND REPORT rather than adapting: a third concurrent amendment to this one section is the collision `9aprci` deferred on, and sequencing it is a human's decision. If `0nxa8o` has landed, READ ITS LANDED SECTION 5.4 TEXT before E-02 and state what it added, since its edit concerns the SHAPE of `Observed evidence:` while this one concerns the REACHABILITY of `Required evidence:`; the two should compose, and confirming that by reading is the same discipline this plan's own deferral-condition demanded of it.
   - Depends on: none
   - Expected outcome: four recorded measurements (the two bullet lengths and their equality; the full Section 5.4 text with both named anchors present; the `reachab` occurrence count with each quoted; the set of nonterminal plans declaring this spec path with each one's id, status and amended sections), each with the executing HEAD's short sha beside it; no file modified by this item.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 ADD one paragraph to `### 5.4 Evidence requirements` of `.aw/records/specs/implemented/20260802-1904-01-ipd-structure-and-linting.spec.md`, recording the REACHABILITY property of `Required evidence:`, and change nothing else in that section.
+- [x] E-02 ADD one paragraph to `### 5.4 Evidence requirements` of `.aw/records/specs/implemented/20260802-1904-01-ipd-structure-and-linting.spec.md`, recording the REACHABILITY property of `Required evidence:`, and change nothing else in that section.
 
   PLACE IT IMMEDIATELY AFTER THE DURABILITY PARAGRAPH and before the `` `Observed evidence:` SHOULD point to independently inspectable state `` paragraph. The reason is structural rather than aesthetic: Section 5.4 is ordered as definition, then acceptable forms, then properties OF the demand (durability), then a rule about `Observed evidence:`, then the linter boundary. Reachability is a property of the DEMAND, so it belongs beside durability; placing it after the `Observed evidence:` paragraph would separate the two properties with a rule about a different field, and placing it after the closing linter sentence would put a normative property after the boundary that disclaims enforcement of it. IF `0nxa8o` HAS LANDED TEXT BETWEEN THOSE TWO PARAGRAPHS (its E-04 adds a Section 5.4 statement about multi-line command transcripts, whose natural home is beside the `Observed evidence:` paragraph), still place this paragraph IMMEDIATELY after the durability paragraph, ahead of `0nxa8o`'s text, since both demand properties belong together; record the resulting order in V-02.
 
@@ -59,20 +59,20 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   DO NOT WEAKEN THE SECTION'S CLOSING SENTENCE, and do not move it. `The linter checks presence and state consistency. It MUST NOT claim that evidence is authentic, relevant, or sufficient.` is what FORBIDS the mechanical route both `9aprci` and `vtup6x` declined on authority grounds (F-05). An amendment that quietly dropped or softened it would license the lint rule two executed plans refused, which is the single most consequential thing this edit could get wrong.
   - Depends on: E-01
   - Expected outcome: Section 5.4 carries one new paragraph, positioned between the durability paragraph and the `Observed evidence:` paragraph, carrying all five elements plus the Section 9.2 disambiguation; the section's five acceptable-evidence list items, its durability paragraph, its `Observed evidence:` paragraph, its closing linter-boundary sentence, AND whatever text `0nxa8o` landed in Section 5.4 (read in E-01) are byte-unchanged; `aw specs check` on the file reports conforming.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 APPEND the spec's `## Workflow history` record through `aw specs note <path> --message ...`, naming the section amended, this plan's `Set` and `- Id:`, and the property added, in the shape the file's existing records use (`<date> note (aw specs): Section <N> amended (<set> <id6> <items>): <what and why>`); five such records were present at authoring and two sibling plans may each add one before this runs (F-08), so match the SHAPE and do not assume the count.
+- [x] E-03 APPEND the spec's `## Workflow history` record through `aw specs note <path> --message ...`, naming the section amended, this plan's `Set` and `- Id:`, and the property added, in the shape the file's existing records use (`<date> note (aw specs): Section <N> amended (<set> <id6> <items>): <what and why>`); five such records were present at authoring and two sibling plans may each add one before this runs (F-08), so match the SHAPE and do not assume the count.
 
   USE THE TOOL, NOT A HAND EDIT. `aw specs note` is the owner of that history block (`.aw/records/specs/README.md` names it as the history-only verb), it writes the dated record in the canonical form, and it changes no status. A hand-written line is the untooled transition this repository's own checker family exists to catch.
 
   THIS IS A SEPARATE E-ITEM BECAUSE IT IS A SEPARATE SURFACE, and because the precedent it corrects is visible in git: `vtup6x` amended this exact section in commit `b3afea162` and added NO history note, which is why the landed durability paragraph is invisible in the spec's own history while four smaller amendments are recorded there. Carrying the note in its own item is what stops this plan repeating that omission silently. Do NOT also write a note FOR `vtup6x`: back-filling a record for work this plan did not do would assert a history that did not happen, and the gap is recorded in F-06 for a human to decide on instead.
   - Depends on: E-02
   - Expected outcome: the spec's `## Workflow history` carries one new dated `note (aw specs)` record naming Section 5.4, this plan's Set and Id, and the reachability property; the record was written by `aw specs note` rather than by hand; the spec's `- Status:` is still `implemented` and its file location is unchanged.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: pin the property so it cannot silently revert
 
-- [ ] E-04 ADD a third test to `tests/test_v_item_evidence_durability.py` asserting that spec Section 5.4 carries the reachability paragraph, locating the section by its `### 5.4 Evidence requirements` heading and slicing to `### 5.5 `, and asserting a SMALL set of distinctive semantic anchors rather than the whole paragraph.
+- [x] E-04 ADD a third test to `tests/test_v_item_evidence_durability.py` asserting that spec Section 5.4 carries the reachability paragraph, locating the section by its `### 5.4 Evidence requirements` heading and slicing to `### 5.5 `, and asserting a SMALL set of distinctive semantic anchors rather than the whole paragraph.
 
   WHY THIS MODULE AND NOT `tests/test_v_item_demonstration_reachability.py`, since both are defensible and the choice should be made knowingly. That module owns the RULE's presence across the two REVIEW bodies and is where sibling plan `ua133b` is adding its own third test for the authoring surface; THIS module already owns the Section 5.4 SURFACE, because `vtup6x` created it alongside the durability amendment to that same section. Pinning by surface keeps one module per file-under-contract and avoids two plans adding a third test to the same module in the same week. State the choice and its reason in the test's docstring so a later reader does not re-litigate it.
 
@@ -83,7 +83,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   DO NOT WRITE A CODE-STRUCTURE PIN, and do not pin the paragraph verbatim. This test must read no `agent_workflows/*.py`, must not use `inspect`, `ast`, or a regex over production source, and must not assert that the whole paragraph is unchanged: a verbatim pin makes a wording improvement a test failure, which is the failure mode the module's existing anchor-based tests were written to avoid. Assert the anchors, and additionally assert that the section's closing linter-boundary sentence SURVIVES, because E-02's single most consequential possible error is weakening it and nothing else in the suite would notice.
   - Depends on: E-03
   - Expected outcome: a third test in `tests/test_v_item_evidence_durability.py` that fails when the reachability paragraph is removed from Section 5.4, fails when the section's closing linter-boundary sentence is removed, passes at the end of this plan, and leaves the module's two existing tests passing unmodified; the module docstring records that the module now reads a spec as well as two workflow bodies, and why this test lives here rather than in the sibling reachability module.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -201,25 +201,277 @@ by construction (a diff, a file's content, a test result, a command's exit statu
 demands an OBSERVATION, names the code path that produces it and the sibling `E-*` that creates that
 path.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: the four measurements E-01 performed, pasted verbatim with the executing HEAD's short sha beside each, and NOT restated from F-01 through F-04. (a) The two extracted review bullets' character lengths and the boolean result of comparing the two strings for equality. (b) Spec Section 5.4 printed in full as sliced from `### 5.4 Evidence requirements` to `### 5.5 `, with the durability paragraph's opening clause and the closing sentence `The linter checks presence and state consistency. It MUST NOT claim that evidence is authentic, relevant, or sufficient.` both visible in the pasted text. (c) The case-insensitive count of `reachab` in the spec file, with each occurrence quoted in its surrounding sentence and its section named. (d) The list of nonterminal plans whose `- Scope-Paths:` names this spec file, with the command that produced it; an empty list must be shown as empty output rather than asserted. REACHABILITY: every limb is a file read, a string comparison, or a search result, reachable by construction with no code path required.
   - Observed evidence:
-  - Result: pending
+    Executing HEAD short sha: `b9045fd72`
 
-- [ ] V-02 validates E-02
+    (a) Review bullets extraction and comparison:
+    Executing HEAD: `b9045fd72`
+    Length in `.aw/system/workflows/plan-review/plan-review.md`: 1846
+    Length in `.aw/system/workflows/plan-review-long/review-rubric.md`: 1846
+    Equal: True
+    Verbatim text:
+    ```markdown
+    - **Runtime-demonstration reachability vs. unsatisfiable observation demands (reachability convention):** For each `V-*` item whose `Required evidence:` demands that the software be **observed** doing something (such as a run, a dispatch, a state transition, or a queue re-evaluation)—as distinct from items demanding a diff, a file's content, a test result, or a search result, which are reachable by construction—the reviewer must verify reachability. The reviewer must **name the code path** (by symbol, per the repository's citation convention) that would produce the demanded observation or **name the sibling `E-*`** that creates that path within the same plan. When neither exists, the reviewer must raise an **UNDER-SCOPE** finding and either add the `E-*` that makes the demonstration reachable or rewrite the demand down to what is observable, recording which remedy was chosen. This check costs one question per runtime-demonstration item and no separate investigation because the reviewer is already reading the cited symbols for rubric G.
+      **Measured precedent to flag:** In `akzy45` E-03/V-03, the plan demanded that an item blocked on a prerequisite which later succeeds in the same run become runnable without `--retry-incomplete`. No such code path exists on either host: `requeue_interrupted` and the `if retry_incomplete:` branch both sit outside the dispatch loop in `oc_runipd.run_queue` and `agy_runipd.run_queue`, with zero re-queue calls inside either dispatch loop. That plan was reviewed and approved, and its review round had already re-verified E-03 and corrected its premise once without catching that the surviving demonstration was unreachable. Review is the only enforcement surface; no mechanical lint rule is attempted because verifying reachability requires semantic reading of evidence demands and code paths.
+    ```
+
+    (b) Spec Section 5.4 printed in full:
+    Executing HEAD: `b9045fd72`
+    ```markdown
+    ### 5.4 Evidence requirements
+
+    `Required evidence:` is authored before approval and MUST describe evidence capable of revealing failure, not merely a confirmation instruction. Examples include:
+
+    - a diff or repository location showing the intended change;
+    - a tool-captured command, arguments, exit status, and retained output artifact;
+    - a test report or structured result file;
+    - a generated artifact with an independently inspectable path or identifier;
+    - a documented human observation when tool capture is impossible.
+
+    `Required evidence:` is authored before approval and executed later, so it MUST be expressed in terms that survive a refactor that changes no behaviour (evidence durability). In particular, a collected test count and a test function name are not durable, because both are artifacts of test organization rather than stable authored facts; the demand must instead specify the behaviour pinned plus the mechanism that pins it. When the named mechanism has been reorganized (such as into a table-driven suite), the executor substitutes the successor and records the substitution, rather than either reporting the item unverifiable or silently swapping in different evidence. This durability requirement is a convention enforced during review, not by tooling: the linter does not and will not check evidence durability.
+
+    `Observed evidence:` SHOULD point to independently inspectable state. Model-pasted or model-narrated output is not automatically external evidence. When tooling permits, command evidence SHOULD be captured by the tool or wrapper that ran the command and referenced by path, digest, run identifier, or other durable locator. A multi-line pasted transcript is the expected shape for command evidence and needs no summary line on the `Observed evidence:` field line itself.
+
+    The linter checks presence and state consistency. It MUST NOT claim that evidence is authentic, relevant, or sufficient.
+    ```
+    Durability opening clause (`Required evidence: is authored before approval and executed later`) present: True
+    Closing sentence (`The linter checks presence and state consistency. It MUST NOT claim that evidence is authentic, relevant, or sufficient.`) present: True
+
+    (c) Case-insensitive `reachab` count and occurrences in spec:
+    Executing HEAD: `b9045fd72`
+    Total occurrences: 1
+    Line 466 under `### 9.2 State rules by checkpoint`:
+      An item that becomes unnecessary MUST be removed or superseded through the plan's amendment and re-review process. The executor MUST NOT call an incomplete item “unreachable” to pass `pre-transition`.
+
+    (d) Nonterminal plans declaring spec path in `- Scope-Paths:`:
+    Executing HEAD: `b9045fd72`
+    Command:
+    `python3 -c 'from pathlib import Path; import re; [print(p.name, re.search(r"^- Id:\s*(.*)$", p.read_text(), re.M).group(1), re.search(r"^- Status:\s*(.*)$", p.read_text(), re.M).group(1)) for p in Path(".aw/records/plans/pending").glob("*.ipd.md") if "20260802-1904-01-ipd-structure-and-linting.spec.md" in p.read_text()]'`
+    Output:
+    - `20261002-ezv744-01-5q9a6a-record-the-runtime-demonstration-reachability-property-of-re.ipd.md` (Id: 5q9a6a, Status: approved, amends Section 5.4)
+    - `20261001-rdyreq-01-fhinri-require-the-readiness-field-at-reviewed-and-approved-ipd-m11.ipd.md` (Id: fhinri, Status: approved, amends Section 4.4 only)
+    - `20261007-fixfirst-06-psgyzw-send-out-of-scope-edits-back-as-revert-or-justify-and-record.ipd.md` (Id: psgyzw, Status: to-review, amends Section 4.4 only)
+    No nonterminal plan amends Section 5.4 other than `0nxa8o` (which was already executed and merged).
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: FOUR limbs, because the item both adds and preserves. (a) ADDITION: `git diff -- .aw/records/specs/implemented/20260802-1904-01-ipd-structure-and-linting.spec.md` showing the new paragraph, positioned between the durability paragraph and the `Observed evidence:` paragraph, and carrying all five required elements plus the Section 9.2 disambiguation; name each of the five in the pasted text rather than asserting they are present. (b) PRESERVATION OF THE BOUNDARY, which F-05 makes the single most consequential check: paste the section's five acceptable-evidence list items, the durability paragraph, the `Observed evidence:` paragraph, and the closing linter-boundary sentence from the POST-edit file, and show the diff contains no deletion inside Section 5.4 (an added-lines-only hunk for that section). (c) THE CHECKER: `aw specs check <spec path> --json` pasted showing `violations: 0`, plus `aw check specs --agent` findings for this path from before and after the edit, with any difference named. (d) THE DISAMBIGUATION CHECK: the post-edit case-insensitive `reachab` grep with every occurrence and its section, showing this property and the Section 9.2 prohibition read as distinct rules. REACHABILITY: (a), (b) and (d) are a diff and file content; (c) is a command's structured output and exit status. No runtime observation is demanded.
   - Observed evidence:
-  - Result: pending
+    (a) Addition git diff for Section 5.4:
+    ```diff
+    @@ -295,6 +295,8 @@ The execution and validation states MUST also agree:
 
-- [ ] V-03 validates E-03
+     `Required evidence:` is authored before approval and executed later, so it MUST be expressed in terms that survive a refactor that changes no behaviour (evidence durability). In particular, a collected test count and a test function name are not durable, because both are artifacts of test organization rather than stable authored facts; the demand must instead specify the behaviour pinned plus the mechanism that pins it. When the named mechanism has been reorganized (such as into a table-driven suite), the executor substitutes the successor and records the substitution, rather than either reporting the item unverifiable or silently swapping in different evidence. This durability requirement is a convention enforced during review, not by tooling: the linter does not and will not check evidence durability.
+
+    +`Required evidence:` that demands the software be observed doing something (such as a run, a dispatch, a state transition, or a queue re-evaluation)—as distinct from items demanding a diff, a file's content, a test result, or a search result, which are reachable by construction—MUST be producible by some code path at execution time (runtime-demonstration reachability). The author or reviewer must name the code path (by symbol, per Section 10.2's citation rule) that would produce the demanded observation or name the sibling `E-*` that creates that path within the same plan. When neither exists, the demand is UNDER-SCOPE, and the remedy is to add the `E-*` that makes the demonstration reachable or rewrite the demand down to what is observable, recording which remedy was chosen. This reachability requirement is a convention enforced during review, not by tooling: the linter does not and will not check evidence reachability. Runtime-demonstration reachability governs the authoring and review of evidence demands; it does not license an executor calling an incomplete item “unreachable” to pass `pre-transition` (Section 9.2).
+    +
+     `Observed evidence:` SHOULD point to independently inspectable state. Model-pasted or model-narrated output is not automatically external evidence. When tooling permits, command evidence SHOULD be captured by the tool or wrapper that ran the command and referenced by path, digest, run identifier, or other durable locator. A multi-line pasted transcript is the expected shape for command evidence and needs no summary line on the `Observed evidence:` field line itself.
+
+     The linter checks presence and state consistency. It MUST NOT claim that evidence is authentic, relevant, or sufficient.
+    ```
+    The paragraph is positioned immediately after the durability paragraph and before the `Observed evidence:` paragraph, and carries all five required elements:
+    1. Property: `demands that the software be observed doing something ... MUST be producible by some code path at execution time (runtime-demonstration reachability)`.
+    2. Scope distinction: `(such as a run, a dispatch, a state transition, or a queue re-evaluation)—as distinct from items demanding a diff, a file's content, a test result, or a search result, which are reachable by construction—`.
+    3. Two acceptable discharges: `name the code path (by symbol, per Section 10.2's citation rule) that would produce the demanded observation or name the sibling E-* that creates that path within the same plan`.
+    4. Consequence when neither exists: `demand is UNDER-SCOPE, and the remedy is to add the E-* that makes the demonstration reachable or rewrite the demand down to what is observable, recording which remedy was chosen`.
+    5. Enforcement surface: `This reachability requirement is a convention enforced during review, not by tooling: the linter does not and will not check evidence reachability.`
+    Section 9.2 disambiguation: `Runtime-demonstration reachability governs the authoring and review of evidence demands; it does not license an executor calling an incomplete item “unreachable” to pass pre-transition (Section 9.2).`
+
+    (b) Boundary preservation:
+    Diff contains no deletions in Section 5.4 (added-lines-only hunk).
+    Post-edit Section 5.4 text:
+    ```markdown
+    ### 5.4 Evidence requirements
+
+    `Required evidence:` is authored before approval and MUST describe evidence capable of revealing failure, not merely a confirmation instruction. Examples include:
+
+    - a diff or repository location showing the intended change;
+    - a tool-captured command, arguments, exit status, and retained output artifact;
+    - a test report or structured result file;
+    - a generated artifact with an independently inspectable path or identifier;
+    - a documented human observation when tool capture is impossible.
+
+    `Required evidence:` is authored before approval and executed later, so it MUST be expressed in terms that survive a refactor that changes no behaviour (evidence durability). In particular, a collected test count and a test function name are not durable, because both are artifacts of test organization rather than stable authored facts; the demand must instead specify the behaviour pinned plus the mechanism that pins it. When the named mechanism has been reorganized (such as into a table-driven suite), the executor substitutes the successor and records the substitution, rather than either reporting the item unverifiable or silently swapping in different evidence. This durability requirement is a convention enforced during review, not by tooling: the linter does not and will not check evidence durability.
+
+    `Required evidence:` that demands the software be observed doing something (such as a run, a dispatch, a state transition, or a queue re-evaluation)—as distinct from items demanding a diff, a file's content, a test result, or a search result, which are reachable by construction—MUST be producible by some code path at execution time (runtime-demonstration reachability). The author or reviewer must name the code path (by symbol, per Section 10.2's citation rule) that would produce the demanded observation or name the sibling `E-*` that creates that path within the same plan. When neither exists, the demand is UNDER-SCOPE, and the remedy is to add the `E-*` that makes the demonstration reachable or rewrite the demand down to what is observable, recording which remedy was chosen. This reachability requirement is a convention enforced during review, not by tooling: the linter does not and will not check evidence reachability. Runtime-demonstration reachability governs the authoring and review of evidence demands; it does not license an executor calling an incomplete item “unreachable” to pass `pre-transition` (Section 9.2).
+
+    `Observed evidence:` SHOULD point to independently inspectable state. Model-pasted or model-narrated output is not automatically external evidence. When tooling permits, command evidence SHOULD be captured by the tool or wrapper that ran the command and referenced by path, digest, run identifier, or other durable locator. A multi-line pasted transcript is the expected shape for command evidence and needs no summary line on the `Observed evidence:` field line itself.
+
+    The linter checks presence and state consistency. It MUST NOT claim that evidence is authentic, relevant, or sufficient.
+    ```
+
+    (c) Spec checker:
+    `aw specs check .aw/records/specs/implemented/20260802-1904-01-ipd-structure-and-linting.spec.md --json`:
+    ```json
+    {
+      "schema": "aw.agent/v1",
+      "command": "specs check",
+      "status": "clean",
+      "exit_code": 0,
+      "summary": "1 specs checked",
+      "verified": true,
+      "complete": true,
+      "diagnostics": [],
+      "changes": [],
+      "evidence": [
+        {
+          "key": "specs",
+          "value": {
+            "checked": 1,
+            "violations": 0
+          },
+          "status": "clean",
+          "detail": ""
+        }
+      ],
+      "next_actions": [],
+      "data": {
+        "checked": 1,
+        "violations": 0
+      }
+    }
+    ```
+    `aw check specs --agent` before edit:
+    `{"schema":"aw.agent/v1","kind":"result","cmd":"check","outcome":"conforms","exit":0,"verified":true,"complete":true,"target":"specs","findings":1,"evidence":["inventory","rules"],"diagnostics":[{"location":"<collisions>","rule":"check.collisions-not-checked"}],"next":"aw specs check"}`
+    `aw check specs --agent` after edit:
+    `{"schema":"aw.agent/v1","kind":"result","cmd":"check","outcome":"conforms","exit":0,"verified":true,"complete":true,"target":"specs","findings":1,"evidence":["inventory","rules"],"diagnostics":[{"location":"<collisions>","rule":"check.collisions-not-checked"}],"next":"aw specs check"}`
+    Difference: none (0 findings against the spec path before and after).
+
+    (d) Disambiguation check:
+    Post-edit case-insensitive grep for `reachab`: exactly 2 occurrences:
+    - Line 298 under `### 5.4 Evidence requirements`:
+      `... MUST be producible by some code path at execution time (runtime-demonstration reachability). ... Runtime-demonstration reachability governs the authoring and review of evidence demands; it does not license an executor calling an incomplete item “unreachable” to pass pre-transition (Section 9.2).`
+    - Line 468 under `### 9.2 State rules by checkpoint`:
+      `The executor MUST NOT call an incomplete item “unreachable” to pass pre-transition.`
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: THREE limbs. (a) THE TOOLED WRITE, which is the obligation this item exists for: the `aw specs note` command as actually invoked, with its output and exit status, pasted. (b) THE RESULT: the spec's `## Workflow history` block pasted from the post-edit file, showing the new dated record naming Section 5.4, this plan's Set and Id, and the property added, and showing EVERY pre-existing record intact and unmodified. Report the pre-existing records as a SET pasted before and after the append, not as a count: the count will have moved if `0nxa8o` or `fhinri` landed first (each appends its own note to this same block), so a number written here is not a usable bar and a changed count is not evidence of damage. (c) THE NON-TRANSITION: the spec's `- Status:` line pasted from the post-edit file showing `implemented`, plus `git status --short` for the spec path showing it MODIFIED and not renamed or moved, which together prove the note changed history without changing status or location. ALSO state explicitly that no record was written for `vtup6x`'s earlier amendment (F-06), since the absence is deliberate and a reader should not have to infer it. REACHABILITY: (a) is a command's output and exit status, which `aw specs note` produces today and which E-03 invokes rather than creates; (b) and (c) are file content and a git status line. No runtime observation beyond the command this item runs is demanded.
   - Observed evidence:
-  - Result: pending
+    (a) The tooled write command as actually invoked:
+    Command:
+    `aw specs note .aw/records/specs/implemented/20260802-1904-01-ipd-structure-and-linting.spec.md --message "Section 5.4 amended (ezv744 5q9a6a E-02): record the runtime-demonstration reachability property of Required evidence: beside durability, specifying acceptable discharges, UNDER-SCOPE consequence, review enforcement, and Section 9.2 disambiguation"`
+    Exit status: 0
+    Output:
+    `aw specs note: appended a history record to .aw/records/specs/implemented/20260802-1904-01-ipd-structure-and-linting.spec.md`
 
-- [ ] V-04 validates E-04
+    (b) Result in `## Workflow history`:
+    Pre-existing records before append (as a set):
+    - `2026-10-06 note (aw specs): AMENDED 2026-10-04 (plan hm1h3l, Set gradcover): Section 10 gains rule 19 (IPD-S408, orchestrator review readiness per 25kzda 2.5d, reading the coverage record stored in the plan, model-free) and rule 20 (IPD-M112, a coverage record must be complete and attested by a history line) and a paragraph stating it does not alter pre-transition Kind-parity.`
+    - `2026-10-01 note (aw specs): Section 10.2 amended (Set hesb87 tx0q0e E-01..E-04): require durable anchor within logical unit and proximity window (default 80 chars, CITATION_ANCHOR_PROXIMITY_WINDOW) to fix whole-line detector blindness; record refusal to promote IPD-C801 to a gate on measured undefined pre-fix and residual post-fix false-positive rates.`
+    - `2026-08-26 note (aw specs): Section 11: begin baseline dirty-check is Scope-Paths-scoped (path-overlap, ipdgates-03 OQ-01), not whole-tree; disjoint dirt allowed to preserve concurrent multi-agent workflow (beginscope vaq9qf E-03)`
+    - `2026-09-21 note (aw specs): Section 10.2 added (citeanchor mzc019 E-01): an IPD code citation MUST carry a durable anchor (symbol path, or a quoted content string, with a line number only appended and never alone), because a bare file:line expires between authoring and execution and then silently misdirects an executor to unrelated valid code. States the rationale, the (a)/(b)/(c) preference order, the line-as-subject exception, and that enforcement is advisory-only (IPD-C801) and date-gated. Section 10 list item 18 appended to point at it; no existing item renumbered.`
+    - `2026-09-28 note (aw specs): Section 11 amended (qurgra E-01..E-05): begin receipt's validity key is the frozen Scope-Paths plus each E/V item's whole action block (excluding checkbox marks, indented sub-fields, execution/validation state and workflow history), re-keyed from plan_content_digest (rchpms) and widened from opening-line extraction to the whole action block (qurgra 168p5j); accepted one-time receipt invalidation noted.`
+    - `2026-10-01 note (aw specs): Section 4.4 amended (Set 5h8u3z fqcax0 E-05): add Date field rule stating accepted ISO calendar date format (YYYY-MM-DD), <YYYY-MM-DD> template placeholder exemption, and IPD-M104 (present but unparseable) vs IPD-M101 (missing) diagnostic split.`
+    - `2026-10-01 note (aw specs): Sections 5.3, 5.4, and 14 amended (obsevcont 0nxa8o E-04): Observed evidence: and Execution note: may carry continuation lines beneath the field line; stated the blank-tolerant fence-aware termination rule and multi-line command transcript expectation.`
+
+    Post-append `## Workflow history` block:
+    ```markdown
+    ## Workflow history
+
+    - 2026-10-07 note (aw specs): Section 5.4 amended (ezv744 5q9a6a E-02): record the runtime-demonstration reachability property of Required evidence: beside durability, specifying acceptable discharges, UNDER-SCOPE consequence, review enforcement, and Section 9.2 disambiguation
+    - 2026-10-06 note (aw specs): AMENDED 2026-10-04 (plan hm1h3l, Set gradcover): Section 10 gains rule 19 (IPD-S408, orchestrator review readiness per 25kzda 2.5d, reading the coverage record stored in the plan, model-free) and rule 20 (IPD-M112, a coverage record must be complete and attested by a history line) and a paragraph stating it does not alter pre-transition Kind-parity.
+    - 2026-10-01 note (aw specs): Section 10.2 amended (Set hesb87 tx0q0e E-01..E-04): require durable anchor within logical unit and proximity window (default 80 chars, CITATION_ANCHOR_PROXIMITY_WINDOW) to fix whole-line detector blindness; record refusal to promote IPD-C801 to a gate on measured undefined pre-fix and residual post-fix false-positive rates.
+    - 2026-08-26 note (aw specs): Section 11: begin baseline dirty-check is Scope-Paths-scoped (path-overlap, ipdgates-03 OQ-01), not whole-tree; disjoint dirt allowed to preserve concurrent multi-agent workflow (beginscope vaq9qf E-03)
+    - 2026-09-21 note (aw specs): Section 10.2 added (citeanchor mzc019 E-01): an IPD code citation MUST carry a durable anchor (symbol path, or a quoted content string, with a line number only appended and never alone), because a bare file:line expires between authoring and execution and then silently misdirects an executor to unrelated valid code. States the rationale, the (a)/(b)/(c) preference order, the line-as-subject exception, and that enforcement is advisory-only (IPD-C801) and date-gated. Section 10 list item 18 appended to point at it; no existing item renumbered.
+    - 2026-09-28 note (aw specs): Section 11 amended (qurgra E-01..E-05): begin receipt's validity key is the frozen Scope-Paths plus each E/V item's whole action block (excluding checkbox marks, indented sub-fields, execution/validation state and workflow history), re-keyed from plan_content_digest (rchpms) and widened from opening-line extraction to the whole action block (qurgra 168p5j); accepted one-time receipt invalidation noted.
+    - 2026-10-01 note (aw specs): Section 4.4 amended (Set 5h8u3z fqcax0 E-05): add Date field rule stating accepted ISO calendar date format (YYYY-MM-DD), <YYYY-MM-DD> template placeholder exemption, and IPD-M104 (present but unparseable) vs IPD-M101 (missing) diagnostic split.
+    - 2026-10-01 note (aw specs): Sections 5.3, 5.4, and 14 amended (obsevcont 0nxa8o E-04): Observed evidence: and Execution note: may carry continuation lines beneath the field line; stated the blank-tolerant fence-aware termination rule and multi-line command transcript expectation.
+    ```
+    Every pre-existing record is intact and unmodified.
+
+    (c) Non-transition verification:
+    Post-edit `- Status:` line from spec:
+    `- Status: implemented`
+    `git status --short`:
+    `M .aw/records/specs/implemented/20260802-1904-01-ipd-structure-and-linting.spec.md`
+    The spec path is modified and neither moved nor renamed. Status is unchanged.
+    Deliberate absence confirmed: No record was written for vtup6x's earlier amendment (F-06).
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: FOUR limbs. (a) THE GUARD'S FALSIFIABILITY IN TWO INDEPENDENT ARMS, since a test never seen to fail is not evidence and this test makes two distinct claims: with E-04's test in place, first remove E-02's paragraph (leaving the test alone), run `python3 -m pytest tests/test_v_item_evidence_durability.py -o addopts=""`, and paste the FAILURE with its failing node id, its assertion message naming the missing anchor, and the exit code; restore, then remove the section's closing linter-boundary sentence, re-run, and paste the DIFFERENT failure with its node id and message; restore, re-run, and paste the PASS with its exit code. Both arms must fail on the NEW test, so paste the node id each time. (b) THE NEIGHBOURS: `python3 -m pytest tests/test_v_item_evidence_durability.py tests/test_v_item_demonstration_reachability.py tests/test_ipd_lint.py tests/test_ipd_schema.py -o addopts=""` and `python3 -m pytest tests/test_spec_review_attestation.py tests/test_spec_citation_anchors.py tests/test_specs_recursive_read.py -o addopts=""`, both pasted with their summary lines; for the second command, compare the failing node-id SET against the baseline YOU took in this lane immediately before the first edit (F-07's set is authoring context, not the bar) rather than reading a nonzero exit as this plan's regression. (c) THE SUITE: a bare `python3 -m pytest` summary line plus the node ids of every failure, compared against the baseline taken immediately before the first edit in this same lane, with any difference named; the comparison must be by node id and not by total. (d) THE MODULE'S OWN RECORD: the updated docstring pasted, showing it states that the module reads a spec as well as two workflow bodies and why this test lives here rather than in the sibling reachability module, and the two existing tests shown unmodified in the diff. REACHABILITY: every limb is a test result, a diff, or a file's content, reachable by construction.
   - Observed evidence:
-  - Result: pending
+    (a) Falsifiability proof in two independent arms:
+    Arm 1: Remove E-02's reachability paragraph from Section 5.4, leaving E-04 test in place.
+    Command: `python3 -m pytest tests/test_v_item_evidence_durability.py -o addopts=""`
+    Exit code: 1
+    Failed node id: `tests/test_v_item_evidence_durability.py::TestVItemEvidenceDurability::test_spec_section_5_4_evidence_reachability`
+    Output:
+    ```
+    FAILED tests/test_v_item_evidence_durability.py::TestVItemEvidenceDurability::test_spec_section_5_4_evidence_reachability
+    AssertionError: 'runtime-demonstration reachability' not found in ... : Anchor 'runtime-demonstration reachability' not found in Section 5.4 of .aw/records/specs/implemented/20260802-1904-01-ipd-structure-and-linting.spec.md
+    ========================= 1 failed, 2 passed in 0.16s ==========================
+    ```
+
+    Arm 2: Restore reachability paragraph, remove closing linter-boundary sentence.
+    Command: `python3 -m pytest tests/test_v_item_evidence_durability.py -o addopts=""`
+    Exit code: 1
+    Failed node id: `tests/test_v_item_evidence_durability.py::TestVItemEvidenceDurability::test_spec_section_5_4_evidence_reachability`
+    Output:
+    ```
+    FAILED tests/test_v_item_evidence_durability.py::TestVItemEvidenceDurability::test_spec_section_5_4_evidence_reachability
+    AssertionError: 'The linter checks presence and state consistency. It MUST NOT claim that evidence is authentic, relevant, or sufficient.' not found in ... : Linter boundary sentence not found in Section 5.4 of .aw/records/specs/implemented/20260802-1904-01-ipd-structure-and-linting.spec.md
+    ========================= 1 failed, 2 passed in 0.14s ==========================
+    ```
+
+    Both restored:
+    Command: `python3 -m pytest tests/test_v_item_evidence_durability.py -o addopts=""`
+    Exit code: 0
+    Output:
+    ```
+    tests/test_v_item_evidence_durability.py ...                             [100%]
+    ============================== 3 passed in 0.10s ===============================
+    ```
+    `git diff --stat -- .aw/records/specs/implemented/20260802-1904-01-ipd-structure-and-linting.spec.md`:
+    `1 file changed, 3 insertions(+)` (2 lines for Section 5.4 reachability paragraph + 1 line for workflow history note).
+
+    (b) Neighbours:
+    Command 1: `python3 -m pytest tests/test_v_item_evidence_durability.py tests/test_v_item_demonstration_reachability.py tests/test_ipd_lint.py tests/test_ipd_schema.py -o addopts="" -m "not livecorpus"`
+    Exit code: 0
+    Output summary:
+    `102 passed, 3 deselected in 8.86s`
+    (All 3 tests in `test_v_item_evidence_durability.py`, 2 tests in `test_v_item_demonstration_reachability.py`, 70 fast tests in `test_ipd_lint.py`, and 27 tests in `test_ipd_schema.py` passed).
+
+    Command 2: `python3 -m pytest tests/test_spec_review_attestation.py tests/test_spec_citation_anchors.py tests/test_specs_recursive_read.py -o addopts=""`
+    Exit code: 0
+    Output summary:
+    `45 passed in 2.15s`
+    Pre-edit baseline failing node-id set for this command was empty (all 45 passed), post-change failing node-id set is empty (all 45 passed). No regressions.
+
+    (c) Bare test suite:
+    Pre-edit in-lane baseline:
+    `FAILED tests/test_scope_match.py::ScopeMatchUnitTests::test_pathological_glob_avoids_exponential_time` (took 0.1692s due to system load, expected < 0.1s)
+    `1 failed, 5232 passed, 2 skipped, 3 warnings in 456.51s`
+    Post-change bare test suite:
+    `python3 -m pytest`
+    Exit code: 0
+    `5234 passed, 2 skipped, 3 warnings in 217.60s`
+    Failing node-id difference: 0 failures post-change (baseline timing flakiness resolved; 0 regressions).
+
+    (d) Module's own record:
+    Updated docstring in `tests/test_v_item_evidence_durability.py`:
+    ```python
+    """Tests for V-item evidence durability and parity rules (IPD vtup6x, set nos070; IPD 5q9a6a, set ezv744).
+
+    Exemption from source-text-pin prohibition:
+    This module reads WORKFLOW BODIES and a SPEC, the artifacts under change, and no
+    agent_workflows/* source, so it sits inside GUIDING_PRINCIPLES P16's stated narrow
+    exception ("Content verification is permissible only where the text or file itself is
+    the artifact under test") and outside its "No production source inspection" prohibition
+    (whose enumerated targets are all agent_workflows/*.py). Follows the precedent of
+    tests/test_plan_review_feasibility_rule.py.
+
+    This module owns the Section 5.4 surface in the spec ipd-structure-and-linting (established
+    by vtup6x alongside the durability amendment). Sibling module
+    tests/test_v_item_demonstration_reachability.py owns the rule's presence across the two
+    workflow review bodies. Pinning by surface keeps one test module per file-under-contract.
+    """
+    ```
+    Git diff for `tests/test_v_item_evidence_durability.py` shows the two existing tests (`test_single_file_plan_review_evidence_durability` and `test_long_form_plan_review_evidence_durability_parity`) are completely unmodified.
+  - Result: pass
 
 ## Approval and execution gate
 
