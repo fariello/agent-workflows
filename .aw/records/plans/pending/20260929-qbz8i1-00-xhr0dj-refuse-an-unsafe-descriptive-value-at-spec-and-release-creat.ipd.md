@@ -6,9 +6,10 @@
 - Scope: Orchestrate three children that together close the descriptive-value write paths (`uz05bl`), the filename derivation (`ribg85`), and the checker coverage (`ynhst5`) for the `specs` and `releases` trees. This plan holds ORCHESTRATION ONLY: every deliverable belongs to a child, and this file contributes no code, no test and no records repair of its own. EXCLUDES, in every child without exception: minting a new rule id, changing `attention_contract.is_safe_descriptive` or `MAX_DESCRIPTIVE_LEN`, changing the on-disk record grammar, guarding the shared positional `aw <tree> set` setter, and bounding a history-record message on LENGTH.
 - Scope-Paths: .aw/records/plans/pending/20260929-qbz8i1-00-xhr0dj-refuse-an-unsafe-descriptive-value-at-spec-and-release-creat.ipd.md
 - Item-Dependencies: none
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
 - Coverage: pass
-- Coverage-Fingerprint: ac87cdabcc3c90cf965224925cf7b0292df14314abafe181e9f3523eb6f4eb99
+- Coverage-Fingerprint: 87f85a3fe477e202d958f343bd304b715ffe81f2a1e2b4617294f8d21c53e6c1
 - Coverage-Checked: 2026-10-07 by uri/its_direct/pt3-claude-opus-5.5-1m-us
 - Work-Kind: bug
 - Priority: medium
@@ -21,6 +22,10 @@
 - Id: xhr0dj
 
 ## Workflow history
+- 2026-10-07 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-601 (MEDIUM, fixed), PR-602 (LOW, fixed), PR-603 (LOW, fixed), PR-604 (LOW, fixed). All three children re-verified executed with the evidence V-01..V-03 demand present; the four vectors were re-driven and all refused on the current tree; bare suite 5233 passed, 2 skipped; aw check specs/releases conforms. PR-601: the 'aw check all CLEAN' bar was unsatisfiable (exit 1 on unrelated findings), restated as no attention.unsafe-field finding and no worse than baseline. Coverage loop: 2 attempts, rows 3 -> 3. Record: .aw/records/reviews/20260929-qbz8i1-00-xhr0dj-refuse-an-unsafe-descriptive-value-at-spec-and-release-creat.review.md.
+- 2026-10-07 coverage pass (aw oc run): fingerprint 87f85a3fe477, model uri/its_direct/pt3-claude-opus-5.5-1m-us
+- 2026-10-07 coverage fail (aw oc run): fingerprint 7ec13aad3cdf, model uri/its_direct/pt3-claude-opus-5.5-1m-us
+- 2026-10-07 coverage pass (aw oc run): fingerprint c11a8b1ee377, model uri/its_direct/pt3-claude-opus-5.5-1m-us
 - 2026-10-07 to-review (aw set): returned to review: every child executed; each completion criterion and the Set-level gate names its owning child; coverage pass recorded
 - 2026-10-07 coverage pass (aw oc run): fingerprint ac87cdabcc3c, model uri/its_direct/pt3-claude-opus-5.5-1m-us
 - 2026-10-07 note (opencode its_direct/pt3-claude-opus-5.5-1m-us): every child is executed; each completion criterion and the Set-level gate now names the child that performed it.
@@ -74,10 +79,10 @@ FILE OVERLAP IS REAL AND IS NOT A HAZARD, stated explicitly because two children
 
 1. No value a user passes to `aw specs new`, `aw specs set`, `aw specs note` or `aw releases new` can place a metadata bullet, a history record, or a `- Status:` value into a record that the author did not write. Concretely: the `--title` injection no longer makes `specs._read_status` return `approved`, and the `--summary` injection no longer makes a smuggled `- Blocks-Release:` parse as the record's gate. Owner: Order 01 `uz05bl` (executed).
 2. `aw specs new` cannot write a file outside the tree `aw specs check` walks, for ANY `--date` value, and cannot stamp a date that is not a real calendar date. Owner: Order 02 `ribg85` (executed).
-3. An over-length or control-character descriptive field in a committed spec or release record is a named `attention.unsafe-field` finding rather than silently valid text, and `aw check specs` / `aw check releases` / `aw check all` are CLEAN on the repository tree after the Set, with no grandfather tier added. Owner: Order 03 `ynhst5` (executed).
+3. An over-length or control-character descriptive field in a committed spec or release record is a named `attention.unsafe-field` finding rather than silently valid text, and `aw check specs` / `aw check releases` exit 0 (`conforms`) on the repository tree after the Set while `aw check all` reports NO `attention.unsafe-field` finding and no more findings than its pre-change baseline, with no grandfather tier added. CORRECTED AT REVIEW 2026-10-07 (PR-601): the authored bar was `aw check all` CLEAN, which is unsatisfiable because that command exits 1 on unrelated pre-existing findings (ynhst5 V-05 recorded 72, "identical to pre-change baseline"; re-measured at review 68, exit 1, none `attention.unsafe-field`). Owner: Order 03 `ynhst5` (executed).
 4. THE NEWLINE VECTOR IS CLOSED AT THE WRITE PATH AND IS NOT CLAIMED TO BE CLOSED AT THE CHECKER. This is stated as a completion criterion because it is the Set's one irreducible asymmetry: measured, the value is split into separate lines before validation, so a checker is handed only the safe half. Order 03 carries a test asserting this limit so the record cannot later be misread. Owner: Order 03 `ynhst5` (executed).
 5. `python3 -m pytest` is green, with the baseline re-derived by each child at execution rather than taken from any plan's prose. Owner: each child at its own boundary (all three executed).
-6. Every residue measured while authoring is owned by a durable carrier rather than by prose: `nw9dmz` (the shared positional setter), `7w6zsl` (`aw research new` summary injection), `m5csyi` (`aw research new` date traversal), `llnvwj` (Markdown escaping). Owner: the three children, each filing the carriers it measured (all executed).
+6. Every residue measured while authoring is owned by a durable carrier rather than by prose: `nw9dmz` (the shared positional setter), `7w6zsl` (`aw research new` summary injection), `m5csyi` (`aw research new` date traversal), `llnvwj` (Markdown escaping). Owner: `uz05bl` (cites `nw9dmz`, `7w6zsl`), `ribg85` (cites `m5csyi`) and `ynhst5` (cites `7w6zsl`, `llnvwj`) in their `- Carrier:` rows, all executed; at review all four carriers resolved to a backlog item plus a pending plan.
 
 ## Cross-IPD validation
 
@@ -102,7 +107,7 @@ FILE OVERLAP IS REAL AND IS NOT A HAZARD, stated explicitly because two children
 - AN ORCHESTRATOR HOLDS ORCHESTRATION, NOT WORK OF ITS OWN. Every row in this plan's checklist is a child confirmation; the reasoning lives on the continuation lines. The runner RETIRES a parent once every child is `executed` and deliberately SKIPS the pre-transition E/V checkpoint, so a step parked here would be marked complete having never run (AGENTS.md).
 - THE ORCHESTRATOR COVERAGE GATE asks a model whether a parent carries work no child covers and refuses a run unattended when it does. This parent was authored to pass it by construction: each of the three deliverables is owned by exactly one child and named in the table above, and the two committed-spec repairs live in Order 03's `- Scope-Paths:` rather than here.
 - Cite code by SYMBOL (`module.function`) or by a quoted content string, with a line number only appended to one of those and never alone (spec `ipd-structure-and-linting` Section 10.2; advisory `IPD-C801`).
-- The suite is run BARE (`python3 -m pytest`); `pyproject.toml` `addopts` already supplies `-q -n auto --dist=worksteal -m 'not slow'` (AGENTS.md).
+- The suite is run BARE (`python3 -m pytest`); `pyproject.toml` `addopts` already supplies `-q -n auto --dist=worksteal -m 'not slow and not livecorpus'` (AGENTS.md; corrected at review, PR-602).
 - Commit through `aw commit <plan> -- <paths>`, never `git add -A`; verify the staged set, since this checkout is shared (AGENTS.md).
 
 ## Project conventions discovered (Step 0)
@@ -137,7 +142,9 @@ FILE OVERLAP IS REAL AND IS NOT A HAZARD, stated explicitly because two children
 
 This plan runs no tests of its own. Each child declares its own targeted regression set, its own new test module, and a bare full-suite run, and each requires PRE-FIX FALSIFICATION rather than only a passing post-fix run.
 
-Owner of each Set-level check below: Order 03 `ynhst5`, which ran last and whose V-items record `aw check specs --agent` and `aw check releases --agent` conforming on the repository tree; Orders 01 `uz05bl` and 02 `ribg85` each ran their own regression set and full suite at their boundary. All three are executed. The checks, for the record: `aw specs check --agent`, `aw check specs --agent`, `aw check releases --agent` and `aw check all` must ALL report clean or conforms on the repository tree, and `python3 -m pytest` (bare) must be green. Re-derive every count at execution rather than trusting any figure in these plans.
+Owner of each Set-level check below: Order 03 `ynhst5`, which ran last and whose V-items record `aw check specs --agent` and `aw check releases --agent` conforming on the repository tree; Orders 01 `uz05bl` and 02 `ribg85` each ran their own regression set and full suite at their boundary. All three are executed. The checks, for the record: `aw specs check --agent`, `aw check specs --agent` and `aw check releases --agent` must report clean or conforms (exit 0) on the repository tree; `aw check all` must carry no `attention.unsafe-field` finding and be no worse than its pre-change baseline (it exits 1 on unrelated findings, PR-601); and `python3 -m pytest` (bare) must be green. Re-derive every count at execution rather than trusting any figure in these plans.
+
+[Owner: ynhst5 (last child, combined tree); measured at review 2026-10-07, HEAD `f11c04431`, nothing outstanding] Re-check on the tree containing all three children: bare `python3 -m pytest` reported `5233 passed, 2 skipped, 3 warnings in 768.38s (0:12:48)`, 256 deselected; `aw check specs --agent` and `aw check releases --agent` reported `conforms`, exit 0; `aw specs check --agent` reported `clean`, 40 checked; `aw check all --agent` reported 68 findings, exit 1, none `attention.unsafe-field`. In a fixture repo nested three directories deep, the four vectors were all refused: `--title $'Legit\n- Status: approved'` gave `--title must not contain embedded newlines`; `--date ../../../../ESC` and `--date 9999-99-99` gave `--date must be YYYY-MM-DD`; `releases new --summary $'ok\n- Blocks-Release: next'` gave `--summary must not contain embedded newlines`; and no file was written outside the specs tree. All four carriers resolve (`nw9dmz`, `7w6zsl`, `m5csyi`, `llnvwj` each have a backlog item and a pending plan).
 
 ## Open questions
 
@@ -145,7 +152,7 @@ Owner of each Set-level check below: Order 03 `ynhst5`, which ran last and whose
 
 - Blocking: no
 - Status: resolved
-- Owner: none
+- Owner: plan author
 - Resolution or deferral rationale: RESOLVED FROM MEASUREMENT: three plans, because no single mechanism closes all three defects and a combined plan would have implied otherwise. Driven: `attention_contract.is_safe_descriptive('../../../../outside/pwned')` returns **True**, so the descriptive guard Order 01 adds provably cannot detect Order 02's traversal; and a newline-injected value is split into separate lines before any validator runs, so Order 03's checker rule provably cannot detect Order 01's vector. The shared-file argument is real but weak: Orders 01 and 02 both edit `specs.run_new`, in different statements, and the runner isolates lanes and merges through a revalidation gate, so overlap costs a merge rather than correctness. The decisive consideration is REVIEWABILITY of evidence: each child needs a differently-shaped falsification (a parsed forged status, an escaped file on disk, a validator returning `[]`), and one plan would have carried three unrelated pre-fix runs under one checklist where a reviewer could not tell which finding each one falsified. Order 03 additionally edits two committed `.spec.md` records, which is a declared spec edit the runners announce; keeping that in its own plan means a reviewer can judge that records repair on its own.
 
 ## Validation and cross-check (verify before reporting the Set complete)
@@ -163,7 +170,7 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Result: pending
 
 - [ ] V-03 validates E-03
-  - Required evidence: paste the `- Status:` line of `ynhst5` read from disk showing `executed`, and its path. Then paste, from that plan's validation section, the whole-tree census showing ZERO unsafe descriptive values after its E-01 repair, the `aw check specs` / `aw check releases` / `aw check all` clean outputs proving `error` severity needed no grandfather tier, and the NEWLINE-LIMIT test showing the injection case yields no finding, which is Set completion criterion 4.
+  - Required evidence: paste the `- Status:` line of `ynhst5` read from disk showing `executed`, and its path. Then paste, from that plan's validation section, the whole-tree census showing ZERO unsafe descriptive values after its E-01 repair, the `aw check specs` / `aw check releases` exit-0 outputs and the `aw check all` result showing no `attention.unsafe-field` finding and no change from its baseline (PR-601), proving `error` severity needed no grandfather tier, and the NEWLINE-LIMIT test showing the injection case yields no finding, which is Set completion criterion 4.
   - Observed evidence:
   - Result: pending
 

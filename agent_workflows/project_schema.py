@@ -89,11 +89,10 @@ class RootClass(str, Enum):
     shipped leak sanitizer reports ``home-path`` and ``handle`` on a real one, exit 1. Tracking them
     would publish the operator's home directory and username into permanent git history.
 
-    SO THE PLACEMENT VALUE IS NOT THE AUTHORITY ON TRACKEDNESS for this one class, and a reader who
-    needs to know whether a path is committed should consult the gitignore, not this enum. The
-    remaining divergence (a preset that still SAYS ``target-tracked`` for a tree that is ignored) is
-    recorded in backlog ``2812t3`` rather than fixed here, because changing preset output is a
-    contract change with its own blast radius.
+    SO THE PLACEMENT VALUE AND GIT POLICY ALIGN WITH THE GITIGNORE for this class: target-placement
+    presets declare ``target-ignored`` / ``ignored``, matching the framework ``.aw/.gitignore``
+    template's ``/state/`` rule (D92 leak containment). The former divergence recorded in backlog
+    ``2812t3`` is resolved by IPD gi1w75.
     """
 
     SYSTEM = "system"
@@ -280,7 +279,8 @@ PRESET_PLACEMENTS: Dict[str, Dict[str, str]] = {
         RootClass.SYSTEM.value: Placement.TARGET_TRACKED.value,
         RootClass.CONFIG_PROJECT.value: Placement.TARGET_TRACKED.value,
         RootClass.CONFIG_LOCAL.value: Placement.TARGET_IGNORED.value,
-        RootClass.STATE_DURABLE.value: Placement.TARGET_TRACKED.value,
+        # .aw/.gitignore ignores /state/ (engine._AW_GITIGNORE_TEMPLATE, D92 leak containment)
+        RootClass.STATE_DURABLE.value: Placement.TARGET_IGNORED.value,
         RootClass.STATE_RUNTIME.value: Placement.TARGET_IGNORED.value,
         RootClass.RECORDS.value: Placement.TARGET_TRACKED.value,
     },

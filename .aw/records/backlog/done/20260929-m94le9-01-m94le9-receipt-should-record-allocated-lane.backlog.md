@@ -1,5 +1,5 @@
 - Id: m94le9
-- Status: graduated
+- Status: done
 - Graduated-To: m94le9
 - Set: m94le9
 - Priority: low
@@ -7,6 +7,7 @@
 - Summary: Decide whether the begin receipt should record the allocated lane branch, making the lane-name enumerating resolver in plan iqtt8d unnecessary
 
 ## Workflow history
+- 2026-10-07 done (aw backlog): closed by aw agy run: IPD 42ertq executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20261001-m94le9-01-42ertq-record-the-allocated-lane-in-the-begin-receipt-so-the-scope.ipd.md); evidence .aw/records/plans/executed/20261001-m94le9-01-42ertq-record-the-allocated-lane-in-the-begin-receipt-so-the-scope.ipd.md
 - 2026-10-01 set (aw backlog): graduated by run run-20260930T053059Z-3200713: 42ertq
 - 2026-09-29 created (aw backlog): Filed as the durable carrier for OQ-02 of plan iqtt8d (Set fkmjoy).
 

@@ -62,10 +62,10 @@ The resolver returns each physical class separately: `system`, `config_project`,
 | `system/` | `VERSION`, `manifest.json`, `workflows/`, `templates/`, packaged skills and deterministic helpers | AW CLI in installed projects; developers in a verified source checkout | Tracked only when policy says `target-tracked` or role is `source-checkout`; otherwise external and untracked from target |
 | `config/project.json` | schema version, preset, portable placements, tracking intent, enabled hosts, non-secret consent | Human plus schema-aware AW commands | MAY be tracked in its selected Git owner; MUST contain no absolute machine path or secret |
 | `config/local.json` | absolute bindings, path aliases, local companion attachment, runtime overrides, host-local facts | Human plus schema-aware AW commands | MUST NOT be tracked in any repository |
-| `state/durable/install.json` | current successful install snapshot | AW CLI | MAY be tracked according to policy |
-| `state/durable/history/installs.jsonl` | append-only attempted/completed install history | AW CLI | MAY be tracked according to policy |
-| `state/durable/actions/{open,completed,dismissed,superseded}/` | AW operational actions such as `setup-repo-v2.md` | `aw todo` owner commands and documented hooks | MAY be tracked according to policy |
-| `state/durable/migrations/` | redacted migration receipts, retained-source map, recovery instructions | migration owner commands | MAY be tracked only after sanitization |
+| `state/durable/install.json` | current successful install snapshot | AW CLI | MAY be tracked according to policy (the shipped `.aw/.gitignore` ignores `state/` [D92], so policy no longer selects tracking) |
+| `state/durable/history/installs.jsonl` | append-only attempted/completed install history | AW CLI | MAY be tracked according to policy (the shipped `.aw/.gitignore` ignores `state/` [D92], so policy no longer selects tracking) |
+| `state/durable/actions/{open,completed,dismissed,superseded}/` | AW operational actions such as `setup-repo-v2.md` | `aw todo` owner commands and documented hooks | MAY be tracked according to policy (the shipped `.aw/.gitignore` ignores `state/` [D92], so policy no longer selects tracking) |
+| `state/durable/migrations/` | redacted migration receipts, retained-source map, recovery instructions | migration owner commands | MAY be tracked only after sanitization (the shipped `.aw/.gitignore` ignores `state/` [D92], so policy no longer selects tracking) |
 | `state/runtime/transactions/` | active journals and staging metadata | AW CLI | MUST NOT be tracked |
 | `state/runtime/{locks,staging,backups,cache,tmp}/` | locks, candidates, rollback scratch, caches, transient output | AW CLI | MUST NOT be tracked |
 | `records/` | `plans/`, `prompts/`, `docs/specs/`, `research/`, `assessments/`, `incidents/`, `comms/`, `runs/`, indexes and evidence | Producing workflows and humans under lifecycle rules | Track only in the explicitly selected Git owner |
@@ -96,7 +96,7 @@ Per-machine control state (`.aw/state/`, `.aw/config/local.json`, `.aw/records/r
 
 | Preset | System | Project config | Local config | Durable state | Runtime state | Records | Intended use |
 |---|---|---|---|---|---|---|---|
-| `private-target` | target tracked | target tracked | target ignored | target tracked | target ignored | target tracked | Permanently private repository; maximum portability and collaboration |
+| `private-target` | target tracked | target tracked | target ignored | target ignored | target ignored | target tracked | Permanently private repository; maximum portability and collaboration |
 | `public-private-companion` | target tracked | companion tracked | home untracked | companion tracked | home untracked | companion tracked | Public product repository with candid durable AW material in a separately access-controlled repository |
 | `clean-target` | home untracked | home untracked | home untracked | home untracked or companion tracked | home untracked | home untracked or companion tracked | Upstream contribution or zero AW-owned target delta |
 | `local-only` | home untracked | home untracked | home untracked | home untracked | home untracked | home untracked | Local use with honest `unversioned` durability until the user adds backup |
@@ -245,6 +245,7 @@ The top-level `legacy_crosswalk` in the catalog is controlling. Every old ID 1 t
 
 ## Workflow history
 
+- 2026-10-07 note (aw specs): Amend Section 6 preset table private-target Durable state to target ignored and Section 4.1 durable state rows with D92 ignore note (IPD gi1w75)
 - 2026-09-26 note (aw specs): Amend non-interactive default for install migrations to remove restricted to HEAD (o7k6lt)
 - 2026-09-25 note (aw specs): Amend Section 5 for repository-untracked backend (IPD lr0lln)
 - 2026-08-10 /spec (Codex (GPT-5)): drafted the superseding physical-layout specification from the maintainer-approved direction and the 2026-08-10 cross-Set plan review.

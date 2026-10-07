@@ -6,7 +6,8 @@
 - Scope: IN: an unconditional range check on the RESOLVED order, per plan, at both write sites (`plans_refs.plan_set_assign` for `aw group plans`, and the `aw rename plans` path in `plans_refs` that resolves `order` before calling `_validate_plan_order`), refusing a value outside 0 to 99 with exit 2 and nothing written, and NOT overridable by `--allow-invalid-order` (that flag overrides the Kind rule, not the grammar); make `_set_metadata` fail safe by widening `_ORDER_LINE_RE` to `-?\d+` and asserting the result carries exactly one `- Order:` line; apply the same widening to `artifact_rename._ORDER_LINE_RE`, its twin; a regression test. OUT: the Kind-conditional rule (`qhcojn`, executed; `xvi55d`, pending); repairing existing plans (the corpus is clean, re-measured at execution); any other verb.
 - Scope-Paths: agent_workflows/plans_refs.py, agent_workflows/artifact_rename.py, tests/test_plans_order_grammar.py
 - Item-Dependencies: none
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
 - From-Spec: none
 - Work-Kind: bug
 - Priority: low
@@ -19,6 +20,8 @@
 - Id: yqv6b7
 
 ## Workflow history
+- 2026-10-07 /plan-review (opencode uri/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004 (all fixed; record `.aw/records/reviews/20261007-negorder-01-yqv6b7-refuse-an-out-of-grammar-order-in-aw-group-and-aw-rename-and.review.md`)
+- 2026-10-07 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-001..PR-004 fixed
 - 2026-10-07 to-review (aw set): authored from backlog bmhoxe; all placeholders replaced, lints conforming
 
 - 2026-10-06 note (opencode its_direct/pt3-claude-opus-5.5-1m-us): authored the plan body from backlog `bmhoxe`, whose measurements and proposed fix are complete; every placeholder replaced. The item's "IF BUILT" section is the design; the range 0 to 99 is the two-digit `NN` facet the uniform naming grammar defines.
@@ -36,7 +39,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 - [ ] E-01 Add `plans_refs._order_grammar_error(order) -> Optional[str]` returning a message when `order` is not an integer in 0 to 99 inclusive (the two-digit `NN` facet), naming the value and the allowed range. Call it in `plan_set_assign` on each plan's RESOLVED order (`start_order + i`, or the preserved order) BEFORE `_validate_plan_order`, returning `(None, err)` so the caller exits 2 with nothing written. Do not let `allow_invalid_order` bypass it.
   - Depends on: none
-  - Expected outcome: `aw group plans <id6> --set s --order -1 --apply` exits 2, prints the range error, and leaves the file byte-identical; `--order 98` on two plans refuses the second (resolved 99 is allowed, 100 is not) and writes nothing for either.
+  - Expected outcome: `aw group plans <id6> --set s --order -1 --apply` exits 2, prints the range error, and leaves the file byte-identical; the same command WITHOUT `--apply` (preview) also exits 2, since `plan_set_assign` runs before `apply_renames`; `--order 99` on two plans resolves 99 then 100, refuses the second, and writes nothing for either (the whole batch is planned before any write, so an early `(None, err)` leaves both files untouched); `--order 98` on two plans (98, 99) succeeds.
   - Execution state: pending
 
 - [ ] E-02 Call the same check on the `aw rename plans` path in `plans_refs` after `order` is resolved (from `--order`, the front matter, or the filename) and before `_validate_plan_order`, returning exit 2 with nothing written; again not overridable by `--allow-invalid-order`.
@@ -46,16 +49,16 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 2: make the rewrite fail safe
 
-- [ ] E-03 Widen `_ORDER_LINE_RE` in `plans_refs` and `artifact_rename` to `(?m)^- Order:\s*(-?\d+)\s*$`, and in `plans_refs._set_metadata` assert after the rewrite that the text contains exactly one line matching `^- Order:` (raise a `ValueError` naming the plan otherwise, which the callers already turn into a refusal). Check every reader of `_ORDER_LINE_RE` (`_preserved_order`, the rename path's `om`, `artifact_rename`'s two uses) still behaves for a non-negative value, and record each in the evidence.
+- [ ] E-03 Widen `_ORDER_LINE_RE` in `plans_refs` and `artifact_rename` to `(?m)^- Order:\s*(-?\d+)\s*$`, and in `plans_refs._set_metadata` assert after the rewrite that the text contains exactly one line matching `^- Order:` (raise a `ValueError` naming the plan otherwise). CORRECTED AT REVIEW: no caller turns that `ValueError` into a refusal today. `plans_refs.apply_renames` calls `_set_metadata` with no `try`, then `_core.atomic_write` and `_core.git_mv`, plan by plan, so a raise on plan 2 of a batch would surface as a traceback AFTER plan 1 was rewritten and moved. So ALSO: in `apply_renames`, compute every plan's new text in a first pass BEFORE any write or `git_mv`, and catch `ValueError` in `run_set_assign` and `run_mv` around `apply_renames`, printing `error: <message>` and returning `MutationResult(2)`. With E-01/E-02 in place this branch is a backstop unreachable from the CLI on valid input, which is why the test drives `_set_metadata` directly to reach it. Check every reader of `_ORDER_LINE_RE` (`_preserved_order`, the rename path's `om`, `artifact_rename`'s two uses) still behaves for a non-negative value, and record each in the evidence.
   - Depends on: E-02
-  - Expected outcome: `_set_metadata` on a text with `- Order: -1` substitutes in place and never inserts a second line; a test that forces the insert branch on a text that already has an Order line raises rather than writing a duplicate.
+  - Expected outcome: `_set_metadata` on a text with `- Order: -1` substitutes in place and never inserts a second line; a text carrying an Order line the widened regex still cannot match (for example `- Order: x1`) raises rather than writing a duplicate; and a raise inside `apply_renames` leaves every plan in the batch byte-identical and unmoved, reported as exit 2 by both verbs.
   - Execution state: pending
 
 ### Task group 3: pin it
 
-- [ ] E-04 Add `tests/test_plans_order_grammar.py` driving `python -m agent_workflows group plans` and `rename plans` as subprocesses in a temporary repository seeded with `--records-backend repository`, covering: negative order on a Kind-less plan and on a `Kind: child` plan, both verbs; 99 allowed and 100 refused; `--allow-invalid-order` not bypassing the range check; file bytes unchanged after every refusal; `aw ipd lint` on the plan reporting no `IPD-M102` after each case; and the bmhoxe repair sequence (`--order 0` after a refused `-1`) leaving a well-formed name. Prove the test can fail by removing the E-01 call and pasting the duplicate-field failure.
+- [ ] E-04 Add `tests/test_plans_order_grammar.py` driving `python -m agent_workflows group plans` and `rename plans` as subprocesses in a temporary repository seeded with `--records-backend repository`, covering: negative order on a Kind-less plan and on a `Kind: child` plan, both verbs; 99 allowed and 100 refused; `--allow-invalid-order` not bypassing the range check; file bytes unchanged after every refusal; `aw ipd lint` on the plan reporting no `IPD-M102` after each case; and the bmhoxe repair sequence (`--order 0` after a refused `-1`) leaving a well-formed name. Prove the test can fail with TWO mutations, each reverted: (M1) remove the E-01/E-02 range-check calls ONLY, and paste the failure, which with E-03's widened regex in place is the exit-0 and malformed `--1` filename assertion, NOT a duplicate field (the widened substitution now matches `-1` in place); (M2) remove the range-check calls AND restore the old `(\d+)` regex, and paste the `IPD-M102` duplicate-field failure, which is bmhoxe's original corruption.
   - Depends on: E-03
-  - Expected outcome: the new file passes; the mutation reproduces bmhoxe's corruption and fails it; `tests/test_group_verb_policy.py` and `tests/test_plans_group_order_preservation.py` still pass.
+  - Expected outcome: the new file passes; M1 fails on the exit code and filename, M2 reproduces bmhoxe's duplicate-field corruption and fails it; `tests/test_group_verb_policy.py` and `tests/test_plans_group_order_preservation.py` still pass.
   - Execution state: pending
 
 ## Project conventions discovered (Step 0)
@@ -92,7 +95,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ## Scope check
 
-- Over-scope: none. Two production modules and one test file.
+- Over-scope: none. Two production modules and one test file. The `apply_renames` pre-pass and the `ValueError` handling in `run_set_assign`/`run_mv` (added at review) are inside `plans_refs.py`, already declared.
 - Under-scope: none known.
 
 ## Required tests / validation
@@ -121,7 +124,7 @@ No spec edited. The uniform naming grammar (`YYYYMMDD-<setid>-NN-<id6>-<slug>.ip
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'.
 
 - [ ] V-01 validates E-01
-  - Required evidence: paste the `plan_set_assign` diff and the subprocess outputs for `--order -1` (exit 2, message, file unchanged by checksum) and the 98/99/100 two-plan case (nothing written for either).
+  - Required evidence: paste the `plan_set_assign` diff and the subprocess outputs for `--order -1` (exit 2, message, file unchanged by checksum) the same command without `--apply` (exit 2), the `--order 99` two-plan case (resolved 100 refused, nothing written for either, both checksums unchanged), and the `--order 98` two-plan case succeeding.
   - Observed evidence:
   - Result: pending
 
@@ -131,12 +134,12 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Result: pending
 
 - [ ] V-03 validates E-03
-  - Required evidence: paste both regex diffs and the `_set_metadata` assertion; paste the unit result for a `- Order: -1` text (substituted, one line) and for the forced-duplicate case (raises); list each other reader of the regex with its checked behavior.
+  - Required evidence: paste both regex diffs and the `_set_metadata` assertion; paste the unit result for a `- Order: -1` text (substituted, one line) and for the unmatchable-Order-line case (raises); paste the `apply_renames` first-pass diff and the `run_set_assign`/`run_mv` `ValueError` handling, plus a run showing a forced raise exits 2 with every plan in the batch unchanged by checksum and unmoved; list each other reader of the regex (`_preserved_order`, `run_mv`'s `om`, `artifact_rename`'s substitution and its line-match) with its checked behavior for a non-negative value.
   - Observed evidence:
   - Result: pending
 
 - [ ] V-04 validates E-04
-  - Required evidence: paste the new test file passing with its count; the mutation reproducing the duplicate field and failing it; the two existing test files passing; the corpus re-measurement; a grep for source-structure reads returning nothing. Paste the BARE `python3 -m pytest` summary reconciled against your baseline, `aw ipd lint` conforming, `aw sanitize --agent`, and `git diff --cached --name-only` listing only declared paths.
+  - Required evidence: paste the new test file passing with its count; mutation M1's failure (exit code/filename) and mutation M2's `IPD-M102` duplicate-field failure, each reverted; the two existing test files passing; the corpus re-measurement; a grep for source-structure reads returning nothing. Paste the BARE `python3 -m pytest` summary reconciled against your baseline, `aw ipd lint` conforming, `aw sanitize --agent`, and `git diff --cached --name-only` listing only declared paths.
   - Observed evidence:
   - Result: pending
 
