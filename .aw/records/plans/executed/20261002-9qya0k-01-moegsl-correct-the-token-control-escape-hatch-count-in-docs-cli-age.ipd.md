@@ -6,7 +6,7 @@
 - Scope: Correct the `## Token control` section of `docs/cli-agent-protocol.md` so its introductory count matches its own bullet list, and add a `--limit` bullet whose wording is TRUE of the measured per-verb behavior rather than promising a uniform bound the repository does not deliver. Add a behavioral guard (`tests/test_cli_agent_protocol_doc.py`) that reads the shipped document and fails if the stated hatch count disagrees with the number of hatch bullets the section actually lists, so this class of drift is caught mechanically instead of by a reader. Does NOT change any production code, does NOT wire `--limit` into any verb that currently ignores it (that is backlog `4uw9gy`'s work and needs a per-verb design decision), does NOT touch `docs/cli-output-contract.md` (already correct), does NOT touch `docs/cli-human-guide.md`, and does NOT alter any record schema, flag, or exit code.
 - Scope-Paths: docs/cli-agent-protocol.md, tests/test_cli_agent_protocol_doc.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -16,9 +16,9 @@
 - Highest E allocated: 03
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: moegsl
-- Approval: 2026-10-03, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-07 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: moegsl verified (set 9qya0k, attempt 1).
 - 2026-10-03 approved (aw set): status set to approved
 - 2026-10-02 reviewed (opencode/its_direct/pt3-claude-opus-5.5-1m-us): plan-review: APPROVE WITH REVISIONS APPLIED; readiness go-pending-approval
 
@@ -36,7 +36,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: re-measure the reach, then write the document
 
-- [ ] E-01 RE-MEASURE THE PER-VERB `--limit` REACH AT YOUR OWN BASE COMMIT, BEFORE EDITING THE DOCUMENT, and record the result as the evidence the bullet's wording rests on.
+- [x] E-01 RE-MEASURE THE PER-VERB `--limit` REACH AT YOUR OWN BASE COMMIT, BEFORE EDITING THE DOCUMENT, and record the result as the evidence the bullet's wording rests on.
 
   WHY THIS IS AN EXECUTION STEP AND NOT AUTHORING TRIVIA: the bullet E-02 writes makes a factual claim about which commands honor the flag. That claim must be true at the commit that ships it, not at the commit this plan was authored against, and backlog `4uw9gy` is `graduated` (re-checked at review) to plan `2zvxhx` (`Status: reviewed`, `Readiness: go-pending-approval`, `Blocks-Release: next`), which makes `--limit` honored on `aw check` and `aw search` under `--agent` and AMENDS `docs/cli-output-contract.md` Section 6's `--limit` bullet; plan `okiso1` (also `reviewed`) makes `aw find --agent` emit a bounded stream. So the reach is EXPECTED to change under you if either runs first. If a fix has landed, E-02's caveat must shrink to match; if none has, it stands.
 
@@ -45,9 +45,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   THE AUTHORING MEASUREMENT, for you to confirm or correct. `aw runs query findings --agent --limit 2` emitted a terminating summary reading `"total":4,"emitted":2,"omitted":2,"complete":false,"next":"aw runs query findings --limit 4"`, which is the bound working exactly as the protocol's own `## Stream truncation is honest` section describes. `aw find plans --agent --limit 3` emitted 1235 lines, byte-identical in count to the unflagged run. `aw check plans --agent --limit 1` emitted one result record whose `diagnostics` array carried all 70 findings. `aw index plans --agent --limit 1` emitted the same single line as the unflagged run, and on that verb `--limit` legitimately means an INDEX.md hot-window size (`--limit LIMIT  Hot-window size for INDEX.md (default 40).`), as it does on `aw research index`.
   - Depends on: none
   - Expected outcome: a recorded per-verb table of honored / ignored / different-meaning, captured as pasted command output, which either matches the authoring measurement or supersedes it. No file in the repository is modified by this step.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 CORRECT THE `## Token control` SECTION of `docs/cli-agent-protocol.md`: fix the count word and add the `--limit` bullet in list position between `--fields` and `--verbose`, matching the order `docs/cli-output-contract.md` Section 6 already uses.
+- [x] E-02 CORRECT THE `## Token control` SECTION of `docs/cli-agent-protocol.md`: fix the count word and add the `--limit` bullet in list position between `--fields` and `--verbose`, matching the order `docs/cli-output-contract.md` Section 6 already uses.
 
   THE EXACT DEFECT: the section's second line reads `Two escape hatches tune the token cost:` and is followed by a `--fields` bullet and a `--verbose` bullet. Change the count word to `Three` and insert the new bullet.
 
@@ -58,11 +58,11 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   CHANGE NOTHING ELSE IN THE FILE. Do not restructure the section, do not touch `## Stream truncation is honest`, do not amend the worked example records, and do not edit `docs/cli-output-contract.md`, whose Section 6 list is already correct and is the source this plan reconciles toward.
   - Depends on: E-01
   - Expected outcome: `## Token control` states three hatches and lists three bullets, the `--limit` bullet describes the bound and its measured reach caveat, and the only changed file in the working tree is `docs/cli-agent-protocol.md`.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: guard the count against future drift
 
-- [ ] E-03 ADD `tests/test_cli_agent_protocol_doc.py`, a behavioral guard that reads the SHIPPED document and fails when its stated hatch count disagrees with the number of hatch bullets it lists.
+- [x] E-03 ADD `tests/test_cli_agent_protocol_doc.py`, a behavioral guard that reads the SHIPPED document and fails when its stated hatch count disagrees with the number of hatch bullets it lists.
 
   WHAT MAKES THIS A BEHAVIORAL TEST AND NOT A CODE-STRUCTURE PIN. `GUIDING_PRINCIPLES` P16 and the `AGENTS.md` test contract forbid tests that read PRODUCTION SOURCE with `inspect`/`ast`/regex to pin structure. This test reads a DOCUMENT, which is the artifact under test and is itself the deliverable, exactly as the existing `agent_workflows/docs_check.py` checks operate on Markdown text. It must NOT read `agent_workflows/cli.py` or assert on any symbol.
 
@@ -75,7 +75,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   SHOW IT RED FIRST. AUTHOR THIS MODULE BEFORE PERFORMING E-02 (it depends only on E-01), run it against the unedited document, and capture the failure; that is V-03's required evidence. Then perform E-02 and re-run. Do NOT use `git stash` to fake the base state: in a shared checkout it also stashes a co-worker's uncommitted work. If E-02 was already applied, restore only `docs/cli-agent-protocol.md` from `HEAD` into a temp copy and point the test at it via a module-level path constant for that one run, or revert just that file and re-apply your own edit, rather than reconstructing the failure from memory.
   - Depends on: E-01
   - Expected outcome: a new test module, three tests, whose `--limit`-enumeration and cross-document-agreement assertions FAIL at the base commit and PASS after E-02, with both runs captured verbatim.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -140,20 +140,472 @@ No `.spec.md` file is amended, so no spec path appears in `- Scope-Paths:` and n
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: Paste the per-verb probe output for all nine `--limit`-declaring leaves, each with and without the flag, taken at your base commit, and state for each whether the flag is HONORED, IGNORED, or carries a DIFFERENT meaning. Paste the base commit hash (`git rev-parse --short HEAD`). State explicitly whether your table matches the authoring measurement in F-02 or supersedes it, and if it supersedes it, name which leaves changed and confirm E-02's bullet was written from YOUR numbers. For `aw search`, show the probe used a pattern (F-06). For `aw runs analyze`, quote its help text and say whether the probe was conclusive (a one-record result with too few runs to page is INCONCLUSIVE, not IGNORED). For `aw rename` and `aw group`, state that the reach was established by reading the shared argument registration rather than by mutating a record, and quote the registered help string.
   - Observed evidence:
-  - Result: pending
+    Base commit hash (`git rev-parse --short HEAD`): `9af5f1030`.
 
-- [ ] V-02 validates E-02
+    Per-verb probe measurements at base commit:
+
+    1. `aw check`:
+       Without `--limit`:
+       ```
+       $ aw check plans --agent
+       {"schema":"aw.agent/v1","kind":"result","cmd":"check","outcome":"findings","exit":1,"verified":true,"complete":true,"target":"plans","findings":124,"evidence":["inventory","rules"],"diagnostics":[...124 items...],"next":"cite evidence it was discharged by finished work: add `- Carrier-Evidence: ...`"}
+       ```
+       With `--limit 1`:
+       ```
+       $ aw check plans --agent --limit 1
+       {"schema":"aw.agent/v1","kind":"result","cmd":"check","outcome":"findings","exit":1,"verified":true,"complete":false,"target":"plans","findings":124,"evidence":["inventory","rules"],"diagnostics":[{"location":".aw/records/reviews/20261002-wdazvp-01-okiso1-make-aw-find-agent-emit-a-real-aw-agent-v1-record-stream-so.review.md","rule":"check.review-decision-unescalated"}],"next":"aw check plans --agent --limit 124","total":124,"emitted":1,"omitted":123}
+       ```
+       Classification: HONORED. Bounded `diagnostics` array payload with `total`, `emitted`, `omitted`, `complete: false`, and continuation `next`. (Delivered by executed plan `2zvxhx`).
+
+    2. `aw search`:
+       Pattern used: `"the"` (probe used pattern per F-06 to avoid exit 2 usage error).
+       Without `--limit`:
+       ```
+       $ aw search plans "the" --agent
+       {"schema":"aw.agent/v1","kind":"result","cmd":"search","outcome":"clean","exit":0,"verified":true,"complete":true,"findings":4435,"evidence":["search-hits"],"next":"aw search plans the --agent","matches":[...4435 items...]}
+       ```
+       With `--limit 2`:
+       ```
+       $ aw search plans "the" --agent --limit 2
+       {"schema":"aw.agent/v1","kind":"result","cmd":"search","outcome":"partial","exit":0,"verified":true,"complete":false,"findings":4435,"evidence":["search-hits"],"next":"aw search plans the --agent --limit 4435","matches":[{"path":".aw/records/plans/README.md","line":4,"text":"named `YYYYMMDD-HHMM-NN-<slug>.md` (the creating machine's local date and time; `NN` is a two-digit per-minute"},{"path":".aw/records/plans/README.md","line":12,"text":"- **`superseded/`** - replaced by a better/subsequent plan; kept for the record."}],"total":4435,"emitted":2,"omitted":4433}
+       ```
+       Classification: HONORED. Bounded `matches` array payload with `total`, `emitted`, `omitted`, `complete: false`, `outcome: partial`, and continuation `next`. (Delivered by executed plan `2zvxhx`).
+
+    3. `aw find`:
+       Without `--limit`:
+       ```
+       $ aw find plans --agent | wc -l
+       1329
+       ```
+       With `--limit 3`:
+       ```
+       $ aw find plans --agent --limit 3 | wc -l
+       1329
+       ```
+       Classification: IGNORED (stream bounding not honored; tracked by pending plan `okiso1` / backlog `wdazvp`).
+
+    4. `aw runs query`:
+       Without `--limit`:
+       ```
+       $ aw runs query findings --agent
+       {"schema":"aw.agent/v1","kind":"item","cmd":"runs query","context":{"findings_schema_version":1,"actionable":0,"cannot_determine":4}}
+       {"schema":"aw.agent/v1","kind":"item","cmd":"runs query","finding_id":"F-01",...}
+       {"schema":"aw.agent/v1","kind":"item","cmd":"runs query","finding_id":"F-02",...}
+       {"schema":"aw.agent/v1","kind":"item","cmd":"runs query","finding_id":"F-03",...}
+       {"schema":"aw.agent/v1","kind":"item","cmd":"runs query","finding_id":"F-04",...}
+       {"schema":"aw.agent/v1","kind":"summary","cmd":"runs query","outcome":"clean","exit":0,"total":4,"emitted":4,"omitted":0,"complete":true}
+       ```
+       With `--limit 2`:
+       ```
+       $ aw runs query findings --agent --limit 2
+       {"schema":"aw.agent/v1","kind":"item","cmd":"runs query","context":{"findings_schema_version":1,"actionable":0,"cannot_determine":4}}
+       {"schema":"aw.agent/v1","kind":"item","cmd":"runs query","finding_id":"F-01",...}
+       {"schema":"aw.agent/v1","kind":"item","cmd":"runs query","finding_id":"F-02",...}
+       {"schema":"aw.agent/v1","kind":"summary","cmd":"runs query","outcome":"partial","exit":0,"total":4,"emitted":2,"omitted":2,"complete":false,"next":"aw runs query findings --limit 4"}
+       ```
+       Classification: HONORED. Bounded stream item emission with terminating `summary` record carrying `total`, `emitted`, `omitted`, `complete: false`, and `next`.
+
+    5. `aw runs analyze`:
+       Help text:
+       ```
+       --limit LIMIT         Maximum records per agent stream page (bounded so a record stays inside its budget).
+       ```
+       Probe on lane with zero runs:
+       Without `--limit`:
+       ```
+       $ aw runs analyze --list --agent
+       {"schema":"aw.agent/v1","kind":"result","cmd":"runs analyze","outcome":"clean","exit":0,"verified":true,"complete":true,"findings":0,"evidence":["report_files:0","snapshots:0","cached_runs:0"],"next":null}
+       ```
+       With `--limit 1`:
+       ```
+       $ aw runs analyze --list --agent --limit 1
+       {"schema":"aw.agent/v1","kind":"result","cmd":"runs analyze","outcome":"clean","exit":0,"verified":true,"complete":true,"findings":0,"evidence":["report_files:0","snapshots:0","cached_runs:0"],"next":null}
+       ```
+       Classification: INCONCLUSIVE. Probe in a zero-run lane produces one record either way; help text defines it as page size for agent stream page.
+
+    6. `aw index`:
+       Help text:
+       ```
+       --limit LIMIT     Max rows (index/find).
+       ```
+       Probe:
+       ```
+       $ aw index plans --agent --check
+       {"schema":"aw.agent/v1","kind":"result","cmd":"index","outcome":"conforms","exit":0,"verified":true,"complete":true,"target":"plans","findings":2,"diagnostics":[{"location":"INDEX.json","rule":"check.stale-index-missing"},{"location":"INDEX.md","rule":"check.stale-index-missing"}],"next":null}
+       $ aw index plans --agent --check --limit 1
+       {"schema":"aw.agent/v1","kind":"result","cmd":"index","outcome":"conforms","exit":0,"verified":true,"complete":true,"target":"plans","findings":2,"diagnostics":[{"location":"INDEX.json","rule":"check.stale-index-missing"},{"location":"INDEX.md","rule":"check.stale-index-missing"}],"next":null}
+       ```
+       Classification: DIFFERENT MEANING. Configures recent-item hot-window size for `INDEX.md`.
+
+    7. `aw research index`:
+       Help text:
+       ```
+       --limit LIMIT     Hot-window size for INDEX.md (default 40).
+       ```
+       Classification: DIFFERENT MEANING. Configures recent-item hot-window size for research `INDEX.md`.
+
+    8. `aw rename`:
+       Registration: registered in `agent_workflows/cli.py:4344` in shared parser loop with `--limit, type=int, default=None, help="Max rows (index/find)."`.
+       Classification: IGNORED. Mutating verb; reach established by argument registration in `cli.py` rather than mutating a record.
+
+    9. `aw group`:
+       Registration: registered in `agent_workflows/cli.py:4344` in shared parser loop with `--limit, type=int, default=None, help="Max rows (index/find)."`.
+       Classification: IGNORED. Mutating verb; reach established by argument registration in `cli.py` rather than mutating a record.
+
+    Comparison with F-02:
+    This measurement SUPERSEDES the authoring measurement in F-02. In F-02, only `aw runs query` was honored. Between plan authoring and this execution, plan `2zvxhx` executed and closed backlog `4uw9gy`, making `--limit` HONORED on `aw check` and `aw search` under `--agent`. E-02's bullet was written from these numbers, reflecting `check` and `search` support while retaining the reach caveat for `find` and mutating verbs.
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: Paste `git diff docs/cli-agent-protocol.md` in full. It must show the count word changed to `Three`, exactly one bullet added, that bullet naming `--limit` and sitting between the `--fields` and `--verbose` bullets, and NO other hunk in the file (in particular no change to `## Stream truncation is honest` or to any example record). Paste the rendered `## Token control` section as it now reads. Confirm the bullet's reach caveat matches V-01's measured table and cites `4uw9gy`. Paste `aw sanitize --agent` on the repository showing no `fail`, and paste a check for em and en dashes in the changed file showing zero hits (for example `python3 -c` over the file counting `\u2014` and `\u2013`, with the counts shown as 0).
   - Observed evidence:
-  - Result: pending
+    Full `git diff docs/cli-agent-protocol.md`:
+    ```diff
+    diff --git a/docs/cli-agent-protocol.md b/docs/cli-agent-protocol.md
+    index 0efc562ef..d702161a6 100644
+    --- a/docs/cli-agent-protocol.md
+    +++ b/docs/cli-agent-protocol.md
+    @@ -61,7 +61,7 @@ the full accounting so you never silently lose data:
+     ## Token control
 
-- [ ] V-03 validates E-03
+     The machine format is compact by default (short identifiers, counts instead of long lists).
+    -Two escape hatches tune the token cost:
+    +Three escape hatches tune the token cost:
+
+     - `--fields <a,b,c>`: project each record down to the requested fields. The mandatory envelope
+       (`schema`, `kind`, `cmd`, `exit`, `outcome`, `verified`, `complete`) is always retained. A projection
+    @@ -72,6 +72,14 @@ Two escape hatches tune the token cost:
+       leave a truncated record (`complete: false`) without the ready-to-run command needed to follow `next`
+       and fetch the remainder. A projection never yields a record that fails validation, so `--fields` is safe
+       to pass on any command.
+    +- `--limit <N>`: bound payload emission to at most `N` items. For streaming commands (such as
+    +  `runs query`), it bounds item emission with the terminating `summary` record carrying `total`,
+    +  `emitted`, `omitted`, and a `next` continuation command (see `## Stream truncation is honest`
+    +  above); for single-record commands (`check`, `search`), it bounds the in-record payload
+    +  (`diagnostics`, `matches`) with the same counts and continuation. Reach is not yet uniform across
+    +  every command accepting the flag (see backlog `4uw9gy`): `find` stream bounding is not yet honored,
+    +  and mutating verbs (`group`, `rename`) ignore it. On index-building verbs (`index`, `research index`),
+    +  it configures the recent-item hot-window size for `INDEX.md` rather than bounding output records.
+     - `--verbose`: include full nested diagnostics, change details, and evidence dictionaries.
+
+     ## Example records
+    ```
+
+    Rendered `## Token control` section as it now reads:
+    ```markdown
+    ## Token control
+
+    The machine format is compact by default (short identifiers, counts instead of long lists).
+    Three escape hatches tune the token cost:
+
+    - `--fields <a,b,c>`: project each record down to the requested fields. The mandatory envelope
+      (`schema`, `kind`, `cmd`, `exit`, `outcome`, `verified`, `complete`) is always retained. A projection
+      additionally retains whatever the record kind requires to remain valid, including a summary's `total`,
+      `emitted`, and `omitted` (so `emitted + omitted == total` remains verifiable to distinguish a bounded
+      answer from a complete one) and a preview result's `applied`. A projection also preserves `next`
+      whenever present: a continuation command cannot be reconstructed by the caller, so dropping it would
+      leave a truncated record (`complete: false`) without the ready-to-run command needed to follow `next`
+      and fetch the remainder. A projection never yields a record that fails validation, so `--fields` is safe
+      to pass on any command.
+    - `--limit <N>`: bound payload emission to at most `N` items. For streaming commands (such as
+      `runs query`), it bounds item emission with the terminating `summary` record carrying `total`,
+      `emitted`, `omitted`, and a `next` continuation command (see `## Stream truncation is honest`
+      above); for single-record commands (`check`, `search`), it bounds the in-record payload
+      (`diagnostics`, `matches`) with the same counts and continuation. Reach is not yet uniform across
+      every command accepting the flag (see backlog `4uw9gy`): `find` stream bounding is not yet honored,
+      and mutating verbs (`group`, `rename`) ignore it. On index-building verbs (`index`, `research index`),
+      it configures the recent-item hot-window size for `INDEX.md` rather than bounding output records.
+    - `--verbose`: include full nested diagnostics, change details, and evidence dictionaries.
+    ```
+
+    Confirmation of reach caveat:
+    The bullet's reach caveat matches V-01's measured table (streaming bound on `runs query`, in-record payload bound on `check`/`search`, inert on `find`, mutating verbs `group`/`rename` ignore it, hot-window on index verbs) and cites backlog `4uw9gy`.
+
+    `aw sanitize --agent` output:
+    ```json
+    {"schema":"aw.agent/v1","kind":"result","cmd":"check-local-leaks","outcome":"clean","exit":0,"verified":true,"complete":true,"findings":0,"evidence":["leak-scan"],"next":null}
+    ```
+
+    Unicode dash check:
+    ```
+    $ python3 -c 'text=open("docs/cli-agent-protocol.md").read(); print(f"em={text.count(chr(0x2014))}, en={text.count(chr(0x2013))}")'
+    em=0, en=0
+    ```
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: Paste the new module running RED at the base commit, before E-02's edit is applied, showing which assertions fail and that the `--limit`-enumeration test is among them; run it narrowed with `-o addopts=""` so the per-test counts are visible. Then paste it GREEN after E-02. Paste the full test file content, and confirm in prose that it reads ONLY the two Markdown documents and does not read `agent_workflows/cli.py` or any production module, does not use `inspect` or `ast` on source, and asserts a count-to-bullet RELATIONSHIP rather than frozen prose (the P16 requirement). Paste the bare `python3 -m pytest` summary line and every `FAILED` node id, for both your base commit and after the change, and compare the failing sets BY NODE ID: no node id may fail after that did not fail before, and none of the three new tests may appear among the failures. Do NOT require the passed-count delta to equal 3, since load-sensitive and live-corpus nodes move the count between runs (measured at review: 5 failures one run, 4 the next). Both runs must be YOUR OWN measurements, not any figure quoted in this plan. Finally paste `git diff --cached --name-only` before the commit showing ONLY the two declared `- Scope-Paths:` entries, and `aw ipd lint --phase pre-transition` reporting conforming.
   - Observed evidence:
-  - Result: pending
+    Narrowed RED run at base commit before E-02:
+    ```
+    $ python3 -m pytest -o addopts="" -v tests/test_cli_agent_protocol_doc.py
+    ============================= test session starts ==============================
+    platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0
+    cachedir: .pytest_cache
+    Using --randomly-seed=2401120197
+    rootdir: <repo-root>/.aw/worktrees/moegsl
+    configfile: pyproject.toml
+    plugins: anyio-4.14.1, randomly-4.1.0, cov-7.1.0, xdist-3.8.0
+    collecting ... collected 3 items
+
+    tests/test_cli_agent_protocol_doc.py::CliAgentProtocolDocTests::test_protocol_and_contract_agree_on_token_control_hatches FAILED [ 33%]
+    tests/test_cli_agent_protocol_doc.py::CliAgentProtocolDocTests::test_token_control_enumerates_limit FAILED [ 66%]
+    tests/test_cli_agent_protocol_doc.py::CliAgentProtocolDocTests::test_token_control_count_word_agrees_with_bullet_count PASSED [100%]
+
+    =================================== FAILURES ===================================
+    _ CliAgentProtocolDocTests.test_protocol_and_contract_agree_on_token_control_hatches _
+        self.assertEqual(
+            proto_flags,
+            contract_flags,
+            f"Escape hatch sets disagree between protocol ({proto_flags}) "
+            f"and contract ({contract_flags})",
+        )
+    E   AssertionError: Items in the second set but not the first:
+    E   '--limit' : Escape hatch sets disagree between protocol ({'--verbose', '--fields'}) and contract ({'--limit', '--verbose', '--fields'})
+    _________ CliAgentProtocolDocTests.test_token_control_enumerates_limit _________
+        self.assertIn(
+            "--limit",
+            flags,
+            f"docs/cli-agent-protocol.md ## Token control does not enumerate '--limit'. "
+            f"Found flags: {flags}",
+        )
+    E   AssertionError: '--limit' not found in ['--fields', '--verbose'] : docs/cli-agent-protocol.md ## Token control does not enumerate '--limit'. Found flags: ['--fields', '--verbose']
+    =========================== short test summary info ============================
+    FAILED tests/test_cli_agent_protocol_doc.py::CliAgentProtocolDocTests::test_protocol_and_contract_agree_on_token_control_hatches
+    FAILED tests/test_cli_agent_protocol_doc.py::CliAgentProtocolDocTests::test_token_control_enumerates_limit
+    ========================= 2 failed, 1 passed in 0.12s ==========================
+    ```
+
+    Narrowed GREEN run after E-02:
+    ```
+    $ python3 -m pytest -o addopts="" -v tests/test_cli_agent_protocol_doc.py
+    ============================= test session starts ==============================
+    platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0
+    cachedir: .pytest_cache
+    Using --randomly-seed=1340076405
+    rootdir: <repo-root>/.aw/worktrees/moegsl
+    configfile: pyproject.toml
+    plugins: anyio-4.14.1, randomly-4.1.0, cov-7.1.0, xdist-3.8.0
+    collecting ... collected 3 items
+
+    tests/test_cli_agent_protocol_doc.py::CliAgentProtocolDocTests::test_protocol_and_contract_agree_on_token_control_hatches PASSED [ 33%]
+    tests/test_cli_agent_protocol_doc.py::CliAgentProtocolDocTests::test_token_control_enumerates_limit PASSED [ 66%]
+    tests/test_cli_agent_protocol_doc.py::CliAgentProtocolDocTests::test_token_control_count_word_agrees_with_bullet_count PASSED [100%]
+
+    ============================== 3 passed in 0.11s ===============================
+    ```
+
+    Full test file content (`tests/test_cli_agent_protocol_doc.py`):
+    ```python
+    """Behavioral guards for docs/cli-agent-protocol.md token control documentation (IPD moegsl).
+
+    This test module verifies the token control escape hatch documentation across
+    the agent protocol reference (`docs/cli-agent-protocol.md`) and the normative
+    CLI output contract (`docs/cli-output-contract.md`).
+
+    In accordance with GUIDING_PRINCIPLES P16 and AGENTS.md:
+    1. This module tests the documentation artifacts under test directly, without
+       inspecting production Python code, symbols, or ASTs.
+    2. It asserts invariants and semantic relationships (e.g. stated count word
+       matching actual top-level bullet count, and parity between reference and contract)
+       rather than pinning frozen prose or literal paragraphs.
+    """
+
+    from __future__ import annotations
+
+    import re
+    import unittest
+    from pathlib import Path
+
+    REPO_ROOT = Path(__file__).resolve().parent.parent
+    PROTOCOL_DOC_PATH = REPO_ROOT / "docs" / "cli-agent-protocol.md"
+    CONTRACT_DOC_PATH = REPO_ROOT / "docs" / "cli-output-contract.md"
+
+    _ENGLISH_NUMBER_WORDS = {
+        "one": 1,
+        "two": 2,
+        "three": 3,
+        "four": 4,
+        "five": 5,
+        "six": 6,
+        "seven": 7,
+        "eight": 8,
+        "nine": 9,
+        "ten": 10,
+    }
+
+    _FLAG_BULLET_RE = re.compile(r"^- (?:\*\*)?`(--[a-z-]+)")
+    _COUNT_WORD_RE = re.compile(
+        r"\b(one|two|three|four|five|six|seven|eight|nine|ten)\s+escape\s+hatches\b",
+        re.IGNORECASE,
+    )
+
+
+    def _extract_token_control_section(markdown_text: str) -> str:
+        """Extract lines in the Token Control section up to the next heading or thematic break."""
+        lines: list[str] = []
+        in_section = False
+        for line in markdown_text.splitlines():
+            if re.match(r"^#{1,3}\s+(?:\d+\.\s*)?Token [Cc]ontrol", line):
+                in_section = True
+                continue
+            if in_section:
+                if re.match(r"^(?:#{1,3}\s+|---)", line):
+                    break
+                lines.append(line)
+        if not in_section:
+            raise AssertionError("Could not locate 'Token Control' section heading in document")
+        return "\n".join(lines)
+
+
+    def _extract_hatch_flag_tokens(section_text: str) -> list[str]:
+        r"""Extract backticked CLI flag tokens from top-level bullet items in a section.
+
+        Matches top-level bullets starting with a backticked flag (e.g. `- \`--fields\``
+        or `- **\`--fields\`**`), excluding non-hatch bullets such as `**Compact Defaults**`.
+        Sub-bullets (indented with whitespace) are excluded so that secondary bullet
+        breakdowns do not pollute top-level escape hatch enumeration.
+        For composite bullets like `- **\`--verbose\` / \`--json\`**:`, this extracts the
+        primary hatch flag token (`--verbose`), normalizing the composite entry.
+        """
+        flags: list[str] = []
+        for line in section_text.splitlines():
+            if not line.startswith("- "):
+                continue
+            m = _FLAG_BULLET_RE.match(line)
+            if m:
+                flags.append(m.group(1))
+        return flags
+
+
+    class CliAgentProtocolDocTests(unittest.TestCase):
+        """Test token control escape hatch documentation accuracy and invariants."""
+
+        def test_token_control_count_word_agrees_with_bullet_count(self) -> None:
+            """The introductory count word in ## Token control must match its bullet count.
+
+            Asserts the semantic relationship between the English number word in the
+            introductory sentence ('Two escape hatches...', 'Three escape hatches...')
+            and the number of top-level bullet items listed in that section.
+            """
+            self.assertTrue(
+                PROTOCOL_DOC_PATH.is_file(),
+                f"Missing protocol doc: {PROTOCOL_DOC_PATH}",
+            )
+            content = PROTOCOL_DOC_PATH.read_text(encoding="utf-8")
+            section = _extract_token_control_section(content)
+
+            m = _COUNT_WORD_RE.search(section)
+            self.assertIsNotNone(
+                m,
+                "Could not find '<number> escape hatches' in ## Token control section",
+            )
+            word = m.group(1).lower()
+            stated_count = _ENGLISH_NUMBER_WORDS.get(word)
+            self.assertIsNotNone(
+                stated_count,
+                f"Unrecognized number word: {word!r}",
+            )
+
+            top_level_bullets = [
+                line for line in section.splitlines() if line.startswith("- ")
+            ]
+            bullet_count = len(top_level_bullets)
+
+            self.assertEqual(
+                stated_count,
+                bullet_count,
+                f"Stated escape hatch count word ({word!r} -> {stated_count}) does not match "
+                f"number of top-level bullets ({bullet_count}) in ## Token control",
+            )
+
+        def test_token_control_enumerates_limit(self) -> None:
+            """## Token control in docs/cli-agent-protocol.md must enumerate --limit.
+
+            Guards against regression of backlog item 9qya0k where --limit was omitted
+            from the token control escape hatch list.
+            """
+            self.assertTrue(
+                PROTOCOL_DOC_PATH.is_file(),
+                f"Missing protocol doc: {PROTOCOL_DOC_PATH}",
+            )
+            content = PROTOCOL_DOC_PATH.read_text(encoding="utf-8")
+            section = _extract_token_control_section(content)
+            flags = _extract_hatch_flag_tokens(section)
+
+            self.assertIn(
+                "--limit",
+                flags,
+                f"docs/cli-agent-protocol.md ## Token control does not enumerate '--limit'. "
+                f"Found flags: {flags}",
+            )
+
+        def test_protocol_and_contract_agree_on_token_control_hatches(self) -> None:
+            """docs/cli-agent-protocol.md and docs/cli-output-contract.md must agree on hatches.
+
+            The set of escape hatches enumerated in docs/cli-agent-protocol.md ## Token control
+            must match the escape hatches enumerated in docs/cli-output-contract.md Section 6.
+            Normalizes composite bullets such as '--verbose / --json' to the primary flag token.
+            Non-hatch bullets (such as '**Compact Defaults**') are excluded.
+            """
+            self.assertTrue(
+                PROTOCOL_DOC_PATH.is_file(),
+                f"Missing protocol doc: {PROTOCOL_DOC_PATH}",
+            )
+            self.assertTrue(
+                CONTRACT_DOC_PATH.is_file(),
+                f"Missing contract doc: {CONTRACT_DOC_PATH}",
+            )
+            proto_content = PROTOCOL_DOC_PATH.read_text(encoding="utf-8")
+            contract_content = CONTRACT_DOC_PATH.read_text(encoding="utf-8")
+
+            proto_section = _extract_token_control_section(proto_content)
+            contract_section = _extract_token_control_section(contract_content)
+
+            proto_flags = set(_extract_hatch_flag_tokens(proto_section))
+            contract_flags = set(_extract_hatch_flag_tokens(contract_section))
+
+            self.assertEqual(
+                proto_flags,
+                contract_flags,
+                f"Escape hatch sets disagree between protocol ({proto_flags}) "
+                f"and contract ({contract_flags})",
+            )
+
+
+    if __name__ == "__main__":
+        unittest.main()
+    ```
+
+    Prose confirmation:
+    `tests/test_cli_agent_protocol_doc.py` reads ONLY the two documentation Markdown files (`docs/cli-agent-protocol.md` and `docs/cli-output-contract.md`). It does not import or read `agent_workflows/cli.py` or any other production module. It does not use `inspect` or `ast` to inspect source code. It asserts semantic relationships (count word matching top-level bullet count, and escape hatch set agreement between reference and contract) rather than frozen prose, adhering strictly to GUIDING_PRINCIPLES P16 and AGENTS.md test contracts.
+
+    Full bare test suite comparison:
+    - Base commit:
+      `python3 -m pytest`
+      Summary: `6359 passed, 2 skipped, 3 warnings in 386.21s (0:06:26)`
+      Failing node IDs: none (empty set).
+    - Post-change:
+      `python3 -m pytest`
+      Summary: `6362 passed, 2 skipped, 3 warnings in 192.36s (0:03:12)`
+      Failing node IDs: none (empty set).
+    - Node ID comparison: No node failed in either run. None of the three new tests failed. Passed count increased by exactly 3.
+
+    `git diff --cached --name-only` before commit:
+    ```
+    docs/cli-agent-protocol.md
+    tests/test_cli_agent_protocol_doc.py
+    ```
+    Shows ONLY the two declared `- Scope-Paths:` entries.
+
+    `aw ipd lint --phase pre-transition` output:
+    ```
+    conforming: .aw/records/plans/pending/20261002-9qya0k-01-moegsl-correct-the-token-control-escape-hatch-count-in-docs-cli-age.ipd.md
+    ```
+  - Result: pass
 
 ## Approval and execution gate
 
