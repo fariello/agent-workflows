@@ -1,5 +1,5 @@
 - Id: 2rnswc
-- Status: graduated
+- Status: done
 - Graduated-To: gateresolve
 - Set: 2rnswc
 - Priority: low
@@ -7,6 +7,7 @@
 - Summary: Decide whether a typed Gate-Ref should be resolved against its target rather than only shape-checked, since artifact, decision and todo refs all validate today while pointing at nothing
 
 ## Workflow history
+- 2026-10-07 done (aw backlog): closed by aw agy run: IPD jdaozp executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20261002-gateresolve-01-jdaozp-resolve-a-typed-gate-ref-against-its-target-so-a-gate-cannot.ipd.md); evidence .aw/records/plans/executed/20261002-gateresolve-01-jdaozp-resolve-a-typed-gate-ref-against-its-target-so-a-gate-cannot.ipd.md
 - 2026-10-02 graduated (aw backlog): graduated by run run-20261001T221821Z-1985969: jdaozp
 - 2026-10-01 created (aw backlog): Decide whether a typed Gate-Ref should be resolved against its target rather than only shape-checked, since artifact, decision and todo refs all validate today while pointing at nothing
 

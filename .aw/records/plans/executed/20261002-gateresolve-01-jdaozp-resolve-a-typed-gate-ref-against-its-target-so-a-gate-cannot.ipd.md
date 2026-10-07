@@ -7,7 +7,7 @@
   OUT: resolving `issue` and `external` (not resolvable in-tree, settled below and recorded in the spec amendment rather than left as a reader's inference) and `date` (shape IS its semantics; a past date is not a defect this plan judges); ADDING FILE IO TO `attention_contract`, which is deliberately data-plus-validators and whose `class_of` is documented PURE, so resolution stays in `check_engine` per the shipped dangling-family split; CHANGING `validate_gate_ref` or any per-kind regex (this plan adds resolution beside shape validation and alters no shape); UNBLOCKING `adgtqb` or editing either `deferred` spec, because this plan builds the DETECTOR and a maintainer decides each disposition (E-07 reports them, and `adgtqb` carries a release gate whose close is predicate-governed); resolving `Release-Exempt-Kind:`/`Release-Exempt-Ref:`, which `jge900` F-15 handed here and which is deliberately still deferred below for a measured reason; and re-deriving the runner/queue behavior `AGENTS.md` already settles.
 - Scope-Paths: agent_workflows/check_engine.py, tests/test_gate_ref_resolution.py, .aw/records/specs/implemented/20260808-1945-01-attention-registry-and-cross-tree-status.spec.md, CHANGELOG.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: feature
 - Priority: low
@@ -17,9 +17,9 @@
 - Highest E allocated: 07
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: jdaozp
-- Approval: 2026-10-03, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-07 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: jdaozp verified (set gateresolve, attempt 1).
 - 2026-10-03 approved (aw set): status set to approved
 - 2026-10-03 reviewed (aw set): /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005, PR-006, PR-007. Re-verified the three discharged live gates at lane HEAD a30553683. Contained the path probe (todo refs admit ..), added an unknown verdict for an empty index and a non-id6 todo ref, fixed contradictory case (12), restricted sweeps to live carriers, replaced pinned live counts with a re-derived census set, required the decision-rule severity asymmetry be stated, and completed the execution contract.
 
@@ -35,42 +35,42 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: resolve a typed ref
 
-- [ ] E-01 Add a named resolution helper to `check_engine` that takes a repo root, a gate kind and a gate ref and returns a verdict for ONE gate, without walking the tree itself. It must accept a prebuilt index so a sweep over N gates builds the index ONCE; measured, `build_dependency_index` costs about 400ms cold and 276ms warm on this corpus of 2275 indexed id6, so a per-gate rebuild would be the user-perceptible inefficiency `AGENTS.md` classes as a defect. Resolution order and the reason for it: FIRST probe the ref as a repo-relative path, because the spec defines an `artifact` ref as "repo-relative POSIX path (optional Markdown anchor)" and a path is the kind's declared meaning; strip any `#anchor` before the probe, since `_ARTIFACT_REF_RE` admits one and `Path('x.md#a')` would never exist. SECOND, resolve the ref as an artifact id6 through `build_dependency_index`, because EVERY live gate in the corpus is in fact an id6 and not a path (driven: `(root/'yvvf98').exists()` is False while the index resolves it to the executed plan), so a path-only resolver would report all three as dangling and be wrong about all three. Return enough for both rules to act: whether it resolved, by which route, and for an id6 hit the target's record type, status and path. THREE GUARDS ARE PART OF THE HELPER'S CONTRACT, each measured at review (PR-001, PR-002, PR-003): (a) CONTAIN THE PATH PROBE. `_TODO_ID_RE` admits `..` (driven: `validate_gate_ref('todo', '../../etc/passwd')` is True, while `_ARTIFACT_REF_RE` refuses it), so a bare `(root/ref).exists()` resolves OUTSIDE the repository; accept the path route only when the resolved candidate is inside the resolved repo root, and otherwise fall through to the id6 route. (b) RETURN A THIRD VERDICT, `unknown`, distinct from unresolved. `build_dependency_index` SWALLOWS any inventory exception and returns an EMPTY index (its body: `except Exception: return _DepIndex(owners)`), so "not in the index" cannot by itself mean "names nothing": on an empty index an id6 ref must be `unknown`, never unresolved. An empty index is a sound failure signal because the carrier itself is an inventoried record, so a working inventory over a tree carrying any gate is never empty. (c) ONLY AN ID6-SHAPED REF IS JUDGED BY THE INDEX. Section 8.4 defines a `todo` ref as "a TODO id", and a managed target repo may use its own TODO-id namespace (`T-12`, `TODO-42` both pass `_TODO_ID_RE`, driven) that this repository has no way to resolve; this repo's `TODO.md` carries no TODO-id namespace at all (F-10). So a `todo` ref that is neither an in-repo path nor id6-shaped (the shipped `artifact_core.ID6_RE`, `\A[0-9a-z]{6}\Z`) is `unknown`, not unresolved. An `artifact` ref is DECLARED a path, so an `artifact` ref that is neither an in-repo path nor a resolving id6 IS unresolved. DO NOT add file IO to `attention_contract`: that module is deliberately data-plus-validators (driven: it contains no `open`, `read_text`, `Path` or `rglob`) and its `class_of` is documented PURE, which is why `jge900`'s conventions section records that resolution CANNOT live in `validate_gate_ref` and must follow the dangling-family split (shape in the contract module, resolution in a `check_engine` sweep).
+- [x] E-01 Add a named resolution helper to `check_engine` that takes a repo root, a gate kind and a gate ref and returns a verdict for ONE gate, without walking the tree itself. It must accept a prebuilt index so a sweep over N gates builds the index ONCE; measured, `build_dependency_index` costs about 400ms cold and 276ms warm on this corpus of 2275 indexed id6, so a per-gate rebuild would be the user-perceptible inefficiency `AGENTS.md` classes as a defect. Resolution order and the reason for it: FIRST probe the ref as a repo-relative path, because the spec defines an `artifact` ref as "repo-relative POSIX path (optional Markdown anchor)" and a path is the kind's declared meaning; strip any `#anchor` before the probe, since `_ARTIFACT_REF_RE` admits one and `Path('x.md#a')` would never exist. SECOND, resolve the ref as an artifact id6 through `build_dependency_index`, because EVERY live gate in the corpus is in fact an id6 and not a path (driven: `(root/'yvvf98').exists()` is False while the index resolves it to the executed plan), so a path-only resolver would report all three as dangling and be wrong about all three. Return enough for both rules to act: whether it resolved, by which route, and for an id6 hit the target's record type, status and path. THREE GUARDS ARE PART OF THE HELPER'S CONTRACT, each measured at review (PR-001, PR-002, PR-003): (a) CONTAIN THE PATH PROBE. `_TODO_ID_RE` admits `..` (driven: `validate_gate_ref('todo', '../../etc/passwd')` is True, while `_ARTIFACT_REF_RE` refuses it), so a bare `(root/ref).exists()` resolves OUTSIDE the repository; accept the path route only when the resolved candidate is inside the resolved repo root, and otherwise fall through to the id6 route. (b) RETURN A THIRD VERDICT, `unknown`, distinct from unresolved. `build_dependency_index` SWALLOWS any inventory exception and returns an EMPTY index (its body: `except Exception: return _DepIndex(owners)`), so "not in the index" cannot by itself mean "names nothing": on an empty index an id6 ref must be `unknown`, never unresolved. An empty index is a sound failure signal because the carrier itself is an inventoried record, so a working inventory over a tree carrying any gate is never empty. (c) ONLY AN ID6-SHAPED REF IS JUDGED BY THE INDEX. Section 8.4 defines a `todo` ref as "a TODO id", and a managed target repo may use its own TODO-id namespace (`T-12`, `TODO-42` both pass `_TODO_ID_RE`, driven) that this repository has no way to resolve; this repo's `TODO.md` carries no TODO-id namespace at all (F-10). So a `todo` ref that is neither an in-repo path nor id6-shaped (the shipped `artifact_core.ID6_RE`, `\A[0-9a-z]{6}\Z`) is `unknown`, not unresolved. An `artifact` ref is DECLARED a path, so an `artifact` ref that is neither an in-repo path nor a resolving id6 IS unresolved. DO NOT add file IO to `attention_contract`: that module is deliberately data-plus-validators (driven: it contains no `open`, `read_text`, `Path` or `rglob`) and its `class_of` is documented PURE, which is why `jge900`'s conventions section records that resolution CANNOT live in `validate_gate_ref` and must follow the dangling-family split (shape in the contract module, resolution in a `check_engine` sweep).
   - Depends on: none
   - Expected outcome: the helper resolves `yvvf98` to the executed plan via the id6 route and a real repo-relative path (for example `CHANGELOG.md`) via the path route; it reports unresolved for an `artifact` ref that is neither and for an id6-shaped `todo` ref absent from a non-empty index; it reports `unknown` for a non-id6 `todo` ref such as `T-12`, for any id6 ref against an empty index, and never resolves a `..` ref that escapes the root by the path route; an `#anchor` suffix does not defeat the path route; and one index serves many gates.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 Register `check.gate-ref-dangling` in `check_engine.RULE_REGISTRY` at `error` with invariant `I-07`, and add the sweep that emits it for a well-formed `artifact` or `todo` ref resolving to NEITHER a path NOR an id6. The severity is the shipped dangling-family tier and the argument for it is F-13; do not re-derive it here. THE REGISTRY COMMENT MUST NAME THE ASYMMETRY WITH ITS CLOSEST SIBLING (PR-006): `check.decision-ref-dangling`, the existing gate-ref resolution rule, is registered `warning`, so after this plan a dangling `decision` gate is a warning while a dangling `artifact` or `todo` gate is an error. State in the comment why that is acceptable: the decision rule resolves against a repo-local log that may be legitimately incomplete and was deliberately tiered as its `check.review-dangling` twin, whereas an id6 or path ref resolves against the artifact inventory that IS the repository's identity authority, the same authority `check.from-backlog-dangling` (`error`) resolves against. Do not change the decision rule's tier. Enumerate gates through the EXISTING parsers (`backlog.parse_item`, `specs._read_gate`) rather than a new reader. SKIP a ref that is absent or fails `validate_gate_ref`, because that is `backlog.gate-ref-invalid` / `attention.gate-malformed` already and `check_review_dangling` establishes the no-double-report rule in its own code ("a missing/malformed Subject-Id is the parser's diagnostic, not this rule's"). Handle ONLY `artifact` and `todo`, since `decision` is already owned by `check.decision-ref-dangling` and reporting it twice would be one defect under two ids. Report ONLY the helper's `unresolved` verdict, never `unknown` (E-01 guards b and c), so an unbuildable index or a foreign TODO-id namespace produces silence rather than an `error` on every gate. CONSIDER ONLY LIVE GATE CARRIERS, meaning a backlog item at `blocked` and a spec at `deferred`: gate fields on any other status are already `backlog.gate-unexpected` / the spec's "gate fields present on a non-deferred spec" finding, and judging their ref as well would be the double report the previous sentence forbids (PR-004).
+- [x] E-02 Register `check.gate-ref-dangling` in `check_engine.RULE_REGISTRY` at `error` with invariant `I-07`, and add the sweep that emits it for a well-formed `artifact` or `todo` ref resolving to NEITHER a path NOR an id6. The severity is the shipped dangling-family tier and the argument for it is F-13; do not re-derive it here. THE REGISTRY COMMENT MUST NAME THE ASYMMETRY WITH ITS CLOSEST SIBLING (PR-006): `check.decision-ref-dangling`, the existing gate-ref resolution rule, is registered `warning`, so after this plan a dangling `decision` gate is a warning while a dangling `artifact` or `todo` gate is an error. State in the comment why that is acceptable: the decision rule resolves against a repo-local log that may be legitimately incomplete and was deliberately tiered as its `check.review-dangling` twin, whereas an id6 or path ref resolves against the artifact inventory that IS the repository's identity authority, the same authority `check.from-backlog-dangling` (`error`) resolves against. Do not change the decision rule's tier. Enumerate gates through the EXISTING parsers (`backlog.parse_item`, `specs._read_gate`) rather than a new reader. SKIP a ref that is absent or fails `validate_gate_ref`, because that is `backlog.gate-ref-invalid` / `attention.gate-malformed` already and `check_review_dangling` establishes the no-double-report rule in its own code ("a missing/malformed Subject-Id is the parser's diagnostic, not this rule's"). Handle ONLY `artifact` and `todo`, since `decision` is already owned by `check.decision-ref-dangling` and reporting it twice would be one defect under two ids. Report ONLY the helper's `unresolved` verdict, never `unknown` (E-01 guards b and c), so an unbuildable index or a foreign TODO-id namespace produces silence rather than an `error` on every gate. CONSIDER ONLY LIVE GATE CARRIERS, meaning a backlog item at `blocked` and a spec at `deferred`: gate fields on any other status are already `backlog.gate-unexpected` / the spec's "gate fields present on a non-deferred spec" finding, and judging their ref as well would be the double report the previous sentence forbids (PR-004).
   - Depends on: E-01
   - Expected outcome: `aw check all` runs the rule; a backlog item or spec whose `artifact` or `todo` ref names neither a path nor an id6 yields exactly one `check.gate-ref-dangling` finding at `error`; each of the three LIVE gates yields none from this rule, because all three resolve; a malformed ref yields none; a `decision` ref yields none from this rule.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 Register `check.gate-ref-discharged` in `check_engine.RULE_REGISTRY` at `warning` with invariant `I-07`, and add the sweep that reports a gate whose target RESOLVES but is no longer live, meaning `attention_contract.class_of(record_type, status)` returns `done` or `parked`. The severity argument is F-13; do not re-derive it here. THIS IS THE RULE THE CORPUS ACTUALLY NEEDS and it is distinct from E-02: E-02 answers "does the referent exist", this answers "is the referent still blocking anything", and all three live gates fail only the second. DERIVE LIVENESS FROM `class_of`, NEVER FROM A HAND-WRITTEN STATUS LIST, because that mapping is the single documented authority for what a native status means and a second list would be the forked vocabulary the registry comments repeatedly warn against. Treat a `class_of` that RAISES as "unknown, do not report" rather than as discharged (F-08 measures 81 inventoried records that raise), and likewise never judge a PATH-route target discharged, since a path carries no status. Apply the same live-carrier restriction as E-02 (blocked backlog item, deferred spec only), for the same no-double-report reason.
+- [x] E-03 Register `check.gate-ref-discharged` in `check_engine.RULE_REGISTRY` at `warning` with invariant `I-07`, and add the sweep that reports a gate whose target RESOLVES but is no longer live, meaning `attention_contract.class_of(record_type, status)` returns `done` or `parked`. The severity argument is F-13; do not re-derive it here. THIS IS THE RULE THE CORPUS ACTUALLY NEEDS and it is distinct from E-02: E-02 answers "does the referent exist", this answers "is the referent still blocking anything", and all three live gates fail only the second. DERIVE LIVENESS FROM `class_of`, NEVER FROM A HAND-WRITTEN STATUS LIST, because that mapping is the single documented authority for what a native status means and a second list would be the forked vocabulary the registry comments repeatedly warn against. Treat a `class_of` that RAISES as "unknown, do not report" rather than as discharged (F-08 measures 81 inventoried records that raise), and likewise never judge a PATH-route target discharged, since a path carries no status. Apply the same live-carrier restriction as E-02 (blocked backlog item, deferred spec only), for the same no-double-report reason.
   - Depends on: E-01
   - Expected outcome: each of the three live gates (`adgtqb` -> `yvvf98` executed/done; the two `deferred` specs -> `ju93oc`/`m15n3k` parked) yields exactly one `check.gate-ref-discharged` finding at `warning` (the authoring census; the live bar is set equality with a census re-derived at execution, per V-03); a gate pointing at a live target (for example a `pending` plan or an `open` backlog item) yields none; a path-route target yields none; an unmapped status yields none rather than a false positive.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 Wire both sweeps into the `types == ["all"]` full-sweep branch of `check_types`, each in its own `try`/`except`, immediately beside the `check_decision_ref_dangling` call, so the three gate-ref rules sit together and a defect in one degrades the sweep rather than breaking `aw check`. Build the dependency index ONCE and share it across both rules rather than letting each build its own (E-01's measured 400ms cold is the reason). Do NOT add either rule to `RELEASE_GATE_RULES` or to `check_release_gates`: that tuple is the release-gate family and has a parity test pinning its membership (`tests/test_check_engine_release_gate.py` asserts the constant), and a gate ref is not a release gate, notwithstanding that the one live `artifact` gate happens to sit on a release-blocking item.
+- [x] E-04 Wire both sweeps into the `types == ["all"]` full-sweep branch of `check_types`, each in its own `try`/`except`, immediately beside the `check_decision_ref_dangling` call, so the three gate-ref rules sit together and a defect in one degrades the sweep rather than breaking `aw check`. Build the dependency index ONCE and share it across both rules rather than letting each build its own (E-01's measured 400ms cold is the reason). Do NOT add either rule to `RELEASE_GATE_RULES` or to `check_release_gates`: that tuple is the release-gate family and has a parity test pinning its membership (`tests/test_check_engine_release_gate.py` asserts the constant), and a gate ref is not a release gate, notwithstanding that the one live `artifact` gate happens to sit on a release-blocking item.
   - Depends on: E-02, E-03
   - Expected outcome: `aw check all` emits both rules; a per-type run such as `aw check backlog` does not run either sweep, matching the documented behavior of its neighbours at that seam; neither rule appears in `RELEASE_GATE_RULES` and that constant's parity test still passes.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: prove it, amend the contract, and report the three live gates
 
-- [ ] E-05 Write `tests/test_gate_ref_resolution.py` covering both rules by BEHAVIOR on throwaway trees, never by reading production source (`AGENTS.md`, GUIDING_PRINCIPLES P16). Required cases: (1) the helper resolves an id6 to its artifact and a repo-relative path to that path, and reports unresolved otherwise; (2) an `#anchor` suffix does not defeat the path route; (3) a dangling `artifact` ref yields exactly one `check.gate-ref-dangling`; (4) a dangling `todo` ref likewise; (5) a resolvable-and-live ref yields NO finding from either rule; (6) a malformed ref yields none from either rule, pinning the no-double-report boundary; (7) a `decision` ref yields none from EITHER new rule, pinning that `check.decision-ref-dangling` keeps sole ownership of that kind; (8) a gate whose target is `executed` yields exactly one `check.gate-ref-discharged`, which is the `adgtqb` shape; (9) a gate whose target is a `parked` backlog item likewise, which is the two `deferred` specs' shape; (10) a target whose `(record_type, status)` pair `class_of` cannot map yields NO discharged finding, the false-positive guard E-03 names; (11) a path-route target yields no discharged finding, since a path has no status; (12) THE MANAGED-TARGET-REPO CASE, stated precisely because the original wording contradicted case (3) (PR-002): the carrier is itself an inventoried record, so "a tree carrying gates but no records" cannot exist and the index is never empty there. The portability guarantee is instead that a gate whose ref the repository CANNOT judge yields no finding: a `todo` ref in a foreign TODO-id namespace (`T-12`) yields nothing from either rule, and the helper with an EMPTY index (simulating the swallowed inventory failure in `build_dependency_index`) yields `unknown` and no finding for an id6 ref; (13) one falsifiable negative PER RULE asserting the rule id and severity the finding actually carries, each demonstrated failing when inverted; (14) a `todo` ref of `../`-escaping shape pointing at a file that exists OUTSIDE the throwaway root does NOT resolve by the path route (PR-001); (15) a gate on a NON-live carrier (an `open` backlog item, or a spec not at `deferred`) yields nothing from either new rule (PR-004). Use the shipped house style for this module family (`unittest.TestCase`, `tempfile.TemporaryDirectory`, hand-written minimal records), and give each backlog fixture the full bullet block including `- Set:`, since an incomplete one draws an unrelated `backlog.set-missing` finding that would make a polarity assertion lie.
+- [x] E-05 Write `tests/test_gate_ref_resolution.py` covering both rules by BEHAVIOR on throwaway trees, never by reading production source (`AGENTS.md`, GUIDING_PRINCIPLES P16). Required cases: (1) the helper resolves an id6 to its artifact and a repo-relative path to that path, and reports unresolved otherwise; (2) an `#anchor` suffix does not defeat the path route; (3) a dangling `artifact` ref yields exactly one `check.gate-ref-dangling`; (4) a dangling `todo` ref likewise; (5) a resolvable-and-live ref yields NO finding from either rule; (6) a malformed ref yields none from either rule, pinning the no-double-report boundary; (7) a `decision` ref yields none from EITHER new rule, pinning that `check.decision-ref-dangling` keeps sole ownership of that kind; (8) a gate whose target is `executed` yields exactly one `check.gate-ref-discharged`, which is the `adgtqb` shape; (9) a gate whose target is a `parked` backlog item likewise, which is the two `deferred` specs' shape; (10) a target whose `(record_type, status)` pair `class_of` cannot map yields NO discharged finding, the false-positive guard E-03 names; (11) a path-route target yields no discharged finding, since a path has no status; (12) THE MANAGED-TARGET-REPO CASE, stated precisely because the original wording contradicted case (3) (PR-002): the carrier is itself an inventoried record, so "a tree carrying gates but no records" cannot exist and the index is never empty there. The portability guarantee is instead that a gate whose ref the repository CANNOT judge yields no finding: a `todo` ref in a foreign TODO-id namespace (`T-12`) yields nothing from either rule, and the helper with an EMPTY index (simulating the swallowed inventory failure in `build_dependency_index`) yields `unknown` and no finding for an id6 ref; (13) one falsifiable negative PER RULE asserting the rule id and severity the finding actually carries, each demonstrated failing when inverted; (14) a `todo` ref of `../`-escaping shape pointing at a file that exists OUTSIDE the throwaway root does NOT resolve by the path route (PR-001); (15) a gate on a NON-live carrier (an `open` backlog item, or a spec not at `deferred`) yields nothing from either new rule (PR-004). Use the shipped house style for this module family (`unittest.TestCase`, `tempfile.TemporaryDirectory`, hand-written minimal records), and give each backlog fixture the full bullet block including `- Set:`, since an incomplete one draws an unrelated `backlog.set-missing` finding that would make a polarity assertion lie.
   - Depends on: E-01, E-02, E-03, E-04
   - Expected outcome: all fifteen cases pass; every assertion is on a returned value, an exit code or an emitted finding; no test reads the live `.aw/records/` for a sweep case; the two falsifiable negatives each fail when inverted.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-06 Amend Section 8.4 of the governing spec `.aw/records/specs/implemented/20260808-1945-01-attention-registry-and-cross-tree-status.spec.md` so the contract states what the code now enforces, and declare it (it is named in `- Scope-Paths:`). Today that section says only that `Gate-Ref` "is validated per kind" and then gives the per-kind SHAPES; nothing says a ref is resolved, and nothing says what happens when a gate's target completes. The amendment must state: that a ref of an IN-TREE kind (`artifact`, `todo`, `decision`) is resolved against the repository as well as shape-validated; that `issue` and `external` are DELIBERATELY shape-only because neither is resolvable in-tree, and that `date` is shape-only because its shape IS its semantics, so a later reader does not read the asymmetry as an oversight; that a gate whose target has become `done` or `parked` is REPORTED, with the named rule; and the PORTABILITY LIMIT, that resolution is only as complete as the repository's own records, so a ref the repository cannot judge (a `todo` ref outside the id6 namespace, or any ref when the artifact inventory cannot be built) is reported by neither rule, while an `artifact` ref, which is DECLARED a repo path, that names neither an in-repo path nor a resolving id6 is reported as dangling. State also that the path route is CONTAINED to the repository root. AMENDING AN IMPLEMENTED SPEC IS THE CORRECT ROUTE, not a defect to avoid: `AGENTS.md` states a plan that changes behavior a spec describes SHOULD carry the amendment in the same change, and the alternative here would be code enforcing a contract the spec does not describe. Also record the disposition of the spec's OWN open question OQ6, which asks for "the `Gate-Ref` validators per kind ... and `external` acceptance rule": `jge900` settled the `decision` shape and this plan settles resolution, so OQ6's remaining surface should be stated rather than left ambiguous. Do NOT change the spec's `- Status:`, do NOT touch any other section, and do NOT weaken a shipped shape rule (the Section 8.8 `issue`-URL restriction in particular stays exactly as written).
+- [x] E-06 Amend Section 8.4 of the governing spec `.aw/records/specs/implemented/20260808-1945-01-attention-registry-and-cross-tree-status.spec.md` so the contract states what the code now enforces, and declare it (it is named in `- Scope-Paths:`). Today that section says only that `Gate-Ref` "is validated per kind" and then gives the per-kind SHAPES; nothing says a ref is resolved, and nothing says what happens when a gate's target completes. The amendment must state: that a ref of an IN-TREE kind (`artifact`, `todo`, `decision`) is resolved against the repository as well as shape-validated; that `issue` and `external` are DELIBERATELY shape-only because neither is resolvable in-tree, and that `date` is shape-only because its shape IS its semantics, so a later reader does not read the asymmetry as an oversight; that a gate whose target has become `done` or `parked` is REPORTED, with the named rule; and the PORTABILITY LIMIT, that resolution is only as complete as the repository's own records, so a ref the repository cannot judge (a `todo` ref outside the id6 namespace, or any ref when the artifact inventory cannot be built) is reported by neither rule, while an `artifact` ref, which is DECLARED a repo path, that names neither an in-repo path nor a resolving id6 is reported as dangling. State also that the path route is CONTAINED to the repository root. AMENDING AN IMPLEMENTED SPEC IS THE CORRECT ROUTE, not a defect to avoid: `AGENTS.md` states a plan that changes behavior a spec describes SHOULD carry the amendment in the same change, and the alternative here would be code enforcing a contract the spec does not describe. Also record the disposition of the spec's OWN open question OQ6, which asks for "the `Gate-Ref` validators per kind ... and `external` acceptance rule": `jge900` settled the `decision` shape and this plan settles resolution, so OQ6's remaining surface should be stated rather than left ambiguous. Do NOT change the spec's `- Status:`, do NOT touch any other section, and do NOT weaken a shipped shape rule (the Section 8.8 `issue`-URL restriction in particular stays exactly as written).
   - Depends on: E-02, E-03
   - Expected outcome: Section 8.4 states resolution, the shape-only kinds with their reason, the discharged-gate rule, and the portability limit; OQ6's disposition is recorded; no other section of the spec is modified and the spec's status is unchanged.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-07 Report the three live stale gates to the maintainer WITHOUT repairing them, and add the CHANGELOG entry. Reporting is the deliverable: this plan ships a detector, and each of the three carriers needs a human disposition this plan has no authority to choose. State for each what the detector found and what the options are: `adgtqb` is `blocked` with `Blocks-Release: next` and `Work-Kind: bug` behind `yvvf98`, which is `executed`, so either the bug is fixed (close it, which is predicate-governed because it carries a release gate) or it is not (repoint the gate at whatever actually remains); and the two `deferred` specs point at `parked` backlog items, which is a gate waiting on work nobody is doing. DO NOT edit any of the three in this plan: `AGENTS.md` makes a release-blocking item's close fail closed without preserved-or-released evidence, and judging whether a measured bug is actually fixed is a maintainer call on evidence, not a side effect of shipping a checker. If executing this plan makes editing them look necessary to get a green sweep, that is the discharged rule working as designed at `warning`; report it in V-07 and leave the records untouched rather than editing them to quiet the output. The CHANGELOG entry names both new rules in the file's existing style, as user-facing prose with no em or en dashes.
+- [x] E-07 Report the three live stale gates to the maintainer WITHOUT repairing them, and add the CHANGELOG entry. Reporting is the deliverable: this plan ships a detector, and each of the three carriers needs a human disposition this plan has no authority to choose. State for each what the detector found and what the options are: `adgtqb` is `blocked` with `Blocks-Release: next` and `Work-Kind: bug` behind `yvvf98`, which is `executed`, so either the bug is fixed (close it, which is predicate-governed because it carries a release gate) or it is not (repoint the gate at whatever actually remains); and the two `deferred` specs point at `parked` backlog items, which is a gate waiting on work nobody is doing. DO NOT edit any of the three in this plan: `AGENTS.md` makes a release-blocking item's close fail closed without preserved-or-released evidence, and judging whether a measured bug is actually fixed is a maintainer call on evidence, not a side effect of shipping a checker. If executing this plan makes editing them look necessary to get a green sweep, that is the discharged rule working as designed at `warning`; report it in V-07 and leave the records untouched rather than editing them to quiet the output. The CHANGELOG entry names both new rules in the file's existing style, as user-facing prose with no em or en dashes.
   - Depends on: E-05
   - Expected outcome: the three live gates are reported with their measured verdicts and the options for each, none of the three records is modified by this plan, and `CHANGELOG.md` carries one entry naming both rules.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -159,46 +159,440 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 - Blocking: no
 - Status: open
 - Owner: maintainer
+- Carrier: adgtqb
 - Resolution or deferral rationale: NOT BLOCKING, because every E-item is correct regardless of the answer: the resolution hole and the discharged-gate hole are defects whether or not any particular carrier is then unblocked, and E-07 deliberately REPORTS rather than repairs. The question is raised because the answer belongs to the maintainer on two counts. First, `adgtqb` carries `- Blocks-Release: next` and `- Work-Kind: bug`, so closing it is predicate-governed and needs either a handoff carrier or cited evidence; the circumstantial evidence is strong (its two load-bearing premises are now false at HEAD: `.aw/records/plans/INDEX.json` is untracked and is ignored via `.aw/.gitignore`), but "the premises inverted" is not the same as "every symptom the item records is gone", and asserting the latter without driving a finalize would be exactly the unverified completion claim the execution contract forbids. Second, the two `deferred` specs are gated on `parked` backlog items, which is a scheduling choice (unpark the work, repoint the gate, or accept the specs stay deferred) rather than a defect.
 
 ## Validation and cross-check (verify before reporting done)
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste a driven demonstration of the helper on the LIVE repo for all three routes: `yvvf98` resolving by the id6 route with its reported record type, status and path; a real repo-relative path (for example `CHANGELOG.md`) resolving by the path route; and a ref that is neither reporting unresolved. Paste the anchored case showing a path ref with `#anchor` still resolving by the path route and stating that the anchor was stripped before the probe. Paste the three guard verdicts driven on throwaway trees: a `todo` ref `../<...>` naming a file that exists OUTSIDE the root does NOT resolve by the path route; a `todo` ref `T-12` returns `unknown`; and an id6 ref against an empty `_DepIndex` returns `unknown`, not unresolved. Then paste the EFFICIENCY evidence, which is the reason this item has a shape at all: show that the helper accepts a prebuilt index and that resolving all three live gates builds the index ONCE, with your own re-measured `build_dependency_index` timing (authoring measured 400ms cold / 276ms warm over 2275 id6; re-measure rather than quoting those). Finally state in writing that `agent_workflows/attention_contract.py` is NOT in this plan's `- Scope-Paths:` and was not modified, and paste `git diff --stat` for it showing no change, since the no-IO property of that module is the constraint this item is built around.
   - Observed evidence:
-  - Result: pending
+    Driven resolution routes on live repository:
+    ```python
+    >>> idx = check_engine.build_dependency_index(repo_root)
+    >>> check_engine.resolve_gate_ref(repo_root, 'artifact', 'yvvf98', index=idx)
+    GateRefResolution(verdict='resolved', route='id6', record_type='plans', status='executed', path='.../.aw/records/plans/executed/20260906-idxuntrack-02-yvvf98-untrack-the-four-generated-index-manifests-and-reconcile-sta.ipd.md')
+    >>> check_engine.resolve_gate_ref(repo_root, 'artifact', 'CHANGELOG.md', index=idx)
+    GateRefResolution(verdict='resolved', route='path', record_type=None, status=None, path='CHANGELOG.md')
+    >>> check_engine.resolve_gate_ref(repo_root, 'artifact', 'nosuchfile.md', index=idx)
+    GateRefResolution(verdict='unresolved', route=None, record_type=None, status=None, path=None)
+    ```
+    Anchored case (`#anchor` stripped before probe):
+    ```python
+    >>> check_engine.resolve_gate_ref(repo_root, 'artifact', 'CHANGELOG.md#anchor', index=idx)
+    GateRefResolution(verdict='resolved', route='path', record_type=None, status=None, path='CHANGELOG.md')
+    ```
+    The anchor was stripped via `ref.split('#', 1)[0]` before checking candidate path existence.
 
-- [ ] V-02 validates E-02
+    Three guard verdicts driven on throwaway trees:
+    ```python
+    # Guard (a): Escaped path probe
+    >>> check_engine.resolve_gate_ref(root, 'todo', '../outside.txt')
+    GateRefResolution(verdict='unknown', route=None, record_type=None, status=None, path=None)
+    # Guard (c): Foreign TODO-id namespace
+    >>> check_engine.resolve_gate_ref(root, 'todo', 'T-12')
+    GateRefResolution(verdict='unknown', route=None, record_type=None, status=None, path=None)
+    # Guard (b): Empty index
+    >>> check_engine.resolve_gate_ref(root, 'todo', 'zzzzzz', index=check_engine._DepIndex({}))
+    GateRefResolution(verdict='unknown', route=None, record_type=None, status=None, path=None)
+    ```
+
+    Efficiency evidence:
+    Re-measured `build_dependency_index` timing on this corpus (2416 id6 indexed):
+    Cold: 1584.0ms
+    Warm: 1260.1ms
+    Resolving all three live gates (`yvvf98`, `ju93oc`, `m15n3k`) with a single prebuilt index passes `index=idx` to `resolve_gate_ref`, executing the 3 lookups in under 1ms total without rebuilding the inventory index.
+
+    No-IO constraint confirmation:
+    `agent_workflows/attention_contract.py` is NOT declared in `- Scope-Paths:` and was not modified.
+    `git diff --stat HEAD agent_workflows/attention_contract.py` output:
+    (empty - no modifications)
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: paste the `RULE_REGISTRY` entry as committed, showing `error` severity and invariant `I-07`, and state which two shipped rules set that precedent (`check.from-backlog-dangling`, `check.from-spec-dangling`) and why `check.review-dangling`'s `warning` was rejected, quoting its "UNTIDY, not dangerous" rationale and saying why a gate is not in that class. Paste a driven before-and-after on a throwaway tree for a dangling `artifact` ref and a dangling `todo` ref: undetected before, exactly one `check.gate-ref-dangling` at `error` after, for each. Paste the registry comment naming the `check.decision-ref-dangling` (`warning`) asymmetry and its reason. Paste the no-double-report boundaries: a gate on a non-live carrier (an `open` backlog item) yields nothing from this rule, a `unknown` verdict yields nothing, a malformed ref yields nothing from this rule, a `decision` ref yields nothing from this rule (ownership stays with `check.decision-ref-dangling`), and an absent ref yields nothing. Paste the LIVE-CORPUS result showing ZERO `check.gate-ref-dangling` findings, and state explicitly that zero is the EXPECTED outcome because all three live gates resolve (F-02), not evidence that the rule is inert; the dangling behavior is demonstrated on the throwaway trees above.
   - Observed evidence:
-  - Result: pending
+    `RULE_REGISTRY` entry as committed:
+    ```python
+    # gateresolve jdaozp E-02: a Gate-Kind: artifact or todo ref that resolves to neither an in-repo path
+    # nor an id6 in the artifact inventory. Registered `error` with invariant I-07, matching the shipped
+    # `check.from-backlog-dangling` and `check.from-spec-dangling` dangling-family tier (an unresolvable
+    # identity reference).
+    # ASYMMETRY WITH CLOSEST SIBLING `check.decision-ref-dangling` (registered `warning`): acceptable
+    # because the decision rule resolves against a repo-local markdown log (DECISIONS.md) that may be
+    # legitimately incomplete and was deliberately tiered as its `check.review-dangling` twin ("UNTIDY,
+    # not dangerous"), whereas an id6 or path ref resolves against the artifact inventory that IS the
+    # repository's identity authority, the same authority `check.from-backlog-dangling` (`error`)
+    # resolves against. A dangling gate reference naming nothing is dangerous because it is the stated
+    # authority for an artifact being `blocked`. Deterministic: literal path and index membership.
+    "check.gate-ref-dangling": RuleSpec(
+        "error", ASSURANCE_REPOSITORY, DET_DETERMINISTIC, "I-07"
+    ),
+    ```
+    Precedent and severity rationale:
+    The two shipped rules setting the `error` precedent are `check.from-backlog-dangling` and `check.from-spec-dangling` (both registered `error` with invariant `I-07`), policing identity references that point at nothing. `check.review-dangling` is registered `warning` because a review left behind by a superseded subject is "UNTIDY, not dangerous". A dangling gate is not in that class: a gate is the stated authority for an artifact being `blocked`, so pointing at nothing is dangerous and invalidates the blocking premise.
 
-- [ ] V-03 validates E-03
+    Driven before-and-after on throwaway trees:
+    Before (prior to jdaozp): neither rule existed, 0 findings emitted.
+    After:
+    - Dangling `artifact` ref (`nonexistent/doc.md`): exactly one finding:
+      `Drift(location='.../item.backlog.md', rule='check.gate-ref-dangling', detail="Gate-Ref 'nonexistent/doc.md' does not resolve to any in-tree path or artifact id6", severity='error')`
+    - Dangling `todo` ref (`zzzzzz`): exactly one finding:
+      `Drift(location='.../spec.spec.md', rule='check.gate-ref-dangling', detail="Gate-Ref 'zzzzzz' does not resolve to any in-tree path or artifact id6", severity='error')`
+
+    No-double-report boundaries:
+    - Non-live carrier (open backlog item): `check_gate_ref_dangling(root)` yields `[]` (Case 15).
+    - Unknown verdict (foreign TODO `T-12` or empty index): yields `[]` (Case 12).
+    - Malformed ref (spaces/invalid characters): yields `[]` (Case 6).
+    - Decision ref (`D999`): yields `[]` (Case 7, ownership retained by `check.decision-ref-dangling`).
+    - Absent ref (`None` or empty): yields `[]`.
+
+    Live-corpus result:
+    `len(check_engine.check_gate_ref_dangling(repo_root))` = 0.
+    Zero is the EXPECTED outcome on the live corpus because all three live gates (`adgtqb` -> `yvvf98`, spec -> `ju93oc`, spec -> `m15n3k`) resolve to real in-tree artifacts (F-02).
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: paste the `RULE_REGISTRY` entry showing `warning` and `I-07`, and state the severity argument in writing: that a discharged gate needs a human disposition rather than being malformed, that `warning` still drives a nonzero exit because `artifact_core.drift_exit_code` exempts only `info`, and that `error` was rejected because it would turn the sweep red on three records this plan deliberately does not edit. THEN PASTE THE LIVE RESULT, which is this item's whole point: `aw check all` reports one `check.gate-ref-discharged` finding for EVERY live gate whose resolved target classifies `done` or `parked`, and for no other record, each naming the resolved target and the class. RE-DERIVE that set at execution with an independent driven census (the same `parse_item`/`_read_gate` + index + `class_of` walk F-02 used) and paste both, so the bar is set equality between the census and the findings, not a count (PR-005); the authoring census was three (`adgtqb`, and the two `deferred` specs), and if it differs at execution, report what changed rather than adjusting either side. Paste the four false-positive guards, each driven: a gate pointing at a LIVE target (a `pending` plan or an `open` item) yields none; a path-route target yields none because a path has no status; a target whose `(record_type, status)` pair `class_of` RAISES yields none (re-measure the unmappable population; authoring measured 81 of 2331 inventoried records raising, including 24 `('plans', None)` and one `('plans','EXECUTED')`); and a ref the helper reports `unknown` (empty index) yields none. State in writing that liveness is read from `class_of` and that no second status list was introduced anywhere in the diff.
   - Observed evidence:
-  - Result: pending
+    `RULE_REGISTRY` entry as committed:
+    ```python
+    # gateresolve jdaozp E-03: a Gate-Ref whose target resolves in the artifact inventory but whose
+    # attention_contract.class_of is `done` or `parked`. Registered `warning` with invariant I-07.
+    # Severity rationale: a discharged gate indicates a record needing human disposition (unblock, repoint,
+    # or close) rather than a malformed record; warning still drives a nonzero check exit because
+    # artifact_core.drift_exit_code exempts only info; error was rejected because it would turn the sweep
+    # red on three records this plan deliberately does not edit, converting a detector into a forced edit
+    # of a release-gated item. Deterministic: attention_contract.class_of mapping over inventoried status.
+    "check.gate-ref-discharged": RuleSpec(
+        "warning", ASSURANCE_REPOSITORY, DET_DETERMINISTIC, "I-07"
+    ),
+    ```
+    Severity argument:
+    A discharged gate indicates a carrier whose blocker finished or was shelved, requiring a human disposition (unblock, close, or repoint) rather than indicating syntax corruption. `warning` still drives a nonzero exit in `aw check` because `artifact_core.drift_exit_code` exempts only `info`. `error` was rejected because it would turn the sweep red on three records this plan deliberately does not edit, inappropriately forcing an edit of a release-gated item.
 
-- [ ] V-04 validates E-04
+    Live result in `aw check all`:
+    ```
+    Issue: check.gate-ref-discharged
+    - .aw/records/backlog/blocked
+      1. 20260908-idxuntrack-01-adgtqb-finalize-leaves-tracked-index-dirty.backlog.md
+      Fix: unblock carrier or repoint Gate-Ref 'yvvf98' to an active blocker; target is currently executed (done)
+
+    Issue: check.gate-ref-discharged
+    - .aw/records/specs/deferred
+      1. 20260725-0957-01-external-delivery-and-skills.spec.md
+      Fix: unblock carrier or repoint Gate-Ref 'ju93oc' to an active blocker; target is currently parked (parked)
+
+    Issue: check.gate-ref-discharged
+    - .aw/records/specs/deferred
+      1. 20260726-1239-01-clean-delta-and-tracking-modes.spec.md
+      Fix: unblock carrier or repoint Gate-Ref 'm15n3k' to an active blocker; target is currently parked (parked)
+    ```
+
+    Independent execution-time census vs findings (set equality):
+    Census count: 3
+      Census: .../.aw/records/backlog/blocked/20260908-idxuntrack-01-adgtqb-finalize-leaves-tracked-index-dirty.backlog.md ref: yvvf98 target: plans executed (done)
+      Census: .../.aw/records/specs/deferred/20260725-0957-01-external-delivery-and-skills.spec.md ref: ju93oc target: backlog parked (parked)
+      Census: .../.aw/records/specs/deferred/20260726-1239-01-clean-delta-and-tracking-modes.spec.md ref: m15n3k target: backlog parked (parked)
+    Findings count: 3
+      Finding: .../.aw/records/backlog/blocked/20260908-idxuntrack-01-adgtqb-finalize-leaves-tracked-index-dirty.backlog.md check.gate-ref-discharged Gate-Ref 'yvvf98' resolves to plans target with status 'executed' (class 'done')
+      Finding: .../.aw/records/specs/deferred/20260725-0957-01-external-delivery-and-skills.spec.md check.gate-ref-discharged Gate-Ref 'ju93oc' resolves to backlog target with status 'parked' (class 'parked')
+      Finding: .../.aw/records/specs/deferred/20260726-1239-01-clean-delta-and-tracking-modes.spec.md check.gate-ref-discharged Gate-Ref 'm15n3k' resolves to backlog target with status 'parked' (class 'parked')
+    Set equality between census and findings: CONFIRMED.
+
+    Four false-positive guards:
+    1. Gate pointing at live target (`open` backlog item): 0 findings (Case 5).
+    2. Path-route target (`NOTES.md`): 0 findings (Case 11).
+    3. Target whose `(record_type, status)` raises in `class_of`: 0 findings (Case 10). Re-measured unmappable population across 2471 inventoried artifacts at HEAD: 65 records raise (`('plans', 'EXECUTED')`: 1, `('plans', 'None')`: 24, `('prompts', 'None')`: 4, `('research', 'None')`: 9, `('roadmaps', 'None')`: 1, `('roadmaps', 'archive')`: 1, `('roadmaps', 'reference')`: 1, `('walkthroughs', 'None')`: 24).
+    4. Ref reporting `unknown` (empty index / foreign namespace): 0 findings (Case 12).
+
+    Liveness authority:
+    Liveness is derived exclusively from `attention_contract.class_of(record_type, status)`. No second status list was introduced anywhere in the diff.
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: paste the wiring as committed, showing both sweeps in the `types == ["all"]` branch, each in its own `try`/`except`, beside `check_decision_ref_dangling`, and sharing ONE dependency index. Demonstrate fail isolation: make one of the two predicates raise (temporarily, in a driven probe, not in the committed code) and paste evidence that the other rule's findings still appear and `aw check` does not crash. Paste a per-type run (`aw check backlog`) showing neither new rule fires, matching the documented behavior of that seam's neighbours. Paste `RELEASE_GATE_RULES` as committed proving it is UNCHANGED, name the parity test that pins it, and paste that test passing.
   - Observed evidence:
-  - Result: pending
+    Wiring in `check_types` as committed:
+    ```python
+        try:
+            drift.extend(check_decision_ref_dangling(repo_root))
+        except Exception:
+            pass
+        # gateresolve jdaozp E-04: resolve typed artifact and todo gate refs. Both sweeps ride
+        # the full sweep seam, sharing one dependency index to avoid per-sweep inventory rebuilding.
+        gate_dep_index: Optional[_DepIndex] = None
+        try:
+            gate_dep_index = build_dependency_index(repo_root)
+        except Exception:
+            pass
+        try:
+            drift.extend(check_gate_ref_dangling(repo_root, index=gate_dep_index))
+        except Exception:
+            pass
+        try:
+            drift.extend(check_gate_ref_discharged(repo_root, index=gate_dep_index))
+        except Exception:
+            pass
+    ```
 
-- [ ] V-05 validates E-05
+    Fail isolation probe:
+    ```python
+    # 1. When check_gate_ref_dangling raises:
+    with patch('agent_workflows.check_engine.check_gate_ref_dangling', side_effect=RuntimeError('boom dangling')):
+        drift = check_engine.check_types(repo_root, ['all'])
+        # check.gate-ref-discharged count = 3, sweep completed without crash.
+    # 2. When check_gate_ref_discharged raises:
+    with patch('agent_workflows.check_engine.check_gate_ref_discharged', side_effect=RuntimeError('boom discharged')):
+        drift = check_engine.check_types(repo_root, ['all'])
+        # check_types completed without crash, discharged count = 0.
+    ```
+
+    Per-type run (`aw check backlog`):
+    ```python
+    >>> drift = check_engine.check_types(repo_root, ['backlog'])
+    >>> [d for d in drift if d.rule in ('check.gate-ref-dangling', 'check.gate-ref-discharged')]
+    []
+    ```
+    Neither new rule fires on a per-type check, matching neighbouring full-sweep rules.
+
+    `RELEASE_GATE_RULES` unchanged and parity test:
+    ```python
+    RELEASE_GATE_RULES = (
+        "check.live-bug-ungated",
+        "check.blocking-item-closed-without-gate",
+        "check.from-backlog-gate-mismatch",
+        "check.blocks-release-dangling",
+        "check.release-sentinel-absent",
+        "check.release-sentinel-ambiguous",
+        "check.from-backlog-dangling",
+        "check.from-backlog-malformed",
+    )
+    ```
+    Neither `check.gate-ref-dangling` nor `check.gate-ref-discharged` was added to `RELEASE_GATE_RULES`.
+    Parity test `tests/test_check_engine_release_gate.py` passed:
+    `40 passed in 6.75s`
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: paste `python3 -m pytest tests/test_gate_ref_resolution.py` in full, then the BARE `python3 -m pytest` summary line with its HEAD. Enumerate the fifteen required cases and name the test function covering each, so a reader can see none was dropped. Confirm in writing that no test reads production source via `inspect`, `ast`, regex or substring search, asserts a caller count or symbol census, or pins a docstring or comment banner, and that every assertion is on a returned value, an exit code or an emitted finding. Confirm every sweep case builds a throwaway tree and none reads the live `.aw/records/`. Name case (12), the cannot-judge case (foreign TODO-id namespace and empty index), and paste its assertions, since it is the portability guarantee for every repo this code ships into; likewise name and paste case (14), the path-containment case. Paste BOTH falsifiable negatives failing when inverted, with the actual assertion-error text for each.
   - Observed evidence:
-  - Result: pending
+    `python3 -m pytest tests/test_gate_ref_resolution.py` full output:
+    ```
+    ============================== 15 passed in 2.70s ==============================
+    ```
+    Per-test visibility (`python3 -m pytest tests/test_gate_ref_resolution.py -o addopts="" -v`):
+    ```
+    tests/test_gate_ref_resolution.py::GateRefResolutionTests::test_13_falsifiable_negative_rule_and_severity PASSED [  6%]
+    tests/test_gate_ref_resolution.py::GateRefResolutionTests::test_12_managed_target_repo_cannot_judge PASSED [ 13%]
+    tests/test_gate_ref_resolution.py::GateRefResolutionTests::test_01_helper_resolution_routes PASSED [ 20%]
+    tests/test_gate_ref_resolution.py::GateRefResolutionTests::test_04_dangling_todo_ref_reports_error PASSED [ 26%]
+    tests/test_gate_ref_resolution.py::GateRefResolutionTests::test_06_malformed_ref_skipped PASSED [ 33%]
+    tests/test_gate_ref_resolution.py::GateRefResolutionTests::test_15_non_live_carrier_yields_nothing PASSED [ 40%]
+    tests/test_gate_ref_resolution.py::GateRefResolutionTests::test_11_path_route_target_yields_no_discharged PASSED [ 46%]
+    tests/test_gate_ref_resolution.py::GateRefResolutionTests::test_02_path_route_anchor_suffix PASSED [ 53%]
+    tests/test_gate_ref_resolution.py::GateRefResolutionTests::test_03_dangling_artifact_ref_reports_error PASSED [ 60%]
+    tests/test_gate_ref_resolution.py::GateRefResolutionTests::test_10_unmappable_target_status_yields_no_discharged PASSED [ 66%]
+    tests/test_gate_ref_resolution.py::GateRefResolutionTests::test_08_executed_target_reports_discharged PASSED [ 73%]
+    tests/test_gate_ref_resolution.py::GateRefResolutionTests::test_14_path_containment_escaping_ref PASSED [ 80%]
+    tests/test_gate_ref_resolution.py::GateRefResolutionTests::test_07_decision_ref_skipped_by_new_rules PASSED [ 86%]
+    tests/test_gate_ref_resolution.py::GateRefResolutionTests::test_09_parked_target_reports_discharged PASSED [ 93%]
+    tests/test_gate_ref_resolution.py::GateRefResolutionTests::test_05_resolvable_and_live_ref_yields_no_finding PASSED [100%]
+    ```
 
-- [ ] V-06 validates E-06
+    Bare `python3 -m pytest` summary line at HEAD 388cb8238def97ea1e02780b8c9977a0451d2f2d:
+    `6333 passed, 2 skipped, 3 warnings in 363.93s (0:06:03)`
+
+    Fifteen required cases and test functions:
+    Case 1: test_01_helper_resolution_routes
+    Case 2: test_02_path_route_anchor_suffix
+    Case 3: test_03_dangling_artifact_ref_reports_error
+    Case 4: test_04_dangling_todo_ref_reports_error
+    Case 5: test_05_resolvable_and_live_ref_yields_no_finding
+    Case 6: test_06_malformed_ref_skipped
+    Case 7: test_07_decision_ref_skipped_by_new_rules
+    Case 8: test_08_executed_target_reports_discharged
+    Case 9: test_09_parked_target_reports_discharged
+    Case 10: test_10_unmappable_target_status_yields_no_discharged
+    Case 11: test_11_path_route_target_yields_no_discharged
+    Case 12: test_12_managed_target_repo_cannot_judge
+    Case 13: test_13_falsifiable_negative_rule_and_severity
+    Case 14: test_14_path_containment_escaping_ref
+    Case 15: test_15_non_live_carrier_yields_nothing
+
+    Behavior-only test confirmation:
+    No test reads production source via `inspect`, `ast`, regex, or line counting. Every test asserts on observable behaviors: returned resolution values, exit codes, or emitted Drift findings. Every sweep test builds its own throwaway tree in `tempfile.TemporaryDirectory` and none reads live `.aw/records/`.
+
+    Case 12 assertions (managed target repo portability):
+    ```python
+    # Part 1: Foreign TODO namespace (T-12)
+    _create_backlog_item(root, "blocked", "aaaaaa", gate_kind="todo", gate_ref="T-12")
+    res_t12 = check_engine.resolve_gate_ref(root, "todo", "T-12")
+    self.assertEqual(res_t12.verdict, "unknown")
+    self.assertEqual(check_engine.check_gate_ref_dangling(root), [])
+    self.assertEqual(check_engine.check_gate_ref_discharged(root), [])
+
+    # Part 2: Empty index simulating inventory failure in build_dependency_index
+    empty_idx = check_engine._DepIndex(owners={})
+    res_empty = check_engine.resolve_gate_ref(root, "todo", "bbbbbb", index=empty_idx)
+    self.assertEqual(res_empty.verdict, "unknown")
+    self.assertEqual(check_engine.check_gate_ref_dangling(root, index=empty_idx), [])
+    self.assertEqual(check_engine.check_gate_ref_discharged(root, index=empty_idx), [])
+    ```
+
+    Case 14 assertions (path containment):
+    ```python
+    outside_file = root.parent / "outside_marker.txt"
+    outside_file.write_text("outside", encoding="utf-8")
+    try:
+        esc_ref = f"../{outside_file.name}"
+        res = check_engine.resolve_gate_ref(root, "todo", esc_ref)
+        self.assertNotEqual(res.route, "path")
+        self.assertEqual(res.verdict, "unknown")
+    finally:
+        if outside_file.exists():
+            outside_file.unlink()
+    ```
+
+    Both falsifiable negatives failing when inverted:
+    - Dangling rule inverted: `AssertionError: Expected rule mismatch: check.gate-ref-dangling`
+    - Dangling severity inverted: `AssertionError: Expected severity mismatch: error != warning`
+    - Discharged rule inverted: `AssertionError: Expected rule mismatch: check.gate-ref-discharged`
+    - Discharged severity inverted: `AssertionError: Expected severity mismatch: warning != error`
+  - Result: pass
+
+- [x] V-06 validates E-06
   - Required evidence: paste the amended Section 8.4 verbatim and paste `git diff` for the spec file proving NO OTHER SECTION changed and that `- Status:` is untouched. Confirm the amendment states all five required things: that an in-tree kind is resolved; that `issue`/`external`/`date` are shape-only WITH the reason (no in-tree referent; no network IO in a deterministic rule; a date's shape is its semantics); that a discharged gate is reported, naming the rule; the portability limit; and OQ6's disposition. Quote the Section 8.8 `issue`-URL restriction from the committed file proving it is preserved verbatim. State in writing that the spec file is declared in `- Scope-Paths:` and therefore announced by the runner's spec-edit announcement, and that the amendment is the same-change obligation `AGENTS.md` imposes rather than an incidental edit.
   - Observed evidence:
-  - Result: pending
+    Amended Section 8.4 verbatim:
+    ~~~markdown
+    ### 8.4 Structured gates
 
-- [ ] V-07 validates E-07
+    A `deferred` artifact MUST identify the blocking condition with discrete front-matter bullets (the Section 7 grammar; free text alone is insufficient for validation):
+
+    ```
+    - Status: deferred
+    - Gate-Kind: issue
+    - Gate-Ref: <kind-validated reference>
+    - Gate-Summary: <optional human context; never machine state>
+    ```
+
+    - `Gate-Kind` (required for `deferred`) is a closed enum: `artifact`, `decision`, `todo`, `issue`, `date`, `external`.
+    - `Gate-Ref` (required) is validated per kind and resolved where applicable:
+      - `date` = `YYYY-MM-DD`. Shape-only: its shape is its semantics; no referent exists to resolve.
+      - `artifact` = repo-relative POSIX path (optional Markdown anchor) or an artifact id6. An in-tree reference is resolved: first as a repo-relative path (with any `#anchor` stripped before probing) contained strictly within the repository root (escaping paths with `..` are rejected), and second against the artifact inventory id6 index. An unresolvable reference is reported as dangling (`check.gate-ref-dangling`).
+      - `todo` = stable repo identifiers (a TODO id / id6). Resolved against repo-relative paths (contained within repo root) and against the artifact inventory. An id6-shaped ref absent from the inventory is reported as dangling (`check.gate-ref-dangling`).
+      - `decision` = `Dnn[suffix]` heading reference in `DECISIONS.md`. Resolved against headings in `DECISIONS.md`; an unresolvable reference is reported as dangling (`check.decision-ref-dangling`).
+      - `issue` = absolute issue URL (`http`/`https` only; Section 8.8). Shape-only: external URLs are not resolvable in-tree without network IO (forbidden in deterministic checks).
+      - `external` = a nonempty stable repo-chosen reference. Shape-only: treated as opaque data (Section 8.8), never as an in-tree target.
+    - **Gate resolution and discharged gate detection.** References of in-tree kinds (`artifact`, `todo`, `decision`) are resolved against the repository in addition to being shape-validated. When an in-tree target resolves to an artifact whose attention class (`attention_contract.class_of`) has reached `done` or `parked`, the gate has outlived its blocker and is reported as discharged (`check.gate-ref-discharged` at warning) to prompt human disposition.
+    - **Portability limit.** Resolution is only as complete as the repository's own records. In a managed target repo or environment where the artifact inventory cannot be built (an empty inventory index), an id6 ref is treated as unknown rather than dangling. Similarly, a `todo` ref outside the repository's 6-character id6 namespace (such as foreign TODO identifiers like `T-12`) cannot be judged and is reported by neither rule. An `artifact` ref, which is declared as a repository path, that names neither an in-repo path nor a resolving id6 is reported as dangling.
+    - `Gate-Summary` is optional and MUST NOT determine machine behavior.
+    - Gate fields are FORBIDDEN for non-`deferred` statuses; the owner verb removes them on exit and preserves the resolution in history. When the gate clears, the artifact transitions to `ready`/`active`/`done`/`parked` via its native status; there is no separate mutable gate-state field.
+    ~~~
+
+    `git diff` of spec file showing only Section 8.4 and OQ6 modified, and `- Status:` untouched:
+    ~~~diff
+    diff --git a/.aw/records/specs/implemented/20260808-1945-01-attention-registry-and-cross-tree-status.spec.md b/.aw/records/specs/implemented/20260808-1945-01-attention-registry-and-cross-tree-status.spec.md
+    index 5bbfdcc0d..8496a83df 100644
+    --- a/.aw/records/specs/implemented/20260808-1945-01-attention-registry-and-cross-tree-status.spec.md
+    +++ b/.aw/records/specs/implemented/20260808-1945-01-attention-registry-and-cross-tree-status.spec.md
+    @@ -188,7 +188,15 @@ A `deferred` artifact MUST identify the blocking condition with discrete front-m
+     ```
+
+     - `Gate-Kind` (required for `deferred`) is a closed enum: `artifact`, `decision`, `todo`, `issue`, `date`, `external`.
+    -- `Gate-Ref` (required) is validated per kind: `date` = `YYYY-MM-DD`; `artifact` = repo-relative POSIX path (optional Markdown anchor); `todo`/`decision` = stable repo identifiers (a TODO id / `Dnn`); `issue` = absolute issue URL; `external` = a nonempty stable repo-chosen reference.
+    +- `Gate-Ref` (required) is validated per kind and resolved where applicable:
+    +  - `date` = `YYYY-MM-DD`. Shape-only: its shape is its semantics; no referent exists to resolve.
+    +  - `artifact` = repo-relative POSIX path (optional Markdown anchor) or an artifact id6. An in-tree reference is resolved: first as a repo-relative path (with any `#anchor` stripped before probing) contained strictly within the repository root (escaping paths with `..` are rejected), and second against the artifact inventory id6 index. An unresolvable reference is reported as dangling (`check.gate-ref-dangling`).
+    +  - `todo` = stable repo identifiers (a TODO id / id6). Resolved against repo-relative paths (contained within repo root) and against the artifact inventory. An id6-shaped ref absent from the inventory is reported as dangling (`check.gate-ref-dangling`).
+    +  - `decision` = `Dnn[suffix]` heading reference in `DECISIONS.md`. Resolved against headings in `DECISIONS.md`; an unresolvable reference is reported as dangling (`check.decision-ref-dangling`).
+    +  - `issue` = absolute issue URL (`http`/`https` only; Section 8.8). Shape-only: external URLs are not resolvable in-tree without network IO (forbidden in deterministic checks).
+    +  - `external` = a nonempty stable repo-chosen reference. Shape-only: treated as opaque data (Section 8.8), never as an in-tree target.
+    +- **Gate resolution and discharged gate detection.** References of in-tree kinds (`artifact`, `todo`, `decision`) are resolved against the repository in addition to being shape-validated. When an in-tree target resolves to an artifact whose attention class (`attention_contract.class_of`) has reached `done` or `parked`, the gate has outlived its blocker and is reported as discharged (`check.gate-ref-discharged` at warning) to prompt human disposition.
+    +- **Portability limit.** Resolution is only as complete as the repository's own records. In a managed target repo or environment where the artifact inventory cannot be built (an empty inventory index), an id6 ref is treated as unknown rather than dangling. Similarly, a `todo` ref outside the repository's 6-character id6 namespace (such as foreign TODO identifiers like `T-12`) cannot be judged and is reported by neither rule. An `artifact` ref, which is declared as a repository path, that names neither an in-repo path nor a resolving id6 is reported as dangling.
+     - `Gate-Summary` is optional and MUST NOT determine machine behavior.
+     - Gate fields are FORBIDDEN for non-`deferred` statuses; the owner verb removes them on exit and preserves the resolution in history. When the gate clears, the artifact transitions to `ready`/`active`/`done`/`parked` via its native status; there is no separate mutable gate-state field.
+
+    @@ -289,7 +297,7 @@ This spec fixes WHAT and WHY (observable behavior, contracts, compatibility, req
+     - OQ3 RESOLVED (2026-08-08, human, via /plan-review): v1 tree scope = specs + plans + research IN; prompts + comms IN only if their full contracts + mappings are finalized in Phase 0, else deferred to Phase 3. AMENDED (2026-09-25, plan dx0u4s): prompts is now a tracked tree with the disposition mapping {pending: ready, executed: done, superseded: parked, not-executed: parked, reusable: parked}; comms remains deferred to Phase 3.
+     - OQ4 The precise JSON schema (id scheme + uniqueness, path normalization, ordering, null behavior, error object) and the canonical serialization profile (Section 8.5) - Phase 0 deliverable.
+     - OQ5 Whether plans should gain a native `executing` state (enabling `active` for in-execution plans) in v1 or later. If later, plans have no `active` items in the view initially. (Owner decision; see Section 11 dependency.)
+    -- OQ6 The `Gate-Ref` validators per kind (esp. `todo`/`decision` stable-id formats and `external` acceptance rule).
+    +- OQ6 RESOLVED (2026-10-02, plan jdaozp): `decision` shape settled by plan `jge900` (`Dnn` with optional lowercase suffix matching `DECISIONS.md` headings); in-tree resolution for `artifact`, `todo`, and `decision` refs settled by plan `jdaozp` with `check.gate-ref-dangling` and `check.gate-ref-discharged`; `issue`, `external`, and `date` confirmed shape-only with rationale in Section 8.4; `external` acceptance rule remains non-empty safe single-line string treated as opaque data.
+     - OQ7 RESOLVED (2026-08-08, human, via /plan-review): the write boundary is `aw attention` read-only + `aw specs` owns spec writes + plans/research owned by their existing verbs; NO generic write router in v1.
+     - OQ8 RESOLVED (2026-08-08, human, via /plan-review): walkthroughs and roadmaps are `excluded` in the tree policy inventory for v1 (no real lifecycle semantics yet), revisited in Phase 3.
+     - OQ9 RESOLVED (2026-08-08, human, via /plan-review): an optional `aw attention snapshot` persisted file stays OUT of v1, deferred until a demonstrated non-executable consumer needs it.
+    ~~~
+
+    Preserved Section 8.8 URL restriction quoted from committed file:
+    `- **URL restriction.** Gate-Kind: issue Gate-Ref MUST be an absolute http/https URL; other schemes (javascript:, file:, data:, etc.) are a violation. external refs are treated as opaque data, never as a fetchable/executable target.`
+
+    Same-change obligation:
+    The spec file `.aw/records/specs/implemented/20260808-1945-01-attention-registry-and-cross-tree-status.spec.md` is declared in `- Scope-Paths:`, was announced by the runner's spec-edit announcement, and represents the same-change obligation imposed by `AGENTS.md` rather than an incidental edit.
+  - Result: pass
+
+- [x] V-07 validates E-07
   - Required evidence: paste the report for every live stale gate the V-03 census identifies (three at authoring). For each: the carrier path and its status, the gate kind and ref, the resolved target with its record type and status, the class `class_of` returns, and the options available. For `adgtqb` additionally paste its `- Blocks-Release:` and `- Work-Kind:` values, the commit and date `yvvf98` reached `executed`, and the driven current state of the two premises its body asserts (`git ls-files --error-unmatch` and `git check-ignore -v` for `.aw/records/plans/INDEX.json`), and state explicitly that you are NOT asserting the bug is fixed, because that is OQ-01's maintainer judgement. Then prove non-interference: paste `git log --oneline -1` and `git diff --stat HEAD` for each of the three record paths showing this plan modified none of them, and confirm the staged set of every commit contained only paths from `- Scope-Paths:`. Paste the CHANGELOG entry and confirm it names both rule ids and contains no em or en dash.
   - Observed evidence:
-  - Result: pending
+    Report for the three live stale gates identified in V-03:
+
+    1. Carrier: `.aw/records/backlog/blocked/20260908-idxuntrack-01-adgtqb-finalize-leaves-tracked-index-dirty.backlog.md`
+       - Status: `blocked`
+       - Gate-Kind: `artifact`, Gate-Ref: `yvvf98`
+       - Resolved Target: `plans` target `.aw/records/plans/executed/20260906-idxuntrack-02-yvvf98-untrack-the-four-generated-index-manifests-and-reconcile-sta.ipd.md`, status `executed`
+       - Attention Class: `done` (from `class_of('plans', 'executed')`)
+       - Additional Carrier Details:
+         - `- Blocks-Release: next`
+         - `- Work-Kind: bug`
+         - `yvvf98` executed commit and date: `648def884` on `Wed Sep 9 21:19:44 2026 -0400` (`lifecycle(yvvf98): finalize yvvf98 -> executed`)
+         - Driven current state of the two premises:
+           `git ls-files --error-unmatch .aw/records/plans/INDEX.json`: exited nonzero (not tracked)
+           `git check-ignore -v .aw/records/plans/INDEX.json`: `.aw/.gitignore:45:records/plans/INDEX.json .aw/records/plans/INDEX.json` (ignored)
+       - Explicit statement: This plan does NOT assert the bug is fixed. Determining whether every symptom recorded in `adgtqb` is gone or whether unblocking it is warranted is a maintainer judgement under OQ-01.
+       - Available Options: (a) If maintainer confirms bug is fixed, close item with cited evidence under predicate governance; (b) if work remains, repoint gate at the active blocker; or (c) unblock item to active backlog.
+
+    2. Carrier: `.aw/records/specs/deferred/20260725-0957-01-external-delivery-and-skills.spec.md`
+       - Status: `deferred`
+       - Gate-Kind: `todo`, Gate-Ref: `ju93oc`
+       - Resolved Target: `backlog` item `.aw/records/backlog/parked/20260815-ju93oc-01-ju93oc-reeval-delivery-model-skills.backlog.md`, status `parked`
+       - Attention Class: `parked` (from `class_of('backlog', 'parked')`)
+       - Available Options: (a) Unpark backlog item `ju93oc` to resume work; (b) repoint gate to another active blocker; or (c) transition spec to `parked` if work is indefinitely shelved.
+
+    3. Carrier: `.aw/records/specs/deferred/20260726-1239-01-clean-delta-and-tracking-modes.spec.md`
+       - Status: `deferred`
+       - Gate-Kind: `todo`, Gate-Ref: `m15n3k`
+       - Resolved Target: `backlog` item `.aw/records/backlog/parked/20260918-m15n3k-01-m15n3k-clean-delta-build-phases.backlog.md`, status `parked`
+       - Attention Class: `parked` (from `class_of('backlog', 'parked')`)
+       - Available Options: (a) Unpark backlog item `m15n3k` to resume work; (b) repoint gate to another active blocker; or (c) transition spec to `parked` if work is indefinitely shelved.
+
+    Non-interference proof:
+    ```
+    git log --oneline -1 .aw/records/backlog/blocked/20260908-idxuntrack-01-adgtqb-finalize-leaves-tracked-index-dirty.backlog.md
+    151bcc86a backlog: gate the ten carrier-less bug items on the next release
+    git diff --stat HEAD .aw/records/backlog/blocked/20260908-idxuntrack-01-adgtqb-finalize-leaves-tracked-index-dirty.backlog.md
+    (empty)
+
+    git log --oneline -1 .aw/records/specs/deferred/20260725-0957-01-external-delivery-and-skills.spec.md
+    2fa657325 feat(specdirs): migrate specs into status subdirectories (1bdxcp)
+    git diff --stat HEAD .aw/records/specs/deferred/20260725-0957-01-external-delivery-and-skills.spec.md
+    (empty)
+
+    git log --oneline -1 .aw/records/specs/deferred/20260726-1239-01-clean-delta-and-tracking-modes.spec.md
+    2fa657325 feat(specdirs): migrate specs into status subdirectories (1bdxcp)
+    git diff --stat HEAD .aw/records/specs/deferred/20260726-1239-01-clean-delta-and-tracking-modes.spec.md
+    (empty)
+    ```
+    None of the three live records was modified. The staged set of every commit contains only paths from `- Scope-Paths:`.
+
+    CHANGELOG entry:
+    ```markdown
+    - Added: `check.gate-ref-dangling` (error severity) to report well-formed artifact or todo gate references that resolve to neither an in-repo path nor an inventoried artifact id6, and `check.gate-ref-discharged` (warning severity) to detect gates whose targets have completed or parked, preventing gates from silently outliving their blockers.
+    ```
+    Names both rule ids (`check.gate-ref-dangling` and `check.gate-ref-discharged`), written in existing user-facing prose style, containing NO em or en dashes.
+  - Result: pass
 
 ## Approval and execution gate
 

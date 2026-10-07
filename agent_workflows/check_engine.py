@@ -409,6 +409,30 @@ RULE_REGISTRY: Dict[str, RuleSpec] = {
     "check.decision-ref-dangling": RuleSpec(
         "warning", ASSURANCE_REPOSITORY, DET_DETERMINISTIC, "I-07"
     ),
+    # gateresolve jdaozp E-02: a Gate-Kind: artifact or todo ref that resolves to neither an in-repo path
+    # nor an id6 in the artifact inventory. Registered `error` with invariant I-07, matching the shipped
+    # `check.from-backlog-dangling` and `check.from-spec-dangling` dangling-family tier (an unresolvable
+    # identity reference).
+    # ASYMMETRY WITH CLOSEST SIBLING `check.decision-ref-dangling` (registered `warning`): acceptable
+    # because the decision rule resolves against a repo-local markdown log (DECISIONS.md) that may be
+    # legitimately incomplete and was deliberately tiered as its `check.review-dangling` twin ("UNTIDY,
+    # not dangerous"), whereas an id6 or path ref resolves against the artifact inventory that IS the
+    # repository's identity authority, the same authority `check.from-backlog-dangling` (`error`)
+    # resolves against. A dangling gate reference naming nothing is dangerous because it is the stated
+    # authority for an artifact being `blocked`. Deterministic: literal path and index membership.
+    "check.gate-ref-dangling": RuleSpec(
+        "error", ASSURANCE_REPOSITORY, DET_DETERMINISTIC, "I-07"
+    ),
+    # gateresolve jdaozp E-03: a Gate-Ref whose target resolves in the artifact inventory but whose
+    # attention_contract.class_of is `done` or `parked`. Registered `warning` with invariant I-07.
+    # Severity rationale: a discharged gate indicates a record needing human disposition (unblock, repoint,
+    # or close) rather than a malformed record; warning still drives a nonzero check exit because
+    # artifact_core.drift_exit_code exempts only info; error was rejected because it would turn the sweep
+    # red on three records this plan deliberately does not edit, converting a detector into a forced edit
+    # of a release-gated item. Deterministic: attention_contract.class_of mapping over inventoried status.
+    "check.gate-ref-discharged": RuleSpec(
+        "warning", ASSURANCE_REPOSITORY, DET_DETERMINISTIC, "I-07"
+    ),
     # revsweep 5slbpi E-04: a spec CURRENTLY at `- Status: reviewed` with no conforming review record
     # naming it. `error`, NOT the advisory severity its `check.review-dangling` neighbour directly
     # above carries, and the difference is deliberate rather than inherited: a stale review is untidy
@@ -4361,6 +4385,21 @@ def check_types(
             drift.extend(check_decision_ref_dangling(repo_root))
         except Exception:
             pass
+        # gateresolve jdaozp E-04: resolve typed artifact and todo gate refs. Both sweeps ride
+        # the full sweep seam, sharing one dependency index to avoid per-sweep inventory rebuilding.
+        gate_dep_index: Optional[_DepIndex] = None
+        try:
+            gate_dep_index = build_dependency_index(repo_root)
+        except Exception:
+            pass
+        try:
+            drift.extend(check_gate_ref_dangling(repo_root, index=gate_dep_index))
+        except Exception:
+            pass
+        try:
+            drift.extend(check_gate_ref_discharged(repo_root, index=gate_dep_index))
+        except Exception:
+            pass
         # revsweep 5slbpi E-04: the OTHER half of the `->reviewed` attestation. The setter refuses the
         # transition; this rule catches a spec that reached `reviewed` some other way (a hand edit, a
         # pre-existing file). Same shared predicate, so the refusal and the finding cannot disagree.
@@ -7137,6 +7176,265 @@ def check_decision_ref_dangling(repo_root: Path) -> List[_core.Drift]:
                     ),
                 )
             )
+
+    return drift
+
+
+_GATE_REF_DANGLING_RULE = "check.gate-ref-dangling"
+_GATE_REF_DISCHARGED_RULE = "check.gate-ref-discharged"
+
+
+class GateRefResolution(NamedTuple):
+    """Result of resolving a typed gate reference against in-tree targets."""
+
+    verdict: str  # "resolved" | "unresolved" | "unknown"
+    route: Optional[str] = None  # "path" | "id6" | None
+    record_type: Optional[str] = None  # e.g. "plans", "backlog", "specs"
+    status: Optional[str] = None  # native status, e.g. "executed", "parked"
+    path: Optional[str] = None  # target repo-relative path or file path
+
+
+def resolve_gate_ref(
+    repo_root: Path,
+    kind: str,
+    ref: str,
+    index: Optional[_DepIndex] = None,
+) -> GateRefResolution:
+    """Resolve a typed gate reference against its in-tree target.
+
+    Resolution order (gateresolve jdaozp E-01):
+    1. FIRST probe the ref as a repo-relative path (with any `#anchor` stripped),
+       contained strictly within repo_root.
+    2. SECOND resolve the ref as an artifact id6 through the dependency index.
+
+    Guards:
+    (a) Path containment: `_TODO_ID_RE` admits `..` so a bare path probe could escape
+        repo_root; the path route is accepted only when the resolved candidate is
+        contained within repo_root and exists. Otherwise it falls through to the id6 route.
+    (b) Empty index: `build_dependency_index` swallows inventory exceptions returning an
+        empty index. On an empty index, an id6 ref returns "unknown", never "unresolved".
+    (c) Id6 shape vs foreign namespace: a `todo` ref that is neither an in-repo path nor
+        id6-shaped (artifact_core.ID6_RE) returns "unknown", not "unresolved", preserving
+        managed-repo portability. An `artifact` ref is declared a path, so an artifact ref
+        that is neither an in-repo path nor an id6 returns "unresolved".
+    """
+    if kind not in ("artifact", "todo"):
+        return GateRefResolution("unknown")
+
+    root_resolved = Path(repo_root).resolve()
+    clean_ref = ref.split("#", 1)[0]
+
+    # 1. Path probe (contained within repo_root)
+    try:
+        candidate = (root_resolved / clean_ref).resolve()
+        if (
+            candidate.is_relative_to(root_resolved)
+            and candidate != root_resolved
+            and candidate.exists()
+        ):
+            rel_path = str(candidate.relative_to(root_resolved))
+            return GateRefResolution("resolved", route="path", path=rel_path)
+    except (ValueError, OSError, RuntimeError):
+        pass
+
+    # 2. Id6 route via dependency index
+    if index is None:
+        index = build_dependency_index(repo_root)
+
+    is_id6 = bool(_core.ID6_RE.match(clean_ref))
+
+    hits = index.owners.get(clean_ref, [])
+    if hits:
+        rec_type, status, target_path = hits[0]
+        return GateRefResolution(
+            "resolved",
+            route="id6",
+            record_type=rec_type,
+            status=status,
+            path=target_path,
+        )
+
+    # Guard (b): If index is empty, an id6 ref is unknown, not unresolved
+    if not index.owners and is_id6:
+        return GateRefResolution("unknown")
+
+    # Guard (c): For kind == "todo", non-id6 refs that did not resolve as in-repo path are unknown
+    if kind == "todo":
+        if not is_id6:
+            return GateRefResolution("unknown")
+        return GateRefResolution("unresolved")
+
+    # For kind == "artifact":
+    return GateRefResolution("unresolved")
+
+
+def _iter_live_gate_carriers(
+    repo_root: Path,
+) -> Iterable[Tuple[Path, str, str]]:
+    """Enumerate (path, gate_kind, gate_ref) for live gate carriers.
+
+    Considers ONLY:
+    - Backlog items at status 'blocked'
+    - Specs at status 'deferred'
+
+    Filters out:
+    - Gate-Kind values other than 'artifact' and 'todo'
+    - Absent or invalid Gate-Ref values (per validate_gate_ref)
+    """
+    try:
+        from agent_workflows import attention_contract as _A
+    except Exception:
+        return
+
+    # 1. Backlog items at status "blocked"
+    try:
+        from agent_workflows import backlog as _backlog
+
+        backlog_items = list(_backlog._iter_items(repo_root))
+    except Exception:
+        backlog_items = []
+
+    for path in backlog_items:
+        try:
+            text = path.read_text(encoding="utf-8")
+        except OSError:
+            continue
+        item = _backlog.parse_item(text)
+        if item.status != "blocked":
+            continue
+        kind = item.gate_kind
+        if kind not in ("artifact", "todo"):
+            continue
+        ref = item.gate_ref
+        if not ref or not _A.validate_gate_ref(kind, ref):
+            continue
+        yield path, kind, ref
+
+    # 2. Specs at status "deferred"
+    try:
+        from agent_workflows import specs as _specs
+
+        spec_files = list(_specs._spec_files(repo_root))
+    except Exception:
+        spec_files = []
+
+    for path in spec_files:
+        try:
+            text = path.read_text(encoding="utf-8")
+        except OSError:
+            continue
+        lines = _specs._lines(text)
+        if _specs._read_status(lines) != "deferred":
+            continue
+        kind, ref, _summary = _specs._read_gate(lines)
+        if kind not in ("artifact", "todo"):
+            continue
+        if not ref or not _A.validate_gate_ref(kind, ref):
+            continue
+        yield path, kind, ref
+
+
+def check_gate_ref_dangling(
+    repo_root: Path,
+    index: Optional[_DepIndex] = None,
+) -> List[_core.Drift]:
+    """Flag a Gate-Kind: artifact or todo ref that resolves to neither a path nor an id6.
+
+    Registered `error` with invariant I-07 (matching check.from-backlog-dangling and
+    check.from-spec-dangling). Asymmetry with check.decision-ref-dangling (warning): acceptable
+    because DECISIONS.md is a repo-local markdown log that may be legitimately incomplete,
+    whereas an id6 or path ref resolves against the artifact inventory authority.
+
+    Skips:
+    - Kinds other than 'artifact' and 'todo' ('decision' is owned by check.decision-ref-dangling).
+    - Absent or malformed Gate-Ref values (avoid double-reporting with parser diagnostics).
+    - Non-live carriers (only backlog items at 'blocked' and specs at 'deferred' are considered).
+    - Helper verdicts of 'unknown' (e.g. empty index or foreign TODO-id namespace).
+    """
+    drift: List[_core.Drift] = []
+    repo_root = Path(repo_root)
+
+    try:
+        pass
+    except Exception:
+        return drift
+
+    if index is None:
+        index = build_dependency_index(repo_root)
+
+    for path, kind, ref in _iter_live_gate_carriers(repo_root):
+        resolution = resolve_gate_ref(repo_root, kind, ref, index=index)
+        if resolution.verdict == "unresolved":
+            drift.append(
+                enrich_drift(
+                    _core.Drift(
+                        str(path),
+                        _GATE_REF_DANGLING_RULE,
+                        f"Gate-Ref {ref!r} does not resolve to any in-tree path or artifact id6",
+                    ),
+                    observed=f"Gate-Kind: {kind}, Gate-Ref: {ref}",
+                    required="a Gate-Ref resolving to a repo-relative path or an inventoried artifact id6",
+                    recovery=(
+                        f"correct Gate-Ref {ref!r} to an existing repo-relative path or valid artifact id6, "
+                        "or remove/update the gate"
+                    ),
+                )
+            )
+
+    return drift
+
+
+def check_gate_ref_discharged(
+    repo_root: Path,
+    index: Optional[_DepIndex] = None,
+) -> List[_core.Drift]:
+    """Flag a Gate-Ref whose target resolves in the artifact inventory but is no longer live.
+
+    Registered `warning` with invariant I-07. Liveness is determined exclusively via
+    attention_contract.class_of(record_type, status): target classes 'done' and 'parked'
+    are flagged as discharged.
+
+    Skips:
+    - Path-route targets (a path has no status and is never judged discharged).
+    - Targets whose (record_type, status) raises in class_of (treated as unknown).
+    - Unresolved or unknown gate refs (handled or skipped by check.gate-ref-dangling).
+    - Non-live carriers (only backlog items at 'blocked' and specs at 'deferred').
+    """
+    drift: List[_core.Drift] = []
+    repo_root = Path(repo_root)
+
+    try:
+        from agent_workflows import attention_contract as _A
+    except Exception:
+        return drift
+
+    if index is None:
+        index = build_dependency_index(repo_root)
+
+    for path, kind, ref in _iter_live_gate_carriers(repo_root):
+        resolution = resolve_gate_ref(repo_root, kind, ref, index=index)
+        if resolution.verdict == "resolved" and resolution.route == "id6":
+            if resolution.record_type and resolution.status:
+                try:
+                    cls = _A.class_of(resolution.record_type, resolution.status)
+                except Exception:
+                    cls = None
+                if cls in ("done", "parked"):
+                    drift.append(
+                        enrich_drift(
+                            _core.Drift(
+                                str(path),
+                                _GATE_REF_DISCHARGED_RULE,
+                                f"Gate-Ref {ref!r} resolves to {resolution.record_type} target with status {resolution.status!r} (class {cls!r})",
+                            ),
+                            observed=f"Gate-Kind: {kind}, Gate-Ref: {ref} -> {resolution.record_type} {resolution.status} ({cls})",
+                            required="a gate whose referent is active or ready, or remove/update the gate if the blocker is resolved",
+                            recovery=(
+                                f"unblock carrier or repoint Gate-Ref {ref!r} to an active blocker; "
+                                f"target is currently {resolution.status} ({cls})"
+                            ),
+                        )
+                    )
 
     return drift
 
