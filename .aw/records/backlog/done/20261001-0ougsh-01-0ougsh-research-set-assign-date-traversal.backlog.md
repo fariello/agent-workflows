@@ -1,5 +1,5 @@
 - Id: 0ougsh
-- Status: graduated
+- Status: done
 - Graduated-To: 0ougsh
 - Blocks-Release: next
 - Set: 0ougsh
@@ -8,6 +8,7 @@
 - Summary: aw research set-assign interpolates an unvalidated --date into the destination filename, so a traversal in it moves an existing record outside the records tree; measured 2026-10-01, the sibling vector to m5csyi on the rename path
 
 ## Workflow history
+- 2026-10-07 done (aw backlog): closed by aw agy run: IPD plb8jx executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20261002-0ougsh-01-plb8jx-confine-the-research-set-assign-destination-so-a-date-cannot.ipd.md); evidence .aw/records/plans/executed/20261002-0ougsh-01-plb8jx-confine-the-research-set-assign-destination-so-a-date-cannot.ipd.md
 - 2026-10-02 graduated (aw backlog): graduated by run run-20261001T221834Z-1991716: plb8jx
 - 2026-10-01 created (aw backlog): aw research set-assign interpolates an unvalidated --date into the destination filename, so a traversal in it moves an existing record outside the records tree; measured 2026-10-01, the sibling vector to m5csyi on the rename path
 

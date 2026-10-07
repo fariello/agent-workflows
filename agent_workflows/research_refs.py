@@ -192,6 +192,9 @@ def plan_set_assign(
     set_k = R.kebab(set_id)
     if not set_k:
         return None, "a --set id is required"
+    date_err = _rcmd._refuse_unsafe_date("aw research set-assign", date_str)
+    if date_err:
+        return None, date_err
     if repo_root is None:
         repo_root = _core.repo_root_of(research_root)
     plans: List[RenamePlan] = []
@@ -308,18 +311,43 @@ def _planned_frontmatter_updates(parsed: R.ResearchName) -> Dict[str, str]:
     return updates
 
 
+def _refuse_uncontained_destination(
+    repo_root: Path, plans: List[RenamePlan]
+) -> Optional[str]:
+    """Refuse any planned rename whose destination escapes the resolved research root (E-03)."""
+    research_root = R.resolve_research_root(repo_root)
+    resolved_root = research_root.resolve()
+    for p in plans:
+        try:
+            resolved_dest = p.new_path.resolve()
+            resolved_dest.relative_to(resolved_root)
+            if resolved_dest == resolved_root:
+                raise ValueError(
+                    "destination matches records root rather than a record inside it"
+                )
+        except ValueError:
+            return f"destination {p.new_path} escapes research tree {research_root}"
+    return None
+
+
 def _apply_renames(
     repo_root: Path,
     plans: List[RenamePlan],
     apply: bool,
     verb: str = "group",
     yes: bool = False,
-) -> Tuple[str, ...]:
+) -> Optional[Tuple[str, ...]]:
     """Apply the file renames as tracked git moves plus the reference rewrites.
 
     Returns the repo-relative touched paths on ``apply`` (moved files + rewritten citing files);
-    empty on preview. The CALLER adds the regenerated INDEX paths and drives the self-commit offer
-    (selfcommit jgcm68 E-03: the backend RETURNS its touched set, it does NOT commit)."""
+    empty on preview. Returns None on containment refusal. The CALLER adds the regenerated
+    INDEX paths and drives the self-commit offer (selfcommit jgcm68 E-03: the backend RETURNS
+    its touched set, it does NOT commit)."""
+
+    containment_err = _refuse_uncontained_destination(repo_root, plans)
+    if containment_err:
+        print(f"error: {containment_err}")
+        return None
 
     renames = {
         p.old_path.name: p.new_path.name for p in plans if p.old_path != p.new_path
@@ -453,7 +481,8 @@ def run_set_assign(args: argparse.Namespace) -> "MutationResult":
         return MutationResult(2)
     if _setid_warn:
         print(f"note: {_setid_warn}")
-    date_str = getattr(args, "date", None) or date.today().strftime("%Y%m%d")
+    raw_date = getattr(args, "date", None)
+    date_str = date.today().strftime("%Y%m%d") if raw_date is None else raw_date
     start = getattr(args, "order", None)
     plans, err = plan_set_assign(
         research_root,
@@ -472,6 +501,8 @@ def run_set_assign(args: argparse.Namespace) -> "MutationResult":
         getattr(args, "apply", False),
         yes=bool(getattr(args, "yes", False)),
     )
+    if touched is None:
+        return MutationResult(2)
     return MutationResult(0, touched)
 
 
@@ -496,6 +527,8 @@ def run_mv(args: argparse.Namespace) -> "MutationResult":
         verb="rename",
         yes=bool(getattr(args, "yes", False)),
     )
+    if touched is None:
+        return MutationResult(2)
     return MutationResult(0, touched)
 
 
