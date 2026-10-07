@@ -6,7 +6,7 @@
 - Scope: IN: validate the typed gate pair ONCE, in a shared validator that every setter surface consumes, so all eight measured surfaces refuse identically on an out-of-vocabulary kind, a malformed ref, and a half-supplied pair; repair the two existing tests that pin the out-of-vocabulary kind `question` as acceptable; pin the parity as paired outcome tests across both record types and all four spellings each. OUT, each with a reason recorded under "Deferred": the `implementing -> implemented` evidence bypass (a separate measured defect with its own release-gated carrier and its own authored plan); removing the `cli.main` dispatch fork itself; changing the `GATE_KINDS` vocabulary or any per-kind ref regex; the `Release-Exempt-Kind` pair, which is already validated at the point of typing; and the three pre-existing suite failures this plan neither causes nor fixes.
 - Scope-Paths: agent_workflows/attention_contract.py, agent_workflows/status_set.py, agent_workflows/backlog.py, agent_workflows/specs.py, tests/test_gate_pair_validation_parity.py, tests/test_backlog_gate_follows_status.py, tests/test_backlog_transition_gate.py, tests/test_blocks_release_reader_bounding.py, CHANGELOG.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -17,9 +17,9 @@
 - Highest E allocated: 06
 - Author: opencode/its_direct/pt3-claude-opus-5-1m-us
 - Id: ju3rhs
-- Approval: 2026-10-03, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-07 executed (opencode): finalize ju3rhs verified lane [Scope reconciliation - widened-scope tests/test_backlog_transition_gate.py: added for gate validation parity; widened-scope tests/test_blocks_release_reader_bounding.py: added for gate validation parity; in-scope-unmodified agent_workflows/specs.py: not-needed]
 - 2026-10-03 approved (aw set): status set to approved
 - 2026-10-03 reviewed (aw set): /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005. Re-measured the seven-of-eight bypass at lane HEAD f5671f1a2. Bounded the new refusal so same-status re-sets of an already-gated record without gate flags keep succeeding (measured regression under E-02 as written), corrected the stale fv4b6s status expectation, scoped the verb label in status_set, named the m1jlwm E-02 double-implementation hazard, and completed the execution contract.
 
