@@ -6,7 +6,7 @@
 - Scope: Print ONE advisory line when `begin` or `finalize` runs in the main checkout while a lane or feature branch for that same plan exists, saying that finalizing there keeps main cleaner. It is advisory ONLY: it never changes an exit code, never withholds a transition, never gates anything, and never asks a question. Uses the lane records that already exist (the `.aw/worktrees/` lane directories and their owner records, and the plan's own lane branch name) to answer "does a lane for this plan exist", which is a DIFFERENT and weaker question than Order 01's liveness predicate answers and deliberately does not reuse it. EXCLUDES every refusal and every change to any gate: if this plan changes what any verb accepts or refuses, it is wrong. EXCLUDES the holder check, the token deletion and the override, all of which are Order 02's. EXCLUDES making the preference enforceable in any way.
 - Scope-Paths: agent_workflows/ipd_lifecycle.py, agent_workflows/runner_shared.py, tests/test_lifecycle_lane_nudge.py
 - Item-Dependencies: executed:e25iy9
-- Status: draft
+- Status: to-review
 - Work-Kind: bug
 - Priority: low
 - From-Backlog: dvonrn
@@ -18,6 +18,7 @@
 - Id: m47znv
 
 ## Workflow history
+- 2026-10-07 to-review (aw set): returned to review: four cross-child checks owned by m47znv E-05 (runs last); coverage pass recorded; open questions non-blocking
 - 2026-10-07 note (opencode its_direct/pt3-claude-opus-5.5-1m-us): added E-05/V-05, the four Set-level checks orchestrator `u4glub` carried with no owner; this plan runs last. Measurement only; no scope change.
 - 2026-10-06 draft (aw set): demoted approved -> draft: APPROVAL WITHDRAWN: returned to authoring by gradcover 52opph: uncovered obligation: Four checks span the children and cannot be performed by any child alone, which is why they live here.
 - 2026-10-01 approved (aw set): status set to approved

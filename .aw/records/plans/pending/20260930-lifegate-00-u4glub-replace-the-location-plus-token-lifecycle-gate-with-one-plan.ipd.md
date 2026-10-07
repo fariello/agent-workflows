@@ -6,7 +6,7 @@
 - Scope: Orchestrate three children that together implement decisions D1 through D8. `urv602` records the machine in `driver.lock` and adds the one plan-scoped three-valued live-holder predicate, changing no refusal. `e25iy9` deletes the token and the location guess, places the worker-label and holder checks inside all three core transition functions, adds the recorded `--take-over` override, and amends specs `7ckptx` and `llbr2b`. `m47znv` emits the advisory lane nudge D1 requires, refusing nothing. This plan holds ORCHESTRATION ONLY: every deliverable belongs to a child, and this file contributes no code, no test, no record and no spec edit of its own. EXCLUDES, in every child without exception: the worker-label check's semantics (D1 keeps them verbatim), the opt-in OS sandbox (D7 keeps it as optional isolation), every other anti-malice mechanism in the tree (D5 hands those to backlog `ariaau`), and any attempt to make the new check a hard boundary rather than guidance.
 - Scope-Paths: .aw/records/plans/pending/20260930-lifegate-00-u4glub-replace-the-location-plus-token-lifecycle-gate-with-one-plan.ipd.md
 - Item-Dependencies: none
-- Status: draft
+- Status: to-review
 - Coverage: pass
 - Coverage-Fingerprint: 3e499960104c3151bf13ec8d2fb4f6fc196eb9282e2fce29538e1de4e3861510
 - Coverage-Checked: 2026-10-07 by uri/its_direct/pt3-claude-opus-5.5-1m-us
@@ -21,6 +21,7 @@
 - Id: u4glub
 
 ## Workflow history
+- 2026-10-07 to-review (aw set): returned to review: four cross-child checks owned by m47znv E-05 (runs last); coverage pass recorded; open questions non-blocking
 - 2026-10-07 coverage pass (aw oc run): fingerprint 3e499960104c, model uri/its_direct/pt3-claude-opus-5.5-1m-us
 - 2026-10-07 note (opencode its_direct/pt3-claude-opus-5.5-1m-us): each criterion and Set-level check now leads with its owner; the four cross-child checks are owned by `m47znv` E-05, which runs last.
 - 2026-10-06 draft (aw set): demoted to-review -> draft: returned to authoring by gradcover 52opph: uncovered obligation: Four checks span the children. [Owner of all four: `m47znv` E-05/V-05, which runs last, after `urv602` and `e25iy9`, against the combined diff. This plan performs none of them.]

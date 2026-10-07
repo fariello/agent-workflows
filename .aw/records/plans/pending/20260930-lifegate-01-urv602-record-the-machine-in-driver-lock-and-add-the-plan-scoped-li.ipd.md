@@ -6,7 +6,7 @@
 - Scope: Two additive, no-refusal-behavior changes that give Order 02 something to call. (1) Record the machine when a run takes its `driver.lock`, so the record reads `pid=<n> host=<machine> started=<t>`, keeping older records without `host=` readable. (2) Add ONE predicate to `runner_shared` that answers "which live run, if any, holds this plan's id6?", returning a three-valued verdict (a named holder, no holder, or undeterminable) with the machine and the reason, built from the existing `run_viewer.driver_holder_state` lock probe plus a process-existence check plus an explicit UNFINISHED-STATUS ALLOWLIST (corrected at review from `not in TERMINAL_STATES`, which measurably misreports a resumable `interrupted` item as absent; see F-11), and applying D3's liveness ORDER. EXCLUDES every refusal: nothing in this plan changes what any verb accepts or refuses, and the predicate has no caller until Order 02. EXCLUDES deleting the token or the location guess, which is Order 02's subject and would strand this plan's tests if done here. EXCLUDES the `--take-over` override and the nudge, which are Orders 02 and 03.
 - Scope-Paths: agent_workflows/runner_shared.py, agent_workflows/platform_lock.py, tests/test_plan_holder_predicate.py
 - Item-Dependencies: none
-- Status: draft
+- Status: to-review
 - Work-Kind: bug
 - Priority: high
 - From-Backlog: dvonrn
@@ -18,6 +18,7 @@
 - Id: urv602
 
 ## Workflow history
+- 2026-10-07 to-review (aw set): returned to review: four cross-child checks owned by m47znv E-05 (runs last); coverage pass recorded; open questions non-blocking
 - 2026-10-06 draft (aw set): demoted approved -> draft: APPROVAL WITHDRAWN: returned to authoring by gradcover 52opph: uncovered obligation: Four checks span the children and cannot be performed by any child alone, which is why they live here.
 - 2026-10-01 approved (aw set): status set to approved
 - 2026-10-01 reviewed (aw set): /plan-review verdict APPROVE WITH REVISIONS APPLIED; PR-001 (BLOCKER) through PR-006 all fixed; OQ-01/OQ-02 resolved; readiness go-pending-approval
