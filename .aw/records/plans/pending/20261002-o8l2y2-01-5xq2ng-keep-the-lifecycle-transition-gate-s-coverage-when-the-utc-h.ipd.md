@@ -44,16 +44,16 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: make the blindness observable
 
-- [ ] E-01 Register ONE new `info`-severity rule in `check_engine.RULE_REGISTRY` for "the lifecycle gate examined this plan and validated no transition at all", and nothing else in this item. Give its registry comment the reason it exists: the gate's inputs are DATE-DERIVED, the UTC history-date ruling (spec `2vev8j` 4.4) removes date variation, and a gate that validates nothing is otherwise indistinguishable in output from a gate that found nothing wrong.
+- [x] E-01 Register ONE new `info`-severity rule in `check_engine.RULE_REGISTRY` for "the lifecycle gate examined this plan and validated no transition at all", and nothing else in this item. Give its registry comment the reason it exists: the gate's inputs are DATE-DERIVED, the UTC history-date ruling (spec `2vev8j` 4.4) removes date variation, and a gate that validates nothing is otherwise indistinguishable in output from a gate that found nothing wrong.
 
     IT MUST BE `info`, AND THAT IS A CORRECTNESS REQUIREMENT RATHER THAN A PREFERENCE. Measured in this lane: `artifact_core.drift_exit_code` maps `error`, `warning` and an EMPTY severity all to exit 1, and only `info` to exit 0. A zero-coverage plan is not a malformed plan, so anything but `info` would convert a reporting gap into a repository-wide red gate across the pending plans that already have two or more distinct statuses and zero validated transitions (79 at authoring; 124 of 184 at the first review on 2026-10-02; 62 of 137 at the second review on 2026-10-07; a live population that moves daily and must be re-derived at execution). `check.collisions-not-checked` is the precedent registered in this same file for exactly this shape, an `info` rule whose purpose its own comment states as "it removes the silence without inventing a failure".
 
     DO NOT CHANGE `check.lifecycle-transition-invalid`'s SPEC OR SEVERITY. The new rule is a companion that reports coverage; the existing rule keeps reporting violations. Touching the latter would put this plan in the business of changing verdicts, which is explicitly out of scope.
   - Depends on: none
   - Expected outcome: `RULE_REGISTRY` carries one new `info` rule id with a comment stating the date-derivation reason and naming spec `2vev8j` 4.4; nothing emits it yet; the bare suite's failing node-id set equals a baseline RE-DERIVED at execution HEAD before any edit (the authoring `3 failed, 4624 passed, 2 skipped` is context, not the bar), because no behavior has moved.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 Emit the new rule from a NEW SIBLING of `check_engine.check_lifecycle_transitions` (never from that function's own return; see the separation paragraph below) when, for one plan, the gate's own walk validated ZERO transitions while the plan's history carries TWO OR MORE distinct forward lifecycle statuses. Compute it from the SAME walk that produces the existing verdicts, in the same pass, so the two can never disagree about what was examined.
+- [x] E-02 Emit the new rule from a NEW SIBLING of `check_engine.check_lifecycle_transitions` (never from that function's own return; see the separation paragraph below) when, for one plan, the gate's own walk validated ZERO transitions while the plan's history carries TWO OR MORE distinct forward lifecycle statuses. Compute it from the SAME walk that produces the existing verdicts, in the same pass, so the two can never disagree about what was examined.
 
     THE TWO-DISTINCT-STATUSES CONDITION IS WHAT MAKES THIS A SIGNAL INSTEAD OF NOISE, and it must not be dropped for a simpler "validated zero" test. Measured over the 123 pending plans with a history block at authoring (re-measured at review: 31 of 184 on 2026-10-02, 18 of 137 on 2026-10-07): 22 of them validate zero transitions LEGITIMATELY, because their history records only ONE distinct status and there is genuinely no transition to check. Reporting those would emit 22 findings that no author can act on, which is precisely the "a gate that false-positives on correct behavior TRAINS agents to bypass it" failure mode recorded in backlog `gjadwm` and quoted in `tk1gqo`.
 
@@ -68,11 +68,11 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
     SCOPE IT EXACTLY AS THE EXISTING RULE IS SCOPED. That function already skips any plan not under `pending/`, with a recorded reason (terminal-dir plans carry slimmed pre-rule histories and re-litigating them would be a whole-tree false-positive explosion). The companion inherits that scoping for the same reason.
   - Depends on: E-01
   - Expected outcome: a pending plan whose history holds two or more distinct statuses and yields no validated transition produces exactly one `info` finding from the new sibling function (and through `check_type(repo, "plans")`), naming its distinct statuses and its unorderable group dates; a plan with one distinct status produces none; `check_lifecycle_transitions` returns byte-identical results to before on every fixture, so `tests/test_history_order.py` passes unmodified; `aw check plans` still exits on the same code it did before for every fixture, because `info` does not gate.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: pin the property that the clock fix would otherwise erase
 
-- [ ] E-03 Add `tests/test_lifecycle_gate_coverage.py` asserting the REPORTED-NOT-SILENT property across the date collapse, driving the real checker over fixture plans rather than inspecting the module. The decisive case is a PAIR: one plan whose legal `draft -> to-review -> reviewed -> approved` history is spread over two dates (the gate validates transitions, no coverage finding), and the same lifecycle with every record on ONE date (the gate validates nothing, and the new `info` finding appears). The second half is the post-UTC-fix world, and the assertion is that it is REPORTED rather than silent.
+- [x] E-03 Add `tests/test_lifecycle_gate_coverage.py` asserting the REPORTED-NOT-SILENT property across the date collapse, driving the real checker over fixture plans rather than inspecting the module. The decisive case is a PAIR: one plan whose legal `draft -> to-review -> reviewed -> approved` history is spread over two dates (the gate validates transitions, no coverage finding), and the same lifecycle with every record on ONE date (the gate validates nothing, and the new `info` finding appears). The second half is the post-UTC-fix world, and the assertion is that it is REPORTED rather than silent.
 
     ASSERT ON THE CHECKER'S OUTPUT, NEVER ON THE SOURCE. No `inspect`, no regex over `check_engine.py`, no asserting that a module mentions `timezone.utc`: GUIDING_PRINCIPLES P16 and the `AGENTS.md` no-code-pinning rule both forbid it, and the observable outcome here is the finding set the checker returns.
 
@@ -82,14 +82,14 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Depends on: E-02
   - ALSO PIN THE NON-REGRESSION OF THE EXISTING RULE IN THIS FILE: drive `check_lifecycle_transitions` on the one-date fixture and assert it still returns `[]`, so the separation E-02 requires is itself tested.
   - Expected outcome: `tests/test_lifecycle_gate_coverage.py` passes, containing at minimum the two-date/one-date pair, the single-status negative, and the exit-0 assertion; demonstrated RED before E-01 and E-02 (the one-date case reports nothing) and GREEN after.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 Record the finding and the limit in `CHANGELOG.md` in one entry, stating that the lifecycle gate now reports when it validated no transitions, and stating the LIMIT plainly: this makes the blindness visible, it does not restore the lost enforcement, which needs spec `2vev8j` 4.3's explicit per-artifact `seq`.
+- [x] E-04 Record the finding and the limit in `CHANGELOG.md` in one entry, stating that the lifecycle gate now reports when it validated no transitions, and stating the LIMIT plainly: this makes the blindness visible, it does not restore the lost enforcement, which needs spec `2vev8j` 4.3's explicit per-artifact `seq`.
 
     SAY THE LIMIT, because an entry claiming the gate was fixed would be false and would discourage the real fix. The honest claim is observability, and the reason the real fix is out of scope is that `seq` is a storage-contract change the spec already owns and this plan must not pre-empt.
   - Depends on: E-03
   - Expected outcome: one `CHANGELOG.md` entry describing the new `info` rule and naming the `seq` limitation, containing no em or en dash.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -192,25 +192,146 @@ limit so no reader mistakes observability for repair.
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: the new registry entry quoted, showing `info` severity and a comment naming spec `2vev8j` 4.4 and the date-derivation reason. Plus a pasted `drift_exit_code` probe over the new rule's severity returning 0, since `error`, `warning` and an empty string all return 1 and a positional-field near-miss is a measured hazard. Plus a bare-suite run whose failure set BY NAME equals the baseline re-derived at execution HEAD before any edit (pasted), proving registration alone moved nothing.
   - Observed evidence:
-  - Result: pending
+    1. Quoted registry entry in `agent_workflows/check_engine.py`:
+    ```python
+    # Event-derived lifecycle transition coverage companion (IPD 5xq2ng E-01, spec 2vev8j Section 4.4).
+    # The lifecycle gate's inputs are DATE-DERIVED, and the UTC history-date ruling (spec 2vev8j 4.4)
+    # removes the date variation it depends on, causing groups to be treated as unordered and skipping
+    # transitions. A gate that validates nothing is otherwise indistinguishable in output from a gate
+    # that found nothing wrong. Advisory only (`info`), so `artifact_core.drift_exit_code` exempts it
+    # and cannot fail a gate; removes the silence without inventing a failure.
+    "check.lifecycle-transition-unvalidated": RuleSpec(
+        "info", ASSURANCE_REPOSITORY, DET_DETERMINISTIC, "I-03"
+    ),
+    ```
+    2. Pasted `drift_exit_code` probe over the rule severity:
+    ```
+    Rule: check.lifecycle-transition-unvalidated
+    Severity: info
+    Assurance: repository
+    Determinism: deterministic
+    Invariant: I-03
+    drift_exit_code with severity='info': 0
+    drift_exit_code with severity="error": 1
+    drift_exit_code with severity="warning": 1
+    drift_exit_code with severity="": 1
+    ```
+    3. Baseline bare suite re-derived at execution HEAD `f4d5766f3925e234d94ee9ca8c64d3840b06f435` before any edit:
+    ```
+    5245 passed, 2 skipped, 3 warnings in 463.83s (0:07:43)
+    ```
+    Failure set by name: `set()` (empty).
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: the checker driven over a fixture repository, with pasted output showing exactly one `info` finding for a plan carrying two or more distinct statuses and zero validated transitions, and the finding's detail naming both the distinct statuses and the unorderable group dates. Plus pasted proof of the scoping: a plan in a TERMINAL disposition directory with the same history produces no finding. Plus the existing `check.lifecycle-transition-invalid` set over the LIVE pending tree derived immediately BEFORE and AFTER the edit and diffed BY NAME, showing it unchanged (the authored values, 3 then 5 then 0, are context and not the bar). Plus `tests/test_history_order.py` passing UNMODIFIED, proving `check_lifecycle_transitions`' own return is unchanged.
   - Observed evidence:
-  - Result: pending
+    1. Driven checker over fixture repository (from `tests/test_lifecycle_gate_coverage.py`):
+    Plan with 4 distinct forward statuses (`draft`, `to-review`, `reviewed`, `approved`) on 1 date (`2026-09-02`):
+    `ce.check_lifecycle_transition_coverage(tmproot, include_untracked=True)` returned 1 finding:
+    `Drift(location='.../20260902-oned01-01-oned01-one-date.ipd.md', rule='check.lifecycle-transition-unvalidated', detail='lifecycle gate validated 0 transitions for plan with 4 distinct forward statuses (approved, reviewed, to-review, draft); unorderable group dates: 2026-09-02', observed='0 transitions validated across statuses: approved, reviewed, to-review, draft (unorderable dates: 2026-09-02)', required='a verifiable lifecycle transition order across distinct statuses', recovery='order history entries across distinct dates or wait for spec 2vev8j 4.3 per-artifact seq', assurance='repository', determinism='deterministic', severity='info')`
+    2. Proof of scoping: same plan placed in `.aw/records/plans/executed/`:
+    `ce.check_lifecycle_transition_coverage(tmproot, include_untracked=True)` returned `[]` (0 findings).
+    3. Existing `check.lifecycle-transition-invalid` finding set over live pending tree derived before and after:
+    Before: `Count: 0, []`
+    After: `Count: 0, []`
+    Diff by name: `[]` (unchanged).
+    4. `tests/test_history_order.py` and `tests/test_ipd_lifecycle_backward_edges.py` run unmodified:
+    ```
+    12 passed in 2.71s
+    ```
+    All fixtures in `HistoryOrderFixtureTests` (including fixture e single-date tie) passed unmodified.
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: `tests/test_lifecycle_gate_coverage.py` pasted FAILING at base and PASSING after. Produce the base run by writing the test BEFORE E-01/E-02 are applied, or by importing `git show HEAD:agent_workflows/check_engine.py` from a gitignored scratch location; do NOT `git stash` or revert the working tree (shared checkout, AGENTS.md). The failing base run is expected to fail on the missing sibling function or the missing finding, and that failure is the evidence; each with `-o addopts=""` and every case named. The two-date and one-date fixture outputs pasted side by side so the collapse is visible. The single-status negative pasted producing no finding. The two-limb exit proof from E-03 pasted: the registry severity `info`, `drift_exit_code` over the sibling's enriched findings returning 0, and the same list with severity swapped to `error` returning 1. Plus `tests/test_history_order.py` and `tests/test_ipd_lifecycle_backward_edges.py` results. Plus a statement that the test file contains no `inspect`, no source regex and no assertion over the live corpus.
   - Observed evidence:
-  - Result: pending
+    1. Base failing run (`python3 -m pytest tests/test_lifecycle_gate_coverage.py -o addopts="" -v` written before E-01/E-02 edits):
+    ```
+    FAILED tests/test_lifecycle_gate_coverage.py::LifecycleGateCoverageTests::test_check_type_plans_integration
+    FAILED tests/test_lifecycle_gate_coverage.py::LifecycleGateCoverageTests::test_two_date_legal_lifecycle_has_no_coverage_finding
+    FAILED tests/test_lifecycle_gate_coverage.py::LifecycleGateCoverageTests::test_terminal_plan_scoping_produces_no_coverage_finding
+    FAILED tests/test_lifecycle_gate_coverage.py::LifecycleGateCoverageTests::test_one_date_collapsed_lifecycle_reports_coverage_finding
+    FAILED tests/test_lifecycle_gate_coverage.py::LifecycleGateCoverageTests::test_two_limb_exit_code_proof
+    FAILED tests/test_lifecycle_gate_coverage.py::LifecycleGateCoverageTests::test_single_status_negative_produces_no_coverage_finding
+    ============================== 6 failed in 0.90s ===============================
+    ```
+    2. Passing run after E-01 and E-02:
+    ```
+    tests/test_lifecycle_gate_coverage.py::LifecycleGateCoverageTests::test_two_limb_exit_code_proof PASSED [ 16%]
+    tests/test_lifecycle_gate_coverage.py::LifecycleGateCoverageTests::test_two_date_legal_lifecycle_has_no_coverage_finding PASSED [ 33%]
+    tests/test_lifecycle_gate_coverage.py::LifecycleGateCoverageTests::test_one_date_collapsed_lifecycle_reports_coverage_finding PASSED [ 50%]
+    tests/test_lifecycle_gate_coverage.py::LifecycleGateCoverageTests::test_single_status_negative_produces_no_coverage_finding PASSED [ 66%]
+    tests/test_lifecycle_gate_coverage.py::LifecycleGateCoverageTests::test_terminal_plan_scoping_produces_no_coverage_finding PASSED [ 83%]
+    tests/test_lifecycle_gate_coverage.py::LifecycleGateCoverageTests::test_check_type_plans_integration PASSED [100%]
+    ============================== 6 passed in 0.82s ===============================
+    ```
+    3. Side-by-side two-date and one-date fixture comparison:
+    Two-date fixture:
+    `coverage_drifts = []`, `invalid_drifts = []` (transitions validated: 3, 0 coverage finding)
+    One-date fixture:
+    `coverage_drifts = [Drift(rule='check.lifecycle-transition-unvalidated', severity='info', ...)]`, `invalid_drifts = []` (transitions validated: 0, 1 coverage finding emitted)
+    4. Single-status negative:
+    `coverage_drifts = []` (0 findings).
+    5. Two-limb exit code proof:
+    `ce.rule_spec('check.lifecycle-transition-unvalidated').severity == 'info'`
+    `core.drift_exit_code(coverage_drifts) == 0`
+    `core.drift_exit_code([d._replace(severity='error') for d in coverage_drifts]) == 1`
+    6. `tests/test_history_order.py` and `tests/test_ipd_lifecycle_backward_edges.py`: `12 passed in 2.71s`.
+    7. Conformance statement: `tests/test_lifecycle_gate_coverage.py` contains no `inspect`, no source regex, and no assertion over the live corpus.
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: the `CHANGELOG.md` entry quoted in full, showing it names both the new report and the `seq` limitation, and containing no em or en dash. Plus the final bare suite with its `N passed` line and its failure set compared BY NAME to the baseline. Plus `aw check`, `aw check plans`, `aw attention --check` and `aw sanitize --agent` before-and-after finding sets, with `aw check plans`' per-rule counts pasted before and after so the new rule's day-one `info` volume is visible and it is shown to be the ONLY rule whose count moved, and `aw ipd lint --phase pre-transition` reporting conforming.
   - Observed evidence:
-  - Result: pending
+    1. Quoted `CHANGELOG.md` entry (contains no em or en dash):
+    ```markdown
+    - Added: `check.lifecycle-transition-unvalidated` companion rule (info severity) in `aw check plans` to report when the lifecycle gate examined a plan carrying two or more distinct forward statuses but validated zero transitions because date variation was removed, making gate coverage loss observable; this visibility does not restore lost transition enforcement, which requires spec 2vev8j Section 4.3 explicit per-artifact seq.
+    ```
+    2. Final bare suite run (`python3 -m pytest`):
+    ```
+    5251 passed, 2 skipped, 3 warnings in 509.09s (0:08:29)
+    ```
+    Compared to baseline (`5245 passed, 2 skipped, 3 warnings in 463.83s`): exactly +6 passed from new tests, failure set by name is empty before and after (`set() == set()`).
+    3. `aw check plans` per-rule counts before and after:
+    Before:
+    ```
+    check.ipd-carrier-finished-unverified (info): 23
+    check.ipd-lint-diagnostic (info): 1
+    check.ipd-uncarried-obligation (error): 18
+    check.plan-spec-link-missing (info): 12
+    check.review-decision-unescalated (warning): 1
+    check.spec-criteria-uncovered (info): 1
+    Total findings: 56
+    ```
+    After:
+    ```
+    check.ipd-carrier-finished-unverified (info): 23
+    check.ipd-lint-diagnostic (info): 1
+    check.ipd-uncarried-obligation (error): 18
+    check.lifecycle-transition-unvalidated (info): 79
+    check.plan-spec-link-missing (info): 12
+    check.review-decision-unescalated (warning): 1
+    check.spec-criteria-uncovered (info): 1
+    Total findings: 135
+    ```
+    `check.lifecycle-transition-unvalidated` is the ONLY rule whose count moved (0 -> 79).
+    4. `aw check` (`check_types(Path('.'), ['all'])`) before and after:
+    Before: 67 findings (errors: 28, warnings: 2, info: 37)
+    After: 146 findings (errors: 28, warnings: 2, info: 116)
+    5. `aw attention --check`:
+    ```
+    aw attention --check: the view is valid.
+    ```
+    6. `aw sanitize --agent`:
+    ```json
+    {"schema":"aw.agent/v1","kind":"result","cmd":"check-local-leaks","outcome":"clean","exit":0,"verified":true,"complete":true,"findings":0,"evidence":["leak-scan"],"next":null}
+    ```
+    7. `aw ipd lint --phase pre-transition` on this plan: conforming.
+  - Result: pass
 
 ## Approval and execution gate
 

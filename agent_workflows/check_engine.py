@@ -585,6 +585,15 @@ RULE_REGISTRY: Dict[str, RuleSpec] = {
     "check.lifecycle-transition-invalid": RuleSpec(
         "error", ASSURANCE_REPOSITORY, DET_DETERMINISTIC, "I-03"
     ),
+    # Event-derived lifecycle transition coverage companion (IPD 5xq2ng E-01, spec 2vev8j Section 4.4).
+    # The lifecycle gate's inputs are DATE-DERIVED, and the UTC history-date ruling (spec 2vev8j 4.4)
+    # removes the date variation it depends on, causing groups to be treated as unordered and skipping
+    # transitions. A gate that validates nothing is otherwise indistinguishable in output from a gate
+    # that found nothing wrong. Advisory only (`info`), so `artifact_core.drift_exit_code` exempts it
+    # and cannot fail a gate; removes the silence without inventing a failure.
+    "check.lifecycle-transition-unvalidated": RuleSpec(
+        "info", ASSURANCE_REPOSITORY, DET_DETERMINISTIC, "I-03"
+    ),
     # Declared-file-scope drift (agentadhere Phase 3, IPD wqj1ne E-02; catalog I-01). A plan with a
     # LIVE begin receipt whose changed paths since the frozen base fall outside its Scope-Paths. LIVE
     # excludes a receipt whose plan is in a terminal lifecycle dir or whose base is unreachable from
@@ -1494,6 +1503,14 @@ def check_content(
         try:
             drift.extend(
                 check_lifecycle_transitions(
+                    repo_root, include_untracked=include_untracked
+                )
+            )
+        except Exception:
+            pass
+        try:
+            drift.extend(
+                check_lifecycle_transition_coverage(
                     repo_root, include_untracked=include_untracked
                 )
             )
@@ -3222,8 +3239,96 @@ def check_ipd_draft_ready(
 
 
 _LIFECYCLE_INVALID_RULE = "check.lifecycle-transition-invalid"
+_LIFECYCLE_UNVALIDATED_RULE = "check.lifecycle-transition-unvalidated"
 _SCOPE_DRIFT_RULE = "check.scope-drift"
 _SCOPE_NOT_AUDITED_RULE = "check.scope-not-audited"
+
+
+class _PlanLifecycleWalk(NamedTuple):
+    drifts: List[_core.Drift]
+    validated_transitions: int
+    distinct_forward_statuses: List[str]
+    unorderable_group_dates: List[str]
+
+
+def _walk_plan_lifecycle_history(plan_path: Path, text: str) -> _PlanLifecycleWalk:
+    """Walk a single plan's inline history event groups (IPD wqj1ne, IPD 5xq2ng).
+
+    Computes both transition-validity drifts (for `check.lifecycle-transition-invalid`)
+    and transition-coverage metadata (for `check.lifecycle-transition-unvalidated`).
+    """
+    from agent_workflows import ipd_lifecycle as _life
+
+    drift: List[_core.Drift] = []
+    groups = _life._plan_status_event_groups(text)
+    prev: Optional[str] = None
+    unvalidated: bool = False
+    validated_count: int = 0
+    distinct_forward: List[str] = []
+    seen_forward: Set[str] = set()
+    unorderable_dates: List[str] = []
+
+    # Collect distinct forward statuses across all groups in order of appearance
+    for _d, events, _ord in groups:
+        for status, _a in events:
+            if _life._status_rank(status) >= 0 and status not in seen_forward:
+                seen_forward.add(status)
+                distinct_forward.append(status)
+
+    for _date, events, ordered in groups:
+        if not ordered:
+            if _date not in unorderable_dates:
+                unorderable_dates.append(_date)
+            forward_statuses = [s for s, _a in events if _life._status_rank(s) >= 0]
+            distinct = set(forward_statuses)
+            if len(distinct) == 1:
+                prev = forward_statuses[0]
+                unvalidated = False
+            else:
+                prev = None
+                unvalidated = True
+            continue
+
+        for status, actor in events:
+            if unvalidated:
+                prev = status
+                unvalidated = False
+                continue
+            if prev is None:
+                prev = status
+                continue
+            if status == prev:
+                continue  # a same-status re-record (e.g. a duplicate `approved`) is not a transition
+            # Only validate a transition whose TARGET is on the forward sequence; an alternate/
+            # terminal disposition (superseded/not-executed/parked/reusable) is not a forward step.
+            if _life._status_rank(status) < 0:
+                prev = status
+                continue
+            check = _life.validate_transition(prev, status, actor=actor)
+            validated_count += 1
+            if not check.ok:
+                drift.append(
+                    enrich_drift(
+                        _core.Drift(
+                            str(plan_path),
+                            _LIFECYCLE_INVALID_RULE,
+                            f"recorded lifecycle transition {prev!r} -> {status!r} is invalid: "
+                            f"{check.reason}",
+                        ),
+                        observed=f"{prev} -> {status} (actor {actor})",
+                        required="a valid forward transition authored by the correct actor",
+                        recovery="correct the plan history via `aw set <status> <id6>` "
+                        "(or `aw ipd finalize` for the terminal transition)",
+                    )
+                )
+            prev = status
+
+    return _PlanLifecycleWalk(
+        drifts=drift,
+        validated_transitions=validated_count,
+        distinct_forward_statuses=distinct_forward,
+        unorderable_group_dates=unorderable_dates,
+    )
 
 
 def check_lifecycle_transitions(
@@ -3239,8 +3344,6 @@ def check_lifecycle_transitions(
     replace the field). HONEST: the events are locally forgeable; this is a validity/consistency
     check, not a tamper-proof authority boundary.
     """
-    from agent_workflows import ipd_lifecycle as _life
-
     drift: List[_core.Drift] = []
     for p in _iter_type_files(repo_root, "plans", include_untracked=include_untracked):
         # Scope to PENDING-lane plans only. Terminal-dir plans (executed/superseded/not-executed/
@@ -3253,53 +3356,59 @@ def check_lifecycle_transitions(
             text = p.read_text(encoding="utf-8")
         except OSError:
             continue
-        groups = _life._plan_status_event_groups(text)
-        prev: Optional[str] = None
-        unvalidated: bool = False
-        for _date, events, ordered in groups:
-            if not ordered:
-                forward_statuses = [s for s, _a in events if _life._status_rank(s) >= 0]
-                distinct = set(forward_statuses)
-                if len(distinct) == 1:
-                    prev = forward_statuses[0]
-                    unvalidated = False
-                else:
-                    prev = None
-                    unvalidated = True
-                continue
+        walk = _walk_plan_lifecycle_history(p, text)
+        drift.extend(walk.drifts)
+    return drift
 
-            for status, actor in events:
-                if unvalidated:
-                    prev = status
-                    unvalidated = False
-                    continue
-                if prev is None:
-                    prev = status
-                    continue
-                if status == prev:
-                    continue  # a same-status re-record (e.g. a duplicate `approved`) is not a transition
-                # Only validate a transition whose TARGET is on the forward sequence; an alternate/
-                # terminal disposition (superseded/not-executed/parked/reusable) is not a forward step.
-                if _life._status_rank(status) < 0:
-                    prev = status
-                    continue
-                check = _life.validate_transition(prev, status, actor=actor)
-                if not check.ok:
-                    drift.append(
-                        enrich_drift(
-                            _core.Drift(
-                                str(p),
-                                _LIFECYCLE_INVALID_RULE,
-                                f"recorded lifecycle transition {prev!r} -> {status!r} is invalid: "
-                                f"{check.reason}",
-                            ),
-                            observed=f"{prev} -> {status} (actor {actor})",
-                            required="a valid forward transition authored by the correct actor",
-                            recovery="correct the plan history via `aw set <status> <id6>` "
-                            "(or `aw ipd finalize` for the terminal transition)",
-                        )
-                    )
-                prev = status
+
+def check_lifecycle_transition_coverage(
+    repo_root: Path, include_untracked: bool = False
+) -> List[_core.Drift]:
+    """Lifecycle transition coverage companion (IPD 5xq2ng E-02; catalog I-03).
+
+    Report when the lifecycle-transition gate examined a pending plan carrying two or more distinct
+    forward lifecycle statuses, yet validated zero transitions. This makes the gate's blindness
+    observable when date variation is collapsed by UTC history-date unification (spec 2vev8j 4.4).
+    Advisory only (`info`), so `artifact_core.drift_exit_code` exempts it and cannot fail a gate.
+    """
+    drift: List[_core.Drift] = []
+    for p in _iter_type_files(repo_root, "plans", include_untracked=include_untracked):
+        # Scope to PENDING-lane plans only. Terminal-dir plans carry slimmed pre-rule histories;
+        # the companion inherits this scoping for the same reason.
+        if "pending" not in p.parts:
+            continue
+        try:
+            text = p.read_text(encoding="utf-8")
+        except OSError:
+            continue
+        walk = _walk_plan_lifecycle_history(p, text)
+        if len(walk.distinct_forward_statuses) >= 2 and walk.validated_transitions == 0:
+            distinct_str = ", ".join(walk.distinct_forward_statuses)
+            dates_str = (
+                ", ".join(walk.unorderable_group_dates)
+                if walk.unorderable_group_dates
+                else "none"
+            )
+            drift.append(
+                enrich_drift(
+                    _core.Drift(
+                        str(p),
+                        _LIFECYCLE_UNVALIDATED_RULE,
+                        f"lifecycle gate validated 0 transitions for plan with "
+                        f"{len(walk.distinct_forward_statuses)} distinct forward statuses "
+                        f"({distinct_str}); unorderable group dates: {dates_str}",
+                    ),
+                    observed=(
+                        f"0 transitions validated across statuses: {distinct_str} "
+                        f"(unorderable dates: {dates_str})"
+                    ),
+                    required="a verifiable lifecycle transition order across distinct statuses",
+                    recovery=(
+                        "order history entries across distinct dates or wait for "
+                        "spec 2vev8j 4.3 per-artifact seq"
+                    ),
+                )
+            )
     return drift
 
 
