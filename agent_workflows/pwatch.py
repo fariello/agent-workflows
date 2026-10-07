@@ -1088,8 +1088,10 @@ def main(argv: list[str] | None = None) -> int:
                             if p.ppid == curr and p.pid not in descendants:
                                 descendants.add(p.pid)
                                 stack.append(p.pid)
-                    activity = runners_monitor.classify_activity(
-                        pid, descendants, processes, host
+                    activity = " ".join(
+                        runners_monitor.classify_activity(
+                            pid, descendants, processes, host
+                        ).split()
                     )
                     tot_rss = sum(
                         processes[p].rss_bytes for p in descendants if p in processes

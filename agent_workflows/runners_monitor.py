@@ -11,6 +11,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import shutil
 import signal
 import sys
@@ -228,24 +229,69 @@ def classify_activity(
     """Determine what the runner process tree is actively doing."""
     pytest_procs: list[pwatch.Process] = []
     git_procs: list[pwatch.Process] = []
-    aw_procs: list[pwatch.Process] = []
+    aw_procs: list[tuple[pwatch.Process, str]] = []
     agent_procs: list[pwatch.Process] = []
+    tool_procs: list[pwatch.Process] = []
 
     for pid in descendant_pids:
         proc = processes.get(pid)
-        if proc is None:
+        if proc is None or pid == runner_pid:
             continue
         cmd_str = " ".join(proc.cmdline) if proc.cmdline else ""
         comm = proc.name.lower()
+        exe = os.path.basename(proc.cmdline[0]).lower() if proc.cmdline else comm
 
-        if "pytest" in cmd_str or comm == "pytest":
+        if "pytest" in cmd_str or comm == "pytest" or exe == "pytest":
             pytest_procs.append(proc)
-        elif comm == "git" or (proc.arguments and proc.arguments[0] == "git"):
+        elif (
+            comm == "git"
+            or exe == "git"
+            or (proc.arguments and proc.arguments[0] == "git")
+        ):
             git_procs.append(proc)
-        elif ("agent_workflows" in cmd_str or comm == "aw") and pid != runner_pid:
-            aw_procs.append(proc)
-        elif comm in ("agy", "antigravity", "opencode", "claude") and pid != runner_pid:
+        elif comm in ("agy", "antigravity", "opencode", "claude"):
             agent_procs.append(proc)
+        else:
+            is_aw = False
+            subcmd = ""
+            if comm == "aw" or exe == "aw":
+                is_aw = True
+                for arg in proc.arguments:
+                    if not arg.startswith("-") and re.match(r"^[a-zA-Z0-9_\-]+$", arg):
+                        subcmd = arg
+                        break
+            elif comm.startswith("python") and proc.cmdline:
+                if "-m" in proc.cmdline:
+                    try:
+                        idx = proc.cmdline.index("-m")
+                        if idx + 1 < len(proc.cmdline) and proc.cmdline[idx + 1] in (
+                            "agent_workflows",
+                            "agent_workflows.cli",
+                        ):
+                            is_aw = True
+                            for arg in proc.cmdline[idx + 2 :]:
+                                if not arg.startswith("-") and re.match(
+                                    r"^[a-zA-Z0-9_\-]+$", arg
+                                ):
+                                    subcmd = arg
+                                    break
+                    except ValueError:
+                        pass
+
+            if is_aw:
+                aw_procs.append((proc, subcmd))
+            elif comm in (
+                "bash",
+                "sh",
+                "zsh",
+                "python",
+                "python3",
+                "node",
+                "make",
+                "cargo",
+                "curl",
+            ):
+                tool_procs.append(proc)
 
     if pytest_procs:
         count = len(pytest_procs)
@@ -266,22 +312,21 @@ def classify_activity(
         git_proc = git_procs[0]
         subcmd = ""
         for arg in git_proc.arguments:
-            if not arg.startswith("-"):
+            if not arg.startswith("-") and re.match(r"^[a-zA-Z0-9_\-]+$", arg):
                 subcmd = arg
                 break
         return f"git ({subcmd or 'running'})"
 
     if aw_procs:
-        aw_proc = aw_procs[0]
-        subcmd = ""
-        for arg in aw_proc.arguments:
-            if arg not in ("-m", "agent_workflows") and not arg.startswith("-"):
-                subcmd = arg
-                break
+        subcmd = aw_procs[0][1]
         return f"aw ({subcmd or 'command'})"
 
+    if tool_procs and agent_procs:
+        tool_name = tool_procs[-1].name.lower()
+        return f"agent tool ({tool_name})"
+
     if agent_procs:
-        agent_name = agent_procs[0].name
+        agent_name = agent_procs[0].name.lower()
         if "agy" in agent_name or "antigravity" in agent_name:
             return "agent turn (antigravity/gemini LLM)"
         if "opencode" in agent_name:
@@ -385,7 +430,7 @@ def sample_runners(
 def render_runner_table(
     runners: list[RunnerInfo],
     color_enabled: bool = True,
-    width: int = 120,
+    width: int | None = None,
     raw_cpu: bool = False,
     total_cpus: int | None = None,
 ) -> str:
@@ -412,7 +457,7 @@ def render_runner_table(
     c_cpu_mid = "\033[38;5;215m" if color_enabled else ""
     c_activity = "\033[38;5;255m" if color_enabled else ""
 
-    show_raw_in_col = not raw_cpu and width >= 115
+    show_raw_in_col = not raw_cpu and (width is None or width >= 115)
 
     if raw_cpu:
         cpu_hdr = f"{'CPU%':>7}"
@@ -427,7 +472,8 @@ def render_runner_table(
         f"{'ID6':<8} {'ACTION':<9} {cpu_hdr} {'TIME':>8} {'RAM':>7}  {'CURRENT ACTIVITY'}"
     )
     lines.append(f"{bold}{header}{r}")
-    sep_len = min(width, len(pwatch.strip_ansi(header)) + 20)
+    raw_sep_len = len(pwatch.strip_ansi(header)) + 20
+    sep_len = min(width, raw_sep_len) if width else raw_sep_len
     lines.append(f"{dim}{'─' * sep_len}{r}")
 
     tot_cpu = 0.0
@@ -464,12 +510,19 @@ def render_runner_table(
         act_formatted = f"{c_act}{runner.action:<9}{r}"
         pid_formatted = f"{c_pid}{runner.pid:<8}{r}"
         run_formatted = f"{runner.run_id:<28}"
-        activity_formatted = f"{c_activity}{runner.activity}{r}"
-
-        row = (
+        prefix = (
             f"{pid_formatted} {run_formatted} {step_formatted} {set_formatted} "
-            f"{id6_formatted} {act_formatted} {cpu_formatted} {time_formatted} {ram_formatted}  {activity_formatted}"
+            f"{id6_formatted} {act_formatted} {cpu_formatted} {time_formatted} {ram_formatted}  "
         )
+        visible_prefix_len = len(pwatch.strip_ansi(prefix))
+        max_act_width = max(35, (width - visible_prefix_len) if width else 80)
+
+        activity_str = " ".join(str(runner.activity).split())
+        if len(activity_str) > max_act_width:
+            activity_str = activity_str[: max_act_width - 3] + "..."
+
+        activity_formatted = f"{c_activity}{activity_str}{r}"
+        row = f"{prefix}{activity_formatted}"
         lines.append(row)
 
     lines.append(f"{dim}{'─' * sep_len}{r}")
@@ -504,7 +557,7 @@ def run_table_dashboard(args: argparse.Namespace) -> int:
         sys.stdout
     )
     interval = float(getattr(args, "interval", 2.0))
-    width = int(getattr(args, "width", 120))
+    user_width = getattr(args, "width", None)
     raw_cpu = getattr(args, "raw_cpu", False)
     total_cpus = os.cpu_count() or 1
 
@@ -520,9 +573,9 @@ def run_table_dashboard(args: argparse.Namespace) -> int:
             sys.stdout.flush()
 
         while True:
-            term_cols = shutil.get_terminal_size((width, 24)).columns
+            term_cols = shutil.get_terminal_size((120, 24)).columns
             effective_width = (
-                min(width, max(20, term_cols - 1)) if is_interactive else width
+                int(user_width) if user_width is not None else max(100, term_cols - 1)
             )
 
             now_str = time.strftime("%Y-%m-%d %H:%M:%S")
@@ -610,8 +663,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--width",
         type=int,
-        default=120,
-        help="maximum display width (default: 120)",
+        default=None,
+        help="maximum display width (default: terminal width or 120)",
     )
     parser.add_argument(
         "--no-color",

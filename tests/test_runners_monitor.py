@@ -140,6 +140,53 @@ def test_classify_activity() -> None:
         root_pid, {104}, procs_agent
     )
 
+    # Case 5: Real aw CLI invocation
+    procs_aw = {
+        100: pwatch.Process(
+            pid=100,
+            ppid=1,
+            name="python3",
+            cmdline=["python3", "-m", "agent_workflows.cli", "agy", "run", "all"],
+        ),
+        105: pwatch.Process(
+            pid=105,
+            ppid=100,
+            name="aw",
+            cmdline=["aw", "check", "--agent"],
+        ),
+    }
+    assert runners_monitor.classify_activity(root_pid, {105}, procs_aw) == "aw (check)"
+
+    # Case 6: Shell script executed by agent tool does NOT get misclassified as aw
+    procs_tool = {
+        100: pwatch.Process(
+            pid=100,
+            ppid=1,
+            name="python3",
+            cmdline=["python3", "-m", "agent_workflows.cli", "agy", "run", "all"],
+        ),
+        104: pwatch.Process(
+            pid=104,
+            ppid=100,
+            name="opencode",
+            cmdline=["opencode", "run"],
+        ),
+        106: pwatch.Process(
+            pid=106,
+            ppid=104,
+            name="bash",
+            cmdline=[
+                "bash",
+                "-c",
+                "for i in 1 2; do PYTHONPATH=. python3 -c 'import agent_workflows'; done",
+            ],
+        ),
+    }
+    assert (
+        runners_monitor.classify_activity(root_pid, {104, 106}, procs_tool)
+        == "agent tool (bash)"
+    )
+
 
 def test_extract_journey_info(tmp_path: Path) -> None:
     run_dir = tmp_path / "run-test"
@@ -329,3 +376,23 @@ def test_aw_cli_dispatch_runners(tmp_path: Path) -> None:
     assert exit_code == 0
     parsed = json.loads(buf.getvalue())
     assert isinstance(parsed, list)
+
+
+def test_render_runner_table_multiline_activity_sanitized(tmp_path: Path) -> None:
+    runner = runners_monitor.RunnerInfo(
+        pid=1234,
+        run_id="run-test",
+        run_dir=tmp_path / "run",
+        activity="aw (for i in 1 2; do\nfrom pathlib import Path\nprint('hello')\ndone)",
+        cpu_pct=10.0,
+    )
+    table = runners_monitor.render_runner_table(
+        [runner], color_enabled=False, width=120
+    )
+    lines = table.split("\n")
+    # Table should have exactly 5 lines: header, separator, 1 row, separator, summary
+    assert len(lines) == 5
+    # The row itself should be on a single line with whitespace collapsed
+    row = lines[2]
+    assert "\n" not in row
+    assert "for i in 1 2; do from pathlib" in row or "..." in row
