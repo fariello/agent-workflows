@@ -6,7 +6,7 @@
 - Scope: IN: one integration test module that, inside a temp repository seeded with `--records-backend repository`, drives the real `aw oc run` entry point (in process, with the host turn and the probe replaced by scripted doubles through the existing injection seams) over a fixture backlog item through three runs: (A) graduate, where the scripted agent writes an orchestrator plus children, first with an uncovered whole-Set obligation and then, on the correction turn, with that obligation assigned to a child by id6; (B) `--action review` over the produced Set; (C) an orchestrate pass with the children marked `executed` by fixture; plus the refusal variant of (A) with the correction never made. Then the bare suite. OUT: any production code change; any real model call; changing any other test.
 - Scope-Paths: tests/test_gradcover_end_to_end.py
 - Item-Dependencies: executed:sbiv1j, executed:dalmk4, executed:5etev3, executed:nnsa2o, executed:24qw39, executed:26m1nb, executed:r2wa38, executed:qs00nc, executed:8mabmu
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - From-Spec: none
 - Work-Kind: bug
@@ -17,9 +17,9 @@
 - Highest E allocated: 07
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: wytlly
-- Approval: 2026-10-06, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-07 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: wytlly verified (set gradcover, attempt 1).
 - 2026-10-06 approved (aw set): status set to approved
 - 2026-10-06 reviewed (aw set): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-001..PR-010 (all fixed)
 - 2026-10-06 /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001 to PR-010. Fixed: Run C approves the orchestrator first, since a `reviewed` plan is not dispatched (PR-001); E-01 split into Runs A/B/C as E-01/E-06/E-07 (PR-002); probe injected by patching `ask_orchestrator_probe`, with the double's answer format and the scripted-judgement limit stated (PR-003); lane isolation kept on so preservation and integration are real (PR-004); probe counts reconciled (E-02 is 1 call, Run B counts the whole run) (PR-005); parity redefined as one inner code on three surfaces and one quote on five (PR-006); `IPD-REVIEW-ORCHESTRATOR-READY` observed as absence (PR-007); every exercised child declared in `- Item-Dependencies:` (PR-008); `--records-backend` convention corrected, OQ-01 threshold made concrete, both hosts covered (PR-009); V-items demand per-host concrete evidence, gate contract completed (PR-010).
