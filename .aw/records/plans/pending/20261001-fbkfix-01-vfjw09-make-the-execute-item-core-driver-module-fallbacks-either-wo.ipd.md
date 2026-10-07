@@ -115,7 +115,7 @@ All findings measured 2026-10-01 at HEAD `7168b42b` in an isolated lane worktree
 
 ## Required tests / validation
 
-- `python3 -m pytest` run BARE, with the actual summary line pasted. Baseline at HEAD `7168b42b` must be captured BEFORE any edit and compared after, since this plan touches a function every runner test drives.
+- `python3 -m pytest` run BARE, with the actual summary line pasted. Baseline at the EXECUTING HEAD (not authoring HEAD `7168b42b`) must be captured BEFORE any edit and compared after, since this plan touches a function every runner test drives.
 - `python3 -m pytest tests/test_runner_fallback_bindings.py` for the new guard, with output pasted.
 - `python3 -m pytest tests/test_host_capability_wiring.py tests/test_action_table_runner_parity.py tests/test_attempt_model_identity.py tests/test_finalize_stale_plan_path.py tests/test_attempt_host_model_observation.py tests/test_verifier_corroboration.py tests/test_hostdedup_third_host.py` as the targeted regression set: the first six are every test file that calls `execute_item_core` (re-derived at review: `tests/test_verifier_corroboration.py` was added since authoring), and `tests/test_hostdedup_third_host.py` is kept because it pins the third-host limits this plan's E-05 sits beside, though it does not itself call `execute_item_core`, including the call sites that omit `driver_module` (two at review) which F-10 identifies as the ones option 2 would have broken.
 - The new test must be demonstrated to FAIL before E-02 and PASS after, with both outputs pasted. A guard that was never seen red is not evidence.
@@ -150,7 +150,7 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Result: pending
 
 - [ ] V-02 validates E-02
-  - Required evidence: paste the diff of the five changed bindings. For each, name the injection its lambda supplies and where that value comes from. Then paste a runtime probe proving BOTH directions: (a) with a `driver_module` defining none of them, each default is now callable at its call site's shape without `TypeError`; and (b) with `driver_module=oc_runipd`, each name still resolves to the HOST's own function and not to the shared default, so no shipped-host behavior changed. Direction (b) is the one that matters for regression and must not be skipped.
+  - Required evidence: paste the diff of the five changed bindings. For each, name the injection its lambda supplies and where that value comes from. Then paste a runtime probe proving BOTH directions: (a) with a `driver_module` defining none of them, each default is now callable at its call site's shape without `TypeError`; and (b) with `driver_module=oc_runipd` AND with `driver_module=agy_runipd`, each name still resolves to the HOST's own function and not to the shared default, so no shipped-host behavior changed. Direction (b) is the one that matters for regression and must not be skipped.
   - Observed evidence:
   - Result: pending
 
@@ -160,12 +160,12 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Result: pending
 
 - [ ] V-04 validates E-04
-  - Required evidence: paste the new test's output FAILING against the pre-E-02 code, showing `TypeError: route_recovery_turn() missing 1 required keyword-only argument: 'save_state'`, and then PASSING after. Paste the test body and confirm it asserts on observed outcomes (terminal item status, and `starting_head`/`starting_status` holding real git values rather than an error string) and that it reads no production source text, counts no callers, and asserts on no symbol census (GUIDING_PRINCIPLES P16). State which existing harness you reused.
+  - Required evidence: paste the new test's output FAILING against the pre-E-02 code, showing `TypeError: route_recovery_turn() missing 1 required keyword-only argument: 'save_state'`, and then PASSING after. Paste the test body, state that the harness reuse did not modify `tests/test_attempt_model_identity.py`, and confirm it asserts on observed outcomes (`starting_head`/`starting_status` holding real git values rather than an error string; NOT a terminal item status, which is unreachable past F-06's wall) and that it reads no production source text, counts no callers, and asserts on no symbol census (GUIDING_PRINCIPLES P16). State which existing harness you reused.
   - Observed evidence:
   - Result: pending
 
 - [ ] V-05 validates E-05
-  - Required evidence: paste the limit-pin test's output and the assertion showing the NEXT blocker is the `None`-defaulted `integration_is_earned` raising `TypeError: 'NoneType' object is not callable`. Confirm the test names the deferred symbols so it fails loudly when they are fixed. Then paste the BARE `python3 -m pytest` summary line for the whole suite, alongside the pre-change baseline captured before E-02, and the targeted regression set from `## Required tests / validation` including the call sites that omit `driver_module`. Any net-new failure must be explained or the plan must not be marked executed.
+  - Required evidence: paste the limit-pin test's output and the assertion showing the NEXT blocker is the `None`-defaulted `integration_is_earned` raising `TypeError: 'NoneType' object is not callable`. Confirm the test names the deferred symbols so it fails loudly when they are fixed, and that it identifies the wall by an observed outcome rather than by reading a traceback's source line (P16). Then paste the BARE `python3 -m pytest` summary line for the whole suite, alongside the pre-change baseline captured before E-02, and the targeted regression set from `## Required tests / validation` including the call sites that omit `driver_module`. Any net-new failure must be explained or the plan must not be marked executed.
   - Observed evidence:
   - Result: pending
 
