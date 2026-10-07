@@ -646,6 +646,16 @@ GATE_SUMMARY_RE = re.compile(r"^- Gate-Summary:[ \t]*(?P<value>.+?)[ \t]*$")
 
 # Output-safety (Section 8.8): descriptive fields are single-line, bounded, control-char-free.
 MAX_DESCRIPTIVE_LEN = 300
+
+# Prose-class descriptive fields (Scope, Concern, Question) carry multi-sentence explanations and
+# measured citations rather than one-line labels. F-05 measured that the single longest prose value
+# in the live corpus is a 4216-character - Concern:; violations across bounds dropped from 1000->675,
+# 1500->225, 2000->71, 2500->28, 3000->9, 3500->3, 4000->1, 4096->1, to 4300->0. 4300 is the
+# smallest round value clearing the corpus with headroom (~1.02x over the 4216 live max).
+# This number is a MEASURED CEILING on existing prose, not a licence to write a 4000-char field.
+MAX_PROSE_DESCRIPTIVE_LEN = 4300
+PROSE_DESCRIPTIVE_FIELDS: FrozenSet[str] = frozenset(("Scope", "Concern", "Question"))
+
 # C0 (except we never allow tab/newline inside a field) + C1 + DEL; ANSI ESC included.
 # Also matches the nine bidi overrides and isolates (U+202A..U+202E LRE/RLE/PDF/LRO/RLO and
 # U+2066..U+2069 LRI/RLI/FSI/PDI): category Cf format characters that act as display-order
@@ -659,18 +669,26 @@ _DECISION_ID_RE = re.compile(r"^D\d+[a-z]*$")
 _ARTIFACT_REF_RE = re.compile(r"^(?!/)(?!.*\.\.)[A-Za-z0-9._/-]+(#[A-Za-z0-9._-]+)?$")
 
 
-def is_safe_descriptive(value: str) -> bool:
-    """Section 8.8: a descriptive field is a single, bounded, control-char-free line."""
-
+def _is_safe_descriptive_bounded(value: Optional[str], max_len: int) -> bool:
     if value is None:
         return True
-    if len(value) > MAX_DESCRIPTIVE_LEN:
+    if len(value) > max_len:
         return False
     if "\n" in value or "\r" in value:
         return False
     if _CONTROL_CHAR_RE.search(value):
         return False
     return True
+
+
+def is_safe_descriptive(value: Optional[str]) -> bool:
+    """Section 8.8: a descriptive field is a single, bounded, control-char-free line."""
+    return _is_safe_descriptive_bounded(value, MAX_DESCRIPTIVE_LEN)
+
+
+def is_safe_prose_descriptive(value: Optional[str]) -> bool:
+    """Section 8.8 (prose class): multi-sentence prose field bounded at MAX_PROSE_DESCRIPTIVE_LEN."""
+    return _is_safe_descriptive_bounded(value, MAX_PROSE_DESCRIPTIVE_LEN)
 
 
 def validate_gate_ref(kind: str, ref: str) -> bool:
@@ -723,10 +741,12 @@ def refuse_unsafe_descriptive(
     value: Optional[str],
     *,
     bound_length: bool = True,
+    prose: bool = False,
 ) -> Optional[str]:
     """Judge one descriptive value against Section 8.8 output-safety.
 
-    When bound_length is True, delegates the verdict to is_safe_descriptive.
+    When bound_length is True, delegates the verdict to is_safe_descriptive (or
+    is_safe_prose_descriptive when prose=True).
     When bound_length is False (line-integrity mode), validates newlines/carriage returns
     and control characters without applying the length bound.
     Returns None if value is None or valid, else a refusal message naming verb, flag, and cause.
@@ -734,26 +754,26 @@ def refuse_unsafe_descriptive(
     if value is None:
         return None
     prefix = f"{verb}: " if verb else ""
+    max_len = MAX_PROSE_DESCRIPTIVE_LEN if prose else MAX_DESCRIPTIVE_LEN
+    predicate = is_safe_prose_descriptive if prose else is_safe_descriptive
     if bound_length:
-        if is_safe_descriptive(value):
+        if predicate(value):
             return None
         if "\n" in value or "\r" in value:
             return f"{prefix}{flag} must not contain embedded newlines"
         if _CONTROL_CHAR_RE.search(value):
             return f"{prefix}{flag} must not contain control characters"
-        if len(value) > MAX_DESCRIPTIVE_LEN:
+        if len(value) > max_len:
             return (
-                f"{prefix}{flag} exceeds maximum length of {MAX_DESCRIPTIVE_LEN} "
-                f"characters ({len(value)} > {MAX_DESCRIPTIVE_LEN})"
+                f"{prefix}{flag} exceeds maximum length of {max_len} "
+                f"characters ({len(value)} > {max_len})"
             )
         return f"{prefix}{flag} is not a valid descriptive field"
     else:
         has_newline = "\n" in value or "\r" in value
         is_safe_line = (
             not has_newline
-            and is_safe_descriptive(
-                value.replace("\n", "").replace("\r", "")[:MAX_DESCRIPTIVE_LEN]
-            )
+            and predicate(value.replace("\n", "").replace("\r", "")[:max_len])
             and not _CONTROL_CHAR_RE.search(value)
         )
         if is_safe_line:

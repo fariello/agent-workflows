@@ -11,6 +11,7 @@ import unittest
 from pathlib import Path
 
 from agent_workflows import attention, check_engine, releases, specs
+from agent_workflows import attention_contract as A
 
 REPO = Path(__file__).resolve().parent.parent
 FIX = REPO / "tests" / "fixtures" / "attnview"
@@ -45,7 +46,7 @@ _RELEASE_TEMPLATE = """# Release: 9.9.9
 class TestSpecsReleasesUnsafeField(unittest.TestCase):
     def test_spec_scope_unsafe_shapes(self):
         shapes = {
-            "over-length": "x" * 301,
+            "over-length": "x" * (A.MAX_PROSE_DESCRIPTIVE_LEN + 1),
             "bel-control": "scope\x07value",
             "ansi-esc": "scope\x1b[31minjected\x1b[0m",
             "c1-control": "scope\x85value",
@@ -69,7 +70,7 @@ class TestSpecsReleasesUnsafeField(unittest.TestCase):
             self.assertIn("Scope", d.detail)
 
     def test_spec_scope_conforming_boundary(self):
-        val = "x" * 300
+        val = "x" * A.MAX_PROSE_DESCRIPTIVE_LEN
         text = _SPEC_TEMPLATE.format(
             extra_metadata=f"- Scope: {val}",
             body="",

@@ -451,8 +451,8 @@ class SpecsReleasesDescriptiveSafetyTests(unittest.TestCase):
             rc_note, 0, f"Expected 1200-char message accepted on specs note: {err_note}"
         )
 
-        # 301-char summary refused on specs new
-        over_summary = "s" * 301
+        # 4301-char summary refused on specs new
+        over_summary = "s" * (A.MAX_PROSE_DESCRIPTIVE_LEN + 1)
         rc_new, _, err_new = _run_cli(
             [
                 "specs",
@@ -469,8 +469,8 @@ class SpecsReleasesDescriptiveSafetyTests(unittest.TestCase):
             ]
         )
         self.assertEqual(rc_new, 2)
-        self.assertIn("300", err_new)
-        self.assertIn("301", err_new)
+        self.assertIn(str(A.MAX_PROSE_DESCRIPTIVE_LEN), err_new)
+        self.assertIn(str(A.MAX_PROSE_DESCRIPTIVE_LEN + 1), err_new)
 
         # Late control character ("a"*500 + "\x07" + "b") REFUSED on both set and note
         spec_ctrl = self._create_conforming_spec("Ctrl Spec", "ctrl-spec")
@@ -510,44 +510,48 @@ class SpecsReleasesDescriptiveSafetyTests(unittest.TestCase):
         self.assertIn("control", err_note_ctrl.lower())
 
     def test_summary_length_exact_boundary(self):
-        """E-06: exactly MAX_DESCRIPTIVE_LEN (300) accepted, +1 (301) refused."""
-        exact_300 = "x" * A.MAX_DESCRIPTIVE_LEN
-        rc_300, _, err_300 = _run_cli(
+        """E-06: exactly MAX_PROSE_DESCRIPTIVE_LEN (4300) accepted, +1 (4301) refused."""
+        exact_prose = "x" * A.MAX_PROSE_DESCRIPTIVE_LEN
+        rc_exact, _, err_exact = _run_cli(
             [
                 "specs",
                 "new",
                 "--title",
-                "Exact 300",
+                "Exact Prose",
                 "--slug",
-                "b-300",
+                "b-prose",
                 "--summary",
-                exact_300,
+                exact_prose,
                 "--apply",
                 "--dir",
                 str(self.tmp),
             ]
         )
-        self.assertEqual(rc_300, 0, f"Expected 300 chars accepted: {err_300}")
+        self.assertEqual(
+            rc_exact,
+            0,
+            f"Expected {A.MAX_PROSE_DESCRIPTIVE_LEN} chars accepted: {err_exact}",
+        )
 
-        over_301 = "x" * (A.MAX_DESCRIPTIVE_LEN + 1)
-        rc_301, _, err_301 = _run_cli(
+        over_prose = "x" * (A.MAX_PROSE_DESCRIPTIVE_LEN + 1)
+        rc_over, _, err_over = _run_cli(
             [
                 "specs",
                 "new",
                 "--title",
-                "Over 301",
+                "Over Prose",
                 "--slug",
-                "b-301",
+                "b-over",
                 "--summary",
-                over_301,
+                over_prose,
                 "--apply",
                 "--dir",
                 str(self.tmp),
             ]
         )
-        self.assertEqual(rc_301, 2)
-        self.assertIn(str(A.MAX_DESCRIPTIVE_LEN), err_301)
-        self.assertIn(str(A.MAX_DESCRIPTIVE_LEN + 1), err_301)
+        self.assertEqual(rc_over, 2)
+        self.assertIn(str(A.MAX_PROSE_DESCRIPTIVE_LEN), err_over)
+        self.assertIn(str(A.MAX_PROSE_DESCRIPTIVE_LEN + 1), err_over)
 
     def test_non_regression_required_flags_unchanged(self):
         """E-06 non-regression (a): required flag errors keep their exit codes and messages."""
