@@ -11,9 +11,9 @@
 - Scope-Paths: .aw/records/plans/pending/20260930-runwire-00-i18yaz-wire-the-run-state-machine-into-the-host-runners.ipd.md
 - Item-Dependencies: none
 - Status: draft
-- Coverage: fail
-- Coverage-Fingerprint: 086243502328ca25458e4bf8d45aadbc015a5e2718b37f52ecfd6ba295d391b8
-- Coverage-Checked: 2026-10-06 by uri/its_direct/pt3-claude-opus-5.5-1m-us
+- Coverage: pass
+- Coverage-Fingerprint: 0ff0457383ab974d5a170cf2e77bf1ca7be2d465cd954e37b86425a3e4aa2c5e
+- Coverage-Checked: 2026-10-07 by uri/its_direct/pt3-claude-opus-5.5-1m-us
 - Work-Kind: chore
 - Priority: medium
 - From-Backlog: ildjse
@@ -24,6 +24,7 @@
 - Id: i18yaz
 
 ## Workflow history
+- 2026-10-07 coverage pass (aw oc run): fingerprint 0ff0457383ab, model uri/its_direct/pt3-claude-opus-5.5-1m-us
 - 2026-10-07 note (opencode its_direct/pt3-claude-opus-5.5-1m-us): each criterion and Set-level check now leads with its owner; the cross-child checks are owned by `eow7p4` E-05, which runs last.
 - 2026-10-06 draft (aw set): demoted to-review -> draft: returned to authoring by gradcover 52opph: uncovered obligation: Bare pytest compared against a baseline measured before any edit
 
@@ -124,17 +125,6 @@ WHY 02 DEPENDS ON 01 rather than being independent: 02's authority check asks "i
 - Owner: executor of Order 01, then maintainer
 - Carrier-Declined: The decision's PRECONDITION does not exist until this Set has run, so there is nothing for a carrier to act on yet. Promoting the check to a refusal requires evidence that it yields no false positives on a real corpus, and that corpus is produced BY Order 01's report-only check; an item filed now would have "wait for the report" as its first and only step. The decision is recorded here with its owner and its default, and the honest sequence is ship, measure, then file if the evidence supports promotion.
 - Resolution or deferral rationale: DEFAULT IS REPORT-ONLY and the executor must not change it. A refusing gate keyed on a brand-new translation would wedge live runs on a mapping defect rather than on a real illegal transition, and the driver's status writes have never been checked, so the false-positive rate is unmeasured. The safe sequence is: record first, read the corpus, then decide. If Order 01's executor finds the check fires on a CORRECT driver transition, that is a mapping defect to fix in Order 01, and it is also the evidence that report-only was the right default.
-
-## Coverage findings
-
-- "- `python3 -m pytest` run BARE (the configured `addopts` already supply `-q -n auto --dist=worksteal -m 'not slow'`), with the actual `N passed` summary line pasted, compared against a baseline measured in this same lane worktree BEFORE any edit."
-- "- The four cross-IPD checks above, each with pasted evidence."
-- "- NO SECOND STATE MACHINE: after both children, exactly one module defines the driver-status-to-`run_state` translation. Proven by grepping for the translation symbol across `agent_workflows/` and asserting one definition site."
-- "- NO PRIVATE HOST COPY: neither `oc_runipd.py` nor `agy_runipd.py` carries its own transition check or its own session-independence test; both reach the shared ones through `runner_shared`. This mirrors `tests/test_runner_refork_guard.py`'s existing role for the verdict table."
-- "- VOCABULARY UNCHANGED: the before/after member comparison from E-02, run once for the Set."
-- "- THE LEDGER FENCE HELD: neither child imports `run_engine` or `run_recovery`, and no child writes a `ledger.jsonl`. Proven by grep across both children's changed files."
-- "- The full suite passes with actual pasted output, at or above the lane's pre-work baseline."
-- "- `run_recovery` remains unimported by both drivers and that residual is recorded, not hidden."
 
 ## Validation and cross-check (verify before reporting the Set complete)
 
