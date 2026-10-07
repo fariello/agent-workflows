@@ -6,7 +6,7 @@
 - Scope: IN: amend spec `25kzda` 5.2's guarantee-classification rows 1 and 3, each `Enforcement or proof` cell only, so it states its enforcement STATUS in the shape `00pirb` established for row 2; add ONE behavioral regression test pinning the two measurements those amendments assert (no shipped finding code names the `Push attempt` abort class; `hook_preserving_commit` is unrepresented by the capability contract) so the drift cannot silently recur; record the amendment through `aw specs note`; and VERIFY the carrier filed at this plan's authoring (`gqy7yd`) for guarantee ROW 4, which measurement showed carries the same defect class with no owner. OUT, each for a stated reason: ROW 4 itself, which needs the OPPOSITE judgement to rows 1 and 3 and is carried by `gqy7yd` (see F-7); row 2, already amended by `00pirb`; row 5, which is measured HONEST and needs no edit (F-8); the `Bucket` column of any row; the 5.2 host-requirement bullet, the 5.2 action table and the 5.6 packet example, all deliberately preserved by `01reg8` E-09; Section 6.1 limit 4, which pending plan `wn956n` E-02 explicitly declares DO-NOT-AMEND; Section 4.1's `Push attempt` abort-class membership, which the spec itself records as deliberately retained and unnamed; and BUILDING either mechanism, carried by `sv9ce4` (now graduated to Set `netnsfilter`).
 - Scope-Paths: .aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md, tests/test_host_capability_extension.py, .aw/records/backlog/open
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -18,9 +18,9 @@
 - Highest E allocated: 06
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: e6w056
-- Approval: 2026-10-03, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-07 executed (opencode): finalize e6w056 verified lane [Scope reconciliation - in-scope-unmodified .aw/records/backlog/open: not-needed]
 - 2026-10-03 approved (aw set): status set to approved
 
 - 2026-10-02 reviewed (opencode/its_direct/pt3-claude-opus-5.5-1m-us): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-001 (V-05 cited `aw backlog show`, which does not exist: the verbs are new/set/note/check; replaced with reading the item file), PR-002 (E-05 corrective/re-file paths could write OUTSIDE the declared `.aw/records/backlog/open` directory: a status move or `aw backlog new` lands elsewhere; bounded to `aw backlog note` and a re-file must land in `open/` or be justified), PR-003 (authoring count `51 passed` stale: the three named files report `54 passed` at review; made a non-binding pointer), PR-004 (gate: runner/hand ownership of begin/finalize and `--scope-ack` for the declared-but-normally-untouched backlog directory). Every E-01/E-05 measurement re-driven at lane HEAD 7bd4f92bb and all hold; Set `netnsfilter` still entirely `pending` (`to-review`); spec rows 1-5 read as quoted.
