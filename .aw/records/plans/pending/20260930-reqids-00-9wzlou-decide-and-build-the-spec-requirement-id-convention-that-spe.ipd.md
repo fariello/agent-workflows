@@ -6,9 +6,10 @@
 - Scope: Coordinate two children: Order 01 authors the convention, retrofit policy and TRACE contract as a spec and hands it to human review; Order 02 builds the parser, the `spec_plan_trace` verifier, its production wiring and its tests, gated on that spec being approved. This orchestrator performs no product change of its own and writes no spec, no parser and no test.
 - Scope-Paths: .aw/records/plans/pending/20260930-reqids-00-9wzlou-decide-and-build-the-spec-requirement-id-convention-that-spe.ipd.md
 - Item-Dependencies: none
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
 - Coverage: pass
-- Coverage-Fingerprint: d695699013fc793e40bffed8524f6cb52bbbdaf7a437e3d04b39ef0b276dcf97
+- Coverage-Fingerprint: f0e42dcb1b73ed37bb184c345294973a4e94a1b21c11e57a90ba0972106c2b62
 - Coverage-Checked: 2026-10-07 by uri/its_direct/pt3-claude-opus-5.5-1m-us
 - From-Spec: 25kzda
 - Work-Kind: feature
@@ -21,6 +22,9 @@
 - Id: 9wzlou
 
 ## Workflow history
+- 2026-10-07 /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-201 (MEDIUM, fixed: gate paragraph still claimed no edge can express the approval), PR-202 (MEDIUM, fixed: E-01/V-01 pinned the spec's live status at to-review, unsatisfiable once 89xjll moved), PR-203 (LOW, fixed: child table path to executed/), PR-204 (LOW, fixed: backlog close actors named), PR-205 (LOW, fixed: 89xjll's blocking OQ-04/OQ-05 surfaced). Lint clean at author and review-finalize; S407 no violation; coverage re-probed ready. Record: `.aw/records/reviews/20260930-reqids-00-9wzlou-decide-and-build-the-spec-requirement-id-convention-that-spe.review.md` Round 2.
+- 2026-10-07 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-201..PR-205 FIXED (round 2)
+- 2026-10-07 coverage pass (aw oc run): fingerprint f0e42dcb1b73, model uri/its_direct/pt3-claude-opus-5.5-1m-us
 - 2026-10-07 to-review (aw set): returned to review: each criterion and cross-cutting property names its owner (rtvdak); coverage pass recorded. rtvdak still waits on spec 89xjll's human approval through its state:spec:approved edge
 - 2026-10-07 coverage pass (aw oc run): fingerprint d695699013fc, model uri/its_direct/pt3-claude-opus-5.5-1m-us
 - 2026-10-07 coverage fail (aw oc run): fingerprint 72b185ccc945, model uri/its_direct/pt3-claude-opus-5.5-1m-us
@@ -50,7 +54,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 - [ ] E-01 CONFIRM jjh4aj REACHED executed
   - Depends on: none
-  - Expected outcome: `jjh4aj` (specify the requirement-ID convention, the retrofit/grandfathering policy and the TRACE contract) is in `.aw/records/plans/executed/` with status `executed`, every `V-*` carrying concrete evidence. Its deliverable is ONE new spec sitting at `- Status: to-review`, carrying no approval or readiness attestation.
+  - Expected outcome: `jjh4aj` (specify the requirement-ID convention, the retrofit/grandfathering policy and the TRACE contract) is in `.aw/records/plans/executed/` with status `executed`, every `V-*` carrying concrete evidence. Its deliverable is ONE new spec that it HANDED OFF at `- Status: to-review` (recorded by a `to-review (aw specs)` line in the spec's own history), carrying no approval or readiness attestation written by an agent. The spec may since have advanced through `/spec-review` (to `reviewed`) or human approval; that later movement is not Order 01's and does not falsify this outcome.
   - Execution state: pending
 
 - [ ] E-02 CONFIRM rtvdak REACHED executed
@@ -62,7 +66,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 | Order | Id | File | What it does | Depends on |
 |---|---|---|---|---|
-| 01 | jjh4aj | `.aw/records/plans/pending/20260930-reqids-01-jjh4aj-specify-the-spec-requirement-id-addressing-convention-and-th.ipd.md` | Re-measures the spec corpus and the TRACE code path at execution HEAD, then creates ONE spec (via `aw specs new`) defining the requirement-ID namespace and the distinct acceptance namespace, the declaration-site rule, the retrofit/grandfathering policy on the existing stamped cutover mechanism, and the `SPEC-PLAN-TRACE` contract (scope, severity, grandfathered-spec pass, and the citation-not-implementation limit). Records its three design questions in the spec's own open-questions section for human ratification, then moves the spec to `to-review` with the setter. Writes NO code and edits no existing spec. | none |
+| 01 | jjh4aj | `.aw/records/plans/executed/20260930-reqids-01-jjh4aj-specify-the-spec-requirement-id-addressing-convention-and-th.ipd.md` | Re-measures the spec corpus and the TRACE code path at execution HEAD, then creates ONE spec (via `aw specs new`) defining the requirement-ID namespace and the distinct acceptance namespace, the declaration-site rule, the retrofit/grandfathering policy on the existing stamped cutover mechanism, and the `SPEC-PLAN-TRACE` contract (scope, severity, grandfathered-spec pass, and the citation-not-implementation limit). Records its three design questions in the spec's own open-questions section for human ratification, then moves the spec to `to-review` with the setter. Writes NO code and edits no existing spec. | none |
 | 02 | rtvdak | `.aw/records/plans/pending/20260930-reqids-02-rtvdak-build-the-requirement-id-parser-and-wire-spec-plan-trace-int.ipd.md` | Reads the five ratified decisions off the APPROVED spec, re-measures four landing sites, then implements the pure spec-side id parser, `production_checks.spec_plan_trace` as a fourth sibling verifier rendering `25kzda` 4.8's template, the cutover feature-key registration, one `findings.extend` call at the production site, and two test surfaces (pure parser units over five real corpus shapes; four end-to-end production tests plus the orchestrator case). Edits no `.spec.md`. | `executed:jjh4aj` |
 
 ## Completion criteria (the whole Set is done only when)
@@ -126,13 +130,14 @@ must not proceed as though it had concluded otherwise.
 - THE OTHER NINE UNBUILT `SPEC-*` CODES.
   - Carrier-Declined: OWNED BY AN APPROVED CONTRACT ELSEWHERE. `z7nbn1` 4.4 lists them as NOT IN SCOPE and leaves them with approved spec `25kzda` 4.8, which is revisited whenever that spec is. They were never in backlog `vy20et`'s scope.
 - CLOSING BACKLOG `vy20et` AS `done`.
-  - Carrier-Declined: A PROHIBITION, not an obligation. The runner sets the item `graduated` on verification; `done` would claim code Order 02 has not yet written. The item remains the durable record until then.
+  - Carrier-Declined: A PROHIBITION on closing it BY HAND, not an obligation of this plan. Two different actors own the two transitions: the graduating run sets the item `graduated` once every plan it wrote is `to-review` or later and passes coverage, and the runner's `process_backlog_close` (via `runner_shared.evaluate_backlog_close`) closes it `done` only when EVERY `From-Backlog: vy20et` carrier (this plan, `jjh4aj`, `rtvdak`) is `executed`. Closing `done` earlier would claim code Order 02 has not yet written. The item remains the durable record until then.
 
 ## Scope check
 
 - Over-scope: none. `- Scope-Paths:` names only this plan file, which is the correct declaration for a plan whose whole function is coordination.
 - Under-scope: this plan changes nothing by itself, and the Set cannot complete without a human act between its two children: Order 02's whole content is fixed by five decisions only an APPROVED spec settles, and an agent may not approve a spec. A reader asking "what can I run unattended?" should know that Order 01 is runnable once approved, while Order 02 additionally waits on the maintainer approving Order 01's spec.
   CORRECTED 2026-10-01 AT REVIEW: the authored clause "which no runner can perform or detect for them" is wrong in its second half and the error mattered, because it argued away a guard the repository already ships. A runner cannot PERFORM the approval, which is right and is the whole point of `--by-human`. It CAN DETECT it: `state:spec:approved:<id6>` is a legal edge and `runner_shared.edge_satisfied` refuses the dependent until the spec holds exactly that status. Order 01's E-09 now writes that edge onto Order 02, so Order 02 is held by the RUNNER and not merely by its own first item's self-discipline. See "Cross-IPD validation" SECOND for the measurement.
+  STATE AT 2026-10-07 REVIEW (context, re-derive rather than quote): `jjh4aj` is `executed`; its spec `89xjll` sits in `specs/reviewed/` after `/spec-review` with two BLOCKING open questions (OQ-04 mandatory forms, OQ-05 plan-side id attribution) that the maintainer must answer before approving; `rtvdak` already carries `executed:jjh4aj, state:spec:approved:89xjll`. So the Set's only remaining human act is answering those questions and approving `89xjll` with `--by-human`.
 
 ## Required tests / validation
 
@@ -166,7 +171,7 @@ in which case that amendment belongs to the plan the spec names rather than to t
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
 - [ ] V-01 validates E-01
-  - Required evidence: paste `ls .aw/records/plans/executed/ | grep jjh4aj` showing the plan in the terminal directory, plus its `- Status:` line reading `executed`. Paste the path and `- Status:` of the spec it created, showing `to-review`, and paste `grep -nE '^- (Approval|Readiness):' <spec>` returning NO match (proving no forged attestation; confirmed at review that this command exits 1 with no output on a real `to-review` spec, so an empty result is the pass and not a broken command). Confirm every `V-*` in `jjh4aj` carries non-empty `Observed evidence`. ALSO paste Order 02's `- Item-Dependencies:` line, which E-09 must have extended to `executed:jjh4aj, state:spec:approved:<spec-id6>` naming the id6 of the spec just created, and paste `aw check --agent` (or `aw check plans`) showing no dangling-dependency finding against `rtvdak`. If that edge is absent, Order 01 did not finish its last item: say so rather than proceeding, because the Set's human gate is then unenforced by the runner.
+  - Required evidence: paste `ls .aw/records/plans/executed/ | grep jjh4aj` showing the plan in the terminal directory, plus its `- Status:` line reading `executed`. Paste the path and current `- Status:` of the spec it created, plus the spec's own `## Workflow history` line recording the `to-review` handoff by `jjh4aj` (the CURRENT status may legitimately be `to-review`, `reviewed` or, after the maintainer acts, `approved`; the bar is that the handoff happened at `to-review` and any `approved` line carries `--by-human`), and paste `grep -nE '^- (Approval|Readiness):' <spec>` returning NO match (proving no forged attestation; confirmed at review that this command exits 1 with no output on a real `to-review` spec, so an empty result is the pass and not a broken command). Confirm every `V-*` in `jjh4aj` carries non-empty `Observed evidence`. ALSO paste Order 02's `- Item-Dependencies:` line, which E-09 must have extended to `executed:jjh4aj, state:spec:approved:<spec-id6>` naming the id6 of the spec just created, and paste `aw check --agent` (or `aw check plans`) showing no dangling-dependency finding against `rtvdak`. If that edge is absent, Order 01 did not finish its last item: say so rather than proceeding, because the Set's human gate is then unenforced by the runner.
   - Observed evidence:
   - Result: pending
 
@@ -187,9 +192,12 @@ is where the design decisions are actually ratified. Only then does Order 02 bui
 `SPEC-PLAN-TRACE` into an enforcing check.
 
 THE SET CANNOT RUN STRAIGHT THROUGH UNATTENDED, and that is by design rather than an oversight. Order 02
-depends on a human approval that no dependency edge can express, so a run that queues both will
-correctly execute Order 01 and then depend on the maintainer before Order 02 is legitimate. Order 02's
-own first item refuses and reports if the spec is not `approved`.
+depends on a human approval of Order 01's spec. No runner can PERFORM that approval, but the runner DOES
+enforce it: Order 02 carries `state:spec:approved:89xjll`, which `runner_shared.edge_satisfied` refuses
+until the spec holds exactly `approved`, so a run that queues both executes Order 01 and marks Order 02
+`dependency-blocked` until the maintainer approves. Order 02's own first item refusing if the spec is
+not `approved` is the second layer, not the only one (corrected 2026-10-07 at review: this paragraph
+still carried the "no dependency edge can express" claim the 2026-10-01 review refuted elsewhere).
 
 THE REVIEWER'S SHARPEST QUESTION, NAMED HERE RATHER THAN BURIED IN A CHILD. In-tree research `vkub9o`
 explicitly recommends "Do NOT build: a requirement parser", and this Set builds one. The reconciliation
