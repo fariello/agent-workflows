@@ -114,6 +114,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Carrier-Evidence: .aw/records/plans/executed/20261002-jvw1kg-01-9wcei0-stamp-the-scaffold-s-draft-history-record-from-the-utc-clock.ipd.md
 - THE LIFECYCLE-GATE COVERAGE COMPANION IS NOT BUILT HERE. `5xq2ng` owns the rule that reports when `check.lifecycle-transition-invalid` validates nothing once date variation is removed. That is a consequence of the inline fix, not of the sidecar, which gates nothing (F-07).
   - Carrier: 5xq2ng
+  - Carrier-Evidence: .aw/records/plans/executed/20261002-o8l2y2-01-5xq2ng-keep-the-lifecycle-transition-gate-s-coverage-when-the-utc-h.ipd.md
 - THE DUPLICATE-ITEM CONVERGENCE IS NOT PERFORMED HERE, INCLUDING THIS PLAN'S OWN SOURCE ITEM. `qjm4bg` declares `tl8qmc`'s path and closes it in E-04, and also owns correcting the stale diagnosis F-09 describes. This plan writes no status onto `tl8qmc` and edits none of the cluster's records.
   - Carrier: qjm4bg
 - FILENAME DATE PREFIXES STAY LOCAL. `DECISIONS.md` D55 is a current ruling that deliberately reversed an earlier UTC directive on a UX rationale. The sidecar carries no filename date, so this plan has no occasion to touch one.
