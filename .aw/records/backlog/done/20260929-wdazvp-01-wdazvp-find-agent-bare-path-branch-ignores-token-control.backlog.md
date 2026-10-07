@@ -1,5 +1,5 @@
 - Id: wdazvp
-- Status: graduated
+- Status: done
 - Graduated-To: wdazvp
 - Blocks-Release: next
 - Set: wdazvp
@@ -8,6 +8,7 @@
 - Summary: aw find --agent prints bare paths and ignores --fields and --limit because its agent branch returns before building a record
 
 ## Workflow history
+- 2026-10-07 done (aw backlog): closed by aw agy run: IPD okiso1 executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20261001-wdazvp-01-okiso1-make-aw-find-agent-emit-a-real-aw-agent-v1-record-stream-so.ipd.md); evidence .aw/records/plans/executed/20261001-wdazvp-01-okiso1-make-aw-find-agent-emit-a-real-aw-agent-v1-record-stream-so.ipd.md
 - 2026-10-01 set (aw backlog): graduated by run run-20260930T053024Z-3198670: okiso1
 - 2026-09-29 created (aw backlog): Carrier filed while authoring plan 75ic2f (backlog rcjorx).
 
