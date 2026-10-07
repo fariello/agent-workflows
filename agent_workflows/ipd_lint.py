@@ -22,7 +22,17 @@ from __future__ import annotations
 import argparse
 import re
 from pathlib import Path
-from typing import Any, Dict, FrozenSet, Iterable, List, NamedTuple, Optional, Tuple
+from typing import (
+    Any,
+    Dict,
+    FrozenSet,
+    Iterable,
+    List,
+    NamedTuple,
+    Optional,
+    Sequence,
+    Tuple,
+)
 
 from agent_workflows import ipd_schema as S
 from agent_workflows import lifecycle_dirs as _LD
@@ -229,6 +239,7 @@ _CONTINUATION_SUBFIELDS: FrozenSet[str] = frozenset(
     ("Observed evidence", "Execution note")
 )
 
+
 # orchtyped `dpdyed` (spec `r07vma` R1a): the TYPED CHILD-TRACKING ROW grammar, and the ONLY
 # definition of it in the tree (R3). A conforming orchestrator checklist row is exactly:
 #
@@ -244,9 +255,52 @@ _CONTINUATION_SUBFIELDS: FrozenSet[str] = frozenset(
 # context and spec Section 3a limit 1 records that as an honest limit: the prose residue remains the
 # semantic probe's business (`77tr3o` R-12), and an implementer who extends this pattern into the
 # continuation lines has changed the contract and broken that division of labour.
-_ORCH_ROW_RE = re.compile(
-    r"^- \[[ x]\] (E-[0-9]{2,}) CONFIRM ([0-9a-z]{6}) REACHED ([A-Za-z][A-Za-z-]*)$"
+class OrchestratorRowToken(NamedTuple):
+    """One token of the orchestrator child-tracking row grammar.
+
+    Carries BOTH the rendered form and the regex fragment so the two can only be changed together.
+    """
+
+    rendered: str
+    fragment: str
+
+
+ORCH_ROW_GRAMMAR: Tuple[OrchestratorRowToken, ...] = (
+    OrchestratorRowToken("- [ ] ", r"- \[[ x]\] "),
+    OrchestratorRowToken("E-NN", r"(E-[0-9]{2,})"),
+    OrchestratorRowToken(" CONFIRM ", r" CONFIRM "),
+    OrchestratorRowToken("<child-id6>", r"([0-9a-z]{6})"),
+    OrchestratorRowToken(" REACHED ", r" REACHED "),
+    OrchestratorRowToken("<status>", r"([A-Za-z][A-Za-z-]*)"),
 )
+_ORCH_ROW_GRAMMAR = ORCH_ROW_GRAMMAR
+
+
+def orch_row_pattern(
+    tokens: Sequence[OrchestratorRowToken] = ORCH_ROW_GRAMMAR,
+) -> str:
+    """Derive the anchored regex pattern from an orchestrator row grammar token sequence.
+
+    THE TWO ANCHORS MUST BE APPLIED BY THE DERIVATION AND NOT CARRIED IN A TOKEN:
+    both anchors are load-bearing ('Widening either anchor re-opens the place R1a exists
+    to close') and an anchor living inside a token is an anchor a token edit can delete.
+    """
+    return "^" + "".join(t[1] for t in tokens) + "$"
+
+
+_orch_row_pattern = orch_row_pattern
+
+
+def orch_row_canonical(
+    tokens: Sequence[OrchestratorRowToken] = ORCH_ROW_GRAMMAR,
+) -> str:
+    """Derive the canonical orchestrator row string from a grammar token sequence."""
+    return "".join(t[0] for t in tokens)
+
+
+_orch_row_canonical = orch_row_canonical
+
+_ORCH_ROW_RE = re.compile(orch_row_pattern())
 _HISTORY_LINE_RE = re.compile(r"^-\s+(?:\d{4}-\d{2}-\d{2})\s+(\S+)")
 # ipdgates Order wezhxg: parse the full terminal history line `- <date> <status> (<actor>): <msg>`
 # so the post-transition attribution lint can reject a generic/empty actor + empty summary.
@@ -1737,9 +1791,42 @@ ORCH_ROW_REMEDIES = (
     "plan whose `- Item-Dependencies:` put it in the right order, OR REMOVE it because a child "
     "already covers it (which is removal for redundancy, not deletion to silence this rule)"
 )
-#: The canonical form, rendered from the same grammar the check enforces, so the instruction an author
-#: reads and the rule that refuses them have ONE source (spec OQ-01's proposed direction, partially).
-ORCH_ROW_CANONICAL = "- [ ] E-NN CONFIRM <child-id6> REACHED <status>"
+#: The canonical form, derived from the single grammar datum that compiles _ORCH_ROW_RE,
+#: so the instruction an author reads, the regex that refuses them, and the scaffold
+#: skeleton have ONE source (spec OQ-01's proposed direction applied to code; the two
+#: prose copies in plan-review-long and spec r07vma R1a, plus the absent documentation
+#: surface, survive outside this plan's reach).
+ORCH_ROW_CANONICAL = orch_row_canonical()
+
+
+def render_orchestrator_row(
+    ident: Optional[str] = None,
+    child_id6: Optional[str] = None,
+    status: Optional[str] = None,
+    ticked: bool = False,
+    *,
+    tokens: Sequence[OrchestratorRowToken] = ORCH_ROW_GRAMMAR,
+) -> str:
+    """Render a conforming orchestrator child-tracking row from typed field values.
+
+    Substitutes into the grammar token sequence rather than formatting a second template
+    string, so the grammar has a single statement in the tree.
+    """
+    pfx_token = tokens[0][0]
+    prefix = pfx_token.replace("[ ]", "[x]") if ticked else pfx_token
+    ident_str = tokens[1][0] if ident is None else ident
+    child_str = tokens[3][0] if child_id6 is None else child_id6
+    status_str = tokens[5][0] if status is None else status
+    return "".join(
+        (
+            prefix,
+            ident_str,
+            tokens[2][0],
+            child_str,
+            tokens[4][0],
+            status_str,
+        )
+    )
 
 
 class OrchestratorRow(NamedTuple):
