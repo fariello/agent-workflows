@@ -11,7 +11,8 @@
   EXCLUDES: changing the verifier PROMPT or its verdict schema; changing `map_verdict` or the verdict table (`1bfppy`'s, and it is correct); adding a `verify_disp` token (measured to render as a bare `-` in `run_viewer`); the `correction_required -> runnable` requeue; wiring `run_recovery` or a ledger; and adding an `ACTION_CAPABILITY_REQUIREMENTS` row (see OQ-02 - that is a capability-policy change with its own refusal surface).
 - Scope-Paths: agent_workflows/runner_shared.py, tests/test_runwire_verifier_authority.py
 - Item-Dependencies: executed:32jpl1
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: medium
 - From-Backlog: ildjse
@@ -22,6 +23,8 @@
 - Id: eow7p4
 
 ## Workflow history
+- 2026-10-07 /plan-review (opencode uri/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005
+- 2026-10-07 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-001..PR-005 FIXED
 - 2026-10-07 to-review (aw set): returned to review: Set-level checks owned by eow7p4 E-05 (runs last); coverage pass recorded; open questions non-blocking
 - 2026-10-07 note (opencode its_direct/pt3-claude-opus-5.5-1m-us): added E-05/V-05, the Set-level checks orchestrator `i18yaz` carried with no owner; this plan runs last, after `32jpl1`. Measurement only; no scope change.
 - 2026-10-06 draft (aw set): demoted to-review -> draft: returned to authoring by gradcover 52opph: uncovered obligation: Bare pytest compared against a baseline measured before any edit
@@ -57,11 +60,12 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 ### Task group 2: consult the authority that already exists
 
 - [ ] E-03 CHECK THE VERIFIER'S STATE AUTHORITY BEFORE ITS VERDICT DOWNGRADES AN ITEM, consuming `verify_roles.ROLE_CONTRACTS` and `run_state`'s table rather than asserting authority implicitly. The verdict path already resolves a `run_state` position (`map_verdict` records `attempt["verify_verdict_state"]`); this item asks whether the actor is AUTHORIZED for the edge into that position.
-  USE SIBLING ORDER 01's TRANSLATION for the SOURCE position and do NOT re-derive it. That is why this plan declares `- Item-Dependencies: executed:32jpl1`. Measured, `run_state.TRANSITION_RULES` authorizes `verifying -> verified` and `verifying -> correction_required` for `{verifier, runtime}` only, and `verify_roles.ROLE_CONTRACTS['verifier'].state_authority` lists exactly those two plus `performed -> verifying`. The two sources AGREE today; assert that agreement in a test rather than trusting it, because two definitions of one fact are the drift class this module has already paid for.
+  USE SIBLING ORDER 01's SYMBOLS for the SOURCE position and do NOT re-derive it. That is why this plan declares `- Item-Dependencies: executed:32jpl1`. CORRECTED AT REVIEW, because the naive reading does not work: at the verify site the item's driver status is `"running"` (set at the top of `execute_item_core`, and no status write occurs between there and the `spawn_verifier` call), and `runner_shared.map_driver_status_to_run_state("running")` returns `running`, NOT `verifying` (measured; Order 01's table has no `verifying` entry). `run_state.validate_transition("running", "verified", "verifier")` is `ST-ILLEGAL-TRANSITION`, so a check that used the translated status directly as the source would report EVERY verdict unauthorized. The correct composition, both halves Order 01's: translate the status with `map_driver_status_to_run_state`, then walk to `verifying` with `runner_shared.find_runtime_reachability_path(<translated>, "verifying")` (measured: `['running', 'performed', 'verifying']`), and validate the VERIFIER edge `verifying -> <target>` with actor `verifier`. Record the runtime path beside the verdict so a reader can see how the source was reached; if no runtime path exists, record that as the finding instead of validating from a wrong source.
+  NOT EVERY `map_verdict` STATE IS A `run_state` POSITION. Measured: `map_verdict("BLOCKED").state` and `map_verdict("NOT CONFORMING").state` are `fail-verify`, a driver token, while `VERIFIED` yields `verified` and `CORRECTION_REQUIRED`/unrecognized yield `correction_required`. Validating `verifying -> fail-verify` would report a spurious illegal edge. Map the target through `map_driver_status_to_run_state` too (it yields `correction_required` for `fail-verify`), or record "no run_state edge" for a target with no position; do not record the driver token as an authority failure. Measured, `run_state.TRANSITION_RULES` authorizes `verifying -> verified` and `verifying -> correction_required` for `{verifier, runtime}` only, and `verify_roles.ROLE_CONTRACTS['verifier'].state_authority` lists exactly those two plus `performed -> verifying`. The two sources AGREE today; assert that agreement in a test rather than trusting it, because two definitions of one fact are the drift class this module has already paid for.
   REPORT-ONLY FOR THE AUTHORITY CHECK, and this asymmetry with E-02 is deliberate rather than an oversight. A session collision is a FACT ABOUT THIS RUN that the runner observed directly, so refusing on it is safe. The authority check, by contrast, depends on Order 01's brand-new translation supplying the SOURCE position, and a mapping defect there would refuse a correct verification - the exact hazard Order 01's own OQ-01 keeps it report-only for. Record the verdict; do not refuse on it. Promoting it is a follow-on once the report shows no false positives.
   USE THE PURE VALIDATOR: `run_state.validate_transition`, never `check_transition`, which RAISES.
   - Depends on: E-02
-  - Expected outcome: before a verdict is applied, the runner records whether the acting role holds authority for the edge it exercises, using Order 01's translation for the source position and `run_state.validate_transition`; a test asserts `run_state.TRANSITION_RULES` and `verify_roles.ROLE_CONTRACTS['verifier'].state_authority` agree on the verification edges; nothing is refused by this item.
+  - Expected outcome: before a verdict is applied, the runner records whether the acting role holds authority for the edge it exercises, with the source reached via Order 01's `map_driver_status_to_run_state` plus `find_runtime_reachability_path` to `verifying` (path recorded), the target normalized to a `run_state` position, and the edge checked with `run_state.validate_transition`; a `VERIFIED`, a `CORRECTION_REQUIRED` and a `BLOCKED` verdict each record an AUTHORIZED verdict (none spurious); a test asserts `run_state.TRANSITION_RULES` and `verify_roles.ROLE_CONTRACTS['verifier'].state_authority` agree on the verification edges; nothing is refused by this item.
   - Execution state: pending
 
 - [ ] E-04 PROVE BOTH GUARANTEES BY DRIVING THE REAL PATH, and prove the guards bite. Four properties, each falsifiable and each asserted on OUTCOMES rather than on code structure.
@@ -79,14 +83,14 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ## Project conventions discovered (Step 0)
 
-- Cite code by SYMBOL (`module.function`) or a quoted content string, never by a bare line number (spec `ipd-structure-and-linting` Section 10.2; advisory `IPD-C801`). `runner_shared.py` is 37355 lines and `1bfppy`'s record measured its own citations drifting ~4250 lines within one day.
+- Cite code by SYMBOL (`module.function`) or a quoted content string, never by a bare line number (spec `ipd-structure-and-linting` Section 10.2; advisory `IPD-C801`). `runner_shared.py` was 37355 lines at authoring and is 41024 at review, and `1bfppy`'s record measured its own citations drifting ~4250 lines within one day.
 - REFUSALS GO THROUGH `record_refusal` (the ONE refusal writer, from `r2i1b1`), which already reaches the run summary's diagnostics block and `aw runs`' `Issue` column, so a new distinction needs no new render surface.
 - A REFUSAL MUST CARRY A REMEDY, not just a prohibition: AGENTS.md records the measured failure mode that a prohibition-only gate gets complied with by DELETION, and `verify_absence_text`/`verdict_refusal_text` both name the preserved lane and the constructive act for this reason.
 - DO NOT ADD A `verify_disp` TOKEN: `fzxfph` measured that `run_viewer` renders anything outside `verified`/`unverified`/`verify-failed`/`failed` as a bare `-`, so a novel token degrades to "nothing happened".
 - ONE FACT, ONE DEFINITION: `1bfppy` found `"verifier-declined"` spelled twice and bound one to the other, recording that "two literals can drift; an alias cannot". Bind, do not re-spell.
 - LAZY IN-FUNCTION IMPORTS are the established form for consuming the `run_state`/`verify_roles`/`run_recovery` layer from `runner_shared` (`_verdict_state`, `resolve_retry_budget`).
 - SHARED DECISIONS LIVE IN `runner_shared`, not in `oc_runipd` (agy imports from oc and nothing flows back; backlog `cnwy8g` owns that layering defect).
-- RUN THE SUITE BARE as `python3 -m pytest`; `addopts` already supplies `-q -n auto --dist=worksteal -m 'not slow'`.
+- RUN THE SUITE BARE as `python3 -m pytest`; `addopts` already supplies `-q -n auto --dist=worksteal -m 'not slow and not livecorpus'`.
 
 ## Findings
 
@@ -156,7 +160,7 @@ N/A with reason: no `.spec.md` is amended and none is in `- Scope-Paths:`. This 
 - Status: open
 - Owner: maintainer
 - Carrier: s8veyk
-- Resolution or deferral rationale: MEASURED AS A REAL GAP AND DELIBERATELY NOT CLOSED HERE. The capability is probed by attempt, the probe is strict (it requires both that distinct identities finalize AND that a reused identity is refused), and `ACTION_CAPABILITY_REQUIREMENTS` has exactly one row (`ACTION_READ_ONLY`, `required=()`), so the verdict gates nothing. Adding a row would refuse a whole ACTION CLASS on a host whose probe failed, which is a far larger blast radius than this plan's one comparison and belongs with whoever owns that policy table. Non-blocking: this plan's enforcement is independent of it and is valuable whether or not the row is ever added.
+- Resolution or deferral rationale: UPDATE AT REVIEW: `s8veyk` has since graduated to Set `hostcapgate` (`4qv834`, with child `y9m1ya` adding exactly this row for `execute`), so this question has an owner and needs nothing from this plan. MEASURED AS A REAL GAP AND DELIBERATELY NOT CLOSED HERE. The capability is probed by attempt, the probe is strict (it requires both that distinct identities finalize AND that a reused identity is refused), and `ACTION_CAPABILITY_REQUIREMENTS` has exactly one row (`ACTION_READ_ONLY`, `required=()`), so the verdict gates nothing. Adding a row would refuse a whole ACTION CLASS on a host whose probe failed, which is a far larger blast radius than this plan's one comparison and belongs with whoever owns that policy table. Non-blocking: this plan's enforcement is independent of it and is valuable whether or not the row is ever added.
 
 ## Validation and cross-check (verify before reporting done)
 
@@ -173,7 +177,7 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Result: pending
 
 - [ ] V-03 validates E-03
-  - Required evidence: PASTE the authority check as implemented. CONFIRM BY QUOTING THE CALL that it uses `run_state.validate_transition` and NOT `check_transition`, and that the SOURCE position comes from Order 01's translation rather than a local re-derivation. PASTE the passing agreement test with the actual edge sets printed from BOTH `run_state.TRANSITION_RULES` and `verify_roles.ROLE_CONTRACTS['verifier'].state_authority`. CONFIRM that this item refuses nothing, by showing a verdict whose authority check fails still applies as it did before.
+  - Required evidence: PASTE the authority check as implemented. CONFIRM BY QUOTING THE CALL that it uses `run_state.validate_transition` and NOT `check_transition`, and that the SOURCE position comes from Order 01's `map_driver_status_to_run_state` plus `find_runtime_reachability_path` rather than a local re-derivation; PASTE the recorded path and authority verdict for a `VERIFIED`, a `CORRECTION_REQUIRED` and a `BLOCKED` verdict, each showing an authorized `verifying -> <position>` edge and no spurious failure from a `running` source or a `fail-verify` target. PASTE the passing agreement test with the actual edge sets printed from BOTH `run_state.TRANSITION_RULES` and `verify_roles.ROLE_CONTRACTS['verifier'].state_authority`. CONFIRM that this item refuses nothing, by showing a verdict whose authority check fails still applies as it did before.
   - Observed evidence:
   - Result: pending
 
@@ -196,4 +200,10 @@ EXECUTION CONTRACT. Execute AFTER Order 01 (`32jpl1`), whose translation E-03 co
 
 ONE REFUSAL, AND ONLY ONE. This plan adds exactly one refusal (the session collision) and the authority check adds none. If the authority check looks like it should refuse, read E-03's reasoning and OQ-01 and leave it recording; a false refusal on a correct verification would discard a lane that holds real work.
 
-POST-GATE LIFECYCLE. This plan moves to `.aw/records/plans/executed/` only after `aw ipd lint --phase pre-transition` conforms and all four `V-*` items carry concrete pasted evidence, including the V-04 mutation demonstration, which cannot be satisfied by assertion alone.
+OPEN QUESTIONS: OQ-01 and OQ-02 are both `Blocking: no` with recorded defaults (per-item refusal; no capability row here, owned by `hostcapgate`). An executor must not re-decide either.
+
+SCOPE FENCE: `- Scope-Paths:` is a DECLARATION so the runner can reconcile afterwards, not a stop order. A genuinely required out-of-scope edit is made and then justified to `aw ipd finalize` with a `--scope-reason` per path; a declared path left unmodified needs a `--scope-ack`. DO stop for a genuinely unsafe condition: an unresolvable concurrent-edit conflict, or Order 01's `map_driver_status_to_run_state` / `find_runtime_reachability_path` being absent.
+
+HONESTY RULE (hard MUST): paste the ACTUAL runner output for every `V-*`; never mark one from the matching `E-*` checkmark or from memory.
+
+POST-GATE LIFECYCLE. This plan moves to `.aw/records/plans/executed/` only after `aw ipd lint --phase pre-transition` conforms and all five `V-*` items carry concrete pasted evidence, including the V-04 mutation demonstration, which cannot be satisfied by assertion alone. Under `aw oc run` / `aw agy run` the runner performs that transition after verification; do NOT run `aw ipd finalize` yourself there. Executed by hand, the executor runs `aw ipd finalize` once the lint conforms. Never hand-roll a `git mv` to `executed/` or hand-edit `- Status: executed`.
