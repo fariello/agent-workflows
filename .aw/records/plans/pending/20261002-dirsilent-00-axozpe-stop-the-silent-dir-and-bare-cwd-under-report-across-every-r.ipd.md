@@ -7,8 +7,8 @@
 - Scope-Paths: .aw/records/plans/pending/20261002-dirsilent-01-i6mby8-add-the-shared-non-surveyable-root-refusal-primitive-every-r.ipd.md, .aw/records/plans/pending/20261002-dirsilent-02-jei45f-convert-the-two-fail-closed-validators-specs-check-and-backl.ipd.md, .aw/records/plans/pending/20261002-dirsilent-03-sjsb04-route-the-six-resolver-bypass-sites-through-resolve-verb-rep.ipd.md, .aw/records/plans/pending/20261002-dirsilent-04-rlhmt9-split-the-shared-read-write-helpers-and-convert-the-remainin.ipd.md
 - Item-Dependencies: none
 - Status: to-review
-- Coverage: pass
-- Coverage-Fingerprint: e490f67c8c6c1267bdbb4db59ce7f603e9d6b607a7cd1816c1d3af01ecfa294a
+- Coverage: fail
+- Coverage-Fingerprint: 5cf3bb1cbeb98e218741221737546c67f7d11cb6387761c433a646cef079a02b
 - Coverage-Checked: 2026-10-07 by uri/its_direct/pt3-claude-opus-5.5-1m-us
 - Work-Kind: bug
 - Priority: medium
@@ -21,6 +21,7 @@
 - Id: axozpe
 
 ## Workflow history
+- 2026-10-07 coverage fail (aw oc run): fingerprint 5cf3bb1cbeb9, model uri/its_direct/pt3-claude-opus-5.5-1m-us
 - 2026-10-07 /plan-review (opencode uri/its_direct/pt3-claude-opus-5.5-1m-us): REVIEWED - OPEN QUESTIONS; PR-001 (OPEN, escalated as blocking OQ-03), PR-002..PR-005 fixed. Status left `to-review` and `- Readiness:` left ABSENT: `aw ipd coverage axozpe` now fails on the PR-001 gap, and closing it needs the maintainer's OQ-03 scope decision (IPD-S408 R6 path). Review record `.aw/records/reviews/20261007-dirsilent-00-axozpe-stop-the-silent-dir-and-bare-cwd.review.md`.
 - 2026-10-07 to-review (aw set): returned to review: each Set-level check the coverage probe quoted now names its owning child; coverage pass recorded
 - 2026-10-07 coverage pass (aw oc run): fingerprint e490f67c8c6c, model uri/its_direct/pt3-claude-opus-5.5-1m-us
@@ -146,6 +147,11 @@ THE CROSS-CHILD DEMONSTRATION IS THE SUITE, NOT A SEPARATE MATRIX (corrected at 
 - Context (measured at review, lane HEAD `ad22ff70a`): `cli._nv_backend_args` (the noun-verb adapter, `agent_workflows/cli.py`, "`sub.dir = getattr(args, "dir", None) or os.getcwd()`") converts a BARE invocation into an EXPLICIT `--dir <cwd>` before calling every `aw index|group|rename|archive <type>` backend and the `_run_check` fallback backend. Because the resolver never climbs an explicit `--dir`, a bare call from a subdirectory surveys the subdirectory. Reproduced in this worktree: `aw index research --check --agent` at the root returns `outcome:findings, exit 1, findings 179`; the same command from `docs/` returns `outcome:conforms, exit 0, verified:true, findings 2` (only `stale-index-missing`). That is the same false-clean answer this Set exists to remove, reachable with no flag. Order 03's census missed it because it matched one exact string, and no child covers it; this plan's Deferred row previously named `rlhmt9` as the carrier, which was false.
 - Decision needed: (a) add a fifth child (Order 05) that routes `_nv_backend_args` through `resolve_verb_repo_root` and adds the refusal to its read-class verbs (`index ... --check`), with write-class `group`/`rename`/`archive` getting the climb but no refusal; (b) widen Order 03 `sjsb04` to include it as a seventh site; or (c) decline it for this Set and file a new backlog item inheriting `- Blocks-Release: next`. Reviewer recommendation: (a), because the site feeds WRITE verbs too (`group`/`rename`/`archive`), so changing its bare-case root is a write-target change that needs its own negative controls, which is outside Order 03's stated "single-expression" risk profile. This is a scope decision for the maintainer, so it is not resolved here.
 - Resolution or deferral rationale: open; blocks approval until answered.
+
+## Coverage findings
+
+- "The noun-verb backends reached through `cli._nv_backend_args` are NOT yet owned; see OQ-03."
+- "- Under-scope: ONE KNOWN GAP, held open by blocking OQ-03 (PR-001): the seventh bypass site `cli._nv_backend_args` is owned by no child yet."
 
 ## Validation and cross-check (verify before reporting the Set complete)
 
