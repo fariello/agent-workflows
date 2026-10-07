@@ -79,32 +79,6 @@ INJECTED: dict[str, str] = {
     "git_common_dir": "run_checked",
 }
 
-# integpath-02 (`6sb3yu`): the lane->main integration seam, extracted LATER than the 34 above and
-# therefore held to a DIFFERENT standard, stated here so the split is deliberate rather than an
-# exemption. `runner_shared_premove_fingerprints.json` is a retained historical capture that no test
-# reads; these three symbols do not appear in that fixture
-# because they did not exist in it, so they have no pre-move fingerprint to match and adding them to
-# `INJECTED` would make the fixture-backed tests raise `KeyError` rather than prove anything.
-# `LaneIntegrationExtractionTests` is what replaces the fingerprint for them: it asserts the same
-# three properties (no re-definition, object identity or a delegating wrapper, and no runner import)
-# plus the host-label binding that a fingerprint could not express.
-LANE_INTEGRATION_MOVED = (
-    "dirty_tree_overlap",
-    "build_lane_outcome",
-    "integrate_lane_branch",
-)
-
-# stalemerge-01 (`87apfx`) E-05: the refusal CAUSE and conflict SHAPE machinery, pinned as a SEPARATE
-# list rather than appended to `LANE_INTEGRATION_MOVED`, and the reason is a scope decision worth stating
-# because appending was TRIED FIRST AND REVERTED.
-#
-# `LANE_INTEGRATION_MOVED` drives `test_an_unwrapped_symbol_is_the_SAME_OBJECT_in_both_runners`, which
-# demands that each host module carry the ATTRIBUTE. Satisfying it therefore requires adding ten
-# `as <same-name>` re-exports to BOTH `agent_workflows/oc_runipd.py` and `agent_workflows/agy_runipd.py`,
-# neither of which `87apfx` declares in its `Scope-Paths`, and the plan's Scope check explicitly forbids
-# widening into undeclared host files without reporting first. Measured: the append made all nine tests
-# in that class pass, at the cost of 36 added lines in each undeclared host module.
-#
 # The host label each runner MUST bind into `integrate_lane_branch`. This value lands in a merge
 # commit subject on MAIN, so it records WHICH driver integrated a lane; the shared function gives it
 # no default precisely so a mis-binding cannot be silent.

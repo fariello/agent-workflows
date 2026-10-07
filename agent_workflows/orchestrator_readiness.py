@@ -33,6 +33,7 @@ CODE_COVERAGE_STALE = "coverage-record-stale"
 CODE_COVERAGE_FAIL = "coverage-fail"
 CODE_COVERAGE_COULD_NOT_ASK = "coverage-could-not-ask"
 CODE_COVERAGE_UNKNOWN = "coverage-unknown"
+CODE_COVERAGE_NOT_WRITTEN = "coverage-record-not-written"
 
 # Condition 4 code set exported for runner consumers (spec 25kzda 2.5d / Order 04 5etev3)
 CONDITION_4_CODES: frozenset[str] = frozenset(
@@ -42,6 +43,7 @@ CONDITION_4_CODES: frozenset[str] = frozenset(
         CODE_COVERAGE_FAIL,
         CODE_COVERAGE_COULD_NOT_ASK,
         CODE_COVERAGE_UNKNOWN,
+        CODE_COVERAGE_NOT_WRITTEN,
     }
 )
 
@@ -70,6 +72,9 @@ REMEDY_COVERAGE_FAIL = (
     "do not delete the checklist"
 )
 REMEDY_COVERAGE_COULD_NOT_ASK = "retry with `aw ipd coverage <id6>`"
+REMEDY_COVERAGE_NOT_WRITTEN = (
+    "commit or stash the plan's changes, or re-run with `--no-commit`"
+)
 
 REMEDIES: dict[str, str] = {
     CODE_TABLE_UNUSABLE: REMEDY_TABLE_UNUSABLE,
@@ -83,6 +88,7 @@ REMEDIES: dict[str, str] = {
     CODE_COVERAGE_FAIL: REMEDY_COVERAGE_FAIL,
     CODE_COVERAGE_COULD_NOT_ASK: REMEDY_COVERAGE_COULD_NOT_ASK,
     CODE_COVERAGE_UNKNOWN: REMEDY_COVERAGE_RECORD,
+    CODE_COVERAGE_NOT_WRITTEN: REMEDY_COVERAGE_NOT_WRITTEN,
 }
 
 _ORDER_TOKEN_RE = re.compile(r"^(?:order\s*)?(?P<order>\d+)$", re.IGNORECASE)
@@ -112,6 +118,7 @@ class ReviewReadiness(NamedTuple):
     calls: int = 0
     written: bool = False
     committed: bool = False
+    write_detail: str = ""
 
 
 _BATCH_META_RE = re.compile(r"^- (Id|Set|Order|Kind|Status):\s*([^\n]+)", re.MULTILINE)
@@ -354,6 +361,7 @@ def review_readiness(
     calls = 0
     written = False
     committed = False
+    write_detail = ""
 
     if is_curr:
         cached = True
@@ -438,6 +446,18 @@ def review_readiness(
             calls = outcome.calls
             written = getattr(outcome, "written", False)
             committed = getattr(outcome, "committed", False)
+            write_attempted = getattr(outcome, "write_attempted", False)
+            write_detail = getattr(outcome, "write_detail", "")
+
+            if not cached and write_attempted and not written:
+                findings.append(
+                    Finding(
+                        code=CODE_COVERAGE_NOT_WRITTEN,
+                        subject=id6,
+                        detail=write_detail or "coverage record could not be written",
+                        remedy=REMEDY_COVERAGE_NOT_WRITTEN,
+                    )
+                )
 
             if outcome.answer == _rs.PROBE_ANSWER_EXECUTIONS:
                 if outcome.quotes:
@@ -489,6 +509,7 @@ def review_readiness(
         calls=calls,
         written=written,
         committed=committed,
+        write_detail=write_detail,
     )
 
 
@@ -535,6 +556,7 @@ def render_agent(
             "calls": result.calls,
             "written": result.written,
             "committed": result.committed,
+            "write_detail": result.write_detail,
             "finding_codes": [f.code for f in result.findings],
             "findings": [
                 {
@@ -723,14 +745,15 @@ def run_coverage(
         results.append(res)
 
     all_ready = all(r.ready for r in results)
-    exit_code = 0 if all_ready else 1
+    all_written = all(r.written or r.cached for r in results)
+    exit_code = 0 if (all_ready and all_written) else 1
 
     if ctx.is_agent or ctx.is_json:
-        outcome = "clean" if all_ready else "findings"
+        outcome = "clean" if (all_ready and all_written) else "findings"
         summary = (
             f"all {len(results)} selected orchestrator(s) ready for review"
-            if all_ready
-            else f"{sum(1 for r in results if not r.ready)} of {len(results)} orchestrator(s) not ready for review"
+            if (all_ready and all_written)
+            else f"{sum(1 for r in results if not r.ready or not (r.written or r.cached))} of {len(results)} orchestrator(s) not ready for review"
         )
         orch_data = [
             {
@@ -741,6 +764,7 @@ def run_coverage(
                 "calls": r.calls,
                 "written": r.written,
                 "committed": r.committed,
+                "write_detail": r.write_detail,
                 "finding_codes": [f.code for f in r.findings],
                 "findings": [
                     {
@@ -763,6 +787,7 @@ def run_coverage(
             "calls": first.get("calls", 0),
             "written": first.get("written", False),
             "committed": first.get("committed", False),
+            "write_detail": first.get("write_detail", ""),
             "finding_codes": first.get("finding_codes", []),
         }
         if non_orchestrator_plans:
@@ -785,12 +810,18 @@ def run_coverage(
     # Human rendering
     for r in results:
         print(render_human(r))
-        if no_commit:
-            print(
-                f"  (record {'written' if r.written else 'not written'}, commit suppressed by --no-commit)"
+        if r.cached:
+            pass
+        elif r.written and r.committed:
+            print("  (record written and committed)")
+        elif r.written and not r.committed:
+            reason = r.write_detail or (
+                "commit suppressed by --no-commit" if no_commit else "not committed"
             )
-        elif r.written:
-            print(f"  (record written, committed={r.committed})")
+            print(f"  (record written, not committed: {reason})")
+        else:
+            reason = r.write_detail or "record not written"
+            print(f"  (record NOT written: {reason})")
     for non_p in non_orchestrator_plans:
         print(f"Plan {non_p.name} is not an orchestrator (not applicable).")
     return exit_code
