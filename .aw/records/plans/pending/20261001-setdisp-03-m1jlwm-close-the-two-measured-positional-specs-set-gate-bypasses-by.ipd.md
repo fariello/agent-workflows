@@ -6,7 +6,7 @@
 - Scope: IN: make both refusals fire on BOTH spellings by having the shared engine consume the SAME predicates `specs.run_set` already consumes, never a second copy; author outcome tests pinning each refusal on both spellings; close the two carriers with cited evidence. OUT, each with a reason recorded under "Deferred": moving either spelling's dispatch route (children 04, 05, gated on spec `wy9aru` OQ-1); the third `specs.run_set`-only refusal (the post-write `validate_spec` conformance check), which is a different shape and is carried by child 04; every axis `wy9aru` Section 7 assigns elsewhere.
 - Scope-Paths: agent_workflows/status_set.py, agent_workflows/specs.py, tests/test_specs_set_gate_parity.py, CHANGELOG.md
 - Item-Dependencies: executed:afdmn6
-- Status: draft
+- Status: to-review
 - From-Spec: wy9aru
 - Work-Kind: bug
 - Priority: high
@@ -19,6 +19,7 @@
 - Id: m1jlwm
 
 ## Workflow history
+- 2026-10-07 to-review (aw set): returned to review: Set-level checks now owned by new Order 06 7zb4ny; coverage pass recorded; open questions are non-blocking executor measurements
 - 2026-10-06 draft (aw set): demoted to-review -> draft: returned to authoring by gradcover 52opph: uncovered obligation: The bare suite pytest after the final child compared by name against baseline
 - 2026-10-01 same-status (aw set): status unchanged (to-review)
 

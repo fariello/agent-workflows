@@ -6,7 +6,7 @@
 - Scope: Measurement and reporting only. IN: run and record each Set-level check named in `63zo2f`'s Completion criteria and Cross-IPD validation, against the tree after children 01 to 05 have executed; report any failure plainly and stop the Set from being reported complete. OUT: fixing anything a check finds (a failure is reported, and the fix is a new plan); closing or editing any backlog item; editing any child plan.
 - Scope-Paths: .aw/records/plans/pending/20261007-setdisp-06-7zb4ny-audit-the-five-setdisp-children-together-and-run-the-set-lev.ipd.md
 - Item-Dependencies: executed:afdmn6, executed:m1jlwm, executed:m94eht, executed:vhiqo6
-- Status: draft
+- Status: to-review
 - From-Spec: none
 - Work-Kind: chore
 - Priority: medium
@@ -18,6 +18,7 @@
 - Id: 7zb4ny
 
 ## Workflow history
+- 2026-10-07 to-review (aw set): returned to review: Set-level checks now owned by new Order 06 7zb4ny; coverage pass recorded; open questions are non-blocking executor measurements
 
 - 2026-10-07 note (opencode its_direct/pt3-claude-opus-5.5-1m-us): authored so the Set-level checks orchestrator `63zo2f` carried have an owner; the coverage probe quoted each of them as work no child covers.
 - 2026-10-07 draft (opencode its_direct/pt3-claude-opus-5.5-1m-us): created.
