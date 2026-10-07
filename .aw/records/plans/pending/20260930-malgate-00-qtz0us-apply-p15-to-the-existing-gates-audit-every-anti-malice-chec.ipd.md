@@ -6,9 +6,10 @@
 - Scope: Orchestrate three children that together apply P15 to the shipped gates: `bec7ee` writes the durable audit record enumerating every mechanism with its keep / simplify / delete decision and evidence, `38pxaz` deletes the five unowned raising predicates in `wtiso_gate` plus the dangling test citations that claim they are pinned and amends spec `7ckptx` accordingly, and `dmjp0u` reframes the comment sites whose stated justification for a mechanism is a hostile agent. This plan holds ORCHESTRATION ONLY: every deliverable belongs to a child, and this file contributes no code, no test, no record and no spec edit of its own. EXCLUDES, in every child without exception: the driver attestation token and the `lane_worktree_active` location guess (designed in backlog `dvonrn`), re-deciding the four items backlog `ariaau` marks ALREADY DECIDED, rewording any honest-limit disclaimer that names a hostile agent in order to deny protecting against one, and restoring any test file deleted by the 2026-09-24 suite trim.
 - Scope-Paths: .aw/records/plans/pending/20260930-malgate-00-qtz0us-apply-p15-to-the-existing-gates-audit-every-anti-malice-chec.ipd.md
 - Item-Dependencies: none
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
 - Coverage: pass
-- Coverage-Fingerprint: c0e92a0b651737d38e2df4fef1656e26ca40fc1402a53bf8208e190d5073e100
+- Coverage-Fingerprint: a55c2d8e222733c5c4c84ee29948d7d86dd23306a1cc9ac3a9c6167b4cc87878
 - Coverage-Checked: 2026-10-07 by uri/its_direct/pt3-claude-opus-5.5-1m-us
 - Work-Kind: chore
 - Priority: medium
@@ -20,6 +21,8 @@
 - Id: qtz0us
 
 ## Workflow history
+- 2026-10-07 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-501 (HIGH, fixed), PR-502 (MEDIUM, fixed), PR-503 (LOW, fixed), PR-504 (LOW, fixed). All three children re-verified executed on disk with passing V-* evidence and in declared order; the three recorded cross-checks reproduce. PR-501: criterion 4 / V-02 demanded per-child full-suite lines no child recorded; reviewer ran the bare suite on the combined tree (`5219 passed, 2 skipped, 3 warnings in 138.58s`) and recorded it as a Set-level check. PR-502: V-01's green `aw research index --check` was unsatisfiable (exit 1 repo-wide). OQ-01/OQ-02 resolved from on-disk history (D-1, D-2). Coverage repair loop took 2 attempts, rows 3 -> 3. Record: `.aw/records/reviews/20260930-malgate-00-qtz0us-apply-p15-to-the-existing-gates-audit-every-anti-malice-chec.review.md`.
+- 2026-10-07 coverage pass (aw oc run): fingerprint a55c2d8e2227, model uri/its_direct/pt3-claude-opus-5.5-1m-us
 - 2026-10-07 to-review (aw set): returned to review: every child executed; owners named and the three cross-child checks measured and recorded; coverage pass recorded
 - 2026-10-07 coverage pass (aw oc run): fingerprint c0e92a0b6517, model uri/its_direct/pt3-claude-opus-5.5-1m-us
 - 2026-10-07 coverage fail (aw oc run): fingerprint 1d55f5dad923, model uri/its_direct/pt3-claude-opus-5.5-1m-us
@@ -107,20 +110,25 @@ All five must hold. Each is falsifiable from artifacts on disk. All three childr
    names a carrier outside this Set (`dvonrn`, `ikxtkj`, `gia5i7`). A row with a disposition and no actor
    means the Set completed while leaving its own stated work undone, and is the single most likely way this
    Set finishes wrongly.
-4. [Owner: bec7ee, 38pxaz and dmjp0u, each with its own bare suite] NO USER-VISIBLE BEHAVIOR CHANGED. Evidenced by each child's own bare `python3 -m pytest` summary line
-   pasted against its pre-execution baseline, plus `38pxaz`'s demonstration that the preserved missing-input
-   token form renders byte-identically before and after its move.
+4. [Owner: 38pxaz (token form) and dmjp0u (the last child, whose integration `b01247ab7` the runner merge-revalidated on the combined tree); performed, nothing outstanding] NO USER-VISIBLE BEHAVIOR CHANGED. Evidenced by `38pxaz`'s demonstration that the preserved missing-input
+   token form renders byte-identically before and after its move, plus a bare `python3 -m pytest` on a tree
+   containing all three children's commits. CORRECTED AT REVIEW 2026-10-07 (PR-501): the authored evidence was
+   "each child's own bare summary line pasted against its pre-execution baseline", and measured on disk NO child's
+   `V-*` block carries a full-suite summary line (`38pxaz` V-06 pastes a 4-test targeted run; the only full-suite
+   figures in any child are review-time baselines in workflow history). Executed records cannot be edited, so the
+   suite half is satisfied by the Set-level measurement recorded under Cross-IPD validation instead.
 5. [Owner: 38pxaz and dmjp0u (each scoped away from the three sites)] NOTHING P15 REQUIRES KEPT WAS REMOVED. `runner_shared`'s pre-work-baseline banner,
    `host_sandbox_profile`'s docstring, and `attention_contract`'s `--by-human` note are unmodified by every
    child, and no test deleted by the 2026-09-24 suite trim was restored in any form.
 
 ## Cross-IPD validation
 
-These three checks span the children. All three children are `executed`, and each check was MEASURED on 2026-10-07 against the tree they produced, so nothing is left for a retirement to skip. Each states its result first and its original wording after.
+These four checks span the children. All three children are `executed`, and each check was MEASURED on 2026-10-07 against the tree they produced, so nothing is left for a retirement to skip. Each states its result first and its original wording after.
 
-- [Measured 2026-10-07: holds] AUDIT-TO-ACTION RECONCILIATION (criterion 3). Audit record `wv570i` assigns its 11 DELETE rows and the constant re-homing to `38pxaz` and its two comment rewordings to `dmjp0u`; on disk `agent_workflows/wtiso_gate.py` is deleted, `AW_MISSING_INPUT` is defined in `lane_containment.py`, and neither quoted anti-malice phrase remains under `agent_workflows/`. (Originally: read Order 01's record and Orders 02 and 03's diffs together and confirm every SIMPLIFY and DELETE row maps to an edit or a named external carrier.)
-- [Measured 2026-10-07: holds] DISCLAIMER FENCE (criterion 5). The commits of `38pxaz` and `dmjp0u` change zero lines in `host_sandbox_profile.py`, `attention_contract.py` and `runner_shared.py`, and `runner_shared`'s "THE TARGET IS SLOPPINESS, NOT MALICE" banner is present. (Originally: confirm from the combined diff that none of the three compliant sites was touched.)
-- [Measured 2026-10-07: holds] SPEC SURFACE. The only `.spec.md` either child's commits touch is spec `7ckptx`, in `38pxaz`'s commit. (Originally: confirm exactly one child amended a spec and no other `.spec.md` changed.)
+- [Owner: dmjp0u (last child; combined tree). Measured 2026-10-07 at review, HEAD `ba977bc5e`: holds, nothing outstanding] SET-LEVEL SUITE (criterion 4, added by PR-501). Bare `python3 -m pytest` on a tree containing `9f70eda69` (`38pxaz`) and `bb0d7c7a1` (`dmjp0u`): `5219 passed, 2 skipped, 3 warnings in 138.58s (0:02:18)`, 256 deselected. No failure, so no baseline adjudication is needed. (Replaces the per-child suite lines criterion 4 originally cited, which no child recorded.)
+- [Owner: bec7ee (record), 38pxaz and dmjp0u (actions). Measured 2026-10-07: holds, nothing outstanding] AUDIT-TO-ACTION RECONCILIATION (criterion 3). Audit record `wv570i` assigns its 12 DELETE rows (rows 1-10, 12, 13; the record's own summary says "11", a miscount, PR-503) and the constant re-homing to `38pxaz` and its two comment rewordings to `dmjp0u`; on disk `agent_workflows/wtiso_gate.py` is deleted, `AW_MISSING_INPUT` is defined in `lane_containment.py`, and neither quoted anti-malice phrase remains under `agent_workflows/`. (Originally: read Order 01's record and Orders 02 and 03's diffs together and confirm every SIMPLIFY and DELETE row maps to an edit or a named external carrier.)
+- [Owner: 38pxaz and dmjp0u (each scoped away from the three sites). Measured 2026-10-07: holds, nothing outstanding] DISCLAIMER FENCE (criterion 5). The commits of `38pxaz` and `dmjp0u` change zero lines in `host_sandbox_profile.py`, `attention_contract.py` and `runner_shared.py`, and `runner_shared`'s "THE TARGET IS SLOPPINESS, NOT MALICE" banner is present. (Originally: confirm from the combined diff that none of the three compliant sites was touched.)
+- [Owner: 38pxaz (the one amending child). Measured 2026-10-07: holds, nothing outstanding] SPEC SURFACE. The only `.spec.md` either child's commits touch is spec `7ckptx`, in `38pxaz`'s commit. (Originally: confirm exactly one child amended a spec and no other `.spec.md` changed.)
 
 ## Project conventions discovered (Step 0)
 
@@ -164,6 +172,9 @@ These three checks span the children. All three children are `executed`, and eac
 - A DETERMINISTIC CHECKER RULE FLAGGING NEW ANTI-MALICE JUSTIFICATIONS. Attractive under GUIDING_PRINCIPLES P11 and refused on this Set's own measurement: F-3 shows the vocabulary is densest in the COMPLIANT sites, so a pattern rule would fire overwhelmingly on correct code, and the justification-versus-disclaimer distinction is a judgement made by reading.
   - Carrier-Declined: Nothing is owed because this is a rejected design rather than latent work. Filing it would imply the repository intends to build a rule whose false-positive behavior its own measurement predicts.
 
+- AUDIT RECORD `wv570i` CURATION (PR-503, PR-504, both measured at review 2026-10-07). Its summary says "DELETE: 11 items" while its table carries 12 DELETE rows (rows 1-10, 12, 13), and it is still `status: todo` although executed plans cite it, which `aw research index --check` reports as `stale-state-to-promote`. Neither affects any child's action or criterion 3: every row, counted either way, names an actor. Both are amendments to a research record (permitted without breaking the id6, GUIDING_PRINCIPLES P5), not work this orchestrator performs.
+  - Carrier-Declined: Nothing is owed by this Set. The status is surfaced continuously by `aw research index --check`, whose remedy is `aw research promote`, and the miscount is cosmetic with the table authoritative; filing an item would duplicate a checker that already tracks the first and overstate the second.
+
 ## Scope check
 
 - Over-scope: none. This file declares ONLY itself, which is the correct declaration for a plan that performs no product change: it holds three child-confirmation items and a child table, and contributes no code, test, record or spec edit. Every deliverable is owned by a child, so the orchestrator-coverage gate should find no work here that no child covers.
@@ -171,11 +182,11 @@ These three checks span the children. All three children are `executed`, and eac
 
 ## Required tests / validation
 
-- THIS PLAN RUNS NO TEST OF ITS OWN, because it performs no product change; each child carries its own test obligations and its own evidence. Stated explicitly so the runner's retirement of this plan is not read as an untested transition: retirement is gated on every child reaching `executed`, and each child's own pre-transition checkpoint is where the evidence lives.
+- THIS PLAN RUNS NO TEST OF ITS OWN, because it performs no product change; each child carries its own test obligations and its own evidence. The one Set-level suite run (PR-501) was performed by the 2026-10-07 review and is recorded under Cross-IPD validation as a measurement, not as an obligation of this plan. Stated explicitly so the runner's retirement of this plan is not read as an untested transition: retirement is gated on every child reaching `executed`, and each child's own pre-transition checkpoint is where the evidence lives.
 - E-01 is satisfied by `bec7ee` on disk in `.aw/records/plans/executed/` with `- Status: executed`, its audit record present and resolvable by `<id6>` through the research manifest.
-- E-02 is satisfied by `38pxaz` on disk in `.aw/records/plans/executed/` with `- Status: executed`, its full-suite result pasted in its own validation, and its spec amendment reconciled against its declared `- Scope-Paths:`.
+- E-02 is satisfied by `38pxaz` on disk in `.aw/records/plans/executed/` with `- Status: executed`, its byte-identical token form and passing token test pasted in its own validation (its full-suite safety evidence is the Set-level run under Cross-IPD validation, PR-501), and its spec amendment reconciled against its declared `- Scope-Paths:`.
 - E-03 is satisfied by `dmjp0u` on disk in `.aw/records/plans/executed/` with `- Status: executed`, its diffs shown to change comment text only.
-- [Measured 2026-10-07, see Cross-IPD validation] THE SET-LEVEL CROSS-CHECK: every mechanism enumerated in Order 01's audit with a SIMPLIFY or DELETE disposition must be either acted on by Order 02 or Order 03, or carry a named carrier outside this Set. An audit row with a disposition and no actor is the one way this Set can complete while leaving its own stated work undone.
+- [Owner: bec7ee (record), 38pxaz and dmjp0u (actions). Measured 2026-10-07, see Cross-IPD validation; nothing outstanding] THE SET-LEVEL CROSS-CHECK: every mechanism enumerated in Order 01's audit with a SIMPLIFY or DELETE disposition must be either acted on by Order 02 or Order 03, or carry a named carrier outside this Set. An audit row with a disposition and no actor is the one way this Set can complete while leaving its own stated work undone.
 
 ## Spec / documentation sync
 
@@ -191,17 +202,17 @@ These three checks span the children. All three children are `executed`, and eac
 ### OQ-01: Should the audit record be written before the remediation, as sequenced, or assembled from the children afterwards?
 
 - Blocking: no
-- Status: open
+- Status: resolved
 - Owner: reviewer
-- Resolution or deferral rationale: The Set sequences the record FIRST, and the reason is that both remediation children cite it by `<id6>` as the evidence for what they remove: a citation cannot point at a record that does not yet exist, and a deletion explained only by a commit message is the unexplained removal this Set exists to avoid. Order 01's caller census is also the Set's hard gate, which must run before Order 02 acts on it. Against that: writing the audit first means its DELETE rows predict what the children will do, and if Order 02 legitimately decides to keep a body (its own OQ-01), the record and the tree disagree until someone reconciles them. NOT BLOCKING because Order 02's V-03 requires it to RECORD its per-body decision and reason, so the divergence is captured where a reader will find it, and a research record's status and content can be amended without breaking an id6 citation (GUIDING_PRINCIPLES P5).
+- Resolution or deferral rationale: RESOLVED AT REVIEW 2026-10-07 from on-disk history (D-1): the sequenced order WAS executed (`bec7ee` record commit `d9564f8fb` precedes `38pxaz`'s `9f70eda69` and `dmjp0u`'s `bb0d7c7a1`), and the feared divergence did not occur: `38pxaz` deleted every body the audit marked DELETE (the whole of `wtiso_gate.py`), so record and tree agree. Original rationale follows. The Set sequences the record FIRST, and the reason is that both remediation children cite it by `<id6>` as the evidence for what they remove: a citation cannot point at a record that does not yet exist, and a deletion explained only by a commit message is the unexplained removal this Set exists to avoid. Order 01's caller census is also the Set's hard gate, which must run before Order 02 acts on it. Against that: writing the audit first means its DELETE rows predict what the children will do, and if Order 02 legitimately decides to keep a body (its own OQ-01), the record and the tree disagree until someone reconciles them. NOT BLOCKING because Order 02's V-03 requires it to RECORD its per-body decision and reason, so the divergence is captured where a reader will find it, and a research record's status and content can be amended without breaking an id6 citation (GUIDING_PRINCIPLES P5).
 - Carrier-Declined: No carrier is owed under either answer. Both orderings are fully realizable with the three children as written, and neither leaves a deliverable unbuilt; only the sequence changes.
 
 ### OQ-02: Should this Set declare a dependency on backlog `dvonrn` landing first?
 
 - Blocking: no
-- Status: open
+- Status: resolved
 - Owner: reviewer
-- Resolution or deferral rationale: No child declares such an edge, deliberately. `dvonrn` carries `Blocks-Release: next` and deletes the driver token from `ipd_lifecycle`, a neighbourhood Order 03 also edits, so an edge would be defensible. It is refused because it would block a comment-only fix behind a much larger release-gating behavior change, and because Order 03's E-02 explicitly checks `dvonrn`'s landed state and reconciles in EITHER order, requiring its reframed wording to survive the token's later deletion without a second edit. The residual risk is an ordinary text collision in one neighbourhood of one file, which the runner's isolated-worktree and merge-revalidate path already handles. Against that: running after `dvonrn` would be simpler, since part of Order 03's target list may already be fixed and that child would shrink.
+- Resolution or deferral rationale: RESOLVED AT REVIEW 2026-10-07 from on-disk evidence (D-2): no edge, as authored. `dmjp0u` executed BEFORE `dvonrn`'s `lifegate` children (its V-02 records `e25iy9` at `approved`, not `executed`, and the token symbols present), reframed the F-1 comment without naming the token, and `785a687bd` then cited `dmjp0u` as carrier evidence in `u4glub` and `e25iy9`; so the either-order design held in practice. Original rationale follows. No child declares such an edge, deliberately. `dvonrn` carries `Blocks-Release: next` and deletes the driver token from `ipd_lifecycle`, a neighbourhood Order 03 also edits, so an edge would be defensible. It is refused because it would block a comment-only fix behind a much larger release-gating behavior change, and because Order 03's E-02 explicitly checks `dvonrn`'s landed state and reconciles in EITHER order, requiring its reframed wording to survive the token's later deletion without a second edit. The residual risk is an ordinary text collision in one neighbourhood of one file, which the runner's isolated-worktree and merge-revalidate path already handles. Against that: running after `dvonrn` would be simpler, since part of Order 03's target list may already be fixed and that child would shrink.
 - Carrier-Declined: No carrier is owed under either answer. Order 03's E-02 handles both landed states inside the plan, so nothing is left unbuilt in either order, and its V-02 records which state was found.
 
 ## Validation and cross-check (verify before reporting the Set complete)
@@ -209,12 +220,12 @@ These three checks span the children. All three children are `executed`, and eac
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
 - [ ] V-01 validates E-01
-  - Required evidence: `bec7ee`'s path shown to be under `.aw/records/plans/executed/` with `- Status: executed`, and its own `V-01` through `V-05` shown to carry concrete pasted evidence rather than placeholders. Plus the audit record's `<id6>` and a pasted `aw research index --check` confirming it is resolvable through the manifest. Plus the explicit outcome of that child's hard gate: whether any product caller of any `wtiso_gate` predicate was found. If one was, E-02 must NOT be confirmed and the Set stops here.
+  - Required evidence: `bec7ee`'s path shown to be under `.aw/records/plans/executed/` with `- Status: executed`, and its own `V-01` through `V-05` shown to carry concrete pasted evidence rather than placeholders. Plus the audit record's `<id6>` and a pasted `aw find research <id6>` line confirming it is resolvable through the manifest, plus the `aw research index --check` lines naming that record. CORRECTED AT REVIEW 2026-10-07 (PR-502): `--check` exits 1 repository-wide on unrelated records (19 `stale-state-to-promote` findings measured), so a green `--check` is unsatisfiable and is not the bar; the bar is that no finding against the record other than `stale-state-to-promote` appears (measured: `wv570i` carries exactly that one, because it is still `status: todo` while cited by executed plans, a curation step `aw research promote` performs and not a resolvability failure). Plus the explicit outcome of that child's hard gate: whether any product caller of any `wtiso_gate` predicate was found. If one was, E-02 must NOT be confirmed and the Set stops here.
   - Observed evidence:
   - Result: pending
 
 - [ ] V-02 validates E-02
-  - Required evidence: `38pxaz`'s path shown to be under `.aw/records/plans/executed/` with `- Status: executed`, and its own `V-01` through `V-06` shown to carry concrete pasted evidence. Plus, quoted from that child's record: the pasted bare `python3 -m pytest` summary line, the BEFORE and AFTER rendered value of the preserved token form shown byte-identical, and the spec `7ckptx` diff showing R6.1 unchanged. A child marked executed whose token form changed or whose spec amendment is absent does NOT satisfy this item.
+  - Required evidence: `38pxaz`'s path shown to be under `.aw/records/plans/executed/` with `- Status: executed`, and its own `V-01` through `V-06` shown to carry concrete pasted evidence. Plus the Set-level bare `python3 -m pytest` summary line recorded under Cross-IPD validation (CORRECTED AT REVIEW 2026-10-07, PR-501: the authored demand was that line "quoted from that child's record", which is unsatisfiable because `38pxaz`'s validation pastes only a targeted 4-test run and an executed record cannot be amended). Plus, quoted from that child's record: the BEFORE and AFTER rendered value of the preserved token form shown byte-identical, and the spec `7ckptx` diff showing R6.1 unchanged. A child marked executed whose token form changed or whose spec amendment is absent does NOT satisfy this item.
   - Observed evidence:
   - Result: pending
 
