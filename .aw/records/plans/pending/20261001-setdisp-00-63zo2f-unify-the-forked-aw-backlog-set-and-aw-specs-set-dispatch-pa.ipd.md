@@ -158,11 +158,11 @@ This orchestrator runs no tests of its own; every test belongs to a child and is
 "Required tests / validation". Every whole-Set check below is performed by Order 06 `7zb4ny` (E-01 to E-06),
 after the last migration child, and NOT by this plan:
 
-- For each child, `AW_NO_REEXEC=1 aw ipd lint --phase post-transition` conforming, and the plan present in `.aw/records/plans/executed/`.
-- For each child, every `V-*` carries pasted evidence rather than an assertion of success. A `V-*` whose "Observed evidence" is empty or paraphrased fails this check even if the child is marked executed.
-- The bare suite `python3 -m pytest` after the final child, with the `N passed` line pasted, and its failure SET compared BY NAME against the baseline re-derived before the Set began. Counts alone are insufficient: `tests/test_backlog.py::BacklogPreservationTests::test_release_exempt_setter_roundtrip_and_parity` is red at base for part of every day on the local-versus-UTC clock skew, so an unchanged count can hide a real change and a changed count can mean only that the clock moved.
-- `AW_NO_REEXEC=1 aw check release-gates`, since the Set closes at least two release-gated carriers.
-- The cross-IPD checks in "Cross-IPD validation" above, each answered explicitly.
+- For each child, `AW_NO_REEXEC=1 aw ipd lint --phase post-transition` conforming, and the plan present in `.aw/records/plans/executed/`. (Owner: `7zb4ny`.)
+- For each child, every `V-*` carries pasted evidence rather than an assertion of success. A `V-*` whose "Observed evidence" is empty or paraphrased fails this check even if the child is marked executed. (Owner: `7zb4ny`.)
+- The bare suite `python3 -m pytest` after the final child, with the `N passed` line pasted, and its failure SET compared BY NAME against the baseline re-derived before the Set began. Counts alone are insufficient: `tests/test_backlog.py::BacklogPreservationTests::test_release_exempt_setter_roundtrip_and_parity` is red at base for part of every day on the local-versus-UTC clock skew, so an unchanged count can hide a real change and a changed count can mean only that the clock moved. (Owner: `7zb4ny`.)
+- `AW_NO_REEXEC=1 aw check release-gates`, since the Set closes at least two release-gated carriers. (Owner: `7zb4ny`.)
+- The cross-IPD checks in "Cross-IPD validation" above, each answered explicitly. (Owner: `7zb4ny`.)
 
 ## Open questions
 
