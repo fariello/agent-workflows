@@ -6,7 +6,7 @@
 - Scope: IN: amend spec `25kzda` 5.2's guarantee-classification rows 1 and 3, each `Enforcement or proof` cell only, so it states its enforcement STATUS in the shape `00pirb` established for row 2; add ONE behavioral regression test pinning the two measurements those amendments assert (no shipped finding code names the `Push attempt` abort class; `hook_preserving_commit` is unrepresented by the capability contract) so the drift cannot silently recur; record the amendment through `aw specs note`; and VERIFY the carrier filed at this plan's authoring (`gqy7yd`) for guarantee ROW 4, which measurement showed carries the same defect class with no owner. OUT, each for a stated reason: ROW 4 itself, which needs the OPPOSITE judgement to rows 1 and 3 and is carried by `gqy7yd` (see F-7); row 2, already amended by `00pirb`; row 5, which is measured HONEST and needs no edit (F-8); the `Bucket` column of any row; the 5.2 host-requirement bullet, the 5.2 action table and the 5.6 packet example, all deliberately preserved by `01reg8` E-09; Section 6.1 limit 4, which pending plan `wn956n` E-02 explicitly declares DO-NOT-AMEND; Section 4.1's `Push attempt` abort-class membership, which the spec itself records as deliberately retained and unnamed; and BUILDING either mechanism, carried by `sv9ce4` (now graduated to Set `netnsfilter`).
 - Scope-Paths: .aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md, tests/test_host_capability_extension.py, .aw/records/backlog/open
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -18,9 +18,9 @@
 - Highest E allocated: 06
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: e6w056
-- Approval: 2026-10-03, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-07 executed (opencode): finalize e6w056 verified lane [Scope reconciliation - in-scope-unmodified .aw/records/backlog/open: not-needed]
 - 2026-10-03 approved (aw set): status set to approved
 
 - 2026-10-02 reviewed (opencode/its_direct/pt3-claude-opus-5.5-1m-us): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-001 (V-05 cited `aw backlog show`, which does not exist: the verbs are new/set/note/check; replaced with reading the item file), PR-002 (E-05 corrective/re-file paths could write OUTSIDE the declared `.aw/records/backlog/open` directory: a status move or `aw backlog new` lands elsewhere; bounded to `aw backlog note` and a re-file must land in `open/` or be justified), PR-003 (authoring count `51 passed` stale: the three named files report `54 passed` at review; made a non-binding pointer), PR-004 (gate: runner/hand ownership of begin/finalize and `--scope-ack` for the declared-but-normally-untouched backlog directory). Every E-01/E-05 measurement re-driven at lane HEAD 7bd4f92bb and all hold; Set `netnsfilter` still entirely `pending` (`to-review`); spec rows 1-5 read as quoted.
@@ -49,46 +49,46 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: re-measure before editing any record
 
-- [ ] E-01 Re-measure, on the executing host, the four facts the two amendments will assert, and retain the verbatim output. (a) `hasattr(host_sandbox_profile, 'CAP_DENY_PUSH')` and the set of `dataclasses.fields(HostSandboxCapabilities)` names containing `push`. (b) `'RUN-NO-PUSH' in run_evidence.RUN_FINDING_CODES_BY_CODE`, and the list of codes whose `abort_classes` contain `Push attempt`, alongside `'Push attempt' in run_evidence.ABORT_CLASSES`. (c) `'hook_preserving_commit' in host_sandbox_profile.UNREPRESENTED_SPEC_CAPABILITIES`, whether any `HostSandboxCapabilities` field is named `hook_preserving_commit` or `supports_hook_preserving_commit`, and whether it is a member of `RUNNER_SAFETY_CAPABILITIES`. (d) `python3 -m agent_workflows host capabilities opencode --json`, whose `data.unrepresented_spec_capabilities` is the shipped surface that publishes (c).
+- [x] E-01 Re-measure, on the executing host, the four facts the two amendments will assert, and retain the verbatim output. (a) `hasattr(host_sandbox_profile, 'CAP_DENY_PUSH')` and the set of `dataclasses.fields(HostSandboxCapabilities)` names containing `push`. (b) `'RUN-NO-PUSH' in run_evidence.RUN_FINDING_CODES_BY_CODE`, and the list of codes whose `abort_classes` contain `Push attempt`, alongside `'Push attempt' in run_evidence.ABORT_CLASSES`. (c) `'hook_preserving_commit' in host_sandbox_profile.UNREPRESENTED_SPEC_CAPABILITIES`, whether any `HostSandboxCapabilities` field is named `hook_preserving_commit` or `supports_hook_preserving_commit`, and whether it is a member of `RUNNER_SAFETY_CAPABILITIES`. (d) `python3 -m agent_workflows host capabilities opencode --json`, whose `data.unrepresented_spec_capabilities` is the shipped surface that publishes (c).
   DO NOT TRUST THIS PLAN'S AUTHORING NUMBERS. The spec's own preamble states every dated paragraph is a point-in-time snapshot that must be re-measured, and this plan exists because a record outlived its measurement. If ANY of the four has moved, STOP and report rather than editing: a push-denial field that has since appeared, or a `Push attempt` class that some code now names, would make E-03 assert the opposite of the truth. Note specifically that pending Set `netnsfilter` is authored to ADD a probed egress capability; if it executed before this plan, (a) and (b) may have moved and this plan must be re-authored rather than forced through.
   - Depends on: none
   - Expected outcome: Four captured outputs establishing the premise every later item rests on: no push-denial field exists, `RUN-NO-PUSH` is absent AND no code names the `Push attempt` class, `hook_preserving_commit` is unrepresented with no field able to carry it, and the shipped `host capabilities --json` surface agrees.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 VERIFY, do not re-file, the DURABLE CARRIER for guarantee ROW 4 of the same 5.2 table. Backlog `gqy7yd` was filed AT THIS PLAN'S AUTHORING (2026-10-01, `.aw/records/backlog/open/20261001-b7tlsh-01-gqy7yd-spec-25kzda-guarantee-row-4-overclaim.backlog.md`) rather than promised to this item, for the reason review finding PR-802 recorded on this very Set: a carrier that only exists if a plan executes is the obligation loss `sv9ce4` was filed at authoring to avoid, and `check.ipd-uncarried-obligation` refuses a `Carrier:` value that is not a resolvable bare id6, so a promised carrier cannot even be CITED. Confirm it is still `open`, still `Work-Kind: bug` with `- Blocks-Release: next`, and still carries the measurement it was filed with: that row 4's three named capabilities (`isolated_worktree`, `path_policy`, `timeout_cancel`) are ALL members of `UNREPRESENTED_SPEC_CAPABILITIES` and NONE is a field of `HostSandboxCapabilities`. RE-MEASURE that on the executing host rather than trusting the item's text; if it has moved, correct the item with `aw backlog note` (which appends history in place and keeps the file under `open/`) and record what changed; do NOT change its `- Status:` with `aw backlog set`, which RELOCATES the file out of the declared `.aw/records/backlog/open` directory. If the item was closed or removed, re-file it with `aw backlog new` carrying the same content plus `--blocks-release next` and `--work-kind bug`, confirm the new file landed under `.aw/records/backlog/open/`, and record why; any path written outside that directory is justified at finalize with `--scope-reason`. Do NOT amend row 4 here.
+- [x] E-05 VERIFY, do not re-file, the DURABLE CARRIER for guarantee ROW 4 of the same 5.2 table. Backlog `gqy7yd` was filed AT THIS PLAN'S AUTHORING (2026-10-01, `.aw/records/backlog/open/20261001-b7tlsh-01-gqy7yd-spec-25kzda-guarantee-row-4-overclaim.backlog.md`) rather than promised to this item, for the reason review finding PR-802 recorded on this very Set: a carrier that only exists if a plan executes is the obligation loss `sv9ce4` was filed at authoring to avoid, and `check.ipd-uncarried-obligation` refuses a `Carrier:` value that is not a resolvable bare id6, so a promised carrier cannot even be CITED. Confirm it is still `open`, still `Work-Kind: bug` with `- Blocks-Release: next`, and still carries the measurement it was filed with: that row 4's three named capabilities (`isolated_worktree`, `path_policy`, `timeout_cancel`) are ALL members of `UNREPRESENTED_SPEC_CAPABILITIES` and NONE is a field of `HostSandboxCapabilities`. RE-MEASURE that on the executing host rather than trusting the item's text; if it has moved, correct the item with `aw backlog note` (which appends history in place and keeps the file under `open/`) and record what changed; do NOT change its `- Status:` with `aw backlog set`, which RELOCATES the file out of the declared `.aw/records/backlog/open` directory. If the item was closed or removed, re-file it with `aw backlog new` carrying the same content plus `--blocks-release next` and `--work-kind bug`, confirm the new file landed under `.aw/records/backlog/open/`, and record why; any path written outside that directory is justified at finalize with `--scope-reason`. Do NOT amend row 4 here.
   - Depends on: E-01
   - Expected outcome: `gqy7yd` is confirmed present, `open`, gated, and honestly worded, so the residual overclaim stays visible in `aw attention` regardless of what the rest of this plan does. VERIFYING rather than filing is the stronger arrangement: the obligation already exists on disk and cannot be lost by this plan failing.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: pin the measurements behaviorally, before changing prose
 
-- [ ] E-02 Add a test class `GuaranteeRowEnforcementStatusTests` to `tests/test_host_capability_extension.py` asserting, by CALLING the shipped artifacts and reading their returned values, the TWO measurements rows 1 and 3 will be amended to state. Leg A (row 1): no member of `run_evidence.RUN_FINDING_CODES` lists `'Push attempt'` in its `abort_classes`, and `'RUN-NO-PUSH'` is not a key of `run_evidence.RUN_FINDING_CODES_BY_CODE`, while `'Push attempt'` IS still a member of `run_evidence.ABORT_CLASSES`. Assert that third part deliberately and in the same test: the spec records at "Section 4.1's `Push attempt` abort class is left in place and is now named by no code" that the retention is INTENTIONAL, so a test asserting only the absence would read as licence to prune the class. Leg B (row 3): `'hook_preserving_commit'` is a key of `host_sandbox_profile.UNREPRESENTED_SPEC_CAPABILITIES`, is NOT in `{f.name for f in dataclasses.fields(HostSandboxCapabilities)}` under that name or as `supports_hook_preserving_commit`, and is NOT a member of `RUNNER_SAFETY_CAPABILITIES`. Write the class docstring to state the INVARIANT the legs express jointly: nothing in this package denies a push or enforces hook preservation as a boundary, so any artifact reporting otherwise is the fail-open drift backlog `ymlyqf` recorded.
+- [x] E-02 Add a test class `GuaranteeRowEnforcementStatusTests` to `tests/test_host_capability_extension.py` asserting, by CALLING the shipped artifacts and reading their returned values, the TWO measurements rows 1 and 3 will be amended to state. Leg A (row 1): no member of `run_evidence.RUN_FINDING_CODES` lists `'Push attempt'` in its `abort_classes`, and `'RUN-NO-PUSH'` is not a key of `run_evidence.RUN_FINDING_CODES_BY_CODE`, while `'Push attempt'` IS still a member of `run_evidence.ABORT_CLASSES`. Assert that third part deliberately and in the same test: the spec records at "Section 4.1's `Push attempt` abort class is left in place and is now named by no code" that the retention is INTENTIONAL, so a test asserting only the absence would read as licence to prune the class. Leg B (row 3): `'hook_preserving_commit'` is a key of `host_sandbox_profile.UNREPRESENTED_SPEC_CAPABILITIES`, is NOT in `{f.name for f in dataclasses.fields(HostSandboxCapabilities)}` under that name or as `supports_hook_preserving_commit`, and is NOT a member of `RUNNER_SAFETY_CAPABILITIES`. Write the class docstring to state the INVARIANT the legs express jointly: nothing in this package denies a push or enforces hook preservation as a boundary, so any artifact reporting otherwise is the fail-open drift backlog `ymlyqf` recorded.
   KNOW WHAT ALREADY EXISTS, measured at authoring, so this class adds missing coverage rather than a second copy. `grep -rn "Push attempt" tests/` returns NOTHING, so leg A is asserted nowhere: `tests/test_run_finding_abort_partition.py` `test_conditional_abort_not_unconditional_and_abort_classes_exhaustive` checks only the FORWARD direction (every `row.abort_classes` member is in `ABORT_CLASSES`), which cannot detect a code newly NAMING `Push attempt`, and `test_spec_defines_exactly_twelve_run_codes` asserts `RUN-NO-PUSH` is absent from the SPEC's parsed 4.2 table, not from the module. `grep -rn "hook_preserving" tests/` likewise returns NOTHING, so leg B is wholly uncovered; the nearest existing assertion, `RequirementMapTests.test_requirement_map_structure_and_coverage`, only checks that each `req.unrepresented` entry is a KEY of the dict, which is the reverse implication and is silent about `hook_preserving_commit`. State those three near-misses in the docstring by name so a later reader does not delete a leg believing it duplicated.
   Assert on returned VALUES and `dataclasses.fields` only. Do NOT read production source text, use `inspect`/`ast`/regex on `agent_workflows/*.py`, count callers, or pin a docstring or comment banner (AGENTS.md no-code-pinning rule; GUIDING_PRINCIPLES P16). `dataclasses.fields` is runtime introspection of a shipped contract object, not a source read, and the file already uses it in `DenyPushRemovedTests`.
   - Depends on: E-01
   - Expected outcome: The class passes at current HEAD (it encodes the measured state) and would FAIL if either artifact drifted, which is the regression this plan adds. Run it alone first with `python3 -m pytest tests/test_host_capability_extension.py -o addopts="" -k GuaranteeRowEnforcementStatus` and keep that output.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: amend the two guarantee cells
 
-- [ ] E-03 Amend ONE table cell: spec `25kzda` 5.2's guarantee row 1, `Enforcement or proof`, identified by its quoted text "Tool/network/credential denial plus captured process policy. An actual push attempt aborts the run." Reframe it as a SPECIFICATION rather than a description, in the shape `00pirb` established for row 2: keep the mechanism as what WOULD prove the guarantee, and record that no capability field names push denial today (`CAP_DENY_PUSH` and `supports_deny_push` were removed by `01reg8`), that `RUN-NO-PUSH` was retired by `4h7tt0`, and that no shipped finding code names Section 4.1's `Push attempt` abort class, so the guarantee is NOT in force and fails closed.
+- [x] E-03 Amend ONE table cell: spec `25kzda` 5.2's guarantee row 1, `Enforcement or proof`, identified by its quoted text "Tool/network/credential denial plus captured process policy. An actual push attempt aborts the run." Reframe it as a SPECIFICATION rather than a description, in the shape `00pirb` established for row 2: keep the mechanism as what WOULD prove the guarantee, and record that no capability field names push denial today (`CAP_DENY_PUSH` and `supports_deny_push` were removed by `01reg8`), that `RUN-NO-PUSH` was retired by `4h7tt0`, and that no shipped finding code names Section 4.1's `Push attempt` abort class, so the guarantee is NOT in force and fails closed.
   DELETE THE ABORT SENTENCE RATHER THAN QUALIFYING IT. "An actual push attempt aborts the run" is the one cell in the table that asserts RUNTIME BEHAVIOR rather than naming a mechanism, which is why `ymlyqf` records it as the worse of the two rows; a reader is told an abort happens that nothing performs. Replace it with what is true: a push attempt is PROHIBITED (AGENTS.md's execution contract and `git_commit_helper`'s module docstring, "never ``--no-verify``; never ``push``"), and no mechanism detects or aborts on one. Do NOT weaken the PROHIBITION, which is real, and do NOT state or imply that `git_commit_helper` constitutes a boundary: that module's own docstring records "the enforcement half (a commit gateway) is deliberately NOT implemented here", and `host_sandbox_profile`'s anti-inference rule forbids inferring a guarantee from a helper's presence.
   SAY NOTHING ABOUT WHETHER A FUTURE MECHANISM SHOULD EXIST, and leave the `Bucket` column (`Host-dependent`) unchanged: the classification is correct and is precisely why the guarantee cannot be recovered by trusting the agent afterwards. The ship-or-stop judgement belongs to the maintainer decision carried by backlog `wcbpqf`, and BUILDING the mechanism is carried by `sv9ce4` (graduated to Set `netnsfilter`); this cell records today's status only. Do NOT touch Section 4.1's `Push attempt` abort-class membership, which the spec records as deliberately retained, nor Section 6.1 limit 4, which pending plan `wn956n` E-02 declares DO-NOT-AMEND.
   - Depends on: E-01, E-02
   - Expected outcome: The highest-authority statement of guarantee 1 no longer asserts a run-time abort, and carries its own enforcement status instead. A reader auditing push denial from the guarantee table gets the same answer as one reading `run_evidence`'s retirement comment.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 Amend ONE table cell: spec `25kzda` 5.2's guarantee row 3, `Enforcement or proof`, identified by its quoted text "Hook-preserving gateway and deny policy for `git commit --no-verify` or equivalent." Keep the mechanism as what WOULD prove the guarantee and record that the guarantee is not in force and fails closed.
+- [x] E-04 Amend ONE table cell: spec `25kzda` 5.2's guarantee row 3, `Enforcement or proof`, identified by its quoted text "Hook-preserving gateway and deny policy for `git commit --no-verify` or equivalent." Keep the mechanism as what WOULD prove the guarantee and record that the guarantee is not in force and fails closed.
   THIS CELL CANNOT USE ROW 2'S SHAPE, which is the reason `ymlyqf` records it as needing a different amendment and the reason it is a separate E-item from E-03. Row 2's cell names `supports_commit_gateway` as "the field that would carry the proof"; row 3 has NO such field. `hook_preserving_commit` is a member of `UNREPRESENTED_SPEC_CAPABILITIES`, is absent from `dataclasses.fields(HostSandboxCapabilities)`, and is not in `RUNNER_SAFETY_CAPABILITIES`. So the honest cell must say that the capability contract has no field for this guarantee at all, citing `UNREPRESENTED_SPEC_CAPABILITIES` as the place the gap is RECORDED (its sibling `isolated_worktree` note states the pattern: "this contract has no field for it, so it cannot be gated here"), which is a weaker position than row 2's and must read as weaker, not as equivalent.
   PRESERVE THE CELL'S EXISTING SECOND SENTENCE verbatim: "Spelled with `git` since 2026-09-05: this row is about the GIT flag that bypasses pre-commit hooks, never about a runner flag selecting whether an independent verifier turn runs." It disambiguates `--no-verify` between its git sense and the runners' own `--no-verify` validation flag (`agy_runipd` ships that spelling as an alias of `--no-validate`), a confusion a dated note already had to correct once. Leave the `Bucket` column unchanged.
   - Depends on: E-01, E-02
   - Expected outcome: Guarantee 3 records that no descriptor field can carry its proof, so a reader cannot mistake the named mechanism for an available one, and the existing disambiguation note survives byte-for-byte.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-06 Record provenance. Append a dated `## Workflow history` record to spec `25kzda` naming this plan, this backlog item, and which rows were amended, using `python3 -m agent_workflows specs note <spec path> --message "..."` rather than hand-editing the section. State in the message which rows were deliberately NOT amended and why (row 2 already amended by `00pirb`; row 4 carried by `gqy7yd`; row 5 measured honest), so a later reader of the spec's own history can tell a deliberate omission from an oversight. Do NOT change the spec's `- Status:` (it stays `approved`) or its `- Blocks-Release:`.
+- [x] E-06 Record provenance. Append a dated `## Workflow history` record to spec `25kzda` naming this plan, this backlog item, and which rows were amended, using `python3 -m agent_workflows specs note <spec path> --message "..."` rather than hand-editing the section. State in the message which rows were deliberately NOT amended and why (row 2 already amended by `00pirb`; row 4 carried by `gqy7yd`; row 5 measured honest), so a later reader of the spec's own history can tell a deliberate omission from an oversight. Do NOT change the spec's `- Status:` (it stays `approved`) or its `- Blocks-Release:`.
   - Depends on: E-03, E-04
   - Expected outcome: The spec's history gains one AMENDED line naming `e6w056` and `ymlyqf`, written by the owning tool, and its status and release gate are byte-unchanged.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -185,36 +185,268 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: All four captured outputs pasted verbatim. (a) must show `hasattr(hsp,'CAP_DENY_PUSH')` False and an EMPTY list of `HostSandboxCapabilities` field names containing `push`. (b) must show `'RUN-NO-PUSH' in RUN_FINDING_CODES_BY_CODE` False, an EMPTY list of codes whose `abort_classes` contain `'Push attempt'`, and `'Push attempt' in ABORT_CLASSES` True; a NON-empty code list means something now aborts on a push attempt and E-03 would assert the opposite of the truth, so this item FAILS rather than proceeding. (c) must show `hook_preserving_commit` present in `UNREPRESENTED_SPEC_CAPABILITIES`, absent from the field-name set under both spellings, and absent from `RUNNER_SAFETY_CAPABILITIES`. (d) must show `data.unrepresented_spec_capabilities` containing `hook_preserving_commit`. State EXPLICITLY, per sub-measurement, whether each matches this plan's authoring measurement, and state explicitly whether Set `netnsfilter` has executed since authoring (F-9), since that is the one change that invalidates (a) and (b).
   - Observed evidence:
-  - Result: pending
+    All four captured outputs from the executing host:
+    (a) hasattr(hsp, 'CAP_DENY_PUSH') and HostSandboxCapabilities push fields:
+    ```
+    hasattr(CAP_DENY_PUSH): False
+    fields containing push: []
+    ```
+    Matches authoring measurement exactly.
 
-- [ ] V-02 validates E-02
+    (b) 'RUN-NO-PUSH' in RUN_FINDING_CODES_BY_CODE, codes naming 'Push attempt', and 'Push attempt' in ABORT_CLASSES:
+    ```
+    RUN-NO-PUSH in RUN_FINDING_CODES_BY_CODE: False
+    codes with Push attempt: []
+    Push attempt in ABORT_CLASSES: True
+    ```
+    Matches authoring measurement exactly: codes naming 'Push attempt' is empty, and 'Push attempt' is in ABORT_CLASSES.
+
+    (c) hook_preserving_commit in UNREPRESENTED_SPEC_CAPABILITIES, field names, and RUNNER_SAFETY_CAPABILITIES:
+    ```
+    hook_preserving_commit in UNREPRESENTED_SPEC_CAPABILITIES: True
+    has hook_preserving_commit field: False
+    has supports_hook_preserving_commit field: False
+    hook_preserving_commit in RUNNER_SAFETY_CAPABILITIES: False
+    ```
+    Matches authoring measurement exactly.
+
+    (d) python3 -m agent_workflows host capabilities opencode --json (data.unrepresented_spec_capabilities excerpt):
+    ```json
+    "unrepresented_spec_capabilities": {
+      "isolated_worktree": "allocate and confine mutation to an isolated Git worktree (spec 25kzda 5.2); this contract has no field for it, so it cannot be gated here",
+      "path_policy": "enforce filesystem/path policy and coordinator-owned path exclusions (spec 25kzda 5.2); the sandbox partition is a different, opt-in mechanism (`SandboxPlan`)",
+      "argv_capture": "launch only captured argv-list tools and enforce a deny policy (spec 25kzda 5.2)",
+      "timeout_cancel": "terminate or time out a worker without losing outcome evidence (spec 25kzda 5.2); `supports_process_tree_kill` is necessary but not sufficient for it",
+      "hook_preserving_commit": "preserve normal Git hook execution and reject hook-bypass arguments (spec 25kzda 5.2)",
+      "complete_diff_capture": "capture exit/output/diff evidence with redaction and provenance (spec 25kzda 5.2)"
+    }
+    ```
+    Matches authoring measurement: `hook_preserving_commit` is present in `data.unrepresented_spec_capabilities`.
+
+    Set `netnsfilter` status check (`aw find plans netnsfilter`):
+    ```
+    ◕  pending       m0kl28  netnsfilter     .aw/records/plans/pending/20261001-netnsfilter-00-m0kl28-build-host-granular-outbound-egress-filtering-as-a-probed-no.ipd.md
+    ◕  pending       nxh5s4  netnsfilter     .aw/records/plans/pending/20261001-netnsfilter-01-nxh5s4-probe-host-granular-egress-filtering-by-attempt-two-sided-an.ipd.md
+    ◕  pending       rozdkp  netnsfilter     .aw/records/plans/pending/20261001-netnsfilter-02-rozdkp-build-the-egress-policy-and-the-parent-owned-filtering-broke.ipd.md
+    ◕  pending       2j4pd0  netnsfilter     .aw/records/plans/pending/20261001-netnsfilter-03-2j4pd0-confine-a-worker-in-the-egress-boundary-and-prove-it-survive.ipd.md
+    ◕  pending       wn956n  netnsfilter     .aw/records/plans/pending/20261001-netnsfilter-04-wn956n-amend-the-contracts-and-close-the-set-with-an-audited-honest.ipd.md
+    ```
+    Set `netnsfilter` has NOT executed since authoring (all 5 plans remain pending).
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: The new test class's code pasted, plus `python3 -m pytest tests/test_host_capability_extension.py -o addopts="" -k GuaranteeRowEnforcementStatus` output showing it PASSES. Then prove each leg is NON-VACUOUS by making it fail once and pasting the failure. BOTH MECHANISMS WERE DEMONSTRATED AT AUTHORING rather than left to the executor to invent, so use these and do not improvise. For leg A, `run_evidence.RunFindingCode` is a NamedTuple, so substitute a mutated row and restore in a `finally`: `row._replace(abort_classes=row.abort_classes + ("Push attempt",))` on `RUN-COMMIT-GATEWAY`, rebind BOTH `run_evidence.RUN_FINDING_CODES` and `run_evidence.RUN_FINDING_CODES_BY_CODE`, observe the leg fail, then restore. Observed at authoring: `MUTATED -> codes naming 'Push attempt': ['RUN-COMMIT-GATEWAY']` then `RESTORED -> []`. For leg B, delete the key from the dict and restore it in a `finally` (the dict is mutable and the shipped `synthetic_gated_action` seam in this same test file uses exactly this save/restore shape on `ACTION_CAPABILITY_REQUIREMENTS`). Observed at authoring: `MUTATED -> hook_preserving_commit in UNREPRESENTED: False` then `RESTORED -> True`. Do BOTH in the FALSIFICATION step only; do NOT ship a test that mutates module-level state, because the rebind is process-global and a leak would corrupt later tests under the suite's random ordering (the same hazard `forced_runner_safety_verdicts`'s own leak test exists to catch).
   Also paste `python3 -m pytest tests/test_run_finding_abort_partition.py tests/test_run_finding_spec_transcription.py -o addopts=""` passing AFTER E-03/E-04's spec edits, which is the falsifiable check that the 5.2 edits did not perturb either spec PARSER. And confirm by inspection of the pasted test code that it reads NO production source text: a test using `inspect`, `ast`, or a source grep on `agent_workflows/*.py` FAILS this item. `dataclasses.fields` is permitted and is not a source read.
   - Observed evidence:
-  - Result: pending
+    Pasted test class `GuaranteeRowEnforcementStatusTests` from `tests/test_host_capability_extension.py`:
+    ```python
+    class GuaranteeRowEnforcementStatusTests(unittest.TestCase):
+        """Invariant: nothing in this package denies a push or enforces hook preservation
+        as a boundary, so any artifact reporting otherwise is the fail-open drift backlog
+        ymlyqf recorded.
 
-- [ ] V-03 validates E-03
+        The tests pin the measurements stated in spec 25kzda 5.2 guarantee rows 1 and 3:
+        Leg A (row 1): no shipped finding code names Section 4.1's 'Push attempt' abort class,
+        and 'RUN-NO-PUSH' is absent from RUN_FINDING_CODES_BY_CODE, while 'Push attempt' is
+        deliberately retained in ABORT_CLASSES.
+        Leg B (row 3): 'hook_preserving_commit' is recorded in UNREPRESENTED_SPEC_CAPABILITIES,
+        is not in HostSandboxCapabilities fields under either spelling, and is not a member of
+        RUNNER_SAFETY_CAPABILITIES.
+
+        Three existing assertions are near-misses that do not cover these invariants:
+        (1) tests/test_run_finding_abort_partition.py's
+            test_conditional_abort_not_unconditional_and_abort_classes_exhaustive checks only
+            the forward direction (every row.abort_classes member is in ABORT_CLASSES), which
+            cannot detect a code newly naming 'Push attempt';
+        (2) test_spec_defines_exactly_twelve_run_codes asserts RUN-NO-PUSH is absent from the
+            spec's parsed 4.2 table, not from the run_evidence module;
+        (3) RequirementMapTests.test_requirement_map_structure_and_coverage only checks that
+            each req.unrepresented entry is a key of UNREPRESENTED_SPEC_CAPABILITIES, which
+            is the reverse implication and is silent about hook_preserving_commit.
+        """
+
+        def test_row_1_push_denial_enforcement_status(self):
+            # Leg A: no shipped finding code lists 'Push attempt' in abort_classes
+            codes_naming_push_attempt = [
+                row.code
+                for row in run_evidence.RUN_FINDING_CODES
+                if "Push attempt" in row.abort_classes
+            ]
+            self.assertEqual(codes_naming_push_attempt, [])
+
+            # RUN-NO-PUSH is absent from RUN_FINDING_CODES_BY_CODE
+            self.assertNotIn("RUN-NO-PUSH", run_evidence.RUN_FINDING_CODES_BY_CODE)
+
+            # 'Push attempt' is intentionally retained in ABORT_CLASSES
+            self.assertIn("Push attempt", run_evidence.ABORT_CLASSES)
+
+        def test_row_3_hook_preserving_commit_enforcement_status(self):
+            # Leg B: 'hook_preserving_commit' is a key of UNREPRESENTED_SPEC_CAPABILITIES
+            self.assertIn(
+                "hook_preserving_commit", hsp.UNREPRESENTED_SPEC_CAPABILITIES
+            )
+
+            # No field in HostSandboxCapabilities represents it
+            field_names = {f.name for f in dataclasses.fields(HostSandboxCapabilities)}
+            self.assertNotIn("hook_preserving_commit", field_names)
+            self.assertNotIn("supports_hook_preserving_commit", field_names)
+
+            # Not in RUNNER_SAFETY_CAPABILITIES
+            self.assertNotIn("hook_preserving_commit", RUNNER_SAFETY_CAPABILITIES)
+    ```
+
+    Pasted runner output:
+    `python3 -m pytest tests/test_host_capability_extension.py -o addopts="" -k GuaranteeRowEnforcementStatus`:
+    ```
+    ============================= test session starts ==============================
+    platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0
+    Using --randomly-seed=90172725
+    rootdir: <repo-root>
+    configfile: pyproject.toml
+    plugins: anyio-4.14.1, randomly-4.1.0, cov-7.1.0, xdist-3.8.0
+    collecting ... collecting 0 items                                                             collecting 1 item                                                              collected 44 items / 42 deselected / 2 selected
+
+    tests/test_host_capability_extension.py ..                               [100%]
+
+    NOTE: 42 tests were deselected by -m/-k and did not run (the default run skips 'slow' and 'livecorpus'); run everything with: make test-all
+    ======================= 2 passed, 42 deselected in 1.99s =======================
+    ```
+
+    Falsification demonstrations (both legs non-vacuous):
+    Leg A (mutating RUN-COMMIT-GATEWAY abort_classes to include 'Push attempt'):
+    ```
+    MUTATED -> codes naming 'Push attempt': ['RUN-COMMIT-GATEWAY']
+    Failures count: 1
+    Observed failure: + []
+    RESTORED -> []
+    ```
+    Leg B (deleting 'hook_preserving_commit' from UNREPRESENTED_SPEC_CAPABILITIES):
+    ```
+    MUTATED -> hook_preserving_commit in UNREPRESENTED: False
+    Failures count: 1
+    Observed failure: AssertionError: 'hook_preserving_commit' not found in {'isolated_worktree': ..., ...}
+    RESTORED -> True
+    ```
+
+    Spec parser regression check after E-03/E-04 edits:
+    `python3 -m pytest tests/test_host_capability_extension.py tests/test_run_finding_abort_partition.py tests/test_run_finding_spec_transcription.py -o addopts=""`:
+    ```
+    ============================= test session starts ==============================
+    platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0
+    Using --randomly-seed=993552976
+    rootdir: <repo-root>
+    configfile: pyproject.toml
+    plugins: anyio-4.14.1, randomly-4.1.0, cov-7.1.0, xdist-3.8.0
+    collecting ... collecting 0 items                                                             collecting 36 items                                                            collected 56 items
+
+    tests/test_host_capability_extension.py ................................ [ 57%]
+    ............                                                             [ 78%]
+    tests/test_run_finding_spec_transcription.py ...                         [ 83%]
+    tests/test_run_finding_abort_partition.py .........                      [100%]
+
+    ============================= 56 passed in 40.69s ==============================
+    ```
+    Inspection confirmed: the test reads NO production source text; uses only runtime object calls and `dataclasses.fields`.
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: `git diff` of the spec showing the row-1 `Enforcement or proof` cell before and after. The diff must show the sentence "An actual push attempt aborts the run." REMOVED, not merely qualified: a cell that still asserts an abort in any tense FAILS this item, since that assertion is the specific defect `ymlyqf` records as the worse of the two. The new cell must state (i) the mechanism as what WOULD prove the guarantee, (ii) that no capability field names push denial today, and (iii) that the guarantee is not in force and fails closed. The diff must ALSO show, by its own hunk boundaries, that the `Bucket` cell is unchanged, that rows 2, 4 and 5 are untouched, that Section 4.1's `Push attempt` row is untouched, and that Section 6.1 limit 4 is untouched. Quote the new cell in full so a reviewer can judge whether it claims more than (i) to (iii), and state explicitly whether it mentions `git_commit_helper` (it must NOT: that would present a driver-side helper as a boundary, which the module's own docstring and the anti-inference rule both forbid).
   - Observed evidence:
-  - Result: pending
+    `git diff` of spec row 1 `Enforcement or proof` cell:
+    ```diff
+    -| 1 | `run` does not push, tag, publish, release, or change remote configuration | Host-dependent | Tool/network/credential denial plus captured process policy. An actual push attempt aborts the run. |
+    +| 1 | `run` does not push, tag, publish, release, or change remote configuration | Host-dependent | Tool/network/credential denial plus captured process policy would prove this guarantee. No capability field names push denial today (`CAP_DENY_PUSH` and `supports_deny_push` were removed by plan `01reg8`), `RUN-NO-PUSH` was retired by plan `4h7tt0`, and no shipped finding code names Section 4.1's `Push attempt` abort class; a push attempt is prohibited, but no mechanism detects or aborts on one. The guarantee is not in force today and fails closed. |
+    ```
+    "An actual push attempt aborts the run." is REMOVED completely.
+    New cell quoted in full:
+    `Tool/network/credential denial plus captured process policy would prove this guarantee. No capability field names push denial today (`CAP_DENY_PUSH` and `supports_deny_push` were removed by plan `01reg8`), `RUN-NO-PUSH` was retired by plan `4h7tt0`, and no shipped finding code names Section 4.1's `Push attempt` abort class; a push attempt is prohibited, but no mechanism detects or aborts on one. The guarantee is not in force today and fails closed.`
 
-- [ ] V-04 validates E-04
+    The new cell states:
+    (i) the mechanism as what would prove the guarantee ("Tool/network/credential denial plus captured process policy would prove this guarantee");
+    (ii) that no capability field names push denial today (`CAP_DENY_PUSH` and `supports_deny_push` removed by `01reg8`), `RUN-NO-PUSH` retired by `4h7tt0`, and no shipped finding code names Section 4.1's `Push attempt` abort class;
+    (iii) that the guarantee is not in force today and fails closed ("The guarantee is not in force today and fails closed.").
+    The cell does NOT mention `git_commit_helper`.
+    The `Bucket` column remains unchanged as `Host-dependent`.
+    Rows 2, 4, 5 are untouched.
+    Section 4.1 `Push attempt` row is untouched (line 801).
+    Section 6.1 limit 4 is untouched (line 1506).
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: `git diff` of the spec showing the row-3 `Enforcement or proof` cell before and after, with the new cell quoted in full. It must state that the capability contract has NO FIELD for this guarantee, citing `UNREPRESENTED_SPEC_CAPABILITIES`, and must NOT name a field as the proof carrier: a cell naming any `supports_*` field FAILS this item, because no such field exists and asserting one would be a fresh overclaim of exactly the kind being removed. Prove the preservation requirement by pasting a `grep` showing the existing second sentence ("Spelled with `git` since 2026-09-05: ... never about a runner flag selecting whether an independent verifier turn runs.") present and byte-identical after the edit. Also state explicitly how the new cell reads as a WEAKER position than row 2's, quoting row 2's cell alongside it, since F-3's whole point is that the two are not equivalent.
   - Observed evidence:
-  - Result: pending
+    `git diff` of spec row 3:
+    ```diff
+    -| 3 | Hooks are not bypassed and a hook refusal remains a failure | Host-dependent | Hook-preserving gateway and deny policy for `git commit --no-verify` or equivalent. Spelled with `git` since 2026-09-05: this row is about the GIT flag that bypasses pre-commit hooks, never about a runner flag selecting whether an independent verifier turn runs. |
+    +| 3 | Hooks are not bypassed and a hook refusal remains a failure | Host-dependent | Hook-preserving gateway and deny policy for `git commit --no-verify` or equivalent would prove this guarantee. The capability contract has no field for this guarantee at all (`hook_preserving_commit` is recorded in `UNREPRESENTED_SPEC_CAPABILITIES`), so it cannot be gated in the descriptor; the guarantee is not in force today and fails closed. Spelled with `git` since 2026-09-05: this row is about the GIT flag that bypasses pre-commit hooks, never about a runner flag selecting whether an independent verifier turn runs. |
+    ```
+    New row 3 cell quoted in full:
+    `Hook-preserving gateway and deny policy for `git commit --no-verify` or equivalent would prove this guarantee. The capability contract has no field for this guarantee at all (`hook_preserving_commit` is recorded in `UNREPRESENTED_SPEC_CAPABILITIES`), so it cannot be gated in the descriptor; the guarantee is not in force today and fails closed. Spelled with `git` since 2026-09-05: this row is about the GIT flag that bypasses pre-commit hooks, never about a runner flag selecting whether an independent verifier turn runs.`
 
-- [ ] V-05 validates E-05
+    No `supports_*` field is named.
+    `UNREPRESENTED_SPEC_CAPABILITIES` is cited as the place the unrepresented capability is recorded.
+    Preservation check for second sentence via grep:
+    ```
+    1217:| 3 | Hooks are not bypassed and a hook refusal remains a failure | Host-dependent | Hook-preserving gateway and deny policy for `git commit --no-verify` or equivalent would prove this guarantee. The capability contract has no field for this guarantee at all (`hook_preserving_commit` is recorded in `UNREPRESENTED_SPEC_CAPABILITIES`), so it cannot be gated in the descriptor; the guarantee is not in force today and fails closed. Spelled with `git` since 2026-09-05: this row is about the GIT flag that bypasses pre-commit hooks, never about a runner flag selecting whether an independent verifier turn runs. |
+    ```
+    The second sentence is present and byte-identical.
+
+    Comparison of Row 2 vs Row 3 demonstrating the weaker position:
+    Row 2: "Commit interception and gateway capability using explicit argv/path lists would prove this guarantee. The field that would carry the proof is `supports_commit_gateway`, which is declared-never-probed on every host; the guarantee is not in force today and fails closed."
+    Row 3: "Hook-preserving gateway and deny policy for `git commit --no-verify` or equivalent would prove this guarantee. The capability contract has no field for this guarantee at all (`hook_preserving_commit` is recorded in `UNREPRESENTED_SPEC_CAPABILITIES`), so it cannot be gated in the descriptor; the guarantee is not in force today and fails closed. Spelled with `git` since 2026-09-05: this row is about the GIT flag that bypasses pre-commit hooks, never about a runner flag selecting whether an independent verifier turn runs."
+    Row 2 names a defined descriptor field `supports_commit_gateway` that is declared-never-probed. Row 3 has no field at all in `HostSandboxCapabilities`, and is only in `UNREPRESENTED_SPEC_CAPABILITIES`, explicitly acknowledging that the contract lacks any descriptor field for it.
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: The item's front matter pasted from its file (there is no `aw backlog show`; read `.aw/records/backlog/open/*gqy7yd*` directly, or use `aw find backlog gqy7yd`) proving it is present, `Status: open`, `Work-Kind: bug`, and `Blocks-Release: next`. PLUS a re-measurement, pasted, of the claim it was filed with: that `isolated_worktree`, `path_policy` and `timeout_cancel` are ALL keys of `UNREPRESENTED_SPEC_CAPABILITIES` and NONE is a field of `HostSandboxCapabilities`. State explicitly whether the re-measurement matches the item's recorded text. If it does not, paste the `aw backlog note`/`aw backlog set` output correcting the item and say what moved; if the item is missing, paste the re-filing. A bare assertion that the carrier "still exists" without the re-measurement FAILS this item, since the point of verifying rather than filing is that the recorded measurement might have rotted.
   - Observed evidence:
-  - Result: pending
+    Front matter from `.aw/records/backlog/open/20261001-b7tlsh-01-gqy7yd-spec-25kzda-guarantee-row-4-overclaim.backlog.md`:
+    ```yaml
+    - Id: gqy7yd
+    - Status: open
+    - Blocks-Release: next
+    - Set: b7tlsh
+    - Priority: medium
+    - Work-Kind: bug
+    - Summary: Spec 25kzda 5.2 guarantee row 4 names worktree/path/timeout enforcement that no descriptor field can carry
+    ```
+    Proves `gqy7yd` is present, `Status: open`, `Work-Kind: bug`, and `Blocks-Release: next`.
 
-- [ ] V-06 validates E-06
+    Re-measurement of the claim on the executing host:
+    ```
+    isolated_worktree: in_UNREPRESENTED=True, in_fields=False
+    path_policy: in_UNREPRESENTED=True, in_fields=False
+    timeout_cancel: in_UNREPRESENTED=True, in_fields=False
+    ```
+    The re-measurement matches the item's recorded text exactly: all three capabilities are keys of `UNREPRESENTED_SPEC_CAPABILITIES` and none is a field of `HostSandboxCapabilities`. No correction or re-filing was needed.
+  - Result: pass
+
+- [x] V-06 validates E-06
   - Required evidence: Pasted `aw specs note` command output, plus a `git diff` of the spec's `## Workflow history` showing exactly ONE appended dated line naming `e6w056` and `ymlyqf` and recording which rows were amended and which deliberately were not. The diff must show the spec's `- Status:` line and `- Blocks-Release:` line UNCHANGED. A hand-edited history section FAILS this item: history is owned by `aw specs` (AGENTS.md).
   - Observed evidence:
-  - Result: pending
+    Pasted `aw specs note` command output:
+    ```
+    aw specs note: appended a history record to .aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md
+    ```
+    `git diff` of spec `## Workflow history`:
+    ```diff
+     ## Workflow history
+
+    +- 2026-10-03 note (aw specs): Plan e6w056 (backlog ymlyqf): amended 5.2 guarantee rows 1 and 3 to state enforcement status. Deliberately unamended: row 2 already amended by 00pirb; row 4 carried by gqy7yd; row 5 measured honest.
+     - 2026-10-02 note (aw specs): AMENDED (plan t18l64, backlog kw31r2): Section 5.5 amended to declare verification_retry_decision as a third classification surface alongside turn_failure_is_retryable and finalize_retry_decision, updating the class-to-surface table for missing or stale validation evidence across both finalize and verification gates.
+    ```
+    The diff shows exactly one appended line naming `e6w056` and `ymlyqf`, and recording which rows were amended and which deliberately were not.
+    Spec front matter verified unchanged:
+    ```yaml
+    - Date: 2026-08-26
+    - Status: approved
+    - Blocks-Release: next
+    ```
+    Both `- Status: approved` and `- Blocks-Release: next` are unchanged.
+  - Result: pass
 
 ## Approval and execution gate
 
