@@ -37,10 +37,10 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: the last dead census table
 
-- [ ] E-01 DELETE THE ONE CONTIGUOUS DEAD REGION FROM `tests/test_runner_shared.py`, ADDING NO REPLACEMENT. The region begins at the comment line starting `# integpath-02 (\`6sb3yu\`): the lane->main integration seam, extracted LATER than the 34 above` and runs through the `LANE_INTEGRATION_MOVED = (` tuple and its three string members, then through the blank line, then through the entire paragraph beginning `# stalemerge-01 (\`87apfx\`) E-05: the refusal CAUSE and conflict SHAPE machinery`, ending at and INCLUDING the bare `#` continuation line that immediately precedes the comment line starting `# The host label each runner MUST bind into \`integrate_lane_branch\``. THAT LAST COMMENT IS THE BOUNDARY AND MUST SURVIVE: those three lines document the LIVE `HOST_LABELS` assignment, which has 2 loads inside `LaneIntegrationBehaviorTests` (F-01), so deleting them would strip a live symbol's only documentation. LOCATE THE BOUNDARY BY CONTENT, NEVER BY LINE NUMBER: the file is over 6,000 lines and is declared by two other pending plans (F-09), so any offset recorded here may have moved; find the three anchor strings quoted above and delete between them. DELETE NOTHING ELSE: not `BOTH`, not `_MODULES`, not `INJECTED` and its long preceding comment, not `HOST_LABELS`, not the module docstring, not the `# Replacement behavioral coverage for symbols whose post-move implementations were updated:` block below `HOST_LABELS`, and no test. DO NOT substitute a replacement census, a shortened table, a `# (deleted)` tombstone comment, or a note explaining what used to be here: the file's module docstring already records the harness history, and a tombstone is a fresh citation to a symbol that will not exist. VERIFY THE TABLE IS GENUINELY UNREAD IMMEDIATELY BEFORE DELETING, AND TREAT A NONZERO COUNT AS A STOP CONDITION, exactly as sibling plans `b02ohu` E-06(b) and `9g97e5` E-01 did for their own targets: run an AST census of module-level assignments and their `Load` counts over the file as found, and confirm `LANE_INTEGRATION_MOVED` is 0. If it is nonzero, a concurrent lane has given it a reader; DO NOT DELETE, mark this item `blocked`, and report which test now reads it. ALSO CONFIRM, in the same pass, that no dynamic access reaches it (`getattr`, `globals()`, `vars()`, `__dict__`), since an AST `Load` count cannot see those; measured zero at authoring (F-05).
+- [x] E-01 DELETE THE ONE CONTIGUOUS DEAD REGION FROM `tests/test_runner_shared.py`, ADDING NO REPLACEMENT. The region begins at the comment line starting `# integpath-02 (\`6sb3yu\`): the lane->main integration seam, extracted LATER than the 34 above` and runs through the `LANE_INTEGRATION_MOVED = (` tuple and its three string members, then through the blank line, then through the entire paragraph beginning `# stalemerge-01 (\`87apfx\`) E-05: the refusal CAUSE and conflict SHAPE machinery`, ending at and INCLUDING the bare `#` continuation line that immediately precedes the comment line starting `# The host label each runner MUST bind into \`integrate_lane_branch\``. THAT LAST COMMENT IS THE BOUNDARY AND MUST SURVIVE: those three lines document the LIVE `HOST_LABELS` assignment, which has 2 loads inside `LaneIntegrationBehaviorTests` (F-01), so deleting them would strip a live symbol's only documentation. LOCATE THE BOUNDARY BY CONTENT, NEVER BY LINE NUMBER: the file is over 6,000 lines and is declared by two other pending plans (F-09), so any offset recorded here may have moved; find the three anchor strings quoted above and delete between them. DELETE NOTHING ELSE: not `BOTH`, not `_MODULES`, not `INJECTED` and its long preceding comment, not `HOST_LABELS`, not the module docstring, not the `# Replacement behavioral coverage for symbols whose post-move implementations were updated:` block below `HOST_LABELS`, and no test. DO NOT substitute a replacement census, a shortened table, a `# (deleted)` tombstone comment, or a note explaining what used to be here: the file's module docstring already records the harness history, and a tombstone is a fresh citation to a symbol that will not exist. VERIFY THE TABLE IS GENUINELY UNREAD IMMEDIATELY BEFORE DELETING, AND TREAT A NONZERO COUNT AS A STOP CONDITION, exactly as sibling plans `b02ohu` E-06(b) and `9g97e5` E-01 did for their own targets: run an AST census of module-level assignments and their `Load` counts over the file as found, and confirm `LANE_INTEGRATION_MOVED` is 0. If it is nonzero, a concurrent lane has given it a reader; DO NOT DELETE, mark this item `blocked`, and report which test now reads it. ALSO CONFIRM, in the same pass, that no dynamic access reaches it (`getattr`, `globals()`, `vars()`, `__dict__`), since an AST `Load` count cannot see those; measured zero at authoring (F-05).
   - Depends on: none
   - Expected outcome: `rg -n "LANE_INTEGRATION_MOVED" tests/test_runner_shared.py` returns NO match, where it returned three before (one definition plus two prose mentions); the file's module-level assignments are exactly `BOTH`, `_MODULES`, `INJECTED` and `HOST_LABELS`, each with a nonzero `Load` count; `HOST_LABELS` and its three-line comment are byte-identical to before; `ruff check --select E4,E7,E9,F tests/test_runner_shared.py` reports `All checks passed!`; and `python3 -m pytest tests/test_runner_shared.py -o addopts=""` reports the same count as the pre-edit baseline (`135 passed` when measured at authoring HEAD `dbbd7074b`, to be re-derived rather than trusted). The diff is deletion-only: zero added lines and exactly 26 removed lines at review HEAD `d5b97344f` (9-line `6sb3yu` comment, 5-line tuple, 1 blank, 11-line `87apfx` paragraph); a different count means the region moved or changed and must be explained. Review verified this cut in memory: 0 surviving `LANE_INTEGRATION_MOVED` and 0 `LaneIntegrationExtractionTests` mentions, survivor census `{BOTH: 20, _MODULES: 25, INJECTED: 1, HOST_LABELS: 2}`, `ruff check --select E4,E7,E9,F -` and `ruff format --check -` both exit 0.
-  - Execution state: pending
+  - Execution state: performed
 
 Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids.
 
@@ -131,11 +131,204 @@ N/A with reason. This plan deletes unread test data and dead comment prose from 
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: EIGHT artifacts, each a pasted command and its real output. (a) THE STOP CONDITION, CHECKED BEFORE THE EDIT: an AST census script over `tests/test_runner_shared.py` printing each module-level assignment name with its `ast.Name`-in-`Load` count, pasted, showing `LANE_INTEGRATION_MOVED` at `0` and the other four nonzero; PLUS `rg -n "getattr\(.*LANE|globals\(\)|vars\(\)\[|__dict__\["  tests/test_runner_shared.py` pasted showing no match. A nonzero load count or any dynamic access is a STOP: do not delete, mark this item `blocked`, and report which reader appeared. (b) THE DELETION IS COMPLETE, NOT PARTIAL: `rg -n "LANE_INTEGRATION_MOVED" tests/test_runner_shared.py` pasted showing NO match (include the empty output or the nonzero exit). STATE EXPLICITLY that the pre-edit count was three (one `Store` plus two prose mentions) and the post-edit count is zero; a surviving one or two is the F-03 failure mode and FAILS this item. (c) NO RESIDUE REPOSITORY-WIDE IN CODE: `rg -c "LANE_INTEGRATION_MOVED" -g '!*.md' .` pasted showing no match, with an explicit note that `.md` records are excluded deliberately because plan and review prose legitimately discusses the name and must not be edited. (d) THE SURVIVORS ARE INTACT AND LIVE: the post-edit AST census pasted, showing exactly `BOTH`, `_MODULES`, `INJECTED`, `HOST_LABELS`, each with a nonzero count. (e) THE EDIT IS DELETION-ONLY AND BOUNDED: `git diff -- tests/test_runner_shared.py` pasted IN FULL plus `git diff --numstat -- tests/test_runner_shared.py` showing `0	26` (or a different removed count with an explanation of what moved), showing zero added lines and showing as unchanged context both the `# The host label each runner MUST bind into \`integrate_lane_branch\`` comment and the `HOST_LABELS = {...}` assignment. An added line of any kind (including a tombstone comment) FAILS this item. (f) LINT AND PER-FILE TESTS: `ruff check --no-cache --select E4,E7,E9,F tests/test_runner_shared.py` pasted showing `All checks passed!` (the explicit `--select` is required; see F-06) and `ruff format --check tests/test_runner_shared.py` pasted showing the file already formatted, and `python3 -m pytest tests/test_runner_shared.py -o addopts=""` pasted showing the SAME count as a pre-edit baseline you measured yourself on the tree as found (`135 passed` at authoring HEAD `dbbd7074b`, which is historical context and NOT the bar). A count that FELL is a failure: it would mean a test was removed, not data. (g) THE SUITE'S FAILURE SET IS UNCHANGED: bare `python3 -m pytest` pasted with its summary line BESIDE a baseline re-derived before any edit, with the FAILING TEST NAMES listed on both sides and shown IDENTICAL (not green; name the three pre-existing failures of F-10 explicitly if they appear). The bare run must NOT be given `-n0`, an extra `-q`, or `-p no:randomly`. (h) `git status --short` pasted showing `tests/test_runner_shared.py` as the ONLY modified path and no scratch file left behind.
     A run that shows only (b), (f) and (h) is INSUFFICIENT and does not satisfy this item. The specific risk this evidence set exists to rule out is NOT that a test broke, because deleting unread data cannot break one; it is that the deletion was either INCOMPLETE (leaving the F-03 dangling citations, caught only by (b) and (c)) or OVERSHOT (taking `HOST_LABELS`' live documentation with it, caught only by (d) and (e)). A green suite is consistent with both of those failures, which is why neither (b) nor (e) may be skipped.
   - Observed evidence:
-  - Result: pending
+    (a) STOP CONDITION CHECKED BEFORE EDIT:
+    ```sh
+    python3 -c '
+    import ast
+    with open("tests/test_runner_shared.py") as f:
+        tree = ast.parse(f.read())
+    assignments = []
+    for node in tree.body:
+        if isinstance(node, ast.Assign):
+            for target in node.targets:
+                if isinstance(target, ast.Name):
+                    assignments.append(target.id)
+        elif isinstance(node, ast.AnnAssign):
+            if isinstance(node.target, ast.Name):
+                assignments.append(node.target.id)
+    load_counts = {name: 0 for name in assignments}
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Name) and isinstance(node.ctx, ast.Load):
+            if node.id in load_counts:
+                load_counts[node.id] += 1
+    for name in assignments:
+        print(f"{name}: {load_counts[name]}")
+    '
+    ```
+    Output:
+    ```
+    BOTH: 20
+    _MODULES: 25
+    INJECTED: 1
+    LANE_INTEGRATION_MOVED: 0
+    HOST_LABELS: 2
+    ```
+    Dynamic access check:
+    ```sh
+    rg -n "getattr\(.*LANE|globals\(\)|vars\(\)\[|__dict__\[" tests/test_runner_shared.py
+    ```
+    Output: exit code 1 (no match).
+
+    (b) DELETION IS COMPLETE, NOT PARTIAL:
+    Pre-edit count was three (one definition/Store at line 91 plus two prose mentions at lines 98 and 101):
+    ```sh
+    rg -n "LANE_INTEGRATION_MOVED" tests/test_runner_shared.py
+    # 91:LANE_INTEGRATION_MOVED = (
+    # 98:# list rather than appended to `LANE_INTEGRATION_MOVED`, and the reason is a scope decision worth stating
+    # 101:# `LANE_INTEGRATION_MOVED` drives `test_an_unwrapped_symbol_is_the_SAME_OBJECT_in_both_runners`, which
+    ```
+    Post-edit:
+    ```sh
+    rg -n "LANE_INTEGRATION_MOVED" tests/test_runner_shared.py
+    ```
+    Output: exit code 1 (no match). Post-edit count is zero.
+
+    (c) NO RESIDUE REPOSITORY-WIDE IN CODE:
+    ```sh
+    rg -c "LANE_INTEGRATION_MOVED" -g '!*.md' .
+    ```
+    Output: exit code 1 (no match). Note: `.md` records are excluded deliberately because plan and review prose legitimately discusses the name and must not be edited.
+
+    (d) SURVIVORS INTACT AND LIVE:
+    Post-edit AST census:
+    ```sh
+    python3 -c '
+    import ast
+    with open("tests/test_runner_shared.py") as f:
+        tree = ast.parse(f.read())
+    assignments = []
+    for node in tree.body:
+        if isinstance(node, ast.Assign):
+            for target in node.targets:
+                if isinstance(target, ast.Name):
+                    assignments.append(target.id)
+        elif isinstance(node, ast.AnnAssign):
+            if isinstance(node.target, ast.Name):
+                assignments.append(node.target.id)
+    load_counts = {name: 0 for name in assignments}
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Name) and isinstance(node.ctx, ast.Load):
+            if node.id in load_counts:
+                load_counts[node.id] += 1
+    for name in assignments:
+        print(f"{name}: {load_counts[name]}")
+    '
+    ```
+    Output:
+    ```
+    BOTH: 20
+    _MODULES: 25
+    INJECTED: 1
+    HOST_LABELS: 2
+    ```
+    All four survivor assignments live with nonzero Load counts.
+
+    (e) EDIT IS DELETION-ONLY AND BOUNDED:
+    ```sh
+    git diff -- tests/test_runner_shared.py
+    ```
+    Output:
+    ```diff
+    diff --git a/tests/test_runner_shared.py b/tests/test_runner_shared.py
+    index ed7f467d8..be9358e57 100644
+    --- a/tests/test_runner_shared.py
+    +++ b/tests/test_runner_shared.py
+    @@ -79,32 +79,6 @@ INJECTED: dict[str, str] = {
+         "git_common_dir": "run_checked",
+     }
+
+    -# integpath-02 (`6sb3yu`): the lane->main integration seam, extracted LATER than the 34 above and
+    -# therefore held to a DIFFERENT standard, stated here so the split is deliberate rather than an
+    -# exemption. `runner_shared_premove_fingerprints.json` is a retained historical capture that no test
+    -# reads; these three symbols do not appear in that fixture
+    -# because they did not exist in it, so they have no pre-move fingerprint to match and adding them to
+    -# `INJECTED` would make the fixture-backed tests raise `KeyError` rather than prove anything.
+    -# `LaneIntegrationExtractionTests` is what replaces the fingerprint for them: it asserts the same
+    -# three properties (no re-definition, object identity or a delegating wrapper, and no runner import)
+    -# plus the host-label binding that a fingerprint could not express.
+    -LANE_INTEGRATION_MOVED = (
+    -    "dirty_tree_overlap",
+    -    "build_lane_outcome",
+    -    "integrate_lane_branch",
+    -)
+    -
+    -# stalemerge-01 (`87apfx`) E-05: the refusal CAUSE and conflict SHAPE machinery, pinned as a SEPARATE
+    -# list rather than appended to `LANE_INTEGRATION_MOVED`, and the reason is a scope decision worth stating
+    -# because appending was TRIED FIRST AND REVERTED.
+    -#
+    -# `LANE_INTEGRATION_MOVED` drives `test_an_unwrapped_symbol_is_the_SAME_OBJECT_in_both_runners`, which
+    -# demands that each host module carry the ATTRIBUTE. Satisfying it therefore requires adding ten
+    -# `as <same-name>` re-exports to BOTH `agent_workflows/oc_runipd.py` and `agent_workflows/agy_runipd.py`,
+    -# neither of which `87apfx` declares in its `Scope-Paths`, and the plan's Scope check explicitly forbids
+    -# widening into undeclared host files without reporting first. Measured: the append made all nine tests
+    -# in that class pass, at the cost of 36 added lines in each undeclared host module.
+    -#
+     # The host label each runner MUST bind into `integrate_lane_branch`. This value lands in a merge
+     # commit subject on MAIN, so it records WHICH driver integrated a lane; the shared function gives it
+     # no default precisely so a mis-binding cannot be silent.
+    ```
+    ```sh
+    git diff --numstat -- tests/test_runner_shared.py
+    ```
+    Output:
+    ```
+    0	26	tests/test_runner_shared.py
+    ```
+    Zero lines added, exactly 26 lines removed. Unchanged context includes both the 3-line `# The host label each runner MUST bind into \`integrate_lane_branch\`` comment and the `HOST_LABELS` assignment.
+
+    (f) LINT AND PER-FILE TESTS:
+    ```sh
+    ruff check --no-cache --select E4,E7,E9,F tests/test_runner_shared.py && ruff format --check tests/test_runner_shared.py
+    ```
+    Output:
+    ```
+    All checks passed!
+    1 file already formatted
+    ```
+    Per-file test pre-edit baseline:
+    ```sh
+    python3 -m pytest tests/test_runner_shared.py -o addopts=""
+    ```
+    Output: `135 passed in 73.41s (0:01:13)`
+    Per-file test post-edit:
+    ```sh
+    python3 -m pytest tests/test_runner_shared.py -o addopts=""
+    ```
+    Output: `135 passed in 40.76s`
+    Test count is identical (135 passed).
+
+    (g) SUITE FAILURE SET UNCHANGED:
+    Pre-edit bare suite run:
+    ```sh
+    python3 -m pytest
+    ```
+    Output summary:
+    `6261 passed, 2 skipped, 3 warnings in 424.79s (0:07:04)`
+    Failing tests: None (0 failures).
+
+    Post-edit bare suite run:
+    ```sh
+    python3 -m pytest
+    ```
+    Output summary:
+    `6261 passed, 2 skipped, 3 warnings in 572.05s (0:09:32)`
+    Failing tests: None (0 failures).
+    Failure sets are identical (empty set).
+
+    (h) GIT STATUS:
+    ```sh
+    git status --short
+    ```
+    Output:
+    ```
+     M tests/test_runner_shared.py
+    ```
+    Only declared scope file modified, zero scratch files left behind.
+  - Result: pass
 
 ## Approval and execution gate
 
