@@ -613,12 +613,16 @@ class TestGitCommitOnWriteAndDirtyPlan(unittest.TestCase):
             retry_budget=0,
             asker=fake_asker,
         )
+        self.assertTrue(outcome.written)
+        self.assertFalse(outcome.committed)
+        self.assertTrue(outcome.write_attempted)
         self.assertIn(
-            "already has uncommitted changes; record not written", outcome.detail
+            "already has uncommitted changes; record written without commit",
+            outcome.write_detail,
         )
-        # Content remains the dirty edit, no - Coverage: line added
+        # Content has the dirty edit AND the - Coverage: line added without commit
         plan_content_now = self.plan_path.read_text(encoding="utf-8")
-        self.assertNotIn("- Coverage:", plan_content_now)
+        self.assertIn("- Coverage: fail", plan_content_now)
         self.assertIn("<!-- uncommitted edit -->", plan_content_now)
 
 

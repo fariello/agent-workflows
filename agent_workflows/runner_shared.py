@@ -18966,6 +18966,8 @@ class ProbeOutcome(NamedTuple):
     quotes: tuple[str, ...] = ()
     written: bool = False
     committed: bool = False
+    write_attempted: bool = False
+    write_detail: str = ""
 
     @property
     def blocks(self) -> bool:
@@ -19032,8 +19034,11 @@ def probe_orchestrator(
     do_commit = commit if commit is not None else options.get("commit", True)
     written = False
     committed = False
+    write_attempted = False
+    write_detail = ""
 
     if answer == PROBE_ANSWER_NO_EXECUTIONS:
+        write_attempted = True
         write_res = coverage_record.write(
             target.path,
             coverage_record.COVERAGE_PASS,
@@ -19046,9 +19051,9 @@ def probe_orchestrator(
         )
         written = write_res.written
         committed = write_res.committed
-        if write_res.detail:
-            detail = f"{detail} ({write_res.detail})" if detail else write_res.detail
+        write_detail = write_res.detail
     elif answer == PROBE_ANSWER_EXECUTIONS and quotes:
+        write_attempted = True
         write_res = coverage_record.write(
             target.path,
             coverage_record.COVERAGE_FAIL,
@@ -19061,8 +19066,7 @@ def probe_orchestrator(
         )
         written = write_res.written
         committed = write_res.committed
-        if write_res.detail:
-            detail = f"{detail} ({write_res.detail})" if detail else write_res.detail
+        write_detail = write_res.detail
 
     return ProbeOutcome(
         id6=target.id6,
@@ -19073,6 +19077,8 @@ def probe_orchestrator(
         quotes=quotes,
         written=written,
         committed=committed,
+        write_attempted=write_attempted,
+        write_detail=write_detail,
     )
 
 
@@ -19400,15 +19406,41 @@ def enforce_orchestrator_probe_gate(
                 + remedy
             )
             print(message, file=sys.stderr)
+        unwritten = [
+            o
+            for o in outcomes
+            if o.answer == PROBE_ANSWER_NO_EXECUTIONS
+            and getattr(o, "write_attempted", False)
+            and not getattr(o, "written", False)
+        ]
+        if unwritten:
+            styled_unwritten = ", ".join(
+                pal(o.id6, "bold", "yellow") for o in unwritten
+            )
+            details = "; ".join(
+                f"{o.id6}: {o.write_detail or 'record not written'}" for o in unwritten
+            )
+            unwritten_msg = (
+                f"WARNING: the orchestrator coverage probe passed for {styled_unwritten}, "
+                f"but the coverage record was NOT written: {details}. "
+                "The run is PROCEEDING on the probe pass, but the record was not saved to disk."
+            )
+            print(unwritten_msg, file=sys.stderr)
+            message = (
+                f"{message}\n{unwritten_msg}".strip() if message else unwritten_msg
+            )
+        event_payload: dict[str, Any] = {
+            "proceed": True,
+            "probed": [o.id6 for o in outcomes],
+            "skipped": skipped_id6s,
+            "calls": calls,
+            "warned_past": warned,
+        }
+        if unwritten:
+            event_payload["unwritten_records"] = [o.id6 for o in unwritten]
         _emit(
             "orchestrator-probe-gate",
-            {
-                "proceed": True,
-                "probed": [o.id6 for o in outcomes],
-                "skipped": skipped_id6s,
-                "calls": calls,
-                "warned_past": warned,
-            },
+            event_payload,
         )
         return ProbeGateDecision(
             proceed=True,

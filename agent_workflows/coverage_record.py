@@ -141,8 +141,8 @@ def write(
     All first-party imports function-local.
 
     When `commit=True`, checks if `git status --porcelain -- <plan>` shows uncommitted changes
-    BEFORE writing; if so, returns without writing or committing. Otherwise makes one
-    path-scoped commit of the plan file. A failed commit restores staged index and never raises.
+    BEFORE writing; if so, writes the record without committing and returns `written=True, committed=False`.
+    Otherwise makes one path-scoped commit of the plan file. A failed commit restores staged index and never raises.
     """
     path = Path(plan_path)
     if not path.is_file():
@@ -181,6 +181,8 @@ def write(
         else str(path)
     )
 
+    dirty = False
+    dirty_reason = ""
     if commit:
         st_proc = subprocess.run(
             ["git", "status", "--porcelain", "--", rel_path],
@@ -190,10 +192,10 @@ def write(
             check=False,
         )
         if st_proc.returncode == 0 and st_proc.stdout.strip():
-            return CoverageWriteResult(
-                written=False,
-                committed=False,
-                detail=f"plan file {rel_path} already has uncommitted changes; record not written",
+            dirty = True
+            dirty_reason = (
+                f"plan file {rel_path} already has uncommitted changes; "
+                "record written without commit"
             )
 
     # 2. Update metadata fields:
@@ -308,6 +310,9 @@ def write(
 
     if not commit:
         return CoverageWriteResult(written=True, committed=False, detail="")
+
+    if dirty:
+        return CoverageWriteResult(written=True, committed=False, detail=dirty_reason)
 
     # 5. Git add and commit
     add_proc = subprocess.run(
