@@ -268,8 +268,9 @@ class AgyParserAndDiscoveryTests(unittest.TestCase):
         self.assertEqual(driver._read_id(text), "a1b2c3")
         self.assertEqual(driver._read_set(text), "authset")
         self.assertEqual(driver._read_order(text), 2)
-        self.assertEqual(driver._read_status(text), "to-review")
-        self.assertEqual(driver._read_deps(text), ["dep001", "dep002"])
+        # s4jctz / h0zk2g E-04: _read_status was dropped because neither runner host exposes it;
+        # status reading is owned by selectors.read_front_matter_status and tested in tests/.
+        # Legacy Dependencies: parsing was retired by 72bb113e7; Item-Dependencies parsing is covered in tests/.
 
     def test_dependency_status_execution_vs_review(self):
         state = {

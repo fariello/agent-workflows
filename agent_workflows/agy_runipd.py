@@ -71,12 +71,17 @@ from agent_workflows.run_selection_policy import (
 # deliberately the PERMISSIVE readers, preserving the whitespace tolerance these copies had;
 # `selectors`' strict internal readers back `aw find` and are unchanged.
 #
-# `_read_id`'s `# noqa: F401` IS LOAD-BEARING (rununify 06 `sy7uwh`); see the fuller note in
-# `oc_runipd`. Once `parse_plan_file` moved to `runner_shared` this module stopped calling `_read_id`,
-# so `ruff --fix` removed the import as unused and broke the re-export
-# `tests/test_runner_refork_guard.py` (deleted in `19313eed`; no live guard currently enforces this;
-# re-export retained per `s4jctz`) required of BOTH runners.
-from agent_workflows.selectors import read_front_matter_id as _read_id  # noqa: F401 - a DELIBERATE re-export; tests/test_runner_refork_guard.py deleted in 19313eed, retained per s4jctz
+# `_read_id` F401 suppression is retained per s4jctz / h0zk2g; see the fuller note in `oc_runipd`.
+# Once `parse_plan_file` moved to `runner_shared` this module stopped calling `_read_id` directly,
+# but `agy_runipd` lacks an `__all__` export list (unlike `oc_runipd`), so noqa F401 remains the
+# mechanism keeping the re-export alive.
+# The re-export has a live consumer: `tools/ipdrunner/runagy.py` imports and re-exports all non-dunder
+# attributes of this module, which `tools/ipdrunner/test_runagy.py` exercises. In addition, cross-host
+# parity and object identity against `selectors.read_front_matter_id` are pinned by
+# `tests/test_runner_shared.py::CrossHostReadIdReExportTests`.
+# (Historical note: tests/test_runner_refork_guard.py was deleted in 19313eed and is no longer cited
+# as a live requirement; _read_status is exposed on neither host.)
+from agent_workflows.selectors import read_front_matter_id as _read_id  # noqa: F401 - re-export for tools/ipdrunner/runagy.py (tested by tools/ipdrunner/test_runagy.py) and pinned by tests/test_runner_shared.py
 
 from agent_workflows.render_stream import (
     Statusline,
