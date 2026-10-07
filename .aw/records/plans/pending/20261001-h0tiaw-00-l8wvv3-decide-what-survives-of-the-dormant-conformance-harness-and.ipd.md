@@ -2,13 +2,14 @@
 
 - Date: 2026-10-01
 - Kind: orchestrator
-- Concern: `tests/conformance_matrix.py` is a 577-line harness whose structural half HAS NO EXECUTOR. Measured in this lane at HEAD `b6792ad4a`: eight of its public symbols (`SCENARIOS`, `required_scenarios`, `MatrixRow`, `MatrixReport`, `build_matrix`, `render_matrix_report`, `semantic_facts_from_human`, `outcome_family`, plus `ANSI_RE`, `GOLDEN_DIR` and `USAGE_ERROR_FLAG`) are imported by NOTHING under `tests/`, while only four (`run_cli`, `REPO_ROOT`, `LIVE_SAFE_LEAVES`, `RUNNABLE_ARGV`, `EXEMPTION_REGISTRY`, `semantic_facts_from_agent`) have live importers. The two former drivers were deleted by test-trimming commit `19313eed7` (2026-09-24): `test_cli_conformance_matrix.py` (224 lines, the structural + live-scenario + fact-parity + alias gates) and `test_cli_quality_gates.py` (the schema, ANSI, golden, accessibility, truncation, parity and budget gates). THE COST IS NOT HYPOTHETICAL AND IS ALREADY VISIBLE IN THREE PLACES. (1) `tests/fixtures/conformance_goldens/` holds twelve committed `.golden` files that NO test reads (`rg '\.golden' --glob '!*.golden'` returns zero hits), and one of them has ALREADY DRIFTED: `check_findings.human.golden` disagrees with today's render on two `Fix:` lines, meaning a reviewed-bytes artifact silently went stale. (2) `agent_workflows/command_surface.py` reasons about `required_scenarios` in three separate comments as if it were enforced, and ONE of them already admits the truth ("`conformance_matrix` is currently a dead surface with no live importer (F-05), so the obligation is currently latent rather than enforced"), so the inventory's own documentation is split between two beliefs. (3) `CONTRIBUTING.md` step 6 instructs every new-leaf author to add their leaf to `LIVE_SAFE_LEAVES` "so the harness exercises it live (ANSI-free agent stream, exit-code parity, fact-parity, help, usage error, no-color)", and of those six promises only exit-code parity is executed today, by `tests/test_exit_contract_conformance.py`. So a contributor follows a documented step that buys them five sixths of nothing.
-- Scope: IN: decide, from measurement rather than from the harness's own docstring, WHICH of the two deleted drivers' gates are worth reviving, and revive exactly those as two children: the cheap structural + alias + ANSI gate (Order 01) and the renderer-level golden/schema/accessibility/budget gate (Order 02). Also IN: retire the harness's two STALE exemption entries, whose cited owner (`dtq6jr`) is now `done`, and reconcile the `CONTRIBUTING.md` promise and the `command_surface.py` comments with whatever ends up enforced. OUT (each with a named reason in the Deferred section): re-adding the expensive 16-leaf-by-5-scenario live sweep as a default-collected test (measured 98.74s for the 13 cheap leaves alone, and 48.75s for one human pass over all 16); the `FactParityTests` human-banner gate, which is VACUOUS today (measured: 0 of 16 live-safe leaves emit the `AW <command>` banner `semantic_facts_from_human` requires, so every subtest silently degrades to the exit-code fallback that `test_exit_contract_conformance.py` already owns); extending coverage to `mutation` leaves, which is plan `vfv2db`'s declared scope; and fixing the two leaves the revival proves non-conformant, which belong to their filed owners.
+- Concern: `tests/conformance_matrix.py` is a 577-line harness whose structural half HAS NO EXECUTOR. Measured in this lane at HEAD `b6792ad4a`: eleven of its public symbols (`SCENARIOS`, `required_scenarios`, `MatrixRow`, `MatrixReport`, `build_matrix`, `render_matrix_report`, `semantic_facts_from_human`, `outcome_family`, plus `ANSI_RE`, `GOLDEN_DIR` and `USAGE_ERROR_FLAG`) are imported by NOTHING under `tests/`, while only six (`run_cli`, `REPO_ROOT`, `LIVE_SAFE_LEAVES`, `RUNNABLE_ARGV`, `EXEMPTION_REGISTRY`, `semantic_facts_from_agent`) have live importers. The two former drivers were deleted by test-trimming commit `19313eed7` (2026-09-24): `test_cli_conformance_matrix.py` (224 lines, the structural + live-scenario + fact-parity + alias gates) and `test_cli_quality_gates.py` (the schema, ANSI, golden, accessibility, truncation, parity and budget gates). THE COST IS NOT HYPOTHETICAL AND IS ALREADY VISIBLE IN THREE PLACES. (1) `tests/fixtures/conformance_goldens/` holds twelve committed `.golden` files that NO test reads (`rg '\.golden' --glob '!*.golden'` returns zero hits), and one of them has ALREADY DRIFTED: `check_findings.human.golden` disagrees with today's render on two `Fix:` lines, meaning a reviewed-bytes artifact silently went stale. (2) `agent_workflows/command_surface.py` reasons about `required_scenarios` in three separate comments as if it were enforced, and ONE of them already admits the truth ("`conformance_matrix` is currently a dead surface with no live importer (F-05), so the obligation is currently latent rather than enforced"), so the inventory's own documentation is split between two beliefs. (3) `CONTRIBUTING.md` step 6 instructs every new-leaf author to add their leaf to `LIVE_SAFE_LEAVES` "so the harness exercises it live (ANSI-free agent stream, exit-code parity, fact-parity, help, usage error, no-color)", and of those six promises only exit-code parity is executed today, by `tests/test_exit_contract_conformance.py`. So a contributor follows a documented step that buys them five sixths of nothing.
+- Scope: IN: decide, from measurement rather than from the harness's own docstring, WHICH of the two deleted drivers' gates are worth reviving, and revive exactly those as two children: the cheap structural + alias + ANSI gate (Order 01) and the renderer-level golden/schema/accessibility/budget gate (Order 02). Also IN: retire the harness's three STALE exemption entries, whose cited owner (`dtq6jr`) is now `done`, and reconcile the `CONTRIBUTING.md` promise and the `command_surface.py` comments with whatever ends up enforced. OUT (each with a named reason in the Deferred section): re-adding the expensive 16-leaf-by-5-scenario live sweep as a default-collected test (measured 98.74s for the 13 cheap leaves alone, and 48.75s for one human pass over all 16); the `FactParityTests` human-banner gate, which is VACUOUS today (measured: 0 of 16 live-safe leaves emit the `AW <command>` banner `semantic_facts_from_human` requires, so every subtest silently degrades to the exit-code fallback that `test_exit_contract_conformance.py` already owns); extending coverage to `mutation` leaves, which is plan `vfv2db`'s declared scope; and fixing any leaf the revival proves non-conformant, which belongs to its filed owner (RE-MEASURED AT REVIEW 2026-10-07: `declared_absent` is now EMPTY because both authoring-time members' owners `68sur3` and `lbbo9s` are `done`, so child 01 pins `set()`).
 - Scope-Paths: .aw/records/plans/pending/20261001-h0tiaw-00-l8wvv3-decide-what-survives-of-the-dormant-conformance-harness-and.ipd.md
 - Item-Dependencies: none
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
 - Coverage: pass
-- Coverage-Fingerprint: ced14f8f5e249910223af22788561c8e6e58e19e19bf65c8483ac52e17d4e816
+- Coverage-Fingerprint: 0df97fabb73501229e60ffacbc8461e577bd11761c33a5701b91491630959d12
 - Coverage-Checked: 2026-10-07 by uri/its_direct/pt3-claude-opus-5.5-1m-us
 - Work-Kind: chore
 - Priority: low
@@ -20,6 +21,9 @@
 - Id: l8wvv3
 
 ## Workflow history
+- 2026-10-07 /plan-review (opencode uri/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005 (all fixed; record `.aw/records/reviews/20261007-h0tiaw-00-l8wvv3-decide-what-survives-of-the-dormant-conformance-harness-and.review.md`)
+- 2026-10-07 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-001..PR-005 fixed (stale declared_absent premise re-measured to set(), stale-exemption count corrected to three, child V-item cross-refs, symbol counts, execution contract added)
+- 2026-10-07 coverage pass (aw oc run): fingerprint 0df97fabb735, model uri/its_direct/pt3-claude-opus-5.5-1m-us
 - 2026-10-07 to-review (aw set): returned to review: Set-level checks now owned by 9i2hge E-06 (runs last) and the children's own V-items; coverage pass recorded
 - 2026-10-07 coverage pass (aw oc run): fingerprint ced14f8f5e24, model uri/its_direct/pt3-claude-opus-5.5-1m-us
 - 2026-10-07 coverage fail (aw oc run): fingerprint d5994a92ec22, model uri/its_direct/pt3-claude-opus-5.5-1m-us
@@ -52,7 +56,7 @@ involved, and deleting it causes exactly the partial execution it prevents.
 
 - [ ] E-01 CONFIRM dq9bj9 REACHED executed
   - Depends on: none
-  Confirm child 01 (`dq9bj9`, revive the structural matrix gate and retire the two stale exemptions) is
+  Confirm child 01 (`dq9bj9`, revive the structural matrix gate and retire the three stale `dtq6jr` exemptions) is
   `executed`, with its own validation evidence present. This child is FIRST because it is the one that
   touches `tests/conformance_matrix.py` itself: it deletes the stale `dtq6jr` exemptions, removes the
   symbols nothing will execute, and corrects the module docstring. Child 02 only ADDS a test module and
@@ -96,13 +100,15 @@ involved, and deleting it causes exactly the partial execution it prevents.
 - THE THREE PROSE SITES that describe this harness as enforced agree with what is now enforced:
   `CONTRIBUTING.md` step 6's six named checks, and the three `agent_workflows/command_surface.py` comments
   reasoning from `required_scenarios`, one of which currently states the opposite of the other two (F-10).
-- NO LEAF IS FIXED BY THIS SET and no exemption is added to silence a red sweep. The two non-conformant
-  leaves the revived `declared_absent` pin names stay with their filed owners (`68sur3`, `lbbo9s`), and the
-  registry's own "CEILING, NOT A CONVENIENCE" rule is respected: entries are REMOVED here, never added.
+- NO LEAF IS FIXED BY THIS SET and no exemption is added to silence a red sweep. Any member the revived
+  `declared_absent` pin names at execution stays with a LIVE filed owner named in the assertion message (at
+  authoring `prompts set`/`68sur3` and `upgrade-test`/`lbbo9s`; RE-MEASURED AT REVIEW 2026-10-07 both owners
+  are `done` and `build_matrix(_build_parser()).declared_absent == []`, so the expected pin is `set()`), and
+  the registry's own "CEILING, NOT A CONVENIENCE" rule is respected: entries are REMOVED here, never added.
 
 ## Cross-IPD validation
 
-OWNERS: the first check is satisfied by `9i2hge`'s declared dependency on `dq9bj9` plus `9i2hge`'s own bare-suite collection (its V-03); the second and fourth are performed by `9i2hge` E-06/V-06, which runs last; the third is performed by each child's bare-suite V-item (`dq9bj9` V-04, `9i2hge` V-05), and `9i2hge`'s run, being last, is the Set-wide one. This plan performs none of them.
+OWNERS: the first check is satisfied by `9i2hge`'s declared dependency on `dq9bj9` plus `9i2hge`'s own bare-suite collection (its V-03); the second and fourth are performed by `9i2hge` E-06/V-06, which runs last; the third is performed by each child's bare-suite failure-set-delta V-item (`dq9bj9` V-06, `9i2hge` V-05), and `9i2hge`'s run, being last, is the Set-wide one. This plan performs none of them.
 
 - NO DOUBLE OWNERSHIP OF `tests/conformance_matrix.py`. Both children declare it, which is legitimate (01
   edits the registry, the docstring and the symbol set; 02 only READS `ANSI_RE` and `GOLDEN_DIR` from it),
@@ -121,7 +127,8 @@ OWNERS: the first check is satisfied by `9i2hge`'s declared dependency on `dq9bj
 - THE TWO NEW MODULES DO NOT RE-ASSERT WHAT ALREADY PASSES ELSEWHERE. `test_command_surface_declarations.py`
   already asserts zero undeclared leaves and `test_model_vocab.py::test_10_zero_undeclared_leaves` asserts
   it again; child 01's module adds the SCENARIO-COVERAGE and `declared_absent` assertions those do not
-  make. Verify the overlap is stated rather than silently tripled.
+  make; it MAY keep a zero-undeclared-leaves check as the matrix's own stated precondition (`dq9bj9` F-08,
+  E-04). Verify the overlap is stated rather than silently tripled.
 
 ## Project conventions discovered (Step 0)
 
@@ -152,8 +159,8 @@ OWNERS: the first check is satisfied by `9i2hge`'s declared dependency on `dq9bj
 | F-01 | THE ITEM'S FIRST OPEN QUESTION IS ANSWERED: BOTH DRIVERS EXISTED AND BOTH ARE RECOVERABLE. `git show 19313eed7^:tests/test_cli_conformance_matrix.py` returns a 224-line module with five test classes (`UndeclaredLeafGuardTests`, `LiveScenarioConformanceTests`, `FactParityTests`, `AliasEquivalenceTests`, plus the matrix row assertions), and `git show 19313eed7^:tests/test_cli_quality_gates.py` returns the seven-gate renderer module. The trim commit is `19313eed7` "test: trim test suite from 9,136 to under 2,000 tests" (2026-09-24), which deleted both among roughly 200 other modules. So this Set is a RESTORATION from a known-good source, which is materially cheaper and lower-risk than the reconstruction the item feared. | Both `git show` invocations run in this lane; `git show --stat 19313eed7` read for the deletion list. |
 | F-02 | THE HARNESS'S STRUCTURAL HALF IS DEAD AND ITS LIVE HALF IS NOT. Grepping each public symbol across `tests/`, `agent_workflows/`, `docs/` and `tools/`: `run_cli` has three importers (`test_agent_surface_conformance.py`, `test_exit_contract_conformance.py`, `test_index_check_agent_records.py`), and `LIVE_SAFE_LEAVES`, `RUNNABLE_ARGV`, `EXEMPTION_REGISTRY`, `REPO_ROOT` and `semantic_facts_from_agent` each have one or two. `SCENARIOS`, `required_scenarios`, `MatrixRow`, `MatrixReport`, `build_matrix`, `render_matrix_report`, `semantic_facts_from_human`, `outcome_family`, `ANSI_RE`, `GOLDEN_DIR`, `USAGE_ERROR_FLAG`, `RunResult`, `Exemption` and `_pinned_env` have ZERO importers outside the module. That split is what makes this a two-child Set rather than one: the live half needs nothing, the dead half needs either an executor or deletion. | A per-symbol `rg` sweep over `tests/ agent_workflows/ docs/ tools/` excluding the module itself. |
 | F-03 | THE STRUCTURAL GATE IS GREEN TODAY AND COSTS HALF A SECOND, so reviving it is nearly free. Driven in-process: `find_undeclared_leaves(_build_parser())` returns `set()`, `build_matrix` produces 1193 rows over 163 declarations and 152 parser leaves with `undeclared == []` and ZERO leaves missing a required scenario. Timed: 0.669s to import and 0.513s for the whole structural pass. This is the cheapest durable gate in the Set and it is the one the three `command_surface.py` comments already assume exists. | The matrix built and timed in-process at HEAD `b6792ad4a`. |
-| F-04 | ONE OF THE OLD DRIVER'S STRUCTURAL ASSERTIONS IS NOW FALSE, so a verbatim restoration would land RED. `test_declared_absent_leaves_are_only_the_known_prompts_family` asserts `set(report.declared_absent) == {"prompts set"}`; measured today `declared_absent` is `['prompts set', 'upgrade-test']`. Both absences are real and both are FILED: `prompts set` is declared `mutation` with no parser leaf (open backlog `68sur3`, "prompts set dispatched but unregistered"), and the bare `upgrade-test` group is declared `read` with `agent_record_kind="result"` while exiting 2 from an argparse usage block (open backlog `lbbo9s` at `Blocks-Release: next`). So child 01 must WIDEN the pin to both members and cite both owners, NOT delete the assertion: the pin's whole value is that a THIRD silent absence fails. | `build_matrix` driven; both backlog items read; `aw find backlog` for each id6. |
-| F-05 | TWO EXEMPTION ENTRIES ARE STALE AND ONE IS NOW ACTIVELY WRONG. `EXEMPTION_REGISTRY` carries three `known_broken` entries citing `dtq6jr` ("Crashes with ImportError: cannot import name 'format_agent_json'"); backlog `dtq6jr` is `done`. Driven today, `config show --agent` emits a schema-valid `result` record at exit 0 with exit parity, so it CONFORMS and its exemption suppresses a passing leaf. `config get` and `config is` emit nothing on stdout when invoked with no positional argument, but WITH their required argument (`config get interactive`, `config is interactive`) both emit a schema-valid `error` record at exit 2 with exit parity, so they conform too and belong in `RUNNABLE_ARGV`, not in the exemption registry. The registry's own banner says "THE REGISTRY IS A CEILING, NOT A CONVENIENCE" and that "a `known_broken` entry REQUIRES a filed item id"; three entries now cite a closed one. | `dtq6jr` located in `.aw/records/backlog/done/`; all three leaves driven with and without positional arguments, with records validated through `agent_schema.validate_agent_record`. |
+| F-04 | ONE OF THE OLD DRIVER'S STRUCTURAL ASSERTIONS IS NOW FALSE, so a verbatim restoration would land RED. `test_declared_absent_leaves_are_only_the_known_prompts_family` asserts `set(report.declared_absent) == {"prompts set"}`; measured today `declared_absent` is `['prompts set', 'upgrade-test']`. Both absences are real and both are FILED: `prompts set` is declared `mutation` with no parser leaf (open backlog `68sur3`, "prompts set dispatched but unregistered"), and the bare `upgrade-test` group is declared `read` with `agent_record_kind="result"` while exiting 2 from an argparse usage block (open backlog `lbbo9s` at `Blocks-Release: next`). So child 01 must WIDEN the pin to both members and cite both owners, NOT delete the assertion: the pin's whole value is that a THIRD silent absence fails. RE-MEASURED AT REVIEW 2026-10-07 at HEAD `e737e47eb`: both owners are `done` and `declared_absent == []`, so the verbatim `{"prompts set"}` pin is still RED (now for the opposite reason) and child 01 E-04 re-pins to the execution-time set, expected `set()`. | `build_matrix` driven; both backlog items read; `aw find backlog` for each id6. |
+| F-05 | THREE EXEMPTION ENTRIES ARE STALE AND ALL THREE NOW SUPPRESS A CONFORMING LEAF. `EXEMPTION_REGISTRY` carries three `known_broken` entries citing `dtq6jr` ("Crashes with ImportError: cannot import name 'format_agent_json'"); backlog `dtq6jr` is `done`. Driven today, `config show --agent` emits a schema-valid `result` record at exit 0 with exit parity, so it CONFORMS and its exemption suppresses a passing leaf. `config get` and `config is` emit nothing on stdout when invoked with no positional argument, but WITH their required argument (`config get interactive`, `config is interactive`) both emit a schema-valid `error` record at exit 2 with exit parity, so they conform too and belong in `RUNNABLE_ARGV`, not in the exemption registry. The registry's own banner says "THE REGISTRY IS A CEILING, NOT A CONVENIENCE" and that "a `known_broken` entry REQUIRES a filed item id"; three entries now cite a closed one. | `dtq6jr` located in `.aw/records/backlog/done/`; all three leaves driven with and without positional arguments, with records validated through `agent_schema.validate_agent_record`. |
 | F-06 | THE FACT-PARITY GATE IS VACUOUS ON EVERY LIVE-SAFE LEAF, so reviving it would add 32 subprocess invocations that assert only what another test already owns. `semantic_facts_from_human` returns an outcome only when stdout's first non-empty line starts with `AW ` and its second carries an uppercase status word. Measured across all 16 `LIVE_SAFE_LEAVES`: ZERO produce that banner (`status` opens `agent-workflows status`, `backlog check` opens `aw backlog check: all backlog items conform.`, `layout` opens `AW Workspace Layout Model` whose second line is `INFO     Read-only inspection...`). So all 16 subtests fall into the `assertEqual(agent.returncode, human.returncode)` fallback, which is precisely what `test_exit_contract_conformance.py::test_live_safe_leaves_exit_contract_membership` already drives. The helper is not WRONG (it returns `findings` correctly for a synthesized `CommandResult` render), it is just never reached by a leaf in the curated set; `runs query schema` DOES emit the banner but is not in `LIVE_SAFE_LEAVES`. | All 16 leaves driven through `semantic_facts_from_human`; 13 further read/check leaves probed, of which only `runs query schema` banners; the helper driven directly on a synthesized render returning `{'outcome_family': 'findings'}`. |
 | F-07 | THE GOLDENS ARE UNREAD AND ONE HAS ALREADY DRIFTED, which is the one LIVE defect in this item. `tests/fixtures/conformance_goldens/` holds 12 tracked `.golden` files and `rg '\.golden' --glob '!*.golden'` over the whole tree returns zero hits, so nothing reads them. Re-rendering the four fixtures the deleted `test_cli_quality_gates.py` defined: eleven match byte for byte and `check_findings.human.golden` does NOT, differing on two `Fix:` lines (the golden says `run 'aw rename plans a.md' or rename to match ...` where today's render says `a.md does not carry a clustered identity prefix; run 'aw rename plans a.md --to-id6 --apply' or rename to match ...`, and similarly adds `--rename --apply` to the regroup hint). Note the goldens were LAST TOUCHED on 2026-10-01 by `f8ff56ec1`, a run that edited four `.human.golden` files by hand to track a renderer change, so the tree contains evidence of someone maintaining files that no test reads. | `git ls-files` count; the `rg` sweep; all twelve goldens re-rendered and diffed in-process; `git log -1 --stat` on the fixture directory. |
 | F-08 | THE RENDERER-LEVEL GATES ARE CHEAP AND GREEN, so child 02 is a low-risk restoration. Driven in-process over the four fixtures: all four agent records validate (`validate_agent_record` returns `[]`), all four agent and JSON renders are ANSI-free while the human render carries ANSI only with `color=True`, `FINDINGS` and `[ERROR]` both appear in the monochrome render, `Term(color=False, unicode=False)` degrades glyphs to `FAIL`/`OK`/`->`, `render_stream` under `limit=3` over 10 items reports `emitted=3, omitted=7, total=10, complete=False`, `--fields findings` shrinks the record from 341 to 130 bytes while retaining all seven envelope keys, and the largest record is 341 bytes against the module's 1200-byte and 400-token budgets. The whole gate shape runs in 0.790s. | Each assertion driven in-process at HEAD `b6792ad4a` and its value printed. |
@@ -164,7 +171,7 @@ OWNERS: the first check is satisfied by `9i2hge`'s declared dependency on `dq9bj
 ## Proposed changes (ordered, validatable)
 
 1. E-01 confirms child `dq9bj9` executed: the structural matrix gate revived as a default-collected
-   module, the `declared_absent` pin widened to both filed absences, the two stale `dtq6jr` exemptions
+   module, the `declared_absent` pin re-pinned to the execution-time set (expected `set()`), the three stale `dtq6jr` exemptions
    retired, the dead symbols either executed or deleted, and the `command_surface.py` comments reconciled.
 2. E-02 confirms child `9i2hge` executed: the renderer-level schema, ANSI, golden, accessibility,
    truncation, parity and budget gates revived as a default-collected module, the twelve goldens given a
@@ -199,13 +206,18 @@ OWNERS: the first check is satisfied by `9i2hge`'s declared dependency on `dq9bj
   `EXEMPTION_REGISTRY` entries and the module docstring, and adds no `LIVE_SAFE_LEAVES` member, while
   `vfv2db` adds a mutation arm and a fixture. Neither needs the other's change.
   - Carrier: vfv2db
-- FIXING THE TWO LEAVES THE REVIVED `declared_absent` PIN NAMES (F-04). `prompts set` is declared with no
+- FIXING THE TWO LEAVES THE `declared_absent` PIN NAMED AT AUTHORING (F-04). RE-MEASURED AT REVIEW
+  2026-10-07: both carriers are now `done` (`68sur3` in `backlog/done/`; `lbbo9s` via executed plan `7pnneh`)
+  and `declared_absent` is empty, so these two rows are historical; they are kept so the provenance of the
+  original pin is readable. `prompts set` is declared with no
   parser leaf (`68sur3`) and the bare `upgrade-test` group declares `agent_record_kind="result"` while
   exiting 2 from argparse (`lbbo9s`, `Blocks-Release: next`). Child 01 PINS both as known and cites both
   owners; fixing either is that owner's work and would widen this chore into two bug fixes.
   - Carrier: 68sur3
+  - Carrier-Evidence: .aw/records/backlog/done/20261001-setdispgate-01-68sur3-prompts-set-dispatched-but-unregistered.backlog.md
 - THE SECOND OF THOSE TWO, tracked separately because it carries a release gate this Set must not absorb.
   - Carrier: lbbo9s
+  - Carrier-Evidence: .aw/records/backlog/done/20261001-lbbo9s-01-lbbo9s-aw-upgrade-test-bare-group-declares-agent-record-k.backlog.md
 - `tests/test_exit_contract_conformance.py` BEING `slow` AND THEREFORE CI-ADVISORY. Noticed while measuring
   F-09: the one live membership gate that survived the trim runs only in the advisory step, so the live
   half of the conformance story is not CI-enforced either. That is a pre-existing condition this Set
@@ -237,8 +249,8 @@ OWNERS: the first check is satisfied by `9i2hge`'s declared dependency on `dq9bj
 - BOTH CHILDREN REACHING `executed` with their own `V-*` evidence pasted, which is the only thing this
   orchestrator asserts. No test is run by this plan.
 - The terminal transition's own gates: when this plan is retired, the runner's retirement transaction
-  runs its lint itself, and `aw check` drift is each child's to report in its own final V-item
-  (`dq9bj9` V-04, `9i2hge` V-05). This plan runs neither.
+  runs its lint itself, and `aw check` drift and the bare-suite failure-set delta are each child's to report
+  (`dq9bj9` Required tests and V-06, `9i2hge` Required tests and V-05). This plan runs neither.
 - THE RETIREMENT PRECONDITION the runner enforces: every child `executed` on disk. If either child refuses
   its transition, this plan stays in `pending/` and that refusal is the finding to report, not a failure of
   the run.
@@ -330,6 +342,19 @@ This plan is an ORCHESTRATOR and performs no work. Executing it means confirming
 every child qualifies (retirement is gated on EVERY child being `executed` and on nothing else, and the
 runner names which precondition it hit when it refuses). A refusal leaves this plan in `pending/` and is not
 a failure of the run.
+
+EXECUTION CONTRACT, for both the runner path and the by-hand path ("execute h0tiaw" with no runner):
+- ORDER: execute `dq9bj9` to `executed` first, then `9i2hge` (its `- Item-Dependencies: executed:dq9bj9`
+  enforces this under a runner; by hand, do not start `9i2hge` until `dq9bj9` is in `executed/`).
+- TRANSITION OWNERSHIP IS CONDITIONAL. Under `aw oc run` / `aw agy run` the runner retires this plan itself
+  once both children are `executed` on disk; do NOT also finalize it by hand. On the by-hand path, once
+  both children are `executed`, mark E-01/E-02 performed, fill V-01/V-02 with the pasted evidence, and
+  transition through `aw ipd finalize l8wvv3 --actor <you> --message <...> --apply` (never a hand-rolled
+  `git mv` to `executed/`).
+- HONESTY: every `V-*` `Observed evidence` block MUST contain the ACTUAL command output pasted, never a
+  paraphrase or a claim of success that was not observed.
+- SCOPE FENCE (a declaration, not a stop condition): this plan's only `- Scope-Paths:` entry is its own
+  file; any other path changed in its name must be justified with `--scope-reason` at finalize.
 
 Approval is required before execution and must come from a human; this plan carries no `- Readiness:` field,
 because that field is an OUTPUT of `/plan-review` and writing one at authoring would forge the attestation
