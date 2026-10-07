@@ -45,6 +45,7 @@ import zipfile
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from agent_workflows.artifact_core import replacement_mode
 from agent_workflows.home_path_patterns import HOME_PATH_RULES
 
 # --- Fragment-assembled sensitive literals ---------------------------------------------------
@@ -353,10 +354,11 @@ def _toml_quote(value: str) -> str:
     return '"' + value + '"'
 
 
-def _atomic_write(path: Path, payload: str) -> Path:
+def _atomic_write(path: Path, payload: str, *, private: bool = False) -> Path:
     """Write ``payload`` to ``path`` atomically (temp in same dir + os.replace), mkdir parents.
 
     Mirrors ``config.save`` so a crash mid-write cannot corrupt an existing config file.
+    When ``private=True``, retains owner-only 0600 permissions. Otherwise applies ``replacement_mode``.
     """
     import tempfile
 
@@ -367,6 +369,8 @@ def _atomic_write(path: Path, payload: str) -> Path:
     try:
         with os.fdopen(fd, "w", encoding="utf-8") as fh:
             fh.write(payload)
+        if not private:
+            os.chmod(tmp_name, replacement_mode(path))
         os.replace(tmp_name, str(path))
     except BaseException:
         try:
@@ -429,7 +433,7 @@ def write_user_hints(tokens: list[str], patterns: list[str]) -> Path:
         )
         + "\n"
     )
-    return _atomic_write(_config_dir() / USER_HINTS_FILENAME, payload)
+    return _atomic_write(_config_dir() / USER_HINTS_FILENAME, payload, private=True)
 
 
 def derive_warn_tokens(repo_root: Path) -> dict[str, str]:
