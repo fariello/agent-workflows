@@ -3,8 +3,8 @@
 - Date: 2026-10-06
 - Kind: orchestrator
 - Concern: `aw oc run` and `aw agy run` import the toolkit's Python code once, when the run starts, and use that copy for the whole run, while the run's own children change that code on `main`. Measured on run `run-20261006T134924Z-332833` (Set `gradcover`, 11 hours): the driver started at 09:49 on 2026-10-06 against code at `3f4763b56`; child `8mabmu` landed the `- Coverage:` metadata fields at 11:30; at 20:57 the driver retired orchestrator `1f4faf`, whose file now carried those fields, and its in-memory linter (still the 09:49 code) rejected them as `IPD-M103 Coverage: unknown field` (three findings), so the retirement ended `committed-incomplete` and the item `fail-depend`. Reproduced: linting the retired file with the 09:49 code gives `error` with those three findings; with current code it is `conforming`, which is why the hand resume (`aw ipd finalize 1f4faf ... --apply`) succeeded. The run's own record kept only "post-transition validation failed", not the findings, so the cause took a code reconstruction to find. Any run whose children change the toolkit is exposed: later checks run on outdated rules and can refuse valid work (as here) or pass work the new rules reject. The maintainer is holding every approved plan that changes the toolkit until this is fixed (ruling 2026-10-06).
-- Scope: ORCHESTRATION ONLY. This plan sequences five children and contributes no implementation, no test and no deliverable of its own. IN: the dependency order, the Set-level completion criteria with the child that owns each, and the cross-child checks. OUT: everything the children do: the spec amendment (Order 01), detecting that an integrated item changed the toolkit code (Order 02), restarting the driver on current code and resuming the same run (Order 03), recording lint findings on a finalize or retirement refusal (Order 04), and the end-to-end proof (Order 05).
-- Scope-Paths: .aw/records/plans/pending/20261006-runfresh-01-0bjke0-amend-the-run-spec-so-a-run-restarts-on-the-toolkit-code-its.ipd.md, .aw/records/plans/pending/20261006-runfresh-02-34zv7d-detect-when-an-integrated-item-changed-the-toolkit-code-the.ipd.md, .aw/records/plans/pending/20261006-runfresh-03-re15ol-restart-the-runner-on-the-current-code-between-items-and-res.ipd.md, .aw/records/plans/pending/20261006-runfresh-04-vvqr34-record-the-findings-when-a-finalize-or-retirement-lint-refus.ipd.md, .aw/records/plans/pending/20261006-runfresh-05-hohlc6-prove-a-run-that-changes-its-own-linter-retires-its-orchestr.ipd.md
+- Scope: ORCHESTRATION ONLY. This plan sequences six children and contributes no implementation, no test and no deliverable of its own. IN: the dependency order, the Set-level completion criteria with the child that owns each, and the cross-child checks. OUT: everything the children do: the spec amendment (Order 01), detecting that an integrated item changed the toolkit code (Order 02), restarting the driver on current code and resuming the same run (Order 03), recording lint findings on a finalize or retirement refusal (Order 04), the end-to-end proof (Order 05), and stopping `aw ipd coverage` and the other asking checks from reporting a plan ready when its coverage answer was not saved (Order 06).
+- Scope-Paths: .aw/records/plans/pending/20261006-runfresh-01-0bjke0-amend-the-run-spec-so-a-run-restarts-on-the-toolkit-code-its.ipd.md, .aw/records/plans/pending/20261006-runfresh-02-34zv7d-detect-when-an-integrated-item-changed-the-toolkit-code-the.ipd.md, .aw/records/plans/pending/20261006-runfresh-03-re15ol-restart-the-runner-on-the-current-code-between-items-and-res.ipd.md, .aw/records/plans/pending/20261006-runfresh-04-vvqr34-record-the-findings-when-a-finalize-or-retirement-lint-refus.ipd.md, .aw/records/plans/pending/20261006-runfresh-05-hohlc6-prove-a-run-that-changes-its-own-linter-retires-its-orchestr.ipd.md, .aw/records/plans/pending/20261006-runfresh-06-7kczdo-never-report-a-coverage-answer-as-recorded-when-it-was-not-w.ipd.md
 - Item-Dependencies: none
 - Status: to-review
 - Coverage: pass
@@ -16,11 +16,12 @@
 - Blocks-Release: f33nrj
 - Set: runfresh
 - Order: 0
-- Highest E allocated: 05
+- Highest E allocated: 06
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: 67lvds
 
 ## Workflow history
+- 2026-10-06 note (opencode its_direct/pt3-claude-opus-5.5-1m-us): added Order 06 `7kczdo` at the maintainer's instruction, for the silent loss of a coverage answer on a plan with uncommitted changes, found while recording this plan's own answer.
 
 - 2026-10-06 coverage pass (aw oc run): fingerprint e1d11a14b45f, model uri/its_direct/pt3-claude-opus-5.5-1m-us
 - 2026-10-06 to-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): Authored at the maintainer's instruction (2026-10-06: "Option 2, in an IWT. Build the plan/plan set. We'll hold the approved plans until we fix this."). Option 2 was chosen over (1) running only the final lint as a separate process, which fixes the one failure but leaves every other in-process check on old code, and (3) only recording the findings, which explains failures but prevents none; (3) is still included here as Order 04 because without it the next such failure is equally opaque. No backlog item, per the maintainer's direction; `- Blocks-Release: f33nrj` because every plan is `Work-Kind: bug`. `- From-Spec: none`: this Set amends `25kzda` (Order 01) rather than being produced from it.
@@ -60,6 +61,11 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Expected outcome: hohlc6 reads `- Status: executed` on disk.
   - Execution state: pending
 
+- [ ] E-06 CONFIRM 7kczdo REACHED executed
+  - Depends on: none
+  - Expected outcome: 7kczdo reads `- Status: executed` on disk.
+  - Execution state: pending
+
 ## Child IPDs, sequence, and dependencies
 
 | Order | Id | Plan | Purpose | Depends on |
@@ -69,6 +75,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 | 03 | re15ol | `.aw/records/plans/pending/20261006-runfresh-03-re15ol-restart-the-runner-on-the-current-code-between-items-and-res.ipd.md` | In both hosts' dispatch loops, between items, when Order 02 reports the code changed: save state, release the run lock, and replace the driver process with `<host> resume <run-id>` on the current code, carrying the original output options; record the restart; bound restarts per run; refuse to restart when the loaded code is not the checkout's own package. | `executed:34zv7d` |
 | 04 | vvqr34 | `.aw/records/plans/pending/20261006-runfresh-04-vvqr34-record-the-findings-when-a-finalize-or-retirement-lint-refus.ipd.md` | Carry the post-transition (and pre-transition) lint findings into the finalize and retirement refusal text, the run's refusal record and `aw runs`, so a refusal names each finding code and message. | `executed:0bjke0` |
 | 05 | hohlc6 | `.aw/records/plans/pending/20261006-runfresh-05-hohlc6-prove-a-run-that-changes-its-own-linter-retires-its-orchestr.ipd.md` | The Set's end-to-end measurement: a fixture run whose first child adds a metadata field the linter did not know and whose orchestrator carries that field, driven through the real runner on both hosts, proving the driver restarts, the orchestrator retires `executed`, and the old-code failure is reproduced with the restart disabled. | `executed:re15ol`, `executed:vvqr34` |
+| 06 | 7kczdo | `.aw/records/plans/pending/20261006-runfresh-06-7kczdo-never-report-a-coverage-answer-as-recorded-when-it-was-not-w.ipd.md` | Make `aw ipd coverage` and the other checks that ask the model either save the coverage answer in the plan or report plainly that they did not (a finding, exit 1), instead of reporting "ready" while the answer was discarded because the plan had uncommitted changes. Found 2026-10-06 while recording this orchestrator's own answer. | none |
 
 ## Completion criteria (the whole Set is done only when)
 
@@ -78,7 +85,8 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 4. A run started from a package that is not the checkout's own (for example an installed copy) never restarts and records once that it will not, because restarting would not pick up the checkout's code. Owner: `34zv7d` (classification), `re15ol` (behavior).
 5. A finalize or retirement that refuses at a lint checkpoint records each finding's code and message in the refusal, the run state and `aw runs`. Owner: `vvqr34`.
 6. The 2026-10-06 failure does not recur: a fixture reproducing it retires its orchestrator `executed` with the restart enabled, and fails as before with the restart disabled. Owner: `hohlc6`.
-7. The bare suite shows no new failing node id at any child boundary. Owner: each child for its own boundary; `hohlc6` for the final run.
+7. No command that asks the coverage question reports a plan ready while its answer was not written into the plan; the reason is printed and the exit code is 1. Owner: `7kczdo`.
+8. The bare suite shows no new failing node id at any child boundary. Owner: each child for its own boundary; `hohlc6` for the final run.
 
 ## Cross-IPD validation
 
@@ -143,6 +151,11 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 
 - [ ] V-05 validates E-05
   - Required evidence: paste `grep -n '^- Status:' <hohlc6 plan path>` showing `- Status: executed`, and the path showing it under `.aw/records/plans/executed/`.
+  - Observed evidence:
+  - Result: pending
+
+- [ ] V-06 validates E-06
+  - Required evidence: paste `grep -n '^- Status:' <7kczdo plan path>` showing `- Status: executed`, and the path showing it under `.aw/records/plans/executed/`.
   - Observed evidence:
   - Result: pending
 
