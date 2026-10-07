@@ -6,7 +6,7 @@
 - Scope: IN: extend the name-versus-front-matter comparison in `research_index._doc_entry` to `order` (plain string compare: `validate_frontmatter` already rejects any `order` that is not a two-digit `NN` string and returns before the comparison, so both sides are canonical `NN`), `kind` (front matter normalized through `research_contract.normalize_kind` before comparing, since `parse_name` already normalizes the filename side), and `model` (front matter normalized through `research_contract.normalize_model`; compared ONLY when the filename carries a model facet, because spec `20260730-2152-01` Section 4.4 makes the facet optional in the name and always present in front matter, so a front-matter-only model is legal); one drift line per field naming both values; tests. OUT: the rename path (fixed by `ax8eg1`); adding new front-matter fields; changing the drift code name (`name-frontmatter-mismatch` is reused so existing consumers keep working).
 - Scope-Paths: agent_workflows/research_index.py, tests/test_research_index_name_fm_mismatch.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Blocks-Release: f33nrj
 - Work-Kind: bug
@@ -16,9 +16,9 @@
 - Highest E allocated: 04
 - Author: antigravity/claude-opus-5.5
 - Id: okw4ke
-- Approval: 2026-10-07, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-07 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: okw4ke verified (set instbugs, attempt 1).
 - 2026-10-07 approved (aw set): status set to approved
 - 2026-10-07 same-status (aw set): gate on release 2.0.0 (f33nrj) at the maintainer's instruction 2026-10-06: all instbugs plans block 2.0.0
 
