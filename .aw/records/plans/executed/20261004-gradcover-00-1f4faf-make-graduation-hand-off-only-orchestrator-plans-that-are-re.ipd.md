@@ -6,7 +6,7 @@
 - Scope: ORCHESTRATION ONLY. This plan sequences thirteen child plans and contributes no implementation, no test and no deliverable of its own. Every artifact is owned by exactly one child and named in the child table. IN: the dependency order, the Set-level completion criteria with the child that owns each, and the cross-child consistency checks. OUT: everything the children do, namely the amendments to five specs (Order 01), the probe's answer format and named-owner rule (Order 02), the shared review-readiness check and the `aw ipd coverage` verb (Order 03), the probe's scoping and its retirement-time re-check (Order 04), the `aw ipd set` refusal, the loud backward moves and the pinned scaffold default (Order 05), the production action's Set-level check (Order 06), the bounded correction turns (Order 07), resuming an unfinished handoff (Order 08), re-checking the 13 refused orchestrators (Order 09), the `aw backlog set graduated` / `aw specs set implementing` refusal (Order 10), the authoring instructions (Order 11), the end-to-end proof (Order 12), and the `From-Spec` nudge fix (Order 13). This Set does NOT redesign record handling into an object model (a separate discussion), and does NOT add any `C-*`/`Owner:` requirement-ownership syntax (deliberately deferred, see Deferred).
 - Scope-Paths: .aw/records/plans/pending/20261004-gradcover-01-hm1h3l-amend-the-run-retirement-conformance-and-ipd-specs-for-orche.ipd.md, .aw/records/plans/pending/20261004-gradcover-02-8mabmu-make-the-coverage-probe-quote-the-work-it-found-and-credit-w.ipd.md, .aw/records/plans/pending/20261004-gradcover-03-qs00nc-add-one-shared-orchestrator-review-readiness-check-and-the-a.ipd.md, .aw/records/plans/pending/20261004-gradcover-04-5etev3-run-the-coverage-probe-only-where-a-run-can-retire-an-orches.ipd.md, .aw/records/plans/pending/20261004-gradcover-05-26m1nb-refuse-aw-ipd-set-to-review-reviewed-and-approved-for-an-orc.ipd.md, .aw/records/plans/pending/20261004-gradcover-06-r2wa38-check-the-whole-set-before-a-production-action-hands-off-a-b.ipd.md, .aw/records/plans/pending/20261004-gradcover-07-nnsa2o-send-a-refused-production-or-review-action-back-for-bounded.ipd.md, .aw/records/plans/pending/20261004-gradcover-08-24qw39-let-a-production-action-resume-an-unfinished-handoff-instead.ipd.md, .aw/records/plans/pending/20261004-gradcover-09-52opph-re-check-every-pending-orchestrator-and-send-the-failing-one.ipd.md, .aw/records/plans/pending/20261004-gradcover-10-sbiv1j-refuse-aw-backlog-set-graduated-and-aw-specs-set-implementin.ipd.md, .aw/records/plans/pending/20261004-gradcover-11-dalmk4-state-the-orchestrator-coverage-rule-in-the-production-promp.ipd.md, .aw/records/plans/pending/20261004-gradcover-12-wytlly-prove-end-to-end-that-a-graduation-yields-an-orchestrator-th.ipd.md, .aw/records/plans/pending/20261004-gradcover-13-jm27py-stop-the-from-spec-nudge-for-a-plan-that-declares-no-spec-so.ipd.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Coverage: pass
 - Coverage-Fingerprint: 1c9d11692fee4dd64b1eed26bce8004b430d5a68f0aeee742e92f26bd7da4292
@@ -20,9 +20,9 @@
 - Highest E allocated: 13
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: 1f4faf
-- Approval: 2026-10-06, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-07 executed (aw agy run model=Gemini-3.8-Flash-High): RETIRED as the orchestrator rollup step of a runner Set completion, not executed by an agent: every child of Set gradcover reached executed, so the runner (run run-20261006T134924Z-332833) retired this Order-0 plan as bookkeeping. Its own E-*/V-* items were NOT performed; the runner superseded them by enforcing the ordering, the isolation and the per-child merge gate. Justifying children: hm1h3l, 8mabmu, qs00nc, 5etev3, 26m1nb, r2wa38, nnsa2o, 24qw39, 52opph, sbiv1j, dalmk4, wytlly, jm27py.
 - 2026-10-06 coverage pass (aw oc run): fingerprint 1c9d11692fee, model uri/its_direct/pt3-claude-opus-5.5-1m-us
 - 2026-10-06 approved (aw set): status set to approved
 - 2026-10-06 re-scope (opencode its_direct/pt3-claude-opus-5.5-1m-us): from the /plan-review of `wytlly` (finding PR-008): Order 12 now declares every child whose behavior its scenarios exercise (`nnsa2o`, `24qw39`, `26m1nb`, `r2wa38`, `qs00nc`, `8mabmu`), not only `sbiv1j`, `dalmk4`, `5etev3`; E-12 and the child-table row updated. Its Run C also approves its fixture orchestrator before orchestrating, since a `reviewed` orchestrator is not dispatched. The review verdict and readiness of this plan are unchanged.
@@ -48,6 +48,9 @@
 After this Set, graduating a backlog item or producing plans from a spec either hands off a Set the next run accepts, or fails visibly with the backlog item still `open` and the exact sentence that needs an owner. An orchestrator plan cannot reach `to-review`, `reviewed` or `approved` while its children are missing, unready, or while it carries work no child covers, and the coverage probe only runs where its answer can change what a run does.
 
 ## Detailed Implementation Checklist (TODO)
+
+
+> Its own E-*/V-* items were NOT performed; the runner superseded them by enforcing the ordering, the isolation and the per-child merge gate.
 
 Execution-state rule: mark an `E-*` item complete only after performing the action. That mark is not validation. Right-sizing rule: each E-item must address one concern and be executable in one focused pass; split when an E-item names multiple distinct deliverables or independent test-surfaces. Accepted execution states: blocked, failed, pending, performed; terminal gate demands 'performed'.
 
