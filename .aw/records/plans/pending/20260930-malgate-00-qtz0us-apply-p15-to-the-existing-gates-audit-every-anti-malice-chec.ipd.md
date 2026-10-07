@@ -6,7 +6,7 @@
 - Scope: Orchestrate three children that together apply P15 to the shipped gates: `bec7ee` writes the durable audit record enumerating every mechanism with its keep / simplify / delete decision and evidence, `38pxaz` deletes the five unowned raising predicates in `wtiso_gate` plus the dangling test citations that claim they are pinned and amends spec `7ckptx` accordingly, and `dmjp0u` reframes the comment sites whose stated justification for a mechanism is a hostile agent. This plan holds ORCHESTRATION ONLY: every deliverable belongs to a child, and this file contributes no code, no test, no record and no spec edit of its own. EXCLUDES, in every child without exception: the driver attestation token and the `lane_worktree_active` location guess (designed in backlog `dvonrn`), re-deciding the four items backlog `ariaau` marks ALREADY DECIDED, rewording any honest-limit disclaimer that names a hostile agent in order to deny protecting against one, and restoring any test file deleted by the 2026-09-24 suite trim.
 - Scope-Paths: .aw/records/plans/pending/20260930-malgate-00-qtz0us-apply-p15-to-the-existing-gates-audit-every-anti-malice-chec.ipd.md
 - Item-Dependencies: none
-- Status: draft
+- Status: to-review
 - Coverage: pass
 - Coverage-Fingerprint: c0e92a0b651737d38e2df4fef1656e26ca40fc1402a53bf8208e190d5073e100
 - Coverage-Checked: 2026-10-07 by uri/its_direct/pt3-claude-opus-5.5-1m-us
@@ -20,6 +20,7 @@
 - Id: qtz0us
 
 ## Workflow history
+- 2026-10-07 to-review (aw set): returned to review: every child executed; owners named and the three cross-child checks measured and recorded; coverage pass recorded
 - 2026-10-07 coverage pass (aw oc run): fingerprint c0e92a0b6517, model uri/its_direct/pt3-claude-opus-5.5-1m-us
 - 2026-10-07 coverage fail (aw oc run): fingerprint 1d55f5dad923, model uri/its_direct/pt3-claude-opus-5.5-1m-us
 - 2026-10-07 note (opencode its_direct/pt3-claude-opus-5.5-1m-us): every child is executed; each completion criterion leads with its owner, and the three cross-child checks were measured against the resulting tree and recorded.
