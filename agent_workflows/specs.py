@@ -28,7 +28,7 @@ SPECS_ROOT = ".aw/records/specs"
 
 
 # --------------------------------------------------------------------------------------
-# Output-safety refusal helper (IPD uz05bl E-01; ported from backlog dtg7dz)
+# Output-safety refusal helper (delegates to attention_contract; IPD 685iq8)
 # --------------------------------------------------------------------------------------
 
 
@@ -41,43 +41,10 @@ def _refuse_unsafe_descriptive(
 ) -> Optional[str]:
     """Judge one descriptive value against Section 8.8 output-safety.
 
-    When bound_length is True, delegates the verdict to attention_contract.is_safe_descriptive.
-    When bound_length is False (line-integrity mode), validates newlines/carriage returns
-    and control characters without applying the length bound.
-    Returns None if value is None or valid, else a refusal message naming verb, flag, and cause.
+    Delegates to attention_contract.refuse_unsafe_descriptive (IPD 685iq8).
+    Preserves module-private name for existing call sites and shipped tests.
     """
-    if value is None:
-        return None
-    prefix = f"{verb}: " if verb else ""
-    if bound_length:
-        if A.is_safe_descriptive(value):
-            return None
-        if "\n" in value or "\r" in value:
-            return f"{prefix}{flag} must not contain embedded newlines"
-        if A._CONTROL_CHAR_RE.search(value):
-            return f"{prefix}{flag} must not contain control characters"
-        if len(value) > A.MAX_DESCRIPTIVE_LEN:
-            return (
-                f"{prefix}{flag} exceeds maximum length of {A.MAX_DESCRIPTIVE_LEN} "
-                f"characters ({len(value)} > {A.MAX_DESCRIPTIVE_LEN})"
-            )
-        return f"{prefix}{flag} is not a valid descriptive field"
-    else:
-        has_newline = "\n" in value or "\r" in value
-        is_safe_line = (
-            not has_newline
-            and A.is_safe_descriptive(
-                value.replace("\n", "").replace("\r", "")[: A.MAX_DESCRIPTIVE_LEN]
-            )
-            and not A._CONTROL_CHAR_RE.search(value)
-        )
-        if is_safe_line:
-            return None
-        if has_newline:
-            return f"{prefix}{flag} must not contain embedded newlines"
-        if A._CONTROL_CHAR_RE.search(value):
-            return f"{prefix}{flag} must not contain control characters"
-        return f"{prefix}{flag} is not a valid descriptive field"
+    return A.refuse_unsafe_descriptive(verb, flag, value, bound_length=bound_length)
 
 
 # --------------------------------------------------------------------------------------

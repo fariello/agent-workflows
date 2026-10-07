@@ -1367,18 +1367,17 @@ def run_new(args) -> int:
 
     if not version:
         return _usage("--version is required")
-    from agent_workflows.specs import _refuse_unsafe_descriptive
 
-    # E-04 (IPD uz05bl): Refuse unsafe descriptive values for --version and --summary
+    # E-04 (IPD uz05bl, repointed IPD 685iq8): Refuse unsafe descriptive values for --version and --summary
     raw_version = getattr(args, "version", None)
-    _ver_err = _refuse_unsafe_descriptive("", "--version", raw_version)
+    _ver_err = A.refuse_unsafe_descriptive("", "--version", raw_version)
     if _ver_err:
         return _usage(_ver_err)
 
     if not summary:
         return _usage("--summary is required")
     raw_summary = getattr(args, "summary", None)
-    _sum_err = _refuse_unsafe_descriptive("", "--summary", raw_summary)
+    _sum_err = A.refuse_unsafe_descriptive("", "--summary", raw_summary)
     if _sum_err:
         return _usage(_sum_err)
 

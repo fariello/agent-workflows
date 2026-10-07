@@ -717,6 +717,54 @@ def validate_gate_flags(
     return None
 
 
+def refuse_unsafe_descriptive(
+    verb: str,
+    flag: str,
+    value: Optional[str],
+    *,
+    bound_length: bool = True,
+) -> Optional[str]:
+    """Judge one descriptive value against Section 8.8 output-safety.
+
+    When bound_length is True, delegates the verdict to is_safe_descriptive.
+    When bound_length is False (line-integrity mode), validates newlines/carriage returns
+    and control characters without applying the length bound.
+    Returns None if value is None or valid, else a refusal message naming verb, flag, and cause.
+    """
+    if value is None:
+        return None
+    prefix = f"{verb}: " if verb else ""
+    if bound_length:
+        if is_safe_descriptive(value):
+            return None
+        if "\n" in value or "\r" in value:
+            return f"{prefix}{flag} must not contain embedded newlines"
+        if _CONTROL_CHAR_RE.search(value):
+            return f"{prefix}{flag} must not contain control characters"
+        if len(value) > MAX_DESCRIPTIVE_LEN:
+            return (
+                f"{prefix}{flag} exceeds maximum length of {MAX_DESCRIPTIVE_LEN} "
+                f"characters ({len(value)} > {MAX_DESCRIPTIVE_LEN})"
+            )
+        return f"{prefix}{flag} is not a valid descriptive field"
+    else:
+        has_newline = "\n" in value or "\r" in value
+        is_safe_line = (
+            not has_newline
+            and is_safe_descriptive(
+                value.replace("\n", "").replace("\r", "")[:MAX_DESCRIPTIVE_LEN]
+            )
+            and not _CONTROL_CHAR_RE.search(value)
+        )
+        if is_safe_line:
+            return None
+        if has_newline:
+            return f"{prefix}{flag} must not contain embedded newlines"
+        if _CONTROL_CHAR_RE.search(value):
+            return f"{prefix}{flag} must not contain control characters"
+        return f"{prefix}{flag} is not a valid descriptive field"
+
+
 # --------------------------------------------------------------------------------------
 # Workflow-history record grammar + last_history_at derivation (spec Section 8.2/8.5; OQ2)
 # --------------------------------------------------------------------------------------
