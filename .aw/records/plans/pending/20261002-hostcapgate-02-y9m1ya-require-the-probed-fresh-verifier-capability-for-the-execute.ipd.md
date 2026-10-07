@@ -19,11 +19,12 @@
 - From-Backlog: s8veyk
 - Set: hostcapgate
 - Order: 2
-- Highest E allocated: 06
+- Highest E allocated: 07
 - Author: opencode/its_direct/pt3-claude-opus-5-1m-us
 - Id: y9m1ya
 
 ## Workflow history
+- 2026-10-07 note (opencode its_direct/pt3-claude-opus-5.5-1m-us): added E-07/V-07, the Set-level checks orchestrator `4qv834` carried with no owner; this plan runs last, after `bqtgmo`. Measurement only; no scope change.
 - 2026-10-06 draft (aw set): demoted to-review -> draft: returned to authoring by gradcover 52opph: uncovered obligation: The two children share two files and must not have fought over them
 
 - 2026-10-02 to-review (opencode/its_direct/pt3-claude-opus-5-1m-us): Authored from backlog `s8veyk` in lane worktree `s8veyk` at HEAD `6310b3e4`. EVERY CLAIM IN THE ITEM WAS RE-MEASURED AND THE ITEM HELD ON ITS CENTRAL CLAIM: one requirement row, empty `required`, verdict gates nothing. THREE THINGS THE ITEM DOES NOT SAY shaped this plan.
@@ -92,6 +93,11 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   CHECK FOR OTHER PINS IN THE SAME FILE BEFORE ASSUMING THIS IS THE ONLY ONE. That module also contains a checker test driving a synthetic gated action through a `synthetic_gated_action()` helper and a test asserting a fully-capable host passes every action in `ACTION_CLASSES`; the latter iterates the tuple and so should keep passing, but it must be RUN rather than reasoned about. Report every assertion in that file that changed and every one that did not.
   - Depends on: E-05
   - Expected outcome: `tests/test_host_capability_extension.py` passes with exact-membership assertions naming both action classes, with the four existing properties unmodified, and with a new assertion pinning the execute row to exactly `supports_fresh_verifier_session` and excluding `supports_commit_gateway`; every changed and unchanged assertion in that file is reported.
+  - Execution state: pending
+
+- [ ] E-07 RUN THE SET-LEVEL CHECKS orchestrator `4qv834` assigns to this plan, because this plan executes after `bqtgmo` and is the only point where both children's changes exist together. Measurement only, changing no file for this item: (a) ORDERING HELD: from both children's records, `bqtgmo` reached `executed` before this plan's begin receipt; (b) THE SHARED FILES DID NOT CONFLICT: in `host_sandbox_profile.py` and `runner_shared.py`, the regions `bqtgmo` changed and the regions this plan changed are disjoint (paste both diffs' hunk headers); (c) NO PER-ITEM PROBE CAME BACK: after this plan's changes, dispatching several items in one run performs zero capability probes after initialization, by the same counted seam `bqtgmo` used; (d) THE SHIPPED CAPABILITY TESTS PASS AS A WHOLE: `tests/test_host_capability_extension.py` in full, not only the two new modules; (e) THE ADJACENT PRE-EXISTING FAILURE: `test_run_finding_reachability.py::TestRunFindingReachability::test_unreachable_binding_refusal_fires_under_perturbation` fails the same way on the Set's base commit and after this plan, and is recorded once as pre-existing. A failure of (a) to (d) is reported and this plan is not finalized as passing.
+  - Depends on: E-06
+  - Expected outcome: (a) to (e) each answered with pasted evidence; none newly failing.
   - Execution state: pending
 
 ## Project conventions discovered (Step 0)
@@ -218,6 +224,11 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 
 - [ ] V-06 validates E-06
   - Required evidence: PASTE the changed assertions in `tests/test_host_capability_extension.py` verbatim, showing EXACT expected membership naming both action classes rather than a relaxed "at least one" form. PASTE the new assertion pinning the execute row to exactly `supports_fresh_verifier_session` and excluding `supports_commit_gateway`. CONFIRM BY QUOTING THEM that the four pre-existing properties (every `required` is a descriptor field, every `unrepresented` resolves in `UNREPRESENTED_SPEC_CAPABILITIES`, every row has a non-empty `spec_basis`, `read_only` requires nothing) are UNCHANGED. PASTE the full passing output of that test module. REPORT every assertion in the file that changed and every one that did not, including the synthetic-gated-action and fully-capable-host tests, having RUN them rather than reasoned about them.
+  - Observed evidence:
+  - Result: pending
+
+- [ ] V-07 validates E-07
+  - Required evidence: paste (a) both children's executed timestamps and this plan's begin time; (b) the two diffs' hunk headers for each shared file; (c) the counted-seam probe count after initialization (zero); (d) `python3 -m pytest -o addopts="" tests/test_host_capability_extension.py -q` with its count; (e) the named test's failure output on the base commit and after this plan.
   - Observed evidence:
   - Result: pending
 
