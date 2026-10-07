@@ -36,7 +36,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: validate the value before any rename is planned
 
-- [ ] E-01 Make the date guard available to `research_refs` WITHOUT writing a second copy of it. Prefer REUSE: `research_refs` already does `from agent_workflows import research_cmd as _rcmd`, and plan `iumgvk` (Set `m5csyi`, pending, independent) adds `research_cmd._refuse_unsafe_date(verb, value) -> Optional[str]` to exactly the contract this plan needs, so the import direction is already correct and no cycle is created (`research_cmd` does NOT import `research_refs`: measured, its imports are `artifact_core` and `research_contract` only).
+- [x] E-01 Make the date guard available to `research_refs` WITHOUT writing a second copy of it. Prefer REUSE: `research_refs` already does `from agent_workflows import research_cmd as _rcmd`, and plan `iumgvk` (Set `m5csyi`, pending, independent) adds `research_cmd._refuse_unsafe_date(verb, value) -> Optional[str]` to exactly the contract this plan needs, so the import direction is already correct and no cycle is created (`research_cmd` does NOT import `research_refs`: measured, its imports are `artifact_core` and `research_contract` only).
 
   DECIDE BY INSPECTION, NOT BY ASSUMPTION, AND RECORD WHICH BRANCH YOU TOOK. If `research_cmd._refuse_unsafe_date` EXISTS when you execute, import and call it; add nothing. If it does NOT exist, ADD it to `research_cmd` to that same signature and contract, so `iumgvk` finds it present and converges rather than conflicting. Do NOT define a private duplicate in `research_refs`: two guards for one grammar is how the two verbs drift apart, which is the exact failure `ribg85` and `iumgvk` both recorded against the ISO/`YYYYMMDD` split.
   THE CONTRACT, stated here so this plan is executable standalone: return `None` for `None` (the omitted-flag case, which must keep defaulting to today) and for a value that is eight digits AND a real calendar date; otherwise return a refusal message naming the verb, the flag, the required `YYYYMMDD` format and the received value, `!r`-quoted so a traversal or an embedded newline is visible rather than mangling the terminal.
@@ -44,9 +44,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   THEN ADD A CALENDAR CHECK, because eight digits alone is NOT sufficient and this is a different conclusion from the path half. Measured (F-11): `\A\d{8}\Z` ACCEPTS `99999999`, `20261332` and `20260230`, and `strptime(value, "%Y%m%d")` rejects all three while accepting `20260929`. STATE THE FORMAT-VERSUS-CALENDAR DISTINCTION IN THE CODE COMMENT, naming the shapes the regex alone admits.
   - Depends on: none
   - Expected outcome: a single helper reachable from `research_refs` that returns `None` for `None` and `'20260929'`, and a message naming the verb, `YYYYMMDD` and the received value for each of `'../../../../ESCAPED'`, `'/ABSOLUTE/ESCAPED'`, `'２０２６０９２９'` (fullwidth), `'2026-09-29'`, `'99999999'`, `'20261332'`, `'20260230'`, `'notadate'`, `''`, and `'20261002\nstatus: active'`; plus a written statement in the plan's own V-01 evidence of WHICH branch was taken (reused or added) and why.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 CALL that guard from `research_refs.plan_set_assign`, returning its message through the function's EXISTING `(None, error)` tuple so `run_set_assign`'s established rendering (`print(f"error: {err}")` then `MutationResult(2)`) is reused rather than forked.
+- [x] E-02 CALL that guard from `research_refs.plan_set_assign`, returning its message through the function's EXISTING `(None, error)` tuple so `run_set_assign`'s established rendering (`print(f"error: {err}")` then `MutationResult(2)`) is reused rather than forked.
 
   GUARD AT THE PLANNER, NOT AT `run_set_assign`, AND THE REASON IS STRUCTURAL. `plan_set_assign` is the function that interpolates the value into `R.format_name`, it is public, it takes `date_str` as a POSITIONAL parameter, and it is the unit the tests can drive without a CLI. A guard in `run_set_assign` would leave the planner callable with an unvalidated date by any future caller, which is the same siting argument `iumgvk` made for the creation planners and `ribg85` made for `specs.run_new`.
   SITE THE CALL AT THE TOP, BESIDE THE EXISTING `set_k` REFUSAL. `plan_set_assign` already opens with `set_k = R.kebab(set_id)` / `if not set_k: return None, "a --set id is required"`, which establishes both the position and the message style for a pre-flight refusal. Place the date check immediately after that refusal and BEFORE the `for i, id6 in enumerate(id6s):` loop, so a bad date costs no selector resolution and touches no filesystem.
@@ -54,11 +54,11 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   DO NOT CHANGE THE OMITTED-FLAG DEFAULT. `run_set_assign` computes `date_str = getattr(args, "date", None) or date.today().strftime("%Y%m%d")` BEFORE calling the planner, so the planner never actually receives `None` from the CLI; the helper's `None` arm still matters for direct callers and the default path must keep producing today's date unchanged. V-02 asserts both.
   - Depends on: E-01
   - Expected outcome: `aw research set-assign w1qe6d --set grp --date ../../../../ESCAPED --apply` exits 2 with the refusal and the record STAYS at its original path, where before it exited 0 and the record left the repository; `--date /ABSOLUTE/ESCAPED` exits 2 with the same refusal instead of raising the F-06 `ValueError`; `--date 99999999`, `20261332`, `20260230`, `2026-09-29`, `notadate` and a newline-bearing value each exit 2; and `--date 20260929` plus every invocation that omits `--date` still renames exactly as before.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: confine the destination at the funnel both rename verbs share
 
-- [ ] E-03 Add a DESTINATION-CONTAINMENT assertion to `research_refs._apply_renames`, refusing when any planned `new_path`'s RESOLVED path does not lie inside the RESOLVED research root, with a message naming the offending destination and the tree it escaped, and exit 2 from the verb.
+- [x] E-03 Add a DESTINATION-CONTAINMENT assertion to `research_refs._apply_renames`, refusing when any planned `new_path`'s RESOLVED path does not lie inside the RESOLVED research root, with a message naming the offending destination and the tree it escaped, and exit 2 from the verb.
 
   THE FUNNEL HAS NO EXIT CHANNEL TODAY, SO E-03 MUST ADD ONE (measured at review). `_apply_renames` returns `Tuple[str, ...]` (the touched paths) and both callers unconditionally `return MutationResult(0, touched)`, so "a nonzero exit through the existing result channel" is not reachable inside the function as it stands. Implement the check as a pure module-private helper over `(repo_root, plans)` returning `Optional[str]` (the refusal message), call it at the top of `_apply_renames`, and on refusal print `error: <msg>` and return a sentinel the callers can distinguish (for example `None` instead of a tuple, with the return annotation widened to `Optional[Tuple[str, ...]]`); change BOTH `run_set_assign` and `run_mv` to return `MutationResult(2)` on that sentinel. Those are the only two callers (measured: `_apply_renames` is referenced nowhere else in `agent_workflows/` or `tests/`). Do NOT signal the refusal with an uncaught exception, which would turn the F-06 traceback into a different traceback. The pure helper is also the natural E-02 BYPASS for V-03: drive `_apply_renames` (or the helper) directly with a hand-built `RenamePlan` whose `new_path` escapes, which needs no monkeypatching of the date guard.
 
@@ -71,11 +71,11 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   REFUSE BEFORE ANY SIDE EFFECT, NOT PART-WAY THROUGH. The assertion must run over ALL plans before the first `_git_mv`, mirroring the reason the function's own reference-rewrite planning is already done up front; a per-plan check inside the loop would leave a multi-id `set-assign` half-moved.
   - Depends on: E-02
   - Expected outcome: with E-02's guard bypassed (a hand-built `RenamePlan` passed to `_apply_renames`), a traversing destination is refused by E-03 alone and the verb-level path returns exit 2, nothing is moved, and the message names the destination and the tree; the SAME bypassed call WITHOUT `--apply` also refuses rather than printing a `--- would rename ... -> ESCAPED-...md ---` line that hides the traversal; an absolute-path destination is refused by the same assertion instead of raising `ValueError`; a multi-id call with one bad destination moves NONE of them; and every conforming `set-assign` and `mv` still renames and still previews exactly as before, in BOTH a `.aw/records/research` and a legacy `.agents/docs/research` layout, including a record living in an archive shard subdirectory.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: pin the escape, the mechanism, and the non-regressions
 
-- [ ] E-04 Add `tests/test_research_set_assign_date_containment.py` pinning the ESCAPE as the primary property. Assert that the record is STILL AT ITS ORIGINAL PATH and that NO file exists anywhere under the temp base outside the research tree, not merely that the command failed, because an exit code alone does not distinguish the fix from the permissions accident the backlog item warns about.
+- [x] E-04 Add `tests/test_research_set_assign_date_containment.py` pinning the ESCAPE as the primary property. Assert that the record is STILL AT ITS ORIGINAL PATH and that NO file exists anywhere under the temp base outside the research tree, not merely that the command failed, because an exit code alone does not distinguish the fix from the permissions accident the backlog item warns about.
 
   THE FIXTURE MUST BE NESTED AND EVERY PROBE'S TRAVERSAL DEPTH MUST BE BOUNDED TO THE FIXTURE DEPTH, ASSERTED BEFORE THE PROBE RUNS. THIS IS A SAFETY REQUIREMENT, NOT A STYLE NOTE. `artifact_core.git_mv` calls `(repo_root / dst_rel).parent.mkdir(parents=True, exist_ok=True)` before moving, so an OVER-DEEP traversal does not fail, it SUCCEEDS somewhere unintended: review of `ribg85` ran exactly such a probe and wrote a file outside its scratch area that it then could not delete. Build the fixture at `<tmp>/n1/n2/n3/repo`, compute the resolved target arithmetically, and assert it is inside the temp base BEFORE running; skip the probe rather than running it if it is not. COMPUTE THE BOUND FROM THE RESOLVED RESEARCH ROOT, NOT THE FIXTURE PATH, AND ISOLATE `HOME` (added at review, the hazard sibling `iumgvk`'s review measured destructively as its PR-001). `R.resolve_research_root` asks `record_producers.resolve_record_path` first, and for an unregistered scratch repo with no `.aw/records/research` directory it resolves OUTSIDE the fixture, under the real home: re-measured at this review, non-destructively, for a fresh `<tmp>/n1/n2/n3/repo`: `no dir: <home>/.aw/projects/repo-<hash>/records/research`, versus `with dir: <tmp>/n1/n2/n3/repo/.aw/records/research` once the directory exists. So every fixture MUST pre-create its research directory before any probe, MUST set `HOME` and `XDG_CONFIG_HOME` to the temp base for every subprocess and every in-process `cli.main` call, and MUST compute each probe's target from `R.resolve_research_root(repo)` and assert it is under the temp base. The LEGACY-layout fixture (V-03) is where this bites: it deliberately has no `.aw/records/research`, so the modern resolver's home-based answer is consulted first and only `HOME` isolation keeps it from being a real directory. Apply the same three rules to every MANUAL probe during execution. This plan's authoring probe bounded by fixture path only, which happened to be safe because its fixture seeded the modern directory; it also DEMONSTRATED its own value by refusing to run the absolute-path case (F-06), which is why that case is pinned at the planner rather than through the CLI.
   THE NESTING MUST CARRY A COMMENT SAYING WHY, AND THE COMMENT MUST NOT PROMISE A PERMISSION ERROR. The backlog item reports that a shallow fixture refuses with `Permission denied`; that refusal is an accident of filesystem permissions and is environment-dependent, so a shallow fixture yields a FALSE GREEN where the escape is unwritable and COLLATERAL DAMAGE where it is writable. Both are disqualifying and neither is a guard. The repository checkout is SHARED (AGENTS.md), so a test that escapes its own tmpdir can damage another agent's work.
@@ -83,9 +83,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   Cover: a traversal landing above the records tree, a traversing DRY RUN with no `--apply` (E-03's second arm, including an assertion that the printed line does NOT merely show a clean basename), the newline-bearing date, the multi-id partial-move case, and a record living in an archive shard subdirectory. Drive at least one case through `cli.main` rather than the planner alone, following the established pattern in `tests/test_research_cmd_create.py`.
   - Depends on: E-03
   - Expected outcome: a new module whose escape cases FAIL against pre-E-01 code with the escaped file PRESENT on disk inside the temp base and the research tree EMPTY, and PASS after; and whose every destructive probe is bounded by an asserted in-tmpdir target so the module cannot damage the checkout it runs in.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 In the same module, pin the MECHANISM and the non-regressions.
+- [x] E-05 In the same module, pin the MECHANISM and the non-regressions.
 
   THE MECHANISM, which is the finding most likely to be lost and which no other plan records. Pin that `git mv` ITSELF REFUSES the out-of-tree destination (exit 128, `fatal: '...' is outside repository`) and that the record leaves anyway through `artifact_core.git_mv`'s `shutil.move` fallback, and pin the GIT-INDEX CONSEQUENCE F-05 measured: after a pre-fix escape, `git status --short` shows ` D` on the old path while `git ls-files` STILL LISTS it, so the repository's own index disagrees with the filesystem. Name in a comment that the fallback is DELIBERATELY not changed here, that this plan's fix works by never reaching it, and that its carrier is backlog item `ki1uqk`. This pins a LIVE defect, so say so in the comment rather than letting a reader take it for approval.
   DETECTION BLINDNESS, pinned so the under-scope is evidence rather than assertion: after a pre-fix escape, `aw research index --check --dir <repo>` reports `index --check: clean` at exit 0, `aw research index` reports `(0 docs)`, `aw research find --agent` reports `no matching research docs`, and `aw check research --agent` reports `"outcome":"conforms"` on a repository that has just lost its only record (F-01, F-09). Record it; this plan does not fix it.
@@ -93,7 +93,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   NON-REGRESSIONS: (a) `--date 20260929` produces the SAME destination name and the SAME frontmatter updates as before the change, compared against a reference generated at HEAD; (b) omitting `--date` still defaults to today; (c) a conforming DRY RUN still previews the same lines and still exits 0; (d) the existing refusals (`a --set id is required`, the setid-length guard, `no research file has id6`, the non-conformant-source refusal) keep their exit codes and messages; (e) `aw research mv` is UNCHANGED, asserted by driving it and observing an identical rename, since it shares the E-03 funnel but takes its date from `parsed.date` and so was never exposed (F-07); (f) `aw research archive` still moves records INTO its shard subdirectory, which is the case E-03's descendant allowance exists to protect.
   - Depends on: E-04
   - Expected outcome: the mechanism, the git-index inconsistency, the detection blindness and the fabrication refusals are pinned; the six non-regression groups pass; and the `git_mv` fallback residue is recorded in-test with its carrier named, so the scope boundary is measured rather than asserted.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -199,30 +199,370 @@ N/A with reason. This plan adds input validation and a containment assertion to 
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: STATE WHICH BRANCH YOU TOOK (reused the existing `research_cmd._refuse_unsafe_date`, or added it) and paste the evidence for that determination: a `grep`/import showing the helper's presence or absence at the HEAD you executed from. Then paste the helper's SOURCE, showing both the `\A[0-9]{8}\Z` regex and the `strptime(..., "%Y%m%d")` calendar check, and the code comment stating the format-versus-calendar distinction and naming the shapes the regex alone admits. Then paste a driven table of the helper's return value for EACH of `None`, `'20260929'`, `'../../../../ESCAPED'`, `'/ABSOLUTE/ESCAPED'`, `'2026-09-29'`, `'99999999'`, `'20261332'`, `'20260230'`, `'notadate'`, `''`, and `'20261002\nstatus: active'`, and `'２０２６０９２９'` (fullwidth digits), showing `None` for the first two and a message naming the verb, `YYYYMMDD` and the received value for the rest. A run where `'99999999'` returns `None` has NOT implemented the calendar half and fails this item. Finally, confirm by import that no second date guard was defined in `research_refs` (one grammar, one guard).
   - Observed evidence:
-  - Result: pending
+    BRANCH TAKEN: REUSED existing `research_cmd._refuse_unsafe_date`.
+    Evidence of presence at execution HEAD (afae0d0e8):
+    ```sh
+    $ python3 -c "import agent_workflows.research_cmd as r; print(hasattr(r, '_refuse_unsafe_date'))"
+    True
+    ```
+    Helper source in `agent_workflows/research_cmd.py`:
+    ```python
+    def _refuse_unsafe_date(verb: str, value: Optional[str]) -> Optional[str]:
+        """Judge one candidate date string against research's date grammar and calendar validity.
 
-- [ ] V-02 validates E-02
+        E-01 (IPD iumgvk): Derived from research's own date grammar slot (_CORE_RE).
+        The regex check (\\A[0-9]{8}\\Z) is an ASCII format check, not a calendar check;
+        the regex alone admits unreachable calendar dates such as 99999999 and 20261332.
+        Per OQ-01, validate format first (ASCII-only [0-9]{8}, refusing fullwidth digits like
+        '２０２６０９２９'), then calendar validity via datetime.strptime(..., "%Y%m%d"),
+        refusing both with exit 2 and the same message shape naming the verb, --date,
+        YYYYMMDD, and the received value.
+        """
+        if value is None:
+            return None
+        # Format check: research grammar uses YYYYMMDD, not ISO YYYY-MM-DD.
+        # ASCII [0-9]{8} closes non-ASCII Unicode digits (PR-002).
+        if not re.match(r"\A[0-9]{8}\Z", value):
+            return f"{verb}: --date must be YYYYMMDD (got {value!r})"
+        # Calendar check: regex alone accepts 99999999 and 20261332.
+        try:
+            datetime.strptime(value, "%Y%m%d")
+        except ValueError:
+            return f"{verb}: --date must be YYYYMMDD (got {value!r})"
+        return None
+    ```
+    Driven table of helper return values for required inputs:
+    ```
+    None                                -> None
+    '20260929'                          -> None
+    '../../../../ESCAPED'               -> "aw research set-assign: --date must be YYYYMMDD (got '../../../../ESCAPED')"
+    '/ABSOLUTE/ESCAPED'                 -> "aw research set-assign: --date must be YYYYMMDD (got '/ABSOLUTE/ESCAPED')"
+    '2026-09-29'                        -> "aw research set-assign: --date must be YYYYMMDD (got '2026-09-29')"
+    '99999999'                          -> "aw research set-assign: --date must be YYYYMMDD (got '99999999')"
+    '20261332'                          -> "aw research set-assign: --date must be YYYYMMDD (got '20261332')"
+    '20260230'                          -> "aw research set-assign: --date must be YYYYMMDD (got '20260230')"
+    'notadate'                          -> "aw research set-assign: --date must be YYYYMMDD (got 'notadate')"
+    ''                                  -> "aw research set-assign: --date must be YYYYMMDD (got '')"
+    '20261002\nstatus: active'          -> "aw research set-assign: --date must be YYYYMMDD (got '20261002\\nstatus: active')"
+    '２０２６０９２９'                          -> "aw research set-assign: --date must be YYYYMMDD (got '２０２６０９２９')"
+    ```
+    Confirmed by inspection and import that no second date guard was defined in `research_refs` (dir contains `_refuse_uncontained_destination` and no duplicate date validator).
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: paste the actual terminal output of these runs against a temp fixture NESTED at least four directories deep with one COMMITTED research record (see V-04 for why nesting is mandatory). (a) `aw research set-assign <id6> --set grp --date ../../../../ESCAPED --dir <repo> --apply` showing exit 2, the refusal naming the flag and the required format, the record STILL AT ITS ORIGINAL PATH, a clean `git status --short`, and proof that no `.findings.md` exists anywhere under the temp base outside the research tree. (b) the SAME call with no `--apply`, showing exit 2 rather than a `--- would rename ... ---` line. (c) `--date /ABSOLUTE/ESCAPED` exiting 2 with the date refusal and NOT a `ValueError` traceback. (d) `--date 2026-09-29`, `notadate`, `99999999`, `20261332`, `20260230`, `''` and a newline-bearing value each exiting 2. (e) `--date 20260929 --apply` still succeeding at exit 0 with the expected destination name and the expected `set metadata` line. (f) an invocation OMITTING `--date` still renaming to today's date. (g) the guard call's source, showing it sits after the `a --set id is required` refusal and BEFORE the `for i, id6 in enumerate(id6s):` loop, with enough surrounding source to show that order. (h) the PRE-FIX counterpart of (a): exit 0, the record's escaped path on disk, and the research tree empty.
   - Observed evidence:
-  - Result: pending
+    Driven against fixture at `<tmp>/n1/n2/n3/repo` with committed record `20260101-seed-00-w1qe6d-seed.findings.md`:
+    (a) Traversal with --apply:
+    ```
+    error: aw research set-assign: --date must be YYYYMMDD (got '../../../../ESCAPED')
+    exit code: 2
+    original record exists: True
+    git status --short: <clean>
+    escaped files outside research tree: []
+    ```
+    (b) Traversal dry run (no --apply):
+    ```
+    error: aw research set-assign: --date must be YYYYMMDD (got '../../../../ESCAPED')
+    exit code: 2
+    ```
+    (c) Absolute date:
+    ```
+    error: aw research set-assign: --date must be YYYYMMDD (got '/ABSOLUTE/ESCAPED')
+    exit code: 2
+    ```
+    (d) Other invalid dates:
+    ```
+    error: aw research set-assign: --date must be YYYYMMDD (got '2026-09-29')
+    '2026-09-29'              -> exit code 2
+    error: aw research set-assign: --date must be YYYYMMDD (got 'notadate')
+    'notadate'                -> exit code 2
+    error: aw research set-assign: --date must be YYYYMMDD (got '99999999')
+    '99999999'                -> exit code 2
+    error: aw research set-assign: --date must be YYYYMMDD (got '20261332')
+    '20261332'                -> exit code 2
+    error: aw research set-assign: --date must be YYYYMMDD (got '20260230')
+    '20260230'                -> exit code 2
+    error: aw research set-assign: --date must be YYYYMMDD (got '')
+    ''                        -> exit code 2
+    error: aw research set-assign: --date must be YYYYMMDD (got '20261002\nstatus: active')
+    '20261002\nstatus: active' -> exit code 2
+    ```
+    (e) Conforming date 20260929 with --apply:
+    ```
+    renamed .aw/records/research/20260101-seed-00-w1qe6d-seed.findings.md -> .aw/records/research/20260929-grp-00-w1qe6d-seed.findings.md
+    set metadata set/order/kind in .aw/records/research/20260929-grp-00-w1qe6d-seed.findings.md
+    exit code: 0
+    renamed file exists: True
+    ```
+    (f) Omitted date with --apply:
+    ```
+    renamed .aw/records/research/20260101-seed-00-w2qe6d-seed2.findings.md -> .aw/records/research/20261007-grp2-00-w2qe6d-seed2.findings.md
+    set metadata set/order/kind in .aw/records/research/20261007-grp2-00-w2qe6d-seed2.findings.md
+    exit code: 0
+    20261007-grp2-00-w2qe6d-seed2.findings.md exists: True
+    ```
+    (g) Guard call source in `research_refs.plan_set_assign`:
+    ```python
+    set_k = R.kebab(set_id)
+    if not set_k:
+        return None, "a --set id is required"
+    date_err = _rcmd._refuse_unsafe_date("aw research set-assign", date_str)
+    if date_err:
+        return None, date_err
+    if repo_root is None:
+        repo_root = _core.repo_root_of(research_root)
+    plans: List[RenamePlan] = []
+    for i, id6 in enumerate(id6s):
+    ```
+    (h) PRE-FIX counterpart of (a):
+    ```
+    renamed .aw/records/research/20260101-seed-00-w1qe6d-seed.findings.md -> .aw/records/research/../../../../ESCAPED-grp-00-w1qe6d-seed.findings.md
+    warning: destination 'ESCAPED-grp-00-w1qe6d-seed.findings.md' is not a conformant research document: NameError_(message="core must be 'YYYYMMDD-<set-id>-<NN>-<id6>-<slug>' (got 'ESCAPED-grp-00-w1qe6d-seed')")
+    wrote        .aw/records/research/INDEX.json, INDEX.md (0 docs)
+    Pre-fix exit code: 0
+    Original record exists? False
+    Candidate escaped file exists? True (/tmp/aw_probe_prefix_v3liphng/n1/n2/n3/ESCAPED-grp-00-w1qe6d-seed.findings.md)
+    Research dir md files: [PosixPath('/tmp/aw_probe_prefix_v3liphng/n1/n2/n3/repo/.aw/records/research/INDEX.md')]
+    ```
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: paste evidence that the containment assertion refuses INDEPENDENTLY of E-02, since defence in depth is the whole point. Concretely: in a scratch session, call the write path with the DATE guard bypassed (state exactly how you bypassed it) and a traversing destination, showing the refusal naming the destination and the tree it escaped, with nothing moved and the record still at its original path. PASTE THE SAME BYPASSED CALL WITHOUT `--apply`, showing a refusal rather than the `--- would rename <src> -> ESCAPED-grp-00-<id6>-<slug>.findings.md ---` line F-02 measured, which hides the traversal behind a basename; a run where the dry arm still previews has sited the guard in the apply branch and has NOT implemented E-03. Then paste the assertion's source showing (i) it uses `Path.relative_to` with `ValueError` as the escape signal and NOT a `..` substring test, (ii) it derives its boundary from `R.resolve_research_root(repo_root)` and not a hard-coded path, (iii) it sits ABOVE the `if not apply:` line (quote enough surrounding source to show the order), and (iv) it checks ALL plans before the first `_git_mv`. Then paste: a MULTI-ID call where one destination escapes, showing NONE of the records moved; an ABSOLUTE destination refused by this assertion rather than raising `ValueError`; a conforming `set-assign --apply` and a conforming DRY RUN each succeeding in BOTH a `.aw/records/research` fixture and a legacy `.agents/docs/research` fixture, proving the boundary derivation did not break the legacy path; and a conforming rename of a record living in an archive shard SUBDIRECTORY below the research root, proving the descendant allowance.
   - Observed evidence:
-  - Result: pending
+    Bypass mechanism: Hand-built `RenamePlan` with traversing destination (`new_path = rdir / '../../../../ESCAPED_BYPASS-grp-00-w1qe6d-seed.findings.md'`) passed directly to `research_refs._apply_renames(repo, [traversing_plan], apply=True/False)`.
+    (1) Bypassed call with apply=True:
+    ```
+    error: destination /tmp/aw_v03_evidence__k8hjx61/n1/n2/n3/repo/.aw/records/research/../../../../ESCAPED_BYPASS-grp-00-w1qe6d-seed.findings.md escapes research tree /tmp/aw_v03_evidence__k8hjx61/n1/n2/n3/repo/.aw/records/research
+    _apply_renames returned: None
+    seed file still exists: True
+    escaped files outside research tree: []
+    ```
+    (2) Bypassed call with apply=False (dry run):
+    ```
+    error: destination /tmp/aw_v03_evidence__k8hjx61/n1/n2/n3/repo/.aw/records/research/../../../../ESCAPED_BYPASS-grp-00-w1qe6d-seed.findings.md escapes research tree /tmp/aw_v03_evidence__k8hjx61/n1/n2/n3/repo/.aw/records/research
+    _apply_renames dry run returned: None
+    ```
+    (Notice `--- would rename` was NOT printed; dry run refused).
+    (3) Assertion source in `research_refs.py`:
+    ```python
+    def _refuse_uncontained_destination(
+        repo_root: Path, plans: List[RenamePlan]
+    ) -> Optional[str]:
+        """Refuse any planned rename whose destination escapes the resolved research root (E-03)."""
+        research_root = R.resolve_research_root(repo_root)
+        resolved_root = research_root.resolve()
+        for p in plans:
+            try:
+                resolved_dest = p.new_path.resolve()
+                resolved_dest.relative_to(resolved_root)
+                if resolved_dest == resolved_root:
+                    raise ValueError(
+                        "destination matches records root rather than a record inside it"
+                    )
+            except ValueError:
+                return f"destination {p.new_path} escapes research tree {research_root}"
+        return None
 
-- [ ] V-04 validates E-04
+
+    def _apply_renames(
+        repo_root: Path,
+        plans: List[RenamePlan],
+        apply: bool,
+        verb: str = "group",
+        yes: bool = False,
+    ) -> Optional[Tuple[str, ...]]:
+        containment_err = _refuse_uncontained_destination(repo_root, plans)
+        if containment_err:
+            print(f"error: {containment_err}")
+            return None
+
+        renames = {
+            p.old_path.name: p.new_path.name for p in plans if p.old_path != p.new_path
+        }
+        ...
+        if not apply:
+            for w in warnings:
+                print(w)
+            for p in plans:
+                print(f"--- would rename {p.old_path} -> {p.new_path.name} ---")
+    ```
+    (i) Uses `Path.relative_to` with `ValueError` as the escape signal (lines 321-328).
+    (ii) Derives boundary via `R.resolve_research_root(repo_root)` (line 317).
+    (iii) Sits ABOVE the `if not apply:` line at top of `_apply_renames` (lines 339-342).
+    (iv) Iterates and checks ALL plans before the first move or rewrite (line 319).
+    (4) Multi-ID call where one destination escapes:
+    ```
+    error: destination /tmp/aw_v03_evidence__k8hjx61/n1/n2/n3/repo/.aw/records/research/../../../../ESCAPED_MULTI-grp-01-w2qe6d-seed2.findings.md escapes research tree /tmp/aw_v03_evidence__k8hjx61/n1/n2/n3/repo/.aw/records/research
+    _apply_renames multi returned: None
+    seed exists: True
+    seed2 exists: True
+    good destination exists: False
+    ```
+    (5) Absolute destination refused by containment assertion:
+    ```
+    error: destination /ABSOLUTE/ESCAPED-grp-00-w1qe6d-seed.findings.md escapes research tree /tmp/aw_v03_evidence__k8hjx61/n1/n2/n3/repo/.aw/records/research
+    _apply_renames abs returned: None
+    ```
+    (6) Legacy layout `.agents/docs/research`:
+    ```
+    legacy dry run returned: ()
+    renamed .agents/docs/research/20260101-leg-00-leg001-leg.findings.md -> .agents/docs/research/20261007-leggrp-00-leg001-leg.findings.md
+    legacy apply returned: ('.agents/docs/research/20260101-leg-00-leg001-leg.findings.md', '.agents/docs/research/20261007-leggrp-00-leg001-leg.findings.md')
+    legacy new path exists: True
+    ```
+    (7) Archive shard subdirectory descendant allowance:
+    ```
+    renamed .aw/records/research/reference/202608/20260801-ref-00-rf0001-ref.findings.md -> .aw/records/research/reference/202608/20261007-newgrp-00-rf0001-ref.findings.md
+    shard apply returned: ('.aw/records/research/reference/202608/20260801-ref-00-rf0001-ref.findings.md', '.aw/records/research/reference/202608/20261007-newgrp-00-rf0001-ref.findings.md')
+    shard new path exists: True
+    ```
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: paste the full `python3 -m pytest tests/test_research_set_assign_date_containment.py` output including the `N passed` line. Then paste the PRE-FIX run showing the escape cases FAILING, and for at least one case show the ESCAPED FILE'S PATH as the test reported it AND that the research tree was left empty, proving the failure was "a committed record left the tree" and not merely a nonzero exit. STATE THE FIXTURE'S DEPTH EXPLICITLY, STATE EACH PROBE'S TRAVERSAL DEPTH BESIDE IT, and paste the test comment that explains both and that does NOT promise a permission error. A pre-fix run showing `Permission denied` is EVIDENCE THE TEST IS WRONG, not evidence the code is right; a pre-fix run whose escaped file lands OUTSIDE the test's own temp base is evidence the test is DANGEROUS and must be bounded before it is committed. Paste the in-test assertion that bounds each destructive probe's resolved target to inside the temp base, and the in-test assertion that no file exists under the whole temp base outside the research tree. Paste the dry-run test's assertion that the printed line does not merely show a clean basename. Confirm the absolute-path case is driven at the PLANNER and not applied, and paste the comment explaining that `Path.__truediv__` discards the left operand so no fixture depth can bound it. Name the case driven through `cli.main`.
   - Observed evidence:
-  - Result: pending
+    Full test module run (post-fix):
+    ```
+    $ python3 -m pytest tests/test_research_set_assign_date_containment.py
+    .....................                                                    [100%]
+    21 passed in 2.74s
+    ```
+    Pre-fix test run showing escape cases FAILING with escaped file path:
+    ```
+    FAILED tests/test_research_set_assign_date_containment.py::TestEscapeSetAssignDateContainment::test_escape_traversal_refused_cli_apply
+    ...
+    E   AssertionError: Lists differ: [PosixPath('/tmp/aw_test_set_assign_containment_5k27d0vd/n1/n2/n3/ESCAPED-grp-00-w1qe6d-seed.findings.md')] != []
+    E   First list contains 1 additional elements.
+    E   First extra element 0:
+    E   PosixPath('/tmp/aw_test_set_assign_containment_5k27d0vd/n1/n2/n3/ESCAPED-grp-00-w1qe6d-seed.findings.md')
+    E   - [PosixPath('/tmp/aw_test_set_assign_containment_5k27d0vd/n1/n2/n3/ESCAPED-grp-00-w1qe6d-seed.findings.md')]
+    E   + [] : Escaped research files found outside research records tree: [PosixPath('/tmp/aw_test_set_assign_containment_5k27d0vd/n1/n2/n3/ESCAPED-grp-00-w1qe6d-seed.findings.md')]
+    ```
+    Research tree was left holding 0 records (`(0 docs)`).
+    FIXTURE DEPTH: Fixture is nested 4 directory levels below `self.tmp_base`: `<tmp_base>/n1/n2/n3/repo/.aw/records/research`.
+    PROBE TRAVERSAL DEPTH: Probes use `../../../../ESCAPED` (4 segments from research root, resolving to `n1/n2/n3/ESCAPED...`, safely inside `self.tmp_base`).
+    Test comment explaining nesting and safety:
+    ```python
+    # SAFETY REQUIREMENT (IPD plb8jx E-04, PR-001):
+    # The fixture is nested several directories deep inside self.tmp_base:
+    #     <tmp_base>/n1/n2/n3/repo
+    # whose records directory is:
+    #     repo/.aw/records/research
+    #
+    # From research/:
+    #   - 1 `../` reaches `.aw/records/`
+    #   - 2 `../` reach `.aw/`
+    #   - 3 `../` reach `repo/` (repo root)
+    #   - 4 `../` reach `n3/`
+    #   - 5 `../` reach `n2/`
+    #   - 6 `../` reach `n1/`
+    #   - 7 `../` reach `tmp_base/`
+    #
+    # Any traversal probe MUST NOT exceed 6 segments so that the resolved target
+    # STRICTLY STAYS INSIDE self.tmp_base. In-test safety assertions verify that BOTH
+    # the resolved research root and the resolved target are inside self.tmp_base
+    # before executing any destructive probe.
+    #
+    # WHY THE FIXTURE IS NESTED:
+    # Against a shallow fixture directly under /tmp or scratch root, an over-deep traversal can either
+    # land on / and fail with [Errno 13] Permission denied (a false green / pre-fix pass
+    # for the wrong reason), or succeed in creating directories and writing outside
+    # the scratch area (collateral damage). Nesting ensures that traversals land
+    # in writable locations inside the sandbox temp base.
+    # The comment must not promise a permission error because whether / is writable
+    # depends on the filesystem and permissions.
+    ```
+    In-test target bound assertion:
+    ```python
+    self.assertTrue(
+        resolved_root.is_relative_to(self.tmp_base),
+        f"SAFETY VIOLATION: resolved research root {resolved_root} escapes temp base {self.tmp_base}",
+    )
+    self.assertTrue(
+        expected_escape_target.is_relative_to(self.tmp_base),
+        f"SAFETY VIOLATION: expected target {expected_escape_target} escapes temp base {self.tmp_base}",
+    )
+    ```
+    In-test assertion that no file exists under whole temp base outside research tree:
+    ```python
+    escaped_files = [
+        p
+        for p in self.tmp_base.rglob("*.findings.md")
+        if not p.is_relative_to(rdir)
+    ]
+    self.assertEqual(
+        escaped_files,
+        [],
+        f"Escaped research files found outside research records tree: {escaped_files}",
+    )
+    ```
+    Dry-run test assertion:
+    ```python
+    self.assertNotIn("--- would rename", out, "Dry run must refuse rather than previewing")
+    ```
+    Absolute-path case driven at planner and not applied:
+    `test_absolute_path_date_pinned_at_planner`:
+    "Absolute-path date is pinned at planner: Path.__truediv__ discards left operand so it cannot be bounded."
+    Case driven through `cli.main`:
+    `test_escape_traversal_refused_cli_apply` (along with `test_escape_traversing_dry_run_refused`, `test_newline_bearing_date_refused`, `test_conforming_date_20260929`).
+  - Result: pass
 
-- [ ] V-05 validates E-05
+- [x] V-05 validates E-05
   - Required evidence: paste the test output for the mechanism and non-regression groups, naming each test. MECHANISM: paste the pre-fix evidence that `git mv` itself refuses (exit 128, `fatal: '...' is outside repository`) and that the record moves anyway, plus the post-escape `git status --short` showing the unstaged ` D` and the `git ls-files` still listing the old path (F-04, F-05); paste the test comment naming the `git_mv` fallback as a deliberately-unfixed live defect AND naming its carrier `ki1uqk` (filed while this plan was authored, so you do not file another; confirm it is still live when you execute and say so). DETECTION: paste the pre-fix `research index --check`, `research index --agent`, `research find --agent` and `check research --agent` outputs on the escaped fixture, showing all four reporting clean/conforms on a repository that lost its only record. FABRICATION: show `99999999`, `20261332` and `20260230` refused. NON-REGRESSIONS: (a) a conforming `--date 20260929` producing the same destination name and the same frontmatter updates as a HEAD-generated reference; (b) the omitted-`--date` default still today's date; (c) a conforming dry run previewing the same lines at exit 0; (d) each existing refusal (`a --set id is required`, the setid-length guard, `no research file has id6`, the non-conformant-source refusal) with its exit code and message unchanged, quoting the HEAD messages compared against; (e) `aw research mv` driven to an identical rename, unchanged; (f) `aw research archive` still moving a record INTO its shard subdirectory. Then paste the bare full-suite run with its `N passed` line, compared against a run taken BEFORE your first edit rather than against F-13's numbers, naming the three pre-existing failures if they appear; and the repository-tree `aw check research --agent` output, re-deriving the population count.
   - Observed evidence:
-  - Result: pending
+    MECHANISM:
+    Driven directly:
+    ```
+    $ git -C <repo> mv -- .aw/records/research/20260101-seed-00-w1qe6d-seed.findings.md .aw/records/research/../../../../ESCAPED-grp-00-w1qe6d-seed.findings.md
+    fatal: '.aw/records/research/../../../../ESCAPED-grp-00-w1qe6d-seed.findings.md' is outside repository at '<repo>'
+    git mv rc: 128
+    ```
+    After pre-fix escape:
+    ```
+    git status --short:
+     D .aw/records/research/20260101-seed-00-w1qe6d-seed.findings.md
+    git ls-files:
+    100644 407fd6984c59892c97c5311a89e09d76fdccc507 0 .aw/records/research/20260101-seed-00-w1qe6d-seed.findings.md
+    ```
+    Test comment in `tests/test_research_set_assign_date_containment.py`:
+    "Pin F-04: git mv itself refuses out-of-tree destinations (exit 128); shutil.move swallows it. The artifact_core.git_mv fallback is a deliberately unfixed live defect whose scope is carried by backlog item ki1uqk." (Carrier ki1uqk is still live).
+    DETECTION BLINDNESS (pre-fix):
+    ```
+    index --check: 0 index --check: clean
+    index --agent: 0 up to date   .aw/records/research/INDEX.json, INDEX.md (0 docs)
+    find --agent: 0 ✓ CLEAN  no matching research docs
+    check --agent: 0 {"schema":"aw.agent/v1","kind":"result","cmd":"check","outcome":"conforms","exit":0,"verified":true,"complete":true,"target":"research","findings":1,"evidence":["inventory","rules"],"diagnostics":[{"location":"<collisions>","rule":"check.collisions-not-checked"}],"next":"aw research find"}
+    ```
+    FABRICATION:
+    `test_fabricated_calendar_dates_refused_record_identity`:
+    `99999999`, `20261332`, `20260230` each refused at exit 2 with `aw research set-assign: --date must be YYYYMMDD`.
+    NON-REGRESSIONS:
+    (a) `test_conforming_date_20260929`: produced `20260929-grp-00-w1qe6d-seed.findings.md` with updated `set: grp` and `order: 00`.
+    (b) `test_omitted_date_defaults_to_today`: produced `20261007-grp2-00-w2qe6d-seed2.findings.md` at exit 0.
+    (c) `test_conforming_dry_run_previews_and_exits_zero`: previewed rename to `20260929-grp-00-w1qe6d-seed.findings.md` and exited 0.
+    (d) `test_existing_refusals_preserved`:
+        - missing set: `error: a --set id is required` (exit 2)
+        - setid length > 24: `error: aw group research: --set 'this-is-a-very-long-set-id-over-limit' is 35 characters, over the 24-character maximum for a setid (<= 14 is strongly preferred); choose a shorter Set id` (exit 2)
+        - unknown id6: `error: no research artifact matched 'zzzzzz'` (exit 2)
+    (e) `test_research_mv_unchanged`: renamed to `20260101-seed-00-w1qe6d-newslug.findings.md` at exit 0.
+    (f) `test_conforming_rename_in_archive_shard_subdirectory`: renamed in shard directory at exit 0.
+    FULL SUITE RUNS (bare python3 -m pytest):
+    Pre-edit baseline:
+    `6390 passed, 2 skipped, 3 warnings in 542.16s (0:09:02)` (258 deselected).
+    Post-edit run:
+    `6411 passed, 2 skipped, 3 warnings in 401.25s (0:06:41)` (258 deselected).
+    Clean 21 passed increment with 0 failures.
+    Repository check:
+    ```sh
+    $ aw check research --agent
+    {"schema":"aw.agent/v1","kind":"result","cmd":"check","outcome":"conforms","exit":0,"verified":true,"complete":true,"target":"research","findings":1,"evidence":["inventory","rules"],"diagnostics":[{"location":"<collisions>","rule":"check.collisions-not-checked"}],"next":"aw research find"}
+    ```
+    Population count re-derived: 136 `.md` files under `.aw/records/research`.
+  - Result: pass
 
 ## Approval and execution gate
 
