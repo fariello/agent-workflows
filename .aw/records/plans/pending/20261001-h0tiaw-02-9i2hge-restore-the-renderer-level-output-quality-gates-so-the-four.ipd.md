@@ -6,7 +6,8 @@
 - Scope: IN: restore the seven renderer-level gates as a DEFAULT-COLLECTED module over the same four reviewed `CommandResult` fixtures, recovered from `git show 19313eed7^:tests/test_cli_quality_gates.py` rather than rewritten; give all twelve `.golden` files a reader; resolve the drifted `check_findings.human.golden` by regenerating it with the full diff quoted as evidence; and reconcile `CONTRIBUTING.md` step 6 against the enforced set this Set actually lands, promise by promise. OUT: the structural matrix gate, the exemption-registry cleanup and the `command_surface.py` comment reconciliation (sibling `dq9bj9`); the expensive live scenario sweep and the vacuous human-banner parity gate over live leaves (carrier `2wowfy`); any change to `agent_workflows/renderers.py`, `agent_workflows/result_types.py`, `agent_workflows/agent_schema.py` or `agent_workflows/term.py`, since every gate here measures GREEN against today's code and a production edit would mean the gate was authored to its own convenience.
 - Scope-Paths: tests/test_cli_quality_gates.py, tests/fixtures/conformance_goldens/check_findings.human.golden, CONTRIBUTING.md
 - Item-Dependencies: executed:dq9bj9
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
 - From-Backlog: h0tiaw
@@ -17,6 +18,7 @@
 - Id: 9i2hge
 
 ## Workflow history
+- 2026-10-07 reviewed (aw set): /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004. Reviewed at HEAD 8fecdffcb. Recovered module re-run in-process with the update variable unset: 14 tests, exactly 1 failure (check_findings human golden), confirming E-01's prediction. E-06(c) reconciled with dq9bj9 F-08 (a third undeclared-leaf assertion is allowed if labelled a precondition); E-06(b) gains the internally-used category dq9bj9 E-03 keeps; E-06(a) scoped to tests/; gate gains honesty, scope-fence and finalize-ownership wording. Review record .aw/records/reviews/20261001-h0tiaw-02-9i2hge-restore-the-renderer-level-output-quality-gates-so-the-four.review.md.
 - 2026-10-07 to-review (aw set): returned to review: Set-level checks now owned by 9i2hge E-06 (runs last) and the children's own V-items; coverage pass recorded
 - 2026-10-06 note (opencode its_direct/pt3-claude-opus-5.5-1m-us): added E-06/V-06, the three Set-level checks (no orphaned golden, no orphaned symbol, no tripled assertion) the orchestrator `l8wvv3` carried with no owner; this plan runs last, after `dq9bj9`, so it is the only child that can see both changes. Measurement only; no scope change.
 - 2026-10-06 draft (aw set): demoted to-review -> draft: returned to authoring by gradcover 52opph: uncovered obligation: No orphaned golden and no orphaned symbol, checked across both children together
@@ -193,9 +195,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 5: the Set-level checks this plan runs because it executes last
 
-- [ ] E-06 RUN THE THREE SET-LEVEL CHECKS orchestrator `l8wvv3` assigns to this plan, because this plan executes after `dq9bj9` (its declared dependency) and is the only point at which both children's changes exist together. (a) NO ORPHANED GOLDEN: `rg '\.golden' --glob '!*.golden'` over the tree returns at least one hit, and every one of the twelve `.golden` files under `tests/fixtures/conformance_goldens/` is read by a test. (b) NO ORPHANED SYMBOL: for every public name defined in `tests/conformance_matrix.py` after `dq9bj9`'s edits, either a test imports it or it is absent from the module; record the per-name result. (c) NO TRIPLED ASSERTION: confirm the zero-undeclared-leaves assertion is made by `test_command_surface_declarations.py` and `test_model_vocab.py::test_10_zero_undeclared_leaves` and NOT re-made by `dq9bj9`'s `tests/test_conformance_matrix_structure.py`, and that each new module states what it adds. This plan changes nothing for this item; it only measures. A failure is reported and the Set is not declared complete.
+- [ ] E-06 RUN THE THREE SET-LEVEL CHECKS orchestrator `l8wvv3` assigns to this plan, because this plan executes after `dq9bj9` (its declared dependency) and is the only point at which both children's changes exist together. (a) NO ORPHANED GOLDEN: `rg '\.golden' --glob '!*.golden' tests/` returns at least one hit (scoped to `tests/` at review 2026-10-07, because a tree-wide search is now satisfied trivially by plan and review prose under `.aw/records/`), and every one of the twelve `.golden` files under `tests/fixtures/conformance_goldens/` is READ by a collected test, shown by mapping each file to the fixture name and render suffix the module iterates. (b) NO ORPHANED SYMBOL: for every public name defined in `tests/conformance_matrix.py` after `dq9bj9`'s edits, record exactly one of: imported by a test; used INTERNALLY by a name that is imported (the category `dq9bj9` E-03 deliberately keeps for `RunResult`, `Exemption` and `_pinned_env`, which have zero importers by design); or absent from the module. A name in none of those three is the orphan this check exists to catch. (c) NO SILENTLY TRIPLED ASSERTION: the zero-undeclared-leaves assertion is made by `test_command_surface_declarations.py::test_zero_undeclared_parser_leaves` and `test_model_vocab.py::test_10_zero_undeclared_leaves`. `dq9bj9` F-08 PERMITS `tests/test_conformance_matrix_structure.py` to make it a third time as the matrix's own precondition, provided the module SAYS so rather than presenting it as new coverage. Confirm either that it is absent there, or that it is present AND labelled as a precondition; and confirm each new module states what it adds. (Corrected at review 2026-10-07: the earlier wording required it to be absent, which contradicted the sibling plan's own permitted design.) This plan changes nothing for this item; it only measures. A failure is reported and the Set is not declared complete.
   - Depends on: E-05
-  - Expected outcome: (a) at least one reader hit and all twelve goldens read; (b) a per-name table with no name both defined and unimported; (c) the overlap confirmed as stated, not repeated.
+  - Expected outcome: (a) at least one reader hit under `tests/` and all twelve goldens mapped to a reading test; (b) a per-name table where every name is imported, internally used by an imported name, or absent; (c) the third undeclared-leaf assertion either absent or explicitly labelled a precondition.
   - Execution state: pending
 
 ## Project conventions discovered (Step 0)
@@ -434,7 +436,7 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Result: pending
 
 - [ ] V-06 validates E-06
-  - Required evidence: PASTE the `rg '\.golden' --glob '!*.golden'` output and, for each of the twelve goldens, the test that reads it. PASTE the per-name table for `tests/conformance_matrix.py` (name, importer or `absent`). PASTE the greps showing the zero-undeclared-leaves assertion appears in the two named files and not in `tests/test_conformance_matrix_structure.py`.
+  - Required evidence: PASTE the `rg '\.golden' --glob '!*.golden' tests/` output and, for each of the twelve goldens, the test method and fixture/suffix pair that reads it. PASTE the per-name table for `tests/conformance_matrix.py` (name, and one of: importer, internal user, or `absent`), re-derived at execution rather than copied from `dq9bj9`. PASTE the greps showing the zero-undeclared-leaves assertion in the two named files, and for `tests/test_conformance_matrix_structure.py` either a grep returning nothing or the assertion together with the sentence labelling it a precondition.
   - Observed evidence:
   - Result: pending
 
@@ -457,6 +459,14 @@ is a wrong value inside a reviewed artifact that now has a reader, so re-verify
 if a second does, stop and determine whether it is this plan's change or a concurrent lane's. Other agents
 may be working in this checkout, so leave untracked or modified files this plan does not own alone.
 
+HONESTY RULE (hard MUST): paste the ACTUAL runner output for every claimed pass, probe failure, grep and
+summary line; a summary you did not run is not evidence. SCOPE FENCE: `- Scope-Paths:` is a DECLARATION for
+reconciliation; an out-of-scope edit (for example a second drifted golden, per Scope check) is made and then
+justified at finalize with `--scope-reason`, and a declared-but-unmodified path is acknowledged with
+`--scope-ack`.
+
 Do NOT move this plan to `.aw/records/plans/executed/` until `aw ipd lint --phase pre-transition` reports
-conforming and every `V-*` above carries pasted evidence with `Result: pass`. The bar for V-05's suite delta is
+conforming and every `V-*` above carries pasted evidence with `Result: pass`. Under `aw oc run` / `aw agy run`
+the runner performs the terminal transition; executed by hand, the executor runs `aw ipd finalize`. Never
+hand-edit `- Status:` and never hand-`git mv` the file into `executed/`. The bar for V-05's suite delta is
 an EMPTY SET, not a green run.
