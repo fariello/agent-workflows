@@ -3,10 +3,11 @@
 - Date: 2026-10-01
 - Kind: child
 - Concern: `tests/conformance_matrix.build_matrix` and `required_scenarios` compute a 1193-row coverage matrix over all 163 `COMMAND_INVENTORY` declarations and 152 parser leaves, AND NOTHING ASSERTS ANY OF IT. Measured in this lane at HEAD `b6792ad4a`, fourteen public names in that module (`SCENARIOS`, `required_scenarios`, `MatrixRow`, `MatrixReport`, `build_matrix`, `render_matrix_report`, `semantic_facts_from_human`, `outcome_family`, `ANSI_RE`, `GOLDEN_DIR`, `USAGE_ERROR_FLAG`, `RunResult`, `Exemption`, `_pinned_env`) have ZERO importers anywhere under `tests/`, `agent_workflows/`, `docs/` or `tools/`. The driver that executed them, `tests/test_cli_conformance_matrix.py`, was deleted by test-trimming commit `19313eed7`. THREE CONSEQUENCES ARE LIVE RIGHT NOW. (1) `agent_workflows/command_surface.py` reasons from `required_scenarios` in three separate comments, two asserting it is binding ("declaring the wrong class demands the wrong coverage"; "`status` obliges a `domain_failure` row while `next` does not. ... It must not be 'tidied' into symmetry") and the third correctly contradicting them ("`conformance_matrix` is currently a dead surface with no live importer (F-05), so the obligation is currently latent rather than enforced"), so the normative inventory documents two incompatible beliefs about its own gate. (2) `EXEMPTION_REGISTRY` carries THREE `known_broken` entries for `config show`, `config get` and `config is` citing backlog `dtq6jr`; that item is `done` and all three leaves now CONFORM (driven today: `config show --agent` emits a schema-valid `result` at exit 0 with exit parity, and `config get interactive --agent` / `config is interactive --agent` each emit a schema-valid `error` at exit 2 with exit parity), so the registry whose own banner reads "THE REGISTRY IS A CEILING, NOT A CONVENIENCE ... a `known_broken` entry REQUIRES a filed item id" is suppressing three passing leaves against a closed id. (3) `discover_parser_leaves`' own docstring says "``AliasEquivalenceTests`` owns alias behavior" and that class no longer exists, while twelve leaves are declared `command_class="alias"` and no surviving test asserts alias byte-equivalence.
-- Scope: IN: restore the STRUCTURAL and ALIAS halves of the deleted driver as a new DEFAULT-COLLECTED test module, recovering them from `git show 19313eed7^:tests/test_cli_conformance_matrix.py` rather than rewriting from the docstring; widen its `declared_absent` pin from one member to the two that exist today, citing the filed owner of each; delete the three stale `dtq6jr` exemptions and move the two argument-requiring config leaves into `RUNNABLE_ARGV` where they belong; resolve every remaining dead symbol in `tests/conformance_matrix.py` to either an executor or deletion, leaving no third category; and reconcile the three `command_surface.py` comments with what is then enforced. OUT: the expensive live scenario sweep and the vacuous human-banner parity gate (both carried by `2wowfy`); the renderer-level golden and budget gates (child `9i2hge`); fixing either leaf the widened pin names (`68sur3`, `lbbo9s`); adding any `LIVE_SAFE_LEAVES` member or any mutation-class coverage (plan `vfv2db`).
+- Scope: IN: restore the STRUCTURAL and ALIAS halves of the deleted driver as a new DEFAULT-COLLECTED test module, recovering them from `git show 19313eed7^:tests/test_cli_conformance_matrix.py` rather than rewriting from the docstring; re-pin its `declared_absent` assertion to the set measured at execution (EMPTY at review 2026-10-07, since both former members' owners `68sur3` and `lbbo9s` are `done`), citing the owner of any member that remains; delete the three stale `dtq6jr` exemptions and move the two argument-requiring config leaves into `RUNNABLE_ARGV` where they belong; resolve every remaining dead symbol in `tests/conformance_matrix.py` to either an executor or deletion, leaving no third category; and reconcile the three `command_surface.py` comments with what is then enforced. OUT: the expensive live scenario sweep and the vacuous human-banner parity gate (both carried by `2wowfy`); the renderer-level golden and budget gates (child `9i2hge`); fixing any leaf the re-measured pin names; adding any `LIVE_SAFE_LEAVES` member or any mutation-class coverage (plan `vfv2db`).
 - Scope-Paths: tests/conformance_matrix.py, tests/test_conformance_matrix_structure.py, agent_workflows/command_surface.py
 - Item-Dependencies: none
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
 - From-Backlog: h0tiaw
@@ -17,6 +18,7 @@
 - Id: dq9bj9
 
 ## Workflow history
+- 2026-10-07 reviewed (aw set): /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005, PR-006. Re-measured at 20cec6d24: declared_absent is now empty (68sur3, lbbo9s done), so E-04 pins the execution-time set; alias pairs re-timed 11.8s/36.4s, now one parametrized case per pair; Exemption gained an importer via gm9baj; fixed probe 2; tied the alias class name to the discover_parser_leaves docstring; completed the execution contract.
 - 2026-10-07 to-review (aw set): returned to review: Set-level checks now owned by 9i2hge E-06 (runs last) and the children's own V-items; coverage pass recorded
 - 2026-10-06 draft (aw set): demoted to-review -> draft: returned to authoring by gradcover 52opph: uncovered obligation: No orphaned golden and no orphaned symbol, checked across both children together
 
@@ -41,7 +43,10 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   under its ORIGINAL name temporarily, run it, and CAPTURE THE RESULT PER TEST METHOD. This is the step that
   converts "revive a stale harness" from a guess into a measurement: the plan predicts exactly one
   structural failure (`test_declared_absent_leaves_are_only_the_known_prompts_family`, see F-02) and the
-  prediction is falsifiable.
+  prediction is falsifiable. RE-MEASURED AT REVIEW 2026-10-07 (HEAD `20cec6d24`): `build_matrix(_build_parser())`
+  reports `declared_absent == []` and `undeclared == []` over 1209 rows, because `prompts set` was registered
+  (commit `52ae65a96`) and the bare `upgrade-test` group was fixed (`lbbo9s` done via `7pnneh`). So the
+  predicted failure is now `{"prompts set"}` expected versus `set()` actual, not the two-member set F-02 records.
 
   THE RECOVERED FILE CARRIES `pytestmark = pytest.mark.slow`, which is why running it needs `-m ''` or an
   explicit path plus `-m ''`. Note that marker: it is the thing E-04 removes for the structural half, and
@@ -55,7 +60,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Depends on: none
   - Expected outcome: a per-test-method pass/fail table for the recovered driver, with
     `test_declared_absent_leaves_are_only_the_known_prompts_family` failing and its actual-versus-expected
-    set captured verbatim, and an explicit statement of whether anything ELSE failed (which would be a
+    set captured verbatim (expected at review: actual `set()`), and an explicit statement of whether anything ELSE failed (which would be a
     finding this plan did not predict).
   - Execution state: pending
 
@@ -110,6 +115,13 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   carrier `2wowfy` reintroduce them with a working predicate. `render_matrix_report` renders a report nothing
   consumes; decide and say which.
 
+  RE-MEASURED AT REVIEW: since authoring, executed plan `gm9baj` (commit `17801a40b`) added
+  `UNREACHABLE_COMMAND_ALLOW_SET` to this module and made `tests/test_command_surface_declarations.py` import
+  it together with `Exemption`, so `Exemption` now HAS a live importer. `UNREACHABLE_COMMAND_ALLOW_SET` is not
+  one of the fourteen and is `gm9baj`'s, so leave it alone. ALSO CORRECT the `build_matrix` comment that reads
+  "declared_absent is reported on MatrixReport but no longer asserted over", which E-04 makes false; name the
+  new module instead.
+
   WHATEVER IS KEPT GETS AN EXECUTOR IN THIS CHILD. That is the invariant the backlog item asked for, and a
   symbol kept "for later" with a comment is the exact condition that produced the item.
   - Depends on: E-02
@@ -130,20 +142,24 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   `declared_absent` set equals its PINNED membership; and every `LIVE_SAFE_LEAVES` member produces at least
   one matrix row.
 
-  WIDEN THE `declared_absent` PIN TO BOTH MEMBERS AND CITE BOTH OWNERS. The recovered assertion reads
-  `assertEqual(set(report.declared_absent), {"prompts set"})`; measured today the set is
-  `{"prompts set", "upgrade-test"}`. BOTH are filed: `prompts set` is declared `mutation` with no parser
-  leaf (open backlog `68sur3`), and the bare `upgrade-test` group is declared `read` with
-  `agent_record_kind="result"` while exiting 2 from an argparse usage block (open backlog `lbbo9s`, at
-  `Blocks-Release: next`). Pin the two-member set and name both id6s in the assertion message, so the next
-  reader learns WHO owns each absence from the failure itself. DO NOT delete the assertion and do not
-  replace it with an inequality: its entire value is that a THIRD silent absence fails. DO NOT fix either
-  leaf here.
+  RE-PIN THE `declared_absent` ASSERTION TO THE SET MEASURED AT EXECUTION. The recovered assertion reads
+  `assertEqual(set(report.declared_absent), {"prompts set"})`. At authoring the set was
+  `{"prompts set", "upgrade-test"}`; RE-MEASURED AT REVIEW it is EMPTY, because both owners (`68sur3`,
+  `lbbo9s`) are now `done`. So the expected pin is `set()`, and the assertion message must say what a
+  non-empty value means: a declaration whose parser leaf vanished, to be fixed or owned with a filed id6,
+  and cross-checked against the behavioral reachability gate
+  `tests/test_command_surface_declarations.py::test_zero_unreachable_command_declarations` and its
+  `UNREACHABLE_COMMAND_ALLOW_SET` (from `gm9baj`). If a member DOES exist at execution, pin it and name its
+  live owner id6 in the message; never pin a member whose owner is closed. DO NOT delete the assertion and
+  do not replace it with an inequality: its value is that a NEW silent absence fails. Fix no leaf here.
 
   KEEP THE ALIAS GATE, measured green: `spec check` versus `specs check` and `sanitize` versus
-  `check-local-leaks` agree on returncode AND on stdout byte for byte. BUDGET IT HONESTLY: the two pairs
-  cost 2.8s and 12.2s respectively, so four subprocess invocations against the 90s `conftest.py` hang
-  budget (`_DEFAULT_TEST_TIMEOUT = 90.0`). That fits, but it is the one assertion here with nontrivial cost;
+  `check-local-leaks` agree on returncode AND on stdout byte for byte. NAME THE CLASS `AliasEquivalenceTests`
+  (or update `command_surface.discover_parser_leaves`' docstring in E-06), because that docstring justifies
+  excluding aliases by citing a class of that name. PARAMETRIZE ONE TEST PER PAIR rather than looping
+  subTests inside one function, so each pair gets its own hang budget. BUDGET IT HONESTLY: the two pairs
+  cost 2.8s and 12.2s at authoring, but 11.8s and 36.4s RE-MEASURED AT REVIEW on a loaded machine, against
+  the 90s `conftest.py` hang budget (`_DEFAULT_TEST_TIMEOUT = 90.0`). That fits, but it is the one assertion here with nontrivial cost;
   RE-MEASURE at execution and if the margin is under 3x, either narrow to the cheap pair with the cost
   recorded or set an explicit `@pytest.mark.timeout(<n>)` with the measurement justifying `<n>`. Do NOT
   reach for `slow` to make a timing problem go away: that moves the test into the CI-advisory step and
@@ -157,7 +173,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   required scenario), never the tally.
   - Depends on: E-03
   - Expected outcome: a new module that is COLLECTED AND PASSING under a bare `python3 -m pytest` with no
-    `-m ''`, whose `declared_absent` assertion names both `68sur3` and `lbbo9s`, and which contains no row
+    `-m ''`, whose `declared_absent` assertion pins the execution-time set (expected `set()`) with a message
+    naming the reachability gate and the owner of any member, whose alias test is one parametrized case per
+    pair, and which contains no row
     count, no declaration count, and no `pytestmark = pytest.mark.slow`.
   - Execution state: pending
 
@@ -168,8 +186,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
   THREE PROBES, EACH REVERTED. (1) Register a throwaway subparser leaf with no `CommandDeclaration` and
   confirm the undeclared-leaf assertion fails NAMING that leaf. (2) Change one declaration's
-  `command_class` so `required_scenarios` demands a scenario the matrix does not supply, or remove a
-  declaration whose parser leaf still exists, and confirm the coverage or `declared_absent` assertion fails.
+  `command_class` so `required_scenarios` demands a scenario the matrix does not supply, or add a throwaway
+  declaration with no parser leaf, and confirm the coverage or `declared_absent` assertion fails naming it.
+  (Removing a declaration whose leaf still exists trips the undeclared-leaf assertion, not `declared_absent`.)
   (3) Make one alias diverge from its canonical target (for example by having it emit one extra byte) and
   confirm the alias assertion fails on the byte comparison rather than passing on the returncode alone.
 
@@ -196,7 +215,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   IS enforced, naming the module that enforces it, and PRESERVE its substantive point (that `1` is omitted
   from `runs next`'s `exit_contract` on correctness grounds, not for lack of a gate), because that reasoning
   is load-bearing and independent of whether a test exists. Leave the first two as found if they read true;
-  if either overstates what E-04 actually enforces, narrow it.
+  if either overstates what E-04 actually enforces, narrow it. Also confirm the
+  `discover_parser_leaves` docstring's `AliasEquivalenceTests` citation resolves to the E-04 class; if E-04
+  named it differently, correct the docstring (docstring only).
 
   THIS IS A COMMENT EDIT IN A PRODUCTION MODULE AND NOTHING MORE. Change no `CommandDeclaration` field, no
   `exit_contract`, and no `command_class`: a declaration change would alter what the new gate demands, in
@@ -237,9 +258,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 | id | finding | evidence |
 | --- | --- | --- |
 | F-01 | THE STRUCTURAL GATE IS GREEN AND COSTS 0.513s, so this is a cheap restoration and not a rescue. Driven in-process at HEAD `b6792ad4a`: `find_undeclared_leaves(_build_parser())` returns `set()`; `build_matrix` yields 1193 rows over 163 declarations and 152 parser leaves with `undeclared == []`; iterating every declaration present in the parser, ZERO have a `required_scenarios` member missing from their matrix rows. Import costs 0.669s and the whole structural pass 0.513s. | The matrix built, timed, and each assertion evaluated in-process. |
-| F-02 | THE ONE ASSERTION THAT WOULD LAND RED IS `declared_absent`, AND BOTH OF ITS MEMBERS ARE FILED. The recovered `test_declared_absent_leaves_are_only_the_known_prompts_family` asserts `{"prompts set"}`; measured today `report.declared_absent` is `['prompts set', 'upgrade-test']`. `prompts set` is declared `command_class="mutation"` with `mutation_gate="auth_floor"` and has no parser leaf: open backlog `68sur3` ("prompts set dispatched but unregistered"). The bare `upgrade-test` group is declared `command_class="read"`, `agent_record_kind="result"` and is absent from `discover_parser_leaves` while its eight children (`upgrade-test list`, `env`, `probe`, `sandboxes`, ...) are all present; driven, `upgrade-test --agent` prints an argparse usage block on STDOUT and exits 2: open backlog `lbbo9s`, carrying `Blocks-Release: next`. So the fix is to widen the pin and cite both, which preserves the assertion's value (a third absence fails) without absorbing two bug fixes. | `build_matrix` driven; `discover_parser_leaves` membership checked per command; both backlog records read; `upgrade-test --agent` driven. |
+| F-02 | THE ONE ASSERTION THAT WOULD LAND RED IS `declared_absent`, AND BOTH OF ITS MEMBERS ARE FILED. The recovered `test_declared_absent_leaves_are_only_the_known_prompts_family` asserts `{"prompts set"}`; measured today `report.declared_absent` is `['prompts set', 'upgrade-test']`. `prompts set` is declared `command_class="mutation"` with `mutation_gate="auth_floor"` and has no parser leaf: open backlog `68sur3` ("prompts set dispatched but unregistered"). The bare `upgrade-test` group is declared `command_class="read"`, `agent_record_kind="result"` and is absent from `discover_parser_leaves` while its eight children (`upgrade-test list`, `env`, `probe`, `sandboxes`, ...) are all present; driven, `upgrade-test --agent` prints an argparse usage block on STDOUT and exits 2: open backlog `lbbo9s`, carrying `Blocks-Release: next`. So the fix is to widen the pin and cite both, which preserves the assertion's value (a third absence fails) without absorbing two bug fixes. SUPERSEDED AT REVIEW 2026-10-07: both owners are now `done` (`68sur3` via `gm9baj`/`52ae65a96`, `lbbo9s` via `7pnneh`), and `declared_absent` re-measured EMPTY; E-04 now pins the execution-time set. | `build_matrix` driven; `discover_parser_leaves` membership checked per command; both backlog records read; `upgrade-test --agent` driven. |
 | F-03 | THE PARITY HELPERS ARE VACUOUS ON EVERY CURATED LEAF, which is why this child drops that gate rather than porting it. `semantic_facts_from_human` returns an outcome only when stdout line 1 starts with `AW ` and line 2 carries an uppercase status word from `_HUMAN_OUTCOME_WORDS`. Driven over all 16 `LIVE_SAFE_LEAVES`: ZERO satisfy that shape, so `outcome_family` is never compared and every subtest degrades to `assertEqual(agent.returncode, human.returncode)`. Three concrete shapes explain it: `status` opens `agent-workflows status`, `backlog check` opens `aw backlog check: all backlog items conform.`, and `layout` opens `AW Workspace Layout Model` whose second line is `INFO     Read-only inspection; nothing is written or moved.`. The helper is NOT broken: driven on a synthesized `CommandResult` render it correctly returns `{'outcome_family': 'findings'}`, and the live leaf `runs query schema` DOES banner (`AW runs query` then `✓ CONFORMS  schema: 10 views, 6 metrics`) but is not in the curated set. | All 16 leaves driven through the helper; 13 additional read/check leaves probed; the helper driven on a synthesized render. |
-| F-04 | THREE EXEMPTIONS CITE A CLOSED ITEM AND ALL THREE LEAVES CONFORM. `EXEMPTION_REGISTRY` entries for `config show`, `config get` and `config is` carry `reason_kind="known_broken"` and `citation="dtq6jr"`; that item is in `.aw/records/backlog/done/`. Driving the four properties `tests/test_agent_surface_conformance.py` asserts: `config show --agent` gives non-empty stdout, a terminal `result` record, `validate_agent_record` returning `[]`, and `exit` 0 matching the returncode. `config get --agent` and `config is --agent` with no positional argument give EMPTY stdout at exit 2 (argparse rejects first), but `config get interactive --agent` and `config is interactive --agent` each give a schema-valid `error` record at exit 2 with exit parity. Both leaves declare a required positional (`config get`'s is `varname`), so they belong in `RUNNABLE_ARGV` alongside the fourteen entries already there. A separate default-collected module, `tests/test_config_agent_surface.py`, already asserts all seven config verbs including these, which independently corroborates that the crash is gone. | All five invocations driven with records validated; `aw config get --help` read for the positional; `dtq6jr` located; `tests/test_config_agent_surface.py` read. |
+| F-04 | THREE EXEMPTIONS CITE A CLOSED ITEM AND ALL THREE LEAVES CONFORM. `EXEMPTION_REGISTRY` entries for `config show`, `config get` and `config is` carry `reason_kind="known_broken"` and `citation="dtq6jr"`; that item is in `.aw/records/backlog/done/`. Driving the four properties `tests/test_agent_surface_conformance.py` asserts: `config show --agent` gives non-empty stdout, a terminal `result` record, `validate_agent_record` returning `[]`, and `exit` 0 matching the returncode. `config get --agent` and `config is --agent` with no positional argument give EMPTY stdout at exit 2 (argparse rejects first), but `config get interactive --agent` and `config is interactive --agent` each give a schema-valid `error` record at exit 2 with exit parity. Both leaves declare a required positional (`config get`'s is `varname`), so they belong in `RUNNABLE_ARGV` alongside the fourteen entries already there. Re-driven at review 2026-10-07: same results (`config get interactive` gives `outcome: cannot-run`, `exit: 2`). A separate default-collected module, `tests/test_config_agent_surface.py`, already asserts all seven config verbs including these, which independently corroborates that the crash is gone. | All five invocations driven with records validated; `aw config get --help` read for the positional; `dtq6jr` located; `tests/test_config_agent_surface.py` read. |
 | F-05 | THE ALIAS GATE HAS NO OTHER OWNER AND IS GREEN. Twelve declarations carry `command_class="alias"` (`attention`, `att`, `todo`, `sanitize`, `spec set`, `spec note`, `spec check`, `spec migrate`, `oc review`, `agy review`, `oc integrate`, `agy integrate`). Driven, both pairs the deleted `AliasEquivalenceTests` covered agree on returncode AND stdout byte for byte: `spec check` versus `specs check` (2.8s for the pair) and `sanitize` versus `check-local-leaks` (12.2s). `discover_parser_leaves`' docstring asserts "``AliasEquivalenceTests`` owns alias behavior" and explicitly relies on that ownership to justify excluding aliases from the leaf walk ("aliases must not appear here in the first place"), so the module's correctness argument cites a class that no longer exists. A grep for alias byte-equivalence across `tests/` finds no replacement. | Both pairs driven and byte-compared; the alias declarations enumerated; `discover_parser_leaves`' docstring read; `rg` for a replacement owner. |
 | F-06 | THE "FOURTEEN DEAD SYMBOLS" COUNT IS AN IMPORT COUNT, NOT A USE COUNT, and conflating them would break two things. `RunResult`, `Exemption` and `_pinned_env` have zero IMPORTERS but are used INTERNALLY by `run_cli` and `EXEMPTION_REGISTRY`, which have three live importers between them, so they are not dead. `GOLDEN_DIR` has zero importers TODAY only because the module that read it (`test_cli_quality_gates.py`) was deleted; sibling child `9i2hge` restores that reader, so deleting it here would break that child. This is why E-03 demands a per-symbol verdict with a named reason rather than a bulk deletion. | The per-symbol `rg` sweep re-read against the module body; `9i2hge`'s scope read. |
 | F-07 | THE SCENARIO VOCABULARY CAN ALREADY DRIFT FROM THE FUNCTION THAT IS SUPPOSED TO USE IT. `SCENARIOS` declares nine canonical scenario names as a tuple; `required_scenarios` builds `base = ["tty", "non_tty", "agent", "no_color", "help", "usage_error"]` as a fresh literal and appends `"json"`, `"domain_failure"` or `"success_preview"` conditionally, never consulting the tuple. So a typo in either is invisible to the other, and the tuple is a comment with syntax. That is a real (if small) defect in the harness itself and it is why E-03 requires a decision on `SCENARIOS` rather than a default keep. | Both definitions read; the literal confirmed as unreferenced to the tuple. |
@@ -255,7 +276,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 3. E-03 issues a per-symbol verdict over all fourteen zero-importer names: kept with a named executor, kept
    because internally used by a live caller, or deleted.
 4. E-04 writes `tests/test_conformance_matrix_structure.py` with the four structural assertions plus the
-   alias gate, no `slow` marker, no count pins, and a `declared_absent` pin widened to both filed members.
+   alias gate, no `slow` marker, no count pins, and a `declared_absent` pin re-measured at execution (expected empty).
 5. E-05 proves the gate can fail, with three reverted throwaway probes and their failures pasted.
 6. E-06 corrects the one `command_surface.py` comment that calls the harness a dead surface, preserving its
    independent `exit_contract` reasoning and changing no declaration field.
@@ -271,15 +292,11 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   deleted driver, plus the twelve unread `.golden` files and the one that has drifted. Sibling child, which
   is also why this child must not delete `GOLDEN_DIR` (F-06).
   - Carrier: 9i2hge
-- FIXING `prompts set`, which is declared `mutation` with no parser leaf and is one of the two members this
-  child's widened pin names. Filed, and fixing it means registering a parser leaf for a verb whose
-  reachability is itself in question.
-  - Carrier: 68sur3
-- FIXING the bare `upgrade-test` group, the other pinned member, which declares `agent_record_kind="result"`
-  while printing an argparse usage block at exit 2. Filed and carrying `Blocks-Release: next`, which this
-  chore must not absorb: pulling a release-gated bug into a low-priority chore would move the gate onto the
-  wrong artifact.
-  - Carrier: lbbo9s
+- FIXING ANY LEAF a re-measured `declared_absent` member names. At authoring these were `prompts set`
+  (`68sur3`) and the bare `upgrade-test` group (`lbbo9s`, release-gated); both are `done` at review, so
+  nothing is deferred today. A member found at execution is pinned with its live owner, not fixed here,
+  because pulling a release-gated bug into a low-priority chore moves the gate onto the wrong artifact.
+  - Carrier-Declined: no live member exists at review; any member found at execution is owned by the id6 E-04 cites.
 - MUTATION-CLASS CONFORMANCE and any new `LIVE_SAFE_LEAVES` member. Declared scope of pending plan `vfv2db`
   (backlog `w78faq`), which measured eleven mutation leaves emitting human prose under `--agent` and declares
   `tests/conformance_matrix.py` in its own `- Scope-Paths:`. The semantic boundary: this child edits only
@@ -322,7 +339,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 - THE NEW MODULE `tests/test_conformance_matrix_structure.py`, COLLECTED AND PASSING under a bare
   `python3 -m pytest` with no `-m ''` override, asserting: zero undeclared parser leaves; no declared leaf
   present in the parser missing a `required_scenarios` member; `declared_absent` equal to the pinned
-  two-member set with both owner id6s in the failure message; every `LIVE_SAFE_LEAVES` member producing at
+  execution-time set (expected `set()`) with the owner of any member in the failure message; every `LIVE_SAFE_LEAVES` member producing at
   least one matrix row; and both alias pairs byte-equivalent under `--agent`.
 - THE SENSITIVITY PROBES of E-05: three throwaway breakages, each producing a NAMED failure, each reverted,
   with `git status --short` proving no probe survived.
@@ -361,7 +378,7 @@ deliberately left to sibling `9i2hge` for the reason stated in the deferred sect
 
 - Blocking: no
 - Status: resolved
-- Owner: none
+- Owner: plan author
 - Resolution or deferral rationale: RESOLVED AS A BOUNDED CHOICE E-03 MAKES AT EXECUTION, with both branches
   acceptable and a third forbidden. The measurement (F-03) is settled: `semantic_facts_from_human` and
   `outcome_family` are reached by none of the 16 curated leaves, so porting `FactParityTests` as-is would add
@@ -378,11 +395,13 @@ deliberately left to sibling `9i2hge` for the reason stated in the deferred sect
 
 - Blocking: no
 - Status: resolved
-- Owner: none
+- Owner: plan author
 - Resolution or deferral rationale: RESOLVED WITH A RE-MEASUREMENT RULE RATHER THAN A FIXED ANSWER, because
   the number is machine-dependent and this plan must not hard-code a margin it measured once. Measured at
   authoring: the `spec check` pair costs 2.8s and the `sanitize` pair 12.2s, so roughly 15s of subprocess
-  time against `conftest.py`'s 90s `_DEFAULT_TEST_TIMEOUT`, a 6x margin that fits comfortably. E-04 RE-MEASURES
+  time against `conftest.py`'s 90s `_DEFAULT_TEST_TIMEOUT`, a 6x margin that fits comfortably. RE-MEASURED
+  AT REVIEW on a loaded machine: 11.8s and 36.4s, so under 3x even per pair for `sanitize`, which is why E-04
+  now parametrizes one test per pair and the rule below is expected to fire for the `sanitize` pair. E-04 RE-MEASURES
   at execution and applies one rule: if the margin is at or above 3x, land it unmarked with the measurement
   recorded; if below 3x, either narrow to the cheap pair (recording what coverage that forfeits) or set an
   explicit `@pytest.mark.timeout(<n>)` justified by the measurement, following
@@ -410,7 +429,7 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
     `agent_schema.validate_agent_record` on the terminal record (which must be `[]`) and the record's `exit`
     field alongside the process returncode. PASTE `rg -n 'dtq6jr' tests/conformance_matrix.py` returning
     NOTHING. PASTE the passing run of `tests/test_agent_surface_conformance.py` and state its universe size
-    before and after (42 at authoring), confirming the three leaves are now included rather than exempted.
+    before and after (42 at authoring, 43 at review: re-derive), confirming the three leaves are now included rather than exempted.
     If any leaf measured non-conformant, PASTE that evidence and name the LIVE owner the entry was re-cited
     to.
   - Observed evidence:
@@ -432,8 +451,8 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Required evidence: PASTE the output of `python3 -m pytest` (bare, no added flags) showing the new module
     COLLECTED AND PASSING, which is what proves default collection; a run that needed `-m ''` does not
     satisfy this item. PASTE `rg -n 'pytest.mark.slow|pytestmark' tests/test_conformance_matrix_structure.py`
-    returning nothing. QUOTE the `declared_absent` assertion showing both members pinned and both of
-    `68sur3` and `lbbo9s` named in its message. PASTE the measured wall time of the alias test and state the
+    returning nothing. QUOTE the `declared_absent` assertion showing the pinned set (with `build_matrix(...).declared_absent`
+    re-measured and pasted) and its message naming the reachability gate and the owner of any member. PASTE the measured wall time of the alias test and state the
     margin against the 90s budget, with the OQ-02 rule applied and the decision named. CONFIRM by quoting
     the relevant lines that the module contains no row count, no declaration count, and no read of any
     `agent_workflows/*.py` file as text.
@@ -443,7 +462,7 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 - [ ] V-05 validates E-05
   - Required evidence: PASTE all three probe failures verbatim. Probe 1 must fail NAMING the throwaway
     undeclared leaf. Probe 2 must fail naming the specific leaf whose scenario coverage or declaration
-    presence was broken. Probe 3 must fail on the STDOUT byte comparison, not on the returncode, which is
+    presence was broken (the throwaway declaration's name, for the `declared_absent` variant). Probe 3 must fail on the STDOUT byte comparison, not on the returncode, which is
     what proves the byte-equivalence half of the alias assertion is live rather than decorative. PASTE
     `git status --short` and `git diff --stat agent_workflows/` showing both empty of probe residue.
   - Observed evidence:
@@ -455,7 +474,8 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
     `command_class` value may differ. QUOTE the corrected `runs next` comment showing it names
     `tests/test_conformance_matrix_structure.py` as the enforcing module and showing its original reasoning
     about `1` being omitted on correctness grounds is INTACT. State whether the other two comments were left
-    as found or narrowed, with the reason. PASTE the two bare-suite summary lines (base and final) and state
+    as found or narrowed, with the reason, and quote the `discover_parser_leaves` docstring's alias-owner
+    citation alongside the name of the E-04 alias class it now resolves to. PASTE the two bare-suite summary lines (base and final) and state
     the failure-set delta as a SET of test ids, which must be EMPTY.
   - Observed evidence:
   - Result: pending
@@ -465,7 +485,7 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 - Size assessment: standard
 - Cohesion rationale: not required
 
-This plan requires human approval before execution and carries no `- Readiness:` field, because that field is
+This plan requires human approval before execution. Its `- Readiness:` field was written by `/plan-review`, because that field is
 an OUTPUT of `/plan-review` and writing one at authoring would forge the attestation the auto-approve
 predicate reads first.
 
@@ -476,6 +496,12 @@ recovered file into the tree temporarily; it must be gone before any commit, and
 probes; each must be reverted and the staged set re-verified, because a probe swept into a commit is a
 production change this plan did not declare. Other agents may be working in this checkout concurrently, so any
 uncommitted change to a path this plan does not own must be left alone.
+
+SCOPE FENCE: `- Scope-Paths:` is a DECLARATION so finalize can reconcile edits; an out-of-scope edit the work
+genuinely needs is made and then justified with `--scope-reason`, and a declared-but-unmodified path gets
+`--scope-ack`. Paste ACTUAL runner output for every test claim; never claim a pass you did not run. Under `aw oc
+run`/`aw agy run` the runner owns `aw ipd begin`/`finalize`; a hand executor runs `aw ipd finalize` itself,
+never a hand `git mv`. Never push.
 
 Do NOT move this plan to `.aw/records/plans/executed/` until `aw ipd lint --phase pre-transition` reports
 conforming and every `V-*` above carries pasted evidence with `Result: pass`. The bar for V-06's suite delta
