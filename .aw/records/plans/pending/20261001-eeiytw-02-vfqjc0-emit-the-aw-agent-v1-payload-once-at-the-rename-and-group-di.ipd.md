@@ -6,7 +6,8 @@
 - Scope: Map the facts Order 01 made available onto a `result_types.CommandResult` and emit it through `renderers.get_renderer` ONCE per invocation at the two dispatch sites (`cli._run_noun_verb` for `aw rename`/`aw group`, and the `research_cmd in ("set-assign","mv")` branch for the two research spellings), suppressing the backends' human prose when a machine mode is active and leaving it byte-identical when it is not. Covers all nine artifact types and the `all` expansion. EXCLUDES: the nested index-refresh line (Order 03), `aw index`, `aw archive`, and any change to the human surface.
 - Scope-Paths: agent_workflows/cli.py, agent_workflows/plans_refs.py, agent_workflows/artifact_rename.py, agent_workflows/research_refs.py, docs/cli-output-contract.md, tests/test_rename_group_machine_output.py
 - Item-Dependencies: executed:x7unul
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: low
 - From-Backlog: eeiytw
@@ -18,6 +19,7 @@
 - Id: vfqjc0
 
 ## Workflow history
+- 2026-10-07 reviewed (opencode uri/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-201..PR-206 fixed
 - 2026-10-07 to-review (aw set): returned to review: every Set-level check the coverage probe quoted now names its owning child (Order 03 gzb2rq) and the backlog close is the runner's; coverage pass recorded
 - 2026-10-06 draft (aw set): demoted to-review -> draft: returned to authoring by gradcover 52opph: uncovered obligation: Close backlog item eeiytw by making both verbs emit exactly one parseable aw.agent/v1 record
 
