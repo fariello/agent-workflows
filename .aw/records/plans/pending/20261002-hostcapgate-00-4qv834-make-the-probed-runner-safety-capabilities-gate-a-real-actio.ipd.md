@@ -13,8 +13,8 @@
 - Item-Dependencies: none
 - Status: draft
 - Coverage: fail
-- Coverage-Fingerprint: 5f4117b908d1e2168db7007615002b600a656028c91284f7e40e512e64028ff4
-- Coverage-Checked: 2026-10-06 by uri/its_direct/pt3-claude-opus-5.5-1m-us
+- Coverage-Fingerprint: e288d54f4af31f9ccb8614009d89e14da6736531721ea435f143fed52bffa092
+- Coverage-Checked: 2026-10-07 by uri/its_direct/pt3-claude-opus-5.5-1m-us
 - Work-Kind: chore
 - Priority: medium
 - From-Backlog: s8veyk
@@ -25,6 +25,7 @@
 - Id: 4qv834
 
 ## Workflow history
+- 2026-10-07 coverage fail (aw oc run): fingerprint e288d54f4af3, model uri/its_direct/pt3-claude-opus-5.5-1m-us
 - 2026-10-07 note (opencode its_direct/pt3-claude-opus-5.5-1m-us): each criterion and cross-check now leads with its owner; the cross-child checks are owned by `y9m1ya` E-07, which runs last.
 - 2026-10-06 draft (aw set): demoted to-review -> draft: returned to authoring by gradcover 52opph: uncovered obligation: The two children share two files and must not have fought over them
 
@@ -157,12 +158,7 @@ N/A with reason: no `.spec.md` is amended and none appears in this plan's or eit
 
 ## Coverage findings
 
-- "- THE TWO CHILDREN SHARE TWO FILES AND MUST NOT HAVE FOUGHT OVER THEM. Both declare `agent_workflows/host_sandbox_profile.py` and `agent_workflows/runner_shared.py`. Confirm the regions are disjoint: `bqtgmo` touches `_capture_turn_argv`'s interception plus the descriptor freeze and its dispatch read, while `y9m1ya` touches the action-class constant, `ACTION_CLASSES`, the requirement row, and the runner mapping with its comment. Report any overlap found rather than assuming the declaration prevented one."
-- "- THE SECOND CHILD DID NOT REINTRODUCE WHAT THE FIRST REMOVED. After both land, confirm the dispatch path still performs no per-item probe, since `y9m1ya` edits the same function's neighborhood and a careless rehydration-to-probe reversion would silently restore the hazard while every one of its own tests still passed."
-- "- THE SHIPPED CAPABILITY TESTS PASS AS A WHOLE, not just the two new modules. `tests/test_host_capability_extension.py` is edited by `y9m1ya` E-06 and guards the fail-OPEN omissions this Set could commit; run that module in full and confirm its four properties are intact rather than loosened."
-- "- THE ADJACENT PRE-EXISTING FAILURE IS EXPLAINED ONCE, FOR THE SET. `test_run_finding_reachability.py::TestRunFindingReachability::test_unreachable_binding_refusal_fires_under_perturbation` fails at the Set's base commit AND perturbs the `RUN-HOST-CAPABILITY` row this Set changes the requirements behind. Both children must re-measure it; this item confirms the two explanations agree and that neither child's change altered its outcome."
 - "Scope of this plan's own validation, stated so it is not mistaken for the children's: confirm each of the seven completion criteria above against the children's PASTED evidence and against a live interpreter rather than against this plan's prose; confirm the five cross-IPD properties above, naming any overlap, reversion or disagreement found; and cite no test result that did not come from a child's own recorded evidence, re-read from the executed plan rather than remembered."
-- "7. NO FENCE WAS CROSSED. `supports_commit_gateway` is required by no action; the three constants `01reg8` deleted are not reinstated; no probe was added or altered; no `.spec.md` was modified; and the suite is at or above each lane's re-measured baseline with every pre-existing failure accounted for individually."
 
 ## Validation and cross-check (verify before reporting the Set complete)
 
