@@ -8,7 +8,7 @@
 - Item-Dependencies: none
 - Status: to-review
 - Coverage: pass
-- Coverage-Fingerprint: e1d11a14b45fb64ea93205cb89bcdb2387a2f8010fa358023274b1a4e77d5f4d
+- Coverage-Fingerprint: 1e0ad585ff6c4fb5f2d3e277a5df4a5e918d88d8ecb078e298c5f4d141b7efdb
 - Coverage-Checked: 2026-10-06 by uri/its_direct/pt3-claude-opus-5.5-1m-us
 - From-Spec: none
 - Work-Kind: bug
@@ -21,6 +21,7 @@
 - Id: 67lvds
 
 ## Workflow history
+- 2026-10-06 coverage pass (aw oc run): fingerprint 1e0ad585ff6c, model uri/its_direct/pt3-claude-opus-5.5-1m-us
 - 2026-10-06 note (opencode its_direct/pt3-claude-opus-5.5-1m-us): added Order 06 `7kczdo` at the maintainer's instruction, for the silent loss of a coverage answer on a plan with uncommitted changes, found while recording this plan's own answer.
 
 - 2026-10-06 coverage pass (aw oc run): fingerprint e1d11a14b45f, model uri/its_direct/pt3-claude-opus-5.5-1m-us
