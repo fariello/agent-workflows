@@ -12,8 +12,8 @@
 - Scope-Paths: .aw/records/plans/pending/20261002-hostcapgate-00-4qv834-make-the-probed-runner-safety-capabilities-gate-a-real-actio.ipd.md
 - Item-Dependencies: none
 - Status: draft
-- Coverage: fail
-- Coverage-Fingerprint: e288d54f4af31f9ccb8614009d89e14da6736531721ea435f143fed52bffa092
+- Coverage: pass
+- Coverage-Fingerprint: 932241746e8be0eed20f89c6a673130587fe7d933924971545019387b3631889
 - Coverage-Checked: 2026-10-07 by uri/its_direct/pt3-claude-opus-5.5-1m-us
 - Work-Kind: chore
 - Priority: medium
@@ -25,6 +25,7 @@
 - Id: 4qv834
 
 ## Workflow history
+- 2026-10-07 coverage pass (aw oc run): fingerprint 932241746e8b, model uri/its_direct/pt3-claude-opus-5.5-1m-us
 - 2026-10-07 coverage fail (aw oc run): fingerprint e288d54f4af3, model uri/its_direct/pt3-claude-opus-5.5-1m-us
 - 2026-10-07 note (opencode its_direct/pt3-claude-opus-5.5-1m-us): each criterion and cross-check now leads with its owner; the cross-child checks are owned by `y9m1ya` E-07, which runs last.
 - 2026-10-06 draft (aw set): demoted to-review -> draft: returned to authoring by gradcover 52opph: uncovered obligation: The two children share two files and must not have fought over them
@@ -155,10 +156,6 @@ N/A with reason: no `.spec.md` is amended and none appears in this plan's or eit
 - Resolution or deferral rationale: DEFAULT IS THE NARROW GATE, and both children are written to it. The alternative (wait until a mutating action can require the whole spec row) is unreachable on measured ground: one of the row's named guarantees (`commit_gateway`) is represented by a field that is DECLARED AND NEVER PROBED because the enforcement does not exist here, and six more have no field at all, so "wait for the full row" means "never", while the strict probe that DOES pass keeps gating nothing. The narrow gate converts one assumed guarantee into a checked one at the cost of one row and one mapping entry, and it records the remaining six as `unrepresented` so the gap stays visible rather than being closed by omission.
   THE HONEST COST OF THE DEFAULT, so the maintainer can overrule it cheaply: a reader of the changed code could conclude the runner now enforces a mutation boundary, when what it enforces is one capability out of eight. All three documents in this Set say so explicitly, and Order 02's E-04 requires the operator-facing comments to say it too. Non-blocking because the narrow default is strictly safer than both alternatives: it refuses less than a wide gate and more than an empty one.
   - Carrier-Declined: There is nothing outstanding to carry. The question has a recorded default that is complete and safe, and the alternative ("keep the gate empty") is the status quo this Set exists to change rather than an unfixed defect, while the wider alternative is blocked by capabilities that measurably cannot be represented today. The visibility of that limit is handled inside the diff (the `unrepresented` tuple, plus Order 02's E-04 comments), which is a more durable location than a backlog row.
-
-## Coverage findings
-
-- "Scope of this plan's own validation, stated so it is not mistaken for the children's: confirm each of the seven completion criteria above against the children's PASTED evidence and against a live interpreter rather than against this plan's prose; confirm the five cross-IPD properties above, naming any overlap, reversion or disagreement found; and cite no test result that did not come from a child's own recorded evidence, re-read from the executed plan rather than remembered."
 
 ## Validation and cross-check (verify before reporting the Set complete)
 
