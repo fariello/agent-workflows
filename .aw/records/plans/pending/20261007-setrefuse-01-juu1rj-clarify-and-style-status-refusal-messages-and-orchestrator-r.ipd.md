@@ -6,17 +6,21 @@
 - Scope: Make `orchestrator_readiness.render_human` target-status-aware (`approved`, `reviewed`, `to-review`) and state the causal parent-child constraint clearly. Extract and display the title/text of child blocking open questions. Add ANSI bold and color styling for id6s, setids, and statuses across `orchestrator_readiness.py` and `status_set.py`. Polish and bulletize refusal messages for single-plan approval gates, backward transitions without `--message`, terminal reopenings, and priority backstops. Add regression tests verifying all revised outputs.
 - Scope-Paths: agent_workflows/orchestrator_readiness.py, agent_workflows/status_set.py, agent_workflows/plan_readiness.py, tests/test_orchestrator_readiness.py, tests/test_status_set.py
 - Item-Dependencies: none
-- Status: to-review
+- Status: reviewed
+- Blocks-Release: next
+- Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
 - From-Backlog: hf5cc4
 - Set: setrefuse
 - Order: 1
-- Highest E allocated: 05
+- Highest E allocated: 07
 - Author: antigravity
 - Id: juu1rj
 
 ## Workflow history
+- 2026-10-07 /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001 (HIGH, fixed: styling must use the shared lifecycle resolver per approved spec uonrjg R10.3, not a hand palette), PR-002 (HIGH, fixed: render_human's coverage and runner-prompt callers kept byte-identical), PR-003 (MEDIUM, fixed: question extraction moved into review_readiness via defaulted Finding.questions; new E-06/E-07), PR-004 (MEDIUM, fixed: no ANSI in agent/JSON or shared refusal strings), PR-005 (MEDIUM, fixed: test-asserted phrases named), PR-006 (MEDIUM, fixed: V-items demand pasted behavioral output, not diffs), PR-007 (MEDIUM, fixed: inherited Blocks-Release next from hf5cc4), PR-008 (LOW, fixed: execution contract). Lint clean at author and review-finalize. Record: `.aw/records/reviews/20261007-setrefuse-01-juu1rj-clarify-and-style-status-refusal-messages-and-orchestrator-r.review.md`.
+- 2026-10-07 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-001..PR-008 FIXED
 
 - 2026-10-07 to-review (antigravity): authored review-ready plan in an isolated worktree from backlog hf5cc4.
 - 2026-10-07 draft (antigravity): created via aw ipd scaffold.
@@ -31,41 +35,56 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: Orchestrator readiness and causal child error rendering
 
-- [ ] E-01 Make `orchestrator_readiness.render_human` status-aware, causal, and styled with ANSI colors.
+- [ ] E-01 Make `orchestrator_readiness.render_human` status-aware and causal (wording only; no styling, no file I/O).
   - Depends on: none
-  - Expected outcome: `orchestrator_readiness.render_human(result, target_status=None, term=None)` accepts the target status and an optional `Term` instance. When `target_status` is `"approved"` (or `"reviewed"`), the header reads `Refusing to set {target_status} for orchestrator {id6} (set {setid}):` instead of `Orchestrator {id6} is not ready for review:`. For child lint findings caused by an open blocking question (`IPD-Q501`), the renderer parses the child plan text to extract the question identifier (`OQ-NN`) and its question title/text, rendering them as a clear sub-bullet rather than dumping raw linter diagnostic strings. All id6s and setids are highlighted in bold cyan/yellow and status tokens are formatted in their canonical lifecycle colors when color is enabled, falling back cleanly to unstyled text when color is disabled.
+  - Expected outcome: `orchestrator_readiness.render_human(result, target_status=None, term=None)` gains two KEYWORD-ONLY optional parameters. When `target_status` is `"reviewed"`, `"approved"` or `"auto-approved"`, the header reads `Refusing to set {target_status} for orchestrator {id6} (set {setid}):` followed by ONE causal sentence stating that an orchestrator may not advance while a child in its Set is not ready, and naming the child id6(s) found. When `target_status` is `None` or `"to-review"`, the header stays exactly `Orchestrator {id6} is not ready for review:`, because that wording is ACCURATE for those calls and is relied on: `tests/test_orchestrator_status_gate.py` (`ipd set to-review ... --dry-run` asserts "not ready for review"), `run_coverage` (`aw ipd coverage`, which has no target status), and `runner_shared` (the continue-handoff builder, which embeds `render_human(readiness)` into an AGENT PROMPT, so it must stay plain text). With both new parameters omitted, output is BYTE-IDENTICAL to today for every existing caller.
+  - Execution state: pending
+
+- [ ] E-06 Carry the blocking question's id and heading text on the child-lint finding, computed where the child path is known.
+  - Depends on: none
+  - Expected outcome: In `orchestrator_readiness.review_readiness`, in the `CODE_CHILD_LINT` branch (where `child.path` and `child_lint.diagnostics` are both in hand), for each diagnostic whose `code` is `ipd_lint.C_OQ` (`IPD-Q501`), read the `OQ-NN` id from the diagnostic message and look up that question's heading text in the child file with the shared `ipd_schema.OQ_HEADING_RE` (no new regex for the heading). Carry the result on `Finding` as a NEW trailing field with a default (for example `questions: tuple[tuple[str, str], ...] = ()` of `(oq_id, title)`), so every existing 4-argument construction and every keyword access keeps working. `render_human` then renders each as a sub-bullet `{oq_id}: {title}` under the child instead of the raw `IPD-Q501 ...` diagnostic string, and falls back to today's `detail` text when `questions` is empty (unreadable child, unmatched heading). `render_human` itself performs NO file I/O. `detail`, `code`, `subject` and `remedy` are unchanged, so `render_agent`, the `status_set` agent/JSON payload and the `runner_shared` markdown builder that read `rf.detail` are unaffected.
+  - Execution state: pending
+
+- [ ] E-07 Style the human orchestrator refusal through the SHARED lifecycle resolver, never a local palette.
+  - Depends on: E-01, E-06
+  - Expected outcome: When `render_human` is given a `term` with `term.color` true, each id6 that has a known status is rendered with `agent_workflows.term.resolve_lifecycle("plans", <status>)` passed to `Term.format_lifecycle_compact(id6, resolved, word=True)`, and the target status word with `Term.style_lifecycle_text`; the setid and section labels use bold only (`Term.colorize(text, "bold")`), with NO lifecycle color, since a setid has no lifecycle. This is what approved spec `uonrjg` requires: Section 9.2 (glyph and id6 styled together in the lifecycle color), Section 9.1 (only glyph, id6 and status word carry lifecycle color) and R10.3 (status setters MUST consume the shared resolver; local lifecycle color tables are forbidden). Color on/off is decided ONLY by `term.color`, which already implements the `--color`/`--no-color` > `NO_COLOR`/`FORCE_COLOR` > `TERM` > `isatty()` precedence (`uonrjg` 9.3); do not consult `sys.stdout.isatty()` directly. With `term=None` or `term.color` false, output contains no `\x1b` byte (`uonrjg` A11).
   - Execution state: pending
 
 - [ ] E-02 Pass `target_status` and `term` from `status_set.run_set_command` to `render_human`.
-  - Depends on: E-01
-  - Expected outcome: In `agent_workflows.status_set.run_set_command` (orchestrator readiness reporting loop), update the unready orchestrator reporting loop to call `term.line(_orch_readiness.render_human(r, target_status=target_status, term=term))`. Ensure structured JSON and agent outputs in lines 2985-3016 also carry `target_status` and structured child finding metadata.
+  - Depends on: E-01, E-06, E-07
+  - Expected outcome: In `agent_workflows.status_set.run_set_command`, in the orchestrator review-readiness gate (locate by the comment `Orchestrator review readiness gate` and the loop `for r in _unready_results:`), the human branch calls `term.line(_orch_readiness.render_human(r, target_status=<normalized plans target>, term=term))`, where the target is the same `normalize_target_status(target_status, "plans")` value the gate already computed for `_gated_orchestrators`. In the agent/JSON branch of the same gate, ADD `data.target_status` and a per-finding `questions` list (from E-06's field) ADDITIVELY: every existing key (`summary`, `data.id6`, `data.setid`, `data.ready`, `data.finding_codes`, `data.findings[].code/subject/detail/remedy`) keeps its current name and value, and no agent/JSON string contains an ANSI escape. Do NOT change the other `render_human` callers (`orchestrator_readiness.run_coverage` and the `runner_shared` continue-handoff builder); they keep the no-argument call and therefore today's exact text.
   - Execution state: pending
 
 ### Task group 2: Approval gate, demotion, reopen, and backstop message polish
 
 - [ ] E-03 Polish and style single-plan approval gate refusals in `plan_readiness.py` and `status_set.py`.
   - Depends on: none
-  - Expected outcome: When `agent_workflows.plan_readiness.approval_refusals` reports an unresolved blocking question, extract the question heading or question text from the plan so the message displays both the ID and the question itself. In `agent_workflows.status_set.validate_transition_allowed`, format the refusal with clean bullet points, styled id6 and target status, and eliminate run-on sentences and double periods (`..`).
+  - Expected outcome: (a) In `agent_workflows.plan_readiness`, the open-question refusal names each blocking question as `OQ-NN: <heading text>` (extend `_blocking_question_ids` or add a sibling that returns id plus `ipd_schema.OQ_HEADING_RE` group 2), so the message carries the question itself, not only its id. `approval_refusals` keeps returning `List[str]` with ONE reason per element and keeps every distinctive phrase existing tests match on (notably "states a verdict that does not clear this plan" in `tests/test_review_record_classifier.py`), because it is shared with `specs.run_set`, which already prints one reason per line to stderr. (b) In `agent_workflows.status_set.validate_transition_allowed`, the approval-gate return string joins reasons as a header line `refusing to set <status> for <plan|spec> <id6>:` followed by one `  - <reason>` line per reason instead of `"; ".join(...)`, keeping the leading `refusing to set <status>` phrase that `tests/test_plan_priority_required.py` asserts. (c) In `run_set_command`'s human branch for a failed `validate_transition_allowed` (locate by `Refusing before making changes`), stop appending `. Refusing before making changes.` directly after a message that already ends in `.` (the source of the `..`), keeping the phrase `Refusing before making changes` that `tests/test_status_set.py` asserts. STYLING BOUNDARY: `validate_transition_allowed` and `approval_refusals` return PLAIN strings, because the same string becomes `Diagnostic.detail` in agent/JSON output; any id6/status styling is applied only where `run_set_command` writes the human line through `term`.
   - Execution state: pending
 
 - [ ] E-04 Polish backward demotion, terminal reopen, and priority backstop refusal messages in `status_set.py`.
   - Depends on: none
   - Expected outcome:
-    1. In `agent_workflows.status_set.run_set_command` (backward demotion missing `--message`), list the specific plan(s) being demoted and their transition (e.g. `- 62pkkg: approved -> to-review`) in human terminal output, and provide a copy-paste retry command with `--message "<reason>"`.
-    2. In `agent_workflows.status_set.run_set_command` (terminal reopen check), condense the verbose policy paragraph into a clear summary, listing affected plan IDs with their current terminal status, and display clear next actions for writing a corrective IPD or passing `--allow-terminal-reopen`.
-    3. In `agent_workflows.status_set.validate_transition_allowed` (priority/work-kind undecided backstop), format missing fields as a clean bulleted list showing valid choices and the exact remedial command.
+    1. In `agent_workflows.status_set.run_set_command` (backward demotion missing `--message`; locate by `backward plan transition requires an explicit --message`), the HUMAN output lists each demoted plan and its edge (e.g. `  - 62pkkg: approved -> to-review`), from the `_backward_plan_moves` list already computed, and prints the retry command built by the existing `_retry_command(..., extra=['--message "<reason>"'])` the agent branch already uses. Exit code stays 2.
+    2. In `agent_workflows.status_set.run_set_command` (terminal reopen check; locate by `status.terminal_reopen_refused`), the human output is a short summary line, then one line per reopened plan as `  - <id6>: <terminal status> -> <target>` (falling back to the file name when the id6 is empty), then the two remedies already present in the agent branch's `next_actions` (a corrective IPD via `aw ipd scaffold`, or the `_retry_command` with `--allow-terminal-reopen`). The policy rationale is kept, shortened to one sentence. Exit code stays 2, and `tests/test_status_set.py`'s terminal-reopen test (asserts the id6 and `--allow-terminal-reopen` appear) keeps passing.
+    3. In `agent_workflows.status_set.validate_transition_allowed` (priority/work-kind backstop; locate by `plan_priority_work_kind_problems`), each undecided field is its own `  - <problem>` line under the `refusing to set <status> for plan <id6>:` header, followed by the remedy command line. The phrase `refusing to set approved` is preserved.
+    In all three, the agent/JSON branch is UNCHANGED (its `summary`, `diagnostics` and `next_actions` already carry this structure).
   - Execution state: pending
 
 ### Task group 3: Regression tests
 
 - [ ] E-05 Add unit tests for all revised refusal and gate output formats.
-  - Depends on: E-01, E-02, E-03, E-04
-  - Expected outcome: New and updated tests in `tests/test_orchestrator_readiness.py` and `tests/test_status_set.py` assert that:
-    1. `render_human` with `target_status="approved"` prints `Refusing to set approved for orchestrator ...` and formats child blocking questions with extracted titles.
-    2. ANSI styling is applied when `term.color=True` and plain text is emitted when `term.color=False`.
-    3. Backward demotion without `--message` names the demoted plan IDs in human terminal output.
-    4. Single-plan approval gate refusals format cleanly with quoted blocking questions.
-    5. The full test suite (`python3 -m pytest`) passes with zero regressions.
+  - Depends on: E-01, E-02, E-03, E-04, E-06, E-07
+  - Expected outcome: New tests in `tests/test_orchestrator_readiness.py` and `tests/test_status_set.py` that DRIVE the code (call `render_human` / `review_readiness` on a temp-repo Set, or run `run_set_command` / the CLI) and assert on returned text, exit codes and file contents, never on source structure (GUIDING_PRINCIPLES P16; no `inspect`/`ast`/source-text reads). They pin:
+    1. `render_human(r, target_status="approved")` begins `Refusing to set approved for orchestrator <id6> (set <setid>):` and names the unready child.
+    2. `render_human(r)` and `render_human(r, target_status="to-review")` are BYTE-IDENTICAL to the pre-change output for the same `ReviewReadiness` (the backward-compatibility invariant for `aw ipd coverage` and the runner prompt).
+    3. A temp Set whose child has an open `- Blocking: yes` question `### OQ-06: <title>` yields a `child-lint-failing` finding whose `questions` carries `("OQ-06", "<title>")`, rendered as `OQ-06: <title>`; and a child whose heading cannot be matched falls back to the existing `detail` text without raising.
+    4. With `Term(color=True)` the rendered text contains the escape sequence produced by `Term.style_lifecycle_text` for the target status (compare against that call's own output, not a hardcoded palette code); with `Term(color=False)` and with `term=None` it contains no `\x1b`.
+    5. `aw ipd set approved <orch>` on an unready orchestrator, human mode, shows the new header and exits 1; the same with `--agent` emits a record whose existing keys are unchanged, whose `data.target_status` is `approved`, and which contains no `\x1b`.
+    6. Backward demotion without `--message` names every demoted id6 and its edge in human output and exits 2.
+    7. Single-plan approval refusal over a blocking question quotes `OQ-NN: <heading text>` on its own bulleted line, and the human output contains no `..`.
+    8. Terminal-reopen and priority/work-kind backstop refusals list each plan / each missing field on its own line.
+    The bare suite is then compared before and after (see V-05).
   - Execution state: pending
 
 ## Project conventions discovered (Step 0)
@@ -100,8 +119,8 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ## Scope check
 
-- Over-scope: none; confined to message formatting and diagnostic rendering in `orchestrator_readiness.py`, `status_set.py`, `plan_readiness.py`, and test files.
-- Under-scope: covers both orchestrator readiness gating (the direct issue encountered) and the surrounding status setter refusal surfaces.
+- Over-scope: none; confined to message formatting and diagnostic rendering in `orchestrator_readiness.py`, `status_set.py`, `plan_readiness.py`, and test files. The `Finding.questions` field (E-06) is the one data-shape addition, and it is defaulted and additive.
+- Under-scope: covers both orchestrator readiness gating (the direct issue encountered) and the surrounding status setter refusal surfaces. Deliberately NOT restyled: `specs.run_set`'s own stderr refusal (it already prints one reason per line and benefits from E-03(a)'s question text automatically) and the `runner_shared` markdown/prompt builders, which are agent-facing.
 
 ## Required tests / validation
 
@@ -118,7 +137,8 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ## Spec / documentation sync
 
-- `N/A with reason`: Diagnostic and error message formatting updates do not alter the lifecycle state machine or specification contracts in `specs/`.
+- No spec is edited. The change alters no lifecycle state, transition, gate predicate or machine-readable field name. The styling it adds is GOVERNED by approved spec `uonrjg` (cross-artifact lifecycle symbols and ANSI status styling): Section 9.1 (only glyph, id6 and status word carry lifecycle color), Section 9.2 (compact `GLYPH id6` form), Section 9.3 / acceptance A11 (no ANSI under `NO_COLOR`, `TERM=dumb`, non-TTY) and R10.3 (status setters MUST consume the shared resolver; no local lifecycle color table). E-07 implements against that contract rather than inventing a palette, so no amendment is needed.
+- The runner-facing message templates in approved spec `25kzda` (`[IPD-REVIEW-ORCHESTRATOR-READY] Orchestrator <id6> is not ready for review: ...`, `SPEC-PLAN-SET`, `BACKLOG-GRADUATE-SET`) are NOT touched: they are emitted by `runner_shared`, not by `render_human`, and E-01 keeps `render_human`'s default wording unchanged.
 
 ## Open questions
 
@@ -127,47 +147,68 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 - Blocking: no
 - Status: resolved
 - Owner: plan author
-- Resolution or deferral rationale: RESOLVED. `render_human` must consult `term.color` (or `sys.stdout.isatty()`). When color is enabled, it applies bold and ANSI 256 colors to id6s, setids, and status tokens. When color is disabled (`--no-color` or piped stdout), it renders clean, plain text without ANSI escape sequences, preserving machine parsability and log readability.
+- Resolution or deferral rationale: RESOLVED (corrected at review 2026-10-07). `render_human` consults ONLY `term.color`, never `sys.stdout.isatty()` directly: `Term` already resolves the full `--color`/`--no-color` > `NO_COLOR`/`FORCE_COLOR` > `TERM` > `isatty()` precedence (approved spec `uonrjg` 9.3), and a direct `isatty()` check would let a TTY defeat `--no-color`/`NO_COLOR`. `term=None` means plain text. Colors come from the shared lifecycle resolver (`term.resolve_lifecycle` + `Term.format_lifecycle_compact` / `style_lifecycle_text`), not from hand-picked ANSI 256 codes (`uonrjg` R10.3); the setid has no lifecycle and gets bold only. Demonstrated at review: `Term(color=False).format_lifecycle_compact("abc123", resolve_lifecycle("plans","approved"), word=True)` returned `'◕ abc123 approved'` (no escape) and `Term(color=True)` returned `'\x1b[1;38;5;45m◕\x1b[0m \x1b[1;38;5;45mabc123\x1b[0m \x1b[1;38;5;45mapproved\x1b[0m'`.
 
 ### OQ-02: Should `render_human` read child plan files directly to extract blocking question text?
 
 - Blocking: no
 - Status: resolved
 - Owner: plan author
-- Resolution or deferral rationale: RESOLVED. For child plans that fail with `IPD-Q501`, the child file path is already known to `orchestrator_readiness.review_readiness` (via `active_membership.children`). A lightweight helper can extract the question heading (e.g. `### OQ-06: <title>`) from the child plan text. If the file cannot be read or the pattern does not match, it gracefully falls back to the clean diagnostic code without failing.
+- Resolution or deferral rationale: RESOLVED (refined at review 2026-10-07). NO: `render_human` stays a pure renderer. The extraction happens in `review_readiness`'s `CODE_CHILD_LINT` branch, where `child.path` and the `IPD-Q501` diagnostics are already in hand, and the result travels on a new defaulted `Finding.questions` field (E-06). Putting I/O in the renderer would make `aw ipd coverage` and the runner's prompt builder read files as a side effect of printing, and `render_human` receives only a `ReviewReadiness`, which carries no child paths. Demonstrated at review: `ipd_schema.OQ_HEADING_RE.match("### OQ-06: Which admitted forms does TRACE treat as mandatory?").groups()` returned `('OQ-06', 'Which admitted forms does TRACE treat as mandatory?')`, and `plan_readiness._blocking_question_ids` on a one-question fixture returned `OQ-06`. On an unreadable file or unmatched heading the finding keeps `questions=()` and the renderer falls back to today's `detail`.
 
 ## Validation and cross-check (verify before reporting done)
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'.
 
 - [ ] V-01 validates E-01
-  - Required evidence: paste python3 session or pytest output demonstrating `render_human` with `target_status="approved"` emitting status-aware header, causal parent-child explanation, extracted blocking question title, and color-styled vs unstyled output.
+  - Required evidence: paste the ACTUAL pytest output (`python3 -m pytest -o addopts="" -v tests/test_orchestrator_readiness.py`) for the tests pinning E-05 items 1 and 2, AND paste a python3 session printing `render_human(r, target_status="approved")` (new header plus causal sentence naming the child) and `render_human(r)` for the SAME `r`, together with the pre-change text of `render_human(r)` for the same `r` captured BEFORE editing (save it to a scratch file under `/tmp` at the start of execution) and an equality check showing the default output is unchanged.
   - Observed evidence:
   - Result: pending
 
 - [ ] V-02 validates E-02
-  - Required evidence: paste `git diff -- agent_workflows/status_set.py` showing `target_status` and `term` passed to `render_human` in line 3019, and structured payload updated.
+  - Required evidence: paste the ACTUAL output of two CLI runs against a temp repo whose orchestrator is unready: `aw ipd set approved <orch-id6> --dry-run` in human mode (the new `Refusing to set approved for orchestrator` header, exit 1), and the same with `--agent` (the JSON record showing every pre-existing key unchanged plus `data.target_status: "approved"`, and no `\x1b`). Also paste `aw ipd coverage <orch-id6> --no-commit` output on the same repo showing the unchanged `Orchestrator <id6> is not ready for review:` header. A diff alone is not sufficient evidence.
   - Observed evidence:
   - Result: pending
 
 - [ ] V-03 validates E-03
-  - Required evidence: paste test output demonstrating single-plan approval refusal formatting with quoted blocking question and clean bulleted layout.
+  - Required evidence: paste the ACTUAL human output of `aw ipd set approved <id6>` on a temp plan with an open `- Blocking: yes` question `### OQ-01: <title>`, showing the header line and `OQ-01: <title>` on its own bulleted line and no `..`; paste `aw specs set <spec> --status approved` output on a temp spec with the same question, showing the spec surface also names the heading; and paste the pytest output for `tests/test_review_record_classifier.py` and `tests/test_plan_priority_required.py` (both must still pass, proving the shared phrases survived).
   - Observed evidence:
   - Result: pending
 
 - [ ] V-04 validates E-04
-  - Required evidence: paste test output demonstrating backward demotion refusal naming demoted plans, terminal reopen refusal listing affected plans, and priority backstop listing missing fields.
+  - Required evidence: paste the ACTUAL human output and exit code of three CLI runs on temp repos: a backward move without `--message` (each demoted id6 with its `from -> to` edge, the retry command, exit 2); a terminal reopen without `--allow-terminal-reopen` (each plan with its terminal status, both remedies, exit 2); and an approval with `Priority: unresolved` and `Work-Kind: unresolved` (each field on its own line). Also paste `--agent` output for the backward move showing the agent record is unchanged from before (same `summary`, `rule`, and `next_actions`).
   - Observed evidence:
   - Result: pending
 
 - [ ] V-05 validates E-05
-  - Required evidence: paste full pytest output (`python3 -m pytest`) showing new test cases passing and zero regressions across the suite.
+  - Required evidence: paste the ACTUAL tail of a BARE `python3 -m pytest` run (the `N passed` summary line) taken BEFORE any code change and again AFTER, plus the list of failing node IDs from each; the bar is an EMPTY after-minus-before failing set (a pre-existing unrelated failure is recorded, not hidden). Paste `python3 -m pytest -o addopts="" -v tests/test_orchestrator_readiness.py tests/test_status_set.py tests/test_orchestrator_status_gate.py` showing each new E-05 test by name passing. Test counts are context, not the bar.
   - Observed evidence:
   - Result: pending
+- [ ] V-06 validates E-06
+  - Required evidence: paste a python3 session (or pytest output) on a temp Set whose child carries `### OQ-06: <title>` with `- Blocking: yes` / `- Status: open`, showing `review_readiness(...)` returns a `child-lint-failing` finding with `questions == (("OQ-06", "<title>"),)` and its `detail` unchanged from the pre-change form; a second case where the child's heading does not match showing `questions == ()` and no exception; and a construction `Finding("c","s","d","r")` with four positional arguments still succeeding.
+  - Observed evidence:
+  - Result: pending
+- [ ] V-07 validates E-07
+  - Required evidence: paste a python3 session printing `repr(render_human(r, target_status="approved", term=Term(color=True)))` showing the id6/status sequences equal to what `Term.format_lifecycle_compact` / `Term.style_lifecycle_text` produce for the same status, and the setid wrapped in bold only; then `repr(...)` with `Term(color=False)` and with `term=None`, each containing no `\x1b`. Paste `rg -n '38;5;|\\x1b\[' agent_workflows/orchestrator_readiness.py agent_workflows/status_set.py` showing NO hand-written escape or palette code was added (an empty result, exit 1, is the pass; confirmed empty at review on the base, so any hit was introduced by this change; this is a diff-hygiene check, not a behavioral test).
+  - Observed evidence:
+  - Result: pending
+
 
 ## Approval and execution gate
 
 - Size assessment: standard
 - Cohesion rationale: not required
 
-This plan is ONE cohesive change addressing the diagnostic clarity and visual ergonomics of refusal messages across the status setter and orchestrator readiness surfaces. Execution requires explicit human approval first; this plan is authored `to-review`. Commit through `aw commit juu1rj -- <paths>` with only this plan's declared paths.
+This plan is ONE cohesive change addressing the diagnostic clarity and visual ergonomics of refusal messages across the status setter and orchestrator readiness surfaces. Execution requires explicit human approval first.
+
+OPEN QUESTIONS: both are resolved, with the demonstrations recorded in their rationales; none blocks.
+
+INVARIANTS THE EXECUTOR MUST HOLD. (1) No gate predicate, exit code, or refusal condition changes; only message text. (2) `render_human`'s default output (no new arguments) is byte-identical, because `aw ipd coverage` and the runner's continue-handoff prompt embed it. (3) Agent/JSON output keeps every existing key and value and gains only additive fields; no ANSI escape ever reaches it. (4) Strings returned by `validate_transition_allowed` and `approval_refusals` stay plain, since they are reused as `Diagnostic.detail` and by `specs.run_set`. (5) Styling uses only the shared lifecycle resolver (`uonrjg` R10.3).
+
+SCOPE FENCE. `- Scope-Paths:` is a DECLARATION, not a stop condition. If an out-of-scope edit proves necessary (for example a phrase another test file asserts on), make it and justify it to `aw ipd finalize` with `--scope-reason <path>=<why>`; acknowledge a declared-but-unmodified path with `--scope-ack`. STOP and report only for a genuinely unsafe condition, such as a concurrent edit to the same file that cannot be combined.
+
+PASTE ACTUAL OUTPUT. Every `V-*` must carry the real command output observed; never claim a test passed, or a message reads a certain way, without pasting it.
+
+COMMIT PATH. Commit only declared paths through `aw commit juu1rj -- <paths>`; verify with `git diff --cached --name-only`; never `git add -A`, never `-a`, never push.
+
+LIFECYCLE. Reaching `.aw/records/plans/executed/` is owed once every `V-*` passes and `aw ipd lint --phase pre-transition` conforms. Under `aw oc run` / `aw agy run` the runner performs the transition; when executed by hand, use `aw ipd finalize` (or `aw ipd set executed juu1rj`). Never hand-edit `- Status:` and never `git mv` the file.
