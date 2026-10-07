@@ -6,7 +6,7 @@
 - Scope: Answer the deferred question with the measured, narrow fix and record WHY the blunt fix was rejected. IN: (a) extend the ABSENT-field fallback arm of `is_plan_review_approved` to require that the record it reads its verdict from (the newest) is a review record per the SHIPPED `is_review_history_entry` classifier (review PR-001 replaced the any-record `history_has_review_record` guard, which a newer non-review record on a rejected plan defeats), so the prose arm cannot clear a plan on a record no review wrote; (b) tests pinning the four forgery shapes as False and the genuine-review shape as True; (c) correct the three false "absence FAILS CLOSED" prose claims to describe the post-fix three-way behavior, COORDINATED with plan `fhinri` which declares the same four files; (d) record the decision and its measurement in the plan so the maintainer's risk-appetite call is made ON EVIDENCE rather than on the documents' claim. OUT: full fail-closed-on-absent (the blunt reading of the documents), REJECTED on measurement and recorded as F-07 with the two tests that pin the opposite; `IPD-M112`, which plan `fhinri` owns and this plan must not duplicate; any change to `approval_refusals`, whose absent-field arm is deliberately looser because its refusals have no override; adding a `--readiness` setter flag, which `AGENTS.md` forbids; retiring `IPD-M107` per spec `4sd62s`.
 - Scope-Paths: agent_workflows/plan_readiness.py, tests/test_readiness_absence_invariant.py, agent_workflows/ipd_schema.py, .aw/system/workflows/plan-review/plan-review.md, .aw/system/workflows/plan-review-long/03-resolve-and-finalize.md, .aw/records/plans/README.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - From-Backlog: l34oi2
 - Work-Kind: followup
@@ -16,9 +16,9 @@
 - Highest E allocated: 06
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: l56tyz
-- Approval: 2026-10-03, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-07 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: l56tyz verified (set rdyclosed, attempt 1).
 - 2026-10-03 approved (aw set): status set to approved
 - 2026-10-03 reviewed (aw set): /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003. Measured at lane HEAD 5aecd7fb1 that the prescribed any-record provenance guard leaves a rejected plan with a newer non-review APPROVE record clearable, so E-03 now checks the newest record itself (corpus flip 0, targeted tests unchanged); recorded a fourth pre-existing failure inside the target test file; completed the execution contract.
 
