@@ -6,7 +6,7 @@
 - Scope: Add ONE commit-scoped rule to `check_engine` that pairs each staged backlog item across HEAD and the index BY ID6, asks `attention_contract.backlog_transition_allowed` about the resulting status delta, and emits one finding per illegal edge. Compose it where its three commit-scoped siblings already compose. No new hook id, no new CLI verb, no setter change, no change to any existing rule, no transition table authored here.
 - Scope-Paths: agent_workflows/check_engine.py, agent_workflows/doctor.py, tests/test_staged_illegal_backlog_transition_gate.py, tests/test_check_engine_release_gate.py
 - Item-Dependencies: executed:cc2m29
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: medium
@@ -16,9 +16,9 @@
 - Highest E allocated: 06
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: miimjb
-- Approval: 2026-10-07, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-07 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: miimjb verified (set backlogtrans, attempt 1).
 - 2026-10-07 approved (aw set): status set to approved
 
 - 2026-10-07 /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-301, PR-302, PR-303, PR-304. Reviewed at HEAD `fe2ee961c` in an isolated review lane; plan committed and byte-identical to the lane input, so no pre-review snapshot. Dependency `cc2m29` is EXECUTED and its table shipped (`done -> {graduated, open}`, `parked -> {blocked, open}`, fail-closed on unknown source); premise re-measured: thorough `done -> parked/blocked/open/graduated` staged as `R086`-`R089` still return `[]` from `check_commit_invariants`, which still composes three rules. Fixed: three `Carrier-Evidence` paths pointed at `pending/` for the now-executed `cc2m29`, an `error`-severity `check.ipd-uncarried-obligation` finding (PR-301); OQ-01 resolved from the shipped table (`done -> graduated` legal) (PR-302); E-05(k) made explicit that the out-of-vocabulary skip must precede the fail-closed table lookup (PR-303); the declared `tests/test_check_engine_release_gate.py` composition strengthening moved from prose into E-04 with a fixture that can fail (PR-304). Every symbol E-03/E-04 reuse (`_git_capture`, `_blob_text`, `_status_meta`, `_read_item_id`, `_staged_backlog_done_items`, `doctor._extract_record_id6`, the `status-untooled` doctor branch) and every fence test file named in Required tests resolves.
