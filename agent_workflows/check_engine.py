@@ -196,6 +196,23 @@ RULE_REGISTRY: Dict[str, RuleSpec] = {
     "check.blocking-item-closed-without-gate": RuleSpec(
         "error", ASSURANCE_REPOSITORY, DET_DETERMINISTIC, "I-07"
     ),
+    # Release-gate preservation advisory (catalog I-07; IPD heh05a E-02).
+    # Reports historical done+gated backlog items closed before the cutover date whose gates
+    # were not preserved or satisfied (the grandfathered residue the at-rest arm skips).
+    #
+    # `info` SEVERITY IS LOAD-BEARING AND `warning` WOULD NOT WORK: `artifact_core.drift_exit_code`
+    # returns 1 for ANY finding whose severity is not `info` ("an `info`-severity finding is ADVISORY
+    # ... and does NOT fail the gate; only error/warning-class findings drive the nonzero exit").
+    # Registering this at `warning` would turn `aw check` and CI red on the whole historical
+    # population, which is the precise outcome the advisory exists to avoid. Follows the precedent
+    # of `check.collisions-not-checked`, choosing `info` over a flag or error.
+    #
+    # Constructing each drift with `severity="info"` at emission (or via `enrich_drift`) is also
+    # required because `drift_exit_code` reads `getattr(d, "severity", "") != "info"` directly on
+    # the raw drift returned by `check_release_gates` before display enrichment (PR-001).
+    "check.blocking-close-grandfathered": RuleSpec(
+        "info", ASSURANCE_REPOSITORY, DET_DETERMINISTIC, "I-07"
+    ),
     "check.from-backlog-gate-mismatch": RuleSpec(
         "error", ASSURANCE_REPOSITORY, DET_DETERMINISTIC, "I-07"
     ),
@@ -4187,6 +4204,8 @@ def check_types(
     include_untracked: bool = False,
     include_retired: bool = False,
     strict_setid_length: bool = False,
+    *,
+    grandfathered: bool = False,
 ) -> List[_core.Drift]:
     """Fan out check_type over the given types (or every SUPPORTED type for the ['all'] sentinel),
     concatenating Drift; unsupported types are skipped. The ['all'] sentinel implies
@@ -4373,7 +4392,7 @@ def check_types(
         # Own try/except, per the established pattern in this block, so a failure here cannot suppress
         # any other rule.
         try:
-            drift.extend(check_release_gates(repo_root))
+            drift.extend(check_release_gates(repo_root, grandfathered=grandfathered))
         except Exception:
             pass
         # wslayout Order 05 (30jug9), spec kw5y2s Section 6.2: the emitted layout document is absent
@@ -5856,6 +5875,7 @@ def check_release_gate_consistency(
     repo_root: Path,
     *,
     at_rest: bool = False,
+    grandfathered: bool = False,
 ) -> List[_core.Drift]:
     """bklggrad orb9zb E-05: cross-tree consistency rules reusing `evaluate_blocking_close`.
 
@@ -5864,6 +5884,10 @@ def check_release_gate_consistency(
         preserved/satisfied (the backstop for a hand-edit bypass of the setter gate).
       check.from-backlog-gate-mismatch - a LIVE `From-Backlog` plan or spec whose `Blocks-Release`
         differs from the backlog item's Blocks-Release (a broken handoff).
+
+    INFO-severity advisory (opt-in grandfathered sweep, heh05a E-03):
+      check.blocking-close-grandfathered - an already-`done` blocking item closed before the cutover date
+        (or undatable) whose gate was not preserved/satisfied (the grandfathered historical residue).
 
     RULE 2 IS NARROWED TO A LIVE CARRIER (nobugship rgaasb; maintainer ruling on parent `qmgn12`
     OQ-03, 2026-09-12). A carrier in a TERMINAL directory (`executed/`, `superseded/`,
@@ -5925,41 +5949,55 @@ def check_release_gate_consistency(
                 )
             )
 
-    # Rule 1 at-rest arm (gateatrest b24o3q E-03): judges every committed done backlog item on disk
-    # against the stamped cutover date, deduplicating against the staged arm by location.
-    if at_rest:
+    # Rule 1 at-rest arm (gateatrest b24o3q E-03) and grandfathered advisory arm (heh05a E-03):
+    # judges committed done backlog items on disk against the stamped cutover date, deduplicating
+    # against the staged arm and each other by location.
+    if at_rest or grandfathered:
         from agent_workflows import config as _config
 
         cutover = _config.resolve_cutover_date(
             repo_root, "release_gate_at_rest", compact=True
         )
-        if cutover is not None:
-            from agent_workflows import backlog as _backlog
+        from agent_workflows import backlog as _backlog
 
-            candidates: List[Tuple[Path, str, str]] = []
-            for item_p in _backlog._iter_items(repo_root):
-                try:
-                    rel_path = str(item_p.relative_to(repo_root)).replace("\\", "/")
-                except ValueError:
-                    rel_path = str(item_p).replace("\\", "/")
-                if rel_path in seen_blocking_locations:
-                    continue
-                try:
-                    item_txt = item_p.read_text(encoding="utf-8")
-                except OSError:
-                    continue
-                if _status_meta(item_txt) != "done":
-                    continue
-                if not _read_blocks_release(item_txt):
-                    continue
-                cdate = _item_close_date(item_txt)
-                if cdate is None or cdate < cutover:
-                    continue
-                candidates.append((item_p, rel_path, item_txt))
+        at_rest_candidates: List[Tuple[Path, str, str]] = []
+        grandfathered_candidates: List[Tuple[Path, str, str, Optional[str]]] = []
+        for item_p in _backlog._iter_items(repo_root):
+            try:
+                rel_path = str(item_p.relative_to(repo_root)).replace("\\", "/")
+            except ValueError:
+                rel_path = str(item_p).replace("\\", "/")
+            if rel_path in seen_blocking_locations:
+                continue
+            try:
+                item_txt = item_p.read_text(encoding="utf-8")
+            except OSError:
+                continue
+            if _status_meta(item_txt) != "done":
+                continue
+            if not _read_blocks_release(item_txt):
+                continue
+            cdate = _item_close_date(item_txt)
+            if (
+                at_rest
+                and cutover is not None
+                and cdate is not None
+                and cdate >= cutover
+            ):
+                at_rest_candidates.append((item_p, rel_path, item_txt))
+            elif grandfathered:
+                # The grandfathered arm is the complement:
+                # When cutover is None: every done+gated item is grandfathered/exempt from at_rest
+                # When cutover is not None: items with cdate is None or cdate < cutover
+                if cutover is None or cdate is None or cdate < cutover:
+                    grandfathered_candidates.append((item_p, rel_path, item_txt, cdate))
 
-            if candidates:
-                shared_carrier_idx = _from_backlog_carrier_index(repo_root)
-                for item_p, rel_path, item_txt in candidates:
+        if at_rest_candidates or grandfathered_candidates:
+            shared_carrier_idx = _from_backlog_carrier_index(repo_root)
+            release_cache_gf: Dict[str, Optional[Path]] = {}
+
+            if at_rest_candidates:
+                for item_p, rel_path, item_txt in at_rest_candidates:
                     verdict = evaluate_blocking_close(
                         repo_root,
                         item_p,
@@ -5978,6 +6016,60 @@ def check_release_gate_consistency(
                                     "(From-Backlog plan), resolvable evidence, or de-gate; close it via "
                                     "`aw backlog set done` (which enforces the gate) rather than by hand"
                                 ),
+                            )
+                        )
+
+            if grandfathered_candidates:
+                for item_p, rel_path, item_txt, cdate in grandfathered_candidates:
+                    if rel_path in seen_blocking_locations:
+                        continue
+                    verdict = evaluate_blocking_close(
+                        repo_root,
+                        item_p,
+                        "done",
+                        item_text=item_txt,
+                        carrier_index=shared_carrier_idx,
+                    )
+                    if not verdict.legitimate and verdict.severity == "error":
+                        seen_blocking_locations.add(rel_path)
+                        item_id = _read_item_id(item_txt)
+                        blocks_rel = _read_blocks_release(item_txt) or ""
+                        carrier_items = (
+                            shared_carrier_idx.get(item_id, []) if item_id else []
+                        )
+                        same_gate_carriers = [
+                            p
+                            for p, c_br in carrier_items
+                            if _same_release(
+                                repo_root, c_br, blocks_rel, cache=release_cache_gf
+                            )
+                        ]
+                        if cutover is not None:
+                            boundary_desc = (
+                                f"closed on {cdate} before cutover {cutover}"
+                                if cdate
+                                else f"undatable close predating cutover {cutover}"
+                            )
+                        else:
+                            boundary_desc = "no cutover configured"
+
+                        if same_gate_carriers:
+                            cohort_desc = (
+                                "same-gate carrier(s) present but not all executed"
+                            )
+                        else:
+                            cohort_desc = "no same-gate carrier"
+
+                        detail = (
+                            f"grandfathered: done backlog item carries Blocks-Release {blocks_rel!r} "
+                            f"({boundary_desc}; cohort: {cohort_desc})"
+                        )
+                        drift.append(
+                            _core.Drift(
+                                rel_path,
+                                "check.blocking-close-grandfathered",
+                                detail,
+                                severity="info",
                             )
                         )
 
@@ -6149,6 +6241,7 @@ def check_live_bug_gate(repo_root: Path) -> List[_core.Drift]:
 RELEASE_GATE_RULES = (
     "check.live-bug-ungated",
     "check.blocking-item-closed-without-gate",
+    "check.blocking-close-grandfathered",
     "check.from-backlog-gate-mismatch",
     "check.blocks-release-dangling",
     "check.release-sentinel-absent",
@@ -6158,7 +6251,11 @@ RELEASE_GATE_RULES = (
 )
 
 
-def check_release_gates(repo_root: Path) -> List[_core.Drift]:
+def check_release_gates(
+    repo_root: Path,
+    *,
+    grandfathered: bool = False,
+) -> List[_core.Drift]:
     """Validate the release-gate rule family across the repository (IPD 2vw35i).
 
     This exposes the complete release-gate rule family as a distinct named target outside the full
@@ -6171,6 +6268,7 @@ def check_release_gates(repo_root: Path) -> List[_core.Drift]:
       * check.from-backlog-dangling (releases.check_from_backlog)
       * check.from-backlog-malformed (releases.check_from_backlog)
       * check.blocking-item-closed-without-gate (check_release_gate_consistency)
+      * check.blocking-close-grandfathered (check_release_gate_consistency)
       * check.from-backlog-gate-mismatch (check_release_gate_consistency)
       * check.live-bug-ungated (check_live_bug_gate)
     """
@@ -6187,7 +6285,11 @@ def check_release_gates(repo_root: Path) -> List[_core.Drift]:
     except Exception:
         pass
     try:
-        drift.extend(check_release_gate_consistency(repo_root, at_rest=True))
+        drift.extend(
+            check_release_gate_consistency(
+                repo_root, at_rest=True, grandfathered=grandfathered
+            )
+        )
     except Exception:
         pass
     try:
