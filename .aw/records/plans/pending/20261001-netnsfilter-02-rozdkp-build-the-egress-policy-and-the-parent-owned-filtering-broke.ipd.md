@@ -6,7 +6,7 @@
 - Scope: Add the egress POLICY type (a declared allow list of destinations, validated and fail-closed) and the parent-owned filtering BROKER that enforces it by refusing an unlisted destination and tunnelling an allowed one. Both are standalone and unit-testable here; wiring them to a real worker is child 03. The broker runs in the PARENT, outside the namespace, which is what makes it something the confined process cannot reconfigure.
 - Scope-Paths: agent_workflows/egress_policy.py, agent_workflows/host_sandbox_profile.py, tests/test_egress_policy.py
 - Item-Dependencies: executed:nxh5s4
-- Status: draft
+- Status: to-review
 - From-Backlog: sv9ce4
 - From-Spec: 25kzda
 - Work-Kind: feature
@@ -18,6 +18,7 @@
 - Id: rozdkp
 
 ## Workflow history
+- 2026-10-07 to-review (aw set): returned to review: Set-level validation sweep owned by wn956n E-05/V-05; coverage pass recorded; open questions are non-blocking
 - 2026-10-06 draft (aw set): demoted to-review -> draft: returned to authoring by gradcover 52opph: uncovered obligation: Bare pytest run green with actual summary line pasted
 
 - 2026-10-01 to-review (opencode its_direct/pt3-claude-opus-5-1m-us): authored review-ready while graduating backlog `sv9ce4`. The broker design specified here was BUILT AND RUN end to end during authoring (research `akmzyq` Findings 3 and 4), including a real `git ls-remote` refused while an allow-listed HTTPS endpoint succeeded on the same port, and five evasion attempts.
