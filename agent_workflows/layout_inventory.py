@@ -27,6 +27,8 @@ import tempfile
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Mapping, Optional, Sequence, Set, Tuple
 
+from agent_workflows.artifact_core import replacement_mode
+
 
 SCHEMA_VERSION = 1
 DEFAULT_ROOTS: Tuple[Tuple[str, str], ...] = (
@@ -916,6 +918,7 @@ def _atomic_json(path: Path, payload: Mapping[str, Any]) -> None:
             stream.write("\n")
             stream.flush()
             os.fsync(stream.fileno())
+        os.chmod(tmp_name, replacement_mode(path))
         os.replace(tmp_name, path)
     finally:
         if os.path.exists(tmp_name):

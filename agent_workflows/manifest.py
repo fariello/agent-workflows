@@ -32,6 +32,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, Optional
 
+from agent_workflows.artifact_core import replacement_mode
+
 # Bump only on a breaking schema change; readers tolerate a newer minor by ignoring
 # unknown keys and an older one by supplying defaults.
 SCHEMA_VERSION = 2
@@ -278,6 +280,7 @@ def save(manifest: Manifest, path: Path) -> Path:
     try:
         with os.fdopen(fd, "w", encoding="utf-8") as fh:
             fh.write(payload)
+        os.chmod(tmp_name, replacement_mode(path))
         os.replace(tmp_name, str(path))
     except BaseException:
         try:

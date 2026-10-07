@@ -41,6 +41,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Mapping, NamedTuple, Optional, Tuple
 
+from agent_workflows.artifact_core import replacement_mode
+
 # Endpoints probed for pricing, in order. Both are LiteLLM proxy admin routes; the first is a
 # superset (it carries cache-token pricing), the second is the narrower per-group summary.
 PRICING_PATHS: Tuple[str, ...] = ("/model/info", "/model_group/info")
@@ -951,6 +953,7 @@ def _atomic_write(path: Path, text: str) -> None:
     try:
         with os.fdopen(fd, "w", encoding="utf-8") as handle:
             handle.write(text)
+        os.chmod(tmp, replacement_mode(path))
         os.replace(tmp, str(path))
     except BaseException:
         try:

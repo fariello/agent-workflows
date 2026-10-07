@@ -29,6 +29,8 @@ import tempfile
 from pathlib import Path
 from typing import Any, Dict, List, Tuple
 
+from agent_workflows.artifact_core import replacement_mode
+
 from agent_workflows.renderers import get_renderer
 from agent_workflows.result_types import (
     Change,
@@ -286,6 +288,7 @@ def _write_generated(source_root: Path, files: Dict[str, str]) -> List[str]:
         try:
             with os.fdopen(fd, "w", encoding="utf-8") as fh:
                 fh.write(files[rel])
+            os.chmod(tmp, replacement_mode(target))
             os.replace(tmp, str(target))
         finally:
             if os.path.exists(tmp):

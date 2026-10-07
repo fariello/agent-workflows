@@ -25,6 +25,7 @@ import functools
 import os
 import re
 import secrets
+import stat
 import subprocess
 import tempfile
 from pathlib import Path
@@ -341,6 +342,40 @@ def normalize_artifact_markdown(text: str) -> str:
     return f"{normalized}\n" if normalized else ""
 
 
+def current_umask() -> int:
+    """Read the process umask without leaving it changed.
+
+    On Linux, reads the ``Umask:`` field from ``/proc/self/status`` when present to avoid mutating
+    process state in a multi-threaded runner. Falls back to the portable ``os.umask`` set-and-restore
+    idiom when ``/proc`` is unavailable or does not report a umask.
+    """
+    try:
+        with open("/proc/self/status", "r", encoding="utf-8") as f:
+            for line in f:
+                if line.startswith("Umask:"):
+                    return int(line.split(":", 1)[1].strip(), 8)
+    except (OSError, ValueError):
+        pass
+
+    current = os.umask(0o022)
+    os.umask(current)
+    return current
+
+
+def replacement_mode(path: Path | str) -> int:
+    """Return the mode to give a newly written or replaced file.
+
+    When ``path`` exists, preserve its existing permission mode (``stat.S_IMODE``) so an in-place
+    rewrite respects deliberate permission changes (e.g. ``chmod 640`` or sealed files).
+    When ``path`` does not exist, compute the standard file creation mode ``0o666 & ~current_umask()``.
+    """
+    try:
+        st = os.stat(path)
+        return stat.S_IMODE(st.st_mode)
+    except OSError:
+        return 0o666 & ~current_umask()
+
+
 def atomic_write(path: Path, text: str, *, prefix: str = ".aw-tmp-") -> None:
     """Write-to-temp-then-rename so an interrupted apply never leaves a partial file.
 
@@ -367,6 +402,7 @@ def atomic_write(path: Path, text: str, *, prefix: str = ".aw-tmp-") -> None:
         # newline="\n": never translate to CRLF on Windows; the written bytes are the text's bytes.
         with os.fdopen(fd, "w", encoding="utf-8", newline="\n") as f:
             f.write(text)
+        os.chmod(tmp, replacement_mode(path))
         os.replace(tmp, str(path))
     except BaseException:
         try:

@@ -53,6 +53,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Mapping, Sequence
 
+from agent_workflows.artifact_core import current_umask
 from agent_workflows.runner_shared import (
     analytics_root,
     analytics_snapshots_dir,
@@ -244,7 +245,7 @@ def _write_file_durably(path: Path, content: bytes) -> None:
         # normal create would, letting the deployment decide via umask or group ownership. Without
         # this, serving `latest/` from a web server 403s on every file even when the directory
         # permissions are correct.
-        os.chmod(temp_name, 0o666 & ~_current_umask())
+        os.chmod(temp_name, 0o666 & ~current_umask())
         os.replace(temp_name, str(path))
     finally:
         if os.path.exists(temp_name):
@@ -258,14 +259,9 @@ def _write_file_durably(path: Path, content: bytes) -> None:
 def _current_umask() -> int:
     """Read the process umask without leaving it changed.
 
-    There is no read-only umask syscall before Python 3.13 / Linux `/proc` parsing, so the portable
-    idiom is set-and-restore. Racy only against a concurrent umask change in the SAME process, which
-    this codebase never does.
+    Delegates to :func:`agent_workflows.artifact_core.current_umask`.
     """
-
-    current = os.umask(0o022)
-    os.umask(current)
-    return current
+    return current_umask()
 
 
 def _fsync_dir(directory: Path) -> None:
