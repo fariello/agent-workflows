@@ -99,6 +99,8 @@ involved, and deleting it causes exactly the partial execution it prevents.
 
 ## Cross-IPD validation
 
+OWNERS: the first check is satisfied by `9i2hge`'s declared dependency on `dq9bj9` plus `9i2hge`'s own bare-suite collection (its V-03); the second and fourth are performed by `9i2hge` E-06/V-06, which runs last; the third is performed by each child's bare-suite V-item (`dq9bj9` V-04, `9i2hge` V-05), and `9i2hge`'s run, being last, is the Set-wide one. This plan performs none of them.
+
 - NO DOUBLE OWNERSHIP OF `tests/conformance_matrix.py`. Both children declare it, which is legitimate (01
   edits the registry, the docstring and the symbol set; 02 only READS `ANSI_RE` and `GOLDEN_DIR` from it),
   but after both execute the file must contain exactly one coherent state. Verify by confirming 02's

@@ -12,11 +12,12 @@
 - From-Backlog: h0tiaw
 - Set: h0tiaw
 - Order: 2
-- Highest E allocated: 05
+- Highest E allocated: 06
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: 9i2hge
 
 ## Workflow history
+- 2026-10-06 note (opencode its_direct/pt3-claude-opus-5.5-1m-us): added E-06/V-06, the three Set-level checks (no orphaned golden, no orphaned symbol, no tripled assertion) the orchestrator `l8wvv3` carried with no owner; this plan runs last, after `dq9bj9`, so it is the only child that can see both changes. Measurement only; no scope change.
 - 2026-10-06 draft (aw set): demoted to-review -> draft: returned to authoring by gradcover 52opph: uncovered obligation: No orphaned golden and no orphaned symbol, checked across both children together
 
 - 2026-10-01 to-review (opencode its_direct/pt3-claude-opus-5-1m-us): Authored from backlog `h0tiaw` as Order 02 of Set `h0tiaw` (orchestrator `l8wvv3`), which carries the Set-wide reasoning. Every claim was MEASURED in this lane at HEAD `b6792ad4a`. THIS CHILD IS WHERE THE ITEM'S FRAMING WAS MEASURED WRONG: it filed the concern as "latent coverage debt, not a live defect", and one golden has in fact already drifted, so a reviewed artifact is stale right now. The item's second open question ("whether the intended contract is still the one the helpers encode") is answered favorably for this half: all seven gates were driven in-process against today's code and ALL SEVEN PASS, in 0.790s total, so unlike sibling `dq9bj9` (which must widen a pin that went false) nothing here asserts an obsolete promise. The ONE exception is the drifted golden, and OQ-01 resolves its direction from evidence rather than defaulting: the live render is the correct one because the golden's suggested commands lack the `--apply` every mutating verb in this repository requires, so the golden is regenerated and not the code. `aw ipd lint --phase author` reports conforming.
@@ -187,6 +188,13 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Expected outcome: step 6 naming, for each check it claims, the test that executes it, with the
     unexecuted per-leaf scenarios attributed to `2wowfy` and the `slow`/CI-advisory caveat stated rather than
     hidden; no em or en dashes added.
+  - Execution state: pending
+
+### Task group 5: the Set-level checks this plan runs because it executes last
+
+- [ ] E-06 RUN THE THREE SET-LEVEL CHECKS orchestrator `l8wvv3` assigns to this plan, because this plan executes after `dq9bj9` (its declared dependency) and is the only point at which both children's changes exist together. (a) NO ORPHANED GOLDEN: `rg '\.golden' --glob '!*.golden'` over the tree returns at least one hit, and every one of the twelve `.golden` files under `tests/fixtures/conformance_goldens/` is read by a test. (b) NO ORPHANED SYMBOL: for every public name defined in `tests/conformance_matrix.py` after `dq9bj9`'s edits, either a test imports it or it is absent from the module; record the per-name result. (c) NO TRIPLED ASSERTION: confirm the zero-undeclared-leaves assertion is made by `test_command_surface_declarations.py` and `test_model_vocab.py::test_10_zero_undeclared_leaves` and NOT re-made by `dq9bj9`'s `tests/test_conformance_matrix_structure.py`, and that each new module states what it adds. This plan changes nothing for this item; it only measures. A failure is reported and the Set is not declared complete.
+  - Depends on: E-05
+  - Expected outcome: (a) at least one reader hit and all twelve goldens read; (b) a per-name table with no name both defined and unimported; (c) the overlap confirmed as stated, not repeated.
   - Execution state: pending
 
 ## Project conventions discovered (Step 0)
@@ -421,6 +429,11 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
     en dash was added, for example by pasting a search for those characters over the diff returning nothing.
     Finally PASTE the two bare-suite summary lines (base and final) and state the failure-set delta as a SET
     of test ids, which must be EMPTY.
+  - Observed evidence:
+  - Result: pending
+
+- [ ] V-06 validates E-06
+  - Required evidence: PASTE the `rg '\.golden' --glob '!*.golden'` output and, for each of the twelve goldens, the test that reads it. PASTE the per-name table for `tests/conformance_matrix.py` (name, importer or `absent`). PASTE the greps showing the zero-undeclared-leaves assertion appears in the two named files and not in `tests/test_conformance_matrix_structure.py`.
   - Observed evidence:
   - Result: pending
 
