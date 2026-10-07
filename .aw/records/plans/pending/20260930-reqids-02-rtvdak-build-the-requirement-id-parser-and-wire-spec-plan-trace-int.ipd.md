@@ -18,6 +18,7 @@
 - Id: rtvdak
 
 ## Workflow history
+- 2026-10-07 note (opencode its_direct/pt3-claude-opus-5.5-1m-us): V-01 now also quotes the spec's `--by-human` approval history line, the second-layer check orchestrator `9wzlou` assigns here.
 - 2026-10-06 draft (aw set): demoted approved -> draft: APPROVAL WITHDRAWN: returned to authoring by gradcover 52opph: uncovered obligation: Close backlog `vy20et` by shipping both halves it asks for
 - 2026-10-01 same-status (aw set): set Item-Dependencies to executed:jjh4aj, state:spec:approved:89xjll
 - 2026-10-01 approved (aw set): status set to approved
@@ -210,7 +211,7 @@ F-02 so a reader of this plan alone is not misled into thinking the survey was i
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
 - [ ] V-01 validates E-01
-  - Required evidence: paste the approved spec's path, `- Id:` and `- Status:` line showing `approved`, plus the verbatim quotes of all five ratified decisions (requirement namespace and families, acceptance namespace, declaration-site rule, mandatory rule, grandfathered/no-ids behavior). If the spec is not `approved`, paste its actual status and confirm the plan STOPPED rather than proceeding.
+  - Required evidence: paste the approved spec's path, `- Id:` and `- Status:` line showing `approved`, plus the verbatim quotes of all five ratified decisions (requirement namespace and families, acceptance namespace, declaration-site rule, mandatory rule, grandfathered/no-ids behavior). If the spec is not `approved`, paste its actual status and confirm the plan STOPPED rather than proceeding. ALSO quote the spec's own `## Workflow history` line recording its approval with `--by-human` (orchestrator `9wzlou` relies on this as the second layer: the edge proves the status reads `approved`; only that history line proves a human attested it).
   - Observed evidence:
   - Result: pending
 
