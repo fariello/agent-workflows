@@ -6,7 +6,8 @@
 - Scope: Amend the approved spec `uonrjg` so every citation it makes resolves at HEAD, and add behavioral coverage for the two criteria the sweep found genuinely unasserted. No renderer behavior changes.
 - Scope-Paths: .aw/records/specs/approved/20260913-uonrjg-01-uonrjg-cross-artifact-lifecycle-symbols-and-ansi-status-styling.spec.md, tests/test_lifecycle_style.py
 - Item-Dependencies: none
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
 - From-Spec: uonrjg
 - Work-Kind: chore
 - Priority: low
@@ -18,6 +19,7 @@
 - Id: xtensb
 
 ## Workflow history
+- 2026-10-07 reviewed (aw set): /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005, PR-006. Re-verified S1-S5 and F4 at a93c72277; found a sixth stale offset (Section 12a point 3, contract doc 159-163) the symbol-only sweep missed and added an offset grep; re-walked the census (252/34/286, miss 29) and fixed the counting definition; made the A5 counterfactual reachable via mock.patch.object; made A19 non-vacuous with a consumer-level backlog Work-Kind pair; replaced count bars; added scope fence and finalize ownership.
 
 - 2026-10-02 draft (aw oc run model=agent): created.
 - 2026-10-02 to-review (aw oc run model=agent): authored from backlog `nzqj6m`; the suggested per-criterion sweep was performed and its measured results are recorded in `## Findings`.
@@ -40,11 +42,13 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 ### Task group 1: Correct the spec's rotted citations
 
 - [ ] E-01 In the spec, fix the three stale LINE citations S1, S2, S3. Replace A12's stale offset citation (the offset `agent_workflows/term.py:374`, which lands in `term.should_color`) with a symbol citation of `term.should_unicode` (A12 already mandates symbol citation, so this applies its own rule to itself). Replace A11's stale offset citation (the spec text reading "`docs/cli-output-contract.md:225`") with a citation of the section headed `## 9. Automatic Non-TTY Migration Policy: RETRACTED 2026-09-19`, noting the quoted retracted sentence now sits at line 304 if a line is given at all. In BOTH places where the accessibility lens is cited (the Section 0.5 superseded-claims table row, and OQ-01's "Resolution or deferral rationale"), replace the stale lens quote (cited as `accessibility.md:56-63`, quoting `prefer the terminal's default fg/bg and the 16 named colors`) with what the lens says at HEAD (the 256->16->none ladder), and state plainly that the old wording survives only as marked history, because OQ-01's own resolution is what corrected the lens. Do not restate the lens text as if it still conflicted.
+  ALSO FIX S6, FOUND AT REVIEW AND ABSENT FROM THE AUTHORING SWEEP: Section 12a point 3 cites the cli-output-contract doc at offset 159 to 163 (quoted in the spec beside the text "as `docs/cli-output-contract.md`") as the place that "promises" non-TTY stdout selects AGENT mode. At review HEAD `a93c72277` those lines hold the `---` rule and the `## 3. Exit Code Semantics` heading, and the promise is retracted. Re-point it to the section headed `## 9. Automatic Non-TTY Migration Policy: RETRACTED 2026-09-19`, saying the promise was there at the time and is now retracted text. LEAVE THE HISTORICAL term.py 224-to-227 OFFSET IN A12 ALONE: the sentence beginning "Only the CITATION was stale. This line read" explicitly records what the line USED to read, so it is marked history, not a live citation.
+  THE SWEEP METHOD MUST COVER LINE OFFSETS, NOT ONLY SYMBOLS. F1's extraction resolved paths and `module.symbol` tokens but never checked `path:line` offsets, which is why S6 was missed. Run `grep -noE '[A-Za-z_/.-]+\.(py|md|json):[0-9]+(-[0-9]+)?'` over the spec (at review it returned exactly five: the S1 term.py offset 374, the S3 accessibility-lens offset 56 to 63, the S6 contract-doc offset 159 to 163, the S2 contract-doc offset 225, and the historical A12 term.py offset 224 to 227), and resolve each against the text it claims. That is the "citation extraction" E-07 and V-01 re-run.
   - Depends on: none
   - Expected outcome: every line-anchored citation in the spec resolves to text that supports the claim, and no citation asserts the accessibility lens contradicts this spec.
   - Execution state: pending
 
-- [ ] E-02 In the spec's Section 9.3 final bullet, re-measure and correct the subcommand census (S4): replace the "200 LEAF subcommands / 229 subcommand nodes / 29 intermediate groups" figures with figures measured at the executing HEAD by walking `cli._build_parser()`, keep the existing STATE-THE-DENOMINATOR instruction, and record that the 29-leaf miss accounting still holds with its three groups named (host-driver families, `run/as` plus `run/ipd`, and `__complete`). Note explicitly that the group count no longer coincides numerically with the leaf-miss count, retiring the specific trap that bullet warns about. Separately mark S5 (Section 12a point 2's "25 of 219", repeated in obligation 2) as a PRE-`yaxr4i` historical measurement rather than silently updating it, because that sentence is describing the tree as it was when the dependency was declared and rewriting it would falsify the history it records.
+- [ ] E-02 In the spec's Section 9.3 final bullet, re-measure and correct the subcommand census (S4): replace the "200 LEAF subcommands / 229 subcommand nodes / 29 intermediate groups" figures with figures measured at the executing HEAD by walking `cli._build_parser()`, keep the existing STATE-THE-DENOMINATOR instruction, and record that the 29-leaf miss accounting still holds with its three groups named (host-driver families, `run/as` plus `run/ipd`, and `__complete`). THE FIGURES DRIFT FAST: F3 measured 250 leaves / 35 groups / 284 nodes at authoring, and the review re-walk at `a93c72277` gave 252 / 34 / 286 with the miss still 29. Count a node as a GROUP when its parser itself carries a subparsers action and as a LEAF otherwise, and state that definition in the bullet beside the figures, so the next re-measurement counts the same thing. Do NOT write "the miss count is always 29"; record it as measured on the stated date. Note explicitly that the group count no longer coincides numerically with the leaf-miss count, retiring the specific trap that bullet warns about. Separately mark S5 (Section 12a point 2's "25 of 219", repeated in obligation 2) as a PRE-`yaxr4i` historical measurement rather than silently updating it, because that sentence is describing the tree as it was when the dependency was declared and rewriting it would falsify the history it records.
   - Depends on: E-01
   - Expected outcome: the spec publishes a census that reproduces at HEAD, and its one historical census is labeled historical instead of reading as current.
   - Execution state: pending
@@ -57,16 +61,18 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 ### Task group 2: Close the two uncovered criteria
 
 - [ ] E-04 Add a behavioral test for A5 to `tests/test_lifecycle_style.py` asserting that no lifecycle constant and no rendered lifecycle output contains an emoji-presentation variation selector (`U+FE0F`). Drive it through the PUBLIC surface rather than by reading source: for every stage in `lifecycle_style.STAGE_ORDER` assert `U+FE0F` is absent from both the Unicode glyph and the ASCII fallback, and assert the two multi-codepoint glyphs in `lifecycle_style.MULTI_CODEPOINT_GLYPHS` carry the TEXT selector `U+FE0E` instead. Then render across tiers and modes (`Term(color=..., unicode=..., depth=...)` over the three depths and both Unicode modes) via `format_lifecycle_marker` and `style_lifecycle_text` and assert `U+FE0F` never appears. NO SOURCE PINNING: do not grep production files, do not use `inspect` or `ast` (P16; the backlog item restates this as binding for this axis).
+  READ GLYPHS THROUGH THE PUBLIC ACCESSORS: `lifecycle_style.style_for(stage).unicode` / `.ascii` and `lifecycle_style.glyph_for(stage, unicode=...)`. Build `Resolved` values for rendering with `lifecycle_style.resolve(...)` over real families, or construct `Resolved(stage=..., style=style_for(stage), family=...)` per stage as `status_set._resolve_record_lifecycle` does, so every stage is rendered, not only those reachable from one family.
+  THE COUNTERFACTUAL IN V-04 MUST BE REACHABLE: `lifecycle_style.STAGES` is a `MappingProxyType` built at import, so the stage table cannot be patched in place. Patch at the test-run level with `unittest.mock.patch.object(lifecycle_style, "STAGES", <dict copy with one row's `unicode` replaced via `_replace`>)` (and `MULTI_CODEPOINT_GLYPHS` likewise for the selector half), run the new test, observe it fail, and leave no edit on disk. That is a scratch probe, not a committed test.
   - Depends on: none
   - Expected outcome: a failing-if-regressed guard exists for A5 across every tier and both Unicode modes, asserting rendered output rather than source text.
   - Execution state: pending
 
-- [ ] E-05 Add a behavioral test for A19 to `tests/test_lifecycle_style.py` asserting work-kind has no effect on lifecycle resolution. Assert OUTCOMES: (a) `lifecycle_style.resolve` accepts no work-kind input, demonstrated by calling it with `work_kind=` and asserting `TypeError`, which is a call-result assertion and not a signature census; and (b) resolution is identical for artifacts differing only in work-kind, by resolving the same family and native status repeatedly and asserting the `Resolved` stage, style, and native status are equal, including for a backlog item whose record carries a differing `Work-Kind` field that the resolver is never handed. Choose at least one family where a work-kind field genuinely exists on the artifact (`backlog`) so the test is meaningful rather than vacuous.
+- [ ] E-05 Add a behavioral test for A19 to `tests/test_lifecycle_style.py` asserting work-kind has no effect on lifecycle resolution. Assert OUTCOMES: (a) `lifecycle_style.resolve` accepts no work-kind input, demonstrated by calling it with `work_kind=` and asserting `TypeError`, which is a call-result assertion and not a signature census; and (b) resolution is identical for artifacts differing only in work-kind, by resolving the same family and native status repeatedly and asserting the `Resolved` stage, style, and native status are equal, and (c) PRESENTATION is work-kind-blind at a real consumer: write two backlog items into a temp repo identical except `- Work-Kind: bug` versus `- Work-Kind: chore`, render them through a real lifecycle consumer (for example `aw find backlog <id6>` driven via `cli.main` with `FORCE_COLOR=1`, as `tests/test_status_set.py::SharedLifecycleRenderingTests` drives `find`), and assert the lifecycle glyph-plus-color token emitted for each is byte-identical. Part (b) ALONE is vacuous, since a resolver that is never handed a work-kind cannot vary on it; part (c) is what can actually fail if a consumer later threads work-kind into presentation. Choose `backlog` because a work-kind field genuinely exists there.
   - Depends on: E-04
   - Expected outcome: a guard exists that fails if a later change threads work-kind into lifecycle resolution or presentation.
   - Execution state: pending
 
-- [ ] E-06 Record the spec amendment with `aw specs note` on the `uonrjg` spec, in one note naming this plan and this backlog item and summarizing WHAT was amended (three citations re-pointed, one census re-measured, one census marked historical, A13's document-conflict warning retired as resolved) and WHAT WAS NOT (no criterion's requirement changed, no stage, color, glyph, or mapping touched). Use `aw specs note`, NOT `aw specs set`: the spec is `approved` and release-gating, and the spec's own Section 12a records that the review verb would illegally de-approve it. Do not hand-edit `## Workflow history`.
+- [ ] E-06 Record the spec amendment with `aw specs note <spec path> --message <msg>` on the `uonrjg` spec (the verb takes a PATH, not an id6), in one note naming this plan and this backlog item and summarizing WHAT was amended (four citations re-pointed (S1, S2, S3, S6), one census re-measured, one census marked historical, A13's document-conflict warning retired as resolved) and WHAT WAS NOT (no criterion's requirement changed, no stage, color, glyph, or mapping touched). Use `aw specs note`, NOT `aw specs set`: the spec is `approved` and release-gating, and the spec's own Section 12a records that the review verb would illegally de-approve it. Do not hand-edit `## Workflow history`.
   - Depends on: E-01, E-02, E-03
   - Expected outcome: the spec's history records the amendment through the tooled path, with the scope of the amendment stated.
   - Execution state: pending
@@ -152,7 +158,8 @@ A12 already warned about; two are published measurements whose denominators move
 | S1 | A12 | the spec cites `agent_workflows/term.py:374` as `term.should_unicode`'s ASCII-variable read | WRONG. The symbol `term.should_unicode` is defined at `agent_workflows/term.py:940` (`def should_unicode`). The cited offset sits inside `term.should_color`'s `override` docstring, at the text "``override`` EXISTS SO A FLAG NEVER HAS TO MUTATE ``os.environ``", discussing the flag layer, i.e. the EXACT confusion A12's own lesson predicts |
 | S2 | A11 | the spec says the retracted promise survives at `docs/cli-output-contract.md:225`, quoting `non-TTY stdout adopts aw.agent/v1 JSONL` | WRONG. That offset holds the unrelated line `- **Completeness and Verification**:`. The quoted retracted sentence is the text "The retracted text read: \"Per maintainer decision OQ-01, non-TTY stdout adopts `aw.agent/v1` JSONL\"", inside the section headed `## 9. Automatic Non-TTY Migration Policy: RETRACTED 2026-09-19` |
 | S3 | Section 0.5 table and OQ-01 | the spec cites `accessibility.md:56-63` for `Do not assume 256-color or truecolor` and `prefer the terminal's default fg/bg and the 16 named colors` | WRONG AND INVERTED. The lens now reads "**DEGRADE THROUGH 256 -> 16 -> NONE** (DECISIONS D42). 256-color is the TOP tier" at that location. The old wording survives ONLY as explicitly-marked history, in the line beginning "old wording in mind: it used to read". The lens was corrected by OQ-01 itself, so the spec cites the pre-correction text it caused to be rewritten |
-| S4 | Section 9.3 final bullet | "200 LEAF subcommands (229 subcommand nodes in total, of which 29 are intermediate groups)" | STALE. Walking `cli._build_parser()` at HEAD gives 250 leaves and 35 groups (284 nodes). The leaf-miss count is still EXACTLY 29 and still fully accounted for (26 host-driver leaves in the `oc`/`opencode`/`agy`/`antigravity` families, plus `run/as`, `run/ipd`, and the hidden `__complete`), so the ACCOUNTING survives and only the denominators rotted. Note the spec's own warning now bites: it says "the leaf-miss count (29) coincides numerically with the group count (29), so a bare '29 of 229' reads as self-consistent while being the wrong ratio" - at HEAD the group count is 35, so that coincidence has ended |
+| S4 | Section 9.3 final bullet | "200 LEAF subcommands (229 subcommand nodes in total, of which 29 are intermediate groups)" | STALE. Walking `cli._build_parser()` at HEAD gives 250 leaves and 35 groups (284 nodes); re-walked at review HEAD `a93c72277`: 252 / 34 / 286, miss 29. The leaf-miss count is still EXACTLY 29 and still fully accounted for (26 host-driver leaves in the `oc`/`opencode`/`agy`/`antigravity` families, plus `run/as`, `run/ipd`, and the hidden `__complete`), so the ACCOUNTING survives and only the denominators rotted. Note the spec's own warning now bites: it says "the leaf-miss count (29) coincides numerically with the group count (29), so a bare '29 of 229' reads as self-consistent while being the wrong ratio" - at HEAD the group count is 35, so that coincidence has ended |
+| S6 | Section 12a point 3 | the spec says `yaxr4i` OQ-01 asked whether non-TTY stdout should select AGENT mode, citing the contract doc at offset 159 to 163 as the promise | WRONG (found at REVIEW, not by the authoring sweep). Those lines now hold `---` and `## 3. Exit Code Semantics`; the promise lives on only as retracted text in Section 9. |
 | S5 | Section 12a point 2, repeated in obligation 2 | "`--no-color` is currently missing from 25 of 219 subcommands" | STALE, and historically so: it describes the PRE-`yaxr4i` tree. `yaxr4i` is `executed`, and at HEAD 29 of 250 leaves declare neither flag, all explained as in S4 |
 
 ### F4. A13's "the document is stale" warning is ITSELF now stale
@@ -203,6 +210,7 @@ authored-palette and all-tiers tests. A13 the three named rungs. A15 variation s
 
 ## Proposed changes (ordered, validatable)
 
+0. Fix S6: re-point Section 12a point 3's stale contract-doc offset (159 to 163) to the retracted section by heading.
 1. Fix S1: re-point A12's stale offset citation to the symbol `term.should_unicode`, per A12's own stated rule.
 2. Fix S2: re-point A11's stale offset citation to the retracted section by its heading.
 3. Fix S3: correct the accessibility-lens citation in Section 0.5 and OQ-01 to quote what the lens says now.
@@ -250,10 +258,10 @@ authored-palette and all-tiers tests. A13 the three named rungs. A15 variation s
 ## Required tests / validation
 
 - `python3 -m pytest tests/test_lifecycle_style.py tests/test_term.py` for the two new guards and the
-  existing lifecycle surface. Baseline measured before authoring: 43 passed.
+  existing lifecycle surface. Baseline measured before authoring: 43 passed (re-confirmed 43 at review HEAD `a93c72277`); context only, re-derive before editing.
 - `python3 -m pytest tests/test_lifecycle_style.py tests/test_term.py tests/test_config.py
   tests/test_check_engine_spec_criteria.py tests/test_flag_surface_uniformity.py tests/test_pad_visible.py`
-  for the depth, palette, flag-surface, and criteria-coverage neighbours. Baseline: 105 passed.
+  for the depth, palette, flag-surface, and criteria-coverage neighbours. Baseline at authoring: 105 passed; context only, re-derive before editing.
 - `python3 -m pytest` bare for the full fast suite, since the spec edit is read by
   `tests/test_lifecycle_style.py` (Section 5 parse) and by `check_engine`'s criteria-coverage rule, so a
   malformed amendment can fail tests far from this plan.
@@ -296,7 +304,7 @@ authored-palette and all-tiers tests. A13 the three named rungs. A15 variation s
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'.
 
 - [ ] V-01 validates E-01
-  - Required evidence: paste, for each of S1/S2/S3, the OLD cited text and the text at the cited location at HEAD, showing the mismatch; then paste the amended spec lines. For S1 show that the spec now cites `term.should_unicode` by symbol and paste `grep -n "def should_unicode" agent_workflows/term.py` proving the symbol resolves. For S2 paste the heading line of the retracted section from `docs/cli-output-contract.md` and show the spec cites it by heading. For S3 paste `sed -n '56,63p' .aw/system/workflows/assess/lenses/accessibility.md` showing the 256->16->none ladder, and paste the amended spec text in BOTH locations (Section 0.5 table row and OQ-01) showing neither now claims the lens prefers the 16 named colors. Finally re-run the full citation extraction over the amended spec and paste output showing zero unresolvable citations.
+  - Required evidence: paste, for each of S1/S2/S3, the OLD cited text and the text at the cited location at HEAD, showing the mismatch; then paste the amended spec lines. For S1 show that the spec now cites `term.should_unicode` by symbol and paste `grep -n "def should_unicode" agent_workflows/term.py` proving the symbol resolves. For S2 and S6 paste the heading line of the retracted section from `docs/cli-output-contract.md` and show the spec cites it by heading in BOTH places (A11 and Section 12a point 3). For S3 paste `sed -n '56,63p' .aw/system/workflows/assess/lenses/accessibility.md` showing the 256->16->none ladder, and paste the amended spec text in BOTH locations (Section 0.5 table row and OQ-01) showing neither now claims the lens prefers the 16 named colors. Finally re-run the full citation extraction over the amended spec (symbols and paths as in F1, PLUS the `path:line` offset grep named in E-01) and paste output showing every remaining offset either resolves to supporting text or is explicitly marked history.
   - Observed evidence:
   - Result: pending
 
@@ -311,12 +319,12 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Result: pending
 
 - [ ] V-04 validates E-04
-  - Required evidence: paste the new test's name and the `python3 -m pytest tests/test_lifecycle_style.py` output showing it passing with the real pass count. Then paste a COUNTERFACTUAL demonstrating the guard bites: temporarily substitute an emoji-presentation glyph (`U+26A0 U+FE0F`) for the text form via a local patch of the stage table, show the new test FAILS, and confirm the tree is restored afterwards with `git diff --stat` showing no leftover change. Also confirm by inspection of the new test's body that it performs no `inspect`, no `ast`, and no regex or substring search over production source (P16).
+  - Required evidence: paste the new test's name and the `python3 -m pytest tests/test_lifecycle_style.py -o addopts=""` output showing it passing with the real pass count. Then paste a COUNTERFACTUAL demonstrating the guard bites: temporarily substitute an emoji-presentation glyph (`U+26A0 U+FE0F`) for the text form using the in-process `mock.patch.object` probe E-04 names, show the new test FAILS (paste the failure), and confirm the tree is restored afterwards with `git diff --stat` showing no leftover change. Also confirm by inspection of the new test's body that it performs no `inspect`, no `ast`, and no regex or substring search over production source (P16).
   - Observed evidence:
   - Result: pending
 
 - [ ] V-05 validates E-05
-  - Required evidence: paste the new test's name and its passing output. Paste the assertion showing `lifecycle_style.resolve(..., work_kind=...)` raises `TypeError`, and the assertion showing two resolutions differing only in the artifact's work-kind produce equal stage, style, and native status. Paste the family used and confirm it is one where a `Work-Kind` field genuinely exists on the artifact, so the test is not vacuous. Confirm no source-reading (P16) as in V-04.
+  - Required evidence: paste the new test's name and its passing output. Paste the assertion showing `lifecycle_style.resolve(..., work_kind=...)` raises `TypeError`, and the assertion showing two resolutions differing only in the artifact's work-kind produce equal stage, style, and native status. Paste the consumer-level assertion (part (c)): the two backlog items differing only in `Work-Kind`, the command driven, and the identical lifecycle token from each. Confirm part (b) is not presented as the non-vacuous proof on its own. Confirm no source-reading (P16) as in V-04.
   - Observed evidence:
   - Result: pending
 
@@ -326,7 +334,7 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Result: pending
 
 - [ ] V-07 validates E-07
-  - Required evidence: paste bare `python3 -m pytest` output including the `N passed` summary line (run it BARE per `AGENTS.md`: no `-n0`, no extra `-q`, no `-p no:randomly`), showing no regression against the 43 and 105 baselines recorded in `## Required tests / validation`. Paste `aw check` output showing no new violation, specifically including the spec-criteria-coverage rule that reads this spec. Paste `aw ipd lint --phase pre-transition` for this plan reporting conforming. Paste `git diff --check` clean, and paste `git diff --cached --name-only` at commit time showing ONLY the two declared `Scope-Paths` entries.
+  - Required evidence: paste bare `python3 -m pytest` output including the `N passed` summary line (run it BARE per `AGENTS.md`: no `-n0`, no extra `-q`, no `-p no:randomly`), showing zero failures beyond a pre-execution baseline measured by the executor on the same HEAD and compared BY NAME (the 43 and 105 figures in `## Required tests / validation` are authoring context only; the bar is the targeted modules passing with exactly the new tests added, and no new full-suite failure). Paste `aw check` output showing no new violation, specifically including the spec-criteria-coverage rule that reads this spec. Paste `aw ipd lint --phase pre-transition` for this plan reporting conforming. Paste `git diff --check` clean, and paste `git diff --cached --name-only` at commit time showing ONLY the two declared `Scope-Paths` entries.
   - Observed evidence:
   - Result: pending
 
@@ -346,7 +354,16 @@ success. Re-measure every census and every rung at the executing HEAD rather tha
 this plan's `## Findings`, which were measured at authoring time and are evidence for the DEFECT, not
 evidence for the FIX.
 
+SCOPE FENCE: `- Scope-Paths:` is a DECLARATION so finalize can reconcile edits against intent, not a stop
+condition. An out-of-scope edit the work genuinely needs is made and justified at finalize with
+`--scope-reason`; a declared-but-unmodified path is acknowledged with `--scope-ack`. Do NOT edit
+`docs/cli-output-contract.md`, the accessibility lens, or any production module; this plan changes no
+renderer behavior.
+
 Post-gate lifecycle: on success, `aw ipd lint --phase pre-transition` must report conforming and every
-`V-*` must read `pass` with pasted evidence before the plan moves to `.aw/records/plans/executed/`. If any
-`V-*` cannot be satisfied, leave the plan in `pending/` and report the blocker rather than weakening the
-criterion or the evidence demand.
+`V-*` must read `pass` with pasted evidence before the plan moves to `.aw/records/plans/executed/`. Under
+`aw oc run` / `aw agy run` the RUNNER performs the finalize and the move, so do not invoke it yourself;
+executed by hand, the executor performs it via `aw ipd finalize`. Never hand-edit the status line or
+hand-move the file. If any `V-*` cannot be satisfied, leave the plan in `pending/` and report the blocker
+rather than weakening the criterion or the evidence demand. Do NOT set backlog `nzqj6m` (already
+`graduated`) or spec `uonrjg` to any status.
