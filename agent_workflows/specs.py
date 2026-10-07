@@ -38,13 +38,16 @@ def _refuse_unsafe_descriptive(
     value: Optional[str],
     *,
     bound_length: bool = True,
+    prose: bool = False,
 ) -> Optional[str]:
     """Judge one descriptive value against Section 8.8 output-safety.
 
     Delegates to attention_contract.refuse_unsafe_descriptive (IPD 685iq8).
     Preserves module-private name for existing call sites and shipped tests.
     """
-    return A.refuse_unsafe_descriptive(verb, flag, value, bound_length=bound_length)
+    return A.refuse_unsafe_descriptive(
+        verb, flag, value, bound_length=bound_length, prose=prose
+    )
 
 
 # --------------------------------------------------------------------------------------
@@ -446,7 +449,7 @@ def validate_spec(path: Path, text: str) -> List[core.Drift]:
         )
 
     scope = _read_scope(lines)
-    if scope is not None and not A.is_safe_descriptive(scope):
+    if scope is not None and not A.is_safe_prose_descriptive(scope):
         drift.append(
             core.Drift(
                 loc,
@@ -1325,7 +1328,7 @@ def run_new(args) -> int:
     _raw_summary = getattr(args, "summary", None)
     if _raw_summary is not None:
         _summary_err = _refuse_unsafe_descriptive(
-            "aw specs new", "--summary", _raw_summary
+            "aw specs new", "--summary", _raw_summary, prose=True
         )
         if _summary_err:
             sys.stderr.write(f"{_summary_err}\n")
