@@ -3419,7 +3419,11 @@ def _summarize_paths(paths: Sequence[str]) -> str:
 
 
 def _plan_execution_tree(
-    repo_root: Path, plan_id: str, base_head: str
+    repo_root: Path,
+    plan_id: str,
+    base_head: str,
+    *,
+    recorded_branch: Optional[str] = None,
 ) -> Optional[Path]:
     """The TREE whose changes this plan's frozen ``base_head`` can honestly be compared against.
 
@@ -3449,9 +3453,19 @@ def _plan_execution_tree(
 
     THE ANCESTRY CHECK IS NOT REDUNDANT with :func:`_receipt_is_live`, which asks about THIS tree's
     HEAD. The first question is WHICH lane: an execution may have been attempt-scoped into
-    ``aw/lane/<id6>_attemptN`` by ``allocate_worktree``, leaving the canonical lane behind. The
-    candidate-enumerating resolver (:func:`worktree_lease.enumerate_lane_candidates`, fkmjoy `iqtt8d`
-    E-02) enumerates all lane branches for ``plan_id`` and selects by receipt base descent. Among
+    ``aw/lane/<id6>_attemptN`` by ``allocate_worktree``, leaving the canonical lane behind. When the
+    plan's begin receipt records a ``lane`` block (m94le9 `42ertq` E-04), that recorded identity
+    answers the question directly: the function resolves the recorded branch with
+    :func:`worktree_lease.lane_id_from_branch`, inspects it via :func:`worktree_lease.inspect_lane`,
+    requires its worktree directory to exist, and applies the ancestry check
+    ``git merge-base --is-ancestor <base_head> HEAD`` in it. If the recorded branch no longer
+    resolves, its worktree directory is gone, or the ancestry check fails, this function returns
+    ``None`` (never falling through to candidate enumeration, because selecting a sibling would
+    reintroduce the F-13 heuristic misattribution in the exact case the record exists to settle;
+    silence is the safe, expected answer). For receipts that record no lane (receipts predating schema
+    v3 or lanes allocated without a begin receipt), the candidate-enumerating resolver
+    (:func:`worktree_lease.enumerate_lane_candidates`, fkmjoy `iqtt8d` E-02) remains the fallback:
+    it enumerates all lane branches for ``plan_id`` and selects by receipt base descent. Among
     candidates whose HEAD descends from ``base_head``, preference is given to a candidate holding
     work over an empty one, then to the highest attempt number (because attempt-scoping means a
     later attempt displaced an earlier one). When no candidate descends from ``base_head``, this
@@ -3464,6 +3478,21 @@ def _plan_execution_tree(
     from agent_workflows import worktree_lease as _lease
 
     try:
+        if recorded_branch:
+            lane_id = _lease.lane_id_from_branch(recorded_branch)
+            if not lane_id:
+                return None
+            state = _lease.inspect_lane(Path(repo_root), lane_id, base_commit=base_head)
+            if not state.worktree_path or not state.worktree_path.is_dir():
+                return None
+            rc, _out, _err = _git_capture(
+                state.worktree_path,
+                ["merge-base", "--is-ancestor", base_head, "HEAD"],
+            )
+            if rc != 0:
+                return None
+            return state.worktree_path
+
         candidates = _lease.enumerate_lane_candidates(
             Path(repo_root), plan_id, base_head
         )
@@ -3517,15 +3546,16 @@ def check_scope_drift(
     WHICH TREE IS MEASURED IS PART OF THE RULE (rcptstale ``wmnmei``, backlog ``v880xk``, maintainer
     ruling 2026-09-10). The comparison runs against the plan's ISOLATED LANE WORKTREE, resolved by
     :func:`_plan_execution_tree`, and a plan with no usable lane is reported on NOT AT ALL (or receives
-    a ``check.scope-not-audited`` advisory if it holds work in an irreconcilable lane). An
-    attempt-scoped lane is resolved by candidate enumeration, avoiding silent false-negative
-    abstentions. Before this, the rule diffed the frozen base against whichever tree the command
-    happened to run in, which in a shared checkout is every co-worker's commits: measured 2026-09-22 at
-    HEAD ``132e8333``, 350 findings across six plans (216/94/21/11/6/2), of which 350 of 350 were
-    COMMITTED intervening history and 0 were working-tree changes, while the same six measured in their
-    own lanes yielded 9/5/1/0 and two plans with no usable lane. The accepted cost is that hand work in
-    a shared main checkout gets no advisory at all; see :func:`_plan_execution_tree` for why, and do
-    not reintroduce a main-tree comparison on the argument that coverage was lost by accident.
+    a ``check.scope-not-audited`` advisory if it holds work in an irreconcilable lane). When the begin
+    receipt records a ``lane`` block (m94le9 `42ertq` E-04), that recorded identity is preferred directly;
+    for receipts without one, candidate enumeration is the fallback. Before this, the rule diffed the
+    frozen base against whichever tree the command happened to run in, which in a shared checkout is
+    every co-worker's commits: measured 2026-09-22 at HEAD ``132e8333``, 350 findings across six plans
+    (216/94/21/11/6/2), of which 350 of 350 were COMMITTED intervening history and 0 were working-tree
+    changes, while the same six measured in their own lanes yielded 9/5/1/0 and two plans with no usable
+    lane. The accepted cost is that hand work in a shared main checkout gets no advisory at all; see
+    :func:`_plan_execution_tree` for why, and do not reintroduce a main-tree comparison on the argument
+    that coverage was lost by accident.
 
     ONE FINDING PER PLAN, NOT ONE PER PATH. The finding carries the COUNT and the offending paths in
     its detail (bounded, with an explicit "and N more" tail) rather than multiplying into one Drift per
@@ -3568,46 +3598,104 @@ def check_scope_drift(
             )
         except (ValueError, OSError):
             plan_rel = p.name
+        lane_block = receipt.get("lane")
+        recorded_branch = (
+            lane_block.get("branch")
+            if isinstance(lane_block, dict) and lane_block.get("branch")
+            else None
+        )
         # WHICH TREE: the plan's isolated lane, or nothing at all. See `_plan_execution_tree`.
-        exec_tree = _plan_execution_tree(repo_root, plan_id, base_head)
+        if recorded_branch:
+            exec_tree = _plan_execution_tree(
+                repo_root, plan_id, base_head, recorded_branch=recorded_branch
+            )
+        else:
+            exec_tree = _plan_execution_tree(repo_root, plan_id, base_head)
         if exec_tree is None:
-            # Declared-file-scope unauditable advisory (fkmjoy, IPD iqtt8d E-04).
+            # Declared-file-scope unauditable advisory (fkmjoy, IPD iqtt8d E-04; m94le9 42ertq E-04).
             # Fires ONLY when:
             # (1) receipt is live (checked above)
             # (2) Scope-Paths is non-empty (checked above)
             # (3) at least one lane candidate exists and holds work
             # (4) no candidate's HEAD descends from the receipt base
-            candidates = _lease.enumerate_lane_candidates(
-                Path(repo_root), plan_id, base_head
-            )
-            holds_work_candidates = [
-                c for c in candidates if c.state.exists and c.state.holds_work
-            ]
-            has_descendant = any(c.receipt_consistent for c in candidates)
-            if holds_work_candidates and not has_descendant:
-                lane_descs = [
-                    f"{c.branch} (base: {c.base_sha[:8] if c.base_sha else 'unknown'})"
-                    for c in candidates
-                ]
-                lanes_str = ", ".join(lane_descs)
-                branch_label = (
-                    "lane branch" if len(candidates) == 1 else "lane branches"
-                )
-                verb = "does not descend" if len(candidates) == 1 else "do not descend"
-                drift.append(
-                    enrich_drift(
-                        _core.Drift(
-                            str(p),
-                            _SCOPE_NOT_AUDITED_RULE,
-                            f"Plan {plan_id} execution scope was not audited: {branch_label}"
-                            f" found ({lanes_str}) {verb} from frozen receipt base {base_head[:8]}; "
-                            "finalize remains the enforcement point",
-                        ),
-                        observed=f"lane branches found: {lanes_str}",
-                        required=f"a lane branch descending from frozen receipt base {base_head[:8]}",
-                        recovery="reconcile changes at `aw ipd finalize` (finalize remains the enforcement point)",
+            # For a receipt WITH a recorded lane, evaluated over the RECORDED lane only (so an
+            # abandoned sibling cannot raise an advisory about an execution whose lane is known).
+            # For a receipt WITHOUT one, evaluated over all candidate branches.
+            if recorded_branch:
+                rec_lane_id = _lease.lane_id_from_branch(recorded_branch)
+                rec_state = (
+                    _lease.inspect_lane(
+                        Path(repo_root), rec_lane_id, base_commit=base_head
                     )
+                    if rec_lane_id
+                    else None
                 )
+                if rec_state and rec_state.exists and rec_state.holds_work:
+                    rc = 1
+                    if rec_state.worktree_path and rec_state.worktree_path.is_dir():
+                        rc, _, _ = _git_capture(
+                            rec_state.worktree_path,
+                            ["merge-base", "--is-ancestor", base_head, "HEAD"],
+                        )
+                    elif rec_state.head or rec_state.branch:
+                        rc, _, _ = _git_capture(
+                            Path(repo_root),
+                            [
+                                "merge-base",
+                                "--is-ancestor",
+                                base_head,
+                                rec_state.head or rec_state.branch,
+                            ],
+                        )
+                    if rc != 0:
+                        drift.append(
+                            enrich_drift(
+                                _core.Drift(
+                                    str(p),
+                                    _SCOPE_NOT_AUDITED_RULE,
+                                    f"Plan {plan_id} execution scope was not audited: lane branch"
+                                    f" found ({recorded_branch} (base: {rec_state.base_sha[:8] if rec_state.base_sha else 'unknown'})) does not descend from frozen receipt base {base_head[:8]}; "
+                                    "finalize remains the enforcement point",
+                                ),
+                                observed=f"lane branches found: {recorded_branch} (base: {rec_state.base_sha[:8] if rec_state.base_sha else 'unknown'})",
+                                required=f"a lane branch descending from frozen receipt base {base_head[:8]}",
+                                recovery="reconcile changes at `aw ipd finalize` (finalize remains the enforcement point)",
+                            )
+                        )
+            else:
+                candidates = _lease.enumerate_lane_candidates(
+                    Path(repo_root), plan_id, base_head
+                )
+                holds_work_candidates = [
+                    c for c in candidates if c.state.exists and c.state.holds_work
+                ]
+                has_descendant = any(c.receipt_consistent for c in candidates)
+                if holds_work_candidates and not has_descendant:
+                    lane_descs = [
+                        f"{c.branch} (base: {c.base_sha[:8] if c.base_sha else 'unknown'})"
+                        for c in candidates
+                    ]
+                    lanes_str = ", ".join(lane_descs)
+                    branch_label = (
+                        "lane branch" if len(candidates) == 1 else "lane branches"
+                    )
+                    verb = (
+                        "does not descend" if len(candidates) == 1 else "do not descend"
+                    )
+                    drift.append(
+                        enrich_drift(
+                            _core.Drift(
+                                str(p),
+                                _SCOPE_NOT_AUDITED_RULE,
+                                f"Plan {plan_id} execution scope was not audited: {branch_label}"
+                                f" found ({lanes_str}) {verb} from frozen receipt base {base_head[:8]}; "
+                                "finalize remains the enforcement point",
+                            ),
+                            observed=f"lane branches found: {lanes_str}",
+                            required=f"a lane branch descending from frozen receipt base {base_head[:8]}",
+                            recovery="reconcile changes at `aw ipd finalize` (finalize remains the enforcement point)",
+                        )
+                    )
             continue  # not lane-isolated (or the lane's base is unusable) -> no honest subject
         changed = _life._paths_changed_by_this_execution(exec_tree, base_head)
         expanded_changed: List[str] = []

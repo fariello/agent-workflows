@@ -34006,6 +34006,33 @@ def execute_item_core(
                         "displaced_from": getattr(wt_handle, "displaced_from", None),
                     },
                 )
+                from agent_workflows import ipd_lifecycle as _lifecycle
+
+                try:
+                    rcpt_ok, rcpt_detail = _lifecycle.record_allocated_lane(
+                        repo,
+                        item["id6"],
+                        wt_handle.branch,
+                        wt_handle.lane_id,
+                        wt_handle.base_commit,
+                        getattr(wt_handle, "disposition", "created"),
+                    )
+                except Exception as _rcpt_exc:
+                    rcpt_ok, rcpt_detail = False, str(_rcpt_exc)
+                append_jsonl(
+                    run_dir / "events.jsonl",
+                    {
+                        "at": utc_now(),
+                        "event": "receipt-lane-recorded",
+                        "id6": item["id6"],
+                        "branch": wt_handle.branch,
+                        "lane_id": wt_handle.lane_id,
+                        "base_commit": wt_handle.base_commit,
+                        "disposition": getattr(wt_handle, "disposition", "created"),
+                        "updated": rcpt_ok,
+                        "detail": rcpt_detail,
+                    },
+                )
                 disp = getattr(wt_handle, "disposition", "created")
                 suffix = "" if disp == "created" else f" ({disp})"
                 print(
