@@ -1,5 +1,5 @@
 - Id: u8dl3q
-- Status: graduated
+- Status: done
 - Graduated-To: u8dl3q
 - Set: u8dl3q
 - Priority: low
@@ -7,6 +7,7 @@
 - Summary: Render the orchestrator row grammar, its refusal message, the scaffold skeleton, and the docs from one source so the instruction and the check cannot drift (spec r07vma OQ-01)
 
 ## Workflow history
+- 2026-10-07 done (aw backlog): closed by aw agy run: IPD l1xkrr executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20261001-u8dl3q-01-l1xkrr-hold-the-orchestrator-row-grammar-as-one-datum-and-render-th.ipd.md); evidence .aw/records/plans/executed/20261001-u8dl3q-01-l1xkrr-hold-the-orchestrator-row-grammar-as-one-datum-and-render-th.ipd.md
 - 2026-10-01 graduated (aw backlog): graduated by run run-20260930T053059Z-3200713: l1xkrr
 - 2026-09-29 created (aw backlog): Filed as the durable carrier for the spec r07vma OQ-01 residue that plan zojfn6 deliberately leaves open
 
