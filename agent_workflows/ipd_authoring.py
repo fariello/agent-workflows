@@ -35,6 +35,9 @@ UNASSIGNED_MARKER = "E-NEW"
 # Scaffold
 # --------------------------------------------------------------------------------------
 
+# The stable placeholder child id6 used in the scaffold's child table and checklist row (plan l1xkrr E-04).
+_ORCH_PLACEHOLDER_CHILD_ID6 = "c0ch01"
+
 # Per-heading placeholder body used in a fresh skeleton (kept minimal but conformant).
 _SECTION_BODY = {
     S.H_WORKFLOW_HISTORY: "- {date} draft ({author}): created.",
@@ -64,7 +67,7 @@ _SECTION_BODY = {
     S.H_CHILD_IPDS: (
         "| Order | Id | File | What it does | Depends on |\n"
         "|---|---|---|---|---|\n"
-        "| 01 | `c0ch01` | TODO child plan filename | TODO what it does. | none |"
+        f"| 01 | `{_ORCH_PLACEHOLDER_CHILD_ID6}` | TODO child plan filename | TODO what it does. | none |"
     ),
     S.H_COMPLETION: '- TODO: each whole-Set criterion, ending with "Owner: <child-id6>" naming the child plan that performs it.',
     S.H_CROSS_IPD: "- TODO: each cross-child consistency check, naming the child plan (by id6) that performs it; a check no child performs needs a new child plan.",
@@ -98,7 +101,11 @@ def _exec_placeholder_leaf(kind: str = "child") -> str:
     # immediately. Authors add further work as `E-NEW` leaves and run `aw ipd sync` to assign them.
     # An orchestrator emits a conforming typed child-tracking row (plan zojfn6 E-02).
     if kind == S.KIND_ORCHESTRATOR:
-        action_line = "- [ ] E-01 CONFIRM c0ch01 REACHED executed"
+        action_line = LINT.render_orchestrator_row(
+            ident="E-01",
+            child_id6=_ORCH_PLACEHOLDER_CHILD_ID6,
+            status="executed",
+        )
     else:
         action_line = "- [ ] E-01 TODO one observable action."
     return (
