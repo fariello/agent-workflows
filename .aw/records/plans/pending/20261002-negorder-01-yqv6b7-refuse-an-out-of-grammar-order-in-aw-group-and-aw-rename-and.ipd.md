@@ -6,7 +6,7 @@
 - Scope: IN: an unconditional range check on the RESOLVED order, per plan, at both write sites (`plans_refs.plan_set_assign` for `aw group plans`, and the `aw rename plans` path in `plans_refs` that resolves `order` before calling `_validate_plan_order`), refusing a value outside 0 to 99 with exit 2 and nothing written, and NOT overridable by `--allow-invalid-order` (that flag overrides the Kind rule, not the grammar); make `_set_metadata` fail safe by widening `_ORDER_LINE_RE` to `-?\d+` and asserting the result carries exactly one `- Order:` line; apply the same widening to `artifact_rename._ORDER_LINE_RE`, its twin; a regression test. OUT: the Kind-conditional rule (`qhcojn`, executed; `xvi55d`, pending); repairing existing plans (the corpus is clean, re-measured at execution); any other verb.
 - Scope-Paths: agent_workflows/plans_refs.py, agent_workflows/artifact_rename.py, tests/test_plans_order_grammar.py
 - Item-Dependencies: none
-- Status: draft
+- Status: to-review
 - From-Spec: none
 - Work-Kind: bug
 - Priority: low
@@ -19,6 +19,7 @@
 - Id: yqv6b7
 
 ## Workflow history
+- 2026-10-07 to-review (aw set): authored from backlog bmhoxe; all placeholders replaced, lints conforming
 
 - 2026-10-06 note (opencode its_direct/pt3-claude-opus-5.5-1m-us): authored the plan body from backlog `bmhoxe`, whose measurements and proposed fix are complete; every placeholder replaced. The item's "IF BUILT" section is the design; the range 0 to 99 is the two-digit `NN` facet the uniform naming grammar defines.
 - 2026-10-02 draft (opencode its_direct/pt3-claude-opus-5-1m-us): created.
