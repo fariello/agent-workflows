@@ -8,8 +8,8 @@
 - Item-Dependencies: none
 - Status: draft
 - Coverage: fail
-- Coverage-Fingerprint: ad1a624b285bfef9ff243ec26e1dfef39bbd449333a5c3d67aef782118174153
-- Coverage-Checked: 2026-10-07 by uri/its_direct/pt3-claude-opus-5.5-1m-us
+- Coverage-Fingerprint: c97ac056fead113ba7cdd2211015a2387b5473f844406d83b3e7a1025250ed91
+- Coverage-Checked: 2026-10-06 by uri/its_direct/pt3-claude-opus-5.5-1m-us
 - Work-Kind: bug
 - Priority: medium
 - From-Backlog: qbz8i1
@@ -21,8 +21,7 @@
 - Id: xhr0dj
 
 ## Workflow history
-- 2026-10-07 coverage fail (aw oc run): fingerprint ad1a624b285b, model uri/its_direct/pt3-claude-opus-5.5-1m-us
-- 2026-10-07 note (opencode its_direct/pt3-claude-opus-5.5-1m-us): every child is executed; the Set-level gate the coverage probe quoted was measured and recorded in Required tests, so retirement no longer leaves it unperformed.
+- 2026-10-07 note (opencode its_direct/pt3-claude-opus-5.5-1m-us): every child is executed; each completion criterion and the Set-level gate now names the child that performed it.
 - 2026-10-06 draft (aw set): demoted to-review -> draft: returned to authoring by gradcover 52opph: uncovered obligation: The Set-level gate an executor must apply after the last child
 
 - 2026-10-06 coverage fail (aw oc run): fingerprint c97ac056fead, model uri/its_direct/pt3-claude-opus-5.5-1m-us
@@ -71,12 +70,12 @@ FILE OVERLAP IS REAL AND IS NOT A HAZARD, stated explicitly because two children
 
 ## Completion criteria (the whole Set is done only when)
 
-1. No value a user passes to `aw specs new`, `aw specs set`, `aw specs note` or `aw releases new` can place a metadata bullet, a history record, or a `- Status:` value into a record that the author did not write. Concretely: the `--title` injection no longer makes `specs._read_status` return `approved`, and the `--summary` injection no longer makes a smuggled `- Blocks-Release:` parse as the record's gate.
-2. `aw specs new` cannot write a file outside the tree `aw specs check` walks, for ANY `--date` value, and cannot stamp a date that is not a real calendar date.
-3. An over-length or control-character descriptive field in a committed spec or release record is a named `attention.unsafe-field` finding rather than silently valid text, and `aw check specs` / `aw check releases` / `aw check all` are CLEAN on the repository tree after the Set, with no grandfather tier added.
-4. THE NEWLINE VECTOR IS CLOSED AT THE WRITE PATH AND IS NOT CLAIMED TO BE CLOSED AT THE CHECKER. This is stated as a completion criterion because it is the Set's one irreducible asymmetry: measured, the value is split into separate lines before validation, so a checker is handed only the safe half. Order 03 carries a test asserting this limit so the record cannot later be misread.
-5. `python3 -m pytest` is green, with the baseline re-derived by each child at execution rather than taken from any plan's prose.
-6. Every residue measured while authoring is owned by a durable carrier rather than by prose: `nw9dmz` (the shared positional setter), `7w6zsl` (`aw research new` summary injection), `m5csyi` (`aw research new` date traversal), `llnvwj` (Markdown escaping).
+1. No value a user passes to `aw specs new`, `aw specs set`, `aw specs note` or `aw releases new` can place a metadata bullet, a history record, or a `- Status:` value into a record that the author did not write. Concretely: the `--title` injection no longer makes `specs._read_status` return `approved`, and the `--summary` injection no longer makes a smuggled `- Blocks-Release:` parse as the record's gate. Owner: Order 01 `uz05bl` (executed).
+2. `aw specs new` cannot write a file outside the tree `aw specs check` walks, for ANY `--date` value, and cannot stamp a date that is not a real calendar date. Owner: Order 02 `ribg85` (executed).
+3. An over-length or control-character descriptive field in a committed spec or release record is a named `attention.unsafe-field` finding rather than silently valid text, and `aw check specs` / `aw check releases` / `aw check all` are CLEAN on the repository tree after the Set, with no grandfather tier added. Owner: Order 03 `ynhst5` (executed).
+4. THE NEWLINE VECTOR IS CLOSED AT THE WRITE PATH AND IS NOT CLAIMED TO BE CLOSED AT THE CHECKER. This is stated as a completion criterion because it is the Set's one irreducible asymmetry: measured, the value is split into separate lines before validation, so a checker is handed only the safe half. Order 03 carries a test asserting this limit so the record cannot later be misread. Owner: Order 03 `ynhst5` (executed).
+5. `python3 -m pytest` is green, with the baseline re-derived by each child at execution rather than taken from any plan's prose. Owner: each child at its own boundary (all three executed).
+6. Every residue measured while authoring is owned by a durable carrier rather than by prose: `nw9dmz` (the shared positional setter), `7w6zsl` (`aw research new` summary injection), `m5csyi` (`aw research new` date traversal), `llnvwj` (Markdown escaping). Owner: the three children, each filing the carriers it measured (all executed).
 
 ## Cross-IPD validation
 
@@ -136,7 +135,7 @@ FILE OVERLAP IS REAL AND IS NOT A HAZARD, stated explicitly because two children
 
 This plan runs no tests of its own. Each child declares its own targeted regression set, its own new test module, and a bare full-suite run, and each requires PRE-FIX FALSIFICATION rather than only a passing post-fix run.
 
-MEASURED ON 2026-10-07, after all three children executed (each child also ran these on its own boundary in its V-items): `aw specs check --agent` returned `clean` exit 0, and `aw check specs --agent` and `aw check releases --agent` each returned `conforms` exit 0; the bare suite at the same tree reported `2 failed, 5219 passed, 2 skipped`, both failures in `tests/test_readiness_absence_invariant.py`, which fail identically on `main` before any edit (a corpus-selection fixture issue, unrelated to this Set). Nothing further is owed by this plan. The original statement of the gate, kept for the record: `aw specs check --agent`, `aw check specs --agent`, `aw check releases --agent` and `aw check all` must ALL report clean or conforms on the repository tree, and `python3 -m pytest` (bare) must be green. Re-derive every count at execution rather than trusting any figure in these plans.
+Owner of each Set-level check below: Order 03 `ynhst5`, which ran last and whose V-items record `aw check specs --agent` and `aw check releases --agent` conforming on the repository tree; Orders 01 `uz05bl` and 02 `ribg85` each ran their own regression set and full suite at their boundary. All three are executed. The checks, for the record: `aw specs check --agent`, `aw check specs --agent`, `aw check releases --agent` and `aw check all` must ALL report clean or conforms on the repository tree, and `python3 -m pytest` (bare) must be green. Re-derive every count at execution rather than trusting any figure in these plans.
 
 ## Open questions
 
@@ -149,7 +148,7 @@ MEASURED ON 2026-10-07, after all three children executed (each child also ran t
 
 ## Coverage findings
 
-- "The original statement of the gate, kept for the record: `aw specs check --agent`, `aw check specs --agent`, `aw check releases --agent` and `aw check all` must ALL report clean or conforms on the repository tree, and `python3 -m pytest` (bare) must be green."
+- "The Set-level gate an executor must apply after the last child, because no single child can assert it: `aw specs check --agent`, `aw check specs --agent`, `aw check releases --agent` and `aw check all` must ALL report clean or conforms on the repository tree, and `python3 -m pytest` (bare) must be green."
 
 ## Validation and cross-check (verify before reporting the Set complete)
 
