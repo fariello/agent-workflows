@@ -74,34 +74,37 @@ returns through the merge-and-revalidate gate. Order 03's files (`run_dashboard.
 
 ## Completion criteria (the whole Set is done only when)
 
-1. Every attempt record written by either host names the model it was launched under, on every path an
+Every criterion below names, as its first words, the child plan that performs it. All three children
+are `executed`.
+
+1. [Owner: czut8j] Every attempt record written by either host names the model it was launched under, on every path an
    attempt can take: the happy path, the two early refusals (scope-target-stale, host-capability), and an
-   interrupted attempt after its post-fill accounting has run. Owner: `czut8j` (writes the frozen model on every attempt path; executed).
-2. A run that used TWO models (a `--verify-with` run) records both, and every consumer reports both: the
+   interrupted attempt after its post-fill accounting has run.
+2. [Owner: r5fk4k] A run that used TWO models (a `--verify-with` run) records both, and every consumer reports both: the
    dashboard's verify row reports the verifier's model rather than the executor's, which is the defect
-   measured at authoring and the sharpest test of the whole Set. Owner: `r5fk4k` (the consumers and the verify-row fix; executed), on the producer side `czut8j`.
-3. A turn launched with NO `--model` flag at all still ends with a concrete model on its attempt record,
-   sourced from the host's own report rather than from a config read. Owner: `ov2c9n` (observes the model the host actually used; executed).
-4. `run_analytics_statistics.model_comparison` is fed a REAL attempt population by its production caller and
+   measured at authoring and the sharpest test of the whole Set.
+3. [Owner: ov2c9n] A turn launched with NO `--model` flag at all still ends with a concrete model on its attempt record,
+   sourced from the host's own report rather than from a config read.
+4. [Owner: r5fk4k] `run_analytics_statistics.model_comparison` is fed a REAL attempt population by its production caller and
    reports the coverage it actually achieves. A REFUSAL IS AN ACCEPTABLE OUTCOME HERE and must not be
    engineered away: `MODEL_COVERAGE_THRESHOLD` stays 0.80 and the corpus is not back-filled, so a corpus
    dominated by pre-Set runs may legitimately keep refusing with a real number in place of today's
-   fabricated 0.0000. Owner: `r5fk4k` (feeds `model_comparison` a real population; executed).
-5. A run carrying NO per-attempt fields (every run that already exists) produces output identical to today's
-   from every consumer, including the `(unrecorded, <host>)` per-host label. Owner: `r5fk4k` (unchanged output for runs without per-attempt fields; executed).
-6. Nothing gates, refuses, warns-to-failure or changes a disposition on a model value, and an unreachable
+   fabricated 0.0000.
+5. [Owner: r5fk4k] A run carrying NO per-attempt fields (every run that already exists) produces output identical to today's
+   from every consumer, including the `(unrecorded, <host>)` per-host label.
+6. [Owner: ov2c9n] Nothing gates, refuses, warns-to-failure or changes a disposition on a model value, and an unreachable
    host costs a run nothing: a failed observation leaves the turn's exit code, disposition and item status
-   byte-identical. Owner: `ov2c9n` (the observation never gates and an unreachable host costs nothing; executed).
-7. No spec is amended (none describes these surfaces, measured) and no new CLI flag is added, so spec
-   `25kzda` Section 2.1's flag grammar and `tests/test_run_flag_surface.py` are untouched. Owner: each child (none amends a spec or adds a flag; all executed).
-8. `python3 -m pytest` is green, with the baseline re-derived by each child at execution rather than taken
-   from any plan in this Set. Owner: each child at its own boundary (all executed).
-9. TWO RESIDUES ARE NAMED RATHER THAN CLAIMED. The Antigravity host gains no OBSERVED model in this Set
+   byte-identical.
+7. [Owner: czut8j, ov2c9n and r5fk4k] No spec is amended (none describes these surfaces, measured) and no new CLI flag is added, so spec
+   `25kzda` Section 2.1's flag grammar and `tests/test_run_flag_surface.py` are untouched.
+8. [Owner: czut8j, ov2c9n and r5fk4k] `python3 -m pytest` is green, with the baseline re-derived by each child at execution rather than taken
+   from any plan in this Set.
+9. [Owner: ov2c9n and czut8j] TWO RESIDUES ARE NAMED RATHER THAN CLAIMED. The Antigravity host gains no OBSERVED model in this Set
    (its stream already carries one at `event["init"]["model"]`, parsed and discarded today, so it needs a
    cheap persist rather than a subprocess interrogation, and `ov2c9n` defers it with that reason). The
    `audit` verb keeps no per-attempt model (it writes its own `state.json` and its own lean attempt dict
    without passing through `execute_item_core`). Each must be filed as its own backlog item at execution,
-   and the Set must NOT be reported as delivering either. Owner: `ov2c9n` and `czut8j`, which each defer one residue and file it (both executed).
+   and the Set must NOT be reported as delivering either.
 
 ## Cross-IPD validation
 
