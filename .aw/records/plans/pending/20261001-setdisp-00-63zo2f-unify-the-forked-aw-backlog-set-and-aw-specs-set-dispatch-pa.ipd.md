@@ -8,7 +8,7 @@
 - Item-Dependencies: none
 - Status: draft
 - Coverage: fail
-- Coverage-Fingerprint: 256303951ead2170ce48b2971828a235a6bc0883a243afc4aa01a76c32b801cd
+- Coverage-Fingerprint: 02581037a7418ea12ef9a0fda3b18392a80b5e707192e32626a82116cbeaa3ff
 - Coverage-Checked: 2026-10-07 by uri/its_direct/pt3-claude-opus-5.5-1m-us
 - Work-Kind: chore
 - Priority: medium
@@ -21,6 +21,7 @@
 - Id: 63zo2f
 
 ## Workflow history
+- 2026-10-07 coverage fail (aw oc run): fingerprint 02581037a741, model uri/its_direct/pt3-claude-opus-5.5-1m-us
 - 2026-10-07 coverage fail (aw oc run): fingerprint 256303951ead, model uri/its_direct/pt3-claude-opus-5.5-1m-us
 - 2026-10-07 note (opencode its_direct/pt3-claude-opus-5.5-1m-us): added Order 06 `7zb4ny`, which performs the Set-level checks this plan listed with no owner (the coverage probe's 2026-10-06 findings); child table, checklist and Scope-Paths updated.
 - 2026-10-06 draft (aw set): demoted to-review -> draft: returned to authoring by gradcover 52opph: uncovered obligation: The bare suite pytest after the final child compared by name against baseline
