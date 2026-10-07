@@ -309,6 +309,11 @@ EXEMPTION_REGISTRY: Dict[str, Exemption] = {
         citation="agent_workflows/cli.py",
         reason="Interactive process watcher tool; does not accept --agent flag.",
     ),
+    "runners": Exemption(
+        reason_kind="not_runnable",
+        citation="agent_workflows/cli.py",
+        reason="Interactive runner monitor tool; runs continuous dashboard loop by default.",
+    ),
     "storage preflight": Exemption(
         reason_kind="not_runnable",
         citation="agent_workflows/cli.py",
