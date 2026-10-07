@@ -2,7 +2,7 @@
 
 - Subject-Id: 42ertq
 - Subject-Type: ipd
-- Reviewed-At: 2026-10-02
+- Reviewed-At: 2026-10-06
 - Reviewer: opencode/its_direct/pt3-claude-opus-5.5-1m-us
 - Verdict: APPROVE WITH REVISIONS APPLIED
 
@@ -54,3 +54,34 @@ Reproduced (gitignored `.aw/state/review-probe-42ertq/probe*.py`, `tmp_path` rep
 | D-3 | OQ-02: clear or reconcile the lane block on teardown/reclaim? | No; overwrite on retry, degrade to `None` when absent | Teach `teardown_isolation_worktree`/`reclaim_lanes_on_interrupt` to edit the receipt | E-04 no-sibling-fallback rule makes a stale record harmless; those functions are outside Scope-Paths; F-10 precedent | yes |
 | D-4 | Should a recorded-but-unusable lane fall through to enumeration? | No, return `None` | Fall through to `enumerate_lane_candidates` | F-13 probes: enumeration picks the abandoned sibling in exactly these shapes; F-10 silence precedent | yes |
 | D-5 | How should the recorded branch reach `_plan_execution_tree`? | Optional keyword-only param, passed only when recorded | Unconditional extra argument; re-read receipt inside the function | mock `TypeError` reproduction against `tests/test_scope_drift_lane_resolution.py:176-188`; plan's own "thread it in, don't re-read" instruction | yes |
+
+## Round 2
+
+Re-reviewed 2026-10-06 at HEAD `fe2ee961c` in an isolated review-sweep lane. Plan committed and byte-identical to the
+lane input, so no pre-review snapshot. `aw ipd lint --phase author --agent` clean before semantic review and
+`--phase review-finalize` clean after revision. Round 1's `- Readiness:` had been removed by `8c460a9a1` (plan was
+left at `to-review`, which may not carry the field); this round sets `reviewed`.
+
+Re-verified (gitignored probe `.aw/state/review-probe-42ertq-r2/probe.py`, `tmp_path` repo, no production edit):
+F-13 shape (i) reproduces at this HEAD: second `allocate_worktree` -> `aw/lane/abc123_attempt2 attempt-scoped`;
+`_plan_execution_tree` -> `abc123` (live? False); `check_scope_drift` -> `check.scope-drift` severity `error`,
+`1 changed path is outside the plan's declared Scope-Paths: 'stale.py'`. `_plan_execution_tree` signature unchanged
+`(repo_root, plan_id, base_head)`. `RECEIPT_SCHEMA_VERSION = 2` (`agent_workflows/ipd_lifecycle.py:275`).
+Self-finalize arm: `driver_begin(... isolated=True)` then `allocate_isolation_worktree`
+(`agent_workflows/runner_shared.py:33940`, `:33971`). Sibling modules plus the `execute_item_core` harness:
+`59 passed in 14.07s`.
+
+### Findings
+
+| ID | Severity | Scope | Area | Evidence | Finding | Remediation Risk | Decision | Resolution |
+|----|----------|-------|------|----------|---------|------------------|----------|------------|
+| PR-101 | MEDIUM | IN-SCOPE | A. Compatibility / C. precedent | `agent_workflows/ipd_lifecycle.py:2089` `record_scope_reasons` (commit `f3e833039`) adds `scope_justifications` with no schema bump; `ipd_lifecycle.py:1994` `begin` stamps `RECEIPT_SCHEMA_VERSION` | E-02 called the v3 bump "the established local practice", but a newer additive receipt key landed without one, and the plan never covered the most common post-change shape: a v3 receipt with NO `lane` block (every non-isolated begin, refused update, or begin-to-allocate window). | C:Low; U:Low; S:Low; F:Low; Overall:Low | FIXED | E-02 names the counter-precedent and the distinguishing reason (a checked-in reader branches on presence, as with v2), notes no reader branches on `schema_version`; E-06 (c), V-02, V-06 and Scope check add a lane-less v3 receipt from real `begin`. |
+| PR-102 | MEDIUM | UNDER-SCOPE | G. Reachability of runtime demonstrations | `tests/test_finalize_stale_plan_path.py:146-159` drives `execute_item_core` with `isolate_worktree: True` and `driver_begin` patched to `(0, "ok")`; `agent_workflows/runner_shared.py:33263`, `:33272` resolve via `getattr(driver_module, ...)` | E-06 (e)/(f) and V-03 demanded observations from driving `execute_item_core` without naming a reachable harness; the obvious harness patches `driver_begin` to write NO receipt (so (e) would silently hit the refusal path), and no step said how to force an attempt-scoped handle. "Both hosts" was asserted from one `driver_module`. | C:Low; U:Low; S:Low; F:Low; Overall:Low | FIXED | E-06 names the harness, requires a real receipt for (e) and none for (f), pre-creates a committed canonical lane to force `_attemptN`, and drives both `oc_runipd` and `agy_runipd`; V-06 demands both runs' evidence. |
+| PR-103 | LOW | IN-SCOPE | G. Execution contract | plan `## Approval and execution gate` | Gate lacked scope-fence-as-declaration wording (justify via `--scope-reason`/`--scope-ack`), an explicit resolved-OQ statement, and conditional finalize ownership; and "commit ONLY declared Scope-Paths" excluded the plan file the executor must update. | C:Low; U:Low; S:Low; F:Low; Overall:Low | FIXED | Gate amended for all four. |
+
+### Decisions
+
+| ID | Question | Chosen | Alternatives considered | Basis | Reversible |
+|----|----------|--------|-------------------------|-------|------------|
+| D-1 | Keep the v3 bump given `scope_justifications` landed without one? | Keep the bump, documented with the distinguishing reason | Drop the bump and add `lane` at v2 | v2 precedent (`ipd_lifecycle.py:268-275`): bump when a reader branches on a new key's presence; no reader branches on `schema_version`, so either choice is behavior-neutral | yes |
+| D-2 | How should E-06 (e) prove "both hosts"? | Drive `execute_item_core` with each `driver_module` | One host plus inference from shared body | `runner_shared.py:33263-33275` dispatches through `driver_module`; cost is one extra parametrized run | yes |
