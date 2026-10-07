@@ -112,6 +112,7 @@ N/A: spec `25kzda` 5.5/5.7 and the Section 4.2 action cells are amended by Order
 - Status: open
 - Owner: executor of E-03
 - Resolution or deferral rationale: Measure at execution on a real lane and record the time. The runner already runs the full suite at merge, so a hook pass over changed files is expected to be small; if it is not, run it once over `lane_starting_head..HEAD` instead of per commit and record that choice.
+- Carrier-Declined: answered inside this plan by its executor, whose V-item evidence records the measurement and the choice; nothing outlives the plan.
 
 ## Validation and cross-check (verify before reporting done)
 

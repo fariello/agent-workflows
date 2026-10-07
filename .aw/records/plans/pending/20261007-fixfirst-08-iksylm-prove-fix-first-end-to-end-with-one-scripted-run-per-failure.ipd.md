@@ -89,7 +89,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ## Deferred / out of scope (with reason)
 
-- none.
+None.
 
 ## Scope check
 
@@ -113,6 +113,7 @@ N/A: this plan only measures.
 - Status: open
 - Owner: executor of E-01
 - Resolution or deferral rationale: Measure the module's wall time at execution. Keep it in the default run if it adds under about 30 seconds with xdist; otherwise mark the per-host duplicates `slow` and keep one host in the default run, and record the choice.
+- Carrier-Declined: answered inside this plan by its executor, whose V-item evidence records the measurement and the choice; nothing outlives the plan.
 
 ## Validation and cross-check (verify before reporting done)
 

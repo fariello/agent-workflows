@@ -89,7 +89,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ## Deferred / out of scope (with reason)
 
-- none.
+None.
 
 ## Scope check
 
