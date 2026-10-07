@@ -234,8 +234,9 @@ OWNERS: the first check is satisfied by `9i2hge`'s declared dependency on `dq9bj
 
 - BOTH CHILDREN REACHING `executed` with their own `V-*` evidence pasted, which is the only thing this
   orchestrator asserts. No test is run by this plan.
-- `aw ipd lint --phase pre-transition` conforming on this plan before the terminal move, and `aw check`
-  reporting no new drift.
+- The terminal transition's own gates: when this plan is retired, the runner's retirement transaction
+  runs its lint itself, and `aw check` drift is each child's to report in its own final V-item
+  (`dq9bj9` V-04, `9i2hge` V-05). This plan runs neither.
 - THE RETIREMENT PRECONDITION the runner enforces: every child `executed` on disk. If either child refuses
   its transition, this plan stays in `pending/` and that refusal is the finding to report, not a failure of
   the run.
