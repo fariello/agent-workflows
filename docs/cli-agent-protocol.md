@@ -61,7 +61,7 @@ the full accounting so you never silently lose data:
 ## Token control
 
 The machine format is compact by default (short identifiers, counts instead of long lists).
-Two escape hatches tune the token cost:
+Three escape hatches tune the token cost:
 
 - `--fields <a,b,c>`: project each record down to the requested fields. The mandatory envelope
   (`schema`, `kind`, `cmd`, `exit`, `outcome`, `verified`, `complete`) is always retained. A projection
@@ -72,6 +72,14 @@ Two escape hatches tune the token cost:
   leave a truncated record (`complete: false`) without the ready-to-run command needed to follow `next`
   and fetch the remainder. A projection never yields a record that fails validation, so `--fields` is safe
   to pass on any command.
+- `--limit <N>`: bound payload emission to at most `N` items. For streaming commands (such as
+  `runs query`), it bounds item emission with the terminating `summary` record carrying `total`,
+  `emitted`, `omitted`, and a `next` continuation command (see `## Stream truncation is honest`
+  above); for single-record commands (`check`, `search`), it bounds the in-record payload
+  (`diagnostics`, `matches`) with the same counts and continuation. Reach is not yet uniform across
+  every command accepting the flag (see backlog `4uw9gy`): `find` stream bounding is not yet honored,
+  and mutating verbs (`group`, `rename`) ignore it. On index-building verbs (`index`, `research index`),
+  it configures the recent-item hot-window size for `INDEX.md` rather than bounding output records.
 - `--verbose`: include full nested diagnostics, change details, and evidence dictionaries.
 
 ## Example records
