@@ -104,6 +104,8 @@ class ReleaseReadinessReport:
 
     @property
     def verdict(self) -> str:
+        if not self.gates:
+            return VERDICT_NO_GO
         return VERDICT_GO if all(g.passed for g in self.gates) else VERDICT_NO_GO
 
     @property
@@ -135,7 +137,11 @@ class ReleaseReadinessReport:
                 f"| {g.name} | {'PASS' if g.passed else 'FAIL'} | {g.detail} |"
             )
         if not self.is_go:
-            lines.extend(["", f"Failing gates: {', '.join(self.failing_gates())}"])
+            failing = self.failing_gates()
+            detail = (
+                ", ".join(failing) if failing else "empty gate set (no gates evaluated)"
+            )
+            lines.extend(["", f"Failing gates: {detail}"])
         return "\n".join(lines)
 
 
@@ -314,7 +320,7 @@ def gate_benchmark_thresholds(
 
 
 def gate_changelog_versioning(repo_root: Optional[Path] = None) -> GateResult:
-    """A CHANGELOG entry and a resolvable version exist."""
+    """A CHANGELOG entry and a resolvable version exist (rejecting 'unknown')."""
     root = repo_root or _repo_root()
     changelog = root / "CHANGELOG.md"
     has_changelog = changelog.is_file() and "##" in changelog.read_text(
@@ -326,13 +332,13 @@ def gate_changelog_versioning(repo_root: Optional[Path] = None) -> GateResult:
         from agent_workflows import versioning as vmod
 
         version_str = vmod.resolve_version(root)
-        version_ok = bool(version_str)
+        version_ok = bool(version_str and version_str != "unknown")
     except Exception:
         # Fall back to the tracked VERSION file if git describe is unavailable.
         vfile = root / ".aw" / "system" / "VERSION"
         if vfile.is_file():
             version_str = vfile.read_text(encoding="utf-8").strip()
-            version_ok = bool(version_str)
+            version_ok = bool(version_str and version_str != "unknown")
     passed = has_changelog and version_ok
     return GateResult(
         name="changelog_versioning",
@@ -378,7 +384,7 @@ def gate_residual_risk(signed_off: bool, signer: str = "") -> GateResult:
 
 
 def aggregate(gates: Sequence[GateResult]) -> ReleaseReadinessReport:
-    """Aggregate gate results into a GO / NO-GO report. Performs NO release action."""
+    """Aggregate gate results into a GO / NO-GO report (empty gates yield NO-GO). Performs NO release action."""
     return ReleaseReadinessReport(gates=tuple(gates))
 
 
