@@ -58,8 +58,6 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Expected outcome: child 02 is `executed` with its blocking OQ-01 answered and V-01..V-05 carrying pasted evidence; `runner_action_contract_class("execute")` returns the new class while `("review")` and `("plan")` still return `None`; and an execute item on a capable descriptor is shown to dispatch unchanged, so the Set added a refusal path without refusing any measured host.
   - Execution state: pending
 
-Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids.
-
 ## Child IPDs, sequence, and dependencies
 
 | Order | Id | File | What it does | Depends on |

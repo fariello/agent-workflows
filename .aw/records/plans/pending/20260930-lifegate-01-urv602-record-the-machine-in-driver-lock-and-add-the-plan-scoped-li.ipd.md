@@ -132,8 +132,6 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Expected outcome: a new passing test file whose bare `python3 -m pytest` run is pasted, every arm V-06 enumerates present and passing, plus the mutation demonstration V-06 requires showing each verdict assertion is sensitive.
   - Execution state: pending
 
-Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids.
-
 ## Project conventions discovered (Step 0)
 
 - Cite code by SYMBOL (`module.function`) or by a quoted content string, with a line number only appended to one of those and never alone: an offset expires before this plan executes (spec `ipd-structure-and-linting` Section 10.2; advisory `IPD-C801`). Every citation here is by symbol or quoted string.

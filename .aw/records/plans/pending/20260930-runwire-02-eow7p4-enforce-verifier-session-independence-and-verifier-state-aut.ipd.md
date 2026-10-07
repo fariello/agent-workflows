@@ -70,8 +70,6 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Expected outcome: tests in `tests/test_runwire_verifier_authority.py` establishing (a)-(d) by driving the real path on BOTH hosts, with the collision guard shown to BITE by mutation (remove the comparison, watch the collision test fail); both hosts' verifier-gating defaults re-measured and reported; no test reads production source; the full bare suite at or above the lane baseline.
   - Execution state: pending
 
-Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids.
-
 ## Project conventions discovered (Step 0)
 
 - Cite code by SYMBOL (`module.function`) or a quoted content string, never by a bare line number (spec `ipd-structure-and-linting` Section 10.2; advisory `IPD-C801`). `runner_shared.py` is 37355 lines and `1bfppy`'s record measured its own citations drifting ~4250 lines within one day.

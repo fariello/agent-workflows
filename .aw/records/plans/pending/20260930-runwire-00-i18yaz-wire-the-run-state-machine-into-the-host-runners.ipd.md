@@ -56,8 +56,6 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Expected outcome: `runner_shared.TERMINAL_STATES_CANONICAL`, `runner_shared.TERMINAL_STATUS_ALIASES` and `runner_shutdown.KNOWN_ITEM_STATUSES` hold the same members after the Set as before it, proven by a before/after set comparison, and the readers named in V-02 pass.
   - Execution state: pending
 
-Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids.
-
 ## Child IPDs, sequence, and dependencies
 
 | Order | Id | File | What it does | Depends on |

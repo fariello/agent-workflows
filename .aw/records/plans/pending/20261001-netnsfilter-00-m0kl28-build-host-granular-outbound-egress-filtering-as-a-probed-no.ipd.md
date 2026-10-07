@@ -70,8 +70,6 @@ and verify children and produce no artifact of their own.
   - Expected outcome: The Set closes with a capability that claims destination-granular filtering with a declared allow list, and nowhere claims a universal push boundary.
   - Execution state: pending
 
-Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids.
-
 ## Child IPDs, sequence, and dependencies
 
 | Order | Id | File | What it does | Depends on |

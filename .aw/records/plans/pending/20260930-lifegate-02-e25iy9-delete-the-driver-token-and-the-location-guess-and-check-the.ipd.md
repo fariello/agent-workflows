@@ -157,8 +157,6 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Expected outcome: the `git diff` of both spec files plus their appended history lines, with R4.5's honest-limit sentence shown unchanged; the CHANGELOG entry pasted; and a statement that `77tr3o`, `25kzda`, `c4gd2h`, `pqsx96` and `i4gpto` were re-read and needed no change, or naming precisely what did.
   - Execution state: pending
 
-Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids.
-
 ## Project conventions discovered (Step 0)
 
 - Cite code by SYMBOL (`module.function`) or by a quoted content string, with a line number only appended to one of those and never alone (spec `ipd-structure-and-linting` Section 10.2; advisory `IPD-C801`). Every citation here is by symbol or quoted string.

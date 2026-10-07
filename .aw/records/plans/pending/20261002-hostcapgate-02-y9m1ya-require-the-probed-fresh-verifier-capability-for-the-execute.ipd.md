@@ -94,8 +94,6 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Expected outcome: `tests/test_host_capability_extension.py` passes with exact-membership assertions naming both action classes, with the four existing properties unmodified, and with a new assertion pinning the execute row to exactly `supports_fresh_verifier_session` and excluding `supports_commit_gateway`; every changed and unchanged assertion in that file is reported.
   - Execution state: pending
 
-Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids.
-
 ## Project conventions discovered (Step 0)
 
 - Cite code by SYMBOL (`module.function`) or by a quoted content string, with a line number only appended to one of those and never alone: an offset expires before this plan executes (spec `ipd-structure-and-linting` Section 10.2; advisory `IPD-C801`).
