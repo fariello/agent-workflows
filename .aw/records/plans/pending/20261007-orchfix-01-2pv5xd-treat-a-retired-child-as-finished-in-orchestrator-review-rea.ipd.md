@@ -6,7 +6,7 @@
 - Scope: (1) Make orchestrator review readiness treat a child under a retirement directory with `Status: superseded` or `not-executed` as finished, exactly as it treats `executed`, and say so in its finding text when such a child is present; (2) when `aw ipd set superseded|not-executed` retires a child, append a dated `## Workflow history` line to its orchestrator naming the retired child, and print a hint naming the orchestrator; (3) amend spec `25kzda` Section 2.5d condition 2 to match. EXCLUDES rewriting the orchestrator's child table or checklist automatically (prose a human or review owns), changing retirement or coverage rules, and the refusal-message styling owned by plan `juu1rj`.
 - Scope-Paths: agent_workflows/orchestrator_readiness.py, agent_workflows/status_set.py, tests/test_orchestrator_readiness.py, tests/test_orchestrator_child_retired.py, .aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md
 - Item-Dependencies: none
-- Status: draft
+- Status: to-review
 - Work-Kind: bug
 - Priority: medium
 - Blocks-Release: next
@@ -18,6 +18,7 @@
 - Id: 2pv5xd
 
 ## Workflow history
+- 2026-10-07 to-review (aw set): authored review-ready at the maintainer's request 2026-10-07
 
 - 2026-10-07 draft (opencode its_direct/pt3-claude-opus-5.5-1m-us): created.
 

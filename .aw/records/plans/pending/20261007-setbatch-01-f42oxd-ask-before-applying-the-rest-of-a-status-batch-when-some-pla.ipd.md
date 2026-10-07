@@ -6,7 +6,7 @@
 - Scope: Change `status_set.run_set_command`'s pre-flight so each gate records a per-record refusal instead of returning, then: when some records are refused and others pass, on an interactive terminal show the refused records with their reasons and ask whether to apply the rest; with `--skip-refused`, apply the rest without asking; non-interactive without `--skip-refused`, keep today's all-or-nothing refusal. Always exit 1 when anything was refused. Declare `--skip-refused` on every setter spelling that routes through `run_set_command`. EXCLUDES changing what any gate decides, the message styling owned by `juu1rj`, and refusals that are about the whole command (unknown selector, cross-type ambiguity, missing `--message` for the whole batch is per-record and IS included).
 - Scope-Paths: agent_workflows/status_set.py, agent_workflows/cli.py, tests/test_status_set_partial_batch.py, CHANGELOG.md
 - Item-Dependencies: none
-- Status: draft
+- Status: to-review
 - Work-Kind: bug
 - Priority: medium
 - Blocks-Release: next
@@ -17,6 +17,7 @@
 - Id: f42oxd
 
 ## Workflow history
+- 2026-10-07 to-review (aw set): authored review-ready at the maintainer's request 2026-10-07
 
 - 2026-10-07 draft (opencode its_direct/pt3-claude-opus-5.5-1m-us): created.
 
