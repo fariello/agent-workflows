@@ -6,7 +6,7 @@
 - Scope: Add one message builder, `build_fix_it_notice`, that every fix-it turn uses: what failed (kind, verbatim evidence, attempt n of N), what to do (fix the cause), the gate-and-tool rule, and how to propose (Order 02's `proposal` field). Route the existing notices through it so their specific evidence is kept and the rule text is stated once. Add the same rule, once, to the execute prompt. EXCLUDES new retry classes (Orders 04 to 07) and the proposal mechanism itself (Order 02).
 - Scope-Paths: agent_workflows/runner_shared.py, tests/test_fix_it_notice.py
 - Item-Dependencies: executed:tha7a6
-- Status: draft
+- Status: to-review
 - Work-Kind: bug
 - Priority: high
 - From-Backlog: coivul
@@ -19,6 +19,7 @@
 - Id: mcbph5
 
 ## Workflow history
+- 2026-10-07 to-review (aw set): authored review-ready from backlog coivul (maintainer rulings 2026-10-07)
 
 - 2026-10-07 draft (opencode its_direct/pt3-claude-opus-5.5-1m-us): created.
 

@@ -6,7 +6,7 @@
 - Scope: Make each of the three a fix-it send-back under the per-kind budget, carrying the hook's output or the failing tests verbatim through Order 03's message, resuming the turn's session where one exists, and re-running the same gate afterwards. Keep the existing gate-answer exchange as the first step for a red suite (its `not-mine` answer stays meaningful) and send back on `mine`. EXCLUDES transient integration refusals (already on the deferral ladder), conflict markers and lifecycle-duplicate placement (unchanged), and any change to what the hooks check.
 - Scope-Paths: agent_workflows/runner_shared.py, agent_workflows/ipd_lifecycle.py, tests/test_hook_and_suite_fix_it.py
 - Item-Dependencies: executed:mcbph5
-- Status: draft
+- Status: to-review
 - Work-Kind: bug
 - Priority: high
 - From-Backlog: coivul
@@ -19,6 +19,7 @@
 - Id: w9nvq4
 
 ## Workflow history
+- 2026-10-07 to-review (aw set): authored review-ready from backlog coivul (maintainer rulings 2026-10-07)
 
 - 2026-10-07 draft (opencode its_direct/pt3-claude-opus-5.5-1m-us): created.
 

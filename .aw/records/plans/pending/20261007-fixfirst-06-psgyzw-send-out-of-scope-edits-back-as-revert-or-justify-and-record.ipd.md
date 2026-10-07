@@ -6,7 +6,7 @@
 - Scope: Stop auto-writing out-of-scope reasons; send an unjustified out-of-scope delta back to the agent as a fix-it turn ("revert X, or justify it"), accepting the agent's own `aw commit --scope-reason` reasons already recorded in the begin receipt; record every kept out-of-scope path and its reason in a new recognized plan field `- Scope-Exceeded:` written by finalize; amend the IPD structure spec to recognize the field. KEEP the additive-widening reasons and the declared-but-unmodified acks as they are (both describe declared paths, not out-of-scope edits). EXCLUDES review-turn out-of-scope warnings, and any absolute ban on editing gate code (Order 03's message carries the judgement rule).
 - Scope-Paths: agent_workflows/runner_shared.py, agent_workflows/ipd_lifecycle.py, agent_workflows/ipd_schema.py, tests/test_scope_exceeded.py, .aw/records/specs/implemented/20260802-1904-01-ipd-structure-and-linting.spec.md
 - Item-Dependencies: executed:mcbph5
-- Status: draft
+- Status: to-review
 - Work-Kind: bug
 - Priority: high
 - From-Backlog: coivul
@@ -19,6 +19,7 @@
 - Id: psgyzw
 
 ## Workflow history
+- 2026-10-07 to-review (aw set): authored review-ready from backlog coivul (maintainer rulings 2026-10-07)
 
 - 2026-10-07 draft (opencode its_direct/pt3-claude-opus-5.5-1m-us): created.
 

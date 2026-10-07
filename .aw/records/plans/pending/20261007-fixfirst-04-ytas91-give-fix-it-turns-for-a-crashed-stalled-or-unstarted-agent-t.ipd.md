@@ -6,7 +6,7 @@
 - Scope: Make a nonzero exit / missing outcome file, a stall or turn-limit expiry, and a spawn failure each reach a fix-it turn under the existing per-kind budget, with Order 03's message naming what happened; key the decision on a recorded failure-kind marker rather than on the disposition token; resume the failed attempt's own session for the fix-it turn when one exists; retire `p47qfu` as superseded. EXCLUDES hook and suite refusals (Order 05), scope (Order 06), detection (Order 07), changing the budget, and changing `finalize_retry_decision`.
 - Scope-Paths: agent_workflows/runner_shared.py, agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, agent_workflows/lane_containment.py, tests/test_turn_fix_it.py, tests/test_retry_class_mapping.py, .aw/records/plans/pending/20261002-vmrhj0-01-p47qfu-make-the-turn-retry-allowlist-key-on-what-happened-not-on-wh.ipd.md, .aw/records/plans/superseded/20261002-vmrhj0-01-p47qfu-make-the-turn-retry-allowlist-key-on-what-happened-not-on-wh.ipd.md
 - Item-Dependencies: executed:mcbph5
-- Status: draft
+- Status: to-review
 - Work-Kind: bug
 - Priority: high
 - From-Backlog: coivul
@@ -19,6 +19,7 @@
 - Id: ytas91
 
 ## Workflow history
+- 2026-10-07 to-review (aw set): authored review-ready from backlog coivul (maintainer rulings 2026-10-07)
 
 - 2026-10-07 draft (opencode its_direct/pt3-claude-opus-5.5-1m-us): created.
 

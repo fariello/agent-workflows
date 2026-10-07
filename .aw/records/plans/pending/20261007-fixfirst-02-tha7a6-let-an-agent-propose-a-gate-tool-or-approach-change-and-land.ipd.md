@@ -6,7 +6,7 @@
 - Scope: Add a structured `proposal` field to the execute outcome file; have the runner validate it and file it as a tracked record (a pending plan for a small fix with no behavior change, a backlog item for everything else) on main through a coordinator worktree, independent of whether the lane merges; then stop that item as `needs-human` with dependents skipped and independent items continuing; and surface it in the run summary. EXCLUDES the fix-it message text (Order 03), every new retry class (Orders 04 to 07), and spec `6kwd2e`'s mid-run question pause.
 - Scope-Paths: agent_workflows/runner_shared.py, agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, agent_workflows/render_stream.py, tests/test_run_proposal_channel.py, CHANGELOG.md
 - Item-Dependencies: executed:tb6lw3
-- Status: draft
+- Status: to-review
 - Work-Kind: bug
 - Priority: high
 - From-Backlog: coivul
@@ -19,6 +19,7 @@
 - Id: tha7a6
 
 ## Workflow history
+- 2026-10-07 to-review (aw set): authored review-ready from backlog coivul (maintainer rulings 2026-10-07)
 
 - 2026-10-07 draft (opencode its_direct/pt3-claude-opus-5.5-1m-us): created.
 

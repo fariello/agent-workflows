@@ -6,7 +6,7 @@
 - Scope: Amend spec `25kzda` Sections 4.1, 5.5 and 5.7 to a fix-first policy, and update the `run_evidence` finding-code transcription the spec pins (`run_evidence.ABORT_CLASSES` and the affected `RunFindingCode.action` cells) so the byte-equality tests stay green. EXCLUDES all runner behavior changes (Orders 02 to 07), and EXCLUDES changing the retry budget's bound, default or precedence.
 - Scope-Paths: .aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md, agent_workflows/run_evidence.py, tests/test_run_finding_abort_partition.py, tests/test_run_finding_spec_transcription.py, tests/test_retry_class_mapping.py
 - Item-Dependencies: none
-- Status: draft
+- Status: to-review
 - Work-Kind: bug
 - Priority: high
 - From-Backlog: coivul
@@ -19,6 +19,7 @@
 - Id: tb6lw3
 
 ## Workflow history
+- 2026-10-07 to-review (aw set): authored review-ready from backlog coivul (maintainer rulings 2026-10-07)
 
 - 2026-10-07 draft (opencode its_direct/pt3-claude-opus-5.5-1m-us): created.
 

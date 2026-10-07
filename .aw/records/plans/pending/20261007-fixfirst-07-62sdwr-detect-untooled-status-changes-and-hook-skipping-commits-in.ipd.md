@@ -6,7 +6,7 @@
 - Scope: After each execute turn and before finalize or integration, check the lane's commits since the turn began for (a) plan status or lifecycle-directory changes with no matching tool-written history line or finalize journal, reusing the shared predicates behind `check_status_untooled` and `executed_transition_gate`, and (b) commits whose staged content the repository's pre-commit hooks would refuse, by re-running those hooks over each lane commit's changed files; send any finding back as a fix-it turn (Order 03) with the specific undo-and-redo instruction; stop trusting a plan's directory alone in `outcome_precedence_disposition` and `finalize_already_done`. EXCLUDES push detection (Set `denypush`) and making the local hooks mandatory.
 - Scope-Paths: agent_workflows/runner_shared.py, agent_workflows/check_engine.py, agent_workflows/run_evidence.py, tests/test_lane_rule_break_detection.py
 - Item-Dependencies: executed:mcbph5
-- Status: draft
+- Status: to-review
 - Work-Kind: bug
 - Priority: high
 - From-Backlog: coivul
@@ -19,6 +19,7 @@
 - Id: 62sdwr
 
 ## Workflow history
+- 2026-10-07 to-review (aw set): authored review-ready from backlog coivul (maintainer rulings 2026-10-07)
 
 - 2026-10-07 draft (opencode its_direct/pt3-claude-opus-5.5-1m-us): created.
 

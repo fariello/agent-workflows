@@ -6,7 +6,7 @@
 - Scope: Add one end-to-end test module and perform the Set-level measurement: one scripted run per fix-it kind on both hosts, one proposal run, one corrupt-ledger run, a spec-to-code cross-check, and the bare suite. EXCLUDES changing any production behavior; a defect found here is fixed in the owning child's code only if it is a one-line slip, otherwise filed as a backlog item and the plan stops.
 - Scope-Paths: tests/test_fixfirst_end_to_end.py
 - Item-Dependencies: executed:ytas91, executed:w9nvq4, executed:psgyzw, executed:62sdwr
-- Status: draft
+- Status: to-review
 - Work-Kind: bug
 - Priority: high
 - From-Backlog: coivul
@@ -19,6 +19,7 @@
 - Id: iksylm
 
 ## Workflow history
+- 2026-10-07 to-review (aw set): authored review-ready from backlog coivul (maintainer rulings 2026-10-07)
 
 - 2026-10-07 draft (opencode its_direct/pt3-claude-opus-5.5-1m-us): created.
 
