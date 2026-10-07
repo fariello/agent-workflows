@@ -6,7 +6,7 @@
 - Scope: Orchestrate eight children that together make the runner FIX FIRST: every agent-caused failure gets a bounded fix-it turn naming what failed; the agent may propose a gate, tool or approach change and that proposal lands durably while the item stops `needs-human`; only runner-state failures and human gates stop an item without a fix-it turn; only a corrupt ledger aborts the run. This plan holds ORCHESTRATION ONLY: every deliverable belongs to a child. EXCLUDES, in every child: push detection (Set `denypush`, `l4vw9o`), global fix-it caps across kinds (backlog `38hwvk`), and changing the per-kind retry budget default.
 - Scope-Paths: .aw/records/plans/pending/20261007-fixfirst-00-lxb1ew-fix-first-send-agent-caused-run-failures-back-to-the-agent-i.ipd.md
 - Item-Dependencies: none
-- Status: draft
+- Status: to-review
 - Coverage: pass
 - Coverage-Fingerprint: f5a0e34276e300468af2f08e87f79f3246696cdef361af818d2fa4ad180d565a
 - Coverage-Checked: 2026-10-07 by uri/its_direct/pt3-claude-opus-5.5-1m-us
@@ -22,6 +22,7 @@
 - Id: lxb1ew
 
 ## Workflow history
+- 2026-10-07 to-review (aw set): authored review-ready from backlog coivul; coverage pass
 
 - 2026-10-07 coverage pass (aw oc run): fingerprint f5a0e34276e3, model uri/its_direct/pt3-claude-opus-5.5-1m-us
 - 2026-10-07 draft (opencode its_direct/pt3-claude-opus-5.5-1m-us): created.
