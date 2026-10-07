@@ -5508,6 +5508,24 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Arguments forwarded verbatim to the packaged pwatch core.",
     )
 
+    p_runners = sub.add_parser(
+        "runners",
+        parents=[common],
+        help="Monitor active aw runners, journey state, and subtree resource usage.",
+        description=(
+            "Monitor active agent-workflows runners, displaying their journey progress (step N/M, "
+            "setid, id6, action, attempt), active subprocess activity (pytest, git, LLM turns), "
+            "and subtree CPU% and memory (RSS). Read-only: observes and reports. ALL arguments "
+            "are forwarded verbatim to the packaged core, so see its own `--help` for the flag set."
+        ),
+        add_help=False,
+    )
+    p_runners.add_argument(
+        "runners_args",
+        nargs=argparse.REMAINDER,
+        help="Arguments forwarded verbatim to the packaged runners_monitor core.",
+    )
+
     # upgrehearse Order 01 (8ud1is): top-level `aw upgrade-test` graduates tools/aw_upgrade_test.py.
     # We use a dedicated common parser for upgrade-test subparsers with action="store_const",
     # default=argparse.SUPPRESS for --json, so that a --json supplied BEFORE the subcommand is
@@ -15303,6 +15321,10 @@ def _dispatch(argv: Optional[Sequence[str]]) -> int:
         from agent_workflows import pwatch
 
         return pwatch.main(list(argv_list[1:]))
+    if len(argv_list) >= 1 and argv_list[0] == "runners":
+        from agent_workflows import runners_monitor
+
+        return runners_monitor.main(list(argv_list[1:]))
     argv = _rewrite_help_token(argv_list)
     args = parser.parse_args(argv)
 
@@ -15712,6 +15734,10 @@ def _dispatch(argv: Optional[Sequence[str]]) -> int:
         from agent_workflows import pwatch
 
         return pwatch.main(list(getattr(args, "pwatch_args", []) or []))
+    if args.command == "runners":
+        from agent_workflows import runners_monitor
+
+        return runners_monitor.main(list(getattr(args, "runners_args", []) or []))
     # upgrehearse Order 01 (8ud1is): top-level `aw upgrade-test` graduated from tools/aw_upgrade_test.py.
     if args.command == "upgrade-test":
         from agent_workflows import upgrade_rehearsal

@@ -196,6 +196,10 @@ class Process:
     cmdline: tuple[str, ...]
     threads: Counter[str] = field(default_factory=Counter)
     children: list[Process] = field(default_factory=list)
+    utime: int = 0
+    stime: int = 0
+    rss_bytes: int = 0
+    cpu_percent: float = 0.0
 
     @property
     def arguments(self) -> tuple[str, ...]:
@@ -253,7 +257,29 @@ def read_processes(proc_dir: Path = Path("/proc")) -> dict[int, Process]:
             if closing_parenthesis < 0:
                 continue
             # After `(comm)`, fields begin with state (3), then PPID (4).
-            ppid = int(stat[closing_parenthesis + 2 :].split()[1])
+            stat_parts = stat[closing_parenthesis + 2 :].split()
+            ppid = int(stat_parts[1])
+            utime = int(stat_parts[11]) if len(stat_parts) > 11 else 0
+            stime = int(stat_parts[12]) if len(stat_parts) > 12 else 0
+
+            rss_bytes = 0
+            if proc_dir == Path("/proc"):
+                try:
+                    statm = (
+                        (entry / "statm")
+                        .read_text(encoding="utf-8", errors="replace")
+                        .split()
+                    )
+                    if len(statm) > 1:
+                        rss_bytes = int(statm[1]) * 4096
+                except (
+                    FileNotFoundError,
+                    PermissionError,
+                    ProcessLookupError,
+                    ValueError,
+                ):
+                    pass
+
             name = read_text(entry / "comm")
             raw_command = (entry / "cmdline").read_bytes().split(b"\0")
             argv = tuple(
@@ -267,6 +293,9 @@ def read_processes(proc_dir: Path = Path("/proc")) -> dict[int, Process]:
                 name=name,
                 cmdline=argv,
                 threads=read_threads(pid) if proc_dir == Path("/proc") else Counter(),
+                utime=utime,
+                stime=stime,
+                rss_bytes=rss_bytes,
             )
         except (FileNotFoundError, PermissionError, ProcessLookupError, ValueError):
             continue
@@ -332,6 +361,7 @@ def process_label(
     processes: dict[int, Process] | None = None,
     color_enabled: bool = True,
     show_long: bool = False,
+    runner_decorations: dict[int, str] | None = None,
 ) -> str:
     representative = members[0]
     arguments = format_arguments(representative.arguments, color_enabled)
@@ -363,7 +393,13 @@ def process_label(
         else:
             head = f"{len(members)}x {representative.name}"
 
+    runner_suffix = ""
+    if is_root and runner_decorations and representative.pid in runner_decorations:
+        runner_suffix = f" {runner_decorations[representative.pid]}"
+
     label = f"{head} {arguments}".rstrip()
+    if runner_suffix:
+        label = f"{label}{runner_suffix}"
     if parent_suffix:
         label = f"{label}{parent_suffix}"
     return ansi_truncate(label, width, color_enabled, show_long=show_long)
@@ -393,6 +429,7 @@ def render_group(
     prefix: str = "",
     is_last: bool = True,
     is_root: bool = False,
+    runner_decorations: dict[int, str] | None = None,
 ) -> list[str]:
     # Use Unicode box line art characters
     tree_c = C_TREE if color_enabled else ""
@@ -406,7 +443,7 @@ def render_group(
         connector = f"{tree_c}├── {reset}"
 
     lines = [
-        f"{prefix}{connector}{process_label(members, width, is_root=is_root, processes=processes, color_enabled=color_enabled, show_long=show_long)}"
+        f"{prefix}{connector}{process_label(members, width, is_root=is_root, processes=processes, color_enabled=color_enabled, show_long=show_long, runner_decorations=runner_decorations)}"
     ]
 
     if level >= max_depth:
@@ -467,6 +504,7 @@ def render_group(
                     exclude_rules=exclude_rules,
                     prefix=child_prefix,
                     is_last=entry_is_last,
+                    runner_decorations=runner_decorations,
                 )
             )
 
@@ -493,6 +531,7 @@ def matching_roots(
     processes: dict[int, Process],
     proc_rules: list[Rule],
     exclude_rules: list[Rule],
+    root_pids: set[int] | None = None,
 ) -> list[Process]:
     """Find matching processes not already beneath another matching process."""
     # Compute self and ancestor PIDs for pwatch itself so it never monitors itself
@@ -501,6 +540,13 @@ def matching_roots(
     while cur in processes:
         my_pids.add(cur)
         cur = processes[cur].ppid
+
+    if root_pids is not None:
+        return [
+            processes[pid]
+            for pid in sorted(root_pids)
+            if pid in processes and pid not in my_pids
+        ]
 
     matches = [
         process
@@ -643,13 +689,19 @@ def render_snapshot(
     width: int,
     color_enabled: bool = True,
     show_long: bool = False,
+    root_pids: set[int] | None = None,
+    runner_decorations: dict[int, str] | None = None,
 ) -> tuple[str, list[Process]]:
-    roots = matching_roots(processes, proc_rules, exclude_rules)
+    roots = matching_roots(processes, proc_rules, exclude_rules, root_pids=root_pids)
     if not roots:
-        pat_desc = ", ".join(r.pattern for r in proc_rules)
+        if root_pids is not None:
+            msg = "No active aw runners found."
+        else:
+            pat_desc = ", ".join(r.pattern for r in proc_rules)
+            msg = f"No processes matching {pat_desc!r} found."
         if color_enabled:
-            return f"{C_DIM}No processes matching {pat_desc!r} found.{C_RESET}", []
-        return f"No processes matching {pat_desc!r} found.", []
+            return f"{C_DIM}{msg}{C_RESET}", []
+        return msg, []
 
     sections = []
     for group in group_processes(roots):
@@ -665,6 +717,7 @@ def render_snapshot(
                     show_long=show_long,
                     exclude_rules=exclude_rules,
                     is_root=True,
+                    runner_decorations=runner_decorations,
                 )
             )
         )
@@ -852,6 +905,23 @@ def build_parser() -> argparse.ArgumentParser:
         help="disable 256-color output and ANSI styling",
     )
     disp_group.add_argument(
+        "--runners",
+        action="store_true",
+        help="automatically discover and watch all active aw runner process trees",
+    )
+    disp_group.add_argument(
+        "--table",
+        action="store_true",
+        help="display runner journey and resource dashboard table instead of a tree",
+    )
+    disp_group.add_argument(
+        "--repo",
+        "-d",
+        type=Path,
+        default=Path("."),
+        help="target repository root for runner discovery (default: current directory)",
+    )
+    disp_group.add_argument(
         "--once",
         action="store_true",
         help="print one snapshot and exit",
@@ -892,6 +962,11 @@ def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
 
+    if getattr(args, "runners", False) and getattr(args, "table", False):
+        from agent_workflows import runners_monitor
+
+        return runners_monitor.run_table_dashboard(args)
+
     # Gather match rules
     match_ci = list(args.proc_imatch) + list(args.patterns)
     try:
@@ -905,7 +980,7 @@ def main(argv: list[str] | None = None) -> int:
         print(f"pwatch: error: {err}", file=sys.stderr)
         return 2
 
-    if not proc_rules:
+    if not proc_rules and not getattr(args, "runners", False):
         print(
             "pwatch: error: at least one process match pattern is required "
             "(-M, -m, -R, -r, or bare pattern arguments)",
@@ -969,10 +1044,6 @@ def main(argv: list[str] | None = None) -> int:
     signal.signal(signal.SIGINT, stop_cleanly)
     signal.signal(signal.SIGTERM, stop_cleanly)
 
-    # Summary of active filters for banner
-    summary_parts = [r.pattern for r in proc_rules]
-    summary_str = ", ".join(summary_parts)
-
     try:
         if is_interactive:
             sys.stdout.write(ENTER_ALT_SCREEN)
@@ -990,6 +1061,43 @@ def main(argv: list[str] | None = None) -> int:
             now_display = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(now_epoch))
 
             processes = read_processes()
+            root_pids: set[int] | None = None
+            runner_decorations: dict[int, str] | None = None
+
+            if getattr(args, "runners", False):
+                from agent_workflows import runners_monitor
+
+                repo = Path(getattr(args, "repo", ".") or ".").resolve()
+                active_runners = runners_monitor.find_active_runners(repo)
+                root_pids = {pid for pid, _dir, _id in active_runners}
+                runner_decorations = {}
+                for pid, r_dir, r_id in active_runners:
+                    step_str, setid, id6, action, attempt, host = (
+                        runners_monitor.extract_journey_info(r_dir)
+                    )
+                    descendants = {pid}
+                    stack = [pid]
+                    while stack:
+                        curr = stack.pop()
+                        for p in processes.values():
+                            if p.ppid == curr and p.pid not in descendants:
+                                descendants.add(p.pid)
+                                stack.append(p.pid)
+                    activity = runners_monitor.classify_activity(
+                        pid, descendants, processes, host
+                    )
+                    tot_rss = sum(
+                        processes[p].rss_bytes for p in descendants if p in processes
+                    )
+                    dec_text = (
+                        f"[step {step_str} | set: {setid} | id6: {id6} ({action}) | "
+                        f"{activity} | {runners_monitor.format_bytes(tot_rss)} RAM]"
+                    )
+                    if color_enabled:
+                        runner_decorations[pid] = f"\033[38;5;81m{dec_text}\033[0m"
+                    else:
+                        runner_decorations[pid] = dec_text
+
             snapshot, roots = render_snapshot(
                 processes,
                 proc_rules,
@@ -998,6 +1106,8 @@ def main(argv: list[str] | None = None) -> int:
                 effective_width,
                 color_enabled=color_enabled,
                 show_long=args.long,
+                root_pids=root_pids,
+                runner_decorations=runner_decorations,
             )
 
             # Record matching processes in tree if recorder active
@@ -1010,6 +1120,12 @@ def main(argv: list[str] | None = None) -> int:
                     rec_banner = f" {C_RECORD}[recording -> {recorder.output_path.name}]{C_RESET}"
                 else:
                     rec_banner = f" [recording -> {recorder.output_path.name}]"
+
+            if getattr(args, "runners", False):
+                summary_str = "aw runners"
+            else:
+                summary_parts = [r.pattern for r in proc_rules]
+                summary_str = ", ".join(summary_parts)
 
             if color_enabled:
                 header = (

@@ -2227,6 +2227,16 @@ COMMAND_INVENTORY: Tuple[CommandDeclaration, ...] = (
         legacy_flags=(),
         exit_contract=(0, 1, 2),
     ),
+    CommandDeclaration(
+        command="runners",
+        command_class="read",
+        human_recipe="table",
+        agent_record_kind="result",
+        mutation_gate="none",
+        empty_error_renderer="renderer_boundary",
+        legacy_flags=(),
+        exit_contract=(0, 1, 2),
+    ),
     # upgrehearse Order 01 (8ud1is): top-level `aw upgrade-test` graduated from tools/aw_upgrade_test.py.
     # NOTE on the BARE `aw upgrade-test` (7pnneh / lbbo9s): it is deliberately NOT declared.
     # `COMMAND_INVENTORY` declares LEAVES, and `discover_parser_leaves` only reports parsers with no
