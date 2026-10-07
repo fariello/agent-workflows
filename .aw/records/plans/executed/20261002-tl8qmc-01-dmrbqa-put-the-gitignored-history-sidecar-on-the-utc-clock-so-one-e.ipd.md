@@ -6,7 +6,7 @@
 - Scope: IN: route the two `record_history` sidecar date defaults onto the same shared UTC helper `5ivkdh` adds, in the compact `YYYYMMDD` shape the sidecar schema already uses, preserving each function's explicit-`date` precedence; and add the outcome test that pins ONE event's inline and sidecar copies to the SAME date under a skew timezone, which is the property no existing test covers. OUT, each with a reason recorded under "Deferred": the inline history writers and the shared helper itself (owned by `5ivkdh`, taken as a hard dependency); the cross-spelling timezone guard (`ayhveg`); the scaffold and plan-family `created` records (`9wcei0`, `rfyrvp`); the lifecycle-gate coverage companion (`5xq2ng`); the duplicate-item convergence that closes this plan's own source item (`qjm4bg`); FILENAME dates, which `DECISIONS.md` D55 rules LOCAL; and migrating the sidecar to the per-artifact tracked journal of `2vev8j` 4.2, which that spec itself declares out of its own scope (N3).
 - Scope-Paths: agent_workflows/record_history.py, tests/test_history_date_clock_sidecar.py
 - Item-Dependencies: executed:5ivkdh
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - From-Spec: 2vev8j
 - Work-Kind: bug
@@ -18,9 +18,9 @@
 - Highest E allocated: 02
 - Author: opencode/its_direct/pt3-claude-opus-5-1m-us
 - Id: dmrbqa
-- Approval: 2026-10-07, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-07 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: dmrbqa verified (set tl8qmc, attempt 1).
 - 2026-10-07 approved (aw set): status set to approved
 - 2026-10-07 reviewed (aw set): plan-review
 
@@ -46,7 +46,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: move the sidecar's two date defaults onto the UTC clock
 
-- [ ] E-01 Route the `date is None` defaults in `record_history.append` and `record_history.append_rename` onto the shared UTC history-date helper `5ivkdh` adds to `artifact_core`, in the COMPACT `YYYYMMDD` shape, and change nothing else about either function.
+- [x] E-01 Route the `date is None` defaults in `record_history.append` and `record_history.append_rename` onto the shared UTC history-date helper `5ivkdh` adds to `artifact_core`, in the COMPACT `YYYYMMDD` shape, and change nothing else about either function.
 
     THE TWO SITES ARE THE ONLY ONES IN THIS MODULE, AND BOTH ARE REACHED ONLY BY DEFAULT. Each reads `if date is None: date = _date.today().strftime("%Y%m%d")`. Verify with the census E-02 demands rather than trusting this sentence; the module also parses a date out of an inline record in `_parse_history_record`, which READS text and must NOT be touched.
 
@@ -57,9 +57,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
     DO NOT CHANGE THE SIDECAR'S SCHEMA, KEY ORDER, OR FAILURE ISOLATION. `append_rename`'s record is documented as a superset reusing the status record's key order, and `record_rename` wraps its call in a bare `except Exception: pass` so a ledger failure can never fail a rename. Both properties are load-bearing and outside this plan's concern.
   - Depends on: E-02
   - Expected outcome: both `record_history` sidecar date defaults derive from the shared UTC helper and emit compact `YYYYMMDD`; an explicitly passed `date` is still used verbatim by both functions; the record schema, key order and failure isolation are byte-for-byte unchanged in shape; `tests/test_history_provenance.py` and `tests/test_backlog.py` pass.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 Add `tests/test_history_date_clock_sidecar.py` pinning, as an OUTCOME test under a skew timezone, that ONE action's inline record and sidecar record carry the SAME date, and that the date is the UTC one.
+- [x] E-02 Add `tests/test_history_date_clock_sidecar.py` pinning, as an OUTCOME test under a skew timezone, that ONE action's inline record and sidecar record carry the SAME date, and that the date is the UTC one.
 
     ASSERT THE AGREEMENT, NOT THE IMPLEMENTATION. Drive a real `aw backlog set` through the CLI (in a subprocess, as `tests/test_history_date_clock.py` does) against a fixture item in a temporary repo, then read the two artifacts the action produced (the item's `## Workflow history` line and the `.aw/records/history.jsonl` line) and assert their dates denote the same day and equal the UTC date. Do NOT assert that `record_history` calls any particular function, do NOT use `inspect` or regex over production source, and do NOT count call sites: `AGENTS.md` forbids code-pinning tests and GUIDING_PRINCIPLES P16 is the authority.
 
@@ -71,7 +71,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Depends on: none
   - ORDERING: write and run this test FIRST and observe it red, THEN perform E-01 (which therefore depends on E-02); the numbering is presentation order, not execution order.
   - Expected outcome: a new `tests/test_history_date_clock_sidecar.py` that fails against the pre-E-01 code and passes after it, driving the real CLI under at least one east-of-UTC and one west-of-UTC zone, asserting the inline and sidecar dates agree and equal the UTC date, proving a genuine skew window was entered, pinning explicit-`date` precedence, and restoring the ambient timezone; the bare suite shows no new failure and no order-dependence.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -179,15 +179,136 @@ silently widening scope to edit `CHANGELOG.md`, which is not in `- Scope-Paths:`
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: the post-change source of both `record_history.append` and `record_history.append_rename` date defaults quoted, showing each derives from the shared `artifact_core` UTC helper and emits compact `YYYYMMDD`; AND a pasted demonstration, DRIVEN through the CLI under a skew zone with the local and UTC dates printed alongside, that a real `aw backlog set` now writes the UTC date into `.aw/records/history.jsonl`; AND a pasted demonstration that an explicitly passed `date` is still recorded verbatim by BOTH functions; AND a pasted sidecar record showing its key order and fields unchanged in shape; AND the results of `tests/test_history_provenance.py` and `tests/test_backlog.py`. A statement that the helper is called, unsupported by driven output, is not acceptable evidence. Confirm no compact variant was added to `artifact_core` (the derivation is `_core.utc_history_date().replace("-", "")`, per `5ivkdh` E-01's shipped decision).
   - Observed evidence:
-  - Result: pending
+    1. Post-change source in `agent_workflows/record_history.py`:
+       In `record_history.append`:
+       ```python
+       if not _core.ID6_RE.match(id6 or ""):
+           raise ValueError(f"record_history.append: {id6!r} is not a valid id6")
+       if date is None:
+           date = _core.utc_history_date().replace("-", "")
+       rec = {
+           "id6": id6,
+           "date": date,
+       ...
+       ```
+       In `record_history.append_rename`:
+       ```python
+       elif key_kind != "synthetic":
+           raise ValueError(f"record_history.append_rename: bad key_kind {key_kind!r}")
+       if date is None:
+           date = _core.utc_history_date().replace("-", "")
+       # Preserve the status-record key order, then append the rename-only keys (superset).
+       rec = {
+           "id6": id6,
+           "date": date,
+       ...
+       ```
+    2. Driven CLI demonstration under skew zones with local and UTC dates printed alongside:
+       ```
+       Zone: XXX-24 (east)
+         Local date: 2026-10-08 | UTC date: 2026-10-07
+         Inline history record: - 2026-10-07 same-status (aw backlog): probe-east
+         Sidecar history JSON:  {"id6": "bk0001", "date": "20261007", "tree": "backlog", "workflow": "aw backlog set", "actor": "aw backlog", "message": "probe-east"}
+       Zone: XXX+23:59 (west)
+         Local date: 2026-10-06 | UTC date: 2026-10-07
+         Inline history record: - 2026-10-07 same-status (aw backlog): probe-west
+         Sidecar history JSON:  {"id6": "bk0001", "date": "20261007", "tree": "backlog", "workflow": "aw backlog set", "actor": "aw backlog", "message": "probe-west"}
+       ```
+    3. Explicit `date="20200101"` precedence recorded verbatim by both functions:
+       ```
+       {"id6": "ex0001", "date": "20200101", "tree": "backlog", "workflow": "aw backlog set", "actor": "aw backlog", "message": "explicit date test"}
+       {"id6": "ex0002", "date": "20200101", "tree": "specs", "workflow": "aw rename", "actor": "aw rename", "message": "explicit rename test", "verb": "rename", "from_name": "old-spec", "to_name": "20261001-ex0002-01-ex0002-new.spec.md"}
+       ```
+    4. Sidecar key order and fields unchanged in shape:
+       Append keys: `["id6", "date", "tree", "workflow", "actor", "message"]`
+       Rename keys: `["id6", "date", "tree", "workflow", "actor", "message", "verb", "from_name", "to_name"]`
+    5. Regression suite results:
+       `python3 -m pytest tests/test_history_provenance.py tests/test_backlog.py`
+       Result: `54 passed in 15.06s`
+    6. Compact variant in `artifact_core`:
+       Confirmed NO compact variant added to `artifact_core.py`. `git diff agent_workflows/artifact_core.py` is empty (unmodified). Compact format is derived in `record_history.py` via `_core.utc_history_date().replace("-", "")`.
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: the new test's output pasted TWICE, once failing against the pre-E-01 production code (naming how that state was produced) and once passing after it, since a test never seen red is not known to be a guard; AND the pasted output of the passing run for BOTH an east-of-UTC and a west-of-UTC zone, each printing the local and UTC dates to prove a genuine skew window was entered rather than passing vacuously; AND the inline record and the sidecar record from one driven action quoted side by side showing the same date; AND the test source quoted at the points where it sets and RESTORES the timezone, plus the pasted summary lines of two separate bare `python3 -m pytest` runs showing no failing node id beyond the baseline re-derived at execution HEAD before the edit, which is what would expose an ambient `TZ` leak under randomized parallel order. Evidence that reads production source with `inspect`, regex or a call-site census is inadmissible here and would itself be a defect (GUIDING_PRINCIPLES P16).
   - Observed evidence:
-  - Result: pending
+    1. New test `tests/test_history_date_clock_sidecar.py` run twice:
+       Before E-01 (produced by authoring test file before editing `agent_workflows/record_history.py`):
+       ```
+       ============================= test session starts ==============================
+       collecting ... collected 4 items
+       tests/test_history_date_clock_sidecar.py::HistoryDateClockSidecarTests::test_sidecar_schema_and_key_order PASSED
+       tests/test_history_date_clock_sidecar.py::HistoryDateClockSidecarTests::test_in_process_temporary_timezone_restoration PASSED
+       tests/test_history_date_clock_sidecar.py::HistoryDateClockSidecarTests::test_backlog_set_inline_and_sidecar_agree_on_utc_under_skew_zones
+       [test_backlog_set] zone=XXX-24 (east): local=2026-10-08 (compact=20261008), utc=2026-10-07
+       [test_backlog_set] zone=XXX-24: inline_date=2026-10-07, sidecar_date=20261008
+       FAILED
+       tests/test_history_date_clock_sidecar.py::HistoryDateClockSidecarTests::test_explicit_date_precedence_in_append_and_record_rename PASSED
+
+       =================================== FAILURES ===================================
+       ...
+       E               AssertionError: '20261008' not found in {'20261007'} : Sidecar date 20261008 not in expected UTC compact set {'20261007'}
+       tests/test_history_date_clock_sidecar.py:205: AssertionError
+       ========================= 1 failed, 3 passed in 4.04s ==========================
+       ```
+       After E-01:
+       ```
+       ============================= test session starts ==============================
+       collecting ... collected 4 items
+       tests/test_history_date_clock_sidecar.py::HistoryDateClockSidecarTests::test_sidecar_schema_and_key_order PASSED
+       tests/test_history_date_clock_sidecar.py::HistoryDateClockSidecarTests::test_in_process_temporary_timezone_restoration PASSED
+       tests/test_history_date_clock_sidecar.py::HistoryDateClockSidecarTests::test_explicit_date_precedence_in_append_and_record_rename PASSED
+       tests/test_history_date_clock_sidecar.py::HistoryDateClockSidecarTests::test_backlog_set_inline_and_sidecar_agree_on_utc_under_skew_zones
+       [test_backlog_set] zone=XXX-24 (east): local=2026-10-08 (compact=20261008), utc=2026-10-07
+       [test_backlog_set] zone=XXX-24: inline_date=2026-10-07, sidecar_date=20261007
+
+       [test_backlog_set] zone=XXX+23:59 (west): local=2026-10-06 (compact=20261006), utc=2026-10-07
+       [test_backlog_set] zone=XXX+23:59: inline_date=2026-10-07, sidecar_date=20261007
+       PASSED
+       ============================== 4 passed in 5.32s ===============================
+       ```
+    2. Passing run proves skew window was entered for both east and west zones:
+       - East (`XXX-24`): local=2026-10-08 (compact=20261008) != utc=2026-10-07
+       - West (`XXX+23:59`): local=2026-10-06 (compact=20261006) != utc=2026-10-07
+    3. Inline record and sidecar record from one driven action side by side:
+       - Inline: `- 2026-10-07 same-status (aw backlog): probe-east`
+       - Sidecar: `{"id6": "bk0001", "date": "20261007", "tree": "backlog", "workflow": "aw backlog set", "actor": "aw backlog", "message": "probe-east"}`
+       Both agree on UTC date (denoting the same day: `2026-10-07` and `20261007`).
+    4. Quoted test source where timezone is set and restored:
+       Subprocess isolation:
+       ```python
+       env = {**os.environ, "TZ": zone, "AW_NO_REEXEC": "1"}
+       res = subprocess.run(cmd, env=env, capture_output=True, text=True)
+       ```
+       In-process context manager with unconditional restoration in finally:
+       ```python
+       @contextlib.contextmanager
+       def temporary_timezone(tz: str):
+           """Context manager setting process TZ with unconditional restoration in finally."""
+           old_tz = os.environ.get("TZ")
+           os.environ["TZ"] = tz
+           time.tzset()
+           try:
+               yield
+           finally:
+               if old_tz is None:
+                   os.environ.pop("TZ", None)
+               else:
+                   os.environ["TZ"] = old_tz
+               time.tzset()
+       ```
+    5. Two separate bare `python3 -m pytest` runs (no failed node IDs across all runs):
+       Baseline at execution HEAD before edit:
+       `6324 passed, 2 skipped, 3 warnings in 456.83s (0:07:36)`
+       Bare Run 1 after edit:
+       `6328 passed, 2 skipped, 3 warnings in 727.92s (0:12:07)`
+       Bare Run 2 after edit:
+       `6328 passed, 2 skipped, 3 warnings in 393.96s (0:06:33)`
+       Zero failing node IDs; exactly +4 tests passed in both post-edit runs.
+  - Result: pass
 
 ## Approval and execution gate
 

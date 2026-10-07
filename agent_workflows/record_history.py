@@ -23,7 +23,6 @@ from __future__ import annotations
 
 import json
 import re as _re
-from datetime import date as _date
 from pathlib import Path
 from typing import List, Optional, Tuple as _Tuple
 
@@ -61,7 +60,7 @@ def append(
     if not _core.ID6_RE.match(id6 or ""):
         raise ValueError(f"record_history.append: {id6!r} is not a valid id6")
     if date is None:
-        date = _date.today().strftime("%Y%m%d")
+        date = _core.utc_history_date().replace("-", "")
     rec = {
         "id6": id6,
         "date": date,
@@ -225,7 +224,7 @@ def append_rename(
     elif key_kind != "synthetic":
         raise ValueError(f"record_history.append_rename: bad key_kind {key_kind!r}")
     if date is None:
-        date = _date.today().strftime("%Y%m%d")
+        date = _core.utc_history_date().replace("-", "")
     # Preserve the status-record key order, then append the rename-only keys (superset).
     rec = {
         "id6": id6,
