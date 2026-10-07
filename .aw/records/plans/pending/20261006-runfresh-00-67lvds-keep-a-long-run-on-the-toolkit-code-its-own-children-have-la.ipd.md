@@ -7,6 +7,9 @@
 - Scope-Paths: .aw/records/plans/pending/20261006-runfresh-01-0bjke0-amend-the-run-spec-so-a-run-restarts-on-the-toolkit-code-its.ipd.md, .aw/records/plans/pending/20261006-runfresh-02-34zv7d-detect-when-an-integrated-item-changed-the-toolkit-code-the.ipd.md, .aw/records/plans/pending/20261006-runfresh-03-re15ol-restart-the-runner-on-the-current-code-between-items-and-res.ipd.md, .aw/records/plans/pending/20261006-runfresh-04-vvqr34-record-the-findings-when-a-finalize-or-retirement-lint-refus.ipd.md, .aw/records/plans/pending/20261006-runfresh-05-hohlc6-prove-a-run-that-changes-its-own-linter-retires-its-orchestr.ipd.md
 - Item-Dependencies: none
 - Status: to-review
+- Coverage: pass
+- Coverage-Fingerprint: e1d11a14b45fb64ea93205cb89bcdb2387a2f8010fa358023274b1a4e77d5f4d
+- Coverage-Checked: 2026-10-06 by uri/its_direct/pt3-claude-opus-5.5-1m-us
 - From-Spec: none
 - Work-Kind: bug
 - Priority: high
@@ -19,6 +22,7 @@
 
 ## Workflow history
 
+- 2026-10-06 coverage pass (aw oc run): fingerprint e1d11a14b45f, model uri/its_direct/pt3-claude-opus-5.5-1m-us
 - 2026-10-06 to-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): Authored at the maintainer's instruction (2026-10-06: "Option 2, in an IWT. Build the plan/plan set. We'll hold the approved plans until we fix this."). Option 2 was chosen over (1) running only the final lint as a separate process, which fixes the one failure but leaves every other in-process check on old code, and (3) only recording the findings, which explains failures but prevents none; (3) is still included here as Order 04 because without it the next such failure is equally opaque. No backlog item, per the maintainer's direction; `- Blocks-Release: f33nrj` because every plan is `Work-Kind: bug`. `- From-Spec: none`: this Set amends `25kzda` (Order 01) rather than being produced from it.
 
 ## Goal
