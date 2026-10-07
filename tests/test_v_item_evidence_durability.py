@@ -1,16 +1,17 @@
-"""Tests for V-item evidence durability and parity rules (IPD vtup6x, set nos070).
+"""Tests for V-item evidence durability and parity rules (IPD vtup6x, set nos070; IPD 5q9a6a, set ezv744).
 
 Exemption from source-text-pin prohibition:
-This test is explicitly outside the source-text-pin prohibition, verified at review
-(PR-004) rather than assumed, because plan 96xtmi (srcguard-01) deleted text-pinning
-tests under the maintainer's 2026-09-26 ruling and that plan's scope excluded "tests that
-read NON-production files (specs, workflow bodies, READMEs, the test module's own file)
-unless the census flags them as reading agent_workflows/*". A workflow body is a WORKFLOW
-BODY, the artifact under change, and this test reads no agent_workflows/* source, so it
-sits inside GUIDING_PRINCIPLES P16's stated narrow exception ("Content verification is
-permissible only where the text or file itself is the artifact under test") and outside its
-"No production source inspection" prohibition (whose enumerated targets are all
-agent_workflows/*.py). Follows the precedent of tests/test_plan_review_feasibility_rule.py.
+This module reads WORKFLOW BODIES and a SPEC, the artifacts under change, and no
+agent_workflows/* source, so it sits inside GUIDING_PRINCIPLES P16's stated narrow
+exception ("Content verification is permissible only where the text or file itself is
+the artifact under test") and outside its "No production source inspection" prohibition
+(whose enumerated targets are all agent_workflows/*.py). Follows the precedent of
+tests/test_plan_review_feasibility_rule.py.
+
+This module owns the Section 5.4 surface in the spec ipd-structure-and-linting (established
+by vtup6x alongside the durability amendment). Sibling module
+tests/test_v_item_demonstration_reachability.py owns the rule's presence across the two
+workflow review bodies. Pinning by surface keeps one test module per file-under-contract.
 """
 
 from __future__ import annotations
@@ -22,9 +23,32 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 WORKFLOWS_DIR = REPO_ROOT / ".aw" / "system" / "workflows"
 PLAN_REVIEW_FILE = WORKFLOWS_DIR / "plan-review" / "plan-review.md"
 REVIEW_RUBRIC_FILE = WORKFLOWS_DIR / "plan-review-long" / "review-rubric.md"
+SPEC_FILE = (
+    REPO_ROOT
+    / ".aw"
+    / "records"
+    / "specs"
+    / "implemented"
+    / "20260802-1904-01-ipd-structure-and-linting.spec.md"
+)
 
 PLAN_REVIEW_REL = ".aw/system/workflows/plan-review/plan-review.md"
 REVIEW_RUBRIC_REL = ".aw/system/workflows/plan-review-long/review-rubric.md"
+SPEC_REL = (
+    ".aw/records/specs/implemented/20260802-1904-01-ipd-structure-and-linting.spec.md"
+)
+
+# Semantic anchors for spec Section 5.4 reachability rule:
+SPEC_SECTION_5_4_REACHABILITY_ANCHORS = [
+    "runtime-demonstration reachability",
+    "name the code path",
+    "UNDER-SCOPE",
+    "convention enforced during review, not by tooling",
+]
+LINTER_BOUNDARY_SENTENCE = (
+    "The linter checks presence and state consistency. It MUST NOT claim that"
+    " evidence is authentic, relevant, or sufficient."
+)
 
 # Semantic anchors for the single-file presence-and-narrowing rule:
 SINGLE_FILE_ANCHORS = [
@@ -150,4 +174,45 @@ class TestVItemEvidenceDurability(unittest.TestCase):
             "Criteria counting **stable code facts**",
             bullet_text,
             f"{REVIEW_RUBRIC_REL} must not duplicate the full normative paragraph from plan-review.md",
+        )
+
+    def test_spec_section_5_4_evidence_reachability(self) -> None:
+        """Assert spec Section 5.4 carries reachability rule and preserves linter boundary.
+
+        This test lives in this module rather than tests/test_v_item_demonstration_reachability.py
+        because that module owns the rule's presence across the two workflow review bodies,
+        while this module owns the Section 5.4 spec surface (established by vtup6x).
+        Pinning by surface keeps one test module per file-under-contract.
+        """
+        content = SPEC_FILE.read_text(encoding="utf-8")
+
+        start_heading = "### 5.4 Evidence requirements"
+        start_idx = content.find(start_heading)
+        self.assertNotEqual(
+            start_idx,
+            -1,
+            f"Missing heading '{start_heading}' in {SPEC_REL}",
+        )
+
+        end_heading = "### 5.5 "
+        end_idx = content.find(end_heading, start_idx + len(start_heading))
+        self.assertNotEqual(
+            end_idx,
+            -1,
+            f"Missing heading '{end_heading}' in {SPEC_REL}",
+        )
+
+        section_5_4 = content[start_idx:end_idx]
+
+        for anchor in SPEC_SECTION_5_4_REACHABILITY_ANCHORS:
+            self.assertIn(
+                anchor,
+                section_5_4,
+                f"Anchor '{anchor}' not found in Section 5.4 of {SPEC_REL}",
+            )
+
+        self.assertIn(
+            LINTER_BOUNDARY_SENTENCE,
+            section_5_4,
+            f"Linter boundary sentence not found in Section 5.4 of {SPEC_REL}",
         )
