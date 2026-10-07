@@ -20,6 +20,7 @@
 - Id: u57rfv
 
 ## Workflow history
+- 2026-10-07 note (opencode its_direct/pt3-claude-opus-5.5-1m-us): both children are executed; the cross-child checks were measured against them and recorded under Cross-IPD validation.
 - 2026-10-06 draft (aw set): demoted to-review -> draft: returned to authoring by gradcover 52opph: uncovered obligation: This plan runs no test itself; validation is an inspection of what the children actually produced
 
 - 2026-10-06 coverage fail (aw oc run): fingerprint 7b7957ed9248, model uri/its_direct/pt3-claude-opus-5.5-1m-us
@@ -75,6 +76,8 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ## Cross-IPD validation
 
+MEASURED 2026-10-07 AGAINST THE EXECUTED CHILDREN (both `gqyold` and `d0lg63` are `executed`, every `V-*` `Result: pass`): the paths their commits changed are disjoint (`gqyold`: `agent_workflows/security_hardening.py`, `docs/security.md`, `tests/test_security_hardening.py`, `tests/test_host_runner_redaction.py`; `d0lg63`: `tests/test_packaging_distribution.py`), each matching its declared `- Scope-Paths:`; no `.spec.md` was changed and `docs/security.md` is declared by `gqyold`; neither carries `- Blocks-Release:`; both carry `- From-Backlog: mflqqf`, and backlog `mflqqf` reads `- Status: open` (not closed on one carrier's evidence); both children's evidence records `git status --short` empty after their test runs. Each check below therefore holds; the original wording is kept for the record.
+
 - THE TWO CHILDREN'S DECLARED PATH SETS ARE DISJOINT, which is what makes them independently approvable and parallel-safe. Child 01 declares `tests/test_security_hardening.py`, `tests/test_host_runner_redaction.py`, `agent_workflows/security_hardening.py` and `docs/security.md`; child 02 declares `tests/test_packaging_distribution.py` alone. No path appears in both. Verify this against the files on disk rather than against this table.
 - NEITHER CHILD DECLARES A RELEASE GATE, AND THAT IS CORRECT RATHER THAN AN OMISSION. Backlog item `mflqqf` carries no `- Blocks-Release:`, and the repository's release-gating work-kind set is `bug` alone, so a `security` item is not auto-gated and the children must NOT invent a gate. Confirm no child acquired one.
 - BOTH CHILDREN CARRY `- From-Backlog: mflqqf`, so the graduation handoff is machine-readable from either. CONFIRM THE ITEM IS NOT CLOSED BY EITHER CHILD ALONE: the item has TWO carriers, so it stays `graduated` until both are executed, and a close on one carrier's evidence would drop the other half.
@@ -105,7 +108,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ## Required tests / validation
 
-This plan runs no test itself. Its validation is an inspection of what the children actually produced, performed in a separate pass from their execution, so the evidence below is a REVIEW of pasted child evidence and not a re-run of it.
+This plan runs no test itself. Both children are executed, and the inspection of what they produced was performed on 2026-10-07 and is recorded under Cross-IPD validation; what follows is the original description of that inspection, a REVIEW of pasted child evidence and not a re-run of it.
 
 The Set-wide bar is "NO NEWLY FAILING TEST" measured against each executor's own execution-base baseline, never "green", because the base was measured red at authoring with two unfiled load-sensitive nodes. Every red node in any child's run must have an isolated re-run pasted and a classification. A child that reports green by excluding a node has not satisfied its own contract and must not be accepted here.
 
