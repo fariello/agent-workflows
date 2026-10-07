@@ -51,6 +51,7 @@ def test_runner_info_to_dict(tmp_path: Path) -> None:
         rss_bytes=1024 * 1024 * 500,
         num_procs=5,
         descendant_pids={1002, 1003},
+        total_cpus=4,
     )
     d = info.to_dict()
     assert d["pid"] == 1001
@@ -64,6 +65,8 @@ def test_runner_info_to_dict(tmp_path: Path) -> None:
     assert d["status"] == "running"
     assert d["activity"] == "pytest (4 processes)"
     assert d["cpu_percent"] == 150.5
+    assert d["system_cpu_percent"] == 37.6
+    assert d["total_cpus"] == 4
     assert d["cumulative_cpu_seconds"] == 75.2
     assert d["rss_bytes"] == 524288000
     assert d["num_processes"] == 5
@@ -246,24 +249,49 @@ def test_render_runner_table_with_data(tmp_path: Path) -> None:
         num_procs=3,
         descendant_pids={10001, 10002},
     )
-    table = runners_monitor.render_runner_table([runner], color_enabled=False)
+    # Multi-CPU system (e.g. 4 CPUs: 95.0% / 4 = 23.8% of all CPUs)
+    table = runners_monitor.render_runner_table(
+        [runner], color_enabled=False, total_cpus=4
+    )
     assert "PID" in table
     assert "RUN ID" in table
     assert "STEP" in table
     assert "SETID" in table
     assert "ID6" in table
     assert "ACTION" in table
-    assert "CPU%" in table
+    assert "%CPU" in table
     assert "TIME" in table
     assert "RAM" in table
     assert "CURRENT ACTIVITY" in table
     assert "9999" in table
     assert "myset" in table
     assert "myid01" in table
-    assert "95.0%" in table
+    assert "23.8%" in table
     assert "1.0G" in table
     assert "pytest (2 processes)" in table
-    assert "Total: 1 active runner(s), 95.0% CPU, 1.0G RAM across 3 processes" in table
+    assert (
+        "Total: 1 active runner(s), 23.8% of all 4 CPUs (95.0% raw), 1.0G RAM across 3 processes"
+        in table
+    )
+
+    # Single-CPU system
+    table_1 = runners_monitor.render_runner_table(
+        [runner], color_enabled=False, total_cpus=1
+    )
+    assert (
+        "Total: 1 active runner(s), 95.0% CPU, 1.0G RAM across 3 processes" in table_1
+    )
+
+    # Raw CPU mode
+    table_raw = runners_monitor.render_runner_table(
+        [runner], color_enabled=False, raw_cpu=True, total_cpus=4
+    )
+    assert "CPU%" in table_raw
+    assert "95.0%" in table_raw
+    assert (
+        "Total: 1 active runner(s), 95.0% raw CPU (23.8% of all 4 CPUs), 1.0G RAM across 3 processes"
+        in table_raw
+    )
 
 
 def test_main_once_json(tmp_path: Path) -> None:

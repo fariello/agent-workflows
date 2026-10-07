@@ -915,6 +915,11 @@ def build_parser() -> argparse.ArgumentParser:
         help="display runner journey and resource dashboard table instead of a tree",
     )
     disp_group.add_argument(
+        "--raw-cpu",
+        action="store_true",
+        help="show unscaled per-core CPU percentages instead of percentage of all CPUs",
+    )
+    disp_group.add_argument(
         "--repo",
         "-d",
         type=Path,
@@ -1089,10 +1094,24 @@ def main(argv: list[str] | None = None) -> int:
                     tot_rss = sum(
                         processes[p].rss_bytes for p in descendants if p in processes
                     )
-                    dec_text = (
-                        f"[step {step_str} | set: {setid} | id6: {id6} ({action}) | "
-                        f"{activity} | {runners_monitor.format_bytes(tot_rss)} RAM]"
+                    tot_cpu = sum(
+                        processes[p].cpu_percent for p in descendants if p in processes
                     )
+                    total_cpus = os.cpu_count() or 1
+                    sys_pct = tot_cpu / total_cpus
+                    parts = [
+                        f"step {step_str}",
+                        f"set: {setid}",
+                        f"id6: {id6} ({action})",
+                        activity,
+                    ]
+                    if tot_cpu > 0.0:
+                        if getattr(args, "raw_cpu", False):
+                            parts.append(f"{tot_cpu:.1f}% CPU")
+                        else:
+                            parts.append(f"{sys_pct:.1f}% of {total_cpus} CPUs")
+                    parts.append(f"{runners_monitor.format_bytes(tot_rss)} RAM")
+                    dec_text = f"[{' | '.join(parts)}]"
                     if color_enabled:
                         runner_decorations[pid] = f"\033[38;5;81m{dec_text}\033[0m"
                     else:

@@ -43,6 +43,12 @@ class RunnerInfo:
     rss_bytes: int = 0
     num_procs: int = 1
     descendant_pids: set[int] = field(default_factory=set)
+    total_cpus: int = field(default_factory=lambda: os.cpu_count() or 1)
+
+    @property
+    def system_cpu_pct(self) -> float:
+        """Percentage of total system CPU capacity across all CPUs."""
+        return self.cpu_pct / max(1, self.total_cpus)
 
     def to_dict(self) -> dict[str, Any]:
         """Convert to JSON-serializable dictionary."""
@@ -59,6 +65,8 @@ class RunnerInfo:
             "status": self.status,
             "activity": self.activity,
             "cpu_percent": round(self.cpu_pct, 1),
+            "system_cpu_percent": round(self.system_cpu_pct, 1),
+            "total_cpus": self.total_cpus,
             "cumulative_cpu_seconds": round(self.cum_cpu_sec, 1),
             "rss_bytes": self.rss_bytes,
             "num_processes": self.num_procs,
@@ -347,6 +355,7 @@ def sample_runners(
         cum_sec = total_cum_ticks / clk_tck if clk_tck > 0 else 0.0
         activity = classify_activity(rpid, descendants, procs_t2, host)
 
+        total_cpus = os.cpu_count() or 1
         info = RunnerInfo(
             pid=rpid,
             run_id=run_id,
@@ -364,6 +373,7 @@ def sample_runners(
             rss_bytes=total_rss,
             num_procs=len(descendants),
             descendant_pids=descendants,
+            total_cpus=total_cpus,
         )
         runners.append(info)
 
@@ -376,10 +386,18 @@ def render_runner_table(
     runners: list[RunnerInfo],
     color_enabled: bool = True,
     width: int = 120,
+    raw_cpu: bool = False,
+    total_cpus: int | None = None,
 ) -> str:
     """Render formatted summary table for active runners."""
     if not runners:
         return "No active aw runners detected."
+
+    if total_cpus is None:
+        if runners and hasattr(runners[0], "total_cpus"):
+            total_cpus = runners[0].total_cpus
+        else:
+            total_cpus = os.cpu_count() or 1
 
     # ANSI styles
     r = pwatch.C_RESET if color_enabled else ""
@@ -394,10 +412,19 @@ def render_runner_table(
     c_cpu_mid = "\033[38;5;215m" if color_enabled else ""
     c_activity = "\033[38;5;255m" if color_enabled else ""
 
+    show_raw_in_col = not raw_cpu and width >= 115
+
+    if raw_cpu:
+        cpu_hdr = f"{'CPU%':>7}"
+    elif show_raw_in_col:
+        cpu_hdr = f"{'%CPU (RAW)':>13}"
+    else:
+        cpu_hdr = f"{'%CPU':>7}"
+
     lines: list[str] = []
     header = (
         f"{'PID':<8} {'RUN ID':<28} {'STEP':<7} {'SETID':<12} "
-        f"{'ID6':<8} {'ACTION':<9} {'CPU%':>7} {'TIME':>8} {'RAM':>7}  {'CURRENT ACTIVITY'}"
+        f"{'ID6':<8} {'ACTION':<9} {cpu_hdr} {'TIME':>8} {'RAM':>7}  {'CURRENT ACTIVITY'}"
     )
     lines.append(f"{bold}{header}{r}")
     sep_len = min(width, len(pwatch.strip_ansi(header)) + 20)
@@ -420,7 +447,15 @@ def render_runner_table(
         else:
             cpu_style = dim
 
-        cpu_formatted = f"{cpu_style}{runner.cpu_pct:>6.1f}%{r}"
+        if raw_cpu:
+            cpu_formatted = f"{cpu_style}{runner.cpu_pct:>6.1f}%{r}"
+        elif show_raw_in_col:
+            sys_pct = runner.cpu_pct / total_cpus
+            cpu_formatted = f"{cpu_style}{sys_pct:>5.1f}% ({runner.cpu_pct:>3.0f}%){r}"
+        else:
+            sys_pct = runner.cpu_pct / total_cpus
+            cpu_formatted = f"{cpu_style}{sys_pct:>6.1f}%{r}"
+
         time_formatted = f"{dim}{format_time_mmss(runner.cum_cpu_sec):>8}{r}"
         ram_formatted = f"{format_bytes(runner.rss_bytes):>7}"
         step_formatted = f"{c_step}{runner.step_str:<7}{r}"
@@ -438,8 +473,22 @@ def render_runner_table(
         lines.append(row)
 
     lines.append(f"{dim}{'─' * sep_len}{r}")
+
+    tot_sys_pct = tot_cpu / total_cpus
+    if total_cpus > 1:
+        if raw_cpu:
+            cpu_summary = (
+                f"{tot_cpu:.1f}% raw CPU ({tot_sys_pct:.1f}% of all {total_cpus} CPUs)"
+            )
+        else:
+            cpu_summary = (
+                f"{tot_sys_pct:.1f}% of all {total_cpus} CPUs ({tot_cpu:.1f}% raw)"
+            )
+    else:
+        cpu_summary = f"{tot_cpu:.1f}% CPU"
+
     summary = (
-        f"Total: {len(runners)} active runner(s), {tot_cpu:.1f}% CPU, "
+        f"Total: {len(runners)} active runner(s), {cpu_summary}, "
         f"{format_bytes(tot_rss)} RAM across {tot_procs} processes"
     )
     lines.append(f"{bold}{summary}{r}")
@@ -456,6 +505,8 @@ def run_table_dashboard(args: argparse.Namespace) -> int:
     )
     interval = float(getattr(args, "interval", 2.0))
     width = int(getattr(args, "width", 120))
+    raw_cpu = getattr(args, "raw_cpu", False)
+    total_cpus = os.cpu_count() or 1
 
     def stop_cleanly(_sig: int, _frame: object) -> None:
         raise SystemExit(0)
@@ -493,7 +544,11 @@ def run_table_dashboard(args: argparse.Namespace) -> int:
                 return 0
 
             table = render_runner_table(
-                runners, color_enabled=color_enabled, width=effective_width
+                runners,
+                color_enabled=color_enabled,
+                width=effective_width,
+                raw_cpu=raw_cpu,
+                total_cpus=total_cpus,
             )
 
             r = pwatch.C_RESET if color_enabled else ""
@@ -502,7 +557,7 @@ def run_table_dashboard(args: argparse.Namespace) -> int:
             c_time = pwatch.C_TIMESTAMP if color_enabled else ""
 
             header = (
-                f"{c_banner}aw runners{r} {c_dim}(every {interval}s){r} {c_dim}──{r} "
+                f"{c_banner}aw runners{r} {c_dim}(every {interval}s | {total_cpus} CPUs){r} {c_dim}──{r} "
                 f"{c_time}{now_str}{r}\n\n"
             )
 
@@ -562,6 +617,11 @@ def build_parser() -> argparse.ArgumentParser:
         "--no-color",
         action="store_true",
         help="disable ANSI color output",
+    )
+    parser.add_argument(
+        "--raw-cpu",
+        action="store_true",
+        help="show unscaled per-core CPU percentages instead of percentage of all CPUs",
     )
     parser.add_argument(
         "--json",
