@@ -8,8 +8,8 @@
 - Item-Dependencies: none
 - Status: draft
 - Coverage: fail
-- Coverage-Fingerprint: c97ac056fead113ba7cdd2211015a2387b5473f844406d83b3e7a1025250ed91
-- Coverage-Checked: 2026-10-06 by uri/its_direct/pt3-claude-opus-5.5-1m-us
+- Coverage-Fingerprint: ad1a624b285bfef9ff243ec26e1dfef39bbd449333a5c3d67aef782118174153
+- Coverage-Checked: 2026-10-07 by uri/its_direct/pt3-claude-opus-5.5-1m-us
 - Work-Kind: bug
 - Priority: medium
 - From-Backlog: qbz8i1
@@ -21,6 +21,7 @@
 - Id: xhr0dj
 
 ## Workflow history
+- 2026-10-07 coverage fail (aw oc run): fingerprint ad1a624b285b, model uri/its_direct/pt3-claude-opus-5.5-1m-us
 - 2026-10-07 note (opencode its_direct/pt3-claude-opus-5.5-1m-us): every child is executed; the Set-level gate the coverage probe quoted was measured and recorded in Required tests, so retirement no longer leaves it unperformed.
 - 2026-10-06 draft (aw set): demoted to-review -> draft: returned to authoring by gradcover 52opph: uncovered obligation: The Set-level gate an executor must apply after the last child
 
@@ -148,7 +149,7 @@ MEASURED ON 2026-10-07, after all three children executed (each child also ran t
 
 ## Coverage findings
 
-- "The Set-level gate an executor must apply after the last child, because no single child can assert it: `aw specs check --agent`, `aw check specs --agent`, `aw check releases --agent` and `aw check all` must ALL report clean or conforms on the repository tree, and `python3 -m pytest` (bare) must be green."
+- "The original statement of the gate, kept for the record: `aw specs check --agent`, `aw check specs --agent`, `aw check releases --agent` and `aw check all` must ALL report clean or conforms on the repository tree, and `python3 -m pytest` (bare) must be green."
 
 ## Validation and cross-check (verify before reporting the Set complete)
 
