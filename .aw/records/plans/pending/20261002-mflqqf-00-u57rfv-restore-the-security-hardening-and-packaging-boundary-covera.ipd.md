@@ -6,7 +6,7 @@
 - Scope: Orchestrate the two children that close the measured remainder of item `mflqqf`: Order 01 restores the security-hardening boundary coverage, fixes the loopback fail-open, covers the module's single production integration point, and corrects the document that overclaims; Order 02 adds only the packaging properties the already-restored wheel guard does not reach. This plan itself touches no product file and performs no work of its own beyond confirming its children and the cross-child properties stated below. Out of scope for the whole Set: wiring any boundary checker into `aw check` or a hook, the `RedactionPolicy` case-sensitivity defect (recorded by Order 01, lives in another module), restoring the deleted benchmark arms, and re-asserting the two packaging properties `tests/test_packaging.py` already covers.
 - Scope-Paths: .aw/records/plans/pending/20261002-mflqqf-00-u57rfv-restore-the-security-hardening-and-packaging-boundary-covera.ipd.md
 - Item-Dependencies: none
-- Status: draft
+- Status: to-review
 - Coverage: pass
 - Coverage-Fingerprint: 1ad7d6bd8bc78b6dc6e5d375620e3ed778ea9fd93be9985f4004e7d8a875364d
 - Coverage-Checked: 2026-10-07 by uri/its_direct/pt3-claude-opus-5.5-1m-us
@@ -20,6 +20,7 @@
 - Id: u57rfv
 
 ## Workflow history
+- 2026-10-07 to-review (aw set): returned to review: both children executed; criteria and cross-checks lead with owner and measured result; coverage pass recorded
 - 2026-10-07 coverage pass (aw oc run): fingerprint 1ad7d6bd8bc7, model uri/its_direct/pt3-claude-opus-5.5-1m-us
 - 2026-10-07 coverage fail (aw oc run): fingerprint 059f37be057f, model uri/its_direct/pt3-claude-opus-5.5-1m-us
 - 2026-10-07 note (opencode its_direct/pt3-claude-opus-5.5-1m-us): both children are executed; the cross-child checks were measured against them and recorded under Cross-IPD validation.
