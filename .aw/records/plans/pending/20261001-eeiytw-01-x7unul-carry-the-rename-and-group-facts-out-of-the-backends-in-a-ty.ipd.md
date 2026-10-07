@@ -6,7 +6,8 @@
 - Scope: Widen the shared `MutationResult` with optional, defaulted fields carrying the facts these backends ALREADY compute (per-target old/new path pairs, whether the run applied or previewed, the reference-rewrite edits, diagnostics for the refusal paths), and populate them in all four backend modules WITHOUT changing one byte of emitted output or one exit code. Human stdout stays byte-identical, measured, because the `print()` calls are left exactly where they are; the payload that consumes these fields is Order 02's job. EXCLUDES: emitting anything, reading `args.json`/`args.agent` anywhere in a backend, and touching `plans_index`/`research_index`.
 - Scope-Paths: agent_workflows/plans_refs.py, agent_workflows/artifact_rename.py, agent_workflows/research_refs.py, tests/test_mutation_result_facts.py
 - Item-Dependencies: none
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: low
 - From-Backlog: eeiytw
@@ -18,6 +19,7 @@
 - Id: x7unul
 
 ## Workflow history
+- 2026-10-07 reviewed (opencode uri/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-007 fixed
 - 2026-10-07 to-review (aw set): returned to review: every Set-level check the coverage probe quoted now names its owning child (Order 03 gzb2rq) and the backlog close is the runner's; coverage pass recorded
 - 2026-10-06 draft (aw set): demoted to-review -> draft: returned to authoring by gradcover 52opph: uncovered obligation: Close backlog item eeiytw by making both verbs emit exactly one parseable aw.agent/v1 record
 
