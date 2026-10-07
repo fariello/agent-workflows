@@ -6,7 +6,7 @@
 - Scope: Coordinate two children: Order 01 authors the convention, retrofit policy and TRACE contract as a spec and hands it to human review; Order 02 builds the parser, the `spec_plan_trace` verifier, its production wiring and its tests, gated on that spec being approved. This orchestrator performs no product change of its own and writes no spec, no parser and no test.
 - Scope-Paths: .aw/records/plans/pending/20260930-reqids-00-9wzlou-decide-and-build-the-spec-requirement-id-convention-that-spe.ipd.md
 - Item-Dependencies: none
-- Status: draft
+- Status: to-review
 - Coverage: pass
 - Coverage-Fingerprint: d695699013fc793e40bffed8524f6cb52bbbdaf7a437e3d04b39ef0b276dcf97
 - Coverage-Checked: 2026-10-07 by uri/its_direct/pt3-claude-opus-5.5-1m-us
@@ -21,6 +21,7 @@
 - Id: 9wzlou
 
 ## Workflow history
+- 2026-10-07 to-review (aw set): returned to review: each criterion and cross-cutting property names its owner (rtvdak); coverage pass recorded. rtvdak still waits on spec 89xjll's human approval through its state:spec:approved edge
 - 2026-10-07 coverage pass (aw oc run): fingerprint d695699013fc, model uri/its_direct/pt3-claude-opus-5.5-1m-us
 - 2026-10-07 coverage fail (aw oc run): fingerprint 72b185ccc945, model uri/its_direct/pt3-claude-opus-5.5-1m-us
 - 2026-10-07 note (opencode its_direct/pt3-claude-opus-5.5-1m-us): each completion criterion and cross-cutting property now names its owner; the backlog close is the runner's.
