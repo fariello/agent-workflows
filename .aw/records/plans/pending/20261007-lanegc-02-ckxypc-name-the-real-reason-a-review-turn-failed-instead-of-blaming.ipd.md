@@ -6,7 +6,7 @@
 - Scope: (1) Make the orchestrator-readiness branch fire only when `handle_review_orchestrator_readiness` itself refused (the item is an orchestrator, the turn exited 0, and its readiness check failed), and give every other failed review the preserved-lane reason of its actual cause; (2) read the host session stream's final error event (opencode `{"type":"error", ...}`, agy equivalent) and record it on the attempt as `host_error` with name and message; (3) show `host_error` in the run summary row and the execution report. EXCLUDES retrying the turn (that is `fixfirst` Order 04 `ytas91`), and EXCLUDES changing any disposition.
 - Scope-Paths: agent_workflows/runner_shared.py, agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, agent_workflows/render_stream.py, tests/test_review_failure_reason.py
 - Item-Dependencies: none
-- Status: draft
+- Status: to-review
 - Work-Kind: bug
 - Priority: medium
 - Blocks-Release: next
@@ -17,6 +17,7 @@
 - Id: ckxypc
 
 ## Workflow history
+- 2026-10-07 to-review (aw set): authored review-ready at the maintainer's request 2026-10-07
 
 - 2026-10-07 draft (opencode its_direct/pt3-claude-opus-5.5-1m-us): created.
 

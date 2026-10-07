@@ -6,7 +6,7 @@
 - Scope: (1) Count an item that started no turn (`fail-depend`, `not-run`, skipped before dispatch) as having nothing to collect in the review-sweep teardown; (2) at the END of every run, on both hosts, run the existing reclaim decision over this run's lanes (not only on interrupt); (3) add `aw lanes` with `list` (read-only table of every lane: owner, live or not, commits not on main, uncommitted files, verdict) and `prune` (dry run by default; `--apply` removes every lane that is reclaimable and not owned by a live process, through the existing R5.5 inventory gate); (4) report broken lane branches without touching them. EXCLUDES removing any lane with unmerged commits or uncommitted files, ever; author worktrees outside `aw/lane/*`; and the pre-existing interrupt path's behavior.
 - Scope-Paths: agent_workflows/lane_containment.py, agent_workflows/runner_shared.py, agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, agent_workflows/lanes_cli.py, agent_workflows/cli.py, agent_workflows/command_surface.py, tests/test_lanes_prune.py, CHANGELOG.md
 - Item-Dependencies: none
-- Status: draft
+- Status: to-review
 - Work-Kind: bug
 - Priority: medium
 - Blocks-Release: next
@@ -17,6 +17,7 @@
 - Id: 45z93e
 
 ## Workflow history
+- 2026-10-07 to-review (aw set): authored review-ready at the maintainer's request 2026-10-07
 
 - 2026-10-07 draft (opencode its_direct/pt3-claude-opus-5.5-1m-us): created.
 
