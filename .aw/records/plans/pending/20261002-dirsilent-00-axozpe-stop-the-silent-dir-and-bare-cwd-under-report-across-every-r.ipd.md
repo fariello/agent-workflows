@@ -21,6 +21,7 @@
 - Id: axozpe
 
 ## Workflow history
+- 2026-10-07 /plan-review (opencode uri/its_direct/pt3-claude-opus-5.5-1m-us): REVIEWED - OPEN QUESTIONS; PR-001 (OPEN, escalated as blocking OQ-03), PR-002..PR-005 fixed. Status left `to-review` and `- Readiness:` left ABSENT: `aw ipd coverage axozpe` now fails on the PR-001 gap, and closing it needs the maintainer's OQ-03 scope decision (IPD-S408 R6 path). Review record `.aw/records/reviews/20261007-dirsilent-00-axozpe-stop-the-silent-dir-and-bare-cwd.review.md`.
 - 2026-10-07 to-review (aw set): returned to review: each Set-level check the coverage probe quoted now names its owning child; coverage pass recorded
 - 2026-10-07 coverage pass (aw oc run): fingerprint e490f67c8c6c, model uri/its_direct/pt3-claude-opus-5.5-1m-us
 - 2026-10-06 draft (aw set): demoted to-review -> draft: returned to authoring by gradcover 52opph: uncovered obligation: Check by reading each converted call site for a call to the primitive
@@ -55,13 +56,13 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 - [ ] E-03 CONFIRM sjsb04 REACHED executed
   Confirm child 03 (`sjsb04`, the six resolver-bypass sites) reached `executed`, and that a BARE invocation from a project subdirectory now climbs for all six verbs, including `aw doctor` no longer reporting an installed project as `not installed`.
-  - Depends on: E-02
+  - Depends on: E-01
   - Expected outcome: `sjsb04` is in `.aw/records/plans/executed/` with `- Status: executed`, and the bare-cwd climb matrix shows the subdirectory and root columns agreeing for `check`, `find`, `search`, `record-history`, `graduation` and `doctor`.
   - Execution state: pending
 
 - [ ] E-04 CONFIRM rlhmt9 REACHED executed
   Confirm child 04 (`rlhmt9`, the helper split, the remaining read-class callers and the duplication retirement) reached `executed`, and that no write-class verb gained a refusal. That negative is the Set's policy boundary and is the one outcome a careless execution could invert.
-  - Depends on: E-03
+  - Depends on: E-01, E-02, E-03
   - Expected outcome: `rlhmt9` is in `.aw/records/plans/executed/` with `- Status: executed`; the mixed helpers are split, the read-class verbs refuse, `attention.run` and `cli._run_plans` call the shared primitive with byte-identical output, and every write-class verb behaves exactly as before.
   - Execution state: pending
 
@@ -76,12 +77,12 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ## Completion criteria (the whole Set is done only when)
 
-1. NO VERB REPORTS A POSITIVE OUTCOME FOR A TREE IT NEVER EXAMINED. Measured by driving each converted verb against a subdirectory of a seeded project, `cwd` outside any AW project, and confirming exit 2 with a `cannot-run` record rather than `outcome:clean` / `conforms` with `verified:true`. This is the Anti-Greenwashing Invariant in `docs/cli-output-contract.md` and it is the Set's reason for existing.
-2. A BARE INVOCATION FROM A PROJECT SUBDIRECTORY AGREES WITH THE SAME COMMAND AT THE ROOT, for all six former bypass verbs, asserted against a NONZERO observable rather than against exit 0 (both the right and the wrong answer exit 0 today).
-3. `aw doctor` NO LONGER CALLS AN INSTALLED PROJECT UNINSTALLED from a subdirectory, and still reports rather than refuses for a genuinely non-AW directory.
+1. NO VERB REPORTS A POSITIVE OUTCOME FOR A TREE IT NEVER EXAMINED. Measured by driving each converted verb against a subdirectory of a seeded project, `cwd` outside any AW project, and confirming exit 2 with a `cannot-run` record rather than `outcome:clean` / `conforms` with `verified:true`. This is the Anti-Greenwashing Invariant in `docs/cli-output-contract.md` and it is the Set's reason for existing. Owner: each converting child for its own verbs (Order 02 `jei45f` V-01/V-02, Order 03 `sjsb04` V-03, Order 04 `rlhmt9` V-03). The noun-verb backends reached through `cli._nv_backend_args` are NOT yet owned; see OQ-03.
+2. A BARE INVOCATION FROM A PROJECT SUBDIRECTORY AGREES WITH THE SAME COMMAND AT THE ROOT, for all six former bypass verbs, asserted against a NONZERO observable rather than against exit 0 (both the right and the wrong answer exit 0 today). Owner: Order 03 `sjsb04` (V-01, V-02, V-04).
+3. `aw doctor` NO LONGER CALLS AN INSTALLED PROJECT UNINSTALLED from a subdirectory, and still reports rather than refuses for a genuinely non-AW directory. Owner: Order 03 `sjsb04` (V-02, V-03, V-04).
 4. THE REFUSAL HAS EXACTLY ONE DEFINITION IN THE PACKAGE: every converted verb, plus `attention.run` and `cli._run_plans`, obtains its message, machine summary and next-action from Order 01's primitive, with the two previously hand-rolled copies retired. Owner: Order 04 `rlhmt9` (E-04, E-05).
-5. EVERY WRITE-CLASS VERB BEHAVES EXACTLY AS IT DOES TODAY, including the path it proposes for a surveyable `--dir`, pinned as an explicit negative control with its own mutation proof. A write verb that gained a refusal is a Set FAILURE, not a bonus.
-6. THE PRESERVED CASES ARE STILL PRESERVED: an EMPTY BUT REAL project still reports clean at exit 0; `aw specs check <file>` still checks that file with any `--dir`; a bare invocation from inside a project still climbs; and `attention --check` run bare with no project still returns 0 with `the view is valid`.
+5. EVERY WRITE-CLASS VERB BEHAVES EXACTLY AS IT DOES TODAY, including the path it proposes for a surveyable `--dir`, pinned as an explicit negative control with its own mutation proof. A write verb that gained a refusal is a Set FAILURE, not a bonus. Owner: Order 04 `rlhmt9` (V-03 write-side matrix, V-05 second mutation) for the write verbs behind the split helpers; write verbs no child touches are unchanged by construction and are covered by the bare suite (criterion 7).
+6. THE PRESERVED CASES ARE STILL PRESERVED: an EMPTY BUT REAL project still reports clean at exit 0; `aw specs check <file>` still checks that file with any `--dir`; a bare invocation from inside a project still climbs; and `attention --check` run bare with no project still returns 0 with `the view is valid`. Owner: Order 02 `jei45f` V-01 (empty project, single-file form), Order 03 `sjsb04` V-01/V-04 (bare climb), Order 04 `rlhmt9` V-04 (`attention --check`).
 7. THE BARE SUITE SHOWS NO NEW FAILING NODE ID against a baseline the executor measured, at every child boundary rather than only at the end. Owner: each child at its own boundary (Orders 01 `i6mby8`, 02 `jei45f` and 03 `sjsb04` in their final V-items), and Order 04 `rlhmt9` (V-05) for the final run.
 
 ## Cross-IPD validation
@@ -103,22 +104,22 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Carrier-Declined: decided in Order 03 OQ-02; `doctor` names the not-installed condition rather than claiming health
 - WRITING A SPEC FOR THE RESOLUTION-AND-REFUSAL POLICY, plus a checker rule that would make a NEW unguarded read verb fail. Defensible once this Set lands and the policy is uniform, and deliberately not attempted inside it: a spec written now would be enforced only by this Set's tests, overstating the guarantee, and writing the spec plus its checker is larger than any child here. Recorded rather than filed because nobody has asked for it and filing a carrier for unrequested work would be scope invention.
   - Carrier-Declined: no defect; coherent follow-on work whose value depends on this Set landing first
-- A COMPLETENESS CLAIM ABOUT THE BYPASS CENSUS. Order 03's six sites come from a STRING match on one exact expression, so a differently-spelled bypass would not appear. The Set fixes what it measured and says so.
-  - Carrier: rlhmt9
+- A COMPLETENESS CLAIM ABOUT THE BYPASS CENSUS. Order 03's six sites come from a STRING match on one exact expression, so a differently-spelled bypass would not appear. The Set fixes what it measured and says so. CORRECTED AT REVIEW (PR-001): this row previously named `rlhmt9` as carrier, but `rlhmt9` contains no bypass audit, and a seventh, differently-spelled site WAS found: `cli._nv_backend_args` sets `sub.dir = getattr(args, "dir", None) or os.getcwd()`, which hands the cwd to every noun-verb backend as an EXPLICIT `--dir`, so a bare `aw index|group|rename|archive <type>` from a subdirectory does not climb. Its disposition is OQ-03.
+  - Carrier-Declined: not assignable until blocking OQ-03 (PR-001) assigns the seventh site to a child or declines it; approval is held by that question
 - THE PRE-EXISTING SUITE FAILURES at authoring HEAD (`test_every_real_spec_in_this_repository_still_conforms`, `test_unreachable_binding_refusal_fires_under_perturbation`, `test_must_not_refuse_matrix`). Unrelated to this concern; recorded as the baseline each child reconciles against.
   - Carrier-Declined: pre-existing before any edit in this Set; the bar is the delta of failing node ids
 
 ## Scope check
 
 - Over-scope: none. This plan's `- Scope-Paths:` lists only the four child plan files it sequences, which is what an orchestration-only plan touches. It declares no source file and no test file, because it ships neither.
-- Under-scope: nothing is parked on this plan. Every deliverable the concern implies is assigned to exactly one child: the primitive to Order 01, the two validators to Order 02, the six bypass sites to Order 03, and the helper split, remaining read-class callers and duplication retirement to Order 04. The checklist above contains only child-completion confirmations, deliberately, because a runner retiring an orchestrator SKIPS the pre-transition checkpoint on the premise that a parent's own items are performed by nobody.
+- Under-scope: ONE KNOWN GAP, held open by blocking OQ-03 (PR-001): the seventh bypass site `cli._nv_backend_args` is owned by no child yet. Apart from that, nothing is parked on this plan. Every deliverable the concern implies is assigned to exactly one child: the primitive to Order 01, the two validators to Order 02, the six bypass sites to Order 03, and the helper split, remaining read-class callers and duplication retirement to Order 04. The checklist above contains only child-completion confirmations, deliberately, because a runner retiring an orchestrator SKIPS the pre-transition checkpoint on the premise that a parent's own items are performed by nobody.
 - IF A REVIEWER FINDS UNCOVERED WORK, the remedy is to ADD A CHILD and a row to the table, not to add an item here and not to delete the checklist.
 
 ## Required tests / validation
 
 Each child validates itself with its own evidence; this plan runs no tests of its own and ships no code. The Set-level bar is that `python3 -m pytest` BARE shows no NEW failing node id at EVERY child boundary, with the baseline re-derived by each child at its own execution rather than trusted from this authoring (three failures were already present at HEAD `9de38b09f`, named in Cross-IPD validation).
 
-THE SET IS ONLY DEMONSTRATED COMPLETE BY A FINAL CROSS-CHILD MEASUREMENT, which Order 04 carries as the last child rather than this plan performing it: the full before/after matrix across every converted verb, measured by subprocess with `cwd` outside any AW project against a project seeded with `--records-backend repository` and real artifacts, showing (i) every read-class verb refusing a non-surveyable `--dir` at exit 2 with a path-free `cannot-run` record, (ii) every former bypass verb agreeing between a bare subdirectory invocation and a bare root invocation, (iii) every write-class verb unchanged, and (iv) every preserved case still preserved.
+THE CROSS-CHILD DEMONSTRATION IS THE SUITE, NOT A SEPARATE MATRIX (corrected at review, PR-002: this paragraph previously said Order 04 carries a full cross-child before/after matrix, and `rlhmt9` carries no such item). Each child measures its own matrix by subprocess with `cwd` outside any AW project against a project seeded with `--records-backend repository` and real artifacts, and pins it in its own new regression test file (`tests/test_validator_nonsurveyable_dir.py`, `tests/test_resolver_bypass_sites_climb.py`, `tests/test_read_class_callers_refuse.py`, plus Order 01's `tests/test_nonsurveyable_root_refusal.py`). Order 04 `rlhmt9` V-05 runs the BARE suite last, after every other child has landed, so a later child regressing an earlier child's (i) read-class refusal, (ii) bare-cwd climb, (iii) write-class negative control or (iv) preserved case surfaces there as a new failing node id. That run is the Set-level completion evidence; this plan re-runs nothing.
 
 ## Open questions
 
@@ -135,6 +136,16 @@ THE SET IS ONLY DEMONSTRATED COMPLETE BY A FINAL CROSS-CHILD MEASUREMENT, which 
 - Status: resolved
 - Owner: executor
 - Resolution or deferral rationale: RESOLVED: YES, and the mechanism is explicit. All five plans in this Set carry `- From-Backlog: rgl2d4` and inherit `- Blocks-Release: next`, so the close-legitimacy predicate sees a MULTI-CARRIER item: every same-gate carrier must be `executed` before `rgl2d4` may close `done`. The item therefore stays `graduated` until Order 04, the last carrier, executes, which is what preserves the gate through the handoff rather than dropping it at the first child. No child may close the item, and each child's execution gate says so.
+
+### OQ-03: Who owns the seventh resolver-bypass site, `cli._nv_backend_args`?
+
+- Blocking: yes
+- Status: open
+- Owner: maintainer
+- Finding: PR-001
+- Context (measured at review, lane HEAD `ad22ff70a`): `cli._nv_backend_args` (the noun-verb adapter, `agent_workflows/cli.py`, "`sub.dir = getattr(args, "dir", None) or os.getcwd()`") converts a BARE invocation into an EXPLICIT `--dir <cwd>` before calling every `aw index|group|rename|archive <type>` backend and the `_run_check` fallback backend. Because the resolver never climbs an explicit `--dir`, a bare call from a subdirectory surveys the subdirectory. Reproduced in this worktree: `aw index research --check --agent` at the root returns `outcome:findings, exit 1, findings 179`; the same command from `docs/` returns `outcome:conforms, exit 0, verified:true, findings 2` (only `stale-index-missing`). That is the same false-clean answer this Set exists to remove, reachable with no flag. Order 03's census missed it because it matched one exact string, and no child covers it; this plan's Deferred row previously named `rlhmt9` as the carrier, which was false.
+- Decision needed: (a) add a fifth child (Order 05) that routes `_nv_backend_args` through `resolve_verb_repo_root` and adds the refusal to its read-class verbs (`index ... --check`), with write-class `group`/`rename`/`archive` getting the climb but no refusal; (b) widen Order 03 `sjsb04` to include it as a seventh site; or (c) decline it for this Set and file a new backlog item inheriting `- Blocks-Release: next`. Reviewer recommendation: (a), because the site feeds WRITE verbs too (`group`/`rename`/`archive`), so changing its bare-case root is a write-target change that needs its own negative controls, which is outside Order 03's stated "single-expression" risk profile. This is a scope decision for the maintainer, so it is not resolved here.
+- Resolution or deferral rationale: open; blocks approval until answered.
 
 ## Validation and cross-check (verify before reporting the Set complete)
 
@@ -157,7 +168,7 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 
 - [ ] V-04 validates E-04
   - Required evidence: paste the lifecycle evidence showing `rlhmt9` `executed`. PASTE THE WRITE-SIDE NEGATIVE CONTROL, which is the Set's policy boundary: for each write-class verb served by a split helper, the behavior for a non-surveyable `--dir` before and after the Set, shown IDENTICAL in preview mode, plus the unchanged proposed path for a surveyable root. PASTE THE DUPLICATION-RETIREMENT EVIDENCE: `attention.run` and `cli._run_plans` calling the primitive, with their human and machine output byte-identical to before (a diff of captured outputs returning nothing) and the three shipped `--dir` test files passing UNMODIFIED (`git diff --stat` for them showing no change).
-    THEN CONFIRM THE SEVEN COMPLETION CRITERIA ABOVE, one at a time, each with its own pasted measurement, and state plainly any criterion that is NOT met rather than reporting the Set complete.
+    THEN CONFIRM THE SEVEN COMPLETION CRITERIA ABOVE, one at a time, by citing the OWNING CHILD'S V-item evidence named on each criterion (child plan id6 and V-id, with the line of pasted output that settles it), plus `rlhmt9` V-05's final bare-suite summary line for criterion 7. Do not re-measure here: this plan owns no measurement. State plainly any criterion whose owner's evidence is missing or does not settle it, and any criterion still marked unowned (OQ-03), rather than reporting the Set complete.
   - Observed evidence:
   - Result: pending
 
@@ -174,4 +185,6 @@ TWO DEPARTURES FROM THE BACKLOG ITEM SHOULD BE RATIFIED EXPLICITLY, both from me
 
 ALL FIVE PLANS CARRY `- From-Backlog: rgl2d4` AND INHERIT ITS `- Blocks-Release: next` GATE, which makes the item a MULTI-CARRIER item: it stays `graduated` until the LAST carrier (Order 04) executes, and only then is eligible to close `done` with its gate provably preserved. No child may close it, and no child's execution may set it `done`; the runner owns that transition.
 
-ON COMPLETION OF EVERY CHILD, the runner retires this orchestrator automatically once all four are `executed` on disk, spending no agent turn. Executed by hand, the executor confirms the four child confirmations and the seven completion criteria with pasted evidence, then runs `aw ipd finalize <plan> --actor <agent/model> --message <summary> --apply`. Never hand-roll the move with `git mv` to `executed/` and never hand-edit `- Status: executed`.
+EXECUTION CONTRACT. Open questions: OQ-01 and OQ-02 are resolved; OQ-03 is BLOCKING and must be answered (and, if the answer adds a child, that child authored and added to the table and to `- Scope-Paths:`) before approval. SCOPE FENCE (a declaration for the runner to reconcile, not an instruction to stop): this plan modifies only its own file and, at most, the child plan paths in `- Scope-Paths:`; any out-of-scope edit is made and then justified with `aw ipd finalize --scope-reason`, and a declared path left unmodified needs `--scope-ack`. HONESTY RULE: every V-item MUST paste the ACTUAL command output it cites (never a paraphrase, never a claimed pass that was not run). COMMITS: commit only paths you changed, through `aw commit <plan> -- <paths>`, never `git add -A`, and NEVER push.
+
+ON COMPLETION OF EVERY CHILD, the terminal transition is owed unconditionally but its owner is conditional. Under `aw oc run` / `aw agy run` the RUNNER retires this orchestrator automatically once every child is `executed` on disk, spending no agent turn, and the executor must NOT run `aw ipd finalize` itself. Executed by hand, the executor confirms the four child confirmations and the seven completion criteria with pasted evidence, then runs `aw ipd finalize <plan> --actor <agent/model> --message <summary> --apply`. Never hand-roll the move with `git mv` to `executed/` and never hand-edit `- Status: executed`.
