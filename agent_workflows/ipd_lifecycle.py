@@ -272,7 +272,22 @@ def _refuse_worker_role_verb(verb: str) -> int:
 # ``plan_content_digest`` is still WRITTEN, so the shape is additive and every existing reader keeps
 # working; a v1 receipt that predates the field falls back to the old whole-file rule in
 # :func:`receipt_is_current`, so an old receipt is never spuriously accepted.
-RECEIPT_SCHEMA_VERSION = 2
+#
+# v3 (m94le9 `42ertq` E-02): adds an additive, OPTIONAL ``lane`` block (``branch``, ``lane_id``,
+# ``base_commit``, ``disposition``, ``recorded_at``) recorded by :func:`record_allocated_lane`.
+# The change is additive and the ``lane`` block is optional; its absence is a legal and expected shape
+# taking the unchanged fallback path. Note the counter-precedent: ``record_scope_reasons`` (commit
+# ``f3e833039``, 2026-10-01) added the additive ``scope_justifications``/``scope_justifications_audit``
+# keys without a schema version bump, so local practice is not uniform. The distinguishing reason is
+# the one v2 also had: a checked-in reader (:func:`check_engine._plan_execution_tree` via
+# :func:`check_engine.check_scope_drift`) selects a different code path on the field's presence, exactly
+# as :func:`receipt_is_current` does on ``frozen_region_digest``, whereas ``scope_justifications`` only
+# augments finalize's own reconciliation. No reader branches on ``schema_version`` itself today, so the
+# bump is documentation and changes no behavior. Note the most common post-change shape: after this bump
+# ``begin`` stamps every new receipt with ``schema_version: 3``, but only an isolated self-finalize
+# execution ever gains a ``lane`` block, so a v3 receipt without ``lane`` (a non-isolated run, a refused
+# update, or the window between begin and allocation) is ordinary and takes the fallback.
+RECEIPT_SCHEMA_VERSION = 3
 
 # Exit-code convention shared with `aw ipd lint` (0 ok / 1 findings / 2 cannot-run).
 EXIT_OK = 0
@@ -2150,6 +2165,70 @@ def read_scope_reasons(repo_root: Path, plan_id: str) -> Dict[str, str]:
     if not isinstance(justifications, dict):
         return {}
     return {str(k): str(v) for k, v in justifications.items() if str(v).strip()}
+
+
+def record_allocated_lane(
+    repo_root: Path,
+    plan_id: str,
+    branch: str,
+    lane_id: str,
+    base_commit: str,
+    disposition: str = "created",
+    *,
+    recorded_at: Optional[str] = None,
+) -> Tuple[bool, str]:
+    """Record an allocated lane mapping onto the plan's EXISTING begin receipt (m94le9 `42ertq` E-02).
+
+    WHY AN UPDATE AND NOT A ``begin`` PARAMETER:
+    ``runner_shared.execute_item_core`` calls ``driver_begin`` BEFORE ``allocate_isolation_worktree``
+    on the self-finalize path, so no lane exists when the receipt is issued and ``begin`` has nothing
+    to record.
+
+    HAZARD AND COMPOSITION:
+    Inference by branch name was the second measured instance of the reconstruct-a-branch-name
+    hazard documented in :func:`worktree_lease.enumerate_lane_candidates` ("SECOND INSTANCE OF
+    RECONSTRUCT-A-BRANCH-NAME HAZARD"). Candidate enumeration repaired the canonical-name
+    reconstruction, but still misattributes in F-13 shapes (an abandoned sibling holding work beats
+    a live lane that has none yet, and a reused low attempt number loses to an abandoned higher one).
+    Recording the allocated lane identity directly on the begin receipt turns "which lane" into a
+    recorded fact. The recorded route serves receipts written after this change; candidate
+    enumeration remains the fallback for pre-existing receipts and for lanes allocated without a
+    receipt (such as ``aw work begin`` leases).
+
+    PROHIBITION:
+    Leaves ``base_head``, ``plan_content_digest``, ``frozen_region_digest``, ``requirement_digest``,
+    and ``scope_paths`` completely untouched: disturbing ``base_head`` would make committed paths
+    invisible to finalize scope reconciliation.
+
+    FAIL-SAFE:
+    Returns ``(ok, detail)``. Refuses (``ok=False``) when no readable receipt exists without raising,
+    so recording metadata on the runner's happy path can never fail a turn. Writes atomically via
+    ``_atomic_write_json``.
+    """
+    if not plan_id:
+        return False, "no plan_id provided"
+    rcpt_path = receipt_path_for(repo_root, plan_id)
+    try:
+        receipt = json.loads(rcpt_path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return False, f"no readable begin receipt at {rcpt_path}"
+
+    if not isinstance(receipt, dict):
+        return False, f"invalid receipt format at {rcpt_path}"
+
+    from datetime import datetime, timezone
+
+    ts = recorded_at or datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+    receipt["lane"] = {
+        "branch": branch,
+        "lane_id": lane_id,
+        "base_commit": base_commit,
+        "disposition": disposition,
+        "recorded_at": ts,
+    }
+    _atomic_write_json(rcpt_path, receipt)
+    return True, f"recorded allocated lane {branch} in begin receipt for {plan_id}"
 
 
 def _repo_relative(repo_root: Path, path: Path) -> str:

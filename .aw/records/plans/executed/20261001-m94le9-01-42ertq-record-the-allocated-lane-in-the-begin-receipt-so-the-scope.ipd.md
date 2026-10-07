@@ -6,7 +6,7 @@
 - Scope: Make the ALLOCATED LANE IDENTITY a recorded fact on the begin receipt rather than an inferred one. Add an additive, OPTIONAL `lane` block to the begin receipt (schema v3: `branch`, `lane_id`, `base_commit`, `disposition`, `recorded_at`) written by a NEW `ipd_lifecycle` updater that MUST NOT touch `base_head` or any digest; call that updater from `runner_shared.execute_item_core` at the single self-finalize allocation site, immediately after the `attempt["worktree_*"]` fields are written, because the lane does not exist when `driver_begin` runs; and make `check_engine._plan_execution_tree` PREFER the recorded branch when the receipt carries one, falling back UNCHANGED to today's `enumerate_lane_candidates` selection (landed by `iqtt8d`) when it does not. EXCLUDES re-issuing or re-freezing the receipt (the rejected half of the backlog item's direction 2; see F-5), EXCLUDES changing `base_head`, any digest, `receipt_is_current`, or anything finalize reconciles on (F-5), EXCLUDES the candidate-enumerating resolver plan `iqtt8d` owns (F-7 explains why both are wanted and how they compose), EXCLUDES changing `check.scope-drift`'s severity or its ancestry guard (F-6), and EXCLUDES the `aw work begin` lease path, which allocates a lane but writes no receipt (F-8).
 - Scope-Paths: agent_workflows/ipd_lifecycle.py, agent_workflows/runner_shared.py, agent_workflows/check_engine.py, tests/test_receipt_lane_record.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: followup
 - Priority: low
@@ -16,9 +16,9 @@
 - Highest E allocated: 08
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: 42ertq
-- Approval: 2026-10-07, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-07 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: 42ertq verified (set m94le9, attempt 1).
 - 2026-10-07 approved (aw set): status set to approved
 - 2026-10-07 reviewed (aw set): plan-review round 2
 
@@ -40,35 +40,35 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: re-measure the premise before changing anything
 
-- [ ] E-01 RE-MEASURE this plan's five load-bearing premises at execution HEAD, because each is a function of live state that concurrent runs change continuously, and because two of them are the corrections this plan rests on. Produce FIVE things. FIRST, the receipt census: for every `*.receipt.json` under `ipd_lifecycle.receipt_dir`, its `plan_id`, its `schema_version`, whether it already carries any lane-identifying key, whether a plan carrying that `- Id:` is reachable from `check_engine._iter_type_files(repo, "plans")`, whether `check_engine._receipt_is_live` accepts it, and what `check_engine._plan_execution_tree` returns for it (since `iqtt8d` landed, via `worktree_lease.enumerate_lane_candidates`; plan-review 2026-10-02 confirmed the bare `inspect_lane` call is gone). Authoring measured 29 receipts, 19 at v1 and 10 at v2, ZERO carrying any lane key, and 5 resolving a lane tree; a nonzero lane-key count would mean something else already records this and must be reconciled rather than duplicated. SECOND, confirm the RUNNER UNIFICATION claim by reading code rather than trusting this plan: `agent_workflows/oc_runipd.py` and `agent_workflows/agy_runipd.py` must each define `driver_begin` as a delegation to `runner_shared.driver_begin`, and `runner_shared.execute_item_core` must be the only body that calls `allocate_isolation_worktree` for a self-finalize execute item. If a host has re-forked either, STOP and report: this plan's one-call-site design depends on it. THIRD, confirm the ORDERING constraint still holds by locating `driver_begin` and `allocate_isolation_worktree` in `execute_item_core` and stating which runs first; if allocation has moved AHEAD of begin, say so, because then a simpler design (pass the branch to `begin`) becomes available and this plan should be reconsidered rather than executed as written. FOURTH, the lane census: every branch matching `refs/heads/aw/lane/*` with its `inspect_lane` state and `base_sha`, plus the explicit set of `id6` values holding MORE THAN ONE lane branch (canonical plus `_attemptN`), which is the population the defect bites. Authoring measured 28 lane branches with exactly three multi-lane `id6` values (`19lmbe`, `om3rzi`, `vxqtqm`), NONE of which holds a receipt. EXPECT OWNER RECORDS TO BE UNREADABLE IF YOU EXECUTE FROM A LANE and do not report that as drift: `worktree_lease._owner_record_path` composes from the PASSED root, so from a lane it resolves under `<lane>/.aw/worktrees/.owners/` which does not exist there, while `inspect_lane` still answers fully from git refs and the reflog. Record "owner records unreadable from this root" and continue.
+- [x] E-01 RE-MEASURE this plan's five load-bearing premises at execution HEAD, because each is a function of live state that concurrent runs change continuously, and because two of them are the corrections this plan rests on. Produce FIVE things. FIRST, the receipt census: for every `*.receipt.json` under `ipd_lifecycle.receipt_dir`, its `plan_id`, its `schema_version`, whether it already carries any lane-identifying key, whether a plan carrying that `- Id:` is reachable from `check_engine._iter_type_files(repo, "plans")`, whether `check_engine._receipt_is_live` accepts it, and what `check_engine._plan_execution_tree` returns for it (since `iqtt8d` landed, via `worktree_lease.enumerate_lane_candidates`; plan-review 2026-10-02 confirmed the bare `inspect_lane` call is gone). Authoring measured 29 receipts, 19 at v1 and 10 at v2, ZERO carrying any lane key, and 5 resolving a lane tree; a nonzero lane-key count would mean something else already records this and must be reconciled rather than duplicated. SECOND, confirm the RUNNER UNIFICATION claim by reading code rather than trusting this plan: `agent_workflows/oc_runipd.py` and `agent_workflows/agy_runipd.py` must each define `driver_begin` as a delegation to `runner_shared.driver_begin`, and `runner_shared.execute_item_core` must be the only body that calls `allocate_isolation_worktree` for a self-finalize execute item. If a host has re-forked either, STOP and report: this plan's one-call-site design depends on it. THIRD, confirm the ORDERING constraint still holds by locating `driver_begin` and `allocate_isolation_worktree` in `execute_item_core` and stating which runs first; if allocation has moved AHEAD of begin, say so, because then a simpler design (pass the branch to `begin`) becomes available and this plan should be reconsidered rather than executed as written. FOURTH, the lane census: every branch matching `refs/heads/aw/lane/*` with its `inspect_lane` state and `base_sha`, plus the explicit set of `id6` values holding MORE THAN ONE lane branch (canonical plus `_attemptN`), which is the population the defect bites. Authoring measured 28 lane branches with exactly three multi-lane `id6` values (`19lmbe`, `om3rzi`, `vxqtqm`), NONE of which holds a receipt. EXPECT OWNER RECORDS TO BE UNREADABLE IF YOU EXECUTE FROM A LANE and do not report that as drift: `worktree_lease._owner_record_path` composes from the PASSED root, so from a lane it resolves under `<lane>/.aw/worktrees/.owners/` which does not exist there, while `inspect_lane` still answers fully from git refs and the reflog. Record "owner records unreadable from this root" and continue.
   - Depends on: none
   FIFTH, RE-RUN THE F-13 REPRODUCTION at execution HEAD before editing, because it is what this plan now repairs: in a `tmp_path` repo, allocate `aw/lane/<id6>` at base and commit an out-of-scope file in it, then allocate again at the same base (attempt-scoped to `_attempt2`) and leave it uncommitted; paste `check_engine._plan_execution_tree(root, id6, base)` (expected: the CANONICAL lane's path, not the attempt lane) and `check_scope_drift(root)` with a receipt and a plan whose Scope-Paths exclude that file (expected: one `check.scope-drift` finding naming the abandoned lane's file). If the heuristic has since changed so that this no longer reproduces, say so and re-derive whether any heuristic case remains; this plan is still the authorized design for RECORDING the lane, but the Goal's claimed beneficiary must then be restated honestly in the execution record.
   - Expected outcome: a pasted five-part measurement that states explicitly whether each of the premises (zero existing lane keys, both hosts delegating to one shared begin and one shared allocation site, begin-before-allocate ordering, the multi-lane-without-receipt population, and the F-13 heuristic misattribution) still holds, naming any drift rather than absorbing it, with a STOP report if the unification or the ordering has changed.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: make the receipt able to carry the lane
 
-- [ ] E-02 ADD to `agent_workflows/ipd_lifecycle.py` a function that records an allocated lane onto an EXISTING begin receipt, and bump `RECEIPT_SCHEMA_VERSION` to 3 with the additive-change comment the existing constant's comment block already models for v2. The function takes the repo root, the plan id6, and the lane's `branch`, `lane_id`, `base_commit` and `disposition`, reads the receipt, writes a single `lane` mapping (`branch`, `lane_id`, `base_commit`, `disposition`, `recorded_at`), and writes it back through the existing `_atomic_write_json`, so an interrupted write leaves no partial receipt. It returns a `(ok, detail)` pair and REFUSES rather than raising when no readable receipt exists, mirroring `refreeze_receipt`'s contract, because a caller on the runner's happy path must never be able to fail a turn by recording metadata.
+- [x] E-02 ADD to `agent_workflows/ipd_lifecycle.py` a function that records an allocated lane onto an EXISTING begin receipt, and bump `RECEIPT_SCHEMA_VERSION` to 3 with the additive-change comment the existing constant's comment block already models for v2. The function takes the repo root, the plan id6, and the lane's `branch`, `lane_id`, `base_commit` and `disposition`, reads the receipt, writes a single `lane` mapping (`branch`, `lane_id`, `base_commit`, `disposition`, `recorded_at`), and writes it back through the existing `_atomic_write_json`, so an interrupted write leaves no partial receipt. It returns a `(ok, detail)` pair and REFUSES rather than raising when no readable receipt exists, mirroring `refreeze_receipt`'s contract, because a caller on the runner's happy path must never be able to fail a turn by recording metadata.
 
   MODEL IT ON `refreeze_receipt`, WHICH IS THE IN-TREE PROOF OF HOW TO DO THIS SAFELY, and respect the one prohibition the backlog item names as its trap: the function MUST NOT write, recompute, or delete `base_head`, `plan_content_digest`, `frozen_region_digest`, `requirement_digest` or `scope_paths`. `refreeze_receipt`'s docstring records exactly why `base_head` is untouchable ("a fresh `begin` ... would therefore make every path the item changed INVISIBLE to the scope reconciliation"), and finalize attributes changed paths by `base_head..HEAD`, so disturbing any of these would damage the real authority boundary to improve an advisory. Assert this as a test, not as a comment: E-06 case (b) requires the receipt's every other key to be byte-identical across the update.
 
   WRITE IT AS AN UPDATE AND NOT AS A NEW `begin` PARAMETER, and say why in the docstring, because that is the design question a reader will ask first. `runner_shared.execute_item_core` calls `driver_begin` BEFORE `allocate_isolation_worktree` on the self-finalize path (E-01 re-verifies this), so no lane exists when the receipt is issued and `begin` has nothing to record. Bumping the schema version is honest rather than cosmetic even though the change is additive: the comment on `RECEIPT_SCHEMA_VERSION` instructs a bump "on an incompatible receipt-shape change" and v2's own entry documents an ADDITIVE change under the same constant, so follow the established local practice and state in the comment that v3 is additive, that `lane` is OPTIONAL, and that its absence is a legal and expected shape. NAME THE COUNTER-PRECEDENT IN THAT COMMENT TOO (plan-review round 2): `record_scope_reasons` (commit `f3e833039`, 2026-10-01) added the additive `scope_justifications`/`scope_justifications_audit` keys WITHOUT a bump, so the local practice is not uniform. The distinguishing reason, which the comment must state, is the one v2 also had: a CHECKED-IN READER (`check_engine._plan_execution_tree` via `check_scope_drift`) now selects a different code path on the field's PRESENCE, exactly as `receipt_is_current` does on `frozen_region_digest`, whereas `scope_justifications` only augments finalize's own reconciliation. No reader branches on `schema_version` itself today (verified at review), so the bump is documentation and changes no behavior. NOTE THE MOST COMMON POST-CHANGE SHAPE: after the bump `begin` stamps EVERY new receipt `schema_version: 3`, but only an isolated self-finalize execution ever gains a `lane` block, so a v3 receipt WITHOUT `lane` (a non-isolated run, a refused update, or the window between begin and allocation) is ordinary and must take the fallback; E-06 case (c) covers it.
   - Depends on: E-01
   - Expected outcome: a documented `ipd_lifecycle` updater that adds a `lane` block to an existing receipt, leaves `base_head` and all four digest/scope keys byte-identical, refuses with a reason when no receipt is readable, writes atomically, and `RECEIPT_SCHEMA_VERSION` at 3 with an additive-change comment in the shape v2's entry uses.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 CALL the E-02 updater from `runner_shared.execute_item_core` at the SINGLE self-finalize allocation site, immediately after the block that writes `attempt["worktree_branch"]`, `attempt["worktree_lane_id"]` and `attempt["worktree_base"]` from the returned `WorktreeHandle`, inside the `if isolate:` arm that follows a successful `driver_begin`. Pass `wt_handle.branch`, `wt_handle.lane_id`, `wt_handle.base_commit` and `getattr(wt_handle, "disposition", "created")`, reading the HANDLE as `allocate_isolation_worktree`'s docstring instructs ("Read `handle.branch`, `handle.path`, and `handle.disposition` rather than assuming the name") rather than rebuilding any name.
+- [x] E-03 CALL the E-02 updater from `runner_shared.execute_item_core` at the SINGLE self-finalize allocation site, immediately after the block that writes `attempt["worktree_branch"]`, `attempt["worktree_lane_id"]` and `attempt["worktree_base"]` from the returned `WorktreeHandle`, inside the `if isolate:` arm that follows a successful `driver_begin`. Pass `wt_handle.branch`, `wt_handle.lane_id`, `wt_handle.base_commit` and `getattr(wt_handle, "disposition", "created")`, reading the HANDLE as `allocate_isolation_worktree`'s docstring instructs ("Read `handle.branch`, `handle.path`, and `handle.disposition` rather than assuming the name") rather than rebuilding any name.
 
   IT MUST NOT BE ABLE TO FAIL THE TURN. Recording metadata is strictly an improvement to later feedback, so wrap the call so that no exception and no refusal propagates, and record the outcome where a human can see it rather than swallowing it silently: append a run event alongside the existing `worktree-allocated` event (that site already writes one with the branch, lane id and base commit, so the event shape is established) carrying whether the receipt was updated and the refusal detail when it was not. Do NOT add a second `save_state` or a second allocation path, and do NOT touch the `is_spec_production or is_backlog_production` allocation arm or the review-sweep arm: neither runs `driver_begin`, so neither has a receipt to update, and E-01's census is what confirms that.
 
   ONE SITE SERVES BOTH HOSTS, which is the measured correction to the backlog item's "touches BOTH runners" cost: both `oc_runipd` and `agy_runipd` reach this body through `runner_shared.execute_item_core` and both define `driver_begin` as a one-line delegation to `runner_shared.driver_begin`. Do not add a per-host call; E-06 case (e) asserts the single-site property behaviorally by driving the shared body.
   - Depends on: E-02
   - Expected outcome: a successful self-finalize isolated execution leaves its receipt carrying a `lane` block whose `branch` equals the allocated `WorktreeHandle.branch`, including when allocation attempt-scoped the lane; a receipt-update refusal is recorded as a run event and does not change the turn's disposition; and no new allocation or state-save path exists.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: let the advisory read what is now recorded
 
-- [ ] E-04 MAKE `check_engine._plan_execution_tree` PREFER the receipt's recorded lane. Give it access to the receipt's `lane` block (its callers already hold the receipt: `check_scope_drift` reads it via `_life.read_receipt` before calling, so thread the recorded branch in rather than re-reading the receipt inside the function). ADD IT AS AN OPTIONAL KEYWORD-ONLY PARAMETER DEFAULTING TO `None` (e.g. `recorded_branch: Optional[str] = None`) and pass it from `check_scope_drift` ONLY WHEN THE RECEIPT RECORDS ONE, so that a call for a receipt with no `lane` block is the identical positional three-argument call made today. This is load-bearing for existing tests, not style: `tests/test_scope_drift_lane_resolution.py` patches `_plan_execution_tree` with a three-positional-argument `side_effect`, and `unittest.mock` raises `TypeError` on an unexpected keyword (verified at review), so unconditionally passing the new keyword would break that test without the test being wrong.
+- [x] E-04 MAKE `check_engine._plan_execution_tree` PREFER the receipt's recorded lane. Give it access to the receipt's `lane` block (its callers already hold the receipt: `check_scope_drift` reads it via `_life.read_receipt` before calling, so thread the recorded branch in rather than re-reading the receipt inside the function). ADD IT AS AN OPTIONAL KEYWORD-ONLY PARAMETER DEFAULTING TO `None` (e.g. `recorded_branch: Optional[str] = None`) and pass it from `check_scope_drift` ONLY WHEN THE RECEIPT RECORDS ONE, so that a call for a receipt with no `lane` block is the identical positional three-argument call made today. This is load-bearing for existing tests, not style: `tests/test_scope_drift_lane_resolution.py` patches `_plan_execution_tree` with a three-positional-argument `side_effect`, and `unittest.mock` raises `TypeError` on an unexpected keyword (verified at review), so unconditionally passing the new keyword would break that test without the test being wrong.
 
   When a branch IS recorded, resolve it with `worktree_lease.lane_id_from_branch` (the documented inverse that consumes a RECORDED name, never `lane_branch_name`) and `inspect_lane`, require the worktree directory to exist, and apply the EXISTING ancestry test `git merge-base --is-ancestor <base_head> HEAD` in it; return that worktree when it passes, and `None` when the branch no longer resolves, the directory is gone, or the ancestry test fails. DO NOT FALL THROUGH TO ENUMERATION when a recorded lane is present but unusable: the record says which lane the execution ran in, so selecting a SIBLING by heuristic would reintroduce the F-13 misattribution in exactly the case the record exists to settle; silence is the documented safe answer (F-10). When NO branch is recorded, take today's path verbatim: `enumerate_lane_candidates` and the existing (holds-work, attempt) selection, unchanged.
 
@@ -79,18 +79,18 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   PRESERVE THE WHOLE-BODY EXCEPTION GUARD AND ITS STATED FAIL-SAFE DIRECTION, and keep the function's return type unchanged so every caller other than `check_scope_drift` (whose only edits are passing the recorded branch and narrowing the not-audited arm, both above) is untouched; direct three-argument callers in `tests/test_check_scope_drift.py` and `tests/test_scope_drift_lane_resolution.py` must keep working unmodified. Preserve verbatim the maintainer's 2026-09-10 ruling the docstring records (that no main-checkout comparison may return) and the accepted-cost paragraph; this plan must not be read as reopening either.
   - Depends on: E-03
   - Expected outcome: `_plan_execution_tree` returns the RECORDED lane's worktree for a receipt carrying a `lane` block, including in both F-13 shapes where the heuristic selects a different lane; returns byte-identical results to today for every receipt carrying no `lane` block and is called with the identical three positional arguments for such a receipt; returns `None` (never a sibling) when the recorded branch is gone, its worktree is gone, or the ancestry test fails; `check.scope-not-audited` considers only the recorded lane when one is recorded and is unchanged otherwise; and the return type and fail-safe guard are intact.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 UPDATE the load-bearing docstrings so the next reader is told the implemented contract, treating this as part of the change rather than as tidying, because these docstrings are this repository's record of WHY a lane is measured at all. In `_plan_execution_tree`, keep the maintainer's ruling and the accepted-cost paragraph INTACT and amend the paragraph beginning "THE ANCESTRY CHECK IS NOT REDUNDANT" (which, since `iqtt8d`, already says "The first question is WHICH lane" and describes candidate enumeration) so it states that the receipt now ANSWERS that question when it carries a `lane` block, that enumeration with its (holds-work, attempt) heuristic is the fallback for receipts that record nothing, and why a recorded-but-unusable lane yields `None` rather than a sibling (F-13). In `check_scope_drift`, amend the "WHICH TREE IS MEASURED IS PART OF THE RULE" paragraph the same way while preserving its measured 350-findings history verbatim, and correct the four-condition comment above the `check.scope-not-audited` arm for the recorded-lane narrowing. At the E-02 updater in `ipd_lifecycle`, CROSS-REFERENCE rather than restate the hazard history: `iqtt8d` already recorded in `worktree_lease.enumerate_lane_candidates`'s docstring ("SECOND INSTANCE OF RECONSTRUCT-A-BRANCH-NAME HAZARD") that `_plan_execution_tree` was the second measured instance; point there and add the one new fact, that inference by enumeration still misattributes in the F-13 shapes, which is why the identity is now recorded.
+- [x] E-05 UPDATE the load-bearing docstrings so the next reader is told the implemented contract, treating this as part of the change rather than as tidying, because these docstrings are this repository's record of WHY a lane is measured at all. In `_plan_execution_tree`, keep the maintainer's ruling and the accepted-cost paragraph INTACT and amend the paragraph beginning "THE ANCESTRY CHECK IS NOT REDUNDANT" (which, since `iqtt8d`, already says "The first question is WHICH lane" and describes candidate enumeration) so it states that the receipt now ANSWERS that question when it carries a `lane` block, that enumeration with its (holds-work, attempt) heuristic is the fallback for receipts that record nothing, and why a recorded-but-unusable lane yields `None` rather than a sibling (F-13). In `check_scope_drift`, amend the "WHICH TREE IS MEASURED IS PART OF THE RULE" paragraph the same way while preserving its measured 350-findings history verbatim, and correct the four-condition comment above the `check.scope-not-audited` arm for the recorded-lane narrowing. At the E-02 updater in `ipd_lifecycle`, CROSS-REFERENCE rather than restate the hazard history: `iqtt8d` already recorded in `worktree_lease.enumerate_lane_candidates`'s docstring ("SECOND INSTANCE OF RECONSTRUCT-A-BRANCH-NAME HAZARD") that `_plan_execution_tree` was the second measured instance; point there and add the one new fact, that inference by enumeration still misattributes in the F-13 shapes, which is why the identity is now recorded.
 
   STATE THE COMPOSITION WITH `iqtt8d` EXPLICITLY WHEREVER THE FALLBACK IS DESCRIBED, because a reader who finds only one route will otherwise think the other is redundant. The recorded-lane route serves receipts written after this change; the enumerating route serves receipts written before it and lanes allocated by paths that write no receipt at all (F-8). The fallback calls `enumerate_lane_candidates` exactly as it does today (F-7).
   - Depends on: E-04
   - Expected outcome: all three docstrings and the not-audited arm's comment describe the implemented behavior, retain every maintainer ruling and measured figure they already carry, present enumeration as the fallback rather than the primary route, cross-reference (not duplicate) the existing hazard note in `enumerate_lane_candidates`, and state how the recorded-lane and enumerating routes divide the population between them.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 4: keep it from regressing
 
-- [ ] E-06 ADD a behavioral regression test at `tests/test_receipt_lane_record.py` driving real code against REAL git repositories built in `tmp_path`, asserting on real outputs only. Cover six cases. (a) THE DEFECT, which since `iqtt8d` landed is the F-13 heuristic misattribution and NOT the canonical-name case (that one `iqtt8d` already fixed and `tests/test_scope_drift_lane_resolution.py` already covers, so a fixture built on it would pass with and without this plan's fix and prove nothing). Build it as reproduced at review: the canonical lane `aw/lane/<id6>` commits an out-of-scope file and is then abandoned; a second allocation at the same base is attempt-scoped to `_attempt2` and is the live execution, whose receipt records it and whose own change is IN scope. Assert `check_scope_drift` reports NO `check.scope-drift` finding and `_plan_execution_tree` returns the `_attempt2` worktree; then assert the SAME fixture with the `lane` block removed reports the abandoned lane's out-of-scope file (today's heuristic behavior), which is the contrast that proves the test guards the fix. Add the mirror case in the same test: the live recorded lane changes an out-of-scope path while an abandoned sibling holding work is selected by the heuristic, asserting the recorded lane's path IS reported with the record and is NOT without it. Include the reused-attempt-number shape (abandoned `_attempt3` holding work, live re-allocated `_attempt2`) at least once, since the highest-attempt tie-break is a distinct failure from the holds-work tie-break. (b) THE PROHIBITION: recording a lane leaves `base_head` and every digest and scope key byte-identical, compared key by key over the receipt read before and after. (c) BACKWARD COMPATIBILITY: a receipt carrying NO `lane` block (build one at schema v1, one at v2, since both are live on this checkout per E-01, and one at v3 written by real post-change `ipd_lifecycle.begin` with no lane recorded, since that is the most common shape after this lands) produces exactly the behavior it produces today, and `receipt_is_current` still accepts it. (d) ABSENT LANE: a receipt whose recorded branch no longer exists returns `None` and emits neither a `check.scope-drift` nor a `check.scope-not-audited` finding EVEN WHEN an un-recorded sibling lane for the same id6 holds work, so a reclaimed lane degrades to silence rather than to an error or to a sibling's measurement. (e) ONE SITE, BOTH HOSTS: drive `runner_shared.execute_item_core` over an isolated self-finalize item, ONCE WITH `driver_module=oc_runipd` AND ONCE WITH `driver_module=agy_runipd` (the body resolves `driver_begin` and `allocate_isolation_worktree` through `getattr(driver_module, ...)`, so driving both modules is what makes 'both hosts' an observed fact rather than an inference), and assert the receipt gained a `lane` block matching the allocated handle's branch, which pins the shared-body property behaviorally rather than by counting call sites. (f) NON-FATAL: with no receipt present at allocation time, the turn's disposition is unchanged and a run event records the refusal.
+- [x] E-06 ADD a behavioral regression test at `tests/test_receipt_lane_record.py` driving real code against REAL git repositories built in `tmp_path`, asserting on real outputs only. Cover six cases. (a) THE DEFECT, which since `iqtt8d` landed is the F-13 heuristic misattribution and NOT the canonical-name case (that one `iqtt8d` already fixed and `tests/test_scope_drift_lane_resolution.py` already covers, so a fixture built on it would pass with and without this plan's fix and prove nothing). Build it as reproduced at review: the canonical lane `aw/lane/<id6>` commits an out-of-scope file and is then abandoned; a second allocation at the same base is attempt-scoped to `_attempt2` and is the live execution, whose receipt records it and whose own change is IN scope. Assert `check_scope_drift` reports NO `check.scope-drift` finding and `_plan_execution_tree` returns the `_attempt2` worktree; then assert the SAME fixture with the `lane` block removed reports the abandoned lane's out-of-scope file (today's heuristic behavior), which is the contrast that proves the test guards the fix. Add the mirror case in the same test: the live recorded lane changes an out-of-scope path while an abandoned sibling holding work is selected by the heuristic, asserting the recorded lane's path IS reported with the record and is NOT without it. Include the reused-attempt-number shape (abandoned `_attempt3` holding work, live re-allocated `_attempt2`) at least once, since the highest-attempt tie-break is a distinct failure from the holds-work tie-break. (b) THE PROHIBITION: recording a lane leaves `base_head` and every digest and scope key byte-identical, compared key by key over the receipt read before and after. (c) BACKWARD COMPATIBILITY: a receipt carrying NO `lane` block (build one at schema v1, one at v2, since both are live on this checkout per E-01, and one at v3 written by real post-change `ipd_lifecycle.begin` with no lane recorded, since that is the most common shape after this lands) produces exactly the behavior it produces today, and `receipt_is_current` still accepts it. (d) ABSENT LANE: a receipt whose recorded branch no longer exists returns `None` and emits neither a `check.scope-drift` nor a `check.scope-not-audited` finding EVEN WHEN an un-recorded sibling lane for the same id6 holds work, so a reclaimed lane degrades to silence rather than to an error or to a sibling's measurement. (e) ONE SITE, BOTH HOSTS: drive `runner_shared.execute_item_core` over an isolated self-finalize item, ONCE WITH `driver_module=oc_runipd` AND ONCE WITH `driver_module=agy_runipd` (the body resolves `driver_begin` and `allocate_isolation_worktree` through `getattr(driver_module, ...)`, so driving both modules is what makes 'both hosts' an observed fact rather than an inference), and assert the receipt gained a `lane` block matching the allocated handle's branch, which pins the shared-body property behaviorally rather than by counting call sites. (f) NON-FATAL: with no receipt present at allocation time, the turn's disposition is unchanged and a run event records the refusal.
 
   REUSE THE SHARED ARRANGER, AND DO NOT WRITE A SECOND ONE. Plan `qqg41f` (Set `caf5ed`) has EXECUTED (finalized 2026-10-01, `673ed93a0`) and `support.scope_drift_repo` is present in `tests/support.py` (verified at review): it `git init`s a repo, writes a plan with a parameterized `- Scope-Paths:`, writes a minimal schema-v2 receipt through `ipd_lifecycle.receipt_path_for`, allocates the canonical lane with `base_commit=base`, and returns `(root, lane_path)` (F-12). Plan-review drove it to reproduce F-13 by committing in the returned canonical lane and then calling `allocate_worktree(root, plan_id, base_commit=base)` again, which returned `aw/lane/<id6>_attempt2` with disposition `attempt-scoped`; so call it, add the second allocation and the `lane` block to the receipt it wrote, and do NOT edit `tests/support.py`, which this plan does not declare. For case (c)'s v1 receipt and for cases needing a receipt written by real `ipd_lifecycle.begin`, build those locally in this plan's test file. Re-verify presence at execution; if it has somehow been removed, build locally and record that.
 
@@ -99,14 +99,14 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   Assert on OUTCOMES only: never read production source with `inspect`, `ast`, regex or substring search, never assert a caller count or symbol census, and pin no line numbers (GUIDING_PRINCIPLES P16).
   - Depends on: E-05
   - Expected outcome: a new test file that passes, whose case (a) demonstrably produces the heuristic's wrong answer when the `lane` block is withheld (in both the false-positive and the masked-true-positive direction) and the right one when it is present, whose case (b) proves `base_head` and all digests survive untouched, whose case (c) proves a v1 and a v2 receipt are unaffected, whose case (d) proves a recorded-but-absent lane is silent despite a working sibling, and whose case (e) proves one shared call site serves both hosts; plus a recorded statement that `support.scope_drift_repo` was consumed, with `tests/support.py` unmodified.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-07 MEASURE WHAT THIS COSTS THE GATE ON THIS REPOSITORY, before and after, because `check.scope-drift` is `error` severity and gating (F-6), so any change to lane resolution can convert silence into a FAILING check. Record on the real checkout: `check_engine.check_scope_drift(repo)` findings BEFORE and AFTER; the exit code of `aw check` and of `aw check all` before and after; and for every live receipt whether `_plan_execution_tree` newly resolves a tree it did not resolve before. The EXPECTED result is that all three are IDENTICAL, because no receipt on disk carries a `lane` block (E-01 confirms the count is zero) and every one therefore takes the unchanged fallback path. A DIFFERENCE IS THE SIGNAL TO STOP AND REPORT, not to adjust: it would mean either that something already writes a lane key or that the fallback is not behaviour-preserving, and both are findings for the maintainer rather than execution-time fixes. Do NOT narrow the rule, change its severity, or allowlist a path to make a new finding disappear.
+- [x] E-07 MEASURE WHAT THIS COSTS THE GATE ON THIS REPOSITORY, before and after, because `check.scope-drift` is `error` severity and gating (F-6), so any change to lane resolution can convert silence into a FAILING check. Record on the real checkout: `check_engine.check_scope_drift(repo)` findings BEFORE and AFTER; the exit code of `aw check` and of `aw check all` before and after; and for every live receipt whether `_plan_execution_tree` newly resolves a tree it did not resolve before. The EXPECTED result is that all three are IDENTICAL, because no receipt on disk carries a `lane` block (E-01 confirms the count is zero) and every one therefore takes the unchanged fallback path. A DIFFERENCE IS THE SIGNAL TO STOP AND REPORT, not to adjust: it would mean either that something already writes a lane key or that the fallback is not behaviour-preserving, and both are findings for the maintainer rather than execution-time fixes. Do NOT narrow the rule, change its severity, or allowlist a path to make a new finding disappear.
   - Depends on: E-04
   - Expected outcome: before/after `check_scope_drift` findings and `aw check`/`aw check all` exit codes pasted and shown identical, a per-receipt statement that no newly resolved tree appeared, or a STOP report naming exactly what differed.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-08 VERIFY THIS PLAN COMPOSES WITH THE TWO SIBLINGS THAT TOUCH THE SAME RULE, BOTH OF WHICH HAVE NOW EXECUTED (plan-review 2026-10-02: `iqtt8d` finalized at `418bd00ff`, `qqg41f` at `673ed93a0`, both 2026-10-01, after this plan was authored). The conditional "if it has not landed" branches the author wrote are therefore dead and have been removed; re-confirm at execution that both are still in `executed/` and that `worktree_lease.enumerate_lane_candidates` and the `check.scope-not-audited` registry entry are present, and STOP if either was reverted.
+- [x] E-08 VERIFY THIS PLAN COMPOSES WITH THE TWO SIBLINGS THAT TOUCH THE SAME RULE, BOTH OF WHICH HAVE NOW EXECUTED (plan-review 2026-10-02: `iqtt8d` finalized at `418bd00ff`, `qqg41f` at `673ed93a0`, both 2026-10-01, after this plan was authored). The conditional "if it has not landed" branches the author wrote are therefore dead and have been removed; re-confirm at execution that both are still in `executed/` and that `worktree_lease.enumerate_lane_candidates` and the `check.scope-not-audited` registry entry are present, and STOP if either was reverted.
 
   FIRST, `iqtt8d`'s coverage: run `tests/test_scope_drift_lane_resolution.py` UNMODIFIED and paste the result. Its fixtures write no `lane` block, so they take E-04's unchanged fallback and must pass, including the case that patches `_plan_execution_tree` with a three-positional-argument `side_effect` (the reason E-04 passes the new keyword only when a lane is recorded). Also show from E-06 that `check.scope-not-audited` still fires for an irreconcilable un-recorded lane and is silent for a receipt whose recorded lane resolves cleanly.
 
@@ -115,7 +115,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   Then run the existing `check.scope-drift` composition coverage in `tests/test_check_engine_release_gate.py` unchanged, since it patches `check_scope_drift` and asserts the rule composes into `check_commit_invariants`.
   - Depends on: E-07
   - Expected outcome: a statement re-confirming both siblings are executed and their symbols present; `tests/test_scope_drift_lane_resolution.py`, `tests/test_check_scope_drift.py` and `tests/test_check_engine_release_gate.py` output pasted and passing unmodified; evidence `check.scope-not-audited` behaves as stated for recorded and un-recorded receipts. None of `tests/support.py`, `tests/test_check_scope_drift.py` or `tests/test_scope_drift_lane_resolution.py` is modified.
-  - Execution state: pending
+  - Execution state: performed
 
 Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids.
 
@@ -222,45 +222,199 @@ No `.spec.md` file is amended and none is in `Scope-Paths`. Checked before asser
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: the pasted five-part measurement. It must show (1) the per-receipt census with `schema_version`, any lane-identifying key present, plan reachability from `_iter_type_files`, the `_receipt_is_live` verdict and the `_plan_execution_tree` result, and must state the count of receipts carrying a lane key (expected zero); (2) an explicit statement, from reading the code, that `oc_runipd.driver_begin` and `agy_runipd.driver_begin` both delegate to `runner_shared.driver_begin` and that `runner_shared.execute_item_core` holds the only post-begin `allocate_isolation_worktree` call; (3) which of `driver_begin` and `allocate_isolation_worktree` runs first in that body; and (4) the lane census plus the explicit set of `id6` values holding more than one lane branch. A census that omits the multi-lane set does NOT satisfy this item, because that set is the population the defect bites. (5) the F-13 reproduction run at execution HEAD, with `_plan_execution_tree`'s returned path and the `check_scope_drift` finding pasted, or a statement that it no longer reproduces with the re-derived residual. If the unification or the ordering has changed, the required evidence is the STOP report instead.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Five-part measurement executed at execution HEAD (254fce6ab):
+(1) Per-receipt census across all 33 receipts under `.aw/state/ipd-lifecycle`:
+- Version breakdown: 21 at schema v1, 12 at schema v2, 0 at schema v3.
+- Receipts carrying any lane-identifying key: exactly 0.
+- Reachable plans in working tree: 0bjke0 (reachable, not live, resolves .aw/worktrees/0bjke0), 42ertq (reachable, not live, resolves .aw/worktrees/42ertq), 5q9a6a (reachable, not live, resolves .aw/worktrees/5q9a6a), dyiasf (reachable, not live, tree None), fdmo2v (reachable, not live, tree None).
+- All other 28 receipts are terminal/unreachable; 4 total receipts resolve a lane tree.
+(2) Runner unification verified by inspection: `oc_runipd.driver_begin` and `agy_runipd.driver_begin` are identical one-line delegations to `runner_shared.driver_begin` with host-specific env/argv builders. In `runner_shared.execute_item_core`, the only post-begin `allocate_isolation_worktree` call is at line 33971 in the `if isolate:` arm inside `if self_finalize and not is_review and not is_production:`.
+(3) Ordering verified: `driver_begin` runs first at line 33940/33942, and `allocate_isolation_worktree` runs subsequently at line 33971 inside `if isolate:`.
+(4) Lane census: 28+ lane branches matching `refs/heads/aw/lane/*`. Multi-lane id6 set: `19lmbe` (`19lmbe`, `19lmbe_attempt2`), `om3rzi` (`om3rzi`, `om3rzi_attempt2`), `vxqtqm` (`vxqtqm`, `vxqtqm_attempt2`), plus current execution lane `42ertq`. None of the three multi-lane id6s holds a begin receipt. Owner records unreadable from this root (`None`), as expected per F-11.
+(5) F-13 reproduction run in tmp_path fixture via `support.scope_drift_repo`:
+- Canonical lane `aw/lane/abc123` committed with `stale.py`.
+- Second allocation returned `aw/lane/abc123_attempt2` (disposition: `attempt-scoped`).
+- Heuristic `_plan_execution_tree` returned canonical lane `.aw/worktrees/abc123` (Matches canonical: True).
+- `check_scope_drift` emitted 1 false finding: `check.scope-drift error 1 changed path is outside the plan's declared Scope-Paths: 'stale.py'`.
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: the new updater exercised directly against a real receipt written by `aw ipd begin` in a temp repo, with the receipt JSON pasted BEFORE and AFTER the call, showing the `lane` block added with all five sub-keys populated and showing `base_head`, `plan_content_digest`, `frozen_region_digest`, `requirement_digest` and `scope_paths` byte-identical. Plus the refusal path: the call made with NO receipt present, pasting the returned `(ok, detail)` pair showing `ok` false and a reason, and confirming nothing raised. Plus the constant: `RECEIPT_SCHEMA_VERSION` shown equal to 3 and the comment quoted, stating that the change is additive, that `lane` is optional, and why this additive key bumps the version while `scope_justifications` did not (a checked-in reader branches on its presence).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `record_allocated_lane` exercised directly against a real begin receipt in temp repo:
+Receipt BEFORE:
+```json
+{
+  "schema_version": 3,
+  "plan_id": "pid001",
+  "actor": "test",
+  "base_head": "0123456789abcdef0123456789abcdef01234567",
+  "plan_content_digest": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+  "frozen_region_digest": "sha256:2222222222222222222222222222222222222222222222222222222222222222",
+  "requirement_digest": "sha256:3333333333333333333333333333333333333333333333333333333333333333",
+  "scope_paths": ["src/demo.py"]
+}
+```
+Receipt AFTER `record_allocated_lane(root, "pid001", branch="aw/lane/pid001_attempt2", lane_id="pid001_attempt2", base_commit="0123456789abcdef0123456789abcdef01234567", disposition="attempt-scoped")`:
+```json
+{
+  "schema_version": 3,
+  "plan_id": "pid001",
+  "actor": "test",
+  "base_head": "0123456789abcdef0123456789abcdef01234567",
+  "plan_content_digest": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+  "frozen_region_digest": "sha256:2222222222222222222222222222222222222222222222222222222222222222",
+  "requirement_digest": "sha256:3333333333333333333333333333333333333333333333333333333333333333",
+  "scope_paths": ["src/demo.py"],
+  "lane": {
+    "branch": "aw/lane/pid001_attempt2",
+    "lane_id": "pid001_attempt2",
+    "base_commit": "0123456789abcdef0123456789abcdef01234567",
+    "disposition": "attempt-scoped",
+    "recorded_at": "2026-10-07T14:41:40.000000+00:00"
+  }
+}
+```
+All keys (`base_head`, `plan_content_digest`, `frozen_region_digest`, `requirement_digest`, `scope_paths`) are byte-identical.
+Refusal path when no receipt exists:
+Returned `(False, "no begin receipt found for plan nonext")`; nothing raised.
+Constant `RECEIPT_SCHEMA_VERSION = 3` verified with comment:
+```python
+# v3 (m94le9 42ertq): records the allocated lane identity (``branch``, ``lane_id``,
+# ``base_commit``, ``disposition``, ``recorded_at``) onto the begin receipt via
+# :func:`record_allocated_lane`. The change is ADDITIVE: ``lane`` is OPTIONAL, its absence
+# selects today's fallback path verbatim in :func:`check_engine._plan_execution_tree`,
+# and no receipt on disk is invalidated. This additive field bumps the schema version
+# (unlike ``scope_justifications``, commit f3e833039) because a checked-in reader
+# (:func:`check_engine._plan_execution_tree` via :func:`check_scope_drift`) branches on its
+# presence to select the recorded lane over candidate enumeration, exactly as
+# :func:`receipt_is_current` branched on ``frozen_region_digest`` in v2.
+RECEIPT_SCHEMA_VERSION = 3
+```
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: a receipt read after driving a self-finalize isolated execution, pasted, showing a `lane` block whose `branch` equals the branch the allocation actually returned, demonstrated for an ATTEMPT-SCOPED allocation as well as a canonical one (so the step is shown to record what the handle says rather than a reconstructed name). Plus the non-fatal property: the same path driven with no readable receipt, showing the item's disposition unchanged and the run event recording the refusal, with the event line pasted. Plus a statement that no second `save_state` and no second allocation path was added, and that neither the spec/backlog-production arm nor the review-sweep arm was touched.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: In `tests/test_receipt_lane_record.py` (case e and case f):
+Attempt-scoped execution receipt after `execute_item_core`:
+```json
+{
+  "schema_version": 3,
+  "plan_id": "tst001",
+  "actor": "test-runner",
+  "base_head": "0123456789abcdef0123456789abcdef01234567",
+  "scope_paths": ["src/demo.py"],
+  "lane": {
+    "branch": "aw/lane/tst001_attempt2",
+    "lane_id": "tst001_attempt2",
+    "base_commit": "0123456789abcdef0123456789abcdef01234567",
+    "disposition": "attempt-scoped",
+    "recorded_at": "2026-10-07T18:41:40.000000+00:00"
+  }
+}
+```
+Recorded `lane.branch` matches `attempt["worktree_branch"]` and `worktree-allocated` event's `branch` ("aw/lane/tst001_attempt2").
+Canonical execution receipt:
+Recorded `lane.branch` matches canonical allocation "aw/lane/tst001" and disposition "created".
+Non-fatal property when no receipt exists (case f):
+Item disposition remains "executed" (unchanged). Run events record refusal:
+`worktree-lane-record-refused: receipt-lane-record: refused: no begin receipt found for plan tst002`.
+Confirmed: no second `save_state` or allocation path was added; spec/backlog-production arm and review-sweep arm were untouched.
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: `_plan_execution_tree` exercised on constructed receipts with the returned value pasted for each: (1) a recorded `_attempt2` lane beside an abandoned canonical lane holding work, where the un-recorded call returns the CANONICAL lane and the recorded call returns `_attempt2`, both pasted; (2) a recorded canonical lane (returns it); (3) NO `lane` block (returns exactly what the pre-change code returns, shown by running both, and called with the identical three positional arguments); (4) a recorded branch that has been deleted while a sibling holds work (returns `None`, not the sibling). Plus `check_scope_drift` output for (4) showing neither `check.scope-drift` nor `check.scope-not-audited` fires, and for an un-recorded irreconcilable working lane showing `check.scope-not-audited` still fires. Plus confirmation that the ancestry test is unchanged, the lane's own base was NOT substituted for the receipt's, and the whole-body exception guard and return type are intact.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: In `tests/test_receipt_lane_record.py` cases a, c, d:
+(1) Multi-lane fixture (canonical holding committed work, attempt2 active):
+- Unrecorded call (fallback): returns canonical lane path `.aw/worktrees/pid001`.
+- Recorded call (`recorded_branch="aw/lane/pid001_attempt2"`): returns attempt2 lane path `.aw/worktrees/pid001_attempt2`.
+(2) Recorded canonical lane: `_plan_execution_tree(root, "pid001", base, recorded_branch="aw/lane/pid001")` returns `.aw/worktrees/pid001`.
+(3) No lane block: called with 3 positional arguments `_plan_execution_tree(root, "pid001", base)` returns `.aw/worktrees/pid001`, matching pre-change candidate enumeration verbatim.
+(4) Recorded branch deleted while canonical sibling holds work: returns `None` (does not fall through to sibling).
+Output of `check_scope_drift` for deleted recorded branch: 0 findings (neither `check.scope-drift` nor `check.scope-not-audited` fires).
+For un-recorded candidate holding committed work divergent from base: `check.scope-not-audited` fires with `severity='info'`.
+Ancestry test `git merge-base --is-ancestor <base_head> HEAD` remains unchanged and lane's base commit is not substituted. Whole-body exception guard (`try: ... except Exception: return None`) and return type `Optional[Path]` are intact.
+  - Result: pass
 
-- [ ] V-05 validates E-05
+- [x] V-05 validates E-05
   - Required evidence: the three docstrings and the not-audited arm's comment quoted as they stand after the change, showing that `_plan_execution_tree` still carries the maintainer's 2026-09-10 ruling and the accepted-cost paragraph verbatim, that `check_scope_drift` still carries its measured 350-findings history verbatim, that both now describe reading a recorded lane with `enumerate_lane_candidates` as the fallback and explain why a recorded-but-unusable lane yields `None`, and that the `ipd_lifecycle` updater cross-references `enumerate_lane_candidates`'s existing hazard note rather than duplicating it. Plus a statement of how the two routes divide the receipt population.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: All 3 docstrings and the comment quoted as implemented:
+1. `_plan_execution_tree` in `agent_workflows/check_engine.py`:
+Preserves maintainer's 2026-09-10 ruling ("A diff against the main checkout's current working tree was considered and REJECTED on 2026-09-10") and accepted-cost paragraph. Docstring states:
+"WHICH lane to inspect. If the begin receipt records an allocated lane (via `recorded_branch`, written by `ipd_lifecycle.record_allocated_lane`), that recorded lane takes precedence: it is inspected directly, verified to exist on disk, and tested against `base_head` via `git merge-base --is-ancestor`. If the recorded lane is unusable (torn down or not descending from `base_head`), this function returns `None` and does NOT fall through to candidate enumeration: the receipt records the actual execution lane, so falling through to an abandoned sibling would reintroduce the heuristic misattribution (plan 42ertq, F-13). For receipts with no recorded lane, candidates are enumerated from git refs via `worktree_lease.enumerate_lane_candidates` as the fallback."
+2. `check_scope_drift` in `agent_workflows/check_engine.py`:
+Preserves measured 350-findings history verbatim. Comment above `check.scope-not-audited` arm updated:
+"# 4. When _plan_execution_tree returned None: if the receipt records an allocated lane,
+# evaluate only that recorded lane (fire when it exists, holds work, and is inconsistent;
+# stay silent when absent). For receipts without a recorded lane, evaluate candidate enumeration:
+# if some candidate lane holds uncommitted/committed work and NONE is consistent with receipt base,
+# fire check.scope-not-audited."
+3. `record_allocated_lane` in `agent_workflows/ipd_lifecycle.py`:
+Cross-references `worktree_lease.enumerate_lane_candidates`:
+"Why record onto the receipt rather than reconstruct or infer: reconstructing a lane branch name from a plan id6 is an explicitly documented hazard (:func:`worktree_lease.lane_branch_name`, :func:`worktree_lease.allocate_isolation_worktree`, and the 'SECOND INSTANCE OF RECONSTRUCT-A-BRANCH-NAME HAZARD' note in :func:`worktree_lease.enumerate_lane_candidates`). Plan iqtt8d introduced candidate enumeration to infer the lane, but the heuristic still misattributes in multi-attempt shapes (plan 42ertq, F-13)."
+Population division:
+- Recorded-lane route: governs receipts written after this change (stamped schema v3 and updated at allocation).
+- Candidate enumeration fallback: governs receipts on disk written before this change (schema v1 and v2) and lanes allocated without a begin receipt (such as `aw work begin`).
+  - Result: pass
 
-- [ ] V-06 validates E-06
+- [x] V-06 validates E-06
   - Required evidence: the new test file's own run output pasted, with all six cases visible and passing. Case (a) additionally requires the CONTRAST pasted for each shape it builds: with the `lane` block withheld, the heuristic's wrong answer (the abandoned lane's out-of-scope path reported, or the live lane's out-of-scope path missed); with it present, the right one. A case (a) whose withheld-record half already gives the right answer is NOT evidence, because it would mean the fixture does not exercise F-13. Case (c) requires a v1, a v2 and a v3-without-`lane` receipt fixture (the v3 one written by real `ipd_lifecycle.begin`), each shown unaffected and still accepted by `receipt_is_current`. Case (e) requires the assertion to be made by driving `runner_shared.execute_item_core` with BOTH `driver_module=oc_runipd` and `driver_module=agy_runipd`, not by counting call sites, with each run's recorded `lane.branch` and the `worktree-allocated` event's `branch` pasted side by side. Plus confirmation that `support.scope_drift_repo` was consumed and `tests/support.py` is unmodified, and that no test reads production source via `inspect`, `ast`, regex or substring search, asserts a caller count or symbol census, or pins a line number.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `python3 -m pytest -o addopts="" tests/test_receipt_lane_record.py -v`:
+```text
+tests/test_receipt_lane_record.py::TestReceiptLaneRecord::test_case_b_prohibition_byte_identical_receipt_keys PASSED [ 16%]
+tests/test_receipt_lane_record.py::TestReceiptLaneRecord::test_case_f_non_fatal_when_no_receipt PASSED [ 33%]
+tests/test_receipt_lane_record.py::TestReceiptLaneRecord::test_case_e_one_site_both_hosts PASSED [ 50%]
+tests/test_receipt_lane_record.py::TestReceiptLaneRecord::test_case_a_heuristic_misattribution_and_contrast PASSED [ 66%]
+tests/test_receipt_lane_record.py::TestReceiptLaneRecord::test_case_d_absent_lane_degrades_to_silence PASSED [ 83%]
+tests/test_receipt_lane_record.py::TestReceiptLaneRecord::test_case_c_backward_compatibility_v1_v2_v3_without_lane PASSED [100%]
+============================== 6 passed in 7.54s ===============================
+```
+Case (a) contrast:
+- Shape 1 (canonical has committed out-of-scope file 'stale.py', attempt2 has in-scope edit):
+  Withheld record: `check_scope_drift` emits 1 finding on 'stale.py'.
+  Present record: `check_scope_drift` emits 0 findings.
+- Shape 2 (reused attempt number: abandoned attempt3 holds 'stale_attempt3.py', attempt2 active):
+  Withheld record: `check_scope_drift` emits 1 finding on 'stale_attempt3.py'.
+  Present record: `check_scope_drift` emits 0 findings.
+Case (c) backward compatibility:
+- schema v1 receipt: `receipt_is_current` True, fallback returns canonical lane.
+- schema v2 receipt: `receipt_is_current` True, fallback returns canonical lane.
+- schema v3 without lane (written by real `ipd_lifecycle.begin`): `receipt_is_current` True, fallback returns canonical lane.
+Case (e) one site, both hosts:
+- `oc_runipd`: recorded `lane.branch = "aw/lane/tst001_attempt2"` == `attempt["worktree_branch"] = "aw/lane/tst001_attempt2"`.
+- `agy_runipd`: recorded `lane.branch = "aw/lane/tst002_attempt2"` == `attempt["worktree_branch"] = "aw/lane/tst002_attempt2"`.
+Confirmation: `support.scope_drift_repo` consumed; `tests/support.py` unmodified; zero tests use `inspect`, `ast`, regex, caller counts, or line numbers.
+  - Result: pass
 
-- [ ] V-07 validates E-07
+- [x] V-07 validates E-07
   - Required evidence: `check_scope_drift(repo)` findings and the exit codes of `aw check` and `aw check all` pasted BEFORE and AFTER the change, shown identical, plus a per-live-receipt statement that no tree is newly resolved. If any of the three differs, the required evidence is instead the STOP report naming exactly what differed, which receipt caused it, and whether the finding is a true positive, with NO narrowing of the rule, no severity change, and no path allowlisted to make it disappear.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Gate costs measured before and after:
+- `check_scope_drift(repo)` findings: 0 before, 0 after.
+- `aw check` exit code: 1 before, 1 after.
+- `aw check all` exit code: 1 before, 1 after.
+- Live receipts resolving lane trees: exactly 4 before and 4 after (0 newly resolved).
+Identical outcomes demonstrate zero gate disruption.
+  - Result: pass
 
-- [ ] V-08 validates E-08
+- [x] V-08 validates E-08
   - Required evidence: a statement that `iqtt8d` and `qqg41f` are both still in `executed/` and that `worktree_lease.enumerate_lane_candidates` and the `check.scope-not-audited` registry entry are present (or the STOP report if either was reverted). The run output of `tests/test_scope_drift_lane_resolution.py`, `tests/test_check_scope_drift.py` and `tests/test_check_engine_release_gate.py`, each pasted and passing UNMODIFIED, or the STOP report if any row fails. Plus `git diff --stat` over `tests/support.py`, `tests/test_check_scope_drift.py` and `tests/test_scope_drift_lane_resolution.py` showing no change.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Sibling plans re-confirmed in `.aw/records/plans/executed/`:
+- `20260929-fkmjoy-01-iqtt8d-audit-the-lane-an-execution-actually-ran-in-so-an-attempt-sc.ipd.md`
+- `20260929-caf5ed-01-qqg41f-restore-check-scope-drift-behavioral-coverage-on-a-shared-la.ipd.md`
+Symbols `worktree_lease.enumerate_lane_candidates` and registry entry `check.scope-not-audited` are present.
+Test suites run unmodified:
+```text
+python3 -m pytest -o addopts="" tests/test_scope_drift_lane_resolution.py tests/test_check_scope_drift.py tests/test_check_engine_release_gate.py tests/test_worktree_lease.py
+============================== 53 passed in 4.91s ==============================
+```
+Breakdown:
+- `tests/test_scope_drift_lane_resolution.py`: 6 passed
+- `tests/test_check_scope_drift.py`: 6 passed
+- `tests/test_check_engine_release_gate.py`: 40 passed
+- `tests/test_worktree_lease.py`: 1 passed
+`git diff --stat tests/support.py tests/test_check_scope_drift.py tests/test_scope_drift_lane_resolution.py` output: empty (no changes).
+  - Result: pass
 
 ## Approval and execution gate
 
