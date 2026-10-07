@@ -7,8 +7,8 @@
 - Scope-Paths: .aw/records/plans/pending/20260930-malgate-00-qtz0us-apply-p15-to-the-existing-gates-audit-every-anti-malice-chec.ipd.md
 - Item-Dependencies: none
 - Status: draft
-- Coverage: fail
-- Coverage-Fingerprint: 1d55f5dad923599d526c0e4a4a695f7379dbb222347e86a3e12b40fd262b895b
+- Coverage: pass
+- Coverage-Fingerprint: c0e92a0b651737d38e2df4fef1656e26ca40fc1402a53bf8208e190d5073e100
 - Coverage-Checked: 2026-10-07 by uri/its_direct/pt3-claude-opus-5.5-1m-us
 - Work-Kind: chore
 - Priority: medium
@@ -20,6 +20,7 @@
 - Id: qtz0us
 
 ## Workflow history
+- 2026-10-07 coverage pass (aw oc run): fingerprint c0e92a0b6517, model uri/its_direct/pt3-claude-opus-5.5-1m-us
 - 2026-10-07 coverage fail (aw oc run): fingerprint 1d55f5dad923, model uri/its_direct/pt3-claude-opus-5.5-1m-us
 - 2026-10-07 note (opencode its_direct/pt3-claude-opus-5.5-1m-us): every child is executed; each completion criterion leads with its owner, and the three cross-child checks were measured against the resulting tree and recorded.
 - 2026-10-06 draft (aw set): demoted to-review -> draft: returned to authoring by gradcover 52opph: uncovered obligation: These three checks span the children. All three children are `executed`, and each check was MEASURED on 2026-10-07 against the tree they produced, so nothing is left for a retirement to skip:
@@ -207,14 +208,6 @@ These three checks span the children. All three children are `executed`, and eac
 - Owner: reviewer
 - Resolution or deferral rationale: No child declares such an edge, deliberately. `dvonrn` carries `Blocks-Release: next` and deletes the driver token from `ipd_lifecycle`, a neighbourhood Order 03 also edits, so an edge would be defensible. It is refused because it would block a comment-only fix behind a much larger release-gating behavior change, and because Order 03's E-02 explicitly checks `dvonrn`'s landed state and reconciles in EITHER order, requiring its reframed wording to survive the token's later deletion without a second edit. The residual risk is an ordinary text collision in one neighbourhood of one file, which the runner's isolated-worktree and merge-revalidate path already handles. Against that: running after `dvonrn` would be simpler, since part of Order 03's target list may already be fixed and that child would shrink.
 - Carrier-Declined: No carrier is owed under either answer. Order 03's E-02 handles both landed states inside the plan, so nothing is left unbuilt in either order, and its V-02 records which state was found.
-
-## Coverage findings
-
-- "[Measured 2026-10-07, see Cross-IPD validation] THE SET-LEVEL CROSS-CHECK: every mechanism enumerated in Order 01's audit with a SIMPLIFY or DELETE disposition must be either acted on by Order 02 or Order 03, or carry a named carrier outside this Set. An audit row with a disposition and no actor is the one way this Set can complete while leaving its own stated work undone."
-- "Three checks span the children and cannot be performed by any child alone, which is why they live here."
-- "THE AUDIT-TO-ACTION RECONCILIATION (criterion 3). Read Order 01's record and Orders 02 and 03's diffs"
-- "THE DISCLAIMER FENCE HELD ACROSS BOTH REMEDIATION CHILDREN (criterion 5). Order 02 deletes prose and Order"
-- "THE SPEC SURFACE IS RECONCILED SET-WIDE. Exactly one child may amend a spec (`38pxaz`, spec `7ckptx`)."
 
 ## Validation and cross-check (verify before reporting the Set complete)
 
