@@ -6,7 +6,7 @@
 - Scope: Put each re-export on a form that carries its OWN machine-checked justification instead of a citation to a deleted file, and correct every false claim in the two comments. For `oc_runipd`, whose re-export has no consumer, KEEP the binding but move the suppression from `# noqa` onto `__all__` (the module's existing, already-underscore-carrying export list), so ruff's own export semantics justify it and there is no prose to rot. For `agy_runipd`, which has no `__all__` and one real consumer, keep the binding and RE-JUSTIFY it against that consumer by name, and pin the consumer with a real outcome test inside `tests/` so the guarantee stops depending on a file `testpaths = ["tests"]` never collects. Rewrite both comments to state what is true at HEAD (the deleted guard, the measured consumer asymmetry, and the two suppression mechanisms that were wrongly recorded as unavailable), and reword the prose so it no longer emits ruff's invalid-directive warning. DOES NOT delete either binding: `agy`'s has a live caller, and `oc`'s is retained deliberately so the two hosts keep the symmetric surface every cross-host identity test in `tests/test_runner_shared.py` and `tests/test_verifier_evidence.py` asserts for its neighbours. DOES NOT touch `selectors.py`, does NOT change which reader either name binds to (the PERMISSIVE `read_front_matter_id`, whose whitespace tolerance is a documented contract), does NOT restore the deleted guard file, and does NOT repair the 11 pre-existing failures in `tools/ipdrunner/test_runagy.py` beyond the one `_read_id`/`_read_status` assertion this plan's own change is responsible for.
 - Scope-Paths: agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, tests/test_runner_shared.py, tools/ipdrunner/test_runagy.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -16,9 +16,9 @@
 - Highest E allocated: 05
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: h0zk2g
-- Approval: 2026-10-07, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-07 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: h0zk2g verified (set s4jctz, attempt 1).
 - 2026-10-07 approved (aw set): status set to approved
 
 - 2026-10-07 /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-201, PR-202, PR-203. Reviewed at HEAD `fe2ee961c` in an isolated review lane; plan committed and byte-identical to the lane input, so no pre-review snapshot. Re-verified: both imports and comments unchanged; `oc_runipd.__all__` 23 entries with the five underscore names, `agy_runipd` has no `__all__`; `_read_status` absent on both hosts; `runagy._read_id is agy_runipd._read_id` True; permissive vs strict on tab input `'abc123'` vs `None`; ruff `0.16.3` AND hook-cached `0.4.4`: `as <same-name>` and `__all__` forms pass F401, bare alias fails; two `Invalid # noqa directive` warnings (`agy_runipd.py:74`, `oc_runipd.py:830`); `tools/ipdrunner/test_runagy.py` `11 failed, 14 passed`; carriers `gte0pd`, `fh8x8k` open. Fixed: E-04 would leave its target test red because `_read_deps` was deleted by `72bb113e7`, so it now drops that assertion too (PR-201); stale suite counts replaced by a pre-edit node-id comparison (bare suite now `2 failed, 5219 passed, 2 skipped`) (PR-202); bare `:825` citation re-anchored on a quoted string (IPD-C801) (PR-203).
