@@ -6,7 +6,7 @@
 - Scope: IN: route the two `record_history` sidecar date defaults onto the same shared UTC helper `5ivkdh` adds, in the compact `YYYYMMDD` shape the sidecar schema already uses, preserving each function's explicit-`date` precedence; and add the outcome test that pins ONE event's inline and sidecar copies to the SAME date under a skew timezone, which is the property no existing test covers. OUT, each with a reason recorded under "Deferred": the inline history writers and the shared helper itself (owned by `5ivkdh`, taken as a hard dependency); the cross-spelling timezone guard (`ayhveg`); the scaffold and plan-family `created` records (`9wcei0`, `rfyrvp`); the lifecycle-gate coverage companion (`5xq2ng`); the duplicate-item convergence that closes this plan's own source item (`qjm4bg`); FILENAME dates, which `DECISIONS.md` D55 rules LOCAL; and migrating the sidecar to the per-artifact tracked journal of `2vev8j` 4.2, which that spec itself declares out of its own scope (N3).
 - Scope-Paths: agent_workflows/record_history.py, tests/test_history_date_clock_sidecar.py
 - Item-Dependencies: executed:5ivkdh
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - From-Spec: 2vev8j
 - Work-Kind: bug
@@ -18,9 +18,9 @@
 - Highest E allocated: 02
 - Author: opencode/its_direct/pt3-claude-opus-5-1m-us
 - Id: dmrbqa
-- Approval: 2026-10-07, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-07 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: dmrbqa verified (set tl8qmc, attempt 1).
 - 2026-10-07 approved (aw set): status set to approved
 - 2026-10-07 reviewed (aw set): plan-review
 
