@@ -6,7 +6,8 @@
 - Scope: Coordinate three children that (1) record the measurement and amend the two contracts that assert or disclaim push denial, (2) add ONE probed port-denial capability named for what it proves, gating no action and reintroducing no finding code, and (3) verify the Set did not overclaim and that the unbuilt half has a live carrier. This orchestrator performs no product change of its own.
 - Scope-Paths: .aw/records/plans/pending/20260929-denypush-00-l4vw9o-decide-and-if-approved-build-a-landlock-backed-network-denia.ipd.md
 - Item-Dependencies: none
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
 - Coverage: pass
 - Coverage-Fingerprint: 85d00a1ba1d43deaa76f3fce916c4809b9f52d072bf4b3ad929b4cc064f5c74e
 - Coverage-Checked: 2026-10-07 by uri/its_direct/pt3-claude-opus-5.5-1m-us
@@ -20,6 +21,7 @@
 - Id: l4vw9o
 
 ## Workflow history
+- 2026-10-07 reviewed (opencode uri/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-006 fixed
 - 2026-10-07 coverage pass (aw oc run): fingerprint 85d00a1ba1d4, model uri/its_direct/pt3-claude-opus-5.5-1m-us
 - 2026-10-07 /plan-review (opencode uri/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-006 fixed. Review record `.aw/records/reviews/20261007-denypush-00-l4vw9o-decide-and-if-approved-build-a-landlock.review.md`.
 - 2026-10-07 to-review (aw set): returned to review: Set-level checks owned by wzhe4n E-03/E-04 (runs last); carrier sv9ce4 already exists; coverage pass recorded
