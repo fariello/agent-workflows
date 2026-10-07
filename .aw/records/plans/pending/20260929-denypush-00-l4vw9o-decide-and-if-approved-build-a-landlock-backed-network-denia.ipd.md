@@ -20,6 +20,7 @@
 - Id: l4vw9o
 
 ## Workflow history
+- 2026-10-07 /plan-review (opencode uri/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-006 fixed. Review record `.aw/records/reviews/20261007-denypush-00-l4vw9o-decide-and-if-approved-build-a-landlock.review.md`.
 - 2026-10-07 to-review (aw set): returned to review: Set-level checks owned by wzhe4n E-03/E-04 (runs last); carrier sv9ce4 already exists; coverage pass recorded
 - 2026-10-07 coverage pass (aw oc run): fingerprint 69dd49745d53, model uri/its_direct/pt3-claude-opus-5.5-1m-us
 - 2026-10-07 note (opencode its_direct/pt3-claude-opus-5.5-1m-us): each criterion and Set-level check now leads with its owner (`wzhe4n` E-03/E-04 for the cross-child audit and sweep).
@@ -66,7 +67,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 | Order | Id | File | What it does | Depends on |
 |---|---|---|---|---|
-| 01 | x2dwu5 | `.aw/records/plans/pending/20260929-denypush-01-x2dwu5-record-the-measured-landlock-feasibility-and-amend-spec-25kz.ipd.md` | Re-measures the three Landlock probes on the executing host; amends spec `25kzda` 5.2 with the measured position (ABI-4 denial is real, port-granular, address-blind; the credential half is already shipped) and amends `host_sandbox_profile`'s module docstring where it currently calls network scoping out of scope. Records only: no probe, no capability, no finding code. | none |
+| 01 | x2dwu5 | `.aw/records/plans/executed/20260929-denypush-01-x2dwu5-record-the-measured-landlock-feasibility-and-amend-spec-25kz.ipd.md` | Re-measures the three Landlock probes on the executing host; amends spec `25kzda` 5.2 with the measured position (ABI-4 denial is real, port-granular, address-blind; the credential half is BOUNDED, not shipped: files are hidden only under opt-in Linux hardened mode and environment-carried credentials are not withheld) and amends `host_sandbox_profile`'s module docstring where it currently calls network scoping out of scope. Records only: no probe, no capability, no finding code. | none |
 | 02 | pi3bk8 | `.aw/records/plans/pending/20260929-denypush-02-pi3bk8-add-a-probed-supports-deny-remote-ssh-push-capability-provin.ipd.md` | Extends `landlock_bootstrap_source` to carry network rules; adds `_probe_deny_tcp_port`, a two-sided executed probe; adds the `supports_deny_tcp_port` capability defaulting False and registered with a REAL probe; amends the docstring; extends `CONTRACT_FIELDS` and the `PRESENCE_VS_OBSERVATION` table; re-points `DenyPushRemovedTests` without weakening it. Gates no action. | `executed:x2dwu5` |
 | 03 | wzhe4n | `.aw/records/plans/pending/20260929-denypush-03-wzhe4n-file-the-carrier-for-host-granular-network-filtering-and-clo.ipd.md` | Verifies backlog `sv9ce4` (the host-granular filtering carrier) is intact, `open`, and honestly worded; points spec 5.2 at it; audits the shipped end state by RUNNING commands for four overclaim checks, INCLUDING a recorded judgement on BOTH of the spec's two push-denial sites (5.2's bullet and Section 6.1 limit 4, which no child amends); runs the full validation sweep and states delivered versus undelivered scope. | `executed:pi3bk8` |
 
@@ -77,22 +78,24 @@ minted from the original title and is left stable.
 
 ## Completion criteria (the whole Set is done only when)
 
-- [Owner: x2dwu5, pi3bk8 and wzhe4n, each in its own V-items; wzhe4n last] All three children are `executed`, each with concrete pasted evidence on every `V-*` item.
-- [Owner: x2dwu5, pi3bk8 and wzhe4n, each in its own V-items; wzhe4n last] Spec `25kzda` 5.2 records the MEASURED position: kernel TCP denial is real at Landlock ABI 4, it is
-  port-granular and address-blind, the credential half of its bullet is already shipped in hardened
-  mode, no host reports push denial, and the requirement remains fail-closed.
-- [Owner: x2dwu5, pi3bk8 and wzhe4n, each in its own V-items; wzhe4n last] Spec `25kzda` Section 6.1 limit 4 is left UNCHANGED and that is recorded as a deliberate judgement in
+- [Owner: each child in its own V-items; this plan's V-01..V-03 confirm] All three children are `executed`, each with concrete pasted evidence on every `V-*` item.
+- [Owner: x2dwu5 (already executed, its V-items pass) for the amendment; wzhe4n E-02 for the carrier sentence and V-02 for the final byte-unchanged re-grep] Spec `25kzda` 5.2 records the MEASURED position: kernel TCP denial is real at Landlock ABI 4, it is
+  port-granular and address-blind, the credential half of its bullet is BOUNDED rather than complete
+  (credential files hidden only under opt-in Linux hardened mode; environment-carried credentials such
+  as `GH_TOKEN` or a forwarded `SSH_AUTH_SOCK` are NOT withheld), no host reports push denial, and the
+  requirement remains fail-closed.
+- [Owner: wzhe4n E-03 sub-check (d) / V-03] Spec `25kzda` Section 6.1 limit 4 is left UNCHANGED and that is recorded as a deliberate judgement in
   Order 03's audit, not an omission. It is the spec's SECOND push-denial site (measured: two hits) and
   it remains accurate, so the Set's obligation is to show it was considered rather than to edit it.
-- [Owner: x2dwu5, pi3bk8 and wzhe4n, each in its own V-items; wzhe4n last] Exactly ONE new capability exists, `supports_deny_tcp_port`, decided by an executed two-sided probe,
+- [Owner: pi3bk8 E-02/E-03 and their V-items; wzhe4n E-03 sub-check (a) re-confirms] Exactly ONE new capability exists, `supports_deny_tcp_port`, decided by an executed two-sided probe,
   defaulting False, with a `probe_notes` entry, visible in `aw host capabilities`.
-- [Owner: x2dwu5, pi3bk8 and wzhe4n, each in its own V-items; wzhe4n last] `supports_deny_push` and `CAP_DENY_PUSH` remain ABSENT, and `DenyPushRemovedTests` still passes with
+- [Owner: pi3bk8 E-07/V-07; wzhe4n E-03 sub-checks (a) and (e) re-confirm] `supports_deny_push` and `CAP_DENY_PUSH` remain ABSENT, and `DenyPushRemovedTests` still passes with
   its assertions intact rather than deleted.
-- [Owner: x2dwu5, pi3bk8 and wzhe4n, each in its own V-items; wzhe4n last] `ACTION_CLASSES` is still `(ACTION_READ_ONLY,)`: no action is gated, and none of the three removed
+- [Owner: wzhe4n E-03 sub-check (c) / V-03] `ACTION_CLASSES` is still `(ACTION_READ_ONLY,)`: no action is gated, and none of the three removed
   action classes returned.
-- [Owner: x2dwu5, pi3bk8 and wzhe4n, each in its own V-items; wzhe4n last] `run_evidence.RUN_FINDING_CODES` still holds exactly 12 codes: no `RUN-NO-PUSH`-shaped code returned.
-- [Owner: x2dwu5, pi3bk8 and wzhe4n, each in its own V-items; wzhe4n last] Backlog `sv9ce4` is `open`, ungated, and visible in `aw attention` as the carrier for the unbuilt half.
-- [Owner: x2dwu5, pi3bk8 and wzhe4n, each in its own V-items; wzhe4n last] The bare suite passes, `aw ipd lint` conforms over every plan in the Set, `aw check` reports no new
+- [Owner: wzhe4n E-03 sub-check (b) / V-03] `run_evidence.RUN_FINDING_CODES` still holds exactly 12 codes: no `RUN-NO-PUSH`-shaped code returned.
+- [Owner: wzhe4n E-01 / V-01] Backlog `sv9ce4` is `open`, ungated, and visible in `aw attention` as the carrier for the unbuilt half.
+- [Owner: wzhe4n E-04 / V-04, judged as a DELTA for `aw check` and `aw research index --check`, which already exit 1 before the Set] The bare suite passes, `aw ipd lint` conforms over every plan in the Set, `aw check` reports no new
   violations, and `aw sanitize --agent` exits zero.
 
 ## Cross-IPD validation
@@ -105,8 +108,9 @@ minted from the original title and is left stable.
   Order 01 writes that denial is real, Order 02 ships a working probe, and a reader who meets only
   those two could reasonably conclude push is now denied.
 - [Owner: wzhe4n E-03 (overclaim audit) and E-04 (validation sweep), which runs last] THE NAME IS CONSISTENT ACROSS THE SET. Every child refers to the new capability as
-  `supports_deny_tcp_port`, and none reintroduces `supports_deny_push`. Order 02's OQ-01 leaves the
-  exact spelling open for the maintainer; if it changes at review, all three children and this
+  `supports_deny_tcp_port`, and none reintroduces `supports_deny_push`. Order 02's OQ-01 was RESOLVED at
+  review to keep `supports_deny_tcp_port`, with backlog `wcbpqf` still available to the maintainer; if
+  the name changes later, all three children and this
   orchestrator must be updated together, since a half-renamed Set would leave the spec naming a field
   that does not exist.
 - [Owner: wzhe4n E-03 (overclaim audit) and E-04 (validation sweep), which runs last] THE SPEC IS AMENDED THREE TIMES AND MUST NOT DRIFT. Orders 01, 02 and 03 each amend spec `25kzda`,
@@ -241,7 +245,7 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Result: pending
 
 - [ ] V-03 validates E-03
-  - Required evidence: `wzhe4n`'s path under `.aw/records/plans/executed/`, pasted `aw ipd lint` reporting it `executed` and conforming, and its V-03 audit evidence showing all four overclaim checks with a recorded judgement on each grep hit. THE GREP JUDGEMENT MUST ACCOUNT FOR BOTH SPEC SITES: `grep -c "deny push-capable"` on spec `25kzda` returns 2 (measured at review), so an audit reporting one hit has missed Section 6.1 limit 4 and does NOT satisfy this item; the expected outcome is two hits, each judged, with limit 4 judged acceptable for the reason in the Cross-IPD row above. Additionally paste `aw attention` showing backlog `sv9ce4` present as the residual carrier and `wcbpqf` present as the decision carrier. DO NOT assert that `oq05nc` is "no longer `open`" as evidence of anything: measured at review, `oq05nc` is ALREADY `graduated` (it was graduated when this Set was authored), so that assertion is true before any child runs and would pass vacuously. If the audit named an overclaim, this item FAILS until the overclaim is fixed by a corrective plan rather than annotated.
+  - Required evidence: `wzhe4n`'s path under `.aw/records/plans/executed/`, pasted `aw ipd lint` reporting it `executed` and conforming, and its V-03 audit evidence showing all four overclaim checks with a recorded judgement on each grep hit. THE GREP JUDGEMENT MUST ACCOUNT FOR BOTH SPEC SITES: `grep -c "deny push-capable"` on spec `25kzda` returns 2 (measured at review), so an audit reporting one hit has missed Section 6.1 limit 4 and does NOT satisfy this item; the expected outcome is two hits, each judged, with limit 4 judged acceptable for the reason in the Cross-IPD row above. Additionally paste `aw attention` showing backlog `sv9ce4` present as the residual carrier and `wcbpqf` present as the decision carrier. DO NOT use `oq05nc`'s status as evidence of anything: its status reflects this orchestrator's authoring round trips, not the Set's outcome (it was `graduated` at authoring, then reopened to `open` on 2026-10-06 when coverage returned this plan to authoring, measured 2026-10-07), so it can pass or fail regardless of what the children did. For `wcbpqf`, show it present in `aw attention` and state its status. Measured 2026-10-07, it is `graduated`, with its only handoff plan `d5ntkj` in `not-executed/`. If the audit named an overclaim, this item FAILS until the overclaim is fixed by a corrective plan rather than annotated.
   - Observed evidence:
   - Result: pending
 
@@ -270,10 +274,22 @@ denial is real and two-sided, and it is port-granular and address-blind, which i
 cannot separate a git remote from the model API. Nothing in the measurement favours one answer to
 OQ-01 over the other; it establishes that the capability under discussion would report something TRUE
 and PARTIAL. The decision remains a judgement about how a partial guarantee reads, which is the
-maintainer's, and it is carried durably by backlog `wcbpqf` (verified `open`) together with the other
-two decisions this Set raises, so declining Orders 02 and 03 loses nothing that is not written down.
+maintainer's, and it is carried durably by backlog `wcbpqf` together with the other
+two decisions this Set raises (measured 2026-10-07: `wcbpqf` is `graduated`, but its only handoff plan,
+`d5ntkj`, was REJECTED and sits in `not-executed/`, so the item's status overstates progress; the
+maintainer should reopen it with `aw backlog set` if it is to read as an outstanding decision). APPROVING
+Orders 02 and 03 IS the maintainer's answer to OQ-01; declining them is the other answer, so declining Orders 02 and 03 loses nothing that is not written down.
 
-Execution contract: each child commits only the paths in its own `Scope-Paths`, through
-`aw commit <plan> -- <paths>`, never `git add -A`, and never pushes. Paste actual test output, including
-skips. Move each child to `.aw/records/plans/executed/` only after `aw ipd lint --phase pre-transition`
-conforms and every `V-*` carries concrete observed evidence.
+Execution contract: OQ-02 is resolved, and OQ-01 is a non-blocking maintainer decision answered by
+approving or declining Orders 02 and 03. SCOPE FENCE: this is a declaration for the runner to reconcile,
+not an instruction to stop. This plan modifies only its own file; each child modifies only its own
+`Scope-Paths`. An out-of-scope edit is made and then justified with `aw ipd finalize --scope-reason`.
+Each child commits only those paths, through `aw commit <plan> -- <paths>`, never `git add -A`, and
+NEVER pushes. HONESTY RULE: paste actual test output, including skips; never claim a pass that was not
+run. LIFECYCLE: the transition is owed unconditionally, but its owner is conditional. Under
+`aw oc run` / `aw agy run` the RUNNER finalizes each child, and retires this orchestrator once every child
+is `executed` on disk; the executor must not run `aw ipd finalize`. Executed by hand, each child is
+finalized only after `aw ipd lint --phase pre-transition` conforms and every `V-*` carries concrete
+observed evidence, via `aw ipd finalize <plan> --actor <agent/model> --message <summary> --apply`, and this
+orchestrator the same way after V-01..V-03 pass. Never hand-roll a `git mv` into `executed/` and never
+hand-edit `- Status: executed`.
