@@ -4,7 +4,7 @@
 - Kind: orchestrator
 - Concern: `aw backlog set` and `aw specs set` each have TWO spellings reaching TWO SEPARATE IMPLEMENTATIONS of overlapping behavior. `cli.main` forks on whether `--status` was PASSED: absent routes to `status_set.run_set_command`, present routes to `backlog.run_set` or `specs.run_set`. The same CLASS of defect has now been found on that fork FIVE times, three of them release-blocking: `43p53n` (gate-field clearing, unreachable from the positional form), `gatefollows`/`vsgd48` (the release-gate default), `mawwlc`/`47ttnv` (the release-gate close predicate skipped at exit 0), plus two MEASURED while authoring this Set and filed as `h4fiwa` (positional `specs set implemented` bypasses the `--evidence` gate entirely) and `fv4b6s` (positional `specs set deferred` writes an out-of-vocabulary `Gate-Kind`). Each of the first three was fixed by DUPLICATING the behavior into the second path, which is the correct minimal fix for a release blocker and also why the class keeps recurring. Backlog `fcnz1r` filed the durable fix and recorded that it needs a spec-level decision first, because the two paths differ in ways that are each deliberate and separately pinned by tests.
 - Scope: IN: sequence the five children that take the `set` family from two implementations per verb to one, in an order that ships the two release-gated bug fixes WITHOUT waiting on a blocking maintainer decision, and that lands a differential harness before any behavior moves. OUT: every axis spec `wy9aru` Section 7 assigns elsewhere (the UTC-versus-local clock, the history label, the same-status dedup, the sidecar write order, the dead `apply` read, the defaulted message, the backlog transition table, the closed-item audit, the hand-edit gate, the dead `aw prompts set` verb), each with a named carrier.
-- Scope-Paths: .aw/records/plans/pending/20261001-setdisp-00-63zo2f-unify-the-forked-aw-backlog-set-and-aw-specs-set-dispatch-pa.ipd.md
+- Scope-Paths: .aw/records/plans/pending/20261001-setdisp-00-63zo2f-unify-the-forked-aw-backlog-set-and-aw-specs-set-dispatch-pa.ipd.md, .aw/records/plans/pending/20261007-setdisp-06-7zb4ny-audit-the-five-setdisp-children-together-and-run-the-set-lev.ipd.md
 - Item-Dependencies: none
 - Status: draft
 - Coverage: fail
@@ -16,11 +16,12 @@
 - From-Spec: wy9aru
 - Set: setdisp
 - Order: 0
-- Highest E allocated: 05
+- Highest E allocated: 06
 - Author: opencode/its_direct/pt3-claude-opus-5-1m-us
 - Id: 63zo2f
 
 ## Workflow history
+- 2026-10-07 note (opencode its_direct/pt3-claude-opus-5.5-1m-us): added Order 06 `7zb4ny`, which performs the Set-level checks this plan listed with no owner (the coverage probe's 2026-10-06 findings); child table, checklist and Scope-Paths updated.
 - 2026-10-06 draft (aw set): demoted to-review -> draft: returned to authoring by gradcover 52opph: uncovered obligation: The bare suite pytest after the final child compared by name against baseline
 
 - 2026-10-06 coverage fail (aw oc run): fingerprint 9f031836a1c2, model uri/its_direct/pt3-claude-opus-5.5-1m-us
@@ -78,6 +79,11 @@ with no runner involved, and deleting it causes exactly the partial execution it
   - Expected outcome: `vhiqo6` is `executed`; `backlog.run_set` holds no transition validation, metadata render, relocation or history assembly of its own; the three retrospective parity files (`tests/test_backlog_positional_close_gate.py`, `tests/test_backlog_gate_follows_status.py`, `tests/test_status_set.py::TestGateFieldClearingOnStatusChange`) all pass; `runner_shared.close_backlog_item` works end to end; and each of the six carriers it touches has a measured COMPLETE-or-PARTIAL verdict with closes performed only for the COMPLETE ones.
   - Execution state: pending
 
+- [ ] E-06 CONFIRM 7zb4ny REACHED executed
+  - Depends on: E-05
+  - Expected outcome: `7zb4ny` reads `- Status: executed` on disk, with every Set-level check below performed and pasted in its V-items.
+  - Execution state: pending
+
 ## Child IPDs, sequence, and dependencies
 
 | Order | Id | File | What it does | Depends on |
@@ -87,6 +93,7 @@ with no runner involved, and deleting it causes exactly the partial execution it
 | 03 | `m1jlwm` | `20261001-setdisp-03-m1jlwm-close-the-two-measured-positional-specs-set-gate-bypasses-by.ipd.md` | Unions the `implemented`-needs-evidence refusal and the `deferred`-gate-kind validation across the fork, so neither is bypassable. `Blocks-Release: next`. Closes `h4fiwa` and `fv4b6s`. | `executed:afdmn6` |
 | 04 | `m94eht` | `20261001-setdisp-04-m94eht-make-aw-specs-set-status-a-thin-adapter-delegating-to-the-sh.ipd.md` | Reduces `specs.run_set` to an adapter delegating to the shared engine, carrying its three own behaviors in as type-scoped parameters. Amends spec `1525-02` R2. GATED on `wy9aru` reaching `approved`. | `executed:m1jlwm`, `state:spec:approved:wy9aru` |
 | 05 | `vhiqo6` | `20261001-setdisp-05-vhiqo6-make-aw-backlog-set-status-a-thin-adapter-delegating-to-the.ipd.md` | Reduces `backlog.run_set` to an adapter, adopts the `git mv` relocation and the ambiguous-selector refusal, keeps `--gate-dir` as an engine parameter, and gives each touched carrier a measured verdict. | `executed:m94eht` |
+| 06 | `7zb4ny` | `20261007-setdisp-06-7zb4ny-audit-the-five-setdisp-children-together-and-run-the-set-lev.ipd.md` | Performs every Set-level check below after the last child: the per-child evidence audit, the eight-assertion flip table, the partial-close check, the amendment-with-behavior and no-source-read checks, the parity files after every child and under `TZ=UTC`, the bare-suite failure set by id, and `check release-gates`. Measurement only. | `executed:afdmn6`, `executed:m1jlwm`, `executed:m94eht`, `executed:vhiqo6` |
 
 THE ORDER IS NOT A PREFERENCE AND EACH EDGE HAS A REASON. 01 first because it is the only child gated
 on nothing, so the Set makes real progress while the maintainer decision is outstanding. 02 before any
@@ -115,6 +122,8 @@ into `status_set.validate_transition_allowed`, the exact function child 03 union
 - Every axis spec `wy9aru` Section 7 assigns elsewhere remains OPEN under its own carrier, except where a child's measured evidence proves its item COMPLETE against the item's own scope.
 
 ## Cross-IPD validation
+
+OWNER: every check in this section and every whole-Set item in Completion criteria and Required tests is performed by Order 06 `7zb4ny` after the last migration child; this plan performs none of them.
 
 - NO AXIS IS FIXED TWICE, AND NO AXIS IS FIXED BY NOBODY. Check the eight expected-difference assertions child 02 records against the flips children 03, 04 and 05 claim: each must be flipped by exactly one child, and any assertion still unflipped at the end must correspond to a Section 7 axis with a live carrier. An assertion flipped by two children means one of them widened past its reviewed scope.
 - NO CARRIER IS CLOSED ON A PARTIAL FIX. Children 03 and 05 both close backlog items. For each close, confirm the item's OWN scope is satisfied, not merely that this Set touched the area: the clock items name five local-clock call sites in `backlog.py` and the Set removes one, so closing one of them would assert a repository-wide fix that did not happen (`AGENTS.md` close-legitimacy rule).
@@ -198,6 +207,11 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Result: pending
 - [ ] V-05 validates E-05
   - Required evidence: `vhiqo6`'s executed path and lint result; pasted `git status --porcelain` from its V-04 showing a single `R` rename for a backlog status change; the three retrospective parity files' results quoted from its V-05; the `runner_shared.close_backlog_item` end-to-end evidence; and its six per-carrier COMPLETE-or-PARTIAL verdicts, with confirmation that no PARTIAL item was closed.
+  - Observed evidence:
+  - Result: pending
+
+- [ ] V-06 validates E-06
+  - Required evidence: paste `grep -n '^- Status:' <7zb4ny plan path>` showing `- Status: executed`, and the path showing it under `.aw/records/plans/executed/`.
   - Observed evidence:
   - Result: pending
 
