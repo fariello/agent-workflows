@@ -6,7 +6,7 @@
 - Scope: Add ONE new capability to `HostSandboxCapabilities`, `supports_deny_tcp_port`, decided by an EXECUTED two-sided Landlock network probe, reported through the existing `aw host capabilities` surface, and extend `landlock_bootstrap_source` to carry network rules. The capability gates NO action and reintroduces NO finding code. It must NOT be named `supports_deny_push`, because it does not prove push denial.
 - Scope-Paths: agent_workflows/host_sandbox_profile.py, tests/test_host_sandbox_profile.py, tests/test_host_capability_extension.py, .aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md, CHANGELOG.md
 - Item-Dependencies: executed:x2dwu5
-- Status: draft
+- Status: to-review
 - From-Spec: 25kzda
 - Work-Kind: feature
 - Priority: low
@@ -18,6 +18,7 @@
 - Id: pi3bk8
 
 ## Workflow history
+- 2026-10-07 to-review (aw set): returned to review: Set-level checks owned by wzhe4n E-03/E-04 (runs last); carrier sv9ce4 already exists; coverage pass recorded
 - 2026-10-06 draft (aw set): demoted approved -> draft: APPROVAL WITHDRAWN: returned to authoring by gradcover 52opph: uncovered obligation: - THE CARRIER OUTLIVES THE SET. Backlog `sv9ce4` is filed before any child runs, so the unbuilt half
 - 2026-09-30 approved (aw set): status set to approved
 - 2026-09-30 reviewed (opencode its_direct/pt3-claude-opus-5-1m-us): plan-review complete: APPROVE WITH REVISIONS APPLIED; PR-801..PR-811 all fixed

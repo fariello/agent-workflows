@@ -6,7 +6,7 @@
 - Scope: Coordinate three children that (1) record the measurement and amend the two contracts that assert or disclaim push denial, (2) add ONE probed port-denial capability named for what it proves, gating no action and reintroducing no finding code, and (3) verify the Set did not overclaim and that the unbuilt half has a live carrier. This orchestrator performs no product change of its own.
 - Scope-Paths: .aw/records/plans/pending/20260929-denypush-00-l4vw9o-decide-and-if-approved-build-a-landlock-backed-network-denia.ipd.md
 - Item-Dependencies: none
-- Status: draft
+- Status: to-review
 - Coverage: pass
 - Coverage-Fingerprint: 69dd49745d53827382f3adb48e07a04dd1ebc93d75d87ad125ccf19320f2c356
 - Coverage-Checked: 2026-10-07 by uri/its_direct/pt3-claude-opus-5.5-1m-us
@@ -20,6 +20,7 @@
 - Id: l4vw9o
 
 ## Workflow history
+- 2026-10-07 to-review (aw set): returned to review: Set-level checks owned by wzhe4n E-03/E-04 (runs last); carrier sv9ce4 already exists; coverage pass recorded
 - 2026-10-07 coverage pass (aw oc run): fingerprint 69dd49745d53, model uri/its_direct/pt3-claude-opus-5.5-1m-us
 - 2026-10-07 note (opencode its_direct/pt3-claude-opus-5.5-1m-us): each criterion and Set-level check now leads with its owner (`wzhe4n` E-03/E-04 for the cross-child audit and sweep).
 - 2026-10-07 coverage fail (aw oc run): fingerprint 05ced26f246f, model uri/its_direct/pt3-claude-opus-5.5-1m-us
