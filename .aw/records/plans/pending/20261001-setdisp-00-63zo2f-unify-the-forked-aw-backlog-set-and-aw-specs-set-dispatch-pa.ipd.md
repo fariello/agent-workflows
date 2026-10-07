@@ -7,8 +7,8 @@
 - Scope-Paths: .aw/records/plans/pending/20261001-setdisp-00-63zo2f-unify-the-forked-aw-backlog-set-and-aw-specs-set-dispatch-pa.ipd.md, .aw/records/plans/pending/20261007-setdisp-06-7zb4ny-audit-the-five-setdisp-children-together-and-run-the-set-lev.ipd.md
 - Item-Dependencies: none
 - Status: draft
-- Coverage: fail
-- Coverage-Fingerprint: 84f4f14ca27600a2ab1a9d7f3b1d818308380fa548597ec0f9096dec9370ee3b
+- Coverage: pass
+- Coverage-Fingerprint: 8d93298555005fe8b9ea42a58db2e74bfa6a2999f0eb3570c02c400ca16390bd
 - Coverage-Checked: 2026-10-07 by uri/its_direct/pt3-claude-opus-5.5-1m-us
 - Work-Kind: chore
 - Priority: medium
@@ -21,6 +21,7 @@
 - Id: 63zo2f
 
 ## Workflow history
+- 2026-10-07 coverage pass (aw oc run): fingerprint 8d9329855500, model uri/its_direct/pt3-claude-opus-5.5-1m-us
 - 2026-10-07 coverage fail (aw oc run): fingerprint 84f4f14ca276, model uri/its_direct/pt3-claude-opus-5.5-1m-us
 - 2026-10-07 coverage fail (aw oc run): fingerprint 02581037a741, model uri/its_direct/pt3-claude-opus-5.5-1m-us
 - 2026-10-07 coverage fail (aw oc run): fingerprint 256303951ead, model uri/its_direct/pt3-claude-opus-5.5-1m-us
@@ -173,10 +174,6 @@ after the last migration child, and NOT by this plan:
 - Status: resolved
 - Owner: author
 - Resolution or deferral rationale: RESOLVED by spec `wy9aru` Section 4.1 in favor of `status_set` as the surviving implementation, with `backlog.run_set` and `specs.run_set` reduced to thin adapters that keep their names and signatures. Three reasons, in order of weight: it is already the shared engine (four reachable verbs plus `aw finish` reach it, against one each for the others), it already holds the capabilities the flag paths lack (multi-selector batch, setid resolution, `--force`, structured output), and `2lcqno`'s setid semantics plus `z7nbn1`'s one-action-table thesis are both already implemented there. Extracting a new module would mean rewriting four working callers to gain nothing the delegation does not already give.
-
-## Coverage findings
-
-- "its failure SET compared BY NAME against the baseline re-derived before the Set began."
 
 ## Validation and cross-check (verify before reporting the Set complete)
 
