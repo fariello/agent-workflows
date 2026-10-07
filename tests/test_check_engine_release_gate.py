@@ -520,7 +520,7 @@ class TestCheckEngineReleaseGate(unittest.TestCase):
         self.assertEqual(set(check_engine.RELEASE_GATE_RULES), expected)
 
     def test_check_commit_invariants_composition(self) -> None:
-        """check_commit_invariants composes status-untooled, release-gate consistency, and scope-drift."""
+        """check_commit_invariants composes status-untooled, staged-illegal-backlog-transition, release-gate consistency, and scope-drift."""
         with TemporaryDirectory() as tmp:
             repo = _create_minimal_repo(Path(tmp))
             subprocess.run(["git", "-C", str(repo), "init", "-q"], check=True)
@@ -531,6 +531,38 @@ class TestCheckEngineReleaseGate(unittest.TestCase):
                 ["git", "-C", str(repo), "config", "user.email", "test@test.com"],
                 check=True,
             )
+            # 0. Initial committed item for illegal backlog transition testing
+            ill_file = (
+                repo
+                / ".aw"
+                / "records"
+                / "backlog"
+                / "done"
+                / "20260920-ill01-01-ill01-test.backlog.md"
+            )
+            ill_file.parent.mkdir(parents=True, exist_ok=True)
+            ill_file.write_text(
+                "- Id: ill001\n- Status: done\n- Set: ill001\n- Priority: low\n- Work-Kind: chore\n- Summary: Test\n",
+                encoding="utf-8",
+            )
+            subprocess.run(["git", "-C", str(repo), "add", "--", ".aw"], check=True)
+            subprocess.run(
+                ["git", "-C", str(repo), "commit", "-m", "init", "-q"], check=True
+            )
+
+            # Move and edit ill_file to illegal target 'parked' -> triggers check.staged-illegal-backlog-transition
+            parked_dir = repo / ".aw" / "records" / "backlog" / "parked"
+            parked_dir.mkdir(parents=True, exist_ok=True)
+            parked_file = parked_dir / "20260920-ill01-01-ill01-test.backlog.md"
+            subprocess.run(
+                ["git", "-C", str(repo), "mv", str(ill_file), str(parked_file)],
+                check=True,
+            )
+            parked_file.write_text(
+                "- Id: ill001\n- Status: parked\n- Set: ill001\n- Priority: low\n- Work-Kind: chore\n- Summary: Test\n",
+                encoding="utf-8",
+            )
+
             # 1. Staged hand-edited plan status change -> triggers check.status-untooled
             plan_file = (
                 repo
@@ -584,6 +616,7 @@ class TestCheckEngineReleaseGate(unittest.TestCase):
 
             rules = {d.rule for d in findings}
             self.assertIn("check.status-untooled", rules)
+            self.assertIn("check.staged-illegal-backlog-transition", rules)
             self.assertIn("check.blocking-item-closed-without-gate", rules)
             self.assertIn("check.scope-drift", rules)
             self.assertNotIn("check.live-bug-ungated", rules)

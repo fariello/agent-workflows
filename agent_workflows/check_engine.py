@@ -142,6 +142,10 @@ RULE_REGISTRY: Dict[str, RuleSpec] = {
     "check.status-untooled": RuleSpec(
         "error", ASSURANCE_REPOSITORY, DET_DETERMINISTIC, "I-03"
     ),
+    # Staged illegal backlog status transition (catalog I-03, IPD miimjb).
+    "check.staged-illegal-backlog-transition": RuleSpec(
+        "error", ASSURANCE_REPOSITORY, DET_DETERMINISTIC, "I-03"
+    ),
     # Setid SEMANTICS (catalog I-16, spec `2lcqno` N5): a setid used within ONE type with two
     # different descriptives. NOT I-09, which is filename-grammar conformance: I-09 governs a name's
     # SHAPE, while this rule governs whether one token may be REUSED, which the grammar is silent on.
@@ -3229,6 +3233,166 @@ def check_status_untooled(repo_root: Path) -> List[_core.Drift]:
     return drift
 
 
+def check_staged_illegal_backlog_transition(repo_root: Path) -> List[_core.Drift]:
+    """COMMIT-SCOPED detector for staged hand-edited illegal backlog status transitions (IPD miimjb, backlog qbn1dx).
+
+    Compares the STAGED index (``:0:``) against HEAD by item ID6 and flags each backlog item whose
+    status transition is not permitted by ``attention_contract.backlog_transition_allowed``.
+
+    PAIR BY ID6, NOT BY PATH:
+    Backlog items reside in status-named directories (e.g. ``backlog/open/``, ``backlog/done/``), so a
+    status transition relocates the file. For a modest edit git reports a rename (``R``); for a heavy
+    same-commit rewrite git's similarity drops below the rename threshold and reports an unrelated
+    delete-plus-add (``D`` + ``A``). A path-keyed rule would find no HEAD blob for the added path,
+    treat it as a newly created item, and silently pass the illegal transition. Joining by ID6 across
+    HEAD and the index blobs recovers the transition reliably across renames, rewrites, and same-directory edits.
+
+    FIVE REFUSALS-TO-REFUSE ARE MANDATORY:
+    (1) AN ID6 PRESENT ONLY ON THE INDEX SIDE IS NOT A TRANSITION: newly created item authored by
+        `aw backlog new`; refusing it would refuse authoring new items.
+    (2) AN ID6 PRESENT ONLY ON THE HEAD SIDE IS NOT A TRANSITION: deletion or archive move out of
+        the tree, which this rule has no opinion about.
+    (3) SKIP WHEN THE TWO STATUSES ARE EQUAL: an ordinary body edit, an `aw backlog note`, or a pure
+        relocation pays nothing.
+    (4) SKIP WHEN EITHER END IS OUTSIDE backlog.STATUSES: vocabulary is `backlog.status-invalid`'s
+        question and answering it here would duplicate refusals. This skip MUST precede the table
+        lookup because `backlog_transition_allowed` fails closed on an unknown source status.
+    (5) SKIP AN ITEM WHOSE `- Id:` IS ABSENT OR UNREADABLE on either side: `backlog.id-invalid` owns
+        that and a gate must not refuse on a field it cannot read.
+
+    Fast no-op when no backlog item is staged.
+    """
+    repo_root = Path(repo_root)
+    rc, out, _err = _git_capture(
+        repo_root,
+        [
+            "diff",
+            "--cached",
+            "--name-status",
+            "-M",
+            "--",
+            ".aw/records/backlog",
+            ".agents/backlog",
+        ],
+    )
+    if rc != 0 or not out.strip():
+        return []
+
+    head_items: Dict[str, Tuple[str, str | None]] = {}
+    staged_items: Dict[str, Tuple[str, str | None]] = {}
+
+    for line in out.splitlines():
+        parts = line.split("\t")
+        if not parts:
+            continue
+        code = parts[0].strip()
+        if code.startswith("D"):
+            if len(parts) >= 2:
+                old_path = parts[1].strip()
+                htext = _blob_text(repo_root, "HEAD", old_path)
+                if htext:
+                    hid = _read_item_id(htext)
+                    if hid:
+                        head_items[hid] = (old_path, _status_meta(htext))
+        elif code.startswith("A"):
+            if len(parts) >= 2:
+                new_path = parts[-1].strip()
+                stext = _blob_text(repo_root, ":0:", new_path)
+                if stext:
+                    sid = _read_item_id(stext)
+                    if sid:
+                        staged_items[sid] = (new_path, _status_meta(stext))
+        elif code.startswith("R"):
+            if len(parts) >= 3:
+                old_path, new_path = parts[1].strip(), parts[2].strip()
+                htext = _blob_text(repo_root, "HEAD", old_path)
+                if htext:
+                    hid = _read_item_id(htext)
+                    if hid:
+                        head_items[hid] = (old_path, _status_meta(htext))
+                stext = _blob_text(repo_root, ":0:", new_path)
+                if stext:
+                    sid = _read_item_id(stext)
+                    if sid:
+                        staged_items[sid] = (new_path, _status_meta(stext))
+        elif code.startswith("M"):
+            if len(parts) >= 2:
+                path = parts[-1].strip()
+                htext = _blob_text(repo_root, "HEAD", path)
+                if htext:
+                    hid = _read_item_id(htext)
+                    if hid:
+                        head_items[hid] = (path, _status_meta(htext))
+                stext = _blob_text(repo_root, ":0:", path)
+                if stext:
+                    sid = _read_item_id(stext)
+                    if sid:
+                        staged_items[sid] = (path, _status_meta(stext))
+        elif code.startswith("C"):
+            if len(parts) >= 3:
+                old_path, new_path = parts[1].strip(), parts[2].strip()
+                htext = _blob_text(repo_root, "HEAD", old_path)
+                if htext:
+                    hid = _read_item_id(htext)
+                    if hid:
+                        head_items[hid] = (old_path, _status_meta(htext))
+                stext = _blob_text(repo_root, ":0:", new_path)
+                if stext:
+                    sid = _read_item_id(stext)
+                    if sid:
+                        staged_items[sid] = (new_path, _status_meta(stext))
+
+    from agent_workflows import attention_contract as _ac
+    from agent_workflows import backlog as _backlog
+
+    drift: List[_core.Drift] = []
+    # Join by ID6:
+    # (1) Index-only ID6 is skipped (newly created item).
+    # (2) HEAD-only ID6 is skipped (deleted/archived item).
+    common_ids = sorted(set(head_items.keys()) & set(staged_items.keys()))
+
+    for item_id in common_ids:
+        old_path, head_status = head_items[item_id]
+        new_path, staged_status = staged_items[item_id]
+
+        # (5) Skip when - Status: is unreadable or absent on either side.
+        if head_status is None or staged_status is None:
+            continue
+
+        # (3) Skip when the two statuses are equal (no-op, body edit, note, or pure relocation).
+        if head_status == staged_status:
+            continue
+
+        # (4) Skip when either status is outside backlog.STATUSES.
+        # Vocabulary is backlog.status-invalid's question; skipping here avoids duplicate refusals.
+        # Must precede table lookup because backlog_transition_allowed fails closed on unknown sources.
+        if (
+            head_status not in _backlog.STATUSES
+            or staged_status not in _backlog.STATUSES
+        ):
+            continue
+
+        # Consult the authoritative transition table; cc2m29 owns the table definition.
+        if not _ac.backlog_transition_allowed(head_status, staged_status):
+            recovery_cmd = f"aw backlog set {staged_status} {item_id}"
+            drift.append(
+                enrich_drift(
+                    _core.Drift(
+                        new_path,
+                        "check.staged-illegal-backlog-transition",
+                        (
+                            f"staged transition from '{head_status}' to '{staged_status}' for backlog item "
+                            f"'{item_id}' is not permitted by BACKLOG_TRANSITIONS; apply a legal transition via "
+                            f"`{recovery_cmd}` or restore the previous status"
+                        ),
+                    ),
+                    recovery=recovery_cmd,
+                )
+            )
+
+    return drift
+
+
 _DRAFT_READY_RULE = "check.ipd-draft-ready-to-review"
 
 
@@ -4088,6 +4252,8 @@ def check_commit_invariants(repo_root: Path) -> List[_core.Drift]:
 
     * ``check.status-untooled`` (``check_status_untooled``) - a staged hand-edited intermediate
       plan status change;
+    * ``check.staged-illegal-backlog-transition`` (``check_staged_illegal_backlog_transition``) - a
+      staged hand-edited illegal backlog status transition;
     * ``check.blocking-item-closed-without-gate`` (``check_release_gate_consistency``) - a staged
       release-blocking backlog item closed without a preserved gate;
     * ``check.scope-drift`` (``check_scope_drift``) - for a plan with a LIVE begin receipt, a
@@ -4109,6 +4275,7 @@ def check_commit_invariants(repo_root: Path) -> List[_core.Drift]:
     drift: List[_core.Drift] = []
     for fn in (
         check_status_untooled,
+        check_staged_illegal_backlog_transition,
         check_release_gate_consistency,
         check_scope_drift,
     ):
@@ -4412,6 +4579,12 @@ def check_types(
         # the dulzpy pre-commit gate. It examines only commit-changed plan files (no whole-tree scan).
         try:
             drift.extend(check_status_untooled(repo_root))
+        except Exception:
+            pass
+        # IPD miimjb: the COMMIT-SCOPED illegal backlog transition detector rides `aw check`/`aw check all`
+        # (a fast no-op when no backlog change is staged). It joins staged items by ID6.
+        try:
+            drift.extend(check_staged_illegal_backlog_transition(repo_root))
         except Exception:
             pass
         # gateci 2vw35i: the complete release-gate rule family runs here via the shared

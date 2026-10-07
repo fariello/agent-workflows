@@ -567,6 +567,12 @@ def probe_artifacts(
             collisions.extend(check_engine.check_status_untooled(repo_root))
         except Exception:
             pass
+        try:
+            collisions.extend(
+                check_engine.check_staged_illegal_backlog_transition(repo_root)
+            )
+        except Exception:
+            pass
         if collisions:
             for d in collisions:
                 loc = d.location
@@ -967,6 +973,32 @@ def build_remediation(d: core.Drift, repo_root: Path) -> Remediation:
                 f"'## Workflow history' transition line; apply the change directly via '{cmd_shape}' "
                 "so an attributed history entry is appended. This is the intermediate-transition sibling of the terminal "
                 "'aw ipd finalize' gate; it is a LOCAL commit-scoped detector (--no-verify bypasses the hook)."
+            ),
+            command=None,
+            file_path=loc,
+        )
+
+    if "staged-illegal-backlog-transition" in rule:
+        import re as _re
+
+        title = "Staged illegal backlog status transition"
+        # Best-effort extraction of the new status word from the detail for a precise command.
+        m_status = _re.search(r"to '([a-z-]+)'", detail)
+        status_word = m_status.group(1) if m_status else "<status>"
+        id6 = _extract_record_id6(loc, repo_root)
+        if not id6:
+            m_id = _re.search(r"item '([a-z0-9]{6})'", detail)
+            id6 = m_id.group(1) if m_id else "<id6>"
+        cmd_shape = f"aw backlog set {status_word} {id6}"
+        return Remediation(
+            title=title,
+            summary_fix=(
+                f"transition the backlog item via '{cmd_shape}' if allowed, or restore a legal status."
+            ),
+            detailed_fix=(
+                f"the staged backlog status transition of {loc} to '{status_word}' is not permitted; "
+                f"apply a legal transition via '{cmd_shape}' (or restore the prior status). "
+                "This is a commit-scoped detector enforcing legal backlog status transitions."
             ),
             command=None,
             file_path=loc,
