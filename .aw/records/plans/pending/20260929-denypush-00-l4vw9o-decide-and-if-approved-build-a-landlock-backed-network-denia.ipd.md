@@ -20,6 +20,7 @@
 - Id: l4vw9o
 
 ## Workflow history
+- 2026-10-07 note (opencode its_direct/pt3-claude-opus-5.5-1m-us): each criterion and Set-level check now leads with its owner (`wzhe4n` E-03/E-04 for the cross-child audit and sweep).
 - 2026-10-07 coverage fail (aw oc run): fingerprint 05ced26f246f, model uri/its_direct/pt3-claude-opus-5.5-1m-us
 - 2026-10-07 note (opencode its_direct/pt3-claude-opus-5.5-1m-us): the carrier bullet the coverage probe quoted describes a backlog item that already exists (`sv9ce4`, open), not a step; reworded to say so.
 - 2026-10-06 draft (aw set): demoted approved -> draft: APPROVAL WITHDRAWN: returned to authoring by gradcover 52opph: uncovered obligation: - THE CARRIER OUTLIVES THE SET. Backlog `sv9ce4` is filed before any child runs, so the unbuilt half
@@ -74,44 +75,44 @@ minted from the original title and is left stable.
 
 ## Completion criteria (the whole Set is done only when)
 
-- All three children are `executed`, each with concrete pasted evidence on every `V-*` item.
-- Spec `25kzda` 5.2 records the MEASURED position: kernel TCP denial is real at Landlock ABI 4, it is
+- [Owner: x2dwu5, pi3bk8 and wzhe4n, each in its own V-items; wzhe4n last] All three children are `executed`, each with concrete pasted evidence on every `V-*` item.
+- [Owner: x2dwu5, pi3bk8 and wzhe4n, each in its own V-items; wzhe4n last] Spec `25kzda` 5.2 records the MEASURED position: kernel TCP denial is real at Landlock ABI 4, it is
   port-granular and address-blind, the credential half of its bullet is already shipped in hardened
   mode, no host reports push denial, and the requirement remains fail-closed.
-- Spec `25kzda` Section 6.1 limit 4 is left UNCHANGED and that is recorded as a deliberate judgement in
+- [Owner: x2dwu5, pi3bk8 and wzhe4n, each in its own V-items; wzhe4n last] Spec `25kzda` Section 6.1 limit 4 is left UNCHANGED and that is recorded as a deliberate judgement in
   Order 03's audit, not an omission. It is the spec's SECOND push-denial site (measured: two hits) and
   it remains accurate, so the Set's obligation is to show it was considered rather than to edit it.
-- Exactly ONE new capability exists, `supports_deny_tcp_port`, decided by an executed two-sided probe,
+- [Owner: x2dwu5, pi3bk8 and wzhe4n, each in its own V-items; wzhe4n last] Exactly ONE new capability exists, `supports_deny_tcp_port`, decided by an executed two-sided probe,
   defaulting False, with a `probe_notes` entry, visible in `aw host capabilities`.
-- `supports_deny_push` and `CAP_DENY_PUSH` remain ABSENT, and `DenyPushRemovedTests` still passes with
+- [Owner: x2dwu5, pi3bk8 and wzhe4n, each in its own V-items; wzhe4n last] `supports_deny_push` and `CAP_DENY_PUSH` remain ABSENT, and `DenyPushRemovedTests` still passes with
   its assertions intact rather than deleted.
-- `ACTION_CLASSES` is still `(ACTION_READ_ONLY,)`: no action is gated, and none of the three removed
+- [Owner: x2dwu5, pi3bk8 and wzhe4n, each in its own V-items; wzhe4n last] `ACTION_CLASSES` is still `(ACTION_READ_ONLY,)`: no action is gated, and none of the three removed
   action classes returned.
-- `run_evidence.RUN_FINDING_CODES` still holds exactly 12 codes: no `RUN-NO-PUSH`-shaped code returned.
-- Backlog `sv9ce4` is `open`, ungated, and visible in `aw attention` as the carrier for the unbuilt half.
-- The bare suite passes, `aw ipd lint` conforms over every plan in the Set, `aw check` reports no new
+- [Owner: x2dwu5, pi3bk8 and wzhe4n, each in its own V-items; wzhe4n last] `run_evidence.RUN_FINDING_CODES` still holds exactly 12 codes: no `RUN-NO-PUSH`-shaped code returned.
+- [Owner: x2dwu5, pi3bk8 and wzhe4n, each in its own V-items; wzhe4n last] Backlog `sv9ce4` is `open`, ungated, and visible in `aw attention` as the carrier for the unbuilt half.
+- [Owner: x2dwu5, pi3bk8 and wzhe4n, each in its own V-items; wzhe4n last] The bare suite passes, `aw ipd lint` conforms over every plan in the Set, `aw check` reports no new
   violations, and `aw sanitize --agent` exits zero.
 
 ## Cross-IPD validation
 
-- NO ARTIFACT CLAIMS PUSH DENIAL. This is the Set's single most important cross-cutting property and
+- [Owner: wzhe4n E-03 (overclaim audit) and E-04 (validation sweep), which runs last] NO ARTIFACT CLAIMS PUSH DENIAL. This is the Set's single most important cross-cutting property and
   it is checked behaviorally by Order 03's audit (running `aw host capabilities`, printing
   `ACTION_CLASSES`, counting the finding table, and grepping the spec and docstring with a recorded
   judgement per hit) rather than by re-reading the plans. The reason it needs a cross-IPD check at all
   is that each child is individually honest while the COMBINATION is where an overclaim would appear:
   Order 01 writes that denial is real, Order 02 ships a working probe, and a reader who meets only
   those two could reasonably conclude push is now denied.
-- THE NAME IS CONSISTENT ACROSS THE SET. Every child refers to the new capability as
+- [Owner: wzhe4n E-03 (overclaim audit) and E-04 (validation sweep), which runs last] THE NAME IS CONSISTENT ACROSS THE SET. Every child refers to the new capability as
   `supports_deny_tcp_port`, and none reintroduces `supports_deny_push`. Order 02's OQ-01 leaves the
   exact spelling open for the maintainer; if it changes at review, all three children and this
   orchestrator must be updated together, since a half-renamed Set would leave the spec naming a field
   that does not exist.
-- THE SPEC IS AMENDED THREE TIMES AND MUST NOT DRIFT. Orders 01, 02 and 03 each amend spec `25kzda`,
+- [Owner: wzhe4n E-03 (overclaim audit) and E-04 (validation sweep), which runs last] THE SPEC IS AMENDED THREE TIMES AND MUST NOT DRIFT. Orders 01, 02 and 03 each amend spec `25kzda`,
   which is why each declares it in `Scope-Paths` and each is required to leave the requirement bullet
   "deny push-capable network routes and withhold remote credentials" BYTE-UNCHANGED (plan `01reg8`
   preserved it as this work's landing site). Order 03's V-02 re-greps it after the last amendment, so
   a drift introduced by any earlier child is caught at the end rather than assumed absent.
-- THE SPEC ASSERTS PUSH DENIAL IN **TWO** PLACES AND ONLY ONE IS AMENDED, WHICH IS DELIBERATE AND MUST
+- [Owner: wzhe4n E-03 (overclaim audit) and E-04 (validation sweep), which runs last] THE SPEC ASSERTS PUSH DENIAL IN **TWO** PLACES AND ONLY ONE IS AMENDED, WHICH IS DELIBERATE AND MUST
   BE RECORDED RATHER THAN DISCOVERED (added at review). Measured: `grep -c "deny push-capable"` on
   spec `25kzda` returns **2**. The first is 5.2's requirement bullet, which every child knows about. The
   second is Section 6.1 limit 4, "**No-push and hook guarantees require control of execution**", whose
@@ -127,12 +128,12 @@ minted from the original title and is left stable.
   hit EXPLICITLY with the judgement "requirement/limit, acceptable, not an available-guarantee claim",
   so the second site is visibly considered rather than silently missed. Order 03's E-03 and V-03 now
   name it, and this row exists so a reviewer of any single child can see why their child does not.
-- THE MEASUREMENT IS RE-TAKEN, NOT INHERITED. Order 01's E-01 re-runs the probes on the executing
+- [Owner: wzhe4n E-03 (overclaim audit) and E-04 (validation sweep), which runs last] THE MEASUREMENT IS RE-TAKEN, NOT INHERITED. Order 01's E-01 re-runs the probes on the executing
   host rather than trusting research `uq4y6q`'s numbers, because every finding there is host-specific
   by construction. If the executing host reports ABI < 4, Order 01 records that and Order 02's real
   denial test legitimately skips; the Set must then say so explicitly instead of pasting a green line
   that hides the skip, since a skip leaves the guarantee unverified on that machine.
-- THE ONE-SIDED MEASUREMENT TRAP, DEMONSTRATED AT REVIEW ON THIS SET'S OWN SUBJECT MATTER (added at
+- [Owner: wzhe4n E-03 (overclaim audit) and E-04 (validation sweep), which runs last] THE ONE-SIDED MEASUREMENT TRAP, DEMONSTRATED AT REVIEW ON THIS SET'S OWN SUBJECT MATTER (added at
   review, and the reason Order 02's two-sided probe is not optional rigour). Re-deriving the Landlock
   measurement, the reviewer set `handled_access_net` to `1 << 0` and observed every outbound connect
   refused with `EPERM(13)`, including the port that was explicitly ALLOWED. Read one-sidedly that is a
@@ -182,11 +183,11 @@ minted from the original title and is left stable.
 
 ## Required tests / validation
 
-- Each child runs its own validation; this orchestrator does not re-run them. The Set-level gates are
+- [Owner: wzhe4n E-04/V-04] Each child runs its own validation; this orchestrator does not re-run them. The Set-level gates are
   the ones listed under Completion criteria, and Order 03's E-04 is what actually executes the sweep
   (bare `python3 -m pytest`, `aw ipd lint` over the Set, `aw check`, `aw research index --check`,
   `aw backlog check`, `aw sanitize --agent`) and pastes its output.
-- This orchestrator's own `V-*` items verify only that each child genuinely reached `executed`, which
+- [Owner: wzhe4n E-04/V-04] This orchestrator's own `V-*` items verify only that each child genuinely reached `executed`, which
   is a state on disk and is checkable without re-running the children's tests.
 
 ## Open questions
