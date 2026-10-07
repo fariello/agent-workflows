@@ -8,8 +8,8 @@
 - Item-Dependencies: none
 - Status: draft
 - Coverage: fail
-- Coverage-Fingerprint: 9f031836a1c2a592884ef82c5f36abeb07ece1eedabb9df56b7a886597cc3275
-- Coverage-Checked: 2026-10-06 by uri/its_direct/pt3-claude-opus-5.5-1m-us
+- Coverage-Fingerprint: 256303951ead2170ce48b2971828a235a6bc0883a243afc4aa01a76c32b801cd
+- Coverage-Checked: 2026-10-07 by uri/its_direct/pt3-claude-opus-5.5-1m-us
 - Work-Kind: chore
 - Priority: medium
 - From-Backlog: fcnz1r
@@ -21,6 +21,7 @@
 - Id: 63zo2f
 
 ## Workflow history
+- 2026-10-07 coverage fail (aw oc run): fingerprint 256303951ead, model uri/its_direct/pt3-claude-opus-5.5-1m-us
 - 2026-10-07 note (opencode its_direct/pt3-claude-opus-5.5-1m-us): added Order 06 `7zb4ny`, which performs the Set-level checks this plan listed with no owner (the coverage probe's 2026-10-06 findings); child table, checklist and Scope-Paths updated.
 - 2026-10-06 draft (aw set): demoted to-review -> draft: returned to authoring by gradcover 52opph: uncovered obligation: The bare suite pytest after the final child compared by name against baseline
 
@@ -174,16 +175,6 @@ the child claimed:
 ## Coverage findings
 
 - "- The bare suite `python3 -m pytest` after the final child, with the `N passed` line pasted, and its failure SET compared BY NAME against the baseline re-derived before the Set began. Counts alone are insufficient: `tests/test_backlog.py::BacklogPreservationTests::test_release_exempt_setter_roundtrip_and_parity` is red at base for part of every day on the local-versus-UTC clock skew, so an unchanged count can hide a real change and a changed count can mean only that the clock moved."
-- "- `AW_NO_REEXEC=1 aw check release-gates`, since the Set closes at least two release-gated carriers."
-- "- For each child, every `V-*` carries pasted evidence rather than an assertion of success. A `V-*` whose "Observed evidence" is empty or paraphrased fails this check even if the child is marked executed."
-- "- The cross-IPD checks in "Cross-IPD validation" above, each answered explicitly."
-- "- NO AXIS IS FIXED TWICE, AND NO AXIS IS FIXED BY NOBODY. Check the eight expected-difference assertions child 02 records against the flips children 03, 04 and 05 claim: each must be flipped by exactly one child, and any assertion still unflipped at the end must correspond to a Section 7 axis with a live carrier. An assertion flipped by two children means one of them widened past its reviewed scope."
-- "- NO CARRIER IS CLOSED ON A PARTIAL FIX. Children 03 and 05 both close backlog items. For each close, confirm the item's OWN scope is satisfied, not merely that this Set touched the area: the clock items name five local-clock call sites in `backlog.py` and the Set removes one, so closing one of them would assert a repository-wide fix that did not happen (`AGENTS.md` close-legitimacy rule)."
-- "- THE THREE RETROSPECTIVE PARITY FILES PASS AFTER EVERY CHILD, not only at the end. Each exists because an asymmetry on that axis caused a release-blocking defect, so they are the Set's regression surface: a failure means a migration reintroduced one of the three defects the Set exists to prevent."
-- "- NO CHILD READS PRODUCTION SOURCE TO PROVE UNIFICATION. Confirm no test added by any child uses `inspect`, `ast`, regex or substring search over production source, counts callers, or asserts docstring text (`AGENTS.md`, GUIDING_PRINCIPLES P16, `wy9aru` S1). "There is now one implementation" is the single most tempting claim to pin with `grep`, and a code-structure pin is forbidden outright."
-- "- `tests/test_set_dispatch_parity.py` passes identically under the machine's local timezone and under `TZ=UTC`, so no cross-spelling assertion carries a clock dependency."
-- "- The bare suite's failure SET is unchanged except for tests the children explicitly named in advance."
-- "- Every axis spec `wy9aru` Section 7 assigns elsewhere remains OPEN under its own carrier, except where a child's measured evidence proves its item COMPLETE against the item's own scope."
 
 ## Validation and cross-check (verify before reporting the Set complete)
 
