@@ -1,5 +1,5 @@
 - Id: coivul
-- Status: open
+- Status: graduated
 - Blocks-Release: f33nrj
 - Set: coivul
 - Priority: high
@@ -7,6 +7,7 @@
 - Summary: Fix first: send every agent-caused run failure back to the agent with what went wrong, instead of failing the item or the run
 
 ## Workflow history
+- 2026-10-07 graduated (aw set): status set to graduated
 - 2026-10-07 created (aw backlog): Maintainer ruling 2026-10-07 (session on plan p47qfu / spec 25kzda 5.5, 5.7)
 
 USER-PERCEPTIBLE IMPACT (the bug test): the maintainer reports losing HOURS on unattended runs that stopped on a failure an agent fixes in one turn when told what went wrong ("99% of the time the intervention is telling an agent to investigate and fix"). That is a correct-but-blocking path a human waits on.
