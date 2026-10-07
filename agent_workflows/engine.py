@@ -1750,44 +1750,58 @@ def agents_managed_block(
 # contains "untracked" nested anywhere.
 UNTRACKED_SLUG = "untracked"
 UNTRACKED_PATTERNS = ("*.untracked.*", "*.untracked", "**/*untracked*/")
-UNTRACKED_SAFETY_BODY = [
-    "# --- Deliberately-untracked local artifacts (DO NOT REMOVE these patterns) ---",
-    "#",
-    "# Purpose: provide a RELIABLE way to keep a file or directory OUT of git even when it",
-    "# lives inside a directory that agent directives would otherwise tell an agent to commit",
-    "# (e.g. AGENTS.md / the .agents/plans lifecycle rules say IPDs live under .agents/plans/",
-    "# and should be committed and moved pending -> executed). Some work is sensitive enough that",
-    "# it must NOT be tracked or pushed (incident/remediation notes, scratch audits, local-only",
-    "# working docs), yet it is convenient to keep it next to the related tracked files.",
-    "#",
-    '# Naming a file or directory with the "untracked" marker below makes git ignore it, so a',
-    "# blanket `git add .`, `git add -A`, the pre-commit hooks, and the sanitizer never stage it.",
-    "# This is a PASSIVE guard that works WITH the tooling: it does not rely on any agent",
-    "# remembering a special rule or resisting a lifecycle directive.",
-    "#",
-    "# How to use:",
-    "#   - A single file:      my-notes.untracked.md   audit.untracked.json   scratch.untracked",
-    '#   - A whole directory:  put files under any dir whose name contains "untracked",',
-    "#                         e.g. .agents/plans/pending/untracked/  or  foo.untracked/",
-    "#",
-    "# IMPORTANT LIMITS (so this is not over-trusted):",
-    "#   - This only affects files that are NOT already tracked. Gitignoring a pattern does NOT",
-    "#     untrack an already-committed file, and it does NOT remove a name from history. Name",
-    "#     the file with the marker BEFORE it is ever `git add`ed.",
-    '#   - `.gitignore` is advisory: `git add -f` bypasses it. "Untracked by default" is the goal,',
-    "#     not an enforcement boundary.",
-    "#",
-    '# DO NOT delete or narrow these patterns to "clean up" the ignore file: they are a',
-    "# deliberate safety mechanism, and removing them can cause sensitive local files to become",
-    "# trackable (and then accidentally committed) by a later `git add`.",
-    *UNTRACKED_PATTERNS,
-]
 
 
-def untracked_safety_sections() -> list[AwSection]:
+def untracked_safety_body(layout: str = "aw") -> list[str]:
+    """Return the lines of the deliberately-untracked local artifacts block for layout."""
+    if layout == "aw":
+        plans_dir = ".aw/records/plans/"
+        plans_example = ".aw/records/plans/pending/untracked/"
+    else:
+        plans_dir = ".agents/plans/"
+        plans_example = ".agents/plans/pending/untracked/"
+
+    return [
+        "# --- Deliberately-untracked local artifacts (DO NOT REMOVE these patterns) ---",
+        "#",
+        "# Purpose: provide a RELIABLE way to keep a file or directory OUT of git even when it",
+        "# lives inside a directory that agent directives would otherwise tell an agent to commit",
+        f"# (e.g. AGENTS.md / the {plans_dir} lifecycle rules say IPDs live under {plans_dir}",
+        "# and should be committed and moved pending -> executed). Some work is sensitive enough that",
+        "# it must NOT be tracked or pushed (incident/remediation notes, scratch audits, local-only",
+        "# working docs), yet it is convenient to keep it next to the related tracked files.",
+        "#",
+        '# Naming a file or directory with the "untracked" marker below makes git ignore it, so a',
+        "# blanket `git add .`, `git add -A`, the pre-commit hooks, and the sanitizer never stage it.",
+        "# This is a PASSIVE guard that works WITH the tooling: it does not rely on any agent",
+        "# remembering a special rule or resisting a lifecycle directive.",
+        "#",
+        "# How to use:",
+        "#   - A single file:      my-notes.untracked.md   audit.untracked.json   scratch.untracked",
+        '#   - A whole directory:  put files under any dir whose name contains "untracked",',
+        f"#                         e.g. {plans_example}  or  foo.untracked/",
+        "#",
+        "# IMPORTANT LIMITS (so this is not over-trusted):",
+        "#   - This only affects files that are NOT already tracked. Gitignoring a pattern does NOT",
+        "#     untrack an already-committed file, and it does NOT remove a name from history. Name",
+        "#     the file with the marker BEFORE it is ever `git add`ed.",
+        '#   - `.gitignore` is advisory: `git add -f` bypasses it. "Untracked by default" is the goal,',
+        "#     not an enforcement boundary.",
+        "#",
+        '# DO NOT delete or narrow these patterns to "clean up" the ignore file: they are a',
+        "# deliberate safety mechanism, and removing them can cause sensitive local files to become",
+        "# trackable (and then accidentally committed) by a later `git add`.",
+        *UNTRACKED_PATTERNS,
+    ]
+
+
+UNTRACKED_SAFETY_BODY = untracked_safety_body("aw")
+
+
+def untracked_safety_sections(layout: str = "aw") -> list[AwSection]:
     """The single `aw:untracked` section written into a target repo's `.gitignore`."""
 
-    return [AwSection(slug=UNTRACKED_SLUG, lines=list(UNTRACKED_SAFETY_BODY))]
+    return [AwSection(slug=UNTRACKED_SLUG, lines=untracked_safety_body(layout))]
 
 
 def merge_aw_block(
@@ -3474,8 +3488,12 @@ def warn_tracking_and_scan(plan: InstallPlan, use_git: bool) -> None:
         "    - name it with the untracked marker: foo.untracked.md / scratch.untracked / a"
     )
     print("      directory whose name contains 'untracked' (see the .gitignore block);")
+    layout = resolve_target_layout(plan.repo_root)
+    dirs = _record_scaffold_dirs(layout)
+    prompts_lane = f"{dirs['prompts']}/untracked/"
+    comms_lane = f"{dirs['comms']}/untracked/"
     print(
-        "    - or use the gitignored untracked lanes: .agents/prompts/untracked/ and .agents/comms/untracked/."
+        f"    - or use the gitignored untracked lanes: {prompts_lane} and {comms_lane}."
     )
 
     if not use_git:
@@ -3515,10 +3533,11 @@ def ensure_untracked_gitignore(plan: InstallPlan, use_git: bool) -> str:
         gitignore_path.read_text(encoding="utf-8") if gitignore_path.exists() else ""
     )
 
+    layout = resolve_target_layout(plan.repo_root)
     warnings: list[str] = []
     new_text, action = merge_aw_block(
         existing,
-        untracked_safety_sections(),
+        untracked_safety_sections(layout),
         style=AW_STYLE_HASH,
         manifest=plan.manifest,
         file_key=".gitignore",
@@ -3788,16 +3807,65 @@ RETIRED_RECORDS_ROOT_README_HASHES: frozenset[str] = frozenset(
     }
 )
 
+# Pinned historical research README template hashes (closed census of 7 commits, 6 distinct hashes; jbnkkh E-06).
+# Hashed via manifest.normalize_for_hash (manifest.hash_content) under the M13 invariant.
+RETIRED_RESEARCH_README_HASHES: frozenset[str] = frozenset(
+    {
+        # f4322ea2 (2026-09-30): corrected dangling spec citations; still had intake and weekly shards
+        "28af2a1b5bc6ead0f982eba1161b843263c8d368727a3fd81a2bf75346ac4761",
+        # 0bc46618 (2026-09-09): stated generated INDEX manifests are gitignored local views
+        "d7bcf56ff1becef6a471840a1a31bcb92d8a0133b39210ebb607b3c5e151893f",
+        # 324ef2eb (2026-08-17): flatten remaining shipped-doc .aw/records/docs/ refs to flat paths
+        "2b356d40150f909a65960ad21fee7630d73d2c313d22603fb36a6a595bfef3e9",
+        # e2a362bf (2026-08-17): sweep shipped bodies + index.md + templates + AGENTS.md to .aw/
+        "bd65fd0abf7ea822f9e8b747f17624056ac0faf45024e4e029a4f1ad2a86eeb7",
+        # f296f6f4 / 94c4f49e (2026-08-07): initial .aw physical move / research scaffold
+        "aee37f6b670a6b4d4628664c39343de93c7e0bf31d8513c9623e8a2a9c3d629b",
+        # 3a84d11d (2026-07-12): initial docs and walkthroughs convention plan
+        "8195532e291883658d4ec00a144dd57297a405df504a14ca99ba3a9cadaaa527",
+    }
+)
 
-def classify_records_root_readme(content: str, expected: str) -> str:
-    """Classify records-root README content against framework shipped versions.
+# Pinned historical specs README template hashes (closed census of 4 commits, 3 distinct hashes; jbnkkh E-06).
+# Hashed via manifest.normalize_for_hash (manifest.hash_content) under the M13 invariant.
+RETIRED_SPECS_README_HASHES: frozenset[str] = frozenset(
+    {
+        # 324ef2eb (2026-08-17): flatten remaining shipped-doc .aw/records/docs/ refs to flat paths
+        "b15c3f096387acba7a9db151e889789d932d99daa31541b5c9226f657688188f",
+        # e2a362bf (2026-08-17): sweep shipped bodies + index.md + templates + AGENTS.md to .aw/
+        "c51070d154caa8c96183c03ff7d17374728daa8bfa3daa5963dddde200cade8c",
+        # f296f6f4 / 077f6ce4 (2026-07-12): initial .aw physical move / docs specs bucket
+        "c87a4e82e737915e72317be42de62a4d9c89789644d7a662a375d9dee15ed116",
+    }
+)
+
+# Pinned historical comms README template hashes (closed census of 3 commits, 3 distinct hashes; jbnkkh E-06).
+# Hashed via manifest.normalize_for_hash (manifest.hash_content) under the M13 invariant.
+RETIRED_COMMS_README_HASHES: frozenset[str] = frozenset(
+    {
+        # 3fb5dd3b (2026-09-25): agent-side ack writing and per-message status aggregation (ozcfjr)
+        "73aa23045e247db4210cab5759b7a4993c4776179b7f6d71ed0a6421cb9ba235",
+        # 9bb36273 (2026-08-19): rename prompts/comms local/ quarantine lanes to untracked/
+        "60abf532757860d74e0296fbd41ab290dc8fd0eaba80b986264f299d5fbf4725",
+        # 06b22eebd (2026-07-15): initial comms convention scaffold
+        "e20b45953b4860749b8c4b44a655cd67ab83cb9c21b1b48d7863c8637ab5324d",
+    }
+)
+
+
+def classify_records_root_readme(
+    content: str,
+    expected: str,
+    retired_hashes: frozenset[str] = RETIRED_RECORDS_ROOT_README_HASHES,
+) -> str:
+    """Classify records-root (or doc/comms) README content against framework shipped versions.
 
     Returns a three-valued classification:
       * 'current': normalized content hash matches expected current template.
       * 'known-stale': normalized content hash matches one of the retired shipped templates.
       * 'user-owned': content does not match any shipped template version.
 
-    The retired set is CLOSED BY CENSUS (F-02). Any text outside the retired set
+    The retired set is CLOSED BY CENSUS (F-02, jbnkkh E-06). Any text outside the retired set
     and differing from expected is treated as user-owned by construction. The direction
     of this fallback is deliberate: an unrecognized text is 'user-owned', so a missed
     hash costs a stale file surviving (the status quo) and never a destroyed user file.
@@ -3812,7 +3880,7 @@ def classify_records_root_readme(content: str, expected: str) -> str:
     expected_hash = manifest_mod.hash_content(expected)
     if actual_hash == expected_hash:
         return "current"
-    if actual_hash in RETIRED_RECORDS_ROOT_README_HASHES:
+    if actual_hash in retired_hashes:
         return "known-stale"
     return "user-owned"
 
@@ -4493,8 +4561,10 @@ def print_summary(
     for workflow in workflows:
         print(f"  - /{workflow.command}  ->  {workflow.body}")
     print()
+    layout = resolve_target_layout(plan.repo_root)
+    workflows_dir = resolve_workflows_dir(layout)
     print("Universal fallback (any agent):")
-    print("  Read and execute .agents/workflows/index.md, then the workflow body.")
+    print(f"  Read and execute {workflows_dir}/index.md, then the workflow body.")
 
     # Recommended next step: run the setup-repo wizard, phrased for both tool families.
     # It is idempotent and drift-aware, so it doubles as a post-update conformance check.
@@ -5319,8 +5389,11 @@ _COMMS_GITIGNORE_TEMPLATE = """\
 untracked/
 """
 
-_COMMS_README_TEMPLATE = """\
-# .agents/comms/
+
+def _COMMS_README_TEMPLATE(layout: str = "aw") -> str:
+    heading = "# .aw/records/comms/" if layout == "aw" else "# .agents/comms/"
+    return f"""\
+{heading}
 
 Filesystem inter-agent communication (IAC). A portable, agent-agnostic convention for leaving
 messages between agents (and between an agent and a human). It works WITH OR WITHOUT any broker or
@@ -5370,9 +5443,8 @@ After reading a message, a target agent MAY record its progress by running
 `python3 -m agent_workflows.comms_acks ack <msg-id> read --by <proj.agent>` (and later
 `done`/`executed`/etc.), writing an acknowledgement file into the `untracked/acks/` lane.
 Acknowledgements are entirely optional because the convention works without them.
-
-See the agent-comms convention spec under `.agents/docs/specs/` for the full definition.
 """
+
 
 GITLEAKSIGNORE_FILE = ".gitleaksignore"
 SECRET_SCAN_CI = ".github/workflows/secret-scan.yml"
@@ -6068,7 +6140,10 @@ def collect_scaffold_members(
                 )
             )
         files.append(
-            (f"{dirs['comms']}/README.md", _COMMS_README_TEMPLATE.encode("utf-8"))
+            (
+                f"{dirs['comms']}/README.md",
+                _COMMS_README_TEMPLATE(layout).encode("utf-8"),
+            )
         )
         for sub in COMMS_SHARED_SUBDIRS:
             files.append((f"{dirs['comms']}/shared/{sub}/.gitkeep", b""))
@@ -6230,18 +6305,62 @@ def ensure_docs_readmes(
     installed: list[str],
     skipped: list[str],
 ) -> None:
-    """Create a README.md in `.agents/docs/`, `.agents/docs/research/`, and `.agents/docs/walkthroughs/`.
+    """Create a README.md in `.agents/docs/`, `.agents/docs/research/`, and `.agents/docs/walkthroughs/`
+    (or flat `.aw/records/*` in aw layout).
 
     No-clobber (a user's own README is never overwritten), staged, dry-run aware. Modeled
     on `ensure_plans_readmes`. Templates live under the source `.agents/workflows/templates/`.
+    Repairs known-stale shipped templates on upgrade with backup.
     """
     targets = collect_scaffold_members(
         plan.repo_root, plan.source_root, category="docs"
     )
+    layout = resolve_target_layout(plan.repo_root)
+    dirs = _record_scaffold_dirs(layout)
+    research_readme = f"{dirs['research']}/README.md"
+    specs_readme = f"{dirs['specs']}/README.md"
 
     for rel_path, content_bytes in targets.items():
         readme_path = plan.repo_root / rel_path
         if readme_path.is_file():
+            retired_hashes: frozenset[str] | None = None
+            if rel_path == research_readme:
+                retired_hashes = RETIRED_RESEARCH_README_HASHES
+            elif rel_path == specs_readme:
+                retired_hashes = RETIRED_SPECS_README_HASHES
+
+            if retired_hashes is not None:
+                try:
+                    current_text = readme_path.read_text(encoding="utf-8")
+                except OSError:
+                    skipped.append(f"{rel_path} [already current]")
+                    continue
+                expected_text = content_bytes.decode("utf-8", errors="replace")
+                verdict = classify_records_root_readme(
+                    current_text, expected_text, retired_hashes
+                )
+                if verdict == "current":
+                    skipped.append(f"{rel_path} [already current]")
+                    continue
+                if verdict == "user-owned":
+                    skipped.append(f"{rel_path} [preserved]")
+                    continue
+                if verdict == "known-stale":
+                    if plan.dry_run:
+                        installed.append(f"{rel_path} [overwrite, dry-run]")
+                        continue
+                    if plan.backup:
+                        timestamp = _plan_backup_timestamp(plan)
+                        backup = create_backup_path(
+                            plan.repo_root, Path(rel_path), timestamp
+                        )
+                        backup.parent.mkdir(parents=True, exist_ok=True)
+                        shutil.copy2(readme_path, backup)
+                    readme_path.write_bytes(content_bytes)
+                    if use_git:
+                        git_add_optional(plan.repo_root, rel_path)
+                    installed.append(f"{rel_path} [overwrite]")
+                    continue
             skipped.append(f"{rel_path} [already current]")
             continue
         if plan.dry_run:
@@ -6288,7 +6407,14 @@ def ensure_prompts_readmes(
 
 
 def create_setup_artifacts(
-    repo_root: Path, use_git: bool, dry_run: bool = False
+    repo_root: Path,
+    use_git: bool,
+    dry_run: bool = False,
+    *,
+    plan: InstallPlan | None = None,
+    backup: bool = True,
+    installed: list[str] | None = None,
+    skipped: list[str] | None = None,
 ) -> list[str]:
     """Create the deterministic setup artifacts in a target repo (no-clobber, idempotent).
 
@@ -6298,7 +6424,7 @@ def create_setup_artifacts(
     skeleton (`.agents/comms/` with a nested .gitignore, a README, and .gitkeep under each `shared/`
     subdir; `untracked/` subdirs get NO .gitkeep since the gitignore rule ignores them). Returns
     the list of created paths (empty on a re-run where everything already exists, so it is quiet and
-    idempotent).
+    idempotent). Repairs known-stale comms README on upgrade with backup.
 
     NOTE: the AGENTS pointer is created by update_agents_pointer during install; the
     stack-tailored .gitignore/CI stay with the LLM /setup-repo workflow. The nested
@@ -6329,7 +6455,51 @@ def create_setup_artifacts(
                 created.append(rel + " [dry-run]")
         return created
 
+    comms_readme = f"{dirs['comms']}/README.md"
     for rel, content in files:
+        if rel == comms_readme:
+            target = repo_root / rel
+            if target.is_file():
+                try:
+                    current_text = target.read_text(encoding="utf-8")
+                except OSError:
+                    if skipped is not None:
+                        skipped.append(f"{rel} [already current]")
+                    continue
+                verdict = classify_records_root_readme(
+                    current_text, content, RETIRED_COMMS_README_HASHES
+                )
+                if verdict == "current":
+                    if skipped is not None:
+                        skipped.append(f"{rel} [already current]")
+                    continue
+                if verdict == "user-owned":
+                    if skipped is not None:
+                        skipped.append(f"{rel} [preserved]")
+                    continue
+                if verdict == "known-stale":
+                    if dry_run:
+                        if installed is not None:
+                            installed.append(f"{rel} [overwrite, dry-run]")
+                        continue
+                    should_backup = plan.backup if plan is not None else backup
+                    if should_backup:
+                        timestamp = (
+                            _plan_backup_timestamp(plan)
+                            if plan is not None
+                            else datetime.now().strftime("%Y%m%d-%H%M%S")
+                        )
+                        backup_path = create_backup_path(
+                            repo_root, Path(rel), timestamp
+                        )
+                        backup_path.parent.mkdir(parents=True, exist_ok=True)
+                        shutil.copy2(target, backup_path)
+                    target.write_text(content, encoding="utf-8")
+                    if use_git:
+                        git_add_optional(repo_root, rel)
+                    if installed is not None:
+                        installed.append(f"{rel} [overwrite]")
+                    continue
         _create_if_absent(repo_root, rel, content, use_git, created)
 
     # awuntrackedfix Order 01 (PR-002): rename any existing `local/` lane to `untracked/` FIRST, so a
@@ -6827,7 +6997,14 @@ def install_into_repo(
     ensure_plans_readmes(plan, use_git, installed, skipped)
     ensure_docs_readmes(plan, use_git, installed, skipped)
     ensure_prompts_readmes(plan, use_git, installed, skipped)
-    artifacts = create_setup_artifacts(repo_root, use_git, dry_run=dry_run)
+    artifacts = create_setup_artifacts(
+        repo_root,
+        use_git,
+        dry_run=dry_run,
+        plan=plan,
+        installed=installed,
+        skipped=skipped,
+    )
     # wslayout Order 04 (hauwqh), spec kw5y2s Section 6.1: emit the machine-readable layout document
     # + its schema for non-Python consumers. Deliberately INSIDE this shared core rather than in a
     # caller, so `aw install`, `aw setup`, and library callers all get it by construction. Runs AFTER
