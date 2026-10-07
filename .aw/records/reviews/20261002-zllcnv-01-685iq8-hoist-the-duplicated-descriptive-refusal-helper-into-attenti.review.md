@@ -2,7 +2,7 @@
 
 - Subject-Id: 685iq8
 - Subject-Type: ipd
-- Reviewed-At: 2026-10-02
+- Reviewed-At: 2026-10-07
 - Reviewer: opencode/its_direct/pt3-claude-opus-5.5-1m-us
 - Verdict: APPROVE WITH REVISIONS APPLIED
 
@@ -40,3 +40,36 @@ Re-verified (gitignored probe, no production edit):
 | ID | Question | Chosen | Alternatives considered | Basis | Reversible |
 |----|----------|--------|-------------------------|-------|------------|
 | D-1 | How should the pre-hoist behavior be frozen so post-hoist tests are not tautological? | A literal `(bound_length, value) -> suffix` table, with each verb applied as a prefix | A full 8x2x9 literal table (exact but bulky); a pickled snapshot file (adds an undeclared fixture path) | Probe shows the message depends on the verb only through its prefix (0 nonempty-verb divergences); the plan's Scope-Paths allow only the one test file | yes |
+
+## Round 2
+
+Reviewed at HEAD `fe2ee961c` in an isolated review lane; plan committed and byte-identical to the lane input
+(sealed manifest sha matches), so no pre-review snapshot. `aw ipd lint --phase author --agent` clean before
+semantic review; `--phase review-finalize` clean after revision.
+
+Re-verified:
+- Five definitions of `_refuse_unsafe_descriptive`: `backlog.py:784`, `specs.py:35`, `status_set.py:2182`
+  (delegates to backlog), and NEW `research_cmd.py:163` (from executed plan `deftzy`), which probes
+  `getattr(attention_contract, "refuse_unsafe_descriptive", None)` and falls back to `backlog`.
+  `releases.py:1370` still does the function-local `from agent_workflows.specs import`.
+- Probe over 11 verbs (incl. the three `aw research *` verbs and `""`) x 2 modes x 12 values across the four live
+  routes: `nonempty 0 empty 14`. The plan's no-message-change premise holds for the research route too.
+- `python3 -m pytest -o addopts="" -q` over the backlog, specs/releases, status_set, research and bidi safety
+  files -> `96 passed in 9.81s`.
+- Scratch `aw releases new --version $'a\nstatus: shipped' --summary x` -> `aw releases new: --version must not
+  contain embedded newlines`, rc=2.
+- `attention_contract` imports only `re`, `typing`, `lifecycle_dirs`; Section 8.8 region `is_safe_descriptive`
+  / `validate_gate_ref` precede the workflow-history banner, as E-02 says.
+
+### Findings
+
+| ID | Severity | Scope | Area | Evidence | Finding | Remediation Risk | Decision | Resolution |
+|----|----------|-------|------|----------|---------|------------------|----------|------------|
+| PR-005 | MEDIUM | UNDER-SCOPE | C. Architecture / G. Executability | `agent_workflows/research_cmd.py:163` `_refuse_unsafe_descriptive` docstring "Delegates to attention_contract.refuse_unsafe_descriptive if present (IPD 685iq8)"; plan Deferred bullet "Pending plan `deftzy`" | `deftzy` has executed and shipped a fifth route that E-02 silently switches onto the shared body, leaving a dead `backlog` fallback and import edge. The plan still treated `deftzy` as pending, omitted `research_cmd.py` from Scope-Paths, and its baseline and five-route assertions did not cover the research verbs, so a regression on that route would pass every V-item. | C:Low; U:Low; S:Low; F:Low; Overall:Low | FIXED | Added E-07/V-07 (reduce the shim to a plain delegation, fix docstring, keep the name pinned by `tests/test_research_descriptive_safety.py:63`); added `research_cmd.py` to Scope-Paths; E-01 verb set extended and made re-derivable via `rg`; E-06 now covers five routes; Deferred bullet rewritten; F-12 added. |
+| PR-006 | LOW | IN-SCOPE | G. Live-artifact criterion | Plan Required tests and V-06(c) "baseline of `53 passed`" | The bar was an authoring-time test count over three files, while two further shipped files (`tests/test_research_descriptive_safety.py`, `tests/test_bidi_control_rejection.py:161` driving `specs._refuse_unsafe_descriptive`) also pin behavior this plan touches. | C:Low; U:Low; S:Low; F:Low; Overall:Low | FIXED | Required tests and V-06(c) now run five files, compare against a pre-edit run at execution HEAD, and require those files unmodified; F-10 notes the review-time `96 passed` as context only. |
+
+### Decisions
+
+| ID | Question | Chosen | Alternatives considered | Basis | Reversible |
+|----|----------|--------|-------------------------|-------|------------|
+| D-1 | Should the research route be handled in this plan or left to a follow-up? | In this plan (E-07) | Leave as follow-up carrier (rejected: E-02 already changes that route's behavior source, so validation must cover it, and the fallback becomes dead code introduced by this plan's change) | `agent_workflows/research_cmd.py:178` `getattr(_A, "refuse_unsafe_descriptive", None)`; probe `nonempty 0 empty 14` | yes |
