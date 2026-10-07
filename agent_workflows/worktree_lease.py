@@ -393,8 +393,8 @@ def inspect_lane(
     owner record, and one of the five `LANE_STATES`.
 
     STILL RUN-CONTEXT-FREE, and it must stay that way (pinned by
-    `tests/test_lane_allocation_idempotent.py::test_worktree_lease_stays_stdlib_only`, which forbids
-    this module even NAMING a run-context parameter). It takes no run directory and no item record, so
+    `tests/test_worktree_lease_stdlib_only.py`, which asserts importing this module pulls in
+    no first-party modules beyond the package baseline). It takes no run directory and no item record, so
     the spec `7ckptx` R5.5 RETENTION inventory cannot live here: measured, `inventory_lane` given
     neither answers EVERY lane unclassifiable ("no run directory or item was supplied"), so consulting
     it from this reading would make even a provably empty lane non-reclaimable. Retention
