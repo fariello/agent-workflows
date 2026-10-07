@@ -8,8 +8,8 @@
 - Item-Dependencies: none
 - Status: draft
 - Coverage: fail
-- Coverage-Fingerprint: 628403857f3620e3eaf30ee4e4edcf82562caeb69e904ef482b1de7550ee2992
-- Coverage-Checked: 2026-10-06 by uri/its_direct/pt3-claude-opus-5.5-1m-us
+- Coverage-Fingerprint: b325498c257ee84eaeeeabdbe6960c1d40021858725081e52d174eadc10696cb
+- Coverage-Checked: 2026-10-07 by uri/its_direct/pt3-claude-opus-5.5-1m-us
 - Work-Kind: feature
 - Priority: medium
 - From-Backlog: 7yz545
@@ -20,6 +20,7 @@
 - Id: 1u4olp
 
 ## Workflow history
+- 2026-10-07 coverage fail (aw oc run): fingerprint b325498c257e, model uri/its_direct/pt3-claude-opus-5.5-1m-us
 - 2026-10-07 note (opencode its_direct/pt3-claude-opus-5.5-1m-us): every child is executed; each Set-level obligation now names the child that performed it.
 - 2026-10-06 draft (aw set): demoted to-review -> draft: returned to authoring by gradcover 52opph: uncovered obligation: The Set-level obligations are: the three children's test files all present and green
 
@@ -208,10 +209,12 @@ a bare `python3 -m pytest` against its own re-derived baseline at its boundary, 
 
 ## Coverage findings
 
-- "The Set-level obligations are: the three children's test files all present and green; the"
-- "three shipped dashboard model tests green and UNEDITED; and a bare `python3 -m pytest` green with the"
-- "baseline re-derived at execution rather than taken from any plan here."
-- "Validation and cross-check (verify before reporting the Set complete)"
+- "1. Every attempt record written by either host names the model it was launched under, on every path an"
+- "2. A run that used TWO models (a `--verify-with` run) records both, and every consumer reports both: the"
+- "3. A turn launched with NO `--model` flag at all still ends with a concrete model on its attempt record,"
+- "4. `run_analytics_statistics.model_comparison` is fed a REAL attempt population by its production caller and"
+- "5. A run carrying NO per-attempt fields (every run that already exists) produces output identical to today's"
+- "6. Nothing gates, refuses, warns-to-failure or changes a disposition on a model value, and an unreachable"
 
 ## Validation and cross-check (verify before reporting the Set complete)
 
