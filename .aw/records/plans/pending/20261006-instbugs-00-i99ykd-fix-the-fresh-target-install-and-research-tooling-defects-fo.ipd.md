@@ -6,13 +6,14 @@
 - Scope: ORCHESTRATION ONLY. This plan sequences eleven child plans and contributes no implementation, no test and no deliverable of its own. Every artifact is owned by exactly one child named in the child table. IN: dependency order, the triage that assigns each present-at-HEAD defect to exactly one child, the Set-level completion criteria with the owning child of each, and the cross-child checks with the owning child of each. OUT: everything the children do (listed per row in the child table), and the D13 companion-file feature, recorded as backlog `bh1cy5`.
 - Scope-Paths: .aw/records/plans/pending/20261006-instbugs-00-i99ykd-fix-the-fresh-target-install-and-research-tooling-defects-fo.ipd.md
 - Item-Dependencies: none
-- Status: to-review
-- Blocks-Release: f33nrj
+- Status: reviewed
+- Readiness: go-pending-approval
 - Coverage: pass
 - Coverage-Fingerprint: 5891d6bc5dee78106d0c0e40f9cb0c8ed4aae79fe167b54d977f5074ae15da0b
 - Coverage-Checked: 2026-10-06 by uri/its_direct/pt3-claude-opus-5.5-1m-us
 - Work-Kind: bug
 - Priority: high
+- Blocks-Release: f33nrj
 - Set: instbugs
 - Order: 0
 - Highest E allocated: 11
@@ -21,6 +22,11 @@
 
 ## Workflow history
 - 2026-10-07 same-status (aw set): gate on release 2.0.0 (f33nrj) at the maintainer's instruction 2026-10-06: all instbugs plans block 2.0.0
+- 2026-10-07 reviewed (aw set): plan-review
+
+- 2026-10-06 coverage pass (aw oc run): fingerprint 5891d6bc5dee, model uri/its_direct/pt3-claude-opus-5.5-1m-us
+- 2026-10-06 coverage fail (aw oc run): fingerprint 889a94431aa7, model uri/its_direct/pt3-claude-opus-5.5-1m-us
+- 2026-10-06 /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003. Reviewed at HEAD `fe2ee961c` in an isolated review-sweep lane; plan committed and byte-identical to the lane input, so no pre-review snapshot. Verified: all eleven children exist in `pending/` with Orders, `- Item-Dependencies:` edges and Kind matching the child table; `aw ipd coverage i99ykd` ready; triage spot-checks at HEAD agree (`.aw/system/VERSION` = `1.2.1`; `install_wizard.py` `f"{repo_formatted}/.aw/{cls}"` and literal `"installed_version": "2026.8.10"`; `.aw/.gitignore` `/inbox/` and `/state/`; `research_cmd._next_order_for_set` returns 0 for a new set); `kck7a5` E-items pin D02 and D06 as the Deferred row claims; backlog `bh1cy5` open. Fixed: deferred row 3 `Carrier: none (...)` was a malformed carrier that made `check.ipd-uncarried-obligation` (severity `error`) fire on this plan, replaced with `Carrier-Declined:` (PR-001); live-bug release gate absent on this plan and on ten bug children, contrary to AGENTS.md 'Every live bug gates the next release' - this plan gains `- Blocks-Release: next`; the ten bug children's missing gate is recorded in the review record and reported to the maintainer, not in this plan, since those files are outside this review's ledger and the coverage gate correctly refuses parent text that implies child work (PR-002); gate gains resolved-OQ statement, pasted-output honesty rule, scope fence as declaration and conditional finalize/retirement ownership (PR-003).
 
 - 2026-10-06 coverage pass (aw oc run): fingerprint 5891d6bc5dee, model uri/its_direct/pt3-claude-opus-5.5-1m-us
 - 2026-10-07 draft (antigravity/claude-opus-5.5): created.
@@ -151,6 +157,7 @@ Triage of report `l6cbbb`, reproduced at HEAD `474b037a9` (2026-10-06). "Present
 
 ## Cross-IPD validation
 
+
 - THE TRACKING TRUTH TABLE AGREES END TO END: for each physical class, the preset git policy (`gi1w75`), the files actually written (`pfub72`), what is staged (`gzsfqn`) and what `.aw/.gitignore` ignores agree on the scratch target. Performed by `kck7a5` E-02.
 - THE DANGLING-REFERENCE CHECK IS GREEN ON THE FULL INSTALLED BUNDLE, including the inbox README from `xzlu9b` and the rewritten READMEs from `jbnkkh`. Performed by `kck7a5` E-02 (the check itself is built by `ka0g86`).
 - THE RESEARCH VERBS COMPOSE: a lone report filed by `aw research new` and by `aw adopt` gets `01` (`zye6k4`), mode 0644 (`ic4eg0`), and passes `aw research index --check` (`okw4ke`). Performed by `kck7a5` E-03.
@@ -162,7 +169,7 @@ Triage of report `l6cbbb`, reproduced at HEAD `474b037a9` (2026-10-06). "Present
 - D02, D06, the rename half of D10, the adopt half of D13, and the INDEX and upgrade-warning halves of D15 are fixed at HEAD (evidence in Findings). They are not re-fixed; `kck7a5`'s regression test pins the D02 and D06 outcomes so they cannot regress.
   - Carrier: kck7a5
 - A FINAL TRIAGE REPORT FILE requested by report `l6cbbb` step 5 is satisfied by the Findings table above; no separate review record is written.
-  - Carrier: none (the table is in this plan)
+  - Carrier-Declined: not owed; the requested triage IS the Findings table of this plan, so there is no outstanding obligation to hand off.
 
 ## Scope check
 
@@ -246,4 +253,4 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 - Size assessment: standard
 - Cohesion rationale: not required
 
-This orchestrator carries ORCHESTRATION ONLY: its eleven E-items confirm each child reached `executed`, and every whole-Set obligation names its owning child. Execute children in dependency order through `aw oc run instbugs` or by hand; commit only files changed for the item being executed through `aw commit <plan> -- <paths>`, never `git add -A`, never push. Once every child is `executed` the runner retires this plan.
+This orchestrator carries ORCHESTRATION ONLY: its eleven E-items confirm each child reached `executed`, and every whole-Set obligation names its owning child. Execute children in dependency order through `aw oc run instbugs` or by hand; commit only files changed for the item being executed through `aw commit <plan> -- <paths>`, never `git add -A`, never push. OQ-01 is resolved; no question is open. Every `V-*` above demands PASTED output (`aw find plans <id6>` and the child's quoted `Result: pass` lines); a claim without pasted output does not satisfy it. `- Scope-Paths:` is a DECLARATION: an out-of-scope edit is justified at finalize with `--scope-reason`, not refused. LIFECYCLE, CONDITIONAL OWNERSHIP: under `aw oc run` / `aw agy run`, once every child is `executed` the runner retires this plan with no agent turn; in a hand execution ("execute instbugs" with no runner), the executor works the checklist in order, fills each `V-*`, and transitions this plan with `aw ipd finalize` only after the last child is `executed`, never by a hand `git mv`.
