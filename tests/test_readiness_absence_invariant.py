@@ -72,7 +72,10 @@ def find_field_absent_pending_plan(repo_root: Path) -> Optional[Path]:
     for p in sorted(pending_dir.glob("*.ipd.md")):
         text = p.read_text(encoding="utf-8")
         if not plan_readiness._READINESS_FIELD_PRESENT_RE.search(text):
-            return p
+            if not re.search(
+                r"^\s*-\s*\d{4}-\d{2}-\d{2}\s+reviewed\b", text, re.MULTILINE
+            ):
+                return p
     return None
 
 
