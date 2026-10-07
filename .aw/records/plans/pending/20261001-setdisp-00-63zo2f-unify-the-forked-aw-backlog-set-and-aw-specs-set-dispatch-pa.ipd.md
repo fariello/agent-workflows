@@ -3,12 +3,13 @@
 - Date: 2026-10-01
 - Kind: orchestrator
 - Concern: `aw backlog set` and `aw specs set` each have TWO spellings reaching TWO SEPARATE IMPLEMENTATIONS of overlapping behavior. `cli.main` forks on whether `--status` was PASSED: absent routes to `status_set.run_set_command`, present routes to `backlog.run_set` or `specs.run_set`. The same CLASS of defect has now been found on that fork FIVE times, three of them release-blocking: `43p53n` (gate-field clearing, unreachable from the positional form), `gatefollows`/`vsgd48` (the release-gate default), `mawwlc`/`47ttnv` (the release-gate close predicate skipped at exit 0), plus two MEASURED while authoring this Set and filed as `h4fiwa` (positional `specs set implemented` bypasses the `--evidence` gate entirely) and `fv4b6s` (positional `specs set deferred` writes an out-of-vocabulary `Gate-Kind`). Each of the first three was fixed by DUPLICATING the behavior into the second path, which is the correct minimal fix for a release blocker and also why the class keeps recurring. Backlog `fcnz1r` filed the durable fix and recorded that it needs a spec-level decision first, because the two paths differ in ways that are each deliberate and separately pinned by tests.
-- Scope: IN: sequence the five children that take the `set` family from two implementations per verb to one, in an order that ships the two release-gated bug fixes WITHOUT waiting on a blocking maintainer decision, and that lands a differential harness before any behavior moves. OUT: every axis spec `wy9aru` Section 7 assigns elsewhere (the UTC-versus-local clock, the history label, the same-status dedup, the sidecar write order, the dead `apply` read, the defaulted message, the backlog transition table, the closed-item audit, the hand-edit gate, the dead `aw prompts set` verb), each with a named carrier.
+- Scope: IN: sequence the five work children plus the Order 06 Set-level audit child that take the `set` family from two implementations per verb to one, in an order that ships the two release-gated bug fixes WITHOUT waiting on a blocking maintainer decision, and that lands a differential harness before any behavior moves. OUT: every axis spec `wy9aru` Section 7 assigns elsewhere (the UTC-versus-local clock, the history label, the same-status dedup, the sidecar write order, the dead `apply` read, the defaulted message, the backlog transition table, the closed-item audit, the hand-edit gate, the dead `aw prompts set` verb), each with a named carrier.
 - Scope-Paths: .aw/records/plans/pending/20261001-setdisp-00-63zo2f-unify-the-forked-aw-backlog-set-and-aw-specs-set-dispatch-pa.ipd.md, .aw/records/plans/pending/20261007-setdisp-06-7zb4ny-audit-the-five-setdisp-children-together-and-run-the-set-lev.ipd.md
 - Item-Dependencies: none
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
 - Coverage: pass
-- Coverage-Fingerprint: 8d93298555005fe8b9ea42a58db2e74bfa6a2999f0eb3570c02c400ca16390bd
+- Coverage-Fingerprint: 8a462bdd73338c3baf6bb3fe84e0108ec426ad11f04d70a7644882021a29d5a9
 - Coverage-Checked: 2026-10-07 by uri/its_direct/pt3-claude-opus-5.5-1m-us
 - Work-Kind: chore
 - Priority: medium
@@ -21,6 +22,8 @@
 - Id: 63zo2f
 
 ## Workflow history
+- 2026-10-07 reviewed (aw set): /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005. Named the setdispgate overlap (wdyz5n/ju3rhs carry the h4fiwa/fv4b6s gates) and accepted HANDOFF or SATISFIED closes; re-derived the outside prerequisites (jbipfa, nvsz19 executed; ulepef approved, now checked in E-04/V-04); fixed five-vs-six child counts; restated the Section 7 criterion as a property; added finalize ownership; OQ-02 resolved.
+- 2026-10-07 coverage pass (aw oc run): fingerprint 8a462bdd7333, model uri/its_direct/pt3-claude-opus-5.5-1m-us
 - 2026-10-07 to-review (aw set): returned to review: Set-level checks now owned by new Order 06 7zb4ny; coverage pass recorded; open questions are non-blocking executor measurements
 - 2026-10-07 coverage pass (aw oc run): fingerprint 8d9329855500, model uri/its_direct/pt3-claude-opus-5.5-1m-us
 - 2026-10-07 coverage fail (aw oc run): fingerprint 84f4f14ca276, model uri/its_direct/pt3-claude-opus-5.5-1m-us
@@ -69,13 +72,14 @@ with no runner involved, and deleting it causes exactly the partial execution it
 - [ ] E-03 CONFIRM m1jlwm REACHED executed
   - Depends on: E-02
   Confirm child 03 (`m1jlwm`, close the two measured positional `specs set` gate bypasses) is `executed`. This child carries `- Blocks-Release: next` and is deliberately independent of the spec's blocking question: it UNIONS two refusals across the existing fork rather than removing the fork, so a release blocker is not held hostage to a design decision.
-  - Expected outcome: `m1jlwm` is `executed`; positional `aw specs set implemented` without resolvable `--evidence` refuses, and positional `aw specs set deferred --gate-kind <invalid>` refuses and writes nothing; carriers `h4fiwa` and `fv4b6s` closed through the evidence route with the gate satisfied rather than cleared.
+  OVERLAP WITH SET `setdispgate` (found at review, see OQ-02): the SAME two bypasses also have their own `From-Backlog` carriers outside this Set, `wdyz5n` (carrier of `h4fiwa`, `reviewed`) and `ju3rhs` (carrier of `fv4b6s`, `approved`), both ungated (`- Item-Dependencies: none`) and therefore likely to execute BEFORE `m1jlwm`. Each of those plans and `m1jlwm` already requires whichever executes second to CONSUME the first's refusal rather than add a second copy. Confirm here which route installed each refusal; do not require `m1jlwm` itself to have written it.
+  - Expected outcome: `m1jlwm` is `executed` (or retired to `superseded/` by a maintainer choosing the `setdispgate` route, OQ-02); on BOTH spellings `aw specs set implemented` without resolvable `--evidence` refuses, and `aw specs set deferred --gate-kind <invalid>` refuses and writes nothing; exactly ONE implementation of each refusal exists, observed behaviorally (no source census); carriers `h4fiwa` and `fv4b6s` are `done` with the gate satisfied (HANDOFF route through `wdyz5n`/`ju3rhs` executing, or SATISFIED route with `--evidence`), never cleared.
   - Execution state: pending
 
 - [ ] E-04 CONFIRM m94eht REACHED executed
   - Depends on: E-03
   Confirm child 04 (`m94eht`, make `aw specs set --status` a thin adapter) is `executed`. This child is GATED: it carries `- Item-Dependencies: state:spec:approved:wy9aru`, so it cannot dispatch until the spec is `approved`, which is the transition requiring the maintainer to have answered that spec's blocking OQ-1 about the sidecar. It also amends `implemented` spec `1525-02` R2, declared in its `Scope-Paths`.
-  - Expected outcome: `m94eht` is `executed`; `specs.run_set` holds no status validation, write, relocation or history assembly of its own; every specs AGREEMENT assertion in the harness passes unchanged; the `1525-02` R2 amendment landed in the same change as the behavior it describes.
+  - Expected outcome: `m94eht` is `executed`; `ulepef` (the sidecar write-ORDER fix `m94eht` adopts, see "THE ONE LIVE ARTIFACT" below) reached `executed` BEFORE `m94eht` ran; `specs.run_set` holds no status validation, write, relocation or history assembly of its own; every specs AGREEMENT assertion in the harness passes unchanged; the `1525-02` R2 amendment landed in the same change as the behavior it describes.
   - Execution state: pending
 
 - [ ] E-05 CONFIRM vhiqo6 REACHED executed
@@ -109,29 +113,38 @@ before 05 because specs is the simpler path (no `--gate-dir`, no `_render_item` 
 relocation divergence), so it de-risks the larger migration, and because spec `wy9aru` S4 requires the
 migration to be incremental and per-verb with the harness green between steps.
 
-THREE LIVE ARTIFACTS OUTSIDE THIS SET MUST LAND BEFORE CHILDREN 04 AND 05, and each edits a function
-this Set touches, so landing first costs nothing while landing second costs a conflict with work a
-human already reviewed: `jbipfa` (`reviewed`) gives `backlog._reattach_history` its label parameter;
-`ulepef` (`to-review`, release-gated) moves the sidecar append after the durable write and already
-carries the `2vev8j` amendment; `nvsz19` (`approved`, release-gated) wires the plan transition table
-into `status_set.validate_transition_allowed`, the exact function child 03 unions refusals into.
+THE ONE LIVE ARTIFACT OUTSIDE THIS SET THAT MUST LAND BEFORE CHILDREN 04 AND 05 is `ulepef`
+(`approved` at review 2026-10-07, release-gated): it moves the sidecar append after the durable write,
+already carries the `2vev8j` amendment, and `m94eht` adopts its write order (its own gate says "Plan
+`ulepef` must also have landed (F-02)"). NO `- Item-Dependencies:` edge enforces this today (`m94eht`
+declares only `executed:m1jlwm, state:spec:approved:wy9aru`), so E-04 checks it explicitly. As authored
+this paragraph also named `jbipfa` (label parameter on `backlog._reattach_history`) and `nvsz19` (plan
+transition table in `status_set.validate_transition_allowed`); RE-MEASURED at review, both are now in
+`.aw/records/plans/executed/`, so they are satisfied prerequisites, not live ones. Re-derive this list
+at execution rather than trusting it.
+
+THE SAME TWO RELEASE-GATED BYPASSES CHILD 03 FIXES ALSO HAVE CARRIERS IN SET `setdispgate`: `wdyz5n`
+(`From-Backlog: h4fiwa`) and `ju3rhs` (`From-Backlog: fv4b6s`, which also widens the fix to the backlog
+twin). Those are the plans actually carrying the `h4fiwa`/`fv4b6s` gates (`m1jlwm` carries
+`From-Backlog: fcnz1r`), and both are ungated. Each of the three plans already says the second to run
+must consume the first's refusal. Which route a maintainer prefers is OQ-02.
 
 ## Completion criteria (the whole Set is done only when)
 
-- All five children are in `.aw/records/plans/executed/` with `- Status: executed` and every `V-*` carrying pasted evidence.
+- All six children (Orders 01 to 06) are in `.aw/records/plans/executed/` with `- Status: executed` and every `V-*` carrying pasted evidence (or, for `m1jlwm` only, retired to `superseded/` under OQ-02 with both refusals demonstrably installed by `wdyz5n`/`ju3rhs`).
 - For EACH of `aw backlog set` and `aw specs set`, both spellings reach one implementation of transition validation, one of the status write, and one of relocation (spec `wy9aru` C1), demonstrated by identical observable behavior across the two spellings and never by a symbol census (`wy9aru` S1).
 - No gate is weaker on either spelling than it was on the STRICTER spelling before the Set (`wy9aru` C2). Specifically: all five historical instances have a test proving the refusal fires on BOTH spellings.
-- Release-gated carriers `h4fiwa` and `fv4b6s` are `done`, closed through the evidence route rather than by clearing the gate.
+- Release-gated carriers `h4fiwa` and `fv4b6s` are `done`, closed through the HANDOFF or SATISFIED route rather than by clearing the gate.
 - `tests/test_set_dispatch_parity.py` passes identically under the machine's local timezone and under `TZ=UTC`, so no cross-spelling assertion carries a clock dependency.
 - The bare suite's failure SET is unchanged except for tests the children explicitly named in advance.
-- Every axis spec `wy9aru` Section 7 assigns elsewhere remains OPEN under its own carrier, except where a child's measured evidence proves its item COMPLETE against the item's own scope.
+- Every axis spec `wy9aru` Section 7 assigns elsewhere is either still live under its own carrier or was closed by THAT carrier's own work, never closed by this Set except where a child's measured evidence proves the item COMPLETE against the item's own scope. (Several Section 7 carriers had already closed by review on 2026-10-07, e.g. `r74211`, `19lmbe`, `t1gbwg`, `mbjuv5`, `68sur3`; re-derive at execution.)
 
 ## Cross-IPD validation
 
 OWNER: every check in this section and every whole-Set item in Completion criteria and Required tests is performed by Order 06 `7zb4ny` after the last migration child; this plan performs none of them.
 
 - NO AXIS IS FIXED TWICE, AND NO AXIS IS FIXED BY NOBODY. Check the eight expected-difference assertions child 02 records against the flips children 03, 04 and 05 claim: each must be flipped by exactly one child, and any assertion still unflipped at the end must correspond to a Section 7 axis with a live carrier. An assertion flipped by two children means one of them widened past its reviewed scope.
-- NO CARRIER IS CLOSED ON A PARTIAL FIX. Children 03 and 05 both close backlog items. For each close, confirm the item's OWN scope is satisfied, not merely that this Set touched the area: the clock items name five local-clock call sites in `backlog.py` and the Set removes one, so closing one of them would assert a repository-wide fix that did not happen (`AGENTS.md` close-legitimacy rule).
+- NO CARRIER IS CLOSED ON A PARTIAL FIX. Children 03 and 05 (and, for `h4fiwa`/`fv4b6s`, possibly `wdyz5n`/`ju3rhs` via HANDOFF) close backlog items. For each close, confirm the item's OWN scope is satisfied, not merely that this Set touched the area: the clock items name five local-clock call sites in `backlog.py` and the Set removes one, so closing one of them would assert a repository-wide fix that did not happen (`AGENTS.md` close-legitimacy rule).
 - THE SPEC AMENDMENT TRAVELS WITH ITS BEHAVIOR. Child 04 amends `1525-02` R2 and must land that amendment in the SAME commit as the sidecar behavior (`wy9aru` S5). Child 05 owes no amendment and must NOT add one; if child 04's amendment did not land, child 05 stops rather than amending the spec itself.
 - THE THREE RETROSPECTIVE PARITY FILES PASS AFTER EVERY CHILD, not only at the end. Each exists because an asymmetry on that axis caused a release-blocking defect, so they are the Set's regression surface: a failure means a migration reintroduced one of the three defects the Set exists to prevent.
 - NO CHILD READS PRODUCTION SOURCE TO PROVE UNIFICATION. Confirm no test added by any child uses `inspect`, `ast`, regex or substring search over production source, counts callers, or asserts docstring text (`AGENTS.md`, GUIDING_PRINCIPLES P16, `wy9aru` S1). "There is now one implementation" is the single most tempting claim to pin with `grep`, and a code-structure pin is forbidden outright.
@@ -142,7 +155,7 @@ OWNER: every check in this section and every whole-Set item in Completion criter
   - Carrier: wy9aru
 - A PRE-EXISTING TEST DEFECT THIS SET EXPOSES IS FILED, NOT FIXED. Child 04's `state:spec:approved:wy9aru` dependency edge is legal and ENFORCED (verified through `ipd_schema.parse_item_dependencies`, `runner_shared.preflight_dependency_findings` and `runner_shared.edge_satisfied`), but `tests/test_terminal_status_vocabulary.py::TestExecutionSuccessStatesNarrowingAndBlastRadius::test_blast_radius_zero_across_pending_plans` globs only the plans trees for every dependency id6 and so reports the spec target as a stranded prerequisite, turning the suite red. DO NOT resolve that failure by deleting or weakening the edge: it is the only mechanism preventing child 04 from executing before the maintainer answers spec `wy9aru`'s blocking question, so removing it would silently discard a human decision gate.
   - Carrier: pyhq6s
-- THE DEAD `aw prompts set` VERB IS NOT FIXED BY THIS SET. It is dispatched in `cli.main` and advertised in help but rejected by the parser, so one of the five claimed `set` surfaces is unreachable (MEASURED while authoring). Fixing it is a scope DECISION (register the subparser versus delete the branch and the help claim), not a dispatch question, and it needs the prompt status vocabulary checked against the shared engine's.
+- THE DEAD `aw prompts set` VERB IS NOT FIXED BY THIS SET. It was dispatched in `cli.main` and advertised in help but rejected by the parser (MEASURED while authoring). Its carrier `68sur3` is `done` as of review (closed via executed IPD `gm9baj`), so no child may touch it.
   - Carrier: 68sur3
 - THE CLI GRAMMAR IS NOT CHANGED. Both spellings keep working with the same arguments, no verb is renamed or removed, and nothing is deprecated. This is an internal convergence; a user's commands continue to work (`wy9aru` Section 3a).
 - NO STATUS VOCABULARY, STATUS MEANING, OR TRANSITION TABLE IS CHANGED. The Set reduces the number of places a transition is enforced from two to one per verb; it does not decide which transitions are legal. That is `t1gbwg`'s question for backlog items, and `nvsz19`'s for plans.
@@ -176,6 +189,13 @@ after the last migration child, and NOT by this plan:
 - Owner: author
 - Resolution or deferral rationale: RESOLVED by spec `wy9aru` Section 4.1 in favor of `status_set` as the surviving implementation, with `backlog.run_set` and `specs.run_set` reduced to thin adapters that keep their names and signatures. Three reasons, in order of weight: it is already the shared engine (four reachable verbs plus `aw finish` reach it, against one each for the others), it already holds the capabilities the flag paths lack (multi-selector batch, setid resolution, `--force`, structured output), and `2lcqno`'s setid semantics plus `z7nbn1`'s one-action-table thesis are both already implemented there. Extracting a new module would mean rewriting four working callers to gain nothing the delegation does not already give.
 
+### OQ-02: which plan owns the `h4fiwa`/`fv4b6s` fixes, child 03 `m1jlwm` or Set `setdispgate` (`wdyz5n`, `ju3rhs`)?
+
+- Blocking: no
+- Status: resolved
+- Owner: plan reviewer (2026-10-07 /plan-review)
+- Resolution or deferral rationale: RESOLVED by keeping all three plans and accepting whichever lands first as the owner of each refusal, because each plan already states that rule (`wdyz5n` gate: "Whichever of the two executes SECOND must consume the evidence branch the first installed"; `ju3rhs` gate: "whichever executes second must REBASE ONTO the first rather than add a second copy"), and only `wdyz5n`/`ju3rhs` carry the items' `From-Backlog` gates, so they are the HANDOFF route that closes them. `m1jlwm` then either confirms and pins both refusals on both spellings, or a maintainer retires it to `superseded/`; E-03/V-03 accept either. Reversible: yes (a maintainer can retire one route at any time). A maintainer who prefers the Set to own both fixes follows the retire-and-move-gate instruction in those plans' gates.
+
 ## Validation and cross-check (verify before reporting the Set complete)
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
@@ -189,11 +209,11 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Observed evidence:
   - Result: pending
 - [ ] V-03 validates E-03
-  - Required evidence: `m1jlwm`'s executed path and lint result; the re-measured refusals for both bypasses on BOTH spellings quoted from its V-01 and V-02; and `h4fiwa` and `fv4b6s` read back showing `- Status: done` with the evidence citation recorded, confirming the SATISFIED route rather than a cleared gate.
+  - Required evidence: `m1jlwm`'s executed path and lint result (or its `superseded/` path and RETIRED header if OQ-02's alternative was taken); the re-measured refusals for both bypasses on BOTH spellings quoted from its V-01 and V-02; a statement, with the plan path, of which plan (`m1jlwm`, `wdyz5n` or `ju3rhs`) installed each refusal and that the later one consumed it rather than adding a copy, shown by one behavioral refusal per spelling (no source census); and `h4fiwa` and `fv4b6s` read back showing `- Status: done`, `- Blocks-Release:` still present, and the closing history line naming the executed carrier or `--evidence` path, confirming HANDOFF or SATISFIED rather than a cleared gate.
   - Observed evidence:
   - Result: pending
 - [ ] V-04 validates E-04
-  - Required evidence: `m94eht`'s executed path and lint result; `wy9aru`'s `- Status:` quoted as `approved` with its OQ-1 answer, proving the dependency edge was satisfied rather than bypassed; the `1525-02` R2 amendment diff; and the harness's specs agreement assertions shown passing unchanged.
+  - Required evidence: `m94eht`'s executed path and lint result; `ulepef`'s executed path plus `git log --format='%h %cI %s' -1 -- <path>` for both `ulepef` and `m94eht` showing `ulepef` landed first; `wy9aru`'s `- Status:` quoted as `approved` with its OQ-1 answer, proving the dependency edge was satisfied rather than bypassed; the `1525-02` R2 amendment diff; and the harness's specs agreement assertions shown passing unchanged.
   - Observed evidence:
   - Result: pending
 - [ ] V-05 validates E-05
@@ -228,7 +248,9 @@ Execution contract (`AGENTS.md`): each child commits ONLY the files it changed, 
 `Scope-Paths`, through `aw commit <plan> -- <paths>`; never `git add -A`, never `-a`, never
 `--no-verify`, and never push. Paste ACTUAL runner output for every test claim.
 
-Post-gate lifecycle: this orchestrator is retired to `.aw/records/plans/executed/` only once ALL FIVE
-children are `executed` on disk. The backlog item `fcnz1r` is set to `graduated` by the runner upon
+Post-gate lifecycle: this orchestrator is retired to `.aw/records/plans/executed/` only once ALL SIX
+children are `executed` on disk. Under a runner, retirement is the runner's (orchestrator rollup); a
+human or agent executing by hand verifies V-01 to V-06 first and then uses `aw ipd finalize`, never a
+hand `git mv`. The backlog item `fcnz1r` is set to `graduated` by the runner upon
 verification; no plan in this Set sets it, and no agent should set it `done`, since `graduated` means
 the design is handed off while `done` means the code is written and validated.

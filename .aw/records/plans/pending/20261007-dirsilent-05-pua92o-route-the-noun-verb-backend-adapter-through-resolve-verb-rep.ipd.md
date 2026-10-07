@@ -1,0 +1,122 @@
+# IPD: Route the noun-verb backend adapter through resolve_verb_repo_root so bare index/group/rename/archive climb
+
+- Date: 2026-10-07
+- Kind: child
+- Concern: Found at `/plan-review` of orchestrator `axozpe` (finding PR-001): there is a SEVENTH resolver bypass, spelled differently from the six Order 03 `sjsb04` fixes and therefore missed by its exact-string census. `cli._nv_backend_args` builds the args namespace handed to every noun-verb backend (`artifact_types.TYPE_BACKENDS`: `index`, `find` for plans/research, `rename`, `group`, `archive`, plus `_run_check`'s fallback backend) and sets `sub.dir = getattr(args, "dir", None) or os.getcwd()`. That turns a BARE invocation into an EXPLICIT `--dir <cwd>`, and the resolver deliberately never climbs an explicit `--dir` (`resolve_verb_repo_root` docstring, `lmyeas` OQ-01). So a bare `aw index research --check` from a project subdirectory surveys the subdirectory. Measured at review in an AW project checkout, lane HEAD `ad22ff70a`: from the root `aw index research --check --agent` gives `"outcome":"findings","exit":1` with 179 findings; from `docs/` it gives `"outcome":"conforms","exit":0,"verified":true` with 2 findings (only `check.stale-index-missing`). That is a false clean answer reachable with no flag, the exact defect class this Set exists to remove.
+- Scope: Make the adapter stop inventing an explicit `--dir`. IN: change `cli._nv_backend_args` so that when the operator gave no `--dir`, the namespace it builds carries `dir=None` (or the resolver's result, see OQ-01), so each backend's own `resolve_verb_repo_root(getattr(args, "dir", None))` call climbs; and add a subprocess regression test pinning the bare-cwd climb for the read-class `index <type> --check` path and the write-class `group`/`rename`/`archive` preview paths. OUT: adding a refusal to any verb (the read-class backends `plans_index.run_index`/`research_index.run_index` are reached through helpers `rlhmt9` F-02 measured as single-class WRITE, and refusals on write verbs are excluded Set-wide by `lmyeas` OQ-01); making an explicit `--dir` climb; changing `resolve_verb_repo_root`'s body or docstring; touching the six `sjsb04` sites; touching any backend module.
+- Scope-Paths: agent_workflows/cli.py, tests/test_nv_backend_args_climb.py
+- Item-Dependencies: executed:sjsb04
+- Status: to-review
+- Work-Kind: bug
+- Priority: medium
+- From-Backlog: rgl2d4
+- Blocks-Release: next
+- Set: dirsilent
+- Order: 5
+- Highest E allocated: 02
+- Author: opencode uri/its_direct/pt3-claude-opus-5.5-1m-us
+- Id: pua92o
+
+## Workflow history
+
+- 2026-10-07 to-review (opencode uri/its_direct/pt3-claude-opus-5.5-1m-us): authored during the `axozpe` coverage-correction turn to own PR-001 (the seventh bypass site `cli._nv_backend_args`). GATE NOTE: inherits `- From-Backlog: rgl2d4` and `- Blocks-Release: next`. Depends on `sjsb04` because both edit `cli.py`'s resolution logic, and this plan's test reuses that plan's fixture shape; the runner isolates worktrees, so the edge is about meaning rather than file contention.
+
+## Goal
+
+A bare `aw index|group|rename|archive <type>` run from a project subdirectory operates on the project root, the same as its siblings, so `aw index research --check` stops reporting `conforms` over a tree it never examined. An explicit `--dir` keeps its verbatim, non-climbing meaning.
+
+## Detailed Implementation Checklist (TODO)
+
+Execution-state rule: mark an `E-*` item complete only after performing the action. That mark is not validation. Right-sizing rule: each E-item must address one concern and be executable in one focused pass; split when an E-item names multiple distinct deliverables or independent test-surfaces. Accepted execution states: blocked, failed, pending, performed; terminal gate demands 'performed'.
+
+### Task group 1: stop inventing an explicit --dir
+
+- [ ] E-01 CHANGE `cli._nv_backend_args` SO A BARE INVOCATION REACHES THE BACKEND AS BARE. Replace `sub.dir = getattr(args, "dir", None) or os.getcwd()` with a form that preserves an explicit `--dir` verbatim and, when none was given, sets `sub.dir` to `str(resolve_verb_repo_root(None))` (OQ-01: the resolved root rather than `None`, because some backends may read `args.dir` directly as a string). First re-derive every backend reachable through `_nv_backend_args` from `artifact_types.TYPE_BACKENDS` and from `_run_check`'s fallback, and confirm by reading each that it tolerates an absolute resolved root string (it already receives an absolute cwd string today, so this is expected to hold). Remove the now-unused `import os` only if nothing else in the function uses it.
+  - Depends on: none
+  - Expected outcome: with no `--dir`, the namespace carries the climbed project root; with an explicit `--dir`, it carries exactly what the operator passed; no backend module is edited.
+  - Execution state: pending
+
+### Task group 2: pin it
+
+- [ ] E-02 ADD `tests/test_nv_backend_args_climb.py`, driving the real CLI in a SUBPROCESS (`python3 -m agent_workflows`, `PYTHONPATH` at the checkout, `AW_NO_REEXEC=1`) against a `tempfile` git project installed with `--records-backend repository` and seeded with at least one plan and one research record that produce a NONZERO observable at the root (for example an `index <type> --check` that reports a stale or missing index entry, or a `group plans` preview that names a real plan). Assert: (a) bare `index plans --check` and `index research --check` from `<root>/src/deep` give the SAME outcome, exit and finding count as from `<root>`; (b) a bare `group`/`rename` PREVIEW (no `--apply`) from `<root>/src/deep` proposes the same paths as from `<root>` and writes nothing (`git status --porcelain` unchanged); (c) explicit `--dir <root>/src/deep` still does NOT climb (its result differs from the root's, the preserved `lmyeas` OQ-01 rule); (d) every `--agent` record validates with `agent_schema.validate_agent_record` and contains no absolute fixture path. The test must not read source files, use `inspect`/`ast`, or assert on the `os.getcwd` string (GUIDING_PRINCIPLES P16).
+  - Depends on: E-01
+  - Expected outcome: the new file passes; reverting E-01 makes assertion (a) fail.
+  - Execution state: pending
+
+## Project conventions discovered (Step 0)
+
+- The resolver rule is recorded in `project_context.resolve_verb_repo_root`'s docstring: an explicit `--dir` is honored verbatim with no climb; a bare call climbs via `find_project_root`. No spec governs it (`sjsb04` F-08).
+- Noun-verb dispatch: `cli._run_noun_verb` routes `search`/`check`/`find` to their own runners and every other verb through `at.resolve_backend(t, verb)` called with `_nv_backend_args(args, t)`. `_run_check` also calls `_nv_backend_args` on its fallback path.
+- Fixture trap (`sjsb04` F-07): a non-interactive install without `--records-backend repository` writes records under `$HOME`, making a root control vacuous.
+- Cite code by symbol; line numbers drift.
+
+## Findings
+
+| # | Finding | Evidence |
+|---|---|---|
+| F-01 | `cli._nv_backend_args` converts a bare invocation into an explicit `--dir <cwd>`, so no backend reached through it climbs. | `agent_workflows/cli.py` `_nv_backend_args` "`sub.dir = getattr(args, "dir", None) or os.getcwd()`"; `resolve_verb_repo_root` "`if explicit_dir: return Path(explicit_dir).expanduser().resolve()`" |
+| F-02 | It is user-visible as a false clean answer. Bare `aw index research --check --agent` gives `findings, exit 1, 179` at the root and `conforms, exit 0, verified:true, 2` from `docs/`. | measured at `axozpe` review, HEAD `ad22ff70a` |
+| F-03 | `sjsb04`'s census missed it because it matched the exact string `Path(getattr(args, "dir", None) or os.getcwd())`; this site has no `Path(...)` wrapper. | `sjsb04` F-01 and its Deferred row "AUDITING FOR OTHER RESOLUTION EXPRESSIONS" |
+| F-04 | The backends behind it include write verbs (`plans_refs.run_mv`, `run_set_assign`, `plans_archive.run_archive`, the research equivalents). For a bare call, their target moves from cwd to the project root. This is the same bare-climb behavior every sibling write verb already has, so it adds no new hazard class, but it is a behavior change and is pinned in preview only. | `artifact_types.TYPE_BACKENDS`; `plans_index._dirs` / `research_index._roots` calling the resolver |
+
+## Proposed changes (ordered, validatable)
+
+1. E-01: the one-expression change in `cli._nv_backend_args`.
+2. E-02: the subprocess regression test.
+
+## Deferred / out of scope (with reason)
+
+- ADDING A REFUSAL TO `index <type> --check` FOR AN EXPLICIT non-surveyable `--dir`. Its helpers are single-class write per `rlhmt9` F-02, so a refusal at the helper would refuse write verbs too, which `lmyeas` OQ-01 excludes. The bare case is the defect fixed here.
+  - Carrier-Declined: excluded by the Set's write-side policy (`lmyeas` OQ-01, `rlhmt9` F-02); a split of those helpers is `rlhmt9`'s documented remedy if a read-only caller is later added
+- A COMPLETENESS CLAIM about other differently-spelled bypasses. E-01 re-derives the backends behind this one adapter; it does not audit the whole package.
+  - Carrier-Declined: no further measured site; the Set states its census limits
+
+## Scope check
+
+- Over-scope: none.
+- Under-scope: none known. The adapter is the single choke point for every noun-verb backend, so one change covers all of them.
+
+## Required tests / validation
+
+- `python3 -m pytest tests/test_nv_backend_args_climb.py tests/test_resolver_bypass_sites_climb.py tests/test_explicit_dir_subdir_resolution.py tests/test_explicit_dir_non_project.py` for the focused surface.
+- `python3 -m pytest` BARE per the repository contract, judged on the DELTA OF FAILING NODE IDS against a baseline YOU measured on a clean tree before editing. The baseline will include Orders 01 to 04's changes.
+
+## Spec / documentation sync
+
+N/A: no spec governs the resolution rule (`sjsb04` F-08). The change brings the adapter in line with the rule already documented in `resolve_verb_repo_root`'s docstring.
+
+## Open questions
+
+### OQ-01: Should a bare call pass `dir=None` or the resolved root string?
+
+- Blocking: no
+- Status: resolved
+- Owner: plan author
+- Resolution or deferral rationale: RESOLVED: the resolved root string. Today every backend receives a non-empty absolute string, so passing the climbed root keeps that type invariant for any backend that reads `args.dir` directly, while backends that call `resolve_verb_repo_root(args.dir)` get the same root either way (it resolves an absolute path to itself). E-01 confirms tolerance by reading each reachable backend; if one is found that needs `None`, the executor records it in V-01.
+
+## Validation and cross-check (verify before reporting done)
+
+Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'.
+
+- [ ] V-01 validates E-01
+  - Required evidence: paste the committed diff of `cli._nv_backend_args`. Paste the re-derived list of backends reachable through it (from `artifact_types.TYPE_BACKENDS` and `_run_check`'s fallback), with one line per backend saying how it reads `args.dir`. Paste the BEFORE/AFTER measurement by subprocess, with the interpreter and `PYTHONPATH` named, on a fixture seeded via `--records-backend repository`: bare `index research --check --agent` and `index plans --check --agent` from `<root>/src/deep` and from `<root>`. BEFORE must show they disagree, AFTER that they agree, with a NONZERO observable at the root. Paste explicit `--dir <root>/src/deep` AFTER still not climbing.
+  - Observed evidence:
+  - Result: pending
+
+- [ ] V-02 validates E-02
+  - Required evidence: paste the committed test file's assertions for (a) to (d) and the run showing it PASSING. Paste a grep of the file for `inspect`, `ast.parse`, `os.getcwd` and any read of `agent_workflows/*.py`, returning nothing. PASTE THE MUTATION: restore `or os.getcwd()` in `_nv_backend_args`, paste the FAILING output from assertion (a), revert, and paste green. PASTE the BARE `python3 -m pytest` summary line reconciled against your own baseline, naming any failing node id. PASTE `aw ipd lint` conforming, `aw sanitize --agent`, and `git diff --cached --name-only` immediately before committing, listing only the two `- Scope-Paths:` entries.
+  - Observed evidence:
+  - Result: pending
+
+## Approval and execution gate
+
+- Size assessment: standard
+- Cohesion rationale: not required
+
+This plan requires explicit human approval before execution. EXECUTION CONTRACT: commit ONLY the two declared `- Scope-Paths:` through `aw commit <plan> -- <paths>`, never `git add -A`, and NEVER push. Paste the ACTUAL runner output for every test claim. Resolve every `V-*` item with concrete pasted evidence, in a separate pass from its `E-*` mark.
+
+SCOPE FENCE (a declaration for the runner to reconcile, not an instruction to stop). Do NOT: add a refusal to any verb; make an explicit `--dir` climb; edit `resolve_verb_repo_root`; touch the six `sjsb04` sites; edit any backend module. An out-of-scope edit that proves necessary is made and then justified with `aw ipd finalize --scope-reason`, and a declared path left unmodified needs `--scope-ack`.
+
+WHAT APPROVAL APPROVES: a bare noun-verb command from a subdirectory now targets the project root. For write verbs (`group`/`rename`/`archive`) that is a target change, the same one every sibling write verb already has for a bare call. It is pinned in preview mode only.
+
+ON COMPLETION, the executor runs `aw ipd lint --phase pre-transition` until it conforms. The terminal transition is owed unconditionally, but its owner is conditional. Under `aw oc run` / `aw agy run` the RUNNER performs `aw ipd begin`/`aw ipd finalize` and the executor must not. Executed by hand, the executor runs `aw ipd finalize <plan> --actor <agent/model> --message <summary> --apply`. Never hand-roll the move with `git mv` and never hand-edit `- Status: executed`. Backlog `rgl2d4` is NOT closed by this plan: it is a carrier of the item's `- Blocks-Release: next` gate, and the item closes only once every carrier executes.

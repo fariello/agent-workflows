@@ -2,10 +2,10 @@
 
 - Subject-Id: 9wzlou
 - Subject-Type: ipd
-- Reviewed-At: 2026-10-01
-- Reviewer: opencode/its_direct/pt3-claude-opus-5-1m-us
+- Reviewed-At: 2026-10-07
+- Reviewer: opencode/its_direct/pt3-claude-opus-5.5-1m-us
 - Verdict: APPROVE WITH REVISIONS APPLIED
-- Findings: PR-101 (HIGH, fixed), PR-102 (MEDIUM, fixed), PR-103 (MEDIUM, fixed), PR-104 (LOW, fixed), PR-105 (LOW, fixed)
+- Findings: round 2: PR-201 (MEDIUM, fixed), PR-202 (MEDIUM, fixed), PR-203 (LOW, fixed), PR-204 (LOW, fixed), PR-205 (LOW, fixed)
 
 ## Round 1
 
@@ -128,3 +128,33 @@ declaring paths it must not modify.
 
 No decision in this round is `Reversible: no`, so none requires escalation beyond this record. No finding
 was left `OPEN` or `DEFERRED`, so no `- Blocking: yes` escalation is owed under the gate threshold.
+
+## Round 2
+
+Re-review on 2026-10-07 in isolated review lane at HEAD `ad22ff70a` by opencode/its_direct/pt3-claude-opus-5.5-1m-us, after
+the plan was demoted (gradcover `52opph`) and returned to `to-review` with owner annotations. Plan was byte-identical
+to the lane input and committed, so no pre-review snapshot. Preflight `aw ipd lint --phase author --agent`: `clean`, exit 0.
+`IPD-S407`: no violation. `aw ipd coverage 9wzlou` (S408): ready before edits, and re-run with a fresh model probe after
+edits (`ready: true`, `finding_codes: []`, new fingerprint written). Re-verified live state: `jjh4aj` is in `executed/`
+with `- Status: executed`; spec `89xjll` is in `specs/reviewed/` (`- Status: reviewed`) with blocking OQ-04/OQ-05 open
+and no `- Approval:`/`- Readiness:` line (grep exit 1); `rtvdak` carries `- Item-Dependencies: executed:jjh4aj, state:spec:approved:89xjll`;
+backlog `vy20et` is `open`; `rg 'SPEC-PLAN-TRACE' agent_workflows/` is still empty.
+
+### Findings
+
+| ID | Severity | Scope | Area | Evidence | Finding | Remediation Risk | Decision | Resolution |
+|----|----------|-------|------|----------|---------|------------------|----------|------------|
+| PR-201 | MEDIUM | IN-SCOPE | Rubric G, Step 2.4 sweep rule | Plan "Approval and execution gate", paragraph "THE SET CANNOT RUN STRAIGHT THROUGH UNATTENDED": "depends on a human approval that no dependency edge can express"; `runner_shared.edge_satisfied` `state:` branch; `rtvdak` front matter line 8 | Round 1's PR-101 refuted the "no edge can express the approval" claim in Cross-IPD SECOND and Scope check but left the same claim in the gate paragraph, the section a human approver reads. The plan contradicted itself on its one human gate. | C:Low; U:Low; S:Low; F:Low; Overall:Low | FIXED | Paragraph rewritten: runner cannot perform approval but enforces it through `state:spec:approved:89xjll`, Order 02 goes `dependency-blocked` until approved, and E-01 refusal is the second layer. Correction dated in place. |
+| PR-202 | MEDIUM | IN-SCOPE | Rubric G, live-artifact re-derivation; evidence feasibility | E-01 Expected outcome "ONE new spec sitting at `- Status: to-review`"; V-01 "showing `to-review`"; spec `89xjll` `- Status: reviewed` in `specs/reviewed/` | E-01/V-01 demanded the spec's CURRENT status be `to-review`, a live state that has already moved (spec-review on 2026-10-03) and must move again to `approved` before E-02 can ever be confirmed. As written V-01 was unsatisfiable on the normal path, inviting an executor to either fail the parent or misreport. | C:Low; U:Low; S:Low; F:Low; Overall:Low | FIXED | Bar restated as a property: the spec's own history records the `to-review` handoff by `jjh4aj`, no agent-written attestation exists, and any `approved` line carries `--by-human`; current status may be `to-review`, `reviewed` or `approved`. |
+| PR-203 | LOW | IN-SCOPE | Rubric G (traceability) | `## Child IPDs` row 01 File column `.aw/records/plans/pending/...jjh4aj...`; `ls .aw/records/plans/executed/` shows it there | Child table pointed at a path that no longer exists. | C:Low; U:Low; S:Low; F:Low; Overall:Low | FIXED | Path updated to `executed/`. |
+| PR-204 | LOW | IN-SCOPE | Rubric G (ownership clarity) | Deferred entry "CLOSING BACKLOG `vy20et` AS `done`": "The runner sets the item `graduated` on verification"; Goal says the item closes through the runner's backlog close; `runner_shared.evaluate_backlog_close`, `process_backlog_close` | The entry conflated the graduation transition with the `done` close and did not name who closes the item, which is the very obligation that got this plan demoted on 2026-10-06. | C:Low; U:Low; S:Low; F:Low; Overall:Low | FIXED | Entry names both actors: the graduating run sets `graduated`; `process_backlog_close` closes `done` only when every `From-Backlog: vy20et` carrier (`9wzlou`, `jjh4aj`, `rtvdak`) is `executed`. |
+| PR-205 | LOW | UNDER-SCOPE | Rubric G (what a human is approving) | Spec `89xjll` OQ-04/OQ-05 "(OPEN, BLOCKING, raised at review SR-003/SR-002)" | The plan did not tell an approver that the Set's remaining human act now includes answering two blocking spec questions, not only signing the spec. | C:Low; U:Low; S:Low; F:Low; Overall:Low | FIXED | Added a dated "STATE AT 2026-10-07 REVIEW" note under Scope check, framed as context to re-derive, not as a bar. |
+
+### Decisions
+
+| ID | Question | Chosen | Alternatives considered | Basis | Reversible |
+|----|----------|--------|-------------------------|-------|------------|
+| D-1 | Should V-01 still require the spec to read `to-review`? | No; require the handoff as recorded history plus the no-forged-attestation property. | Keep `to-review` literal. REJECTED: unsatisfiable once the spec moves, which it must for E-02. | Spec `89xjll` history lines 13-16; rubric G live-artifact convention. | yes |
+| D-2 | Is the spec's open blocking OQ-04/OQ-05 a blocker on THIS plan? | No; it is held by `rtvdak`'s `state:spec:approved:89xjll` edge and by spec approval, not by the parent. | Raise a `Blocking: yes` OQ here. REJECTED: would duplicate the spec's own questions in a second place and block a parent that performs no work. | `rtvdak` line 8; plan OQ-01 rationale ("two places for one answer"). | yes |
+
+No decision is `Reversible: no`. No finding was left `OPEN` or `DEFERRED`.

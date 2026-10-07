@@ -2,7 +2,7 @@
 
 - Subject-Id: nxh5s4
 - Subject-Type: ipd
-- Reviewed-At: 2026-10-02
+- Reviewed-At: 2026-10-07
 - Reviewer: opencode/its_direct/pt3-claude-opus-5.5-1m-us
 - Verdict: REVIEWED - OPEN QUESTIONS
 
@@ -51,3 +51,39 @@ Re-verified (stdin probes, no file written, no production or test edit):
 | D-1 | How do tests arrange mechanism outcomes without patching the probe's return? | Module-level launcher-argv seam `_EGRESS_PROBE_NS_ARGV` | Patch `subprocess.run` (brittle, couples to `_run_probe` internals); patch return value (forbidden by E-05) | review probe `-Ur` rc 4 not-enforced | yes |
 | D-2 | What is the direct-probe test's expected value on an unknown host? | Decided by executing `unshare -Urn true` in the test | `shutil.which("unshare")` (presence inference, forbidden); hard-coded True (red on restricted CI) | module docstring presence-inference ban; F-4 host variance | yes |
 | D-3 | Should the probe enforce the platform gate itself? | Yes | Rely on `detect_host_capabilities` gate (does not cover runner-safety probes) | `detect_host_capabilities` block order | yes |
+
+## Round 2
+
+Re-review on 2026-10-07 in isolated review lane at HEAD `e9de18a08` by opencode/its_direct/pt3-claude-opus-5.5-1m-us, after
+gradcover `52opph` demoted the plan and it returned to `to-review` with the Set-level bare-suite sweep assigned to
+`wn956n` E-05/V-05. Plan byte-identical to lane input and committed, so no pre-review snapshot. `aw ipd lint --phase
+author --agent`: `clean`. `- Kind: child`, so S407/S408 do not apply.
+
+RE-DEMONSTRATED THE PROBE DESIGN at this HEAD through the real `hsp._run_probe` (scratch `python3 -c`, nothing written):
+`unshare -Urn true rc 0`; `('unshare', '-Urn') rc 0 | denied refused: [Errno 101] Network is unreachable | parent got b'HELLO' 0.199s`;
+`('unshare', '-Ur') rc 4 | denied REACHED - not enforced | parent got b'HELLO' 0.186s`;
+`('no-such-unshare-xyz', '-Urn') rc 127 | FileNotFoundError ... | parent got TimeoutError('timed out') 0.008s`. So the
+probe CAN say yes on this host, the E-04/E-05 mechanism seams are reachable, and launcher failure is distinguishable.
+
+Re-verified: `PRESENCE_VS_OBSERVATION` still has no consumer (one hit, its assignment); `x2dwu5` executed, `pi3bk8`
+pending at `to-review`; `test_new_contract_fields_and_defaults` still couples `RUNNER_SAFETY_CAPABILITIES` to
+`CONTRACT_FIELDS`; `host_cmd._capability_rows` still introspects `to_dict()`; `detect_host_capabilities` still calls
+`probe_runner_safety_capabilities` under `plat == running_platform` before the certified-platform gate.
+
+### Findings
+
+| ID | Severity | Scope | Area | Evidence | Finding | Remediation Risk | Decision | Resolution |
+|----|----------|-------|------|----------|---------|------------------|----------|------------|
+| PR-101 | MEDIUM | IN-SCOPE | Rubric C (operability), evidence currency | F-5 and OQ-02 ("once per opencode item dispatch (`oc_runipd._apply_execution_profile`...)"); `oc_runipd._apply_execution_profile` now calls `runner_shared.ensure_frozen_host_capabilities`; that function returns `state["host_capabilities"]` and probes only when absent; `HostSandboxCapabilities.from_dict` filters to known fields | The cost and blast-radius reasoning rested on a per-item probe that no longer exists; it is once per run. The plan also did not say what a resumed run with an older frozen descriptor reports (the new field defaults False, fail-closed). | C:Low; U:Low; S:Low; F:Low; Overall:Low | FIXED | F-5 and OQ-02 corrected with the symbols; resumed-run behavior recorded; remaining multiplier (the test suite) named. |
+| PR-102 | LOW | UNDER-SCOPE | Rubric E | V-03 "A green summary line is the evidence"; tests call `detect_host_capabilities` / `probe_runner_safety_capabilities` in ~45 places across 4 files | A bare "green" line does not distinguish pre-existing failures, and a new subprocess per call adds suite time nobody measured. | C:Low; U:Low; S:Low; F:Low; Overall:Low | FIXED | V-03 bar is now the empty after-minus-before failing set; adds before/after wall time on the two host test files with a route to backlog if perceptible. |
+| PR-103 | LOW | IN-SCOPE | Live-artifact convention | E-05 "That plan is `approved`"; `pi3bk8` reads `- Status: to-review` | Stated a drifting plan status as fact. | C:Low; U:Low; S:Low; F:Low; Overall:Low | FIXED | Now a re-derive instruction with both observations as context. |
+| PR-104 | LOW | IN-SCOPE | Ownership | Gate last sentence "the runner sets `graduated`" | Conflated graduation with the `done` close. | C:Low; U:Low; S:Low; F:Low; Overall:Low | FIXED | Names the graduating run and `runner_shared.evaluate_backlog_close` as the respective owners. |
+
+### Decisions
+
+| ID | Question | Chosen | Alternatives considered | Basis | Reversible |
+|----|----------|--------|-------------------------|-------|------------|
+| D-1 | Does the frozen descriptor make the probe's uncached-ness moot for runs? | Yes for runs; the suite remains the multiplier, so measure it. | Leave per-item claim. REJECTED: false at HEAD. | `ensure_frozen_host_capabilities` docstring ("never probes per item"). | yes |
+
+OQ-03 (naming) remains OPEN, `Blocking: no`, owner maintainer, carried by `wcbpqf`: a genuine maintainer naming call that
+the field's mechanical renameability makes non-blocking. Not answerable from the repository. No finding left OPEN or DEFERRED.
