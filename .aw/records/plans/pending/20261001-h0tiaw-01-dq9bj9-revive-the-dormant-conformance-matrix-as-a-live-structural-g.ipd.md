@@ -7,6 +7,7 @@
 - Scope-Paths: tests/conformance_matrix.py, tests/test_conformance_matrix_structure.py, agent_workflows/command_surface.py
 - Item-Dependencies: none
 - Status: reviewed
+- Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
 - From-Backlog: h0tiaw
@@ -484,7 +485,7 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 - Size assessment: standard
 - Cohesion rationale: not required
 
-This plan requires human approval before execution and carries no `- Readiness:` field, because that field is
+This plan requires human approval before execution. Its `- Readiness:` field was written by `/plan-review`, because that field is
 an OUTPUT of `/plan-review` and writing one at authoring would forge the attestation the auto-approve
 predicate reads first.
 
