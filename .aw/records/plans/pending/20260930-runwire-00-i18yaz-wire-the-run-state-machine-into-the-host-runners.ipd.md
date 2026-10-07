@@ -10,9 +10,10 @@
   EXCLUDES, AND THIS FENCE IS THE MOST IMPORTANT PART OF THIS PLAN. (1) NO LEDGER. Making a driver run write a hash-chained `ledger.jsonl` so `run_engine.RunEngine` and therefore `run_recovery` become reachable is EXPLICITLY OPEN and is NOT decided here; `runner_shared`'s own comment says "WHETHER A DRIVER RUN SHOULD WRITE A LEDGER IS STILL OPEN ... Nobody may cite this section as a decision to abandon the ledger design", and approved spec `25kzda` concedes the ledger is built but unwired. `run_recovery` is therefore UNREACHABLE BY CONSTRUCTION from a driver run and this Set does not import it; see OQ-01. (2) NO REQUEUE. The `correction_required -> runnable` transition remains unimplemented (`1bfppy` OQ-01). (3) NO VOCABULARY REPLACEMENT. No driver status token is renamed, removed, or re-spelled, and `TERMINAL_STATES` keeps every member: a translation is ADDITIVE and a rename would break `run_viewer`, `runner_shutdown.KNOWN_ITEM_STATUSES`, `artifact_audit` and the attention mapping at once. (4) NO NEW REFUSAL from the transition check (Order 01 is report-only); Order 02 DOES refuse, and its fence says exactly where.
 - Scope-Paths: .aw/records/plans/pending/20260930-runwire-00-i18yaz-wire-the-run-state-machine-into-the-host-runners.ipd.md
 - Item-Dependencies: none
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
 - Coverage: pass
-- Coverage-Fingerprint: 0ff0457383ab974d5a170cf2e77bf1ca7be2d465cd954e37b86425a3e4aa2c5e
+- Coverage-Fingerprint: d3b882caa768fe31875e606991d066d528cd607133270b443758d8686292d710
 - Coverage-Checked: 2026-10-07 by uri/its_direct/pt3-claude-opus-5.5-1m-us
 - Work-Kind: chore
 - Priority: medium
@@ -24,6 +25,8 @@
 - Id: i18yaz
 
 ## Workflow history
+- 2026-10-07 reviewed (aw set): /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005, PR-006. E-01/E-02 reduced to confirm-child items reading 32jpl1 (executed) and eow7p4 V-05, which owns the Set-level checks; removed demands on deleted tests (test_runner_shutdown.py, test_runner_refork_guard.py); restated the shared runner_shared.py path as serialized, not colliding; recorded that ildjse reopened and needs re-graduation; fixed the addopts quote; completed the execution contract.
+- 2026-10-07 coverage pass (aw oc run): fingerprint d3b882caa768, model uri/its_direct/pt3-claude-opus-5.5-1m-us
 - 2026-10-07 to-review (aw set): returned to review: Set-level checks owned by eow7p4 E-05 (runs last); coverage pass recorded; open questions non-blocking
 - 2026-10-07 coverage pass (aw oc run): fingerprint 0ff0457383ab, model uri/its_direct/pt3-claude-opus-5.5-1m-us
 - 2026-10-07 note (opencode its_direct/pt3-claude-opus-5.5-1m-us): each criterion and Set-level check now leads with its owner; the cross-child checks are owned by `eow7p4` E-05, which runs last.
@@ -49,14 +52,14 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 - [ ] E-01 CONFIRM 32jpl1 REACHED executed
   - Depends on: none
-  Confirm child 01 (`32jpl1`, map the driver item status vocabulary onto run_state) is `executed`, with its own validation evidence present. Confirms the two children are authored and mutually consistent before either executes: each carries `- From-Backlog: ildjse`, neither declares a `- Blocks-Release:` gate, and their `- Scope-Paths:` do not collide.
-  - Expected outcome: both child rows in the table below resolve to real files on disk; the cross-child properties are checked and reported; no product file is touched by this item.
+  Confirm child 01 (`32jpl1`, map the driver item status vocabulary onto run_state) is `executed`, with its own validation evidence present. At review (2026-10-07) it IS executed (`.aw/records/plans/executed/20260930-runwire-01-32jpl1-...ipd.md`, finalize commit `f4de9ea19`), so this item reads its record; it does not re-perform its checks. Also read back the two children's front matter: each carries `- From-Backlog: ildjse`, neither declares a `- Blocks-Release:` gate, and `eow7p4` declares `- Item-Dependencies: executed:32jpl1`. Both children declare `agent_workflows/runner_shared.py`; that shared path is EXPECTED (both wire the one shared module) and is serialized by the dependency edge, so it is not a collision.
+  - Expected outcome: `32jpl1` reads `- Status: executed` under `executed/` with every `V-*` carrying pasted evidence and `Result: pass`; both child rows resolve to real files; the front-matter properties above are quoted; no product file is touched by this item.
   - Execution state: pending
 
 - [ ] E-02 CONFIRM eow7p4 REACHED executed
   - Depends on: E-01
-  Confirm child 02 (`eow7p4`, enforce verifier session independence and verifier state authority) is `executed`. Confirms the Set-wide no-regression property after both children are executed: no driver status token was renamed or removed by either child, and every reader of that vocabulary still passes.
-  - Expected outcome: `runner_shared.TERMINAL_STATES_CANONICAL`, `runner_shared.TERMINAL_STATUS_ALIASES` and `runner_shutdown.KNOWN_ITEM_STATUSES` hold the same members after the Set as before it, proven by a before/after set comparison, and the readers named in V-02 pass.
+  Confirm child 02 (`eow7p4`, enforce verifier session independence and verifier state authority) is `executed`. The Set-wide checks (one translation, no private host copy, vocabulary unchanged, ledger fence, `run_recovery` residual, bare suite against baseline) are PERFORMED by `eow7p4` E-05/V-05, which runs last; this item only confirms that child's V-05 carries pasted evidence for each of (a) to (f) and does not re-run them.
+  - Expected outcome: `eow7p4` reads `- Status: executed` under `executed/`; its V-05 shows pasted evidence for (a) to (f), including an EMPTY symmetric difference for each of the three vocabulary collections and the bare-suite line beside the baseline.
   - Execution state: pending
 
 ## Child IPDs, sequence, and dependencies
@@ -81,7 +84,7 @@ WHY 02 DEPENDS ON 01 rather than being independent: 02's authority check asks "i
 ## Cross-IPD validation
 
 - [Owner: eow7p4 E-05, which runs last] NO SECOND STATE MACHINE: after both children, exactly one module defines the driver-status-to-`run_state` translation. Proven by grepping for the translation symbol across `agent_workflows/` and asserting one definition site.
-- [Owner: eow7p4 E-05, which runs last] NO PRIVATE HOST COPY: neither `oc_runipd.py` nor `agy_runipd.py` carries its own transition check or its own session-independence test; both reach the shared ones through `runner_shared`. This mirrors `tests/test_runner_refork_guard.py`'s existing role for the verdict table.
+- [Owner: eow7p4 E-05, which runs last] NO PRIVATE HOST COPY: neither `oc_runipd.py` nor `agy_runipd.py` carries its own transition check or its own session-independence test; both reach the shared ones through `runner_shared`. (As authored this cited `tests/test_runner_refork_guard.py` as precedent; that file was deleted by test-trim commit `19313eed7` and no longer exists, so it is not a precedent to rely on.)
 - [Owner: eow7p4 E-05, which runs last] VOCABULARY UNCHANGED: the before/after member comparison from E-02, run once for the Set.
 - [Owner: eow7p4 E-05, which runs last] THE LEDGER FENCE HELD: neither child imports `run_engine` or `run_recovery`, and no child writes a `ledger.jsonl`. Proven by grep across both children's changed files.
 
@@ -105,7 +108,7 @@ WHY 02 DEPENDS ON 01 rather than being independent: 02's authority check asks "i
 
 ## Required tests / validation
 
-- [Owner: eow7p4 E-05/V-05, plus each child's own V-items] `python3 -m pytest` run BARE (the configured `addopts` already supply `-q -n auto --dist=worksteal -m 'not slow'`), with the actual `N passed` summary line pasted, compared against a baseline measured in this same lane worktree BEFORE any edit.
+- [Owner: eow7p4 E-05/V-05, plus each child's own V-items] `python3 -m pytest` run BARE (the configured `addopts` already supply `-q -n auto --dist=worksteal -m 'not slow and not livecorpus'`, `pyproject.toml` `addopts`), with the actual `N passed` summary line pasted, compared against a baseline measured in this same lane worktree BEFORE any edit.
 - [Owner: eow7p4 E-05/V-05, plus each child's own V-items] Each child's own new tests, which must drive real functions and assert on real outputs (no `inspect`/`ast`/regex over production source, no caller-count or line-count assertions; GUIDING_PRINCIPLES P16).
 - [Owner: eow7p4 E-05/V-05, plus each child's own V-items] The four cross-IPD checks above, each with pasted evidence.
 
@@ -132,12 +135,12 @@ WHY 02 DEPENDS ON 01 rather than being independent: 02's authority check asks "i
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
 - [ ] V-01 validates E-01
-  - Required evidence: PASTE the output of a directory listing resolving BOTH child paths in the table above, plus, for each child, the four `- From-Backlog:`, `- Blocks-Release:` (expected ABSENT), `- Scope-Paths:` and `- Item-Dependencies:` lines quoted verbatim from the file. State explicitly whether Order 02 declares Order 01 as a dependency and whether it consumes Order 01's translation, since the table requires those two to agree. PASTE `aw ipd lint` output for both children showing conforming.
+  - Required evidence: PASTE `grep -n '^- Status:' <32jpl1 path>` showing `- Status: executed` with the path under `.aw/records/plans/executed/`, and its `AW_NO_REEXEC=1 aw ipd lint --phase post-transition` output conforming. PASTE a directory listing resolving BOTH child paths, plus, for each child, the four `- From-Backlog:`, `- Blocks-Release:` (expected ABSENT), `- Scope-Paths:` and `- Item-Dependencies:` lines quoted verbatim. State explicitly whether Order 02 declares Order 01 as a dependency and whether it consumes Order 01's translation (`runner_shared.map_driver_status_to_run_state`), since the table requires those two to agree. PASTE `aw ipd lint` output for `eow7p4` showing conforming.
   - Observed evidence:
   - Result: pending
 
 - [ ] V-02 validates E-02
-  - Required evidence: PASTE a before/after comparison of the three vocabulary sets computed in-process (`runner_shared.TERMINAL_STATES_CANONICAL`, `runner_shared.TERMINAL_STATUS_ALIASES` keys, `runner_shutdown.KNOWN_ITEM_STATUSES`), showing the symmetric difference is EMPTY for each. The "before" values must be captured from the pre-Set commit rather than remembered. PASTE passing output for the readers that consume these tokens: `tests/test_runner_shutdown.py`, `tests/test_artifact_audit.py`, and the full bare `python3 -m pytest` summary line. A non-empty symmetric difference FAILS this item regardless of whether the suite passes.
+  - Required evidence: PASTE `grep -n '^- Status:' <eow7p4 path>` showing `- Status: executed` under `.aw/records/plans/executed/`, and its post-transition lint output conforming. QUOTE from `eow7p4`'s V-05 the pasted evidence for each of (a) to (f): the single definition-site hit, the two empty host-module greps, the three EMPTY symmetric differences (the "before" taken from `32jpl1`'s base commit, not remembered), the ledger-fence greps, the `run_recovery` residual, and the bare-suite summary line beside the pre-work baseline. A V-05 whose evidence for any of (a) to (f) is empty or paraphrased FAILS this item, as does any non-empty symmetric difference, regardless of whether the suite passes.
   - Observed evidence:
   - Result: pending
 
@@ -148,6 +151,6 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 
 This orchestrator carries ORCHESTRATION ONLY. Its two E-items confirm the children exist and agree (E-01), and check the one Set-wide invariant that is cheaper to verify once than twice (E-02). None of them edits a product file, so none of them is work a child should own instead. Its `- Scope-Paths:` is its own file for that reason.
 
-EXECUTION CONTRACT. Execute children in Order (01 then 02); 02 consumes 01's translation and must not re-derive it. Commit only files changed for the item being executed, through `aw commit <plan> -- <paths>`, never `git add -A` and never `git push`. Verify the staged set with `git diff --cached --name-only` before every commit: this is a shared checkout and uncommitted work you did not create is not yours. Run the suite BARE as `python3 -m pytest` and paste the actual summary line; never claim a pass you did not run.
+EXECUTION CONTRACT. Execute children in Order (01, already executed at review, then 02); 02 consumes 01's translation and must not re-derive it. Commit only files changed for the item being executed, through `aw commit <plan> -- <paths>`, never `git add -A` and never `git push`. Verify the staged set with `git diff --cached --name-only` before every commit: this is a shared checkout and uncommitted work you did not create is not yours. Run the suite BARE as `python3 -m pytest` and paste the actual summary line; never claim a pass you did not run. SCOPE FENCE: `- Scope-Paths:` is a declaration for finalize's reconciliation; an out-of-scope edit the work genuinely needs is made and justified with `--scope-reason`, never treated as a reason to stop.
 
-POST-GATE LIFECYCLE. Each child moves to `.aw/records/plans/executed/` only after `aw ipd lint --phase pre-transition` conforms and every `V-*` item carries concrete pasted evidence. This orchestrator is retired by the runner once both children are `executed` on disk; that retirement SKIPS the pre-transition E/V checkpoint, which is exactly why this plan's own items are orchestration and not work. Backlog item `ildjse` is set to `graduated` by the authoring turn, NOT `done`, and this Set does not close it.
+POST-GATE LIFECYCLE. Each child moves to `.aw/records/plans/executed/` only after `aw ipd lint --phase pre-transition` conforms and every `V-*` item carries concrete pasted evidence. This orchestrator is retired by the runner once both children are `executed` on disk; that retirement SKIPS the pre-transition E/V checkpoint, which is exactly why this plan's own items are orchestration and not work. A human or agent executing by hand verifies V-01 and V-02 and then runs `aw ipd finalize`, never a hand `git mv`. Backlog item `ildjse` was graduated on 2026-10-01 and RETURNED TO `open` on 2026-10-06 when this plan was demoted for an uncovered obligation; its own history says "re-run graduation to complete the handoff". So once this plan is back at `to-review` or later, the graduation must be re-run (`aw backlog set graduated ildjse`), NOT `done`; this Set does not close it.
