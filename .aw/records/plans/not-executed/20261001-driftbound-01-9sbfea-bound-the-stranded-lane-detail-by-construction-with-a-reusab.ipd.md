@@ -6,7 +6,7 @@
 - Scope: Add ONE deterministic budget-spending composer to `attention_contract` and route `stranded_lane_drift` through it, so the lane detail is within the bound for EVERY input by arithmetic rather than for the shapes the corpus happens to exhibit. Convert the existing case (c) from a recorded observation into a real bound assertion. EXCLUDES validating `detail` inside `artifact_core.Drift` (Order 02 owns that), excludes changing `MAX_DESCRIPTIVE_LEN` or `is_safe_descriptive`, and excludes every other `Drift` producer.
 - Scope-Paths: agent_workflows/attention_contract.py, agent_workflows/attention.py, tests/test_attention_lane_detail_bound.py, CHANGELOG.md
 - Item-Dependencies: none
-- Status: reviewed
+- Status: not-executed
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -18,6 +18,7 @@
 - Id: 9sbfea
 
 ## Workflow history
+- 2026-10-07 not-executed (aw set): Maintainer ruling 2026-10-07: do not length-enforce tool-composed drift details; sibling 62pkkg already retired not-executed and backlog 0livgf closed. Retiring the rest of Set driftbound.
 - 2026-10-07 reviewed (aw set): plan-review: APPROVE WITH REVISIONS APPLIED
 
 - 2026-10-07 /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005, PR-006. Reviewed at HEAD `fe2ee961c` in an isolated review lane; plan byte-identical to the lane input, so no pre-review snapshot. Re-measured (gitignored probe): 5 live lane rows, max 262, all safe; 387 run dirs, longest run_id 28; longest worktree name 41; same four signals; existing case (c) composes to 373 through the real producer; `7stpjm` done via executed `lxcexr`, over-bound population now 1 of 123. Prototyped the single-budget composer: sweep bound holds, but pass-through equals today's row only when each segment carries its own joiner. Fixed: composer segment/joiner contract and elided shapes specified so the byte-identical claim is achievable (PR-001); live figures re-measured and the 'live row byte-identical' bar made conditional on re-derivation (PR-002); 7stpjm carrier evidence cited (PR-003); revert route made shared-checkout-safe (PR-004); gate given paste-output rule, scope-fence declaration, conditional finalize ownership and Readiness ownership (PR-005); CHANGELOG ownership assigned to E-04 with V-04 evidence, suite bar compared by failure set, OQ owners recorded (PR-006).

@@ -6,7 +6,7 @@
 - Scope: Order the two children so the bound becomes a property of the `Drift` type without crashing `aw check` on the way. Order 01 bounds the lane producer by construction; Order 02 cleans the live over-bound population, adds the constructor refusal, and amends the spec. This plan itself carries NO implementation work.
 - Scope-Paths: .aw/records/plans/pending/20261001-driftbound-00-itamry-enforce-the-descriptive-bound-on-a-composed-drift-detail-str.ipd.md
 - Item-Dependencies: none
-- Status: reviewed
+- Status: not-executed
 - Readiness: go-pending-approval
 - Coverage: pass
 - Coverage-Fingerprint: 378987f1123b3af6572cfd4d130a940bf6ef8e6ab99d8d5699de26c52ee45da3
@@ -21,6 +21,7 @@
 - Id: itamry
 
 ## Workflow history
+- 2026-10-07 not-executed (aw set): Maintainer ruling 2026-10-07: do not length-enforce tool-composed drift details; sibling 62pkkg already retired not-executed and backlog 0livgf closed. Retiring the rest of Set driftbound.
 - 2026-10-07 reviewed (aw set): plan-review: APPROVE WITH REVISIONS APPLIED
 
 - 2026-10-07 /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005. Reviewed at HEAD `fe2ee961c` in an isolated review lane; plan byte-identical to the lane input, so no pre-review snapshot. Both children pending (`9sbfea` reviewed this sweep, `62pkkg` to-review with `executed:9sbfea`); child table, ordering edge and coverage confirmed (`aw ipd coverage itamry`: ready). Fixed: carriers `7stpjm` and `3jez8u` both finished, so Carrier-Evidence cited and stale bidi prose corrected (PR-001); E-02/V-02 demanded `0livgf` at `graduated` NOT `done`, but a runner closes the item `done` when its last carrier executes (precedent `7stpjm`), and the item is still `open` today, so the expectation now accepts either and forbids writing it (PR-002); suite bar made a by-name failure-set comparison and the byte-identical bar aligned with `9sbfea` (PR-003); gate given paste-output, scope-fence declaration, runner-retires vs hand-finalize ownership and Readiness ownership (PR-004); OQ owners recorded (PR-005). Coverage re-probed after edits (IPD-S408 repair attempt 1 of 2): pass.
