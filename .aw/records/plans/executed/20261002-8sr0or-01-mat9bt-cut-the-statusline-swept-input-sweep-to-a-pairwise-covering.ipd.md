@@ -6,7 +6,7 @@
 - Scope: Replace the full cartesian product with a deterministic in-repo pairwise (2-way) covering array that preserves every single-value and every value-pair, and move the exhaustive product into a separate `slow`-marked test carrying its own explicit `@pytest.mark.timeout`. No production module is touched.
 - Scope-Paths: tests/test_statusline_behavior.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -17,9 +17,9 @@
 - Highest E allocated: 06
 - Author: opencode/its_direct/pt3-claude-opus-5-1m-us
 - Id: mat9bt
-- Approval: 2026-10-03, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-07 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: mat9bt verified (set 8sr0or, attempt 1). [Scope reconciliation - in-scope-unmodified tests/test_statusline_behavior.py: declared-but-unmodified (auto-acknowledged by aw agy run)] [Scope delta - no declared Scope-Paths were modified since the frozen base (1 declared path(s) unmodified; work may have landed before the begin baseline or not at all): tests/test_statusline_behavior.py]
 - 2026-10-03 approved (aw set): status set to approved
 - 2026-10-03 reviewed (aw set): plan-review revisions applied; see review record
 
