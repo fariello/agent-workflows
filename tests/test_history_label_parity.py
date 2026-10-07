@@ -280,7 +280,7 @@ class HistoryLabelParityTests(unittest.TestCase):
         self.assertIn(" graduated (aw backlog): handed off to plan", rec1)
         self.assertIn(" graduated (aw set): handed off to plan", rec2)
 
-        # Normalized comparison (hiding actor and date skew)
+        # Normalized comparison (hiding actor)
         norm1 = _normalize_history_record(rec1)
         norm2 = _normalize_history_record(rec2)
         self.assertEqual(norm1, norm2)
