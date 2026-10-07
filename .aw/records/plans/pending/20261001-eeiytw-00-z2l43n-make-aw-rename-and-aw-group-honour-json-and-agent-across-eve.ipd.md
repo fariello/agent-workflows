@@ -29,7 +29,7 @@
 
 ## Goal
 
-Close backlog item `eeiytw` by making both verbs emit exactly one parseable `aw.agent/v1` record on stdout under `--json` and `--agent`, on every artifact type, on preview, apply and refusal, so that `json.loads(stdout)` succeeds where it raises today. The work is split across three children because it contains three different KINDS of change with three different reviewer questions: a wide mechanical plumbing change across four modules that must alter no output, a narrow behavioral change at two dispatch sites that defines a machine contract, and one deliberate human-output change. Landing them together would make each unreviewable, because a reviewer could not attribute a broken test to the right half.
+Make both verbs emit exactly one parseable `aw.agent/v1` record on stdout under `--json` and `--agent`, on every artifact type, on preview, apply and refusal, so that `json.loads(stdout)` succeeds where it raises today. The work is split across three children because it contains three different KINDS of change with three different reviewer questions: a wide mechanical plumbing change across four modules that must alter no output, a narrow behavioral change at two dispatch sites that defines a machine contract, and one deliberate human-output change. Landing them together would make each unreviewable, because a reviewer could not attribute a broken test to the right half. Backlog item `eeiytw` is closed by the runner's normal backlog close when the last of the three children executes (every child carries `- From-Backlog: eeiytw`); neither this plan nor any child closes it by hand.
 
 ## Detailed Implementation Checklist (TODO)
 
