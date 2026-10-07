@@ -6,7 +6,7 @@
 - Scope: Orchestrate three children that together make a model attributable per attempt and make the consumers read it. This plan holds ORCHESTRATION ONLY: every deliverable belongs to a child (`czut8j` the frozen per-attempt producer, `ov2c9n` the host-observed model, `r5fk4k` the three consumers), and this file contributes no code, no test, no doc and no record of its own. EXCLUDES, in every child without exception: back-filling history, moving `MODEL_COVERAGE_THRESHOLD` from its declared 0.80, editing the retained `CORPUS_BASELINE` snapshot, adding a new CLI flag (which would require amending spec `25kzda` Section 2.1), and making anything GATE or REFUSE on a model value.
 - Scope-Paths: .aw/records/plans/pending/20260930-attmodel-00-1u4olp-record-the-resolved-model-per-attempt-so-run-analytics-can-c.ipd.md
 - Item-Dependencies: none
-- Status: draft
+- Status: to-review
 - Coverage: pass
 - Coverage-Fingerprint: 6c18c8fb8839c7b9635d1a0688e154e3630d410f9c24dc1521852a87a8161853
 - Coverage-Checked: 2026-10-07 by uri/its_direct/pt3-claude-opus-5.5-1m-us
@@ -20,6 +20,7 @@
 - Id: 1u4olp
 
 ## Workflow history
+- 2026-10-07 to-review (aw set): returned to review: every child executed; each completion criterion leads with its owning child; coverage pass recorded
 - 2026-10-07 coverage pass (aw oc run): fingerprint 6c18c8fb8839, model uri/its_direct/pt3-claude-opus-5.5-1m-us
 - 2026-10-07 coverage fail (aw oc run): fingerprint b325498c257e, model uri/its_direct/pt3-claude-opus-5.5-1m-us
 - 2026-10-07 note (opencode its_direct/pt3-claude-opus-5.5-1m-us): every child is executed; each Set-level obligation now names the child that performed it.
