@@ -171,6 +171,8 @@ specific failure this Set guards against is a contract written to a hoped-for ca
 
 ## Required tests / validation
 
+OWNER: every check below is performed by Order 04 `wn956n`, the last child (its E-05 runs the full validation sweep and its V-05 pastes each output: the bare suite, `aw ipd lint` over the Set, the `aw check` delta, `aw sanitize --agent`, and `aw host capabilities opencode`). This plan runs none of them.
+
 - `python3 -m pytest` run BARE, green, with the actual summary line pasted. Bare is required: the
   configured `addopts` already supply `-q -n auto --dist=worksteal` and the fast-subset markers.
 - `aw ipd lint` reports conforming over all five plans in Set `netnsfilter`.
