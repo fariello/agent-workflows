@@ -7,8 +7,8 @@
 - Scope-Paths: .aw/records/plans/pending/20260930-reqids-00-9wzlou-decide-and-build-the-spec-requirement-id-convention-that-spe.ipd.md
 - Item-Dependencies: none
 - Status: draft
-- Coverage: fail
-- Coverage-Fingerprint: 72b185ccc9451beab4fb60edb985522941b787890b45f8079df6d9a50c96c717
+- Coverage: pass
+- Coverage-Fingerprint: d695699013fc793e40bffed8524f6cb52bbbdaf7a437e3d04b39ef0b276dcf97
 - Coverage-Checked: 2026-10-07 by uri/its_direct/pt3-claude-opus-5.5-1m-us
 - From-Spec: 25kzda
 - Work-Kind: feature
@@ -21,6 +21,7 @@
 - Id: 9wzlou
 
 ## Workflow history
+- 2026-10-07 coverage pass (aw oc run): fingerprint d695699013fc, model uri/its_direct/pt3-claude-opus-5.5-1m-us
 - 2026-10-07 coverage fail (aw oc run): fingerprint 72b185ccc945, model uri/its_direct/pt3-claude-opus-5.5-1m-us
 - 2026-10-07 note (opencode its_direct/pt3-claude-opus-5.5-1m-us): each completion criterion and cross-cutting property now names its owner; the backlog close is the runner's.
 - 2026-10-06 draft (aw set): demoted approved -> draft: APPROVAL WITHDRAWN: returned to authoring by gradcover 52opph: uncovered obligation: Close backlog `vy20et` by shipping both halves it asks for
@@ -158,10 +159,6 @@ in which case that amendment belongs to the plan the spec names rather than to t
 - Status: resolved
 - Owner: none
 - Resolution or deferral rationale: this orchestrator has no open design question of its own. The Set's three real questions (the mandatory-requirement marker, adopt-or-amend `25kzda` 4.8, and whether dotted section/paragraph ids count as a requirement namespace) all belong to Order 01, which records them with measured options and recommendations and places them in the spec's own open-questions section for human ratification at spec approval. Duplicating them here would create two places for one answer.
-
-## Coverage findings
-
-- "Order 02's E-01 refusal and this plan's V-02 REMAIN as the second layer"
 
 ## Validation and cross-check (verify before reporting the Set complete)
 
