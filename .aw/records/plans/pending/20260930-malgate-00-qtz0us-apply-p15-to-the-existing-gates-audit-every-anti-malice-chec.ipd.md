@@ -8,8 +8,8 @@
 - Item-Dependencies: none
 - Status: draft
 - Coverage: fail
-- Coverage-Fingerprint: bc636fe12725a3d4c73ed5e66391ca47fb8baa65bdda248b26e3c4b71ff29d75
-- Coverage-Checked: 2026-10-06 by uri/its_direct/pt3-claude-opus-5.5-1m-us
+- Coverage-Fingerprint: 1d55f5dad923599d526c0e4a4a695f7379dbb222347e86a3e12b40fd262b895b
+- Coverage-Checked: 2026-10-07 by uri/its_direct/pt3-claude-opus-5.5-1m-us
 - Work-Kind: chore
 - Priority: medium
 - From-Backlog: ariaau
@@ -20,6 +20,7 @@
 - Id: qtz0us
 
 ## Workflow history
+- 2026-10-07 coverage fail (aw oc run): fingerprint 1d55f5dad923, model uri/its_direct/pt3-claude-opus-5.5-1m-us
 - 2026-10-07 note (opencode its_direct/pt3-claude-opus-5.5-1m-us): every child is executed; each completion criterion leads with its owner, and the three cross-child checks were measured against the resulting tree and recorded.
 - 2026-10-06 draft (aw set): demoted to-review -> draft: returned to authoring by gradcover 52opph: uncovered obligation: These three checks span the children. All three children are `executed`, and each check was MEASURED on 2026-10-07 against the tree they produced, so nothing is left for a retirement to skip:
 
@@ -217,13 +218,11 @@ Three checks span the children and cannot be performed by any child alone, which
 
 ## Coverage findings
 
+- "[Measured 2026-10-07, see Cross-IPD validation] THE SET-LEVEL CROSS-CHECK: every mechanism enumerated in Order 01's audit with a SIMPLIFY or DELETE disposition must be either acted on by Order 02 or Order 03, or carry a named carrier outside this Set. An audit row with a disposition and no actor is the one way this Set can complete while leaving its own stated work undone."
 - "Three checks span the children and cannot be performed by any child alone, which is why they live here."
 - "THE AUDIT-TO-ACTION RECONCILIATION (criterion 3). Read Order 01's record and Orders 02 and 03's diffs"
 - "THE DISCLAIMER FENCE HELD ACROSS BOTH REMEDIATION CHILDREN (criterion 5). Order 02 deletes prose and Order"
 - "THE SPEC SURFACE IS RECONCILED SET-WIDE. Exactly one child may amend a spec (`38pxaz`, spec `7ckptx`)."
-- "THE SET-LEVEL CROSS-CHECK a reviewer should apply, since no child can apply it alone: every mechanism enumerated in Order 01's audit with a SIMPLIFY or DELETE disposition must be either acted on by Order 02 or Order 03, or carry a named carrier outside this Set."
-- "3. EVERY SIMPLIFY OR DELETE ROW IN THAT RECORD HAS AN ACTOR: it was acted on by `38pxaz` or `dmjp0u`, or it"
-- "5. NOTHING P15 REQUIRES KEPT WAS REMOVED. `runner_shared`'s pre-work-baseline banner,"
 
 ## Validation and cross-check (verify before reporting the Set complete)
 
