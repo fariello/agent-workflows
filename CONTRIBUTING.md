@@ -119,8 +119,10 @@ public repo origin URL. This class of leak is NOT caught by secret scanners (git
   `aw check-local-leaks . --wheel dist/<built>.whl` (the shipped surface). Without the CLI:
   `python3 -m agent_workflows check-local-leaks .`. For an interactive pass that enumerates
   emails/usernames and asks which are intended-public, run `/assess local-leaks`.
-- **Fix helper:** `aw sanitize . --fix --dry-run` previews rewriting home-style absolute paths
-  to `~` (drop `--dry-run` to apply; interactive per file unless `--yes`). Identity/private-repo/
+- **Fix helper:** `aw sanitize . --fix --dry-run` previews rewriting all three home directory
+  classes (POSIX `/home/<user>`, macOS `/Users/<user>`, and Windows `<drive>:\Users\<user>`
+  or `<drive>:/Users/<user>`, preserving the drive prefix) to `~` (drop `--dry-run` to apply;
+  interactive per file unless `--yes`). Identity/private-repo/
   session tokens have no safe generic rewrite and are reported for manual editing, never auto-changed.
 - **Enforced:** a pre-commit hook and `tests/test_local_leaks.py` run the same unified
   `agent_workflows.leak_sanitizer` engine (`local_leaks` re-exports it, DECISIONS D96); the
