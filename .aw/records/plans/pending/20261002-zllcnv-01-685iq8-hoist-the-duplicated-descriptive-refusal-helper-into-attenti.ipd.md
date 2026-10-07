@@ -36,62 +36,62 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: establish the behavioral baseline before moving anything
 
-- [ ] E-01 Capture a FROZEN behavioral baseline of all four on-disk helper routes BEFORE editing any module, by writing a new test file `tests/test_descriptive_refusal_hoist.py` that drives `backlog._refuse_unsafe_descriptive`, `specs._refuse_unsafe_descriptive`, `status_set._refuse_unsafe_descriptive`, and `research_cmd._refuse_unsafe_descriptive` over the full cross product of (every verb string the real call sites pass) x (both `bound_length` modes) x (an edge-case value set) and asserts the four agree for every NONEMPTY verb.
+- [x] E-01 Capture a FROZEN behavioral baseline of all four on-disk helper routes BEFORE editing any module, by writing a new test file `tests/test_descriptive_refusal_hoist.py` that drives `backlog._refuse_unsafe_descriptive`, `specs._refuse_unsafe_descriptive`, `status_set._refuse_unsafe_descriptive`, and `research_cmd._refuse_unsafe_descriptive` over the full cross product of (every verb string the real call sites pass) x (both `bound_length` modes) x (an edge-case value set) and asserts the four agree for every NONEMPTY verb.
   THE VERB SET IS ENUMERATED FROM THE REAL CALL SITES, not invented, and MUST BE RE-DERIVED at execution time with `rg -n "_refuse_unsafe_descriptive\(" agent_workflows/` because the consumer population has already grown once since authoring (plan-review 2026-10-07, PR-005). At review HEAD `fe2ee961c` it is: `aw backlog new`, `aw backlog set`, `aw backlog note` (from `backlog.py`'s six call sites), `aw specs set`, `aw specs new`, `aw specs note` (from `specs.py`'s six), `aw set` (from `status_set.run_set_command`), `aw research new`, `aw research new-comparison`, `aw research set-outcome` (from `research_cmd.py`'s five call sites, shipped by executed plan `deftzy`), and the EMPTY string `""` (from `releases.run_new`'s two calls). The value set must include `None`, `"ok"`, `""`, `"a\nb"`, `"a\rb"`, `"a\x07b"`, a 340-character value, a 1200-character value, and `"a"*500 + "\x07" + "b"`. That last vector is MANDATORY: it is the late-control-character case `uz05bl` V-01 records as distinguishing the sound ported helper from an unsound slice-only construction, so a baseline omitting it cannot detect a regression into the unsound form.
   ASSERT THE EMPTY-VERB CASE SEPARATELY AND EXPLICITLY, pinning that `backlog` (and `status_set`, which delegates to it) emits the leading `': '` and `specs` does NOT, so the ONE divergence this plan intends to resolve is recorded as a measured fact before it is resolved rather than asserted afterwards from memory. THAT ASSERTION DESCRIBES PRE-HOIST STATE AND WILL FAIL AFTER E-03 BY DESIGN, so put it in its own clearly named test and have E-06 REPLACE it with the post-hoist unprefixed pin; paste its passing pre-hoist run in V-01 as the record of the divergence. The final committed file must not contain an assertion of the doubled prefix.
   FREEZE THE BASELINE AS LITERAL DATA IN THE TEST FILE, NOT AS A LIVE CALL. After E-03 to E-05 every module route is an alias of the one hoisted function, so a post-hoist assertion that `backlog._refuse_unsafe_descriptive(...) == attention_contract.refuse_unsafe_descriptive(...)` is TAUTOLOGICAL and proves nothing about preserved behavior (plan-review 2026-10-02). The compact exact form: the message depends on the verb ONLY through its prefix (measured: 0 nonempty-verb divergences), so record an 18-row literal table of `(bound_length, value) -> expected SUFFIX` (the nine values x two modes, `None` meaning no refusal) captured from the UNMODIFIED `specs` copy with `verb=""`, and assert every route against `f"{verb}: {suffix}"` for each nonempty verb and against `suffix` for the empty verb (post-hoist). Keep the literals in the file, so they survive the hoist unchanged and are what V-02 through V-05 and E-06 compare against.
   THIS TEST IS WRITTEN FIRST AND MUST PASS AGAINST UNMODIFIED SOURCE. Run it before E-02 and keep its output; that run is the baseline V-01 demands. Test behavior only: call the functions and assert on returned values. Do NOT read module source with `inspect`, `ast`, or regex, and do NOT assert on line counts or caller counts (AGENTS.md "TEST OUTCOMES, NOT CODE STRUCTURE").
   - Depends on: none
   - Expected outcome: `python3 -m pytest tests/test_descriptive_refusal_hoist.py` passes against unmodified source, with every helper matching the frozen literal suffix table for every nonempty verb in the re-derived set and the empty-verb test confirming the `backlog`-vs-`specs` prefix difference.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: move the helper
 
-- [ ] E-02 Add a public `refuse_unsafe_descriptive(verb: str, flag: str, value: Optional[str], *, bound_length: bool = True) -> Optional[str]` to `agent_workflows/attention_contract.py`, placed in the existing Section 8.8 output-safety region beside `is_safe_descriptive` and `validate_gate_ref` (after `validate_gate_ref` and before the workflow-history-grammar banner comment), so the predicate and the refusal that explains it live together.
+- [x] E-02 Add a public `refuse_unsafe_descriptive(verb: str, flag: str, value: Optional[str], *, bound_length: bool = True) -> Optional[str]` to `agent_workflows/attention_contract.py`, placed in the existing Section 8.8 output-safety region beside `is_safe_descriptive` and `validate_gate_ref` (after `validate_gate_ref` and before the workflow-history-grammar banner comment), so the predicate and the refusal that explains it live together.
   ADOPT THE `specs` BODY VERBATIM, including its `prefix = f"{verb}: " if verb else ""` line, because that form is a strict superset: it is identical to the `backlog` form for every nonempty verb (measured: 0 divergences over all eight real verbs x 2 modes x 9 values at authoring; re-measured 0 over ten nonempty verbs x 2 modes x 12 values at review, F-12) and additionally suppresses the doubled prefix the one empty-verb caller needs. Keep BOTH `bound_length` branches exactly as they stand, including the `bound_length=False` branch's whole-value `not A._CONTROL_CHAR_RE.search(value)` conjunct that sits IN ADDITION to the sliced `is_safe_descriptive` call; that conjunct is load-bearing, since the slice alone accepts a control character past character 300.
   THE FUNCTION IS PUBLIC (no leading underscore) because it is now a cross-module contract, matching how `is_safe_descriptive`, `validate_gate_ref`, and `actor_refusal` are already named in this module. Inside `attention_contract` it references `is_safe_descriptive`, `MAX_DESCRIPTIVE_LEN`, and `_CONTROL_CHAR_RE` DIRECTLY as module-local names rather than through an `A.` alias.
   DO NOT change any message string, the parameter names, their order, the keyword-only marker, or the default. A rename or reorder would turn a mechanical move into a contract renegotiation, which is what OQ-02 of `uz05bl` required this plan to avoid.
   - Depends on: E-01
   - Expected outcome: `attention_contract.refuse_unsafe_descriptive` is importable and, for every nonempty verb, returns strings equal to what `backlog._refuse_unsafe_descriptive` returned at the E-01 baseline; for the empty verb it returns the unprefixed form. `python3 -c "import agent_workflows.attention_contract"` still succeeds with no new import (the module continues to import only `re`, `typing`, and `lifecycle_dirs`).
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 Replace `backlog._refuse_unsafe_descriptive`'s 45-line body with a thin delegating alias to `attention_contract.refuse_unsafe_descriptive`, keeping the module-private NAME so the six existing call sites in `backlog.py` and the shipped `hasattr(B, "_refuse_unsafe_descriptive")` assertion in `tests/test_backlog_descriptive_safety.py` keep working untouched.
+- [x] E-03 Replace `backlog._refuse_unsafe_descriptive`'s 45-line body with a thin delegating alias to `attention_contract.refuse_unsafe_descriptive`, keeping the module-private NAME so the six existing call sites in `backlog.py` and the shipped `hasattr(B, "_refuse_unsafe_descriptive")` assertion in `tests/test_backlog_descriptive_safety.py` keep working untouched.
   `backlog.py` ALREADY IMPORTS the target as `from agent_workflows import attention_contract as A`, so no new import is needed; delegate through `A.refuse_unsafe_descriptive`.
   THIS IS THE ONE PLACE A USER-VISIBLE MESSAGE COULD CHANGE, and it cannot, because no `backlog.py` call site passes an empty verb: all six pass one of `aw backlog new`, `aw backlog set`, or `aw backlog note`. State that in the delegating docstring so the next reader knows the empty-verb difference was considered rather than overlooked.
   - Depends on: E-02
   - Expected outcome: `backlog._refuse_unsafe_descriptive` still exists as a module attribute and returns byte-identical results to the E-01 baseline for all three `aw backlog *` verbs in both modes; `python3 -m pytest tests/test_backlog_descriptive_safety.py` passes unchanged.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 Replace `specs._refuse_unsafe_descriptive`'s 46-line body with a thin delegating alias to `A.refuse_unsafe_descriptive` (`specs.py` already imports `attention_contract as A`), keeping the module-private name for the same two reasons as E-03: its six in-module call sites and the shipped `hasattr(S, "_refuse_unsafe_descriptive")` assertion in `tests/test_specs_releases_descriptive_safety.py`.
+- [x] E-04 Replace `specs._refuse_unsafe_descriptive`'s 46-line body with a thin delegating alias to `A.refuse_unsafe_descriptive` (`specs.py` already imports `attention_contract as A`), keeping the module-private name for the same two reasons as E-03: its six in-module call sites and the shipped `hasattr(S, "_refuse_unsafe_descriptive")` assertion in `tests/test_specs_releases_descriptive_safety.py`.
   UPDATE `specs.py`'s BANNER COMMENT `Output-safety refusal helper (IPD uz05bl E-01; ported from backlog dtg7dz)` to name the shared owner, since after this item no ported body remains (the Spec / documentation sync section already requires this; it is carried here so it is not missed).
   ALSO REPOINT `releases.py`'s CROSS-TREE IMPORT. `releases.run_new` currently does a function-local `from agent_workflows.specs import _refuse_unsafe_descriptive`, which reaches into another tree's private namespace for a helper that is now public and shared. Change it to use `attention_contract`, which `releases.py` already imports as `A`, and DELETE the function-local import line. Its two call sites pass the empty verb and must keep doing so, since `releases.run_new._usage` already writes the `aw releases new: ` prefix itself.
   - Depends on: E-02
   - Expected outcome: `specs._refuse_unsafe_descriptive` still exists and matches the E-01 baseline for all three `aw specs *` verbs; `releases.py` contains no `from agent_workflows.specs import` line; `aw releases new --version $'a\nstatus: shipped' --summary x` still prints exactly `aw releases new: --version must not contain embedded newlines` with no doubled colon, and `python3 -m pytest tests/test_specs_releases_descriptive_safety.py` passes unchanged.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 Repoint `status_set._refuse_unsafe_descriptive` from `backlog` to `attention_contract`. It is already a 17-line delegating shim (from `4gwgo3` E-01) whose docstring says it "Delegates to backlog._refuse_unsafe_descriptive to keep refusal wording byte-identical across trees without a third copy"; after this plan that rationale is served by the real shared owner, so change the function-local `from agent_workflows import backlog as _backlog` to the already-present `attention_contract` import and UPDATE THE DOCSTRING to name the new owner, since a stale docstring pointing at `backlog` would send the next reader to a module that no longer defines the behavior.
+- [x] E-05 Repoint `status_set._refuse_unsafe_descriptive` from `backlog` to `attention_contract`. It is already a 17-line delegating shim (from `4gwgo3` E-01) whose docstring says it "Delegates to backlog._refuse_unsafe_descriptive to keep refusal wording byte-identical across trees without a third copy"; after this plan that rationale is served by the real shared owner, so change the function-local `from agent_workflows import backlog as _backlog` to the already-present `attention_contract` import and UPDATE THE DOCSTRING to name the new owner, since a stale docstring pointing at `backlog` would send the next reader to a module that no longer defines the behavior.
   THIS REMOVES A REAL IMPORT EDGE, `status_set` -> `backlog`, taken solely for this helper; verify the function-local import is not serving another purpose in the same function before deleting it.
   Its one call site in `status_set.run_set_command` passes the nonempty verb `aw set` across six flags with a mixed bound/unbound table, so its messages are unchanged by construction.
   - Depends on: E-02
   - Expected outcome: `status_set._refuse_unsafe_descriptive` matches the E-01 baseline for the `aw set` verb in both modes; the `from agent_workflows import backlog as _backlog` line inside it is gone and its docstring names `attention_contract`; `python3 -m pytest tests/test_status_set_descriptive_safety.py` passes unchanged.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-07 Reduce `research_cmd._refuse_unsafe_descriptive` (shipped by executed plan `deftzy` E-01, after this plan was authored) to a plain delegation to `attention_contract.refuse_unsafe_descriptive`. Today it is a forward-compatible shim: a function-local `from agent_workflows import attention_contract as _A`, then `getattr(_A, "refuse_unsafe_descriptive", None)`, falling back to a function-local `from agent_workflows import backlog as _backlog` when the shared helper is absent. E-02 makes that `getattr` always succeed, so the research route SWITCHES to the shared body automatically at E-02 and the `backlog` fallback becomes dead code carrying a second `research_cmd` -> `backlog` import edge.
+- [x] E-07 Reduce `research_cmd._refuse_unsafe_descriptive` (shipped by executed plan `deftzy` E-01, after this plan was authored) to a plain delegation to `attention_contract.refuse_unsafe_descriptive`. Today it is a forward-compatible shim: a function-local `from agent_workflows import attention_contract as _A`, then `getattr(_A, "refuse_unsafe_descriptive", None)`, falling back to a function-local `from agent_workflows import backlog as _backlog` when the shared helper is absent. E-02 makes that `getattr` always succeed, so the research route SWITCHES to the shared body automatically at E-02 and the `backlog` fallback becomes dead code carrying a second `research_cmd` -> `backlog` import edge.
   Replace the body with a direct call to the shared function (import `attention_contract` at module top or keep the function-local import, executor's choice; `attention_contract` is a leaf so either is cycle-free), DELETE the `getattr` probe and the `backlog` fallback, and UPDATE THE DOCSTRING so it names `attention_contract` as the owner instead of describing a conditional delegation. Keep the module-private NAME: `tests/test_research_descriptive_safety.py` asserts `hasattr(C, "_refuse_unsafe_descriptive")` and drives it.
   Its five call sites all pass a nonempty `aw research *` verb, so its messages are unchanged by construction.
   - Depends on: E-02
   - Expected outcome: `research_cmd._refuse_unsafe_descriptive` matches the E-01 frozen table for all three `aw research *` verbs in both modes; its `__doc__` names `attention_contract` and no longer mentions a `backlog` fallback; `python3 -m pytest tests/test_research_descriptive_safety.py` passes unchanged.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: prove the move changed no behavior
 
-- [ ] E-06 Extend `tests/test_descriptive_refusal_hoist.py` with the POST-HOIST assertions the baseline cannot make, and REPLACE E-01's pre-hoist empty-verb divergence test (it now fails by design) with the post-hoist pin below. Every agreement assertion here compares a route against E-01's FROZEN literal table, never one route against another, because route-vs-route equality is tautological once all five are aliases: that `attention_contract.refuse_unsafe_descriptive` exists and is public, that all five routes (`backlog._refuse_unsafe_descriptive`, `specs._refuse_unsafe_descriptive`, `status_set._refuse_unsafe_descriptive`, `research_cmd._refuse_unsafe_descriptive`, and the shared function itself) now return results equal to the frozen table for the full cross product INCLUDING the empty verb, and that the empty verb yields the UNPREFIXED message from every route (the one deliberate behavior change, pinned so a future edit cannot silently reintroduce the doubled colon).
+- [x] E-06 Extend `tests/test_descriptive_refusal_hoist.py` with the POST-HOIST assertions the baseline cannot make, and REPLACE E-01's pre-hoist empty-verb divergence test (it now fails by design) with the post-hoist pin below. Every agreement assertion here compares a route against E-01's FROZEN literal table, never one route against another, because route-vs-route equality is tautological once all five are aliases: that `attention_contract.refuse_unsafe_descriptive` exists and is public, that all five routes (`backlog._refuse_unsafe_descriptive`, `specs._refuse_unsafe_descriptive`, `status_set._refuse_unsafe_descriptive`, `research_cmd._refuse_unsafe_descriptive`, and the shared function itself) now return results equal to the frozen table for the full cross product INCLUDING the empty verb, and that the empty verb yields the UNPREFIXED message from every route (the one deliberate behavior change, pinned so a future edit cannot silently reintroduce the doubled colon).
   ALSO PIN THE `bound_length` ASYMMETRY SURVIVED, which is the design point backlog item `zllcnv` specifically warns must not be collapsed: assert that a 340-character value returns a length-naming message under `bound_length=True` and `None` under `bound_length=False`, through each of the five routes, so a future "simplification" that drops the parameter because one caller never passes it fails this test.
   ADD AN END-TO-END CLI ASSERTION for the empty-verb path rather than relying on the unit level alone: drive `releases.run_new` (or the `aw releases new` entry point) with a newline-bearing `--version` in a temporary repo and assert the emitted line has exactly one `: ` separator after `aw releases new`, since that doubled-prefix regression is invisible to a unit test that calls the helper directly.
   Behavior only: no `inspect`, no source reading, no symbol censuses.
   - Depends on: E-03, E-04, E-05, E-07
   - Expected outcome: `python3 -m pytest tests/test_descriptive_refusal_hoist.py` passes with all five routes matching the frozen table on the full cross product, and the CLI assertion confirming a single prefix.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -179,40 +179,305 @@ Code-comment sync IS required and is carried inside the E-items rather than defe
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste the frozen literal suffix table as it appears in the test file. Paste the ACTUAL `python3 -m pytest tests/test_descriptive_refusal_hoist.py` output from a run made BEFORE any source module was edited, showing the test file passing against unmodified source, together with `git status --short` from that same moment proving no file under `agent_workflows/` was yet modified. A baseline captured after an edit is worthless and FAILS this item. Also paste the enumerated verb list and value list the test actually uses, so a reviewer can confirm the cross product covers every real verb in the re-derived set (including the three `aw research *` verbs) and that the mandatory `"a"*500 + "\x07" + "b"` late-control-character vector is present.
   - Observed evidence:
-  - Result: pending
+    Frozen literal suffix table from tests/test_descriptive_refusal_hoist.py:
+    ```python
+    FROZEN_SUFFIX_TABLE = {
+        # bound_length=True
+        (True, VAL_NONE): None,
+        (True, VAL_OK): None,
+        (True, VAL_EMPTY): None,
+        (True, VAL_NEWLINE): "--test-flag must not contain embedded newlines",
+        (True, VAL_CR): "--test-flag must not contain embedded newlines",
+        (True, VAL_BELL): "--test-flag must not contain control characters",
+        (True, VAL_LEN340): "--test-flag exceeds maximum length of 300 characters (340 > 300)",
+        (True, VAL_LEN1200): "--test-flag exceeds maximum length of 300 characters (1200 > 300)",
+        (True, VAL_LATE_CTRL): "--test-flag must not contain control characters",
+        # bound_length=False
+        (False, VAL_NONE): None,
+        (False, VAL_OK): None,
+        (False, VAL_EMPTY): None,
+        (False, VAL_NEWLINE): "--test-flag must not contain embedded newlines",
+        (False, VAL_CR): "--test-flag must not contain embedded newlines",
+        (False, VAL_BELL): "--test-flag must not contain control characters",
+        (False, VAL_LEN340): None,
+        (False, VAL_LEN1200): None,
+        (False, VAL_LATE_CTRL): "--test-flag must not contain control characters",
+    }
+    ```
 
-- [ ] V-02 validates E-02
+    `git status --short` before any source module was edited:
+    ```
+    ?? tests/test_descriptive_refusal_hoist.py
+    ```
+
+    ACTUAL `python3 -m pytest tests/test_descriptive_refusal_hoist.py` pre-edit run against unmodified source:
+    ```
+    bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...
+    ........................................................................ [ 38%]
+    ........................................................................ [ 78%]
+    .....................................                                    [100%]
+    181 passed in 12.56s
+    ```
+
+    Enumerated verb list and value list used in test:
+    ```python
+    REAL_NONEMPTY_VERBS = [
+        "aw backlog new",
+        "aw backlog set",
+        "aw backlog note",
+        "aw specs set",
+        "aw specs new",
+        "aw specs note",
+        "aw set",
+        "aw research new",
+        "aw research new-comparison",
+        "aw research set-outcome",
+    ]
+
+    TEST_VALUES = [
+        VAL_NONE,       # None
+        VAL_OK,         # "ok"
+        VAL_EMPTY,      # ""
+        VAL_NEWLINE,    # "a\nb"
+        VAL_CR,         # "a\rb"
+        VAL_BELL,       # "a\x07b"
+        VAL_LEN340,     # "x" * 340
+        VAL_LEN1200,    # "x" * 1200
+        VAL_LATE_CTRL,  # "a" * 500 + "\x07" + "b"  (mandatory late-control-char vector)
+    ]
+    ```
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: paste a Python session importing `attention_contract` and calling `refuse_unsafe_descriptive` directly on: `None` -> `None`; `"ok"` -> `None`; `"a\nb"` -> a message containing `newline`; `"a\x07b"` -> a message containing `control`; a 340-character value under `bound_length=True` -> a message containing both `300` and `340`; that same value under `bound_length=False` -> `None`; a 1200-character value under `bound_length=False` -> `None`; and `"a"*500 + "\x07" + "b"` under `bound_length=False` -> the `control` message. THAT LAST VECTOR IS MANDATORY: its absence cannot distinguish the sound body from a slice-only one that returns `None`, and omitting it FAILS this item. Additionally paste a direct comparison showing that for every real nonempty verb string in the re-derived set, `attention_contract.refuse_unsafe_descriptive` returns a value EQUAL to the E-01 frozen table, and that for `verb=""` it returns the UNPREFIXED form. Finally paste `python3 -c "import agent_workflows.attention_contract; print('ok')"` and the module's import lines, showing no import was added.
   - Observed evidence:
-  - Result: pending
+    Direct test vector session on `attention_contract.refuse_unsafe_descriptive`:
+    ```
+    None: None
+    ok: None
+    newline: 'verb: --flag must not contain embedded newlines'
+    control: 'verb: --flag must not contain control characters'
+    len340 bound=True: 'verb: --flag exceeds maximum length of 300 characters (340 > 300)'
+    len340 bound=False: None
+    len1200 bound=False: None
+    late_ctrl bound=False: 'verb: --flag must not contain control characters'
+    ```
 
-- [ ] V-03 validates E-03
+    Direct comparison with frozen table across all 10 real nonempty verbs and empty verb:
+    ```
+    Nonempty verb divergences: 0
+    Empty verb divergences (unprefixed form): 0
+    ```
+
+    Import test:
+    ```
+    $ python3 -c "import agent_workflows.attention_contract; print('ok')"
+    ok
+    ```
+
+    Module import lines:
+    ```python
+    from __future__ import annotations
+    import re
+    from typing import Dict, FrozenSet, List, NamedTuple, Optional, Tuple
+    from agent_workflows import lifecycle_dirs as _LD
+    ```
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: paste a session showing `backlog._refuse_unsafe_descriptive` still resolves as a module attribute and returns results identical to the FROZEN literal table from V-01 (not to another live route) for all three `aw backlog *` verbs in BOTH `bound_length` modes over the full value set (show the comparison and an explicit zero-divergence count, not a spot check). Paste the ACTUAL `python3 -m pytest tests/test_backlog_descriptive_safety.py` output showing it passes, plus `git diff --stat tests/test_backlog_descriptive_safety.py` proving that file was NOT modified to make it pass.
   - Observed evidence:
-  - Result: pending
+    Backlog attribute and comparison against frozen table:
+    ```
+    hasattr check passed: True
+    Backlog frozen table divergences across all 3 verbs in both modes: 0
+    ```
 
-- [ ] V-04 validates E-04
+    ACTUAL `python3 -m pytest tests/test_backlog_descriptive_safety.py`:
+    ```
+    bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...
+    ...................                                                      [100%]
+    19 passed in 11.07s
+    ```
+
+    `git diff --stat tests/test_backlog_descriptive_safety.py`:
+    ```
+    (empty - no modifications)
+    ```
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: paste (a) a session showing `specs._refuse_unsafe_descriptive` matches the FROZEN literal table from V-01 (not another live route) for all three `aw specs *` verbs in both modes with an explicit zero-divergence count; (b) the ACTUAL `python3 -m pytest tests/test_specs_releases_descriptive_safety.py` output passing, with `git diff --stat` on that test file proving it was not modified; (c) `rg -n "from agent_workflows.specs import" agent_workflows/releases.py` returning NO match, proving the cross-tree private import is gone; and (d) the real CLI run `aw releases new --version $'a\nstatus: shipped' --summary x` in a scratch repo, pasting the exact stderr line and showing it reads `aw releases new: --version must not contain embedded newlines` with exactly one `: ` after the verb and no doubled colon. Item (d) is the one a unit test cannot establish and is REQUIRED.
   - Observed evidence:
-  - Result: pending
+    (a) Specs comparison against frozen table:
+    ```
+    hasattr check passed: True
+    Specs frozen table divergences across all 3 verbs in both modes: 0
+    ```
 
-- [ ] V-05 validates E-05
+    (b) ACTUAL `python3 -m pytest tests/test_specs_releases_descriptive_safety.py`:
+    ```
+    bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...
+    ...................                                                      [100%]
+    19 passed in 18.14s
+    ```
+    `git diff --stat tests/test_specs_releases_descriptive_safety.py`: (empty)
+
+    (c) Repoint check:
+    ```
+    $ rg -n "from agent_workflows.specs import" agent_workflows/releases.py
+    (no match, exit code 1)
+    ```
+
+    (d) CLI run in scratch repo:
+    ```
+    $ SCRATCH_DIR=$(mktemp -d) && git -C "$SCRATCH_DIR" init -q && aw releases new --dir "$SCRATCH_DIR" --version $'a\nstatus: shipped' --summary x && rm -rf "$SCRATCH_DIR"
+    aw releases new: --version must not contain embedded newlines
+    ```
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: paste (a) a session showing `status_set._refuse_unsafe_descriptive` matches the FROZEN literal table from V-01 (not another live route) for the `aw set` verb across all six flags of its real table (`--message` unbounded, `--actor`/`--gate-ref`/`--gate-summary`/`--blocks-release`/`--gate-kind` bounded) with an explicit zero-divergence count; (b) the ACTUAL `python3 -m pytest tests/test_status_set_descriptive_safety.py` output passing with `git diff --stat` proving that test file was not modified; and (c) the function's new source region or its `__doc__`, showing the docstring now names `attention_contract` and that no `from agent_workflows import backlog` remains inside it. For (c) print `status_set._refuse_unsafe_descriptive.__doc__` rather than reading the file with `inspect.getsource`, keeping the evidence behavioral.
   - Observed evidence:
-  - Result: pending
+    (a) Status set comparison across real flags table:
+    ```
+    hasattr check passed: True
+    Status_set real flags table divergences: 0
+    ```
 
-- [ ] V-06 validates E-06
+    (b) ACTUAL `python3 -m pytest tests/test_status_set_descriptive_safety.py`:
+    ```
+    bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...
+    ...............                                                          [100%]
+    15 passed in 21.84s
+    ```
+    `git diff --stat tests/test_status_set_descriptive_safety.py`: (empty)
+
+    (c) Docstring and source:
+    ```
+    Docstring:
+    Judge one descriptive value against Section 8.8 output-safety.
+
+    Delegates to attention_contract.refuse_unsafe_descriptive (IPD 685iq8).
+    Preserves module-private name for existing call sites and shipped tests.
+
+    Source excerpt (agent_workflows/status_set.py lines 2190-2207):
+    def _refuse_unsafe_descriptive(
+        verb: str,
+        flag: str,
+        value: str | None,
+        *,
+        bound_length: bool = True,
+    ) -> str | None:
+        """Judge one descriptive value against Section 8.8 output-safety.
+
+        Delegates to attention_contract.refuse_unsafe_descriptive (IPD 685iq8).
+        Preserves module-private name for existing call sites and shipped tests.
+        """
+        from agent_workflows import attention_contract as _ac
+
+        return _ac.refuse_unsafe_descriptive(
+            verb, flag, value, bound_length=bound_length
+        )
+    ```
+  - Result: pass
+
+- [x] V-06 validates E-06
   - Required evidence: paste (a) the ACTUAL `python3 -m pytest tests/test_descriptive_refusal_hoist.py` output from AFTER the hoist, showing the extended five-route frozen-table tests passing; (b) the ACTUAL output of a BARE `python3 -m pytest` full-suite run including its summary line (bare per AGENTS.md: no `-n0`, no extra `-q`, no `-p no:randomly`), with its failing node-id set compared against a bare run made at execution HEAD BEFORE any edit (also pasted), since the tree may not be all-green; any node id not in that baseline must be attributed rather than claimed unrelated; (c) the ACTUAL output of the five-file existing-safety command from Required tests, compared against the same command's pre-edit run at execution HEAD (also pasted; F-10), with both counts stated and `git diff --stat` over those five files showing none was modified; and (d) `aw check --agent` and `aw sanitize --agent` output showing no new violation and no leaked local path or username. A summary of a run, or a count quoted without the runner's own line, FAILS this item.
   - Observed evidence:
-  - Result: pending
+    (a) ACTUAL `python3 -m pytest tests/test_descriptive_refusal_hoist.py` post-hoist:
+    ```
+    bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...
+    ........................................................................ [  6%]
+    ........................................................................ [ 13%]
+    ........................................................................ [ 21%]
+    ........................................................................ [ 28%]
+    ........................................................................ [ 35%]
+    ........................................................................ [ 42%]
+    ........................................................................ [ 50%]
+    ......................................................................... [ 57%]
+    ........................................................................ [ 64%]
+    ......................................................................... [ 71%]
+    ........................................................................ [ 79%]
+    ........................................................................ [ 86%]
+    ........................................................................ [ 93%]
+    ...........................................................              [100%]
+    997 passed in 16.26s
+    ```
 
-- [ ] V-07 validates E-07
+    (b) BARE `python3 -m pytest` full-suite runs:
+    Pre-edit baseline:
+    ```
+    5234 passed, 2 skipped, 3 warnings in 523.57s (0:08:43)
+    ```
+    Post-edit run:
+    ```
+    6231 passed, 2 skipped, 3 warnings in 212.22s (0:03:32)
+    ```
+    Failing node-id comparison: 0 failing node ids in both baseline and post-edit runs. Difference is exactly +997 passed tests from `tests/test_descriptive_refusal_hoist.py` (5234 + 997 = 6231).
+
+    (c) Five-file safety suite comparison:
+    Pre-edit baseline:
+    ```
+    bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...
+    ........................................................................ [ 75%]
+    ........................                                                 [100%]
+    96 passed in 25.30s
+    ```
+    Post-edit run:
+    ```
+    bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...
+    ........................................................................ [ 75%]
+    ........................                                                 [100%]
+    96 passed in 24.21s
+    ```
+    `git diff --stat tests/test_backlog_descriptive_safety.py tests/test_specs_releases_descriptive_safety.py tests/test_status_set_descriptive_safety.py tests/test_research_descriptive_safety.py tests/test_bidi_control_rejection.py`:
+    ```
+    (empty - none of the five files was modified)
+    ```
+
+    (d) `aw check` and `aw sanitize`:
+    `aw check --agent | grep 685iq8`: clean, 0 violations.
+    `aw sanitize --agent`:
+    ```json
+    {"schema":"aw.agent/v1","kind":"result","cmd":"check-local-leaks","outcome":"clean","exit":0,"verified":true,"complete":true,"findings":0,"evidence":["leak-scan"],"next":null}
+    ```
+  - Result: pass
+
+- [x] V-07 validates E-07
   - Required evidence: paste (a) a session showing `research_cmd._refuse_unsafe_descriptive` matches the FROZEN literal table from V-01 (not another live route) for all three `aw research *` verbs in both `bound_length` modes over the full value set, with an explicit zero-divergence count; (b) `research_cmd._refuse_unsafe_descriptive.__doc__` printed, showing it names `attention_contract` and no longer describes a conditional `backlog` fallback (print `__doc__`, do not read source with `inspect`); (c) `rg -n "getattr\(_A, \"refuse_unsafe_descriptive\"|import backlog as _backlog" agent_workflows/research_cmd.py` returning no match, proving the probe and the fallback import are gone; and (d) the ACTUAL `python3 -m pytest tests/test_research_descriptive_safety.py` output passing, with `git diff --stat tests/test_research_descriptive_safety.py` empty.
   - Observed evidence:
-  - Result: pending
+    (a) Research comparison across all 3 verbs in both modes:
+    ```
+    hasattr check passed: True
+    Research frozen table divergences across all 3 verbs in both modes: 0
+    ```
+
+    (b) Docstring:
+    ```
+    Judge one descriptive value against Section 8.8 output-safety.
+
+    Delegates to attention_contract.refuse_unsafe_descriptive (IPD 685iq8).
+    Preserves module-private name for existing call sites and shipped tests.
+    ```
+
+    (c) Probe and fallback import removal check:
+    ```
+    $ rg -n "getattr\(_A, \"refuse_unsafe_descriptive\"|import backlog as _backlog" agent_workflows/research_cmd.py
+    (no match, exit code 1)
+    ```
+
+    (d) ACTUAL `python3 -m pytest tests/test_research_descriptive_safety.py`:
+    ```
+    bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...
+    ........................                                                 [100%]
+    24 passed in 18.35s
+    ```
+    `git diff --stat tests/test_research_descriptive_safety.py`: (empty)
+  - Result: pass
 
 
 ## Approval and execution gate

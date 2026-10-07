@@ -169,20 +169,12 @@ def _refuse_unsafe_descriptive(
 ) -> Optional[str]:
     """Judge one descriptive value against Section 8.8 output-safety.
 
-    Delegates to attention_contract.refuse_unsafe_descriptive if present (IPD 685iq8),
-    otherwise to backlog._refuse_unsafe_descriptive to keep refusal wording byte-identical
-    across trees without a fourth copy (IPD deftzy E-01).
+    Delegates to attention_contract.refuse_unsafe_descriptive (IPD 685iq8).
+    Preserves module-private name for existing call sites and shipped tests.
     """
     from agent_workflows import attention_contract as _A
 
-    delegate = getattr(_A, "refuse_unsafe_descriptive", None)
-    if delegate is not None:
-        return delegate(verb, flag, value, bound_length=bound_length)
-    from agent_workflows import backlog as _backlog
-
-    return _backlog._refuse_unsafe_descriptive(
-        verb, flag, value, bound_length=bound_length
-    )
+    return _A.refuse_unsafe_descriptive(verb, flag, value, bound_length=bound_length)
 
 
 def _refuse_unsafe_date(verb: str, value: Optional[str]) -> Optional[str]:
@@ -232,10 +224,10 @@ def plan_new(
 
     # xprio 6vgd0k: an optional --priority must be in the shared vocab when given (reuse, no fork).
     if priority is not None:
-        from agent_workflows import backlog as _backlog
+        from agent_workflows import backlog
 
-        if priority not in _backlog.PRIORITIES:
-            return None, f"priority must be one of {sorted(_backlog.PRIORITIES)}"
+        if priority not in backlog.PRIORITIES:
+            return None, f"priority must be one of {sorted(backlog.PRIORITIES)}"
 
     if model is not None:
         model_res = R.normalize_model(model)
@@ -747,12 +739,12 @@ def plan_set_priority(
 ) -> Tuple[Optional[Path], Optional[str], Optional[str]]:
     """Plan a priority set/clear for one doc; returns (path, new_text, error). Mirrors
     ``plan_set_outcome``. ``to`` must be in the shared vocab (or '-'/None to clear)."""
-    from agent_workflows import backlog as _backlog
+    from agent_workflows import backlog
     from agent_workflows.research_archive import _resolve_one_research
 
     clearing = to in (None, "-")
-    if not clearing and to not in _backlog.PRIORITIES:
-        return None, None, f"priority must be one of {sorted(_backlog.PRIORITIES)}"
+    if not clearing and to not in backlog.PRIORITIES:
+        return None, None, f"priority must be one of {sorted(backlog.PRIORITIES)}"
     if repo_root is None:
         repo_root = _core.repo_root_of(research_root)
     target, err = _resolve_one_research(
