@@ -8,8 +8,8 @@
 - Item-Dependencies: none
 - Status: draft
 - Coverage: fail
-- Coverage-Fingerprint: 6029f33b97417c53f0b243f783da8cd471337088bd81360900899a4ccc237323
-- Coverage-Checked: 2026-10-06 by uri/its_direct/pt3-claude-opus-5.5-1m-us
+- Coverage-Fingerprint: 05ced26f246fac299f2a30d1753717b78ae52dfb3dcc840499cb2ac1eba7c84c
+- Coverage-Checked: 2026-10-07 by uri/its_direct/pt3-claude-opus-5.5-1m-us
 - Work-Kind: feature
 - Priority: low
 - From-Backlog: oq05nc
@@ -20,6 +20,7 @@
 - Id: l4vw9o
 
 ## Workflow history
+- 2026-10-07 coverage fail (aw oc run): fingerprint 05ced26f246f, model uri/its_direct/pt3-claude-opus-5.5-1m-us
 - 2026-10-07 note (opencode its_direct/pt3-claude-opus-5.5-1m-us): the carrier bullet the coverage probe quoted describes a backlog item that already exists (`sv9ce4`, open), not a step; reworded to say so.
 - 2026-10-06 draft (aw set): demoted approved -> draft: APPROVAL WITHDRAWN: returned to authoring by gradcover 52opph: uncovered obligation: - THE CARRIER OUTLIVES THE SET. Backlog `sv9ce4` is filed before any child runs, so the unbuilt half
 - 2026-10-06 coverage fail (aw oc run): fingerprint 6029f33b9741, model uri/its_direct/pt3-claude-opus-5.5-1m-us
@@ -224,7 +225,10 @@ minted from the original title and is left stable.
 
 ## Coverage findings
 
-- "- THE CARRIER OUTLIVES THE SET. Backlog `sv9ce4` is filed before any child runs, so the unbuilt half"
+- "- NO ARTIFACT CLAIMS PUSH DENIAL. This is the Set's single most important cross-cutting property and"
+- "- THE NAME IS CONSISTENT ACROSS THE SET. Every child refers to the new capability as"
+- "- Each child runs its own validation; this orchestrator does not re-run them. The Set-level gates are"
+- "- The bare suite passes, `aw ipd lint` conforms over every plan in the Set, `aw check` reports no new"
 
 ## Validation and cross-check (verify before reporting the Set complete)
 
