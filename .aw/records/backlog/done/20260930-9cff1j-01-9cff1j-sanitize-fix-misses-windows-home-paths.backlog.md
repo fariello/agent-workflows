@@ -1,5 +1,5 @@
 - Id: 9cff1j
-- Status: graduated
+- Status: done
 - Graduated-To: 9cff1j
 - Work-Kind: followup
 - Priority: low
@@ -7,6 +7,7 @@
 - Summary: aw sanitize --fix reports a Windows <drive>:\Users\<user> leak but does not rewrite it, so --fix leaves a fail-severity finding in place
 
 ## Workflow history
+- 2026-10-07 done (aw backlog): closed by aw agy run: IPD g8q99a executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20261001-9cff1j-01-g8q99a-make-aw-sanitize-fix-rewrite-the-windows-home-class-it-alrea.ipd.md); evidence .aw/records/plans/executed/20261001-9cff1j-01-g8q99a-make-aw-sanitize-fix-rewrite-the-windows-home-class-it-alrea.ipd.md
 - 2026-10-01 graduated (aw backlog): graduated by run run-20261001T222151Z-2118435: g8q99a
 - 2026-09-30 set (aw backlog): Reclassified per the retraction above: bug -> followup, medium -> low, and the 'next' release gate CLEARED. The original bug classification rested on a claim measurement disproved (that --fix silently leaves the leak); --fix in fact names it as needing manual edit and exits 1. What survives is a narrow enhancement idea (a drive-preserving Windows rewrite for --fix), which is not a defect and must not gate a release.
 - 2026-09-30 note (aw backlog): RETRACTION. This item was filed on an inference from reading _rewrite_line in isolation and is WRONG about the only thing that made it a bug. I claimed '--fix reports success-shaped progress while leaving a fail-severity leak in place'. Measured end-to-end instead of inferred: in a throwaway git repo containing both a POSIX and a Windows home path, 'aw sanitize <dir> --fix --yes' rewrote the POSIX path to ~/proj/y.md, left the Windows path alone, and then printed to stderr 'Needs manual edit (no safe auto-fix): note.md:1: windows-home: ...' and EXITED 1. So the unfixed leak is named, attributed to its rule, and the nonzero exit stops any caller that checks it. The narrow factual observation stands (leak_sanitizer._rewrite_line applies only _HOME_ANY_RE and _USERS_ANY_RE, so the windows-home class is detected but never auto-rewritten) but that is DELIBERATE and documented at the definition site: the comment beside those patterns says only home-style paths are rewritten because there is no safe generic replacement for the others, and fix_working_tree re-scans its own output and collects what the rewrite did not resolve into 'unfixable' precisely so a human is told. A bare ~ would also lose the drive letter, so there IS no safe generic replacement, which is the stated reason rather than an oversight. There is therefore no user-perceptible incorrect outcome and no release-gating defect here. Recommend closing this item as not-a-bug (or reclassifying to a low-priority followup for the narrower idea of teaching --fix a drive-preserving Windows rewrite, which needs a ruling on the replacement form first). Leaving it open and gated would block a release on a defect that does not exist.
