@@ -6,7 +6,7 @@
 - Scope: IN: add ONE paragraph to spec Section 5.4 recording the reachability property of `Required evidence:` beside the durability paragraph, in the same review-enforced-convention shape, and naming the two acceptable discharges plus the Section 9.2 word collision; append the spec's `## Workflow history` note through `aw specs note`; add a THIRD test to `tests/test_v_item_evidence_durability.py` pinning the spec paragraph, since that module already owns the Section 5.4 surface. OUT, each with a reason recorded under Deferred: a lint rule (Section 5.4's own closing sentence forbids it); the two review bodies (they already carry the rule and are not re-worded); the scaffold/authoring surface (sibling carrier `l07ohc`, plan `ua133b`, owns it); the spec's `- Status:` (an amendment is not a re-implementation); and Section 14's canonical example.
 - Scope-Paths: .aw/records/specs/implemented/20260802-1904-01-ipd-structure-and-linting.spec.md, tests/test_v_item_evidence_durability.py
 - Item-Dependencies: executed:0nxa8o
-- Status: approved
+- Status: executed
 - Work-Kind: chore
 - Priority: low
 - From-Backlog: ezv744
@@ -16,9 +16,9 @@
 - Readiness: go-pending-approval
 - Author: opencode/its_direct/pt3-claude-opus-5-1m-us
 - Id: 5q9a6a
-- Approval: 2026-10-03, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-07 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: 5q9a6a verified (set ezv744, attempt 1).
 - 2026-10-03 approved (aw set): status set to approved
 - 2026-10-02 reviewed (opencode its_direct/pt3-claude-opus-5.5-1m-us): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005. Re-verified at lane HEAD 7f2973fc1: both review bullets 1846 chars and equal; Section 5.4 text and closing linter sentence as quoted; one reachab hit (Section 9.2, typographic quotes); contended set is exactly 0nxa8o (approved) and fhinri (to-review); no history note for vtup6x; aw specs check clean. Fixed: stale 'empty set' in Proposed changes (PR-001), placement and preservation rule when 0nxa8o lands Section 5.4 text (PR-002), live baseline instead of F-07 set (PR-003), gate: scope fence, conditional finalize ownership, 'NOT auto-run' contradiction (PR-004), quote-character note and CHANGELOG question settled (PR-005).
 
