@@ -2,10 +2,10 @@
 
 - Subject-Id: wzhe4n
 - Subject-Type: ipd
-- Reviewed-At: 2026-09-30
-- Reviewer: opencode/its_direct/pt3-claude-opus-5-1m-us
+- Reviewed-At: 2026-10-07
+- Reviewer: opencode/its_direct/pt3-claude-opus-5.5-1m-us
 - Verdict: APPROVE WITH REVISIONS APPLIED
-- Findings: PR-901 (HIGH, fixed), PR-902 (HIGH, fixed), PR-903 (MEDIUM, fixed), PR-904 (MEDIUM, fixed), PR-905 (MEDIUM, fixed), PR-906 (LOW, fixed), PR-907 (LOW, fixed), PR-908 (LOW, fixed)
+- Findings: PR-1001 (HIGH, fixed), PR-1002 (MEDIUM, fixed), PR-1003 (MEDIUM, fixed), PR-1004 (MEDIUM, fixed), PR-1005 (LOW, fixed), PR-1006 (LOW, fixed)
 
 ## Round 1
 
@@ -154,3 +154,36 @@ under Step 4 and none was written.
 
 No production code, test, or configuration file was modified by this review. The only file changed is
 the plan, plus this record.
+
+## Round 2
+
+Re-review after the plan returned to authoring (2026-10-06) and back to `to-review` (2026-10-07). Round 1's findings (PR-901..PR-908) all remain fixed in the plan text.
+
+
+Reviewed in an isolated review lane at HEAD `112df4db1`. The plan was committed and byte-identical to the lane
+input, so no pre-review snapshot. `aw ipd lint --phase author` and `--phase review-finalize` are both `clean`.
+`- Kind: child`.
+
+Re-measured state. `x2dwu5` (Order 01) is executed. `pi3bk8` (Order 02, this plan's dependency) and `l4vw9o`
+(Order 00) are `reviewed`. Spec `25kzda` still has 2 `deny push-capable` hits (5.2 bullet, line 1216; 6.1 limit 4,
+line 1559), and both are byte-intact. No `deny`-named field exists on `HostSandboxCapabilities`.
+`len(RUN_FINDING_CODES) == 12`. `aw backlog check` exits 0. `aw attention` shows `sv9ce4` as `native_status: open`,
+`attention_class: ready`.
+
+### Findings
+
+| ID | Severity | Scope | Area | Evidence | Finding | Remediation Risk | Decision | Resolution |
+|----|----------|-------|------|----------|---------|------------------|----------|------------|
+| PR-1001 | HIGH | IN-SCOPE | Rubric G / A (carrier state model) | `sv9ce4` front matter `- Graduated-To: netnsfilter`; history "graduated: 2j4pd0, m0kl28, nxh5s4, rozdkp, wn956n" (2026-10-01) and then back to `open` (2026-10-06); E-01 required "still `open`" and offered "if the item was closed ... re-file it". | The carrier now has a successor Set. When `netnsfilter` re-graduates or completes, `sv9ce4` legitimately leaves `open`, and E-01 as written would have an executor RE-FILE a duplicate carrier and fork the obligation away from the Set building it. | C:Low; U:Low; S:Low; F:Low; Overall:Low | FIXED | E-01 now defines "live" as `open`, `graduated` with `Graduated-To: netnsfilter`, or `done` with that Set executed, and re-files only on removal or a close with no handoff. V-01 accepts all three states. |
+| PR-1002 | MEDIUM | UNDER-SCOPE | Spec sync (concurrent amender) | `wn956n` E-02: "Amend spec `25kzda` 5.2 to record that the push-denial requirement now has a PARTIAL and probed answer"; there is no edge between the Sets. | Two Sets amend the same spec section. Without a re-read, this plan's carrier sentence could contradict `netnsfilter`'s amendment. | C:Low; U:Low; S:Low; F:Low; Overall:Low | FIXED | E-02 now requires re-reading 5.2 at execution and wording the sentence consistently with whatever is there. No edge is added, because the runner isolates and merges. |
+| PR-1003 | MEDIUM | IN-SCOPE | Rubric E (unsatisfiable check) | (e) required "none reintroduces `supports_deny_push`". Measured hits: `pi3bk8` 8, `l4vw9o` 4, this plan 2, `run_evidence.py` retirement comment 1, all of them mentions. | A zero-hit reading can never pass, which pushes an executor toward editing records. | C:Low; U:Low; S:Low; F:Low; Overall:Low | FIXED | (e) now judges each hit as `definition` or `mention`, plus a behavioral `dataclasses.fields(HostSandboxCapabilities)` check. E-03's "four checks" is corrected to "five". |
+| PR-1004 | MEDIUM | IN-SCOPE | Evidence accuracy (stale prediction) | Required tests: "`uq4y6q` itself is clean after Order 01 sets `outcome: adopted`". Measured: `aw research index --check` reports `uq4y6q ... stale-state-to-promote` (record `status: todo`). | The predicted clean state is false now that Order 01 has executed. | C:Low; U:Low; S:Low; F:Low; Overall:Low | FIXED | The finding is classified as pre-existing (it predates this plan) and named as the one tolerated `uq4y6q` line in Required tests and V-04. Promotion stays out of scope, with a scope-reason route if needed. |
+| PR-1005 | LOW | IN-SCOPE | Internal consistency | OQ-02: "E-01 files a NEW item"; E-01 opens with "VERIFY, do not re-file". | A stale sentence contradicted E-01. | C:Low; U:Low; S:Low; F:Low; Overall:Low | FIXED | OQ-02 now says E-01 verifies `sv9ce4`. |
+| PR-1006 | LOW | IN-SCOPE | Honest wording | `sv9ce4` body: "`unshare -Urn --map-root-user true` failed ... Operation not permitted". Research `akmzyq` Finding 0 ("THE PREMISE CORRECTION"): the same command gives `rc=0` on another host. | E-01's "honestly worded" check did not know the carrier's hardness premise had been superseded. | C:Low; U:Low; S:Low; F:Low; Overall:Low | FIXED | E-01 and V-01 now record the `akmzyq` correction and append a note if the item is still `open`. They do not rewrite the dated history. OQ owners set to `plan author`. |
+
+### Decisions
+
+| ID | Question | Chosen | Alternatives considered | Basis | Reversible |
+|----|----------|--------|-------------------------|-------|------------|
+| D-1 | Should this plan depend on `netnsfilter` (`wn956n`) for the 5.2 edit? | No edge; re-read at execution. | Add `executed:wn956n`: rejected, because it would block a low-risk records plan on a five-plan security Set, and the runner already merges same-file edits. | AGENTS.md "The runners own ordering, isolation"; `wn956n` E-02. | yes |
+| D-2 | What to do with the stale `uq4y6q` finding? | Classify it as pre-existing under the delta bar; promotion stays out of scope. | Add the research record to Scope-Paths and require promotion: rejected, because it widens a verification plan into curation that `aw research promote` owns. | `aw research index --check` output at review. | yes |
