@@ -24,6 +24,7 @@ now under way. The direction of the 2.x line (in progress, not all shipped in th
 
 Major storage-layout boundary. The logical model (D126-D129) was superseded by the PHYSICAL `.aw/` hierarchy specified in `20260810-1447-01-physical-aw-hierarchy-placement-and-migration.spec.md` (D130, D134-D137), which the framework now implements and has migrated its own repository onto:
 
+- Fixed: the runner's backlog close predicate now requires a mixed item's spec carriers to be implemented before closing the item.
 - Fixed: `aw specs set`, `aw backlog set`, and `aw set` now refuse a Gate-Kind outside the documented vocabulary (artifact, date, decision, external, issue, todo) or a Gate-Ref that does not match its kind, whichever spelling is used, instead of writing an invalid gate record that the checker later reports.
 - Fixed: positional evidence-satisfied backlog closes now persist their citation portably, so aw check release-gates no longer reports a legitimate close as a dropped release gate.
 - Fixed: repeated same-status re-assertions on aw backlog set --status now deduplicate against the newest existing record instead of appending redundant history records, matching the behavior of the positional spelling.
