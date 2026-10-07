@@ -2,10 +2,10 @@
 
 - Subject-Id: pi3bk8
 - Subject-Type: ipd
-- Reviewed-At: 2026-09-30
-- Reviewer: opencode/its_direct/pt3-claude-opus-5-1m-us
+- Reviewed-At: 2026-10-07
+- Reviewer: opencode/its_direct/pt3-claude-opus-5.5-1m-us
 - Verdict: APPROVE WITH REVISIONS APPLIED
-- Findings: PR-801 (BLOCKER, fixed), PR-802 (HIGH, fixed), PR-803 (HIGH, fixed), PR-804 (MEDIUM, fixed), PR-805 (MEDIUM, fixed), PR-806 (MEDIUM, fixed), PR-807 (MEDIUM, fixed), PR-808 (LOW, fixed), PR-809 (LOW, fixed), PR-810 (LOW, fixed), PR-811 (LOW, fixed)
+- Findings: round 2: PR-901 (HIGH, fixed), PR-902 (MEDIUM, fixed), PR-903 (MEDIUM, fixed), PR-904 (LOW, fixed), PR-905 (LOW, fixed), PR-906 (LOW, fixed)
 
 ## Round 1
 
@@ -133,3 +133,38 @@ no `- Blocking: yes` escalation is owed under Step 4 and none was written.
 
 No production code, test, or configuration file was modified by this review. The only file changed is
 the plan, plus this record.
+
+## Round 2
+
+Re-review on 2026-10-07 in isolated review lane at HEAD `ad5904fbc` by opencode/its_direct/pt3-claude-opus-5.5-1m-us, after
+gradcover `52opph` demoted the plan and it returned to `to-review`. Plan byte-identical to lane input and committed, so no
+pre-review snapshot. `aw ipd lint --phase author --agent`: `clean`. `- Kind: child`, so S407/S408 do not apply. Host
+Landlock ABI 4 (`syscall(444, NULL, 0, 1)` returned 4).
+
+Re-verified: `landlock_bootstrap_source` still packs `struct.pack("=QQ", ALL, 0)` and applies the ruleset before `execv`;
+`PRESENCE_VS_OBSERVATION` still has exactly one reference (its assignment); `x2dwu5` is `executed`; "Two fields and a
+preflight close that" still in the module docstring; `DenyPushRemovedTests` present.
+
+MEASURED at review in scratch `python3 -c` (forked child, nothing written): ruleset handling `CONNECT_TCP` with one port
+allowed -> `allowed connected` / `denied errno 13 EACCES`; with BOTH ports allowed -> `allowed connected` /
+`denied-but-also-allowed connected`.
+
+### Findings
+
+| ID | Severity | Scope | Area | Evidence | Finding | Remediation Risk | Decision | Resolution |
+|----|----------|-------|------|----------|---------|------------------|----------|------------|
+| PR-901 | HIGH | IN-SCOPE | Correctness | E-02 "requires the kernel to refuse with `EPERM`" and "the `EPERM` that distinguishes a kernel denial"; measured `denied errno 13 EACCES`; F-10 itself records `[Errno 13] Permission denied`; `errno.EPERM == 1`, `errno.EACCES == 13` | An executor following E-02 literally would test for errno 1, never see it, and ship a probe that returns False on every capable host, the exact never-says-yes defect the plan's gate warns about. | C:Low; U:Low; S:Low; F:Low; Overall:Low | FIXED | E-02 now names `EACCES`/`PermissionError`, explicitly forbids an `EPERM` check, and cites the measurement. |
+| PR-902 | MEDIUM | UNDER-SCOPE | Testability, reachability convention | E-08 "building the jail with the DENIED port ALSO allowed", E-09 "through the existing test seam"; `_probe_landlock` has no injectable ABI or port set; `forced_runner_safety_verdicts` replaces the verdict wholesale | Neither demonstration had a code path: no seam exists to inject an ABI or extra allowed port, and the only existing seam would make E-09 pass against a probe with no ABI gate (vacuous). | C:Low; U:Low; S:Low; F:Low; Overall:Low | FIXED | E-02 now specifies a parent-side ABI helper and an allowed-ports hook; E-08/E-09 use them; E-08's arrangement measured reachable; V-09 adds an induced-failure check. |
+| PR-903 | MEDIUM | IN-SCOPE | Cross-plan coordination | `nxh5s4` E-05 writes a consumer for the same `PRESENCE_VS_OBSERVATION` table; pi3bk8 E-06 did not mention it | Two plans could each write a consumer, or conflict on witness shape (module attribute vs executable). | C:Low; U:Low; S:Low; F:Low; Overall:Low | FIXED | E-06 re-derives consumer existence first, reuses whichever landed, accepts both witness shapes, records which in V-06. Owning fix mirrored from `nxh5s4`. |
+| PR-904 | LOW | IN-SCOPE | Evidence currency | F-12/OQ-02 "once per gated action ... never per queue item"; `runner_shared.ensure_frozen_host_capabilities`; `HostSandboxCapabilities.from_dict` | Call-frequency reasoning described a path runners do not use; resumed-run behavior unstated. | C:Low; U:Low; S:Low; F:Low; Overall:Low | FIXED | Corrected to once per run via the frozen descriptor; resumed-run default False recorded. |
+| PR-905 | LOW | UNDER-SCOPE | Approval clarity | Orchestrator `l4vw9o` OQ-01 open (ship at all?), carrier `wcbpqf` | The approver of this child was not told that approving it answers the parent's open ship-or-stop question. | C:Low; U:Low; S:Low; F:Low; Overall:Low | FIXED | Gate now states it at the point of approval. |
+| PR-906 | LOW | IN-SCOPE | Live state | Gate "Backlog `oq05nc` is already `graduated`"; `oq05nc` is in `backlog/open/` | Stale status. | C:Low; U:Low; S:Low; F:Low; Overall:Low | FIXED | Replaced with a prohibition naming the close owner. |
+
+### Decisions
+
+| ID | Question | Chosen | Alternatives considered | Basis | Reversible |
+|----|----------|--------|-------------------------|-------|------------|
+| D-1 | Which errno marks a Landlock-denied connect? | `EACCES` (13). | `EPERM` as authored. REJECTED: measured 13. | Scratch run above; F-10. | yes |
+| D-2 | How do E-08/E-09 arrange outcomes? | Two module-level hooks the probe reads (ABI helper, allowed-ports builder). | `forced_runner_safety_verdicts`. REJECTED: bypasses the probe. Patching the probe's return. REJECTED: tests the patch. | E-08/E-09 text; measured both-ports-allowed arrangement. | yes |
+
+No decision is `Reversible: no`. No finding left OPEN or DEFERRED.
