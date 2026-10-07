@@ -98,6 +98,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 - THE GIT POLICY OF `state_durable`.
   - Carrier: gi1w75
+  - Carrier-Evidence: .aw/records/plans/executed/20261006-instbugs-02-gi1w75-make-the-install-consent-plan-show-real-paths-and-the-tracki.ipd.md
 - STAGING AND THE INSTALL REPORT.
   - Carrier: gzsfqn
 

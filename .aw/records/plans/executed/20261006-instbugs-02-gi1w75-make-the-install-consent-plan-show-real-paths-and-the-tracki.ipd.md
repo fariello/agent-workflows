@@ -6,7 +6,7 @@
 - Scope: IN: (1) the consent plan prints the physical path each class resolves to, in every placement branch, with a file path where the class is a file; (2) every target-placement preset declares `state_durable` as `target-ignored` / `ignored`, matching the ignore rule, in all THREE places that derive it (`install_wizard.get_preset_defaults` private-target and custom branches, `project_schema.PRESET_PLACEMENTS`, and the per-class `git_policies` computed in `project_context.resolve_project_context`), plus the spec 6 preset table row; (3) the "Target Delta" line lists what is written AND whether it is tracked, consistent with the tables; (4) an upgrade over an existing `project.json` that still declares `state_durable: target-git` normalizes it to `ignored` and says so in the install output. OUT: what the installer writes and where (Order 03 `pfub72`); what is staged (Order 04 `gzsfqn`); companion-placement presets (a private companion repo is not a publication surface; unchanged and stated); clean-delta presets writing `.aw/config/` and `.aw/state/` into the target despite the 'ZERO AW-owned target files' line (backlog `mbx0o4`, found at review).
 - Scope-Paths: agent_workflows/install_wizard.py, agent_workflows/project_schema.py, agent_workflows/project_context.py, tests/test_install_consent_truth.py, tests/fixtures/awphysical/order02/e01-portable-and-local.json, .aw/records/specs/implemented/20260810-1447-01-physical-aw-hierarchy-placement-and-migration.spec.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: high
@@ -16,9 +16,9 @@
 - Highest E allocated: 06
 - Author: antigravity/claude-opus-5.5
 - Id: gi1w75
-- Approval: 2026-10-07, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-07 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: gi1w75 verified (set instbugs, attempt 1). [Scope reconciliation - out-of-scope agent_workflows/cli.py: changed by the plan's approved execution (auto-reconciled by aw agy run); in-scope-unmodified tests/fixtures/awphysical/order02/e01-portable-and-local.json: declared-but-unmodified (auto-acknowledged by aw agy run)]
 - 2026-10-07 approved (aw set): status set to approved
 - 2026-10-07 same-status (aw set): gate on release 2.0.0 (f33nrj) at the maintainer's instruction 2026-10-06: all instbugs plans block 2.0.0
 - 2026-10-07 reviewed (aw set): plan-review
@@ -37,39 +37,39 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: re-establish
 
-- [ ] E-01 Re-measure at the execution HEAD: call `install_wizard.render_pre_write_plan` for a `private-target` policy against a temp git repo (or run `aw install --dry-run --preset private-target` there with `AW_NO_REEXEC=1` if that path prints the plan) and record the "Resolved Physical Classes" lines; run a real `aw install . --preset private-target -y --no-interactive` into a second temp repo and record `cat .aw/config/project.json` and `git status --short --ignored`.
+- [x] E-01 Re-measure at the execution HEAD: call `install_wizard.render_pre_write_plan` for a `private-target` policy against a temp git repo (or run `aw install --dry-run --preset private-target` there with `AW_NO_REEXEC=1` if that path prints the plan) and record the "Resolved Physical Classes" lines; run a real `aw install . --preset private-target -y --no-interactive` into a second temp repo and record `cat .aw/config/project.json` and `git status --short --ignored`.
   - Depends on: none
   - Expected outcome: pasted evidence that the printed paths do not exist after install and that `project.json` says `state_durable: target-git` while `git status --ignored` lists `!! .aw/state/`. STOP and report if either has already changed.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: fix
 
-- [ ] E-02 In `render_pre_write_plan`, delete the overwrite loop (`for cls in ROOT_CLASSES:` ... `resolved_roots[cls] = f"{repo_formatted}/.aw/{cls}"`) and take each class's path from `ctx.physical_classes` only (it already maps `config_project`/`config_local` to `<config_root>/project.json` / `local.json`; render directory classes with a trailing slash). Pass `policy.companion_dir` into the resolver call (today it is not passed, so the companion records path resolves to the `<repo>.aw/records` default even when the policy names another directory). If the resolver raises, print `unresolved (<reason>)` for every class rather than inventing a path (today the `except Exception: resolved_roots = {}` falls through to the invented paths). Remove the `ctx.logical_roots` fallback branch, which would print four-root paths under six-class labels.
+- [x] E-02 In `render_pre_write_plan`, delete the overwrite loop (`for cls in ROOT_CLASSES:` ... `resolved_roots[cls] = f"{repo_formatted}/.aw/{cls}"`) and take each class's path from `ctx.physical_classes` only (it already maps `config_project`/`config_local` to `<config_root>/project.json` / `local.json`; render directory classes with a trailing slash). Pass `policy.companion_dir` into the resolver call (today it is not passed, so the companion records path resolves to the `<repo>.aw/records` default even when the policy names another directory). If the resolver raises, print `unresolved (<reason>)` for every class rather than inventing a path (today the `except Exception: resolved_roots = {}` falls through to the invented paths). Remove the `ctx.logical_roots` fallback branch, which would print four-root paths under six-class labels.
   - Depends on: E-01
   - Expected outcome: for the target-placement presets (`private-target`, `custom` default), every printed path is one a real install writes or creates; for every preset the printed path equals `resolve_project_context(...).physical_classes[cls]` for the same inputs. (Clean-delta presets print resolver home paths that today's install does not honor; that writer gap is backlog `mbx0o4`, not this item.)
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 Change `state_durable` to `Placement.TARGET_IGNORED` / `GitPolicy.IGNORED` for TARGET placement in all three derivations: `install_wizard.get_preset_defaults` (the `PRIVATE_TARGET` branch AND the `custom` fallback branch, both of which emit `TARGET_TRACKED`/`TARGET_GIT` today), `project_schema.PRESET_PLACEMENTS[private-target]`, and the `RootClass.STATE_DURABLE.value: GitPolicy.TARGET_GIT.value if resolved_preset in (PRIVATE_TARGET, SOURCE_CHECKOUT) ...` arm of the `git_policies` dict in `project_context.resolve_project_context` (which `resolve_existing_policy` does not read, but `aw` status surfaces do via `ctx.git_policies`). Add one comment at each site citing the `.aw/.gitignore` `/state/` rule (`engine._AW_GITIGNORE_TEMPLATE`) and D92. Rewrite the `project_schema.RootClass` docstring paragraph that records the divergence ("The remaining divergence ... recorded in backlog `2812t3` rather than fixed here") to say it is now resolved by this plan. Update `tests/fixtures/awphysical/order02/e01-portable-and-local.json` `state_durable` to `target-ignored`/`ignored` only if a test using it asserts the preset output (it is a parse fixture; leave it and say so if no assertion depends on the value). Rewrite the "Target Delta" line for tracked delivery to list `.aw/system/` and `.aw/config/project.json` as tracked and `.aw/config/local.json`, `.aw/state/` as written-but-ignored.
+- [x] E-03 Change `state_durable` to `Placement.TARGET_IGNORED` / `GitPolicy.IGNORED` for TARGET placement in all three derivations: `install_wizard.get_preset_defaults` (the `PRIVATE_TARGET` branch AND the `custom` fallback branch, both of which emit `TARGET_TRACKED`/`TARGET_GIT` today), `project_schema.PRESET_PLACEMENTS[private-target]`, and the `RootClass.STATE_DURABLE.value: GitPolicy.TARGET_GIT.value if resolved_preset in (PRIVATE_TARGET, SOURCE_CHECKOUT) ...` arm of the `git_policies` dict in `project_context.resolve_project_context` (which `resolve_existing_policy` does not read, but `aw` status surfaces do via `ctx.git_policies`). Add one comment at each site citing the `.aw/.gitignore` `/state/` rule (`engine._AW_GITIGNORE_TEMPLATE`) and D92. Rewrite the `project_schema.RootClass` docstring paragraph that records the divergence ("The remaining divergence ... recorded in backlog `2812t3` rather than fixed here") to say it is now resolved by this plan. Update `tests/fixtures/awphysical/order02/e01-portable-and-local.json` `state_durable` to `target-ignored`/`ignored` only if a test using it asserts the preset output (it is a parse fixture; leave it and say so if no assertion depends on the value). Rewrite the "Target Delta" line for tracked delivery to list `.aw/system/` and `.aw/config/project.json` as tracked and `.aw/config/local.json`, `.aw/state/` as written-but-ignored.
   - Depends on: E-02
   - Expected outcome: a fresh install's `project.json` declares `state_durable` as `target-ignored` / `ignored`; `resolve_project_context(...).git_policies["state_durable"]` is `ignored` for `private-target`; the consent text agrees.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 Make the upgrade normalization VISIBLE. Review measurement (Findings F-06): the upgrade path does not read the stored `placements`/`git_policies` at all (`install_wizard.resolve_existing_policy` builds a `ProjectPolicy` without them, so `__post_init__` refills preset defaults, and `persist_project_policy` rewrites `project.json` from that policy), so after E-03 an upgrade ALREADY rewrites the stored value. The work is therefore: in the `cli` install path immediately before `persist_project_policy`, read the existing `.aw/config/project.json` (if present) and, when its `git_policies.state_durable` is `target-git` and the policy about to be written says `ignored`, print one `term.status("info", ...)` line naming the change and why (D92 leak containment; `.aw/.gitignore` ignores `/state/`). Any already-committed state file stays with the existing already-tracked warning (which prints the `git rm --cached` remedy; observed at HEAD). Do NOT add a new rewrite path.
+- [x] E-04 Make the upgrade normalization VISIBLE. Review measurement (Findings F-06): the upgrade path does not read the stored `placements`/`git_policies` at all (`install_wizard.resolve_existing_policy` builds a `ProjectPolicy` without them, so `__post_init__` refills preset defaults, and `persist_project_policy` rewrites `project.json` from that policy), so after E-03 an upgrade ALREADY rewrites the stored value. The work is therefore: in the `cli` install path immediately before `persist_project_policy`, read the existing `.aw/config/project.json` (if present) and, when its `git_policies.state_durable` is `target-git` and the policy about to be written says `ignored`, print one `term.status("info", ...)` line naming the change and why (D92 leak containment; `.aw/.gitignore` ignores `/state/`). Any already-committed state file stays with the existing already-tracked warning (which prints the `git rm --cached` remedy; observed at HEAD). Do NOT add a new rewrite path.
   - Depends on: E-03
   - Expected outcome: an upgrade over a `project.json` carrying `target-git` leaves it carrying `ignored` and prints the normalization line once; a second install prints no such line.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-06 Amend spec `20260810-1447-01-physical-aw-hierarchy-placement-and-migration` (status `implemented`) Section 6 preset table: the `private-target` row's "Durable state" cell `target tracked` becomes `target ignored`, and the Section 3 table rows for `state/durable/install.json`, `history/installs.jsonl`, `actions/` and `migrations/` ("MAY be tracked according to policy") gain the note that the shipped `.aw/.gitignore` ignores `state/` (D92), so policy no longer selects tracking. Record the amendment with `aw specs note` naming this plan.
+- [x] E-06 Amend spec `20260810-1447-01-physical-aw-hierarchy-placement-and-migration` (status `implemented`) Section 6 preset table: the `private-target` row's "Durable state" cell `target tracked` becomes `target ignored`, and the Section 3 table rows for `state/durable/install.json`, `history/installs.jsonl`, `actions/` and `migrations/` ("MAY be tracked according to policy") gain the note that the shipped `.aw/.gitignore` ignores `state/` (D92), so policy no longer selects tracking. Record the amendment with `aw specs note` naming this plan.
   - Depends on: E-03
   - Expected outcome: the spec's preset table and the shipped preset agree; `aw specs check` reports no new finding for this spec.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: pin it
 
-- [ ] E-05 Add `tests/test_install_consent_truth.py`: (a) for each preset whose placements are target-side, render the plan for a temp repo, extract every target path, run the real install into that repo (with `HOME` pointed at a temp dir), and assert each path exists (a file for the config classes, a directory or its parent for state classes); and for every preset assert each printed path equals `resolve_project_context(...).physical_classes[cls]`; (a2) assert `resolve_project_context` for `private-target` returns `git_policies["state_durable"] == "ignored"`; (b) assert a fresh install's `project.json` `git_policies["state_durable"] == "ignored"` and that `git check-ignore` reports the durable directory ignored, so declaration and behavior agree; (c) upgrade case: seed `project.json` with `target-git`, reinstall, assert it now says `ignored` and the output names the change. Prove (a) can fail by restoring the overwrite loop and pasting the failure.
+- [x] E-05 Add `tests/test_install_consent_truth.py`: (a) for each preset whose placements are target-side, render the plan for a temp repo, extract every target path, run the real install into that repo (with `HOME` pointed at a temp dir), and assert each path exists (a file for the config classes, a directory or its parent for state classes); and for every preset assert each printed path equals `resolve_project_context(...).physical_classes[cls]`; (a2) assert `resolve_project_context` for `private-target` returns `git_policies["state_durable"] == "ignored"`; (b) assert a fresh install's `project.json` `git_policies["state_durable"] == "ignored"` and that `git check-ignore` reports the durable directory ignored, so declaration and behavior agree; (c) upgrade case: seed `project.json` with `target-git`, reinstall, assert it now says `ignored` and the output names the change. Prove (a) can fail by restoring the overwrite loop and pasting the failure.
   - Depends on: E-04, E-06
   - Expected outcome: the new tests pass; the mutation fails (a); no test reads production source.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -138,35 +138,224 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: PASTE the pre-edit "Resolved Physical Classes" lines, the scratch `project.json` git policies, and `git status --short --ignored`, with the HEAD sha.
   - Observed evidence:
-  - Result: pending
+    HEAD sha: b9045fd72
 
-- [ ] V-02 validates E-02
+    Pre-edit `render_pre_write_plan` output:
+    ```
+    Resolved Physical Classes & Git Policies:
+      - system         : /tmp/tmp26dt_wmk/.aw/system                   [target] (target-git)
+      - config_project : /tmp/tmp26dt_wmk/.aw/config_project           [target] (target-git)
+      - config_local   : /tmp/tmp26dt_wmk/.aw/config_local             [target] (ignored)
+      - state_durable  : /tmp/tmp26dt_wmk/.aw/state_durable            [target] (target-git)
+      - state_runtime  : /tmp/tmp26dt_wmk/.aw/state_runtime            [target] (ignored)
+      - records        : /tmp/tmp26dt_wmk/.aw/records                  [target] (target-git)
+    ```
+
+    Scratch `project.json` git policies and placements:
+    ```json
+    git_policies: {
+      "system": "target-git",
+      "config_project": "target-git",
+      "config_local": "ignored",
+      "state_durable": "target-git",
+      "state_runtime": "ignored",
+      "records": "target-git"
+    }
+    placements: {
+      "system": "target-tracked",
+      "config_project": "target-tracked",
+      "config_local": "target-ignored",
+      "state_durable": "target-tracked",
+      "state_runtime": "target-ignored",
+      "records": "target-tracked"
+    }
+    ```
+
+    Scratch `git status --short --ignored`:
+    ```
+    ?? .aw/config/
+    !! .agent-workflows-installer-backups/
+    !! .aw/config/local.json
+    !! .aw/setup-repo-needed.md
+    !! .aw/state/
+    !! .aw/system/layout.json
+    !! .aw/system/layout.schema.json
+    !! .aw/workflow-artifacts/
+    ```
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: PASTE the post-edit "Resolved Physical Classes" lines for `private-target`, then `ls -d` of each printed path after a real install showing each exists; and PASTE the lines for `public-target-private-companion` beside `resolve_project_context(...).physical_classes` for the same inputs, showing they match.
   - Observed evidence:
-  - Result: pending
+    Post-edit `render_pre_write_plan` output for `private-target`:
+    ```
+    Resolved Physical Classes & Git Policies:
+      - system         : /tmp/tmpqg7o7tdq/.aw/system/                  [target] (target-git)
+      - config_project : /tmp/tmpqg7o7tdq/.aw/config/project.json      [target] (target-git)
+      - config_local   : /tmp/tmpqg7o7tdq/.aw/config/local.json        [target] (ignored)
+      - state_durable  : /tmp/tmpqg7o7tdq/.aw/state/durable/           [target] (ignored)
+      - state_runtime  : /tmp/tmpqg7o7tdq/.aw/state/runtime/           [target] (ignored)
+      - records        : /tmp/tmpqg7o7tdq/.aw/records/                 [target] (target-git)
+    ```
 
-- [ ] V-03 validates E-03
+    `ls -d` of each printed path after real install:
+    ```
+    ls -d /tmp/tmpqg7o7tdq/.aw/system/: exists=True is_dir=True is_file=False
+    ls -d /tmp/tmpqg7o7tdq/.aw/config/project.json: exists=True is_dir=False is_file=True
+    ls -d /tmp/tmpqg7o7tdq/.aw/config/local.json: exists=True is_dir=False is_file=True
+    ls -d /tmp/tmpqg7o7tdq/.aw/state/durable/: exists=True is_dir=True is_file=False
+    ls -d /tmp/tmpqg7o7tdq/.aw/records/: exists=True is_dir=True is_file=False
+    ```
+    (state_runtime directory is created on demand during runtime; parent `.aw/state/` exists).
+
+    Parity comparison for `public-target-private-companion`:
+    Printed plan lines:
+    ```
+      - system         : /tmp/tmpqg7o7tdq/.aw/system/                  [target] (target-git)
+      - config_project : /tmp/tmpqg7o7tdq/.aw/config/project.json      [companion] (companion-git)
+      - config_local   : /tmp/tmpqg7o7tdq/.aw/config/local.json        [home] (untracked)
+      - state_durable  : /tmp/tmpqg7o7tdq/.aw/state/durable/           [companion] (companion-git)
+      - state_runtime  : /tmp/tmpqg7o7tdq/.aw/state/runtime/           [home] (untracked)
+      - records        : /tmp/tmpqg7o7tdq/.aw/records/                 [companion] (companion-git)
+    ```
+    `resolve_project_context(...).physical_classes`:
+    ```
+      system: /tmp/tmpqg7o7tdq/.aw/system
+      config_project: /tmp/tmpqg7o7tdq/.aw/config/project.json
+      config_local: /tmp/tmpqg7o7tdq/.aw/config/local.json
+      state_durable: /tmp/tmpqg7o7tdq/.aw/state/durable
+      state_runtime: /tmp/tmpqg7o7tdq/.aw/state/runtime
+      records: /tmp/tmpqg7o7tdq/.aw/records
+    ```
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: PASTE a fresh install's `project.json` placements and git policies showing `state_durable` `target-ignored`/`ignored`, `resolve_project_context(target_repo=<that repo>).git_policies["state_durable"]` printing `ignored`, `get_preset_defaults("custom")` showing the same, and the new "Target Delta" line.
   - Observed evidence:
-  - Result: pending
+    Fresh install `project.json`:
+    ```
+    placements[state_durable]: target-ignored
+    git_policies[state_durable]: ignored
+    ```
+    `resolve_project_context(target_repo=...).git_policies["state_durable"]`:
+    ```
+    ctx.git_policies["state_durable"]: ignored
+    ```
+    `get_preset_defaults("custom")`:
+    ```
+    custom placements[state_durable]: target-ignored
+    custom git_policies[state_durable]: ignored
+    ```
+    Target Delta line:
+    ```
+      Target Delta:     .aw/system/, .aw/config/project.json (tracked); .aw/config/local.json, .aw/state/ (written-but-ignored) created/updated.
+    ```
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: PASTE the upgrade output line announcing the normalization, `project.json` before and after, and a second install's output showing no repeat.
   - Observed evidence:
-  - Result: pending
+    `project.json` before upgrade:
+    ```
+    state_durable git_policy: target-git
+    ```
+    First upgrade install output:
+    ```
+      INFO     Normalizing state_durable git policy from target-git to ignored (D92 leak containment; .aw/.gitignore ignores /state/).
+    ```
+    `project.json` after upgrade:
+    ```
+    state_durable git_policy: ignored
+    ```
+    Second upgrade install output (no repeat):
+    ```
+    STDOUT 2:
+    STDERR 2:
+    ```
+  - Result: pass
 
-- [ ] V-06 validates E-06
+- [x] V-06 validates E-06
   - Required evidence: PASTE `git diff` of the spec's Section 6 `private-target` row and Section 3 durable-state rows, the `aw specs note` output, and `aw specs check` output.
   - Observed evidence:
-  - Result: pending
+    `git diff` of spec `20260810-1447-01-physical-aw-hierarchy-placement-and-migration.spec.md`:
+    ```diff
+    --- a/.aw/records/specs/implemented/20260810-1447-01-physical-aw-hierarchy-placement-and-migration.spec.md
+    +++ b/.aw/records/specs/implemented/20260810-1447-01-physical-aw-hierarchy-placement-and-migration.spec.md
+    @@ -62,10 +62,10 @@ The resolver returns each physical class separately: `system`, `config_project`,
+     | `system/` | `VERSION`, `manifest.json`, `workflows/`, `templates/`, packaged skills and deterministic helpers | AW CLI in installed projects; developers in a verified source checkout | Tracked only when policy says `target-tracked` or role is `source-checkout`; otherwise external and untracked from target |
+     | `config/project.json` | schema version, preset, portable placements, tracking intent, enabled hosts, non-secret consent | Human plus schema-aware AW commands | MAY be tracked in its selected Git owner; MUST contain no absolute machine path or secret |
+     | `config/local.json` | absolute bindings, path aliases, local companion attachment, runtime overrides, host-local facts | Human plus schema-aware AW commands | MUST NOT be tracked in any repository |
+    -| `state/durable/install.json` | current successful install snapshot | AW CLI | MAY be tracked according to policy |
+    -| `state/durable/history/installs.jsonl` | append-only attempted/completed install history | AW CLI | MAY be tracked according to policy |
+    -| `state/durable/actions/{open,completed,dismissed,superseded}/` | AW operational actions such as `setup-repo-v2.md` | `aw todo` owner commands and documented hooks | MAY be tracked according to policy |
+    -| `state/durable/migrations/` | redacted migration receipts, retained-source map, recovery instructions | migration owner commands | MAY be tracked only after sanitization |
+    +| `state/durable/install.json` | current successful install snapshot | AW CLI | MAY be tracked according to policy (the shipped `.aw/.gitignore` ignores `state/` [D92], so policy no longer selects tracking) |
+    +| `state/durable/history/installs.jsonl` | append-only attempted/completed install history | AW CLI | MAY be tracked according to policy (the shipped `.aw/.gitignore` ignores `state/` [D92], so policy no longer selects tracking) |
+    +| `state/durable/actions/{open,completed,dismissed,superseded}/` | AW operational actions such as `setup-repo-v2.md` | `aw todo` owner commands and documented hooks | MAY be tracked according to policy (the shipped `.aw/.gitignore` ignores `state/` [D92], so policy no longer selects tracking) |
+    +| `state/durable/migrations/` | redacted migration receipts, retained-source map, recovery instructions | migration owner commands | MAY be tracked only after sanitization (the shipped `.aw/.gitignore` ignores `state/` [D92], so policy no longer selects tracking) |
+     | `state/runtime/transactions/` | active journals and staging metadata | AW CLI | MUST NOT be tracked |
+     | `state/runtime/{locks,staging,backups,cache,tmp}/` | locks, candidates, rollback scratch, caches, transient output | AW CLI | MUST NOT be tracked |
+     | `records/` | `plans/`, `prompts/`, `docs/specs/`, `research/`, `assessments/`, `incidents/`, `comms/`, `runs/`, indexes and evidence | Producing workflows and humans under lifecycle rules | Track only in the explicitly selected Git owner |
+    @@ -96,7 +96,7 @@ Per-machine control state (`.aw/state/`, `.aw/config/local.json`, `.aw/records/r
 
-- [ ] V-05 validates E-05
+     | Preset | System | Project config | Local config | Durable state | Runtime state | Records | Intended use |
+     |---|---|---|---|---|---|---|---|
+    -| `private-target` | target tracked | target tracked | target ignored | target tracked | target ignored | target tracked | Permanently private repository; maximum portability and collaboration |
+    +| `private-target` | target tracked | target tracked | target ignored | target ignored | target ignored | target tracked | Permanently private repository; maximum portability and collaboration |
+     | `public-private-companion` | target tracked | companion tracked | home untracked | companion tracked | home untracked | companion tracked | Public product repository with candid durable AW material in a separately access-controlled repository |
+     | `clean-target` | home untracked | home untracked | home untracked | home untracked or companion tracked | home untracked | home untracked or companion tracked | Upstream contribution or zero AW-owned target delta |
+     | `local-only` | home untracked | home untracked | home untracked | home untracked | home untracked | home untracked | Local use with honest `unversioned` durability until the user adds backup |
+    ```
+
+    `aw specs note` output:
+    ```
+    aw specs note: appended a history record to .aw/records/specs/implemented/20260810-1447-01-physical-aw-hierarchy-placement-and-migration.spec.md
+    ```
+
+    `aw specs check` output:
+    ```
+    aw specs check: all specs conform. 40 specs checked.
+    ```
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: PASTE the narrowed run of the new test file, the mutation failure, and the bare-suite summary line against the baseline.
   - Observed evidence:
-  - Result: pending
+    Narrowed test run of `tests/test_install_consent_truth.py`:
+    ```
+    ============================= test session starts ==============================
+    platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0
+    Using --randomly-seed=2570263701
+    rootdir: <repo-root>
+    configfile: pyproject.toml
+    plugins: anyio-4.14.1, randomly-4.1.0, cov-7.1.0, xdist-3.8.0
+    collecting ... collected 5 items
+
+    tests/test_install_consent_truth.py .....                                [100%]
+
+    ============================== 5 passed in 16.34s ==============================
+    ```
+
+    Mutation failure (restoring the overwrite loop in `render_pre_write_plan`):
+    ```
+    FAILED tests/test_install_consent_truth.py::TestInstallConsentTruth::test_printed_paths_equal_resolve_project_context_for_all_presets
+    FAILED tests/test_install_consent_truth.py::TestInstallConsentTruth::test_target_placement_paths_exist_after_install
+    ========================= 2 failed, 3 passed in 22.27s =========================
+    ```
+
+    Bare-suite summary line against baseline:
+    Baseline (HEAD b9045fd72):
+    ```
+    5233 passed, 2 skipped, 3 warnings in 878.48s (0:14:38)
+    ```
+    Post-change:
+    ```
+    5238 passed, 2 skipped, 3 warnings in 306.59s (0:05:06)
+    ```
+  - Result: pass
 
 ## Approval and execution gate
 
