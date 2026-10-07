@@ -313,6 +313,7 @@ class AgentRecordNextRedactionTests(unittest.TestCase):
         assert_valid_agent_record(rec)
 
 
+@pytest.mark.slow
 class CliSubprocessLeakPostureTests(unittest.TestCase):
     """End-to-end CLI subprocess execution asserting leak postures (E-06, V-06)."""
 

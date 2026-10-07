@@ -18,219 +18,397 @@ from agent_workflows import render_stream as rs
 from agent_workflows import term as _T
 
 
+def generate_pairwise_covering_array(domains: list[list[Any]]) -> list[list[Any]]:
+    """Deterministic in-repo pairwise covering array generator (plan mat9bt E-02).
+
+    Takes a list of domains and returns rows covering every value of every dimension
+    and every value-pair across every dimension pair.
+    Uses no RNG or random module.
+    Seeded from the lexicographically smallest uncovered pair on each row.
+    Guarded against non-convergence by raising if a constructed row covers no new pair.
+    Operates on domain indices so non-hashable/complex values need no special handling.
+    """
+    num_dims = len(domains)
+    if num_dims == 0:
+        return []
+    if num_dims == 1:
+        return [[v] for v in domains[0]]
+
+    dim_sizes = [len(d) for d in domains]
+    uncovered = set()
+    for d1 in range(num_dims):
+        for d2 in range(d1 + 1, num_dims):
+            for v1 in range(dim_sizes[d1]):
+                for v2 in range(dim_sizes[d2]):
+                    uncovered.add(((d1, v1), (d2, v2)))
+
+    rows = []
+    while uncovered:
+        # Seed from the lexicographically smallest uncovered pair
+        seed = min(uncovered)
+        (sd1, sv1), (sd2, sv2) = seed
+        row = [None] * num_dims
+        row[sd1] = sv1
+        row[sd2] = sv2
+
+        # Greedily fill remaining dimensions in order
+        for d in range(num_dims):
+            if row[d] is not None:
+                continue
+            best_val = 0
+            best_score = -1
+            for v in range(dim_sizes[d]):
+                score = 0
+                for other_d in range(num_dims):
+                    if row[other_d] is not None:
+                        d_min, d_max = (d, other_d) if d < other_d else (other_d, d)
+                        v_min, v_max = (
+                            (v, row[other_d]) if d < other_d else (row[other_d], v)
+                        )
+                        if ((d_min, v_min), (d_max, v_max)) in uncovered:
+                            score += 1
+                if score > best_score:
+                    best_score = score
+                    best_val = v
+            row[d] = best_val
+
+        # Guard against non-convergence
+        covered_by_row = set()
+        for d1 in range(num_dims):
+            for d2 in range(d1 + 1, num_dims):
+                pair = ((d1, row[d1]), (d2, row[d2]))
+                if pair in uncovered:
+                    covered_by_row.add(pair)
+
+        if not covered_by_row:
+            raise RuntimeError(
+                "Covering array generator failed to converge: constructed row covers no new pair"
+            )
+
+        uncovered -= covered_by_row
+        rows.append([domains[d][row[d]] for d in range(num_dims)])
+
+    return rows
+
+
+_POPULATED_TRACKER = rs.StreamTracker()
+_POPULATED_TRACKER.update(inp=119000, out=110700, cache=4500000, cost=6.16)
+
+# Swept dimensions: kept strictly free of zero-width and newline characters (PR-302, F-10).
+_STATUSLINE_SWEPT_SETIDS = [
+    "",
+    "statuscov",
+    "very-long-setid-alpha-beta",
+]  # 3: absent, present, long
+_STATUSLINE_SWEPT_ID6S = ["", "6tjq2j"]  # 2: absent, present
+_STATUSLINE_SWEPT_ACTIONS = [
+    "execute",
+    "customact",
+    None,
+]  # 3: mapped, unmapped, absent
+_STATUSLINE_SWEPT_ARTIFACT_KINDS = [
+    "ipd",
+    "customart",
+    None,
+]  # 3: mapped, unmapped, absent
+_STATUSLINE_SWEPT_STALL_REMAININGS = [None, 0.0, 500.0]  # 3: absent, zero, large
+_STATUSLINE_SWEPT_PROGRESS_SOURCES = ["stdout", None]  # 2: present, absent
+_STATUSLINE_SWEPT_ACTIVITIES = [
+    None,
+    "verifying",
+    "reading a file",
+]  # 3: absent, real stage, free text
+_STATUSLINE_SWEPT_PROGRESS_PAIRS = [
+    (0, 0),
+    (0, 5),
+    (3, 5),
+    (5, 5),
+]  # 4: 0/0, 0/N, mid, N/N
+_STATUSLINE_SWEPT_TRACKERS = [None, _POPULATED_TRACKER]  # 2: absent, populated
+
+_STATUSLINE_SWEPT_DOMAINS = [
+    _STATUSLINE_SWEPT_SETIDS,
+    _STATUSLINE_SWEPT_ID6S,
+    _STATUSLINE_SWEPT_ACTIONS,
+    _STATUSLINE_SWEPT_ARTIFACT_KINDS,
+    _STATUSLINE_SWEPT_STALL_REMAININGS,
+    _STATUSLINE_SWEPT_PROGRESS_SOURCES,
+    _STATUSLINE_SWEPT_ACTIVITIES,
+    _STATUSLINE_SWEPT_PROGRESS_PAIRS,
+    _STATUSLINE_SWEPT_TRACKERS,
+]
+
+
+def _check_statusline_box_invariants_for_combo(
+    setid: str,
+    id6: str,
+    action: str | None,
+    art_kind: str | None,
+    stall: float | None,
+    prog_src: str | None,
+    activity: str | None,
+    progress_pair: tuple[int, int],
+    tracker: rs.StreamTracker | None,
+    pal_plain: rs.Palette,
+    pal_styled: rs.Palette,
+    now_ts: float,
+    run_start_ts: float,
+    item_start_ts: float,
+    last_act_ts: float,
+) -> int:
+    """Assert four box renderer invariants across both styling modes and both unicode modes.
+    Returns number of renders performed (4).
+    """
+    cur_idx, tot_items = progress_pair
+    renders = 0
+
+    for use_unicode in (True, False):
+        # 1. Unstyled render
+        plain_lines = rs.format_statusline_lines(
+            now_ts=now_ts,
+            run_start_ts=run_start_ts,
+            item_start_ts=item_start_ts,
+            last_act_ts=last_act_ts,
+            current_idx=cur_idx,
+            total_items=tot_items,
+            setid=setid,
+            id6=id6,
+            tracker=tracker,
+            pal=pal_plain,
+            stall_remaining=stall,
+            progress_source=prog_src,
+            action=action,
+            artifact_kind=art_kind,
+            use_unicode=use_unicode,
+            activity=activity,
+        )
+        plain_str = rs.format_statusline(
+            now_ts=now_ts,
+            start_ts=run_start_ts,
+            last_act_ts=last_act_ts,
+            current_idx=cur_idx,
+            total_items=tot_items,
+            setid=setid,
+            id6=id6,
+            tracker=tracker,
+            pal=pal_plain,
+            item_start_ts=item_start_ts,
+            stall_remaining=stall,
+            progress_source=prog_src,
+            action=action,
+            artifact_kind=art_kind,
+            use_unicode=use_unicode,
+            activity=activity,
+        )
+        renders += 1
+
+        # (a) exactly 4 lines returned, joined into 4 newline-delimited lines
+        assert len(plain_lines) == 4
+        assert plain_str == "\n".join(plain_lines)
+
+        # (b) every line has the same visible width (single distinct value)
+        plain_widths = [_T.visible_width(line) for line in plain_lines]
+        assert len(set(plain_widths)) == 1
+
+        # (d) repeat render is byte-identical
+        plain_repeat = rs.format_statusline_lines(
+            now_ts=now_ts,
+            run_start_ts=run_start_ts,
+            item_start_ts=item_start_ts,
+            last_act_ts=last_act_ts,
+            current_idx=cur_idx,
+            total_items=tot_items,
+            setid=setid,
+            id6=id6,
+            tracker=tracker,
+            pal=pal_plain,
+            stall_remaining=stall,
+            progress_source=prog_src,
+            action=action,
+            artifact_kind=art_kind,
+            use_unicode=use_unicode,
+            activity=activity,
+        )
+        assert plain_repeat == plain_lines
+
+        # 2. Styled render
+        styled_lines = rs.format_statusline_lines(
+            now_ts=now_ts,
+            run_start_ts=run_start_ts,
+            item_start_ts=item_start_ts,
+            last_act_ts=last_act_ts,
+            current_idx=cur_idx,
+            total_items=tot_items,
+            setid=setid,
+            id6=id6,
+            tracker=tracker,
+            pal=pal_styled,
+            stall_remaining=stall,
+            progress_source=prog_src,
+            action=action,
+            artifact_kind=art_kind,
+            use_unicode=use_unicode,
+            activity=activity,
+        )
+        styled_str = rs.format_statusline(
+            now_ts=now_ts,
+            start_ts=run_start_ts,
+            last_act_ts=last_act_ts,
+            current_idx=cur_idx,
+            total_items=tot_items,
+            setid=setid,
+            id6=id6,
+            tracker=tracker,
+            pal=pal_styled,
+            item_start_ts=item_start_ts,
+            stall_remaining=stall,
+            progress_source=prog_src,
+            action=action,
+            artifact_kind=art_kind,
+            use_unicode=use_unicode,
+            activity=activity,
+        )
+        renders += 1
+
+        # (a) exactly 4 lines returned, joined into 4 newline-delimited lines
+        assert len(styled_lines) == 4
+        assert styled_str == "\n".join(styled_lines)
+
+        # (b) every line has the same visible width (single distinct value)
+        styled_widths = [_T.visible_width(line) for line in styled_lines]
+        assert len(set(styled_widths)) == 1
+
+        # (c) _strip_ansi(styled) == plain line for line
+        stripped = tuple(rs._strip_ansi(line) for line in styled_lines)
+        assert stripped == plain_lines
+
+        # (d) repeat render is byte-identical
+        styled_repeat = rs.format_statusline_lines(
+            now_ts=now_ts,
+            run_start_ts=run_start_ts,
+            item_start_ts=item_start_ts,
+            last_act_ts=last_act_ts,
+            current_idx=cur_idx,
+            total_items=tot_items,
+            setid=setid,
+            id6=id6,
+            tracker=tracker,
+            pal=pal_styled,
+            stall_remaining=stall,
+            progress_source=prog_src,
+            action=action,
+            artifact_kind=art_kind,
+            use_unicode=use_unicode,
+            activity=activity,
+        )
+        assert styled_repeat == styled_lines
+
+    return renders
+
+
 class TestStatuslineBoxInvariants:
     """E-01: Box renderer invariants across swept inputs."""
 
-    @pytest.mark.timeout(240)
+    def test_covering_array_generator_contract(self) -> None:
+        """Assert the pairwise generator contract (plan mat9bt E-03).
+        - Every value of every dimension appears in at least one row.
+        - Every cross-dimension value-pair appears in at least one row.
+        - Regenerating yields identical rows (determinism).
+        """
+        rows1 = generate_pairwise_covering_array(_STATUSLINE_SWEPT_DOMAINS)
+        rows2 = generate_pairwise_covering_array(_STATUSLINE_SWEPT_DOMAINS)
+        assert rows1 == rows2, "Generator must be deterministic across runs"
+
+        num_dims = len(_STATUSLINE_SWEPT_DOMAINS)
+
+        # 1-way coverage: every value of every dimension appears
+        for d in range(num_dims):
+            domain_vals = _STATUSLINE_SWEPT_DOMAINS[d]
+            seen_indices = {domain_vals.index(row[d]) for row in rows1}
+            assert len(seen_indices) == len(
+                domain_vals
+            ), f"Dimension {d} missing values: {len(domain_vals) - len(seen_indices)}"
+
+        # 2-way coverage: every value pair across every dimension pair appears
+        for d1 in range(num_dims):
+            for d2 in range(d1 + 1, num_dims):
+                dom1 = _STATUSLINE_SWEPT_DOMAINS[d1]
+                dom2 = _STATUSLINE_SWEPT_DOMAINS[d2]
+                seen_pairs = {
+                    (dom1.index(row[d1]), dom2.index(row[d2])) for row in rows1
+                }
+                expected_pair_count = len(dom1) * len(dom2)
+                assert (
+                    len(seen_pairs) == expected_pair_count
+                ), f"Dimension pair ({d1}, {d2}) missing {expected_pair_count - len(seen_pairs)} pairs"
+
     def test_box_renderer_invariants_across_swept_inputs(self) -> None:
-        """Assert four properties across the swept input space:
+        """Assert four properties across the swept input space using pairwise covering array (plan mat9bt E-04):
         (a) exactly 4 lines returned, joined into 4 newline-delimited lines;
         (b) every line has the SAME visible width (single distinct visible width);
         (c) _strip_ansi(styled) == plain line for line (0 mismatches);
         (d) two renders with identical arguments are byte-identical.
         """
-        # Fixed timestamps: never assert the clock, as it is timezone-dependent.
         now_ts = 1700000000.0
         run_start_ts = 1699990000.0
         item_start_ts = 1699999000.0
         last_act_ts = 1699999900.0
 
-        # Swept dimensions: kept strictly free of zero-width and newline characters (PR-302, F-10).
-        setids = [
-            "",
-            "statuscov",
-            "very-long-setid-alpha-beta",
-        ]  # 3: absent, present, long
-        id6s = ["", "6tjq2j"]  # 2: absent, present
-        actions = ["execute", "customact", None]  # 3: mapped, unmapped, absent
-        artifact_kinds = ["ipd", "customart", None]  # 3: mapped, unmapped, absent
-        stall_remainings = [None, 0.0, 500.0]  # 3: absent, zero, large
-        progress_sources = ["stdout", None]  # 2: present, absent
-        activities = [
-            None,
-            "verifying",
-            "reading a file",
-        ]  # 3: absent, real stage, free text
-        progress_pairs = [(0, 0), (0, 5), (3, 5), (5, 5)]  # 4: 0/0, 0/N, mid, N/N
-
-        populated_tracker = rs.StreamTracker()
-        populated_tracker.update(inp=119000, out=110700, cache=4500000, cost=6.16)
-        trackers = [None, populated_tracker]  # 2: absent, populated
-
-        # 3 * 2 * 3 * 3 * 3 * 2 * 3 * 4 * 2 = 7,776 distinct input combinations.
-        combos = list(
-            itertools.product(
-                setids,
-                id6s,
-                actions,
-                artifact_kinds,
-                stall_remainings,
-                progress_sources,
-                activities,
-                progress_pairs,
-                trackers,
-            )
-        )
-        assert len(combos) == 7776
-
-        render_count = 0
         pal_plain = rs.Palette(False)
         pal_styled = rs.Palette(True)
 
-        for (
-            setid,
-            id6,
-            action,
-            art_kind,
-            stall,
-            prog_src,
-            activity,
-            (cur_idx, tot_items),
-            tracker,
-        ) in combos:
-            for use_unicode in (True, False):
-                # 1. Unstyled render
-                plain_lines = rs.format_statusline_lines(
-                    now_ts=now_ts,
-                    run_start_ts=run_start_ts,
-                    item_start_ts=item_start_ts,
-                    last_act_ts=last_act_ts,
-                    current_idx=cur_idx,
-                    total_items=tot_items,
-                    setid=setid,
-                    id6=id6,
-                    tracker=tracker,
-                    pal=pal_plain,
-                    stall_remaining=stall,
-                    progress_source=prog_src,
-                    action=action,
-                    artifact_kind=art_kind,
-                    use_unicode=use_unicode,
-                    activity=activity,
-                )
-                plain_str = rs.format_statusline(
-                    now_ts=now_ts,
-                    start_ts=run_start_ts,
-                    last_act_ts=last_act_ts,
-                    current_idx=cur_idx,
-                    total_items=tot_items,
-                    setid=setid,
-                    id6=id6,
-                    tracker=tracker,
-                    pal=pal_plain,
-                    item_start_ts=item_start_ts,
-                    stall_remaining=stall,
-                    progress_source=prog_src,
-                    action=action,
-                    artifact_kind=art_kind,
-                    use_unicode=use_unicode,
-                    activity=activity,
-                )
-                render_count += 1
+        rows = generate_pairwise_covering_array(_STATUSLINE_SWEPT_DOMAINS)
+        render_count = 0
 
-                # (a) exactly 4 lines returned, joined into 4 newline-delimited lines
-                assert len(plain_lines) == 4
-                assert plain_str == "\n".join(plain_lines)
+        for row in rows:
+            render_count += _check_statusline_box_invariants_for_combo(
+                *row,
+                pal_plain=pal_plain,
+                pal_styled=pal_styled,
+                now_ts=now_ts,
+                run_start_ts=run_start_ts,
+                item_start_ts=item_start_ts,
+                last_act_ts=last_act_ts,
+            )
 
-                # (b) every line has the same visible width (single distinct value)
-                plain_widths = [_T.visible_width(line) for line in plain_lines]
-                assert len(set(plain_widths)) == 1
+        # Derived relationship: each row rendered in 2 unicode modes x 2 styling modes = 4 renders
+        assert render_count == len(rows) * 4
 
-                # (d) repeat render is byte-identical
-                plain_repeat = rs.format_statusline_lines(
-                    now_ts=now_ts,
-                    run_start_ts=run_start_ts,
-                    item_start_ts=item_start_ts,
-                    last_act_ts=last_act_ts,
-                    current_idx=cur_idx,
-                    total_items=tot_items,
-                    setid=setid,
-                    id6=id6,
-                    tracker=tracker,
-                    pal=pal_plain,
-                    stall_remaining=stall,
-                    progress_source=prog_src,
-                    action=action,
-                    artifact_kind=art_kind,
-                    use_unicode=use_unicode,
-                    activity=activity,
-                )
-                assert plain_repeat == plain_lines
+    @pytest.mark.slow
+    @pytest.mark.timeout(300)
+    def test_box_renderer_invariants_exhaustive_sweep(self) -> None:
+        """Exhaustive 7,776-combination cartesian sweep preserved in slow suite (plan mat9bt E-05).
 
-                # 2. Styled render
-                styled_lines = rs.format_statusline_lines(
-                    now_ts=now_ts,
-                    run_start_ts=run_start_ts,
-                    item_start_ts=item_start_ts,
-                    last_act_ts=last_act_ts,
-                    current_idx=cur_idx,
-                    total_items=tot_items,
-                    setid=setid,
-                    id6=id6,
-                    tracker=tracker,
-                    pal=pal_styled,
-                    stall_remaining=stall,
-                    progress_source=prog_src,
-                    action=action,
-                    artifact_kind=art_kind,
-                    use_unicode=use_unicode,
-                    activity=activity,
-                )
-                styled_str = rs.format_statusline(
-                    now_ts=now_ts,
-                    start_ts=run_start_ts,
-                    last_act_ts=last_act_ts,
-                    current_idx=cur_idx,
-                    total_items=tot_items,
-                    setid=setid,
-                    id6=id6,
-                    tracker=tracker,
-                    pal=pal_styled,
-                    item_start_ts=item_start_ts,
-                    stall_remaining=stall,
-                    progress_source=prog_src,
-                    action=action,
-                    artifact_kind=art_kind,
-                    use_unicode=use_unicode,
-                    activity=activity,
-                )
-                render_count += 1
+        Budget rationale: 300s timeout provides >3x headroom over the measured in-suite
+        contended duration of ~68.16s (and ~31.2s serial) under parallel -n auto execution.
+        """
+        now_ts = 1700000000.0
+        run_start_ts = 1699990000.0
+        item_start_ts = 1699999000.0
+        last_act_ts = 1699999900.0
 
-                # (a) exactly 4 lines returned, joined into 4 newline-delimited lines
-                assert len(styled_lines) == 4
-                assert styled_str == "\n".join(styled_lines)
+        pal_plain = rs.Palette(False)
+        pal_styled = rs.Palette(True)
 
-                # (b) every line has the same visible width (single distinct value)
-                styled_widths = [_T.visible_width(line) for line in styled_lines]
-                assert len(set(styled_widths)) == 1
+        combos = list(itertools.product(*_STATUSLINE_SWEPT_DOMAINS))
+        expected_combos = 1
+        for d in _STATUSLINE_SWEPT_DOMAINS:
+            expected_combos *= len(d)
+        assert len(combos) == expected_combos
 
-                # (c) _strip_ansi(styled) == plain line for line
-                stripped = tuple(rs._strip_ansi(line) for line in styled_lines)
-                assert stripped == plain_lines
+        render_count = 0
+        for combo in combos:
+            render_count += _check_statusline_box_invariants_for_combo(
+                *combo,
+                pal_plain=pal_plain,
+                pal_styled=pal_styled,
+                now_ts=now_ts,
+                run_start_ts=run_start_ts,
+                item_start_ts=item_start_ts,
+                last_act_ts=last_act_ts,
+            )
 
-                # (d) repeat render is byte-identical
-                styled_repeat = rs.format_statusline_lines(
-                    now_ts=now_ts,
-                    run_start_ts=run_start_ts,
-                    item_start_ts=item_start_ts,
-                    last_act_ts=last_act_ts,
-                    current_idx=cur_idx,
-                    total_items=tot_items,
-                    setid=setid,
-                    id6=id6,
-                    tracker=tracker,
-                    pal=pal_styled,
-                    stall_remaining=stall,
-                    progress_source=prog_src,
-                    action=action,
-                    artifact_kind=art_kind,
-                    use_unicode=use_unicode,
-                    activity=activity,
-                )
-                assert styled_repeat == styled_lines
-
-        # Confirm exact render count: 7,776 combinations * 2 styling * 2 unicode = 31,104 renders.
-        assert render_count == 31104
+        assert render_count == len(combos) * 4
 
 
 class TestStatuslineHostileInputs:

@@ -12,6 +12,8 @@ import argparse
 import contextlib
 import io
 import json
+from pathlib import Path
+import tempfile
 import unittest
 
 import pytest
@@ -92,6 +94,92 @@ class FieldsFlagReachTests(unittest.TestCase):
         args = parser.parse_args(["find", "plans", "--agent", "--fields", "findings"])
         self.assertEqual(getattr(args, "fields", None), "findings")
 
+    def test_fields_flag_synthetic_projection(self) -> None:
+        """Drive check plans --fields findings against a synthetic repo and assert projection.
+
+        Fast-suite twin for test_fields_flag_end_to_end_projection.
+        Asserts that the requested key ('findings') is present in the emitted JSONL record,
+        while non-envelope keys ('target', 'diagnostics') that the unprojected record carries
+        are absent.
+        First asserts that 'target' and 'diagnostics' ARE present in the unprojected record
+        from the same synthetic repository (contrastive pair).
+        Per PR-205 and F-14, this does NOT assert on the count/value of findings and does NOT
+        assert on 'next' (which is unstable in unprojected runs).
+        """
+        with tempfile.TemporaryDirectory() as td:
+            repo_root = Path(td)
+
+            def parse_record(output: str) -> dict:
+                for line in output.strip().splitlines():
+                    line = line.strip()
+                    if line.startswith("{") and line.endswith("}"):
+                        try:
+                            data = json.loads(line)
+                            if (
+                                data.get("schema") == "aw.agent/v1"
+                                and data.get("kind") == "result"
+                            ):
+                                return data
+                        except json.JSONDecodeError:
+                            continue
+                self.fail(f"No aw.agent/v1 result record found in output: {output}")
+
+            # 1. Unprojected baseline: assert target and diagnostics are present
+            unprojected_buf = io.StringIO()
+            with contextlib.redirect_stdout(unprojected_buf):
+                unproj_rc = cli.main(
+                    ["check", "plans", "--agent", "--dir", str(repo_root)]
+                )
+            self.assertIn(unproj_rc, (0, 1), f"Unexpected exit code {unproj_rc}")
+            unproj_rec = parse_record(unprojected_buf.getvalue())
+            self.assertIn(
+                "target",
+                unproj_rec,
+                f"Expected 'target' in unprojected record: {unproj_rec}",
+            )
+            self.assertIn(
+                "diagnostics",
+                unproj_rec,
+                f"Expected 'diagnostics' in unprojected record: {unproj_rec}",
+            )
+
+            # 2. Projected run: assert findings is present, target and diagnostics are absent
+            projected_buf = io.StringIO()
+            with contextlib.redirect_stdout(projected_buf):
+                proj_rc = cli.main(
+                    [
+                        "check",
+                        "plans",
+                        "--agent",
+                        "--fields",
+                        "findings",
+                        "--dir",
+                        str(repo_root),
+                    ]
+                )
+            self.assertIn(proj_rc, (0, 1), f"Unexpected exit code {proj_rc}")
+            proj_rec = parse_record(projected_buf.getvalue())
+
+            self.assertIn(
+                "findings",
+                proj_rec,
+                f"Requested key 'findings' missing from record: {proj_rec}",
+            )
+            self.assertNotIn(
+                "target",
+                proj_rec,
+                f"'target' should have been dropped by projection: {proj_rec}",
+            )
+            self.assertNotIn(
+                "diagnostics",
+                proj_rec,
+                f"'diagnostics' should have been dropped by projection: {proj_rec}",
+            )
+
+    # Deselected from the default fast suite via @pytest.mark.livecorpus because it sweeps
+    # this repository's live .aw/records/ tree in-process (costing ~13s-48s).
+    # Its projection contract is covered in the fast suite by the synthetic-repo
+    # twin test_fields_flag_synthetic_projection. Still run in make test-all.
     @pytest.mark.livecorpus
     def test_fields_flag_end_to_end_projection(self) -> None:
         """Drive aw check plans --agent --fields findings end to end and assert projection.

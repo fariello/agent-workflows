@@ -64,8 +64,97 @@ def check_corpus_partition(plans_dir: Path) -> List[str]:
     return violations
 
 
+_SYNTHETIC_PENDING_PLAN = """# IPD: sample (Set x, Order 1)
+
+- Date: 2026-08-03
+- Kind: child
+- Concern: sample.
+- Scope: sample.
+- Status: to-review
+- Work-Kind: chore
+- Priority: medium
+- Set: x
+- Order: 1
+- Highest E allocated: 01
+- Author: tester
+- Id: abc123
+
+## Workflow history
+
+- 2026-08-03 to-review (tester): created.
+
+## Goal
+
+Sample goal.
+
+## Detailed Implementation Checklist (TODO)
+
+Execution-state rule: mark performed only after doing it.
+
+### Task group 1: t
+
+- [ ] E-01 do a thing.
+  - Depends on: none
+  - Expected outcome: the thing exists.
+  - Execution state: pending
+
+## Project conventions discovered (Step 0)
+
+- x
+
+## Findings
+
+- x
+
+## Proposed changes (ordered, validatable)
+
+- x
+
+## Deferred / out of scope (with reason)
+
+- x
+
+## Scope check
+
+- x
+
+## Required tests / validation
+
+- x
+
+## Spec / documentation sync
+
+- x
+
+## Open questions
+
+### OQ-01: a question
+
+- Blocking: no
+- Status: open
+- Owner: none
+- Resolution or deferral rationale: n/a
+
+## Validation and cross-check (verify before reporting done)
+
+Validation-state rule: inspect evidence separately.
+
+- [ ] V-01 validates E-01
+  - Required evidence: the thing is present at path X.
+  - Observed evidence:
+  - Result: pending
+
+## Approval and execution gate
+
+- Size assessment: standard
+- Cohesion rationale: not required
+
+Gate prose.
+"""
+
+
 def find_field_absent_pending_plan(repo_root: Path) -> Optional[Path]:
-    """Scan .aw/records/plans/pending/ for a pending plan lacking a - Readiness: field."""
+    """Scan .aw/records/plans/pending/ for a pending plan lacking a - Readiness: field and review history."""
     pending_dir = repo_root / ".aw" / "records" / "plans" / "pending"
     if not pending_dir.exists():
         return None
@@ -73,12 +162,21 @@ def find_field_absent_pending_plan(repo_root: Path) -> Optional[Path]:
         text = p.read_text(encoding="utf-8")
         if not plan_readiness._READINESS_FIELD_PRESENT_RE.search(text):
             if not re.search(
-                r"^\s*-\s*\d{4}-\d{2}-\d{2}\s+reviewed\b", text, re.MULTILINE
+                r"^\s*-\s*.*(?:/plan-review|reviewed\b).*$", text, re.MULTILINE
             ):
                 return p
     return None
 
 
+def get_field_absent_pending_plan_fixture(repo_root: Path) -> tuple[str, str]:
+    """Return (filename, content) of a field-absent pending plan, falling back to a synthetic plan."""
+    subject = find_field_absent_pending_plan(repo_root)
+    if subject is not None:
+        return subject.name, subject.read_text(encoding="utf-8")
+    return "20260803-sample-01-abc123-sample.ipd.md", _SYNTHETIC_PENDING_PLAN
+
+
+@pytest.mark.livecorpus
 def test_corpus_partition_pre_review_plans_lack_readiness_field():
     """Property 1: no tracked plan under .aw/records/plans/ at draft or to-review carries - Readiness:."""
     plans_dir = REPO_ROOT / ".aw" / "records" / "plans"
@@ -92,14 +190,10 @@ def test_corpus_partition_pre_review_plans_lack_readiness_field():
 
 def test_linter_refuses_backfilled_readiness_field_with_m107():
     """Property 2: lint_text yields a blocking IPD-M107 diagnostic upon simulated backfill."""
-    subject = find_field_absent_pending_plan(REPO_ROOT)
-    if subject is None:
-        pytest.skip("No field-absent pending plan found in .aw/records/plans/pending")
-
-    orig_text = subject.read_text(encoding="utf-8")
+    subject_name, orig_text = get_field_absent_pending_plan_fixture(REPO_ROOT)
     res_orig = ipd_lint.lint_text(orig_text, checkpoint="author", directory="pending")
     assert res_orig.disposition == "conforming", (
-        f"Expected unmodified subject {subject.name} to be conforming, got {res_orig.disposition}: "
+        f"Expected unmodified subject {subject_name} to be conforming, got {res_orig.disposition}: "
         f"{[d.code for d in res_orig.diagnostics]}"
     )
     assert not any(
@@ -133,11 +227,7 @@ def test_linter_refuses_backfilled_readiness_field_with_m107():
 def test_auto_approve_predicate_refuses_backfill_and_exercises_fallback(tmp_path: Path):
     """Property 3: is_plan_review_approved returns False before/after backfill, and True with approving history."""
     # tmp_path is required because is_plan_review_approved takes a Path rather than text.
-    subject = find_field_absent_pending_plan(REPO_ROOT)
-    if subject is None:
-        pytest.skip("No field-absent pending plan found in .aw/records/plans/pending")
-
-    orig_text = subject.read_text(encoding="utf-8")
+    _subject_name, orig_text = get_field_absent_pending_plan_fixture(REPO_ROOT)
 
     # 1. Unmodified field-absent plan -> False
     f_orig = tmp_path / "orig.ipd.md"
@@ -171,16 +261,12 @@ def test_auto_approve_predicate_refuses_backfill_and_exercises_fallback(tmp_path
 def test_recheck_verb_refuses_field_absent_plan(tmp_path: Path):
     """Property 4: recheck_conditions reports may_write=False with an absent-field refusal."""
     # tmp_path and a temporary git repo are required because recheck_conditions takes (repo_root, plan_path).
-    subject = find_field_absent_pending_plan(REPO_ROOT)
-    if subject is None:
-        pytest.skip("No field-absent pending plan found in .aw/records/plans/pending")
-
-    orig_text = subject.read_text(encoding="utf-8")
+    subject_name, orig_text = get_field_absent_pending_plan_fixture(REPO_ROOT)
 
     subprocess.check_call(["git", "init", "-q"], cwd=tmp_path)
     pending_dir = tmp_path / ".aw" / "records" / "plans" / "pending"
     pending_dir.mkdir(parents=True)
-    plan_path = pending_dir / subject.name
+    plan_path = pending_dir / subject_name
     plan_path.write_text(orig_text, encoding="utf-8")
 
     result = plan_readiness.recheck_conditions(tmp_path, plan_path)

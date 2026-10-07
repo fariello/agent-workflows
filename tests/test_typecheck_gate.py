@@ -67,6 +67,7 @@ class VerifyAndContinueNoticeTests(unittest.TestCase):
         self.assertEqual(rendered, "")
 
 
+@pytest.mark.slow
 class TypecheckGateTests(unittest.TestCase):
     """Pin the configured static type gate exit status (E-05)."""
 

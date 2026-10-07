@@ -27,6 +27,8 @@ from pathlib import Path
 from typing import Any
 from unittest import mock
 
+import pytest
+
 from agent_workflows import (
     agy_runipd,
     cli,
@@ -349,6 +351,7 @@ def _patch_host_agent(module: Any, agent_fn: Any) -> Any:
     return mock.patch.object(agy_runipd, "run_agy_turn", _agy_wrapper)
 
 
+@pytest.mark.slow
 class TestGradcoverEndToEnd(unittest.TestCase):
     """Integration test suite validating IPD wytlly end-to-end across hosts."""
 
