@@ -8,8 +8,8 @@
 - Item-Dependencies: none
 - Status: draft
 - Coverage: fail
-- Coverage-Fingerprint: 7b7957ed92486511725fb1633c7880f6f0e2fc92688232aa030d1c04edffbc0e
-- Coverage-Checked: 2026-10-06 by uri/its_direct/pt3-claude-opus-5.5-1m-us
+- Coverage-Fingerprint: 059f37be057fab4fa95047b5f4ab2e921a230997311f003608ccadf111c6a12a
+- Coverage-Checked: 2026-10-07 by uri/its_direct/pt3-claude-opus-5.5-1m-us
 - Work-Kind: security
 - Priority: high
 - From-Backlog: mflqqf
@@ -20,6 +20,7 @@
 - Id: u57rfv
 
 ## Workflow history
+- 2026-10-07 coverage fail (aw oc run): fingerprint 059f37be057f, model uri/its_direct/pt3-claude-opus-5.5-1m-us
 - 2026-10-07 note (opencode its_direct/pt3-claude-opus-5.5-1m-us): both children are executed; the cross-child checks were measured against them and recorded under Cross-IPD validation.
 - 2026-10-06 draft (aw set): demoted to-review -> draft: returned to authoring by gradcover 52opph: uncovered obligation: This plan runs no test itself; validation is an inspection of what the children actually produced
 
@@ -130,14 +131,15 @@ The Set-wide bar is "NO NEWLY FAILING TEST" measured against each executor's own
 
 ## Coverage findings
 
-- "This plan runs no test itself. Its validation is an inspection of what the children actually produced, performed in a separate pass from their execution, so the evidence below is a REVIEW of pasted child evidence and not a re-run of it."
-- "A child that reports green by excluding a node has not satisfied its own contract and must not be accepted here."
+- "Close the measured remainder of backlog item `mflqqf`: give the seven security boundary checkers and the packaging distribution contract real test callers again, and fix the one live fail-open that probing the uncovered security surface exposed."
+- "Every red node in any child's run must have an isolated re-run pasted and a classification. A child that reports green by excluding a node has not satisfied its own contract and must not be accepted here."
 - "Verify this against the files on disk rather than against this table."
 - "Confirm no child acquired one."
 - "CONFIRM THE ITEM IS NOT CLOSED BY EITHER CHILD ALONE: the item has TWO carriers, so it stays `graduated` until both are executed, and a close on one carrier's evidence would drop the other half."
 - "If one child is revised to claim a green baseline, that is drift and must be caught here."
-- "Child 01 does amend a DOCUMENT (`docs/security.md`) and declares it; confirm the declaration is still present, since an undeclared spec or doc edit is what the finalize scope gate exists to catch."
-- "Both children require every filesystem input and every built distribution to live under `tmp_path` or `tempfile`, and both require `git status --short` empty after their runs. Confirm both children's evidence shows it."
+- "confirm the declaration is still present, since an undeclared spec or doc edit is what the finalize scope gate exists to catch."
+- "Confirm both children's evidence shows it."
+- "All seven `check_*` functions in `agent_workflows/security_hardening.py`, plus `run_boundary_checks` and the two scanner adapters, are driven by a committed test that asserts on the returned `BoundaryResult`, and `rg -l security_hardening tests/` returns a file where it returned nothing."
 
 ## Validation and cross-check (verify before reporting the Set complete)
 
