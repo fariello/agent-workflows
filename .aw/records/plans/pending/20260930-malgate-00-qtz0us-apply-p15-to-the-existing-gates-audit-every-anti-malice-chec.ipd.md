@@ -20,7 +20,14 @@
 - Id: qtz0us
 
 ## Workflow history
-- 2026-10-06 draft (aw set): demoted to-review -> draft: returned to authoring by gradcover 52opph: uncovered obligation: Three checks span the children and cannot be performed by any child alone, which is why they live here.
+- 2026-10-07 note (opencode its_direct/pt3-claude-opus-5.5-1m-us): every child is executed; each completion criterion leads with its owner, and the three cross-child checks were measured against the resulting tree and recorded.
+- 2026-10-06 draft (aw set): demoted to-review -> draft: returned to authoring by gradcover 52opph: uncovered obligation: These three checks span the children. All three children are `executed`, and each check was MEASURED on 2026-10-07 against the tree they produced, so nothing is left for a retirement to skip:
+
+- [Measured 2026-10-07] AUDIT-TO-ACTION: audit record `wv570i` assigns its 11 DELETE rows and the constant re-homing to `38pxaz` and the two comment rewordings to `dmjp0u`; on disk `agent_workflows/wtiso_gate.py` is deleted, `AW_MISSING_INPUT` lives in `lane_containment.py`, and neither quoted anti-malice phrase remains in `agent_workflows/`.
+- [Measured 2026-10-07] DISCLAIMER FENCE: the commits of `38pxaz` and `dmjp0u` change zero lines in `host_sandbox_profile.py`, `attention_contract.py` and `runner_shared.py`, and `runner_shared`'s "THE TARGET IS SLOPPINESS, NOT MALICE" banner is present.
+- [Measured 2026-10-07] SPEC SURFACE: the only `.spec.md` either child's commits touch is spec `7ckptx`, in `38pxaz`'s commit.
+
+The original statement of each check follows, for the record.
 
 - 2026-10-06 coverage fail (aw oc run): fingerprint bc636fe12725, model uri/its_direct/pt3-claude-opus-5.5-1m-us
 - 2026-09-30 to-review (opencode its_direct/pt3-claude-opus-5-1m-us): Graduated backlog `ariaau` as a Set of three children rather than one plan, because authoring measured three separable pieces of work with different risk profiles and different validation shapes. TWO MEASUREMENTS CHANGED THE SET'S SHAPE FROM THE ITEM'S DESCRIPTION. FIRST, the item states the `wtiso_gate.py` predicates are "Pinned by tests/test_containment_predicates.py", which implied a plan shape of 'retire the pin, then delete'; that file does not exist, having been deleted in commit `19313eed` (the 2026-09-24 suite trim), so nothing pins them, the module cites two deleted files as live enforcement at three sites, and Order 02's deletion is both smaller and safer than the item implies while gaining a citation strike the item does not mention. SECOND, the item's instruction to find comments "citing a 'determined same-user agent' or 'malicious' agent as the justification for a check" reads as a vocabulary sweep, and measurement inverted it: the large majority of hits are honest-limit DISCLAIMERS that name the hostile agent precisely in order to deny protecting against one, and those are the model P15 itself cites, so Order 03 is narrow and its primary obligation is a classification rather than a replacement. A third measurement widened Order 02: all NINE `wtiso_gate` predicates have zero product callers, not only the five raising stubs, so the honest subject is the module's whole disposition.
@@ -91,23 +98,22 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ## Completion criteria (the whole Set is done only when)
 
-All five must hold. Each is falsifiable from artifacts on disk, so a reviewer can check them without
-re-running anything.
+All five must hold. Each is falsifiable from artifacts on disk. All three children are `executed`, and each criterion leads with the child that performs it.
 
-1. ALL THREE CHILDREN READ `executed` ON DISK, in `.aw/records/plans/executed/`, each with every `V-*`
+1. [Owner: bec7ee, 38pxaz and dmjp0u] ALL THREE CHILDREN READ `executed` ON DISK, in `.aw/records/plans/executed/`, each with every `V-*`
    carrying concrete pasted evidence rather than a placeholder. The directory is the harder-to-forge signal
    and is checked alongside the status field.
-2. THE AUDIT RECORD EXISTS AND IS RESOLVABLE BY `<id6>` through the research manifest, and it classifies
+2. [Owner: bec7ee] THE AUDIT RECORD EXISTS AND IS RESOLVABLE BY `<id6>` through the research manifest, and it classifies
    EVERY enumerated mechanism into exactly one of KEEP, SIMPLIFY, DELETE or ALREADY-DECIDED, with evidence
    for each and a carrier for each SIMPLIFY and DELETE.
-3. EVERY SIMPLIFY OR DELETE ROW IN THAT RECORD HAS AN ACTOR: it was acted on by `38pxaz` or `dmjp0u`, or it
+3. [Owner: bec7ee (the record), 38pxaz and dmjp0u (the actions)] EVERY SIMPLIFY OR DELETE ROW IN THAT RECORD HAS AN ACTOR: it was acted on by `38pxaz` or `dmjp0u`, or it
    names a carrier outside this Set (`dvonrn`, `ikxtkj`, `gia5i7`). A row with a disposition and no actor
    means the Set completed while leaving its own stated work undone, and is the single most likely way this
    Set finishes wrongly.
-4. NO USER-VISIBLE BEHAVIOR CHANGED. Evidenced by each child's own bare `python3 -m pytest` summary line
+4. [Owner: bec7ee, 38pxaz and dmjp0u, each with its own bare suite] NO USER-VISIBLE BEHAVIOR CHANGED. Evidenced by each child's own bare `python3 -m pytest` summary line
    pasted against its pre-execution baseline, plus `38pxaz`'s demonstration that the preserved missing-input
    token form renders byte-identically before and after its move.
-5. NOTHING P15 REQUIRES KEPT WAS REMOVED. `runner_shared`'s pre-work-baseline banner,
+5. [Owner: 38pxaz and dmjp0u (each scoped away from the three sites)] NOTHING P15 REQUIRES KEPT WAS REMOVED. `runner_shared`'s pre-work-baseline banner,
    `host_sandbox_profile`'s docstring, and `attention_contract`'s `--by-human` note are unmodified by every
    child, and no test deleted by the 2026-09-24 suite trim was restored in any form.
 
@@ -180,7 +186,7 @@ Three checks span the children and cannot be performed by any child alone, which
 - E-01 is satisfied by `bec7ee` on disk in `.aw/records/plans/executed/` with `- Status: executed`, its audit record present and resolvable by `<id6>` through the research manifest.
 - E-02 is satisfied by `38pxaz` on disk in `.aw/records/plans/executed/` with `- Status: executed`, its full-suite result pasted in its own validation, and its spec amendment reconciled against its declared `- Scope-Paths:`.
 - E-03 is satisfied by `dmjp0u` on disk in `.aw/records/plans/executed/` with `- Status: executed`, its diffs shown to change comment text only.
-- THE SET-LEVEL CROSS-CHECK a reviewer should apply, since no child can apply it alone: every mechanism enumerated in Order 01's audit with a SIMPLIFY or DELETE disposition must be either acted on by Order 02 or Order 03, or carry a named carrier outside this Set. An audit row with a disposition and no actor is the one way this Set can complete while leaving its own stated work undone.
+- [Measured 2026-10-07, see Cross-IPD validation] THE SET-LEVEL CROSS-CHECK: every mechanism enumerated in Order 01's audit with a SIMPLIFY or DELETE disposition must be either acted on by Order 02 or Order 03, or carry a named carrier outside this Set. An audit row with a disposition and no actor is the one way this Set can complete while leaving its own stated work undone.
 
 ## Spec / documentation sync
 
