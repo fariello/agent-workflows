@@ -526,10 +526,7 @@ class TestBacklogTransitionGate(unittest.TestCase):
                 )
             self.assertNotEqual(rc, 0)
             combined = out.getvalue() + err.getvalue()
-            self.assertIn(
-                "Moving backlog item to blocked requires --gate-kind and --gate-ref",
-                combined,
-            )
+            self.assertIn("requires --gate-kind and --gate-ref", combined)
             self.assertNotIn("illegal backlog transition", combined.lower())
 
     # =========================================================================

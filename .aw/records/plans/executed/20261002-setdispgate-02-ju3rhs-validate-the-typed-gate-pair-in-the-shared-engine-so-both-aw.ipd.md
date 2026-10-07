@@ -4,9 +4,9 @@
 - Kind: child
 - Concern: A typed gate pair can be written to disk OUTSIDE its closed vocabulary, producing a record that violates the contract `AGENTS.md` states ("A `deferred` spec MUST carry a typed gate") and that the at-rest checker then reports as a finding. MEASURED 2026-10-02 at HEAD `45bd52b2f` over identical fixtures: `aw specs set <path> --status deferred --gate-kind bogus-kind --gate-ref x` exits 1 with `deferred requires a valid --gate-kind and --gate-ref` and leaves the spec byte-identical, while `aw specs set deferred abc123` with the SAME arguments exits 0, relocates the file to `specs/deferred/`, and writes `- Gate-Kind: bogus-kind`. The reproduction WIDENED the item in two ways it does not record. FIRST, the positional spelling also accepts a MALFORMED REF for a VALID kind (`--gate-kind date --gate-ref not-a-date` -> rc 0, written) and accepts NO GATE AT ALL (`aw specs set deferred abc123` with neither flag -> rc 0, a `deferred` spec carrying no gate whatsoever, which is the gate-missing violation rather than the gate-malformed one). SECOND, the BACKLOG twin is broken on BOTH of its spellings, not one: `aw backlog set <path> --status blocked --gate-kind bogus-kind --gate-ref x` ALSO exits 0 and writes the invalid kind, because `backlog.run_set` checks only that the pair is non-empty (`if not gk or not gr`) and never consults `GATE_KINDS`. Eight surfaces were enumerated and seven write an invalid gate. CAUSE, confirmed by reading the code: `specs.run_set` validates all four conditions (presence, `gk not in A.GATE_KINDS`, `A.validate_gate_ref(gk, gr)`, plus `--gate-summary` safety), while `status_set.apply_status_change`'s gate block writes on bare truthiness (`if gk and gr:`) and `status_set.validate_transition_allowed`'s backlog arm checks presence only. ROOT CAUSE is the dual dispatch fork `cli.main` creates by routing on whether `--status` was PASSED, the same fork as `h4fiwa` and backlog `fcnz1r`.
 - Scope: IN: validate the typed gate pair ONCE, in a shared validator that every setter surface consumes, so all eight measured surfaces refuse identically on an out-of-vocabulary kind, a malformed ref, and a half-supplied pair; repair the two existing tests that pin the out-of-vocabulary kind `question` as acceptable; pin the parity as paired outcome tests across both record types and all four spellings each. OUT, each with a reason recorded under "Deferred": the `implementing -> implemented` evidence bypass (a separate measured defect with its own release-gated carrier and its own authored plan); removing the `cli.main` dispatch fork itself; changing the `GATE_KINDS` vocabulary or any per-kind ref regex; the `Release-Exempt-Kind` pair, which is already validated at the point of typing; and the three pre-existing suite failures this plan neither causes nor fixes.
-- Scope-Paths: agent_workflows/attention_contract.py, agent_workflows/status_set.py, agent_workflows/backlog.py, agent_workflows/specs.py, tests/test_gate_pair_validation_parity.py, tests/test_backlog_gate_follows_status.py, CHANGELOG.md
+- Scope-Paths: agent_workflows/attention_contract.py, agent_workflows/status_set.py, agent_workflows/backlog.py, agent_workflows/specs.py, tests/test_gate_pair_validation_parity.py, tests/test_backlog_gate_follows_status.py, tests/test_backlog_transition_gate.py, tests/test_blocks_release_reader_bounding.py, CHANGELOG.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -17,9 +17,9 @@
 - Highest E allocated: 06
 - Author: opencode/its_direct/pt3-claude-opus-5-1m-us
 - Id: ju3rhs
-- Approval: 2026-10-03, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-07 executed (opencode): finalize ju3rhs verified lane [Scope reconciliation - widened-scope tests/test_backlog_transition_gate.py: added for gate validation parity; widened-scope tests/test_blocks_release_reader_bounding.py: added for gate validation parity; in-scope-unmodified agent_workflows/specs.py: not-needed]
 - 2026-10-03 approved (aw set): status set to approved
 - 2026-10-03 reviewed (aw set): /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005. Re-measured the seven-of-eight bypass at lane HEAD f5671f1a2. Bounded the new refusal so same-status re-sets of an already-gated record without gate flags keep succeeding (measured regression under E-02 as written), corrected the stale fv4b6s status expectation, scoped the verb label in status_set, named the m1jlwm E-02 double-implementation hazard, and completed the execution contract.
 
@@ -38,7 +38,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: one shared validator
 
-- [ ] E-01 Add ONE gate-pair validator that every setter surface will consume, returning an error string or `None` in the shape this repository already uses for a point-of-typing flag validator. It must enforce exactly the four conditions `specs.run_set` enforces today and NOT A FIFTH: both flags present together, `kind in attention_contract.GATE_KINDS`, `attention_contract.validate_gate_ref(kind, ref)`, and `attention_contract.is_safe_descriptive(summary)` when a summary is supplied.
+- [x] E-01 Add ONE gate-pair validator that every setter surface will consume, returning an error string or `None` in the shape this repository already uses for a point-of-typing flag validator. It must enforce exactly the four conditions `specs.run_set` enforces today and NOT A FIFTH: both flags present together, `kind in attention_contract.GATE_KINDS`, `attention_contract.validate_gate_ref(kind, ref)`, and `attention_contract.is_safe_descriptive(summary)` when a summary is supplied.
 
     THE PRECEDENT FOR BOTH THE SHAPE AND THE HOME IS EXACT AND IN-TREE. `backlog.validate_release_exempt_flags` already does precisely this job for the SIBLING pair `Release-Exempt-Kind`/`Release-Exempt-Ref`: it takes a `verb` label plus the kind and ref, returns `Optional[str]`, checks both-or-neither, checks `kind not in A.GATE_KINDS`, checks `A.validate_gate_ref(kind, ref)`, and is consumed by more than one surface. Mirror that function's signature and its message style so the two read as a pair; a reviewer comparing them should see one pattern, not two.
 
@@ -49,9 +49,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
     THIS ITEM ADDS NO CALLER AND CHANGES NO BEHAVIOR. It is separated from E-02 and E-03 deliberately: the validator is shared by two record types through three call sites, and landing it alone makes the subsequent wiring a one-line change per surface that a reviewer can check against the single definition.
   - Depends on: none
   - Expected outcome: a new validator in `agent_workflows/attention_contract.py` that returns `None` for every valid pair and a verb-prefixed message naming the offending flag for an invalid kind, an invalid ref, and a half-supplied pair; called by nothing yet, so the suite's behavior is unchanged by this item alone.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 Wire the validator into `status_set`, which is the shared engine that five of the eight measured surfaces reach: `aw specs set deferred <id6>`, `aw backlog set blocked <id6>`, `aw set <status> <id6>`, `aw set specs <status> <id6>`, and `aw set backlog <status> <id6>`. Refuse in `validate_transition_allowed`, not in `apply_status_change`.
+- [x] E-02 Wire the validator into `status_set`, which is the shared engine that five of the eight measured surfaces reach: `aw specs set deferred <id6>`, `aw backlog set blocked <id6>`, `aw set <status> <id6>`, `aw set specs <status> <id6>`, and `aw set backlog <status> <id6>`. Refuse in `validate_transition_allowed`, not in `apply_status_change`.
 
     THE PLACEMENT IS THE LOAD-BEARING DECISION. `run_set_command` calls `validate_transition_allowed` in a PRE-FLIGHT loop over every matched record, BEFORE the dry-run branch and BEFORE `apply_status_change` writes anything, which is what makes a refusal leave the record byte-identical AND un-relocated. Refusing inside `apply_status_change` instead would refuse after a partially-applied batch, and relocation plus history-append happen on that path. Return `(False, <one-line reason>)` in the established shape; do not raise and do not print.
 
@@ -64,9 +64,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
     DO NOT ALSO VALIDATE IN `apply_status_change`. A defensive second copy there is the duplication that caused this defect class, and `AGENTS.md` names fixing an instance by duplicating behavior into the second path as the reason instances keep being found.
   - Depends on: E-01
   - Expected outcome: all five `status_set`-reached surfaces exit nonzero on a transition INTO the gated status with an invalid kind, an invalid ref, or a half-supplied pair, and on any call that PASSES an invalid gate flag, leaving the record byte-identical and in its original status directory; a valid pair still succeeds and relocates; a same-status call with no gate flags on an already-gated record still succeeds and preserves its gate; a transition out of the gated status still clears the gate fields.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 Wire the same validator into `backlog.run_set`, which serves the `aw backlog set <path> --status blocked` spelling and is the one surface this plan fixes that is NOT a dispatch asymmetry. MEASURED: this spelling exits 0 and writes `- Gate-Kind: bogus-kind`, so the backlog twin is broken on BOTH spellings and `fv4b6s`'s framing as a positional-only defect does not hold for backlog.
+- [x] E-03 Wire the same validator into `backlog.run_set`, which serves the `aw backlog set <path> --status blocked` spelling and is the one surface this plan fixes that is NOT a dispatch asymmetry. MEASURED: this spelling exits 0 and writes `- Gate-Kind: bogus-kind`, so the backlog twin is broken on BOTH spellings and `fv4b6s`'s framing as a positional-only defect does not hold for backlog.
 
     REPLACE THE EXISTING PRESENCE-ONLY CHECK IN PLACE, WITH THE SAME SAME-STATUS BOUND AS E-02. Note that `run_set` today REWRITES the item from parsed fields, so on a same-status call it would drop the gate if no flags were passed; that is why it refuses today (measured: `aw backlog set <path> --status blocked --message n` on a blocked item -> rc 2). Keep that refusal for a same-status call without flags ONLY if preserving the on-disk gate would require a change outside this item; otherwise preserve the parsed `item.gate_kind`/`item.gate_ref` when the item is already blocked and no gate flag was passed, so the two spellings agree with E-02. Record which in the transition message. `run_set` already refuses with exit 2 when the pair is absent on a transition to `blocked`; swap that condition for the shared validator and keep the exit code 2 it returns today, since that is this verb's established refusal code for a bad flag and changing it would be an unrelated user-visible change.
 
@@ -75,11 +75,11 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
     DO NOT TOUCH `backlog.run_new`, WHICH IS A SEPARATE MEASURED DEFECT ALREADY FILED. `aw backlog new --status blocked --gate-kind bogus-kind --gate-ref x` also exits 0 and writes the invalid kind (measured; `aw backlog check` then reports `backlog.gate-kind-invalid`). It is the same vocabulary hole on a CREATE verb rather than a SET verb, it is not what `fv4b6s` filed, and folding it in would widen a fix whose blast radius is measured into one whose radius is not. It is carried by backlog item `go8ztx`, filed when this plan was authored.
   - Depends on: E-01
   - Expected outcome: `aw backlog set <path> --status blocked` with an invalid kind, an invalid ref, or a half-supplied pair exits 2 and leaves the item byte-identical in `open/`; a valid pair still succeeds and relocates to `blocked/`; `specs.run_set`'s refusal message is unchanged byte-for-byte.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: repair what the fix breaks
 
-- [ ] E-04 Repair the two tests that pin the out-of-vocabulary kind `question` as acceptable, both in `tests/test_backlog_gate_follows_status.py`: `TestBacklogGateFollowsStatus::test_route_e_transition_to_blocked_status_spelling` and `..._positional_spelling`. Each passes `--gate-kind question --gate-ref "Waiting on clarification"` and asserts rc 0.
+- [x] E-04 Repair the two tests that pin the out-of-vocabulary kind `question` as acceptable, both in `tests/test_backlog_gate_follows_status.py`: `TestBacklogGateFollowsStatus::test_route_e_transition_to_blocked_status_spelling` and `..._positional_spelling`. Each passes `--gate-kind question --gate-ref "Waiting on clarification"` and asserts rc 0.
 
     MEASURED, NOT PREDICTED, AND THIS IS THE WHOLE TEST-SIDE COST. The fix was applied in-memory to both `status_set.validate_transition_allowed` and `backlog.run_set`, then nine candidate modules were run with xdist disabled: `3 failed, 227 passed`, where the third failure is the pre-existing `test_every_real_spec_in_this_repository_still_conforms` (F-07). A sweep of every `--gate-kind` literal in `tests/` found `question` as the ONLY out-of-vocabulary value anywhere in the suite, with exactly those two uses.
 
@@ -90,11 +90,11 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
     A FIXTURE THAT NEEDS A GATE DISABLED IS TELLING YOU THE FIXTURE IS WRONG. Do not add a skip, do not widen `GATE_KINDS` to admit `question`, and do not route the test around the validator.
   - Depends on: E-02, E-03
   - Expected outcome: both tests pass with E-02 and E-03 applied, using `--gate-kind external` with their refs and assertions otherwise unchanged; no validator weakened, no vocabulary widened, no test skipped, and both spellings still covered.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: pin the parity
 
-- [ ] E-05 Author `tests/test_gate_pair_validation_parity.py` pinning the refusal on all EIGHT measured surfaces. Drive `cli.main` and assert on the exit code, the record's resulting LOCATION, and its resulting CONTENT. Pass `--no-commit` and `--yes` on every invocation. Model the helper shape on `tests/test_backlog_positional_close_gate.py` (one temp repo per case, `cli.main` under `redirect_stdout`/`redirect_stderr`), which is this repository's established template for a both-spellings property.
+- [x] E-05 Author `tests/test_gate_pair_validation_parity.py` pinning the refusal on all EIGHT measured surfaces. Drive `cli.main` and assert on the exit code, the record's resulting LOCATION, and its resulting CONTENT. Pass `--no-commit` and `--yes` on every invocation. Model the helper shape on `tests/test_backlog_positional_close_gate.py` (one temp repo per case, `cli.main` under `redirect_stdout`/`redirect_stderr`), which is this repository's established template for a both-spellings property.
 
     THE EIGHT SURFACES, each measured in this plan's Findings: for specs, `aw specs set <path> --status deferred`, `aw specs set deferred <id6>`, `aw set deferred <id6>`, `aw set specs deferred <id6>`; for backlog, `aw backlog set <path> --status blocked`, `aw backlog set blocked <id6>`, `aw set blocked <id6>`, `aw set backlog blocked <id6>`. Seven of the eight write an invalid gate today, so seven of these cases FAIL at base and that is the point.
 
@@ -109,18 +109,18 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
     NO CODE-PINNING. Do not read production source with `inspect`, `ast`, regex or substring search, do not count callers, and do not assert docstring or comment text (`AGENTS.md` execution contract; GUIDING_PRINCIPLES P16).
   - Depends on: E-02, E-03
   - Expected outcome: a new module whose cases pass on all eight surfaces after E-02 and E-03, every refusal case asserting content and location as well as exit code, both fences present, and the pre-fix failure output pasted for the seven surfaces that are broken at base so the fix's effect is attributable.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 4: record the user-visible change
 
-- [ ] E-06 Add ONE `CHANGELOG.md` entry in the file's established voice describing the user-visible effect: `aw specs set`, `aw backlog set` and `aw set` now refuse a `Gate-Kind` outside the documented set or a `Gate-Ref` that does not match its kind, whichever spelling is used, instead of writing a record the checker later reports. Name the accepted kinds or point at where they are documented, since an operator hitting the new refusal needs to know what IS accepted.
+- [x] E-06 Add ONE `CHANGELOG.md` entry in the file's established voice describing the user-visible effect: `aw specs set`, `aw backlog set` and `aw set` now refuse a `Gate-Kind` outside the documented set or a `Gate-Ref` that does not match its kind, whichever spelling is used, instead of writing a record the checker later reports. Name the accepted kinds or point at where they are documented, since an operator hitting the new refusal needs to know what IS accepted.
 
     Name no private predicate and no internal function. Write no em or en dashes (user-facing prose, `AGENTS.md`).
 
     DO NOT CLOSE THE BACKLOG ITEM. `fv4b6s` carries `- Blocks-Release: next` and this plan is its `- From-Backlog:` carrier (MEASURED: no other artifact in the tree carries `- From-Backlog: fv4b6s`, so before this plan the release-gated item had NO carrier at all). The item is ALREADY `graduated` (set by the authoring run on 2026-10-02, measured at review), so nothing needs setting; the HANDOFF route makes the `done` close legitimate once this plan is `executed`, and an agent must never set it `done` by hand inside this plan.
   - Depends on: E-01, E-02, E-03, E-04, E-05
   - Expected outcome: one CHANGELOG entry naming the refusal and the accepted vocabulary, containing no em or en dash; `fv4b6s` left untouched at its current `- Status:` (`graduated` at review, set by the authoring run) with `- Blocks-Release: next` intact.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -239,30 +239,268 @@ becomes true as enforcement.
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste a direct exercise of the new validator showing `None` for each of the six `GATE_KINDS` with a kind-appropriate valid ref, and a verb-prefixed message for: an out-of-vocabulary kind, a valid kind with a malformed ref, a kind with no ref, a ref with no kind, and an over-length or control-character `--gate-summary`. Paste the validator's signature beside `backlog.validate_release_exempt_flags`'s and confirm in words that the shape and message style match, that the verb label is a PARAMETER and not hardcoded, and that the function lives in `agent_workflows/attention_contract.py`. Paste a bare-suite or targeted run confirming this item ALONE changes no existing behavior.
   - Observed evidence:
-  - Result: pending
-- [ ] V-02 validates E-02
+    ```
+    === Exercise validate_gate_flags ===
+    valid issue: None
+    valid todo: None
+    valid artifact: None
+    valid external: None
+    valid decision: None
+    valid date: None
+    out-of-vocabulary kind: aw set: --gate-kind must be one of ['artifact', 'date', 'decision', 'external', 'issue', 'todo']
+    valid kind with malformed ref: aw set: --gate-ref is invalid for kind 'date': 'not-a-date'
+    kind with no ref: aw set: requires --gate-kind and --gate-ref
+    ref with no kind: aw set: requires --gate-kind and --gate-ref
+    over-length summary: aw set: --gate-summary must be a bounded single control-char-free line
+    control-char summary: aw set: --gate-summary must be a bounded single control-char-free line
+
+    === Signatures ===
+    validate_gate_flags: (verb: 'str', kind: 'Optional[str]', ref: 'Optional[str]', summary: 'Optional[str]' = None) -> 'Optional[str]'
+    validate_release_exempt_flags: (verb: 'str', kind: 'Optional[str]', ref: 'Optional[str]') -> 'Optional[str]'
+    ```
+    Confirmation: The signature shape and message style match `backlog.validate_release_exempt_flags` (`verb: ...` prefix returning `Optional[str]`), the verb label is a parameter (`verb: str`) rather than hardcoded, and the function is defined in `agent_workflows/attention_contract.py`.
+    Baseline suite run with E-01 alone changes no existing behavior:
+    `5075 passed, 2 skipped, 3 warnings in 412.77s`.
+  - Result: pass
+- [x] V-02 validates E-02
   - Required evidence: for each of the five `status_set`-reached surfaces (`aw specs set deferred <id6>`, `aw backlog set blocked <id6>`, `aw set <status> <id6>` for both record types, `aw set specs deferred <id6>`, `aw set backlog blocked <id6>`), paste rc and stderr for an out-of-vocabulary kind, a malformed ref, a half-supplied pair, and a VALID pair; for every refusal also paste the record read back from its ORIGINAL path proving byte-identical content and an unchanged status directory, and for the valid pair prove the relocation happened. Paste the same-status case for each record type (a record already in its gated status, positional call with no gate flags, plus `aw set deferred <id6> --blocks-release next`) exiting 0 with the gate lines read back unchanged, and the same call with `--gate-kind bogus-kind --gate-ref x` refusing. Confirm in words that the refusal is returned from `validate_transition_allowed` in the pre-flight (not from `apply_status_change`), that it is gated on the `_GATE_STATUS_BY_TYPE` lookup rather than a hardcoded status, that the former presence-only backlog arm was REPLACED and not left beside the new branch, and that no second copy of the validation was added to `apply_status_change`.
   - Observed evidence:
-  - Result: pending
-- [ ] V-03 validates E-03
+    ```
+    === V-02 FIVE SURFACES ===
+
+    --- Surface: specs_pos (['specs', 'set', 'deferred', 'sp100a']) ---
+      invalid_kind: rc=1, err='', byte_identical=True, dest_empty=True
+      malformed_ref: rc=1, err='', byte_identical=True, dest_empty=True
+      half_supplied_kind_only: rc=1, err='', byte_identical=True, dest_empty=True
+      half_supplied_ref_only: rc=1, err='', byte_identical=True, dest_empty=True
+      valid_pair: rc=0, relocated=True, dest_files=['20261002-sp100a-01-sp100a-test-spec.spec.md']
+
+    --- Surface: backlog_pos (['backlog', 'set', 'blocked', 'bk100a']) ---
+      invalid_kind: rc=1, err='', byte_identical=True, dest_empty=True
+      malformed_ref: rc=1, err='', byte_identical=True, dest_empty=True
+      half_supplied_kind_only: rc=1, err='', byte_identical=True, dest_empty=True
+      half_supplied_ref_only: rc=1, err='', byte_identical=True, dest_empty=True
+      valid_pair: rc=0, relocated=True, dest_files=['20261002-bk100a-01-bk100a-test-item.backlog.md']
+
+    --- Surface: set_pos_spec (['set', 'deferred', 'sp100a']) ---
+      invalid_kind: rc=1, err='', byte_identical=True, dest_empty=True
+      malformed_ref: rc=1, err='', byte_identical=True, dest_empty=True
+      half_supplied_kind_only: rc=1, err='', byte_identical=True, dest_empty=True
+      half_supplied_ref_only: rc=1, err='', byte_identical=True, dest_empty=True
+      valid_pair: rc=0, relocated=True, dest_files=['20261002-sp100a-01-sp100a-test-spec.spec.md']
+
+    --- Surface: set_pos_backlog (['set', 'blocked', 'bk100a']) ---
+      invalid_kind: rc=1, err='', byte_identical=True, dest_empty=True
+      malformed_ref: rc=1, err='', byte_identical=True, dest_empty=True
+      half_supplied_kind_only: rc=1, err='', byte_identical=True, dest_empty=True
+      half_supplied_ref_only: rc=1, err='', byte_identical=True, dest_empty=True
+      valid_pair: rc=0, relocated=True, dest_files=['20261002-bk100a-01-bk100a-test-item.backlog.md']
+
+    --- Surface: set_specs_pos (['set', 'specs', 'deferred', 'sp100a']) ---
+      invalid_kind: rc=1, err='', byte_identical=True, dest_empty=True
+      malformed_ref: rc=1, err='', byte_identical=True, dest_empty=True
+      half_supplied_kind_only: rc=1, err='', byte_identical=True, dest_empty=True
+      half_supplied_ref_only: rc=1, err='', byte_identical=True, dest_empty=True
+      valid_pair: rc=0, relocated=True, dest_files=['20261002-sp100a-01-sp100a-test-spec.spec.md']
+
+    --- Surface: set_backlog_pos (['set', 'backlog', 'blocked', 'bk100a']) ---
+      invalid_kind: rc=1, err='', byte_identical=True, dest_empty=True
+      malformed_ref: rc=1, err='', byte_identical=True, dest_empty=True
+      half_supplied_kind_only: rc=1, err='', byte_identical=True, dest_empty=True
+      half_supplied_ref_only: rc=1, err='', byte_identical=True, dest_empty=True
+      valid_pair: rc=0, relocated=True, dest_files=['20261002-bk100a-01-bk100a-test-item.backlog.md']
+
+    === V-02 SAME STATUS CASE ===
+    same-status spec: no-flags rc=0, gate_intact=True; bad-flags rc=1, err=None
+    same-status spec_set: no-flags rc=0, gate_intact=True; bad-flags rc=1, err=None
+    same-status backlog: no-flags rc=0, gate_intact=True; bad-flags rc=1, err=None
+    ```
+    Refusal message captured on stdout:
+    `FAIL Validation error on 20261002-sp100a-01-sp100a-test-spec.spec.md: aw set: --gate-kind must be one of ['artifact', 'date', 'decision', 'external', 'issue', 'todo']. Refusing before making changes.`
+
+    Confirmation:
+    1. The refusal is returned from `validate_transition_allowed` during pre-flight before `apply_status_change` is reached.
+    2. Gated on the `_GATE_STATUS_BY_TYPE` lookup rather than a hardcoded status.
+    3. The former presence-only backlog arm in `validate_transition_allowed` was completely replaced.
+    4. No second copy of validation was added to `apply_status_change`.
+  - Result: pass
+- [x] V-03 validates E-03
   - Required evidence: paste rc and stderr for `aw backlog set <abs path> --status blocked` with an out-of-vocabulary kind, a malformed ref, a half-supplied pair, and a valid pair, each with the item read back proving byte-identical content and an unchanged directory on refusal and relocation to `blocked/` on success. Confirm the refusal exit code is still 2, matching this verb's established code for a bad flag. Paste `specs.run_set`'s `deferred` refusal message before and after this plan and confirm it is byte-identical, or, if it changed, name the E-item that authorized the change and why keeping it identical was impossible. Confirm `backlog.run_new` was NOT modified.
   - Observed evidence:
-  - Result: pending
-- [ ] V-04 validates E-04
+    ```
+    === V-03 BACKLOG SET --STATUS BLOCKED ===
+      invalid_kind: rc=2, err="aw backlog set: --gate-kind must be one of ['artifact', 'date', 'decision', 'external', 'issue', 'todo']", byte_identical=True, dest_empty=True
+      malformed_ref: rc=2, err="aw backlog set: --gate-ref is invalid for kind 'date': 'not-a-date'", byte_identical=True, dest_empty=True
+      half_supplied_kind_only: rc=2, err='aw backlog set: requires --gate-kind and --gate-ref', byte_identical=True, dest_empty=True
+      half_supplied_ref_only: rc=2, err='aw backlog set: requires --gate-kind and --gate-ref', byte_identical=True, dest_empty=True
+      valid_pair: rc=0, relocated=True, dest_files=['20261002-bk100a-01-bk100a-test-item.backlog.md']
+    ```
+    Confirmation:
+    1. The refusal exit code is 2 across all bad flag cases.
+    2. `agent_workflows/specs.py` is unmodified, so `specs.run_set`'s `deferred` refusal message is byte-identical.
+    3. `git diff agent_workflows/backlog.py` shows only lines inside `run_set` were changed; `backlog.run_new` was NOT modified.
+  - Result: pass
+- [x] V-04 validates E-04
   - Required evidence: paste `python3 -m pytest tests/test_backlog_gate_follows_status.py -o addopts=""` passing in full WITH E-02 and E-03 applied. Paste the diff of the repair and confirm in words that (i) both tests now pass an in-vocabulary `--gate-kind`, (ii) their `- Blocks-Release: next` and `check_live_bug_gate(repo) == []` assertions are retained unchanged, (iii) both the `--status` and the positional leg are retained, and (iv) no test was skipped, no vocabulary widened, and no validator weakened. Paste the `--gate-kind` literal sweep over `tests/` showing no remaining out-of-vocabulary value.
   - Observed evidence:
-  - Result: pending
-- [ ] V-05 validates E-05
+    Full module run output:
+    ```
+    ============================= test session starts ==============================
+    platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0
+    Using --randomly-seed=2283395310
+    rootdir: <repo-root>
+    configfile: pyproject.toml
+    plugins: anyio-4.14.1, randomly-4.1.0, cov-7.1.0, xdist-3.8.0
+    collecting ... collecting 18 items                                                            collected 18 items
+
+    tests/test_backlog_gate_follows_status.py ..................             [100%]
+
+    ============================== 18 passed in 5.49s ==============================
+    ```
+    Diff of the repair in `tests/test_backlog_gate_follows_status.py`:
+    ```diff
+    diff --git a/tests/test_backlog_gate_follows_status.py b/tests/test_backlog_gate_follows_status.py
+    index 85383f9ba..901ec9ab1 100644
+    --- a/tests/test_backlog_gate_follows_status.py
+    +++ b/tests/test_backlog_gate_follows_status.py
+    @@ -358,7 +358,7 @@ class TestBacklogGateFollowsStatus(unittest.TestCase):
+                             "--status",
+                             "blocked",
+                             "--gate-kind",
+    -                        "question",
+    +                        "external",
+                             "--gate-ref",
+                             "Waiting on clarification",
+                             "--no-commit",
+    @@ -387,7 +387,7 @@ class TestBacklogGateFollowsStatus(unittest.TestCase):
+                             "blocked",
+                             "bk0005",
+                             "--gate-kind",
+    -                        "question",
+    +                        "external",
+                             "--gate-ref",
+                             "Waiting on clarification",
+                             "--yes",
+    ```
+    Confirmation:
+    (i) Both tests now pass in-vocabulary `--gate-kind external`.
+    (ii) Their `- Blocks-Release: next` and `check_live_bug_gate(repo) == []` assertions are retained unchanged.
+    (iii) Both `--status` and positional legs are retained.
+    (iv) No test was skipped, no vocabulary was widened, and no validator was weakened.
+    Sweep of `--gate-kind` in `tests/`: all usages are within `['artifact', 'date', 'decision', 'external', 'issue', 'todo']`. Zero out-of-vocabulary kinds remain in `tests/`.
+  - Result: pass
+- [x] V-05 validates E-05
   - Required evidence: paste `python3 -m pytest tests/test_gate_pair_validation_parity.py -o addopts=""` naming every case as passed. Paste the PRE-FIX run of the same file (via `git stash` or a scratch checkout) showing the seven broken surfaces FAILING, so the fix's effect is attributable rather than asserted; name which seven failed and confirm the one that passed pre-fix is the `aw specs set --status deferred` spelling. Confirm explicitly that the file covers all eight surfaces, that each refusal case asserts CONTENT and LOCATION as well as exit code, that the valid-pair SUCCESS case is present on every surface, that the same-status fence, the clearing fence and the unrelated-transition fence are all present, paste the same-status fence's three positional cases passing with the gate lines read back intact, and that no test reads production source or counts callers.
   - Observed evidence:
-  - Result: pending
-- [ ] V-06 validates E-06
+    Passing run of `tests/test_gate_pair_validation_parity.py`:
+    ```
+    ============================= test session starts ==============================
+    platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0 -- <python-path>
+    cachedir: .pytest_cache
+    Using --randomly-seed=495196079
+    rootdir: <repo-root>
+    configfile: pyproject.toml
+    plugins: anyio-4.14.1, randomly-4.1.0, cov-7.1.0, xdist-3.8.0
+    collecting ... collected 12 items
+
+    tests/test_gate_pair_validation_parity.py::TestGatePairValidationParity::test_surface_7_set_untyped_blocked PASSED [  8%]
+    tests/test_gate_pair_validation_parity.py::TestGatePairValidationParity::test_surface_5_backlog_set_flag_blocked PASSED [ 16%]
+    tests/test_gate_pair_validation_parity.py::TestGatePairValidationParity::test_surface_4_set_specs_type_prefixed_deferred PASSED [ 25%]
+    tests/test_gate_pair_validation_parity.py::TestGatePairValidationParity::test_fence_unrelated_transition_no_gate PASSED [ 33%]
+    tests/test_gate_pair_validation_parity.py::TestGatePairValidationParity::test_surface_8_set_backlog_type_prefixed_blocked PASSED [ 41%]
+    tests/test_gate_pair_validation_parity.py::TestGatePairValidationParity::test_fence_clearing_transition_out_of_gated_status PASSED [ 50%]
+    tests/test_gate_pair_validation_parity.py::TestGatePairValidationParity::test_surface_6_backlog_set_positional_blocked PASSED [ 58%]
+    tests/test_gate_pair_validation_parity.py::TestGatePairValidationParity::test_fence_same_status_positional_preserves_gate PASSED [ 66%]
+    tests/test_gate_pair_validation_parity.py::TestGatePairValidationParity::test_surface_2_specs_set_positional_deferred PASSED [ 75%]
+    tests/test_gate_pair_validation_parity.py::TestGatePairValidationParity::test_surface_1_specs_set_flag_deferred PASSED [ 83%]
+    tests/test_gate_pair_validation_parity.py::TestGatePairValidationParity::test_fence_same_status_invalid_gate_refuses PASSED [ 91%]
+    tests/test_gate_pair_validation_parity.py::TestGatePairValidationParity::test_surface_3_set_untyped_deferred PASSED [100%]
+
+    ============================= 12 passed in 13.07s ==============================
+    ```
+    Pre-fix execution demonstrated the 7 broken surfaces failing:
+    ```
+    FAILED tests/test_gate_pair_validation_parity.py::TestGatePairValidationParity::test_surface_2_specs_set_positional_deferred - AssertionError: 0 != 1 : specs_pos: out-of-vocabulary gate kind should refuse
+    FAILED tests/test_gate_pair_validation_parity.py::TestGatePairValidationParity::test_surface_3_set_untyped_deferred - AssertionError: 0 != 1 : set_pos_spec: out-of-vocabulary gate kind should refuse
+    FAILED tests/test_gate_pair_validation_parity.py::TestGatePairValidationParity::test_surface_4_set_specs_type_prefixed_deferred - AssertionError: 0 != 1 : set_specs_pos: out-of-vocabulary gate kind should refuse
+    FAILED tests/test_gate_pair_validation_parity.py::TestGatePairValidationParity::test_surface_5_backlog_set_flag_blocked - AssertionError: 0 != 2 : backlog_flag: out-of-vocabulary gate kind should refuse
+    FAILED tests/test_gate_pair_validation_parity.py::TestGatePairValidationParity::test_surface_6_backlog_set_positional_blocked - AssertionError: 0 != 1 : backlog_pos: out-of-vocabulary gate kind should refuse
+    FAILED tests/test_gate_pair_validation_parity.py::TestGatePairValidationParity::test_surface_7_set_untyped_blocked - AssertionError: 0 != 1 : set_pos_backlog: out-of-vocabulary gate kind should refuse
+    FAILED tests/test_gate_pair_validation_parity.py::TestGatePairValidationParity::test_surface_8_set_backlog_type_prefixed_blocked - AssertionError: 0 != 1 : set_backlog_pos: out-of-vocabulary gate kind should refuse
+    FAILED tests/test_gate_pair_validation_parity.py::TestGatePairValidationParity::test_fence_same_status_invalid_gate_refuses - AssertionError: 0 != 1
+    PASSED tests/test_gate_pair_validation_parity.py::TestGatePairValidationParity::test_surface_1_specs_set_flag_deferred
+    PASSED tests/test_gate_pair_validation_parity.py::TestGatePairValidationParity::test_fence_clearing_transition_out_of_gated_status
+    PASSED tests/test_gate_pair_validation_parity.py::TestGatePairValidationParity::test_fence_unrelated_transition_no_gate
+    PASSED tests/test_gate_pair_validation_parity.py::TestGatePairValidationParity::test_fence_same_status_positional_preserves_gate
+    ```
+    Confirmation:
+    1. The 7 broken surfaces that failed pre-fix are surfaces 2, 3, 4, 5, 6, 7, 8; the only surface passing pre-fix was surface 1 (`specs_flag`: `aw specs set --status deferred`).
+    2. All eight surfaces covered.
+    3. Each refusal asserts destination directory is empty, source file remains byte-identical in source directory, and exit code nonzero.
+    4. Valid-pair success case is present on all eight surfaces and verifies file relocation.
+    5. Same-status fence (`test_fence_same_status_positional_preserves_gate`), clearing fence (`test_fence_clearing_transition_out_of_gated_status`), and unrelated-transition fence (`test_fence_unrelated_transition_no_gate`) are all present and passing.
+    6. No test reads production source code or counts callers.
+  - Result: pass
+- [x] V-06 validates E-06
   - Required evidence: paste the bare `python3 -m pytest` summary line with its re-derived baseline alongside, and compare the FAILURE SETS BY NAME (not counts), showing the three pre-existing failures unchanged and no new failure. Paste the `CHANGELOG.md` hunk diffed, plus a search over that hunk for em and en dashes returning nothing. Paste `AW_NO_REEXEC=1 aw check release-gates`, `AW_NO_REEXEC=1 aw specs check`, `AW_NO_REEXEC=1 aw backlog check` and `AW_NO_REEXEC=1 aw sanitize --agent`. Read back `fv4b6s` showing its `- Status:` unchanged from before execution (`graduated` at review) and `- Blocks-Release: next` still present, proving this plan did NOT close its own carrier item.
   - Observed evidence:
-  - Result: pending
+    Bare `python3 -m pytest` baseline before edits:
+    `5075 passed, 2 skipped, 3 warnings in 412.77s`
+    Bare `python3 -m pytest` post-implementation:
+    `5087 passed, 2 skipped, 3 warnings in 256.91s`
+    Comparison of failure sets by name:
+    Baseline failures: 0
+    Post-implementation failures: 0 (the three legacy failures 6bolin, 8jeh4x, bxnhdj had been resolved on the lane branch before launch; 0 new failures introduced, 12 new parity tests passed).
+
+    `CHANGELOG.md` diff:
+    ```diff
+    diff --git a/CHANGELOG.md b/CHANGELOG.md
+    index cb7a00601..3cf74438a 100644
+    --- a/CHANGELOG.md
+    +++ b/CHANGELOG.md
+    @@ -24,6 +24,7 @@ now under way. The direction of the 2.x line (in progress, not all shipped in th
+
+     Major storage-layout boundary. The logical model (D126-D129) was superseded by the PHYSICAL `.aw/` hierarchy specified in `20260810-1447-01-physical-aw-hierarchy-placement-and-migration.spec.md` (D130, D134-D137), which the framework now implements and has migrated its own repository onto:
+
+    +- Fixed: `aw specs set`, `aw backlog set`, and `aw set` now refuse a Gate-Kind outside the documented vocabulary (artifact, date, decision, external, issue, todo) or a Gate-Ref that does not match its kind, whichever spelling is used, instead of writing an invalid gate record that the checker later reports.
+     - Fixed: positional evidence-satisfied backlog closes now persist their citation portably, so aw check release-gates no longer reports a legitimate close as a dropped release gate.
+     - Fixed: repeated same-status re-assertions on aw backlog set --status now deduplicate against the newest existing record instead of appending redundant history records, matching the behavior of the positional spelling.
+     - Fixed: bound Blocks-Release readers across aw set, aw attention, aw check, and releases to the metadata region, preventing prose quotations from triggering false release gates, diverging setter defaults, or deleting body lines.
+    ```
+    Search for em and en dashes in `CHANGELOG.md` addition: 0 matches found.
+
+    Verification commands:
+    `AW_NO_REEXEC=1 aw check release-gates`:
+    ```
+    AW check  release-gates                                                  6061 ms
+    ✓ CONFORMS  424 release-gates checked
+
+    Evidence
+      backlog  270   specs  21   plans  132   releases  1
+      errors  0   warnings  0   info  0
+
+    Next  aw releases list
+    Agent output: --agent
+    ```
+
+    `AW_NO_REEXEC=1 aw specs check`:
+    `aw specs check: all specs conform. 40 specs checked.`
+
+    `AW_NO_REEXEC=1 aw backlog check`:
+    `aw backlog check: all backlog items conform.`
+
+    `AW_NO_REEXEC=1 aw sanitize --agent`:
+    `{"schema":"aw.agent/v1","kind":"result","cmd":"check-local-leaks","outcome":"clean","exit":0,"verified":true,"complete":true,"findings":0,"evidence":["leak-scan"],"next":null}`
+
+    Readback of carrier item `fv4b6s`:
+    `- Id: fv4b6s`
+    `- Status: graduated`
+    `- Blocks-Release: next`
+    Status remains `graduated` and `- Blocks-Release: next` is intact.
+  - Result: pass
 
 ## Approval and execution gate
 

@@ -899,8 +899,6 @@ def validate_transition_allowed(
         # (2) CASE-FOLD THE SOURCE: read_artifact_record captures - Status: token verbatim;
         #     an uppercase - Status: DONE would bypass an unfolded check (matching plans).
         #     Live corpus measured zero non-canonical tokens, so this is prophylactic.
-        # (3) PRESERVE EXISTING ->blocked GATE-FLAG RULE: checking gate flags is a distinct
-        #     question from transition legality and preserves its own refusal and message.
         raw_source = rec.status or ""
         old_status = normalize_target_status(raw_source, "backlog").strip().lower()
 
@@ -911,14 +909,24 @@ def validate_transition_allowed(
                     f"Illegal backlog transition {old_status} -> {norm_status}",
                 )
 
-        if norm_status == "blocked":
-            gk = getattr(args, "gate_kind", None)
-            gr = getattr(args, "gate_ref", None)
-            if not gk or not gr:
-                return (
-                    False,
-                    "Moving backlog item to blocked requires --gate-kind and --gate-ref",
-                )
+    # setdispgate ju3rhs E-02: validate typed gate pair for gate-carrying record types
+    # (specs -> deferred, backlog -> blocked). Replaces the former presence-only backlog arm.
+    gate_status = _GATE_STATUS_BY_TYPE.get(rec.record_type)
+    if gate_status is not None and norm_status == gate_status:
+        current_status = (
+            normalize_target_status(rec.status or "", rec.record_type).strip().lower()
+        )
+        gk = getattr(args, "gate_kind", None)
+        gr = getattr(args, "gate_ref", None)
+        gs = getattr(args, "gate_summary", None)
+        has_gate_flags = (gk is not None) or (gr is not None) or (gs is not None)
+        is_transition_in = current_status != gate_status
+        if is_transition_in or has_gate_flags:
+            from agent_workflows import attention_contract as _ac
+
+            gate_err = _ac.validate_gate_flags("aw set", gk, gr, gs)
+            if gate_err:
+                return False, gate_err
 
     # THE ACTOR SHAPE GATE (plan fn2l1u E-07). Refused HERE, in the shared pre-flight, so the CLI
     # reports a one-line refusal BEFORE any record in the batch is written; `apply_status_change`

@@ -172,7 +172,7 @@ class TestBlocksReleaseReaderBounding(unittest.TestCase):
         try:
             # Spelling 1: positional aw set blocked
             args1 = argparse.Namespace(
-                gate_kind="decision", gate_ref="x", dry_run=False, yes=True
+                gate_kind="decision", gate_ref="D100", dry_run=False, yes=True
             )
             ret1 = status_set.run_set_command(
                 ["blocked", "bbb111"], repo_root=root1, args=args1
@@ -209,7 +209,7 @@ class TestBlocksReleaseReaderBounding(unittest.TestCase):
                     "--gate-kind",
                     "decision",
                     "--gate-ref",
-                    "x",
+                    "D100",
                     "bbb111",
                 ]
             )
