@@ -7,8 +7,8 @@
 - Scope-Paths: .aw/records/plans/pending/20260930-attmodel-00-1u4olp-record-the-resolved-model-per-attempt-so-run-analytics-can-c.ipd.md
 - Item-Dependencies: none
 - Status: draft
-- Coverage: fail
-- Coverage-Fingerprint: b325498c257ee84eaeeeabdbe6960c1d40021858725081e52d174eadc10696cb
+- Coverage: pass
+- Coverage-Fingerprint: 6c18c8fb8839c7b9635d1a0688e154e3630d410f9c24dc1521852a87a8161853
 - Coverage-Checked: 2026-10-07 by uri/its_direct/pt3-claude-opus-5.5-1m-us
 - Work-Kind: feature
 - Priority: medium
@@ -20,6 +20,7 @@
 - Id: 1u4olp
 
 ## Workflow history
+- 2026-10-07 coverage pass (aw oc run): fingerprint 6c18c8fb8839, model uri/its_direct/pt3-claude-opus-5.5-1m-us
 - 2026-10-07 coverage fail (aw oc run): fingerprint b325498c257e, model uri/its_direct/pt3-claude-opus-5.5-1m-us
 - 2026-10-07 note (opencode its_direct/pt3-claude-opus-5.5-1m-us): every child is executed; each Set-level obligation now names the child that performed it.
 - 2026-10-06 draft (aw set): demoted to-review -> draft: returned to authoring by gradcover 52opph: uncovered obligation: The Set-level obligations are: the three children's test files all present and green
@@ -209,15 +210,6 @@ a bare `python3 -m pytest` against its own re-derived baseline at its boundary, 
 - Status: resolved
 - Owner: author
 - Resolution or deferral rationale: NO, AND THE SET WAS AUTHORED TO THAT RULE DELIBERATELY. The repository's orchestrator-coverage gate refuses to retire a parent that carries work no child covers, because retirement skips the pre-transition E/V checkpoint on the premise that a parent's own items are performed by nobody. Every E-item in this file is a CONFIRMATION that a named child reached `executed`, and every deliverable in the Concern and Goal is owned by one of the three children: the producer by `czut8j`, the observation by `ov2c9n`, all three consumers plus the doc by `r5fk4k`. The two residues in completion criterion 9 are explicitly NOT deliverables of this Set (they are named as filed-elsewhere), which is the honest treatment rather than parking them on the parent where they would be marked complete having never been performed.
-
-## Coverage findings
-
-- "1. Every attempt record written by either host names the model it was launched under, on every path an"
-- "2. A run that used TWO models (a `--verify-with` run) records both, and every consumer reports both: the"
-- "3. A turn launched with NO `--model` flag at all still ends with a concrete model on its attempt record,"
-- "4. `run_analytics_statistics.model_comparison` is fed a REAL attempt population by its production caller and"
-- "5. A run carrying NO per-attempt fields (every run that already exists) produces output identical to today's"
-- "6. Nothing gates, refuses, warns-to-failure or changes a disposition on a model value, and an unreachable"
 
 ## Validation and cross-check (verify before reporting the Set complete)
 
