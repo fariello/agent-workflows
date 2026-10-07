@@ -20,6 +20,7 @@
 - Id: 1u4olp
 
 ## Workflow history
+- 2026-10-07 note (opencode its_direct/pt3-claude-opus-5.5-1m-us): every child is executed; each Set-level obligation now names the child that performed it.
 - 2026-10-06 draft (aw set): demoted to-review -> draft: returned to authoring by gradcover 52opph: uncovered obligation: The Set-level obligations are: the three children's test files all present and green
 
 - 2026-10-06 coverage fail (aw oc run): fingerprint 628403857f36, model uri/its_direct/pt3-claude-opus-5.5-1m-us
@@ -177,9 +178,10 @@ returns through the merge-and-revalidate gate. Order 03's files (`run_dashboard.
 ## Required tests / validation
 
 This plan runs no tests of its own; each child carries its own validation surface and each must be green on
-its own terms. The Set-level obligations are: the three children's test files all present and green; the
-three shipped dashboard model tests green and UNEDITED; and a bare `python3 -m pytest` green with the
-baseline re-derived at execution rather than taken from any plan here.
+its own terms. Every child is executed. Owners of the Set-level obligations: each child's own test file is
+present and green in that child's V-items (`czut8j`, `ov2c9n`, `r5fk4k`); the three shipped dashboard model
+tests green and UNEDITED is `r5fk4k`'s V-06 (it is the child that touches the dashboard); and each child ran
+a bare `python3 -m pytest` against its own re-derived baseline at its boundary, `r5fk4k`'s being the last.
 
 ## Open questions
 
