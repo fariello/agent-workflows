@@ -6,7 +6,7 @@
 - Scope: IN: restore the STRUCTURAL and ALIAS halves of the deleted driver as a new DEFAULT-COLLECTED test module, recovering them from `git show 19313eed7^:tests/test_cli_conformance_matrix.py` rather than rewriting from the docstring; widen its `declared_absent` pin from one member to the two that exist today, citing the filed owner of each; delete the three stale `dtq6jr` exemptions and move the two argument-requiring config leaves into `RUNNABLE_ARGV` where they belong; resolve every remaining dead symbol in `tests/conformance_matrix.py` to either an executor or deletion, leaving no third category; and reconcile the three `command_surface.py` comments with what is then enforced. OUT: the expensive live scenario sweep and the vacuous human-banner parity gate (both carried by `2wowfy`); the renderer-level golden and budget gates (child `9i2hge`); fixing either leaf the widened pin names (`68sur3`, `lbbo9s`); adding any `LIVE_SAFE_LEAVES` member or any mutation-class coverage (plan `vfv2db`).
 - Scope-Paths: tests/conformance_matrix.py, tests/test_conformance_matrix_structure.py, agent_workflows/command_surface.py
 - Item-Dependencies: none
-- Status: draft
+- Status: to-review
 - Work-Kind: chore
 - Priority: low
 - From-Backlog: h0tiaw
@@ -17,6 +17,7 @@
 - Id: dq9bj9
 
 ## Workflow history
+- 2026-10-07 to-review (aw set): returned to review: Set-level checks now owned by 9i2hge E-06 (runs last) and the children's own V-items; coverage pass recorded
 - 2026-10-06 draft (aw set): demoted to-review -> draft: returned to authoring by gradcover 52opph: uncovered obligation: No orphaned golden and no orphaned symbol, checked across both children together
 
 - 2026-10-01 to-review (opencode its_direct/pt3-claude-opus-5-1m-us): Authored from backlog `h0tiaw` as Order 01 of Set `h0tiaw` (orchestrator `l8wvv3`), which carries the Set-wide reasoning. Every claim here was MEASURED in this lane at HEAD `b6792ad4a`. The item's second open question ("whether the intended contract is still the one the helpers encode, since reviving a stale harness can assert obsolete promises") is answered per-assertion rather than wholesale, and it bites in exactly two places this plan handles explicitly: `test_declared_absent_leaves_are_only_the_known_prompts_family` pins a set that has GROWN from one member to two since the deletion, so a verbatim restore lands RED (E-03), and three `known_broken` exemptions now cite a `done` item while the leaves they exempt pass (E-02). The REST of the structural half is green and costs 0.513s, so the item's "low priority latent debt" framing is right about this child's urgency and wrong about its cost: this is cheap. One assertion is deliberately NOT restored verbatim and the reason is measured, not stylistic: the live scenario sweep costs several minutes and could only land `slow`, hence CI-advisory, which is why it is carried by `2wowfy` instead. `aw ipd lint --phase author` reports conforming.

@@ -6,7 +6,7 @@
 - Scope: IN: decide, from measurement rather than from the harness's own docstring, WHICH of the two deleted drivers' gates are worth reviving, and revive exactly those as two children: the cheap structural + alias + ANSI gate (Order 01) and the renderer-level golden/schema/accessibility/budget gate (Order 02). Also IN: retire the harness's two STALE exemption entries, whose cited owner (`dtq6jr`) is now `done`, and reconcile the `CONTRIBUTING.md` promise and the `command_surface.py` comments with whatever ends up enforced. OUT (each with a named reason in the Deferred section): re-adding the expensive 16-leaf-by-5-scenario live sweep as a default-collected test (measured 98.74s for the 13 cheap leaves alone, and 48.75s for one human pass over all 16); the `FactParityTests` human-banner gate, which is VACUOUS today (measured: 0 of 16 live-safe leaves emit the `AW <command>` banner `semantic_facts_from_human` requires, so every subtest silently degrades to the exit-code fallback that `test_exit_contract_conformance.py` already owns); extending coverage to `mutation` leaves, which is plan `vfv2db`'s declared scope; and fixing the two leaves the revival proves non-conformant, which belong to their filed owners.
 - Scope-Paths: .aw/records/plans/pending/20261001-h0tiaw-00-l8wvv3-decide-what-survives-of-the-dormant-conformance-harness-and.ipd.md
 - Item-Dependencies: none
-- Status: draft
+- Status: to-review
 - Coverage: pass
 - Coverage-Fingerprint: ced14f8f5e249910223af22788561c8e6e58e19e19bf65c8483ac52e17d4e816
 - Coverage-Checked: 2026-10-07 by uri/its_direct/pt3-claude-opus-5.5-1m-us
@@ -20,6 +20,7 @@
 - Id: l8wvv3
 
 ## Workflow history
+- 2026-10-07 to-review (aw set): returned to review: Set-level checks now owned by 9i2hge E-06 (runs last) and the children's own V-items; coverage pass recorded
 - 2026-10-07 coverage pass (aw oc run): fingerprint ced14f8f5e24, model uri/its_direct/pt3-claude-opus-5.5-1m-us
 - 2026-10-07 coverage fail (aw oc run): fingerprint d5994a92ec22, model uri/its_direct/pt3-claude-opus-5.5-1m-us
 - 2026-10-06 draft (aw set): demoted to-review -> draft: returned to authoring by gradcover 52opph: uncovered obligation: No orphaned golden and no orphaned symbol, checked across both children together

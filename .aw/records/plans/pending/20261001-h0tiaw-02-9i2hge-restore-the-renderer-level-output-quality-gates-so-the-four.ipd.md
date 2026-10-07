@@ -6,7 +6,7 @@
 - Scope: IN: restore the seven renderer-level gates as a DEFAULT-COLLECTED module over the same four reviewed `CommandResult` fixtures, recovered from `git show 19313eed7^:tests/test_cli_quality_gates.py` rather than rewritten; give all twelve `.golden` files a reader; resolve the drifted `check_findings.human.golden` by regenerating it with the full diff quoted as evidence; and reconcile `CONTRIBUTING.md` step 6 against the enforced set this Set actually lands, promise by promise. OUT: the structural matrix gate, the exemption-registry cleanup and the `command_surface.py` comment reconciliation (sibling `dq9bj9`); the expensive live scenario sweep and the vacuous human-banner parity gate over live leaves (carrier `2wowfy`); any change to `agent_workflows/renderers.py`, `agent_workflows/result_types.py`, `agent_workflows/agent_schema.py` or `agent_workflows/term.py`, since every gate here measures GREEN against today's code and a production edit would mean the gate was authored to its own convenience.
 - Scope-Paths: tests/test_cli_quality_gates.py, tests/fixtures/conformance_goldens/check_findings.human.golden, CONTRIBUTING.md
 - Item-Dependencies: executed:dq9bj9
-- Status: draft
+- Status: to-review
 - Work-Kind: chore
 - Priority: low
 - From-Backlog: h0tiaw
@@ -17,6 +17,7 @@
 - Id: 9i2hge
 
 ## Workflow history
+- 2026-10-07 to-review (aw set): returned to review: Set-level checks now owned by 9i2hge E-06 (runs last) and the children's own V-items; coverage pass recorded
 - 2026-10-06 note (opencode its_direct/pt3-claude-opus-5.5-1m-us): added E-06/V-06, the three Set-level checks (no orphaned golden, no orphaned symbol, no tripled assertion) the orchestrator `l8wvv3` carried with no owner; this plan runs last, after `dq9bj9`, so it is the only child that can see both changes. Measurement only; no scope change.
 - 2026-10-06 draft (aw set): demoted to-review -> draft: returned to authoring by gradcover 52opph: uncovered obligation: No orphaned golden and no orphaned symbol, checked across both children together
 
