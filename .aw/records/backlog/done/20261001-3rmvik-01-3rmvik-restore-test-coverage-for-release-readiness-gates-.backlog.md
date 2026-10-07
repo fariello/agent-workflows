@@ -1,5 +1,5 @@
 - Id: 3rmvik
-- Status: graduated
+- Status: done
 - Graduated-To: 3rmvik
 - Set: 3rmvik
 - Priority: medium
@@ -7,6 +7,7 @@
 - Summary: Restore test coverage for release readiness gates and report aggregation
 
 ## Workflow history
+- 2026-10-07 done (aw backlog): closed by aw agy run: IPD dyiasf executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20261002-3rmvik-01-dyiasf-restore-behavioral-test-coverage-for-the-release-readiness-g.ipd.md); evidence .aw/records/plans/executed/20261002-3rmvik-01-dyiasf-restore-behavioral-test-coverage-for-the-release-readiness-g.ipd.md
 - 2026-10-02 graduated (aw backlog): graduated by run run-20261001T221834Z-1991716: dyiasf
 - 2026-10-01 created (aw backlog): Restore test coverage for release readiness gates and report aggregation
 
