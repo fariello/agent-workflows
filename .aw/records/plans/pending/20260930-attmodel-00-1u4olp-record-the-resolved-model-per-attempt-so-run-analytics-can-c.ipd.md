@@ -6,9 +6,10 @@
 - Scope: Orchestrate three children that together make a model attributable per attempt and make the consumers read it. This plan holds ORCHESTRATION ONLY: every deliverable belongs to a child (`czut8j` the frozen per-attempt producer, `ov2c9n` the host-observed model, `r5fk4k` the three consumers), and this file contributes no code, no test, no doc and no record of its own. EXCLUDES, in every child without exception: back-filling history, moving `MODEL_COVERAGE_THRESHOLD` from its declared 0.80, editing the retained `CORPUS_BASELINE` snapshot, adding a new CLI flag (which would require amending spec `25kzda` Section 2.1), and making anything GATE or REFUSE on a model value.
 - Scope-Paths: .aw/records/plans/pending/20260930-attmodel-00-1u4olp-record-the-resolved-model-per-attempt-so-run-analytics-can-c.ipd.md
 - Item-Dependencies: none
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
 - Coverage: pass
-- Coverage-Fingerprint: 6c18c8fb8839c7b9635d1a0688e154e3630d410f9c24dc1521852a87a8161853
+- Coverage-Fingerprint: d60d56985ca092503bd9fd0a1f8cabc33f0e556f20997b2c4f1d8bc501fe47ad
 - Coverage-Checked: 2026-10-07 by uri/its_direct/pt3-claude-opus-5.5-1m-us
 - Work-Kind: feature
 - Priority: medium
@@ -20,6 +21,9 @@
 - Id: 1u4olp
 
 ## Workflow history
+- 2026-10-07 /plan-review (opencode uri/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004
+- 2026-10-07 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-001..PR-004 all FIXED (dead test_run_flag_surface citation; stale r5fk4k V-06 -> V-08; residue filing step replaced by children's recorded dispositions qswokt/declined; execution contract completed with honesty rule, scope fence, conditional lifecycle). Coverage re-run: pass.
+- 2026-10-07 coverage pass (aw oc run): fingerprint d60d56985ca0, model uri/its_direct/pt3-claude-opus-5.5-1m-us
 - 2026-10-07 to-review (aw set): returned to review: every child executed; each completion criterion leads with its owning child; coverage pass recorded
 - 2026-10-07 coverage pass (aw oc run): fingerprint 6c18c8fb8839, model uri/its_direct/pt3-claude-opus-5.5-1m-us
 - 2026-10-07 coverage fail (aw oc run): fingerprint b325498c257e, model uri/its_direct/pt3-claude-opus-5.5-1m-us
@@ -98,15 +102,21 @@ are `executed`.
    host costs a run nothing: a failed observation leaves the turn's exit code, disposition and item status
    byte-identical.
 7. [Owner: czut8j, ov2c9n and r5fk4k] No spec is amended (none describes these surfaces, measured) and no new CLI flag is added, so spec
-   `25kzda` Section 2.1's flag grammar and `tests/test_run_flag_surface.py` are untouched.
+   `25kzda` Section 2.1's flag grammar is untouched. (No test enforces this: `tests/test_run_flag_surface.py`
+   was deleted in commit `19313eed`, so the obligation rests on the plan contract and on each child's
+   declared `- Scope-Paths:` carrying no `.spec.md`.)
 8. [Owner: czut8j, ov2c9n and r5fk4k] `python3 -m pytest` is green, with the baseline re-derived by each child at execution rather than taken
    from any plan in this Set.
 9. [Owner: ov2c9n and czut8j] TWO RESIDUES ARE NAMED RATHER THAN CLAIMED. The Antigravity host gains no OBSERVED model in this Set
    (its stream already carries one at `event["init"]["model"]`, parsed and discarded today, so it needs a
    cheap persist rather than a subprocess interrogation, and `ov2c9n` defers it with that reason). The
    `audit` verb keeps no per-attempt model (it writes its own `state.json` and its own lean attempt dict
-   without passing through `execute_item_core`). Each must be filed as its own backlog item at execution,
-   and the Set must NOT be reported as delivering either.
+   without passing through `execute_item_core`). Both dispositions are ALREADY RECORDED BY THE CHILDREN, so
+   this parent carries no filing step: the Antigravity residue was filed as backlog `qswokt` (carrier row in
+   `ov2c9n`'s Deferred section, and in `r5fk4k`'s), and the `audit` residue was explicitly DECLINED by
+   `ov2c9n` (`Carrier-Declined`: an audit turn is single-model and its model is already in its own
+   `options`). The Set must NOT be reported as delivering either; a maintainer who wants the `audit` verb
+   covered files a new backlog item.
 
 ## Cross-IPD validation
 
@@ -133,11 +143,13 @@ are `executed`.
   `model_variant` are admitted, `model_source` is REFUSED as a key. `r5fk4k` E-05 must decide on evidence and
   PREFER not widening; if it widens, the module's own rule applies (a new key ships with a test proving it
   cannot carry a path, a transcript or a command line).
-- NO CHILD MAY ADD A CLI FLAG. Spec `25kzda` Section 2.1 declares the flag grammar and
-  `tests/test_run_flag_surface.py` reads that spec AS A FILE and fails in both directions, so a flag added
-  without a declared spec amendment turns the suite red. `ov2c9n` E-04 is shaped to reach its opt-out through
-  the existing configuration surface for exactly this reason, and is required to STOP and report rather than
-  add a flag.
+- NO CHILD MAY ADD A CLI FLAG. Spec `25kzda` Section 2.1 declares the flag grammar, and the repository
+  contract obliges a plan that changes a spec-governed surface to declare the `.spec.md` in `- Scope-Paths:`
+  and amend it in the same change; no child declares one. NOTHING MECHANICAL ENFORCES THIS: the test once
+  cited here, `tests/test_run_flag_surface.py`, was deleted in commit `19313eed`, so an added flag would
+  breach the contract silently rather than turn the suite red (both `ov2c9n` F-10 and `r5fk4k` corrected
+  the same citation at their reviews). `ov2c9n` E-04 is shaped to reach its opt-out through the existing
+  configuration surface for exactly this reason.
 - EACH CHILD WRITES ITS TESTS IN A NEW FILE, checked against the pending tree at authoring: `czut8j` uses
   `tests/test_attempt_model_identity.py`, `ov2c9n` uses `tests/test_attempt_host_model_observation.py`,
   `r5fk4k` uses `tests/test_attempt_model_consumers.py` plus an addition to `tests/test_run_dashboard.py`.
@@ -146,7 +158,8 @@ are `executed`.
 - THE THREE SHIPPED DASHBOARD MODEL TESTS MUST PASS UNEDITED. `test_one_row_per_session_with_roles`,
   `test_unrecorded_model_is_labeled_per_host` and `test_antigravity_run` each pin a fallback tier the Set
   preserves, so an edit to any of them signals a tier was broken rather than extended. `r5fk4k` F-05 carries
-  this and V-06 requires the no-edit claim be verified rather than asserted.
+  this and its V-08 (split out of E-06/V-06 at that plan's review, D-3) requires the no-edit claim be
+  verified rather than asserted.
 
 ## Deferred / out of scope (with reason)
 
@@ -179,14 +192,15 @@ are `executed`.
 
 - Over-scope: none. This file declares only itself and contributes no deliverable.
 - Under-scope: the two residues in completion criterion 9 (the Antigravity observed model and the `audit`
-  verb), each to be filed as its own backlog item at execution rather than absorbed silently.
+  verb), already dispositioned by the children (`qswokt` filed; `audit` declined) rather than absorbed
+  silently.
 
 ## Required tests / validation
 
 This plan runs no tests of its own; each child carries its own validation surface and each must be green on
 its own terms. Every child is executed. Owners of the Set-level obligations: each child's own test file is
 present and green in that child's V-items (`czut8j`, `ov2c9n`, `r5fk4k`); the three shipped dashboard model
-tests green and UNEDITED is `r5fk4k`'s V-06 (it is the child that touches the dashboard); and each child ran
+tests green and UNEDITED is `r5fk4k`'s V-08 (it is the child that touches the dashboard); and each child ran
 a bare `python3 -m pytest` against its own re-derived baseline at its boundary, `r5fk4k`'s being the last.
 
 ## Open questions
@@ -240,12 +254,30 @@ This plan is `to-review` and requires `/plan-review` followed by explicit human 
 an executing agent must not self-approve, and must not hand-write a `- Readiness:` value, which is an output
 of review.
 
+OPEN QUESTIONS: OQ-01 through OQ-03 are all `Blocking: no` and `resolved`; an executor must not re-decide
+any of them.
+
 An agent told to "execute `attmodel`" must run the children in Order, honoring the declared edges: `czut8j`
 first, then `ov2c9n` and `r5fk4k` in either order or in parallel lanes. This file itself contributes no code
 and is retired once all three children read `executed` on disk.
 
-At execution, follow the repository execution contract: this plan declares only its own path, so any commit
-it makes is limited to that file through `aw commit <plan> -- <path>`, never `git add -A`, never push. Do not
-report the Set complete until all three children are `executed`, every completion criterion above is met or
-explicitly reported as not met, and the two residues in criterion 9 have been filed as their own backlog
-items.
+SCOPE FENCE, DECLARED SO THE RUNNER CAN RECONCILE IT AFTERWARDS: `- Scope-Paths:` is this file alone. It is
+a declaration, not a stop order: a genuinely required out-of-scope edit is made and then justified to
+`aw ipd finalize` with a `--scope-reason` per path.
+
+HONESTY RULE (hard MUST): paste the ACTUAL command output for every `V-*` above. A `V-*` may not be marked
+complete from the matching `E-*` checkmark, from memory, or from a child's self-report.
+
+COMMIT DISCIPLINE: any commit this plan makes is limited to its own file through
+`aw commit <plan> -- <path>`; never `git add -A`, never `-a`, never push. Do not report the Set complete until
+all three children are `executed` and every completion criterion above is met or explicitly reported as not
+met.
+
+LIFECYCLE TRANSITION, CONDITIONAL ON WHO RUNS THE SET. On the RUNNER path (`aw oc run` / `aw agy run`) this
+`- Kind: orchestrator` plan is RETIRED without an agent turn once all three children read `executed` on disk,
+and that path skips the pre-transition E/V checkpoint; do NOT run `aw ipd finalize` on it under a runner. Run
+BY HAND, the executor owns the transition: perform V-01 through V-03 with pasted evidence, confirm
+`aw ipd lint --phase pre-transition` conforms, then `aw ipd finalize`. Never hand-roll a `git mv` to
+`executed/` or hand-edit `- Status: executed` on either path. Skipping the checkpoint under a runner is
+tolerable here only because each V-item restates the fact retirement itself gates on (every child
+`executed`), and every Set-level completion criterion names its owning child.
