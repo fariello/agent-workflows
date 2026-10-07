@@ -6,7 +6,7 @@
 - Scope: Delete the contiguous region of `tests/test_runner_shared.py` running from the `# integpath-02 (`6sb3yu`)` comment that introduces `LANE_INTEGRATION_MOVED`, through the tuple itself, and on through the orphaned `# stalemerge-01 (`87apfx`) E-05` paragraph that `b02ohu` stranded, stopping IMMEDIATELY BEFORE the three-line `# The host label each runner MUST bind into `integrate_lane_branch`` comment that documents the LIVE `HOST_LABELS` assignment. Add no replacement table, no replacement test, and no replacement comment. KEEP `HOST_LABELS` and its own three-line comment byte-identical, KEEP `BOTH`, `_MODULES` and `INJECTED` untouched, and KEEP every test in the file. EXCLUDES the three `LaneIntegrationExtractionTests` citations in `agent_workflows/oc_runipd.py` and `agent_workflows/runner_shared.py`, which are the same dead-citation CLASS in production files this plan does not declare; `x3zno3`'s F-08 measures them but excludes them, and review routed them to open backlog `3tov52` (F-07). EXCLUDES `tests/fixtures/runner_shared_premove_fingerprints.json`, the retained historical capture the deleted comment describes, whose own disposition is a separate decision nobody has made (F-08). EXCLUDES any production change, any new test, any mechanical guard against a census table returning (owned by `76ic0k`), and any edit to the module docstring.
 - Scope-Paths: tests/test_runner_shared.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -16,9 +16,9 @@
 - Highest E allocated: 01
 - Author: opencode/its_direct-pt3-claude-opus-5-1m-us
 - Id: fdmo2v
-- Approval: 2026-10-03, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-07 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: fdmo2v verified (set structpin, attempt 1).
 - 2026-10-03 approved (aw set): status set to approved
 
 - 2026-10-02 reviewed (aw set): /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-004. Re-measured at HEAD d5b97344f: census (LANE_INTEGRATION_MOVED 0 loads, survivors live), 3 mentions, dead paragraph symbols 0 hits, 135 passed; E-01 cut verified in memory (26 lines, 0 residue, ruff check+format clean). Fixed: Deferred carrier re-routed from x3zno3 (which excludes the family and hands it to done item xvp5vx) to open backlog 3tov52 with the three sites named, false Carrier-Evidence removed; exact removed-line bar; ruff format check; runner/executor finalize ownership.
