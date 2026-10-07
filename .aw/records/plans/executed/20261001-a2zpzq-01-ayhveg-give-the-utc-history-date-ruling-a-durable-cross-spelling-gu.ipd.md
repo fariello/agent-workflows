@@ -6,7 +6,7 @@
 - Scope: IN: one timezone-parameterized differential guard that derives the history-writing surface from `command_surface.COMMAND_INVENTORY` rather than hand-listing it, drives every derived spelling under a timezone east AND west of UTC, and asserts the recorded history date equals the UTC date; plus removal of the date MASK from the two tests that hide this today. OUT, each with a reason recorded under "Deferred": the production clock fix itself (owned by `5ivkdh`, which this plan takes a hard dependency on); filename dates, which `DECISIONS.md` D55 rules LOCAL; the actor asymmetry; the dispatch unification; closing the seven sibling items.
 - Scope-Paths: tests/test_history_date_clock_parity.py, tests/test_history_label_parity.py, tests/test_backlog_history_dedup_parity.py
 - Item-Dependencies: executed:5ivkdh
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - From-Spec: 2vev8j
 - Work-Kind: bug
@@ -18,9 +18,9 @@
 - Highest E allocated: 04
 - Author: opencode/its_direct/pt3-claude-opus-5-1m-us
 - Id: ayhveg
-- Approval: 2026-10-07, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-07 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: ayhveg verified (set a2zpzq, attempt 1).
 - 2026-10-07 approved (aw set): status set to approved
 
 - 2026-10-07 /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-100, PR-101, PR-102, PR-103, PR-104. Reviewed at HEAD `fe2ee961c` in an isolated review lane; plan committed and byte-identical to the lane input, so no pre-review snapshot. The hard dependency `5ivkdh` is EXECUTED (`3c55295a3`) and had already removed both masks E-04 targeted and shipped a hand-listed TZ guard `tests/test_history_date_clock.py`; `57 passed` over that file plus the two former masked files. Re-scoped: E-04 now removes the THIRD mask in `tests/test_backlog_history_dedup_parity.py` (measured green with the mask disabled inside a live skew window) and fixes one stale comment; `tests/test_backlog.py` dropped from Scope-Paths (PR-100). E-03 now extends rather than duplicates the shipped guard (PR-101). E-01 prefers subprocess `env=` TZ as both shipped TZ suites do (PR-102). RED-AT-BASE re-specified as a detached scratch worktree at `3c55295a3^` instead of stash/revert in a shared checkout, demonstrated by running the shipped guard there (fails `'2026-10-06' not found in {'2026-10-07'}`) (PR-103). Carrier-Evidence added for finished carrier `7qvs1c` (PR-104). Also measured: `backlog note`, `specs note` and the positional `aw set` for specs already record UTC under Honolulu.
