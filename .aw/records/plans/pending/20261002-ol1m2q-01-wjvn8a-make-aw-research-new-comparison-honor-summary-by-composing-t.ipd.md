@@ -7,6 +7,7 @@
 - Scope-Paths: agent_workflows/research_cmd.py, tests/test_research_cmd_create.py, CHANGELOG.md
 - Item-Dependencies: executed:deftzy
 - Status: reviewed
+- Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: low
 - From-Backlog: ol1m2q
