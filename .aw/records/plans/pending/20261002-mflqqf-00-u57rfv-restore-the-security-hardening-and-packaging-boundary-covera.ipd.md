@@ -7,8 +7,8 @@
 - Scope-Paths: .aw/records/plans/pending/20261002-mflqqf-00-u57rfv-restore-the-security-hardening-and-packaging-boundary-covera.ipd.md
 - Item-Dependencies: none
 - Status: draft
-- Coverage: fail
-- Coverage-Fingerprint: 059f37be057fab4fa95047b5f4ab2e921a230997311f003608ccadf111c6a12a
+- Coverage: pass
+- Coverage-Fingerprint: 1ad7d6bd8bc78b6dc6e5d375620e3ed778ea9fd93be9985f4004e7d8a875364d
 - Coverage-Checked: 2026-10-07 by uri/its_direct/pt3-claude-opus-5.5-1m-us
 - Work-Kind: security
 - Priority: high
@@ -20,6 +20,7 @@
 - Id: u57rfv
 
 ## Workflow history
+- 2026-10-07 coverage pass (aw oc run): fingerprint 1ad7d6bd8bc7, model uri/its_direct/pt3-claude-opus-5.5-1m-us
 - 2026-10-07 coverage fail (aw oc run): fingerprint 059f37be057f, model uri/its_direct/pt3-claude-opus-5.5-1m-us
 - 2026-10-07 note (opencode its_direct/pt3-claude-opus-5.5-1m-us): both children are executed; the cross-child checks were measured against them and recorded under Cross-IPD validation.
 - 2026-10-06 draft (aw set): demoted to-review -> draft: returned to authoring by gradcover 52opph: uncovered obligation: This plan runs no test itself; validation is an inspection of what the children actually produced
@@ -128,18 +129,6 @@ This plan runs no test itself. Both children are executed, and the inspection of
 - Status: resolved
 - Owner: none
 - Resolution or deferral rationale: RESOLVED, AND THE RESOLUTION CHANGED BECAUSE THE AUTHORING TURN REMOVED THE REASON TO HESITATE. The question was whether the item must stay open to own the sharp edges this Set records but does not fix. It need not: each of those findings now has its OWN durable carrier (`go20fk` for the `RedactionPolicy` case sensitivity, `fe6aro` for the `redact_worker_output` masking overclaim, `wc5c5e` for the load-sensitive suite nodes), so closing `mflqqf` drops nothing, which was the only real risk. The item's own subject, restored coverage on the two boundary surfaces, is fully delivered by the two children. So `mflqqf` may close `done` once BOTH carriers are `executed`, and until then it stays `graduated` because a close on one carrier's evidence would drop the other half. Note the mechanical constraint that makes this safe either way: the item carries no `- Blocks-Release:` gate, so no close-legitimacy gate is at stake.
-
-## Coverage findings
-
-- "Close the measured remainder of backlog item `mflqqf`: give the seven security boundary checkers and the packaging distribution contract real test callers again, and fix the one live fail-open that probing the uncovered security surface exposed."
-- "Every red node in any child's run must have an isolated re-run pasted and a classification. A child that reports green by excluding a node has not satisfied its own contract and must not be accepted here."
-- "Verify this against the files on disk rather than against this table."
-- "Confirm no child acquired one."
-- "CONFIRM THE ITEM IS NOT CLOSED BY EITHER CHILD ALONE: the item has TWO carriers, so it stays `graduated` until both are executed, and a close on one carrier's evidence would drop the other half."
-- "If one child is revised to claim a green baseline, that is drift and must be caught here."
-- "confirm the declaration is still present, since an undeclared spec or doc edit is what the finalize scope gate exists to catch."
-- "Confirm both children's evidence shows it."
-- "All seven `check_*` functions in `agent_workflows/security_hardening.py`, plus `run_boundary_checks` and the two scanner adapters, are driven by a committed test that asserts on the returned `BoundaryResult`, and `rg -l security_hardening tests/` returns a file where it returned nothing."
 
 ## Validation and cross-check (verify before reporting the Set complete)
 
