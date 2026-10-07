@@ -7,9 +7,9 @@
 - Scope-Paths: .aw/records/plans/pending/20261002-dirsilent-01-i6mby8-add-the-shared-non-surveyable-root-refusal-primitive-every-r.ipd.md, .aw/records/plans/pending/20261002-dirsilent-02-jei45f-convert-the-two-fail-closed-validators-specs-check-and-backl.ipd.md, .aw/records/plans/pending/20261002-dirsilent-03-sjsb04-route-the-six-resolver-bypass-sites-through-resolve-verb-rep.ipd.md, .aw/records/plans/pending/20261002-dirsilent-04-rlhmt9-split-the-shared-read-write-helpers-and-convert-the-remainin.ipd.md
 - Item-Dependencies: none
 - Status: draft
-- Coverage: fail
-- Coverage-Fingerprint: b59fda92b7d914389f7b46014b3a883915e98daae683ce245f55d8ad16abc222
-- Coverage-Checked: 2026-10-06 by uri/its_direct/pt3-claude-opus-5.5-1m-us
+- Coverage: pass
+- Coverage-Fingerprint: e490f67c8c6c1267bdbb4db59ce7f603e9d6b607a7cd1816c1d3af01ecfa294a
+- Coverage-Checked: 2026-10-07 by uri/its_direct/pt3-claude-opus-5.5-1m-us
 - Work-Kind: bug
 - Priority: medium
 - From-Backlog: rgl2d4
@@ -21,6 +21,7 @@
 - Id: axozpe
 
 ## Workflow history
+- 2026-10-07 coverage pass (aw oc run): fingerprint e490f67c8c6c, model uri/its_direct/pt3-claude-opus-5.5-1m-us
 - 2026-10-06 draft (aw set): demoted to-review -> draft: returned to authoring by gradcover 52opph: uncovered obligation: Check by reading each converted call site for a call to the primitive
 
 - 2026-10-06 coverage fail (aw oc run): fingerprint b59fda92b7d9, model uri/its_direct/pt3-claude-opus-5.5-1m-us
@@ -133,13 +134,6 @@ THE SET IS ONLY DEMONSTRATED COMPLETE BY A FINAL CROSS-CHILD MEASUREMENT, which 
 - Status: resolved
 - Owner: executor
 - Resolution or deferral rationale: RESOLVED: YES, and the mechanism is explicit. All five plans in this Set carry `- From-Backlog: rgl2d4` and inherit `- Blocks-Release: next`, so the close-legitimacy predicate sees a MULTI-CARRIER item: every same-gate carrier must be `executed` before `rgl2d4` may close `done`. The item therefore stays `graduated` until Order 04, the last carrier, executes, which is what preserves the gate through the handoff rather than dropping it at the first child. No child may close the item, and each child's execution gate says so.
-
-## Coverage findings
-
-- "Check by reading each converted call site for a call to the primitive rather than a locally built `summary` string or `NextAction`."
-- "Order 03 routes six sites INTO the resolver, which is the opposite change and preserves the rule; confirm it did not relax it."
-- "4. THE REFUSAL HAS EXACTLY ONE DEFINITION IN THE PACKAGE: every converted verb, plus `attention.run` and `cli._run_plans`, obtains its message, machine summary and next-action from Order 01's primitive, with the two previously hand-rolled copies retired."
-- "7. THE BARE SUITE SHOWS NO NEW FAILING NODE ID against a baseline the executor measured, at every child boundary rather than only at the end."
 
 ## Validation and cross-check (verify before reporting the Set complete)
 
