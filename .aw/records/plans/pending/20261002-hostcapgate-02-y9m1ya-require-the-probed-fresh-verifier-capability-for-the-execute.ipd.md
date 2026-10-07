@@ -13,7 +13,7 @@
   EXCLUDES: requiring `supports_commit_gateway` anywhere (it is permanently False by deliberate decision, so requiring it would refuse every execute item on every host); reinstating the `ACTION_REVIEW`/`ACTION_MUTATE`/`ACTION_CONTRACTLESS_PROMPT` constants that `01reg8` deleted on maintainer ruling `4h7tt0` OQ-02 (a new class for execute is not a restoration of those three, and this plan must not be read as reversing that ruling); building any probe; changing the descriptor plumbing (Order 01 owns it); and amending spec `25kzda` 5.2's action table, which is deliberately NOT narrowed and which this plan moves toward rather than changes.
 - Scope-Paths: agent_workflows/host_sandbox_profile.py, agent_workflows/runner_shared.py, agent_workflows/run_selection_policy.py, tests/test_host_capability_extension.py, tests/test_hostcapgate_execute_requirement.py
 - Item-Dependencies: executed:bqtgmo
-- Status: draft
+- Status: to-review
 - Work-Kind: chore
 - Priority: medium
 - From-Backlog: s8veyk
@@ -24,6 +24,7 @@
 - Id: y9m1ya
 
 ## Workflow history
+- 2026-10-07 to-review (aw set): returned to review: cross-child checks owned by y9m1ya E-07 (runs last); coverage pass recorded
 - 2026-10-07 note (opencode its_direct/pt3-claude-opus-5.5-1m-us): added E-07/V-07, the Set-level checks orchestrator `4qv834` carried with no owner; this plan runs last, after `bqtgmo`. Measurement only; no scope change.
 - 2026-10-06 draft (aw set): demoted to-review -> draft: returned to authoring by gradcover 52opph: uncovered obligation: The two children share two files and must not have fought over them
 

@@ -11,7 +11,7 @@
   EXCLUDES, AND THIS FENCE IS LOAD-BEARING. (1) NO REQUIREMENT ON `supports_commit_gateway`. It is DECLARED AND NEVER PROBED with a False default by deliberate decision, so requiring it would refuse EVERY execute item on EVERY host; its spec-side overclaim is separately owned. (2) NO REINSTATEMENT of the `ACTION_REVIEW`/`ACTION_MUTATE`/`ACTION_CONTRACTLESS_PROMPT` constants that `01reg8` deleted on maintainer ruling `4h7tt0` OQ-02. One new class WITH a consumer is not a restoration of three classes without one, and no child may be read as reversing that ruling. (3) NO NEW PROBE. Every capability this Set consumes is already probed or already declared. (4) NO SPEC AMENDMENT: spec `25kzda` 5.2 already requires a "fresh verifier" for a mutating action and already specifies the exact per-item fail-closed refusal, and `01reg8` OQ-03 deliberately left that action table un-narrowed so a future requirement would have somewhere to land. No `.spec.md` appears in any child's `- Scope-Paths:`. (5) NO CROSS-RUN DESCRIPTOR CACHE with TTL or expiry; that is `host_capability_registry`'s separate concern.
 - Scope-Paths: .aw/records/plans/pending/20261002-hostcapgate-00-4qv834-make-the-probed-runner-safety-capabilities-gate-a-real-actio.ipd.md
 - Item-Dependencies: none
-- Status: draft
+- Status: to-review
 - Coverage: pass
 - Coverage-Fingerprint: 932241746e8be0eed20f89c6a673130587fe7d933924971545019387b3631889
 - Coverage-Checked: 2026-10-07 by uri/its_direct/pt3-claude-opus-5.5-1m-us
@@ -25,6 +25,7 @@
 - Id: 4qv834
 
 ## Workflow history
+- 2026-10-07 to-review (aw set): returned to review: cross-child checks owned by y9m1ya E-07 (runs last); coverage pass recorded
 - 2026-10-07 coverage pass (aw oc run): fingerprint 932241746e8b, model uri/its_direct/pt3-claude-opus-5.5-1m-us
 - 2026-10-07 coverage fail (aw oc run): fingerprint e288d54f4af3, model uri/its_direct/pt3-claude-opus-5.5-1m-us
 - 2026-10-07 note (opencode its_direct/pt3-claude-opus-5.5-1m-us): each criterion and cross-check now leads with its owner; the cross-child checks are owned by `y9m1ya` E-07, which runs last.
