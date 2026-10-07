@@ -1,11 +1,12 @@
 - Id: 0livgf
-- Status: open
+- Status: done
 - Set: 0livgf
 - Priority: low
 - Work-Kind: chore
 - Summary: Nothing structurally enforces the Section 8.8 descriptive bound on a composed drift detail; it is only pinned per site by test
 
 ## Workflow history
+- 2026-10-07 done (aw set): status set to done
 - 2026-09-30 created (aw backlog): Nothing structurally enforces the Section 8.8 descriptive bound on a composed drift detail; it is only pinned per site by test
 
 FILED AS THE CARRIER for two deferred rows in plan `mc6r92` (hv8zlg-01), which bounded the STRANDED-LANE detail by shortening one segment plus a test, and deliberately did NOT add structural enforcement.

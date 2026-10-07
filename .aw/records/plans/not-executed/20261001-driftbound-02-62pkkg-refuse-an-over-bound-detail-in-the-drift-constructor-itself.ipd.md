@@ -6,7 +6,7 @@
 - Scope: Make `artifact_core.Drift` REFUSE an over-bound, multi-line or control-character-bearing `detail` at construction, after the live population is clean, and amend spec Section 8.8 to extend its subject from an authored artifact field to a tool-composed drift detail. Includes bringing the two over-bound `check_engine` rules into bound, since the refusal cannot land while they violate it. EXCLUDES changing `MAX_DESCRIPTIVE_LEN` or `is_safe_descriptive`, excludes the lane producer (Order 01 owns it), and excludes the board's per-surface escaping bullet (pending plan `qpw45x` owns it).
 - Scope-Paths: agent_workflows/artifact_core.py, agent_workflows/check_engine.py, agent_workflows/doctor.py, tests/test_drift_detail_bound.py, .aw/records/specs/implemented/20260808-1945-01-attention-registry-and-cross-tree-status.spec.md, CHANGELOG.md
 - Item-Dependencies: executed:9sbfea
-- Status: reviewed
+- Status: not-executed
 - Readiness: no-go
 - Work-Kind: chore
 - Priority: low
@@ -18,6 +18,7 @@
 - Id: 62pkkg
 
 ## Workflow history
+- 2026-10-07 not-executed (aw set): Maintainer ruling 2026-10-07: do not enforce the Section 8.8 length bound on tool-composed drift details; no user-visible harm observed, and a raising Drift drops or crashes checks (OQ-06). Backlog 0livgf closed with it.
 - 2026-10-07 reviewed (aw set): /plan-review REVIEWED - OPEN QUESTIONS; PR-001 escalated as blocking OQ-06
 
 - 2026-10-07 /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): REVIEWED - OPEN QUESTIONS; PR-001..PR-007. Reviewed at HEAD `baf4983ed`; plan byte-identical to lane input. PR-001 (HIGH, OPEN, escalated as blocking OQ-06): F-05/F-06 were wrong; a raising `Drift` is SWALLOWED by `check_type` and `ipd_lint._merge_durable_carrier`, so one over-bound finding silently drops every carrier finding (measured 96 -> 49 plans findings, including 21 `error`) and the pre-transition gate loses its blocking finding, while details echoing AUTHORED values (`specs.validate_spec` Gate-Ref) crash `aw check all` with exit 2. A clean live population cannot make a production `ValueError` safe. Fixed: population re-measured after `7stpjm`/`lxcexr` (PR-002), finished carriers cited (PR-003), stale `ynhst5`/bidi prose (PR-004), live-corpus census test (PR-005), gate ownership (PR-006), scope of authored-echo producers (PR-007).
