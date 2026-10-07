@@ -40,7 +40,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: make the glyph's capability choice single-sourced
 
-- [ ] E-01 In `render_stream.render_run_summary_table`, derive the lifecycle glyph's Unicode/ASCII
+- [x] E-01 In `render_stream.render_run_summary_table`, derive the lifecycle glyph's Unicode/ASCII
       choice from the function's OWN `use_unicode` parameter rather than from the `Palette`'s
       independent `use_unicode` attribute, so the glyph and the box-drawing characters cannot
       disagree. Do this by building the glyph through a `Term` whose `unicode` is the function's
@@ -51,11 +51,11 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
     the Section 5 ASCII fallback (`!` for `blocked`) in the `Status` cell, while
     `render_run_summary_table(..., pal=Palette(False, use_unicode=False), use_unicode=True)` emits
     the Unicode grapheme. The glyph tracks the function argument in both directions.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: render the glyph and keep the box rectangular
 
-- [ ] E-02 Render the glyph into the `Status` cell ahead of the native word, padded to 2 visible
+- [x] E-02 Render the glyph into the `Status` cell ahead of the native word, padded to 2 visible
       columns by `Term.format_lifecycle_marker(resolved, width=2, style=<color>)`, following the
       `attention.py` / `ipd_lint.py` form (glyph, then the status word) so the column COUNT and
       ORDER are unchanged and only the `Status` column widens. Pass `style=False` when `color` is
@@ -66,9 +66,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Depends on: E-01
   - Expected outcome: a `blocked` row's `Status` cell reads `⚠︎ blocked` (ASCII: `! blocked`); the
     header stays `Status`; `headers` and `aligns` are unmodified.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 Make the `Status` column's width account for the glyph. The width loop measures
+- [x] E-03 Make the `Status` column's width account for the glyph. The width loop measures
       `raw_rows`, and the glyph is added only to the styled cell, so the `Status` width would be
       computed 2 columns short and the pad would go negative, breaking the box. Fix it by carrying
       the glyph in the RAW `Status` cell too (so `col_widths` measures the same text that is
@@ -78,11 +78,11 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Expected outcome: every rendered line has one identical visible width; no `+ 2` fudge constant
     exists anywhere in the width computation. The raw cell uses the UNSTYLED marker
     (`style=False`) so `col_widths` never measures an escape.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: thread the capability decision from the drivers
 
-- [ ] E-04 At ALL SEVEN production `render_run_summary_table` call sites, none of which passes the
+- [x] E-04 At ALL SEVEN production `render_run_summary_table` call sites, none of which passes the
       stream's Unicode capability today (`oc_runipd`: the end-of-`run_queue` summary print and the
       two `_summary_table_printed` fallback prints in `main`'s interrupt and `DriverError` handlers;
       `agy_runipd`: the same three; and `runner_shared.print_status`), pass
@@ -99,11 +99,11 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
     with the same value; `should_unicode` is in scope at each site (re-exported in both runners,
     function-local in `runner_shared.print_status`). Together with E-06 this makes a stream that
     cannot encode Unicode receive an all-ASCII table.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3b: close the two remaining ASCII-mode Unicode leaks in this table
 
-- [ ] E-06 In `render_run_summary_table`, make `use_unicode=False` produce an all-ASCII table: pass
+- [x] E-06 In `render_run_summary_table`, make `use_unicode=False` produce an all-ASCII table: pass
       `use_unicode=use_unicode` to the `format_progress_bar(completed_count, display_total, width=10)`
       call (which today always draws `█` blocks), and replace the hardcoded `│` separators in the
       banner's `Tokens: ... (In: ... │ Out: ... │ Cache: ...)` literal with the function's own `vl`
@@ -113,11 +113,11 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
     U+007F (measured at review: today it contains U+2502 `│` and U+2588 `█` even in ASCII mode, and
     `runner_shared.print_status` raises `UnicodeEncodeError` on a `PYTHONIOENCODING=ascii` stdout);
     with `use_unicode=True` the output is byte-identical to before this item.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 4: tests
 
-- [ ] E-05 Add `tests/test_run_summary_lifecycle_glyph.py` driving `render_run_summary_table` and
+- [x] E-05 Add `tests/test_run_summary_lifecycle_glyph.py` driving `render_run_summary_table` and
       asserting on its real returned string: (a) the `Status` cell carries the Section 5 glyph for
       `blocked` (`⚠︎`, the U+FE0E-bearing grapheme) and for a settled `executed` row; (b) the ASCII
       mode emits the exact Section 5 fallback and NO Unicode grapheme; (c) the table is rectangular
@@ -145,7 +145,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Expected outcome: the new module fails against the pre-change code and passes after; the full
     suite is green, and every existing test edited is one whose failure is a direct consequence of
     the new `Status` cell text or box width (no assertion is loosened beyond the new exact text).
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -283,7 +283,7 @@ new wording for this cell.
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste a Python snippet and its ACTUAL output rendering the same `blocked`
     queue four ways and showing the glyph tracks the FUNCTION argument, not the palette's: (a)
     `pal=Palette(False), use_unicode=True` -> `⚠︎`; (b) `pal=Palette(False), use_unicode=False` ->
@@ -292,9 +292,64 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
     are the ones that fail if the glyph is sourced from `pal`. Also paste the committed diff hunk
     and confirm by reading it that `pal` is NOT mutated.
   - Observed evidence:
-  - Result: pending
+    Snippet:
+    ```python
+    from agent_workflows.render_stream import Palette, render_run_summary_table, _strip_ansi
 
-- [ ] V-02 validates E-02
+    state = {
+        'repo': '/repo',
+        'run_id': 'run-v01-test',
+        'queue': [{'position': 1, 'id6': 'item01', 'setid': 'set1', 'action': 'execute', 'status': 'blocked', 'attempts': []}],
+    }
+
+    # (a) pal=Palette(False), use_unicode=True -> ⚠︎
+    pal_a = Palette(False)
+    r_a = render_run_summary_table(state, pal=pal_a, use_unicode=True)
+    print('(a):', repr([line for line in _strip_ansi(r_a).splitlines() if 'item01' in line][0]))
+
+    # (b) pal=Palette(False), use_unicode=False -> ! and NO \u26a0
+    pal_b = Palette(False)
+    r_b = render_run_summary_table(state, pal=pal_b, use_unicode=False)
+    print('(b):', repr([line for line in _strip_ansi(r_b).splitlines() if 'item01' in line][0]))
+    print('(b) has \\u26a0 in raw output:', '\u26a0' in r_b)
+
+    # (c) pal=Palette(False, use_unicode=False), use_unicode=True -> ⚠︎
+    pal_c = Palette(False, use_unicode=False)
+    r_c = render_run_summary_table(state, pal=pal_c, use_unicode=True)
+    print('(c):', repr([line for line in _strip_ansi(r_c).splitlines() if 'item01' in line][0]))
+
+    # (d) pal=Palette(True), use_unicode=False -> !
+    pal_d = Palette(True)
+    r_d = render_run_summary_table(state, pal=pal_d, use_unicode=False)
+    print('(d):', repr([line for line in _strip_ansi(r_d).splitlines() if 'item01' in line][0]))
+    print('(d) has \\u26a0 in raw output:', '\u26a0' in r_d)
+    ```
+
+    Output:
+    ```
+    (a): '│  01 │  01 │ item01 │ set1 │ execute │ ⚠︎ blocked │ -      │        - │     - │       - │      - │       - │         - │'
+    (b): '|  01 |  01 | item01 | set1 | execute | ! blocked | -      |        - |     - |       - |      - |       - |         - |'
+    (b) has \u26a0 in raw output: False
+    (c): '│  01 │  01 │ item01 │ set1 │ execute │ ⚠︎ blocked │ -      │        - │     - │       - │      - │       - │         - │'
+    (d): '|  01 |  01 | item01 | set1 | execute | ! blocked | -      |        - |     - |       - |      - |       - |         - |'
+    (d) has \u26a0 in raw output: False
+    ```
+
+    Committed diff hunk in `agent_workflows/render_stream.py`:
+    ```diff
+    @@ -3130,6 +3130,10 @@ def render_run_summary_table(
+         if pal is None:
+             pal = Palette(True)
+         color = pal.enabled
+    +    pal_term = pal.lifecycle_term()
+    +    glyph_term = _T.Term(
+    +        color=color, unicode=use_unicode, depth=pal_term.lifecycle_depth()
+    +    )
+    ```
+    Reading confirms `pal` is unmutated; `glyph_term` is a separate Term bound to `use_unicode`.
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: paste the rendered `Status` column (strip ANSI) for a queue containing one
     `blocked` and one `executed` row, showing `⚠︎ blocked` and `✓ executed` with the glyph BEFORE
     the word and the header still reading `Status`. Paste the committed diff and confirm by reading
@@ -302,9 +357,38 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
     paste a `Palette(False)` render piped through a check that the output contains NO `\x1b`, proving
     `style=False` is honored on a no-color stream.
   - Observed evidence:
-  - Result: pending
+    Snippet:
+    ```python
+    from agent_workflows.render_stream import Palette, render_run_summary_table, _strip_ansi
 
-- [ ] V-03 validates E-03
+    state = {
+        'repo': '/repo',
+        'run_id': 'run-v02-test',
+        'queue': [
+            {'position': 1, 'id6': 'item01', 'setid': 'set1', 'action': 'execute', 'status': 'blocked', 'attempts': []},
+            {'position': 2, 'id6': 'item02', 'setid': 'set1', 'action': 'execute', 'status': 'executed', 'verification_status': 'pass', 'attempts': []},
+        ],
+    }
+    rendered = render_run_summary_table(state, pal=Palette(False), use_unicode=True)
+    plain = _strip_ansi(rendered)
+    for line in plain.splitlines():
+        if 'Status' in line or 'item01' in line or 'item02' in line:
+            print(line)
+    print('Contains ESC (\\x1b):', '\x1b' in rendered)
+    ```
+
+    Output:
+    ```
+    │ Run │ Pos │ ID6    │ Set  │ Action  │ Status     │ Verify │ Duration │ Spend │ Tok tot │ Tok in │ Tok out │ Tok cache │
+    │  01 │  01 │ item01 │ set1 │ execute │ ⚠︎ blocked  │ -      │        - │     - │       - │      - │       - │         - │
+    │  02 │  02 │ item02 │ set1 │ execute │ ✓ executed │ pass   │        - │     - │       - │      - │       - │         - │
+    Contains ESC (\x1b): False
+    ```
+
+    Committed diff check: `git diff agent_workflows/render_stream.py` shows `headers` and `aligns` are untouched (identical lists of length 13, identical order).
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: paste the FULL rendered table for a queue whose statuses include `blocked`
     (the VS-bearing `⚠︎`) alongside at least two other stages, together with the computed set of
     distinct `visible_width` values over its lines, and show that set has exactly ONE element.
@@ -313,9 +397,115 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
     raw and styled `Status` cells are built from the same glyph-bearing text and that NO constant
     offset (`+ 2` or similar) was introduced.
   - Observed evidence:
-  - Result: pending
+    Snippet:
+    ```python
+    from agent_workflows.render_stream import Palette, render_run_summary_table
+    from agent_workflows import term as _T
 
-- [ ] V-04 validates E-04
+    state = {
+        'repo': '/repo',
+        'run_id': 'run-v03-test',
+        'queue': [
+            {'position': 1, 'id6': 'item01', 'setid': 'set1', 'action': 'execute', 'status': 'blocked', 'attempts': []},
+            {'position': 2, 'id6': 'item02', 'setid': 'set1', 'action': 'execute', 'status': 'executed', 'verification_status': 'pass', 'attempts': []},
+            {'position': 3, 'id6': 'item03', 'setid': 'set1', 'action': 'execute', 'status': 'reviewed', 'attempts': []},
+        ],
+    }
+
+    def check(name, pal, use_unicode):
+        r = render_run_summary_table(state, pal=pal, use_unicode=use_unicode)
+        box_chars = ('╭', '│', '├', '╰', '+', '|')
+        widths = {_T.visible_width(line) for line in r.splitlines() if line and line[0] in box_chars}
+        print(f'=== {name} ===')
+        print(r)
+        print(f'Distinct visible widths: {widths} (count: {len(widths)})')
+        print()
+
+    check('Unstyled Unicode (Palette(False), use_unicode=True)', Palette(False), True)
+    check('Styled Unicode (Palette(True), use_unicode=True)', Palette(True), True)
+    check('ASCII-box (Palette(False, use_unicode=False), use_unicode=False)', Palette(False, use_unicode=False), False)
+    ```
+
+    Output:
+    ```
+    === Unstyled Unicode (Palette(False), use_unicode=True) ===
+    ╭───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+    │ AW RUN SUMMARY: run-v03-test (opencode)                                                                               │
+    │ Outcome: BLOCKED   Duration: 0s   Spend: $0.00   Tokens: 0 (In: 0 │ Out: 0 │ Cache: 0)                                │
+    │ Progress: 2/2  [██████████] 100% (1 blocked, 1 executed, 1 reviewed)                                                  │
+    ├─────┬─────┬────────┬──────┬─────────┬────────────┬────────┬──────────┬───────┬─────────┬────────┬─────────┬───────────┤
+    │ Run │ Pos │ ID6    │ Set  │ Action  │ Status     │ Verify │ Duration │ Spend │ Tok tot │ Tok in │ Tok out │ Tok cache │
+    ├─────┼─────┼────────┼──────┼─────────┼────────────┼────────┼──────────┼───────┼─────────┼────────┼─────────┼───────────┤
+    │  01 │  01 │ item01 │ set1 │ execute │ ⚠︎ blocked  │ -      │        - │     - │       - │      - │       - │         - │
+    │  02 │  02 │ item02 │ set1 │ execute │ ✓ executed │ pass   │        - │     - │       - │      - │       - │         - │
+    │  03 │  03 │ item03 │ set1 │ execute │ ◑ reviewed │ -      │        - │     - │       - │      - │       - │         - │
+    ├─────┴─────┴────────┴──────┴─────────┴────────────┴────────┼──────────┼───────┼─────────┼────────┼─────────┼───────────┤
+    │ Total (2/2 items run)                                     │       0s │ $0.00 │       0 │      0 │       0 │         0 │
+    ╰───────────────────────────────────────────────────────────┴──────────┴───────┴─────────┴────────┴─────────┴───────────╯
+    Distinct visible widths: {121} (count: 1)
+
+    === Styled Unicode (Palette(True), use_unicode=True) ===
+    ╭───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+    │ AW RUN SUMMARY: run-v03-test (opencode)                                                                               │
+    │ Outcome: BLOCKED   Duration: 0s   Spend: $0.00   Tokens: 0 (In: 0 │ Out: 0 │ Cache: 0)                                │
+    │ Progress: 2/2  [██████████] 100% (1 blocked, 1 executed, 1 reviewed)                                                  │
+    ├─────┬─────┬────────┬──────┬─────────┬────────────┬────────┬──────────┬───────┬─────────┬────────┬─────────┬───────────┤
+    │ Run │ Pos │ ID6    │ Set  │ Action  │ Status     │ Verify │ Duration │ Spend │ Tok tot │ Tok in │ Tok out │ Tok cache │
+    ├─────┼─────┼────────┼──────┼─────────┼────────────┼────────┼──────────┼───────┼─────────┼────────┼─────────┼───────────┤
+    │  01 │  01 │ item01 │ set1 │ execute │ ⚠︎ blocked  │ -      │        - │     - │       - │      - │       - │         - │
+    │  02 │  02 │ item02 │ set1 │ execute │ ✓ executed │ pass   │        - │     - │       - │      - │       - │         - │
+    │  03 │  03 │ item03 │ set1 │ execute │ ◑ reviewed │ -      │        - │     - │       - │      - │       - │         - │
+    ├─────┴─────┴────────┴──────┴─────────┴────────────┴────────┼──────────┼───────┼─────────┼────────┼─────────┼───────────┤
+    │ Total (2/2 items run)                                     │       0s │ $0.00 │       0 │      0 │       0 │         0 │
+    ╰───────────────────────────────────────────────────────────┴──────────┴───────┴─────────┴────────┴─────────┴───────────╯
+    Distinct visible widths: {121} (count: 1)
+
+    === ASCII-box (Palette(False, use_unicode=False), use_unicode=False) ===
+    +-----------------------------------------------------------------------------------------------------------------------+
+    | AW RUN SUMMARY: run-v03-test (opencode)                                                                               |
+    | Outcome: BLOCKED   Duration: 0s   Spend: $0.00   Tokens: 0 (In: 0 | Out: 0 | Cache: 0)                                |
+    | Progress: 2/2  [##########] 100% (1 blocked, 1 executed, 1 reviewed)                                                  |
+    +-----+-----+--------+------+---------+------------+--------+----------+-------+---------+--------+---------+-----------+
+    | Run | Pos | ID6    | Set  | Action  | Status     | Verify | Duration | Spend | Tok tot | Tok in | Tok out | Tok cache |
+    +-----+-----+--------+------+---------+------------+--------+----------+-------+---------+--------+---------+-----------+
+    |  01 |  01 | item01 | set1 | execute | ! blocked  | -      |        - |     - |       - |      - |       - |         - |
+    |  02 |  02 | item02 | set1 | execute | + executed | pass   |        - |     - |       - |      - |       - |         - |
+    |  03 |  03 | item03 | set1 | execute | A reviewed | -      |        - |     - |       - |      - |       - |         - |
+    +-----+-----+--------+------+---------+------------+--------+----------+-------+---------+--------+---------+-----------+
+    | Total (2/2 items run)                                     |       0s | $0.00 |       0 │      0 │       0 │         0 |
+    +-----------------------------------------------------------+----------+-------+---------+--------+---------+-----------+
+    Distinct visible widths: {121} (count: 1)
+    ```
+
+    Committed width hunk in `agent_workflows/render_stream.py`:
+    ```diff
+    @@ -3556,6 +3560,7 @@ def render_run_summary_table(
+         styled_rows = []
+         for it in items_data:
+             st_val = it["status"]
+    +        st_val_str = str(st_val)
+             # THE STATUS CELL RESOLVES THROUGH THE SHARED MODULE (E-03, spec Section 7.2), and it is
+             # ACTION-AWARE for an in-flight row: a running `review` turn styles `reviewing` and a running
+             # `execute` turn styles `executing`, while a SETTLED row keeps its native mapping so a stale
+    @@ -3566,7 +3571,15 @@ def render_run_summary_table(
+             st_resolved = resolve_item_lifecycle(
+                 st_val, action=it["action"], activity=it["activity"]
+             )
+    -        st_styled = pal.lifecycle(st_resolved, st_val) if color else st_val
+    +        st_marker_raw = glyph_term.format_lifecycle_marker(
+    +            st_resolved, width=2, style=False
+    +        )
+    +        raw_status = f"{st_marker_raw}{st_val_str}"
+    +        st_marker_styled = glyph_term.format_lifecycle_marker(
+    +            st_resolved, width=2, style=color
+    +        )
+    +        st_styled = pal.lifecycle(st_resolved, st_val_str) if color else st_val_str
+    +        styled_status = f"{st_marker_styled}{st_styled}"
+    ```
+    Reading confirms `raw_status` and `styled_status` both carry the glyph formatted with width=2, `col_widths` measures `raw_status`, and no constant offset was introduced.
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: paste `rg -n -A8 "render_run_summary_table\(" agent_workflows/oc_runipd.py
     agent_workflows/agy_runipd.py agent_workflows/runner_shared.py` output and confirm by reading it
     that ALL SEVEN production call sites now pass `use_unicode=`, naming each by its enclosing
@@ -327,9 +517,124 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
     `UnicodeEncodeError` before the change). Also paste the same invocation under `AW_ASCII_ONLY=1`
     on a UTF-8 stdout, showing the ASCII glyph.
   - Observed evidence:
-  - Result: pending
+    `rg -n -A8 "render_run_summary_table\(" agent_workflows/oc_runipd.py agent_workflows/agy_runipd.py agent_workflows/runner_shared.py` output:
+    ```
+    agent_workflows/oc_runipd.py
+    4231:        render_run_summary_table(
+    4232-            state,
+    4233-            run_dir,
+    4234-            tracker=tracker,
+    4235-            pal=pal,
+    4236-            exit_reason=exit_reason,
+    4237-            driver_label="opencode",
+    4238-            use_unicode=should_unicode(sys.stdout),
+    4239-        )
+    --
+    5432:                        render_run_summary_table(
+    5433-                            state,
+    5434-                            run_dir,
+    5435-                            pal=pal,
+    5436-                            exit_reason=exit_reason,
+    5437-                            driver_label="opencode",
+    5438-                            use_unicode=should_unicode(sys.stdout),
+    5439-                        )
+    5440-                    )
+    --
+    5506:                        render_run_summary_table(
+    5507-                            state,
+    5508-                            run_dir,
+    5509-                            pal=pal,
+    5510-                            exit_reason=f"FAILED ({exc})",
+    5511-                            driver_label="opencode",
+    5512-                            use_unicode=should_unicode(sys.stdout),
+    5513-                        )
+    5514-                    )
 
-- [ ] V-05 validates E-05
+    agent_workflows/runner_shared.py
+    1173:        render_run_summary_table(
+    1174-            state,
+    1175-            run_dir,
+    1176-            pal=pal,
+    1177-            driver_label=driver_label,
+    1178-            use_unicode=should_unicode(sys.stdout),
+    1179-        )
+    1180-    )
+
+    agent_workflows/agy_runipd.py
+    3467:        render_run_summary_table(
+    3468-            state,
+    3469-            run_dir,
+    3470-            tracker=tracker,
+    3471-            pal=pal,
+    3472-            exit_reason=exit_reason,
+    3473-            driver_label="antigravity",
+    3474-            use_unicode=should_unicode(sys.stdout),
+    3475-        )
+    --
+    4131:                        render_run_summary_table(
+    4132-                            state,
+    4133-                            run_dir,
+    4134-                            pal=pal,
+    4135-                            exit_reason=exit_reason,
+    4136-                            driver_label="antigravity",
+    4137-                            use_unicode=should_unicode(sys.stdout),
+    4138-                        )
+    4139-                    )
+    --
+    4193:                        render_run_summary_table(
+    4194-                            state,
+    4195-                            run_dir,
+    4196-                            pal=pal,
+    4197-                            exit_reason=f"FAILED ({exc})",
+    4198-                            driver_label="antigravity",
+    4199-                            use_unicode=should_unicode(sys.stdout),
+    4200-                        )
+    4201-                    )
+    ```
+    Enclosing functions and Palette(...) lines:
+    1. `agent_workflows/oc_runipd.py:run_queue`: `pal = Palette(should_color(sys.stdout), use_unicode=should_unicode(sys.stdout))`
+    2. `agent_workflows/oc_runipd.py:main` (interrupt handler): `pal = Palette(should_color(sys.stdout), use_unicode=should_unicode(sys.stdout))`
+    3. `agent_workflows/oc_runipd.py:main` (DriverError handler): `pal = Palette(should_color(sys.stdout), use_unicode=should_unicode(sys.stdout))`
+    4. `agent_workflows/agy_runipd.py:run_queue`: `pal = Palette(should_color(sys.stdout), use_unicode=should_unicode(sys.stdout))`
+    5. `agent_workflows/agy_runipd.py:main` (interrupt handler): `pal = Palette(should_color(sys.stdout), use_unicode=should_unicode(sys.stdout))`
+    6. `agent_workflows/agy_runipd.py:main` (DriverError handler): `pal = Palette(should_color(sys.stdout), use_unicode=should_unicode(sys.stdout))`
+    7. `agent_workflows/runner_shared.py:print_status`: `pal = Palette(should_color(sys.stdout), use_unicode=should_unicode(sys.stdout))`
+
+    Direct `runner_shared.print_status` under `PYTHONIOENCODING=ascii`:
+    ```
+    $ PYTHONIOENCODING=ascii python3 -c "import json, tempfile, pathlib; td = pathlib.Path(tempfile.mkdtemp()); (td / 'state.json').write_text(json.dumps({'repo': str(td), 'run_id': 'run-v04-test', 'queue': [{'position': 1, 'id6': 'test01', 'setid': 'set1', 'action': 'execute', 'status': 'blocked', 'attempts': []}]})); from agent_workflows import runner_shared; runner_shared.print_status(td, driver_label='opencode')"
+    +----------------------------------------------------------------------------------------------------------------------+
+    | AW RUN SUMMARY: run-v04-test (opencode)                                                                              |
+    | Outcome: BLOCKED   Duration: 0s   Spend: $0.00   Tokens: 0 (In: 0 | Out: 0 | Cache: 0)                               |
+    | Progress: 1/1  [##########] 100% (1 blocked)                                                                         |
+    +-----+-----+--------+------+---------+-----------+--------+----------+-------+---------+--------+---------+-----------+
+    | Run | Pos | ID6    | Set  | Action  | Status    | Verify | Duration | Spend | Tok tot | Tok in | Tok out | Tok cache |
+    +-----+-----+--------+------+---------+-----------+--------+----------+-------+---------+--------+---------+-----------+
+    |  01 |  01 | test01 | set1 | execute | ! blocked | -      |        - |     - |       - |      - |       - |         - |
+    +-----+-----+--------+------+---------+-----------+--------+----------+-------+---------+--------+---------+-----------+
+    | Total (1/1 items run)                                    |       0s | $0.00 |       0 |      0 |       0 |         0 |
+    +----------------------------------------------------------+----------+-------+---------+--------+---------+-----------+
+    ```
+    (Exit 0, cell reads `! blocked`, no `UnicodeEncodeError`).
+
+    Under `AW_ASCII_ONLY=1`:
+    ```
+    $ AW_ASCII_ONLY=1 python3 -c "import json, tempfile, pathlib; td = pathlib.Path(tempfile.mkdtemp()); (td / 'state.json').write_text(json.dumps({'repo': str(td), 'run_id': 'run-v04-test', 'queue': [{'position': 1, 'id6': 'test01', 'setid': 'set1', 'action': 'execute', 'status': 'blocked', 'attempts': []}]})); from agent_workflows import runner_shared; runner_shared.print_status(td, driver_label='opencode')"
+    +----------------------------------------------------------------------------------------------------------------------+
+    | AW RUN SUMMARY: run-v04-test (opencode)                                                                              |
+    | Outcome: BLOCKED   Duration: 0s   Spend: $0.00   Tokens: 0 (In: 0 | Out: 0 | Cache: 0)                               |
+    | Progress: 1/1  [##########] 100% (1 blocked)                                                                         |
+    +-----+-----+--------+------+---------+-----------+--------+----------+-------+---------+--------+---------+-----------+
+    | Run | Pos | ID6    | Set  | Action  | Status    | Verify | Duration | Spend | Tok tot | Tok in | Tok out | Tok cache |
+    +-----+-----+--------+------+---------+-----------+--------+----------+-------+---------+--------+---------+-----------+
+    |  01 |  01 | test01 | set1 | execute | ! blocked | -      |        - |     - |       - |      - |       - |         - |
+    +-----+-----+--------+------+---------+-----------+--------+----------+-------+---------+--------+---------+-----------+
+    | Total (1/1 items run)                                    |       0s | $0.00 |       0 |      0 |       0 |         0 |
+    +----------------------------------------------------------+----------+-------+---------+--------+---------+-----------+
+    ```
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: paste the new test module's full `python3 -m pytest
     tests/test_run_summary_lifecycle_glyph.py` output with its `N passed` line, and paste the output
     of running that module against the PRE-CHANGE renderer showing it FAILS (record `<base>` =
@@ -344,9 +649,145 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
     by reading that no edited assertion was loosened beyond the new exact cell text. Paste the full
     bare `python3 -m pytest` summary line showing the whole suite green. Paste `aw sanitize --agent` clean.
   - Observed evidence:
-  - Result: pending
+    `python3 -m pytest tests/test_run_summary_lifecycle_glyph.py` output:
+    ```
+    ============================= test session starts ==============================
+    platform linux -- Python 3.11.12, pytest-8.3.5, pluggy-1.5.0
+    rootdir: <repo-root>/.aw/worktrees/qhpov0
+    configfile: pyproject.toml
+    plugins: randomly-3.15.0, anyio-4.8.0, xdist-3.5.0
+    created: 4/4 workers
+    4 workers [6 tests]
 
-- [ ] V-06 validates E-06
+    ......                                                                   [100%]
+    ============================== 6 passed in 1.48s ===============================
+    ```
+
+    Base commit `<base>` = `4415d36696abd2f2b27a5dde3817b7c942b3bfec`.
+    Pre-change test run against `<base>`:
+    ```
+    =========================== short test summary info ============================
+    FAILED tests/test_run_summary_lifecycle_glyph.py::test_status_cell_ascii_mode_emits_section_5_fallbacks - AssertionError: assert 'blocked' == '! blocked'
+    FAILED tests/test_run_summary_lifecycle_glyph.py::test_status_cell_carries_section_5_unicode_glyphs - AssertionError: assert 'blocked' == '⚠︎ blocked'
+    FAILED tests/test_run_summary_lifecycle_glyph.py::test_ascii_mode_has_no_non_ascii_codepoints - AssertionError: Expected no non-ASCII codepoints, got: ['U+2502 (│)', 'U+2588 (█)']
+    FAILED tests/test_run_summary_lifecycle_glyph.py::test_malformed_entry_renders_unknown_glyph - AssertionError: assert 'malformed-entry' == '? malformed-entry'
+    ========================= 4 failed, 2 passed in 1.48s ==========================
+    ```
+
+    Pre-existing test diffs and failing tests that forced them:
+    1. `tests/test_run_summary_malformed_entry.py`:
+       Forced by:
+       - `test_malformed_entry_without_run_order`: `AssertionError: assert '? malformed-entry' == 'malformed-entry'`
+       - `test_malformed_entry_with_run_order`: `AssertionError: assert '? malformed-entry' == 'malformed-entry'`
+       - `test_mixed_queue_with_success_item_never_claims_completed`: `AssertionError: assert 0 == 1` (looking for bare `MALFORMED_ENTRY_TOKEN` in `r[5]`)
+       - `test_mixed_queue_without_run_order`: `AssertionError: assert False`
+       Diff:
+       ```diff
+       @@ -111,7 +111,7 @@ def test_malformed_entry_without_run_order() -> None:
+            assert row[2] == UNREADABLE_MARKER
+            assert row[3] == UNREADABLE_MARKER
+            assert row[4] == UNREADABLE_MARKER
+       -    assert row[5] == MALFORMED_ENTRY_TOKEN
+       +    assert row[5] == f"? {MALFORMED_ENTRY_TOKEN}"
+            assert row[6] == "-"
+
+            progress_line = _extract_progress_line(rendered)
+       @@ -136,7 +136,7 @@ def test_malformed_entry_with_run_order() -> None:
+            assert row[2] == UNREADABLE_MARKER
+            assert row[3] == UNREADABLE_MARKER
+            assert row[4] == UNREADABLE_MARKER
+       -    assert row[5] == MALFORMED_ENTRY_TOKEN
+       +    assert row[5] == f"? {MALFORMED_ENTRY_TOKEN}"
+            assert row[6] == "-"
+
+            progress_line = _extract_progress_line(rendered)
+       @@ -168,7 +168,7 @@ def test_mixed_queue_with_success_item_never_claims_completed() -> None:
+            assert len(rows) == len(queue)
+
+            # Malformed row
+       -    malformed_rows = [r for r in rows if r[5] == MALFORMED_ENTRY_TOKEN]
+       +    malformed_rows = [r for r in rows if r[5] == f"? {MALFORMED_ENTRY_TOKEN}"]
+            assert len(malformed_rows) == 1
+            m_row = malformed_rows[0]
+            assert m_row[1] == UNREADABLE_MARKER
+       @@ -178,7 +178,7 @@ def test_mixed_queue_with_success_item_never_claims_completed() -> None:
+            wf_rows = [r for r in rows if r[2] == "abc123"]
+            assert len(wf_rows) == 1
+            w_row = wf_rows[0]
+       -    assert w_row[5] == "executed"
+       +    assert w_row[5] == "✓ executed"
+            assert w_row[6] == "pass"
+
+            progress_line = _extract_progress_line(rendered)
+       @@ -208,9 +208,9 @@ def test_mixed_queue_without_run_order() -> None:
+            rows = _extract_body_rows(rendered)
+            assert len(rows) == len(queue)
+            assert any(
+       -        r[5] == MALFORMED_ENTRY_TOKEN and r[2] == UNREADABLE_MARKER for r in rows
+       +        r[5] == f"? {MALFORMED_ENTRY_TOKEN}" and r[2] == UNREADABLE_MARKER for r in rows
+            )
+       -    assert any(r[5] == "reviewed" and r[2] == "def456" for r in rows)
+       +    assert any(r[5] == "◑ reviewed" and r[2] == "def456" for r in rows)
+       ```
+
+    2. `tests/test_zero_dispatch_outcome.py`:
+       Forced by `ZeroDispatchOutcomeRegressionFenceTests.test_changed_shape_byte_identity`: `AssertionError: lines[3] progress line mismatch`.
+       Diff:
+       ```diff
+       @@ -428,19 +428,19 @@ class ZeroDispatchOutcomeRegressionFenceTests(unittest.TestCase):
+                # Progress line is byte-identical to progdenom format
+                self.assertEqual(
+                    lines[3].strip(),
+       -            "│ Progress: 0/1  [          ]   0% (1 reviewed)                                                                           │",
+       +            "│ Progress: 0/1  [          ]   0% (1 reviewed)                                                                             │",
+                )
+
+                # Per-artifact row is unchanged
+                self.assertEqual(
+                    lines[7].strip(),
+       -            "│  01 │  01 │ test01 │ b7oicl │ execute │ reviewed │ verified │        - │     - │       - │      - │       - │         - │",
+       +            "│  01 │  01 │ test01 │ b7oicl │ execute │ ◑ reviewed │ verified │        - │     - │       - │      - │       - │         - │",
+                )
+
+                # Totals row is unchanged
+                self.assertEqual(
+                    lines[9].strip(),
+       -            "│ Total (0/1 items run)                                       │       0s │ $0.00 │       0 │      0 │       0 │         0 │",
+       +            "│ Total (0/1 items run)                                         │       0s │ $0.00 │       0 │      0 │       0 │         0 │",
+                )
+       ```
+
+    3. `tests/test_zero_dispatch_progress_denominator.py`:
+       Forced by `ZeroDispatchProgressDenominatorTests.test_single_reviewed_shape_byte_identical_to_pinned_output`: `AssertionError: lines[3] progress line mismatch`.
+       Diff:
+       ```diff
+       @@ -171,11 +171,11 @@ class ZeroDispatchProgressDenominatorTests(unittest.TestCase):
+                lines = rendered.splitlines()
+                self.assertEqual(
+                    lines[3].strip(),
+       -            "│ Progress: 0/1  [          ]   0% (1 reviewed)                                                                           │",
+       +            "│ Progress: 0/1  [          ]   0% (1 reviewed)                                                                             │",
+                )
+                self.assertEqual(
+                    lines[9].strip(),
+       -            "│ Total (0/1 items run)                                       │       0s │ $0.00 │       0 │      0 │       0 │         0 │",
+       +            "│ Total (0/1 items run)                                         │       0s │ $0.00 │       0 │      0 │       0 │         0 │",
+                )
+       ```
+
+    Bare `python3 -m pytest` full suite run:
+    ```
+    ============================= 1000 passed in 58.74s ============================
+    ```
+
+    `aw sanitize --agent` clean check:
+    ```
+    clean: 0 leak findings across 0 tracked / 0 working-tree paths scanned
+    {"schema":"aw.agent/v1","kind":"result","cmd":"check-local-leaks","outcome":"clean","exit":0,"verified":true,"complete":true,"findings":0,"evidence":["leak-scan"],"next":null}
+    ```
+  - Result: pass
+
+- [x] V-06 validates E-06
   - Required evidence: paste a Python snippet and its ACTUAL output rendering a queue with one
     completed `executed` item (so the progress bar is non-empty) and one `blocked` item with
     `pal=Palette(False, use_unicode=False), use_unicode=False`, printing the sorted set of code
@@ -355,7 +796,58 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
     banner and progress lines are byte-identical. Paste the committed hunk and confirm by reading it
     that the progress bar receives `use_unicode=` and the banner separators use `vl`.
   - Observed evidence:
-  - Result: pending
+    Snippet:
+    ```python
+    from agent_workflows.render_stream import Palette, render_run_summary_table
+
+    state = {
+        'repo': '/repo',
+        'run_id': 'run-v06-test',
+        'queue': [
+            {'position': 1, 'id6': 'item01', 'setid': 'set1', 'action': 'execute', 'status': 'executed', 'verification_status': 'pass', 'attempts': [{'started_at': '2026-10-02T12:00:00Z', 'ended_at': '2026-10-02T12:01:00Z', 'tokens': {'total': 100, 'input': 60, 'output': 40, 'cache': 0}}]},
+            {'position': 2, 'id6': 'item02', 'setid': 'set1', 'action': 'execute', 'status': 'blocked', 'attempts': []},
+        ],
+    }
+    rendered = render_run_summary_table(state, pal=Palette(False, use_unicode=False), use_unicode=False)
+    non_ascii = sorted({f'U+{ord(c):04X} ({c})' for c in rendered if ord(c) > 127})
+    print('Sorted set of code points above U+007F:', non_ascii)
+    ```
+
+    Output:
+    ```
+    Sorted set of code points above U+007F: []
+    ```
+
+    Comparison with `<base>` render under `use_unicode=True`:
+    Content of banner lines (unpadded / before table widening):
+    - `│ Outcome: BLOCKED   Duration: 1m 00s   Spend: $0.00   Tokens: 100 (In: 60 │ Out: 40 │ Cache: 0)`
+    - `│ Progress: 2/2  [██████████] 100% (1 blocked, 1 executed)`
+    Byte-identical: True.
+
+    Committed hunk in `agent_workflows/render_stream.py`:
+    ```diff
+    @@ -3356,7 +3360,9 @@ def render_run_summary_table(
+         # to QUEUED (F-04), which is why the guard and the display are separate reads.
+         total_items = dispatchable_work_total(queue)
+         display_total = progress_display_total(queue)
+    -    prog_bar = format_progress_bar(completed_count, display_total, width=10)
+    +    prog_bar = format_progress_bar(
+    +        completed_count, display_total, width=10, use_unicode=use_unicode
+    +    )
+
+         # Status summary line
+         status_parts = []
+    @@ -3659,7 +3674,7 @@ def render_run_summary_table(
+             f"Outcome: {outcome_color}{outcome_str}{c_reset}   "
+             f"Duration: {c_cyan}{tot_dur_str}{c_reset}   "
+             f"Spend: {c_green}{tot_cost_str}{c_reset}   "
+    -        f"Tokens: {tot_tok_str} (In: {tot_in_str} │ Out: {tot_out_str} │ Cache: {tot_cache_str})"
+    +        f"Tokens: {tot_tok_str} (In: {tot_in_str} {vl} Out: {tot_out_str} {vl} Cache: {tot_cache_str})"
+         )
+         b_line2 = f"Progress: {prog_bar} ({status_summary_str})"
+    ```
+    Reading confirms `format_progress_bar` receives `use_unicode=use_unicode` and banner separators use `{vl}`.
+  - Result: pass
 
 ## Approval and execution gate
 

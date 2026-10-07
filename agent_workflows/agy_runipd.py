@@ -3457,7 +3457,7 @@ def run_queue(
         )
         state = load_state(run_dir)
     write_report(run_dir, state)
-    pal = Palette(should_color(sys.stdout))
+    pal = Palette(should_color(sys.stdout), use_unicode=should_unicode(sys.stdout))
     exit_reason = None
     if wind_down is not None:
         exit_reason = f"STOPPED (Level {wind_down.level}: {runner_stop.LEVEL_NAMES.get(wind_down.level, 'wind-down')})"
@@ -3471,6 +3471,7 @@ def run_queue(
             pal=pal,
             exit_reason=exit_reason,
             driver_label="antigravity",
+            use_unicode=should_unicode(sys.stdout),
         )
     )
     # runnoop Order 02 (`m85gxh`) E-03: THE PER-ARTIFACT DISPOSITION LINE, the exact mirror of the oc
@@ -4123,7 +4124,9 @@ def main(argv: list[str] | None = None) -> int:
             try:
                 state = load_state(run_dir)
                 if not state.get("_summary_table_printed"):
-                    pal = Palette(should_color(sys.stdout))
+                    pal = Palette(
+                        should_color(sys.stdout), use_unicode=should_unicode(sys.stdout)
+                    )
                     print(
                         render_run_summary_table(
                             state,
@@ -4131,6 +4134,7 @@ def main(argv: list[str] | None = None) -> int:
                             pal=pal,
                             exit_reason=exit_reason,
                             driver_label="antigravity",
+                            use_unicode=should_unicode(sys.stdout),
                         )
                     )
                     # specvis st5klo E-03: interrupt/SIGTERM path, wired and LABELLED
@@ -4182,7 +4186,9 @@ def main(argv: list[str] | None = None) -> int:
             try:
                 state = load_state(run_dir)
                 if not state.get("_summary_table_printed"):
-                    pal = Palette(should_color(sys.stdout))
+                    pal = Palette(
+                        should_color(sys.stdout), use_unicode=should_unicode(sys.stdout)
+                    )
                     print(
                         render_run_summary_table(
                             state,
@@ -4190,6 +4196,7 @@ def main(argv: list[str] | None = None) -> int:
                             pal=pal,
                             exit_reason=f"FAILED ({exc})",
                             driver_label="antigravity",
+                            use_unicode=should_unicode(sys.stdout),
                         )
                     )
                     # specvis st5klo E-03: the DriverError path, wired and labelled (OQ-01).

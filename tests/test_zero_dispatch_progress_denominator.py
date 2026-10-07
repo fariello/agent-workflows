@@ -171,11 +171,11 @@ class ZeroDispatchProgressDenominatorTests(unittest.TestCase):
         lines = rendered.splitlines()
         self.assertEqual(
             lines[3].strip(),
-            "│ Progress: 0/1  [          ]   0% (1 reviewed)                                                                           │",
+            "│ Progress: 0/1  [          ]   0% (1 reviewed)                                                                             │",
         )
         self.assertEqual(
             lines[9].strip(),
-            "│ Total (0/1 items run)                                       │       0s │ $0.00 │       0 │      0 │       0 │         0 │",
+            "│ Total (0/1 items run)                                         │       0s │ $0.00 │       0 │      0 │       0 │         0 │",
         )
         self.assertEqual(_outcome_word(rendered), render_stream.NO_WORK_OUTCOME)
 

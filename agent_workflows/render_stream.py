@@ -3130,6 +3130,10 @@ def render_run_summary_table(
     if pal is None:
         pal = Palette(True)
     color = pal.enabled
+    pal_term = pal.lifecycle_term()
+    glyph_term = _T.Term(
+        color=color, unicode=use_unicode, depth=pal_term.lifecycle_depth()
+    )
 
     # Box-drawing primitives
     if use_unicode:
@@ -3352,7 +3356,9 @@ def render_run_summary_table(
     # to QUEUED (F-04), which is why the guard and the display are separate reads.
     total_items = dispatchable_work_total(queue)
     display_total = progress_display_total(queue)
-    prog_bar = format_progress_bar(completed_count, display_total, width=10)
+    prog_bar = format_progress_bar(
+        completed_count, display_total, width=10, use_unicode=use_unicode
+    )
 
     # Status summary line
     status_parts = []
@@ -3550,6 +3556,7 @@ def render_run_summary_table(
     styled_rows = []
     for it in items_data:
         st_val = it["status"]
+        st_val_str = str(st_val)
         # THE STATUS CELL RESOLVES THROUGH THE SHARED MODULE (E-03, spec Section 7.2), and it is
         # ACTION-AWARE for an in-flight row: a running `review` turn styles `reviewing` and a running
         # `execute` turn styles `executing`, while a SETTLED row keeps its native mapping so a stale
@@ -3561,7 +3568,15 @@ def render_run_summary_table(
         st_resolved = resolve_item_lifecycle(
             st_val, action=it["action"], activity=it["activity"]
         )
-        st_styled = pal.lifecycle(st_resolved, st_val) if color else st_val
+        st_marker_raw = glyph_term.format_lifecycle_marker(
+            st_resolved, width=2, style=False
+        )
+        raw_status = f"{st_marker_raw}{st_val_str}"
+        st_marker_styled = glyph_term.format_lifecycle_marker(
+            st_resolved, width=2, style=color
+        )
+        st_styled = pal.lifecycle(st_resolved, st_val_str) if color else st_val_str
+        styled_status = f"{st_marker_styled}{st_styled}"
         v_val = it["verify"]
         if v_val == "pass":
             v_styled = f"{c_green}pass{c_reset}" if color else "pass"
@@ -3581,7 +3596,7 @@ def render_run_summary_table(
             it["id6"],
             it["setid"],
             it["action"],
-            st_val,
+            raw_status,
             v_val,
             it["dur_str"],
             cost_val,
@@ -3596,7 +3611,7 @@ def render_run_summary_table(
             it["id6"],
             it["setid"],
             it["action"],
-            st_styled,
+            styled_status,
             v_styled,
             it["dur_str"],
             cost_styled,
@@ -3644,7 +3659,7 @@ def render_run_summary_table(
         f"Outcome: {outcome_color}{outcome_str}{c_reset}   "
         f"Duration: {c_cyan}{tot_dur_str}{c_reset}   "
         f"Spend: {c_green}{tot_cost_str}{c_reset}   "
-        f"Tokens: {tot_tok_str} (In: {tot_in_str} │ Out: {tot_out_str} │ Cache: {tot_cache_str})"
+        f"Tokens: {tot_tok_str} (In: {tot_in_str} {vl} Out: {tot_out_str} {vl} Cache: {tot_cache_str})"
     )
     b_line2 = f"Progress: {prog_bar} ({status_summary_str})"
     # streamfmt (mm6wuz) E-08: the NAMED READER for `StreamTracker.modified_files`. The set is
