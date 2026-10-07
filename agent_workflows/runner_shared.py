@@ -39772,7 +39772,9 @@ def dependency_reasons(item: dict[str, Any], state: dict[str, Any]) -> list[str]
 # The carrier-kind partition. The closing rule turns on whether the item's requested output INCLUDES
 # AN IPD, not on the carrier's type per se (zhr6mc OQ-01, resolved by the maintainer):
 #   * carriers include >= 1 IPD -> the item promised CODE, so it closes only when every IPD carrier
-#     is in a terminal `executed` state;
+#     is in a terminal `executed` state, and in the mixed case every non-IPD carrier must ALSO be
+#     terminal (specs `implemented`, converging onto check_engine.evaluate_blocking_close's HANDOFF
+#     arm as tightened by 2o5wka);
 #   * carriers include NO IPD   -> the item asked for the ARTIFACT, so it is done as soon as that
 #     artifact EXISTS. Spec status is deliberately NOT consulted: an unreviewed, unapproved spec
 #     still satisfies "create a spec", and approval is the spec's own lifecycle (`aw specs`).
@@ -39795,7 +39797,7 @@ class BacklogCloseVerdict(NamedTuple):
               the E-06 unclosed-item reason. Never a bare boolean, because "we did not close it" is
               useless to the operator without the cause.
     evidence: the repo-relative carrier path to cite as `--evidence` when closing, else None.
-    rule:     `ipd` (every IPD carrier executed) | `other` (the artifact exists) | None (no close).
+    rule:     `ipd` (every carrier of either kind is terminal) | `other` (the artifact exists) | None (no close).
     """
 
     close: bool
@@ -39958,10 +39960,29 @@ def evaluate_backlog_close(
                 )
             if bucket != "executed":
                 unexecuted.append(_rel(plan))
-        if unexecuted:
+        # 5eygjt E-02: in the mixed case, every non-IPD carrier must also be terminal.
+        # Judge a spec with check_engine._carrier_is_executed (the shipped authority for specs).
+        unimplemented_specs: list[str] = []
+        for other in others:
+            if _rel(other) in overrides:
+                continue
+            if not _ce._carrier_is_executed(other):
+                unimplemented_specs.append(_rel(other))
+
+        if unexecuted or unimplemented_specs:
+            clauses: list[str] = []
+            if unexecuted:
+                clauses.append(
+                    "IPD carrier(s) not executed: " + ", ".join(sorted(unexecuted))
+                )
+            if unimplemented_specs:
+                clauses.append(
+                    "spec carrier(s) not implemented: "
+                    + ", ".join(sorted(unimplemented_specs))
+                )
             return BacklogCloseVerdict(
                 False,
-                "IPD carrier(s) not executed: " + ", ".join(sorted(unexecuted)),
+                "; ".join(clauses),
                 None,
                 None,
             )
