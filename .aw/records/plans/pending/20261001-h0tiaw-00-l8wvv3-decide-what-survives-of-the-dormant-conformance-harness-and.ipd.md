@@ -8,8 +8,8 @@
 - Item-Dependencies: none
 - Status: draft
 - Coverage: fail
-- Coverage-Fingerprint: 51a73bc827677433d6efa1612d6e15d018d9f162943812c0c14f3c51b9c19d30
-- Coverage-Checked: 2026-10-06 by uri/its_direct/pt3-claude-opus-5.5-1m-us
+- Coverage-Fingerprint: d5994a92ec220b0712f7122cc8d240c84b8bd51cdaa35c5d25f1b65770ab0fd0
+- Coverage-Checked: 2026-10-07 by uri/its_direct/pt3-claude-opus-5.5-1m-us
 - Work-Kind: chore
 - Priority: low
 - From-Backlog: h0tiaw
@@ -20,6 +20,7 @@
 - Id: l8wvv3
 
 ## Workflow history
+- 2026-10-07 coverage fail (aw oc run): fingerprint d5994a92ec22, model uri/its_direct/pt3-claude-opus-5.5-1m-us
 - 2026-10-06 draft (aw set): demoted to-review -> draft: returned to authoring by gradcover 52opph: uncovered obligation: No orphaned golden and no orphaned symbol, checked across both children together
 
 - 2026-10-06 coverage fail (aw oc run): fingerprint 51a73bc82767, model uri/its_direct/pt3-claude-opus-5.5-1m-us
@@ -291,10 +292,7 @@ and the third (the "dead surface with no live importer" note) obsolete.
 
 ## Coverage findings
 
-- "- NO ORPHANED GOLDEN AND NO ORPHANED SYMBOL, checked across both children together rather than within"
-- "- THE BARE SUITE DELTA IS EMPTY ACROSS THE SET, not merely per child. Each child runs `python3 -m pytest`"
-- "- THE TWO NEW MODULES DO NOT RE-ASSERT WHAT ALREADY PASSES ELSEWHERE. `test_command_surface_declarations.py`"
-- "- `aw ipd lint --phase pre-transition` conforming on this plan before the terminal move, and `aw check`"
+- "`aw ipd lint --phase pre-transition` conforming on this plan before the terminal move, and `aw check`"
 
 ## Validation and cross-check (verify before reporting the Set complete)
 
