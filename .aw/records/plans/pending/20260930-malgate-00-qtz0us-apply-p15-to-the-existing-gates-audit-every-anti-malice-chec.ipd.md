@@ -120,19 +120,11 @@ All five must hold. Each is falsifiable from artifacts on disk. All three childr
 
 ## Cross-IPD validation
 
-Three checks span the children and cannot be performed by any child alone, which is why they live here.
+These three checks span the children. All three children are `executed`, and each check was MEASURED on 2026-10-07 against the tree they produced, so nothing is left for a retirement to skip. Each states its result first and its original wording after.
 
-- THE AUDIT-TO-ACTION RECONCILIATION (criterion 3). Read Order 01's record and Orders 02 and 03's diffs
-  together, and confirm every SIMPLIFY and DELETE row maps to an edit or to a named external carrier. Order
-  01 cannot check this because the edits do not exist when it runs; Orders 02 and 03 cannot, because neither
-  sees the other's rows.
-- THE DISCLAIMER FENCE HELD ACROSS BOTH REMEDIATION CHILDREN (criterion 5). Order 02 deletes prose and Order
-  03 rewords prose, and the same three compliant sites are off limits to both. Confirm from the combined
-  diff of both children that none of them was touched, rather than from either child's own scope check.
-- THE SPEC SURFACE IS RECONCILED SET-WIDE. Exactly one child may amend a spec (`38pxaz`, spec `7ckptx`).
-  Confirm from the combined diff that no other `.spec.md` file was modified by any child, and that
-  `38pxaz`'s amendment left R6.1 intact. Both runners report declared-versus-actual spec edits per item at
-  run end, so a spec changed by a child that did not declare one is visible there too.
+- [Measured 2026-10-07: holds] AUDIT-TO-ACTION RECONCILIATION (criterion 3). Audit record `wv570i` assigns its 11 DELETE rows and the constant re-homing to `38pxaz` and its two comment rewordings to `dmjp0u`; on disk `agent_workflows/wtiso_gate.py` is deleted, `AW_MISSING_INPUT` is defined in `lane_containment.py`, and neither quoted anti-malice phrase remains under `agent_workflows/`. (Originally: read Order 01's record and Orders 02 and 03's diffs together and confirm every SIMPLIFY and DELETE row maps to an edit or a named external carrier.)
+- [Measured 2026-10-07: holds] DISCLAIMER FENCE (criterion 5). The commits of `38pxaz` and `dmjp0u` change zero lines in `host_sandbox_profile.py`, `attention_contract.py` and `runner_shared.py`, and `runner_shared`'s "THE TARGET IS SLOPPINESS, NOT MALICE" banner is present. (Originally: confirm from the combined diff that none of the three compliant sites was touched.)
+- [Measured 2026-10-07: holds] SPEC SURFACE. The only `.spec.md` either child's commits touch is spec `7ckptx`, in `38pxaz`'s commit. (Originally: confirm exactly one child amended a spec and no other `.spec.md` changed.)
 
 ## Project conventions discovered (Step 0)
 
