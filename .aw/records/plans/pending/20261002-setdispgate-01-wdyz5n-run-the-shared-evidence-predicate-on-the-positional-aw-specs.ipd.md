@@ -6,7 +6,8 @@
 - Scope: IN: make the `implementing -> implemented` evidence requirement fire on every surface reaching `status_set.validate_transition_allowed`, by CONSUMING the existing `specs._evidence_resolvable` predicate rather than writing a second copy; register `--evidence` on the untyped `aw set` parser and declare it in that command's `CommandDeclaration`, so the refusal is satisfiable rather than merely unreachable; repair the one existing test this breaks; and pin the parity as paired outcome tests on both spellings. OUT, each with a reason recorded under "Deferred": the `deferred` gate-kind validation bypass (a separate measured defect under its own release-gated carrier `fv4b6s`); removing the `cli.main` dispatch fork itself (the durable fix, gated on a blocking maintainer decision); changing what `_evidence_resolvable` ACCEPTS; the post-write `validate_spec` conformance refusal; and the three pre-existing suite failures this plan neither causes nor fixes.
 - Scope-Paths: agent_workflows/status_set.py, agent_workflows/specs.py, agent_workflows/cli.py, agent_workflows/command_surface.py, tests/test_specs_evidence_gate_parity.py, tests/test_status_set.py, CHANGELOG.md
 - Item-Dependencies: none
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: high
 - From-Backlog: h4fiwa
@@ -18,6 +19,7 @@
 - Id: wdyz5n
 
 ## Workflow history
+- 2026-10-07 reviewed (aw set): /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005, PR-006. Re-measured F-01/F-02 at review HEAD 9ccffaca3. Found the --status spelling already refuses an implemented no-op, so E-04's no-op fence is unpaired by design; required the stale legacy path fixed in both messages; replaced a nonexistent set agreement test with an E-04 assertion; surfaced that aw set --evidence also feeds the backlog close gate; corrected the stale h4fiwa open expectation (it is graduated); named m94eht as the overlapping sibling; added the scope fence and finalize ownership; replaced git stash with a scratch worktree.
 
 - 2026-10-02 to-review (opencode/its_direct/pt3-claude-opus-5-1m-us): authored from backlog `h4fiwa`. The item's measurement was re-reproduced at this tree's HEAD `31b5ed6b9` rather than trusted, and the reproduction WIDENED it: two further surfaces (`aw set implemented`, `aw set specs implemented`) share the bypass and were not in the item. The fix's blast radius was measured by applying the fix in-memory and running the five candidate specs/status modules, which identified exactly ONE breaking test by name. Both of the item's open design questions (`_evidence_resolvable`'s accepted layout, and whether the repair can use `aw set --evidence`) were resolved from measurement and are recorded in "Findings".
 - 2026-10-02 draft (opencode/its_direct/pt3-claude-opus-5-1m-us): created.
@@ -45,6 +47,12 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
     THE REFUSAL MUST WRITE NOTHING. This function is called from `run_set_command`'s pre-flight loop, BEFORE the dry-run branch and BEFORE `apply_status_change`, which is what makes a refusal leave the spec byte-identical and un-relocated. Return `(False, <one-line reason>)` in the established shape; do not raise, and do not print.
 
     PRESERVE THE REASON TEXT IN SUBSTANCE. `specs.run_set` writes `aw specs set: implementing -> implemented requires a resolvable --evidence citation (an existing .agents/plans/executed/ IPD path); refused.`. This function serves several verbs so its prefix differs and `validate_transition_allowed` returns a ONE-LINE reason; keep the phrase `requires a resolvable --evidence citation` so one needle matches both surfaces, and name the recovery.
+
+    CORRECT THE STALE PATH IN BOTH MESSAGES, NOT ONLY THE NEW ONE (F-03). The new `status_set` reason MUST name `.aw/records/plans/executed/` (the legacy `.agents/plans/executed/` may be named beside it). ALSO update the existing `specs.run_set` message the same way: otherwise the two spellings emit DIFFERENT recovery paths for the same refusal, which is the very drift this plan exists to close, and V-01 asks both to be confirmed. This is the `agent_workflows/specs.py` edit `Scope-Paths` declares. No in-tree test pins the old wording (searched `tests/` for `agents/plans/executed/ IPD` and `resolvable --evidence`: no hits at review HEAD `9ccffaca3`), so the wording change breaks nothing.
+
+    DO NOT RE-READ `TRANSITION_AUTHORITY` A SECOND TIME. The specs block already binds `auth = ac.TRANSITION_AUTHORITY.get(f"->{norm_status}", {})`; read `auth.get("evidence")` off that binding.
+
+    FORWARDED-NAMESPACE CALLERS ARE SAFE BUT MUST STAY SO. `work_cmd.run_finish` and `status_set`'s `Item-Dependencies` writer call `run_set_command` with a hand-built `argparse.Namespace` carrying no `evidence` attribute; both are `scoped_type="plans"`, never reach the specs block, and so are unaffected. Read the flag with `getattr(args, "evidence", None)` (never `args.evidence`) so a future hand-built specs namespace refuses cleanly instead of raising `AttributeError`.
   - Depends on: none
   - Expected outcome: `aw specs set implemented <id6>` with no `--evidence` exits 1 and leaves the spec in `implementing/` byte-identical; with an unresolvable `--evidence` exits 1 and writes nothing; with a resolvable citation exits 0 and relocates the file; `aw specs set <path> --status implemented` behaves identically in all three cases.
   - Execution state: pending
@@ -56,8 +64,12 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
     HELP TEXT MUST NAME THE ARTIFACT CLASS, not just the flag. `p_specs_set`'s existing registration says "Resolvable implementation-evidence citation (for implemented)". Match that, and add that the citation must be an existing executed-IPD path, since that is what the predicate actually enforces and an operator told only "resolvable" cannot guess the executed/ requirement.
 
     DO NOT make the flag-agreement test bidirectional and do not touch any other `CommandDeclaration`. The `set` declaration gains exactly one entry.
+
+    THE NEW FLAG ALSO REACHES THE BACKLOG CLOSE-GATE ON `aw set`, AND THAT IS INTENDED. `run_set_command`'s backlog arm already reads `getattr(args, "evidence", None)` into `check_engine.evaluate_blocking_close` (and the Close-Evidence write in `apply_status_change` reads it too), so registering `--evidence` on `p_set` makes `aw set done <backlog-item> --evidence <path>` able to take the SATISFIED route, matching `aw backlog set done`. Say so in the help text (the citation also satisfies a backlog release gate) so the flag's two meanings are not a surprise, and pin it with one E-04 case. Use `dest="evidence"` so both arms read the same attribute.
+
+    NO AGREEMENT TEST COVERS THE `set` DECLARATION TODAY. The declared-minus-accepted assertions in `tests/` (`test_backlog_handoff_close.py`, `test_prompts_new.py`, `test_group_verb_policy.py`, `test_runs_repo_alias.py`) cover other verbs only, so there is no existing `set` test to "not regress". E-04 therefore carries one assertion of its own: `set(get_declaration("set").legacy_flags) - <option strings accepted by the real `aw set` subparser>` is empty and `--evidence` is in `legacy_flags`, deriving the accepted set from the built parser's `_actions` exactly as `test_backlog_handoff_close.py` does (that drives the parser; it is not source-reading).
   - Depends on: E-01
-  - Expected outcome: `aw set --help` lists `--evidence`; `aw set implemented <id6> --evidence <resolvable executed-IPD path>` exits 0 and relocates the spec; the same call without the flag exits 1; `command_surface.get_declaration("set").legacy_flags` contains `--evidence` and no existing declared-minus-accepted agreement test regresses.
+  - Expected outcome: `aw set --help` lists `--evidence`; `aw set implemented <id6> --evidence <resolvable executed-IPD path>` exits 0 and relocates the spec; the same call without the flag exits 1; `command_surface.get_declaration("set").legacy_flags` contains `--evidence` and is a subset of the options the real `aw set` parser accepts.
   - Execution state: pending
 
 ### Task group 2: repair the one test this breaks
@@ -81,7 +93,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
     COVER, on each of `aw specs set implemented <id6>` and `aw specs set <path> --status implemented`: (a) no `--evidence` refuses, rc 1, file byte-identical AND still in `implementing/`; (b) an unresolvable `--evidence` refuses identically; (c) a RESOLVABLE `--evidence` succeeds, exits 0, and relocates the file into `implemented/`. CASE (c) IS NOT OPTIONAL: without it a "fix" that refuses unconditionally would pass (a) and (b) while breaking the verb entirely, and that is the single likeliest way to get this wrong.
 
-    ADD the two untyped surfaces, `aw set implemented <id6>` and `aw set specs implemented <id6>`, each asserting the refusal without `--evidence` and the success with it (the latter is what proves E-02 landed). ADD the NO-OP fence: an already-`implemented` spec re-set to `implemented` must NOT be retroactively refused, since `old == new` is not a transition. ADD the negative fence: an unrelated spec transition that is not evidence-gated (for example `draft -> to-review`) still succeeds with no `--evidence`, which is what bounds this gate's blast radius.
+    ADD the two untyped surfaces, `aw set implemented <id6>` and `aw set specs implemented <id6>`, each asserting the refusal without `--evidence` and the success with it (the latter is what proves E-02 landed). ADD the NO-OP fence: an already-`implemented` spec re-set to `implemented` through the POSITIONAL spelling (and `aw set`) must NOT be retroactively refused, since `old == new` is not a transition. THIS FENCE IS DELIBERATELY NOT PAIRED, and the test must say why: MEASURED at review HEAD `9ccffaca3`, `aw specs set <path> --status implemented` on an already-`implemented` spec ALREADY exits 1 with the evidence refusal, because `specs.run_set`'s `if auth.get("evidence"):` is not guarded by `old != new`. That is a pre-existing `--status`-spelling behavior this plan does NOT change (the root-cause unification is carried by `fcnz1r`/`m94eht`); assert the positional no-op succeeds and do NOT assert the `--status` no-op either way, so the test neither pins nor contradicts it. ADD the `aw set` backlog leg E-02 names: on a release-gated backlog item, `aw set done <item> --evidence <in-tree artifact>` closes via the SATISFIED route (rc 0) where the same call without it refuses. ADD the declaration-agreement assertion E-02 names. ADD the negative fence: an unrelated spec transition that is not evidence-gated (for example `draft -> to-review`) still succeeds with no `--evidence`, which is what bounds this gate's blast radius.
 
     ASSERT THE ABSENCE OF THE WRITE, NOT ONLY THE EXIT CODE. A test checking only `rc == 1` would pass against a half-fix that refuses AFTER relocating the file. Read the file back from its original path and assert byte-identical content and an unchanged status directory.
 
@@ -105,9 +117,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
     Name no private predicate and no internal function. Write no em or en dashes (user-facing prose, `AGENTS.md`).
 
-    DO NOT CLOSE THE BACKLOG ITEM. `h4fiwa` carries `- Blocks-Release: next` and this plan is its `- From-Backlog:` carrier, so the HANDOFF route closes the gate automatically once this plan is `executed`; MEASURED via `check_engine.evaluate_blocking_close`, which today reports the gate "handed off to From-Backlog carrier(s) ... but the work has not shipped" and names `aw backlog set h4fiwa --status graduated` as the fix. Leaving the item alone is therefore correct: the runner sets it `graduated` on verification, and an agent must never set it `done`.
+    DO NOT CLOSE THE BACKLOG ITEM. `h4fiwa` carries `- Blocks-Release: next` and this plan is its `- From-Backlog:` carrier, so the HANDOFF route closes the gate automatically once this plan is `executed`; MEASURED via `check_engine.evaluate_blocking_close`, which today reports the gate "handed off to From-Backlog carrier(s) ... but the work has not shipped" and names `aw backlog set h4fiwa --status graduated` as the fix. Leaving the item alone is therefore correct: it is ALREADY `graduated` (set by run `run-20261001T221821Z-1985969` naming `wdyz5n`), the gate closes through the HANDOFF route once this plan is `executed`, and an agent must never set it `done`.
   - Depends on: E-01, E-02, E-03, E-04, E-05
-  - Expected outcome: one CHANGELOG entry naming the refusal and the new `aw set --evidence` flag, containing no em or en dash; `h4fiwa` left untouched at `- Status: open` with its gate intact.
+  - Expected outcome: one CHANGELOG entry naming the refusal and the new `aw set --evidence` flag, containing no em or en dash; `h4fiwa` left untouched, its `- Status:` unchanged from its pre-execution value (`graduated` at review HEAD `9ccffaca3`, `Graduated-To: setdispgate`) and its `- Blocks-Release: next` intact.
   - Execution state: pending
 
 ## Project conventions discovered (Step 0)
@@ -161,7 +173,7 @@ Rows marked MEASURED were reproduced by driving the real surfaces in scratch git
 
 ## Scope check
 
-- Over-scope: none. Every path in `- Scope-Paths:` is edited by a numbered E-item: `agent_workflows/status_set.py` (E-01), `agent_workflows/specs.py` (E-01, the predicate is made reachable from the shared engine), `agent_workflows/cli.py` (E-02), `agent_workflows/command_surface.py` (E-02), `tests/test_status_set.py` (E-03), `tests/test_specs_evidence_gate_parity.py` (E-04), `CHANGELOG.md` (E-06). E-05 is a verification item that edits nothing unless it finds a second broken fixture.
+- Over-scope: none. Every path in `- Scope-Paths:` is edited by a numbered E-item: `agent_workflows/status_set.py` (E-01), `agent_workflows/specs.py` (E-01, the existing `specs.run_set` refusal message is corrected to name `.aw/records/plans/executed/`; the predicate itself is consumed unchanged), `agent_workflows/cli.py` (E-02), `agent_workflows/command_surface.py` (E-02), `tests/test_status_set.py` (E-03), `tests/test_specs_evidence_gate_parity.py` (E-04), `CHANGELOG.md` (E-06). E-05 is a verification item that edits nothing unless it finds a second broken fixture.
 - Under-scope: E-05 may need to repair an additional existing test module if it finds a second fixture of the E-03 shape. F-04's in-memory probe measured only one, but the probe patched a single function and cannot prove the absence of a fixture reached by another route, so the possibility is real while its target is not knowable at authoring time. If one is found, declare the actual path at execution time and record the widening in the transition message; this note is the authorization. The plan's own file needs no declaration (implicit lifecycle-artifact allowance, spec `ipd-structure-and-linting` Section 4.5). The backlog item `h4fiwa` is deliberately NOT edited (E-06), so it is not declared.
 
 ## Required tests / validation
@@ -206,11 +218,11 @@ which is a user-visible behavior change.
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'.
 
 - [ ] V-01 validates E-01
-  - Required evidence: paste rc and stderr for `aw specs set implemented <id6>` with (a) no `--evidence`, (b) an unresolvable `--evidence`, (c) a resolvable `--evidence`, each followed by the spec's path read back proving whether it moved and, for (a) and (b), that its content is byte-identical to before the call. Paste the same three for the `--status` spelling, and confirm the refusal reason on both contains `requires a resolvable --evidence citation`. Paste the new refusal message in full and confirm it names `.aw/records/plans/executed/` rather than only the legacy path (F-03).
+  - Required evidence: paste rc and stderr for `aw specs set implemented <id6>` with (a) no `--evidence`, (b) an unresolvable `--evidence`, (c) a resolvable `--evidence`, each followed by the spec's path read back proving whether it moved and, for (a) and (b), that its content is byte-identical to before the call. Paste the same three for the `--status` spelling, and confirm the refusal reason on both contains `requires a resolvable --evidence citation`. Paste BOTH refusal messages in full (the positional and the `--status` spelling) and confirm EACH names `.aw/records/plans/executed/` rather than only the legacy path (F-03).
   - Observed evidence:
   - Result: pending
 - [ ] V-02 validates E-02
-  - Required evidence: paste `aw set --help` output showing `--evidence` registered. Paste rc for `aw set implemented <id6>` and `aw set specs implemented <id6>` WITHOUT the flag (both must be 1, spec unmoved) and WITH a resolvable citation (both must be 0, spec relocated to `implemented/`). Paste the value of `command_surface.get_declaration("set").legacy_flags` showing `--evidence` present, and paste a run of the existing declared-minus-accepted agreement test(s) for the `set` family showing no regression.
+  - Required evidence: paste `aw set --help` output showing `--evidence` registered. Paste rc for `aw set implemented <id6>` and `aw set specs implemented <id6>` WITHOUT the flag (both must be 1, spec unmoved) and WITH a resolvable citation (both must be 0, spec relocated to `implemented/`). Paste the value of `command_surface.get_declaration("set").legacy_flags` showing `--evidence` present, and paste the E-04 declaration-agreement case passing (declared minus the real `aw set` parser's accepted options is empty). Paste `aw set done <release-gated backlog item> --evidence <in-tree artifact>` rc 0 and the same without `--evidence` refusing, showing the flag reaches the backlog close gate on this surface too.
   - Observed evidence:
   - Result: pending
 - [ ] V-03 validates E-03
@@ -218,7 +230,7 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Observed evidence:
   - Result: pending
 - [ ] V-04 validates E-04
-  - Required evidence: paste `python3 -m pytest tests/test_specs_evidence_gate_parity.py -o addopts=""` naming every case as passed. Paste the PRE-FIX run of the same file (via `git stash` or a scratch checkout) showing the positional and untyped refusal cases FAILING, so the fix's effect is attributable rather than asserted. Confirm explicitly that the file contains the resolvable-citation SUCCESS case, the no-op fence, and the unrelated-transition fence, and that no test reads production source or counts callers.
+  - Required evidence: paste `python3 -m pytest tests/test_specs_evidence_gate_parity.py -o addopts=""` naming every case as passed. Paste the PRE-FIX run of the same file against the base commit's source (a scratch `git worktree add` at the pre-execution HEAD with the new test file copied in; NEVER a bare `git stash`, which in a shared checkout sweeps other parties' changes) showing the positional and untyped refusal cases FAILING, so the fix's effect is attributable rather than asserted. Confirm explicitly that the file contains the resolvable-citation SUCCESS case, the positional no-op fence (and that it does NOT assert the `--status` no-op either way), the unrelated-transition fence, the `aw set` backlog `--evidence` leg, and the declaration-agreement assertion, and that no test reads production source or counts callers.
   - Observed evidence:
   - Result: pending
 - [ ] V-05 validates E-05
@@ -226,7 +238,7 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Observed evidence:
   - Result: pending
 - [ ] V-06 validates E-06
-  - Required evidence: paste the bare `python3 -m pytest` summary line with its re-derived baseline alongside, and compare the FAILURE SETS BY NAME (not counts), showing the three pre-existing failures unchanged and no new failure. Paste the `CHANGELOG.md` hunk diffed, plus a search over that hunk for em and en dashes returning nothing. Paste `AW_NO_REEXEC=1 aw check release-gates`, `AW_NO_REEXEC=1 aw specs check` and `AW_NO_REEXEC=1 aw sanitize --agent`. Read back `h4fiwa` showing `- Status: open` and `- Blocks-Release: next` still present, proving this plan did NOT close its own carrier item.
+  - Required evidence: paste the bare `python3 -m pytest` summary line with its re-derived baseline alongside, and compare the FAILURE SETS BY NAME (not counts), showing the three pre-existing failures unchanged and no new failure. Paste the `CHANGELOG.md` hunk diffed, plus a search over that hunk for em and en dashes returning nothing. Paste `AW_NO_REEXEC=1 aw check release-gates`, `AW_NO_REEXEC=1 aw specs check` and `AW_NO_REEXEC=1 aw sanitize --agent`. Read back `h4fiwa` showing its `- Status:` unchanged from the pre-execution read (expected `graduated`) and `- Blocks-Release: next` still present, proving this plan did NOT close its own carrier item. Paste `git grep -n 'agents/plans/executed/ IPD' -- agent_workflows/` returning nothing, proving neither refusal message still names only the legacy path.
   - Observed evidence:
   - Result: pending
 
@@ -244,13 +256,22 @@ independence is deliberate, so a release blocker is not held hostage to a design
 
 TWO THINGS A REVIEWER SHOULD WEIGH. FIRST, E-02 WIDENS A USER-FACING SURFACE by registering a new flag
 on `aw set`; OQ-01 records why the alternative leaves that surface permanently dead for specs, but the
-choice is reversible in one line if a reviewer prefers the redirect. SECOND, this plan OVERLAPS a
-pending sibling plan that also claims these fixes as part of a larger Set; that sibling is `to-review`,
-depends on two other children, and declares its carrier as the parent item rather than `h4fiwa`, so no
-artifact currently carries `h4fiwa`'s gate but this one (measured through
-`check_engine.evaluate_blocking_close`). If the maintainer prefers the Set to own this fix, retire THIS
-plan to `superseded/` and add `- From-Backlog: h4fiwa` plus the gate to that sibling; do not simply
-delete this plan, which would leave the release-gated item with no carrier.
+choice is reversible in one line if a reviewer prefers the redirect. SECOND, this plan OVERLAPS pending
+plan `m94eht` (setdisp Order 04, "make aw specs set --status a thin adapter delegating to the shared
+engine"), which also edits `specs.py`, `status_set.py` and `cli.py`; at review HEAD `9ccffaca3` it is
+`- Status: draft`, depends on `executed:m1jlwm` and `state:spec:approved:wy9aru`, and carries
+`- From-Backlog: fcnz1r` rather than `h4fiwa`, so no artifact carries `h4fiwa`'s gate but this one.
+Whichever of the two executes SECOND must consume the evidence branch the first installed rather than
+add a second copy. If the maintainer prefers the Set to own this fix, retire THIS plan to
+`superseded/` and add `- From-Backlog: h4fiwa` plus the gate to `m94eht`; do not simply delete this
+plan, which would leave the release-gated item with no carrier.
+
+SCOPE FENCE: `- Scope-Paths:` is a DECLARATION so finalize can reconcile what was edited against what
+was declared, not a stop condition. An out-of-scope edit the work genuinely requires (for example an
+E-05 fixture repair in a module not listed) is made and then justified at finalize with
+`--scope-reason`; a declared-but-unmodified path is acknowledged with `--scope-ack`. STOP and report
+only for a genuinely unsafe condition: an unresolvable concurrent edit to a declared path, or an
+absent prerequisite symbol (`specs._evidence_resolvable`, `status_set.validate_transition_allowed`).
 
 Execution contract (`AGENTS.md`): commit ONLY the files this plan changed, limited to its declared
 `Scope-Paths` plus any E-05 repair declared at execution time, through `aw commit <plan> -- <paths>`;
@@ -261,6 +282,9 @@ you never staged.
 
 Post-gate lifecycle: on completion, `aw ipd lint --phase pre-transition` must report conforming and
 every `V-*` above must carry pasted evidence before the plan moves to
-`.aw/records/plans/executed/`. Do NOT set backlog item `h4fiwa` to any status: this plan is its
-`- From-Backlog:` carrier, so reaching `executed` closes its gate through the HANDOFF route and the
-runner sets the item `graduated` on verification. An agent must never set it `done`.
+`.aw/records/plans/executed/`. Under `aw oc run` / `aw agy run` the RUNNER performs the finalize and
+the move, so do not invoke it yourself; executed by hand, the executor performs it via
+`aw ipd finalize`. Never hand-edit the status line or hand-move the file, and never tag or release.
+Do NOT set backlog item `h4fiwa` to any status: it is already `graduated` and this plan is its
+`- From-Backlog:` carrier, so reaching `executed` makes its gate closable through the HANDOFF route.
+An agent must never set it `done`.
