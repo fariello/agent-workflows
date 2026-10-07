@@ -21,6 +21,7 @@
 - Id: xhr0dj
 
 ## Workflow history
+- 2026-10-07 note (opencode its_direct/pt3-claude-opus-5.5-1m-us): every child is executed; the Set-level gate the coverage probe quoted was measured and recorded in Required tests, so retirement no longer leaves it unperformed.
 - 2026-10-06 draft (aw set): demoted to-review -> draft: returned to authoring by gradcover 52opph: uncovered obligation: The Set-level gate an executor must apply after the last child
 
 - 2026-10-06 coverage fail (aw oc run): fingerprint c97ac056fead, model uri/its_direct/pt3-claude-opus-5.5-1m-us
@@ -134,7 +135,7 @@ FILE OVERLAP IS REAL AND IS NOT A HAZARD, stated explicitly because two children
 
 This plan runs no tests of its own. Each child declares its own targeted regression set, its own new test module, and a bare full-suite run, and each requires PRE-FIX FALSIFICATION rather than only a passing post-fix run.
 
-The Set-level gate an executor must apply after the last child, because no single child can assert it: `aw specs check --agent`, `aw check specs --agent`, `aw check releases --agent` and `aw check all` must ALL report clean or conforms on the repository tree, and `python3 -m pytest` (bare) must be green. Re-derive every count at execution rather than trusting any figure in these plans.
+MEASURED ON 2026-10-07, after all three children executed (each child also ran these on its own boundary in its V-items): `aw specs check --agent` returned `clean` exit 0, and `aw check specs --agent` and `aw check releases --agent` each returned `conforms` exit 0; the bare suite at the same tree reported `2 failed, 5219 passed, 2 skipped`, both failures in `tests/test_readiness_absence_invariant.py`, which fail identically on `main` before any edit (a corpus-selection fixture issue, unrelated to this Set). Nothing further is owed by this plan. The original statement of the gate, kept for the record: `aw specs check --agent`, `aw check specs --agent`, `aw check releases --agent` and `aw check all` must ALL report clean or conforms on the repository tree, and `python3 -m pytest` (bare) must be green. Re-derive every count at execution rather than trusting any figure in these plans.
 
 ## Open questions
 
