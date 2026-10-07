@@ -11956,6 +11956,35 @@ class _FindMatch(NamedTuple):
     kind: Optional[str]
 
 
+class _FindTypeResult(tuple):
+    """Container for _find_type_records returning (lines, paths, matches) with structured items.
+
+    IPD okiso1 E-03. Unpacks as a 3-tuple (lines, paths, matches) so existing callers
+    in tests/test_find_single_read.py and tests/test_find_prompts_lane_status.py continue
+    unpacking 3 elements unchanged, while .items carries the structured item dictionaries
+    for AgentRenderer.render_stream.
+    """
+
+    lines: List[str]
+    paths: List[str]
+    matches: List[_FindMatch]
+    items: List[Dict[str, Any]]
+
+    def __new__(
+        cls,
+        lines: List[str],
+        paths: List[str],
+        matches: List[_FindMatch],
+        items: Optional[List[Dict[str, Any]]] = None,
+    ):
+        inst = super().__new__(cls, (lines, paths, matches))
+        inst.lines = lines
+        inst.paths = paths
+        inst.matches = matches
+        inst.items = items if items is not None else []
+        return inst
+
+
 def _resolve_selectors_with_kinds(
     repo_root: Path, artifact_type: str, tokens: List[str]
 ) -> tuple[List[Path], List[_FindMatch]]:
@@ -12044,6 +12073,7 @@ def _find_type_records(
     # `aw find research todo` printed nothing (measured on the macOS CI runner and reproduced
     # locally with a symlinked TMPDIR).
     repo_root = Path(repo_root).resolve()
+    from agent_workflows import agent_schema as _schema
     from agent_workflows import selectors as sel_mod
 
     highlight_tokens = list(selectors_list)
@@ -12101,11 +12131,11 @@ def _find_type_records(
 
         lines = []
         paths = []
+        items = []
         for e in results:
             status = e.disposition or e.status or "-"
-            status_txt, id6_txt = _find_status_and_id6(
-                "plans", status, e.plan_id or "??????", term
-            )
+            plan_id = e.plan_id or "??????"
+            status_txt, id6_txt = _find_status_and_id6("plans", status, plan_id, term)
             set_txt = f"{e.set_id or '-':<14}"
             full_p = (plans_dir / e.path).resolve()
             try:
@@ -12115,13 +12145,27 @@ def _find_type_records(
             disp_p = _highlight_filename_matches(rel_p, highlight_tokens, term)
             lines.append(f"{status_txt}  {id6_txt}  {set_txt}  {disp_p}")
             paths.append(rel_p)
+
+            # IPD okiso1 E-03 / E-04: Thread structured fields for agent stream.
+            # Clean path of any home-path prefix at construction (F-08).
+            # Presentation glyph and column padding are omitted (E-03).
+            clean_p = _schema.normalize_repo_path(rel_p, repo_root)
+            items.append(
+                {
+                    "path": clean_p,
+                    "type": "plans",
+                    "id6": plan_id,
+                    "status": status,
+                    "set": e.set_id or "-",
+                }
+            )
         # THE PLANS PATH'S OWN DATA IS THE RELIABLE SOURCE OF TRUTH FOR IDENTITY, NOT `resolve`'s
         # `kind` (IPD paw8so E-02). This branch's display data comes from `pi.scan_plans`, which
         # reads WHOLE files, while the `kind` above comes from `resolve`'s bounded header read; the
         # two can disagree, and when they do the whole-file answer is right. That is exactly why the
         # collision verdict is computed by `selectors.id6_ownership` (also a whole-file read of the
         # one matched row) rather than from `kind`, which is threaded only as a cheap indicator.
-        return lines, paths, type_matches
+        return _FindTypeResult(lines, paths, type_matches, items=items)
 
     if artifact_type == "research":
         from agent_workflows import research_index as ri
@@ -12174,11 +12218,11 @@ def _find_type_records(
 
         lines = []
         paths = []
+        items = []
         for e in results:
             status = e.status or "-"
-            status_txt, id6_txt = _find_status_and_id6(
-                "research", status, e.id6 or "??????", term
-            )
+            res_id = e.id6 or "??????"
+            status_txt, id6_txt = _find_status_and_id6("research", status, res_id, term)
             summary = f"  {e.summary}" if e.summary else ""
             full_p = (research_root / e.path).resolve()
             try:
@@ -12188,7 +12232,21 @@ def _find_type_records(
             disp_p = _highlight_filename_matches(rel_p, highlight_tokens, term)
             lines.append(f"{status_txt}  {id6_txt}  {disp_p}{summary}")
             paths.append(rel_p)
-        return lines, paths, type_matches
+
+            # IPD okiso1 E-03 / E-04 / OQ-03: Thread structured fields for agent stream.
+            # Clean path of any home-path prefix at construction (F-08).
+            # Presentation glyph/padding and research e.summary are omitted (OQ-03).
+            clean_p = _schema.normalize_repo_path(rel_p, repo_root)
+            item_rec: Dict[str, Any] = {
+                "path": clean_p,
+                "type": "research",
+                "id6": res_id,
+                "status": status,
+            }
+            if getattr(e, "set_id", None):
+                item_rec["set"] = e.set_id
+            items.append(item_rec)
+        return _FindTypeResult(lines, paths, type_matches, items=items)
 
     # All other types: specs, prompts, backlog, walkthroughs, roadmaps, comms, releases
     # Unreadable fields (F-8/F-9): For 6/9 generic types (walkthroughs 24/24, reviews 367/367, comms 7/7,
@@ -12208,6 +12266,7 @@ def _find_type_records(
 
     lines = []
     paths = []
+    items = []
     for p in sorted(matched_paths):
         try:
             text = p.read_text(encoding="utf-8")
@@ -12228,10 +12287,10 @@ def _find_type_records(
                 or status.strip().lower() != explicit_status.strip().lower()
             ):
                 continue
+        raw_set = _find_prompt_setid(p, text, artifact_type) or sel_mod._read_setid(
+            text
+        )
         if explicit_set:
-            raw_set = _find_prompt_setid(p, text, artifact_type) or sel_mod._read_setid(
-                text
-            )
             if raw_set != explicit_set:
                 continue
         id6 = raw_id or "-"
@@ -12239,7 +12298,21 @@ def _find_type_records(
         disp_p = _highlight_filename_matches(rel, highlight_tokens, term)
         lines.append(f"{status_txt}  {id6_txt}  {disp_p}")
         paths.append(rel)
-    return lines, paths, type_matches
+
+        # IPD okiso1 E-03 / E-04: Thread structured fields for agent stream.
+        # Clean path of any home-path prefix at construction (F-08).
+        # Presentation glyphs and padding are omitted (E-03).
+        clean_p = _schema.normalize_repo_path(rel, repo_root)
+        item_rec = {
+            "path": clean_p,
+            "type": artifact_type,
+            "id6": id6,
+            "status": status,
+        }
+        if raw_set:
+            item_rec["set"] = raw_set
+        items.append(item_rec)
+    return _FindTypeResult(lines, paths, type_matches, items=items)
 
 
 class _Id6Collision(NamedTuple):
@@ -12469,6 +12542,39 @@ def _run_find(
                 term.status("fail", err_msg)
                 return 2
 
+    # IPD okiso1 E-03 / OQ-02: Validate --limit upfront.
+    # Non-positive limit (<= 0) is refused at exit 2 with cannot-run record, matching
+    # run_analytics_query._parse_limit precedent.
+    raw_limit = getattr(args, "limit", None)
+    if raw_limit is not None:
+        try:
+            lim_val = int(raw_limit)
+            if lim_val <= 0:
+                err_msg = "--limit must be greater than zero."
+                if ctx.is_agent or ctx.is_json:
+                    res = CommandResult(
+                        command="find",
+                        status="cannot-run",
+                        exit_code=2,
+                        summary=err_msg,
+                        next_actions=[
+                            NextAction(
+                                command="aw find --help",
+                                description="see valid options",
+                            )
+                        ],
+                    )
+                    return get_renderer(ctx).emit(res, ctx)
+                if getattr(args, "paths", False):
+                    Term(
+                        stream=sys.stderr, color=term.color, unicode=term.unicode
+                    ).status("fail", err_msg)
+                    return 2
+                term.status("fail", err_msg)
+                return 2
+        except (ValueError, TypeError):
+            pass
+
     all_lines = []
     all_paths = []
     explicit_flags = argparse.Namespace(
@@ -12480,13 +12586,14 @@ def _run_find(
         dir=getattr(args, "dir", None),
     )
     all_matches: List[_FindMatch] = []
+    all_items: List[Dict[str, Any]] = []
     for t in types:
-        lines, paths, matches = _find_type_records(
-            repo_root, t, selectors, explicit_flags, term
-        )
+        res = _find_type_records(repo_root, t, selectors, explicit_flags, term)
+        lines, paths, matches = res[0], res[1], res[2]
         all_lines.extend(lines)
         all_paths.extend(paths)
         all_matches.extend(matches)
+        all_items.extend(getattr(res, "items", []))
 
     # IPD paw8so E-03: a GENUINE id6 collision among the rows we are about to print. Computed over
     # already-matched rows only (no corpus scan), and SILENT for every legitimate shape: a review
@@ -12519,25 +12626,107 @@ def _run_find(
         else (f"no matching {norm}" if norm != "all" else "no matching artifacts")
     )
 
-    if getattr(args, "paths", False) or (ctx.is_agent and all_paths):
-        # STDOUT IS BYTE-IDENTICAL ON BOTH SURFACES (IPD paw8so E-03 / decision D3). Scripts consume
-        # this bare-path stream line-by-line, so no warning line may enter it. `--paths` is the
-        # explicitly script-shaped surface and stays silent on BOTH streams; `--agent` additionally
-        # writes the finding to STDERR, so an agent piping stdout keeps a clean stream and still
-        # receives a signal it could otherwise never see (this branch returns before any
-        # `CommandResult` is built, so `diagnostics` is unreachable here).
+    if getattr(args, "paths", False):
+        # IPD okiso1 E-02: --paths remains the bare, script-shaped surface sanctioned by
+        # docs/cli-output-contract.md Section 12. --agent no longer takes this early-return branch
+        # because two documented flags (--limit and --fields) were inert on it (cite backlog wdazvp).
+        # The aw-find-warning: stderr line survives for --paths only if E-03 decides so; E-03 decided
+        # that --paths remains silent on both stdout and stderr, while --agent carries the collision
+        # finding into the summary record's diagnostics in-band.
+        # DO NOT TOUCH THE RETURN VALUE: sibling plan zyj8io owns the zero-match exit-code divergence
+        # across find surfaces (F-07), so the exit expression below is left textually exactly as found.
         for p in all_paths:
             print(p)
-        if collisions and ctx.is_agent and not getattr(args, "paths", False):
-            for coll in collisions:
-                print(
-                    f"aw-find-warning:{_FIND_ID6_COLLISION_RULE}:{coll.id6}:{coll.shape}:"
-                    + ",".join(coll.claimants),
-                    file=sys.stderr,
-                )
         return 0 if (all_paths or not selectors) else 1
 
-    if ctx.is_agent or ctx.is_json:
+    if ctx.is_agent:
+        # IPD okiso1 E-03 / E-04 / D-3: --agent ALWAYS emits the stream (one item per match, followed
+        # by a summary record; or a lone summary record on zero matches).
+        # Build query-preserving next_template sanitized against home paths (F-08) and braces (E-04).
+        import shlex
+        from agent_workflows import agent_schema as _schema
+        from agent_workflows.renderers import AgentRenderer
+
+        def _sanitize_for_next(val: str) -> str:
+            norm_val = (
+                _schema.normalize_repo_path(val, repo_root)
+                if ("/" in val or "\\" in val)
+                else val
+            )
+            quoted = shlex.quote(norm_val)
+            return quoted.replace("{", "{{").replace("}", "}}")
+
+        next_parts = ["aw", "find"]
+        if norm != "all":
+            next_parts.append(norm)
+        elif raw_type == "all":
+            next_parts.append("all")
+        for s in selectors:
+            next_parts.append(_sanitize_for_next(s))
+        if getattr(args, "id", None):
+            next_parts.append(f"--id {_sanitize_for_next(args.id)}")
+        if getattr(args, "set", None):
+            next_parts.append(f"--set {_sanitize_for_next(args.set)}")
+        if getattr(args, "status", None):
+            next_parts.append(f"--status {_sanitize_for_next(args.status)}")
+        if getattr(args, "topic", None):
+            next_parts.append(f"--topic {_sanitize_for_next(args.topic)}")
+        if getattr(args, "disposition", None):
+            next_parts.append(f"--disposition {_sanitize_for_next(args.disposition)}")
+        if getattr(args, "fields", None):
+            raw_fields_arg = str(args.fields)
+            next_parts.append(
+                f"--fields {shlex.quote(raw_fields_arg).replace('{', '{{').replace('}', '}}')}"
+            )
+        next_parts.append("--agent")
+        next_parts.append("--limit {limit}")
+        next_tmpl = " ".join(next_parts)
+
+        # Carry genuine id6 collisions into summary diagnostics (E-03)
+        summary_diags = [
+            Diagnostic(
+                location=_schema.normalize_repo_path(coll.claimants[0], repo_root),
+                rule=_FIND_ID6_COLLISION_RULE,
+                detail=_schema.redact_home_paths(
+                    f"id6 {coll.id6} is claimed as its own identity by "
+                    f"{len(coll.claimants)} artifacts ({coll.shape}): "
+                    + ", ".join(coll.claimants)
+                ),
+                severity="warning",
+                fix=_schema.redact_home_paths(
+                    "keep the copy whose disposition directory matches its `- Status:` and "
+                    "remove or retire the other"
+                    if coll.shape == "same-type"
+                    else (
+                        "give the non-owning artifact its OWN id6 (in `- Id:` and the filename "
+                        "identity slot) and cite the source through a typed reference field "
+                        "(DECISIONS.md D140)"
+                    )
+                ),
+            ).to_dict(repo_root=repo_root)
+            for coll in collisions
+        ]
+
+        renderer = AgentRenderer()
+        text = renderer.render_stream(
+            items=all_items,
+            cmd="find",
+            context=ctx,
+            total=len(all_items),
+            next_template=next_tmpl,
+            outcome="clean",
+            exit_code=0,
+            diagnostics=summary_diags,
+        )
+        if text:
+            try:
+                ctx.stdout.write(text)
+                ctx.stdout.flush()
+            except (BrokenPipeError, OSError):
+                pass
+        return 0
+
+    if ctx.is_json:
         res = CommandResult(
             command="find",
             status="clean",

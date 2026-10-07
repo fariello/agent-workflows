@@ -220,6 +220,7 @@ class AgentRenderer(BaseRenderer):
         next_cmd: Optional[str] = None,
         complete: bool = True,
         context: Optional[OutputContext] = None,
+        diagnostics: Optional[Sequence[Dict[str, Any]]] = None,
     ) -> str:
         """Render a stream summary record."""
         rec: Dict[str, Any] = {
@@ -235,8 +236,18 @@ class AgentRenderer(BaseRenderer):
         }
         if next_cmd is not None:
             rec["next"] = next_cmd
+        if diagnostics:
+            rec["diagnostics"] = list(diagnostics)
         if context and context.fields:
-            rec = _schema.filter_record_fields(rec, context.fields)
+            # IPD okiso1 E-03: retain next and diagnostics on a summary regardless of projection
+            # (they are the summary's payload, not per-item detail). Done in the renderer rather
+            # than _PRESERVED_FIELDS to avoid leaking next retention into result records.
+            filtered = _schema.filter_record_fields(rec, context.fields)
+            if next_cmd is not None and "next" not in filtered:
+                filtered["next"] = next_cmd
+            if diagnostics and "diagnostics" not in filtered:
+                filtered["diagnostics"] = list(diagnostics)
+            rec = filtered
         return _schema.render_jsonl_record(rec)
 
     def render_stream(
@@ -248,6 +259,7 @@ class AgentRenderer(BaseRenderer):
         next_template: Optional[str] = None,
         outcome: str = "clean",
         exit_code: int = 0,
+        diagnostics: Optional[Sequence[Dict[str, Any]]] = None,
     ) -> str:
         """Render a stream of items with summary record under --limit / token budgets."""
         ctx = context or OutputContext(mode=OutputMode.AGENT)
@@ -284,6 +296,7 @@ class AgentRenderer(BaseRenderer):
                 next_cmd=next_cmd,
                 complete=complete,
                 context=ctx,
+                diagnostics=diagnostics,
             )
         )
         return "".join(lines)
