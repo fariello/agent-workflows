@@ -7,8 +7,8 @@
 - Scope-Paths: .aw/records/plans/pending/20260929-denypush-00-l4vw9o-decide-and-if-approved-build-a-landlock-backed-network-denia.ipd.md
 - Item-Dependencies: none
 - Status: draft
-- Coverage: fail
-- Coverage-Fingerprint: 05ced26f246fac299f2a30d1753717b78ae52dfb3dcc840499cb2ac1eba7c84c
+- Coverage: pass
+- Coverage-Fingerprint: 69dd49745d53827382f3adb48e07a04dd1ebc93d75d87ad125ccf19320f2c356
 - Coverage-Checked: 2026-10-07 by uri/its_direct/pt3-claude-opus-5.5-1m-us
 - Work-Kind: feature
 - Priority: low
@@ -20,6 +20,7 @@
 - Id: l4vw9o
 
 ## Workflow history
+- 2026-10-07 coverage pass (aw oc run): fingerprint 69dd49745d53, model uri/its_direct/pt3-claude-opus-5.5-1m-us
 - 2026-10-07 note (opencode its_direct/pt3-claude-opus-5.5-1m-us): each criterion and Set-level check now leads with its owner (`wzhe4n` E-03/E-04 for the cross-child audit and sweep).
 - 2026-10-07 coverage fail (aw oc run): fingerprint 05ced26f246f, model uri/its_direct/pt3-claude-opus-5.5-1m-us
 - 2026-10-07 note (opencode its_direct/pt3-claude-opus-5.5-1m-us): the carrier bullet the coverage probe quoted describes a backlog item that already exists (`sv9ce4`, open), not a step; reworded to say so.
@@ -223,13 +224,6 @@ minted from the original title and is left stable.
   design is handed off, while the code for a complete boundary is deliberately not written. The
   residual mechanism does not stay attached to `oq05nc` as unfinished business; it moves to backlog
   `sv9ce4`, which is what makes closing `oq05nc` honest rather than a quiet abandonment.
-
-## Coverage findings
-
-- "- NO ARTIFACT CLAIMS PUSH DENIAL. This is the Set's single most important cross-cutting property and"
-- "- THE NAME IS CONSISTENT ACROSS THE SET. Every child refers to the new capability as"
-- "- Each child runs its own validation; this orchestrator does not re-run them. The Set-level gates are"
-- "- The bare suite passes, `aw ipd lint` conforms over every plan in the Set, `aw check` reports no new"
 
 ## Validation and cross-check (verify before reporting the Set complete)
 
