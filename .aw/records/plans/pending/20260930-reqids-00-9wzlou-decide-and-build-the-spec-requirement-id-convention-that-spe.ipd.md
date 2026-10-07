@@ -21,6 +21,7 @@
 - Id: 9wzlou
 
 ## Workflow history
+- 2026-10-07 note (opencode its_direct/pt3-claude-opus-5.5-1m-us): each completion criterion and cross-cutting property now names its owner; the backlog close is the runner's.
 - 2026-10-06 draft (aw set): demoted approved -> draft: APPROVAL WITHDRAWN: returned to authoring by gradcover 52opph: uncovered obligation: Close backlog `vy20et` by shipping both halves it asks for
 - 2026-10-06 coverage fail (aw oc run): fingerprint 174d25c7615d, model uri/its_direct/pt3-claude-opus-5.5-1m-us
 - 2026-10-01 approved (aw set): status set to approved
@@ -33,7 +34,7 @@
 
 ## Goal
 
-Close backlog `vy20et` by shipping both halves it asks for, in the only order that works: the
+Ship both halves backlog `vy20et` asks for (the item closes through the runner's normal backlog close when the last carrier executes, never by hand from this plan), in the only order that works: the
 requirement-ID convention as an APPROVED spec first, then the parser and the `SPEC-PLAN-TRACE` check
 built against it. The Set's success condition is that TRACE enforces, that `z7nbn1` 4.4's deferral is
 discharged, and that the check is described honestly as proving citation rather than implementation.
@@ -63,19 +64,19 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ## Completion criteria (the whole Set is done only when)
 
-- Both children are in `.aw/records/plans/executed/` with `- Status: executed` and every `V-*` carrying concrete pasted evidence.
-- Order 02's `- Item-Dependencies:` carried `state:spec:approved:<spec-id6>` beside `executed:jjh4aj` before it executed, written by `aw ipd dependencies set` during Order 01's E-09, so the Set's human approval gate was enforced by the runner rather than only by Order 02's own first item (added at review 2026-10-01).
-- ONE new spec exists defining the requirement-ID namespace, the distinct acceptance-criterion namespace, the declaration-site rule, the retrofit/grandfathering policy on the stamped cutover mechanism, and the `SPEC-PLAN-TRACE` contract; and it has reached `approved` by human attestation (`aw spec set approved <id6> --by-human`), which no agent may perform.
-- `grep -rn 'SPEC-PLAN-TRACE' agent_workflows/` finds real enforcement, inverting the empty result executed plan `aeq7f8` recorded for the same command.
-- `production_checks.spec_plan_trace` exists as a fourth sibling verifier, is called at the spec-production site beside the three shipped ones, and renders `25kzda` 4.8's message template.
-- The cutover feature key is registered in `config.KNOWN_FEATURE_CUTOVERS` so grandfathering resolves to a stamped per-repository boundary rather than falling through to `None`.
-- TRACE PASSES rather than fails for a grandfathered producing spec, a spec declaring no ids, and the acceptance half of a spec with no acceptance section; and a produced Set containing an Order-0 orchestrator does not fail merely because child-tracking rows cite no requirement.
-- The bare suite (`python3 -m pytest`) shows an EMPTY after-minus-before failing node-ID set.
-- The check is described in code as proving CITATION, not implementation, so `z7nbn1` 4.4's "MUST NOT be described as trace-verified" is replaced by an honest claim rather than an overclaim.
+- [Owner: jjh4aj and rtvdak] Both children are in `.aw/records/plans/executed/` with `- Status: executed` and every `V-*` carrying concrete pasted evidence.
+- [Owner: jjh4aj (its E-09 writes the edge)] Order 02's `- Item-Dependencies:` carried `state:spec:approved:<spec-id6>` beside `executed:jjh4aj` before it executed, written by `aw ipd dependencies set` during Order 01's E-09, so the Set's human approval gate was enforced by the runner rather than only by Order 02's own first item (added at review 2026-10-01).
+- [Owner: jjh4aj (creates the spec); the human approval is the maintainer's, enforced by the edge] ONE new spec exists defining the requirement-ID namespace, the distinct acceptance-criterion namespace, the declaration-site rule, the retrofit/grandfathering policy on the stamped cutover mechanism, and the `SPEC-PLAN-TRACE` contract; and it has reached `approved` by human attestation (`aw spec set approved <id6> --by-human`), which no agent may perform.
+- [Owner: rtvdak] `grep -rn 'SPEC-PLAN-TRACE' agent_workflows/` finds real enforcement, inverting the empty result executed plan `aeq7f8` recorded for the same command.
+- [Owner: rtvdak] `production_checks.spec_plan_trace` exists as a fourth sibling verifier, is called at the spec-production site beside the three shipped ones, and renders `25kzda` 4.8's message template.
+- [Owner: rtvdak (E-06)] The cutover feature key is registered in `config.KNOWN_FEATURE_CUTOVERS` so grandfathering resolves to a stamped per-repository boundary rather than falling through to `None`.
+- [Owner: rtvdak (E-08)] TRACE PASSES rather than fails for a grandfathered producing spec, a spec declaring no ids, and the acceptance half of a spec with no acceptance section; and a produced Set containing an Order-0 orchestrator does not fail merely because child-tracking rows cite no requirement.
+- [Owner: jjh4aj and rtvdak, each at its own boundary; rtvdak V-08 is the last] The bare suite (`python3 -m pytest`) shows an EMPTY after-minus-before failing node-ID set.
+- [Owner: rtvdak (E-05)] The check is described in code as proving CITATION, not implementation, so `z7nbn1` 4.4's "MUST NOT be described as trace-verified" is replaced by an honest claim rather than an overclaim.
 
 ## Cross-IPD validation
 
-The two children are validated independently, and the only cross-cutting properties are these. FIRST,
+[Owners: the FIRST and SECOND properties are enforced by the runner through `rtvdak`'s `state:spec:approved:89xjll` edge and checked by `rtvdak` V-01; the THIRD by each child's `- Scope-Paths:` and the finalize scope gate, with the co-editor re-derivation done by `rtvdak` at execution; the FOURTH by `rtvdak`, which builds the parser and must record the survey reconciliation in its own evidence. This plan performs none of them.] The two children are validated independently, and the only cross-cutting properties are these. FIRST,
 ORDER MATTERS AND IS ASYMMETRIC: Order 02's entire content is fixed by five decisions that exist only in
 Order 01's APPROVED spec, so running them out of order does not merely reorder work, it would have Order
 02 invent the convention in code. The runner sorts by dependency depth first and re-checks the edge at
