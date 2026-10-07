@@ -7,8 +7,8 @@
 - Scope-Paths: .aw/records/plans/pending/20261002-dirsilent-01-i6mby8-add-the-shared-non-surveyable-root-refusal-primitive-every-r.ipd.md, .aw/records/plans/pending/20261002-dirsilent-02-jei45f-convert-the-two-fail-closed-validators-specs-check-and-backl.ipd.md, .aw/records/plans/pending/20261002-dirsilent-03-sjsb04-route-the-six-resolver-bypass-sites-through-resolve-verb-rep.ipd.md, .aw/records/plans/pending/20261002-dirsilent-04-rlhmt9-split-the-shared-read-write-helpers-and-convert-the-remainin.ipd.md, .aw/records/plans/pending/20261007-dirsilent-05-pua92o-route-the-noun-verb-backend-adapter-through-resolve-verb-rep.ipd.md
 - Item-Dependencies: none
 - Status: to-review
-- Coverage: fail
-- Coverage-Fingerprint: 5cf3bb1cbeb98e218741221737546c67f7d11cb6387761c433a646cef079a02b
+- Coverage: pass
+- Coverage-Fingerprint: c757ac4e13ec027f412a09afa1109268f0b627c0c8dcbf0d6e78a7dc51f4abf1
 - Coverage-Checked: 2026-10-07 by uri/its_direct/pt3-claude-opus-5.5-1m-us
 - Work-Kind: bug
 - Priority: medium
@@ -21,6 +21,7 @@
 - Id: axozpe
 
 ## Workflow history
+- 2026-10-07 coverage pass (aw oc run): fingerprint c757ac4e13ec, model uri/its_direct/pt3-claude-opus-5.5-1m-us
 - 2026-10-07 /plan-review (opencode uri/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; coverage-correction turn 1: PR-001 fixed by adding child Order 05 `pua92o` (owns `cli._nv_backend_args`), OQ-03 resolved non-blocking; PR-002..PR-005 fixed in round 1. Review record round 2.
 - 2026-10-07 coverage fail (aw oc run): fingerprint 5cf3bb1cbeb9, model uri/its_direct/pt3-claude-opus-5.5-1m-us
 - 2026-10-07 /plan-review (opencode uri/its_direct/pt3-claude-opus-5.5-1m-us): REVIEWED - OPEN QUESTIONS; PR-001 (OPEN, escalated as blocking OQ-03), PR-002..PR-005 fixed. Status left `to-review` and `- Readiness:` left ABSENT: `aw ipd coverage axozpe` now fails on the PR-001 gap, and closing it needs the maintainer's OQ-03 scope decision (IPD-S408 R6 path). Review record `.aw/records/reviews/20261007-dirsilent-00-axozpe-stop-the-silent-dir-and-bare-cwd.review.md`.
@@ -155,11 +156,6 @@ THE CROSS-CHILD DEMONSTRATION IS THE SUITE, NOT A SEPARATE MATRIX (corrected at 
 - Context (measured at review, lane HEAD `ad22ff70a`): `cli._nv_backend_args` (the noun-verb adapter, `agent_workflows/cli.py`, "`sub.dir = getattr(args, "dir", None) or os.getcwd()`") converts a BARE invocation into an EXPLICIT `--dir <cwd>` before calling every `aw index|group|rename|archive <type>` backend and the `_run_check` fallback backend. Because the resolver never climbs an explicit `--dir`, a bare call from a subdirectory surveys the subdirectory. Reproduced in this worktree: `aw index research --check --agent` at the root returns `outcome:findings, exit 1, findings 179`; the same command from `docs/` returns `outcome:conforms, exit 0, verified:true, findings 2` (only `stale-index-missing`). That is the same false-clean answer this Set exists to remove, reachable with no flag. Order 03's census missed it because it matched one exact string, and no child covers it; this plan's Deferred row previously named `rlhmt9` as the carrier, which was false.
 - Decision needed: (a) add a fifth child (Order 05) that routes `_nv_backend_args` through `resolve_verb_repo_root` and adds the refusal to its read-class verbs (`index ... --check`), with write-class `group`/`rename`/`archive` getting the climb but no refusal; (b) widen Order 03 `sjsb04` to include it as a seventh site; or (c) decline it for this Set and file a new backlog item inheriting `- Blocks-Release: next`. Reviewer recommendation: (a), because the site feeds WRITE verbs too (`group`/`rename`/`archive`), so changing its bare-case root is a write-target change that needs its own negative controls, which is outside Order 03's stated "single-expression" risk profile. This is a scope decision for the maintainer, so it is not resolved here.
 - Resolution or deferral rationale: RESOLVED (coverage-correction turn 1, 2026-10-07): option (a). A new child, Order 05 `pua92o`, owns the site. It routes the adapter through the resolver so a bare call climbs and adds NO refusal, because the `index` backends sit behind helpers `rlhmt9` F-02 measured as single-class write, and the Set excludes write-side refusals (`lmyeas` OQ-01). The orchestrator coverage gate refused the plan until the site had an owner, and the AGENTS contract names adding a child as the remedy ("WHEN IT FIRES, ADD A CHILD"). Option (b) would have widened `sjsb04` past its single-expression risk profile. Option (c) would have left a known false-clean answer in a release-gated Set. The maintainer can still reject `pua92o` at approval, so this choice is reversible. OQ-01's FOUR-child answer is superseded to FIVE by this resolution: Order 05 is a distinct mechanism (one adapter feeding every noun-verb backend) whose evidence is a bare-climb matrix, consistent with OQ-01's split-by-mechanism rule.
-
-## Coverage findings
-
-- "The noun-verb backends reached through `cli._nv_backend_args` are NOT yet owned; see OQ-03."
-- "- Under-scope: ONE KNOWN GAP, held open by blocking OQ-03 (PR-001): the seventh bypass site `cli._nv_backend_args` is owned by no child yet."
 
 ## Validation and cross-check (verify before reporting the Set complete)
 
