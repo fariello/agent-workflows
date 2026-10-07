@@ -35,9 +35,11 @@ DECISION ORDER (field first, prose only as a bounded fallback):
   is refused too: it asserts a clearance that never happened (rdattest ``8v5pwa``; see
   :func:`is_plan_review_approved` for the measured forgery). The field still decides WHAT the answer
   is when it is attested, so prose is never consulted to overrule an attested field.
-- Field ABSENT -> fall back to the CORRECTED newest history record, accepting only verdict
+- Field ABSENT -> fall back to the CORRECTED newest history record, requiring review provenance
+  (:func:`is_review_history_entry`) on that record and accepting only verdict
   ``APPROVE`` / ``APPROVE WITH REVISIONS APPLIED`` with no negative readiness token and no
-  unresolved blocking open question.
+  unresolved blocking open question. Absence does not fail closed outright; it falls back to
+  an unforgeable review record.
 - Field PRESENT but OUT-OF-VOCAB (e.g. ``Readiness: bogus``) -> refused OUTRIGHT, with no fallback.
   This case is deliberately NOT treated as absence: the review DID try to record a readiness and we
   cannot tell what it meant, so falling back to prose could approve a plan whose author was trying
@@ -386,9 +388,10 @@ def is_plan_review_approved(plan_path: Path) -> bool:
 
     Decision order (see the module docstring): a valid structured ``- Readiness:`` field decides WHAT
     the answer is, but only once the plan's own ``## Workflow history`` shows a review PRODUCED it;
-    when the field is absent, a bounded back-compat fallback reads the CORRECTED newest history record
-    and accepts only an approving verdict with no unresolved blocking open question; when the field is
-    present but out-of-vocab, the plan is refused outright with no fallback.
+    when the field is absent, a bounded back-compat fallback reads the CORRECTED newest history record,
+    requires review provenance on that record (:func:`is_review_history_entry`), and accepts only an
+    approving verdict with no unresolved blocking open question; when the field is present but
+    out-of-vocab, the plan is refused outright with no fallback.
 
     THE FIELD IS NO LONGER BELIEVED ON ITS OWN (rdattest ``8v5pwa``). ``IPD-M107`` already refuses a
     hand-written ``- Readiness:`` at LINT time, but this PREDICATE accepted one, and it is the
@@ -399,6 +402,17 @@ def is_plan_review_approved(plan_path: Path) -> bool:
     must now AGREE: :func:`history_has_review_record` must find a record whose own status/workflow
     middle marks it a review, which a MENTION of `plan-review`/`APPROVE`/`REJECT` in a non-review
     record does not satisfy.
+
+    THE FALLBACK ARM REQUIRES PROVENANCE ON THE RECORD WHOSE VERDICT IT READS (plan ``l56tyz``).
+    The arm now answers BOTH questions the field arm answers (did a review run, and did it clear
+    the plan) about the ONE record it reads. :func:`is_review_history_entry` guarantees review
+    provenance; :func:`history_verdict_approves` alone is a vocabulary scan over one record's text
+    and cannot tell a review record from a `to-review` or `draft` record quoting the word `APPROVE`.
+    An ANY-record provenance test (:func:`history_has_review_record`) is deliberately NOT used here
+    because it would let a non-review record supply the verdict for a plan whose actual review rejected
+    it (e.g. a `/plan-review REJECT` followed by a newer `to-review: now APPROVE`).
+    Note that the three documents' "absence FAILS CLOSED" claim remains FALSE even after this change:
+    absence still falls back to prose; it is now merely unforgeable.
 
     WHAT THIS DELIBERATELY DOES NOT CHECK: that the review's verdict was POSITIVE. The question here
     is PROVENANCE ("did a review write this field"), and the verdict question is already owned by
@@ -428,7 +442,20 @@ def is_plan_review_approved(plan_path: Path) -> bool:
         return False
 
     # Back-compat fallback for a plan reviewed before the field existed.
-    if not history_verdict_approves(extract_newest_history_entry(text)):
+    # The arm answers BOTH questions the field arm answers (did a review run, and did it clear
+    # the plan) about the ONE record it reads. :func:`is_review_history_entry` guarantees review
+    # provenance; :func:`history_verdict_approves` alone is a vocabulary scan over one record's
+    # text and cannot tell a review record from a `to-review` or `draft` record quoting the word
+    # `APPROVE`.
+    #
+    # We deliberately test the NEWEST record rather than using `history_has_review_record` here:
+    # in this arm the verdict comes from that specific record, and an any-record test would let a
+    # newer non-review record supply an APPROVE verdict for a plan whose real review rejected it.
+    # Note that absence still falls back rather than failing closed outright; it is merely unforgeable.
+    newest = extract_newest_history_entry(text)
+    if not is_review_history_entry(newest):
+        return False
+    if not history_verdict_approves(newest):
         return False
     if has_unresolved_blocking_question(text):
         return False

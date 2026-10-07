@@ -46,14 +46,18 @@ A plan may also carry the optional, recognized `- Readiness: <go | go-pending-ap
 front-matter field: the STRUCTURED readiness `/plan-review` records, mapped from its own readiness
 vocabulary (GO / GO - PENDING HUMAN APPROVAL / NO-GO). It is the machine signal automation reads
 instead of matching prose in the history line. It is OPTIONAL, and ABSENT MEANS UNKNOWN, NOT CLEAR:
-a consumer that finds no field (or an out-of-vocab value) FAILS CLOSED. `Readiness` states what the
+downstream consumers evaluate readiness using a three-way rule: a valid attested field decides; a
+corrupt (out-of-vocab) value refuses outright with no fallback; and an absent field falls back to
+history prose, clearing the plan only if the newest history record is a genuine review record with an
+approving verdict. `Readiness` states what the
 REVIEW concluded; `Status` states where the plan is in the lifecycle. They are independent, and
 `Readiness: go-pending-approval` is never by itself permission to execute. The field is written by
 `/plan-review` and is absent exactly when no review has recorded a verdict, so a plan at `draft` or
 `to-review` has no field and that is correct. The field is not backfilled onto plans lacking one,
 decided in backlog `0z1b2s`. A hand-written value asserts a review that never ran, violating the
 `AGENTS.md` "NEVER WRITE ANOTHER ROLE'S ATTESTATION FIELD" prohibition and repeating the 2026-09-06
-incident behind it. Because absence is already the fail-closed state, uniformity would buy nothing
+incident behind it. Because absence already falls back to an unforgeable review record and corrupt
+values refuse outright, uniformity would buy nothing
 and cost the field its meaning; both `IPD-M107` and `aw ipd recheck-readiness` enforce this
 mechanically. Absence means no verdict was recorded rather than no review was attempted:
 `/plan-review`'s R6 orchestrator-exhaustion path deliberately leaves the field absent after a review

@@ -329,9 +329,10 @@ PLAN_WORK_KIND_UNRESOLVED = "unresolved"
 # from `/plan-review`'s existing readiness vocabulary: GO -> `go`, GO - PENDING HUMAN APPROVAL ->
 # `go-pending-approval`, NO-GO -> `no-go`. Recognized but OPTIONAL (NOT in META_REQUIRED, mirroring
 # META_SCOPE_PATHS / META_PRIORITY / META_WORK_KIND): recognition here only stops the IPD-M103
-# "unknown field" lint error, so no existing plan is mass-failed (the grandfather guarantee).
-# ABSENT MEANS UNKNOWN, NOT CLEAR: the consumer (`plan_readiness.is_plan_review_approved`) FAILS
-# CLOSED on an absent or out-of-vocab value; it never treats absence as an approval.
+# ABSENT MEANS UNKNOWN, NOT CLEAR: consumers evaluate readiness with a three-way rule where a
+# valid attested field decides, a corrupt (out-of-vocab) value refuses outright with no fallback,
+# and an absent field falls back to history prose, clearing the plan only if the newest history
+# entry is a genuine review record with an approving verdict.
 META_READINESS = "Readiness"
 # The closed value enum. `read_readiness` returns None for anything outside it (fail closed).
 READINESS_VALUES: FrozenSet[str] = frozenset(("go", "go-pending-approval", "no-go"))
@@ -427,8 +428,9 @@ def read_readiness(text: str) -> Optional[str]:
 
     Returns one of ``READINESS_VALUES`` for a recognized value, and None when the field is ABSENT or
     carries anything outside the enum. Absent and unrecognized are DELIBERATELY the same answer to
-    the caller: both mean "the review recorded no machine-readable readiness", and the consumer
-    (`plan_readiness.is_plan_review_approved`) FAILS CLOSED on None rather than guessing. Value
+    the caller: both mean "the review recorded no machine-readable readiness"; downstream consumers
+    distinguish the two so that a corrupt value refuses outright while an absent field falls back
+    to history prose. Value
     matching is case-insensitive so a reviewer who writes the workflow's shouty ``NO-GO`` still gets
     the safe answer instead of an unparseable one; the FIELD NAME is matched exactly, as elsewhere.
 
