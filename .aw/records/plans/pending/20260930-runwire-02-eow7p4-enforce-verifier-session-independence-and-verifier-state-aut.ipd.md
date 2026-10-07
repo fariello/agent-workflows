@@ -17,11 +17,12 @@
 - From-Backlog: ildjse
 - Set: runwire
 - Order: 2
-- Highest E allocated: 04
+- Highest E allocated: 05
 - Author: opencode/its_direct/pt3-claude-opus-5-1m-us
 - Id: eow7p4
 
 ## Workflow history
+- 2026-10-07 note (opencode its_direct/pt3-claude-opus-5.5-1m-us): added E-05/V-05, the Set-level checks orchestrator `i18yaz` carried with no owner; this plan runs last, after `32jpl1`. Measurement only; no scope change.
 - 2026-10-06 draft (aw set): demoted to-review -> draft: returned to authoring by gradcover 52opph: uncovered obligation: Bare pytest compared against a baseline measured before any edit
 
 - 2026-09-30 to-review (opencode/its_direct/pt3-claude-opus-5-1m-us): Authored from backlog `ildjse` in lane worktree `ildjse` at HEAD `cedab274`. THE BACKLOG ITEM SAYS ONLY "nothing checks its authority"; this plan exists because that phrase turned out to name a CHECKABLE, ALREADY-BUILT guarantee rather than an abstraction. Three measurements shaped it. FIRST, `_v_session` occurs exactly ONCE in `runner_shared.py` (the destructuring that discards it), while the execute turn's session id IS persisted as `attempt["session_id"]`, so the comparison needs no new data collection - only the comparison. SECOND, the refusal already ships twice (`agy_verifier.assert_distinct_sessions`, and `run_fresh_verifier`'s `enforce_role_action` call) and `verify_roles.ROLE_CONTRACTS['verifier'].state_authority` grants precisely the three verification edges. THIRD, and decisively, `host_sandbox_profile` PROBES `supports_fresh_verifier_session` and `ACTION_CAPABILITY_REQUIREMENTS` has exactly ONE row (`ACTION_READ_ONLY`, `required=()`), so the probe's verdict gates no action at all; the module's own docstring warns that a contract that never refuses leaves "a caller [believing] verification was independent", which is the runner's current state.
@@ -68,6 +69,11 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   COVER BOTH HOSTS, because their verifier defaults DIFFER and an oc-only proof leaves the more exposed host unproven. `1bfppy`'s review recorded the asymmetry: agy gates the verifier on `not no_verify` (default TRUE) while oc gates on `validate` (default FALSE), so the verifier path is agy's SHIPPED DEFAULT. Re-measure both defaults at execution by SYMBOL and report what you find rather than trusting this sentence.
   - Depends on: E-03
   - Expected outcome: tests in `tests/test_runwire_verifier_authority.py` establishing (a)-(d) by driving the real path on BOTH hosts, with the collision guard shown to BITE by mutation (remove the comparison, watch the collision test fail); both hosts' verifier-gating defaults re-measured and reported; no test reads production source; the full bare suite at or above the lane baseline.
+  - Execution state: pending
+
+- [ ] E-05 RUN THE SET-LEVEL CHECKS orchestrator `i18yaz` assigns to this plan, because this plan executes after `32jpl1` and is the only point where both children's changes exist together. Measurement only, changing no file for this item: (a) ONE TRANSLATION: exactly one definition site of the driver-status-to-`run_state` translation across `agent_workflows/`, in `runner_shared`; (b) NO PRIVATE HOST COPY: neither `oc_runipd.py` nor `agy_runipd.py` defines its own transition check or session-independence test; (c) VOCABULARY UNCHANGED: `TERMINAL_STATES_CANONICAL`, `TERMINAL_STATUS_ALIASES` and `runner_shutdown.KNOWN_ITEM_STATUSES` are member-identical to their values at `32jpl1`'s base commit; (d) LEDGER FENCE: neither child's changed files import `run_engine` or `run_recovery`, and no child writes a `ledger.jsonl`; (e) `run_recovery` is still unimported by both drivers, recorded as a residual; (f) the bare suite against this lane's own pre-work baseline. A failure of (a) to (d) is reported and this plan is not finalized as passing.
+  - Depends on: E-04
+  - Expected outcome: (a) to (f) each answered with pasted evidence.
   - Execution state: pending
 
 ## Project conventions discovered (Step 0)
@@ -172,6 +178,11 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 
 - [ ] V-04 validates E-04
   - Required evidence: PASTE the tests and their passing output, covering all four properties (a)-(d) on BOTH hosts. DEMONSTRATE THE GUARD BITES BY MUTATION: remove the session comparison, show the collision test FAILS, revert, show it passes; paste both outputs, since an unmutated guard does not satisfy this item. PASTE both hosts' verifier-gating defaults AS RE-MEASURED at execution (by symbol), not as quoted from this plan. CONFIRM by quoting the test source that it contains no `inspect`, no `ast`, no regex over production source, and no caller-count or line-count assertion. PASTE the full bare `python3 -m pytest` summary line and the pre-work baseline, accounting for any difference.
+  - Observed evidence:
+  - Result: pending
+
+- [ ] V-05 validates E-05
+  - Required evidence: paste (a) the definition-site grep with its single hit; (b) the two host-module greps returning nothing; (c) the before/after member comparison of the three collections; (d) the import and `ledger.jsonl` greps over both children's changed files; (e) the `run_recovery` import grep over both drivers; (f) the bare `python3 -m pytest` summary line beside the lane's pre-work baseline.
   - Observed evidence:
   - Result: pending
 

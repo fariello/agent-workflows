@@ -24,6 +24,7 @@
 - Id: i18yaz
 
 ## Workflow history
+- 2026-10-07 note (opencode its_direct/pt3-claude-opus-5.5-1m-us): each criterion and Set-level check now leads with its owner; the cross-child checks are owned by `eow7p4` E-05, which runs last.
 - 2026-10-06 draft (aw set): demoted to-review -> draft: returned to authoring by gradcover 52opph: uncovered obligation: Bare pytest compared against a baseline measured before any edit
 
 - 2026-10-06 coverage fail (aw oc run): fingerprint 086243502328, model uri/its_direct/pt3-claude-opus-5.5-1m-us
@@ -67,20 +68,20 @@ WHY 02 DEPENDS ON 01 rather than being independent: 02's authority check asks "i
 
 ## Completion criteria (the whole Set is done only when)
 
-- ONE translation exists from a driver item status to a `run_state` position, in `runner_shared` (the module both hosts already share), and neither driver carries a private copy.
-- Every driver item-status write is checked against `run_state`'s legal transition table, and an illegal transition is RECORDED with the edge it attempted.
-- The verifier turn's session identity is compared against the execute turn's, and a collision is refused rather than discarded.
-- The verifier's `state_authority` from `verify_roles.ROLE_CONTRACTS` is consulted before a verdict downgrades an item.
-- NO driver status token is renamed or removed; `TERMINAL_STATES_CANONICAL`, `TERMINAL_STATUS_ALIASES` and `runner_shutdown.KNOWN_ITEM_STATUSES` are member-identical before and after.
-- The full suite passes with actual pasted output, at or above the lane's pre-work baseline.
-- `run_recovery` remains unimported by both drivers and that residual is recorded, not hidden.
+- [Owner: 32jpl1] ONE translation exists from a driver item status to a `run_state` position, in `runner_shared` (the module both hosts already share), and neither driver carries a private copy.
+- [Owner: 32jpl1] Every driver item-status write is checked against `run_state`'s legal transition table, and an illegal transition is RECORDED with the edge it attempted.
+- [Owner: eow7p4] The verifier turn's session identity is compared against the execute turn's, and a collision is refused rather than discarded.
+- [Owner: eow7p4] The verifier's `state_authority` from `verify_roles.ROLE_CONTRACTS` is consulted before a verdict downgrades an item.
+- [Owner: 32jpl1, rechecked by eow7p4 E-05] NO driver status token is renamed or removed; `TERMINAL_STATES_CANONICAL`, `TERMINAL_STATUS_ALIASES` and `runner_shutdown.KNOWN_ITEM_STATUSES` are member-identical before and after.
+- [Owner: each child at its boundary; eow7p4 E-05 last] The full suite passes with actual pasted output, at or above the lane's pre-work baseline.
+- [Owner: eow7p4 E-05] `run_recovery` remains unimported by both drivers and that residual is recorded, not hidden.
 
 ## Cross-IPD validation
 
-- NO SECOND STATE MACHINE: after both children, exactly one module defines the driver-status-to-`run_state` translation. Proven by grepping for the translation symbol across `agent_workflows/` and asserting one definition site.
-- NO PRIVATE HOST COPY: neither `oc_runipd.py` nor `agy_runipd.py` carries its own transition check or its own session-independence test; both reach the shared ones through `runner_shared`. This mirrors `tests/test_runner_refork_guard.py`'s existing role for the verdict table.
-- VOCABULARY UNCHANGED: the before/after member comparison from E-02, run once for the Set.
-- THE LEDGER FENCE HELD: neither child imports `run_engine` or `run_recovery`, and no child writes a `ledger.jsonl`. Proven by grep across both children's changed files.
+- [Owner: eow7p4 E-05, which runs last] NO SECOND STATE MACHINE: after both children, exactly one module defines the driver-status-to-`run_state` translation. Proven by grepping for the translation symbol across `agent_workflows/` and asserting one definition site.
+- [Owner: eow7p4 E-05, which runs last] NO PRIVATE HOST COPY: neither `oc_runipd.py` nor `agy_runipd.py` carries its own transition check or its own session-independence test; both reach the shared ones through `runner_shared`. This mirrors `tests/test_runner_refork_guard.py`'s existing role for the verdict table.
+- [Owner: eow7p4 E-05, which runs last] VOCABULARY UNCHANGED: the before/after member comparison from E-02, run once for the Set.
+- [Owner: eow7p4 E-05, which runs last] THE LEDGER FENCE HELD: neither child imports `run_engine` or `run_recovery`, and no child writes a `ledger.jsonl`. Proven by grep across both children's changed files.
 
 ## Deferred / out of scope (with reason)
 
@@ -102,9 +103,9 @@ WHY 02 DEPENDS ON 01 rather than being independent: 02's authority check asks "i
 
 ## Required tests / validation
 
-- `python3 -m pytest` run BARE (the configured `addopts` already supply `-q -n auto --dist=worksteal -m 'not slow'`), with the actual `N passed` summary line pasted, compared against a baseline measured in this same lane worktree BEFORE any edit.
-- Each child's own new tests, which must drive real functions and assert on real outputs (no `inspect`/`ast`/regex over production source, no caller-count or line-count assertions; GUIDING_PRINCIPLES P16).
-- The four cross-IPD checks above, each with pasted evidence.
+- [Owner: eow7p4 E-05/V-05, plus each child's own V-items] `python3 -m pytest` run BARE (the configured `addopts` already supply `-q -n auto --dist=worksteal -m 'not slow'`), with the actual `N passed` summary line pasted, compared against a baseline measured in this same lane worktree BEFORE any edit.
+- [Owner: eow7p4 E-05/V-05, plus each child's own V-items] Each child's own new tests, which must drive real functions and assert on real outputs (no `inspect`/`ast`/regex over production source, no caller-count or line-count assertions; GUIDING_PRINCIPLES P16).
+- [Owner: eow7p4 E-05/V-05, plus each child's own V-items] The four cross-IPD checks above, each with pasted evidence.
 
 ## Open questions
 
