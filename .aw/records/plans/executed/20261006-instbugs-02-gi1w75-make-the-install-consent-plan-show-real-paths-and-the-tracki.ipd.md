@@ -6,7 +6,7 @@
 - Scope: IN: (1) the consent plan prints the physical path each class resolves to, in every placement branch, with a file path where the class is a file; (2) every target-placement preset declares `state_durable` as `target-ignored` / `ignored`, matching the ignore rule, in all THREE places that derive it (`install_wizard.get_preset_defaults` private-target and custom branches, `project_schema.PRESET_PLACEMENTS`, and the per-class `git_policies` computed in `project_context.resolve_project_context`), plus the spec 6 preset table row; (3) the "Target Delta" line lists what is written AND whether it is tracked, consistent with the tables; (4) an upgrade over an existing `project.json` that still declares `state_durable: target-git` normalizes it to `ignored` and says so in the install output. OUT: what the installer writes and where (Order 03 `pfub72`); what is staged (Order 04 `gzsfqn`); companion-placement presets (a private companion repo is not a publication surface; unchanged and stated); clean-delta presets writing `.aw/config/` and `.aw/state/` into the target despite the 'ZERO AW-owned target files' line (backlog `mbx0o4`, found at review).
 - Scope-Paths: agent_workflows/install_wizard.py, agent_workflows/project_schema.py, agent_workflows/project_context.py, tests/test_install_consent_truth.py, tests/fixtures/awphysical/order02/e01-portable-and-local.json, .aw/records/specs/implemented/20260810-1447-01-physical-aw-hierarchy-placement-and-migration.spec.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: high
@@ -16,9 +16,9 @@
 - Highest E allocated: 06
 - Author: antigravity/claude-opus-5.5
 - Id: gi1w75
-- Approval: 2026-10-07, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-07 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: gi1w75 verified (set instbugs, attempt 1). [Scope reconciliation - out-of-scope agent_workflows/cli.py: changed by the plan's approved execution (auto-reconciled by aw agy run); in-scope-unmodified tests/fixtures/awphysical/order02/e01-portable-and-local.json: declared-but-unmodified (auto-acknowledged by aw agy run)]
 - 2026-10-07 approved (aw set): status set to approved
 - 2026-10-07 same-status (aw set): gate on release 2.0.0 (f33nrj) at the maintainer's instruction 2026-10-06: all instbugs plans block 2.0.0
 - 2026-10-07 reviewed (aw set): plan-review
