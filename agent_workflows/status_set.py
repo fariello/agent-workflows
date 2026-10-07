@@ -2196,14 +2196,12 @@ def _refuse_unsafe_descriptive(
 ) -> str | None:
     """Judge one descriptive value against Section 8.8 output-safety.
 
-    Delegates to backlog._refuse_unsafe_descriptive to keep refusal wording byte-identical
-    across trees without a third copy (IPD 4gwgo3 E-01).
+    Delegates to attention_contract.refuse_unsafe_descriptive (IPD 685iq8).
+    Preserves module-private name for existing call sites and shipped tests.
     """
-    from agent_workflows import backlog as _backlog
+    from agent_workflows import attention_contract as _ac
 
-    return _backlog._refuse_unsafe_descriptive(
-        verb, flag, value, bound_length=bound_length
-    )
+    return _ac.refuse_unsafe_descriptive(verb, flag, value, bound_length=bound_length)
 
 
 def run_set_command(

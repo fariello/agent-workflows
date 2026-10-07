@@ -52,6 +52,7 @@ from typing import (
 )
 
 from agent_workflows import contention_wait
+from agent_workflows.artifact_core import replacement_mode
 
 # --------------------------------------------------------------------------------------
 # Execution ROLE (wtiso-03 `rchpms` E-04). x03wgn Section 2 "Receipt ownership does not mean agent
@@ -4006,11 +4007,15 @@ def _rollback_precommit(
     if restore_origin:
         try:
             orig_abs.parent.mkdir(parents=True, exist_ok=True)
+            mode = journal.get("original_mode")
+            if mode is None:
+                mode = replacement_mode(orig_abs)
             fd, tmp = tempfile.mkstemp(
                 dir=str(orig_abs.parent), prefix=".rb-", suffix=".md"
             )
             with os.fdopen(fd, "w", encoding="utf-8") as fh:
                 fh.write(orig_bytes)
+            os.chmod(tmp, mode)
             os.replace(tmp, str(orig_abs))
         except OSError as exc:
             return (False, f"rollback could not restore {orig_rel}: {exc}")
@@ -5076,6 +5081,7 @@ def _finalize_transaction(
         "plan_digest": plan_content_digest(original_bytes),
         "original_path": plan_rel,
         "original_bytes": original_bytes,
+        "original_mode": replacement_mode(plan_path),
         "dest_path": dest_rel,
         "pre_head": pre_head,
         "owned_paths": owned_paths,

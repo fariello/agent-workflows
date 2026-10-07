@@ -1,5 +1,5 @@
 - Id: 10w6ww
-- Status: graduated
+- Status: done
 - Graduated-To: 10w6ww
 - Blocks-Release: next
 - Set: 10w6ww
@@ -8,6 +8,7 @@
 - Summary: Outer backlog close predicate ignores spec carriers when IPD carrier exists
 
 ## Workflow history
+- 2026-10-07 done (aw backlog): closed by aw agy run: IPD 5eygjt executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20261002-10w6ww-01-5eygjt-make-the-outer-backlog-close-predicate-judge-spec-carriers-i.ipd.md); evidence .aw/records/plans/executed/20261002-10w6ww-01-5eygjt-make-the-outer-backlog-close-predicate-judge-spec-carriers-i.ipd.md
 - 2026-10-02 graduated (aw backlog): graduated by run run-20261001T221821Z-1985969: 5eygjt
 - 2026-10-01 created (aw backlog): Outer backlog close predicate ignores spec carriers when IPD carrier exists
 

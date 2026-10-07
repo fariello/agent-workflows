@@ -1,5 +1,5 @@
 - Id: zllcnv
-- Status: graduated
+- Status: done
 - Graduated-To: zllcnv
 - Set: zllcnv
 - Priority: low
@@ -7,6 +7,7 @@
 - Summary: Hoist the duplicated _refuse_unsafe_descriptive helper into attention_contract once backlog, specs and research all ship their own copy, reconciling the refusal wording deliberately rather than as collateral; recorded by uz05bl OQ-02 as a third-consumer decision
 
 ## Workflow history
+- 2026-10-07 done (aw backlog): closed by aw agy run: IPD 685iq8 executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20261002-zllcnv-01-685iq8-hoist-the-duplicated-descriptive-refusal-helper-into-attenti.ipd.md); evidence .aw/records/plans/executed/20261002-zllcnv-01-685iq8-hoist-the-duplicated-descriptive-refusal-helper-into-attenti.ipd.md
 - 2026-10-02 graduated (aw backlog): graduated by run run-20261001T222151Z-2118435: 685iq8
 - 2026-10-01 created (aw backlog): Hoist the duplicated _refuse_unsafe_descriptive helper into attention_contract once backlog, specs and research all ship their own copy, reconciling the refusal wording deliberately rather than as collateral; recorded by uz05bl OQ-02 as a third-consumer decision
 
