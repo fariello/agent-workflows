@@ -13,11 +13,12 @@
 - Blocks-Release: next
 - Set: lifegate
 - Order: 3
-- Highest E allocated: 04
+- Highest E allocated: 05
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: m47znv
 
 ## Workflow history
+- 2026-10-07 note (opencode its_direct/pt3-claude-opus-5.5-1m-us): added E-05/V-05, the four Set-level checks orchestrator `u4glub` carried with no owner; this plan runs last. Measurement only; no scope change.
 - 2026-10-06 draft (aw set): demoted approved -> draft: APPROVAL WITHDRAWN: returned to authoring by gradcover 52opph: uncovered obligation: Four checks span the children and cannot be performed by any child alone, which is why they live here.
 - 2026-10-01 approved (aw set): status set to approved
 
@@ -112,6 +113,11 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - ADD THE `driver_begin` DIAGNOSTIC-INTEGRITY ARM (added at review, PR-001). Drive `runner_shared.driver_begin` (or the narrowest faithful equivalent that still exercises the real argv construction and the real `nested_aw_message` call) against a plan for which a LANE EXISTS, with begin refusing for an UNRELATED reason, and assert the returned diagnostic still LEADS WITH the real refusal and is not led or polluted by the nudge. This is the arm that pins the fix for the one measured defect in this plan, and it is a BEHAVIOR assertion on a returned string, not a structure pin. Also assert the contrasting finalize path stays unaffected, since `driver_finalize` passes `--json` and is fenced by the existing suppression.
   - Depends on: E-03
   - Expected outcome: a new passing test file with its bare `python3 -m pytest` output pasted, plus the mutation demonstration V-04 requires showing each arm is sensitive.
+  - Execution state: pending
+
+- [ ] E-05 RUN THE FOUR SET-LEVEL CHECKS orchestrator `u4glub` assigns to this plan, because this plan executes after `urv602` and `e25iy9` (its dependency chain) and is the only point where all three children's changes exist together. Measurement only, changing no file for this item, each against the COMBINED diff of the three children: (a) THE REFUSAL SURFACE SHRANK AND DID NOT MOVE: list every refusal added, removed or relocated across the three, and confirm the net is one deleted (location plus token), one added (live holder, including undeterminable), one relocated unchanged (the worker label), and one advisory that refuses nothing (this plan's); (b) THE ENVIRONMENT FENCE HELD: no site in the combined diff reads a run id from the environment for authority purposes; (c) THE TWO QUESTIONS STAYED DISTINCT: this plan's lane-exists query does not call `urv602`'s holder predicate; (d) EXACTLY ONE CHILD AMENDED A SPEC: the only `.spec.md` files changed are `7ckptx` and `llbr2b`, both in `e25iy9`'s commits, and `7ckptx` R4.5's honest-limit sentence survives verbatim. A failure is reported and this plan is not finalized as passing.
+  - Depends on: E-04
+  - Expected outcome: (a) to (d) each answered with pasted evidence from the combined diff.
   - Execution state: pending
 
 ## Project conventions discovered (Step 0)
@@ -223,6 +229,11 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 
 - [ ] V-04 validates E-04
   - Required evidence: the new test file's bare `python3 -m pytest` output pasted; the pre-edit and post-edit full-suite `N passed` lines from bare runs, BOTH measured in this lane (do not compare against a number written in any plan; the suite moves by dozens of tests per day, measured 3531 passed at this review); the named lifecycle and runner suite summaries (`tests/test_runner_finalize_message.py`, `tests/test_oc_runipd.py`, `tests/test_agy_runipd_cli.py` at minimum). Plus every arm asserted, explicitly including the ENDED-RUN case still nudging and exit-code invariance in EVERY arm. Plus THE `driver_begin` DIAGNOSTIC-INTEGRITY ARM (PR-001): a begin refusal recorded while a lane exists, shown leading with the real refusal rather than the nudge. Plus the mutation demonstration: for each arm, the pasted failure produced by the smallest breaking change (wire the query to the holder predicate; emit on stdout; emit under `--agent`; let the query raise; AND remove the `driver_begin` fix) and confirmation the code was restored. Plus an explicit statement that no test reads module source, censuses callers, or asserts which module defines a symbol.
+  - Observed evidence:
+  - Result: pending
+
+- [ ] V-05 validates E-05
+  - Required evidence: paste (a) the refusal table built from the three children's diffs with each row's commit; (b) a grep of the combined diff for environment reads of the run id with each hit classified; (c) the lane-exists query's body showing no call to the holder predicate; (d) the list of `.spec.md` paths changed by each child's commits and the quoted R4.5 sentence before and after.
   - Observed evidence:
   - Result: pending
 

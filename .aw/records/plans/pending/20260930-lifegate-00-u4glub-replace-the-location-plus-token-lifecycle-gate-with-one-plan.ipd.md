@@ -21,7 +21,8 @@
 - Id: u4glub
 
 ## Workflow history
-- 2026-10-06 draft (aw set): demoted to-review -> draft: returned to authoring by gradcover 52opph: uncovered obligation: Four checks span the children and cannot be performed by any child alone, which is why they live here.
+- 2026-10-07 note (opencode its_direct/pt3-claude-opus-5.5-1m-us): each criterion and Set-level check now leads with its owner; the four cross-child checks are owned by `m47znv` E-05, which runs last.
+- 2026-10-06 draft (aw set): demoted to-review -> draft: returned to authoring by gradcover 52opph: uncovered obligation: Four checks span the children. [Owner of all four: `m47znv` E-05/V-05, which runs last, after `urv602` and `e25iy9`, against the combined diff. This plan performs none of them.]
 
 - 2026-10-06 coverage fail (aw oc run): fingerprint 738eddaa0f01, model uri/its_direct/pt3-claude-opus-5.5-1m-us
 - 2026-09-30 to-review (opencode its_direct/pt3-claude-opus-5-1m-us): Graduated backlog `dvonrn` as a Set of three children rather than one plan. Decisions D1-D8 were settled with the maintainer on 2026-09-26 and are IMPLEMENTED here, not reopened. THREE MEASUREMENTS IN THIS LANE CHANGED THE SET'S SHAPE FROM THE ITEM'S DESCRIPTION. FIRST, D2's liveness rule is unimplementable against today's records: `runner_shared.run_lock` writes only `pid=` and `started=` into `driver.lock`, and `state.json` has no machine field at all (its `host` means the agent program, `oc` or `agy`), so the cross-machine case D3 exists to make safe has no input to read. That is what makes Order 01 a separate, refusal-free plan rather than a paragraph inside the deletion. SECOND, D2 specifies the runner passes its own run id as the holder exception, and the transport already exists AND already reaches the worker: both hosts export `git_commit_helper.RUN_ID_ENV` (`AW_RUN_ID`) into the child environment for commit trailers. That simplifies Order 02 (no new variable) and creates the Set's sharpest hazard, since an environment default for the exception would hand the lane agent exactly the bypass D2 denies it; Order 02's E-05 fences it and its V-05 pins the fence with a mutation case. THIRD, the token's surface is eleven sites across five modules, not the two gate blocks the item describes, including a `get_run_attestation` that lazily MINTS a token for any existing run directory and a `_call_driver_finalize` that signature-inspects for the `attestation` keyword; a two-site deletion would have left a dead parameter threaded through five functions.
@@ -99,24 +100,24 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 All six must hold. Each is falsifiable from artifacts on disk or from pasted evidence, so a reviewer can
 check them without re-deriving the design.
 
-1. ALL THREE CHILDREN READ `executed` ON DISK, in `.aw/records/plans/executed/`, each with every `V-*`
+1. [Owner: urv602, e25iy9 and m47znv] ALL THREE CHILDREN READ `executed` ON DISK, in `.aw/records/plans/executed/`, each with every `V-*`
    carrying concrete pasted evidence rather than a placeholder. The directory is the harder-to-forge
    signal and is checked alongside the status field.
-2. THE TWO MEASURED DEFECTS ARE CLOSED AND PINNED AS TEST CASES, not asserted in prose. A human's own
+2. [Owner: e25iy9] THE TWO MEASURED DEFECTS ARE CLOSED AND PINNED AS TEST CASES, not asserted in prose. A human's own
    worktree under `.aw/worktrees/` with no live run now succeeds (the `feat-partition` refusal of
    2026-09-26), and a lane whose runner died now succeeds (the recovery hole). Both live in Order 02's
    test file.
-3. NOTHING KEYS ON LOCATION ANY MORE. `lane_worktree_active` does not exist, neither remaining gate tests
+3. [Owner: e25iy9] NOTHING KEYS ON LOCATION ANY MORE. `lane_worktree_active` does not exist, neither remaining gate tests
    a path or a branch name, and the only refusals in the three core functions are the worker label and the
    live-holder check.
-4. NO SECRET REMAINS. `AW_DRIVER_ATTEST`, the token file, its minting, its verification, its caching and
+4. [Owner: e25iy9] NO SECRET REMAINS. `AW_DRIVER_ATTEST`, the token file, its minting, its verification, its caching and
    its withholding are all gone from the package, with no dead parameter left threaded through any
    function.
-5. EVERY ENTRY POINT IS COVERED BY ONE PREDICATE, demonstrated by Order 02's D4 matrix test driving
+5. [Owner: e25iy9 (its D4 matrix test)] EVERY ENTRY POINT IS COVERED BY ONE PREDICATE, demonstrated by Order 02's D4 matrix test driving
    `aw ipd begin`, `aw ipd finalize`, `aw set executed`, `aw ipd set executed`, orchestrator retirement and
    the runner's own begin and finalize, each refusing identically against a held plan and each proceeding
    with the holder's run id. This is the criterion that stops a future caller silently skipping the check.
-6. THE WORKER-LABEL CHECK STILL WORKS AND STILL RUNS FIRST, including the environment fence: a
+6. [Owner: e25iy9 (its V-05)] THE WORKER-LABEL CHECK STILL WORKS AND STILL RUNS FIRST, including the environment fence: a
    worker-labelled caller with `AW_RUN_ID` set in its environment is still refused. Order 02's V-05 pins
    it with a mutation case, because this is the one way the Set could pass every other test while silently
    reintroducing a lane bypass.
@@ -125,21 +126,21 @@ check them without re-deriving the design.
 
 Four checks span the children and cannot be performed by any child alone, which is why they live here.
 
-- THE REFUSAL SURFACE SHRANK AND DID NOT MOVE. Read Orders 01, 02 and 03 together and confirm the Set's
+- [Owner: m47znv E-05] THE REFUSAL SURFACE SHRANK AND DID NOT MOVE. Read Orders 01, 02 and 03 together and confirm the Set's
   NET effect on refusals is: one refusal deleted (location plus token), one added (live holder, including
   undeterminable), one relocated and otherwise unchanged (the worker label, now inside the core functions),
   and one advisory added that refuses nothing. No child can check this: Order 01 changes no refusal at all,
   Order 02 cannot see whether Order 03 added one, and Order 03 cannot see what Order 02 removed.
-- THE ENVIRONMENT FENCE HELD ACROSS THE SET. `AW_RUN_ID` reaches the worker for commit trailers and the
+- [Owner: m47znv E-05] THE ENVIRONMENT FENCE HELD ACROSS THE SET. `AW_RUN_ID` reaches the worker for commit trailers and the
   holder exception must never default from it. Confirm from the COMBINED diff of Orders 02 and 03 that no
   site reads a run id from the environment for authority purposes, rather than from Order 02's scope check
   alone, because Order 03 also edits the same two functions.
-- THE TWO QUESTIONS STAYED DISTINCT. Order 01's predicate answers "is a live run working on this plan?"
+- [Owner: m47znv E-05] THE TWO QUESTIONS STAYED DISTINCT. Order 01's predicate answers "is a live run working on this plan?"
   and Order 03's query answers "does a lane for this plan exist?". They differ precisely when a lane's run
   has ENDED, which is Order 03's main case, so confirm from the combined diff that Order 03 did not wire
   itself to Order 01's predicate. Order 03 pins this behaviorally, but only the combined view shows the two
   inputs are genuinely separate.
-- EXACTLY ONE CHILD AMENDED A SPEC. Only `e25iy9` may touch a `.spec.md` (`7ckptx` and `llbr2b`). Confirm
+- [Owner: m47znv E-05] EXACTLY ONE CHILD AMENDED A SPEC. Only `e25iy9` may touch a `.spec.md` (`7ckptx` and `llbr2b`). Confirm
   from the combined diff that no other spec file was modified by any child and that `7ckptx` R4.5's
   honest-limit sentence survives verbatim. Both runners report declared-versus-actual spec edits per item
   at run end, so a spec changed by a child that declared none is visible there too.
@@ -209,7 +210,7 @@ Four checks span the children and cannot be performed by any child alone, which 
 - E-01 is satisfied by `urv602` on disk in `.aw/records/plans/executed/` with `- Status: executed`, its predicate demonstrated across all three verdicts including the queued-not-started held case, and its full-suite summary pasted.
 - E-02 is satisfied by `e25iy9` on disk in `.aw/records/plans/executed/` with `- Status: executed`, its D4 entry-point matrix demonstrated row by row, both measured regression cases passing, its `AW_RUN_ID` fence mutation-tested, its spec amendments reconciled against its declared `- Scope-Paths:`, and its full-suite summary pasted.
 - E-03 is satisfied by `m47znv` on disk in `.aw/records/plans/executed/` with `- Status: executed`, its advisory shown on stderr with byte-identical structured payloads and identical exit codes in every arm, and its ended-run case shown still nudging.
-- THE SET-LEVEL CROSS-CHECKS a reviewer should apply, since no child can apply them alone, are the four in Cross-IPD validation above. The most important is the NET REFUSAL SURFACE: one refusal deleted, one added, one relocated unchanged, one advisory added. A Set that ends with more ways to refuse than it started with has failed regardless of every child passing, because the defect being fixed is a false refusal.
+- [Owner: m47znv E-05/V-05] THE SET-LEVEL CROSS-CHECKS are the four in Cross-IPD validation above. The most important is the NET REFUSAL SURFACE: one refusal deleted, one added, one relocated unchanged, one advisory added. A Set that ends with more ways to refuse than it started with has failed regardless of every child passing, because the defect being fixed is a false refusal.
 
 ## Spec / documentation sync
 
