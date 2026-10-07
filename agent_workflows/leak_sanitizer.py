@@ -45,6 +45,7 @@ import zipfile
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from agent_workflows import agent_schema
 from agent_workflows.artifact_core import replacement_mode
 from agent_workflows.home_path_patterns import HOME_PATH_RULES
 
@@ -87,12 +88,11 @@ _FAIL_PATTERNS: dict[str, re.Pattern[str]] = {
 }
 
 # --- Fix rewrites (severity: fail patterns that CAN be auto-rewritten by --fix) --------------
-# Map a matched leak class to a safe, portable replacement. Only home-style absolute paths are
-# rewritten (the tail is preserved); identity/private-repo/session tokens are NOT auto-rewritten
-# because there is no safe generic replacement (a human must decide). ``--fix`` reports those as
-# "needs manual edit" rather than guessing.
-_HOME_ANY_RE = re.compile(r"/home/[A-Za-z0-9._-]+(?=/|\b)")
-_USERS_ANY_RE = re.compile(r"/Users/[A-Za-z0-9._-]+(?=/|\b)")
+# Map a matched leak class to a safe, portable replacement. All three home classes (POSIX, macOS,
+# and Windows) are auto-rewritten drive-preservingly by delegating to agent_schema.redact_home_paths
+# as the single definition of the rewrite. Identity, private-repo, and session tokens are NOT
+# auto-rewritten because there is no safe generic replacement (a human must decide); ``--fix``
+# reports those as "needs manual edit" rather than guessing.
 
 # --- IP rulesets (severity: fail, but CONFIG-GATED OFF by default, OQ4/E4) --------------------
 # IPv4 and a conservative IPv6. Off unless config enables [ip] enabled = true. Loopback and the
@@ -821,15 +821,55 @@ def scan_wheel(
 
 
 # --- Fix (opt-in, interactive by default, NEVER in the hook; E5) -----------------------------
-def _rewrite_line(line: str) -> str:
+def _rewrite_line(line: str, allow: tuple[str, ...] = ()) -> str:
     """Return the line with home-style absolute paths rewritten to a portable ~ form.
 
-    Only home/Users paths are auto-rewritten (safe, generic). Identity, private-repo and
-    session tokens are NOT rewritten (no safe generic replacement) and are reported for manual
-    editing instead.
+    All three home classes (POSIX /home/<user>, macOS /Users/<user>, and Windows
+    <drive>:\\Users\\<user>) are auto-rewritten drive-preservingly by delegating each matched
+    span to `agent_schema.redact_home_paths`. Identity, private-repo, and session tokens
+    are NOT rewritten (no safe generic replacement) and are reported for manual editing instead.
+    Lines matching an allowlisted substring or containing exempt placeholder forms are left
+    unchanged.
     """
-    line = _HOME_ANY_RE.sub("~", line)
-    line = _USERS_ANY_RE.sub("~", line)
+    if any(sub in line for sub in allow):
+        return line
+
+    patterns = (
+        _FAIL_PATTERNS["home-path"],
+        _FAIL_PATTERNS["users-path"],
+        _FAIL_PATTERNS["windows-home"],
+    )
+    spans: list[tuple[int, int]] = []
+    for pat in patterns:
+        for m in pat.finditer(line):
+            start, end = m.span()
+            if end == len(line) or line[end] not in ("/", "\\"):
+                match_text = line[start:end]
+                trimmed = match_text.rstrip("._-")
+                end = start + len(trimmed)
+            if start < end:
+                spans.append((start, end))
+
+    if not spans:
+        return line
+
+    spans.sort(key=lambda s: (s[0], -s[1]))
+    merged: list[tuple[int, int]] = []
+    for start, end in spans:
+        if not merged:
+            merged.append((start, end))
+        else:
+            prev_start, prev_end = merged[-1]
+            if start <= prev_end:
+                merged[-1] = (prev_start, max(prev_end, end))
+            else:
+                merged.append((start, end))
+
+    for start, end in reversed(merged):
+        span_text = line[start:end]
+        redacted = agent_schema.redact_home_paths(span_text)
+        line = line[:start] + redacted + line[end:]
+
     return line
 
 
@@ -865,7 +905,7 @@ def fix_working_tree(
         file_changed = False
         for line in text.splitlines(keepends=True):
             stripped = line.rstrip("\n")
-            rewritten = _rewrite_line(stripped)
+            rewritten = _rewrite_line(stripped, allow=ruleset.allow_line_substrings)
             if rewritten != stripped:
                 file_changed = True
                 new_text_lines.append(rewritten + ("\n" if line.endswith("\n") else ""))

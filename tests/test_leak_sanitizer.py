@@ -42,6 +42,7 @@ import unittest
 import zipfile
 from pathlib import Path
 
+from agent_workflows import agent_schema
 from agent_workflows import leak_sanitizer as ls
 from tests.support import REPO_ROOT
 
@@ -225,6 +226,67 @@ class FixTests(unittest.TestCase):
             "`--fix` cannot be run defensively-but-destructively. It is evidence only because of "
             "the rewriting rows above; alone it is satisfied by a fixer that does nothing",
         ),
+        (
+            "a backslash Windows home path with --yes",
+            "path is C:\\Users\\" + "winuser" + r"\proj\file here" + "\n",
+            {"assume_yes": True},
+            ["a.md"],
+            "",
+            r"C:\Users\~\proj\file",
+            "winuser",
+            "THE WINDOWS BACKSLASH FORM: previously reported as unfixable (needing manual edit), "
+            "now auto-rewritten by delegating to agent_schema.redact_home_paths, preserving the drive "
+            "and Users prefix with username rewritten to ~",
+        ),
+        (
+            "a drive-forward Windows home path with --yes",
+            "see c:/Users/" + "winfwduser" + "/proj/a.md\n",
+            {"assume_yes": True},
+            ["a.md"],
+            "",
+            "c:/Users/~/proj/a.md",
+            "winfwduser",
+            "THE CORRUPTED DRIVE-FORWARD FORM: previously mangled into c:~/proj/a.md while reporting "
+            "changed=['a.md'] and exit 0 (F-02). This row catches that silent corruption by asserting "
+            "the file on disk contains 'c:/Users/~/proj/a.md' and not the corrupted 'c:~/proj/a.md'",
+        ),
+        (
+            "a macOS /Users home path with --yes",
+            "path is /Users/" + "macuser" + "/proj/file\n",
+            {"assume_yes": True},
+            ["a.md"],
+            "",
+            "~/proj/file",
+            "macuser",
+            "THE MACOS CONTROL ROW: /Users/<user> is an auto-fixable class that delegates to ~, "
+            "pinned here to ensure coverage across all three home directory classes",
+        ),
+        (
+            "a mixed real leak and documented placeholder with --yes",
+            "real /home/"
+            + "realuser"
+            + "/x\ndocumented portable example /home/u/src/thing\n",
+            {"assume_yes": True},
+            ["a.md"],
+            "",
+            "documented portable example /home/u/src/thing",
+            "realuser",
+            "THE PLACEHOLDER COLLATERAL GUARD: when a file contains both a real leak and an exempt "
+            "doc placeholder (/home/u/), the real leak must be rewritten to ~/x while the placeholder "
+            "line remains byte-identical (F-04 / PR-002)",
+        ),
+        (
+            "a POSIX home path with trailing sentence punctuation with --yes",
+            "Files live in /home/" + "punctuser" + ".\n",
+            {"assume_yes": True},
+            ["a.md"],
+            "",
+            "Files live in ~.",
+            "punctuser",
+            "THE PUNCTUATION REGRESSION GUARD: ensures delegating to redact_home_paths does not strip "
+            "trailing sentence punctuation (PR-001); 'Files live in /home/<user>.' must rewrite to "
+            "'Files live in ~.' with full stop preserved",
+        ),
     )
 
     def test_fix_rewrites_reports_or_refrains_according_to_mode_and_leak_class(self):
@@ -294,6 +356,48 @@ class FixTests(unittest.TestCase):
             "inventing a replacement for an identity token; reporting it for a human IS the "
             f"designed behavior.\n" + "\n".join(wrong),
         )
+
+    def test_rewrite_line_allow_parameter(self):
+        """Direct test of _rewrite_line's allow parameter (E-03)."""
+        line = "ci /home/" + "allowuser" + "/x"
+        self.assertEqual(
+            ls._rewrite_line(line, allow=("ci /home/",)),
+            line,
+            "_rewrite_line must return the line unchanged when an allow entry is a substring",
+        )
+        self.assertEqual(
+            ls._rewrite_line(line, allow=()),
+            "ci ~/x",
+            "_rewrite_line must rewrite the line when allow=()",
+        )
+
+    def test_rewriters_agreement_across_home_classes(self):
+        """Assert leak_sanitizer._rewrite_line and agent_schema.redact_home_paths agree on non-placeholder separator-followed home paths.
+
+        A fourth unenumerated class is caught by no row here, matching the bound in 9yd6tx E-02.
+        """
+        real_redact = agent_schema.redact_home_paths
+        u = "agreeduser"
+        cases = [
+            ("home-path", f"/home/{u}/proj/x"),
+            ("users-path", f"/Users/{u}/proj/x"),
+            ("windows-home", f"C:\\Users\\{u}\\x"),
+            ("windows-home", f"c:/Users/{u}/x"),
+        ]
+        for rule_name, path in cases:
+            with self.subTest(rule=rule_name, path=path):
+                rewritten = ls._rewrite_line(path)
+                expected = real_redact(path)
+                self.assertEqual(
+                    rewritten,
+                    expected,
+                    f"mismatch between _rewrite_line and redact_home_paths on {path!r}",
+                )
+                pat = ls._FAIL_PATTERNS[rule_name]
+                self.assertIsNone(
+                    pat.search(rewritten),
+                    f"rule {rule_name!r} still matches rewritten output {rewritten!r} for {path!r}",
+                )
 
 
 class AgentModeTests(unittest.TestCase):
