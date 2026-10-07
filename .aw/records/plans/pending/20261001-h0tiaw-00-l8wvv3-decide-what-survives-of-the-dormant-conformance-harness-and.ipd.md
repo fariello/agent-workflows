@@ -7,8 +7,8 @@
 - Scope-Paths: .aw/records/plans/pending/20261001-h0tiaw-00-l8wvv3-decide-what-survives-of-the-dormant-conformance-harness-and.ipd.md
 - Item-Dependencies: none
 - Status: draft
-- Coverage: fail
-- Coverage-Fingerprint: d5994a92ec220b0712f7122cc8d240c84b8bd51cdaa35c5d25f1b65770ab0fd0
+- Coverage: pass
+- Coverage-Fingerprint: ced14f8f5e249910223af22788561c8e6e58e19e19bf65c8483ac52e17d4e816
 - Coverage-Checked: 2026-10-07 by uri/its_direct/pt3-claude-opus-5.5-1m-us
 - Work-Kind: chore
 - Priority: low
@@ -20,6 +20,7 @@
 - Id: l8wvv3
 
 ## Workflow history
+- 2026-10-07 coverage pass (aw oc run): fingerprint ced14f8f5e24, model uri/its_direct/pt3-claude-opus-5.5-1m-us
 - 2026-10-07 coverage fail (aw oc run): fingerprint d5994a92ec22, model uri/its_direct/pt3-claude-opus-5.5-1m-us
 - 2026-10-06 draft (aw set): demoted to-review -> draft: returned to authoring by gradcover 52opph: uncovered obligation: No orphaned golden and no orphaned symbol, checked across both children together
 
@@ -290,10 +291,6 @@ and the third (the "dead surface with no live importer" note) obsolete.
   stale. Child 02 must nonetheless QUOTE the full diff as evidence rather than regenerating silently,
   because `AW_CONFORMANCE_UPDATE_GOLDENS=1` regeneration with no review is how a golden stops being a
   reviewed artifact, and that is a precondition for this gate being worth anything at all.
-
-## Coverage findings
-
-- "`aw ipd lint --phase pre-transition` conforming on this plan before the terminal move, and `aw check`"
 
 ## Validation and cross-check (verify before reporting the Set complete)
 
