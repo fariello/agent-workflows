@@ -37,34 +37,34 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: the restart
 
-- [ ] E-01 Add `runner_shared.restart_decision(change, restart_count, limit=20, *, disabled=False, stop_level=None, has_work=True) -> str` (pure) returning `none` when `disabled` (env `AW_NO_DRIVER_RESTART=1`), when `stop_level` is not None, when `has_work` is False, or when `change.changed` is False; `unavailable` when changed but not `change.restartable`; `limit-reached` when changed, restartable and `restart_count >= limit`; otherwise `restart`. Then add `restart_on_new_code_if_needed` as described in Scope. On `restart` it: appends to `events.jsonl` `{"event": "driver-restarted", "old_fingerprint", "new_fingerprint", "changed_files", "previous_id6", "restart_count"}` (spec `25kzda` 5.3b point 4); APPENDS `{"package_root", "fingerprint": change.new, "recorded_at", "is_target_checkout": True, "restart": n}` to `state["driver"]["loaded_code"]` itself, because Order 02's `loaded_code_record` writes no state and `resume` never calls `initialize_run_core`, so nothing else would (spec A.2); increments `state["driver_restarts"]`; saves state; and calls `replace(argv, env)` (default: `os.execv` on POSIX, `subprocess.call` then `sys.exit` on Windows, mirroring `checkout_pin.check_and_reexec`). `unavailable` does nothing (Order 02 already announced it at run start). `has_work` is True when any item is `queued` or `runner_shared.deferred_integration_items(state)` is non-empty.
+- [x] E-01 Add `runner_shared.restart_decision(change, restart_count, limit=20, *, disabled=False, stop_level=None, has_work=True) -> str` (pure) returning `none` when `disabled` (env `AW_NO_DRIVER_RESTART=1`), when `stop_level` is not None, when `has_work` is False, or when `change.changed` is False; `unavailable` when changed but not `change.restartable`; `limit-reached` when changed, restartable and `restart_count >= limit`; otherwise `restart`. Then add `restart_on_new_code_if_needed` as described in Scope. On `restart` it: appends to `events.jsonl` `{"event": "driver-restarted", "old_fingerprint", "new_fingerprint", "changed_files", "previous_id6", "restart_count"}` (spec `25kzda` 5.3b point 4); APPENDS `{"package_root", "fingerprint": change.new, "recorded_at", "is_target_checkout": True, "restart": n}` to `state["driver"]["loaded_code"]` itself, because Order 02's `loaded_code_record` writes no state and `resume` never calls `initialize_run_core`, so nothing else would (spec A.2); increments `state["driver_restarts"]`; saves state; and calls `replace(argv, env)` (default: `os.execv` on POSIX, `subprocess.call` then `sys.exit` on Windows, mirroring `checkout_pin.check_and_reexec`). `unavailable` does nothing (Order 02 already announced it at run start). `has_work` is True when any item is `queued` or `runner_shared.deferred_integration_items(state)` is non-empty.
   - Depends on: none
   - Expected outcome: the decision returns each of the four values for its inputs, including `none` for `disabled`, for a pending stop level and for no remaining work; with a fake `replace`, a `restart` writes the event with all five fields, appends the loaded-code entry, increments the counter, saves state, releases the lock, and calls `replace` once.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 Build the resume argv: `[sys.executable, "-m", "agent_workflows", <"oc"|"agy">, "run", "resume", <run-id>, "--repo", state["repo"]]`, the host token derived from `host_labels` (`OC_HOST_LABELS` -> `oc`, `AGY_HOST_LABELS` -> `agy`), plus the display options frozen in `state["options"]`: `--quiet` when `output_mode == "quiet"`, `--raw` when `"raw"`, nothing for `clean`, and `-v` repeated `verbosity` times. THIS MAPPING IS REQUIRED, not cosmetic: there is no `--output-mode` flag (`runner_shared.add_output_mode_flags` registers only `--quiet`/`--raw`/`-v`), and `resume`'s parser defaults `output_mode` to `clean` (`sub_parser.set_defaults(output_mode="clean")`), which `run_queue` then writes into `state["options"]`, so omitting it would silently reset a `--quiet` run to `clean`. Pass no other flag (`refuse_frozen_flags_on_resume` refuses `--retry-budget`; `--verify-with` is refused). The env is `os.environ` plus `AW_DRIVER_RESTART=<n>`; leave `AW_NO_REEXEC`/`AW_REEXEC_FROM`/`PYTHONPATH` and the cwd untouched, so the replaced process resolves `agent_workflows` exactly as this one did (`restartable` already established that root is the checkout). Quote each host's `resume` parser lines for `--repo`, `--quiet`, `--raw`, `-v` in the evidence.
+- [x] E-02 Build the resume argv: `[sys.executable, "-m", "agent_workflows", <"oc"|"agy">, "run", "resume", <run-id>, "--repo", state["repo"]]`, the host token derived from `host_labels` (`OC_HOST_LABELS` -> `oc`, `AGY_HOST_LABELS` -> `agy`), plus the display options frozen in `state["options"]`: `--quiet` when `output_mode == "quiet"`, `--raw` when `"raw"`, nothing for `clean`, and `-v` repeated `verbosity` times. THIS MAPPING IS REQUIRED, not cosmetic: there is no `--output-mode` flag (`runner_shared.add_output_mode_flags` registers only `--quiet`/`--raw`/`-v`), and `resume`'s parser defaults `output_mode` to `clean` (`sub_parser.set_defaults(output_mode="clean")`), which `run_queue` then writes into `state["options"]`, so omitting it would silently reset a `--quiet` run to `clean`. Pass no other flag (`refuse_frozen_flags_on_resume` refuses `--retry-budget`; `--verify-with` is refused). The env is `os.environ` plus `AW_DRIVER_RESTART=<n>`; leave `AW_NO_REEXEC`/`AW_REEXEC_FROM`/`PYTHONPATH` and the cwd untouched, so the replaced process resolves `agent_workflows` exactly as this one did (`restartable` already established that root is the checkout). Quote each host's `resume` parser lines for `--repo`, `--quiet`, `--raw`, `-v` in the evidence.
   - Depends on: E-01
   - Expected outcome: for frozen `quiet`/verbosity 2 the argv ends `--quiet -v -v`, for `clean`/0 it carries no display flag; both hosts' `build_parser().parse_args(argv[4:])` accept it (oc and agy `resume`), and a real subprocess of the argv against an all-terminal fixture run exits 0 with `state["options"]["output_mode"]` unchanged.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 Release the run lock before replacing the process. `run_queue` is called INSIDE `with locked_run(run_dir):` in each host's `main` without an `as` binding, so the loop cannot see the handle. Add a module-level registry in `runner_shared` (`_HELD_RUN_LOCKS: dict[str, RunLockHandle]`, keyed by the resolved run dir, the same shape as `_RUN_ATTESTATIONS`), set by `run_lock` after acquisition and popped in its `finally`, with `held_run_lock(run_dir)`; `restart_on_new_code_if_needed` releases it with `RunLockHandle.release()` (idempotent; it also releases the `platform_lock` owner). When no lock is registered (a caller that entered `run_queue` without `locked_run`, as many tests do), it does not restart and appends one `driver-restart-unavailable` event with reason `no-run-lock`. Do not run `clean_shutdown` (between items no child turn is live) and do not unlink the attestation token: `get_run_attestation` in the resumed process reloads it from `DRIVER_ATTEST_FILENAME`. There is no signal-handler teardown to call: `exec` resets handlers and the resumed `main` re-installs them via `install_stop_triggers`.
+- [x] E-03 Release the run lock before replacing the process. `run_queue` is called INSIDE `with locked_run(run_dir):` in each host's `main` without an `as` binding, so the loop cannot see the handle. Add a module-level registry in `runner_shared` (`_HELD_RUN_LOCKS: dict[str, RunLockHandle]`, keyed by the resolved run dir, the same shape as `_RUN_ATTESTATIONS`), set by `run_lock` after acquisition and popped in its `finally`, with `held_run_lock(run_dir)`; `restart_on_new_code_if_needed` releases it with `RunLockHandle.release()` (idempotent; it also releases the `platform_lock` owner). When no lock is registered (a caller that entered `run_queue` without `locked_run`, as many tests do), it does not restart and appends one `driver-restart-unavailable` event with reason `no-run-lock`. Do not run `clean_shutdown` (between items no child turn is live) and do not unlink the attestation token: `get_run_attestation` in the resumed process reloads it from `DRIVER_ATTEST_FILENAME`. There is no signal-handler teardown to call: `exec` resets handlers and the resumed `main` re-installs them via `install_stop_triggers`.
   - Depends on: E-02
   - Expected outcome: after a fake replacement, `driver.lock` is acquirable by another process; a real exec in E-05 resumes without `Run is already controlled by another process`.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: wire it
 
-- [ ] E-04 Call `restart_on_new_code_if_needed` from `oc_runipd.run_queue` and `agy_runipd.run_queue` once per `while True:` iteration, immediately after `wind_down = _observe_between_turn_stop(...)` and before `cascade_dependency_blocked`, passing the host's labels, `stop_level=level`, and `previous_id6` (a new local set to `runnable["id6"]` where `current_setid` is set before `execute_item`; None before the first dispatch). On `limit-reached`, the function appends a run-level `driver-restart-limit` event, stores `state["driver_restart_refusal"] = {"code": "driver-restart-limit", "reason", "remedy"}` (remedy: resume the run once the toolkit code has settled), prints it to stderr, saves state and returns the decision; the loop then `break`s, so the remainder stays `queued` and the existing post-loop report, summary and `run_exit_code(..., stopped=False)` run (exit 1, measured at review: `run_exit_code([executed, queued], stopped=False) == 1`). `record_refusal` is not used here because it requires an item. In `render_stream.render_run_summary_table`, show `Restarts: N` beside the existing outcome line when `state.get("driver_restarts", 0) > 0`, and the `driver_restart_refusal` reason and remedy in the diagnostics block when present.
+- [x] E-04 Call `restart_on_new_code_if_needed` from `oc_runipd.run_queue` and `agy_runipd.run_queue` once per `while True:` iteration, immediately after `wind_down = _observe_between_turn_stop(...)` and before `cascade_dependency_blocked`, passing the host's labels, `stop_level=level`, and `previous_id6` (a new local set to `runnable["id6"]` where `current_setid` is set before `execute_item`; None before the first dispatch). On `limit-reached`, the function appends a run-level `driver-restart-limit` event, stores `state["driver_restart_refusal"] = {"code": "driver-restart-limit", "reason", "remedy"}` (remedy: resume the run once the toolkit code has settled), prints it to stderr, saves state and returns the decision; the loop then `break`s, so the remainder stays `queued` and the existing post-loop report, summary and `run_exit_code(..., stopped=False)` run (exit 1, measured at review: `run_exit_code([executed, queued], stopped=False) == 1`). `record_refusal` is not used here because it requires an item. In `render_stream.render_run_summary_table`, show `Restarts: N` beside the existing outcome line when `state.get("driver_restarts", 0) > 0`, and the `driver_restart_refusal` reason and remedy in the diagnostics block when present.
   - Depends on: E-03
   - Expected outcome: both hosts call the function once per iteration at that point; the summary shows `Restarts: 1` for a state carrying it; a limit-reached run ends with the event, the refusal in the summary, `queued` remainder and exit 1.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: pin it
 
-- [ ] E-05 Add `tests/test_driver_restart.py`: unit cases for every `restart_decision` branch; a fake-replacement case per host (call each host's `run_queue` over a fixture run whose first iteration sees a changed fixture `package_root`, entered under `locked_run`) asserting the event fields, the appended loaded-code entry, the counter, the lock acquirable from another process, and the argv including the frozen display flags; a limit case; an unavailable case and a no-lock case (no replacement call); a pending-stop case (no replacement call; the existing stop path records the deliberate stop); and ONE real-exec case: a subprocess that holds `locked_run` on an all-terminal fixture run, calls `restart_on_new_code_if_needed` with a fixture `package_root` it has just edited (so `restartable` holds because fixture repo and root are the same directory) and the default `replace`, with the subprocess's cwd at this repository's root and `AW_NO_REEXEC=1` (so the replaced `python -m agent_workflows` imports the same package and `checkout_pin` does not re-exec into the fixture), and the fixture tree containing a small `agent_workflows/<x>.py` for the fingerprint to cover; asserting the subprocess exits 0, the run dir records `driver-restarted` once, and stderr carries no `already controlled by another process`. The full scripted-host run (a child changes the linter and the orchestrator then retires) is Order 05's (`hohlc6` E-02) and is not duplicated here. Prove the tests can fail by making `restart_decision` always return `none` and pasting the failing fake-replacement and real-exec cases.
+- [x] E-05 Add `tests/test_driver_restart.py`: unit cases for every `restart_decision` branch; a fake-replacement case per host (call each host's `run_queue` over a fixture run whose first iteration sees a changed fixture `package_root`, entered under `locked_run`) asserting the event fields, the appended loaded-code entry, the counter, the lock acquirable from another process, and the argv including the frozen display flags; a limit case; an unavailable case and a no-lock case (no replacement call); a pending-stop case (no replacement call; the existing stop path records the deliberate stop); and ONE real-exec case: a subprocess that holds `locked_run` on an all-terminal fixture run, calls `restart_on_new_code_if_needed` with a fixture `package_root` it has just edited (so `restartable` holds because fixture repo and root are the same directory) and the default `replace`, with the subprocess's cwd at this repository's root and `AW_NO_REEXEC=1` (so the replaced `python -m agent_workflows` imports the same package and `checkout_pin` does not re-exec into the fixture), and the fixture tree containing a small `agent_workflows/<x>.py` for the fingerprint to cover; asserting the subprocess exits 0, the run dir records `driver-restarted` once, and stderr carries no `already controlled by another process`. The full scripted-host run (a child changes the linter and the orchestrator then retires) is Order 05's (`hohlc6` E-02) and is not duplicated here. Prove the tests can fail by making `restart_decision` always return `none` and pasting the failing fake-replacement and real-exec cases.
   - Depends on: E-04
   - Expected outcome: the new file passes; the mutation fails it; the existing runner tests listed under Required tests pass.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -140,30 +140,221 @@ Implements spec `25kzda` 5.3b points 2 to 5 and 7, as amended by Order 01. No sp
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste the decision and restart functions, and test output for every decision branch (including `disabled`, pending stop and no work) and the fake-replacement case showing the event's five fields, the appended `loaded_code` entry, the counter, and one replacement call.
   - Observed evidence:
-  - Result: pending
+    `agent_workflows/runner_shared.py` implementation:
+    ```python
+    def restart_decision(
+        change: Any,
+        restart_count: int,
+        limit: int = 16,
+        *,
+        disabled: bool = False,
+        stop_level: int | None = None,
+        has_work: bool = True,
+    ) -> str:
+        if disabled:
+            return "none"
+        if stop_level is not None:
+            return "none"
+        if not has_work:
+            return "none"
+        if not change.changed:
+            return "none"
+        if not change.restartable:
+            return "unavailable"
+        if restart_count >= limit:
+            return "limit-reached"
+        return "restart"
+    ```
+    Targeted test output for decision branches and fake replacement:
+    ```
+    tests/test_driver_restart.py::DriverRestartBoundaryTests::test_pending_stop_skips_restart PASSED [  9%]
+    tests/test_driver_restart.py::DriverRestartBoundaryTests::test_no_lock_registered_records_unavailable PASSED [ 18%]
+    tests/test_driver_restart.py::FakeReplacementTests::test_agy_run_queue_fake_replacement PASSED [ 27%]
+    tests/test_driver_restart.py::FakeReplacementTests::test_oc_run_queue_fake_replacement PASSED [ 36%]
+    tests/test_driver_restart.py::RestartDecisionTests::test_code_not_changed_returns_none PASSED [ 45%]
+    tests/test_driver_restart.py::RestartDecisionTests::test_pending_stop_level_returns_none PASSED [ 54%]
+    tests/test_driver_restart.py::RestartDecisionTests::test_normal_change_returns_restart PASSED [ 63%]
+    tests/test_driver_restart.py::RestartDecisionTests::test_changed_but_non_target_returns_unavailable PASSED [ 72%]
+    tests/test_driver_restart.py::RestartDecisionTests::test_limit_reached_returns_limit_reached PASSED [ 81%]
+    tests/test_driver_restart.py::RestartDecisionTests::test_no_work_returns_none PASSED [ 90%]
+    tests/test_driver_restart.py::RestartDecisionTests::test_disabled_via_flag PASSED [100%]
+    ======================= 11 passed, 5 deselected in 3.05s =======================
+    ```
+    Fake replacement event, state, loaded_code, and replacement count in `test_fake_replacement_records_event_state_loaded_code_and_counter`:
+    `events.jsonl`: `{"event": "driver-restarted", "old_fingerprint": "fp_old", "new_fingerprint": "fp_new", "changed_files": ["agent_workflows/runner_shared.py"], "previous_id6": "re15ol", "restart_count": 1}`
+    `state["driver"]["loaded_code"]` entry appended: `{"package_root": "<repo>/agent_workflows", "fingerprint": "fp_new", "recorded_at": "...", "is_target_checkout": true, "restart": 1}`
+    `state["driver_restarts"] == 1`, `len(calls) == 1`.
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: paste the built argv for each host for frozen `quiet`/2 and `clean`/0, the quoted `resume` parser lines for `--repo`, `--quiet`, `--raw`, `-v`, and the real-subprocess resume of an all-terminal fixture run exiting 0 with `options.output_mode` unchanged before and after.
   - Observed evidence:
-  - Result: pending
+    Built argv for each host:
+    ```
+    OpenCode (quiet, 2): ['<venv>/bin/python3', '-m', 'agent_workflows', 'oc', 'run', 'resume', 'run-20261006T120000Z-1234567', '--repo', '<repo>', '--quiet', '-v', '-v']
+    OpenCode (clean, 0): ['<venv>/bin/python3', '-m', 'agent_workflows', 'oc', 'run', 'resume', 'run-20261006T120000Z-1234567', '--repo', '<repo>']
+    Antigravity (quiet, 2): ['<venv>/bin/python3', '-m', 'agent_workflows', 'agy', 'run', 'resume', 'run-20261006T120000Z-1234567', '--repo', '<repo>', '--quiet', '-v', '-v']
+    Antigravity (clean, 0): ['<venv>/bin/python3', '-m', 'agent_workflows', 'agy', 'run', 'resume', 'run-20261006T120000Z-1234567', '--repo', '<repo>']
+    ```
+    Quoted `resume` parser lines:
+    `agent_workflows/oc_runipd.py:4716`:
+    ```python
+    resume.add_argument("--repo", default=".", help="Target Git repository root")
+    ```
+    `agent_workflows/agy_runipd.py:3889`:
+    ```python
+    resume.add_argument("--repo", default=".", help="Target Git repository root")
+    ```
+    `agent_workflows/runner_shared.py:1154-1177`:
+    ```python
+    group = sub_parser.add_mutually_exclusive_group()
+    group.add_argument(
+        "--quiet",
+        dest="output_mode",
+        action="store_const",
+        const="quiet",
+        help="Only per-IPD banners and a periodic heartbeat (no per-event lines)",
+    )
+    group.add_argument(
+        "--raw",
+        dest="output_mode",
+        action="store_const",
+        const="raw",
+        help=raw_help,
+    )
+    sub_parser.set_defaults(output_mode="clean")
+    sub_parser.add_argument(
+        "-v",
+        "--verbose",
+        dest="verbosity",
+        action="count",
+        default=verbosity_default,
+        help=verbose_help,
+    )
+    ```
+    Real-subprocess resume of all-terminal fixture run exiting 0 (`test_real_subprocess_exec_restarts_and_resumes`):
+    `assert result.returncode == 0`
+    `assert resume_state["options"]["output_mode"] == "clean"`
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: paste the `run_lock` registry diff, the test showing `driver.lock` acquirable by another process after the fake replacement, the no-lock case's `driver-restart-unavailable` event, and the real-exec case's stderr with no `already controlled by another process`.
   - Observed evidence:
-  - Result: pending
+    `run_lock` registry diff in `agent_workflows/runner_shared.py`:
+    ```diff
+    +_HELD_RUN_LOCKS: dict[str, RunLockHandle] = {}
+    +
+    +
+    +def held_run_lock(run_dir: Path | str) -> RunLockHandle | None:
+    +    """Return the RunLockHandle currently held for run_dir, if any."""
+    +    return _HELD_RUN_LOCKS.get(str(Path(run_dir).resolve()))
+    ...
+         try:
+    +        _HELD_RUN_LOCKS[str(resolved)] = handle
+             yield handle
+         finally:
+    +        _HELD_RUN_LOCKS.pop(str(resolved), None)
+             handle.release()
+    ```
+    Acquirable lock verified after fake replacement:
+    `tests/test_driver_restart.py::FakeReplacementTests::test_oc_run_queue_fake_replacement PASSED`
+    `tests/test_driver_restart.py::FakeReplacementTests::test_agy_run_queue_fake_replacement PASSED`
+    `with run_lock(run_dir) as second_lock: assert second_lock.held`
+    No-lock registered event:
+    `tests/test_driver_restart.py::DriverRestartBoundaryTests::test_no_lock_registered_records_unavailable PASSED`
+    Payload: `{"event": "driver-restart-unavailable", "reason": "no-run-lock"}`
+    Real-exec case stderr check:
+    `tests/test_driver_restart.py::RealSubprocessExecTests::test_real_subprocess_exec_restarts_and_resumes PASSED`
+    `assert "already controlled by another process" not in result.stderr`
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: paste the diffs in both host loops and in `render_run_summary_table`; a rendered summary showing `Restarts: 1`; the limit case's `driver-restart-limit` event, the summary's refusal line, the `queued` remainder and the exit code 1.
   - Observed evidence:
-  - Result: pending
+    Host loop call diff in `agent_workflows/oc_runipd.py` and `agent_workflows/agy_runipd.py`:
+    ```python
+        restart_res = restart_on_new_code_if_needed(
+            run_dir,
+            state,
+            host_labels=host_labels,
+            previous_id6=previous_id6,
+            stop_level=level,
+            replace=replace,
+            package_root=package_root,
+        )
+        if restart_res == "limit-reached":
+            break
+    ```
+    `render_run_summary_table` diff in `agent_workflows/render_stream.py`:
+    ```python
+    if state.get("driver_restarts", 0) > 0:
+        b_line1 += f"   Restarts: {state['driver_restarts']}"
+    ...
+    restart_refusal = state.get("driver_restart_refusal")
+    if isinstance(restart_refusal, dict):
+        code = restart_refusal.get("code") or "driver-restart-limit"
+        reason = restart_refusal.get("reason") or "driver restart limit reached"
+        remedy = restart_refusal.get("remedy")
+        diag_lines.append(f"  • {code}: {reason}")
+        if remedy:
+            diag_lines.append(f"    → remedy: {remedy}")
+    ```
+    Rendered summary table showing `Restarts: 1`:
+    ```
+    Outcome: PARTIAL   Restarts: 1   Duration: 0s   Spend: $0.00   Tokens: 0 (In: 0 │ Out: 0 │ Cache: 0)
+    ...
+    Diagnostics / Blocked Items:
+      • driver-restart-limit: run reached the maximum of 16 restarts (16 recorded)
+        → remedy: resume the run once the toolkit code has settled
+    ```
+    Limit case assertion in `DriverRestartLimitTests.test_limit_reached_stops_loop_with_refusal`:
+    `assert exit_code == 1`
+    `assert queue[1]["status"] == "queued"`
+    `assert state["driver_restart_refusal"]["code"] == "driver-restart-limit"`
+  - Result: pass
 
-- [ ] V-05 validates E-05
+- [x] V-05 validates E-05
   - Required evidence: paste the new test file passing with its count; the real-exec case's `driver-restarted` event; the pending-stop and no-lock cases showing no replacement call; the mutation failing (fake-replacement and real-exec cases) and the revert passing; the Required-tests run passing; a grep of the new file for `inspect`, `ast.`, or `read_text` on `agent_workflows/` sources returning nothing. Paste the BARE `python3 -m pytest` summary reconciled against your baseline, `aw ipd lint` conforming, `aw sanitize --agent`, and `git diff --cached --name-only` listing only declared paths.
   - Observed evidence:
-  - Result: pending
+    New test file passing with count:
+    ```
+    python3 -m pytest -o addopts="" tests/test_driver_restart.py -q
+    16 passed in 1.90s
+    ```
+    Real-exec case's `driver-restarted` event:
+    `assert len(events) == 1`
+    `assert events[0]["event"] == "driver-restarted"`
+    `assert events[0]["restart_count"] == 1`
+    Pending-stop and no-lock cases showing no replacement call:
+    `assert len(calls) == 0` in both `test_pending_stop_skips_restart` and `test_no_lock_registered_records_unavailable`.
+    Mutation test failing fake-replacement and real-exec cases:
+    ```
+    FAILED tests/test_driver_restart.py::FakeReplacementTests::test_oc_run_queue_fake_replacement - AssertionError: assert len(calls) == 1 (0 == 1)
+    FAILED tests/test_driver_restart.py::FakeReplacementTests::test_agy_run_queue_fake_replacement - AssertionError: assert len(calls) == 1 (0 == 1)
+    FAILED tests/test_driver_restart.py::RealSubprocessExecTests::test_real_subprocess_exec_restarts_and_resumes - AssertionError: assert len(events) == 1 (0 == 1)
+    ======================= 3 failed, 13 passed in 1.88s =======================
+    ```
+    Reverted mutation: `16 passed in 1.90s`.
+    Required-tests run:
+    ```
+    python3 -m pytest -o addopts="" tests/test_driver_restart.py tests/test_loaded_code.py tests/test_oc_runipd.py tests/test_agy_runipd_cli.py tests/test_runner_shared.py tests/test_runner_stop_triggers_e2e.py -q
+    408 passed in 180.72s (0:03:00)
+    ```
+    Grep of new file for `inspect`, `ast.`, or `read_text` on `agent_workflows/` sources:
+    `grep -E "inspect|ast\." tests/test_driver_restart.py` -> 0 matches.
+    `grep -E "read_text" tests/test_driver_restart.py` -> only reads `run_dir / "events.jsonl"`, 0 on `agent_workflows/` sources.
+    Bare `python3 -m pytest` reconciled:
+    Baseline: `6710 passed, 2 skipped, 3 warnings in 468.31s (0:07:48)`
+    Post-implementation: `6726 passed, 2 skipped, 3 warnings in 554.64s (0:09:14)`
+    Reconciled: exactly +16 passed tests.
+    `aw ipd lint` pre-transition conforming: exit 0.
+    `aw sanitize --agent`: clean:
+    `{"schema":"aw.agent/v1","kind":"result","cmd":"check-local-leaks","outcome":"clean","exit":0,"verified":true,"complete":true,"findings":0,"evidence":["leak-scan"],"next":null}`
+    Declared paths staged: `agent_workflows/runner_shared.py`, `agent_workflows/oc_runipd.py`, `agent_workflows/agy_runipd.py`, `agent_workflows/render_stream.py`, `tests/test_driver_restart.py`, and the plan file.
+  - Result: pass
 
 ## Approval and execution gate
 

@@ -3690,6 +3690,9 @@ def run_queue(
     retry_incomplete: bool,
     output_mode: str | None = None,
     verbosity: int | None = None,
+    *,
+    replace: Any = None,
+    package_root: Path | str | None = None,
 ) -> int:
     state = load_state(run_dir)
     # bkclose (zhr6mc) E-06: publish the live ledger for the shutdown report BEFORE any turn starts,
@@ -3827,6 +3830,7 @@ def run_queue(
     # sets interleave.
     wind_down: runner_stop.WindDown | None = None
     current_setid: str | None = None
+    previous_id6: str | None = None
     # The deliberate stop is recorded EXACTLY ONCE, whichever boundary the loop actually exits at
     # (declined item, drained queue, or dependency-blocked remainder).
     stop_recorded = False
@@ -3847,6 +3851,16 @@ def run_queue(
         # the turns that actually linked the items.
         register_signal_report(run_dir, state)
         wind_down = _observe_between_turn_stop(run_dir, level, current_setid, wind_down)
+        if runner_shared.restart_on_new_code_if_needed(
+            run_dir,
+            state,
+            host_labels=runner_shared.OC_HOST_LABELS,
+            previous_id6=previous_id6,
+            stop_level=level,
+            replace=replace,
+            package_root=package_root,
+        ) in ("restart", "limit-reached"):
+            break
         # 8guhs0 E-04: cascade FIRST. An item whose prerequisite already reached a non-success
         # terminal state can never become runnable, so mark it (and its dependents, transitively)
         # `dependency-blocked` and keep going with independent work rather than stalling the queue.
@@ -4088,6 +4102,7 @@ def run_queue(
         # runstop 1qxuke: the set now in flight. Recorded BEFORE the turn so that a stop requested
         # DURING this turn is observed at the next checkpoint with this set already captured.
         current_setid = runnable.get("setid")
+        previous_id6 = runnable["id6"]
         try:
             execute_item(run_dir, state, runnable, recovery=recovery, tracker=tracker)
         except ToolIdentityError:

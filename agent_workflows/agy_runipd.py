@@ -3048,6 +3048,9 @@ def run_queue(
     retry_incomplete: bool = False,
     output_mode: str | None = None,
     verbosity: int | None = None,
+    *,
+    replace: Any = None,
+    package_root: Path | str | None = None,
 ) -> int:
     state = load_state(run_dir)
     # bkclose (zhr6mc) E-06, symmetric with `oc_runipd`: publish the live ledger for the shutdown
@@ -3168,6 +3171,7 @@ def run_queue(
     # `oc_runipd.run_queue` (orchestrator CID-3).
     wind_down: runner_stop.WindDown | None = None
     current_setid: str | None = None
+    previous_id6: str | None = None
     # Recorded EXACTLY ONCE, whichever boundary the loop exits at (kept symmetric with `oc_runipd`).
     stop_recorded = False
     # runstop foi1b3: True once a level-3 stop cut the running TURN at an observed safe checkpoint
@@ -3184,6 +3188,16 @@ def run_queue(
         # published reference or a signal would report from a pre-turn snapshot.
         register_signal_report(run_dir, state)
         wind_down = _observe_between_turn_stop(run_dir, level, current_setid, wind_down)
+        if runner_shared.restart_on_new_code_if_needed(
+            run_dir,
+            state,
+            host_labels=runner_shared.AGY_HOST_LABELS,
+            previous_id6=previous_id6,
+            stop_level=level,
+            replace=replace,
+            package_root=package_root,
+        ) in ("restart", "limit-reached"):
+            break
         # 8guhs0 E-04 (symmetric with oc_runipd): cascade FIRST, so an item whose prerequisite
         # reached a non-success terminal state is marked `dependency-blocked` (transitively) instead
         # of stalling the queue, while independent items keep running.
@@ -3409,6 +3423,7 @@ def run_queue(
         # runstop 1qxuke: the set now in flight, recorded BEFORE the turn so a stop requested during
         # it is observed at the next checkpoint with this set already captured.
         current_setid = runnable.get("setid")
+        previous_id6 = runnable["id6"]
         try:
             execute_item(run_dir, state, runnable, recovery=recovery, tracker=tracker)
         except ToolIdentityError:
