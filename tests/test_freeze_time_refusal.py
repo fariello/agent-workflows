@@ -73,7 +73,13 @@ def _write_plan(
     deps_line = (
         f"- Item-Dependencies: {', '.join(dependencies)}\n" if dependencies else ""
     )
+    # rdyreq (`fhinri`, IPD-M113): a reviewed/ready-to-execute plan must carry `- Readiness:`, so a
+    # gated status defaults to the review output, attested by a /plan-review history line (IPD-M107).
+    gated = status in ("reviewed", "approved", "auto-approved")
+    if readiness is None and gated:
+        readiness = "go-pending-approval"
     readiness_line = f"- Readiness: {readiness}\n" if readiness else ""
+    review_line = "- 2026-09-27 /plan-review (tester): APPROVE\n" if gated else ""
     if approval is None:
         approval_line = "- Approval: 2026-09-27, test\n" if status == "approved" else ""
     else:
@@ -97,7 +103,7 @@ def _write_plan(
 {deps_line}{approval_line}
 ## Workflow history
 - 2026-09-27 {status} (tester): {status if status != "reviewed" else "APPROVE"}
-
+{review_line}
 ## Goal
 Goal for {id6}.
 

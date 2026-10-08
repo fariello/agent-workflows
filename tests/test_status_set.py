@@ -1048,6 +1048,19 @@ class TestApprovedWritesApprovalField(StatusSetTestBase):
             _t = re.sub(
                 r"(?m)^- Scope-Paths:.*$", "- Scope-Paths: agent_workflows/probe.py", _t
             )
+            # rdyreq (`fhinri`, IPD-M113): stand in for the /plan-review that writes `- Readiness:`
+            # and its attesting history verdict (IPD-M107) before the plan is set reviewed/approved.
+            _t = re.sub(
+                r"(?m)^(- Status:.*)$",
+                r"\1\n- Readiness: go-pending-approval",
+                _t,
+                count=1,
+            )
+            _t = _t.replace(
+                "## Workflow history\n",
+                "## Workflow history\n\n- 2026-08-22 /plan-review (test): APPROVE\n",
+                1,
+            )
             plan.write_text(_t, encoding="utf-8")
             id6 = "apxlnt"
             cli.main(["set", "reviewed", id6, "--yes", "--dir", str(self.repo_root)])
@@ -4266,8 +4279,10 @@ class TestScopePathCitationRewriteSetter(StatusSetTestBase):
             "- Order: 1\n"
             "- Id: tst001\n"
             "- From-Backlog: bk0003\n"
-            "- Approval: 2026-09-30, approved\n\n"
+            "- Approval: 2026-09-30, approved\n"
+            "- Readiness: go-pending-approval\n\n"
             "## Workflow history\n"
+            "- 2026-09-30 /plan-review (test): APPROVE\n"
             "- 2026-09-30: approved\n\n"
             "## Goal\n"
             "test\n\n"

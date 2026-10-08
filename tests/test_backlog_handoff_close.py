@@ -118,6 +118,9 @@ def _write_plan(
     fb_line = f"- From-Backlog: {from_backlog}\n" if from_backlog else ""
     br_line = f"- Blocks-Release: {blocks_release}\n" if blocks_release else ""
     appr_line = "- Approval: test\n" if status == "approved" else ""
+    gated = status in ("reviewed", "approved", "auto-approved")
+    rdy_line = "- Readiness: go-pending-approval\n" if gated else ""
+    review_line = "- 2026-09-26 /plan-review (test): APPROVE\n" if gated else ""
     plan_path = (
         repo
         / ".aw"
@@ -135,6 +138,7 @@ def _write_plan(
         "- Scope: Test\n"
         f"- Status: {status}\n"
         f"{appr_line}"
+        f"{rdy_line}"
         "- Work-Kind: chore\n"
         "- Priority: medium\n"
         "- Set: testset\n"
@@ -147,7 +151,8 @@ def _write_plan(
         "- Author: test\n"
         "- Item-Dependencies: none\n\n"
         "## Workflow history\n"
-        f"- 2026-09-26 {status} (test): created\n\n"
+        f"- 2026-09-26 {status} (test): created\n"
+        f"{review_line}\n"
         "## Goal\nTest\n\n"
         "## Detailed Implementation Checklist (TODO)\n"
         "### Task group 1: work\n"

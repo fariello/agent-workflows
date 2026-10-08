@@ -88,6 +88,11 @@ def _plan_text(id6, setid="demo", desc=None, status="approved"):
         if status == "approved"
         else ""
     )
+    # rdyreq (`fhinri`, IPD-M113): a reviewed/ready-to-execute plan must carry `- Readiness:`, and
+    # IPD-M107 requires review evidence in the history for it, so both travel together.
+    gated = status in ("reviewed", "approved", "auto-approved")
+    readiness = "- Readiness: go-pending-approval\n" if gated else ""
+    review_line = "- 2026-01-01 /plan-review (t): APPROVE\n" if gated else ""
     return (
         "# IPD\n\n"
         "- Date: 2026-01-01\n"
@@ -111,8 +116,10 @@ def _plan_text(id6, setid="demo", desc=None, status="approved"):
         "- Author: fixture\n"
         f"- Id: {id6}\n"
         f"{approval}"
+        f"{readiness}"
         "\n## Workflow history\n"
         f"- 2026-01-01 {status} (t): created.\n"
+        f"{review_line}"
         "\n## Goal\n\nx\n"
         "\n## Detailed Implementation Checklist (TODO)\n\n"
         "- [ ] E-01 do it.\n"
@@ -761,8 +768,10 @@ class LifecyclePlacementTests(unittest.TestCase):
         "- Work-Kind: chore\n"
         "- Author: fixture\n"
         "- Approval: 2026-01-01, recorded via aw ipd set\n"
+        "- Readiness: go-pending-approval\n"
         "\n## Workflow history\n"
         "- 2026-01-01 approved (t): created.\n"
+        "- 2026-01-01 /plan-review (t): APPROVE\n"
         "\n## Goal\n\nx\n"
         "\n## Detailed Implementation Checklist (TODO)\n\n"
         "- [ ] E-01 do it.\n"

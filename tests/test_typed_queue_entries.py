@@ -76,6 +76,8 @@ def _write_plan(
     ]
     if status == "approved":
         lines.append("- Approval: 2026-09-27, test approved")
+    if status in ("reviewed", "approved", "auto-approved"):
+        lines.append("- Readiness: go-pending-approval")
     if dependencies:
         lines.append(f"- Item-Dependencies: {', '.join(dependencies)}")
     else:
@@ -84,6 +86,8 @@ def _write_plan(
     lines.append("## Workflow history")
     lines.append("")
     lines.append(f"- 2026-09-27 {status} (test): created.")
+    if status in ("reviewed", "approved", "auto-approved"):
+        lines.append("- 2026-09-27 /plan-review (test): APPROVE")
     lines.append("")
     lines.append("## Goal")
     lines.append("")

@@ -1946,6 +1946,17 @@ def _structurally_conforming_plan(
         if in_meta and ln.startswith("- Author:"):
             if status in ("approved", "auto-approved"):
                 out.append("- Approval: 2026-09-06, human: approved")
+            # rdyreq (`fhinri`, IPD-M113): reviewed/ready-to-execute requires `- Readiness:`, and
+            # IPD-M107 requires the review verdict in the history that accounts for it.
+            if status in ("reviewed", "approved", "auto-approved"):
+                out.append("- Readiness: go-pending-approval")
+        if ln.strip() == "## Workflow history" and status in (
+            "reviewed",
+            "approved",
+            "auto-approved",
+        ):
+            out.append("")
+            out.append("- 2026-09-06 /plan-review (tester): APPROVE")
     text = "\n".join(out) + "\n"
     if child_table:
         text = text.replace(
@@ -3370,8 +3381,9 @@ class TheActionDecisionIsSHAREDCode(unittest.TestCase):
                         "- Date: 2026-09-06\n- Kind: orchestrator\n- Concern: synthetic.\n- Scope: synthetic.\n"
                         "- Scope-Paths: none\n- Priority: medium\n- Work-Kind: chore\n- Status: approved\n"
                         "- Set: qbuild\n- Order: 0\n- Highest E allocated: 01\n- Author: synthetic\n- Id: orcq01\n"
-                        "- Approval: 2026-09-06, synthetic\n\n"
-                        "## Workflow history\n\n- 2026-09-06 approved (synthetic): created.\n\n"
+                        "- Approval: 2026-09-06, synthetic\n- Readiness: go-pending-approval\n\n"
+                        "## Workflow history\n\n- 2026-09-06 approved (synthetic): created.\n"
+                        "- 2026-09-06 /plan-review (synthetic): APPROVE\n\n"
                         "## Goal\n\nSynthetic goal.\n\n"
                         "## Detailed Implementation Checklist (TODO)\n\n"
                         "- [ ] E-01 CONFIRM chiq01 REACHED executed\n  - Depends on: none\n  - Expected outcome: done\n  - Execution state: pending\n\n"

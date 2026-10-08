@@ -346,8 +346,10 @@ class TheRetryTriggerIsAPositiveAllowlist(unittest.TestCase):
             "- Set: test\n"
             "- Order: 1\n"
             "- Id: tst001\n"
-            "- Approval: 2026-09-30, approved\n\n"
+            "- Approval: 2026-09-30, approved\n"
+            "- Readiness: go-pending-approval\n\n"
             "## Workflow history\n"
+            "- 2026-09-30 /plan-review (test): APPROVE\n"
             "- 2026-09-30: approved\n\n"
             "## Goal\n"
             "test\n\n"
@@ -575,8 +577,14 @@ class TheRetryTriggerIsAPositiveAllowlist(unittest.TestCase):
             )
             content = re.sub(
                 r"- Id: (\w+)",
-                r"- Id: \1\n- Approval: 2026-09-30, approved via test",
+                r"- Id: \1\n- Approval: 2026-09-30, approved via test"
+                r"\n- Readiness: go-pending-approval",
                 content,
+            )
+            content = content.replace(
+                "## Workflow history\n",
+                "## Workflow history\n\n- 2026-09-30 /plan-review (test): APPROVE\n",
+                1,
             )
             plan_file.write_text(content, encoding="utf-8")
             subprocess.run(["git", "add", str(plan_file)], cwd=repo_dir, check=True)

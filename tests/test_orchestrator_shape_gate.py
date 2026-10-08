@@ -83,10 +83,12 @@ CONFORMING_ORCH_TEXT = """# IPD: Conforming orchestrator fixture
 - Author: fixture
 - Id: fix001
 - Approval: 2026-09-24, fixture
+- Readiness: go-pending-approval
 
 ## Workflow history
 
 - 2026-09-24 approved (fixture): created.
+- 2026-09-24 /plan-review (fixture): APPROVE
 
 ## Goal
 
@@ -166,10 +168,12 @@ NON_CONFORMING_ORCH_1_TEXT = f"""# IPD: Non-conforming orchestrator 1 (untyped p
 - Author: fixture
 - Id: bad001
 - Approval: 2026-09-24, fixture
+- Readiness: go-pending-approval
 
 ## Workflow history
 
 - 2026-09-24 approved (fixture): created.
+- 2026-09-24 /plan-review (fixture): APPROVE
 
 ## Goal
 
@@ -206,10 +210,12 @@ NON_CONFORMING_ORCH_2_TEXT = f"""# IPD: Non-conforming orchestrator 2 (unknown c
 - Author: fixture
 - Id: bad002
 - Approval: 2026-09-24, fixture
+- Readiness: go-pending-approval
 
 ## Workflow history
 
 - 2026-09-24 approved (fixture): created.
+- 2026-09-24 /plan-review (fixture): APPROVE
 
 ## Goal
 
@@ -246,10 +252,12 @@ NON_CONFORMING_ORCH_3_TEXT = f"""# IPD: Non-conforming orchestrator 3 (missing d
 - Author: fixture
 - Id: bad003
 - Approval: 2026-09-24, fixture
+- Readiness: go-pending-approval
 
 ## Workflow history
 
 - 2026-09-24 approved (fixture): created.
+- 2026-09-24 /plan-review (fixture): APPROVE
 
 ## Goal
 
@@ -285,10 +293,12 @@ CONFORMING_WITH_BARE_INDENTED_PROSE_TEXT = f"""# IPD: Conforming rows with bare 
 - Author: fixture
 - Id: prs001
 - Approval: 2026-09-24, fixture
+- Readiness: go-pending-approval
 
 ## Workflow history
 
 - 2026-09-24 approved (fixture): created.
+- 2026-09-24 /plan-review (fixture): APPROVE
 
 ## Goal
 

@@ -1896,6 +1896,7 @@ class VerificationPolarityTests(unittest.TestCase):
 - Work-Kind: feature
 - Id: {id6}
 - Approval: 2026-09-13, fixture
+- Readiness: go-pending-approval
 
 ## Workflow history
 - 2026-09-13 reviewed (test): APPROVE; no blocking findings.

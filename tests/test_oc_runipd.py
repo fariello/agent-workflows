@@ -2906,10 +2906,12 @@ _CONFORMING_PLAN = """\
 - Author: test
 - Id: {id6}
 - Approval: 2026-08-28, recorded via aw ipd set: status set to approved
+- Readiness: go-pending-approval
 
 ## Workflow history
 
 - 2026-08-28 approved (aw set): status set to approved
+- 2026-08-28 /plan-review (test): APPROVE
 - 2026-08-28 draft (test): created.
 
 ## Goal
@@ -7968,9 +7970,11 @@ class StartupAttentionIntegrityReportTests(unittest.TestCase):
                 "- Scope-Paths: README.md\n"
                 "- Concern: test\n"
                 "- Highest E allocated: 01\n"
-                "- Approval: 2026-01-01, test\n\n"
+                "- Approval: 2026-01-01, test\n"
+                "- Readiness: go-pending-approval\n\n"
                 "## Workflow history\n"
-                "- 2026-01-01 approved (test): approved\n\n"
+                "- 2026-01-01 approved (test): approved\n"
+                "- 2026-01-01 /plan-review (test): APPROVE\n\n"
                 "## Goal\nGoal.\n\n"
                 "## Detailed Implementation Checklist (TODO)\n"
                 "### Task group 1: work\n"

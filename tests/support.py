@@ -352,6 +352,7 @@ def ready_plan_text(
     priority: str | None = None,
     work_kind: str | None = None,
     approval: str | None = "2026-08-24, human: approved",
+    readiness: str | None = "go-pending-approval",
 ) -> str:
     """A plan that lints CONFORMING at the `pre-execution` checkpoint.
 
@@ -370,6 +371,10 @@ def ready_plan_text(
                                 `IPD-M104` requires an approval attestation whenever `Status` is
                                 `approved` and the scaffold (a draft) carries none. Pass
                                 `approval=None` to omit it and test that refusal.
+      * `Readiness:`          -> added BESIDE `Status:` when the status is reviewed or at the gate,
+                                because `IPD-M113` requires it there, together with a `/plan-review`
+                                line in `## Workflow history` so `IPD-M107` accepts it as attested.
+                                Pass `readiness=None` to omit both and test that refusal.
 
     `priority` and `work_kind` are OVERRIDABLE so a test asserting the gate's own behavior can pass
     `"unresolved"`, `"grandfathered"`, or a bogus value and get the refusal it is testing. Passing
@@ -390,6 +395,13 @@ def ready_plan_text(
     status_block = f"- Status: {status}"
     if approval is not None and status in ("approved", "auto-approved"):
         status_block += f"\n- Approval: {approval}"
+    add_readiness = readiness is not None and status in (
+        "reviewed",
+        "approved",
+        "auto-approved",
+    )
+    if add_readiness:
+        status_block += f"\n- Readiness: {readiness}"
     replacements = {
         "- Status:": status_block,
         "- Scope-Paths:": f"- Scope-Paths: {scope_paths}",
@@ -414,6 +426,9 @@ def ready_plan_text(
                 out.append(line)
             continue
         out.append(line)
+        if add_readiness and line.strip() == "## Workflow history":
+            out.append("")
+            out.append(f"- {when} /plan-review ({author}): APPROVE")
     return "\n".join(out) + "\n"
 
 

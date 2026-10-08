@@ -45,6 +45,8 @@ def _build_test_plan(
     ]
     if approval:
         lines.append(f"- Approval: {approval}")
+    if status in ("reviewed", "approved", "auto-approved"):
+        lines.append("- Readiness: go-pending-approval")
     if work_kind is not None:
         lines.append(f"- Work-Kind: {work_kind}")
     if priority is not None:
@@ -59,6 +61,7 @@ def _build_test_plan(
             "",
             "## Workflow history",
             "- 2026-09-24 draft (test-author): created.",
+            "- 2026-09-24 /plan-review (test-author): APPROVE",
             "",
             "## Goal",
             "Test goal.",

@@ -154,6 +154,12 @@ def _write_child_plan(
     spec_line = f"- From-Spec: {spec_id6}\n" if spec_id6 else ""
     gate_line = f"- Blocks-Release: {gate}\n" if gate else ""
     appr_line = "- Approval: test\n" if status == "approved" else ""
+    # rdyreq (`fhinri`, IPD-M113): reviewed/ready-to-execute requires `- Readiness:`, attested by a
+    # /plan-review verdict in the history (IPD-M107).
+    gated = status in ("reviewed", "approved", "auto-approved")
+    if gated:
+        appr_line += "- Readiness: go-pending-approval\n"
+    review_line = "- 2026-10-04 /plan-review (test): APPROVE\n" if gated else ""
 
     content = f"""# IPD: Test Child Plan {id6}
 
@@ -174,7 +180,7 @@ def _write_child_plan(
 
 ## Workflow history
 - 2026-10-04 {status} (test): created.
-
+{review_line}
 ## Goal
 Test child goal.
 
@@ -276,6 +282,9 @@ def _write_orchestrator_plan(
     ]
     if status == "approved":
         lines.append("- Approval: test")
+    gated = status in ("reviewed", "approved", "auto-approved")
+    if gated:
+        lines.append("- Readiness: go-pending-approval")
     lines.extend(
         [
             f"{bkl_line}{spec_line}{gate_line}- Priority: medium",
@@ -289,6 +298,12 @@ def _write_orchestrator_plan(
             "",
             "## Workflow history",
             f"- 2026-10-04 {status} (test): created.",
+        ]
+    )
+    if gated:
+        lines.append("- 2026-10-04 /plan-review (test): APPROVE")
+    lines.extend(
+        [
             "",
             "## Goal",
             "Test orchestrator goal.",
