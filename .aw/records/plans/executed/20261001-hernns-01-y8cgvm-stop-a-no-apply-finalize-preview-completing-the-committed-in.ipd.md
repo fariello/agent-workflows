@@ -6,7 +6,7 @@
 - Scope: IN: thread an `apply` flag through `ipd_lifecycle._early_recovery_result` so that, when false, the `PHASE_COMMITTED_INCOMPLETE` arm REPORTS the recoverable state and the exact command that would complete it instead of performing it; forward the flag from BOTH call sites (`finalize` and `retire_orchestrator`), which share that helper by construction; mint a stable finding id for the new report so no caller branches on prose; surface that id as a diagnostic on `aw ipd finalize`'s EXIT_OK preview, which today drops it on all three output modes (and reaches human plus `--json` only, per F-13); behavioral regression tests covering `finalize`, the real CLI, both `--dry-run` spellings, and a control pinning the rollup path UNCHANGED (F-8 measures its `committed-incomplete` arm unreachable, so forwarding the flag there is drift defense, not a live fix); one CHANGELOG line. OUT: changing the `apply=True` resume in ANY way (it stays "RESUMED, never reverted"); changing `PHASE_UNKNOWN_OUTCOME`'s existing refusal, which already fails closed identically for both flag values; `finalize_precheck`, whose own blindness to a wedged journal is `bn58ha`/`hlv737`'s subject and is deliberately untouched here; adding any auto-clear or remedy for a wedged journal; and `runner_shared.driver_finalize`, measured passing `--apply` unconditionally so no driver path changes behavior.
 - Scope-Paths: agent_workflows/ipd_lifecycle.py, tests/test_ipd_lifecycle_cli.py, tests/test_orchestrator_retirement.py, CHANGELOG.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -17,9 +17,9 @@
 - Highest E allocated: 08
 - Author: opencode/its_direct-pt3-claude-opus-5-1m-us
 - Id: y8cgvm
-- Approval: 2026-10-01, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-08 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: y8cgvm verified (set hernns, attempt 1).
 - 2026-10-01 approved (aw set): status set to approved
 - 2026-10-01 reviewed (opencode/its_direct-pt3-claude-opus-5-1m-us): /plan-review round 1: 5 findings (PR-001 HIGH .. PR-005 LOW), all FIXED in place
 
@@ -47,49 +47,49 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: pin the defect before changing anything
 
-- [ ] E-01 Write the FAILING regression test FIRST, in `tests/test_ipd_lifecycle_cli.py`, in `RollbackFailureSemanticsTests` (whose `_begin_and_work` / `_executed_path` / `_head` helpers and whose wedging technique this needs, see F-10). Wedge `PHASE_COMMITTED_INCOMPLETE` exactly as the shipped `test_postcommit_committed_incomplete_and_resume` does, by patching `ipd_lint.lint_file` to return a `DISPOSITION_ERROR` result for `checkpoint == "post-transition"` only. Assert as PRECONDITIONS that the journal phase really is `LC.PHASE_COMMITTED_INCOMPLETE` and that `LC.receipt_path_for(...)` EXISTS, so the test cannot pass vacuously if a future change stops producing that state. Then call `LC.finalize(..., apply=False)` on the `executed/` path and assert the preview changed NOTHING: the journal is still `committed-incomplete`, the receipt still exists, and `HEAD` is unmoved. Run it and paste the FAILURE. Do NOT edit `ipd_lifecycle.py` in this item.
+- [x] E-01 Write the FAILING regression test FIRST, in `tests/test_ipd_lifecycle_cli.py`, in `RollbackFailureSemanticsTests` (whose `_begin_and_work` / `_executed_path` / `_head` helpers and whose wedging technique this needs, see F-10). Wedge `PHASE_COMMITTED_INCOMPLETE` exactly as the shipped `test_postcommit_committed_incomplete_and_resume` does, by patching `ipd_lint.lint_file` to return a `DISPOSITION_ERROR` result for `checkpoint == "post-transition"` only. Assert as PRECONDITIONS that the journal phase really is `LC.PHASE_COMMITTED_INCOMPLETE` and that `LC.receipt_path_for(...)` EXISTS, so the test cannot pass vacuously if a future change stops producing that state. Then call `LC.finalize(..., apply=False)` on the `executed/` path and assert the preview changed NOTHING: the journal is still `committed-incomplete`, the receipt still exists, and `HEAD` is unmoved. Run it and paste the FAILURE. Do NOT edit `ipd_lifecycle.py` in this item.
   - Depends on: none
   - Expected outcome: one new test FAILING at unmodified HEAD, whose failure shows the preview having cleared the journal (`None`) and consumed the receipt. That failure is the evidence both that the defect is real and that the test bites; a test written after the fix proves neither.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 Add the second FAILING test, in the same class, driving the REAL CLI rather than the function, because the contract being violated is stated in `cli.py`'s help text and an in-process call cannot prove the shipped command violates it. Wedge the same state, then call `cli.main(["ipd","finalize","abc123","--dir",str(root),"--actor",...,"--message",...])` with NO `--apply`, and assert exit 0 together with the journal and receipt BOTH surviving. Keep this separate from E-01 rather than folding it in: E-01 pins the library contract and E-02 pins the operator-facing one, and F-7 shows the two can diverge per surface, so one test cannot stand in for the other.
+- [x] E-02 Add the second FAILING test, in the same class, driving the REAL CLI rather than the function, because the contract being violated is stated in `cli.py`'s help text and an in-process call cannot prove the shipped command violates it. Wedge the same state, then call `cli.main(["ipd","finalize","abc123","--dir",str(root),"--actor",...,"--message",...])` with NO `--apply`, and assert exit 0 together with the journal and receipt BOTH surviving. Keep this separate from E-01 rather than folding it in: E-01 pins the library contract and E-02 pins the operator-facing one, and F-7 shows the two can diverge per surface, so one test cannot stand in for the other.
   - Depends on: none
   - Expected outcome: a second test FAILING at unmodified HEAD, whose pasted failure shows the real CLI printing `finalized abc123 -> executed at <sha>` and consuming the receipt with no `--apply` anywhere in its argv.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 Add the THIRD failing test, in the same class, for the `--dry-run` surfaces F-7 measured, which the backlog item does not mention and which carry the stronger promise. Drive `cli.main(["set","executed","abc123","--dir",...,"--actor",...,"--message",...,"--dry-run"])` on the wedged state and assert the journal and receipt survive. Assert the SAME for the `["ipd","set","executed",...,"--dry-run"]` spelling, since `status_set._delegate_plan_executed_to_finalize` serves both and a test covering one leaves the other unpinned. This is its own item because it is a different entry point with a different flag contract (`--dry-run`, not a defaulted `--apply`), not a second assertion about the same one.
+- [x] E-03 Add the THIRD failing test, in the same class, for the `--dry-run` surfaces F-7 measured, which the backlog item does not mention and which carry the stronger promise. Drive `cli.main(["set","executed","abc123","--dir",...,"--actor",...,"--message",...,"--dry-run"])` on the wedged state and assert the journal and receipt survive. Assert the SAME for the `["ipd","set","executed",...,"--dry-run"]` spelling, since `status_set._delegate_plan_executed_to_finalize` serves both and a test covering one leaves the other unpinned. This is its own item because it is a different entry point with a different flag contract (`--dry-run`, not a defaulted `--apply`), not a second assertion about the same one.
   - Depends on: none
   - Expected outcome: a third test FAILING at unmodified HEAD, with the pasted failure showing `--dry-run` reporting `aw set -> ipd finalize: finalized abc123 -> executed at <sha>` and consuming the receipt. This is the strongest single statement of the defect, because `--dry-run` means write nothing.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: close the defect in the one shared helper
 
-- [ ] E-04 Thread the flag through `ipd_lifecycle._early_recovery_result` and forward it from BOTH call sites. Give the helper a keyword-only `apply: bool = True` parameter, and in its `PHASE_COMMITTED_INCOMPLETE` arm, when `apply` is false, return `EXIT_OK` with a message that (a) says the prior finalize is COMMITTED-INCOMPLETE, (b) names the already-landed `lifecycle_commit` from the journal, (c) states that nothing was changed and the begin receipt was NOT consumed, and (d) names the re-invocation with `--apply` that would complete it. Site the check BEFORE `acquire_finalize_lock`, so a preview takes no writer lock. Pass `apply=apply` from `finalize` AND from `retire_orchestrator`. READ F-8 BEFORE WRITING THE SECOND FORWARD AND DO NOT RESTATE THE ORIGINAL CLAIM: review measured the rollup's `committed-incomplete` arm UNREACHABLE (its status-legality gate refuses `already-terminal` first, for BOTH flag values), so forwarding there fixes no live bug and is required as DRIFT DEFENSE, because `ROLLUP_SHARED_GATES` names `early-crash-recovery` shared and a helper that behaved differently per caller would break exactly that property. Do not write a comment or a test asserting the rollup preview resumes today; it does not. Default the parameter to `True` so any caller not updated keeps today's behavior, which is the fail-safe direction (a missed caller still resumes rather than silently previewing a transition the operator asked for). Leave `PHASE_UNKNOWN_OUTCOME` and the `return None` fall-through untouched. Record in a comment WHY the apply test cannot simply be moved ahead of early recovery in `finalize`: that would also skip the `unknown-outcome` refusal, so a preview of an ambiguously-wedged plan would report the ordinary precheck result and tell the operator to proceed, which converts this bug into a worse fail-OPEN one.
+- [x] E-04 Thread the flag through `ipd_lifecycle._early_recovery_result` and forward it from BOTH call sites. Give the helper a keyword-only `apply: bool = True` parameter, and in its `PHASE_COMMITTED_INCOMPLETE` arm, when `apply` is false, return `EXIT_OK` with a message that (a) says the prior finalize is COMMITTED-INCOMPLETE, (b) names the already-landed `lifecycle_commit` from the journal, (c) states that nothing was changed and the begin receipt was NOT consumed, and (d) names the re-invocation with `--apply` that would complete it. Site the check BEFORE `acquire_finalize_lock`, so a preview takes no writer lock. Pass `apply=apply` from `finalize` AND from `retire_orchestrator`. READ F-8 BEFORE WRITING THE SECOND FORWARD AND DO NOT RESTATE THE ORIGINAL CLAIM: review measured the rollup's `committed-incomplete` arm UNREACHABLE (its status-legality gate refuses `already-terminal` first, for BOTH flag values), so forwarding there fixes no live bug and is required as DRIFT DEFENSE, because `ROLLUP_SHARED_GATES` names `early-crash-recovery` shared and a helper that behaved differently per caller would break exactly that property. Do not write a comment or a test asserting the rollup preview resumes today; it does not. Default the parameter to `True` so any caller not updated keeps today's behavior, which is the fail-safe direction (a missed caller still resumes rather than silently previewing a transition the operator asked for). Leave `PHASE_UNKNOWN_OUTCOME` and the `return None` fall-through untouched. Record in a comment WHY the apply test cannot simply be moved ahead of early recovery in `finalize`: that would also skip the `unknown-outcome` refusal, so a preview of an ambiguously-wedged plan would report the ordinary precheck result and tell the operator to proceed, which converts this bug into a worse fail-OPEN one.
   - Depends on: E-01, E-02, E-03
   - Expected outcome: E-01, E-02 and E-03 all pass. `finalize(..., apply=False)` and both `--dry-run` spellings report the recoverable state and leave the journal and receipt intact; `finalize(..., apply=True)` is byte-identical to today. `retire_orchestrator` is UNCHANGED in observable behavior for both flag values, which is the correct outcome given F-8.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 Mint the finding id and make it VISIBLE on the preview surface. Add a module-level constant beside the existing `FINDING_RECEIPT_NEVER_ISSUED` / `FINDING_RECEIPT_ALREADY_FINALIZED` family, in the short-token form those two take (not the sentence form `FINDING_RECEIPT_STALE` takes, which that constant's own comment explains is preserving an already-shipped string), and emit it in E-04's findings tuple. Then fix the surfacing F-9 measured: `ipd_lifecycle.run_finalize`'s `EXIT_OK` branch calls `_emit` with no `diags`, so the id is dropped in human, `--json` and `--agent` modes alike, and a caller told to branch on an id it cannot observe is told nothing. Pass the findings through as diagnostics on that branch, mirroring the shape the `EXIT_FINDINGS` branch already uses (`OutDiag(location=str(plan_path), rule="IPD-FINALIZE", detail=f, ...)`) but with a NON-ERROR severity, since an `EXIT_OK` observation is not a refusal. KNOW WHAT `--agent` CAN AND CANNOT CARRY BEFORE WRITING THE TEST, measured at review (F-13): compact `--agent` output renders each diagnostic as `{"location", "rule"}` ONLY and DROPS `detail`, `--verbose` is not registered on `aw ipd finalize`, so routing the id through `detail` makes it observable in human and `--json` output but NOT in `--agent`, where only the `findings` COUNT rises from 0 to 1. Accept that asymmetry and pin it honestly rather than defeating it: do NOT put the id in the `rule` field to smuggle it into `--agent` (that breaks the `IPD-FINALIZE` rule-name convention the refusal branch established and which `runner_shared`'s `IPD-` prefix finding parser relies on), and do NOT register `--verbose` on this subparser, which is a CLI surface change this plan has no scope for. Add no consumer of the id (no runner branch, no retry classification): minting and surfacing it is the deliverable, and a consumer is a separate decision with its own risk.
+- [x] E-05 Mint the finding id and make it VISIBLE on the preview surface. Add a module-level constant beside the existing `FINDING_RECEIPT_NEVER_ISSUED` / `FINDING_RECEIPT_ALREADY_FINALIZED` family, in the short-token form those two take (not the sentence form `FINDING_RECEIPT_STALE` takes, which that constant's own comment explains is preserving an already-shipped string), and emit it in E-04's findings tuple. Then fix the surfacing F-9 measured: `ipd_lifecycle.run_finalize`'s `EXIT_OK` branch calls `_emit` with no `diags`, so the id is dropped in human, `--json` and `--agent` modes alike, and a caller told to branch on an id it cannot observe is told nothing. Pass the findings through as diagnostics on that branch, mirroring the shape the `EXIT_FINDINGS` branch already uses (`OutDiag(location=str(plan_path), rule="IPD-FINALIZE", detail=f, ...)`) but with a NON-ERROR severity, since an `EXIT_OK` observation is not a refusal. KNOW WHAT `--agent` CAN AND CANNOT CARRY BEFORE WRITING THE TEST, measured at review (F-13): compact `--agent` output renders each diagnostic as `{"location", "rule"}` ONLY and DROPS `detail`, `--verbose` is not registered on `aw ipd finalize`, so routing the id through `detail` makes it observable in human and `--json` output but NOT in `--agent`, where only the `findings` COUNT rises from 0 to 1. Accept that asymmetry and pin it honestly rather than defeating it: do NOT put the id in the `rule` field to smuggle it into `--agent` (that breaks the `IPD-FINALIZE` rule-name convention the refusal branch established and which `runner_shared`'s `IPD-` prefix finding parser relies on), and do NOT register `--verbose` on this subparser, which is a CLI surface change this plan has no scope for. Add no consumer of the id (no runner branch, no retry classification): minting and surfacing it is the deliverable, and a consumer is a separate decision with its own risk.
   - Depends on: E-04
   - Expected outcome: one new module-level constant; the preview's findings tuple carries it; the id's TEXT is observable in human and `--json` output and the `--agent` record's `findings` count rises to 1 with `rule` `IPD-FINALIZE`; and an ORDINARY clean preview (no journal) still emits no diagnostics, still reports `outcome` `clean` with `findings` 0, and still exits 0.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-06 Add the CONTROL test, in the same class, proving the change is narrow in both directions. Assert that `apply=True` on a `committed-incomplete` journal STILL resumes: exit 0, journal cleared, receipt consumed, and `HEAD` unmoved (no second lifecycle commit). Assert that the RECOVERY REMAINS REACHABLE AFTER A PREVIEW by running `apply=False` and then `apply=True` on the SAME fixture and checking the second call succeeds; this is the item's central risk, since a preview that wedged the plan out of its own recovery would be worse than the defect. Assert that `PHASE_UNKNOWN_OUTCOME` still returns `EXIT_CANNOT_RUN` for BOTH flag values, pinning that this plan did not convert a fail-closed refusal into a permissive report. Assert that an ordinary preview with NO journal returns exactly what it returns today, with the new finding id ABSENT. Drive the unknown-outcome wedge with the shipped `_rollback_precommit` patch plus `fault_injection="after_move"` that `test_unrecoverable_failures_and_unknown_outcome` already uses. The ROLLUP control is deliberately NOT here: it needs a different test module and a different fixture, so it is E-08.
+- [x] E-06 Add the CONTROL test, in the same class, proving the change is narrow in both directions. Assert that `apply=True` on a `committed-incomplete` journal STILL resumes: exit 0, journal cleared, receipt consumed, and `HEAD` unmoved (no second lifecycle commit). Assert that the RECOVERY REMAINS REACHABLE AFTER A PREVIEW by running `apply=False` and then `apply=True` on the SAME fixture and checking the second call succeeds; this is the item's central risk, since a preview that wedged the plan out of its own recovery would be worse than the defect. Assert that `PHASE_UNKNOWN_OUTCOME` still returns `EXIT_CANNOT_RUN` for BOTH flag values, pinning that this plan did not convert a fail-closed refusal into a permissive report. Assert that an ordinary preview with NO journal returns exactly what it returns today, with the new finding id ABSENT. Drive the unknown-outcome wedge with the shipped `_rollback_precommit` patch plus `fault_injection="after_move"` that `test_unrecoverable_failures_and_unknown_outcome` already uses. The ROLLUP control is deliberately NOT here: it needs a different test module and a different fixture, so it is E-08.
   - Depends on: E-04, E-05
   - Expected outcome: four control assertions passing in `tests/test_ipd_lifecycle_cli.py`, so a later widening of E-04's condition into "any journal previews" fails a test rather than silently breaking the resume and rollback paths the journal exists to serve.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-08 Add the ROLLUP-UNCHANGED control, in `tests/test_orchestrator_retirement.py`, in `RollupTransitionCase` (which owns the Set fixture and the `make_set` / `retire` helpers this needs; `RollbackFailureSemanticsTests` has no Set and cannot express it). ADDED AT REVIEW, split out of E-06 because it is a different module, a different fixture and a different surface. Wedge an orchestrator into `committed-incomplete` by building an eligible Set with one executed child and patching `ipd_lint.lint_file` to error at `post-transition` during an `apply=True` retire. Then assert that `retire_orchestrator` on the resulting `executed/` path returns `EXIT_FINDINGS` carrying `ROLLUP_REFUSED_ALREADY_TERMINAL` for BOTH `apply=False` AND `apply=True`, with the journal still `committed-incomplete` after each. This pins F-8's reachability premise: the rollup's `committed-incomplete` early-recovery arm is unreachable because the status-legality gate refuses first, so this plan changes nothing observable there. If a later change reorders that gate behind early recovery, this test fails and names the premise that moved, instead of letting a rollup preview silently begin resuming. Do NOT weaken it into asserting the rollup preview reports a recoverable state; it does not and must not be made to.
+- [x] E-08 Add the ROLLUP-UNCHANGED control, in `tests/test_orchestrator_retirement.py`, in `RollupTransitionCase` (which owns the Set fixture and the `make_set` / `retire` helpers this needs; `RollbackFailureSemanticsTests` has no Set and cannot express it). ADDED AT REVIEW, split out of E-06 because it is a different module, a different fixture and a different surface. Wedge an orchestrator into `committed-incomplete` by building an eligible Set with one executed child and patching `ipd_lint.lint_file` to error at `post-transition` during an `apply=True` retire. Then assert that `retire_orchestrator` on the resulting `executed/` path returns `EXIT_FINDINGS` carrying `ROLLUP_REFUSED_ALREADY_TERMINAL` for BOTH `apply=False` AND `apply=True`, with the journal still `committed-incomplete` after each. This pins F-8's reachability premise: the rollup's `committed-incomplete` early-recovery arm is unreachable because the status-legality gate refuses first, so this plan changes nothing observable there. If a later change reorders that gate behind early recovery, this test fails and names the premise that moved, instead of letting a rollup preview silently begin resuming. Do NOT weaken it into asserting the rollup preview reports a recoverable state; it does not and must not be made to.
   - Depends on: E-04
   - Expected outcome: one new test passing, showing the identical `already-terminal` refusal under both flag values with the journal preserved, so the rollup half of E-04's forward is pinned as a no-op rather than asserted to be one.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: record it and prove no regression
 
-- [ ] E-07 Add ONE `- Fixed:` line under `## 2.0.0 (pending)` in `CHANGELOG.md`, in the user-facing register with no em or en dashes, saying that previewing a finalize of a plan whose previous attempt was interrupted after its commit landed now reports what it would do instead of silently completing it and spending the plan's begin receipt. Then establish and compare the suite baseline: run `python3 -m pytest` BARE at the unmodified HEAD of this lane BEFORE any source edit, record the summary line and the full FAILED set, run it again after E-01 through E-06 and E-08, and account for every difference. The baseline half must be performed FIRST, before E-01 writes its test, because a baseline taken afterwards cannot distinguish a failure this plan caused from one it inherited. RE-DERIVE THE NUMBER; DO NOT INHERIT ANY FIGURE FROM THIS PLAN'S PROSE. The count has already drifted twice: authoring measured `3531 passed, 2 skipped, 3 warnings in 103.04s` (208 deselected), and review re-measured the SAME lane at `3822 passed, 2 skipped, 3 warnings in 143.59s` (208 deselected) with the tree clean, because other lanes integrated between the two runs. Both figures are context, NEVER the bar; the bar is that your own before-run and after-run FAILED sets are identical. Treat ANY failure in the after-run as this plan's until the before-run shows the same node id.
+- [x] E-07 Add ONE `- Fixed:` line under `## 2.0.0 (pending)` in `CHANGELOG.md`, in the user-facing register with no em or en dashes, saying that previewing a finalize of a plan whose previous attempt was interrupted after its commit landed now reports what it would do instead of silently completing it and spending the plan's begin receipt. Then establish and compare the suite baseline: run `python3 -m pytest` BARE at the unmodified HEAD of this lane BEFORE any source edit, record the summary line and the full FAILED set, run it again after E-01 through E-06 and E-08, and account for every difference. The baseline half must be performed FIRST, before E-01 writes its test, because a baseline taken afterwards cannot distinguish a failure this plan caused from one it inherited. RE-DERIVE THE NUMBER; DO NOT INHERIT ANY FIGURE FROM THIS PLAN'S PROSE. The count has already drifted twice: authoring measured `3531 passed, 2 skipped, 3 warnings in 103.04s` (208 deselected), and review re-measured the SAME lane at `3822 passed, 2 skipped, 3 warnings in 143.59s` (208 deselected) with the tree clean, because other lanes integrated between the two runs. Both figures are context, NEVER the bar; the bar is that your own before-run and after-run FAILED sets are identical. Treat ANY failure in the after-run as this plan's until the before-run shows the same node id.
   - Depends on: E-06, E-08
   - Expected outcome: one CHANGELOG entry in user terms, and two pasted bare-suite summary lines with their FAILED sets plus an explicit statement of whether the sets are identical.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -182,45 +182,192 @@ No `.spec.md` amendment. The behavior being corrected is not specified in a spec
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: the pasted FAILING run of the new test at unmodified HEAD, showing the assertion that fired and that the observed state was journal `None` with the receipt absent; plus the pasted PASSING run after E-04, showing journal `committed-incomplete`, the receipt present, and `HEAD` unmoved. Both preconditions (phase and receipt presence at the wedge) must appear as asserted, not assumed.
   - Observed evidence:
-  - Result: pending
+    Failing run at unmodified HEAD:
+    ```
+    FAILED tests/test_ipd_lifecycle_cli.py::RollbackFailureSemanticsTests::test_finalize_preview_on_committed_incomplete_preserves_journal_and_receipt
+    AssertionError: unexpectedly None : journal was cleared by preview
+    ```
+    Passing run after E-04:
+    ```
+    tests/test_ipd_lifecycle_cli.py::RollbackFailureSemanticsTests::test_finalize_preview_on_committed_incomplete_preserves_journal_and_receipt PASSED [100%]
+    ```
+    Observed: preconditions verified (journal phase committed-incomplete, receipt present), and after finalize(apply=False) the journal remained committed-incomplete, receipt remained present, and HEAD was unmoved.
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: the pasted FAILING run showing the real CLI, invoked with an argv containing no `--apply`, printing `finalized abc123 -> executed at <sha>` and consuming the receipt; and the pasted PASSING run after E-04 showing the preview message with journal and receipt intact. The argv actually used must be pasted, so a reader can confirm `--apply` is genuinely absent.
   - Observed evidence:
-  - Result: pending
+    Failing run at unmodified HEAD:
+    ```
+    FAILED tests/test_ipd_lifecycle_cli.py::RollbackFailureSemanticsTests::test_cli_finalize_preview_on_committed_incomplete_preserves_journal_and_receipt
+    AssertionError: unexpectedly None : journal was cleared by real CLI preview (output: finalized abc123 -> executed at f75175cf9642 (actor opencode/test).)
+    ```
+    Passing run after E-04:
+    ```
+    tests/test_ipd_lifecycle_cli.py::RollbackFailureSemanticsTests::test_cli_finalize_preview_on_committed_incomplete_preserves_journal_and_receipt PASSED [100%]
+    ```
+    Argv used:
+    `["ipd", "finalize", "abc123", "--dir", str(self.root), "--actor", "opencode/test", "--message", "preview message"]`
+    (no `--apply`). Preview printed `WOULD RESUME: finalize for abc123 is in committed-incomplete ...`, exited 0, and preserved journal and receipt intact.
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: the pasted FAILING run for BOTH `aw set executed ... --dry-run` and `aw ipd set executed ... --dry-run`, each showing the receipt consumed; and the pasted PASSING run after E-04 showing both preserving journal and receipt. Both spellings must appear, since one passing does not imply the other.
   - Observed evidence:
-  - Result: pending
+    Failing run at unmodified HEAD:
+    ```
+    FAILED tests/test_ipd_lifecycle_cli.py::RollbackFailureSemanticsTests::test_cli_set_executed_dry_run_on_committed_incomplete_preserves_journal_and_receipt
+    AssertionError: unexpectedly None : journal was cleared by set executed --dry-run (output: aw set -> ipd finalize: finalized abc123 -> executed at b2b950bcdfa0 (actor opencode/test).)
+    ```
+    Passing run after E-04:
+    ```
+    tests/test_ipd_lifecycle_cli.py::RollbackFailureSemanticsTests::test_cli_set_executed_dry_run_on_committed_incomplete_preserves_journal_and_receipt PASSED [100%]
+    ```
+    Both `["set", "executed", ... "--dry-run"]` and `["ipd", "set", "executed", ... "--dry-run"]` exited 0, reported `WOULD RESUME: ...`, and preserved both journal and receipt intact.
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: the diff of `_early_recovery_result` and its two call sites, showing the keyword-only `apply` defaulting to `True`, the report returned before `acquire_finalize_lock`, and `apply=apply` forwarded from BOTH `finalize` and `retire_orchestrator`. Plus the comment text explaining why the apply test was not simply moved ahead of early recovery. REWRITTEN AT REVIEW: this item previously demanded pasted output of a `retire_orchestrator(..., apply=False)` call "showing it reports rather than resumes", which F-8's correction shows is UNOBTAINABLE (that arm is unreachable; the status gate refuses `already-terminal` first). Demand instead the pasted output of `retire_orchestrator(..., apply=False)` AND `(..., apply=True)` on a wedged `committed-incomplete` orchestrator showing BOTH return the `already-terminal` refusal with the journal left `committed-incomplete`, which is the honest confirmation that this plan did not change the rollup path, plus the `PHASE_UNKNOWN_OUTCOME` rollup preview returning `EXIT_CANNOT_RUN` unchanged. An executor who produces a "rollup preview reports instead of resuming" transcript has either patched the status gate (out of scope) or mis-built the fixture, and must stop and report rather than widen the diff.
   - Observed evidence:
-  - Result: pending
+    Diff of `_early_recovery_result`:
+    ```python
+    def _early_recovery_result(
+        repo_root: Path,
+        plan_path: Path,
+        evidence: Dict[str, Any],
+        *,
+        apply: bool = True,
+    ) -> Optional[FinalizeResult]:
+        ...
+        if phase == PHASE_COMMITTED_INCOMPLETE:
+            # hernns y8cgvm E-04: when apply is False, report the recoverable committed-incomplete state
+            # instead of performing the resume. The apply test cannot simply be moved ahead of early
+            # recovery in finalize: that would also skip the PHASE_UNKNOWN_OUTCOME refusal, so a preview
+            # of an ambiguously-wedged plan would report the ordinary precheck result and tell the operator
+            # to proceed, which converts this bug into a worse fail-OPEN one.
+            # Site this check before acquire_finalize_lock so a preview takes no writer lock.
+            if not apply:
+                lifecycle_commit = journal.get("lifecycle_commit") or "unknown"
+                return FinalizeResult(
+                    EXIT_OK,
+                    None,
+                    f"WOULD RESUME: finalize for {early_id} is in committed-incomplete "
+                    f"(prior lifecycle commit {lifecycle_commit} already landed). "
+                    f"Nothing changed and begin receipt was NOT consumed; "
+                    f"re-invoke with --apply to complete post-commit steps.",
+                    evidence,
+                    (FINDING_FINALIZE_JOURNAL_COMMITTED_INCOMPLETE,),
+                )
+    ```
+    Forwarded call sites:
+    - In `retire_orchestrator`: `early = _early_recovery_result(repo_root, plan_path, evidence, apply=apply)`
+    - In `finalize`: `early = _early_recovery_result(repo_root, plan_path, evidence, apply=apply)`
+    Observed rollup output on wedged committed-incomplete orchestrator:
+    - `apply=False`: `exit_code=1`, `message="REFUSED: orc000 carries Status 'executed', which is already terminal; there is nothing to retire."`, `findings=('already-terminal',)`, `journal_phase='committed-incomplete'`
+    - `apply=True`: `exit_code=1`, `message="REFUSED: orc000 carries Status 'executed', which is already terminal; there is nothing to retire."`, `findings=('already-terminal',)`, `journal_phase='committed-incomplete'`
+    - `PHASE_UNKNOWN_OUTCOME` rollup preview: `exit_code=2`, `message='finalize journal for orc000 is in unknown-outcome (ambiguous prior attempt); resolve manually and clear ...'`, `findings=('sim-unknown',)`
+  - Result: pass
 
-- [ ] V-05 validates E-05
+- [x] V-05 validates E-05
   - Required evidence: the new constant's definition pasted beside the existing `FINDING_RECEIPT_NEVER_ISSUED` / `FINDING_RECEIPT_ALREADY_FINALIZED` lines showing the same token form; and the actual stdout of the no-apply preview in ALL THREE output modes (human, `--json`, `--agent`), pasted and not predicted. CORRECTED AT REVIEW: this item previously demanded "the id present in each", which F-13 measures as unobtainable in compact `--agent` mode (it renders `{"location","rule"}` only and drops `detail`, and `--verbose` is unregistered on this subparser). The honest bar: the id's TEXT appears in the human line and in `--json`'s `diagnostics[].detail`, and the `--agent` record shows `"findings":1` with `"rule":"IPD-FINALIZE"`, exit 0. Also paste an ordinary journal-free preview in `--agent` mode showing `"findings":0` still, which is what proves the surfacing change did not make every clean preview emit noise. If an executor finds a way to carry the id text into compact `--agent` output WITHOUT changing the `rule` convention or registering a new flag, that is a scope surprise to reconcile at finalize, not to absorb silently.
   - Observed evidence:
-  - Result: pending
+    Constant definition in `agent_workflows/ipd_lifecycle.py`:
+    ```python
+    FINDING_RECEIPT_NEVER_ISSUED = "receipt-never-issued"
+    FINDING_RECEIPT_ALREADY_FINALIZED = "receipt-consumed-already-finalized"
+    FINDING_RECEIPT_STALE = "plan content digest no longer matches the receipt"
+    FINDING_FINALIZE_JOURNAL_UNKNOWN_OUTCOME = "finalize-journal-unknown-outcome"
+    FINDING_FINALIZE_JOURNAL_COMMITTED_INCOMPLETE = "finalize-journal-committed-incomplete"
+    ```
+    Actual stdout in all three modes on committed-incomplete:
+    Human mode:
+    ```
+    WOULD RESUME: finalize for abc123 is in committed-incomplete (prior lifecycle commit 7ab882a5dc70c705b197005fafc00d4c8625c277 already landed). Nothing changed and begin receipt was NOT consumed; re-invoke with --apply to complete post-commit steps.
+      IPD-FINALIZE finalize-journal-committed-incomplete
+    ```
+    JSON mode:
+    ```json
+    {
+      "schema": "aw.agent/v1",
+      "command": "ipd finalize",
+      "status": "clean",
+      "exit_code": 0,
+      "summary": "WOULD RESUME: finalize for abc123 is in committed-incomplete (prior lifecycle commit 7ab882a5dc70c705b197005fafc00d4c8625c277 already landed). Nothing changed and begin receipt was NOT consumed; re-invoke with --apply to complete post-commit steps.",
+      "verified": true,
+      "complete": true,
+      "diagnostics": [
+        {
+          "location": ".aw/records/plans/executed/20260824-demo-01-abc123-demo.ipd.md",
+          "rule": "IPD-FINALIZE",
+          "detail": "finalize-journal-committed-incomplete",
+          "severity": "warning"
+        }
+      ],
+      "changes": [],
+      "evidence": [],
+      "next_actions": [],
+      "data": {
+        "commit": null,
+        "evidence": {}
+      }
+    }
+    ```
+    Agent mode:
+    ```json
+    {"schema":"aw.agent/v1","kind":"result","cmd":"ipd finalize","outcome":"clean","exit":0,"verified":true,"complete":true,"findings":1,"diagnostics":[{"location":".aw/records/plans/executed/20260824-demo-01-abc123-demo.ipd.md","rule":"IPD-FINALIZE"}],"next":null}
+    ```
+    Clean ordinary preview (no journal) in agent mode:
+    ```json
+    {"schema":"aw.agent/v1","kind":"result","cmd":"ipd finalize","outcome":"clean","exit":0,"verified":true,"complete":true,"findings":0,"next":null}
+    ```
+  - Result: pass
 
-- [ ] V-06 validates E-06
+- [x] V-06 validates E-06
   - Required evidence: pasted passing output for each of the FOUR controls, with the concrete observed values quoted: the `apply=True` resume's exit code, cleared journal, consumed receipt and unmoved `HEAD`; the preview-then-apply sequence's second exit code; the `unknown-outcome` exit code under BOTH `apply=False` and `apply=True`; and the journal-free preview's message and empty findings tuple. The rollup control moved to V-08 at review.
   - Observed evidence:
-  - Result: pending
+    Passing test output:
+    ```
+    tests/test_ipd_lifecycle_cli.py::RollbackFailureSemanticsTests::test_controls_apply_true_resumes_and_recovery_reachable_after_preview PASSED [ 50%]
+    tests/test_ipd_lifecycle_cli.py::RollbackFailureSemanticsTests::test_controls_unknown_outcome_and_ordinary_preview_unchanged PASSED [100%]
+    ```
+    Concrete observed values:
+    - Control 1 (`apply=True` resume): `exit=0`, `journal=None`, `receipt_exists=False`, `head_unmoved=True`
+    - Control 2 (preview-then-apply): `preview_exit=0`, `apply_exit=0`, `journal=None`, `receipt_exists=False`, `head_unmoved=True`
+    - Control 3 (unknown-outcome): `fault_exit=2`, `preview_exit=2`, `apply_exit=2` (exit 2 for both flag values)
+    - Control 4 (clean preview): `exit=0`, `message='precheck + reconciliation passed; re-run with --apply to perform the terminal transaction.'`, `findings=()`
+  - Result: pass
 
-- [ ] V-08 validates E-08
+- [x] V-08 validates E-08
   - Required evidence: the pasted passing run of the new rollup control, quoting the observed exit code, the finding tuple, and the journal phase read back AFTER each call, for BOTH `apply=False` and `apply=True`. The two flag values must show the SAME refusal, since that sameness is the whole claim. Also state explicitly that no assertion in the new test claims the rollup preview reports a recoverable state, since F-8 measures that arm unreachable and such an assertion could only pass against a fixture that bypassed the status gate.
   - Observed evidence:
-  - Result: pending
+    Passing test output:
+    ```
+    tests/test_orchestrator_retirement.py::TheSharedGatesActuallyFireOnTheRollupPath::test_committed_incomplete_rollup_remains_unreachable_control PASSED [100%]
+    ```
+    Concrete observed values:
+    - `apply=False`: `exit_code=1`, `findings=('already-terminal',)`, `journal_phase='committed-incomplete'`
+    - `apply=True`: `exit_code=1`, `findings=('already-terminal',)`, `journal_phase='committed-incomplete'`
+    Both flag values produce the identical `already-terminal` refusal and preserve the journal. No assertion in the test claims the rollup preview reports a recoverable state (unreachable because status gate refuses first).
+  - Result: pass
 
-- [ ] V-07 validates E-07
+- [x] V-07 validates E-07
   - Required evidence: the added `CHANGELOG.md` line quoted verbatim, confirmed to sit under `## 2.0.0 (pending)` and to contain no em or en dash; plus the two BARE `python3 -m pytest` summary lines (before any source edit, and after all items) with their FAILED sets and an explicit statement of whether the sets are identical. A summary line showing a suppressed count (from a doubled `-q`) does not satisfy this.
   - Observed evidence:
-  - Result: pending
+    Verbatim `CHANGELOG.md` entry under `## 2.0.0 (pending)`:
+    `- Fixed: `aw ipd finalize` and `aw set executed --dry-run` previews of a plan whose previous attempt was interrupted after its commit landed now report what they would do instead of silently completing the transition and spending the plan's begin receipt.`
+    Confirmed no em or en dashes present.
+    Bare suite baseline before any edits:
+    `6637 passed, 2 skipped, 3 warnings in 934.42s (0:15:34)` (259 deselected)
+    FAILED set: empty
+    Bare suite after all edits:
+    `6644 passed, 2 skipped, 3 warnings in 418.63s (0:06:58)` (259 deselected)
+    FAILED set: empty
+    Delta: exactly +7 passed tests corresponding to E-01, E-02, E-03, E-05, E-06 (x2), E-08.
+    FAILED sets are identical (empty before and after).
+  - Result: pass
 
 ## Approval and execution gate
 

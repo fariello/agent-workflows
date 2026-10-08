@@ -1,5 +1,5 @@
 - Id: hernns
-- Status: graduated
+- Status: done
 - Graduated-To: hernns
 - Blocks-Release: next
 - Set: hernns
@@ -8,6 +8,7 @@
 - Summary: aw ipd finalize WITHOUT --apply completes a committed-incomplete transaction, consuming the begin receipt from a surface documented as a preview
 
 ## Workflow history
+- 2026-10-08 done (aw backlog): closed by aw agy run: IPD y8cgvm executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20261001-hernns-01-y8cgvm-stop-a-no-apply-finalize-preview-completing-the-committed-in.ipd.md); evidence .aw/records/plans/executed/20261001-hernns-01-y8cgvm-stop-a-no-apply-finalize-preview-completing-the-committed-in.ipd.md
 - 2026-10-01 set (aw backlog): graduated by run run-20260930T053053Z-3200037: y8cgvm
 - 2026-09-29 created (aw backlog): Filed while authoring bn58ha's graduation plan; measured, see body.
 

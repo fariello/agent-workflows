@@ -65,6 +65,7 @@ Major storage-layout boundary. The logical model (D126-D129) was superseded by t
 - Fixed: `aw uninstall` now removes the install-emitted `.aw/system/layout.json` and `.aw/system/layout.schema.json` so no `.aw/` directory is left behind.
 - Fixed: when another process holds the shared writer lock past the wait budget, commands now report a clean refusal message naming the lock holder instead of failing with an unhandled exception traceback.
 - Fixed: `aw ipd finalize` preview now reports an ambiguous prior finalize attempt instead of reporting that the transition may proceed.
+- Fixed: `aw ipd finalize` and `aw set executed --dry-run` previews of a plan whose previous attempt was interrupted after its commit landed now report what they would do instead of silently completing the transition and spending the plan's begin receipt.
 - Fixed: `aw config show`, `get`, `set`, `unset`, `add`, `remove`, and `is` now produce machine readable output when you pass `--agent`, where before they stopped with an error and printed nothing.
 - Fixed: `aw --help` surfaces no longer promise `aw.agent/v1` JSONL on piped or redirected stdout, and `--agent` is the explicit and only route.
 - Added: `aw check --source-citations`, a read-only scan mode reporting dangling record-filename citations under packaged source (agent_workflows/ and tools/, non-test .py files), with an exit code of 0 when clean and 1 when findings exist.
