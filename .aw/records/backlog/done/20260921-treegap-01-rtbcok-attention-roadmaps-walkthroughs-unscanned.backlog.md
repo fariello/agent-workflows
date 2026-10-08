@@ -1,5 +1,5 @@
 - Id: rtbcok
-- Status: graduated
+- Status: done
 - Graduated-To: treegap
 - Set: treegap
 - Priority: low
@@ -7,6 +7,7 @@
 - Summary: aw attention still cannot see the roadmaps and walkthroughs trees, so a selector naming one is answered only by the vocabulary exemption
 
 ## Workflow history
+- 2026-10-08 done (aw backlog): closed by aw agy run: IPD uxb0tz executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20260929-treegap-01-uxb0tz-answer-an-id6-that-lives-in-a-deliberately-untracked-records.ipd.md); evidence .aw/records/plans/executed/20260929-treegap-01-uxb0tz-answer-an-id6-that-lives-in-a-deliberately-untracked-records.ipd.md
 - 2026-09-29 set (aw backlog): graduated by run run-20260928T235941Z-1396311: uxb0tz
 - 2026-09-21 created (aw backlog): aw attention still cannot see the roadmaps and walkthroughs trees, so a selector naming one is answered only by the vocabulary exemption
 
