@@ -170,6 +170,7 @@ Triage of report `l6cbbb`, reproduced at HEAD `474b037a9` (2026-10-06). "Present
   - Carrier: bh1cy5
 - D02, D06, the rename half of D10, the adopt half of D13, and the INDEX and upgrade-warning halves of D15 are fixed at HEAD (evidence in Findings). They are not re-fixed; `kck7a5`'s regression test pins the D02 and D06 outcomes so they cannot regress.
   - Carrier: kck7a5
+  - Carrier-Evidence: .aw/records/plans/executed/20261006-instbugs-11-kck7a5-prove-the-whole-set-with-one-fresh-install-regression-over-a.ipd.md
 - A FINAL TRIAGE REPORT FILE requested by report `l6cbbb` step 5 is satisfied by the Findings table above; no separate review record is written.
   - Carrier-Declined: not owed; the requested triage IS the Findings table of this plan, so there is no outstanding obligation to hand off.
 
