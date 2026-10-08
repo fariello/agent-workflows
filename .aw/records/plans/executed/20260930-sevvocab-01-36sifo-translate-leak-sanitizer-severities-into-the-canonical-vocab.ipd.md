@@ -6,7 +6,7 @@
 - Scope: IN: (a) introducing ONE canonical translation point so no raw `fail`/`warn` token leaves `doctor` in a severity field or a rendered string, covering the three measured sites (`probe_sanitizer`'s drift detail, `SanitizerProbeResult.to_dict`'s `severity` key, and `render_human_report`'s per-finding line); (b) a behavior test pinning that property, because F-06 measured that NO test anywhere asserts on any of the three. OUT: `leak_sanitizer`'s OWN `fail`/`warn` vocabulary, which is correct and stays (F-03 explains why renaming it is the wrong fix); the `check-local-leaks` CLI's own `--agent`/human output, whose `fail`/`warn` wording is its documented contract (F-04); the two internal consumers that compare against `"fail"` as a CONTROL-FLOW predicate rather than rendering it (`security_hardening.check_evidence_redaction`, documented in `host_runner`), which are correct and must not be touched (F-05); and any change to `artifact_core.drift_exit_code` or to the exit code `aw doctor` returns (F-07 measures why this is a REPORTING fix that must stay exit-neutral).
 - Scope-Paths: agent_workflows/doctor.py, tests/test_sanitizer_severity_vocabulary.py
 - Item-Dependencies: executed:nwcf8j
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: low
@@ -17,9 +17,9 @@
 - Highest E allocated: 04
 - Author: opencode/its_direct/pt3-claude-opus-5-1m-us
 - Id: 36sifo
-- Approval: 2026-10-01, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-08 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: 36sifo verified (set sevvocab, attempt 1). [Scope reconciliation - out-of-scope .aw/records/backlog/open/20261008-wxpytg-01-wxpytg-doctor-machine-diagnostic-construction-hardcodes-s.backlog.md: changed by the plan's approved execution (auto-reconciled by aw agy run)]
 - 2026-10-01 approved (aw set): status set to approved
 - 2026-10-01 reviewed (opencode/its_direct/pt3-claude-opus-5-1m-us): plan-review complete: PR-101..PR-105 all fixed, zero deferred, zero open
 
@@ -37,39 +37,39 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: Confirm the premise at the execution base
 
-- [ ] E-01 Re-measure the defect at the execution base, so this plan does not build on a stale premise. Build a throwaway git repository OUTSIDE this checkout (pytest's `tmp_path` or `tempfile.mkdtemp()` with no `dir=` argument), commit one file containing a home-style path that trips the `home-path` rule, then run `python3 -m agent_workflows doctor --dir <fixture> --json` and report three things side by side: `data.report.sanitizer.findings[*].severity`, the `severity` of the sibling `doctor.leak-*` entry in the top-level `diagnostics` list, and that diagnostic's `detail` prefix. Then run the same command WITHOUT `--json` under `NO_COLOR=1` and report the `Sanitizer:` block's per-finding line. Finally record the exit code of both runs.
+- [x] E-01 Re-measure the defect at the execution base, so this plan does not build on a stale premise. Build a throwaway git repository OUTSIDE this checkout (pytest's `tmp_path` or `tempfile.mkdtemp()` with no `dir=` argument), commit one file containing a home-style path that trips the `home-path` rule, then run `python3 -m agent_workflows doctor --dir <fixture> --json` and report three things side by side: `data.report.sanitizer.findings[*].severity`, the `severity` of the sibling `doctor.leak-*` entry in the top-level `diagnostics` list, and that diagnostic's `detail` prefix. Then run the same command WITHOUT `--json` under `NO_COLOR=1` and report the `Sanitizer:` block's per-finding line. Finally record the exit code of both runs.
   DO NOT BUILD THE FIXTURE INSIDE THIS CHECKOUT. Measured at authoring: a fixture created under this worktree works for the sanitizer probe specifically, but it leaves an untracked directory inside a SHARED checkout, and the sibling plan `nwcf8j` measured a worse version of the same trap where a fixture under `.aw/` caused `attention` to report the REAL repository's lanes because `_resolve_runs_repo_root` walks parents. Build outside the tree and the question does not arise.
   - Depends on: none
   - Expected outcome: the two vocabularies are shown COEXISTING in one payload (`sanitizer.findings[].severity == "fail"` beside the sibling diagnostic's `"error"`), the diagnostic `detail` and the human line are both shown carrying the raw `fail:` prefix, and both runs exit 1. STOP AND REPORT if the sanitizer payload already reports a canonical value, because the defect would then be fixed and this plan is moot.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: Translate at one boundary
 
-- [ ] E-02 Add ONE translation helper in `doctor` mapping the sanitizer vocabulary to the canonical one, and route all three measured sites through it so the mapping exists exactly once (GUIDING_PRINCIPLES P8, one definition). The three sites, by symbol: `doctor.probe_sanitizer` (builds the drift `detail` as `f"{f.severity}: {f.snippet[:120]}"`), `doctor.SanitizerProbeResult.to_dict` (emits `"severity": getattr(f, "severity", "error")`), and `doctor.render_human_report` (emits the per-finding line `f"    - {f.location}: {f.rule} ({f.severity}: {f.snippet})"` under the `Security & Local Leak Sanitizer` heading). Map `fail` -> `error` and `warn` -> `warning`, which is NOT a free choice but the mapping `leak_sanitizer` ITSELF already uses at its `CommandResult` boundary (`severity="error" if f.severity == "fail" else "warning"`); adopting it keeps the two surfaces consistent rather than inventing a second answer. Give an UNRECOGNIZED value the conservative `error`, matching the established `X or "error"` idiom this repository uses for unknown severities, so a future sanitizer vocabulary addition lands in the alarming bucket and never in silence.
+- [x] E-02 Add ONE translation helper in `doctor` mapping the sanitizer vocabulary to the canonical one, and route all three measured sites through it so the mapping exists exactly once (GUIDING_PRINCIPLES P8, one definition). The three sites, by symbol: `doctor.probe_sanitizer` (builds the drift `detail` as `f"{f.severity}: {f.snippet[:120]}"`), `doctor.SanitizerProbeResult.to_dict` (emits `"severity": getattr(f, "severity", "error")`), and `doctor.render_human_report` (emits the per-finding line `f"    - {f.location}: {f.rule} ({f.severity}: {f.snippet})"` under the `Security & Local Leak Sanitizer` heading). Map `fail` -> `error` and `warn` -> `warning`, which is NOT a free choice but the mapping `leak_sanitizer` ITSELF already uses at its `CommandResult` boundary (`severity="error" if f.severity == "fail" else "warning"`); adopting it keeps the two surfaces consistent rather than inventing a second answer. Give an UNRECOGNIZED value the conservative `error`, matching the established `X or "error"` idiom this repository uses for unknown severities, so a future sanitizer vocabulary addition lands in the alarming bucket and never in silence.
   DO NOT MAP `warn` TO `info`, WHICH WOULD SILENTLY MOVE AN EXIT CODE. Measured at authoring (F-07): `artifact_core.drift_exit_code` returns 0 only when EVERY drift is `info`, so `error`, `warning` and the legacy empty string all fail the gate identically. `warning` is therefore exit-neutral while `info` would convert a leak finding into an advisory that no longer fails `aw doctor`. That is a GATING change masquerading as a reporting fix, and it is out of scope.
   - Depends on: E-01
   - Expected outcome: one helper, three callers, no remaining site in `doctor` that interpolates or forwards a sanitizer `severity` without translating it. `aw doctor --json` reports `error` for a `fail` finding in BOTH the sanitizer payload and the sibling diagnostic, the human line reads `(error: ...)`, and the exit code is unchanged at 1.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 Set the `Drift.severity` field on the sanitizer drift that `probe_sanitizer` constructs, using the same helper, and verify the exit code does not move. Measured at authoring: `probe_sanitizer` builds `core.Drift(location, rule, detail)` POSITIONALLY with three fields, so `severity` defaults to the empty string; `Drift`'s own docstring documents the trailing fields as optional and the empty value as the legacy shape. This is exit-neutral BY CONSTRUCTION and must be shown to be: an empty severity already fails `drift_exit_code`, and so does `error`, so a `fail`-severity leak keeps exiting 1. Add a brief comment recording that neutrality so a later reader does not "simplify" the mapping toward `info`.
+- [x] E-03 Set the `Drift.severity` field on the sanitizer drift that `probe_sanitizer` constructs, using the same helper, and verify the exit code does not move. Measured at authoring: `probe_sanitizer` builds `core.Drift(location, rule, detail)` POSITIONALLY with three fields, so `severity` defaults to the empty string; `Drift`'s own docstring documents the trailing fields as optional and the empty value as the legacy shape. This is exit-neutral BY CONSTRUCTION and must be shown to be: an empty severity already fails `drift_exit_code`, and so does `error`, so a `fail`-severity leak keeps exiting 1. Add a brief comment recording that neutrality so a later reader does not "simplify" the mapping toward `info`.
 
   PASS `severity=` AS A KEYWORD ON CONSTRUCTION; DO NOT ASSIGN TO THE FIELD AFTERWARDS. `core.Drift` is a `NamedTuple` and is therefore IMMUTABLE: `setattr(d, "severity", "error")` raises `AttributeError: can't set attribute` (measured at review). `severity` is also the NINTH positional field (`location`, `rule`, `detail`, `observed`, `required`, `recovery`, `assurance`, `determinism`, `severity`), so it must be named rather than appended positionally, or the value lands in `observed`. A reviewer made exactly that mistake and measured `info -> 1`, which would have falsified F-07; named correctly, `info -> 0` as F-07 states.
   THIS ITEM CHANGES NO OBSERVABLE OUTPUT TODAY, WHICH IS WHY ITS JUSTIFICATION IS CORRECTED (PR-101). The original rationale claimed populating the field was "the difference between a payload that merely LOOKS right and a drift object that CARRIES its severity for any consumer that reads the field". Measured at review: NO consumer reads it on this path. `SanitizerProbeResult.to_dict`'s drift serializer emits exactly `{"location", "rule", "detail"}` and omits `severity` entirely; and the emitted machine `Diagnostic` for a leak carries a HARDCODED `severity="error"` literal rather than a read of the drift. I applied E-03 alone and confirmed the `--json` payload was byte-unchanged: the sibling diagnostic still read `error` (from the literal), the sanitizer finding still read `fail`, and the serialized drift still carried three keys. So E-03 is correct FORWARD-LOOKING hygiene (it stops the drift asserting the legacy empty severity, and it is what makes the `drift_exit_code` contribution honest rather than accidental), and it is NOT a user-visible fix. Keep it, and do not claim it fixes a symptom.
   DOCTOR'S OWN HARDCODED `severity="error"` IS OUT OF SCOPE AND IS NOT FIXED BY THE DEPENDENCY. `nwcf8j` replaces the hardcoded literal in `attention.py`, not the one in `doctor.py`'s diagnostic construction, so doctor's literal survives BOTH plans. That is recorded as F-10 with a carrier rather than silently absorbed, because fixing it would change which severity doctor reports for every drift rule, not just the sanitizer's.
   - Depends on: E-02
   - Expected outcome: the sanitizer drift carries a canonical `severity` instead of the empty legacy default, constructed with a `severity=` KEYWORD. `aw doctor`'s exit code over the E-01 fixture is byte-identical before and after, and so is the rest of the payload, since no consumer reads this field yet (measured at review).
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: Pin the property
 
-- [ ] E-04 Add `tests/test_sanitizer_severity_vocabulary.py` asserting that NO raw `fail`/`warn` token reaches a rendered or serialized severity field. Drive the real CLI over a fixture repository built under pytest's `tmp_path` (outside this checkout, per E-01) and assert on command output, the structured payload, and the exit code only. Assert the PROPERTY, not the fixture's incidental numbers: every `severity` value in the sanitizer payload and in the sibling `doctor.leak-*` diagnostics is a member of the canonical three-value set, the rendered human line for the planted finding does not contain the raw token, and the exit code matches the pre-fix exit code for the same fixture. Follow the existing fixture idiom in `tests/test_doctor.py` plus `tests.support.init_repo` / `tests.support.run_cli`.
+- [x] E-04 Add `tests/test_sanitizer_severity_vocabulary.py` asserting that NO raw `fail`/`warn` token reaches a rendered or serialized severity field. Drive the real CLI over a fixture repository built under pytest's `tmp_path` (outside this checkout, per E-01) and assert on command output, the structured payload, and the exit code only. Assert the PROPERTY, not the fixture's incidental numbers: every `severity` value in the sanitizer payload and in the sibling `doctor.leak-*` diagnostics is a member of the canonical three-value set, the rendered human line for the planted finding does not contain the raw token, and the exit code matches the pre-fix exit code for the same fixture. Follow the existing fixture idiom in `tests/test_doctor.py` plus `tests.support.init_repo` / `tests.support.run_cli`.
   DO NOT READ PRODUCTION SOURCE. No `inspect`, `ast`, regex, or substring search over `doctor.py`, no caller counts, no symbol censuses, no assertion that the helper exists or is named anything in particular (AGENTS.md "TEST OUTCOMES, NOT CODE STRUCTURE"; GUIDING_PRINCIPLES P16). The test must pass against ANY correct implementation of E-02, including one that inlines the mapping differently.
   COVER THE `warn` SIDE THROUGH A SEAM, AND SAY SO IN THE DOCSTRING. Measured at authoring (F-02): `doctor.probe_sanitizer` calls `scan_working_tree_counted(repo_root)` with the default `include_warn=False`, and `build_ruleset(..., include_warn=False)` compiles ZERO warn rules, so a CLI-only fixture CANNOT currently produce a `warn` finding and a test that merely drives the CLI would leave half the mapping unproven. Cover `fail` end-to-end through the CLI, and cover `warn` by driving the rendering and serialization path with a `leak_sanitizer.Finding(..., severity="warn")` supplied through the production call seam. State in the docstring WHICH half is end-to-end and WHICH is seam-driven, and why that is faithful rather than a convenience.
   THE SEAM IS CONFIRMED WORKABLE AND ITS SHAPE IS MEASURED (PR-104), so do not invent one. `leak_sanitizer.Finding`'s signature is `(location, rule, severity, snippet)` with NO defaults, so all four must be supplied. Patching `leak_sanitizer.scan_working_tree_counted` to return `([Finding(location="x.py:1", rule="derived:host", severity="warn", snippet="tok")], 1)` and calling the real `doctor.probe_sanitizer` produced drift detail `'warn: tok'` and a `to_dict` severity of `'warn'` at review, i.e. it reproduces the raw token on BOTH surfaces the fix must clean. Patch the name in the module UNDER TEST's namespace (`doctor`'s imported reference), not a copy.
   DO NOT ASSERT ANY WARN-RULE COUNT (PR-102). The warn rules are DERIVED PER REPOSITORY AND PER MACHINE by `derive_warn_tokens(repo_root)`, measured as 3 in this lane against the authoring row's claim of 29, so any warn count is environment-dependent and would make this module flaky across checkouts. The only stable fact is that the default compiles ZERO warn rules, and even that belongs in the docstring as the REASON for the seam rather than as an assertion.
   - Depends on: E-03
   - Expected outcome: a test that FAILS against the base (where `"fail"` appears in the payload and the rendered line) and PASSES after E-02 and E-03, covering both vocabulary values and pinning exit-code neutrality. This is the durable guard F-06 shows is absent today.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -121,6 +121,8 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Carrier: nwcf8j
   - Carrier-Evidence: .aw/records/plans/executed/20260929-sevtruth-01-nwcf8j-report-each-finding-s-real-severity-in-the-doctor-and-attent.ipd.md
 - DOCTOR'S OWN HARDCODED `severity="error"` IN ITS MACHINE DIAGNOSTIC CONSTRUCTION (F-10, added at review). Every doctor drift is reported to a machine consumer as `error` regardless of its real severity, which is the same defect CLASS `nwcf8j` fixes in `attention.py` but at a site neither plan's `- Scope-Paths:` covers.
+  - Carrier: wxpytg
+  - Carrier-Evidence: .aw/records/backlog/open/20261008-wxpytg-01-wxpytg-doctor-machine-diagnostic-construction-hardcodes-s.backlog.md
   - Carrier-Required: a backlog item MUST be filed for this before this plan finalizes, because it is a live defect this review DISCOVERED and neither this plan nor its dependency closes it, so leaving it in prose would lose it the moment this plan reaches `executed` and classes `done`. It is deliberately NOT absorbed here: fixing it changes the reported severity of EVERY doctor drift rule (not just the sanitizer's), it interacts with `nwcf8j`'s shared-classifier extraction in the same file, and `nwcf8j` F-10 already measured that the correct read is `check_engine.enrich_drift(d).severity or "error"` rather than a bare `d.severity or "error"`, so the fix needs that plan's groundwork. File it with `aw backlog new` as `- Work-Kind: bug` inheriting `- Blocks-Release: next` (it is a live correctness defect on a machine surface, and the repository gates every live bug), cite the new id6 in V-02's evidence, and note that `.aw/records/backlog/` is an expected out-of-fence write to be justified at finalize with `--scope-reason`.
 
 ## Scope check
@@ -152,25 +154,154 @@ No `.spec.md` is amended and no user-facing doc is edited, so `- Scope-Paths:` d
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste the `--json` run's three values side by side (the sanitizer finding `severity`, the sibling `doctor.leak-*` diagnostic `severity`, and that diagnostic's `detail` prefix), the `NO_COLOR=1` human `Sanitizer:` per-finding line, and both exit codes. The evidence must show `"fail"` in the sanitizer payload beside `"error"` in the sibling diagnostic, i.e. the two vocabularies coexisting. FAIL this item if the fixture was created inside this checkout (the path must not contain `.aw/` or the worktree root), since E-01's recorded sibling trap (plan `nwcf8j` measured a fixture under `.aw/` making `attention` report the REAL repository's lanes, because `_resolve_runs_repo_root` walks parents) shows an in-tree fixture can answer about the live repository. CONFIRMED REACHABLE AT REVIEW: an out-of-tree fixture built with `tempfile.mkdtemp()` and one committed home-style path reproduces every value this item demands, so the stop condition is satisfiable rather than aspirational.
   - Observed evidence:
-  - Result: pending
+    Fixture path: `/tmp/tmpx2sp51ro` (outside checkout, does not contain `.aw/` or workspace root).
+    Pre-fix side-by-side values:
+    - `data.report.sanitizer.findings[*].severity`: `['fail']`
+    - Sibling `doctor.leak-*` diagnostic `severity`: `['error']`
+    - Sibling diagnostic `detail` prefix: `['fail: P = "~/test.txt"']`
+    - Exit code (`rc_json`): 1
+    Human run under `NO_COLOR=1`:
+    - Per-finding line: `    - leak.py:1: home-path (fail: P = "/home/" + "someuser/test.txt")`
+    - Exit code (`rc_human`): 1
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: paste the post-change `--json` sanitizer payload severities and sibling diagnostic severities (every value must be one of `error`/`warning`/`info`), plus the post-change human per-finding line showing no `fail:`/`warn:` prefix. Paste a `git diff` of `doctor.py` showing the mapping defined ONCE and all three call sites routed through it. FAIL this item if the diff shows the mapping written out more than once, if any of the three sites still interpolates `f.severity` untranslated, or if the diff maps `warn` to `info` rather than `warning` (F-07: that silently stops a leak finding failing the gate). ALSO REQUIRED (PR-101): paste the id6 of the backlog item filed for F-10 (doctor's hardcoded `severity="error"`), confirming it carries `- Work-Kind: bug` and `- Blocks-Release: next`. FAIL this item if no such item exists, since F-10 is a live defect this plan deliberately does not fix and prose in a plan that is about to reach `executed` is not a carrier.
   - Observed evidence:
-  - Result: pending
+    Post-change probe over out-of-tree fixture `/tmp/tmpjqu24_rl`:
+    - `data.report.sanitizer.findings[*].severity`: `['error']`
+    - Sibling `doctor.leak-*` diagnostic `severity`: `['error']`
+    - Sibling diagnostic `detail` prefix: `['error: P = "~/test.txt"']`
+    - Exit code (`rc_json`): 1
+    Post-change human per-finding line (`NO_COLOR=1`):
+    - `    - leak.py:1: home-path (error: P = "/home/" + "someuser/test.txt")`
+    - Exit code (`rc_human`): 1
+    Git diff of `doctor.py` showing one mapping helper and three call sites routed through it:
+    ```diff
+    @@ -164,6 +164,22 @@ class ArtifactsProbeResult:
+             }
 
-- [ ] V-03 validates E-03
+
+    +def _canonical_sanitizer_severity(severity: Optional[str]) -> str:
+    +    """Map leak_sanitizer severity ('fail' / 'warn') to canonical ('error' / 'warning').
+    +
+    +    Matches the mapping leak_sanitizer uses at its CommandResult boundary:
+    +    'fail' -> 'error', 'warn' -> 'warning'. Unrecognized or empty values fall
+    +    back conservatively to 'error'.
+    +
+    +    DO NOT MAP 'warn' TO 'info': core.drift_exit_code returns 0 only when every
+    +    drift is 'info', so 'warning' is exit-neutral while 'info' would silently stop
+    +    a leak finding from failing aw doctor (F-07).
+    +    """
+    +    if severity == "warn":
+    +        return "warning"
+    +    return "error"
+    +
+    +
+     @dataclass
+     class SanitizerProbeResult:
+         scanned_files: int = 0
+    @@ -178,7 +194,9 @@ class SanitizerProbeResult:
+                         "location": f.location,
+                         "line_number": getattr(f, "line_number", None),
+                         "rule": f.rule,
+    -                    "severity": getattr(f, "severity", "error"),
+    +                    "severity": _canonical_sanitizer_severity(
+    +                        getattr(f, "severity", "error")
+    +                    ),
+                         "snippet": f.snippet,
+                     }
+                     for f in self.findings
+    @@ -705,9 +723,15 @@ def probe_sanitizer(repo_root: Path) -> SanitizerProbeResult:
+             )
+             return res
+         for f in findings:
+    +        # Exit-neutral: Drift.severity defaults to "" which fails drift_exit_code;
+    +        # setting canonical 'error' or 'warning' keeps exit code at 1 (never map to 'info').
+    +        sev = _canonical_sanitizer_severity(getattr(f, "severity", "error"))
+             res.drift.append(
+                 core.Drift(
+    -                f.location, f"doctor.leak-{f.rule}", f"{f.severity}: {f.snippet[:120]}"
+    +                f.location,
+    +                f"doctor.leak-{f.rule}",
+    +                f"{sev}: {f.snippet[:120]}",
+    +                severity=sev,
+                 )
+             )
+         return res
+    @@ -1862,7 +1886,10 @@ def render_human_report(report: DoctorReport, term: T.Term) -> str:
+                 )
+             )
+             for f in san.findings:
+    -            lines.append(f"    - {f.location}: {f.rule} ({f.severity}: {f.snippet})")
+    +            sev = _canonical_sanitizer_severity(
+    +                getattr(f, "severity", "error")
+    +            )
+    +            lines.append(f"    - {f.location}: {f.rule} ({sev}: {f.snippet})")
+         else:
+             lines.append("  Sanitizer:   Clean (0 maintainer/local leak findings)")
+         lines.append("")
+    ```
+    F-10 carrier backlog item: `wxpytg` in `.aw/records/backlog/open/20261008-wxpytg-01-wxpytg-doctor-machine-diagnostic-construction-hardcodes-s.backlog.md`, carrying `- Work-Kind: bug` and `- Blocks-Release: next`.
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: show the sanitizer drift now carrying a canonical non-empty `severity` (for example by printing `[(d.rule, d.severity) for d in probe_sanitizer(<fixture>).drift]`, which read `[('doctor.leak-home-path', "''")]` at review before the change), and paste the `aw doctor` exit code over the E-01 fixture from BOTH before and after the change, which must be identical. Quote the constructed `core.Drift(...)` showing `severity=` passed as a KEYWORD (F-11: it is the ninth positional field, and the tuple is immutable so it cannot be assigned afterwards). ALSO STATE EXPLICITLY (PR-101) that this item changes NO other observable output, which is the expected result and not a failure: the serialized drift carries only `location`/`rule`/`detail`, and the sibling diagnostic's `error` comes from doctor's own hardcoded literal (F-10), so a byte-unchanged `--json` payload apart from the exit code is the CORRECT outcome. FAIL this item if the exit code moved, if the drift still carries the empty legacy severity, if the before/after exit codes were not actually both captured, or if the executor claims this item fixed a user-visible symptom.
   - Observed evidence:
-  - Result: pending
+    Drift severity before vs after:
+    - Before change: `[('doctor.leak-home-path', "''")]`
+    - After change: `[('doctor.leak-home-path', "'error'")]`
+    Doctor exit code over fixture:
+    - Before change: 1
+    - After change: 1 (byte-identical, exit-neutral)
+    Constructed `core.Drift` showing keyword `severity=sev`:
+    ```python
+            sev = _canonical_sanitizer_severity(getattr(f, "severity", "error"))
+            res.drift.append(
+                core.Drift(
+                    f.location,
+                    f"doctor.leak-{f.rule}",
+                    f"{sev}: {f.snippet[:120]}",
+                    severity=sev,
+                )
+            )
+    ```
+    Explicit confirmation (PR-101): This item changes NO other observable output today. The serialized drift in `to_dict` emits only `location`/`rule`/`detail` (omits severity), and the sibling diagnostic's `error` comes from doctor's hardcoded literal (`severity="error"`, F-10), so the `--json` payload remains byte-identical apart from the exit code and finding/detail translations owned by E-02.
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: paste the new test FAILING against the pre-fix code and PASSING after, then paste the BARE `python3 -m pytest` summary line showing the whole suite green. TAKE THE RED STATE BEFORE APPLYING E-02, NOT BY STASHING (PR-105): write the test module first, run it against the untouched `doctor.py`, capture the failure naming the raw `fail` token, and only then apply E-02/E-03. `git stash` is UNSAFE here because this checkout is shared and stashing is repository-wide, not path-scoped: it would sweep a co-worker's unrelated uncommitted work into the stash stack and a mistaken `pop` would then restore it into your tree. That is not hypothetical, and the dependency plan `nwcf8j` states the same preference for the same reason. If the red state must be taken after the fact, use `git stash push -- agent_workflows/doctor.py` (path-scoped) or `git diff > patch; git checkout -- agent_workflows/doctor.py`, and confirm with `git diff --stat` that nothing else moved; NEVER a bare `git stash`. Also paste the test's docstring sentence stating which half is end-to-end and which is seam-driven (E-04, F-02). FAIL this item if the test passes against the pre-fix code (it would be pinning nothing, the exact failure mode F-06 records), if it asserts on fixture-specific finding counts rather than the vocabulary property, if it reads `doctor.py` source with `inspect`/`ast`/regex/substring search or asserts on symbol names (AGENTS.md "TEST OUTCOMES, NOT CODE STRUCTURE"), or if it covers only the `fail` value.
   - Observed evidence:
-  - Result: pending
+    RED state against untouched `doctor.py`:
+    ```
+    FFF                                                                      [100%]
+    =================================== FAILURES ===================================
+    ___ test_doctor_translates_unrecognized_sanitizer_severity_to_error_via_seam ___
+    E           AssertionError: assert 'novel_future_token' == 'error'
+    ___________ test_doctor_translates_warn_sanitizer_severity_via_seam ____________
+    E           AssertionError: assert 'warn' in {'error', 'info', 'warning'}
+    __________ test_doctor_translates_fail_sanitizer_severity_end_to_end ___________
+    E           AssertionError: Raw/non-canonical severity 'fail' in sanitizer finding: {'location': 'leaking_file.py:1', 'line_number': None, 'rule': 'home-path', 'severity': 'fail', 'snippet': 'P = "/home/" + "someuser/secret.txt"'}
+    E           assert 'fail' in {'error', 'info', 'warning'}
+    =========================== short test summary info ============================
+    FAILED tests/test_sanitizer_severity_vocabulary.py::test_doctor_translates_unrecognized_sanitizer_severity_to_error_via_seam
+    FAILED tests/test_sanitizer_severity_vocabulary.py::test_doctor_translates_warn_sanitizer_severity_via_seam
+    FAILED tests/test_sanitizer_severity_vocabulary.py::test_doctor_translates_fail_sanitizer_severity_end_to_end
+    3 failed in 11.12s
+    ```
+    GREEN state after applying E-02 and E-03:
+    ```
+    ...                                                                      [100%]
+    3 passed in 6.57s
+    ```
+    Full bare suite pytest summary line:
+    `6709 passed, 2 skipped, 3 warnings in 393.56s (0:06:33)`
+    Test docstring sentence stating which half is end-to-end and which is seam-driven:
+    "The 'fail' severity mapping is covered end-to-end through the real CLI over a fixture repository. The 'warn' severity mapping is covered through a production seam by patching leak_sanitizer.scan_working_tree_counted in doctor's namespace, because doctor calls the scanner with include_warn=False by default (compiling zero warn rules), making a CLI-only warn finding unreachable without altering doctor's scanning policy."
+  - Result: pass
 
 ## Approval and execution gate
 

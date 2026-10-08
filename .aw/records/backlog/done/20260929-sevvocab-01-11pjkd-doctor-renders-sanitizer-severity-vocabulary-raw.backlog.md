@@ -1,5 +1,5 @@
 - Id: 11pjkd
-- Status: graduated
+- Status: done
 - Graduated-To: sevvocab
 - Blocks-Release: next
 - Set: sevvocab
@@ -8,6 +8,7 @@
 - Summary: doctor renders leak_sanitizer's fail/warn severity vocabulary raw beside error/warning diagnostics
 
 ## Workflow history
+- 2026-10-08 done (aw backlog): closed by aw agy run: IPD 36sifo executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20260930-sevvocab-01-36sifo-translate-leak-sanitizer-severities-into-the-canonical-vocab.ipd.md); evidence .aw/records/plans/executed/20260930-sevvocab-01-36sifo-translate-leak-sanitizer-severities-into-the-canonical-vocab.ipd.md
 - 2026-09-30 set (aw backlog): graduated by run run-20260930T053053Z-3200037: 36sifo
 - 2026-09-29 created (aw backlog): Carrier for an obligation deferred by plan nwcf8j (sevtruth), which fixes the doctor/attention severity surfaces but declines to unify two severity vocabularies.
 

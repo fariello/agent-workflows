@@ -164,6 +164,22 @@ class ArtifactsProbeResult:
         }
 
 
+def _canonical_sanitizer_severity(severity: Optional[str]) -> str:
+    """Map leak_sanitizer severity ('fail' / 'warn') to canonical ('error' / 'warning').
+
+    Matches the mapping leak_sanitizer uses at its CommandResult boundary:
+    'fail' -> 'error', 'warn' -> 'warning'. Unrecognized or empty values fall
+    back conservatively to 'error'.
+
+    DO NOT MAP 'warn' TO 'info': core.drift_exit_code returns 0 only when every
+    drift is 'info', so 'warning' is exit-neutral while 'info' would silently stop
+    a leak finding from failing aw doctor (F-07).
+    """
+    if severity == "warn":
+        return "warning"
+    return "error"
+
+
 @dataclass
 class SanitizerProbeResult:
     scanned_files: int = 0
@@ -178,7 +194,9 @@ class SanitizerProbeResult:
                     "location": f.location,
                     "line_number": getattr(f, "line_number", None),
                     "rule": f.rule,
-                    "severity": getattr(f, "severity", "error"),
+                    "severity": _canonical_sanitizer_severity(
+                        getattr(f, "severity", "error")
+                    ),
                     "snippet": f.snippet,
                 }
                 for f in self.findings
@@ -705,9 +723,15 @@ def probe_sanitizer(repo_root: Path) -> SanitizerProbeResult:
         )
         return res
     for f in findings:
+        # Exit-neutral: Drift.severity defaults to "" which fails drift_exit_code;
+        # setting canonical 'error' or 'warning' keeps exit code at 1 (never map to 'info').
+        sev = _canonical_sanitizer_severity(getattr(f, "severity", "error"))
         res.drift.append(
             core.Drift(
-                f.location, f"doctor.leak-{f.rule}", f"{f.severity}: {f.snippet[:120]}"
+                f.location,
+                f"doctor.leak-{f.rule}",
+                f"{sev}: {f.snippet[:120]}",
+                severity=sev,
             )
         )
     return res
@@ -1862,7 +1886,8 @@ def render_human_report(report: DoctorReport, term: T.Term) -> str:
             )
         )
         for f in san.findings:
-            lines.append(f"    - {f.location}: {f.rule} ({f.severity}: {f.snippet})")
+            sev = _canonical_sanitizer_severity(getattr(f, "severity", "error"))
+            lines.append(f"    - {f.location}: {f.rule} ({sev}: {f.snippet})")
     else:
         lines.append("  Sanitizer:   Clean (0 maintainer/local leak findings)")
     lines.append("")
