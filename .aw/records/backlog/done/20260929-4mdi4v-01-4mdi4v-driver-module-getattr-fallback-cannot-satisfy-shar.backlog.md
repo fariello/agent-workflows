@@ -1,5 +1,5 @@
 - Id: 4mdi4v
-- Status: graduated
+- Status: done
 - Graduated-To: fbkfix
 - Set: 4mdi4v
 - Priority: medium
@@ -7,6 +7,7 @@
 - Summary: Six execute_item_core getattr(driver_module, ...) fallbacks default to a shared definition that cannot satisfy the call site, so a host without its own copy gets TypeError instead of working behavior
 
 ## Workflow history
+- 2026-10-08 done (aw backlog): closed by aw agy run: IPD vfjw09 executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20261001-fbkfix-01-vfjw09-make-the-execute-item-core-driver-module-fallbacks-either-wo.ipd.md); evidence .aw/records/plans/executed/20261001-fbkfix-01-vfjw09-make-the-execute-item-core-driver-module-fallbacks-either-wo.ipd.md
 - 2026-10-01 graduated (aw backlog): graduated by run run-20261001T221821Z-1985969: vfjw09
 - 2026-09-29 created (aw backlog): Filed while authoring plan vbhat9 (from backlog 2yjc5l) as the durable carrier for that plan's deferred fallback-chain row (its F-09 and F-10).
 
