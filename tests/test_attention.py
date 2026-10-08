@@ -18,6 +18,7 @@ import unittest
 from contextlib import ExitStack, redirect_stderr, redirect_stdout
 from pathlib import Path
 from unittest import mock
+from typing import Any
 
 from agent_workflows import attention as att
 from agent_workflows import attention_contract as A
@@ -3620,13 +3621,14 @@ class InboxFooterNudgeTests(unittest.TestCase):
                 pass
         return out.getvalue()
 
-    def _agent(self) -> str:
+    def _agent(self, extra=None) -> str:
         from agent_workflows import cli
 
         out = io.StringIO()
+        argv = ["attention", "--dir", str(self.root), "--agent"] + (extra or [])
         with redirect_stdout(out), redirect_stderr(io.StringIO()):
             try:
-                cli.main(["attention", "--dir", str(self.root), "--agent"])
+                cli.main(argv)
             except SystemExit:
                 pass
         return out.getvalue()
@@ -3687,7 +3689,7 @@ class InboxFooterNudgeTests(unittest.TestCase):
 
     def test_check_and_json_and_agent_stay_silent(self):
         """The line is a HUMAN-board advisory: `--check` is a validity gate, `--format json` is a
-        versioned consumer contract (OQ-01 keeps the count out of it), and `--agent` is JSONL."""
+        versioned consumer contract (OQ-01 keeps the count out of it), and `--check --agent` is JSONL."""
         (self._inbox() / "drop.md").write_text("x", encoding="utf-8")
         self.assertNotIn("waiting in `.aw/inbox/`", self._human(["--check"]))
         out = io.StringIO()
@@ -3716,7 +3718,7 @@ class InboxFooterNudgeTests(unittest.TestCase):
             ],
         )
         self.assertEqual(obj["schema_version"], 4)
-        self.assertNotIn("inbox", self._agent())
+        self.assertNotIn("inbox", self._agent(["--check"]))
 
     def test_rendering_the_board_creates_nothing(self):
         (self._inbox() / "drop.md").write_text("x", encoding="utf-8")
@@ -3726,3 +3728,129 @@ class InboxFooterNudgeTests(unittest.TestCase):
         self.assertEqual(set(before), set(after))
         for p, b in before.items():
             self.assertEqual(after[p], b, f"{p} changed")
+
+
+class InboxAgentEvidenceTests(unittest.TestCase):
+    """awinbox Order 04 (`qp8fn1`): explicit `--agent` consumers receive the inbox waiting-drops count.
+
+    Every case is built in a TEMPORARY repo via `_mk_repo`. No test reads the real `.aw/inbox/`:
+    it is gitignored, per-checkout, and empties as drops are adopted.
+    """
+
+    def setUp(self) -> None:
+        self._tmp = tempfile.TemporaryDirectory()
+        self.root = _mk_repo(Path(self._tmp.name))
+        (self.root / ".aw" / "records").mkdir(parents=True, exist_ok=True)
+        from agent_workflows import config as _config
+
+        self._orig_is_configured = _config.is_configured
+        _config.is_configured = lambda: False
+
+    def tearDown(self) -> None:
+        from agent_workflows import config as _config
+
+        _config.is_configured = self._orig_is_configured
+        self._tmp.cleanup()
+
+    def _inbox(self) -> Path:
+        d = self.root / ".aw" / "inbox"
+        d.mkdir(parents=True, exist_ok=True)
+        return d
+
+    def _run_agent(self, extra_args=None) -> dict[str, Any]:
+        from agent_workflows import cli
+
+        out = io.StringIO()
+        argv = ["attention", "--dir", str(self.root), "--agent"] + (extra_args or [])
+        with redirect_stdout(out), redirect_stderr(io.StringIO()):
+            try:
+                cli.main(argv)
+            except SystemExit:
+                pass
+        line = out.getvalue().strip()
+        self.assertTrue(line, "expected JSONL output on stdout")
+        return json.loads(line)
+
+    def test_compact_agent_record_contains_inbox_waiting_count(self):
+        """Case 1: N>0 drops: the compact `--agent` record's `evidence` list CONTAINS `inbox-waiting:N`."""
+        box = self._inbox()
+        (box / "drop1.md").write_text("x", encoding="utf-8")
+        (box / "drop2.md").write_text("x", encoding="utf-8")
+        rec = self._run_agent()
+        self.assertIn("inbox-waiting:2", rec.get("evidence", []))
+
+    def test_drained_inbox_omits_inbox_waiting_key(self):
+        """Case 2: DRAINED (bookkeeping-only `README.md` plus `.gitkeep`): the key is ABSENT."""
+        box = self._inbox()
+        (box / "README.md").write_text("what this lane is", encoding="utf-8")
+        (box / ".gitkeep").write_text("", encoding="utf-8")
+        rec = self._run_agent()
+        evidence_keys = [
+            e.split(":")[0] if isinstance(e, str) else e.get("key")
+            for e in rec.get("evidence", [])
+        ]
+        self.assertNotIn("inbox-waiting", evidence_keys)
+        self.assertEqual(rec.get("evidence"), ["attention"])
+
+    def test_findings_equal_between_populated_and_drained_records(self):
+        """Case 3: THE CONTRACT CASE: `findings` is EQUAL between the drops-present and drained records.
+
+        This is the assertion that would fail had route (b) been taken, where a warning Diagnostic
+        inflates findings on a clean repo.
+        """
+        box = self._inbox()
+        (box / "README.md").write_text("what this lane is", encoding="utf-8")
+        (box / ".gitkeep").write_text("", encoding="utf-8")
+        drained_rec = self._run_agent()
+
+        (box / "drop1.md").write_text("x", encoding="utf-8")
+        (box / "drop2.md").write_text("x", encoding="utf-8")
+        populated_rec = self._run_agent()
+
+        self.assertEqual(
+            populated_rec.get("findings"),
+            drained_rec.get("findings"),
+            "findings must be equal between populated and drained inboxes",
+        )
+        self.assertEqual(populated_rec.get("outcome"), drained_rec.get("outcome"))
+        self.assertEqual(populated_rec.get("exit"), drained_rec.get("exit"))
+        self.assertEqual(populated_rec.get("verified"), drained_rec.get("verified"))
+        self.assertEqual(populated_rec.get("complete"), drained_rec.get("complete"))
+        self.assertEqual(populated_rec.get("cmd"), drained_rec.get("cmd"))
+        self.assertEqual(populated_rec.get("schema"), drained_rec.get("schema"))
+
+    def test_verbose_agent_record_contains_inbox_waiting_number(self):
+        """Case 4: `--verbose` carries the number too in the expanded evidence dict."""
+        box = self._inbox()
+        (box / "drop.md").write_text("x", encoding="utf-8")
+        rec = self._run_agent(["--verbose"])
+        evidence_entries = rec.get("evidence", [])
+        inbox_entry = next(
+            (
+                e
+                for e in evidence_entries
+                if isinstance(e, dict) and e.get("key") == "inbox-waiting"
+            ),
+            None,
+        )
+        self.assertIsNotNone(
+            inbox_entry, "inbox-waiting entry not found in verbose evidence"
+        )
+        self.assertEqual(inbox_entry.get("value"), 1)
+        self.assertEqual(inbox_entry.get("status"), "verified")
+
+    def test_check_agent_stays_silent_with_waiting_drops(self):
+        """Case 5: THE `--check --agent` ARM IS UNAFFECTED: its record carries no inbox key,
+        pinning that a local gitignored drop never reaches the validity surface.
+        """
+        box = self._inbox()
+        (box / "drop.md").write_text("x", encoding="utf-8")
+        rec = self._run_agent(["--check"])
+        evidence_keys = [
+            e.split(":")[0] if isinstance(e, str) else e.get("key")
+            for e in rec.get("evidence", [])
+        ]
+        self.assertNotIn("inbox-waiting", evidence_keys)
+        self.assertEqual(rec.get("findings"), 0)
+        self.assertEqual(rec.get("exit"), 0)
+        self.assertEqual(rec.get("outcome"), "clean")
