@@ -3,13 +3,13 @@
 - Date: 2026-10-07
 - Kind: orchestrator
 - Concern: Unattended `aw oc run` / `aw agy run` runs stop on failures an agent fixes in one turn when told what went wrong, and the maintainer loses hours to it ("99% of the time the intervention is telling an agent to investigate and fix"). Measured 2026-10-07 at HEAD `03ddbcb83`: the turn retry can never fire (`runner_shared.TURN_RETRYABLE_DISPOSITIONS` admits only `failed-safely`, which nothing reaching `handle_turn_failure_retry` carries); a crash, stall, spawn failure, hook refusal or red merged suite fails the item with no fix-it turn; spec `25kzda` 4.1/5.5/5.7 promises run aborts the code never performs; out-of-scope edits are auto-justified by the runner; and an agent's "the gate or tool must change" has no durable channel.
-- Scope: Orchestrate eight children that together make the runner FIX FIRST: every agent-caused failure gets a bounded fix-it turn naming what failed; the agent may propose a gate, tool or approach change and that proposal lands durably while the item stops `needs-human`; only runner-state failures and human gates stop an item without a fix-it turn; only a corrupt ledger aborts the run. This plan holds ORCHESTRATION ONLY: every deliverable belongs to a child. EXCLUDES, in every child: push detection (Set `denypush`, `l4vw9o`), global fix-it caps across kinds (backlog `38hwvk`), and changing the per-kind retry budget default.
+- Scope: Orchestrate eight children that together make the runner FIX FIRST: every agent-caused failure gets a bounded fix-it turn naming what failed; the agent may propose a gate, tool or approach change and that proposal lands durably while the item stops `needs-human`; only runner-state failures and human gates stop an item without a fix-it turn; only the abort set amended spec `25kzda` 4.1 names aborts the run (a corrupt ledger, plus a runner tool-identity mismatch if `tb6lw3` OQ-02 so rules). This plan holds ORCHESTRATION ONLY: every deliverable belongs to a child. EXCLUDES, in every child: push detection (Set `denypush`, `l4vw9o`), global fix-it caps across kinds (backlog `38hwvk`), and changing the per-kind retry budget default.
 - Scope-Paths: .aw/records/plans/pending/20261007-fixfirst-00-lxb1ew-fix-first-send-agent-caused-run-failures-back-to-the-agent-i.ipd.md
 - Item-Dependencies: none
 - Status: to-review
 - Coverage: pass
-- Coverage-Fingerprint: f5a0e34276e300468af2f08e87f79f3246696cdef361af818d2fa4ad180d565a
-- Coverage-Checked: 2026-10-07 by uri/its_direct/pt3-claude-opus-5.5-1m-us
+- Coverage-Fingerprint: fd50f81b2152f76f085099c67b9516c443b03de9f5ee6848b47b8715d1a3364b
+- Coverage-Checked: 2026-10-08 by uri/its_direct/pt3-claude-opus-5.5-1m-us
 - Work-Kind: bug
 - Priority: high
 - From-Backlog: coivul
@@ -22,6 +22,8 @@
 - Id: lxb1ew
 
 ## Workflow history
+- 2026-10-08 /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): REVIEWED - OPEN QUESTIONS; PR-001 (HIGH, open: abort set depends on blocking child OQ tb6lw3 OQ-02, escalated as OQ-02), PR-002 (MEDIUM, fixed: Cross-IPD claim that child V-items quote spec rows was false, reassigned to iksylm E-05), PR-003 (MEDIUM, fixed: builder naming gap in Orders 05/07 noted), PR-004 (LOW, fixed: execution contract), PR-005 (LOW, fixed: stale coverage record refreshed). IPD-S408 child-lint-failing (tb6lw3) unresolvable by the reviewer; repair budget exhausted, Status left to-review, Readiness absent. Record: `.aw/records/reviews/20261007-fixfirst-00-lxb1ew-fix-first-send-agent-caused-run-failures-back-to-the-agent-i.review.md`.
+- 2026-10-08 coverage pass (aw oc run): fingerprint fd50f81b2152, model uri/its_direct/pt3-claude-opus-5.5-1m-us
 - 2026-10-07 to-review (aw set): authored review-ready from backlog coivul; coverage pass
 
 - 2026-10-07 coverage pass (aw oc run): fingerprint f5a0e34276e3, model uri/its_direct/pt3-claude-opus-5.5-1m-us
@@ -89,7 +91,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 | Order | Id | What it does | Depends on |
 |---|---|---|---|
-| 01 | `tb6lw3` | Rewrite spec `25kzda` 4.1, 5.5, 5.7 (and the `run_evidence` transcription the spec pins) as fix first; only a corrupt ledger aborts a run | none |
+| 01 | `tb6lw3` | Rewrite spec `25kzda` 4.1, 5.5, 5.7 (and the `run_evidence` transcription the spec pins) as fix first; the abort set shrinks to a corrupt ledger (plus tool-identity mismatch pending its OQ-02) | none |
 | 02 | `tha7a6` | Outcome-file `proposal` field; runner files a plan or backlog item onto main through a coordinator worktree; item stops `needs-human`, run continues | `executed:tb6lw3` |
 | 03 | `mcbph5` | One shared fix-it message: what failed, fix the cause not the gate, when a small gate/tool fix is acceptable, how to propose | `executed:tha7a6` |
 | 04 | `ytas91` | Fix-it turns for nonzero exit / no outcome file, stall or turn limit, spawn failure; resume the turn's own session; supersedes `p47qfu` | `executed:mcbph5` |
@@ -105,14 +107,14 @@ Orders 04 to 07 are mutually independent once 03 has executed. They all edit `ag
 1. Every failure class the amended spec calls agent-caused gets a fix-it turn naming what failed, within the existing per-kind `--retry-budget`. [Owner: iksylm E-01]
 2. A fix-it turn's message says to fix the cause, not the gate, and tells the agent how to propose a gate, tool or approach change. [Owner: iksylm E-02]
 3. A proposal lands on main as a plan or backlog item even when the lane does not merge, and the item stops `needs-human` while independent items continue. [Owner: iksylm E-03]
-4. No run aborts except on a corrupt ledger. [Owner: iksylm E-04]
+4. No run aborts except on a class in amended spec `25kzda` 4.1's abort set (a corrupt ledger; a runner tool-identity mismatch only if `tb6lw3` OQ-02 rules option A or C). [Owner: iksylm E-04, which must assert against the RULED set, not a hardcoded 'corrupt ledger only']
 5. The spec text, the `run_evidence` transcription and the shipped behavior agree. [Owner: iksylm E-05]
 6. The bare suite is green apart from failures reproduced at the Set's baseline. [Owner: iksylm E-06]
 
 ## Cross-IPD validation
 
-- The spec (Order 01) is the contract every code child cites. Each code child's V-items quote the amended spec row it implements. [Owner: each code child's own V-items; cross-checked by iksylm E-05]
-- The message (Order 03) is the ONLY fix-it text: Orders 04 to 07 call `build_fix_it_notice` rather than writing their own. [Owner: iksylm E-02]
+- The spec (Order 01) is the contract every code child implements. Measured at review 2026-10-08: no V-item in Orders 02 to 07 quotes a `25kzda` row, so this is NOT carried per child; the row-to-behavior mapping is owned solely by iksylm E-05 (each amended 5.5 row mapped to an exercising test case, `run_evidence.ABORT_CLASSES` compared to 4.1). [Owner: iksylm E-05]
+- The message (Order 03) is the ONLY fix-it text: Orders 04 to 07 call `build_fix_it_notice` rather than writing their own. Orders 05 and 07 do not name the builder in their own text (Order 06 says "Order 03's message"), so their reviewers should make that explicit; the Set-level check stays here. [Owner: iksylm E-02]
 - The proposal path (Order 02) is the only way an item reaches `needs-human` from a fix-it turn. [Owner: iksylm E-03]
 
 ## Deferred / out of scope (with reason)
@@ -141,6 +143,15 @@ This plan runs no tests. `iksylm` (Order 08) performs the whole-Set measurement,
 - Status: resolved
 - Owner: maintainer
 - Resolution or deferral rationale: Resolved 2026-10-07 in session. The maintainer asked whether the lane could be used but only the record merged. That is what Order 02 does: the record is committed in a coordinator worktree cut from main (the `perform_coordinator_backlog_close` pattern) and fast-forwarded under the integration lock, so main moves atomically or not at all and the lane's other changes do not come with it. See `tha7a6` F-02.
+
+### OQ-02: Which classes abort a run: corrupt ledger only, or also a runner tool-identity mismatch?
+
+- Blocking: yes
+- Finding: PR-001
+- Status: open
+- Owner: maintainer
+- Context: this is child `tb6lw3` OQ-02 (blocking, open), raised to the Set because the answer changes this plan's Scope and criterion 4 and child `iksylm` E-04's assertion. Shipped code aborts on `runner_shared.ToolIdentityError` as well as a corrupt ledger (plan `af7i6p` OQ-02 ruled it run-fatal). `aw ipd coverage lxb1ew` reports `child-lint-failing` for `tb6lw3` (`IPD-Q501 OQ-02`), so this orchestrator cannot reach `reviewed` until it is answered.
+- Options and recommendation: see `tb6lw3` OQ-02 (A: both abort, code unchanged, recommended; B: ledger only, tool identity becomes stop-item with a carrier; C: treat tool identity as a form of corrupt ledger). Answer it THERE, then resolve this question citing that answer.
 
 ## Validation and cross-check (verify before reporting the Set complete)
 
@@ -191,4 +202,4 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 - Size assessment: standard
 - Cohesion rationale: not required
 
-Requires explicit human approval of each child before execution. The runner retires this orchestrator once every child is `executed`. Backlog `coivul` is set `graduated` when the Set is authored and closes through the normal backlog close once every carrier has executed.
+Requires explicit human approval of each child before execution. OQ-02 is blocking and must be resolved (by answering `tb6lw3` OQ-02) before this plan can be reviewed or approved. The runner retires this orchestrator once every child is `executed`; executing by hand, confirm each child in Order and finish with `aw ipd finalize`, never a hand `git mv`. This plan writes no code; any record it touches is committed path-scoped through `aw commit`, never pushed, and every `V-*` carries the real pasted `aw find` output. Backlog `coivul` is set `graduated` when the Set is authored and closes through the normal backlog close once every carrier has executed.
