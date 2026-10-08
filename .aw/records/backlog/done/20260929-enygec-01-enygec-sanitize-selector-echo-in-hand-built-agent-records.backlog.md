@@ -1,5 +1,5 @@
 - Id: enygec
-- Status: graduated
+- Status: done
 - Graduated-To: enygec
 - Blocks-Release: next
 - Set: enygec
@@ -8,5 +8,6 @@
 - Summary: aw attention, aw runs and aw partition echo a raw user-supplied selector into a hand-built aw.agent/v1 record, so a home-path selector crashes the machine surface with a ValueError traceback
 
 ## Workflow history
+- 2026-10-08 done (aw backlog): closed by aw agy run: IPD z7ci8k executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20261001-enygec-01-z7ci8k-stop-a-home-path-selector-crashing-the-attention-runs-and-pa.ipd.md); evidence .aw/records/plans/executed/20261001-enygec-01-z7ci8k-stop-a-home-path-selector-crashing-the-attention-runs-and-pa.ipd.md
 - 2026-10-01 set (aw backlog): graduated by run run-20260930T053059Z-3200713: z7ci8k
 - 2026-09-29 created (aw backlog): Carrier filed while authoring plan wqiofa (backlog un6ppd). Measured live at HEAD 95d1d114: 'attention <path under the home directory> --agent' and '--json', and 'runs <same> --agent', each exit 1 with a ValueError traceback and EMPTY stdout. The trigger is the validator's unsanitized-home-path rule firing on the user's own selector token, which attention.unresolved_selector_agent_record and run_viewer.emit_unresolvable_target_refusal interpolate verbatim into unresolved_selectors/unresolved_targets AND into their error string. partition's agent branch does the same with user-supplied ids in 'unknown', and run_analytics_cli has two further direct render_jsonl_record callers. These sites are DELIBERATELY EXCLUDED from wqiofa: they build records by hand outside renderers.py, so wqiofa's guarded serializer never runs for them, and routing them through it would MASK the real defect (an unsanitized echo) behind a generic refusal instead of fixing it. The honest fix is to sanitize the input at each site (normalize_repo_path or equivalent) and decide per surface what a selector is SHOWN AS once sanitized, which is a per-verb product decision.
