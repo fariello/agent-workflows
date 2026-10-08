@@ -17,6 +17,7 @@
 - Id: d0cbt3
 
 ## Workflow history
+- 2026-10-07 note (nllamb): maintainer ruling on 14 terminal plans decayed unrepairable; documented in plans README per plan nllamb (backlog iguvci).
 - 2026-09-25 executed (opencode/its_direct/pt3-claude-opus-5-1m-us): executed: all three children executed (8u6770, lc4unl, lkexaw); orchestration items verified [Scope reconciliation - in-scope-unmodified .aw/records/plans/pending: orchestrator; coordinates children, edits nothing itself]
 - 2026-09-24 migrated (orchtyped/68uhp0): checklist migrated to typed child-tracking rows per spec r07vma.
 - 2026-09-24 approved (aw set): backfill: Priority/Work-Kind per planprio-03 lc4unl maintainer decision on OQ-05 (planprio: medium/feature)

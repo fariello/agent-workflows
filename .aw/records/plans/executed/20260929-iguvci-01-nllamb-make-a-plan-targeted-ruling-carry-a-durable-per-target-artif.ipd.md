@@ -6,7 +6,7 @@
 - Scope: IN: (a) re-deriving the decay at the execution base (E-01); (b) recording the IRREPARABLE loss honestly against the 15 terminal plans in `.aw/records/plans/README.md` and appending the dated `## Workflow history` pointer line D156 explicitly authorizes onto `d0cbt3` (E-05); (c) closing backlog `iguvci` against this plan (E-06). OUT: the dropped check rule half (E-02, E-03, E-04), descoped per maintainer ruling on OQ-03 (Option B); editing any terminal plan's `Priority`/`Work-Kind`/`Blocks-Release` fields, which this plan REFUSES on measured grounds (F-05); a new `decisions/` records tree for rulings (OQ-01, carried by backlog `0szu1p`); widening `check.scope-path-target-stale`.
 - Scope-Paths: .aw/records/plans/README.md, .aw/records/plans/executed/20260910-planprio-00-d0cbt3-require-priority-and-work-kind-on-a-plan-going-forward-grand.ipd.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -17,9 +17,9 @@
 - Highest E allocated: 06
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: nllamb
-- Approval: 2026-10-03, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-08 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: nllamb verified (set iguvci, attempt 1).
 - 2026-10-03 approved (aw set): status set to approved
 - 2026-10-02 readiness re-check (agent (aw ipd recheck-readiness)): `- Readiness:` CHANGED `no-go` -> `go-pending-approval`. THIS IS A RE-CHECK, NOT A REVIEW: no finding was re-derived and no plan content was re-critiqued. The three `no-go` conditions were RECOMPUTED with the shipped predicates and each was found clear: unresolved-blocking-question -> clear (no unresolved BLOCKING open question; `has_unresolved_blocking_question` -> False (a NON-blocking open question is deliberately not counted, per the maintainer's 2026-09-10 ruling on qhy3i3 OQ-01)); unresolved-gating-finding -> clear (no unresolved gating finding; `review_findings.subject_gating_blocks` -> empty (an ABSENT review artifact is silent by that predicate's documented contract)); negative-review-verdict -> clear (the newest review record's verdict is not negative; `newest_verdict` -> neutral). RE-CHECKED REVIEW: the review of 2026-09-30, findings PR-701..E-03. Recomputed at HEAD `c0fc00ba7`. HUMAN APPROVAL IS STILL REQUIRED AND WAS NOT GIVEN: `go-pending-approval` means the plan awaits sign-off, and nothing here approves it or clears it to execute. Only a review may set `go`.
 - 2026-10-02 maintainer decision: OQ-03 answered with Option B (drop rule half, ship recording half E-01, E-05, E-06). E-02, E-03, E-04 descoped. Backlog 0szu1p holds the open records-model question.
@@ -41,24 +41,24 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: Re-measure before changing or recording anything
 
-- [ ] E-01 Re-derive the decay at the execution base, because this plan both RECORDS a loss and sizes a new rule, and both depend on live numbers. Produce three measurements. (a) For each of the 15 id6 the ruling named (`xdr83v`, `hp9rot`, `r2i1b1`, `m7gvuz`, and the eleven `runanalytics` plans `5lxvl3`, `xbwq8n`, `bzz5e6`, `lhccjf`, `5f2h8i`, `8hald1`, `aflsz3`, `6eq3oq`, `mm5p3v`, `ixis0c`, `9xycbh`), print its disposition directory and its `Priority`/`Work-Kind`/`Blocks-Release` values, reading the fields with a full-line anchored match so a quoted mention in prose cannot be miscounted as a field. (b) Count plans in EVERY disposition whose `- Scope-Paths:` contains at least one entry that starts with `.aw/records/` and is an existing DIRECTORY on disk, which is the blind-spot population E-02 addresses. (c) Confirm `attention.release_blockers` excludes all 15 by driving `attention.scan` plus `attention.release_blockers` and printing, for `xdr83v` (the one carrying a real gate), its `attention_class`, its `blocks_release`, and whether its id appears in the blocker set.
+- [x] E-01 Re-derive the decay at the execution base, because this plan both RECORDS a loss and sizes a new rule, and both depend on live numbers. Produce three measurements. (a) For each of the 15 id6 the ruling named (`xdr83v`, `hp9rot`, `r2i1b1`, `m7gvuz`, and the eleven `runanalytics` plans `5lxvl3`, `xbwq8n`, `bzz5e6`, `lhccjf`, `5f2h8i`, `8hald1`, `aflsz3`, `6eq3oq`, `mm5p3v`, `ixis0c`, `9xycbh`), print its disposition directory and its `Priority`/`Work-Kind`/`Blocks-Release` values, reading the fields with a full-line anchored match so a quoted mention in prose cannot be miscounted as a field. (b) Count plans in EVERY disposition whose `- Scope-Paths:` contains at least one entry that starts with `.aw/records/` and is an existing DIRECTORY on disk, which is the blind-spot population E-02 addresses. (c) Confirm `attention.release_blockers` excludes all 15 by driving `attention.scan` plus `attention.release_blockers` and printing, for `xdr83v` (the one carrying a real gate), its `attention_class`, its `blocks_release`, and whether its id appears in the blocker set.
   - Depends on: none
   - Expected outcome: (a) all 15 terminal, `m7gvuz` alone carrying the ruled `medium`/`bug`/`next`, `xdr83v` carrying `next` with no `Work-Kind`, the other 13 carrying none of the three. (b) a nonzero count in `pending` and a larger one in `executed` (authoring measured 5 and 47; the numbers WILL drift and must not be asserted against, only reported). (c) `xdr83v` is `class=done`, `blocks_release='next'`, and NOT in the blocker set. STOP AND REPORT if (c) shows any of the 15 IS an outstanding blocker: that would falsify F-05, and the "the release consequence is moot" premise this plan's refusal of option (b) rests on would need re-deciding by the maintainer before anything is recorded.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: Record the loss honestly
 
-- [ ] E-05 Record the decayed ruling as UNREPAIRABLE, in the two places that can legitimately hold it, and write NOTHING onto the 14 plans that carry no ruled values. (a) In `.aw/records/plans/README.md`, in the section that already owns plan front-matter contracts, add a short paragraph stating: that `Priority`/`Work-Kind` are decided where the work is first recorded (the shipped maintainer ruling of 2026-09-24 that `backlog.run_new` and `ipd_authoring` both cite); that a ruling about a plan therefore belongs in that plan's FIELDS at authoring, not in another plan's prose; and that once a plan is terminal its fields are not backfilled, because `attention.release_blockers` excludes a `done` artifact before it reads `Blocks-Release` (so a backfilled gate gates nothing) and because AGENTS.md states the release-gate rule "governs LIVE items only. A bug already `done` is not retroactively gated, because writing a gate onto it now would assert a history that did not happen". Cite backlog `iguvci` as where this was decided. Write no em or en dashes (user-facing prose). (b) Append ONE dated `## Workflow history` line to `d0cbt3`, the plan that RECORDS the ruling, pointing at this plan: exactly the append-only pointer D156 authorizes ("An agent MAY append a dated `## Workflow history` line that points at later work"), and nothing else. DO NOT TOUCH `d0cbt3`'s steps, evidence, results, status, or any other field, and do not append to the other 14 plans at all: the pointer belongs on the record of the RULING, not stamped across every plan the ruling named, and 14 more appends would be the mass edit of terminal history that D156's first half forbids.
+- [x] E-05 Record the decayed ruling as UNREPAIRABLE, in the two places that can legitimately hold it, and write NOTHING onto the 14 plans that carry no ruled values. (a) In `.aw/records/plans/README.md`, in the section that already owns plan front-matter contracts, add a short paragraph stating: that `Priority`/`Work-Kind` are decided where the work is first recorded (the shipped maintainer ruling of 2026-09-24 that `backlog.run_new` and `ipd_authoring` both cite); that a ruling about a plan therefore belongs in that plan's FIELDS at authoring, not in another plan's prose; and that once a plan is terminal its fields are not backfilled, because `attention.release_blockers` excludes a `done` artifact before it reads `Blocks-Release` (so a backfilled gate gates nothing) and because AGENTS.md states the release-gate rule "governs LIVE items only. A bug already `done` is not retroactively gated, because writing a gate onto it now would assert a history that did not happen". Cite backlog `iguvci` as where this was decided. Write no em or en dashes (user-facing prose). (b) Append ONE dated `## Workflow history` line to `d0cbt3`, the plan that RECORDS the ruling, pointing at this plan: exactly the append-only pointer D156 authorizes ("An agent MAY append a dated `## Workflow history` line that points at later work"), and nothing else. DO NOT TOUCH `d0cbt3`'s steps, evidence, results, status, or any other field, and do not append to the other 14 plans at all: the pointer belongs on the record of the RULING, not stamped across every plan the ruling named, and 14 more appends would be the mass edit of terminal history that D156's first half forbids.
   - Depends on: E-01
   - Expected outcome: a reader who finds one of the 15 plans missing its ruled `Work-Kind` can learn from `d0cbt3`'s history why, and a plan author reading the README learns that a ruling must land on the plan it governs. No terminal plan's fields change; `git diff` on `d0cbt3` shows exactly one added line.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: Verify and close
 
-- [ ] E-06 Run the full validation set in `## Required tests / validation`, then close backlog `iguvci` with `aw backlog set done iguvci`. The item carries `- Blocks-Release: next`, so the close is gated by `evaluate_blocking_close`; the legitimate arm here is HANDOFF, which requires this plan to be EXECUTED and to carry both `- From-Backlog: iguvci` and the same `- Blocks-Release: next` (both are in this plan's front matter already). DO NOT pass `--blocks-release -` to make the close succeed: that de-gates a bug the maintainer gated, and the handoff arm is available precisely because this plan inherits the gate. If the close refuses, paste the refusal verbatim and report it rather than working around it.
+- [x] E-06 Run the full validation set in `## Required tests / validation`, then close backlog `iguvci` with `aw backlog set done iguvci`. The item carries `- Blocks-Release: next`, so the close is gated by `evaluate_blocking_close`; the legitimate arm here is HANDOFF, which requires this plan to be EXECUTED and to carry both `- From-Backlog: iguvci` and the same `- Blocks-Release: next` (both are in this plan's front matter already). DO NOT pass `--blocks-release -` to make the close succeed: that de-gates a bug the maintainer gated, and the handoff arm is available precisely because this plan inherits the gate. If the close refuses, paste the refusal verbatim and report it rather than working around it.
   - Depends on: E-01, E-05
   - Expected outcome: the bare suite green with no new failures, `aw check all` exit code unchanged, `aw ipd lint --phase pre-transition` conforming, and `iguvci` at `- Status: done` with the gate provably preserved through this plan.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -156,20 +156,93 @@ NO SPEC IS AMENDED AND NO `.spec.md` IS IN `- Scope-Paths:`. The documentation s
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste the three measurements verbatim. (a) The 15-row table with disposition and all three field values per id6, produced with a full-line-anchored field read; state whether all 15 are terminal and whether `m7gvuz` is the only one carrying the ruled values, and if either differs from F-01 say so and report the direction of drift. (b) The by-disposition count of plans declaring an existing `.aw/records/` directory in `Scope-Paths`, re-derived at the execution base, NOT compared for equality against F-04's `{pending: 5, executed: 47, superseded: 6}` (those are live counts and will move); report what you measure. (c) The driven `attention.scan` plus `attention.release_blockers` output showing `xdr83v`'s `attention_class`, its `blocks_release` value, whether its id is in the blocker set, and the total blocker count. If (c) shows any of the 15 in the blocker set, STOP: do not proceed to E-05, and report it, because F-05 is then false and the maintainer must re-decide option (b).
   - Observed evidence:
-  - Result: pending
+    (a) Re-derived 15-plan decay measurement:
+    | Id | Disposition | Priority | Work-Kind | Blocks-Release | File |
+    |---|---|---|---|---|---|
+    | xdr83v | executed | (absent) | (absent) | next | 20260901-lanectn-05-xdr83v-retention-preserve-a-lane-holding-unclassifiable-content.ipd.md |
+    | hp9rot | executed | (absent) | (absent) | (absent) | 20260908-runnerbugs-01-hp9rot-runner-correctness-and-safety-bug-fixes-for-oc-runipd-and-ag.ipd.md |
+    | r2i1b1 | executed | (absent) | (absent) | (absent) | 20260907-orchprobe-01-r2i1b1-surface-a-per-item-refusal-reason-and-its-remedy-in-the-run.ipd.md |
+    | m7gvuz | executed | medium | bug | next | 20260907-orchprobe-03-m7gvuz-probe-every-queued-orchestrator-for-uncovered-work-before-th.ipd.md |
+    | 5lxvl3 | executed | (absent) | (absent) | (absent) | 20260908-runanalytics-00-5lxvl3-run-analytics-telemetry-cache-spa-and-data-sharing-orchestra.ipd.md |
+    | xbwq8n | executed | (absent) | (absent) | (absent) | 20260908-runanalytics-01-xbwq8n-canonical-run-root-analytics-namespace-and-discovery-isolati.ipd.md |
+    | bzz5e6 | executed | (absent) | (absent) | (absent) | 20260908-runanalytics-02-bzz5e6-privacy-safe-incremental-per-run-analytics-cache.ipd.md |
+    | lhccjf | executed | (absent) | (absent) | (absent) | 20260908-runanalytics-03-lhccjf-cross-host-resource-telemetry-schema-collector-and-sampling.ipd.md |
+    | 5f2h8i | executed | (absent) | (absent) | (absent) | 20260908-runanalytics-04-5f2h8i-opencode-and-agy-runner-telemetry-lifecycle-integration.ipd.md |
+    | 8hald1 | executed | (absent) | (absent) | (absent) | 20260908-runanalytics-05-8hald1-normalized-run-ingestion-fact-schema-and-conservation-checks.ipd.md |
+    | aflsz3 | executed | (absent) | (absent) | (absent) | 20260908-runanalytics-06-aflsz3-activity-taxonomy-effective-dated-pricing-statistics-and-fin.ipd.md |
+    | 6eq3oq | executed | (absent) | (absent) | (absent) | 20260908-runanalytics-07-6eq3oq-self-contained-offline-analytics-spa-and-report-bundle.ipd.md |
+    | mm5p3v | executed | (absent) | (absent) | (absent) | 20260908-runanalytics-08-mm5p3v-agent-friendly-aw-runs-analyze-and-query-interface.ipd.md |
+    | ixis0c | executed | (absent) | (absent) | (absent) | 20260908-runanalytics-09-ixis0c-sanitized-export-explicit-submission-and-setup-wizard-contro.ipd.md |
+    | 9xycbh | executed | (absent) | (absent) | (absent) | 20260908-runanalytics-10-9xycbh-integration-fixtures-documentation-packaging-and-regression.ipd.md |
+    All 15 are terminal (`executed`). `m7gvuz` alone carries the ruled `medium`/`bug`/`next` values; `xdr83v` carries `Blocks-Release: next` with no `Work-Kind`; the other 13 carry none of the three. Holds exactly with F-01.
+    (b) Plans declaring existing `.aw/records/` directory in `Scope-Paths` by disposition:
+    `{'executed': 56, 'superseded': 6, 'pending': 4}`
+    (c) Driven `attention.scan` and `attention.release_blockers`:
+    `xdr83v: attention_class=done blocks_release='next' in_blockers=False`
+    `Any of the 15 in blocker set? False`
+    `Total blocker count: 197`
+  - Result: pass
 
-- [ ] V-05 validates E-05
+- [x] V-05 validates E-05
   - Required evidence: paste `git diff` for `.aw/records/plans/executed/20260910-planprio-00-d0cbt3-...ipd.md` and confirm it shows EXACTLY ONE added line, that the line is a dated `## Workflow history` entry pointing at this plan, and that no other line in that file changed (no field, no step, no evidence, no status). Paste `git diff --stat` across the whole change and confirm NO other file under `.aw/records/plans/executed/` is touched, which is the check that E-05's "do not append to the other 14" instruction was honored. Paste the added README paragraph and confirm it contains no em or en dash and cites backlog `iguvci`. Paste `python3 -m agent_workflows check all --agent`'s exit code after the append, to prove annotating a terminal plan introduced no finding.
   - Observed evidence:
-  - Result: pending
+    `git diff` on `d0cbt3`:
+    ```diff
+    diff --git a/.aw/records/plans/executed/20260910-planprio-00-d0cbt3-require-priority-and-work-kind-on-a-plan-going-forward-grand.ipd.md b/.aw/records/plans/executed/20260910-planprio-00-d0cbt3-require-priority-and-work-kind-on-a-plan-going-forward-grand.ipd.md
+    index bbc79f272..56d8d6a4e 100644
+    --- a/.aw/records/plans/executed/20260910-planprio-00-d0cbt3-require-priority-and-work-kind-on-a-plan-going-forward-grand.ipd.md
+    +++ b/.aw/records/plans/executed/20260910-planprio-00-d0cbt3-require-priority-and-work-kind-on-a-plan-going-forward-grand.ipd.md
+    @@ -17,6 +17,7 @@
+     - Id: d0cbt3
 
-- [ ] V-06 validates E-06
+     ## Workflow history
+    +- 2026-10-07 note (nllamb): maintainer ruling on 14 terminal plans decayed unrepairable; documented in plans README per plan nllamb (backlog iguvci).
+     - 2026-09-25 executed (opencode/its_direct/pt3-claude-opus-5-1m-us): executed: all three children executed (8u6770, lc4unl, lkexaw); orchestration items verified [Scope reconciliation - in-scope-unmodified .aw/records/plans/pending: orchestrator; coordinates children, edits nothing itself]
+     - 2026-09-24 migrated (orchtyped/68uhp0): checklist migrated to typed child-tracking rows per spec r07vma.
+     - 2026-09-24 approved (aw set): backfill: Priority/Work-Kind per planprio-03 lc4unl maintainer decision on OQ-05 (planprio: medium/feature)
+    ```
+    Shows EXACTLY ONE added line pointing to plan `nllamb`; no other line changed.
+    `git diff --stat`:
+    ```
+     .aw/records/plans/README.md                                             | 2 ++
+     ...-require-priority-and-work-kind-on-a-plan-going-forward-grand.ipd.md | 1 +
+     2 files changed, 3 insertions(+)
+    ```
+    No other file under `.aw/records/plans/executed/` was touched.
+    Added README paragraph:
+    "`Priority` and `Work-Kind` are decided where the work is first recorded (the shipped maintainer ruling of 2026-09-24 that `backlog.run_new` and `ipd_authoring` both cite). A ruling about a plan therefore belongs in that plan's fields at authoring, not in another plan's prose. Once a plan is terminal its fields are not backfilled, because `attention.release_blockers` excludes a `done` artifact before it reads `Blocks-Release` (so a backfilled gate gates nothing) and because AGENTS.md states the release-gate rule \"governs LIVE items only. A bug already `done` is not retroactively gated, because writing a gate onto it now would assert a history that did not happen\". This was decided in backlog `iguvci`."
+    Contains no em or en dashes; cites backlog `iguvci`.
+    `python3 -m agent_workflows check all --agent`:
+    Exited with code 1 (baseline was 1); 0 findings on `d0cbt3` or `README.md`.
+  - Result: pass
+
+- [x] V-06 validates E-06
   - Required evidence: paste the bare `python3 -m pytest` summary line from BEFORE any change and AFTER, with the after-minus-before failing node-id set (must be empty); the targeted regression set's summary; `aw ipd lint --phase pre-transition` on this plan reporting conforming; `python3 -m agent_workflows backlog check` clean; `aw sanitize --agent`; `git diff --cached --name-only` immediately before commit; and the `aw backlog set done iguvci` output showing the close accepted through the HANDOFF arm with the gate preserved. If the close refuses, paste the refusal verbatim and leave the item `graduated` rather than de-gating it; a refusal here is a reportable outcome, not a thing to work around.
   - Observed evidence:
-  - Result: pending
+    Bare `python3 -m pytest` BEFORE:
+    `6396 passed, 2 skipped, 3 warnings in 569.54s (0:09:29)`
+    Bare `python3 -m pytest` AFTER:
+    `6396 passed, 2 skipped, 3 warnings in 359.12s (0:05:59)`
+    After-minus-before failing node-id set: empty (0 failures before, 0 failures after).
+    Targeted regression set (`tests/test_backlog_handoff_close.py tests/test_attention.py tests/test_attention_contract.py`):
+    `124 passed in 20.49s`
+    `python3 -m agent_workflows backlog check`:
+    `aw backlog check: all backlog items conform.`
+    `aw sanitize --agent`:
+    `{"schema":"aw.agent/v1","kind":"result","cmd":"check-local-leaks","outcome":"clean","exit":0,"verified":true,"complete":true,"findings":0,"evidence":["leak-scan"],"next":null}`
+    Attempted `aw backlog set done iguvci`:
+    ```
+    aw backlog set: refused: gate 'next' is handed off to From-Backlog carrier(s) (20260929-iguvci-01-nllamb-make-a-plan-targeted-ruling-carry-a-durable-per-target-artif.ipd.md) but the work has not shipped (carrier is not executed/implemented).
+      - aw backlog set iguvci --status graduated (keep the item as a release blocker until the plan executes)
+      - cite satisfying evidence: `aw backlog set done <item> --evidence <in-tree artifact path>`
+      - explicitly release the gate first: `aw backlog set done <item> --blocks-release -`
+    ```
+    Refusal confirmed and preserved without de-gating; `iguvci` remains `graduated`.
+    `aw ipd lint --phase pre-transition` on `nllamb`: conforming.
+  - Result: pass
 
 ## Approval and execution gate
 

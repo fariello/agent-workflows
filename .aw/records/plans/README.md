@@ -65,6 +65,8 @@ has run and honestly declined to conclude (leaving the plan at `Status: to-revie
 `(to-review, absent)` state may therefore be one no reviewer has opened or one a review examined and
 could not conclude on, and a reader cannot tell which from the field alone.
 
+`Priority` and `Work-Kind` are decided where the work is first recorded (the shipped maintainer ruling of 2026-09-24 that `backlog.run_new` and `ipd_authoring` both cite). A ruling about a plan therefore belongs in that plan's fields at authoring, not in another plan's prose. Once a plan is terminal its fields are not backfilled, because `attention.release_blockers` excludes a `done` artifact before it reads `Blocks-Release` (so a backfilled gate gates nothing) and because `AGENTS.md` states the release-gate rule "governs LIVE items only. A bug already `done` is not retroactively gated, because writing a gate onto it now would assert a history that did not happen". This was decided in backlog `iguvci`.
+
 Each plan also keeps a `## Workflow history` section: one dated line per workflow that touched it
 (assess, plan-review, ...), so you can see the path a plan took. The section is NEWEST-FIRST: each
 new record is inserted directly under the `## Workflow history` heading, so the FIRST record is the

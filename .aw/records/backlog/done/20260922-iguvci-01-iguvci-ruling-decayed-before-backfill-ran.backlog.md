@@ -1,5 +1,5 @@
 - Id: iguvci
-- Status: graduated
+- Status: done
 - Graduated-To: iguvci
 - Blocks-Release: next
 - Set: iguvci
@@ -8,6 +8,7 @@
 - Summary: Three plans the maintainer ruled were release-blocking bugs shipped to executed/ carrying neither Work-Kind: bug nor Blocks-Release, so a recorded ruling left no trace in the corpus
 
 ## Workflow history
+- 2026-10-08 done (aw backlog): closed by aw agy run: IPD nllamb executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20260929-iguvci-01-nllamb-make-a-plan-targeted-ruling-carry-a-durable-per-target-artif.ipd.md); evidence .aw/records/plans/executed/20260929-iguvci-01-nllamb-make-a-plan-targeted-ruling-carry-a-durable-per-target-artif.ipd.md
 - 2026-09-29 set (aw backlog): graduated by run run-20260928T235632Z-1358353: nllamb
 - 2026-09-22 created (aw backlog): Found while executing plan lc4unl (planprio Order 03).
 
