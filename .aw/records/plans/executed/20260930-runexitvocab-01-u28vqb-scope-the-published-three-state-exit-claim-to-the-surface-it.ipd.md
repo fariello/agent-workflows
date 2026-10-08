@@ -13,7 +13,7 @@
   OUT, each for a stated reason: RENUMBERING any shipped code in `run_cli.py`, `run_evidence.py` or `compat_migration.py`, refused above as a breaking change to a consumed contract; COLLAPSING the run family into `{0,1,2}`, refused above because `6kwd2e` R7.3 forbids it; the other six out-of-range declarations (`ipd execute-set`, `run start`, `runs next`, `run record`, `runs resume`, `run cancel`, `runs status`, `run finalize`), which are either already measurement-accurate (`runs resume`, fixed by `ck0vya`) or owned by pending siblings `69rdv6` (`runs next`, `runs status`) and `1mnit8` (the argparse usage-error floor), so touching them here would collide with a reviewed plan; the latent `EXIT_BLOCKED`-unreachable defect on `runs resume`, which is open backlog `tzqvjn`; `run_cli`'s module docstring contradicting its own constants, which is a separate honest defect filed in OQ-02 rather than fixed here; converting `run_cli`'s bare machine payloads into `aw.agent/v1` records, which `run_cli` itself records as "a real gap on a different contract" that "would silently change what every existing `aw run`/`aw runs --agent` consumer parses"; and adding a tree-wide `exit_contract` validation gate, which is pending plan `1mnit8`'s declared purpose.
 - Scope-Paths: docs/cli-output-contract.md, docs/cli-human-guide.md, docs/cli-agent-protocol.md, docs/cli-migration.md, README.md, agent_workflows/command_surface.py, agent_workflows/run_evidence.py, tests/test_exit_vocabulary_boundary.py, .aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - From-Spec: 25kzda
 - Work-Kind: chore
@@ -24,9 +24,9 @@
 - Highest E allocated: 07
 - Author: opencode
 - Id: u28vqb
-- Approval: 2026-10-01, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-08 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: u28vqb verified (set runexitvocab, attempt 1).
 - 2026-10-01 approved (aw set): status set to approved
 
 - 2026-10-01 reviewed (opencode its_direct/pt3-claude-opus-5-1m-us): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-701 (HIGH), PR-702 (HIGH), PR-703 (HIGH), PR-704 (MEDIUM), PR-705 (MEDIUM), PR-706 (MEDIUM), PR-707 (MEDIUM), PR-708 (MEDIUM), PR-709 (LOW), PR-710 (LOW), PR-711 (LOW), PR-712 (LOW) all FIXED; zero deferred, zero open. Structural lint `conforming` at `--phase author` and `--phase review-finalize`, with no advisories at either checkpoint; this plan's own first `- Kind:` bullet reads `child`, so the `IPD-S407` orchestrator row check does not apply. Reviewed in an isolated lane; no production file, test, document or spec was modified by this review.
