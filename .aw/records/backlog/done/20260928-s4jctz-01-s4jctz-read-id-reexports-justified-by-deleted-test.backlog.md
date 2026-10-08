@@ -1,5 +1,5 @@
 - Id: s4jctz
-- Status: graduated
+- Status: done
 - Graduated-To: s4jctz
 - Set: s4jctz
 - Priority: low
@@ -7,6 +7,7 @@
 - Summary: two noqa F401 re-exports in the host runners are justified only by a deleted test file
 
 ## Workflow history
+- 2026-10-08 done (aw backlog): closed by aw agy run: IPD sznlsf executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20260930-s4jctz-01-sznlsf-resolve-the-two-read-id-re-exports-in-the-host-runners-again.ipd.md); evidence .aw/records/plans/executed/20260930-s4jctz-01-sznlsf-resolve-the-two-read-id-re-exports-in-the-host-runners-again.ipd.md
 - 2026-09-30 set (aw backlog): graduated by run run-20260930T053053Z-3200037: sznlsf
 - 2026-09-28 note (aw backlog): Maintainer ruling: We do not test to make sure code does not change or pin imports. The deleted test will not be restored. Evaluate re-exports on whether functional callers use them, not based on dead code-pinning tests.
 - 2026-09-28 created (aw backlog): two noqa F401 re-exports in the host runners are justified only by a deleted test file
