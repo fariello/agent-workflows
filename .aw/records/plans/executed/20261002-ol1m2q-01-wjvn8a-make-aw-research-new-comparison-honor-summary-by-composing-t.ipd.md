@@ -6,7 +6,7 @@
 - Scope: Make the flag live by COMPOSING rather than replacing: each planned document's `summary:` becomes `<user summary> (<role>)` when `--summary` is given, and stays exactly the present hardcoded role string when it is not. Add one module-private composer in `research_cmd.py`, call it at the three `_mk` call sites, and pin the behavior plus the no-flag non-regression in `tests/test_research_cmd_create.py`. The composition is DEGRADING: when the composed value would exceed `attention_contract.MAX_DESCRIPTIVE_LEN` the user's summary is written alone rather than a value the shipped descriptive-field contract forbids. DELIBERATELY NOT IN SCOPE: the descriptive-safety guard on this parameter, which pending plan `deftzy` owns and which this plan declares as a hard execution dependency rather than duplicating.
 - Scope-Paths: agent_workflows/research_cmd.py, tests/test_research_cmd_create.py, CHANGELOG.md
 - Item-Dependencies: executed:deftzy
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: low
@@ -17,9 +17,9 @@
 - Highest E allocated: 05
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: wjvn8a
-- Approval: 2026-10-07, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-08 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: wjvn8a verified (set ol1m2q, attempt 1).
 - 2026-10-07 approved (aw set): status set to approved
 - 2026-10-07 reviewed (opencode/its_direct/pt3-claude-opus-5.5-1m-us): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-001..PR-006, all FIXED. Reviewed in lane review-sweep-run-20261007T032752Z-4094028 at HEAD ea6badb04; review record .aw/records/reviews/20261002-ol1m2q-01-wjvn8a-make-aw-research-new-comparison-honor-summary-by-composing-t.review.md. Defect re-driven and reproduces. PR-001: deftzy is executed and added only a lazy attention_contract import, so E-01 adds the module-level import; F-08/OQ-04/gate annotated satisfied. PR-002: nonexistent tests/test_research_contract.py replaced; descriptive-safety tests added to the regression set. PR-003: a bare git-init fixture writes under ~/.aw/projects/, so fixtures must set records_backend repository. PR-004: index --check baseline re-derived at execution (142 -> 179 drift). PR-005: falsification ordering made explicit. PR-006: CHANGELOG Fixed line added as E-05/V-05.
 
