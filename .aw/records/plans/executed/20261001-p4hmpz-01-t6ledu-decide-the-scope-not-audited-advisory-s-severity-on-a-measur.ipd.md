@@ -8,7 +8,7 @@
 - Scope: Make the `info` tier mean what the registry says it means on the pre-commit surface, so the `p4hmpz` severity decision has a true baseline, and hand the maintainer the decision with the measurement harness it needs rather than with an answer this plan is not entitled to give. IN: making `hooks/precommit_scope_gate.check` consult `artifact_core.drift_exit_code` for its exit code while still REPORTING every finding including advisories; behavioral tests pinning that an `info` finding is reported-but-not-refused and that `warning`/`error` still refuse; and recording the `p4hmpz` decision as DEFERRED-WITH-A-HARNESS, naming the exact observation to take once `iqtt8d` ships and why the datum cannot be taken before. OUT: promoting `check.scope-not-audited` (or any other rule) to a gating severity, which is the maintainer's call and is the item's whole point; adding, removing, or re-registering any rule in `check_engine.RULE_REGISTRY`; changing `artifact_core.drift_exit_code`; changing which rules `check_commit_invariants` composes; and installing the opt-in hook in this repository.
 - Scope-Paths: agent_workflows/hooks/precommit_scope_gate.py, tests/test_precommit_scope_gate_severity.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: followup
 - Priority: low
@@ -18,9 +18,9 @@
 - Highest E allocated: 04
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: t6ledu
-- Approval: 2026-10-01, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-08 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: t6ledu verified (set p4hmpz, attempt 1).
 - 2026-10-01 approved (aw set): status set to approved
 - 2026-10-01 reviewed (aw set): /plan-review complete: APPROVE WITH REVISIONS APPLIED; PR-001 (BLOCKER), PR-002 (MEDIUM), PR-003 (MEDIUM), PR-004 (LOW), all FIXED. Findings and two decision rows in .aw/records/reviews/20261001-p4hmpz-01-t6ledu-decide-the-scope-not-audited-advisory-s-severity-on-a-measur.review.md.
 
