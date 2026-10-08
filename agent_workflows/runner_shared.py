@@ -17344,6 +17344,10 @@ def format_slated_artifacts_table(
 #: how long a run may wait for a human. `_lane_reclaim_prompt` uses 180s in both runners.
 GATE_PROMPT_TIMEOUT: float = 180.0
 
+#: How long an optional lane prompt waits before falling through to the automatic decision (kz4j7o / s2ewh8 E-04).
+#: Deliberately equal to `GATE_PROMPT_TIMEOUT` (180.0s); documented above.
+LANE_PROMPT_TIMEOUT: float = GATE_PROMPT_TIMEOUT
+
 
 def prompt_for_gate_phrase(
     question: str,
@@ -31317,6 +31321,22 @@ def terminate_process(
         sigint_grace=sigint_grace,
         sigterm_grace=sigterm_grace,
     )
+
+
+#: The default autonomous execution runbook text embedded in the host runners (kz4j7o / s2ewh8 E-04).
+DEFAULT_RUNBOOK_TEXT: str = """# IPD Autonomous Execution Runbook
+
+This runbook guides autonomous non-interactive execution of approved Implementation
+Plan Documents (IPDs) in this repository.
+
+## Execution Directives
+1. Execute only the assigned IPD in this turn.
+2. Read the assigned IPD in full, its current orchestrator, repository guidelines, and tests.
+3. Make safe, verifiable forward progress. Do not weaken checks or fabricate evidence.
+4. Commit only files you changed, limited to the paths you name, through `aw commit <plan> -- <paths>` (or `aw commit --no-plan -m <msg> -- <paths>` when no plan governs the change).
+5. Never push to remote.
+6. Write valid outcome JSON before exiting.
+"""
 
 
 DEFAULT_STALL_TIMEOUT: float = 900.0
