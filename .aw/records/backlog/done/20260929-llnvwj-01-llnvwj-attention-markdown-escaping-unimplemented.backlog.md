@@ -1,5 +1,5 @@
 - Id: llnvwj
-- Status: graduated
+- Status: done
 - Graduated-To: llnvwj
 - Set: llnvwj
 - Priority: low
@@ -7,6 +7,7 @@
 - Summary: The attention markdown board emits a descriptive field unescaped, so a pipe or link in a spec Scope reaches the rendered surface raw; spec 8.8 requires deterministic Markdown escaping and nothing implements it
 
 ## Workflow history
+- 2026-10-08 done (aw backlog): closed by aw agy run: IPD qpw45x executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20261001-llnvwj-01-qpw45x-escape-markdown-metacharacters-in-the-attention-board-s-deta.ipd.md); evidence .aw/records/plans/executed/20261001-llnvwj-01-qpw45x-escape-markdown-metacharacters-in-the-attention-board-s-deta.ipd.md
 - 2026-10-01 set (aw backlog): graduated by run run-20260930T053053Z-3200037: qpw45x
 - 2026-09-29 created (aw backlog): The attention markdown board emits a descriptive field unescaped, so a pipe or link in a spec Scope reaches the rendered surface raw; spec 8.8 requires deterministic Markdown escaping and nothing implements it
 
