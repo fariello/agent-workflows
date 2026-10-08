@@ -2,11 +2,11 @@
 
 - Date: 2026-10-07
 - Kind: child
-- Concern: A review turn that fails for any reason is reported as "review orchestrator readiness failed", even for a child plan. Measured 2026-10-07 in run `run-20261007T165351Z-456357`: the review of child `2j4pd0` ended because the model provider's content filter blocked a reply (`ContentFilterError`, last session record `reason: content-filter`), the host exited 1, and the run recorded `fail-gate` with the lane-preserved reason "review orchestrator readiness failed; lane preserved for inspection" and code `review-orchestrator-failed`. The cause is in `runner_shared.execute_item_core`: after `handle_review_orchestrator_readiness` returns the incoming disposition unchanged for a nonzero exit or a non-orchestrator, the caller tests `review_orch_disp == "fail-gate"`, which is true whenever the turn already failed, and writes the orchestrator reason. The real cause (a provider error in the session stream) is never surfaced anywhere in the summary or report.
+- Concern: A review turn that fails for any reason is reported as "review orchestrator readiness failed", even for a child plan. Measured 2026-10-07 in run `run-20261007T165351Z-456357`: the review of child `2j4pd0` ended because the model provider's content filter blocked a reply (`ContentFilterError`, last session record `reason: content-filter`), the host exited 1, and the run recorded `fail-gate` with the lane-preserved reason "review orchestrator readiness failed; lane preserved for inspection" and code `review-orchestrator-failed`. The cause is in `runner_shared.execute_item_core`: after `handle_review_orchestrator_readiness` returns the incoming disposition unchanged for a nonzero exit or a non-orchestrator, the caller tests `review_orch_disp == "fail-gate"`, which is true whenever the turn already failed (`reconcile_disposition` returns `fail-gate` for a review that exited nonzero), and writes the orchestrator reason. The same conflation exists at TWO call sites: the isolated-lane review branch (which also calls `lane_containment.record_lane_preserved` with that reason) and the non-isolated review branch that calls the handler with `tree=repo` and `wt_handle=None` (which sets status only). The real cause (a provider error in the session stream) is never surfaced anywhere in the summary or report.
 - Scope: (1) Make the orchestrator-readiness branch fire only when `handle_review_orchestrator_readiness` itself refused (the item is an orchestrator, the turn exited 0, and its readiness check failed), and give every other failed review the preserved-lane reason of its actual cause; (2) read the host session stream's final error event (opencode `{"type":"error", ...}`, agy equivalent) and record it on the attempt as `host_error` with name and message; (3) show `host_error` in the run summary row and the execution report. EXCLUDES retrying the turn (that is `fixfirst` Order 04 `ytas91`), and EXCLUDES changing any disposition.
-- Scope-Paths: agent_workflows/runner_shared.py, agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, agent_workflows/render_stream.py, tests/test_review_failure_reason.py
+- Scope-Paths: agent_workflows/runner_shared.py, agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, agent_workflows/render_stream.py, tests/test_review_failure_reason.py, agent_workflows/lane_containment.py, tests/fixtures/session_content_filter_error.jsonl
 - Item-Dependencies: none
-- Status: to-review
+- Status: reviewed
 - Work-Kind: bug
 - Priority: medium
 - Blocks-Release: next
@@ -15,8 +15,11 @@
 - Highest E allocated: 04
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: ckxypc
+- Readiness: go-pending-approval
 
 ## Workflow history
+- 2026-10-08 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; see /plan-review record
+- 2026-10-08 /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001 (HIGH, fixed: E-02 forked the error-event parser render_stream.render_event already owns), PR-002..PR-007 fixed. Record: .aw/records/reviews/20261007-lanegc-02-ckxypc-name-the-real-reason-a-review-turn-failed-instead-of-blaming.review.md Round 1.
 - 2026-10-07 to-review (aw set): authored review-ready at the maintainer's request 2026-10-07
 
 - 2026-10-07 draft (opencode its_direct/pt3-claude-opus-5.5-1m-us): created.
@@ -31,28 +34,28 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: the right reason
 
-- [ ] E-01 In `runner_shared.execute_item_core`, record whether `handle_review_orchestrator_readiness` actually evaluated and refused (return a distinct marker, or compare against the incoming disposition and the item's `Kind`). Write the "review orchestrator readiness failed" reason and code only in that case. For any other failed review whose lane is preserved, write the reason from the turn's own outcome: the host error from E-02 when present, else "review turn exited <code> with no outcome file", else the disposition.
-  - Depends on: none
-  - Expected outcome: a child review whose host exits 1 records a preserved-lane reason naming the exit and no `review-orchestrator-failed` code; an orchestrator review whose readiness refuses still records the orchestrator reason.
+- [ ] E-01 Make `handle_review_orchestrator_readiness` report WHETHER IT DECIDED, not only a disposition: return a small result (for example a `NamedTuple` `(disposition, evaluated, refused)`) where `refused` is True only on its own `return "fail-gate"` after `review_readiness` ran, and `evaluated` is False on every early `return disposition` (nonzero exit, non-IPD entry, plan file not found or unparseable, `Kind` not `orchestrator`). Do not infer it in the caller by re-reading `Kind`, which would duplicate the handler's plan-file resolution. Update BOTH call sites in `runner_shared.execute_item_core` (the isolated-lane review branch and the non-isolated `tree=repo` branch). Write the "review orchestrator readiness failed" reason and `review-orchestrator-failed` code only when `refused` is True. Otherwise, when the incoming disposition was already `fail-gate` and the lane branch preserves the lane, call `lane_containment.record_lane_preserved` with the turn's own cause: `review-host-error` and `"review turn failed: host <name>: <message>"` when E-02 recorded `host_error`; else `review-turn-exited` and `"review turn exited <code> with no outcome file"` when `exit_code != 0`; else `review-turn-failed` and `"review turn ended <disposition>"`. Add the three codes as constants in `lane_containment` beside the existing retention codes. Never change a disposition (Scope).
+  - Depends on: E-02
+  - Expected outcome: a child review whose host exits 1 records a preserved-lane reason naming the exit (or the host error) and a code other than `review-orchestrator-failed`; an orchestrator review whose readiness refuses still records the orchestrator reason; both call sites behave the same; dispositions are identical to today's in every case.
   - Execution state: pending
 
 ### Task group 2: capture the host's error
 
-- [ ] E-02 Add a pure parser that reads the last error event from a session stream file (opencode `{"type":"error","error":{"name":...,"data":{"message":...}}}`; the agy host's equivalent, or none if it has no such event) and returns `(name, message)` or nothing. Call it after every turn on both hosts and store `attempt["host_error"] = {"name":..., "message":...}` when found.
+- [ ] E-02 Factor the error-field extraction that `render_stream.render_event` ALREADY performs in its `if etype == "error":` branch (name from `error.name`, message from `error.data.message`, `error.data` as a string, or `error.message`) into one pure helper in `render_stream` (for example `host_error_of_event(event) -> tuple[str, str] | None`), make `render_event` call it so its rendered line is byte-identical, and add a second pure helper that scans a session log for the LAST such event and returns it. That branch's own comment records the observed shape (`{"type":"error","error":{"name":"UnknownError","data":{"message":"The operation timed out."}}}`), so a separate parser would be a second definition of the same event. The Antigravity stream has no such event; its failure is a `{"event":"result","result":{"status":...,"error":...}}` record (see `agy_runipd.render_agy_event`), so on agy the helper reads the last non-SUCCESS `result` and maps it to `(status, error)`; if that shape is absent it returns nothing. Call the scan once per turn in the shared `execute_item_core` after the host process exits, using `attempt["log"]` (`runner_shared.attempt_log_path`), and store `attempt["host_error"] = {"name": ..., "message": ...}` when found, copying it to `item["host_error"]` so renderers that read the item see it. Bound both strings (name 80 characters, message 300, single line, the same `_one_line` bound `render_event` already applies) because the message is provider-authored text that reaches the summary and report. An unreadable or missing log yields nothing and never raises.
   - Depends on: none
-  - Expected outcome: run against the real session file `09-2j4pd0-attempt-1.jsonl` content (copied into a fixture), it returns `("ContentFilterError", "The response was blocked by the provider's content filter")`; against a clean session it returns nothing.
+  - Expected outcome: against a fixture reproducing the observed content-filter tail (a `"reason":"content-filter"` record followed by the error event, written by hand from F-01's quoted lines; the original run directory is outside this lane), it returns `("ContentFilterError", "The response was blocked by the provider's content filter")`; against a clean session and an agy SUCCESS result it returns nothing; `render_event`'s output for the error event is unchanged (`! diag:  ContentFilterError: The response was blocked by the provider's content filter`, measured at review).
   - Execution state: pending
 
-- [ ] E-03 Show `host_error` in the end-of-run summary (a short line under the table for each item that has one) and in `execution-report.md`'s per-item section, and include it in the `--agent` run record.
-  - Depends on: E-02
-  - Expected outcome: a scripted run whose host emits a content-filter error shows "2j4pd0: provider ContentFilterError: The response was blocked by the provider's content filter" in the summary and report.
+- [ ] E-03 Show `host_error` in the end-of-run summary's existing `Diagnostics / Blocked Items:` block in `render_stream.render_run_summary_table` (one `    host error: <name>: <message>` line under the item's existing bullet, or its own `  • <id6>: <status> (host <name>: <message>)` bullet when the item has none), and in `execution-report.md` as one line beside the existing preserved-lane section (`lane_containment.format_preserved_lanes` already prints "Why preserved", which E-01 now fills correctly; add the host-error line in the shared `runner_shared.write_report` composer so both hosts render it). The run has no `--agent` record of its own, so the machine-readable surface is the attempt and item field in `state.json` from E-02; no new output format is added. An item without `host_error` renders exactly as today.
+  - Depends on: E-01, E-02
+  - Expected outcome: a scripted run whose host emits a content-filter error shows `host ContentFilterError: The response was blocked by the provider's content filter` against that item in the summary and the report; a run with no host error produces byte-identical summary and report text.
   - Execution state: pending
 
 ### Task group 3: tests
 
-- [ ] E-04 Add `tests/test_review_failure_reason.py` driving the real runner with a scripted host that (a) emits a content-filter error and exits 1 on a child review, (b) exits 1 silently on a child review, (c) exits 0 on an orchestrator whose readiness fails; assert the preserved-lane reason, the absence or presence of `review-orchestrator-failed`, `host_error`, and the summary text. No source introspection.
+- [ ] E-04 Add `tests/test_review_failure_reason.py` driving the real runner with a scripted host (the `fake_opencode` pattern in `tests/test_silent_turn_observability.py`) that (a) emits a content-filter error and exits 1 on a child review, (b) exits 1 silently on a child review, (c) exits 0 on an orchestrator whose readiness fails, and (d) exits 1 on an orchestrator review (the handler must not evaluate, so no orchestrator reason). Assert the preserved-lane reason and code from `events.jsonl` and `state.json`, the `host_error` field, the item's final disposition equal to today's, and the summary and report text. Add unit tests for the E-02 helpers (opencode error, agy failed result, clean log, missing log, over-long message bounded) and for `render_event`'s unchanged error line. No source introspection (AGENTS.md P16).
   - Depends on: E-01, E-03
-  - Expected outcome: the module passes.
+  - Expected outcome: the module passes, existing `render_stream` and review-orchestrator tests still pass, and the bare suite adds no failure relative to the lane baseline.
   - Execution state: pending
 
 ## Project conventions discovered (Step 0)
@@ -60,6 +63,8 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 - Cite code by SYMBOL (`module.function`) or by a quoted content string, with a line number only appended to one of those and never alone: an offset expires before this plan executes (spec `ipd-structure-and-linting` Section 10.2; advisory `IPD-C801`).
 - `handle_review_orchestrator_readiness` returns the incoming `disposition` unchanged when `exit_code != 0` or the plan is not an orchestrator; only its own refusal path returns `"fail-gate"` by decision.
 - Scripted hosts: `tests/test_silent_turn_observability.py` `fake_opencode`.
+- One parser per event: `render_stream.render_event` already decodes the opencode `error` event ("this branch DID NOT EXIST, so a real observed event ... rendered as `None`"); agy failures arrive as a `result` record (`agy_runipd.render_agy_event`).
+- Diagnostics in the summary go through the existing `Diagnostics / Blocked Items:` block; preserved-lane reasons through `lane_containment.record_lane_preserved` and `format_preserved_lanes` (spec `7ckptx` R5.6/R5.6a).
 
 ## Findings
 
@@ -68,6 +73,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 | F-01 | The child review failed on a provider content filter. | `sessions/09-2j4pd0-attempt-1.jsonl` last records: `"reason":"content-filter"` then `{"type":"error",...,"error":{"name":"ContentFilterError","data":{"message":"The response was blocked by the provider's content filter"}}}`. |
 | F-02 | The run blamed orchestrator readiness. | Event `worktree-preserved` for `2j4pd0`: `"reason": "review orchestrator readiness failed; lane preserved for inspection"`, `"retention_reasons": ["review-orchestrator-failed"]`; `2j4pd0` is `- Kind: child`. |
 | F-03 | The caller's test conflates "already failed" with "readiness refused". | `execute_item_core`: `if review_orch_disp == "fail-gate":` after `handle_review_orchestrator_readiness(..., disposition=disposition, exit_code=exit_code)`, whose first lines are `if exit_code != 0: return disposition`. |
+| F-04 | (review) There are two call sites with the same test. | `execute_item_core`: the isolated-lane review branch (`tree=Path(wt_handle.path)`, then `record_lane_preserved(..., reason="review orchestrator readiness failed; lane preserved for inspection")`) and the non-isolated branch (`tree=repo`, `wt_handle=None`, status only). |
+| F-05 | (review) The opencode error event is already decoded. | `render_stream.render_event`, `if etype == "error":` branch; review run: `render_event(json.dumps(ev), Palette(False), use_unicode=False)` printed `! diag:  ContentFilterError: The response was blocked by the provider's content filter`. |
+| F-06 | (review) The run directory cited by F-01 is not in this lane. | `.aw/records/runs/` is gitignored (`.aw/.gitignore` `records/runs/`), so the fixture is written from F-01's quoted lines. |
 
 ## Proposed changes (ordered, validatable)
 
@@ -83,17 +91,18 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ## Scope check
 
-- Over-scope: none. `runner_shared.py` E-01, E-02; both hosts E-02; `render_stream.py` E-03; the test module E-04.
-- Under-scope: none.
+- Over-scope: none. `runner_shared.py` E-01, E-02, E-03 (`write_report`); `render_stream.py` E-02, E-03; `lane_containment.py` E-01 (reason codes); the test module and fixture E-04. `oc_runipd.py` and `agy_runipd.py` stay declared because a host's `write_report` wrapper may need to pass the new section through; if neither changes, acknowledge them with `--scope-ack` at finalize.
+- Under-scope: corrected at review: the second call site (F-04), the agy event shape, the reason codes, and the fixture path.
 
 ## Required tests / validation
 
 - `python3 -m pytest tests/test_review_failure_reason.py -o addopts=""`.
-- Bare `python3 -m pytest`, baseline re-derived in the lane before any edit.
+- Bare `python3 -m pytest`, baseline re-derived in the lane before any edit; record failing node ids before and after, and the bar is an empty after-minus-before set.
+- `aw ipd lint --phase pre-transition --agent <this plan>`; `aw sanitize --agent` exit 0 (provider messages reach the report).
 
 ## Spec / documentation sync
 
-N/A: no spec text names the preserved-lane reason; this changes a message and adds a recorded field.
+N/A for specs: no spec text names the review preserved-lane reason (spec `7ckptx` R5.6 requires a reason be recorded, which this keeps and corrects). It adds an attempt field and three retention reason codes; no CHANGELOG entry because the summary line is a diagnostic, not a new command or flag.
 
 ## Open questions
 
@@ -101,7 +110,7 @@ N/A: no spec text names the preserved-lane reason; this changes a message and ad
 
 - Blocking: no
 - Status: resolved
-- Owner: this plan
+- Owner: plan author
 - Resolution or deferral rationale: No. Dispositions are a closed vocabulary (`runner_shutdown.KNOWN_ITEM_STATUSES`); the error is recorded as `host_error` and `ytas91`'s `turn_failure_kind` decides retry.
 
 ## Validation and cross-check (verify before reporting done)
@@ -109,22 +118,22 @@ N/A: no spec text names the preserved-lane reason; this changes a message and ad
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'.
 
 - [ ] V-01 validates E-01
-  - Required evidence: paste the preserved-lane events for the child-exit-1 and orchestrator-refused cases.
+  - Required evidence: paste the `worktree-preserved` (or equivalent `record_lane_preserved`) event, with `reason` and `retention_reasons`, for cases (a), (b), (c) and (d) of E-04, and each item's final `status` from `state.json` showing dispositions unchanged.
   - Observed evidence:
   - Result: pending
 
 - [ ] V-02 validates E-02
-  - Required evidence: paste the parser's output on the content-filter fixture and on a clean session.
+  - Required evidence: paste a `python3 -c` session printing the scan helper's result on the content-filter fixture, a clean opencode log, an agy failed-result log, an agy SUCCESS log, a missing path, and a 2000-character message (showing the bound), plus `render_event`'s line for the error event matching the review measurement in E-02.
   - Observed evidence:
   - Result: pending
 
 - [ ] V-03 validates E-03
-  - Required evidence: paste the summary line and the execution-report excerpt naming the host error.
+  - Required evidence: paste the summary's `Diagnostics / Blocked Items:` block and the `execution-report.md` excerpt naming the host error for case (a), and a `diff` showing the summary and report of a no-error run are unchanged against a run on the pre-change code.
   - Observed evidence:
   - Result: pending
 
 - [ ] V-04 validates E-04
-  - Required evidence: paste the passing module run with per-test counts and the bare-suite summary line.
+  - Required evidence: paste `python3 -m pytest -o addopts="" tests/test_review_failure_reason.py` with per-test counts, the bare `python3 -m pytest` summary line, and the before and after failing node-id sets showing nothing new.
   - Observed evidence:
   - Result: pending
 
@@ -133,4 +142,6 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 - Size assessment: standard
 - Cohesion rationale: not required
 
-Requires explicit human approval before execution. Commit only the Scope-Paths through `aw commit <plan> -- <paths>`; never push. Paste actual runner output into each V-item.
+Requires explicit human approval before execution.
+
+Execution contract: change no disposition, no retry behavior (owned by `ytas91`, which edits `execute_item_core` too; if it has landed first, rebase onto it and keep its `turn_failure_kind` alongside `host_error`, they answer different questions), and no lane retention decision; only reasons, codes and a recorded field change. Commit only the Scope-Paths through `aw commit <plan> -- <paths>`, never `git add -A`, and never push. This is a shared checkout: verify the staged set with `git diff --cached --name-only` and unstage anything not yours with `git restore --staged <path>`. Paste the ACTUAL runner output into each V-item; a summary you did not produce is not evidence. The Scope-Paths are a declaration: a necessary out-of-scope edit is made and justified with `--scope-reason` at finalize. Do not claim done until `aw ipd lint --phase pre-transition` conforms and every V-item carries observed evidence. Under `aw oc run` / `aw agy run` the RUNNER owns the terminal transition, so do not run `aw ipd finalize` yourself; a hand execution runs `aw ipd finalize <plan> --actor <agent/model> --message <summary> --apply`. Never hand-edit `- Status:` and never `git mv` into `executed/`.
