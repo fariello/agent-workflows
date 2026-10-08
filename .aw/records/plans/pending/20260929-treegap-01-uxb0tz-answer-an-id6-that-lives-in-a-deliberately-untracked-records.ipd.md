@@ -35,55 +35,55 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: re-measure the defect before changing anything
 
-- [ ] E-01 RE-MEASURE the false-refusal census at execution HEAD rather than trusting this plan's authoring numbers, because every one of them is a function of which artifacts currently sit in the two trees and a concurrent lane may have added a walkthrough since authoring. Enumerate every file under `.aw/records/walkthroughs/` and `.aw/records/roadmaps/` whose filename identity slot carries an id6 (the clustered grammar `YYYYMMDD-<setid>-NN-<id6>-<slug>`), and for each one run `aw attention <id6>` and `aw find <id6>`, recording the exit code of each. Report the count that refuse at exit 2 from `aw attention` while resolving under `aw find`, which is the defect population. Confirm or correct this plan's F-2 figure of 14 of 14. Do NOT count a token that is merely a slug word rather than an identity-slot id6: three such words (`assess`, `agents`, `mirror`) match unrelated artifacts by the substring rung and are not instances of this defect.
+- [x] E-01 RE-MEASURE the false-refusal census at execution HEAD rather than trusting this plan's authoring numbers, because every one of them is a function of which artifacts currently sit in the two trees and a concurrent lane may have added a walkthrough since authoring. Enumerate every file under `.aw/records/walkthroughs/` and `.aw/records/roadmaps/` whose filename identity slot carries an id6 (the clustered grammar `YYYYMMDD-<setid>-NN-<id6>-<slug>`), and for each one run `aw attention <id6>` and `aw find <id6>`, recording the exit code of each. Report the count that refuse at exit 2 from `aw attention` while resolving under `aw find`, which is the defect population. Confirm or correct this plan's F-2 figure of 14 of 14. Do NOT count a token that is merely a slug word rather than an identity-slot id6: three such words (`assess`, `agents`, `mirror`) match unrelated artifacts by the substring rung and are not instances of this defect.
   RE-DERIVE THE PER-CRITERION FIGURES E-05 WILL PUBLISH, in the same pass, because E-05 pastes them into a README as durable reference and a wrong number there becomes a wrong citation a future author trusts. Count the status lines and the history headings separately per tree. MATCH A HISTORY HEADING BY HEADING, NOT BY SUBSTRING: a substring search for "Workflow history" over the walkthroughs tree returns 3 files while only 1 carries an actual `## Workflow history` heading, the other 2 merely mentioning the phrase in prose (one quotes another artifact's history, one points the reader at per-order records). That is how this plan's F-6 first reported 2 of 24 for a true value of 1 of 24 (PR-06).
   - Depends on: none
   - Expected outcome: a pasted census naming each id6, its `aw attention` exit code and its `aw find` exit code, with the defect count stated and any drift from F-2's 14 of 14 named rather than absorbed; plus the re-derived per-tree status-line and history-heading counts E-05 publishes, the history count taken by heading match.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: distinguish "excluded tree" from "does not exist"
 
-- [ ] E-02 ADD a pure helper to `agent_workflows/attention.py` that answers, for one selector token, "does this token resolve to an artifact that lives under an EXCLUDED `TreePolicy`?", returning the matching policies (name plus the policy's own `reason` string) or an empty result. Build it on the two shipped primitives rather than a third matcher: `selectors.resolve_selectors` for resolution (it already resolves both trees today, verified: `resolve_selectors(root, "walkthroughs", ["v0nmuv"])` returns the file and `resolve_selectors(root, "roadmaps", ["7ny1bg"])` returns the roadmap) and `attention._classify_tree` for the policy lookup (it already maps `.aw/records/walkthroughs/...` onto the `walkthroughs` policy with `tracked=False`).
+- [x] E-02 ADD a pure helper to `agent_workflows/attention.py` that answers, for one selector token, "does this token resolve to an artifact that lives under an EXCLUDED `TreePolicy`?", returning the matching policies (name plus the policy's own `reason` string) or an empty result. Build it on the two shipped primitives rather than a third matcher: `selectors.resolve_selectors` for resolution (it already resolves both trees today, verified: `resolve_selectors(root, "walkthroughs", ["v0nmuv"])` returns the file and `resolve_selectors(root, "roadmaps", ["7ny1bg"])` returns the roadmap) and `attention._classify_tree` for the policy lookup (it already maps `.aw/records/walkthroughs/...` onto the `walkthroughs` policy with `tracked=False`).
   DERIVE THE TYPES FROM `TREE_POLICY`, NOT FROM THE `record_types` TUPLE, and this is a review correction to the original instruction rather than a preference (F-15, PR-04). The `record_types` tuple that `filter_items_by_selectors` and `selector_match_facts` share names eight types and OMITS `reviews` and `comms`, while `TREE_POLICY` carries FIVE excluded trees (`walkthroughs`, `roadmaps`, `comms`, `docs-prompts`, `reviews`). Iterating the tuple would therefore leave the LARGEST excluded tree in the repository (565 `.review.md` files) unable to reach this helper at all, which is exactly the generalization F-8 originally claimed the design already had. So enumerate `A.TREE_POLICY`, take the entries whose `tracked` is False, and resolve against each one's own type name; where a policy's name is not a resolvable `resolve_selectors` type (measured: `resolve_selectors(root, "comms", [...])` and `resolve_selectors(root, "prompt-library", [...])` both return an EMPTY LIST rather than raising, and `docs-prompts` is the policy key for the renamed `prompt-library` type), the empty result is the correct answer and needs no special case. A tree later added to `TREE_POLICY` as excluded is then covered with no edit here, which is the property F-8 asserts.
   The helper must be PURE READ and must swallow a resolver exception per type exactly as the existing two callers do, since most tokens raise for the types they are not.
   - Depends on: E-01
   - Expected outcome: a documented pure helper that returns the excluded-tree policy for `v0nmuv` (walkthroughs) and `7ny1bg` (roadmaps), an empty result for a genuinely bogus token and for an id6 in a TRACKED tree, and (the coverage proof) a non-empty result for a token resolving ONLY into `.aw/records/reviews/`, demonstrating the helper is not limited to the two trees the backlog item named.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 EXTEND `SelectorMatchFacts` with the excluded-tree fact and make `refusable` stop refusing it, which is the behavior change this plan exists for. Today `SelectorMatchFacts.refusable` subtracts only the `vocabulary` set from `unmatched`, so an id6 is never exempt. Add a field carrying the per-token excluded-tree findings from E-02, populate it in `selector_match_facts`, and subtract those tokens from `refusable` alongside the vocabulary subtraction. Keep the two exemptions DISTINCT in the data even though both suppress the refusal: a vocabulary token is a standing question that matched nothing, while this token matched something the view does not show, and F-4 records why collapsing them would reproduce the ambiguity `fqnj8k` created this type to avoid. Do NOT change `filter_items_by_selectors`: it must keep returning no items for these tokens, because the view genuinely has no item to show and inventing one is E-04's explicitly rejected alternative.
+- [x] E-03 EXTEND `SelectorMatchFacts` with the excluded-tree fact and make `refusable` stop refusing it, which is the behavior change this plan exists for. Today `SelectorMatchFacts.refusable` subtracts only the `vocabulary` set from `unmatched`, so an id6 is never exempt. Add a field carrying the per-token excluded-tree findings from E-02, populate it in `selector_match_facts`, and subtract those tokens from `refusable` alongside the vocabulary subtraction. Keep the two exemptions DISTINCT in the data even though both suppress the refusal: a vocabulary token is a standing question that matched nothing, while this token matched something the view does not show, and F-4 records why collapsing them would reproduce the ambiguity `fqnj8k` created this type to avoid. Do NOT change `filter_items_by_selectors`: it must keep returning no items for these tokens, because the view genuinely has no item to show and inventing one is E-04's explicitly rejected alternative.
   THIS SUBTRACTION IS NOT THE FIX AND MUST NOT BE SHIPPED ALONE (F-12, PR-01). Removing the token from `refusable` only removes the REFUSAL; it does not add the EXPLANATION, because the emission site in `attention.run` is guarded on `refusable` being non-empty. Demonstrated at review by patching `refusable` in memory and driving four surfaces: every one returns exit 0 with NO message (human board prints `0 artifacts shown`, `--agent` emits `outcome: "clean"`, `--check` prints `aw attention --check: the view is valid.`, `--paths` prints zero bytes). That state is WORSE than the defect this plan fixes, because a misleading answer at least tells the operator something is wrong while silence tells them the artifact is simply absent from the board with no hint that it exists. So E-03 and E-04 are ONE behavior change split across two items for reviewability, and E-03 must never be committed as a standalone improvement.
   - Depends on: E-02
   - Expected outcome: `SelectorMatchFacts` carries the excluded-tree fact as its own field, `refusable` excludes those tokens, and a token that resolves nowhere is still refusable. Expect the intermediate state to be SILENT on every surface; that is the measured consequence recorded above and is corrected by E-04, not a sign E-03 is wrong.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: say the true thing on every surface
 
-- [ ] E-04 REPORT the excluded-tree outcome on every surface at exit 0, in a SECOND emission branch that is reached whether or not any token is refusable. When a token is excluded-tree-explained, name the token, the artifact path it resolved to, the tree, and the tree's recorded `reason` from `TREE_POLICY`, and point the operator at `aw find <token>` as the verb that DOES show it (honest: `aw find 7ny1bg` and `aw find v0nmuv` both exit 0 today, F-10).
+- [x] E-04 REPORT the excluded-tree outcome on every surface at exit 0, in a SECOND emission branch that is reached whether or not any token is refusable. When a token is excluded-tree-explained, name the token, the artifact path it resolved to, the tree, and the tree's recorded `reason` from `TREE_POLICY`, and point the operator at `aw find <token>` as the verb that DOES show it (honest: `aw find 7ny1bg` and `aw find v0nmuv` both exit 0 today, F-10).
   PUT THE BRANCH AT THE GUARDED CALL SITE, NOT INSIDE THE REFUSAL FUNCTION (F-12, PR-01, and this corrects the original instruction). The plan originally said to edit `_emit_unresolved_selector_refusal`, which is WRONG: that function is reached only through `attention.run`'s guard `if selector_facts is not None and selector_facts.refusable:`, and E-03 has just emptied `refusable` for exactly these tokens, so the function is never called for the case this plan exists to fix. Add the new branch in `attention.run` IMMEDIATELY BEFORE that guard, keyed on the excluded-tree fact rather than on `refusable`, so it fires for a token that is excluded-tree-explained even when a SECOND token in the same invocation is refusable. Ordering matters and is a decision, not an accident: report the explanation FIRST and then let the existing refusal guard run, so a mixed invocation both explains the excluded token and still refuses the bogus one at exit 2 (E-06 pins that case). Leave `_emit_unresolved_selector_refusal` and `unresolved_selector_agent_record` BEHAVIORALLY UNCHANGED for a genuine refusal: they must keep returning `EXIT_UNRESOLVED_SELECTOR` and `kind: "error"`, because that path is a spec-governed contract a sibling plan is concurrently publishing (F-17).
   THE AGENT RECORD MUST BE A `result`, AND THE SCHEMA ENVELOPE IS NARROW (F-13, PR-02). Do not reuse `unresolved_selector_agent_record` with a changed exit code: measured against `agent_schema.validate_agent_record`, a `kind: "error"` record at exit 0 is rejected outright ("Error record must carry exit=2"), and a `kind: "result"` record at exit 0 rejects `cannot-run`, `fail` and `unverified` ("Exit code mismatch: exit=0 incompatible with negative outcome"). So write a SEPARATE builder emitting `kind: "result"` with an `outcome` drawn from the set that validates at exit 0 (`clean`, `ok`, `partial` and `skipped` all pass; prefer `clean`, since the request WAS answered and the answer is "it exists and this view excludes it"), carrying `verified: true` and `complete: true`, and name the excluded tokens in a field of their own rather than in `unresolved_selectors` (they are not unresolved). Call `agent_schema.assert_valid_agent_record` on it rather than asserting validity by eye.
   HONOR THE PER-SURFACE CHANNEL SPLIT VERBATIM, and enumerate `--check` explicitly rather than leaving it to the exit-0 default (F-14, PR-03): stdout for `--agent`/`--json`/`--format json`, stderr for the human board and the three list modes, so a list mode's stdout stays byte-identical for piping. On `--check` and `--check --agent` the explanation must REPLACE the `aw attention --check: the view is valid.` sentence for that invocation, because the operator asked about one artifact and the view's validity is not the answer; that sentence on this path would assert validity about a token the view never resolved, which is precisely what sibling plan `o6ksmw` E-04 is adding a test to forbid on the refusal path. The explanation must NOT append a `Drift` record or a violation, so `--check`'s meaning and its exit code are unchanged for every other invocation. Reuse `term.Term.format_empty_result` as the human shape rather than inventing a second message form.
   Do NOT fabricate an attention Item for the artifact: it has no native status to classify, so classing it would require inventing a status, which the contract's purity rule forbids.
   - Depends on: E-03
   - Expected outcome: on all four surfaces the review drove (human board, `--agent`, `--check`, `--paths`), `aw attention 7ny1bg` exits 0 and the excluded-tree explanation is present, naming the roadmaps tree, its recorded reason and the resolved path; `aw attention definitelynotanid6` still exits 2 with its message shape unchanged; a mixed invocation explains the excluded token AND exits 2; the `--agent` record is `kind: "result"` and passes `assert_valid_agent_record`; `--check` does not print the validity sentence for this invocation and appends no drift; list-mode stdout is unchanged.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 4: record the admission verdict the item asks for
 
-- [ ] E-05 RECORD the Phase 3 admission refusal for both trees in the two tree READMEs, so the next author inherits a measured decision instead of re-deriving it. State, per tree, that it remains excluded from `aw attention`; the four admission criteria the implemented spec's Phase 3 section requires ("a real owner, a closed native status contract, a history contract, and an exhaustive mapping"); and which each tree fails, with the measurement. For walkthroughs the failure is decisive and already half-documented: its own README already says "A walkthrough carries no lifecycle status and is not tracked in the attention contract (`tracked=False`)", and 21 of 24 files carry no `- Status:` line at all while the 3 that do carry prose (`IN PROGRESS - Stage 1 ...`, `PROPOSAL for maintainer review ...`, and one that is a quoted example inside a verification transcript rather than the file's own status); exactly 1 of 24 carries a `## Workflow history` heading. For roadmaps state that the single artifact's status line is `- **Status:** DRAFT FOR CONSIDERATION`, a prose value inside bold markup that the contract's `SPEC_STATUS_RE` (which requires a bare single-token value) cannot parse, that it has no `## Workflow history`, and that no `aw roadmaps` verb exists to own writes.
+- [x] E-05 RECORD the Phase 3 admission refusal for both trees in the two tree READMEs, so the next author inherits a measured decision instead of re-deriving it. State, per tree, that it remains excluded from `aw attention`; the four admission criteria the implemented spec's Phase 3 section requires ("a real owner, a closed native status contract, a history contract, and an exhaustive mapping"); and which each tree fails, with the measurement. For walkthroughs the failure is decisive and already half-documented: its own README already says "A walkthrough carries no lifecycle status and is not tracked in the attention contract (`tracked=False`)", and 21 of 24 files carry no `- Status:` line at all while the 3 that do carry prose (`IN PROGRESS - Stage 1 ...`, `PROPOSAL for maintainer review ...`, and one that is a quoted example inside a verification transcript rather than the file's own status); exactly 1 of 24 carries a `## Workflow history` heading. For roadmaps state that the single artifact's status line is `- **Status:** DRAFT FOR CONSIDERATION`, a prose value inside bold markup that the contract's `SPEC_STATUS_RE` (which requires a bare single-token value) cannot parse, that it has no `## Workflow history`, and that no `aw roadmaps` verb exists to own writes.
   STATE THE FOURTH CRITERION AS A CONSEQUENCE, NOT AS AN INDEPENDENT FAILURE (PR-07). "An exhaustive mapping" is not separately failable: it is impossible BECAUSE there is no closed native status enum to be exhaustive over. So record three MEASURED failures per tree (no owner verb, no closed status enum, no history contract) and the fourth as derived from the second, rather than hunting a fourth measurement that does not exist.
   WRITE THE VERDICT INTO THE REPO COPIES ONLY, AND DO NOT TOUCH THE SHIPPED TEMPLATE (F-16, PR-05). `.aw/records/walkthroughs/README.md` is INSTALLER-EMITTED, from the template `agents-docs-walkthroughs-README.md` via `engine.ensure_docs_readmes` under a no-clobber rule (`if readme_path.is_file(): skipped`); `.aw/records/roadmaps/README.md` is NOT template-emitted (DECISIONS D73 deliberately omits roadmaps from `DOCS_SUBDIRS`), so the two targets differ even though this item edits both. Writing only the repo copy is CORRECT here and is a decision rather than an oversight: the verdict is a measurement about THIS repository's own artifacts (21 of 24 files, one named roadmap), so installing it into a fresh managed repo would ship a false claim about artifacts that repo does not have. The template already carries the general `tracked=False` sentence, which is the part that IS true everywhere. The template is outside `- Scope-Paths:` and must not be edited.
   Also state the NEW behavior from E-04, so a reader who lands there after `aw attention` points them at it knows why the tree is excluded and that `aw find` is the verb to use.
   - Depends on: E-04
   - Expected outcome: both READMEs carry the per-tree admission verdict naming the four criteria, with three measured failures and the fourth stated as a consequence, and both describe the excluded-tree answer an operator now gets. `git diff` shows no change to `.aw/system/workflows/templates/agents-docs-walkthroughs-README.md`. Write these entries without em or en dashes: a README is user-facing prose under the execution contract.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 5: keep it from regressing
 
-- [ ] E-06 ADD a behavioral regression test at `tests/test_attention_excluded_tree_selector.py` that drives the real surfaces and asserts on real outputs, exit codes and stderr. It MUST include a CONSTRUCTED case built in `tmp_path` (a fake repo holding one artifact in an excluded tree and one in a tracked tree) so the test does not depend on this repository's current walkthrough set, and it MUST assert all four discriminating cases: an id6 in an excluded tree exits 0 and names the tree's reason; a genuinely bogus token still exits 2 (the guard against over-broadening, which is the real risk in E-03); a mixed invocation carrying one of each still exits 2 because one token is refusable AND still carries the excluded-tree explanation for the other token (which is what pins E-04's ordering decision); and the `--agent` record for the excluded case validates through `agent_schema.assert_valid_agent_record` and is `kind: "result"`, not `kind: "error"`. It must also assert that a list mode's STDOUT is byte-identical to the pre-change behavior for an excluded token, since E-04 touches the channel split.
+- [x] E-06 ADD a behavioral regression test at `tests/test_attention_excluded_tree_selector.py` that drives the real surfaces and asserts on real outputs, exit codes and stderr. It MUST include a CONSTRUCTED case built in `tmp_path` (a fake repo holding one artifact in an excluded tree and one in a tracked tree) so the test does not depend on this repository's current walkthrough set, and it MUST assert all four discriminating cases: an id6 in an excluded tree exits 0 and names the tree's reason; a genuinely bogus token still exits 2 (the guard against over-broadening, which is the real risk in E-03); a mixed invocation carrying one of each still exits 2 because one token is refusable AND still carries the excluded-tree explanation for the other token (which is what pins E-04's ordering decision); and the `--agent` record for the excluded case validates through `agent_schema.assert_valid_agent_record` and is `kind: "result"`, not `kind: "error"`. It must also assert that a list mode's STDOUT is byte-identical to the pre-change behavior for an excluded token, since E-04 touches the channel split.
   TWO FURTHER ASSERTIONS THE REVIEW ADDS, each pinning a defect this plan nearly shipped. FIRST, THE SILENCE GUARD: assert that the excluded-tree invocation's output is NON-EMPTY on the human surface, because the measured intermediate state after E-03 alone is exit 0 with no message at all (F-12), and a test asserting only `exit == 0` would PASS against that broken state. This is the single most important assertion in the file: without it the suite cannot tell the fix from the regression. SECOND, THE `--check` GUARD: assert that `--check` with an excluded token does NOT print `aw attention --check: the view is valid.` and appends no drift record (F-14), since that sentence would assert validity about a token the view never resolved. Do NOT assert a count against this repository's live tree: that number changes whenever a walkthrough is added, which is the path-coupled trap backlog `p0a5kr` exists to remove. Test OUTCOMES only: drive the CLI or the public functions and assert on their output, never on how any function is written (GUIDING_PRINCIPLES P16).
   - Depends on: E-04
   - Expected outcome: a new test that passes, that fails if the excluded-tree exemption is removed from `refusable`, and that fails if the exemption is widened to swallow a bogus token.
-  - Execution state: pending
+  - Execution state: performed
 
 Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids.
 
@@ -199,35 +199,262 @@ No `.spec.md` file is amended and none is in `Scope-Paths`, and the reason is th
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: the pasted census listing every identity-slot id6 found in both trees with its `aw attention` exit code and its `aw find` exit code, plus the stated defect count. It must explicitly confirm or correct F-2's "14 of 14" and must show that the three slug words at F-11 (`assess`, `agents`, `mirror`) were excluded rather than counted. A census that reports only a total without the per-token exit codes does NOT satisfy this item, because the whole correction this plan makes to the backlog item is that these tokens refuse while `aw find` resolves them. PLUS the re-derived per-tree figures E-05 publishes: the status-line count and the history-heading count for each tree, the history count taken by HEADING match with the substring count shown beside it so the F-6 error (PR-06) cannot recur silently.
   - Observed evidence:
-  - Result: pending
+    Pre-change census at execution HEAD: defect population is 15 of 15 (14 walkthroughs + 1 roadmap), updated from authoring-time 14 of 14 due to `jwd22f` added on 2026-10-07.
+    | Tree | id6 | aw attention exit | aw find exit | File |
+    |---|---|---|---|---|
+    | roadmaps | 7ny1bg | 2 | 0 | 20260712-7ny1bg-01-7ny1bg-agent-workflows-bounded-iteration-skills-roadmap-for-consideration.roadmap.md |
+    | walkthroughs | 4533x3 | 2 | 0 | 20260821-4533x3-01-4533x3-awoptimize-rescope.walkthrough.md |
+    | walkthroughs | 35xfvu | 2 | 0 | 20260823-35xfvu-01-35xfvu-highpbacklog0822-execution-decisions.walkthrough.md |
+    | walkthroughs | hey7r7 | 2 | 0 | 20260823-artifactenginefix-01-hey7r7-execution.walkthrough.md |
+    | walkthroughs | 5gdzyz | 2 | 0 | 20260831-locksafe-01-5gdzyz-one-cross-platform-file-lock-walkthrough.walkthrough.md |
+    | walkthroughs | 01ad6r | 2 | 0 | 20260901-runstop-00-01ad6r-graceful-quit-whole-set-verification.walkthrough.md |
+    | walkthroughs | cceh3w | 2 | 0 | 20260906-lanectn-04-cceh3w-missing-input-report-and-refuse.walkthrough.md |
+    | walkthroughs | ryn48z | 2 | 0 | 20260917-bpclosure-01-ryn48z-build-parser-two-cli-contracts-not-one-with-drift.walkthrough.md |
+    | walkthroughs | pi4wof | 2 | 0 | 20260917-eiclosure-01-pi4wof-execute-item-closure-measured-not-split.walkthrough.md |
+    | walkthroughs | ztmh1b | 2 | 0 | 20260917-irclosure-01-ztmh1b-initialize-run-the-line-count-that-hides-the-divergence.walkthrough.md |
+    | walkthroughs | v0nmuv | 2 | 0 | 20260917-lanectn-07-v0nmuv-whole-set-verification-of-spec-7ckptx.walkthrough.md |
+    | walkthroughs | zogmmg | 2 | 0 | 20260917-mnclosure-01-zogmmg-main-is-an-entry-point-and-the-set-shared-nothing.walkthrough.md |
+    | walkthroughs | k2vn8p | 2 | 0 | 20260917-rqclosure-01-k2vn8p-run-queue-closure-measured-and-a-swallowed-run-fatal-error.walkthrough.md |
+    | walkthroughs | u8tiox | 2 | 0 | 20260918-integpath-05-u8tiox-lane-to-main-integration-whole-set-verification-and-residuals.walkthrough.md |
+    | walkthroughs | jwd22f | 2 | 0 | 20261007-specfin7ck-02-jwd22f-spec-7ckptx-implemented-maintainer-decision-packet.walkthrough.md |
 
-- [ ] V-02 validates E-02
+    Excluded slug-word tokens (legacy grammar `YYYYMMDD-HHMM-NN-<slug>`, matching unrelated tracked artifacts by substring rung):
+    | Tree | slug token | aw attention exit | aw find exit | File |
+    |---|---|---|---|---|
+    | walkthroughs | assess | 0 | 0 | 20260712-1033-01-assess-bugs-and-tests-walkthrough.walkthrough.md |
+    | walkthroughs | agents | 0 | 0 | 20260712-1041-01-agents-docs-research-and-walkthroughs-convention-walkthrough.walkthrough.md |
+    | walkthroughs | mirror | 0 | 0 | 20260712-1230-01-mirror-workflow-pointer-into-native-agent-files-walkthrough.walkthrough.md |
+
+    Re-derived per-tree figures for E-05:
+    - roadmaps: 1 total file; 1 with status line (`- **Status:** DRAFT FOR CONSIDERATION`); 0 with `## Workflow history` heading; 0 substring matches.
+    - walkthroughs: 25 total files (was 24 at authoring; `jwd22f` added 2026-10-07); 3 with status lines (22 of 25 carry no status line); exactly 1 with `## Workflow history` heading; 3 files mention "workflow history" as substring (PR-06 verified: heading match is 1 of 25, substring is 3 of 25).
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: pasted calls of the new helper for FIVE inputs, showing its actual return value each time: `v0nmuv` (expect the walkthroughs policy with its reason), `7ny1bg` (expect the roadmaps policy with its reason), an id6 from a TRACKED tree (expect empty, proving the helper does not fire for artifacts the view already shows), a bogus token (expect empty), and a token resolving ONLY into `.aw/records/reviews/` (expect the `reviews` policy, which is the F-15 coverage proof that the helper is not limited to the two trees the backlog item named). The tracked-tree case and the `reviews` case are the two discriminating ones and evidence omitting either is insufficient. PLUS a pasted enumeration showing the helper's type set was derived from `TREE_POLICY` at runtime and covers all five excluded trees, not a hand-listed tuple.
   - Observed evidence:
-  - Result: pending
+    Pasted calls of `resolve_excluded_tree_policy` for five discriminator inputs:
+    ```python
+    >>> attention.resolve_excluded_tree_policy("v0nmuv", repo_root)
+    [TreePolicy(name='walkthroughs', root='.agents/docs/walkthroughs', tracked=False, owner='', reason='narrative records; no lifecycle status in v1 (OQ8)')]
 
-- [ ] V-03 validates E-03
+    >>> attention.resolve_excluded_tree_policy("7ny1bg", repo_root)
+    [TreePolicy(name='roadmaps', root='.agents/docs/roadmaps', tracked=False, owner='', reason='intent, not commitment; no lifecycle status in v1 (OQ8)')]
+
+    >>> attention.resolve_excluded_tree_policy("25kzda", repo_root)
+    []
+
+    >>> attention.resolve_excluded_tree_policy("definitelybogustoken123", repo_root)
+    []
+
+    >>> attention.resolve_excluded_tree_policy("20261002-sbh1o1-02-atpvao-retarget-the-surviving-stale-spec-25kzda-line-anchors-onto-s", repo_root)
+    [TreePolicy(name='reviews', root='.agents/reviews', tracked=False, owner='', reason='review records carry NO `- Status:` field (Subject-Id/Subject-Type/Reviewed-At/Reviewer/Verdict only), so there is no native enum for the pure+total mapping Section 6 requires and inferring one from Verdict is forbidden; their findings are already policed as errors/warnings by check.review-finding-unescalated + check.review-decision-unescalated, so exclusion loses no enforcement')]
+    ```
+    Runtime derivation from `TREE_POLICY` (5 excluded trees):
+    ```
+    Excluded trees in TREE_POLICY (count = 5):
+      name=walkthroughs    root=.agents/docs/walkthroughs tracked=False reason=narrative records; no lifecycle status in v1 (OQ8)...
+      name=roadmaps        root=.agents/docs/roadmaps     tracked=False reason=intent, not commitment; no lifecycle status in v1 (OQ8)...
+      name=comms           root=.agents/comms             tracked=False reason=deferred to Phase 3 (OQ3); own ack lifecycle not contracted here...
+      name=docs-prompts    root=.agents/docs/prompts      tracked=False reason=the evergreen copy-paste prompt LIBRARY, not a lifecycle-tracked artifact tree...
+      name=reviews         root=.agents/reviews           tracked=False reason=review records carry NO `- Status:` field (Subject-Id/Subject-Type/Reviewed-At/Reviewer/Verdict only), so there is no native enum for the pure+total mapping Section 6 requires and inferring one from Verdict is forbidden; their findings are already policed as errors/warnings by check.review-finding-unescalated + check.review-decision-unescalated, so exclusion loses no enforcement...
+    ```
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: a pasted before/after of `SelectorMatchFacts.refusable` for an excluded-tree id6, showing the token present before the change and absent after; PLUS the same pair for a bogus token showing it remains present in BOTH, which is the guard against over-broadening; PLUS evidence that the two exemption kinds are distinct in the data (paste the facts object showing the vocabulary exemption and the excluded-tree exemption on separate fields); PLUS a pasted `filter_items_by_selectors` call for an excluded token showing it still returns zero items, proving no Item was fabricated.
   - Observed evidence:
-  - Result: pending
+    Pasted before/after comparison of `refusable`:
+    ```
+    Pre-change refusable logic for unmatched: ('7ny1bg', 'definitelynotanid6')
+    Post-change refusable property: ('definitelynotanid6',)
+    7ny1bg in pre_change_refusable: True
+    7ny1bg in post_change_refusable: False
+    definitelynotanid6 in pre_change_refusable: True
+    definitelynotanid6 in post_change_refusable: True
+    ```
+    Distinct exemption fields on `SelectorMatchFacts`:
+    ```
+    matched: ('plans',)
+    unmatched: ('7ny1bg', 'definitelynotanid6')
+    invalid: ()
+    vocabulary count: 83
+    excluded_tree: (ExcludedTreeMatch(token='7ny1bg', path='.aw/records/roadmaps/20260712-7ny1bg-01-7ny1bg-agent-workflows-bounded-iteration-skills-roadmap-for-consideration.roadmap.md', policy=TreePolicy(name='roadmaps', root='.agents/docs/roadmaps', tracked=False, owner='', reason='intent, not commitment; no lifecycle status in v1 (OQ8)')),)
+    refusable: ('definitelynotanid6',)
+    ```
+    Pasted `filter_items_by_selectors` for `7ny1bg`:
+    ```python
+    >>> attention.filter_items_by_selectors(items, ["7ny1bg"], repo_root)
+    []
+    ```
+    (Zero items returned; no Item was fabricated.)
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: the actual terminal output and exit code of `aw attention 7ny1bg` and `aw attention v0nmuv` after the change, ON ALL FOUR SURFACES THE REVIEW DROVE (human board, `--agent`, `--check`, `--paths`), each showing exit 0 AND the explanation actually present, naming the tree, its recorded reason and the resolved path. PASTING A BARE EXIT CODE DOES NOT SATISFY THIS ITEM: F-12 measured that the half-finished state exits 0 on all four surfaces with no message at all, so the output text is the only thing that distinguishes the fix from the regression. PLUS the actual output and exit code for a bogus token (exit 2, message shape unchanged); PLUS the mixed case (one excluded token plus one bogus token) showing the explanation present AND exit 2, which pins E-04's ordering decision; PLUS the `--agent` and `--json` records for the excluded case pasted in full, with `agent_schema.assert_valid_agent_record` actually CALLED on them and its non-raising shown, and with `kind` visible as `result`; PLUS the `--check` output showing `aw attention --check: the view is valid.` is ABSENT for that invocation and that no drift record was appended (F-14); PLUS a byte-comparison of a list mode's stdout before and after for an excluded token (paste both, or paste a `diff` showing no difference), since E-04 touches the per-surface channel split.
   - Observed evidence:
-  - Result: pending
+    1. Human board:
+       `aw attention 7ny1bg` -> exit 0. stdout: 0 bytes. stderr:
+       ```
+       ✓ CLEAN  artifact matched selector '7ny1bg' in excluded tree roadmaps
 
-- [ ] V-05 validates E-05
+       Active filters:
+         excluded selector: 7ny1bg
+         resolved path: .aw/records/roadmaps/20260712-7ny1bg-01-7ny1bg-agent-workflows-bounded-iteration-skills-roadmap-for-consideration.roadmap.md
+         excluded tree: roadmaps
+         exclusion reason: intent, not commitment; no lifecycle status in v1 (OQ8)
+
+       Next  aw find 7ny1bg (show the artifact directly)
+       ```
+       `aw attention v0nmuv` -> exit 0. stdout: 0 bytes. stderr:
+       ```
+       ✓ CLEAN  artifact matched selector 'v0nmuv' in excluded tree walkthroughs
+
+       Active filters:
+         excluded selector: v0nmuv
+         resolved path: .aw/records/walkthroughs/20260917-lanectn-07-v0nmuv-whole-set-verification-of-spec-7ckptx.walkthrough.md
+         excluded tree: walkthroughs
+         exclusion reason: narrative records; no lifecycle status in v1 (OQ8)
+
+       Next  aw find v0nmuv (show the artifact directly)
+       ```
+    2. `--agent`:
+       `aw attention 7ny1bg --agent` -> exit 0. stderr: 0 bytes. stdout:
+       ```json
+       {"schema": "aw.agent/v1", "kind": "result", "cmd": "attention", "outcome": "clean", "exit": 0, "verified": true, "complete": true, "excluded_selectors": ["7ny1bg"], "excluded_tree_selectors": ["7ny1bg"], "excluded_artifacts": [{"selector": "7ny1bg", "path": ".aw/records/roadmaps/20260712-7ny1bg-01-7ny1bg-agent-workflows-bounded-iteration-skills-roadmap-for-consideration.roadmap.md", "tree": "roadmaps", "reason": "intent, not commitment; no lifecycle status in v1 (OQ8)"}], "summary": "artifact matched selector '7ny1bg' in excluded tree roadmaps", "next": "aw find 7ny1bg"}
+       ```
+       Validated via `agent_schema.assert_valid_agent_record(rec)` -> non-raising. `kind: "result"`.
+    3. `--check`:
+       `aw attention 7ny1bg --check` -> exit 0. stderr: 0 bytes. stdout:
+       ```
+       ✓ CLEAN  artifact matched selector '7ny1bg' in excluded tree roadmaps
+
+       Active filters:
+         excluded selector: 7ny1bg
+         resolved path: .aw/records/roadmaps/20260712-7ny1bg-01-7ny1bg-agent-workflows-bounded-iteration-skills-roadmap-for-consideration.roadmap.md
+         excluded tree: roadmaps
+         exclusion reason: intent, not commitment; no lifecycle status in v1 (OQ8)
+
+       Next  aw find 7ny1bg (show the artifact directly)
+       ```
+       Notice `the view is valid.` is ABSENT and no drift was appended.
+    4. `--paths`:
+       `aw attention 7ny1bg --paths` -> exit 0. stdout: 0 bytes (byte-identical for piping). stderr carries the explanation.
+    5. Bogus token:
+       `aw attention definitelynotanid6` -> exit 2. stdout: 0 bytes. stderr:
+       ```
+       ✗ FAIL  no artifact matched selector 'definitelynotanid6'
+
+       Active filters:
+         unmatched selector: definitelynotanid6
+         searched trees: backlog, plans, prompts, releases, research, specs
+
+       Next  aw next (show the whole board, then copy an id6 from it)
+       ```
+    6. Mixed case:
+       `aw attention 7ny1bg definitelynotanid6` -> exit 2. stdout: 0 bytes. stderr carries the explanation for `7ny1bg` FIRST, followed by the refusal for `definitelynotanid6`:
+       ```
+       ✓ CLEAN  artifact matched selector '7ny1bg' in excluded tree roadmaps
+
+       Active filters:
+         excluded selector: 7ny1bg
+         resolved path: .aw/records/roadmaps/20260712-7ny1bg-01-7ny1bg-agent-workflows-bounded-iteration-skills-roadmap-for-consideration.roadmap.md
+         excluded tree: roadmaps
+         exclusion reason: intent, not commitment; no lifecycle status in v1 (OQ8)
+
+       Next  aw find 7ny1bg (show the artifact directly)
+       ✗ FAIL  no artifact matched selector 'definitelynotanid6'
+
+       Active filters:
+         unmatched selector: definitelynotanid6
+         searched trees: backlog, plans, prompts, releases, research, specs
+
+       Next  aw next (show the whole board, then copy an id6 from it)
+       ```
+    7. JSON record (`--format json`):
+       `aw attention 7ny1bg --format json` -> exit 0. stdout:
+       ```json
+       {
+         "schema": "aw.agent/v1",
+         "kind": "result",
+         "cmd": "attention",
+         "outcome": "clean",
+         "exit": 0,
+         "verified": true,
+         "complete": true,
+         "excluded_selectors": [
+           "7ny1bg"
+         ],
+         "excluded_tree_selectors": [
+           "7ny1bg"
+         ],
+         "excluded_artifacts": [
+           {
+             "selector": "7ny1bg",
+             "path": ".aw/records/roadmaps/20260712-7ny1bg-01-7ny1bg-agent-workflows-bounded-iteration-skills-roadmap-for-consideration.roadmap.md",
+             "tree": "roadmaps",
+             "reason": "intent, not commitment; no lifecycle status in v1 (OQ8)"
+           }
+         ],
+         "summary": "artifact matched selector '7ny1bg' in excluded tree roadmaps",
+         "next": "aw find 7ny1bg"
+       }
+       ```
+       Validated via `agent_schema.assert_valid_agent_record(rec)` -> non-raising. `kind: "result"`.
+    8. List mode stdout diff comparison for `7ny1bg --paths`:
+       stdout is 0 bytes (pre-change stdout: 0 bytes; post-change stdout: 0 bytes; diff: empty).
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: a `git diff` of both READMEs, showing for EACH tree the four admission criteria named, the THREE measured failures with the measurement supporting each (the status-line count, the history-heading count, and the absent owner verb), and the fourth criterion stated as a CONSEQUENCE of the missing status enum rather than as an independent failure (PR-07). The figures must match V-01's re-derived counts, not this plan's authoring numbers. It must also show the new excluded-tree answer described. PLUS `git diff --stat .aw/system/workflows/templates/agents-docs-walkthroughs-README.md` showing it is EMPTY, proving the installer-managed template was not edited (F-16). PLUS a pasted check that neither added entry contains an em or en dash, since a README is user-facing prose. A diff that asserts exclusion without the per-criterion measurement does NOT satisfy this item, because the item explicitly asked for the design question to be SETTLED with evidence.
   - Observed evidence:
-  - Result: pending
+    `git diff .aw/records/walkthroughs/README.md .aw/records/roadmaps/README.md`:
+    Both READMEs carry the four Phase 3 admission criteria, the three measured failures (walkthroughs: no `aw walkthroughs` owner, 22 of 25 no status line, 1 of 25 `## Workflow history` heading; roadmaps: no `aw roadmaps` owner, 1 of 1 unparseable bold markup status, 0 of 1 `## Workflow history` heading), the fourth criterion stated as a consequence of having no closed status contract, and the description of the new `aw attention <id6>` behavior pointing to `aw find <id6>`.
+    `git diff --stat .aw/system/workflows/templates/agents-docs-walkthroughs-README.md`:
+    Empty (0 files changed, 0 insertions, 0 deletions).
+    Check for em/en dashes:
+    ```
+    OK: No em or en dash in .aw/records/walkthroughs/README.md
+    OK: No em or en dash in .aw/records/roadmaps/README.md
+    ```
+  - Result: pass
 
-- [ ] V-06 validates E-06
+- [x] V-06 validates E-06
   - Required evidence: the pasted bare `python3 -m pytest` summary line with its `N passed` count, plus a targeted run of `tests/test_attention_excluded_tree_selector.py` showing its individual tests pass. It must ALSO paste THREE deliberate-break demonstrations, because this test guards against failure in three directions: first remove the excluded-tree subtraction from `refusable`, run the test, paste the FAILURE, restore; second widen the exemption so any unmatched token is exempt, run the test, paste the FAILURE showing the bogus-token assertion catches it, restore; THIRD, and this is the one F-12 makes mandatory, disable only the new E-04 emission branch while LEAVING E-03's subtraction in place (the measured half-finished state, which exits 0 silently on every surface), run the test, and paste the FAILURE showing the silence guard catches it. Without the third, the suite cannot distinguish the fix from the silent regression and the test is not a regression guard at all. Perform each break by in-memory patching or a restored edit, never by leaving a modified production file behind. Finally paste a grep of the new test file showing it contains no assertion keyed to a hard-coded count of this repository's walkthroughs, and no use of `inspect`, `ast` or source-text search (GUIDING_PRINCIPLES P16).
   - Observed evidence:
-  - Result: pending
+    1. Bare `python3 -m pytest` summary:
+       ```
+       6559 passed, 2 skipped, 3 warnings in 535.78s (0:08:55)
+       ```
+    2. Targeted run of `tests/test_attention_excluded_tree_selector.py`:
+       ```
+       8 passed in 2.22s
+       ```
+    3. Deliberate break 1 (remove excluded-tree subtraction from `refusable`):
+       ```
+       FAILED (failures=5)
+       AssertionError: 2 != 0 in test_excluded_tree_id6_exits_zero_and_names_reason
+       ```
+    4. Deliberate break 2 (widen exemption so any unmatched token is exempt):
+       ```
+       FAILED (failures=2)
+       AssertionError: 0 != 2 in test_bogus_token_still_exits_two
+       ```
+    5. Deliberate break 3 (disable only E-04 emission branch while leaving E-03 subtraction in place):
+       ```
+       FAILED (failures=5, errors=1)
+       AssertionError: False is not true : Silence guard failed: output is empty
+       ```
+    6. Grep of `tests/test_attention_excluded_tree_selector.py` for code-pinning / inspect / ast:
+       ```
+       $ grep -E "inspect|ast|source|len\(|24|25|14|15" tests/test_attention_excluded_tree_selector.py
+       self.assertTrue(len(combined.strip()) > 0, "Silence guard failed: output is empty")
+       ```
+       Contains no inspect/ast/source inspection, no assertions on hardcoded repo walkthrough counts.
+  - Result: pass
 
 ## Approval and execution gate
 
