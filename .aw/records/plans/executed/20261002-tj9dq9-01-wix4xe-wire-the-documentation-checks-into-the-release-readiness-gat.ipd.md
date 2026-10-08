@@ -12,7 +12,7 @@
   OUT, each for a stated reason: the `check_aw_commands` PROSE-VERSUS-CODE-SPAN FALSE POSITIVE and the `docs/skill-selection.md` heading it flags, both owned by approved plan `t9lcdu` (E-03, E-04) which declares those exact paths, so touching either here would collide with an approved sibling and duplicate work already designed (F-03); the THREE OTHER INERT GATE PARAMETERS on `build_report` (`drift_files`, `undispositioned`, `stale_claims`), which are the same defect class measured on the same evidence but are not this item's subject and each needs its own producer (F-06, carrier filed); ADDING AN `aw` SUBCOMMAND that renders the readiness report, which is a new public surface and not a wiring fix (F-07); CALLING `build_report` from CI, release-review, or a hook, which is a process change requiring a human decision about what gates a release; and any edit to `agent_workflows/docs_check.py`, whose only needed change is `t9lcdu`'s.
 - Scope-Paths: agent_workflows/release_readiness.py, tests/test_release_readiness_docs_gate.py
 - Item-Dependencies: executed:t9lcdu
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: followup
 - Priority: medium
@@ -22,9 +22,9 @@
 - Highest E allocated: 06
 - Author: opencode/its_direct/pt3-claude-opus-5-1m-us
 - Id: wix4xe
-- Approval: 2026-10-07, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-08 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: wix4xe verified (set tj9dq9, attempt 1). [Scope reconciliation - out-of-scope tests/test_release_readiness.py: changed by the plan's approved execution (auto-reconciled by aw agy run)]
 - 2026-10-07 approved (aw set): status set to approved
 - 2026-10-07 reviewed (aw set): /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-004 all FIXED. E2E GO/NO-GO contrast pair (bare tmp repo already NO-GO), checker-exception arm, dependency check by location + specific finding, lifecycle clause. Record: .aw/records/reviews/20261002-tj9dq9-01-wix4xe-wire-the-documentation-checks-into-the-release-readiness-gat.review.md
 
