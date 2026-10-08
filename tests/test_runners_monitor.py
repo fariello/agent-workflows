@@ -396,3 +396,27 @@ def test_render_runner_table_multiline_activity_sanitized(tmp_path: Path) -> Non
     row = lines[2]
     assert "\n" not in row
     assert "for i in 1 2; do from pathlib" in row or "..." in row
+
+
+def test_runners_tab_completion() -> None:
+    from agent_workflows import completion
+
+    p = cli._build_parser()
+    tree = completion.introspect_cli_tree(p)
+    assert "runners" in tree["subcommands"]
+    flags = [f["flag"] for f in tree["subcommands"]["runners"]["flags"]]
+    assert "--interval" in flags
+    assert "--once" in flags
+    assert "--tree" in flags
+    assert "--raw-cpu" in flags
+    assert "--width" in flags
+    assert "-i" in flags
+    assert "-t" in flags
+
+    # Dynamic completion parity for flags
+    dyn = completion.complete_query(["aw", "runners", "--"], 2)
+    assert "--interval" in dyn
+    assert "--once" in dyn
+    assert "--raw-cpu" in dyn
+    assert "--tree" in dyn
+    assert "--width" in dyn

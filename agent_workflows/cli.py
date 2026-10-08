@@ -5512,6 +5512,35 @@ def _build_parser() -> argparse.ArgumentParser:
         add_help=False,
     )
     p_pwatch.add_argument(
+        "--runners",
+        action="store_true",
+        help="Automatically discover and watch all active aw runner process trees.",
+    )
+    p_pwatch.add_argument(
+        "--interval",
+        type=float,
+        default=2.5,
+        help="Seconds between snapshots (default: 2.5).",
+    )
+    p_pwatch.add_argument(
+        "--width",
+        type=int,
+        default=120,
+        help="Maximum width of each process label (default: 120).",
+    )
+    p_pwatch.add_argument(
+        "--depth",
+        type=int,
+        default=6,
+        help="Descendant levels shown below each root (default: 6).",
+    )
+    p_pwatch.add_argument(
+        "-l",
+        "--long",
+        action="store_true",
+        help="Show full untruncated command-line arguments regardless of terminal width.",
+    )
+    p_pwatch.add_argument(
         "pwatch_args",
         nargs=argparse.REMAINDER,
         help="Arguments forwarded verbatim to the packaged pwatch core.",
@@ -5528,6 +5557,41 @@ def _build_parser() -> argparse.ArgumentParser:
             "are forwarded verbatim to the packaged core, so see its own `--help` for the flag set."
         ),
         add_help=False,
+    )
+    p_runners.add_argument(
+        "--interval",
+        "-i",
+        type=float,
+        default=2.0,
+        help="Seconds between dashboard refreshes (default: 2.0).",
+    )
+    p_runners.add_argument(
+        "--once",
+        action="store_true",
+        help="Print one snapshot and exit (default when stdout is not a TTY).",
+    )
+    p_runners.add_argument(
+        "--tree",
+        "-t",
+        action="store_true",
+        help="Display full process trees under each runner instead of the summary table.",
+    )
+    p_runners.add_argument(
+        "--width",
+        type=int,
+        default=None,
+        help="Maximum display width (default: terminal width or 120).",
+    )
+    p_runners.add_argument(
+        "--raw-cpu",
+        action="store_true",
+        help="Show unscaled per-core CPU percentages instead of percentage of all CPUs.",
+    )
+    p_runners.add_argument(
+        "--repo",
+        type=str,
+        default=None,
+        help="Target repository root to inspect (default: discovery from cwd).",
     )
     p_runners.add_argument(
         "runners_args",
@@ -8032,9 +8096,14 @@ def _report_completion_effectiveness(
             "(no rc/dotfile modified).",
         )
         if not dry_run:
-            term.line(
-                f"Next  start a new {shell} shell (or run `exec {shell}`) to pick it up."
-            )
+            if shell == "bash":
+                term.line(
+                    f"Next  start a new {shell} shell (or run `exec {shell}`, or `source {installed_in}/aw`) to pick it up."
+                )
+            else:
+                term.line(
+                    f"Next  start a new {shell} shell (or run `exec {shell}`) to pick it up."
+                )
         return {"action": "n/a"}
 
     if verdict == _completion.REACHABLE_UNKNOWN:

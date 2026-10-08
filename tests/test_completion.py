@@ -121,6 +121,12 @@ class IntrospectTreeTests(unittest.TestCase):
             "the command that generates this very feature must complete itself",
         ),
         (
+            "runners",
+            True,
+            "monitor active aw runners, journey state, and subtree resource usage",
+        ),
+        ("pwatch", True, "watch and summarize processes"),
+        (
             "ipd-executed-gate",
             False,
             "the *-gate family is INTERNAL pre-commit plumbing, never typed by a human",
@@ -532,6 +538,16 @@ class CompletionSurfaceParityTests(unittest.TestCase):
             2,
             "a command with NO vocabulary: both surfaces must agree on offering "
             "nothing, which is where they already agreed before this change",
+        ),
+        (
+            ["aw", "runners", ""],
+            2,
+            "runners command: both surfaces agree on offering nothing for positionals",
+        ),
+        (
+            ["aw", "pwatch", ""],
+            2,
+            "pwatch command: both surfaces agree on offering nothing for positionals",
         ),
     )
 
