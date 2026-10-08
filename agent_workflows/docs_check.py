@@ -9,7 +9,7 @@ Deterministic, read-only checks over the Markdown documentation set:
   * :func:`check_internal_links`    - a relative Markdown link ``[text](path)`` must resolve to
     a file that exists (a broken link fails).
   * :func:`check_aw_commands`       - every ``aw <subcommand>`` referenced in a fenced command
-    block must be a known top-level subcommand (a typo fails).
+    block or inline code span must be a known top-level subcommand (a typo fails).
   * :func:`check_doc`               - run all checks over one doc, returning findings.
   * :func:`check_docs_dir`          - run all checks over a docs directory.
 
@@ -28,8 +28,10 @@ EN_DASH = "\u2013"
 
 # Markdown inline link: [text](target)
 _LINK_RE = re.compile(r"\[[^\]]*\]\(([^)]+)\)")
-# An `aw <sub>` reference (in prose or fenced blocks).
+# An `aw <sub>` reference (in inline code spans or fenced blocks).
 _AW_CMD_RE = re.compile(r"\baw\s+([a-z][a-z0-9-]*)\b")
+# Markdown inline code span: `code` or ``code``
+_CODE_SPAN_RE = re.compile(r"(`+)(.*?)\1")
 
 
 @dataclass
@@ -94,21 +96,50 @@ def check_internal_links(text: str, doc_path: Path) -> List[DocFinding]:
 def check_aw_commands(
     text: str, known_subcommands: Sequence[str], doc: str = ""
 ) -> List[DocFinding]:
-    """Fail on an ``aw <subcommand>`` reference that is not a known top-level subcommand."""
+    """Fail on an ``aw <subcommand>`` reference in code that is not a known top-level subcommand.
+
+    Scans fenced command blocks and inline code spans only, ignoring plain prose.
+    """
     known = set(known_subcommands)
     findings: List[DocFinding] = []
+    in_fence = False
+    fence_char: Optional[str] = None
     for i, line in enumerate(text.splitlines(), 1):
-        for m in _AW_CMD_RE.finditer(line):
-            sub = m.group(1)
-            if sub not in known:
-                findings.append(
-                    DocFinding(
-                        doc,
-                        i,
-                        "aw-command",
-                        f"'aw {sub}' is not a known subcommand",
+        stripped = line.strip()
+        if not in_fence:
+            if stripped.startswith(("```", "~~~")):
+                in_fence = True
+                fence_char = stripped[:3]
+                continue
+            for span_m in _CODE_SPAN_RE.finditer(line):
+                code_text = span_m.group(2)
+                for m in _AW_CMD_RE.finditer(code_text):
+                    sub = m.group(1)
+                    if sub not in known:
+                        findings.append(
+                            DocFinding(
+                                doc,
+                                i,
+                                "aw-command",
+                                f"'aw {sub}' is not a known subcommand",
+                            )
+                        )
+        else:
+            if stripped.startswith(("```", "~~~")) and stripped[:3] == fence_char:
+                in_fence = False
+                fence_char = None
+                continue
+            for m in _AW_CMD_RE.finditer(line):
+                sub = m.group(1)
+                if sub not in known:
+                    findings.append(
+                        DocFinding(
+                            doc,
+                            i,
+                            "aw-command",
+                            f"'aw {sub}' is not a known subcommand",
+                        )
                     )
-                )
     return findings
 
 

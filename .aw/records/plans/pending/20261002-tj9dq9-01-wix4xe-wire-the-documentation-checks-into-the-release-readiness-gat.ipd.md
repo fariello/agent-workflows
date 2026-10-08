@@ -124,12 +124,14 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 - THE `check_aw_commands` PROSE-VERSUS-CODE-SPAN FALSE POSITIVE and the `docs/skill-selection.md` heading it flags (F-03). Not fixed here because approved plan `t9lcdu` owns both halves (its E-03 restricts the scan to fenced blocks and inline code spans, its E-04 rewrites the heading) and declares both paths in its `- Scope-Paths:`. Editing either would collide with an approved sibling and duplicate designed work; this plan takes a dependency on it instead.
   - Carrier: t9lcdu
+  - Carrier-Evidence: .aw/records/plans/executed/20260930-gzmr54-01-t9lcdu-restore-the-docs-check-and-docs-render-test-coverage-deleted.ipd.md
 - THE THREE OTHER INERT GATE PARAMETERS, `drift_files`, `undispositioned`, and `stale_claims`, each vacuous for exactly the reason `doc_findings` is (F-06). Out of scope because each needs its own producer and its own fail-closed decision (what IS the drift set, which workflows count as undispositioned, where does capability staleness come from), and because widening this plan to four gates would make a focused wiring fix an unreviewable sweep. Recorded so the class is not mistaken for a single instance.
   - Carrier: usggph
 - ADDING AN `aw` SUBCOMMAND THAT RENDERS THE READINESS REPORT, and CALLING `build_report` FROM CI, release-review, or a hook. Verified absent (F-07): no subcommand builds this report and nothing in `Makefile`, `.pre-commit-config.yaml`, or any GitHub workflow invokes it. Out of scope because a new public surface is not a wiring fix, and because deciding what gates a release is a maintainer's process decision rather than an executor's. This plan makes the gate TRUTHFUL; choosing to enforce it is a separate, deliberate act.
   - Carrier: usggph
 - THE `docs_check` MODULE DOCSTRING'S own divergence from its implementation, i.e. the "fenced command block" promise against a raw-line scan. Named only because it is the root cause of F-03's false positive; the fix is `t9lcdu` E-03's, and `agent_workflows/docs_check.py` is deliberately absent from this plan's `- Scope-Paths:`.
   - Carrier: t9lcdu
+  - Carrier-Evidence: .aw/records/plans/executed/20260930-gzmr54-01-t9lcdu-restore-the-docs-check-and-docs-render-test-coverage-deleted.ipd.md
 
 ## Scope check
 
