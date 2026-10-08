@@ -369,6 +369,16 @@ def _extract_detail(text: str) -> Tuple[Optional[str], Optional[str]]:
     return None, None
 
 
+def _safe_detail(text: str) -> str:
+    """Neutralize control characters and escape Markdown metacharacters for detail display.
+
+    Applies neutralize_control_characters first and escape_markdown_inline second,
+    ensuring that raw control characters (C0, C1, DEL, bidi controls) are replaced
+    with U+FFFD before any escape backslashes are inserted.
+    """
+    return A.escape_markdown_inline(A.neutralize_control_characters(text))
+
+
 def _rel_posix(repo_root: Path, p: Path) -> str:
     try:
         return p.relative_to(repo_root).as_posix()
@@ -1166,12 +1176,13 @@ def format_plan_detail_line(
     d_kind, d_text = _extract_detail(text)
     if not d_text:
         return None
+    safe_text = _safe_detail(d_text)
     tag = d_kind or "summary"
     if term is not None and getattr(term, "color", False):
         tag_txt = term.color256(f"{tag}:", 244)
-        detail_txt = term.color256(d_text, 250)
+        detail_txt = term.color256(safe_text, 250)
         return f"      {tag_txt} {detail_txt}"
-    return f"      {tag}: {d_text}"
+    return f"      {tag}: {safe_text}"
 
 
 _PROMPTS_DIR_PREFIXES = (".aw/records/prompts/", ".agents/prompts/")
@@ -2571,7 +2582,8 @@ def _render_item_row(
         if details and it.detail_text:
             tag = it.detail_kind or "summary"
             tag_txt = term.color256(f"{tag}:", 244)
-            detail_txt = term.color256(it.detail_text, 250)
+            safe_text = _safe_detail(it.detail_text)
+            detail_txt = term.color256(safe_text, 250)
             line += f"\n      {tag_txt} {detail_txt}"
         return line
     suffix = ""
@@ -2584,7 +2596,7 @@ def _render_item_row(
     line = f"- [{it.tree}] {it.path} ({status_word}){run_sfx}{suffix}"
     if details and it.detail_text:
         tag = it.detail_kind or "summary"
-        line += f"\n      {tag}: {it.detail_text}"
+        line += f"\n      {tag}: {_safe_detail(it.detail_text)}"
     return line
 
 
@@ -3129,8 +3141,9 @@ def _render_table_row(
         )
     if details and it.detail_text:
         tag = it.detail_kind or "summary"
+        safe_text = _safe_detail(it.detail_text)
         tag_txt = term.color256(f"{tag}:", 244) if colored else f"{tag}:"
-        detail_txt = term.color256(it.detail_text, 250) if colored else it.detail_text
+        detail_txt = term.color256(safe_text, 250) if colored else safe_text
         row_line += f"\n      {tag_txt} {detail_txt}"
 
     return row_line
@@ -4469,7 +4482,10 @@ def run(args) -> int:
     else:
         # Color only for a real TTY (should_color honors NO_COLOR/FORCE_COLOR/TERM/isatty);
         # --no-color forces plain, which also yields the machine-readable [tree] form.
-        color = False if getattr(args, "no_color", False) else None
+        # --format markdown is a color-free surface per spec Section 8.1 / 8.8 (plan qpw45x).
+        color = (
+            False if (getattr(args, "no_color", False) or fmt == "markdown") else None
+        )
         term = T.Term(stream=sys.stdout, color=color)
         colored = bool(getattr(term, "color", False))
         long = getattr(args, "long", False)

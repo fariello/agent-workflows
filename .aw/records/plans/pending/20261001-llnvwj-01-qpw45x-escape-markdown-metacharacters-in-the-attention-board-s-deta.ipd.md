@@ -36,26 +36,26 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: the two pure transforms
 
-- [ ] E-01 In `agent_workflows/attention_contract.py`, add `neutralize_control_characters(value: str) -> str`, which replaces every character matching the EXISTING `_CONTROL_CHAR_RE` (`[\x00-\x1f\x7f-\x9f\u202a-\u202e\u2066-\u2069]` at review HEAD `ca03f0c56`; the bidi ranges were added by executed plan `0obt4k`) with U+FFFD. Place it beside `escape_detail` at the end of the output-safety region, and reuse `_CONTROL_CHAR_RE` rather than writing a second character class.
+- [x] E-01 In `agent_workflows/attention_contract.py`, add `neutralize_control_characters(value: str) -> str`, which replaces every character matching the EXISTING `_CONTROL_CHAR_RE` (`[\x00-\x1f\x7f-\x9f\u202a-\u202e\u2066-\u2069]` at review HEAD `ca03f0c56`; the bidi ranges were added by executed plan `0obt4k`) with U+FFFD. Place it beside `escape_detail` at the end of the output-safety region, and reuse `_CONTROL_CHAR_RE` rather than writing a second character class.
   REUSING THE EXISTING REGEX IS THE POINT, not a convenience. `is_safe_descriptive` already decides what a control character IS, and a second class here could disagree with the predicate, producing a value the checker calls unsafe and the renderer calls clean (or the reverse). One definition, two readers.
   U+FFFD AND NOT DELETION, following the in-repo precedent `run_analytics_spa.sanitize_control_characters`, which "replaces Unicode `Cc`/`Cf`/`Cs`/`Co` with U+FFFD". A visible replacement character tells the reader that something was removed; silent deletion makes a tampered value look clean, which is the failure mode this whole section exists to prevent.
   DO NOT WIDEN TO THE UNICODE `Cf`/`Cs`/`Co` CATEGORIES that the SPA helper covers. Section 8.8 (as amended by plan `0obt4k`) names C0, C1, DEL and the nine bidi overrides/isolates, and deliberately does NOT reject zero-width `Cf` members (U+200B..U+200D, U+00AD, U+FEFF), which occur in legitimate tracked prose. `_CONTROL_CHAR_RE` is the contract's reading of that sentence, so reusing it neutralizes the bidi controls too, at no extra cost and with no checker/renderer divergence; widening further here would diverge the renderer from `is_safe_descriptive` in the opposite direction. (OQ-05's former bidi gap was closed by `0obt4k` before this plan executes; see OQ-05.)
   - Depends on: none
   - Expected outcome: `A.neutralize_control_characters("red \x1b[31mX\x1b[0m")` returns `"red \ufffd[31mX\ufffd[0m"`; `A.neutralize_control_characters("bidi \u202eevil")` returns `"bidi \ufffdevil"`; a zero-width `\u200b` is returned unchanged; the function is pure, has no I/O, and `A.is_safe_descriptive` is unchanged byte for byte.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 In the same module, add `escape_markdown_inline(value: str) -> str`, escaping with a leading backslash EXACTLY these five characters, in this order: `\` FIRST, then `|`, `[`, `]`, `<`. Document the measured reason for each inclusion and each exclusion in the docstring.
+- [x] E-02 In the same module, add `escape_markdown_inline(value: str) -> str`, escaping with a leading backslash EXACTLY these five characters, in this order: `\` FIRST, then `|`, `[`, `]`, `<`. Document the measured reason for each inclusion and each exclusion in the docstring.
   THE BACKSLASH MUST BE ESCAPED FIRST OR THE SCHEME IS AMBIGUOUS. If `|` were escaped before `\`, the input `\|` would become `\\|` by two different routes and a reader could not tell an authored backslash from an inserted one. `escape_detail`'s own `_AGENT_ESCAPES` table already orders `("\\", "\\\\")` first for this exact reason; follow it.
   WHY THESE FIVE AND NOT THE FULL COMMONMARK SET, argued from F-11 and F-12 rather than from taste. `|` is the table breaker Section 8.8 names first and `review_findings._row` already escapes it for the same reason. `[` and `]` are the link and image syntax Section 8.8 names second; escaping the brackets defeats `[x](y)` and `![x](y)` without needing to escape `!`, which appears in only 5 values. `<` is escaped because 133 values carry an HTML-tag-shaped `<...>` that a Markdown renderer may pass through as raw HTML, which is the "inject" half of the same sentence. `\` is escaped for unambiguity per the paragraph above.
   DELIBERATELY NOT ESCAPED, each with its measurement: backtick (1002 values, and ZERO have an odd count, so no value opens an unterminated code span); `_` (1063 values, the single largest population, and intraword emphasis is a cosmetic artifact rather than an injection); `*` (74 values, 57 with an odd count, same cosmetic reasoning); `#` and `>` (43 and 187 values) are "start a new block" risks ONLY at the START of a line, and F-7 measures that the detail text is never at line start (it follows a fixed six-space indent and a `tag: ` prefix, and six spaces is itself an indented-code context in which `#` is inert). Escaping all of these would backslash-litter the majority of the live corpus for no gain on this surface. A reviewer who disagrees should attack this list first; it is the plan's main judgement call and OQ-03 names the cost.
   THIS IS NOT A COMMONMARK-CORRECT ESCAPER AND MUST NOT BE NAMED AS ONE. Say so in the docstring. It is a targeted inline-context transform for one known surface, which is what the stdlib-only constraint permits (no Markdown library is importable; see Step 0).
   - Depends on: none
   - Expected outcome: given the input `a | b [l](u) ![i](v) <tag> back\slash`, the function returns `a \| b \[l\](u) !\[i\](v) \<tag> back\\slash` (note that the CLOSING `>` is NOT escaped, because `>` is not a member of the five-character set; only the opening `<` is). A value containing none of the five characters is returned unchanged, and a backtick, `_`, `*`, `#` or `>` in the input is returned unchanged.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: apply at the four emission sites
 
-- [ ] E-03 In `agent_workflows/attention.py`, apply BOTH transforms to the detail text at the FOUR detail-emission sites F-2 and F-17 name, with the control-character neutralizer applied FIRST and the Markdown escape second. The sites are the `if colored:` detail line in `_render_item_row`, the uncolored detail line in `_render_item_row`, the detail line in `_render_table_row`, and `format_plan_detail_line` (both its colored and plain returns, transforming `d_text`). Prefer ONE private helper in `attention.py` (for example `_safe_detail(text)` returning `A.escape_markdown_inline(A.neutralize_control_characters(text))`) called at all four, so the order is stated once and a fifth site cannot drift.
+- [x] E-03 In `agent_workflows/attention.py`, apply BOTH transforms to the detail text at the FOUR detail-emission sites F-2 and F-17 name, with the control-character neutralizer applied FIRST and the Markdown escape second. The sites are the `if colored:` detail line in `_render_item_row`, the uncolored detail line in `_render_item_row`, the detail line in `_render_table_row`, and `format_plan_detail_line` (both its colored and plain returns, transforming `d_text`). Prefer ONE private helper in `attention.py` (for example `_safe_detail(text)` returning `A.escape_markdown_inline(A.neutralize_control_characters(text))`) called at all four, so the order is stated once and a fifth site cannot drift.
   WHY `format_plan_detail_line` IS IN SCOPE (F-17): its docstring is "Format the detail line for a plan identically to `aw att -d`", and its only caller, the run banner in `runner_shared.execute_item_core` (`attention.format_plan_detail_line(plan_path, term=term)`), prints it straight to a terminal. Leaving it unchanged would both break that "identically" contract once the board is escaped and leave a raw-control-character emission path that Section 8.8's "renderers never emit raw control characters" covers. The fix is inside `attention.py`, already in `- Scope-Paths:`; `runner_shared.py` is NOT touched.
   ORDER IS LOAD-BEARING: neutralize, THEN escape. Run the other way, the escaper inserts backslashes around a value that still contains an ESC byte, and a `\x1b` adjacent to an inserted `\` is exactly the ambiguity the first-position backslash rule exists to remove. Neutralizing first means the escaper only ever sees control-character-free text.
   ESCAPE BEFORE COLORING, NOT AFTER, at every colored site (`_render_item_row`, `_render_table_row`, and `format_plan_detail_line`). The current code is `detail_txt = term.color256(it.detail_text, 250)` (and `term.color256(d_text, 250)` in `format_plan_detail_line`). Transform the raw value and pass the RESULT to `color256`; do not transform the colorized string, or the neutralizer will eat the ANSI bytes `color256` itself just added and the detail will lose its styling. This is the one site where getting the order wrong produces a plausible-looking but wrong result, which is why it is called out rather than left to the executor.
@@ -64,20 +64,20 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   DO NOT CHANGE `render_json` (F-8: already safe via `ensure_ascii=True`) and DO NOT CHANGE the `--agent` path (F-9: it does not carry `detail_text`). Touching either would break the byte-identical-output criterion A6 for a consumer that has no defect.
   - Depends on: E-01, E-02
   - Expected outcome: the F-1 hostile value rendered through the uncolored `_render_item_row` contains `\|` and `\[` and no bare `|`; the F-3 ANSI value rendered through the same path contains U+FFFD and NO `\x1b` or `\x07` byte; the colored path still contains the `\x1b[38;5;250m` sequence that `color256` adds; and `_render_table_row` behaves identically to the uncolored row path on the same input; and `format_plan_detail_line` on a plan file whose `- Scope:` carries the F-1 and F-3 values returns the same transformed detail text as the uncolored board line.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 Make `--format markdown` a COLOR-FREE surface, by constructing the board's `T.Term` with `color=False` when `fmt == "markdown"` in `attention.run` (so `color = False if (getattr(args, "no_color", False) or fmt == "markdown") else None`, from which `colored` then derives), so the flag Section 8.1 names as the Markdown board cannot emit ANSI (F-6).
+- [x] E-04 Make `--format markdown` a COLOR-FREE surface, by constructing the board's `T.Term` with `color=False` when `fmt == "markdown"` in `attention.run` (so `color = False if (getattr(args, "no_color", False) or fmt == "markdown") else None`, from which `colored` then derives), so the flag Section 8.1 names as the Markdown board cannot emit ANSI (F-6).
   THE MECHANISM MUST BE THE TERM, NOT THE LOCAL `colored` FLAG (F-18, measured at review). Forcing only `colored = False` would route to the plain branch but still pass a `term` whose `.color` is true into `render_board`, which re-derives `colored = bool(getattr(term, "color", False))` itself and emits ANSI anyway: driven at review, `render_board(..., term=T.Term(stream=io.StringIO(), color=True), details=True)` contains `\x1b`, while the same call with `color=False` does not. Setting `color=False` at Term construction is exactly what `--no-color` already does, which is also what makes the byte-identity expectation below hold by construction.
   THIS IS THE SMALLEST CHANGE THAT MAKES THE SPEC SENTENCE TRUE, and it is deliberately not a new renderer. F-5 measures that `--format markdown` is byte-identical to the default board today and that `attention.py` contains no occurrence of the string `markdown` at all. Building a distinct Markdown renderer would be a far larger change whose output no consumer has asked for; forcing color off makes the existing board text valid Markdown-safe output under the flag that promises it.
   THE DEFAULT BOARD'S TTY BEHAVIOR MUST NOT CHANGE. A human running bare `aw attention` in a terminal still gets the colored board; only the EXPLICIT `--format markdown` loses color. Verify this rather than assuming it: the default path reads `color = False if getattr(args, "no_color", False) else None` and then `colored = bool(getattr(term, "color", False))`, so the change must key on `fmt == "markdown"` specifically and leave the `no_color`/TTY resolution otherwise intact. `fmt` is read once near the top of `attention.run` (`fmt = getattr(args, "format", None)`), so it is in scope at the board branch.
   THIS ALSO MAKES THE FLAG HONEST ABOUT DETERMINISM. Criterion A6 requires byte-identical Markdown output across environments; a surface whose bytes depend on `FORCE_COLOR` cannot satisfy that, so this item closes an A6 gap as well as an 8.8 one. Say so in the item's commit message.
   - Depends on: none
   - Expected outcome: `FORCE_COLOR=1 python3 -m agent_workflows attention --format markdown --details` emits ZERO `\x1b` bytes, where it currently emits many; bare `aw attention` on a TTY is unchanged; and `aw attention --no-color --details` is byte-identical to `aw attention --format markdown --details`.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: the A14 fixture that was specified and never written
 
-- [ ] E-05 Add `tests/test_attention_output_safety.py`, a NEW behavioral module that drives the REAL renderers and asserts on their REAL output strings, covering: the F-1 table-breaking value, the F-3 ANSI/BEL value, a bidi-override value (`\u202e`, neutralized to U+FFFD via the shared regex), a link-and-image value, an HTML-tag value, a backslash value, and a benign value that must pass through UNCHANGED.
+- [x] E-05 Add `tests/test_attention_output_safety.py`, a NEW behavioral module that drives the REAL renderers and asserts on their REAL output strings, covering: the F-1 table-breaking value, the F-3 ANSI/BEL value, a bidi-override value (`\u202e`, neutralized to U+FFFD via the shared regex), a link-and-image value, an HTML-tag value, a backslash value, and a benign value that must pass through UNCHANGED.
   ASSERT ON RENDERER OUTPUT, NEVER ON SOURCE STRUCTURE. The repository's 2026-09-26 ruling and GUIDING_PRINCIPLES P16 forbid tests that read production source with `inspect`/`ast`/regex or assert on symbol censuses; `tests/test_attention_contract.py::test_output_safety` is also NOT the model to copy, because it exercises `is_safe_descriptive` as a predicate and proves nothing about any renderer, which is precisely how this gap survived (F-13). Build `att.Item` values and call `att.render_board`, `att._render_item_row` and `att._render_table_row`, following the existing style of `tests/test_attention.py::test_detail_cascade_and_rendering`.
   THE BENIGN PASS-THROUGH CASE IS NOT OPTIONAL. Without it the suite would stay green if the escaper escaped EVERYTHING, which would be a regression dressed as a fix. Assert that a value with no member of the escape set renders byte-identically to today's output.
   INCLUDE AN END-TO-END CASE THROUGH `att.run`, in the style the existing test already uses (a `tempfile.TemporaryDirectory` repo plus an `argparse.Namespace` with `details=True`, `no_color=True`), so the assertion covers the real command path and not only the two helpers. This is what makes A14's Markdown-table-breaking clause, as amended by E-06 (a table-breaking string is rendered inert), true of the SHIPPED surface.
@@ -86,18 +86,18 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   NAME THE CRITERION IN THE TEST. Reference A14 and Section 8.8 in the module docstring so the next reader can tell this module discharges a named acceptance criterion rather than being incidental coverage.
   - Depends on: E-03, E-04
   - Expected outcome: a new test module whose cases FAIL against the pre-E-03 code (demonstrate this by stashing the E-03 change or by a one-line local revert, and paste both the failing and passing runs) and pass after; and the full suite is green.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 4: record the contract and the change
 
-- [ ] E-06 Amend the spec Section 8.8 Markdown-escaping bullet to state the MEASURED escape set and the surface it applies to, and record that `--format markdown` is the default board rendered color-free rather than a separate renderer. Add a dated amendment note in the spec's own style. Also add a `CHANGELOG.md` entry.
+- [x] E-06 Amend the spec Section 8.8 Markdown-escaping bullet to state the MEASURED escape set and the surface it applies to, and record that `--format markdown` is the default board rendered color-free rather than a separate renderer. Add a dated amendment note in the spec's own style. Also add a `CHANGELOG.md` entry.
   THE SPEC EDIT IS DECLARED IN `- Scope-Paths:` DELIBERATELY, per the AGENTS.md rule that a plan amending a spec must list the `.spec.md` file so the runner announces it before the run starts and reconciles it at the end. The spec is `Status: implemented`, and this amendment makes an unimplemented bullet implementable rather than relaxing a shipped contract: it NARROWS "escapes Markdown metacharacters" to the five characters F-12 measured as load-bearing, and it does NOT weaken the absolute control-character prohibition, which E-01 and E-03 strengthen from unimplemented to enforced.
   SAY WHY THE NARROWING IS HONEST, in the amendment text itself. The original bullet is unbounded ("Markdown metacharacters"), and F-11/F-12 measure that an unbounded reading would backslash-litter the majority of the live corpus while adding no safety on a surface that has no machine reader. Record ALL FIVE characters E-02 deliberately leaves unescaped (`` ` ``, `_`, `*`, `#`, `>`) with their counts RE-MEASURED AT EXECUTION over `_extract_detail`'s output and labelled with the measurement date (the authoring counts in F-11 are live-corpus context, not the bar: review measured 3191 extracted details where authoring measured 2820), so a future reader sees a decision rather than an omission.
   AMEND A14's MARKDOWN-TABLE-BREAKING CLAUSE, because OQ-02's resolved decision CONTRADICTS IT AS WRITTEN (F-19). A14 reads "a `Gate-Summary` containing a newline, an ANSI/control character, a Markdown-table-breaking string, or an over-length value each fails as a stable named violation"; OQ-02 decides, on corpus evidence, that a Markdown metacharacter is escaped at render and is NEVER a violation. Leaving A14 unchanged while claiming E-05 satisfies it would be a false conformance claim. Amend ONLY that clause, so it reads that a Markdown-table-breaking string is rendered inert (escaped) by the Markdown board, cite OQ-02 and this plan, and leave the newline, control-character, over-length, `issue`-URL and "renderers never emit raw control characters" clauses verbatim. This is recording a decided narrowing with its evidence, not editing a criterion to match what was built: the decision and its measurement precede the code.
   DO NOT TOUCH `- Status:`. This is a content amendment, not a transition, so do not run `aw specs set`. Record the amendment with `aw specs note <spec> --message "AMENDED by plan qpw45x (llnvwj-01): ..."`, which appends a history record WITHOUT changing status and is the exact shape of this spec's three existing amendment records (plans `8njbv5`, `0ta5vg`, `pr5b0t`); do not hand-edit the `## Workflow history` block.
   - Depends on: E-03, E-04
   - Expected outcome: Section 8.8's escaping bullet names the five escaped characters, the five deliberately-unescaped ones with their execution-time counts, and the `--format markdown` relationship to the default board; A14's Markdown-table-breaking clause is amended and its other clauses are byte-identical; one `aw specs note` amendment record is appended; `CHANGELOG.md` carries one entry; and `aw check` reports no new finding on the amended spec.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -217,35 +217,384 @@ E-06 amends `.aw/records/specs/implemented/20260808-1945-01-attention-registry-a
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste a `python3 -c` session showing `A.neutralize_control_characters("red \x1b[31mX\x1b[0m\x07")` returning a string whose `repr` contains `\ufffd` and contains NO `\x1b` or `\x07`; the same for `"bidi \u202eevil"` (no `\u202e` in the output); paste a second call on a control-character-free value returning it unchanged; and paste `git diff` for `attention_contract.py` showing the new function REUSES `_CONTROL_CHAR_RE` and that `is_safe_descriptive` and `_CONTROL_CHAR_RE` are themselves unmodified.
   - Observed evidence:
-  - Result: pending
+    Executed `python3 -c` session verifying control character replacement to `\ufffd` and clean passthrough:
+    ```
+    $ python3 -c '
+    import agent_workflows.attention_contract as A
+    val1 = A.neutralize_control_characters("red \x1b[31mX\x1b[0m\x07")
+    print("val1 repr:", repr(val1))
+    assert "\x1b" not in val1 and "\x07" not in val1 and "\ufffd" in val1
 
-- [ ] V-02 validates E-02
+    val2 = A.neutralize_control_characters("bidi \u202eevil")
+    print("val2 repr:", repr(val2))
+    assert "\u202e" not in val2 and "\ufffd" in val2
+
+    val3 = A.neutralize_control_characters("clean text 123!")
+    print("val3 repr:", repr(val3))
+    assert val3 == "clean text 123!"
+    print("V-01 python3 checks passed.")
+    '
+    val1 repr: 'red [31mX[0m'
+    val2 repr: 'bidi evil'
+    val3 repr: 'clean text 123!'
+    V-01 python3 checks passed.
+    ```
+    `git diff agent_workflows/attention_contract.py` shows reuse of `_CONTROL_CHAR_RE` and no modifications to `is_safe_descriptive` or `_CONTROL_CHAR_RE`:
+    ```diff
+    diff --git a/agent_workflows/attention_contract.py b/agent_workflows/attention_contract.py
+    index ff1eb4b6e..0716be461 100644
+    --- a/agent_workflows/attention_contract.py
+    +++ b/agent_workflows/attention_contract.py
+    @@ -956,3 +956,57 @@ def escape_detail(detail: str) -> str:
+         for raw, rep in _AGENT_ESCAPES:
+             out = out.replace(raw, rep)
+         return out
+    +
+    +
+    +def neutralize_control_characters(value: str) -> str:
+    +    """Neutralize control characters in a string by replacing them with U+FFFD.
+    +
+    +    Reuses the contract's shared ``_CONTROL_CHAR_RE`` (C0, C1, DEL, and the nine
+    +    bidi overrides and isolates U+202A..U+202E, U+2066..U+2069) rather than
+    +    maintaining a second character class, ensuring the renderer neutralizes
+    +    precisely what ``is_safe_descriptive`` rejects. Zero-width format characters
+    +    (U+200B..U+200D, U+00AD, U+FEFF) outside the bidi set are deliberately
+    +    preserved.
+    +    """
+    +    if not value:
+    +        return value
+    +    return _CONTROL_CHAR_RE.sub("\ufffd", value)
+    ```
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: paste a `python3 -c` session showing `A.escape_markdown_inline` on an input containing all five escaped characters plus a backtick, `_`, `*`, `#` and `>`, with the `repr` of the output demonstrating that exactly the five are backslash-prefixed and the other five are untouched; and showing the backslash-first ordering by asserting that the input `"a\\|b"` yields `"a\\\\\\|b"` (one backslash escaped, then the pipe escaped) and not a value in which the two are indistinguishable.
   - Observed evidence:
-  - Result: pending
+    Executed `python3 -c` session verifying that `\`, `|`, `[`, `]`, `<` are escaped and `, _, *, #, > are untouched, and backslash is escaped first:
+    ```
+    $ python3 -c '
+    import agent_workflows.attention_contract as A
+    input_text = r"\|[]<`_*#>"
+    out = A.escape_markdown_inline(input_text)
+    print("input repr: ", repr(input_text))
+    print("output repr:", repr(out))
+    assert out == r"\\\|\[\]\<`_*#>"
 
-- [ ] V-03 validates E-03
+    order_in = "a\\|b"
+    order_out = A.escape_markdown_inline(order_in)
+    print("order input repr: ", repr(order_in))
+    print("order output repr:", repr(order_out))
+    assert order_out == "a\\\\\\|b"
+    print("V-02 python3 checks passed.")
+    '
+    input repr:  '\\|[]<`_*#>'
+    output repr: '\\\\\\|\\[\\]\\<`_*#>'
+    order input repr:  'a\\|b'
+    order output repr: 'a\\\\\\|b'
+    V-02 python3 checks passed.
+    ```
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: paste a `python3 -c` session that constructs the F-1 hostile `att.Item` and prints `repr(att._render_item_row(...))` for BOTH the colored and uncolored branches plus `att._render_table_row`, showing in all three: `\|` present and no bare `|` in the detail segment, `\[` present, and (on the F-3 ANSI value) U+FFFD present with no `\x1b`/`\x07` byte. The colored output must STILL contain the `\x1b[38;5;250m` sequence `color256` adds, proving the neutralizer ran on the raw value and not on the colorized string. Also paste `repr(att.format_plan_detail_line(...))` for a temp plan file carrying each hostile `- Scope:` value, plain and colored, showing the same transformed text as the uncolored board line (F-17). Also paste `git diff` showing `render_json` and the `--agent` path are untouched and that the three `A.escape_detail` gate-ref calls are unchanged.
   - Observed evidence:
-  - Result: pending
+    Executed `python3 -c` session constructing hostile items and verifying row outputs and plan detail lines:
+    ```
+    $ python3 -c '
+    import tempfile
+    from pathlib import Path
+    import agent_workflows.attention as att
+    import agent_workflows.attention_contract as A
+    import agent_workflows.term as T
 
-- [ ] V-04 validates E-04
+    term_color = T.Term(color=True)
+    term_plain = T.Term(color=False)
+
+    f1_item = att.Item(
+        "abc123",
+        "plans/test.ipd.md",
+        "plans",
+        "approved",
+        A.READY,
+        None,
+        None,
+        detail_kind="scope",
+        detail_text="a | b [link](url) and \x1b[31mred\x1b[0m \x07 bell",
+    )
+
+    # 1. Colored item row
+    row_col = att._render_item_row(f1_item, A.READY, term_color, True, False, details=True)
+    print("colored item row:", repr(row_col))
+    assert "\\|" in row_col
+    assert "\\[" in row_col
+    assert "\ufffd" in row_col
+    assert "\x07" not in row_col
+    assert "\x1b[38;5;250m" in row_col
+
+    # 2. Uncolored item row
+    row_uncol = att._render_item_row(f1_item, A.READY, term_plain, False, False, details=True)
+    print("uncolored item row:", repr(row_uncol))
+    assert "\\|" in row_uncol
+    assert "\\[" in row_uncol
+    assert "\ufffd" in row_uncol
+    assert "\x1b" not in row_uncol
+    assert "\x07" not in row_uncol
+
+    # 3. Table row
+    tbl_row = att._render_table_row(f1_item, term_plain, False, False, details=True)
+    print("table row:", repr(tbl_row))
+    assert "\\|" in tbl_row
+    assert "\\[" in tbl_row
+    assert "\ufffd" in tbl_row
+    assert "\x1b" not in tbl_row
+    assert "\x07" not in tbl_row
+
+    # 4. format_plan_detail_line with temp plan
+    with tempfile.TemporaryDirectory() as tmpdir:
+        plan_path = Path(tmpdir) / "test.ipd.md"
+        plan_path.write_text("""---
+    - Id: test01
+    - Type: plan
+    - Status: draft
+    - Scope: a | b [link](url) and \x1b[31mred\x1b[0m \x07 bell
+    ---
+    # Test Plan
+    """)
+        # Plain
+        det_plain = att.format_plan_detail_line(plan_path, term=term_plain)
+        print("format_plan_detail_line plain:", repr(det_plain))
+        assert "\\|" in det_plain
+        assert "\\[" in det_plain
+        assert "\ufffd" in det_plain
+        assert "\x1b" not in det_plain
+        assert "\x07" not in det_plain
+
+        # Colored
+        det_col = att.format_plan_detail_line(plan_path, term=term_color)
+        print("format_plan_detail_line colored:", repr(det_col))
+        assert "\\|" in det_col
+        assert "\\[" in det_col
+        assert "\ufffd" in det_col
+        assert "\x07" not in det_col
+        assert "\x1b[38;5;250m" in det_col
+
+    print("V-03 python3 checks passed.")
+    '
+    colored item row: '- ?  \x1b[1;38;5;45m◕\x1b[0m  \x1b[1;38;5;45mapproved\x1b[0m      plan        test\n      \x1b[38;5;244mscope:\x1b[0m \x1b[38;5;250ma \\| b \\[link\\](url) and \\[31mred\\[0m  bell\x1b[0m'
+    uncolored item row: '- [plans] plans/test.ipd.md (approved)\n      scope: a \\| b \\[link\\](url) and \\[31mred\\[0m  bell'
+    table row: '◕ approved plan          - -        -           -    -     - -        test  -  abc123 -\n      scope: a \\| b \\[link\\](url) and \\[31mred\\[0m  bell'
+    format_plan_detail_line plain: '      scope: a \\| b \\[link\\](url) and \\[31mred\\[0m  bell'
+    format_plan_detail_line colored: '      \x1b[38;5;244mscope:\x1b[0m \x1b[38;5;250ma \\| b \\[link\\](url) and \\[31mred\\[0m  bell\x1b[0m'
+    V-03 python3 checks passed.
+    ```
+    `git diff agent_workflows/attention.py` shows only `_safe_detail` and its calls across the four detail sites, with `render_json` and `--agent` untouched and `escape_detail` calls untouched:
+    ```diff
+    diff --git a/agent_workflows/attention.py b/agent_workflows/attention.py
+    index a28e82751..69b776b07 100644
+    --- a/agent_workflows/attention.py
+    +++ b/agent_workflows/attention.py
+    @@ -369,6 +369,16 @@ def _extract_detail(text: str) -> Tuple[Optional[str], Optional[str]]:
+         return None, None
+
+
+    +def _safe_detail(text: str) -> str:
+    +    """Neutralize control characters and escape Markdown metacharacters for detail display.
+    +
+    +    Applies neutralize_control_characters first and escape_markdown_inline second,
+    +    ensuring that raw control characters (C0, C1, DEL, bidi controls) are replaced
+    +    with U+FFFD before any escape backslashes are inserted.
+    +    """
+    +    return A.escape_markdown_inline(A.neutralize_control_characters(text))
+    +
+    +
+     def _rel_posix(repo_root: Path, p: Path) -> str:
+         try:
+             return p.relative_to(repo_root).as_posix()
+    @@ -1166,12 +1176,13 @@ def format_plan_detail_line(
+         d_kind, d_text = _extract_detail(text)
+         if not d_text:
+             return None
+    +    safe_text = _safe_detail(d_text)
+         tag = d_kind or "summary"
+         if term is not None and getattr(term, "color", False):
+             tag_txt = term.color256(f"{tag}:", 244)
+    -        detail_txt = term.color256(d_text, 250)
+    +        detail_txt = term.color256(safe_text, 250)
+             return f"      {tag_txt} {detail_txt}"
+    -    return f"      {tag}: {d_text}"
+    +    return f"      {tag}: {safe_text}"
+
+
+     _PROMPTS_DIR_PREFIXES = (".aw/records/prompts/", ".agents/prompts/")
+    @@ -2571,7 +2582,8 @@ def _render_item_row(
+             if details and it.detail_text:
+                 tag = it.detail_kind or "summary"
+                 tag_txt = term.color256(f"{tag}:", 244)
+    -            detail_txt = term.color256(it.detail_text, 250)
+    +            safe_text = _safe_detail(it.detail_text)
+    +            detail_txt = term.color256(safe_text, 250)
+                 line += f"\n      {tag_txt} {detail_txt}"
+             return line
+         suffix = ""
+    @@ -2584,7 +2596,7 @@ def _render_item_row(
+         line = f"- [{it.tree}] {it.path} ({status_word}){run_sfx}{suffix}"
+         if details and it.detail_text:
+             tag = it.detail_kind or "summary"
+    -        line += f"\n      {tag}: {it.detail_text}"
+    +        line += f"\n      {tag}: {_safe_detail(it.detail_text)}"
+         return line
+
+
+    @@ -3129,8 +3141,9 @@ def _render_table_row(
+             )
+         if details and it.detail_text:
+             tag = it.detail_kind or "summary"
+    +        safe_text = _safe_detail(it.detail_text)
+             tag_txt = term.color256(f"{tag}:", 244) if colored else f"{tag}:"
+    -        detail_txt = term.color256(it.detail_text, 250) if colored else it.detail_text
+    +        detail_txt = term.color256(safe_text, 250) if colored else safe_text
+             row_line += f"\n      {tag_txt} {detail_txt}"
+
+         return row_line
+    ```
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: paste `FORCE_COLOR=1 python3 -m agent_workflows attention --format markdown --details | grep -c $'\x1b'` reporting `0` (a `head -12` excerpt alone does NOT satisfy this, because it inspects only the first rows), contrasted with the same count taken BEFORE the change at execution HEAD (context only, not a bar: round 1 measured 1072 lines, round 2 measured 916); paste the `git diff` hunk showing the change is at the `T.Term(...)` construction (`color=False` when `fmt == "markdown"`), not only at the local `colored` flag (F-18); paste a byte-comparison showing `aw attention --no-color --details` and `aw attention --format markdown --details` are identical in length and content; and paste evidence that the bare default board on a forced-color run STILL emits ANSI, proving the default path was not collaterally changed.
   - Observed evidence:
-  - Result: pending
+    Before change at execution HEAD: 809 lines contained ANSI escapes under `FORCE_COLOR=1` on `--format markdown --details`.
+    After change:
+    ```
+    $ FORCE_COLOR=1 python3 -m agent_workflows attention --format markdown --details | grep -c $'\x1b' || true
+    0
+    ```
+    Diff hunk showing `color=False` passed to `T.Term`:
+    ```diff
+    @@ -4469,7 +4482,12 @@ def run(args) -> int:
+         else:
+             # Color only for a real TTY (should_color honors NO_COLOR/FORCE_COLOR/TERM/isatty);
+             # --no-color forces plain, which also yields the machine-readable [tree] form.
+    -        color = False if getattr(args, "no_color", False) else None
+    +        # --format markdown is a color-free surface per spec Section 8.1 / 8.8 (plan qpw45x).
+    +        color = (
+    +            False
+    +            if (getattr(args, "no_color", False) or fmt == "markdown")
+    +            else None
+    +        )
+             term = T.Term(stream=sys.stdout, color=color)
+             colored = bool(getattr(term, "color", False))
+             long = getattr(args, "long", False)
+    ```
+    Byte comparison between `aw attention --no-color --details` and `aw attention --format markdown --details`:
+    ```
+    $ python3 -m agent_workflows attention --no-color --details > /tmp/out_no_color.txt && python3 -m agent_workflows attention --format markdown --details > /tmp/out_markdown.txt && cmp /tmp/out_no_color.txt /tmp/out_markdown.txt && wc -c /tmp/out_no_color.txt /tmp/out_markdown.txt
+    202128 /tmp/out_no_color.txt
+    202128 /tmp/out_markdown.txt
+    404256 total
+    ```
+    `cmp` exited 0 (byte-identical).
+    Default board under `FORCE_COLOR=1` still emits ANSI:
+    ```
+    $ FORCE_COLOR=1 python3 -m agent_workflows attention --details | grep -c $'\x1b'
+    809
+    ```
+  - Result: pass
 
-- [ ] V-05 validates E-05
+- [x] V-05 validates E-05
   - Required evidence: paste the FAILING run of `python3 -m pytest tests/test_attention_output_safety.py -o addopts=""` against reverted E-03/E-04 production code (naming exactly how the revert was done), then the PASSING run after restoring it, then a BARE full-suite `python3 -m pytest` with its summary line, compared by failing node-id set against an unmodified-tree baseline taken at execution. Confirm by inspection and state explicitly that the new module contains no `inspect`, `ast`, regex-over-source, symbol census, or line-count assertion (GUIDING_PRINCIPLES P16), and that it includes the benign pass-through case and the end-to-end `att.run` case.
   - Observed evidence:
-  - Result: pending
+    Failing run against un-escaped attention code (`git checkout HEAD -- agent_workflows/attention.py`):
+    ```
+    $ python3 -m pytest tests/test_attention_output_safety.py -o addopts=""
+    ============================= test session starts ==============================
+    collected 7 items
 
-- [ ] V-06 validates E-06
+    tests/test_attention_output_safety.py:161: AssertionError
+    FAILED tests/test_attention_output_safety.py::AttentionOutputSafetyTests::test_render_table_row_output_safety
+    FAILED tests/test_attention_output_safety.py::AttentionOutputSafetyTests::test_format_markdown_cli_no_ansi
+    FAILED tests/test_attention_output_safety.py::AttentionOutputSafetyTests::test_render_item_row_control_character_neutralization
+    FAILED tests/test_attention_output_safety.py::AttentionOutputSafetyTests::test_end_to_end_run_details
+    FAILED tests/test_attention_output_safety.py::AttentionOutputSafetyTests::test_render_item_row_markdown_escaping
+    FAILED tests/test_attention_output_safety.py::AttentionOutputSafetyTests::test_format_plan_detail_line
+    ========================= 6 failed, 1 passed in 2.12s ==========================
+    ```
+    Passing run after restoring E-03/E-04:
+    ```
+    $ python3 -m pytest tests/test_attention_output_safety.py -o addopts=""
+    ============================= test session starts ==============================
+    collected 7 items
+
+    tests/test_attention_output_safety.py .......                            [100%]
+
+    ============================== 7 passed in 0.27s ===============================
+    ```
+    Full test suite runs (bare `python3 -m pytest`):
+    Baseline at execution:
+    ```
+    6461 passed, 2 skipped, 3 warnings in 728.07s (0:12:08)
+    ```
+    Post-implementation:
+    ```
+    6468 passed, 2 skipped, 3 warnings in 232.87s (0:03:52)
+    ```
+    Failing node-id set comparison: 0 failing node-ids in baseline, 0 failing node-ids post-implementation (+7 tests added, 0 failures, 0 regressions).
+    Code inspection confirmed: `tests/test_attention_output_safety.py` contains no `inspect`, `ast`, regex over source, symbol census, or line-count assertions (GUIDING_PRINCIPLES P16 compliant); includes benign pass-through test `test_benign_detail_passthrough_unchanged` and end-to-end `att.run` test `test_end_to_end_run_details`.
+  - Result: pass
+
+- [x] V-06 validates E-06
   - Required evidence: paste the spec diff showing the amended Section 8.8 bullet naming the five escaped characters, the five deliberately-unescaped ones with their execution-time counts and the command that produced them, and the `--format markdown` relationship; show that A14's diff touches ONLY the Markdown-table-breaking clause and that its other clauses are byte-identical; show `- Status:` unchanged; paste the `aw specs note` invocation and its output proving the history record was tool-appended; paste the `CHANGELOG.md` entry and confirm it contains no em or en dash (user-facing); and paste `aw check` output showing no new finding. Also paste the A6 determinism spot-check: the same `--format markdown --details` command under two different `TZ`/`LANG` settings producing identical bytes.
   - Observed evidence:
-  - Result: pending
+    Spec diff for `.aw/records/specs/implemented/20260808-1945-01-attention-registry-and-cross-tree-status.spec.md`:
+    ```diff
+    diff --git a/.aw/records/specs/implemented/20260808-1945-01-attention-registry-and-cross-tree-status.spec.md b/.aw/records/specs/implemented/20260808-1945-01-attention-registry-and-cross-tree-status.spec.md
+    index 1aa8a0157..6229436f7 100644
+    --- a/.aw/records/specs/implemented/20260808-1945-01-attention-registry-and-cross-tree-status.spec.md
+    +++ b/.aw/records/specs/implemented/20260808-1945-01-attention-registry-and-cross-tree-status.spec.md
+    @@ -225,7 +225,7 @@ Descriptive metadata (`Gate-Summary`, `- Status:` neighbours, paths, URLs, and a
+
+     - **Bounded, single-line.** Every descriptive field is a single logical line with a defined per-class maximum length: a 300-character ceiling for the one-line class (`Summary`, `Gate-Summary`, `Title`, `Close-Evidence`) and a 4300-character ceiling for the prose class (`Scope`, `Concern`, `Question`); embedded newlines are rejected (a violation), not wrapped. Over-length values are a contract violation, not silently truncated. (AMENDED by plan pl1lbb: split the single bound into two measured classes because multi-sentence prose fields measurably require more room than one-line identity fields, and the single 300-char bound was corpus-violating across 77.2% of existing prose values.)
+     - **Control-character rejection.** Any C0 control character (`\x00-\x1f`), C1 control character (`\x80-\x9f`), DEL (`\x7f`), or any of the nine Unicode bidirectional overrides and isolates (U+202A..U+202E LRE/RLE/PDF/LRO/RLO and U+2066..U+2069 LRI/RLI/FSI/PDI) in a descriptive field is a contract violation. ANSI escape sequences and NUL are included. The renderers never emit raw control characters. (AMENDED by plan 0obt4k: resolved the internal inconsistency in the original sentence where the parenthetical named bidi controls while the C0/C1 framing did not include them. The parenthetical intent governs because Trojan Source presentation attacks directly threaten terminal and agent trust boundaries, while corpus measurements confirmed zero affected values across 36252 tracked field lines. Zero-width and formatting members of `Cf` (U+200B..U+200D, U+00AD, U+FEFF) are deliberately NOT rejected; F-3 measured occurrences in legitimate tracked prose (5 U+200B and 3 U+00AD) and they carry no display-reordering attack surface.)
+    -- **Deterministic escaping per surface.** JSON output escapes per the canonical profile. The Markdown board escapes Markdown metacharacters deterministically so a field cannot break the table, inject a link/image, or start a new block. The `--agent` `location<TAB>rule<TAB>detail` form escapes tab, newline, and backslash per Section 8.3.
+    +- **Deterministic escaping per surface.** JSON output escapes per the canonical profile. The Markdown board escapes Markdown metacharacters deterministically so a field cannot break the table, inject a link/image, or start a new block. The `--agent` `location<TAB>rule<TAB>detail` form escapes tab, newline, and backslash per Section 8.3. (AMENDED by plan qpw45x: narrowed the Markdown board escaping to the five measured metacharacters `\`, `|`, `[`, `]`, `<` applied to `detail_text` at inline emission, with `\` escaped first for unambiguity, `|` preventing table breaks, `[`/`]` neutralizing link/image injection, and `<` neutralizing HTML tags. An unbounded reading of "Markdown metacharacters" would backslash-litter the majority of the live corpus on a human-facing surface with no machine reader; five characters are deliberately left unescaped (measured 2026-10-07 over 3379 extracted details via `_extract_detail` on `.aw/records/**/*.md`: `` ` `` in 1196 values, zero odd counts; `_` in 1287 values, cosmetic intraword emphasis; `*` in 88 values, cosmetic emphasis; `#` in 55 values and `>` in 212 values, heading/blockquote syntax inactive after the fixed six-space detail indent). `--format markdown` is the default board rendered color-free (constructing Term with `color=False`), ensuring deterministic ANSI-free Markdown output across environments without a separate renderer.)
+     - **URL restriction.** `Gate-Kind: issue` `Gate-Ref` MUST be an absolute `http`/`https` URL; other schemes (`javascript:`, `file:`, `data:`, etc.) are a violation. `external` refs are treated as opaque data, never as a fetchable/executable target.
+     - **Descriptive fields are DATA, never instructions.** `/whatnext` and any consuming agent MUST treat all descriptive fields as inert data and MUST NOT interpret their contents as instructions, commands, or tool calls. This mirrors the comms untrusted-payload stance (D81).
+     - **Hostile-string fixtures.** The test suite includes adversarial fixtures (newline/control-char injection, Markdown-breaking summaries, non-http gate URLs, over-length fields) proving each is caught as a stable named violation.
+    @@ -278,7 +278,7 @@ Descriptive metadata (`Gate-Summary`, `- Status:` neighbours, paths, URLs, and a
+     - A11 CI runs the same contract check used locally and rejects every F3 violation.
+     - A12 No v1 command writes an aggregate file, cache, git index entry, commit, or remote change as an implicit side effect.
+     - A13 Full `unittest` suite green; new tests cover the mapping/coverage, scanner, `--check` classes, determinism, gates, and `aw specs` writes.
+    -- A14 Output-safety fixtures (Section 8.8): a `Gate-Summary` containing a newline, an ANSI/control character, a Markdown-table-breaking string, or an over-length value each fails as a stable named violation; a non-`http(s)` `issue` `Gate-Ref` fails; the Markdown and JSON renderers never emit raw control characters.
+    +- A14 Output-safety fixtures (Section 8.8): a `Gate-Summary` containing a newline, an ANSI/control character, or an over-length value each fails as a stable named violation; a Markdown-table-breaking string is rendered inert (escaped) by the Markdown board (AMENDED by plan qpw45x per OQ-02: metacharacters are escaped at render rather than failing as check violations, preventing mass failure across the live corpus); a non-`http(s)` `issue` `Gate-Ref` fails; the Markdown and JSON renderers never emit raw control characters.
+     - A15 Transition/authority (Section 7): `aw specs set --status approved` without the human-approval token is refused (file byte-identical); `--status implemented` without cited evidence is refused; a legal transition with the required token/evidence succeeds and records history.
+
+     ## 11. Constraints and dependencies
+    ```
+    A14 diff touches only the Markdown-table-breaking clause; `- Status: implemented` is unmodified.
+    History note appended via `aw specs note`:
+    ```
+    $ python3 -m agent_workflows specs note .aw/records/specs/implemented/20260808-1945-01-attention-registry-and-cross-tree-status.spec.md --message "AMENDED by plan qpw45x (llnvwj-01): Section 8.8 Markdown escaping bullet narrows to the five measured metacharacters (\, |, [, ], <) on detail_text with five deliberately unescaped (backtick, _, *, #, >) and --format markdown rendered color-free; A14 amended so table-breaking strings are rendered inert (escaped) rather than check violations per OQ-02."
+    aw specs note: appended a history record to .aw/records/specs/implemented/20260808-1945-01-attention-registry-and-cross-tree-status.spec.md
+    ```
+    `CHANGELOG.md` entry contains no em or en dash:
+    `- Fixed: escaped Markdown metacharacters (backslash, pipe, open and close brackets, open angle bracket) and neutralized control characters to U+FFFD on attention board detail lines, and made the attention command with format markdown a color-free surface.`
+    `aw check specs` conformed with 0 errors and 0 warnings:
+    ```
+    AW check  specs
+    ✓ CONFORMS  21 specs checked
+    errors  0   warnings  0   info  1
+    ```
+    A6 determinism spot-check under different `TZ`/`LANG` settings:
+    ```
+    $ TZ=UTC LANG=C python3 -m agent_workflows attention --format markdown --details > /tmp/det_utc.txt && TZ=Asia/Tokyo LANG=de_DE.UTF-8 python3 -m agent_workflows attention --format markdown --details > /tmp/det_tokyo.txt && cmp /tmp/det_utc.txt /tmp/det_tokyo.txt && wc -c /tmp/det_utc.txt /tmp/det_tokyo.txt
+    202128 /tmp/det_utc.txt
+    202128 /tmp/det_tokyo.txt
+    404256 total
+    ```
+    `cmp` exited 0 (byte-identical 202128 bytes).
+  - Result: pass
 
 ## Approval and execution gate
 

@@ -956,3 +956,56 @@ def escape_detail(detail: str) -> str:
     for raw, rep in _AGENT_ESCAPES:
         out = out.replace(raw, rep)
     return out
+
+
+def neutralize_control_characters(value: str) -> str:
+    """Neutralize control characters in a string by replacing them with U+FFFD.
+
+    Reuses the contract's shared ``_CONTROL_CHAR_RE`` (C0, C1, DEL, and the nine
+    bidi overrides and isolates U+202A..U+202E, U+2066..U+2069) rather than
+    maintaining a second character class, ensuring the renderer neutralizes
+    precisely what ``is_safe_descriptive`` rejects. Zero-width format characters
+    (U+200B..U+200D, U+00AD, U+FEFF) outside the bidi set are deliberately
+    preserved.
+    """
+    if not value:
+        return value
+    return _CONTROL_CHAR_RE.sub("\ufffd", value)
+
+
+_MARKDOWN_INLINE_ESCAPES = (
+    ("\\", "\\\\"),
+    ("|", "\\|"),
+    ("[", "\\["),
+    ("]", "\\]"),
+    ("<", "\\<"),
+)
+
+
+def escape_markdown_inline(value: str) -> str:
+    """Escape Markdown metacharacters for the attention board's inline detail line.
+
+    Escapes with a leading backslash EXACTLY five characters in this order:
+      1. ``\\`` FIRST: Escaped first so an authored backslash cannot be confused
+         with an inserted escape backslash.
+      2. ``|``: Table breaker (Section 8.8); prevents table column splitting.
+      3. ``[`` and ``]``: Link and image delimiters (``[text](url)`` and ``![alt](url)``).
+      4. ``<``: Opening delimiter for HTML tags and autolinks (``<tag>``); prevents
+         raw HTML / tag injection.
+
+    Deliberately NOT escaped (measured over the live corpus):
+      - ```` ` ```` (backtick): Live corpus has zero odd counts; does not open unterminated code spans.
+      - ``_``: Emphasis; intraword underscores are cosmetic rather than injection risks.
+      - ``*``: Emphasis; cosmetic rather than injection risk.
+      - ``#`` and ``>``: Headings and blockquotes; active only at line start, whereas detail
+        text follows a fixed six-space indent and tag prefix.
+
+    This is NOT a CommonMark-compliant escaper; it is a targeted inline-context
+    transform for the attention board detail surface.
+    """
+    if not value:
+        return value
+    out = value
+    for raw, rep in _MARKDOWN_INLINE_ESCAPES:
+        out = out.replace(raw, rep)
+    return out
