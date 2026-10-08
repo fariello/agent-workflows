@@ -6,7 +6,7 @@
 - Scope: Make the notice's parenthetical derive from `config.option.markexpr`, the per-run value pytest resolved from `addopts` plus the command line, so the notice describes the run in front of the reader rather than a remembered configuration. Covers a conservative `not X and not Y ...` reader, a verbatim-expression fallback for any expression that reader declines, a no-marker-filter branch for the `-k`/`--deselect` case, and the behavioral tests for all three branches. EXCLUDES changing `addopts`, any marker semantics, or any test's selection; EXCLUDES touching `agent_workflows/` production code, the managed instruction prose in `engine.py`, and the parity test `tests/test_suite_instruction_marker_parity.py`.
 - Scope-Paths: tests/deselect_notice.py, tests/test_deselect_notice.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -16,9 +16,9 @@
 - Highest E allocated: 06
 - Author: agent
 - Id: qsz23k
-- Approval: 2026-10-03, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-08 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: qsz23k verified (set 6offt7, attempt 1).
 - 2026-10-03 approved (aw set): status set to approved
 - 2026-10-02 /plan-review (opencode/its_direct-pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001 (MEDIUM, fixed: the names branch would credit a `-k` share of the count to marker categories, so a mixed case was added), PR-002, PR-003, PR-004 (LOW, fixed). Premise, F-02 defect, F-03 and F-04 re-verified by probe. Full record: `.aw/records/reviews/20261002-6offt7-01-qsz23k-derive-the-deselect-notice-s-category-list-from-the-run-s-ow.review.md`.
 - 2026-10-03 reviewed (aw set): plan-review APPROVE WITH REVISIONS APPLIED
