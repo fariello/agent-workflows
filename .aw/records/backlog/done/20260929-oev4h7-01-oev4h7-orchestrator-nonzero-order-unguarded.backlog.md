@@ -1,5 +1,5 @@
 - Id: oev4h7
-- Status: graduated
+- Status: done
 - Graduated-To: oev4h7
 - Set: oev4h7
 - Priority: low
@@ -7,6 +7,7 @@
 - Summary: aw group/rename plans write an orchestrator to a nonzero Order, the IPD-M104 mirror of r30nnz
 
 ## Workflow history
+- 2026-10-08 done (aw backlog): closed by aw agy run: IPD xvi55d executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20261001-oev4h7-01-xvi55d-refuse-an-orchestrator-at-a-nonzero-order-in-aw-group-and-aw.ipd.md); evidence .aw/records/plans/executed/20261001-oev4h7-01-xvi55d-refuse-an-orchestrator-at-a-nonzero-order-in-aw-group-and-aw.ipd.md
 - 2026-10-01 set (aw backlog): graduated by run run-20260930T053053Z-3200037: xvi55d
 - 2026-09-29 created (aw backlog): aw group/rename plans write an orchestrator to a nonzero Order, the IPD-M104 mirror of r30nnz
 
