@@ -72,13 +72,15 @@ Precedence for color: explicit flags (`--color` and `--no-color`) take highest p
 
 ## Exit codes you can rely on
 
-Every `aw` command uses the same three-way exit classification:
+Most `aw` commands use a standard three-way exit classification:
 
 - `0`: clean. The command ran and found nothing wrong (or completed a preview).
 - `1`: findings or domain failure. The command ran fine but found real issues (for example
   `aw check` or `aw doctor` found nonconformant records).
 - `2`: cannot run. A usage error, a missing argument, conflicting flags, or an unmet
   precondition. Nothing meaningful was produced.
+
+Commands in the run-execution family (`aw run` and `aw runs`) use a wider exit vocabulary (codes 0 through 7) to distinguish operational and workflow states; see [CLI Output Mode Contract Section 3.1](cli-output-contract.md#31-run-execution-exit-vocabulary) for details.
 
 A common pitfall: `aw check` finding problems returns `1`, which is not a crash. Reserve `2`
 in your own scripts for "the command could not run at all".

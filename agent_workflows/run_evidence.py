@@ -2393,7 +2393,8 @@ def validate_ipd_exec_finding_table() -> EvidenceValidationResult:
 # `run_cli.EXIT_INVALID_EVIDENCE` is 4, whereas spec 5.6's 3 is "human input required" and its 4 is
 # the six run-wide classes. `run_cli`'s table governs the READ-ONLY inspection commands
 # (`aw runs show|evidence|verify-ledger`); this predicate implements the RUN aggregate. Reconciling
-# the two tables is a separate concern that no plan currently owns; naming the one in force is the
+# the two tables at the documentation boundary is owned by plan u28vqb (which scoped the three-state
+# claim and documented both tables rather than renumbering them); naming the one in force is the
 # cheap correct move for the next reader.
 #
 # THE PER-ITEM VOCABULARY IS NOT DEFINED HERE, AND IS NOT YET BUILT ANYWHERE. Spec 5.6's `ran`

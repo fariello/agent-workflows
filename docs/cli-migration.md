@@ -121,8 +121,7 @@ There is no in-CLI rollback to legacy byte formats under `--agent`. Your options
 
 ## Verifying your migration
 
-- Confirm the exit codes your script branches on still mean the same thing: `0` clean, `1`
-  findings, `2` cannot run. That classification did not change.
+- Confirm the exit codes your script branches on still mean the same thing: for standard commands, `0` clean, `1` findings, `2` cannot run. (If your script invokes run-execution commands such as `aw run` or `aw runs`, verify its handling against the wider exit vocabulary in [CLI Output Mode Contract Section 3.1](cli-output-contract.md#31-run-execution-exit-vocabulary)).
 - Confirm you read from stdout for results and ignore stderr (progress and cannot-start
   diagnostics live on stderr).
 - Confirm you tolerate unknown JSON fields so future additive changes do not break you.
