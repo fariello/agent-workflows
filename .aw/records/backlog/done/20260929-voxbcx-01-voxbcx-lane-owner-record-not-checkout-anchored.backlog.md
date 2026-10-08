@@ -1,5 +1,5 @@
 - Id: voxbcx
-- Status: graduated
+- Status: done
 - Graduated-To: voxbcx
 - Set: voxbcx
 - Priority: low
@@ -7,6 +7,7 @@
 - Summary: worktree_lease._owner_record_path composes from the passed root while ipd_lifecycle.receipt_dir anchors on the checkout, so read_lane_owner returns None when called from inside a lane
 
 ## Workflow history
+- 2026-10-08 done (aw backlog): closed by aw agy run: IPD tjags7 executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20261001-voxbcx-01-tjags7-anchor-the-lane-owner-record-on-the-checkout-so-an-in-lane-r.ipd.md); evidence .aw/records/plans/executed/20261001-voxbcx-01-tjags7-anchor-the-lane-owner-record-on-the-checkout-so-an-in-lane-r.ipd.md
 - 2026-10-01 set (aw backlog): graduated by run run-20260930T053024Z-3198670: tjags7
 - 2026-09-29 created (aw backlog): Filed as the durable carrier for a deferred obligation in plan iqtt8d (Set fkmjoy), which measured the asymmetry while fixing check.scope-drift lane resolution.
 

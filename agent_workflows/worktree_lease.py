@@ -28,6 +28,7 @@ import json
 import os
 import re
 import socket
+import stat
 import subprocess
 import time
 from pathlib import Path
@@ -676,9 +677,31 @@ resolve_lane_candidates = enumerate_lane_candidates
 
 
 def _owner_record_path(repo_root: Path, lane_id: str) -> Path:
-    return (
-        repo_root / OWNERS_SUBDIR / "{0}.json".format(_lane_dirname(lane_id))
-    ).resolve()
+    """The durable owner record path for ``lane_id``, anchored on the checkout (IPD tjags7).
+
+    Resolves against the checkout control root (the single authority `ipd_lifecycle.receipt_dir`
+    uses) rather than composing from the caller's cwd or passed `repo_root`, so an invocation from
+    inside a lane worktree reaches the SAME single store under the main checkout's `.aw/worktrees/.owners/`.
+    For a main checkout or a non-git directory, this is provably identical to composing from `repo_root`.
+
+    THE IMPORT IS FUNCTION-LOCAL: this module imports no first-party package module at module level
+    (pinned by `tests/test_worktree_lease_stdlib_only.py`).
+
+    THE FALLBACK IS TOTAL: if `checkout_control_root` cannot be imported or raises, falls back to
+    direct composition from `repo_root`.
+    """
+    record_leaf = "{0}.json".format(_lane_dirname(lane_id))
+    try:
+        from agent_workflows import ipd_lifecycle
+
+        # OWNERS_SUBDIR is `.aw/worktrees/.owners`.
+        # checkout_control_root(repo_root) returns the checkout's `.aw` root.
+        tail = Path(OWNERS_SUBDIR).relative_to(".aw")
+        return (
+            ipd_lifecycle.checkout_control_root(repo_root) / tail / record_leaf
+        ).resolve()
+    except Exception:
+        return (repo_root / OWNERS_SUBDIR / record_leaf).resolve()
 
 
 def _process_start_token(pid: int) -> Optional[str]:
@@ -760,6 +783,46 @@ def _owner_is_live(owner: dict) -> Optional[bool]:
     return True
 
 
+_OWNER_STORE_PRESENT = "present"
+_OWNER_STORE_ABSENT = "absent"
+_OWNER_STORE_UNREACHABLE = "unreachable"
+
+
+def _classify_owner_record(repo_root: Path, lane_id: str) -> str:
+    """Classify the owner store status for ``lane_id`` (IPD tjags7 E-03).
+
+    Returns:
+      - ``_OWNER_STORE_PRESENT``: The owner record file exists on disk.
+      - ``_OWNER_STORE_ABSENT``: The record does not exist, and the store is reachable (either the
+        owners directory is present and searchable, or neither the directory nor record exists yet).
+      - ``_OWNER_STORE_UNREACHABLE``: The owners store cannot be reached or read (permission denied,
+        directory replaced by a file, or other filesystem error).
+
+    Uses `os.stat` directly because `Path.exists()` swallows PermissionError and other OSErrors,
+    collapsing unreachable stores into absent ones.
+    """
+    path = _owner_record_path(repo_root, lane_id)
+    parent = path.parent
+    try:
+        os.stat(path)
+        return _OWNER_STORE_PRESENT
+    except FileNotFoundError:
+        try:
+            pst = os.stat(parent)
+            if not stat.S_ISDIR(pst.st_mode) or not os.access(
+                parent, os.R_OK | os.X_OK
+            ):
+                return _OWNER_STORE_UNREACHABLE
+            return _OWNER_STORE_ABSENT
+        except FileNotFoundError:
+            # No owners directory yet (first allocation) is genuinely absent and adoptable.
+            return _OWNER_STORE_ABSENT
+        except OSError:
+            return _OWNER_STORE_UNREACHABLE
+    except OSError:
+        return _OWNER_STORE_UNREACHABLE
+
+
 def lane_owned_by_other_live_process(repo_root: Path, lane_id: str) -> bool:
     """True only when a DIFFERENT, still-running process owns this lane.
 
@@ -770,7 +833,12 @@ def lane_owned_by_other_live_process(repo_root: Path, lane_id: str) -> bool:
     """
     owner = read_lane_owner(repo_root, lane_id)
     if owner is None:
-        return _owner_record_path(repo_root, lane_id).exists()
+        status = _classify_owner_record(repo_root, lane_id)
+        if status == _OWNER_STORE_ABSENT:
+            return False
+        # Record exists on disk but is unreadable, or store is unreachable: undeterminable liveness
+        # counts as owned (fail safe).
+        return True
     if owner.get("pid") == os.getpid() and owner.get("host") == socket.gethostname():
         return False
     return _owner_is_live(owner) is not False
@@ -790,9 +858,10 @@ def lane_is_safe_to_adopt(repo_root: Path, lane_id: str) -> Tuple[bool, str]:
     """
     owner = read_lane_owner(repo_root, lane_id)
     if owner is None:
-        # Distinguish NO record (nothing claims the lane, adoptable) from an UNREADABLE one (a claim
-        # we cannot evaluate, so fail safe and attempt-scope instead).
-        if _owner_record_path(repo_root, lane_id).exists():
+        status = _classify_owner_record(repo_root, lane_id)
+        if status == _OWNER_STORE_UNREACHABLE:
+            return False, "owner store unreadable; failing safe"
+        if status == _OWNER_STORE_PRESENT:
             return False, "owner record present but unreadable; failing safe"
         return True, "no owner record; unclaimed"
     if owner.get("pid") == os.getpid() and owner.get("host") == socket.gethostname():
