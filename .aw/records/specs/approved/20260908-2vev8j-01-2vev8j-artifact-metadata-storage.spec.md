@@ -299,10 +299,11 @@ Both are real and neither is a storage decision. They must NOT be absorbed silen
   contains an INTENTIONAL `approved -> reviewed -> approved` reversal. Per `takpys`: "A sequenced
   event store will expose this policy inconsistency; it will not decide whether such rollback
   transitions are legal." Someone must DECIDE whether rollback edges are legal.
-- WRITE-ORDER BUGS in the existing sidecar path. Specs append the event BEFORE validating and writing
-  the Markdown, and backlog appends BEFORE its close-legitimacy gate and BEFORE the dry-run/apply
-  decision, so a `--dry-run` PREVIEW or a REFUSED transition can leave a phantom event. This violates
-  C5 today and is worth its own item.
+- WRITE-ORDER BUGS in the existing sidecar path. The gate-ordering and validation-ordering halves
+  (append before close-legitimacy gate, dry-run preview, or spec validation) were fixed by commit
+  `23ec426df` on 2026-09-26. The surviving C5 violation was the advisory append preceding the DURABLE
+  WRITE at four call sites (`backlog.run_set`, `backlog.run_note`, `specs.run_set`, `specs.run_note`),
+  leaving a phantom event if that write failed; carried by plan `ulepef` (Set `bjcz05`).
 
 ## 8. Open questions
 
@@ -318,6 +319,8 @@ Both are real and neither is a storage decision. They must NOT be absorbed silen
 
 
 ## Workflow history
+
+- 2026-10-08 approved (aw specs, --by-human): amend Section 7 write-order bullet (IPD ulepef E-05)
 - 2026-09-09 approved (aw set, --by-human): status set to approved
 
 - 2026-09-08 note (aw specs): /spec-review (opencode its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; SR-001..SR-007 all FIXED. Ready for the human approval gate; the caveat a human should weigh is that this was a SELF-REVIEW (same session as authoring), so the design is re-measured but not independently judged. Next step: aw spec set approved 2vev8j --by-human. No Readiness field was written (prohibition (a): a spec has no such field and inventing one creates a machine signal no consumer may act on).

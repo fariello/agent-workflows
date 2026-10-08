@@ -24,6 +24,7 @@ now under way. The direction of the 2.x line (in progress, not all shipped in th
 
 Major storage-layout boundary. The logical model (D126-D129) was superseded by the PHYSICAL `.aw/` hierarchy specified in `20260810-1447-01-physical-aw-hierarchy-placement-and-migration.spec.md` (D130, D134-D137), which the framework now implements and has migrated its own repository onto:
 
+- Fixed: failed backlog or spec mutations no longer record phantom history events in the sidecar log if their durable file write fails, preventing false transition records from being shown to operators.
 - Fixed: escaped Markdown metacharacters (backslash, pipe, open and close brackets, open angle bracket) and neutralized control characters to U+FFFD on attention board detail lines, and made the attention command with format markdown a color-free surface.
 - Added: declared the verifier test evidence corroboration verdict strictly observational, confirming it never refuses, downgrades, or blocks integration (D160).
 - Fixed: split the Section 8.8 descriptive length bound into two measured classes in attention_contract: a 300-character bound for one-line fields (Summary, Gate-Summary, Title, Close-Evidence) and a 4300-character bound for multi-sentence prose fields (Scope, Concern, Question), repointed the spec checker to validate Scope against the prose bound, and guarded the specs new write path against the prose bound rather than the one-line bound.

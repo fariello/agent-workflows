@@ -226,6 +226,8 @@ def _sidecar_append(repo_root, text: str, message: str) -> None:
     `except Exception: pass`. The inline `## Workflow history` record is the durable one (OQ-01) and is
     written by the caller regardless of what happens here, so this never gates provenance; see
     `record_history.append_advisory`.
+    Spec `2vev8j` C5 first clause: the sidecar may never precede the durable write it describes,
+    because an event for a transition that did not happen is worse than a missing event.
     """
     m = _SPEC_ID_RE.search(text)
     if not m:
@@ -1020,9 +1022,6 @@ def run_set(args) -> int:
             sys.stdout.write(f"--- would set {path} (status {new}) ---\n")
         return 0
 
-    if sidecar_msg is not None:
-        _sidecar_append(repo_root, new_text, sidecar_msg)
-
     if moving:
         dest_path.parent.mkdir(parents=True, exist_ok=True)
         if path.exists():
@@ -1050,6 +1049,13 @@ def run_set(args) -> int:
     else:
         core.atomic_write(path, new_text)
         sys.stdout.write(f"aw specs set: {path} -> {new}\n")
+
+    # Spec `2vev8j` C5 first clause: the sidecar may never precede the durable write it describes,
+    # because an event for a transition that did not happen is worse than a missing event. The sidecar
+    # remains a machine-local activity log (OQ-01) and may never gate a durable write; see
+    # `record_history.append_advisory`.
+    if sidecar_msg is not None:
+        _sidecar_append(repo_root, new_text, sidecar_msg)
 
     # selfcommit jgcm68 E-06: the `aw specs set --status <X> <path>` form routes HERE (not through
     # status_set), so the offer must fire EXACTLY ONCE here for this form - the no-`--status` form
@@ -1226,9 +1232,13 @@ def run_note(args) -> int:
     if not same_status_message_is_duplicate(
         text, status="note", date=date, message=args.message
     ):
-        _sidecar_append(_repo_root_of(path), text, f"note: {args.message}")
         out = _append_history(lines, f"- {date} note (aw specs): {args.message}")
         core.atomic_write(path, "\n".join(out))
+        # Spec `2vev8j` C5 first clause: the sidecar may never precede the durable write it describes,
+        # because an event for a transition that did not happen is worse than a missing event. The sidecar
+        # remains a machine-local activity log (OQ-01) and may never gate a durable write; see
+        # `record_history.append_advisory`.
+        _sidecar_append(_repo_root_of(path), text, f"note: {args.message}")
     sys.stdout.write(f"aw specs note: appended a history record to {path}\n")
     return 0
 
