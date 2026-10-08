@@ -103,6 +103,20 @@ When a carrier resolves to finished work, the pre-transition gate prints the exa
 
 Do not use `Carrier-Declined` for work that has shipped. `Carrier-Declined` records an obligation as needing no carrier, whereas finished work shipped and should cite evidence instead.
 
+### Carrier records durable ownership, not a dispatch gate
+
+`Carrier` records durable ownership and is NOT a dispatch gate. Nothing in the lifecycle makes a plan wait for a carried question's answer: the pre-execution checkpoint refuses an open question only when it carries `Blocking: yes`. An approved plan with an open, non-blocking carried question can execute and reach `executed/` without waiting for the carrier.
+
+To make a plan wait for a carried decision, declare the dependency explicitly with an edge:
+
+```sh
+aw ipd dependencies set <plan> state:backlog:<status>:<carrier>
+```
+
+`aw check plans` now reports carried open questions that declare no dependency edge on their carrier advisorily (`check.ipd-carrier-ungated` at `info` severity).
+
+Beware the exact-status trap: `state:backlog:<status>:<carrier>` requires the carrier status to match EXACTLY. An edge written against `done` refuses while the carrier is `graduated` (handed off to a plan or spec, but code not yet written). Check the carrier's actual status with `aw attention` or `aw backlog list` before setting the edge, so the plan does not block on a decision that has already been handed off.
+
 ## Identity, sets, and the clustering filename grammar
 
 Every plan carries a stable `- Id:` (a 6-char base36 citation handle that never changes across
