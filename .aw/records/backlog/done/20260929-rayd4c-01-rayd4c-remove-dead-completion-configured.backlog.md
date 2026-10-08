@@ -1,5 +1,5 @@
 - Id: rayd4c
-- Status: graduated
+- Status: done
 - Graduated-To: rayd4c
 - Set: rayd4c
 - Priority: low
@@ -7,6 +7,7 @@
 - Summary: Remove the dead cli._completion_configured, which has had zero production callers since 4y95tp replaced it with _completion_state
 
 ## Workflow history
+- 2026-10-08 done (aw backlog): closed by aw agy run: IPD yi24m0 executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20261001-rayd4c-01-yi24m0-delete-the-dead-cli-completion-configured-and-prove-no-calle.ipd.md); evidence .aw/records/plans/executed/20261001-rayd4c-01-yi24m0-delete-the-dead-cli-completion-configured-and-prove-no-calle.ipd.md
 - 2026-10-01 set (aw backlog): graduated by run run-20260930T053059Z-3200713: yi24m0
 - 2026-09-29 created (aw backlog): Remove the dead cli._completion_configured, which has had zero production callers since 4y95tp replaced it with _completion_state
 

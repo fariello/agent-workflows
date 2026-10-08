@@ -8122,20 +8122,10 @@ def _install_all(args: argparse.Namespace, term: Term) -> int:
     return 1 if failed else 0
 
 
-def _completion_configured() -> bool:
-    """True when OUR drop-in completion is already installed for the detected shell (jolfpj E-04)."""
-    try:
-        from agent_workflows import completion as _completion
-
-        return _completion.is_completion_installed(_detect_shell())
-    except Exception:
-        return False
-
-
 def _completion_state() -> str:
     """The detected shell's completion state: ``absent``/``current``/``stale`` (compargs 4y95tp E-06).
 
-    Widens `_completion_configured`'s PRESENCE question into the three states that actually exist, so
+    Widens `completion.is_completion_installed`'s PRESENCE question into the three states that actually exist, so
     an installed-but-outdated script stops taking the silent branch. Fails soft to ``current`` on any
     error: a diagnostic that cannot read the file must not warn about it.
     """

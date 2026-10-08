@@ -6,7 +6,7 @@
 - Scope: Delete `cli._completion_configured` outright and repoint the one stale back-reference inside `cli._completion_state`'s docstring at `completion.is_completion_installed`, which is the function that actually still performs the PRESENCE check the sentence is describing. Verify (and correct only if regressed) the test docstring in `tests/test_completion.py` that formerly named the dead function; executed plan `s2yf26` already corrected it (PR-001). Prove by full-suite run that no caller, no test, and no dynamic lookup loses a behavior. EXCLUDES touching `completion.is_completion_installed`, which has a live production caller and is NOT dead (`cli._configure_completion` calls it); EXCLUDES any change to `cli._completion_state`'s or `cli._completion_tip`'s BEHAVIOR; EXCLUDES adding any dead-code detector, lint rule, or tool (see `## Deferred`); EXCLUDES a test asserting the symbol is absent, which would be the code-pinning GUIDING_PRINCIPLES P16 forbids (see `## Deferred`).
 - Scope-Paths: agent_workflows/cli.py, tests/test_completion.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -16,9 +16,9 @@
 - Highest E allocated: 02
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: yi24m0
-- Approval: 2026-10-07, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-08 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: yi24m0 verified (set rayd4c, attempt 1). [Scope reconciliation - in-scope-unmodified tests/test_completion.py: declared-but-unmodified (auto-acknowledged by aw agy run)]
 - 2026-10-07 approved (aw set): status set to approved
 - 2026-10-07 reviewed (aw set): /plan-review APPROVE WITH REVISIONS APPLIED; PR-001..PR-003
 
@@ -39,17 +39,18 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: remove the dead function and repoint what narrated it
 
-- [ ] E-01 Delete `cli._completion_configured` in full (the `def` line, its one-line docstring quoting "True when OUR drop-in completion is already installed for the detected shell (jolfpj E-04)", the `try`/`except Exception` body returning `_completion.is_completion_installed(_detect_shell())` or `False`, and the two blank lines that separated it from `cli._completion_state`). Then repoint the stale back-reference in `cli._completion_state`'s own docstring: the sentence currently opening "Widens `_completion_configured`'s PRESENCE question into the three states that actually exist" must name `completion.is_completion_installed` instead, because that is the function that actually performs the PRESENCE check being contrasted and it is the one a reader can still go read. Change no behavior: `cli._completion_state`, `cli._completion_tip`, and `completion.is_completion_installed` keep their bodies byte-identical apart from that one docstring sentence.
+- [x] E-01 Delete `cli._completion_configured` in full (the `def` line, its one-line docstring quoting "True when OUR drop-in completion is already installed for the detected shell (jolfpj E-04)", the `try`/`except Exception` body returning `_completion.is_completion_installed(_detect_shell())` or `False`, and the two blank lines that separated it from `cli._completion_state`). Then repoint the stale back-reference in `cli._completion_state`'s own docstring: the sentence currently opening "Widens `_completion_configured`'s PRESENCE question into the three states that actually exist" must name `completion.is_completion_installed` instead, because that is the function that actually performs the PRESENCE check being contrasted and it is the one a reader can still go read. Change no behavior: `cli._completion_state`, `cli._completion_tip`, and `completion.is_completion_installed` keep their bodies byte-identical apart from that one docstring sentence.
   DO NOT ALSO DELETE `completion.is_completion_installed`, which looks adjacent but is NOT dead: it retains a live production caller in `cli._configure_completion` (the branch returning early when completion is "already ours; nothing to offer") plus two direct test callers. Deleting it is the one plausible over-reach here and it would break the setup prompt.
   - Depends on: none
   - Expected outcome: `grep -rn "_completion_configured" --include="*.py" agent_workflows/` returns zero hits; `grep -rn "_completion_configured" --include="*.py" .` returns exactly one hit, `tests/test_completion_stale_notice.DocumentationAndDocstringTests.test_test_completion_docstring_updated`'s `self.assertNotIn("_completion_configured", doc)` (a string literal inside an absence assertion owned by executed plan `s2yf26`, NOT a reference to the function; leave it untouched, it is out of scope and still passes after the deletion) (PR-001); `python3 -c "import agent_workflows.cli as c; print(hasattr(c, '_completion_configured'), c._completion_state())"` prints `False` followed by a valid verdict; `cli._completion_state`'s docstring no longer names a symbol that does not exist.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 Correct the one test docstring that still describes the deleted function as the composing predicate. `tests/test_completion.StaleCompletionWarningTests`'s class docstring asserts that "`_completion_configured` composes `is_completion_installed`, a PRESENCE check, so a stale file took the same silent branch as a current one". After E-01 that sentence names a symbol that does not exist, so a reader of the test learns a false thing about the code under test. Preserve the sentence's MEANING, which is historically accurate and worth keeping (the gap really was that a presence check could not distinguish stale from current); change only the subject, so it describes the presence check by the name that still resolves (`completion.is_completion_installed`) and, if it refers to the historical predicate at all, marks it as removed rather than current. Amend prose only: add, remove, and weaken no assertion in that class.
+- [x] E-02 Correct the one test docstring that still describes the deleted function as the composing predicate. `tests/test_completion.StaleCompletionWarningTests`'s class docstring asserts that "`_completion_configured` composes `is_completion_installed`, a PRESENCE check, so a stale file took the same silent branch as a current one". After E-01 that sentence names a symbol that does not exist, so a reader of the test learns a false thing about the code under test. Preserve the sentence's MEANING, which is historically accurate and worth keeping (the gap really was that a presence check could not distinguish stale from current); change only the subject, so it describes the presence check by the name that still resolves (`completion.is_completion_installed`) and, if it refers to the historical predicate at all, marks it as removed rather than current. Amend prose only: add, remove, and weaken no assertion in that class.
   PLAN `s2yf26` HAS LANDED (executed, commit `00c460141`), and at review on 2026-10-07 the class docstring already reads "`is_completion_installed` was a PRESENCE check, so a stale file took the same silent branch as a current one", naming no deleted symbol (PR-001). So E-02 is EXPECTED to be verify-only: re-read the docstring at execution, and if it still names no `_completion_configured`, record that E-02 required no edit, leave `tests/test_completion.py` unmodified, and do NOT rewrite `s2yf26`'s wording to taste. Only if the text has regressed to naming the deleted symbol, apply the prose correction above. In a manual run, an unmodified `tests/test_completion.py` needs `--scope-ack tests/test_completion.py=E-02 verify-only, s2yf26 already corrected it` at finalize.
   - Depends on: E-01
   - Expected outcome: `grep -rn "_completion_configured" --include="*.py" .` returns ONLY the single `tests/test_completion_stale_notice.py` absence-assertion literal described in E-01, and in particular no hit in `tests/test_completion.py`; the docstring still explains why a presence check could not report staleness; `python3 -m pytest tests/test_completion.py` passes with its collected count equal to the executor's own pre-edit collection of that file (31 at review; the review-time number is context, not the bar) (PR-002).
-  - Execution state: pending
+  - Execution state: performed
+  - Execution note: verify-only; s2yf26 already corrected it in commit 00c460141 and tests/test_completion.py already names is_completion_installed without referring to _completion_configured.
 
 ## Project conventions discovered (Step 0)
 
@@ -133,17 +134,103 @@ NO USER-FACING DOCUMENTATION CHANGES. `README.md` is not in scope and was checke
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste the actual `git diff agent_workflows/cli.py` showing the whole function removed AND the docstring sentence repointed, with a deletion count consistent with removing the nine-line function plus its separating blank lines (the authoring prototype measured `1 insertion, 11 deletions`; a materially larger diff means something else was changed and FAILS this item). Paste `grep -rn "_completion_configured" --include="*.py" agent_workflows/` returning NO output. Paste a driven transcript of `python3 -c "import agent_workflows.cli as c; print(hasattr(c, '_completion_configured'), c._completion_state())"` showing `False` and a verdict in `absent`/`current`/`stale`. Paste the repointed docstring sentence verbatim, showing it names `completion.is_completion_installed`.
   - Required evidence (the F-04 over-reach guard, and this item FAILS without it): paste `grep -n "is_completion_installed" agent_workflows/cli.py agent_workflows/completion.py` showing the definition AND the surviving `cli._configure_completion` call site still present, plus the pass of `python3 -m pytest tests/test_completion.py -o addopts="" -k "SetupCompletionPrompt or InstallShellCompletion"`. A diff that also removed `completion.is_completion_installed` FAILS regardless of whether the suite is green, because it breaks the setup prompt's "already ours; nothing to offer" branch.
   - Observed evidence:
-  - Result: pending
+    `git diff agent_workflows/cli.py` (exactly 1 insertion, 11 deletions):
+    ```diff
+    diff --git a/agent_workflows/cli.py b/agent_workflows/cli.py
+    index 1fb7fda1d..1d1d8b2bf 100644
+    --- a/agent_workflows/cli.py
+    +++ b/agent_workflows/cli.py
+    @@ -8122,20 +8122,10 @@ def _install_all(args: argparse.Namespace, term: Term) -> int:
+         return 1 if failed else 0
 
-- [ ] V-02 validates E-02
+
+    -def _completion_configured() -> bool:
+    -    """True when OUR drop-in completion is already installed for the detected shell (jolfpj E-04)."""
+    -    try:
+    -        from agent_workflows import completion as _completion
+    -
+    -        return _completion.is_completion_installed(_detect_shell())
+    -    except Exception:
+    -        return False
+    -
+    -
+     def _completion_state() -> str:
+         """The detected shell's completion state: ``absent``/``current``/``stale`` (compargs 4y95tp E-06).
+
+    -    Widens `_completion_configured`'s PRESENCE question into the three states that actually exist, so
+    +    Widens `completion.is_completion_installed`'s PRESENCE question into the three states that actually exist, so
+         an installed-but-outdated script stops taking the silent branch. Fails soft to ``current`` on any
+         error: a diagnostic that cannot read the file must not warn about it.
+         """
+    ```
+    `grep -rn "_completion_configured" --include="*.py" agent_workflows/` returned no output (exit 1).
+    Driven transcript:
+    ```
+    $ python3 -c "import agent_workflows.cli as c; print(hasattr(c, '_completion_configured'), c._completion_state())"
+    False current
+    ```
+    Repointed docstring sentence verbatim:
+    `    Widens `completion.is_completion_installed`'s PRESENCE question into the three states that actually exist, so`
+
+    F-04 over-reach guard:
+    `grep -n "is_completion_installed" agent_workflows/cli.py agent_workflows/completion.py`:
+    ```
+    agent_workflows/cli.py:8128:    Widens `completion.is_completion_installed`'s PRESENCE question into the three states that actually exist, so
+    agent_workflows/cli.py:8511:        if _completion.is_completion_installed(shell):
+    agent_workflows/completion.py:1109:def is_completion_installed(shell: str, target_dir: Optional[Path] = None) -> bool:
+    agent_workflows/completion.py:1121:    compargs 4y95tp E-06. ``is_completion_installed`` is a PRESENCE check, so an installed script that
+    ```
+    Pass of setup prompt tests:
+    ```
+    $ python3 -m pytest tests/test_completion.py -o addopts="" -k "SetupCompletionPrompt or InstallShellCompletion"
+    ======================= 4 passed, 27 deselected in 4.72s =======================
+    ```
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: paste the `git diff tests/test_completion.py` hunk (or, if `s2yf26` already corrected it, paste the current docstring plus an explicit statement that E-02 required no edit and why). Paste `grep -rn "_completion_configured" --include="*.py" .` returning ONLY the `tests/test_completion_stale_notice.py` `assertNotIn("_completion_configured", doc)` line (PR-001); any other hit FAILS this item. Paste the amended docstring showing it still explains why a presence check could not distinguish a stale script from a current one, so the historical account survives the rename. Confirm in the pasted diff that no `assert` line in `StaleCompletionWarningTests` changed: an assertion touched by a docstring correction FAILS this item.
   - Required evidence (the behavioral proof of the deletion, all three runs, and this item FAILS on a missing one): (a) `python3 -m pytest tests/test_completion.py` with its summary line, beside the executor's own pre-edit `--collect-only` count for that file, the two equal (31 at review, which is context and not the bar) (PR-002); (b) the DESELECTED completion test, `python3 -m pytest -o addopts="" -m "slow or livecorpus" tests/test_completion.py`, passing, since the bare run deselects 208 tests including that one and it is the only subprocess exercise of the completion CLI; (c) the BARE `python3 -m pytest` summary line, which must read IDENTICAL counts to the pre-change baseline the executor captures first. The baseline measured at authoring was `3692 passed, 2 skipped, 3 warnings`; the executor must capture its OWN baseline immediately before the edit, because other plans will have landed by then, and must paste BOTH numbers; the authoring number is context only. A changed collected count is a FAILED validation even if everything passes, because a pure deletion of unreachable code cannot change what is collected.
   - Observed evidence:
-  - Result: pending
+    `git diff tests/test_completion.py` is empty: E-02 required no edit because executed plan `s2yf26` (commit `00c460141`) had already landed and corrected the docstring.
+    Current `StaleCompletionWarningTests` docstring in `tests/test_completion.py` (lines 2332-2340):
+    ```python
+    class StaleCompletionWarningTests(_DropInFixture):
+        """An installed-but-OUTDATED completion script is reported, and never rewritten (4y95tp E-06).
+
+        THE GAP THIS CLOSES. The generated file is written once by `aw completion install`, and NOTHING in
+        the install/upgrade path regenerates it, so a framework upgrade that adds or renames a command
+        leaves the user completing a vocabulary that no longer exists. Worse, it was UNREPORTABLE:
+        `is_completion_installed` was a PRESENCE check, so a stale file took the same silent branch as
+        a current one and the user had no way to find out before three-state classification was added.
+        This defect's own fix would not have reached an already-installed user for exactly that reason.
+
+        WARN, NEVER REWRITE (maintainer ruling 2026-09-12, OQ-01). The user's completion file is theirs
+    ```
+    No assert line in `StaleCompletionWarningTests` was touched.
+
+    `grep -rn "_completion_configured" --include="*.py" .` returned ONLY the absence assertion:
+    ```
+    ./tests/test_completion_stale_notice.py:505:        self.assertNotIn("_completion_configured", doc)
+    ```
+
+    Behavioral runs:
+    (a) Pre-edit collection: `python3 -m pytest -o addopts="" --collect-only -q tests/test_completion.py` -> 31 tests collected.
+    Post-edit `python3 -m pytest tests/test_completion.py`:
+    `30 passed in 19.12s` (1 deselected by -m/-k, total 31 = collected count 31).
+    (b) Deselected completion test:
+    ```
+    $ python3 -m pytest -o addopts="" -m "slow or livecorpus" tests/test_completion.py
+    ======================= 1 passed, 30 deselected in 5.31s =======================
+    ```
+    (c) Bare `python3 -m pytest` comparison:
+    Pre-change baseline: `6737 passed, 2 skipped, 3 warnings in 373.12s (0:06:13)` (259 deselected)
+    Post-edit run: `6737 passed, 2 skipped, 3 warnings in 557.41s (0:09:17)` (259 deselected)
+    Counts are identical (6737 passed, 2 skipped, 3 warnings).
+  - Result: pass
 
 ## Approval and execution gate
 
