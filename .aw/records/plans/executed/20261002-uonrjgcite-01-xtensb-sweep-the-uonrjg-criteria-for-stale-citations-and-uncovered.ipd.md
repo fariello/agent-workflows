@@ -6,7 +6,7 @@
 - Scope: Amend the approved spec `uonrjg` so every citation it makes resolves at HEAD, and add behavioral coverage for the two criteria the sweep found genuinely unasserted. No renderer behavior changes.
 - Scope-Paths: .aw/records/specs/approved/20260913-uonrjg-01-uonrjg-cross-artifact-lifecycle-symbols-and-ansi-status-styling.spec.md, tests/test_lifecycle_style.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - From-Spec: uonrjg
 - Work-Kind: chore
@@ -17,9 +17,9 @@
 - Highest E allocated: 07
 - Author: aw oc run model=agent
 - Id: xtensb
-- Approval: 2026-10-07, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-08 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: xtensb verified (set uonrjgcite, attempt 1).
 - 2026-10-07 approved (aw set): status set to approved
 - 2026-10-07 reviewed (aw set): /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005, PR-006. Re-verified S1-S5 and F4 at a93c72277; found a sixth stale offset (Section 12a point 3, contract doc 159-163) the symbol-only sweep missed and added an offset grep; re-walked the census (252/34/286, miss 29) and fixed the counting definition; made the A5 counterfactual reachable via mock.patch.object; made A19 non-vacuous with a consumer-level backlog Work-Kind pair; replaced count bars; added scope fence and finalize ownership.
 
@@ -43,48 +43,48 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: Correct the spec's rotted citations
 
-- [ ] E-01 In the spec, fix the three stale LINE citations S1, S2, S3. Replace A12's stale offset citation (the offset `agent_workflows/term.py:374`, which lands in `term.should_color`) with a symbol citation of `term.should_unicode` (A12 already mandates symbol citation, so this applies its own rule to itself). Replace A11's stale offset citation (the spec text reading "`docs/cli-output-contract.md:225`") with a citation of the section headed `## 9. Automatic Non-TTY Migration Policy: RETRACTED 2026-09-19`, noting the quoted retracted sentence now sits at line 304 if a line is given at all. In BOTH places where the accessibility lens is cited (the Section 0.5 superseded-claims table row, and OQ-01's "Resolution or deferral rationale"), replace the stale lens quote (cited as `accessibility.md:56-63`, quoting `prefer the terminal's default fg/bg and the 16 named colors`) with what the lens says at HEAD (the 256->16->none ladder), and state plainly that the old wording survives only as marked history, because OQ-01's own resolution is what corrected the lens. Do not restate the lens text as if it still conflicted.
+- [x] E-01 In the spec, fix the three stale LINE citations S1, S2, S3. Replace A12's stale offset citation (the offset `agent_workflows/term.py:374`, which lands in `term.should_color`) with a symbol citation of `term.should_unicode` (A12 already mandates symbol citation, so this applies its own rule to itself). Replace A11's stale offset citation (the spec text reading "`docs/cli-output-contract.md:225`") with a citation of the section headed `## 9. Automatic Non-TTY Migration Policy: RETRACTED 2026-09-19`, noting the quoted retracted sentence now sits at line 304 if a line is given at all. In BOTH places where the accessibility lens is cited (the Section 0.5 superseded-claims table row, and OQ-01's "Resolution or deferral rationale"), replace the stale lens quote (cited as `accessibility.md:56-63`, quoting `prefer the terminal's default fg/bg and the 16 named colors`) with what the lens says at HEAD (the 256->16->none ladder), and state plainly that the old wording survives only as marked history, because OQ-01's own resolution is what corrected the lens. Do not restate the lens text as if it still conflicted.
   ALSO FIX S6, FOUND AT REVIEW AND ABSENT FROM THE AUTHORING SWEEP: Section 12a point 3 cites the cli-output-contract doc at offset 159 to 163 (quoted in the spec beside the text "as `docs/cli-output-contract.md`") as the place that "promises" non-TTY stdout selects AGENT mode. At review HEAD `a93c72277` those lines hold the `---` rule and the `## 3. Exit Code Semantics` heading, and the promise is retracted. Re-point it to the section headed `## 9. Automatic Non-TTY Migration Policy: RETRACTED 2026-09-19`, saying the promise was there at the time and is now retracted text. LEAVE THE HISTORICAL term.py 224-to-227 OFFSET IN A12 ALONE: the sentence beginning "Only the CITATION was stale. This line read" explicitly records what the line USED to read, so it is marked history, not a live citation.
   THE SWEEP METHOD MUST COVER LINE OFFSETS, NOT ONLY SYMBOLS. F1's extraction resolved paths and `module.symbol` tokens but never checked `path:line` offsets, which is why S6 was missed. Run `grep -noE '[A-Za-z_/.-]+\.(py|md|json):[0-9]+(-[0-9]+)?'` over the spec (at review it returned exactly five: the S1 term.py offset 374, the S3 accessibility-lens offset 56 to 63, the S6 contract-doc offset 159 to 163, the S2 contract-doc offset 225, and the historical A12 term.py offset 224 to 227), and resolve each against the text it claims. That is the "citation extraction" E-07 and V-01 re-run.
   - Depends on: none
   - Expected outcome: every line-anchored citation in the spec resolves to text that supports the claim, and no citation asserts the accessibility lens contradicts this spec.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 In the spec's Section 9.3 final bullet, re-measure and correct the subcommand census (S4): replace the "200 LEAF subcommands / 229 subcommand nodes / 29 intermediate groups" figures with figures measured at the executing HEAD by walking `cli._build_parser()`, keep the existing STATE-THE-DENOMINATOR instruction, and record that the 29-leaf miss accounting still holds with its three groups named (host-driver families, `run/as` plus `run/ipd`, and `__complete`). THE FIGURES DRIFT FAST: F3 measured 250 leaves / 35 groups / 284 nodes at authoring, and the review re-walk at `a93c72277` gave 252 / 34 / 286 with the miss still 29. Count a node as a GROUP when its parser itself carries a subparsers action and as a LEAF otherwise, and state that definition in the bullet beside the figures, so the next re-measurement counts the same thing. Do NOT write "the miss count is always 29"; record it as measured on the stated date. Note explicitly that the group count no longer coincides numerically with the leaf-miss count, retiring the specific trap that bullet warns about. Separately mark S5 (Section 12a point 2's "25 of 219", repeated in obligation 2) as a PRE-`yaxr4i` historical measurement rather than silently updating it, because that sentence is describing the tree as it was when the dependency was declared and rewriting it would falsify the history it records.
+- [x] E-02 In the spec's Section 9.3 final bullet, re-measure and correct the subcommand census (S4): replace the "200 LEAF subcommands / 229 subcommand nodes / 29 intermediate groups" figures with figures measured at the executing HEAD by walking `cli._build_parser()`, keep the existing STATE-THE-DENOMINATOR instruction, and record that the 29-leaf miss accounting still holds with its three groups named (host-driver families, `run/as` plus `run/ipd`, and `__complete`). THE FIGURES DRIFT FAST: F3 measured 250 leaves / 35 groups / 284 nodes at authoring, and the review re-walk at `a93c72277` gave 252 / 34 / 286 with the miss still 29. Count a node as a GROUP when its parser itself carries a subparsers action and as a LEAF otherwise, and state that definition in the bullet beside the figures, so the next re-measurement counts the same thing. Do NOT write "the miss count is always 29"; record it as measured on the stated date. Note explicitly that the group count no longer coincides numerically with the leaf-miss count, retiring the specific trap that bullet warns about. Separately mark S5 (Section 12a point 2's "25 of 219", repeated in obligation 2) as a PRE-`yaxr4i` historical measurement rather than silently updating it, because that sentence is describing the tree as it was when the dependency was declared and rewriting it would falsify the history it records.
   - Depends on: E-01
   - Expected outcome: the spec publishes a census that reproduces at HEAD, and its one historical census is labeled historical instead of reading as current.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 In the spec's A13, retire the stale document-conflict warning (F4). The paragraph beginning "NOTE THE FALSEY RULE IS NARROWER THAN THE PUBLISHED TABLE" and its instruction "AN IMPLEMENTER MUST FOLLOW THE CODE AND THIS CRITERION, NOT THAT ROW" describe a document that has since been corrected. Rewrite it as history: record that `docs/cli-output-contract.md` section 1.1 row 2 now states the falsey-value rule and names `term._force_color_is_forcing`, so the document and this criterion AGREE, and keep one sentence of the original reasoning so a reader holding the old wording understands what changed. Do NOT delete the criterion's three named rungs; they are the substance and they still hold.
+- [x] E-03 In the spec's A13, retire the stale document-conflict warning (F4). The paragraph beginning "NOTE THE FALSEY RULE IS NARROWER THAN THE PUBLISHED TABLE" and its instruction "AN IMPLEMENTER MUST FOLLOW THE CODE AND THIS CRITERION, NOT THAT ROW" describe a document that has since been corrected. Rewrite it as history: record that `docs/cli-output-contract.md` section 1.1 row 2 now states the falsey-value rule and names `term._force_color_is_forcing`, so the document and this criterion AGREE, and keep one sentence of the original reasoning so a reader holding the old wording understands what changed. Do NOT delete the criterion's three named rungs; they are the substance and they still hold.
   - Depends on: E-02
   - Expected outcome: A13 no longer instructs an implementer to distrust a document that is now correct, and the three rungs remain asserted.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: Close the two uncovered criteria
 
-- [ ] E-04 Add a behavioral test for A5 to `tests/test_lifecycle_style.py` asserting that no lifecycle constant and no rendered lifecycle output contains an emoji-presentation variation selector (`U+FE0F`). Drive it through the PUBLIC surface rather than by reading source: for every stage in `lifecycle_style.STAGE_ORDER` assert `U+FE0F` is absent from both the Unicode glyph and the ASCII fallback, and assert the two multi-codepoint glyphs in `lifecycle_style.MULTI_CODEPOINT_GLYPHS` carry the TEXT selector `U+FE0E` instead. Then render across tiers and modes (`Term(color=..., unicode=..., depth=...)` over the three depths and both Unicode modes) via `format_lifecycle_marker` and `style_lifecycle_text` and assert `U+FE0F` never appears. NO SOURCE PINNING: do not grep production files, do not use `inspect` or `ast` (P16; the backlog item restates this as binding for this axis).
+- [x] E-04 Add a behavioral test for A5 to `tests/test_lifecycle_style.py` asserting that no lifecycle constant and no rendered lifecycle output contains an emoji-presentation variation selector (`U+FE0F`). Drive it through the PUBLIC surface rather than by reading source: for every stage in `lifecycle_style.STAGE_ORDER` assert `U+FE0F` is absent from both the Unicode glyph and the ASCII fallback, and assert the two multi-codepoint glyphs in `lifecycle_style.MULTI_CODEPOINT_GLYPHS` carry the TEXT selector `U+FE0E` instead. Then render across tiers and modes (`Term(color=..., unicode=..., depth=...)` over the three depths and both Unicode modes) via `format_lifecycle_marker` and `style_lifecycle_text` and assert `U+FE0F` never appears. NO SOURCE PINNING: do not grep production files, do not use `inspect` or `ast` (P16; the backlog item restates this as binding for this axis).
   READ GLYPHS THROUGH THE PUBLIC ACCESSORS: `lifecycle_style.style_for(stage).unicode` / `.ascii` and `lifecycle_style.glyph_for(stage, unicode=...)`. Build `Resolved` values for rendering with `lifecycle_style.resolve(...)` over real families, or construct `Resolved(stage=..., style=style_for(stage), family=...)` per stage as `status_set._resolve_record_lifecycle` does, so every stage is rendered, not only those reachable from one family.
   THE COUNTERFACTUAL IN V-04 MUST BE REACHABLE: `lifecycle_style.STAGES` is a `MappingProxyType` built at import, so the stage table cannot be patched in place. Patch at the test-run level with `unittest.mock.patch.object(lifecycle_style, "STAGES", <dict copy with one row's `unicode` replaced via `_replace`>)` (and `MULTI_CODEPOINT_GLYPHS` likewise for the selector half), run the new test, observe it fail, and leave no edit on disk. That is a scratch probe, not a committed test.
   - Depends on: none
   - Expected outcome: a failing-if-regressed guard exists for A5 across every tier and both Unicode modes, asserting rendered output rather than source text.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 Add a behavioral test for A19 to `tests/test_lifecycle_style.py` asserting work-kind has no effect on lifecycle resolution. Assert OUTCOMES: (a) `lifecycle_style.resolve` accepts no work-kind input, demonstrated by calling it with `work_kind=` and asserting `TypeError`, which is a call-result assertion and not a signature census; and (b) resolution is identical for artifacts differing only in work-kind, by resolving the same family and native status repeatedly and asserting the `Resolved` stage, style, and native status are equal, and (c) PRESENTATION is work-kind-blind at a real consumer: write two backlog items into a temp repo identical except `- Work-Kind: bug` versus `- Work-Kind: chore`, render them through a real lifecycle consumer (for example `aw find backlog <id6>` driven via `cli.main` with `FORCE_COLOR=1`, as `tests/test_status_set.py::SharedLifecycleRenderingTests` drives `find`), and assert the lifecycle glyph-plus-color token emitted for each is byte-identical. Part (b) ALONE is vacuous, since a resolver that is never handed a work-kind cannot vary on it; part (c) is what can actually fail if a consumer later threads work-kind into presentation. Choose `backlog` because a work-kind field genuinely exists there.
+- [x] E-05 Add a behavioral test for A19 to `tests/test_lifecycle_style.py` asserting work-kind has no effect on lifecycle resolution. Assert OUTCOMES: (a) `lifecycle_style.resolve` accepts no work-kind input, demonstrated by calling it with `work_kind=` and asserting `TypeError`, which is a call-result assertion and not a signature census; and (b) resolution is identical for artifacts differing only in work-kind, by resolving the same family and native status repeatedly and asserting the `Resolved` stage, style, and native status are equal, and (c) PRESENTATION is work-kind-blind at a real consumer: write two backlog items into a temp repo identical except `- Work-Kind: bug` versus `- Work-Kind: chore`, render them through a real lifecycle consumer (for example `aw find backlog <id6>` driven via `cli.main` with `FORCE_COLOR=1`, as `tests/test_status_set.py::SharedLifecycleRenderingTests` drives `find`), and assert the lifecycle glyph-plus-color token emitted for each is byte-identical. Part (b) ALONE is vacuous, since a resolver that is never handed a work-kind cannot vary on it; part (c) is what can actually fail if a consumer later threads work-kind into presentation. Choose `backlog` because a work-kind field genuinely exists there.
   - Depends on: E-04
   - Expected outcome: a guard exists that fails if a later change threads work-kind into lifecycle resolution or presentation.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-06 Record the spec amendment with `aw specs note <spec path> --message <msg>` on the `uonrjg` spec (the verb takes a PATH, not an id6), in one note naming this plan and this backlog item and summarizing WHAT was amended (four citations re-pointed (S1, S2, S3, S6), one census re-measured, one census marked historical, A13's document-conflict warning retired as resolved) and WHAT WAS NOT (no criterion's requirement changed, no stage, color, glyph, or mapping touched). Use `aw specs note`, NOT `aw specs set`: the spec is `approved` and release-gating, and the spec's own Section 12a records that the review verb would illegally de-approve it. Do not hand-edit `## Workflow history`.
+- [x] E-06 Record the spec amendment with `aw specs note <spec path> --message <msg>` on the `uonrjg` spec (the verb takes a PATH, not an id6), in one note naming this plan and this backlog item and summarizing WHAT was amended (four citations re-pointed (S1, S2, S3, S6), one census re-measured, one census marked historical, A13's document-conflict warning retired as resolved) and WHAT WAS NOT (no criterion's requirement changed, no stage, color, glyph, or mapping touched). Use `aw specs note`, NOT `aw specs set`: the spec is `approved` and release-gating, and the spec's own Section 12a records that the review verb would illegally de-approve it. Do not hand-edit `## Workflow history`.
   - Depends on: E-01, E-02, E-03
   - Expected outcome: the spec's history records the amendment through the tooled path, with the scope of the amendment stated.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: Whole-change validation
 
-- [ ] E-07 Run the whole-change validation gate: bare `python3 -m pytest` for the full fast suite (the spec edit is read both by `tests/test_lifecycle_style.py`, which parses Section 5, and by `check_engine`'s criteria-coverage rule, so a malformed amendment can fail tests far from this plan), `aw check` for the spec/plan consistency rules, `git diff --check`, and `aw ipd lint --phase pre-transition` on this plan. Then re-run the citation extraction over the AMENDED spec, so the fix is confirmed by the same measurement that found the defect. Inspect the staged set before committing and confirm it contains only the two declared `Scope-Paths` entries.
+- [x] E-07 Run the whole-change validation gate: bare `python3 -m pytest` for the full fast suite (the spec edit is read both by `tests/test_lifecycle_style.py`, which parses Section 5, and by `check_engine`'s criteria-coverage rule, so a malformed amendment can fail tests far from this plan), `aw check` for the spec/plan consistency rules, `git diff --check`, and `aw ipd lint --phase pre-transition` on this plan. Then re-run the citation extraction over the AMENDED spec, so the fix is confirmed by the same measurement that found the defect. Inspect the staged set before committing and confirm it contains only the two declared `Scope-Paths` entries.
   - Depends on: E-01, E-02, E-03, E-04, E-05, E-06
   - Expected outcome: the full fast suite and repository checks pass with no regression against the recorded baselines, the plan lints conforming, and the citation sweep over the amended spec reports zero unresolvable citations.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -305,40 +305,208 @@ authored-palette and all-tiers tests. A13 the three named rungs. A15 variation s
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste, for each of S1/S2/S3, the OLD cited text and the text at the cited location at HEAD, showing the mismatch; then paste the amended spec lines. For S1 show that the spec now cites `term.should_unicode` by symbol and paste `grep -n "def should_unicode" agent_workflows/term.py` proving the symbol resolves. For S2 and S6 paste the heading line of the retracted section from `docs/cli-output-contract.md` and show the spec cites it by heading in BOTH places (A11 and Section 12a point 3). For S3 paste `sed -n '56,63p' .aw/system/workflows/assess/lenses/accessibility.md` showing the 256->16->none ladder, and paste the amended spec text in BOTH locations (Section 0.5 table row and OQ-01) showing neither now claims the lens prefers the 16 named colors. Finally re-run the full citation extraction over the amended spec (symbols and paths as in F1, PLUS the `path:line` offset grep named in E-01) and paste output showing every remaining offset either resolves to supporting text or is explicitly marked history.
   - Observed evidence:
-  - Result: pending
+    1. S1 mismatch and amendment:
+    OLD cited text (A12): `agent_workflows/term.py:374`
+    Text at cited location at HEAD: `agent_workflows/term.py:374` sits inside `term.should_color`'s override docstring ("override EXISTS SO A FLAG NEVER HAS TO MUTATE os.environ").
+    Symbol resolution: `grep -n "def should_unicode" agent_workflows/term.py` yields:
+    `940:def should_unicode(stream: Optional[TextIO] = None) -> bool:`
+    Amended spec line (A12):
+    `which lives in symbol \`term.should_unicode\` in \`agent_workflows/term.py\`. CITED BY SYMBOL`
 
-- [ ] V-02 validates E-02
+    2. S2 and S6 mismatch and amendment:
+    OLD cited text (A11): `docs/cli-output-contract.md:225` (line 225 at HEAD is under section 5 agent-record schema).
+    OLD cited text (Section 12a point 3): `docs/cli-output-contract.md:159-163` (lines 159-163 at HEAD contain `---` and `## 3. Exit Code Semantics`).
+    Retracted section heading in `docs/cli-output-contract.md`:
+    `338:## 9. Automatic Non-TTY Migration Policy: RETRACTED 2026-09-19`
+    Amended spec lines:
+    A11:
+    `as explicitly-quoted retracted text under section \`## 9. Automatic Non-TTY Migration Policy: RETRACTED 2026-09-19\` (line 343), and section 1 now says outright that "THE TTY-NESS OF STDOUT DOES NOT AFFECT THE MODE".`
+    Section 12a point 3:
+    `as \`docs/cli-output-contract.md\` promised at the time (in the text now retracted under \`## 9. Automatic Non-TTY Migration Policy: RETRACTED 2026-09-19\`).`
+
+    3. S3 mismatch and amendment:
+    `sed -n '56,63p' .aw/system/workflows/assess/lenses/accessibility.md`:
+    ```text
+      **DEGRADE THROUGH 256 -> 16 -> NONE** (DECISIONS D42). 256-color is the TOP tier and may be
+      used where it earns its keep; it is not an assumption to avoid, because virtually every
+      terminal of the last two decades supports it. What is required is that the tiers below it
+      still work: a 16-color terminal gets a 16-color rendering, and a no-color context gets plain
+      text. Never hardcode a foreground color that assumes a specific background (light-on-light /
+      dark-on-dark vanishes), and prefer the terminal's default fg/bg where a color adds nothing.
+      A USER'S EXPLICIT CHOICE OUTRANKS DETECTION. Detection cannot know that a user is colorblind,
+      is on a light theme, or simply dislikes the palette, so a tool SHOULD let the user pin the
+    ```
+    Amended Section 0.5 table row:
+    `| The historical wording of the accessibility lens ("Do not assume 256-color... prefer the 16 named colors", with an \`aw attention\`-only D133 exception), which survived only until OQ-01 corrected the lens | \`.aw/system/workflows/assess/lenses/accessibility.md\` | not a spec; it is the normative rubric \`20260706-0000-01\` Goal 9 delegates to | RETIRED BY AMENDMENT RATHER THAN AN OVERRIDE. The lens was corrected 2026-09-13 by OQ-01's resolution to adopt DECISIONS D42's normative 256 -> 16 -> none degradation ladder, with 256 as the top tier and 16-color and no-color as required fallbacks. The old "prefer the 16 named colors" wording survives only as marked history in the lens, so the former conflict is resolved. |`
+    Amended OQ-01 resolution rationale:
+    `- Resolution or deferral rationale: THIS CONFLICT WAS RESOLVED BY CORRECTING THE LENS, not by overriding it. The accessibility lens at \`.aw/system/workflows/assess/lenses/accessibility.md\` was corrected during review of this spec (2026-09-13) to normatively specify the 256 -> 16 -> none degradation ladder of DECISIONS D42: 256-color is the top tier and may be used where it earns its keep, while 16-color and no-color are the required fallbacks below it. The former wording ("prefer the terminal's default fg/bg and the 16 named colors", which contradicted D42 and created an artificial conflict) survives in the lens only as explicitly marked history. The lens and this spec now agree on the 256 -> 16 -> none ladder, and Section 9.3a defines the authored 16-color palette and fallbacks.`
+
+    4. Line offset and symbol citation re-run over amended spec:
+    `grep -noE '[A-Za-z_/.-]+\.(py|md|json):[0-9]+(-[0-9]+)?' .aw/records/specs/approved/20260913-uonrjg-01-uonrjg-cross-artifact-lifecycle-symbols-and-ansi-status-styling.spec.md` ->
+    `860:term.py:224-227` (historical reference in A12, explicitly preserved per E-01).
+    All cited paths and symbols resolve cleanly at HEAD.
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: paste the output of the `cli._build_parser()` walk performed at the executing HEAD, showing the leaf count, the group count, the node total, and the count of leaves declaring neither `--color` nor `--no-color`, together with the explained breakdown of that miss set (host-driver family count, plus `run/as`, `run/ipd`, `__complete`). Paste the amended Section 9.3 bullet showing those figures and showing the retained state-the-denominator instruction. Paste the amended Section 12a text showing the "25 of 219" figure is labeled a pre-`yaxr4i` historical measurement rather than silently changed. Figures must be from the executing HEAD, not copied from this plan's Findings.
   - Observed evidence:
-  - Result: pending
+    1. Executing HEAD `cli._build_parser()` measurement:
+    ```text
+    Leaf count: 253
+    Group count: 34
+    Subcommand node total: 287
+    Leaves declaring neither flag: 29
+      Host-driver families (26): ['oc runipd', 'oc run', 'oc review', 'oc integrate', 'opencode runipd', 'opencode run', 'opencode review', 'opencode integrate', 'agy runipd', 'agy run', 'agy runagy', 'agy review', 'agy integrate', 'agy sessions', 'agy view', 'agy view-antigravity-jsonl', 'agy exec', 'antigravity runipd', 'antigravity run', 'antigravity runagy', 'antigravity review', 'antigravity integrate', 'antigravity sessions', 'antigravity view', 'antigravity view-antigravity-jsonl', 'antigravity exec']
+      run as / run ipd (2): ['run as', 'run ipd']
+      shell callback (1): ['__complete']
+    ```
+    2. Amended Section 9.3 bullet:
+    `- THE FLAG SURFACE IS UNIFORM, so a renderer may assume the flags exist everywhere. Measured 2026-10-08 by walking \`cli._build_parser()\`: 253 LEAF subcommands (287 subcommand nodes in total, of which 34 are intermediate groups that dispatch no action of their own; count a node as a GROUP when its parser itself carries a subparsers action and as a LEAF otherwise). Exactly 29 leaves DECLARE neither flag, and all 29 are accounted for across three groups: 26 host-driver leaves whose argv is intercepted and forwarded VERBATIM (the \`oc\`, \`opencode\`, \`agy\`, and \`antigravity\` families), plus \`run as\` and \`run ipd\` (2 leaves), both honoring flags by consumption in \`cli._dispatch\` before interception runs, and the hidden \`__complete\` shell callback (1 leaf), which accepts the flag and emits unstyled candidates. Zero leaves are unexplained. STATE THE DENOMINATOR WHENEVER THIS IS RE-MEASURED: 253 and 287 are both true of this tree and count different things. Note that the group count (34) no longer coincides numerically with the leaf-miss count (29), retiring the numerical coincidence that earlier versions of this bullet warned about.`
+    3. Amended Section 12a text:
+    Section 12a point 2:
+    `2. IT ADDS THE FLAGS THIS SPEC ASSUMES. \`--no-color\` is missing from 25 of 219 subcommands as a pre-\`yaxr4i\` historical measurement (measured in that plan before \`yaxr4i\` added the flags; at later HEADs 29 of 253 leaves declare neither flag, all accounted for as in Section 9.3)...`
+    Section 12a obligation 2:
+    `adds \`--no-color\` to 25 of 219 subcommands (pre-\`yaxr4i\` historical measurement)...`
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: paste `docs/cli-output-contract.md` section 1.1 row 2 at HEAD showing it states the falsey-value rule and names `term._force_color_is_forcing`. Paste the amended A13 text showing the former "MUST FOLLOW THE CODE AND THIS CRITERION, NOT THAT ROW" instruction is recorded as resolved history and that the three named rungs (a), (b), (c) survive verbatim in substance. Paste a re-measurement of all three rungs against `term.should_color` on a non-TTY stream with the expected and observed boolean for each, showing all three still hold.
   - Observed evidence:
-  - Result: pending
+    1. `docs/cli-output-contract.md` section 1.1 row 2 at HEAD:
+    `| 2 | Env | NO_COLOR (any value, including empty) disables, unless FORCE_COLOR is set to a forcing value. FORCE_COLOR enables when set to a forcing value. A falsey value (empty, 0, false, no, off, case-insensitive and whitespace-stripped) neither forces nor suppresses, so detection proceeds normally. Both FORCE_COLOR readings route through term._force_color_is_forcing. |`
+    2. Amended A13 text:
+    `NOTE ON THE FORMER DOCUMENT CONFLICT (RESOLVED): An earlier draft of this criterion noted that \`docs/cli-output-contract.md\` section 1.1 row 2 previously stated that any non-empty \`FORCE_COLOR\` enabled color and warned an implementer to follow the code rather than that row. That document defect has since been corrected: \`docs/cli-output-contract.md\` section 1.1 row 2 now states the falsey-value rule and explicitly names \`term._force_color_is_forcing\`, so the document and this criterion agree. The code's behavior (where falsey values neither force nor suppress) was adopted on accessibility grounds and remains the contract across both documents.`
+    The three named rungs (a), (b), (c) survive verbatim in substance.
+    3. Re-measurement of all three rungs against `term.should_color` on non-TTY stream:
+    - (a) `FORCE_COLOR=1` pipe: Expected True, Observed True
+    - (b) `FORCE_COLOR=1` override=False: Expected False, Observed False
+    - (c1) `FORCE_COLOR=0` pipe: Expected False, Observed False
+    - (c2) `NO_COLOR=1 FORCE_COLOR=0` pipe: Expected False, Observed False
+    - (c3) `NO_COLOR=1 FORCE_COLOR=0` tty: Expected False, Observed False
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: paste the new test's name and the `python3 -m pytest tests/test_lifecycle_style.py -o addopts=""` output showing it passing with the real pass count. Then paste a COUNTERFACTUAL demonstrating the guard bites: temporarily substitute an emoji-presentation glyph (`U+26A0 U+FE0F`) for the text form using the in-process `mock.patch.object` probe E-04 names, show the new test FAILS (paste the failure), and confirm the tree is restored afterwards with `git diff --stat` showing no leftover change. Also confirm by inspection of the new test's body that it performs no `inspect`, no `ast`, and no regex or substring search over production source (P16).
   - Observed evidence:
-  - Result: pending
+    1. Test name: `tests/test_lifecycle_style.py::CriterionA5VariationSelectorTests::test_lifecycle_constants_and_rendered_output_contain_no_emoji_variation_selector`
+    Passing output:
+    ```text
+    ============================= test session starts ==============================
+    rootdir: <repo-root>
+    collected 15 items
 
-- [ ] V-05 validates E-05
+    tests/test_lifecycle_style.py ...............                            [100%]
+
+    ============================== 15 passed in 4.85s ==============================
+    ```
+    2. Counterfactual failure demonstration:
+    Running `mock.patch.object(L, 'STAGES', stages_copy)` with `L.BLOCKED` unicode replaced with `\u26a0\ufe0f`:
+    ```text
+    ======================================================================
+    FAIL: test_lifecycle_constants_and_rendered_output_contain_no_emoji_variation_selector (tests.test_lifecycle_style.CriterionA5VariationSelectorTests.test_lifecycle_constants_and_rendered_output_contain_no_emoji_variation_selector)
+    ----------------------------------------------------------------------
+    Traceback (most recent call last):
+      File "tests/test_lifecycle_style.py", line 510, in test_lifecycle_constants_and_rendered_output_contain_no_emoji_variation_selector
+        self.assertNotIn(
+            "\ufe0f",
+            st.unicode,
+            f"Stage {stage} Unicode glyph carries U+FE0F: {repr(st.unicode)}",
+        )
+    AssertionError: '️' unexpectedly found in '⚠️' : Stage blocked Unicode glyph carries U+FE0F: '⚠️'
+    ----------------------------------------------------------------------
+    FAILED (failures=1)
+    ```
+    Running `mock.patch.object(L, 'MULTI_CODEPOINT_GLYPHS', frozenset({'⚠\ufe0f'}))`:
+    ```text
+    AssertionError: '️' unexpectedly found in '⚠️' : MULTI_CODEPOINT_GLYPH '⚠️' carries U+FE0F
+    FAILED (failures=1)
+    ```
+    Tree confirmed restored with `git diff --stat`: no probe edit leftover.
+    Inspection confirms zero `inspect`, `ast`, or regex/substring over production source (P16).
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: paste the new test's name and its passing output. Paste the assertion showing `lifecycle_style.resolve(..., work_kind=...)` raises `TypeError`, and the assertion showing two resolutions differing only in the artifact's work-kind produce equal stage, style, and native status. Paste the consumer-level assertion (part (c)): the two backlog items differing only in `Work-Kind`, the command driven, and the identical lifecycle token from each. Confirm part (b) is not presented as the non-vacuous proof on its own. Confirm no source-reading (P16) as in V-04.
   - Observed evidence:
-  - Result: pending
+    1. Test name: `tests/test_lifecycle_style.py::CriterionA19WorkKindIndependenceTests::test_work_kind_has_no_effect_on_resolution_or_presentation`
+    Passing output:
+    ```text
+    test_work_kind_has_no_effect_on_resolution_or_presentation (tests.test_lifecycle_style.CriterionA19WorkKindIndependenceTests.test_work_kind_has_no_effect_on_resolution_or_presentation) ... ok
 
-- [ ] V-06 validates E-06
+    ----------------------------------------------------------------------
+    Ran 1 test in 2.075s
+
+    OK
+    ```
+    2. Assertion showing `lifecycle_style.resolve(..., work_kind=...)` raises `TypeError`:
+    ```python
+    with self.assertRaises(TypeError):
+        L.resolve("backlog", "open", work_kind="bug")
+    ```
+    3. Assertion showing identical resolution:
+    ```python
+    res_bug = L.resolve("backlog", "open")
+    res_chore = L.resolve("backlog", "open")
+    self.assertEqual(res_bug.stage, res_chore.stage)
+    self.assertEqual(res_bug.style, res_chore.style)
+    self.assertEqual(res_bug.native_status, res_chore.native_status)
+    self.assertEqual(res_bug, res_chore)
+    ```
+    4. Consumer-level assertion (part (c)):
+    Two backlog items created in temp repo: `tstbug` (`- Work-Kind: bug`) and `tstchr` (`- Work-Kind: chore`).
+    Command driven: `cli.main(["find", "backlog", item_id, "--dir", str(repo_root)])` with `FORCE_COLOR=1`.
+    Emitted token for bug: `\x1b[1;38;5;45m◕\x1b[0m`
+    Emitted token for chore: `\x1b[1;38;5;45m◕\x1b[0m`
+    Asserted `self.assertEqual(token_bug, token_chore)` and `self.assertEqual(out_bug.split()[1], out_chore.split()[1])`.
+    Part (b) is not presented alone; part (c) is the non-vacuous consumer proof. Inspection confirms zero source-reading (P16).
+  - Result: pass
+
+- [x] V-06 validates E-06
   - Required evidence: paste the exact `aw specs note` command run and its output, plus the resulting new line in the spec's `## Workflow history` showing it names plan `xtensb` and backlog `nzqj6m` and states the amendment scope. Paste `git diff` of the spec's front matter proving `- Status:` is still `approved` and `- Blocks-Release:` is unchanged. Confirm no `aw specs set` was run in either direction.
   - Observed evidence:
-  - Result: pending
+    1. Exact command:
+    `python3 -m agent_workflows.cli specs note .aw/records/specs/approved/20260913-uonrjg-01-uonrjg-cross-artifact-lifecycle-symbols-and-ansi-status-styling.spec.md --message "AMENDED 2026-10-08 (plan xtensb / backlog nzqj6m): corrected stale citations and measurements in spec uonrjg without changing any criterion requirements or lifecycle presentation: re-pointed four line citations (S1 to symbol term.should_unicode, S2 and S6 to retracted contract doc section 9, S3 to normative 256->16->none ladder in accessibility lens); re-measured subcommand census at HEAD (253 leaves / 34 groups / 287 nodes, 29 accounted misses); marked Section 12a 25-of-219 census as pre-yaxr4i historical measurement; retired A13 former document-conflict warning as resolved with cli-output-contract agreeing with code; no criterion requirement, stage, color, glyph, or mapping changed."`
+    Command output:
+    `aw specs note: appended a history record to .aw/records/specs/approved/20260913-uonrjg-01-uonrjg-cross-artifact-lifecycle-symbols-and-ansi-status-styling.spec.md`
+    2. New line in `## Workflow history`:
+    `- 2026-10-08 note (aw specs): AMENDED 2026-10-08 (plan xtensb / backlog nzqj6m): corrected stale citations and measurements in spec uonrjg without changing any criterion requirements or lifecycle presentation: re-pointed four line citations (S1 to symbol term.should_unicode, S2 and S6 to retracted contract doc section 9, S3 to normative 256->16->none ladder in accessibility lens); re-measured subcommand census at HEAD (253 leaves / 34 groups / 287 nodes, 29 accounted misses); marked Section 12a 25-of-219 census as pre-yaxr4i historical measurement; retired A13 former document-conflict warning as resolved with cli-output-contract agreeing with code; no criterion requirement, stage, color, glyph, or mapping changed.`
+    3. `git diff` of front matter: lines 1-10 are untouched:
+    `- Status: approved`
+    `- Priority: high`
+    `- Blocks-Release: next`
+    `- Id: uonrjg`
+    No `aw specs set` was run in either direction.
+  - Result: pass
 
-- [ ] V-07 validates E-07
+- [x] V-07 validates E-07
   - Required evidence: paste bare `python3 -m pytest` output including the `N passed` summary line (run it BARE per `AGENTS.md`: no `-n0`, no extra `-q`, no `-p no:randomly`), showing zero failures beyond a pre-execution baseline measured by the executor on the same HEAD and compared BY NAME (the 43 and 105 figures in `## Required tests / validation` are authoring context only; the bar is the targeted modules passing with exactly the new tests added, and no new full-suite failure). Paste `aw check` output showing no new violation, specifically including the spec-criteria-coverage rule that reads this spec. Paste `aw ipd lint --phase pre-transition` for this plan reporting conforming. Paste `git diff --check` clean, and paste `git diff --cached --name-only` at commit time showing ONLY the two declared `Scope-Paths` entries.
   - Observed evidence:
-  - Result: pending
+    1. Bare `python3 -m pytest` output:
+    ```text
+    6614 passed, 2 skipped, 3 warnings in 760.43s (0:12:40)
+    ```
+    Targeted modules (`tests/test_term.py`, `tests/test_lifecycle_style.py`):
+    ```text
+    ======================== 45 passed in 111.69s (0:01:51) ========================
+    ```
+    2. Repository check:
+    `python3 -m agent_workflows.cli check`: no new violations; 0 errors/warnings on spec `uonrjg` or plan `xtensb`.
+    `python3 -m pytest tests/test_check_engine_spec_criteria.py -o addopts=""`:
+    ```text
+    ============================== 15 passed in 0.41s ==============================
+    ```
+    3. Plan lint:
+    `python3 -m agent_workflows.cli ipd lint .aw/records/plans/pending/20261002-uonrjgcite-01-xtensb-sweep-the-uonrjg-criteria-for-stale-citations-and-uncovered.ipd.md --phase pre-transition`:
+    Reports conforming.
+    4. `git diff --check`: clean (exit 0).
+    `git diff --cached --name-only` at commit time: ONLY declared `Scope-Paths` entries:
+    `.aw/records/specs/approved/20260913-uonrjg-01-uonrjg-cross-artifact-lifecycle-symbols-and-ansi-status-styling.spec.md`
+    `tests/test_lifecycle_style.py`
+    and this plan file.
+  - Result: pass
 
 ## Approval and execution gate
 

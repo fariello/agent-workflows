@@ -22,10 +22,14 @@ This mirrors the shipped precedent in ``tests/test_attention_contract.py``'s
 
 from __future__ import annotations
 
+import io
+import os
+import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
-from agent_workflows import lifecycle_style as L
+from agent_workflows import cli, lifecycle_style as L, term
 from tests import support
 
 REPO = Path(__file__).resolve().parents[1]
@@ -494,6 +498,149 @@ class SelfValidationTests(unittest.TestCase):
         finally:
             L.KNOWN_STATUSES = original
         L.validate()
+
+
+class CriterionA5VariationSelectorTests(unittest.TestCase):
+    """Spec uonrjg criterion A5: no lifecycle constant or rendered output carries U+FE0F."""
+
+    def test_lifecycle_constants_and_rendered_output_contain_no_emoji_variation_selector(
+        self,
+    ):
+        # 1. Constants: Every stage in STAGE_ORDER has no U+FE0F in Unicode glyph or ASCII fallback
+        for stage in L.STAGE_ORDER:
+            st = L.style_for(stage)
+            self.assertNotIn(
+                "\ufe0f",
+                st.unicode,
+                f"Stage {stage} Unicode glyph carries U+FE0F: {repr(st.unicode)}",
+            )
+            self.assertNotIn(
+                "\ufe0f",
+                st.ascii,
+                f"Stage {stage} ASCII fallback carries U+FE0F: {repr(st.ascii)}",
+            )
+            self.assertNotIn(
+                "\ufe0f",
+                L.glyph_for(stage, unicode=True),
+                f"glyph_for({stage}, unicode=True) carries U+FE0F",
+            )
+            self.assertNotIn(
+                "\ufe0f",
+                L.glyph_for(stage, unicode=False),
+                f"glyph_for({stage}, unicode=False) carries U+FE0F",
+            )
+
+        # 2. Multi-codepoint glyphs: carry U+FE0E (text selector), never U+FE0F
+        self.assertTrue(L.MULTI_CODEPOINT_GLYPHS)
+        for glyph in L.MULTI_CODEPOINT_GLYPHS:
+            self.assertNotIn(
+                "\ufe0f", glyph, f"MULTI_CODEPOINT_GLYPH {repr(glyph)} carries U+FE0F"
+            )
+            self.assertIn(
+                "\ufe0e", glyph, f"MULTI_CODEPOINT_GLYPH {repr(glyph)} missing U+FE0E"
+            )
+
+        # 3. Rendered output: across tiers (256, 16, none) and modes (Unicode, ASCII)
+        for depth in ("256", "16", "none"):
+            for unicode_mode in (True, False):
+                t = term.Term(color=True, unicode=unicode_mode, depth=depth)
+                for stage in L.STAGE_ORDER:
+                    resolved = L.Resolved(
+                        stage=stage, style=L.style_for(stage), family=L.FAMILY_PLANS
+                    )
+                    marker = t.format_lifecycle_marker(resolved)
+                    self.assertNotIn(
+                        "\ufe0f",
+                        marker,
+                        f"format_lifecycle_marker carries U+FE0F for {stage} (depth={depth}, unicode={unicode_mode})",
+                    )
+                    marker_raw = t.format_lifecycle_marker(resolved, style=False)
+                    self.assertNotIn(
+                        "\ufe0f",
+                        marker_raw,
+                        f"format_lifecycle_marker(style=False) carries U+FE0F for {stage}",
+                    )
+                    styled_text = t.style_lifecycle_text(f"text-{stage}", resolved)
+                    self.assertNotIn(
+                        "\ufe0f",
+                        styled_text,
+                        f"style_lifecycle_text carries U+FE0F for {stage} (depth={depth}, unicode={unicode_mode})",
+                    )
+
+
+class CriterionA19WorkKindIndependenceTests(unittest.TestCase):
+    """Spec uonrjg criterion A19: work-kind has no effect on lifecycle resolution or presentation."""
+
+    def test_work_kind_has_no_effect_on_resolution_or_presentation(self):
+        # Part (a): lifecycle_style.resolve accepts no work-kind keyword argument
+        with self.assertRaises(TypeError):
+            L.resolve("backlog", "open", work_kind="bug")  # type: ignore[call-arg]
+
+        # Part (b): resolution produces identical Resolved objects for identical status regardless of caller artifact metadata
+        res_bug = L.resolve("backlog", "open")
+        res_chore = L.resolve("backlog", "open")
+        self.assertEqual(res_bug.stage, res_chore.stage)
+        self.assertEqual(res_bug.style, res_chore.style)
+        self.assertEqual(res_bug.native_status, res_chore.native_status)
+        self.assertEqual(res_bug, res_chore)
+
+        # Part (c): presentation is work-kind-blind at a real consumer (aw find backlog <id6> with FORCE_COLOR=1)
+        with tempfile.TemporaryDirectory() as td:
+            repo_root = Path(td)
+            backlog_open = repo_root / ".aw" / "records" / "backlog" / "open"
+            backlog_open.mkdir(parents=True)
+
+            item_bug = backlog_open / "20261008-tstbug-01-tstbug-defect-item.backlog.md"
+            item_bug.write_text(
+                "- Id: tstbug\n"
+                "- Status: open\n"
+                "- Set: tstbug\n"
+                "- Priority: low\n"
+                "- Work-Kind: bug\n"
+                "- Summary: Defect item summary\n",
+                encoding="utf-8",
+            )
+
+            item_chore = (
+                backlog_open / "20261008-tstchr-01-tstchr-chore-item.backlog.md"
+            )
+            item_chore.write_text(
+                "- Id: tstchr\n"
+                "- Status: open\n"
+                "- Set: tstchr\n"
+                "- Priority: low\n"
+                "- Work-Kind: chore\n"
+                "- Summary: Chore item summary\n",
+                encoding="utf-8",
+            )
+
+            def drive_find(item_id: str) -> str:
+                buf = io.StringIO()
+                with mock.patch.dict(os.environ, {"FORCE_COLOR": "1"}):
+                    with mock.patch("sys.stdout", buf):
+                        rc = cli.main(
+                            ["find", "backlog", item_id, "--dir", str(repo_root)]
+                        )
+                self.assertEqual(
+                    rc, 0, f"aw find backlog {item_id} failed: {buf.getvalue()}"
+                )
+                return buf.getvalue()
+
+            out_bug = drive_find("tstbug")
+            out_chore = drive_find("tstchr")
+
+            token_bug = out_bug.split()[0]
+            token_chore = out_chore.split()[0]
+            self.assertEqual(
+                token_bug,
+                token_chore,
+                f"Lifecycle marker token differed between bug ({repr(token_bug)}) and chore ({repr(token_chore)})",
+            )
+            self.assertEqual(
+                out_bug.split()[1],
+                out_chore.split()[1],
+                "Status word differed between bug and chore output",
+            )
 
 
 if __name__ == "__main__":
