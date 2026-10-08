@@ -1,5 +1,5 @@
 - Id: xqem10
-- Status: graduated
+- Status: done
 - Graduated-To: awinbox
 - Set: awinbox
 - Priority: low
@@ -7,6 +7,7 @@
 - Summary: Decide whether the aw attention inbox waiting-drops count should reach an explicit --agent/--json consumer, given that emitting it as a warning diagnostic inflates a clean record's findings from 0 to 1
 
 ## Workflow history
+- 2026-10-08 done (aw backlog): closed by aw agy run: IPD qp8fn1 executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20261002-awinbox-04-qp8fn1-give-an-explicit-agent-consumer-the-inbox-waiting-drops-coun.ipd.md); evidence .aw/records/plans/executed/20261002-awinbox-04-qp8fn1-give-an-explicit-agent-consumer-the-inbox-waiting-drops-coun.ipd.md
 - 2026-10-02 graduated (aw backlog): graduated by run run-20261001T221821Z-1985969: qp8fn1
 - 2026-09-30 created (aw backlog): Filed as the durable carrier for OQ-02 of plan olmvgw (from backlog an77ub). Owner is the maintainer: it is a question about audience and about what findings means, not about mechanism.
 
