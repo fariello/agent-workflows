@@ -6,7 +6,7 @@
 - Scope: Add behavioral coverage at `tests/test_finidem_reusable_not_finalized.py` that drives the shipped predicate and the shipped driver seam over a synthesized repo, asserting (a) `plan_already_finalized` answers False for a `reusable/` plan and True for an `executed/` one, (b) a receipt-less reusable plan classifies `receipt-never-issued` and NOT `receipt-consumed-already-finalized`, and (c) `runner_shared.finalize_outcome` keeps a nonzero refusal for that plan. Then repoint BOTH dangling citations in `ipd_lifecycle.py` at tests that actually exist. EXCLUDES widening any `aw check` rule to scan source docstrings (owned by `j7daih`), the other 87 dangling source citations measured during authoring (owned by `iosmvn`, `9vfxhn`, and per-path items), and restoring any other class from the deleted file.
 - Scope-Paths: agent_workflows/ipd_lifecycle.py, tests/test_finidem_reusable_not_finalized.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: medium
@@ -16,9 +16,9 @@
 - Highest E allocated: 06
 - Author: opencode/its_direct/pt3-claude-opus-5-1m-us
 - Id: pud8rp
-- Approval: 2026-10-07, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-08 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: pud8rp verified (set tvv8gg, attempt 1).
 - 2026-10-07 approved (aw set): status set to approved
 - 2026-10-07 reviewed (opencode/its_direct/pt3-claude-opus-5.5-1m-us): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-001 (MEDIUM, fixed: E-04/V-04 gain an `executed/` positive contrast at the driver seam so the nonzero assertion cannot pass vacuously), PR-002 (MEDIUM, fixed: gate's unconditional `aw ipd finalize` made conditional on runner ownership), PR-003 (LOW, fixed: E-01/E-05/V-06 name the exact mutation and use `git grep` so the `.pyc` binary match is not counted), PR-004 (LOW, fixed: F-05 purge date corrected to 2026-09-23). Re-measured at HEAD `ca03f0c56`: dead file absent, two `git grep` citation sites, `if bucket != "executed"` present, `/reusable/` in `TERMINAL_DIRECTORY_SEGMENTS`, deletion by `19313eed7`, no surviving reusable+finalize guard; scratch-repo probe gave precheck `(1, receipt-never-issued)`, `finalize_outcome` 1 for reusable and 0 for an `executed/` plan, and under the in-process substitution `(1, receipt-consumed-already-finalized)` with `finalize_outcome` 0.
 
@@ -34,39 +34,39 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: Re-measure before changing anything
 
-- [ ] E-01 RE-DERIVE, at execution HEAD, the five facts this plan rests on, rather than trusting the numbers written here or in the backlog item. (1) That `tests/test_finidem_double_finalize.py` is still absent, and that `git grep -n test_finidem_double_finalize -- agent_workflows tools docs '*.md'` still returns exactly TWO citation sites (use `git grep`, not `grep -rn`: the latter also reports a `binary file matches` line for `agent_workflows/__pycache__/ipd_lifecycle.*.pyc`, which is not a citation) (the `plan_already_finalized` docstring and the `#:` comment above `FINDING_RECEIPT_NEVER_ISSUED`); if the count has changed, correct F-02's scope in writing. (2) That `plan_already_finalized` still keys on the `executed` bucket, by reading its body for the quoted string `if bucket != "executed"`. (3) That `run_selection_policy.TERMINAL_DIRECTORY_SEGMENTS` still contains `/reusable/` and `_IPD_ACTIONS["reusable"]` is still `ACTION_EXECUTE`, since the whole hazard disappears if either changed. (4) WHICH COMMIT deleted the file, via `git log --oneline --all --diff-filter=D -- tests/test_finidem_double_finalize.py`, and whether its subject is the SIZE TRIM (`19313eed7`) or the code-structure-pin deletion (`80db6750c`); authoring measured the former, and if that is wrong then P16 may forbid the restoration shape this plan chose and the plan must stop and report rather than proceeding. (5) That NO surviving test already covers the reusable case, by searching `tests/` for `plan_already_finalized`, for `FINDING_RECEIPT_ALREADY_FINALIZED`, and for `plans/reusable` in combination with `finalize`; authoring measured the only two finding-constant uses in `tests/test_ipd_lifecycle_cli.py` and neither involves a reusable plan. IF A SURVIVING GUARD IS FOUND, STOP AND REPORT: the work then collapses to the citation correction alone and this plan is over-scoped.
+- [x] E-01 RE-DERIVE, at execution HEAD, the five facts this plan rests on, rather than trusting the numbers written here or in the backlog item. (1) That `tests/test_finidem_double_finalize.py` is still absent, and that `git grep -n test_finidem_double_finalize -- agent_workflows tools docs '*.md'` still returns exactly TWO citation sites (use `git grep`, not `grep -rn`: the latter also reports a `binary file matches` line for `agent_workflows/__pycache__/ipd_lifecycle.*.pyc`, which is not a citation) (the `plan_already_finalized` docstring and the `#:` comment above `FINDING_RECEIPT_NEVER_ISSUED`); if the count has changed, correct F-02's scope in writing. (2) That `plan_already_finalized` still keys on the `executed` bucket, by reading its body for the quoted string `if bucket != "executed"`. (3) That `run_selection_policy.TERMINAL_DIRECTORY_SEGMENTS` still contains `/reusable/` and `_IPD_ACTIONS["reusable"]` is still `ACTION_EXECUTE`, since the whole hazard disappears if either changed. (4) WHICH COMMIT deleted the file, via `git log --oneline --all --diff-filter=D -- tests/test_finidem_double_finalize.py`, and whether its subject is the SIZE TRIM (`19313eed7`) or the code-structure-pin deletion (`80db6750c`); authoring measured the former, and if that is wrong then P16 may forbid the restoration shape this plan chose and the plan must stop and report rather than proceeding. (5) That NO surviving test already covers the reusable case, by searching `tests/` for `plan_already_finalized`, for `FINDING_RECEIPT_ALREADY_FINALIZED`, and for `plans/reusable` in combination with `finalize`; authoring measured the only two finding-constant uses in `tests/test_ipd_lifecycle_cli.py` and neither involves a reusable plan. IF A SURVIVING GUARD IS FOUND, STOP AND REPORT: the work then collapses to the citation correction alone and this plan is over-scoped.
   - Depends on: none
   - Expected outcome: a recorded execution-HEAD measurement of all five facts with the HEAD sha stated, each confirmed or corrected in writing, plus an explicit STOP if fact (5) finds existing coverage or fact (4) contradicts the size-trim attribution.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: Restore the guard, which is what makes the citation honest
 
-- [ ] E-02 ADD `tests/test_finidem_reusable_not_finalized.py` with a fixture that synthesizes a scratch git repo (NOT the live checkout) and places a lint-clean completed plan under `.aw/records/plans/reusable/`. Follow the established local pattern rather than inventing one: `tests/test_ipd_lifecycle_cli.py`'s `_init_git` (which also writes the `.gitignore` entry for `.aw/state/` so a receipt never dirties the tree), `_completed_plan_text`, and `_commit_all`. Call `support.declare_execution_role(self)` in `setUp`, as every lifecycle test class in that module does, so the coordinator/worker role does not leak between `-n auto` workers. DO NOT import the private helpers from `test_ipd_lifecycle_cli` across modules; either reuse a shared helper in `tests/support.py` if one already exposes this, or define the fixture locally in the new file, and state in the module docstring which choice was made and why. The fixture is a separate E-item from the assertions because every later item depends on it and a wrong fixture (a plan that does not lint, or a repo with no commit) makes all three assertions fail for reasons unrelated to the property.
+- [x] E-02 ADD `tests/test_finidem_reusable_not_finalized.py` with a fixture that synthesizes a scratch git repo (NOT the live checkout) and places a lint-clean completed plan under `.aw/records/plans/reusable/`. Follow the established local pattern rather than inventing one: `tests/test_ipd_lifecycle_cli.py`'s `_init_git` (which also writes the `.gitignore` entry for `.aw/state/` so a receipt never dirties the tree), `_completed_plan_text`, and `_commit_all`. Call `support.declare_execution_role(self)` in `setUp`, as every lifecycle test class in that module does, so the coordinator/worker role does not leak between `-n auto` workers. DO NOT import the private helpers from `test_ipd_lifecycle_cli` across modules; either reuse a shared helper in `tests/support.py` if one already exposes this, or define the fixture locally in the new file, and state in the module docstring which choice was made and why. The fixture is a separate E-item from the assertions because every later item depends on it and a wrong fixture (a plan that does not lint, or a repo with no commit) makes all three assertions fail for reasons unrelated to the property.
   - Depends on: E-01
   - Expected outcome: the new test file exists with a working scratch-repo fixture that places a completed plan under `reusable/`, and a trivial smoke assertion over it passes.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 ADD to that file the PREDICATE assertions, which are the counterfactual the docstring's warning turns on. Assert all four in the one test: `run_selection_policy.is_in_terminal_directory(<reusable path>)` is True (the rejected predicate ADMITS reusable, which is why it must not be substituted); `_IPD_ACTIONS["reusable"]` equals `ACTION_EXECUTE` (so such a plan is re-dispatched, not complete); `runner_shared.plan_bucket(<reusable path>)` is `"reusable"`; and `ipd_lifecycle.plan_already_finalized(...).already` is False for that path while it is True for a plan placed under `executed/`. Assert the POSITIVE and NEGATIVE cases in the same test so a future edit cannot satisfy it by making the predicate answer False for everything, which is the vacuous-pass failure mode `GUIDING_PRINCIPLES.md` P16 warns about under "Never weaken an assertion so it passes everywhere".
+- [x] E-03 ADD to that file the PREDICATE assertions, which are the counterfactual the docstring's warning turns on. Assert all four in the one test: `run_selection_policy.is_in_terminal_directory(<reusable path>)` is True (the rejected predicate ADMITS reusable, which is why it must not be substituted); `_IPD_ACTIONS["reusable"]` equals `ACTION_EXECUTE` (so such a plan is re-dispatched, not complete); `runner_shared.plan_bucket(<reusable path>)` is `"reusable"`; and `ipd_lifecycle.plan_already_finalized(...).already` is False for that path while it is True for a plan placed under `executed/`. Assert the POSITIVE and NEGATIVE cases in the same test so a future edit cannot satisfy it by making the predicate answer False for everything, which is the vacuous-pass failure mode `GUIDING_PRINCIPLES.md` P16 warns about under "Never weaken an assertion so it passes everywhere".
   - Depends on: E-02
   - Expected outcome: a passing test asserting the reusable/executed discrimination on the shipped predicate plus the two `run_selection_policy` counterfactual facts, with the executed-path case included so the assertion cannot pass vacuously.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 ADD the two CONSEQUENCE assertions, at the two seams the substitution actually damages, because a predicate-only guard would not have caught the real fail-open. FIRST, at the classification seam: `ipd_lifecycle.finalize_precheck(root, <reusable plan>)` returns `EXIT_FINDINGS` with `FINDING_RECEIPT_NEVER_ISSUED` present and `FINDING_RECEIPT_ALREADY_FINALIZED` ABSENT, and leaves the plan file unmoved. SECOND, at the driver seam: feeding that same refusal through `runner_shared.finalize_outcome(root, <reusable plan>, <id6>, code, message)` returns a NONZERO exit code, and `runner_shared.finalize_already_done(...)` is False. PAIR that with a POSITIVE CONTRAST in the same test: for a plan placed under `executed/` in the same scratch repo, `finalize_already_done` is True and `finalize_outcome(..., 1, <msg>)` returns 0, so the nonzero assertion cannot pass vacuously because `finalize_outcome` refuses everything (for example if the existence/containment guards from `1fzist` reject the fixture path). Construct both plan paths under the scratch repo root and pass that root as `repo`, since `finalize_already_done` returns False for a path not contained in `repo`. The second (driver-seam) assertion is the one that matters and is why this is not folded into E-03: authoring measured that under the forbidden substitution `finalize_precheck` still refuses (exit 1, wrong finding) while `finalize_outcome` converts the refusal to exit 0 with "finalize is a NO-OP ... proceeds to integration", so a guard that stopped at the finding tuple would miss the integration-without-authority outcome entirely. Assert on the EXIT CODE and the finding CONSTANTS, never by substring-matching refusal prose.
+- [x] E-04 ADD the two CONSEQUENCE assertions, at the two seams the substitution actually damages, because a predicate-only guard would not have caught the real fail-open. FIRST, at the classification seam: `ipd_lifecycle.finalize_precheck(root, <reusable plan>)` returns `EXIT_FINDINGS` with `FINDING_RECEIPT_NEVER_ISSUED` present and `FINDING_RECEIPT_ALREADY_FINALIZED` ABSENT, and leaves the plan file unmoved. SECOND, at the driver seam: feeding that same refusal through `runner_shared.finalize_outcome(root, <reusable plan>, <id6>, code, message)` returns a NONZERO exit code, and `runner_shared.finalize_already_done(...)` is False. PAIR that with a POSITIVE CONTRAST in the same test: for a plan placed under `executed/` in the same scratch repo, `finalize_already_done` is True and `finalize_outcome(..., 1, <msg>)` returns 0, so the nonzero assertion cannot pass vacuously because `finalize_outcome` refuses everything (for example if the existence/containment guards from `1fzist` reject the fixture path). Construct both plan paths under the scratch repo root and pass that root as `repo`, since `finalize_already_done` returns False for a path not contained in `repo`. The second (driver-seam) assertion is the one that matters and is why this is not folded into E-03: authoring measured that under the forbidden substitution `finalize_precheck` still refuses (exit 1, wrong finding) while `finalize_outcome` converts the refusal to exit 0 with "finalize is a NO-OP ... proceeds to integration", so a guard that stopped at the finding tuple would miss the integration-without-authority outcome entirely. Assert on the EXIT CODE and the finding CONSTANTS, never by substring-matching refusal prose.
   - Depends on: E-03
   - Expected outcome: passing assertions that a receipt-less reusable plan refuses with `receipt-never-issued` (not `receipt-consumed-already-finalized`), stays unmoved, and still carries a nonzero exit code through `finalize_outcome`, alongside the `executed/` contrast for which `finalize_outcome` returns 0.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 PROVE THE GUARD IS SENSITIVE BY MUTATION and record the verbatim output, since an insensitive guard is exactly the hollow pin this plan exists to replace. TEMPORARILY substitute `is_in_terminal_directory` for the `executed`-bucket check in `plan_already_finalized` (the precise substitution its docstring forbids): replace the line `if bucket != "executed":` with `if not run_selection_policy.is_in_terminal_directory(plan_path):` (importing the module locally inside the function), leaving every other line unchanged. Run the new test file, and confirm it FAILS. Then RESTORE and confirm `git status --porcelain agent_workflows/ipd_lifecycle.py` is clean and the test passes again. DO THIS WITH A RESTORING WRAPPER (write the mutation, run, restore in a `finally`), never by hand-editing and remembering to undo it: a mutation left behind would commit the exact fail-open defect this plan forbids. Authoring's run of this measured the predicate flipping to `already=True, bucket='reusable'` and the driver seam flipping from exit 1 to exit 0; record what the test actually reports, because that message is what a future engineer will have to act on.
+- [x] E-05 PROVE THE GUARD IS SENSITIVE BY MUTATION and record the verbatim output, since an insensitive guard is exactly the hollow pin this plan exists to replace. TEMPORARILY substitute `is_in_terminal_directory` for the `executed`-bucket check in `plan_already_finalized` (the precise substitution its docstring forbids): replace the line `if bucket != "executed":` with `if not run_selection_policy.is_in_terminal_directory(plan_path):` (importing the module locally inside the function), leaving every other line unchanged. Run the new test file, and confirm it FAILS. Then RESTORE and confirm `git status --porcelain agent_workflows/ipd_lifecycle.py` is clean and the test passes again. DO THIS WITH A RESTORING WRAPPER (write the mutation, run, restore in a `finally`), never by hand-editing and remembering to undo it: a mutation left behind would commit the exact fail-open defect this plan forbids. Authoring's run of this measured the predicate flipping to `already=True, bucket='reusable'` and the driver seam flipping from exit 1 to exit 0; record what the test actually reports, because that message is what a future engineer will have to act on.
   - Depends on: E-04
   - Expected outcome: pasted evidence of the new test failing under the injected substitution and passing after restoration, a clean `git status --porcelain` for the mutated path, and the verbatim failure message.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: Correct the citations the guard now backs
 
-- [ ] E-06 REPLACE BOTH dangling citations of `tests/test_finidem_double_finalize.py` in `agent_workflows/ipd_lifecycle.py`, and run the full fast suite. (a) In `plan_already_finalized`'s docstring, the sentence asserting that `tests/test_finidem_double_finalize.ReusablePlanIsNotAlreadyFinalized` "fails if the substitution is ever made" must name the new file and the test within it that E-05 proved sensitive. (b) In the `#:` comment above `FINDING_RECEIPT_NEVER_ISSUED`, the claim that the finding ids are "pinned distinct by `tests/test_finidem_double_finalize.py`" must EITHER name a surviving test that genuinely asserts their distinctness OR be rewritten to drop the pin claim; authoring found no surviving distinctness assertion, so do not repoint it at a test that does not make that assertion, which would recreate this defect in a new place. PRESERVE every other sentence in both comment blocks verbatim, in particular the OQ-02 fail-closed rationale and the "COMMIT IS CORROBORATION, NOT A REQUIREMENT" paragraph: this item changes citations, not the module's documented design. THEN run the full fast suite BARE as `python3 -m pytest` with no added flags, since `pyproject.toml`'s `addopts` already supplies `-q -n auto --dist=worksteal`; if any failure appears, re-run the same selection at the base commit before attributing it to this change and report the comparison either way.
+- [x] E-06 REPLACE BOTH dangling citations of `tests/test_finidem_double_finalize.py` in `agent_workflows/ipd_lifecycle.py`, and run the full fast suite. (a) In `plan_already_finalized`'s docstring, the sentence asserting that `tests/test_finidem_double_finalize.ReusablePlanIsNotAlreadyFinalized` "fails if the substitution is ever made" must name the new file and the test within it that E-05 proved sensitive. (b) In the `#:` comment above `FINDING_RECEIPT_NEVER_ISSUED`, the claim that the finding ids are "pinned distinct by `tests/test_finidem_double_finalize.py`" must EITHER name a surviving test that genuinely asserts their distinctness OR be rewritten to drop the pin claim; authoring found no surviving distinctness assertion, so do not repoint it at a test that does not make that assertion, which would recreate this defect in a new place. PRESERVE every other sentence in both comment blocks verbatim, in particular the OQ-02 fail-closed rationale and the "COMMIT IS CORROBORATION, NOT A REQUIREMENT" paragraph: this item changes citations, not the module's documented design. THEN run the full fast suite BARE as `python3 -m pytest` with no added flags, since `pyproject.toml`'s `addopts` already supplies `-q -n auto --dist=worksteal`; if any failure appears, re-run the same selection at the base commit before attributing it to this change and report the comparison either way.
   - Depends on: E-05
   - Expected outcome: no occurrence of `test_finidem_double_finalize` remains anywhere in `agent_workflows/ipd_lifecycle.py`, each replacement names a test that exists and actually asserts the cited property, unrelated prose is byte-unchanged, and a bare full-suite run's `N passed` summary is captured.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -102,10 +102,15 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 ## Deferred / out of scope (with reason)
 
 - WIDENING `aw check` TO SCAN SOURCE DOCSTRINGS for dangling test citations. Backlog `j7daih` ("Add check rule preventing live source comments from citing nonexistent test files") owns this and explicitly sequences it "once the baseline cleanup is complete". This plan is one unit of that baseline cleanup, so implementing the rule here would both collide with `j7daih` and fire on the 87 citations this plan does not fix.
+  - Carrier: j7daih
 - THE OTHER 87 DANGLING CITATIONS measured across 29 files in `agent_workflows/`. Owned by rollup `iosmvn` (trim-attributable, unowned paths), `9vfxhn` (non-trim deletion events), and dedicated per-path items. `tools/lost_guard_census.py --dedupe` names a distinct owner for this basename, and the established repository pattern is a per-item fix.
+  - Carrier: iosmvn, 9vfxhn
 - RESTORING THE OTHER CLASSES from the deleted file (`TheSecondFinalizeOfTheSamePlan`, `PlanAlreadyFinalizedPredicate`, `BothHostsDriverFinalizeIsIdempotent`, `TheWorkerRoleCannotDelegateAroundTheGuard`, and others). The item scopes itself to "the reusable-plan half" and those classes assert different properties; restoring roughly 30 tests would also re-add bulk the `19313eed7` trim deliberately removed. A reviewer who wants them should file a separate item.
+  - Carrier-Declined: Out of scope; backlog tvv8gg scopes to the reusable-plan half and restoring ~30 tests would re-add bulk the 19313eed7 trim removed.
 - ADDING A DISTINCTNESS TEST for the `FINDING_RECEIPT_*` constants. E-06(b) permits REWRITING that comment to drop its unproven pin claim rather than authoring new coverage, because the item's scope is the reusable-plan guard. Authoring found no surviving distinctness assertion; creating one is a legitimate follow-up but is not what this item asks for.
+  - Carrier-Declined: Out of scope; E-06(b) dropped the unproven pin claim from the comment rather than authoring new coverage.
 - TOUCHING `runner_shared.finalize_already_done`'s existence/containment guards. Plan `1fzist` (`rfhiu2-01`) owns that adjacent hole, and the item records that it "deliberately does NOT touch `plan_already_finalized`". E-04 only READS `finalize_outcome` as an assertion target and changes nothing there.
+  - Carrier-Evidence: .aw/records/plans/executed/20260930-rfhiu2-01-1fzist-refuse-a-finalize-against-a-plan-path-the-runner-knows-may-b.ipd.md
 
 ## Scope check
 
@@ -143,35 +148,249 @@ N/A with reason. This plan changes two source comments and adds one test file. I
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: The execution HEAD sha, plus pasted command output for each of the five facts: the `ls` of the dead file, the `git grep` citation count, the `executed`-bucket read, the `TERMINAL_DIRECTORY_SEGMENTS` / `_IPD_ACTIONS["reusable"]` values, the `git log --diff-filter=D` deletion attribution, and the three surviving-coverage searches. Each fact must be explicitly marked CONFIRMED or CORRECTED. If fact (5) found surviving coverage or fact (4) contradicted the size-trim attribution, the evidence must show the plan STOPPED.
   - Observed evidence:
-  - Result: pending
+    Execution HEAD: `1230315a42414f1f2685817b00bb3c539d642212`
 
-- [ ] V-02 validates E-02
+    Fact (1): Dead file absent and citation count:
+    ```
+    $ ls tests/test_finidem_double_finalize.py 2>&1 || true
+    ls: cannot access 'tests/test_finidem_double_finalize.py': No such file or directory
+
+    $ git grep -n test_finidem_double_finalize -- agent_workflows tools docs '*.md'
+    agent_workflows/ipd_lifecycle.py:1378:#: (`ROLLUP_REFUSED_*`), and pinned distinct by `tests/test_finidem_double_finalize.py`.
+    agent_workflows/ipd_lifecycle.py:1449:    looks safest. ``tests/test_finidem_double_finalize.ReusablePlanIsNotAlreadyFinalized`` fails if
+    ```
+    CONFIRMED: dead file absent; exactly two source citation sites in `agent_workflows/ipd_lifecycle.py`.
+
+    Fact (2): Executed-bucket key in plan_already_finalized:
+    `agent_workflows/ipd_lifecycle.py` line 1467 contains: `if bucket != "executed":`
+    CONFIRMED: plan_already_finalized keys on bucket != "executed".
+
+    Fact (3): Terminal directory segments and reusable action:
+    ```
+    $ python3 -c 'from agent_workflows import run_selection_policy as rsp; print("TERMINAL_DIRECTORY_SEGMENTS:", rsp.TERMINAL_DIRECTORY_SEGMENTS); print("reusable in TERMINAL_DIRECTORY_SEGMENTS:", "/reusable/" in rsp.TERMINAL_DIRECTORY_SEGMENTS); print("_IPD_ACTIONS reusable:", rsp._IPD_ACTIONS.get("reusable")); print("ACTION_EXECUTE:", rsp.ACTION_EXECUTE)'
+    TERMINAL_DIRECTORY_SEGMENTS: ('/executed/', '/superseded/', '/not-executed/', '/reusable/')
+    reusable in TERMINAL_DIRECTORY_SEGMENTS: True
+    _IPD_ACTIONS reusable: execute
+    ACTION_EXECUTE: execute
+    ```
+    CONFIRMED: TERMINAL_DIRECTORY_SEGMENTS contains /reusable/ and _IPD_ACTIONS["reusable"] is ACTION_EXECUTE.
+
+    Fact (4): Commit that deleted tests/test_finidem_double_finalize.py:
+    ```
+    $ git log --oneline --all --diff-filter=D -- tests/test_finidem_double_finalize.py
+    19313eed7 test: trim test suite from 9,136 to under 2,000 tests
+    ```
+    CONFIRMED: deleted by 19313eed7 (size trim), not 80db6750c (code structure pin deletion).
+
+    Fact (5): Surviving coverage check in tests/:
+    ```
+    $ git grep -n plan_already_finalized -- tests
+    tests/test_ipd_lifecycle_cli.py:1706:        # Must reach this state through a REAL CLEAN finalize (exercising plan_already_finalized)
+    $ git grep -n FINDING_RECEIPT_ALREADY_FINALIZED -- tests
+    tests/test_ipd_lifecycle_cli.py:1721:        self.assertIn(LC.FINDING_RECEIPT_ALREADY_FINALIZED, findings)
+    $ git grep -n "plans/reusable" -- tests
+    tests/test_check_engine.py:1096:                    ".aw/records/plans/reusable/20260101-demo-01-aaa111-ok.ipd.md",
+    tests/test_check_engine.py:1102:            root_reuse / ".aw/records/plans/reusable/20260101-demo-01-aaa111-ok.ipd.md"
+    tests/test_run_selection_policy.py:1137:        ".aw/records/plans/reusable/20260101-s1-01-aaa111-x.ipd.md",
+    tests/test_run_summary_table.py:70:        p7 = Path(".aw/records/plans/reusable/20260901-test-01-abc123-slug.ipd.md")
+    ```
+    CONFIRMED: no surviving test covers the reusable plan case with finalize; no stop condition triggered.
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: The new file's path and module docstring, showing the stated choice between reusing a `tests/support.py` helper and defining the fixture locally. Pasted output of a run of the new file showing the fixture builds a scratch repo with the plan at a `.aw/records/plans/reusable/` path, and showing the plan lints clean at the pre-transition checkpoint (or an explicit statement of why a lint-clean plan is not required for these assertions).
   - Observed evidence:
-  - Result: pending
+    Path: `tests/test_finidem_reusable_not_finalized.py`
+    Module docstring fixture choice statement:
+    "Fixture choice:
+    Reuses `tests.support.declare_execution_role` (to declare the coordinator role and prevent role
+    leakage across `-n auto` workers) and `tests.support.ready_plan_text`.
+    Local fixture helpers (`_init_git`, `_completed_plan_text`, `_commit_all`, and `_write_plan`)
+    are defined locally in this module rather than importing private helpers from
+    `test_ipd_lifecycle_cli` across modules, ensuring proper repository initialization,
+    git configuration, `.aw/state/` gitignore isolation, and lint-clean pre-transition plans."
 
-- [ ] V-03 validates E-03
+    Test output verifying scratch repo build and lint-clean pre-transition reusable plan:
+    ```
+    $ python3 -m unittest tests.test_finidem_reusable_not_finalized.ReusablePlanIsNotAlreadyFinalized.test_scratch_fixture_plan_lints_clean_pre_transition -v
+    test_scratch_fixture_plan_lints_clean_pre_transition (tests.test_finidem_reusable_not_finalized.ReusablePlanIsNotAlreadyFinalized.test_scratch_fixture_plan_lints_clean_pre_transition)
+    Smoke test verifying the fixture builds a scratch repo with a lint-clean reusable plan. ... ok
+
+    ----------------------------------------------------------------------
+    Ran 1 test in 0.117s
+
+    OK
+    ```
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: Pasted passing output of the predicate test, plus the asserted values: `is_in_terminal_directory` True for the reusable path, `_IPD_ACTIONS["reusable"]` equal to `ACTION_EXECUTE`, `plan_bucket` `"reusable"`, `plan_already_finalized(...).already` False for reusable AND True for the `executed/` path. The executed-path assertion must be visibly present, since it is what rules out a vacuous pass.
   - Observed evidence:
-  - Result: pending
+    ```
+    $ python3 -m unittest tests.test_finidem_reusable_not_finalized.ReusablePlanIsNotAlreadyFinalized.test_is_in_terminal_directory_admits_reusable_so_it_is_NOT_the_predicate -v
+    test_is_in_terminal_directory_admits_reusable_so_it_is_NOT_the_predicate (tests.test_finidem_reusable_not_finalized.ReusablePlanIsNotAlreadyFinalized.test_is_in_terminal_directory_admits_reusable_so_it_is_NOT_the_predicate)
+    Predicate assertions (E-03): run_selection_policy counterfactual and bucket discrimination. ... ok
 
-- [ ] V-04 validates E-04
+    ----------------------------------------------------------------------
+    Ran 1 test in 0.124s
+
+    OK
+    ```
+    Asserted values verified:
+    - `RSP.is_in_terminal_directory(self.reusable_plan)` is True
+    - `RSP._IPD_ACTIONS.get("reusable") == RSP.ACTION_EXECUTE` ('execute')
+    - `RS.plan_bucket(self.reusable_plan) == "reusable"`
+    - `LC.plan_already_finalized(self.root, self.reusable_plan, self.REUSABLE_ID).already` is False
+    - `LC.plan_already_finalized(self.root, self.executed_plan, self.EXECUTED_ID).already` is True (executed contrast present)
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: Pasted passing output showing, for the receipt-less reusable plan, that `finalize_precheck` returned `EXIT_FINDINGS` with `FINDING_RECEIPT_NEVER_ISSUED` present and `FINDING_RECEIPT_ALREADY_FINALIZED` absent, that the plan file is still at its original path, that `finalize_already_done` is False, and that `finalize_outcome` returned a NONZERO code; plus the `executed/` contrast assertions (`finalize_already_done` True, `finalize_outcome` 0) visibly present in the same test. Evidence must also show the assertions reference the finding CONSTANTS rather than matching refusal prose.
   - Observed evidence:
-  - Result: pending
+    ```
+    $ python3 -m unittest tests.test_finidem_reusable_not_finalized.ReusablePlanIsNotAlreadyFinalized.test_reusable_without_receipt_refuses_at_precheck_and_driver_seam -v
+    test_reusable_without_receipt_refuses_at_precheck_and_driver_seam (tests.test_finidem_reusable_not_finalized.ReusablePlanIsNotAlreadyFinalized.test_reusable_without_receipt_refuses_at_precheck_and_driver_seam)
+    Consequence assertions (E-04): classification seam and driver seam with executed contrast. ... ok
 
-- [ ] V-05 validates E-05
+    ----------------------------------------------------------------------
+    Ran 1 test in 0.125s
+
+    OK
+    ```
+    Asserted values verified:
+    - `LC.finalize_precheck(self.root, self.reusable_plan)` code is `EXIT_FINDINGS` (1)
+    - `LC.FINDING_RECEIPT_NEVER_ISSUED` present in findings
+    - `LC.FINDING_RECEIPT_ALREADY_FINALIZED` absent from findings
+    - `self.reusable_plan.is_file()` is True and bytes match before-call snapshot (plan unmoved)
+    - `RS.finalize_already_done(self.root, self.reusable_plan, self.REUSABLE_ID)` is False
+    - `RS.finalize_outcome(...)` returns nonzero code (1)
+    - Positive contrast: `RS.finalize_already_done(self.root, self.executed_plan, self.EXECUTED_ID)` is True
+    - Positive contrast: `RS.finalize_outcome(self.root, self.executed_plan, self.EXECUTED_ID, 1, ...)` returns exit 0
+    - Assertions reference constants `LC.FINDING_RECEIPT_NEVER_ISSUED`, `LC.FINDING_RECEIPT_ALREADY_FINALIZED`, and exit code `LC.EXIT_FINDINGS`, matching no prose substrings.
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: Pasted output of the new test file FAILING with the substitution injected, including the verbatim failure message; pasted output of it PASSING after restoration; and `git status --porcelain agent_workflows/ipd_lifecycle.py` showing empty output after the mutation was reverted. Evidence must show the mutation was applied and reverted by a restoring wrapper (the `finally` branch ran), not by hand.
   - Observed evidence:
-  - Result: pending
+    Restoring wrapper executed:
+    ```python
+    target = Path("agent_workflows/ipd_lifecycle.py")
+    orig_bytes = target.read_bytes()
+    orig_text = orig_bytes.decode("utf-8")
+    needle = "    bucket = _rs.plan_bucket(plan_path)\n    if bucket != \"executed\":"
+    replacement = "    bucket = _rs.plan_bucket(plan_path)\n    from agent_workflows import run_selection_policy\n    if not run_selection_policy.is_in_terminal_directory(plan_path):"
+    mutated_text = orig_text.replace(needle, replacement, 1)
+    try:
+        target.write_text(mutated_text, encoding="utf-8")
+        proc = subprocess.run(["python3", "-m", "unittest", "tests/test_finidem_reusable_not_finalized.py", "-v"], capture_output=True, text=True)
+    finally:
+        target.write_bytes(orig_bytes)
+    ```
 
-- [ ] V-06 validates E-06
+    Verbatim failure output under mutation:
+    ```
+    test_is_in_terminal_directory_admits_reusable_so_it_is_NOT_the_predicate (tests.test_finidem_reusable_not_finalized.ReusablePlanIsNotAlreadyFinalized.test_is_in_terminal_directory_admits_reusable_so_it_is_NOT_the_predicate)
+    Predicate assertions (E-03): run_selection_policy counterfactual and bucket discrimination. ... FAIL
+    test_reusable_without_receipt_refuses_at_precheck_and_driver_seam (tests.test_finidem_reusable_not_finalized.ReusablePlanIsNotAlreadyFinalized.test_reusable_without_receipt_refuses_at_precheck_and_driver_seam)
+    Consequence assertions (E-04): classification seam and driver seam with executed contrast. ... FAIL
+    test_scratch_fixture_plan_lints_clean_pre_transition (tests.test_finidem_reusable_not_finalized.ReusablePlanIsNotAlreadyFinalized.test_scratch_fixture_plan_lints_clean_pre_transition)
+    Smoke test verifying the fixture builds a scratch repo with a lint-clean reusable plan. ... ok
+
+    ======================================================================
+    FAIL: test_is_in_terminal_directory_admits_reusable_so_it_is_NOT_the_predicate (tests.test_finidem_reusable_not_finalized.ReusablePlanIsNotAlreadyFinalized.test_is_in_terminal_directory_admits_reusable_so_it_is_NOT_the_predicate)
+    Predicate assertions (E-03): run_selection_policy counterfactual and bucket discrimination.
+    ----------------------------------------------------------------------
+    Traceback (most recent call last):
+      File "tests/test_finidem_reusable_not_finalized.py", line 149, in test_is_in_terminal_directory_admits_reusable_so_it_is_NOT_the_predicate
+        self.assertFalse(
+            reusable_verdict.already,
+            "reusable plan must NOT be reported as already finalized",
+        )
+    AssertionError: True is not false : reusable plan must NOT be reported as already finalized
+
+    ======================================================================
+    FAIL: test_reusable_without_receipt_refuses_at_precheck_and_driver_seam (tests.test_finidem_reusable_not_finalized.ReusablePlanIsNotAlreadyFinalized.test_reusable_without_receipt_refuses_at_precheck_and_driver_seam)
+    Consequence assertions (E-04): classification seam and driver seam with executed contrast.
+    ----------------------------------------------------------------------
+    Traceback (most recent call last):
+      File "tests/test_finidem_reusable_not_finalized.py", line 169, in test_reusable_without_receipt_refuses_at_precheck_and_driver_seam
+        self.assertIn(
+            LC.FINDING_RECEIPT_NEVER_ISSUED,
+            findings,
+            "a receipt-less reusable plan must classify as receipt-never-issued",
+        )
+    AssertionError: 'receipt-never-issued' not found in ('receipt-consumed-already-finalized',) : a receipt-less reusable plan must classify as receipt-never-issued
+
+    ----------------------------------------------------------------------
+    Ran 3 tests in 0.354s
+
+    FAILED (failures=2)
+    ```
+
+    Post-restoration git status check:
+    ```
+    $ git status --porcelain agent_workflows/ipd_lifecycle.py
+    (empty output)
+    ```
+
+    Post-restoration test run output:
+    ```
+    Ran 3 tests in 0.681s
+
+    OK
+    ```
+  - Result: pass
+
+- [x] V-06 validates E-06
   - Required evidence: Pasted output of `git grep -n test_finidem_double_finalize -- agent_workflows` returning nothing (exit 1), plus the before/after text of both edited comment blocks showing each new citation names a path that `ls` resolves and that unrelated sentences (the OQ-02 fail-closed rationale, the corroboration-not-requirement paragraph) are unchanged. For branch (b), evidence must show EITHER the named test asserting distinctness OR that the pin claim was dropped. Plus the bare `python3 -m pytest` summary line with its `N passed` count, and for any failure a comparison run at the base commit attributing it as pre-existing or caused.
   - Observed evidence:
-  - Result: pending
+    ```
+    $ git grep -n test_finidem_double_finalize -- agent_workflows; echo "exit code: $?"
+    exit code: 1
+    ```
+
+    Comment block 1 (`agent_workflows/ipd_lifecycle.py:1376-1378`):
+    Before:
+    ```python
+    #: The three DISTINCT finding ids a caller branches on, so no one has to match refusal PROSE. Kept as
+    #: separate module constants (not an enum) to match the finding vocabulary already in this module
+    #: (`ROLLUP_REFUSED_*`), and pinned distinct by `tests/test_finidem_double_finalize.py`.
+    ```
+    After:
+    ```python
+    #: The three DISTINCT finding ids a caller branches on, so no one has to match refusal PROSE. Kept as
+    #: separate module constants (not an enum) to match the finding vocabulary already in this module
+    #: (`ROLLUP_REFUSED_*`).
+    ```
+    Branch (b) dropped the unproven pin claim rather than inventing false citations; OQ-02 fail-closed rationale is preserved verbatim.
+
+    Comment block 2 (`agent_workflows/ipd_lifecycle.py:1449-1450`):
+    Before:
+    ```python
+        looks safest. ``tests/test_finidem_double_finalize.ReusablePlanIsNotAlreadyFinalized`` fails if
+        the substitution is ever made.
+    ```
+    After:
+    ```python
+        looks safest. ``tests/test_finidem_reusable_not_finalized.ReusablePlanIsNotAlreadyFinalized`` fails if
+        the substitution is ever made.
+    ```
+    Replacement path resolves:
+    ```
+    $ ls tests/test_finidem_reusable_not_finalized.py
+    tests/test_finidem_reusable_not_finalized.py
+    ```
+    "COMMIT IS CORROBORATION, NOT A REQUIREMENT" paragraph and OQ-02 fail-closed rationale preserved verbatim.
+
+    Bare pytest full-suite run output:
+    ```
+    $ python3 -m pytest
+    6460 passed, 2 skipped, 3 warnings in 461.30s (0:07:41)
+    ```
+  - Result: pass
 
 ## Approval and execution gate
 

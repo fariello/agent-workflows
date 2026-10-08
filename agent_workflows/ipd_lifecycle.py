@@ -1375,7 +1375,7 @@ def read_receipt(repo_root: Path, plan_id: str) -> Optional[Dict[str, Any]]:
 
 #: The three DISTINCT finding ids a caller branches on, so no one has to match refusal PROSE. Kept as
 #: separate module constants (not an enum) to match the finding vocabulary already in this module
-#: (`ROLLUP_REFUSED_*`), and pinned distinct by `tests/test_finidem_double_finalize.py`.
+#: (`ROLLUP_REFUSED_*`).
 FINDING_RECEIPT_NEVER_ISSUED = "receipt-never-issued"
 FINDING_RECEIPT_ALREADY_FINALIZED = "receipt-consumed-already-finalized"
 
@@ -1446,7 +1446,7 @@ def plan_already_finalized(
     ``/reusable/`` path. Keying on it would therefore make EVERY reusable-plan run read a
     never-issued receipt as "already finalized" and proceed with no execution authority at all - the
     exact fail-open inversion this classification exists to avoid, delivered by the predicate that
-    looks safest. ``tests/test_finidem_double_finalize.ReusablePlanIsNotAlreadyFinalized`` fails if
+    looks safest. ``tests/test_finidem_reusable_not_finalized.ReusablePlanIsNotAlreadyFinalized`` fails if
     the substitution is ever made.
 
     THE COMMIT IS CORROBORATION, NOT A REQUIREMENT, and the asymmetry is deliberate. A plan can sit in
