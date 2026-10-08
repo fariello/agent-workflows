@@ -38,6 +38,7 @@ from agent_workflows import artifact_core as core
 from agent_workflows import artifact_naming as _naming
 from agent_workflows.artifact_types import EXIT_CANNOT_RUN
 from agent_workflows import attention_contract as A
+from agent_workflows import check_engine as _ce
 from agent_workflows import ipd_schema as _schema
 from agent_workflows import lifecycle_style as LS
 from agent_workflows import plans as plans_mod
@@ -4333,12 +4334,17 @@ def run(args) -> int:
             else f"{len(drift)} finding(s) detected across {len(items)} items"
         )
         if ctx.is_agent or ctx.is_json:
+            # nwcf8j E-03: Read each drift's real severity via check_engine.enrich_drift(d).severity or "error".
+            # Note: all eleven attention.* rules are currently unregistered in RULE_REGISTRY (deferred to 1urnej),
+            # so artifact drift enriches to "error". The enriched read queries the central authority, preserving
+            # stamped non-error severities (such as attention.lane-superseded -> "info") and making future rule
+            # registrations a registry edit rather than a code change here.
             diagnostics = [
                 Diagnostic(
                     location=d.location,
                     rule=d.rule,
                     detail=d.detail,
-                    severity="error",
+                    severity=_ce.enrich_drift(d).severity or "error",
                 )
                 for d in drift
             ]
@@ -4416,12 +4422,13 @@ def run(args) -> int:
             )
             for notice in order_notices
         ]
+        # nwcf8j E-03: Read each drift's real severity via check_engine.enrich_drift(d).severity or "error".
         diagnostics = notice_diagnostics + [
             Diagnostic(
                 location=d.location,
                 rule=d.rule,
                 detail=d.detail,
-                severity="error",
+                severity=_ce.enrich_drift(d).severity or "error",
             )
             for d in drift
         ]
@@ -4583,8 +4590,6 @@ def run(args) -> int:
         gate_warnings = []
         if run_gate_warnings:
             try:
-                from agent_workflows import check_engine as _ce
-
                 gate_warnings = _ce.release_gate_warnings(repo_root)
                 if selectors_arg and gate_warnings:
                     selected_paths = {(repo_root / it.path).resolve() for it in items}

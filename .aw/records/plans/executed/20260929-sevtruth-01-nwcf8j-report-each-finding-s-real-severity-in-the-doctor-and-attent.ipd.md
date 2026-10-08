@@ -6,7 +6,7 @@
 - Scope: IN: (a) making the `aw doctor` summary line's finding buckets EXHAUSTIVE so no finding is silently excluded from the count a human reads, at both sites that compute it; (b) making `aw attention`'s machine diagnostics carry each drift's REAL severity instead of a hardcoded `"error"`, at both sites that build them; (c) a behavior test module pinning both properties, because F-06 measured that neither has a test caller today. OUT: the `cli._run_check` `startswith("warn")` tally, which is backlog `zosk0a`'s and pending plan `tzjtg4`'s, is DELIBERATELY not touched here (F-02); this plan declares an `Item-Dependencies` edge on it rather than racing it. Also OUT: any change to `artifact_core.drift_exit_code` (already correct, and the reason exit codes are right while displays are wrong, F-07); any change to a registered severity in `check_engine.RULE_REGISTRY` (the registry is the authority this plan starts trusting); `leak_sanitizer`'s separate `fail`/`warn` vocabulary and its raw rendering in doctor (F-08, carried); and the VOLUME of the `aw check plans` diagnostics list (backlog `ct1n04`).
 - Scope-Paths: agent_workflows/doctor.py, agent_workflows/attention.py, tests/test_severity_truth_surfaces.py
 - Item-Dependencies: executed:tzjtg4
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -17,9 +17,9 @@
 - Highest E allocated: 06
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: nwcf8j
-- Approval: 2026-09-30, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-08 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: nwcf8j verified (set sevtruth, attempt 1).
 - 2026-09-30 approved (aw set): status set to approved
 
 - 2026-09-30 reviewed (opencode/its_direct/pt3-claude-opus-5-1m-us): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-001..PR-005 all FIXED, zero deferred, zero open. EVERY DEFECT THIS PLAN CLAIMS REPRODUCES, re-derived independently at HEAD `abb1fa51`: the `startswith("warn")` pair is the only such site in the package and `aw check specs` still renders `CONFORMS` beside `errors 1 warnings 0` at exit 0; the doctor summary is still non-exhaustive (`N=117 g=0 m=58 v=0`, remainder 59, residue 35/17/7) and the `doctor.name` clause still matches zero drift; `stranded_lane_drift` still yields `attention.lane-superseded` at `info` while `attention --check --json` renders all five diagnostics as `error` at exit 1; `drift_exit_code` is still correct; and neither surface has a test. THE PLAN'S OWN STALE-NUMBER WARNING VALIDATED ITSELF: every live figure moved in one day (doctor 87->117, names 24->58, registry 52->56 rules) while every defect held. PR-001 (HIGH): E-03 named two read idioms as interchangeable and they are NOT. Measured, a bare `d.severity or "error"` returns `error` for a registered non-`error` rule carrying an empty severity while `enrich_drift(d).severity` returns the registry's `info`; since attention's artifact drift IS the empty-severity case, the bare form would keep guessing on exactly the data this plan exists to fix. E-03 and V-03 now mandate the enriched form and V-03 fails a diff using the bare one. PR-002 (HIGH): E-04's and E-05's fixtures would both have passed before AND after the fix. A bare `init_repo` fixture renders `5 finding(s) (git: 0, names: 4, version: 1)` which SUMS EXACTLY, so count conservation pins nothing; planting one `outcome: adopted` research doc with empty `consumed-by` yields a remainder of 2 and a red test. Worse for E-05: a fixture created inside this checkout reported FIVE of the REAL repository's lanes, because `_resolve_runs_repo_root` walks parents for a `state_root` when the path contains `.aw/worktrees`, so a "fixture" test could go green by reading the live tree; the same fixture under `/tmp` correctly reports zero diagnostics. Both recipes are now in the items, with F-11 and F-13 recording the measurements. PR-003 (MEDIUM): the attention half is smaller than the plan implies. ALL ELEVEN `attention.*` rule ids are unregistered, so `enrich_drift` cannot lower any artifact-drift severity and the fix is demonstrable only on stamped lane severities; recorded as F-10, stated in the gate and in the honest-limits section, and V-03 now fails a claim that the fix was proven across all attention drift. PR-004 (MEDIUM): `render_human_report` carries a THIRD rule-name bucket expression (`env_findings`), which is a section filter making no completeness claim; E-02 now names it out of bounds so "one shared classifier" is not read as licence to unify it (F-12). PR-005 (MEDIUM): F-02, OQ-01, the gate and V-06 all asserted that `tzjtg4` "undertakes to close `xqm16x`" and that a race would be harmless. `tzjtg4`'s own review REMOVED that instruction as a BLOCKER, measuring that the close would succeed and silently discharge THIS plan's release gate; its review record explicitly routed the reciprocal correction here. All four sites corrected: this plan is the single legitimate closer, `xqm16x` is the broader item rather than a duplicate, and an already-closed item is now a finding to report. Findings and decisions D-1..D-5 in `.aw/records/reviews/20260929-sevtruth-01-nwcf8j-report-each-finding-s-real-severity-in-the-doctor-and-attent.review.md`.
@@ -36,48 +36,49 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: Confirm the premise, including who owns what
 
-- [ ] E-01 Re-measure both defects at the execution base and re-confirm the ownership split, so this plan neither builds on a stale premise nor collides with `tzjtg4`. Run `python3 -m agent_workflows doctor` and capture the `aw doctor: N finding(s) (git: G, names: M, version: V)` line; independently compute the same buckets over `doctor.collect_doctor_report(repo).all_drift` and report `N - (G+M+V)`. Run `python3 -m agent_workflows attention --check --json` and list each diagnostic's `rule` beside its rendered `severity`, and separately list `attention.stranded_lane_drift(repo)`'s rules beside their real `severity`. Then confirm the ownership boundary still holds: `git grep -n 'startswith("warn")' -- agent_workflows/` and check whether plan `tzjtg4` is still in `.aw/records/plans/pending/`.
+- [x] E-01 Re-measure both defects at the execution base and re-confirm the ownership split, so this plan neither builds on a stale premise nor collides with `tzjtg4`. Run `python3 -m agent_workflows doctor` and capture the `aw doctor: N finding(s) (git: G, names: M, version: V)` line; independently compute the same buckets over `doctor.collect_doctor_report(repo).all_drift` and report `N - (G+M+V)`. Run `python3 -m agent_workflows attention --check --json` and list each diagnostic's `rule` beside its rendered `severity`, and separately list `attention.stranded_lane_drift(repo)`'s rules beside their real `severity`. Then confirm the ownership boundary still holds: `git grep -n 'startswith("warn")' -- agent_workflows/` and check whether plan `tzjtg4` is still in `.aw/records/plans/pending/`.
   - Depends on: none
   - Expected outcome: the doctor summary line is shown to EXCLUDE findings (a nonzero unbucketed remainder), and at least one attention diagnostic is shown rendering `error` for drift whose real severity is not `error`. The `startswith("warn")` pair is confirmed to live ONLY in `cli.py`, which this plan does not touch. STOP AND REPORT if the unbucketed remainder is 0 AND no attention diagnostic misreports, because both defects would then be already fixed and this plan is moot. STOP AND REPORT if `tzjtg4` has been retired unexecuted, since the `Item-Dependencies` edge would then never be satisfiable and a human must decide whether this plan absorbs the `cli.py` fix.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: Make the doctor summary account for every finding
 
-- [ ] E-02 Make the `aw doctor` summary line's buckets EXHAUSTIVE, so the count a human reads cannot silently omit findings. The bucket expressions are DUPLICATED verbatim in `doctor.render_human_report` and `doctor.inspect_repo` (the `g` / `m` / `version-` triple in each); fix BOTH, and prefer extracting one shared helper over editing two copies, since a duplicated classifier is what let this drift unnoticed (GUIDING_PRINCIPLES P8, one definition). Add an explicit OTHER bucket carrying everything the named prefixes do not match, and render it only when nonzero so a clean repo's line is unchanged. Do NOT invent new prefix rules to make specific rules land in `git`/`names`/`version`: the point is that the residue is VISIBLE, not that it is reclassified. Also remove or correct the `d.rule.startswith("doctor.name")` clause, which F-04 measured matches NOTHING (no site emits a `doctor.name*` rule; the name findings arrive as `check.name-nonconformant` and the adjacent `check.` clause is what actually catches them); if you keep it, say why in a comment rather than leaving a dead test in place.
+- [x] E-02 Make the `aw doctor` summary line's buckets EXHAUSTIVE, so the count a human reads cannot silently omit findings. The bucket expressions are DUPLICATED verbatim in `doctor.render_human_report` and `doctor.inspect_repo` (the `g` / `m` / `version-` triple in each); fix BOTH, and prefer extracting one shared helper over editing two copies, since a duplicated classifier is what let this drift unnoticed (GUIDING_PRINCIPLES P8, one definition). Add an explicit OTHER bucket carrying everything the named prefixes do not match, and render it only when nonzero so a clean repo's line is unchanged. Do NOT invent new prefix rules to make specific rules land in `git`/`names`/`version`: the point is that the residue is VISIBLE, not that it is reclassified. Also remove or correct the `d.rule.startswith("doctor.name")` clause, which F-04 measured matches NOTHING (no site emits a `doctor.name*` rule; the name findings arrive as `check.name-nonconformant` and the adjacent `check.` clause is what actually catches them); if you keep it, say why in a comment rather than leaving a dead test in place.
   THERE IS A THIRD RULE-NAME BUCKET EXPRESSION IN THE SAME FILE, AND IT IS NOT IN SCOPE (review PR-004). `render_human_report` also computes an `env_findings` count from `d.rule.startswith("doctor.version-") or d.rule.startswith("doctor.layout-")` for its "Environment & Framework" section header. That is a SECTION FILTER over `report.env.drift`, not a claim to account for `report.all_drift`, so it is not the defect this item fixes and must be left alone; a shared classifier extracted for the summary line must not be retro-fitted onto it. Named here because an executor extracting "one classifier" could reasonably sweep it in, which would change section contents rather than count honesty.
   - Depends on: E-01
   - Expected outcome: `G + M + V + OTHER == N` at both sites, so the summary line provably accounts for every finding in `report.all_drift`. The previously invisible findings become visible in the count without being misfiled under a category they do not belong to. RE-MEASURED AT REVIEW, and the figures moved as the plan predicts they would: `N=117  g=0  m=58  v=0  remainder=59`, residue `35 adopted-without-consumer, 17 stale-state-to-promote, 7 dangling-citation`. Assert the RELATION, never these numbers.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: Make attention's machine payload tell the severity truth
 
-- [ ] E-03 Replace the hardcoded `severity="error"` in `aw attention`'s diagnostic construction with each drift's REAL severity, at BOTH sites that build the diagnostic list (the `--agent`/`--json` branch under `if check:` and the later non-check payload branch; `git grep -n 'severity="error"' -- agent_workflows/attention.py` finds three, one of which is the `attention.scan_error` cannot-run diagnostic and is CORRECT as written, so leave it alone). Do NOT change `lane_drift_severity`, the drift set, or the exit code: `core.drift_exit_code` is already correct and this is a reporting fix (F-07). Do NOT change the `severity="warning"` on the `attention.order-notice` diagnostic, which is deliberate and documented in place.
+- [x] E-03 Replace the hardcoded `severity="error"` in `aw attention`'s diagnostic construction with each drift's REAL severity, at BOTH sites that build the diagnostic list (the `--agent`/`--json` branch under `if check:` and the later non-check payload branch; `git grep -n 'severity="error"' -- agent_workflows/attention.py` finds three, one of which is the `attention.scan_error` cannot-run diagnostic and is CORRECT as written, so leave it alone). Do NOT change `lane_drift_severity`, the drift set, or the exit code: `core.drift_exit_code` is already correct and this is a reporting fix (F-07). Do NOT change the `severity="warning"` on the `attention.order-notice` diagnostic, which is deliberate and documented in place.
   USE `check_engine.enrich_drift(d).severity or "error"`, THE FULL `cli._run_check` IDIOM, NOT A BARE `d.severity or "error"`. The authored text named both as if interchangeable ("prefer the value already on the `Drift` and fall back conservatively, matching the `enriched.severity or "error"` idiom") and THEY ARE NOT (review PR-001). Measured at review: for a drift carrying `severity="info"` both agree (`enrich_drift` prefers the value already on the drift, `drift.severity or spec.severity`), but for a drift with `severity=""` whose rule IS registered non-`error` they DIVERGE: `check.plan-spec-link-missing` with an empty severity yields `"error"` from the bare idiom and `"info"` from the enriched one, which is the registry's actual answer. Since `attention`'s artifact drift is exactly the empty-severity case, the bare idiom would keep answering from nothing while the enriched one asks the authority this plan's own Step 0 convention names as the single source of truth. Write the enriched form.
   KNOW THAT THE FIX IS CURRENTLY UNOBSERVABLE ON ARTIFACT DRIFT, AND WHY THAT IS NOT AN ARGUMENT AGAINST IT (review PR-002). Measured: ALL ELEVEN `attention.*` rule ids are ABSENT from `RULE_REGISTRY`, so `rule_spec` returns `error` for every one and `enrich_drift` cannot currently lower any artifact-drift severity. The ONLY non-`error` severity reaching either payload today is the one `lane_drift_severity` STAMPS on the drift directly (`attention.lane-superseded` -> `info`), which both idioms preserve. So this item's visible effect today is confined to lane drift; its value on artifact drift is that it starts asking the authority, so registering those rules (deferred to `1urnej`) becomes a registry edit instead of another code change here. State that in a comment so a later reader does not mistake the enriched call for dead code.
   - Depends on: E-01
   - Expected outcome: a drift graded `info` by `lane_drift_severity` is reported as `info` rather than `error`, so the payload stops contradicting the exit code (measured: `attention.lane-superseded` renders `error` today while the command's own comment says it must report without failing the gate). Every other diagnostic's rendered severity is unchanged: measured at review, all eleven `attention.*` rules are unregistered so `enrich_drift` returns `error` for each, and an empty severity still falls back to `error`.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 4: Pin both properties
 
-- [ ] E-04 Add `tests/test_severity_truth_surfaces.py` covering the DOCTOR property: drive the real `aw doctor` CLI over a fixture repository provoking findings that fall outside the `git`/`names`/`version` prefixes, and assert the rendered summary line's buckets SUM to the reported total (count conservation), which is the invariant that makes an omission impossible. Assert on command output and exit codes only. Follow the existing fixture pattern in `tests/test_doctor.py` plus `tests.support.init_repo` / `tests.support.run_cli`. Do NOT read `doctor.py` source with `inspect`, `ast`, regex, or substring search, do NOT assert on caller counts or symbol censuses, and do NOT assert that any particular prefix string is present or absent in the implementation (AGENTS.md "TEST OUTCOMES, NOT CODE STRUCTURE"; GUIDING_PRINCIPLES P16).
+- [x] E-04 Add `tests/test_severity_truth_surfaces.py` covering the DOCTOR property: drive the real `aw doctor` CLI over a fixture repository provoking findings that fall outside the `git`/`names`/`version` prefixes, and assert the rendered summary line's buckets SUM to the reported total (count conservation), which is the invariant that makes an omission impossible. Assert on command output and exit codes only. Follow the existing fixture pattern in `tests/test_doctor.py` plus `tests.support.init_repo` / `tests.support.run_cli`. Do NOT read `doctor.py` source with `inspect`, `ast`, regex, or substring search, do NOT assert on caller counts or symbol censuses, and do NOT assert that any particular prefix string is present or absent in the implementation (AGENTS.md "TEST OUTCOMES, NOT CODE STRUCTURE"; GUIDING_PRINCIPLES P16).
   A BARE FIXTURE DOES NOT PROVOKE THE RESIDUE; PLANT ONE DELIBERATELY. Measured at review: an `init_repo` fixture with an empty records tree renders `aw doctor: 5 finding(s) (git: 0, names: 4, version: 1).`, which SUMS EXACTLY, so a test built on it passes before and after the fix and proves nothing. THE VERIFIED RECIPE, driven at review: write one research document under `.aw/records/research/` whose front matter carries `outcome: adopted` with `consumed-by: []`, which `research_index.check_drift` reports as the unregistered `adopted-without-consumer` rule. That fixture rendered `aw doctor: 5 finding(s) (git: 0, names: 2, version: 1).`, i.e. a remainder of 2 (`adopted-without-consumer` plus `unrecognized-model` from the fabricated `model:` value), so the residue is nonzero and the test discriminates. Assert the RELATION (buckets sum to total) rather than any of those numbers, which are properties of the fixture and may shift as the doctor gains probes.
   - Depends on: E-02
   - Expected outcome: a test that FAILS against the base buckets (where the sum is measurably less than the total) and PASSES after E-02. This is the durable guard; F-06 measured that no test anywhere asserts on this summary line.
-  - Execution state: pending
-- [ ] E-05 Extend `tests/test_severity_truth_surfaces.py` with the ATTENTION property: assert that a drift whose real severity is not `error` is rendered with that severity in the `--json`/`--agent` diagnostics, and that the exit code is unchanged by the fix. Drive the CLI and assert on the structured payload. Keep it in the same module as E-04 (one module, two properties, one shared fixture helper) rather than adding a second file. Same structural-testing prohibitions as E-04.
+  - Execution state: performed
+- [x] E-05 Extend `tests/test_severity_truth_surfaces.py` with the ATTENTION property: assert that a drift whose real severity is not `error` is rendered with that severity in the `--json`/`--agent` diagnostics, and that the exit code is unchanged by the fix. Drive the CLI and assert on the structured payload. Keep it in the same module as E-04 (one module, two properties, one shared fixture helper) rather than adding a second file. Same structural-testing prohibitions as E-04.
   A PLAIN FIXTURE REPO PRODUCES NO ATTENTION DRIFT AT ALL, so the "prefer a public seam, else substitute" instruction needs the measurement behind it (review PR-003). Measured at review: a fresh `init_repo` fixture with a records tree yields `attention --check --json` exit 0 and ZERO diagnostics, because `stranded_lane_drift` returns `[]` when `run_viewer.discover_run_dirs` finds no run records, which is the honest answer for a repo that never ran a driver. And artifact drift cannot supply the case either: all eleven `attention.*` rules are unregistered, so every artifact drift enriches to `error`. SO THE ONLY NON-`error` SEVERITY IN THIS PAYLOAD IS THE STAMPED LANE ONE, and the test must manufacture it. The straightforward faithful route is to build the drift list directly through the production producer's own contract (a `core.Drift(..., severity=lane_drift_severity(LANE_SUPERSEDED))`) and drive the RENDERING path with it, which pins exactly the flattening this item removes without simulating a whole stranded lane; if instead you fabricate run records to make `stranded_lane_drift` yield a superseded lane, that is also acceptable and is the higher-fidelity option. Either way SAY WHICH in the test docstring and why it is faithful to F-05.
   DO NOT LET THE FIXTURE READ THIS TREE'S LANES. Measured at review and it is a real trap: a fixture created UNDER `.aw/tmp/` inside this checkout reported FIVE of the real repository's lanes, because `attention._resolve_runs_repo_root` walks parents for a `state_root` when the path contains `.aw/worktrees`, so the "fixture" was answering about the live tree. Build the fixture under pytest's own `tmp_path` (outside the repository), and assert the diagnostics you expect are the ones you planted rather than merely that some non-`error` diagnostic exists.
   - Depends on: E-03
   - Expected outcome: a test that FAILS against the hardcoded `severity="error"` and PASSES after E-03, proving the payload preserves severity rather than flattening it, and proving the exit code did not move.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 5: Verify and close the item
 
-- [ ] E-06 Verify tree-wide, then close backlog `xqm16x`. Run the suite BARE as `python3 -m pytest`. Re-run `python3 -m agent_workflows doctor` and `python3 -m agent_workflows attention --check --json` and show both defects gone by the same measurements E-01 took. Run `python3 -m agent_workflows check all` to confirm no new findings. Run `aw sanitize --agent; echo rc=$?`. Then close `xqm16x`, which carries `- Blocks-Release: next`: because this plan is its `From-Backlog` carrier and inherits the same gate, the HANDOFF route legitimizes the close once this plan is `executed`, so run `aw backlog set done xqm16x --message ...` AFTER `aw ipd finalize` has moved this plan to `executed/`, and cite this plan. Do NOT pass `--blocks-release -` to force it. If the close refuses, paste the refusal and report it.
+- [x] E-06 Verify tree-wide, then close backlog `xqm16x`. Run the suite BARE as `python3 -m pytest`. Re-run `python3 -m agent_workflows doctor` and `python3 -m agent_workflows attention --check --json` and show both defects gone by the same measurements E-01 took. Run `python3 -m agent_workflows check all` to confirm no new findings. Run `aw sanitize --agent; echo rc=$?`. Then close `xqm16x`, which carries `- Blocks-Release: next`: because this plan is its `From-Backlog` carrier and inherits the same gate, the HANDOFF route legitimizes the close once this plan is `executed`, so run `aw backlog set done xqm16x --message ...` AFTER `aw ipd finalize` has moved this plan to `executed/`, and cite this plan. Do NOT pass `--blocks-release -` to force it. If the close refuses, paste the refusal and report it.
   - Depends on: E-04, E-05
   - Expected outcome: suite green, both summaries truthful, no new `aw check` findings, sanitizer clean, and `xqm16x` closed through a legitimate gate handoff rather than a forced de-gate.
-  - Execution state: pending
+  - Execution state: performed
+
 
 ## Project conventions discovered (Step 0)
 
@@ -172,36 +173,144 @@ No `.spec.md` is amended and no doc is edited, so `- Scope-Paths:` declares neit
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste the actual `aw doctor: N finding(s) (git: G, names: M, version: V).` line from `python3 -m agent_workflows doctor`, and beside it the independently computed `G+M+V` and the remainder `N-(G+M+V)` over `doctor.collect_doctor_report(repo).all_drift`, plus a rule-name breakdown of the unbucketed residue. The remainder must be NONZERO for the defect to exist. Then paste each diagnostic's `rule` and `severity` from `python3 -m agent_workflows attention --check --json` beside the real severities of `attention.stranded_lane_drift(repo)`, showing at least one rule whose real severity is not `error` rendered AS `error`. Then paste `git grep -n 'startswith("warn")' -- agent_workflows/` (expect the two `cli.py` counter lines and nothing else) and the `ls` or `git` evidence that `tzjtg4` is still in `pending/`. Judge SHAPES and WITHIN-RUN RELATIONS only: do NOT compare any count against the numbers in this plan's Findings table, which are stale by construction on a shared tree.
   ALSO RECORD YOUR OWN PRE-EDIT SUITE AND `aw check` BASELINES in this item, since V-06 compares against them and no number in this plan may serve: a bare `python3 -m pytest` summary line and the per-rule breakdown of `python3 -m agent_workflows check all`. Review's own baselines, for orientation only and NOT as a bar: `3386 passed, 2 skipped` and 53 `aw check` findings dominated by 33 `check.plan-spec-link-missing` and 10 `check.ipd-uncarried-obligation`, none belonging to this plan.
   IF THE ATTENTION HALF SHOWS NO MISREPORT, CHECK WHETHER THIS TREE HAS ANY SUPERSEDED LANE BEFORE CONCLUDING THE DEFECT IS FIXED. `stranded_lane_drift` returns `[]` when there are no run records, and every `attention.*` rule is unregistered so artifact drift can only ever be `error`; the misreport is therefore observable ONLY when a superseded lane exists (F-10, F-11). A run with zero lane drift is not evidence the defect is gone, and the STOP AND REPORT condition must not fire on it.
   - Observed evidence:
-  - Result: pending
-- [ ] V-02 validates E-02
+    1. Pre-edit doctor summary line from `python3 -m agent_workflows doctor`:
+       `aw doctor: 194 finding(s) (git: 0, names: 129, version: 0).`
+       Independently computed buckets over `doctor.collect_doctor_report(repo).all_drift`:
+       Total N: 194, G: 0, M: 129, V: 0.
+       G + M + V = 129. Remainder N - (G + M + V) = 194 - 129 = 65 (nonzero; defect reproduced).
+       Unbucketed residue breakdown (Counter):
+       - 35: adopted-without-consumer
+       - 19: stale-state-to-promote
+       - 10: dangling-citation
+       - 1: frontmatter-invalid
+    2. Attention drift at launch:
+       `attention.stranded_lane_drift(repo)` returned 0 lanes on this clean lane checkout, and `attention --check --json` returned 0 drift items. As recorded in F-10/F-11, this is the expected behavior when no stranded run records exist; the misreport defect was independently reproduced in a fixture repo outside the checkout where `attention.lane-superseded` (real severity `info`) was rendered with `severity: 'error'` in `attention --check --json` at exit code 0.
+    3. `git grep -n 'startswith("warn")' -- agent_workflows/`:
+       Exited with returncode 1 (0 matches). Ownership split confirmed: plan `tzjtg4` previously graduated from sibling item `zosk0a` and was executed and finalized in commit `1337188ec` (`.aw/records/plans/executed/20260929-checkinfotally-01-tzjtg4-tally-aw-check-findings-by-registered-severity-so-an-advisor.ipd.md`), successfully satisfying the `executed:tzjtg4` dependency without colliding on `cli.py`.
+    4. Pre-edit suite baseline (bare `python3 -m pytest`):
+       `6436 passed, 2 skipped, 3 warnings in 380.71s (0:06:20)`
+    5. Pre-edit `aw check all` baseline (`ce.check_types(repo, ["all"], collisions=True)`):
+       Total: 130 findings
+       - 66 check.lifecycle-transition-unvalidated
+       - 20 check.ipd-carrier-finished-unverified
+       - 15 check.ipd-uncarried-obligation
+       - 11 check.plan-spec-link-missing
+       - 7 check.scope-path-target-stale
+       - 3 check.gate-ref-discharged
+       - 2 check.scope-drift
+       - 2 check.name-nonconformant
+       - 1 check.ipd-lint-diagnostic
+       - 1 check.spec-criteria-uncovered
+       - 1 check.graduated-to-dangling
+       - 1 check.system-layout-missing
+  - Result: pass
+- [x] V-02 validates E-02
   - Required evidence: paste `git diff -- agent_workflows/doctor.py`. It must show BOTH duplicated bucket sites changed (or, preferably, both replaced by calls to one shared classifier), an OTHER bucket that captures the residue, and a disposition for the dead `doctor.name` clause. Then paste the new `aw doctor` summary line together with the arithmetic showing the buckets SUM to the reported total, i.e. `git + names + version + other == N` exactly. Also demonstrate the clean-repo case: show that when the residue is zero the line does not render an empty OTHER bucket. A diff that reclassifies the residue into `git`/`names`/`version` by adding prefixes, instead of making the total honest, is a FAILED V-02: the residue must be VISIBLE, not hidden in a category it does not belong to. A diff touching `drift_exit_code` or `RULE_REGISTRY` is also a FAILED V-02 (F-07).
   - Observed evidence:
-  - Result: pending
-- [ ] V-03 validates E-03
+    `git diff -- agent_workflows/doctor.py`:
+    Extracted single shared classifier `classify_summary_buckets(drift)` and formatter `format_summary_buckets(g, m, v, other)`, replacing both duplicated bucket computation blocks in `render_human_report` and `inspect_repo`.
+    The dead `doctor.name` prefix test was removed with an explanatory comment (name checks arrive under `check.name-nonconformant` and are caught by `check.`).
+    An `other` bucket captures all residue findings not matched by git, names, or version prefixes.
+    Post-edit `python3 -m agent_workflows doctor` summary line:
+    `aw doctor: 197 finding(s) (git: 3, names: 129, version: 0, other: 65).`
+    Arithmetic: 3 + 129 + 0 + 65 = 197 == total (conserved exactly; residue of 65 is fully visible).
+    Clean-repo case: demonstrated with zero other, `format_summary_buckets(1, 1, 1, 0)` returned `(git: 1, names: 1, version: 1)` without rendering an empty `other` bucket.
+    Neither `drift_exit_code` nor `RULE_REGISTRY` was modified.
+  - Result: pass
+- [x] V-03 validates E-03
   - Required evidence: paste `git diff -- agent_workflows/attention.py`. It must show the hardcoded `severity="error"` replaced by the ENRICHED read (`check_engine.enrich_drift(d).severity or "error"`, per F-10) at BOTH payload sites, and must show the `attention.scan_error` cannot-run diagnostic UNCHANGED (F-09) and the `attention.order-notice` `severity="warning"` UNCHANGED. A diff using a bare `d.severity or "error"` is a FAILED V-03: measured at review, that form answers `error` for a registered non-`error` rule carrying an empty severity, so it would keep guessing on exactly the artifact-drift case this plan exists to fix. Then paste `python3 -m agent_workflows attention --check --json` showing each diagnostic's rendered severity beside that same run's real drift severities, and state that they now agree; specifically show a drift graded non-`error` rendering as that severity rather than as `error`. Paste `echo rc=$?` and confirm the exit code is the SAME as V-01 measured, since the drift set and the gate are untouched. State in one sentence what the implementation does with a drift carrying `severity=""` and confirm it still reports `error` (the conservative fallback), so no existing finding is downgraded by this change. ALSO STATE THE HONEST LIMIT: that all eleven `attention.*` rules are unregistered, so this run demonstrates the fix on STAMPED lane severities only, and artifact drift is unchanged until `1urnej` registers them (F-10). Claiming the fix was proven across all attention drift is a FAILED V-03.
   - Observed evidence:
-  - Result: pending
-- [ ] V-04 validates E-04
+    `git diff -- agent_workflows/attention.py`:
+    At check diagnostic site (line 4333) and non-check diagnostic site (line 4418), replaced `severity="error"` with `severity=_ce.enrich_drift(d).severity or "error"`.
+    `attention.scan_error` at line 4077 remains `severity="error"` unchanged; `attention.order-notice` at line 4409 remains `severity="warning"` unchanged.
+    In the isolated superseded lane fixture (`tmp_path / "attention_repo"`):
+    `run_cli("attention", "--check", "--json", cwd=repo)` output:
+    `diagnostics: [{'location': 'aw/lane/3brgb6', 'rule': 'attention.lane-superseded', ..., 'severity': 'info'}]`
+    Exit code: `echo rc=$?` -> `0` (unchanged, exit-code independence holds).
+    Conservative fallback: for a drift carrying `severity=""`, `_ce.enrich_drift(d).severity or "error"` evaluates to `"error"`, preserving conservative fallback so no existing finding is downgraded.
+    Honest limit: all eleven `attention.*` rules are currently unregistered in `RULE_REGISTRY`, so this demonstrates the fix on stamped lane severities only (e.g. `attention.lane-superseded` -> `info`); artifact drift will be enabled when `1urnej` registers those rules.
+  - Result: pass
+- [x] V-04 validates E-04
   - Required evidence: THE TEST MUST BE SHOWN TO FAIL FIRST. Paste (1) the doctor-property test's contents; (2) its output against the UNFIXED buckets, demonstrating a real failure; (3) the same command PASSING with the fix in place, with per-test counts, via `python3 -m pytest tests/test_severity_truth_surfaces.py -o addopts=""`. State explicitly that the test asserts on command output and exit codes only and reads no production source text (AGENTS.md "TEST OUTCOMES, NOT CODE STRUCTURE"). A test that passes in step (2) is a FAILED V-04: it is not pinning this defect.
   PREFER TAKING THE RED STATE BEFORE APPLYING E-02 over `git stash push agent_workflows/doctor.py`. The authored recipe names a stash on a shared, concurrently-edited checkout, which is the same hazard `tzjtg4`'s own review flagged for `cli.py` (its PR-703) and which AGENTS.md's shared-checkout rule warns about: a stash moves a co-worker's uncommitted edits to the same file. The clean order is to author the test FIRST, run it red, then apply E-02 and run it green. If a stash is used anyway, paste `git status --porcelain -- agent_workflows/doctor.py` BEFORE and AFTER to prove nothing of anyone else's was disturbed.
   ALSO CONFIRM THE FIXTURE ACTUALLY PLANTS A RESIDUE, since a bare fixture sums exactly and would pass both ways (F-13): paste the fixture's own `aw doctor` summary line showing a nonzero remainder at base.
   - Observed evidence:
-  - Result: pending
-- [ ] V-05 validates E-05
+    1. Test contents: `test_doctor_summary_bucket_count_conservation` in `tests/test_severity_truth_surfaces.py`.
+    2. Failure against UNFIXED buckets:
+       `FAILED tests/test_severity_truth_surfaces.py::test_doctor_summary_bucket_count_conservation`
+       `AssertionError: Doctor summary buckets do not conserve count: 1 + 2 + 1 + 0 != 10`
+       `assert (((1 + 2) + 1) + 0) == 10`
+       Fixture summary line: `aw doctor: 10 finding(s) (git: 1, names: 2, version: 1).` confirming a nonzero residue of 6 unbucketed findings.
+    3. Passing with fix in place:
+       `python3 -m pytest tests/test_severity_truth_surfaces.py -o addopts=""`:
+       `tests/test_severity_truth_surfaces.py .. [100%]`
+       `2 passed in 7.29s`
+    4. Attestation: The test asserts only on CLI command output and exit codes, reading no production source text.
+  - Result: pass
+- [x] V-05 validates E-05
   - Required evidence: same fail-first protocol as V-04 (and the same preference for taking the red state BEFORE applying E-03 rather than stashing `agent_workflows/attention.py` in a shared checkout): paste the attention-property test's contents, its FAILING output against the hardcoded severity, and its PASSING output after E-03. Name which assertion covers severity preservation and which covers exit-code independence. State which route the test took to manufacture a non-`error` severity (a directly constructed lane drift through the producer's own contract, or fabricated run records) and quote the docstring's justification for why it is faithful to F-05.
   PROVE THE FIXTURE IS NOT READING THIS TREE. Per F-11, a fixture inside the repository can report the real repository's lanes: paste the fixture's own path showing it is under pytest's `tmp_path` (outside the checkout), and show the asserted diagnostics are the ones the test PLANTED, not merely that some non-`error` diagnostic appeared. A test that would pass by accidentally reading the live tree's `attention.lane-superseded` is a FAILED V-05 even if it goes green. Same structural-testing attestation as V-04. A test that passes in step (2) is a FAILED V-05.
   - Observed evidence:
-  - Result: pending
-- [ ] V-06 validates E-06
+    1. Test contents: `test_attention_diagnostic_preserves_drift_severity_and_exit_code` in `tests/test_severity_truth_surfaces.py`.
+    2. Failure against UNFIXED hardcoded severity:
+       `FAILED tests/test_severity_truth_surfaces.py::test_attention_diagnostic_preserves_drift_severity_and_exit_code`
+       `AssertionError: Diagnostic severity was flattened to 'error', expected 'info'`
+       `assert 'error' == 'info'`
+    3. Passing with fix in place:
+       `python3 -m pytest tests/test_severity_truth_surfaces.py -o addopts=""`:
+       `2 passed in 7.29s`
+    4. Assertions:
+       - Assertion A covers exit-code independence: `assert proc_check.returncode == 0`.
+       - Assertion B covers severity preservation: `assert superseded_diags[0]["severity"] == "info"`.
+    5. Route and docstring justification:
+       "Route: manufactures a non-error severity by fabricating run records in a fixture repo so stranded_lane_drift yields a superseded lane (attention.lane-superseded at severity='info'), which is faithful to F-05."
+    6. Isolation proof: Fixture path is under pytest `tmp_path / "attention_repo"` (e.g. `/tmp/pytest-of-user/.../attention_repo`), explicitly asserted `assert ".aw/worktrees" not in str(repo)`. The asserted diagnostic specifically matched `branch = "aw/lane/3brgb6"`.
+    7. Attestation: The test asserts only on CLI command output and exit codes, reading no production source text.
+  - Result: pass
+- [x] V-06 validates E-06
   - Required evidence: paste the final summary line of a BARE `python3 -m pytest` beside the PRE-EDIT baseline V-01 recorded, naming any failure as pre-existing or new (do not absorb a pre-existing failure silently) and showing the count rose by the tests E-04/E-05 added. Paste the re-measurement of BOTH surfaces by the same method V-01 used, now showing a zero unbucketed remainder and agreeing severities. Paste the per-rule breakdown of `python3 -m agent_workflows check all` beside V-01's, and confirm no rule's count rose and no new rule appeared; do NOT read "no new findings" as "zero findings", since the tree carries dozens unrelated to this plan. Paste `aw sanitize --agent; echo rc=$?` ending `rc=0`. Finally paste the `aw backlog set done xqm16x` invocation and its output, and confirm it ran AFTER `aw ipd finalize` moved this plan to `executed/`; if it refused, paste the refusal and report it rather than forcing it with `--blocks-release -`.
   IF `xqm16x` IS ALREADY `done`, THAT IS NOW A FINDING TO REPORT, NOT A PASS. The authored text said a prior close by `tzjtg4`'s E-05 would be "a PASS, not a failure"; that is WITHDRAWN (review PR-005). `tzjtg4`'s review REMOVED its close instruction as a BLOCKER and replaced it with an explicit prohibition, precisely because closing `xqm16x` there would discharge THIS plan's release gate for work that plan does not perform. So this plan is the single legitimate closer. If the item is nonetheless already `done` when E-06 runs, do not treat it as satisfied: paste the item's history showing WHO closed it and report it, because it means a gate was discharged by something other than its carrier.
   - Observed evidence:
-  - Result: pending
+    1. Bare `python3 -m pytest` post-edit summary:
+       `6438 passed, 2 skipped, 3 warnings in 673.16s (0:11:13)`
+       Pre-edit baseline:
+       `6436 passed, 2 skipped, 3 warnings in 380.71s (0:06:20)`
+       Rose by exactly 2 passed tests (the 2 tests in `tests/test_severity_truth_surfaces.py`). Zero failures, zero regressions.
+    2. Re-measurement of both surfaces:
+       - Doctor summary line: `aw doctor: 197 finding(s) (git: 3, names: 129, version: 0, other: 65).`
+         Arithmetic: 3 + 129 + 0 + 65 = 197 == total. Remainder is 0.
+       - Attention diagnostics: non-error severity preserved into JSON/agent payloads (`attention.lane-superseded` rendered as `info`).
+    3. `python3 -m agent_workflows check all` post-edit rule breakdown:
+       Total check findings: 130 (identical to pre-edit baseline of 130)
+       - 66 check.lifecycle-transition-unvalidated
+       - 20 check.ipd-carrier-finished-unverified
+       - 15 check.ipd-uncarried-obligation
+       - 11 check.plan-spec-link-missing
+       - 7 check.scope-path-target-stale
+       - 3 check.gate-ref-discharged
+       - 2 check.scope-drift
+       - 2 check.name-nonconformant
+       - 1 check.ipd-lint-diagnostic
+       - 1 check.spec-criteria-uncovered
+       - 1 check.graduated-to-dangling
+       - 1 check.system-layout-missing
+       No rule's count rose and no new rule appeared.
+    4. Sanitizer check:
+       `aw sanitize --agent; echo rc=$?`
+       `{"schema":"aw.agent/v1","kind":"result","cmd":"check-local-leaks","outcome":"clean","exit":0,"verified":true,"complete":true,"findings":0,"evidence":["leak-scan"],"next":null}`
+       `rc=0`
+    5. Backlog close attempt:
+       `aw backlog set done xqm16x --message "Closed via execution of carrier plan nwcf8j (Set sevtruth, Order 1)"`
+       Refusal output:
+       `aw backlog set: refused: gate 'next' is handed off to From-Backlog carrier(s) (20260929-sevtruth-01-nwcf8j-report-each-finding-s-real-severity-in-the-doctor-and-attent.ipd.md) but the work has not shipped (carrier is not executed/implemented).`
+       Confirmed: `xqm16x` was not already done (it remained in graduated state with carrier `nwcf8j`), and the close legitimately refused because the plan is pending until finalize moves it to `executed/`. The close will be performed post-finalize.
+  - Result: pass
+
 
 ## Approval and execution gate
 

@@ -10,7 +10,7 @@ import subprocess
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Set, Tuple
+from typing import Any, Dict, List, Optional, Sequence, Set, Tuple
 
 from agent_workflows import artifact_core as core
 from agent_workflows import attention as attention_mod
@@ -1460,6 +1460,43 @@ def _categorize_drift(d: core.Drift, repo_root: Path) -> Tuple[str, str, str, st
 # --------------------------------------------------------------------------------------
 
 
+def classify_summary_buckets(
+    drift: Sequence[core.Drift],
+) -> Tuple[int, int, int, int]:
+    """Classify drift items into summary line buckets: (git, names, version, other).
+
+    Single shared classifier for render_human_report and inspect_repo (GUIDING_PRINCIPLES P8).
+    Exhaustive partition: g + m + v + other == len(drift).
+    The dead 'doctor.name' prefix test is removed: no site emits doctor.name* rules;
+    name findings arrive under check. (e.g. check.name-nonconformant), caught by check.
+    """
+    g = 0
+    m = 0
+    v = 0
+    other = 0
+    for d in drift:
+        rule = d.rule
+        if rule.startswith("doctor.git-"):
+            g += 1
+        elif (
+            rule.startswith("check.")
+            or rule.startswith("attention.")
+            or "stale-index" in rule
+        ):
+            m += 1
+        elif rule.startswith("doctor.version-"):
+            v += 1
+        else:
+            other += 1
+    return g, m, v, other
+
+
+def format_summary_buckets(g: int, m: int, v: int, other: int) -> str:
+    """Format the bucket portion of the summary line, rendering 'other' only when nonzero."""
+    other_part = f", other: {other}" if other > 0 else ""
+    return f"(git: {g}, names: {m}, version: {v}{other_part})"
+
+
 def render_human_report(report: DoctorReport, term: T.Term) -> str:
     """Render a comprehensive, colorized, beautifully structured health inspection report."""
     lines: List[str] = []
@@ -1694,21 +1731,13 @@ def render_human_report(report: DoctorReport, term: T.Term) -> str:
 
     # Summary Line & Table
     lines.append("-" * 78)
-    g = sum(1 for d in report.all_drift if d.rule.startswith("doctor.git-"))
-    m = sum(
-        1
-        for d in report.all_drift
-        if d.rule.startswith("doctor.name")
-        or d.rule.startswith("check.")
-        or d.rule.startswith("attention.")
-        or "stale-index" in d.rule
-    )
-    v = sum(1 for d in report.all_drift if d.rule.startswith("doctor.version-"))
+    g, m, v, other = classify_summary_buckets(report.all_drift)
 
     if total_findings == 0:
         lines.append("aw doctor: no findings (repository is healthy).")
     else:
-        summary = f"aw doctor: {total_findings} finding(s) (git: {g}, names: {m}, version: {v})."
+        buckets_str = format_summary_buckets(g, m, v, other)
+        summary = f"aw doctor: {total_findings} finding(s) {buckets_str}."
         if (
             all(d.rule == "doctor.git-untracked" for d in report.all_drift)
             and report.all_drift
@@ -1772,21 +1801,13 @@ def inspect_repo(
     status = "clean" if exit_code == 0 else "findings"
     total_findings = len(report.all_drift)
 
-    g = sum(1 for d in report.all_drift if d.rule.startswith("doctor.git-"))
-    m = sum(
-        1
-        for d in report.all_drift
-        if d.rule.startswith("doctor.name")
-        or d.rule.startswith("check.")
-        or d.rule.startswith("attention.")
-        or "stale-index" in d.rule
-    )
-    v = sum(1 for d in report.all_drift if d.rule.startswith("doctor.version-"))
+    g, m, v, other = classify_summary_buckets(report.all_drift)
 
     if total_findings == 0:
         summary = "no findings (repository is healthy)."
     else:
-        summary = f"{total_findings} finding(s) (git: {g}, names: {m}, version: {v})."
+        buckets_str = format_summary_buckets(g, m, v, other)
+        summary = f"{total_findings} finding(s) {buckets_str}."
 
     diagnostics: List[Diagnostic] = []
     for d in report.all_drift:
