@@ -1,5 +1,5 @@
 - Id: pn7rw3
-- Status: graduated
+- Status: done
 - Graduated-To: pn7rw3
 - Set: pn7rw3
 - Priority: low
@@ -7,6 +7,7 @@
 - Summary: test_runner_shared.py's SUPERSEDED_SINCE_MOVE comment cites two deleted guard files as shipped guards
 
 ## Workflow history
+- 2026-10-08 done (aw backlog): closed by aw agy run: IPD x3zno3 executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20260930-pn7rw3-01-x3zno3-correct-the-should-color-guard-citation-block-so-every-guard.ipd.md); evidence .aw/records/plans/executed/20260930-pn7rw3-01-x3zno3-correct-the-should-color-guard-citation-block-so-every-guard.ipd.md
 - 2026-09-30 set (aw backlog): graduated by run run-20260930T053024Z-3198670: x3zno3
 - 2026-09-28 note (aw backlog): Maintainer ruling: Code-pinning guards (refork tables/module ownership pins) were deleted in the suite trim and will not be restored. Stale comments should simply remove references to them without seeking to restore code pins.
 - 2026-09-28 created (aw backlog): test_runner_shared.py's SUPERSEDED_SINCE_MOVE comment cites two deleted guard files as shipped guards

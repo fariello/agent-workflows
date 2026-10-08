@@ -330,12 +330,16 @@ def should_color(stream: TextIO | None = None) -> bool:
 
     A SANCTIONED ONE-LINE DELEGATION to :func:`agent_workflows.term.should_color`, which is the
     single ORIGINATING definition of this decision package-wide (plan `z8ddk0`, spec `uonrjg`
-    R9.3a.2). The `def` stays at this name DELIBERATELY rather than becoming an import: three
-    shipped guards assert that `runner_shared` DEFINES this symbol
-    (`test_runner_refork_guard.py`'s `Owned("should_color", "runner_shared", BOTH)` row,
+    R9.3a.2). The `def` stays at this name DELIBERATELY rather than becoming an import: the name
+    must resolve as an attribute of this module because BOTH hosts re-export it by name
+    (`from agent_workflows.runner_shared import should_color as should_color` in each of `oc_runipd`
+    and `agy_runipd`) and `oc_runipd.__all__` lists `"should_color"`, so the module is a published
+    binding site regardless of whether a test says so. The historical guards that previously asserted
+    `runner_shared` defines this symbol (`test_runner_refork_guard.py`'s `Owned` row,
     `test_rununify_run_queue.py`'s `RESOLVES_IN_RUNNER_SHARED`, and
-    `test_runner_shared.py::test_exactly_one_definition_package_wide`), and an import fails all
-    three. The single-statement shape is what makes this a BINDING rather than a second body.
+    `test_runner_shared.py::test_exactly_one_definition_package_wide`) were deleted in `19313eed`,
+    so no live guard currently enforces this; the single-statement shape is now an established
+    convention making this a BINDING rather than a second body.
 
     THIS CHANGED BEHAVIOR, and the change is the point. The previous body was an independent
     implementation that DISAGREED with `term`'s: it ignored `TERM` entirely, so `TERM=dumb aw oc run`
@@ -344,13 +348,12 @@ def should_color(stream: TextIO | None = None) -> bool:
     is honored, and a falsey `FORCE_COLOR` falls through instead of forcing. Measured 2026-09-19;
     pinned by `tests/test_runner_shared.py::SharedColorDecisionTests`.
 
-    THE IMPORT IS FUNCTION-LOCAL DELIBERATELY, and a module-level one is REFUSED by a shipped
-    guard: `tests/test_orchestrator_probe_cache.py::test_no_new_module_level_first_party_import_in_runner_shared`
-    allows exactly `render_stream` and `runner_profiles` at module level, because an import added
-    here changes the import graph for BOTH host drivers. That guard's own docstring names the
-    function-local import as this module's established route for a first-party dependency
-    (`ipd_lint`/`ipd_schema`/`ipd_lifecycle`/`worktree_lease` all arrive that way), so this follows
-    the convention rather than re-baselining a guard in a file this plan does not own.
+    THE IMPORT IS FUNCTION-LOCAL DELIBERATELY, because an import added at module level changes the
+    import graph for BOTH host drivers. A function-local import is this module's established
+    convention for a first-party dependency (`ipd_lint`/`ipd_schema`/`ipd_lifecycle`/`worktree_lease`
+    all arrive that way), kept here as a convention (the historical guard
+    `tests/test_orchestrator_probe_cache.py::test_no_new_module_level_first_party_import_in_runner_shared`
+    was deleted in `19313eed`, so no live guard currently enforces this).
     """
     from agent_workflows import term
 
