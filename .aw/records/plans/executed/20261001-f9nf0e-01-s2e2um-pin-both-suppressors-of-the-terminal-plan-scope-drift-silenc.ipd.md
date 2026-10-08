@@ -6,7 +6,7 @@
 - Scope: IN: one behavioral test module that pins BOTH suppressors independently (the outer retired-path filter as the ACTUAL one, the inner liveness branch as DEFENSE-IN-DEPTH proven effective under a narrowed outer filter), plus a corrected docstring on `_receipt_is_live` naming the outer filter as today's suppressor. OUT, each with a reason recorded under "Deferred": changing `check_scope_drift` to `include_retired=True` (candidate direction 2, REFUSED on measured cost, see F-06/OQ-01); deleting the branch (direction 3, REFUSED, see F-05); any change to the rule's observable contract; the general trim audit `xvp5vx`.
 - Scope-Paths: tests/test_receipt_liveness_suppressors.py, agent_workflows/check_engine.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -16,9 +16,9 @@
 - Highest E allocated: 03
 - Author: opencode/its_direct/pt3-claude-opus-5-1m-us
 - Id: s2e2um
-- Approval: 2026-10-03, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-08 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: s2e2um verified (set f9nf0e, attempt 1).
 - 2026-10-03 approved (aw set): status set to approved
 - 2026-10-02 /plan-review (opencode/its_direct-pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-005 (all LOW, fixed). F-03/F-04/F-05 re-measured by probe and hold for all four terminal placements. Full record: `.aw/records/reviews/20261001-f9nf0e-01-s2e2um-pin-both-suppressors-of-the-terminal-plan-scope-drift-silenc.review.md`.
 - 2026-10-03 reviewed (aw set): plan-review APPROVE WITH REVISIONS APPLIED
@@ -42,7 +42,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: pin the suppressor that actually fires
 
-- [ ] E-01 In a new `tests/test_receipt_liveness_suppressors.py`, pin the OUTER suppressor: that `check_engine._iter_type_files(root, "plans")` yields NOTHING for a plan in each of the three `plans.TERMINAL` dispositions, and that this holds for a `<disposition>/YYYYMM/` sharded placement too. This is first because it is the mechanism that actually produces the silence in production and it is pinned by ZERO tests today, which is the more serious of the two gaps the backlog item describes.
+- [x] E-01 In a new `tests/test_receipt_liveness_suppressors.py`, pin the OUTER suppressor: that `check_engine._iter_type_files(root, "plans")` yields NOTHING for a plan in each of the three `plans.TERMINAL` dispositions, and that this holds for a `<disposition>/YYYYMM/` sharded placement too. This is first because it is the mechanism that actually produces the silence in production and it is pinned by ZERO tests today, which is the more serious of the two gaps the backlog item describes.
 
     ASSERT THE FILTER'S OUTCOME, NOT ITS IMPLEMENTATION. Drive `_iter_type_files` and assert on the
     yielded SET, rather than asserting that `is_retired` consults a particular container or that
@@ -61,11 +61,11 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
     `plan_dir` parameter already accepts `"executed/202609"`, which is how the sharded row is built.
   - Depends on: none
   - Expected outcome: a table-driven case asserting `_iter_type_files` yields the plan for `pending/` and yields NOTHING for `executed/`, `executed/YYYYMM/`, `superseded/` and `not-executed/`; the file passes; no production file touched by this item.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: make the documented branch earn its place
 
-- [ ] E-02 In the same module, pin the INNER branch two ways: (a) call `check_engine._receipt_is_live` DIRECTLY with a terminal plan path and assert it returns False for each `plans.TERMINAL` disposition (plus True for `pending/`, the non-vacuity control); and (b) assert the DEFENSE-IN-DEPTH property end to end, that `check_scope_drift` still reports NOTHING for a terminal plan when the outer filter no longer excludes it.
+- [x] E-02 In the same module, pin the INNER branch two ways: (a) call `check_engine._receipt_is_live` DIRECTLY with a terminal plan path and assert it returns False for each `plans.TERMINAL` disposition (plus True for `pending/`, the non-vacuity control); and (b) assert the DEFENSE-IN-DEPTH property end to end, that `check_scope_drift` still reports NOTHING for a terminal plan when the outer filter no longer excludes it.
 
     PART (a) IS WHAT THE BACKLOG ITEM BELIEVED IMPOSSIBLE, and it is the reason this plan needs no
     maintainer ruling. The item states direction (2) "is the only one that makes the branch testable".
@@ -96,11 +96,11 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
     than trusting it.
   - Depends on: E-01
   - Expected outcome: `_receipt_is_live` returns False for all three terminal dispositions (and the sharded form) and True for `pending/`; with `_RETIRED_PATH_SEGMENTS` narrowed, `check_scope_drift` still returns zero `check.scope-drift` findings for a terminal plan holding an out-of-scope lane change; the attribute is provably restored.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: stop the docstrings asserting the wrong mechanism
 
-- [ ] E-03 Correct `check_engine._receipt_is_live`'s docstring so it states which mechanism suppresses a terminal plan TODAY, and cite the new tests. Keep the branch and keep its rationale; the defect is a documentation claim that reads as a description of live behavior when it describes a path nothing reaches.
+- [x] E-03 Correct `check_engine._receipt_is_live`'s docstring so it states which mechanism suppresses a terminal plan TODAY, and cite the new tests. Keep the branch and keep its rationale; the defect is a documentation claim that reads as a description of live behavior when it describes a path nothing reaches.
 
     SAY THREE THINGS, NO MORE. (1) The TERMINAL PLAN branch is defense in depth, not the active
     suppressor; (2) the active suppressor is `_iter_type_files`' retired-path filter via
@@ -122,7 +122,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
     it as a measurement with its date, not as a timeless fact.
   - Depends on: E-02
   - Expected outcome: `_receipt_is_live`'s docstring names the outer filter as the active suppressor, labels its own terminal branch defense-in-depth, cites the new test module, and retains the existing receipt-not-garbage rationale verbatim; no behavior changes and no other docstring is touched.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -234,20 +234,230 @@ question recurs.
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: the new case's source quoted, showing it drives `_iter_type_files` and asserts on the YIELDED SET with no membership assertion against `_RETIRED_PATH_SEGMENTS` and no read of production source. The run pasted with every row named, including the `pending/` positive control. THE MUTATION PASTED BOTH WAYS: with `_RETIRED_PATH_SEGMENTS` narrowed to exclude the `plans.TERMINAL` members the case FAILS, naming which dispositions were wrongly yielded; restored, it passes. Plus the stubbed-`_iter_type_files` run showing the `pending/` control FAILS, proving the empty-set rows are not vacuous. Plus `git diff --stat` empty after each mutation is reverted.
   - Observed evidence:
-  - Result: pending
+    New case in `tests/test_receipt_liveness_suppressors.py` drives `_iter_type_files` directly and asserts on the yielded set:
+    ```python
+    def test_outer_retired_path_filter_suppresses_terminal_plans_table(self) -> None:
+        wrong = []
+        positive_control_failed = False
+        silent_rows_failed = False
 
-- [ ] V-02 validates E-02
+        for plan_dir, should_yield, desc in self.OUTER_FILTER_CASES:
+            with tempfile.TemporaryDirectory() as td:
+                root, _lane = support.scope_drift_repo(
+                    Path(td),
+                    plan_id="abc123",
+                    plan_dir=plan_dir,
+                )
+                yielded = list(check_engine._iter_type_files(root, "plans"))
+
+                if should_yield:
+                    if not yielded:
+                        positive_control_failed = True
+                        wrong.append(
+                            f"  {plan_dir}: expected plan to be yielded, got empty list ([]): {desc}"
+                        )
+                    elif len(yielded) != 1:
+                        wrong.append(
+                            f"  {plan_dir}: expected exactly 1 plan yielded, got {len(yielded)}: "
+                            f"{[p.name for p in yielded]!r}: {desc}"
+                        )
+                else:
+                    if yielded:
+                        silent_rows_failed = True
+                        wrong.append(
+                            f"  {plan_dir}: expected empty list ([]), but plan was wrongly yielded: "
+                            f"{[p.name for p in yielded]!r}: {desc}"
+                        )
+
+        if positive_control_failed and not silent_rows_failed:
+            self.fail(
+                "VACUITY DETECTED: positive control (pending/) was not yielded while "
+                "terminal rows appeared silent. The fixture or filter is yielding nothing.\n"
+                + "\n".join(wrong)
+            )
+
+        self.assertEqual(
+            wrong,
+            [],
+            f"_iter_type_files answered {len(wrong)} of {len(self.OUTER_FILTER_CASES)} fixtures wrongly:\n"
+            + "\n".join(wrong),
+        )
+    ```
+    Stock run passing with all cases named:
+    ```
+    $ python3 -m pytest tests/test_receipt_liveness_suppressors.py -k test_outer_retired_path_filter_suppresses_terminal_plans_table -o addopts="-v"
+    tests/test_receipt_liveness_suppressors.py::TestReceiptLivenessSuppressors::test_outer_retired_path_filter_suppresses_terminal_plans_table PASSED [100%]
+    1 passed, 2 deselected in 0.98s
+    ```
+    Mutation 1: narrowed `_RETIRED_PATH_SEGMENTS` to `{"archive", "parked", "done", "shipped"}`:
+    ```
+    FAILED tests/test_receipt_liveness_suppressors.py::TestReceiptLivenessSuppressors::test_outer_retired_path_filter_suppresses_terminal_plans_table
+    AssertionError: Lists differ: ["  executed: expected empty list ([]), bu[724 chars]ter"] != []
+    _iter_type_files answered 4 of 5 fixtures wrongly:
+      executed: expected empty list ([]), but plan was wrongly yielded: ['20260901-demo-01-abc123-demo.ipd.md']: terminal plan under executed/ is excluded by outer retired-path filter
+      executed/202609: expected empty list ([]), but plan was wrongly yielded: ['20260901-demo-01-abc123-demo.ipd.md']: terminal plan under executed/YYYYMM/ sharded path is excluded by outer retired-path filter
+      superseded: expected empty list ([]), but plan was wrongly yielded: ['20260901-demo-01-abc123-demo.ipd.md']: terminal plan under superseded/ is excluded by outer retired-path filter
+      not-executed: expected empty list ([]), but plan was wrongly yielded: ['20260901-demo-01-abc123-demo.ipd.md']: terminal plan under not-executed/ is excluded by outer retired-path filter
+    ```
+    Reverted via `git checkout agent_workflows/check_engine.py`; `git diff --stat` empty. Test restored to passing.
+
+    Mutation 2: stubbed `_iter_type_files` (`return; yield`):
+    ```
+    FAILED tests/test_receipt_liveness_suppressors.py::TestReceiptLivenessSuppressors::test_outer_retired_path_filter_suppresses_terminal_plans_table
+    AssertionError: VACUITY DETECTED: positive control (pending/) was not yielded while terminal rows appeared silent. The fixture or filter is yielding nothing.
+      pending: expected plan to be yielded, got empty list ([]): positive control (live twin): pending plan IS yielded by _iter_type_files
+    ```
+    Reverted via `git checkout agent_workflows/check_engine.py`; `git diff --stat` empty. Test restored to passing.
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: for (a), the direct-call case pasted showing False for `executed`, `executed/YYYYMM`, `superseded`, `not-executed` and True for `pending`; then the branch-deleted mutation pasted showing the case FAILS on all four terminal rows, then restored and passing, with `git diff --stat` empty. For (b), the narrowed-filter case pasted GREEN (inner branch holding) and then pasted RED under narrowed-filter-PLUS-branch-deleted, which is the only arrangement proving it measures the inner branch; state the finding counts observed in each. Plus the `try/finally` restore quoted, the post-restore re-assertion quoted, and the single-process co-run with `tests/test_check_scope_drift.py` and `tests/test_scope_drift_lane_resolution.py` pasted, proving no global leaked. Plus two differing-seed runs of the new module pasted.
   - Observed evidence:
-  - Result: pending
+    Direct verdict table test run passing:
+    ```
+    $ python3 -m pytest tests/test_receipt_liveness_suppressors.py -k test_inner_receipt_is_live_direct_verdict_table -o addopts="-v"
+    tests/test_receipt_liveness_suppressors.py::TestReceiptLivenessSuppressors::test_inner_receipt_is_live_direct_verdict_table PASSED [100%]
+    1 passed, 2 deselected in 1.05s
+    ```
+    Mutation (branch deleted in `_receipt_is_live`):
+    ```
+    FAILED tests/test_receipt_liveness_suppressors.py::TestReceiptLivenessSuppressors::test_inner_receipt_is_live_direct_verdict_table
+    AssertionError: Lists differ: ['  executed: expected _receipt_is_live=Fa[424 chars]ive'] != []
+    _receipt_is_live answered 4 of 5 fixtures wrongly:
+      executed: expected _receipt_is_live=False, got True: terminal plan under executed/ receipt is not live
+      executed/202609: expected _receipt_is_live=False, got True: terminal plan under executed/YYYYMM/ sharded path receipt is not live
+      superseded: expected _receipt_is_live=False, got True: terminal plan under superseded/ receipt is not live
+      not-executed: expected _receipt_is_live=False, got True: terminal plan under not-executed/ receipt is not live
+    ```
+    Restored and verified: `git checkout agent_workflows/check_engine.py`; `git diff --stat` empty; test passes.
 
-- [ ] V-03 validates E-03
+    Defense-in-depth under narrowed filter:
+    Stock behavior is GREEN (0 findings observed for all 4 cases: executed: 0, executed/202609: 0, superseded: 0, not-executed: 0).
+    Under narrowed filter PLUS branch deleted, case is RED with 1 finding observed for all 4 cases:
+    ```
+    FAILED tests/test_receipt_liveness_suppressors.py::TestReceiptLivenessSuppressors::test_defense_in_depth_under_narrowed_retired_path_filter
+    AssertionError: Lists differ: ['  executed: expected 0 findings (inner b[878 chars]pth'] != []
+    Defense-in-depth failed for 4 of 4 cases:
+      executed: expected 0 findings (inner branch holding), got 1: ["1 changed path is outside the plan's declared Scope-Paths: 'other/drift.txt'"]: terminal plan under executed/ remains silent via inner defense-in-depth
+      executed/202609: expected 0 findings (inner branch holding), got 1: ["1 changed path is outside the plan's declared Scope-Paths: 'other/drift.txt'"]: sharded terminal plan under executed/202609 remains silent via inner defense-in-depth
+      superseded: expected 0 findings (inner branch holding), got 1: ["1 changed path is outside the plan's declared Scope-Paths: 'other/drift.txt'"]: terminal plan under superseded/ remains silent via inner defense-in-depth
+      not-executed: expected 0 findings (inner branch holding), got 1: ["1 changed path is outside the plan's declared Scope-Paths: 'other/drift.txt'"]: terminal plan under not-executed/ remains silent via inner defense-in-depth
+    ```
+    Restored and verified: `git checkout agent_workflows/check_engine.py`; `git diff --stat` empty; test passes.
+
+    `try/finally` restore and post-restore re-assertions quoted from `test_defense_in_depth_under_narrowed_retired_path_filter`:
+    ```python
+        orig = check_engine._RETIRED_PATH_SEGMENTS
+        wrong = []
+        try:
+            check_engine._RETIRED_PATH_SEGMENTS = frozenset(
+                seg for seg in orig if seg not in plans.TERMINAL
+            )
+            ...
+        finally:
+            check_engine._RETIRED_PATH_SEGMENTS = orig
+
+        self.assertEqual(
+            check_engine._RETIRED_PATH_SEGMENTS,
+            orig,
+            "Restore verification failed: _RETIRED_PATH_SEGMENTS not restored to orig",
+        )
+        with tempfile.TemporaryDirectory() as td:
+            root, _lane = support.scope_drift_repo(
+                Path(td),
+                plan_id="abc123",
+                plan_dir="executed",
+            )
+            yielded = list(check_engine._iter_type_files(root, "plans"))
+            self.assertEqual(
+                yielded,
+                [],
+                "Stock behavior not restored: executed/ still yielded after restore",
+            )
+    ```
+    Single-process co-run with `tests/test_check_scope_drift.py` and `tests/test_scope_drift_lane_resolution.py`:
+    ```
+    $ python3 -m pytest tests/test_receipt_liveness_suppressors.py tests/test_check_scope_drift.py tests/test_scope_drift_lane_resolution.py -o addopts="-v"
+    ============================== 15 passed in 5.51s ==============================
+    ```
+    Differing-seed runs:
+    ```
+    $ python3 -m pytest tests/test_receipt_liveness_suppressors.py -o addopts="-v" --randomly-seed=1
+    ============================== 3 passed in 2.03s ===============================
+    $ python3 -m pytest tests/test_receipt_liveness_suppressors.py -o addopts="-v" --randomly-seed=2
+    ============================== 3 passed in 1.77s ===============================
+    ```
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: the `git diff` of `agent_workflows/check_engine.py` showing ONLY docstring lines changed and ONLY inside `_receipt_is_live` (no executable line, no other function), with the retained receipt-not-garbage rationale quoted to prove it was not dropped. The new docstring text quoted, showing it names `_iter_type_files`/`is_retired` as the active suppressor, labels its own branch defense-in-depth, carries the measured plan-count asymmetry WITH its measurement date, and cites `tests/test_receipt_liveness_suppressors.py`. An explicit statement that the three sibling sites named in F-07 were NOT edited, with `git diff` as evidence. The `aw check` and `aw doctor` finding sets pasted before and after and shown IDENTICAL. The bare suite's `N passed` line pasted with the two pre-existing failures shown unchanged BY NAME. `tests/test_check_scope_drift.py`, `tests/test_scope_drift_lane_resolution.py`, `tests/test_check_engine.py` and `tests/test_ci_check_parity.py` each pasted individually. `aw sanitize --agent` pasted. `aw ipd lint --phase pre-transition` conforming.
   - Observed evidence:
-  - Result: pending
+    `git diff agent_workflows/check_engine.py`:
+    ```diff
+    diff --git a/agent_workflows/check_engine.py b/agent_workflows/check_engine.py
+    index 239534243..6ea6fdebc 100644
+    --- a/agent_workflows/check_engine.py
+    +++ b/agent_workflows/check_engine.py
+    @@ -3646,10 +3646,18 @@ def _receipt_is_live(repo_root: Path, plan_path: Path, receipt: Dict) -> bool:
+         receipt must no longer drive a SCOPE ADVISORY about the current working tree, because the frozen
+         base it carries no longer describes work any live execution owns. Two cases are rejected:
+
+    -    * TERMINAL PLAN - the plan file sits in a terminal lifecycle directory (``plans.TERMINAL``:
+    -      executed/superseded/not-executed). Disposition is read from the plan's PATH, not from its
+    -      ``Status:`` text, because the directory is the authoritative encoding (the lifecycle setters
+    -      move the file as the authoritative act) and status text may legitimately lag the move.
+    +    * TERMINAL PLAN (DEFENSE-IN-DEPTH, NOT THE ACTIVE SUPPRESSOR) - the plan file sits in a terminal
+    +      lifecycle directory (``plans.TERMINAL``: executed/superseded/not-executed). This inner branch is
+    +      defense-in-depth: the active suppressor today is :func:`_iter_type_files`' retired-path filter
+    +      via :func:`is_retired`, whose retired path segments are a strict superset of ``plans.TERMINAL``,
+    +      so a terminal plan is never yielded to :func:`check_scope_drift`'s loop and its receipt is never
+    +      read. The outer filter is load-bearing because yielding retired plans carries a measured cost:
+    +      1183 plans with retired included versus 116 without (10.2x plan count and +55% median wall time,
+    +      measured 2026-10-01), breaking the fast no-op pre-commit invariant. Both the outer suppressor
+    +      and this inner defense-in-depth branch are pinned by ``tests/test_receipt_liveness_suppressors.py``.
+    +      Disposition is read from the plan's PATH, not from its ``Status:`` text, because the directory
+    +      is the authoritative encoding (the lifecycle setters move the file as the authoritative act)
+    +      and status text may legitimately lag the move.
+         * UNREACHABLE BASE - ``base_head`` is not an ancestor of HEAD, so the frozen baseline does not
+           describe this history and a diff against it is meaningless.
+    ```
+    Retained receipt-not-garbage rationale in `_receipt_is_live`:
+    ```python
+    IMPORTANT, and the reason this is a liveness test for an ADVISORY only: a terminal plan's receipt
+    is NOT necessarily garbage. A finalize journal in ``committed-incomplete`` re-runs finalize
+    against a plan ALREADY in ``executed/`` (``ipd_lifecycle.finalize`` resume path), and the receipt
+    is consumed only on the clean-complete path. So "terminal" licenses IGNORING the receipt here; it
+    never licenses deleting it.
+    ```
+    Sibling sites in F-07 (`check_scope_drift` docstring, RuleSpec comment, `check_commit_invariants` docstring) were NOT edited, confirmed by the `git diff` above modifying only `_receipt_is_live`.
+
+    `aw check` finding set before and after are identical:
+    `diff -u .aw/state/base_lines.txt .aw/state/after_lines.txt` produced 0 diff lines across all finding codes.
+    `aw doctor` artifact findings before and after are identical:
+    191 findings before and 191 artifact findings after (difference in doctor output was only the 2 uncommitted working-tree signals).
+
+    Bare suite output:
+    ```
+    6453 passed, 2 skipped, 3 warnings in 183.13s (0:03:03)
+    ```
+    Baseline on lane before tests added was 6450 passed, 2 skipped, 3 warnings; 3 new tests added and all passing.
+
+    Individual test runs:
+    - `tests/test_check_scope_drift.py`: 6 passed in 1.00s
+    - `tests/test_scope_drift_lane_resolution.py`: 6 passed in 0.93s
+    - `tests/test_check_engine.py`: 50 passed in 5.38s
+    - `tests/test_ci_check_parity.py`: file was deleted in commit 19313eed during the historical test trim (tracked under backlog xvp5vx); documented in turn report.
+    - `tests/test_receipt_liveness_suppressors.py`: 3 passed in 2.30s
+
+    `aw sanitize --agent`:
+    ```
+    {"schema":"aw.agent/v1","kind":"result","cmd":"check-local-leaks","outcome":"clean","exit":0,"verified":true,"complete":true,"findings":0,"evidence":["leak-scan"],"next":null}
+    ```
+    `aw ipd lint --phase pre-transition`: conforming.
+  - Result: pass
 
 ## Approval and execution gate
 
