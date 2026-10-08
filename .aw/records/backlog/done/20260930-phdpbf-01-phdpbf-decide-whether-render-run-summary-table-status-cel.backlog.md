@@ -1,5 +1,5 @@
 - Id: phdpbf
-- Status: graduated
+- Status: done
 - Graduated-To: phdpbf
 - Set: phdpbf
 - Priority: low
@@ -7,6 +7,7 @@
 - Summary: Decide whether render_run_summary_table Status cell should render Section 5 lifecycle glyph
 
 ## Workflow history
+- 2026-10-08 done (aw backlog): closed by aw agy run: IPD qhpov0 executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20261002-phdpbf-01-qhpov0-render-the-section-5-lifecycle-glyph-in-the-run-summary-tabl.ipd.md); evidence .aw/records/plans/executed/20261002-phdpbf-01-qhpov0-render-the-section-5-lifecycle-glyph-in-the-run-summary-tabl.ipd.md
 - 2026-10-02 graduated (aw backlog): graduated by run run-20261001T222151Z-2118435: qhpov0
 - 2026-09-30 created (aw backlog): Decide whether render_run_summary_table Status cell should render Section 5 lifecycle glyph
 
