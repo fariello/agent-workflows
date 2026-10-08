@@ -1416,6 +1416,9 @@ def run_new(args) -> int:
     # `except Exception: pass`. The inline `## Workflow history` record is already in `rendered` and
     # was written by the `atomic_write` directly above, so it is unaffected either way; the sidecar is
     # a machine-local activity log (OQ-01) and must never gate a durable write.
+    # Spec `2vev8j` C5 first clause: the sidecar may never precede the durable write it describes,
+    # because an event for a transition that did not happen is worse than a missing event; see
+    # `record_history.append_advisory`.
     if item.id:
         from agent_workflows import record_history as _rh
 
@@ -1814,13 +1817,22 @@ def run_set(args) -> int:
     if getattr(args, "dry_run", False) or not getattr(args, "apply", True):
         sys.stdout.write(f"--- would move {src} -> {dest} (status {new_status}) ---\n")
         return 0
+    dest_dir.mkdir(parents=True, exist_ok=True)
+    core.atomic_write(dest, rendered)
+    moving = dest.resolve() != src.resolve()
+    if moving:
+        src.unlink()
     # Append this transition to the GLOBAL sidecar as well (awhistory Order 02). The inline block now
     # keeps the FULL history (plan `vhbvwz` E-08 stopped slimming it), so this is an additional
     # machine-local activity-log entry rather than the only durable copy.
     #
     # plan `vhbvwz` E-04: a failure here is REPORTED, never swallowed, and it can never affect the
-    # inline record, which `_reattach_history` has already assembled into `rendered` above and which is
-    # written by the `atomic_write` below regardless of what this call returns.
+    # inline record, which `_reattach_history` has already assembled into `rendered` above and which
+    # was written by the `atomic_write` above.
+    # Spec `2vev8j` C5 first clause: the sidecar may never precede the durable write it describes,
+    # because an event for a transition that did not happen is worse than a missing event. The
+    # sidecar remains a machine-local activity log (OQ-01) and must never gate a durable write; see
+    # `record_history.append_advisory`.
     # histdedup evbx9s E-03/E-04: skip sidecar appending on suppressed duplicate same-status writes,
     # following the specs.run_set precedent so the advisory log does not record phantom transitions.
     if item.id and not suppress:
@@ -1835,11 +1847,6 @@ def run_set(args) -> int:
             message=(getattr(args, "message", "") or f"status -> {new_status}").strip(),
             artifact=src.name,
         )
-    dest_dir.mkdir(parents=True, exist_ok=True)
-    core.atomic_write(dest, rendered)
-    moving = dest.resolve() != src.resolve()
-    if moving:
-        src.unlink()
     if (
         moving
         and getattr(args, "rewrite_citations", False)
@@ -1937,20 +1944,6 @@ def run_note(args) -> int:
     date = getattr(args, "date", None) or core.utc_history_date()
     record = f"- {date} note (aw backlog): {message}"
 
-    # The sidecar remains a machine-local activity log and can never gate this write (E-04).
-    if item.id:
-        from agent_workflows import record_history as _rh
-
-        _rh.append_advisory(
-            repo_root,
-            id6=item.id,
-            tree="backlog",
-            workflow="aw backlog note",
-            actor="aw backlog",
-            message=f"note: {message}",
-            artifact=src.name,
-        )
-
     # PREPEND under the existing heading (newest-first, matching every other writer). No status is
     # read or written, and the file is NOT moved, so the item's directory keeps agreeing with it.
     lines = text.split("\n")
@@ -1967,6 +1960,24 @@ def run_note(args) -> int:
         out.append("## Workflow history")
         out.append(record)
     core.atomic_write(src, "\n".join(out).rstrip() + "\n")
+
+    # plan `vhbvwz` E-04 / OQ-01: the sidecar remains a machine-local activity log and can never gate
+    # this write.
+    # Spec `2vev8j` C5 first clause: the sidecar may never precede the durable write it describes,
+    # because an event for a transition that did not happen is worse than a missing event; see
+    # `record_history.append_advisory`.
+    if item.id:
+        from agent_workflows import record_history as _rh
+
+        _rh.append_advisory(
+            repo_root,
+            id6=item.id,
+            tree="backlog",
+            workflow="aw backlog note",
+            actor="aw backlog",
+            message=f"note: {message}",
+            artifact=src.name,
+        )
     sys.stdout.write(f"aw backlog note: appended a history record to {src}\n")
     return 0
 
