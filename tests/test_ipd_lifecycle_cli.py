@@ -1561,6 +1561,296 @@ class RollbackFailureSemanticsTests(unittest.TestCase):
         self.assertIsNone(LC.read_finalize_journal(self.root, "abc123"))
         self.assertFalse(LC.receipt_path_for(self.root, "abc123").exists())
 
+    def _wedge_committed_incomplete(self) -> str:
+        self._begin_and_work()
+        real_lint = L.lint_file
+
+        def failing_post(path, *, checkpoint="author", legacy=False):
+            r = real_lint(path, checkpoint=checkpoint, legacy=legacy)
+            if checkpoint == "post-transition":
+                from agent_workflows.ipd_lint import Diagnostic, LintResult
+
+                return LintResult(
+                    S.DISPOSITION_ERROR, [Diagnostic(0, 0, "IPD-TEST", "sim")], []
+                )
+            return r
+
+        with mock.patch.object(L, "lint_file", failing_post):
+            r1 = LC.finalize(self.root, self.plan, "opencode/test", "m", apply=True)
+        self.assertEqual(r1.exit_code, LC.EXIT_FINDINGS)
+        self.assertIsNotNone(r1.commit)
+        j = LC.read_finalize_journal(self.root, "abc123")
+        self.assertIsNotNone(j)
+        self.assertEqual(j["phase"], LC.PHASE_COMMITTED_INCOMPLETE)
+        self.assertTrue(LC.receipt_path_for(self.root, "abc123").exists())
+        return self._head()
+
+    def test_finalize_preview_on_committed_incomplete_preserves_journal_and_receipt(
+        self,
+    ):
+        """E-01: finalize(apply=False) on committed-incomplete preserves journal, receipt, and HEAD."""
+        head_after_wedge = self._wedge_committed_incomplete()
+
+        # Preconditions
+        j_pre = LC.read_finalize_journal(self.root, "abc123")
+        self.assertIsNotNone(j_pre)
+        self.assertEqual(j_pre["phase"], LC.PHASE_COMMITTED_INCOMPLETE)
+        self.assertTrue(LC.receipt_path_for(self.root, "abc123").exists())
+
+        # Finalize preview (apply=False) on executed path
+        res = LC.finalize(
+            self.root, self._executed_path(), "opencode/test", "preview", apply=False
+        )
+        self.assertEqual(res.exit_code, LC.EXIT_OK)
+
+        # Journal is still committed-incomplete, receipt still exists, HEAD unmoved
+        j_post = LC.read_finalize_journal(self.root, "abc123")
+        self.assertIsNotNone(j_post, "journal was cleared by preview")
+        self.assertEqual(j_post["phase"], LC.PHASE_COMMITTED_INCOMPLETE)
+        self.assertTrue(
+            LC.receipt_path_for(self.root, "abc123").exists(),
+            "receipt was consumed by preview",
+        )
+        self.assertEqual(self._head(), head_after_wedge)
+
+    def test_cli_finalize_preview_on_committed_incomplete_preserves_journal_and_receipt(
+        self,
+    ):
+        """E-02: real CLI finalize with no --apply on committed-incomplete preserves journal and receipt."""
+        self._wedge_committed_incomplete()
+
+        argv = [
+            "ipd",
+            "finalize",
+            "abc123",
+            "--dir",
+            str(self.root),
+            "--actor",
+            "opencode/test",
+            "--message",
+            "preview message",
+        ]
+        from contextlib import redirect_stderr, redirect_stdout
+
+        out, err = io.StringIO(), io.StringIO()
+        with redirect_stdout(out), redirect_stderr(err):
+            try:
+                rc = cli.main(argv)
+            except SystemExit as e:
+                rc = int(e.code or 0)
+        output = out.getvalue() + err.getvalue()
+
+        self.assertEqual(rc, 0, f"CLI exited with {rc}: {output}")
+        j = LC.read_finalize_journal(self.root, "abc123")
+        self.assertIsNotNone(
+            j, f"journal was cleared by real CLI preview (output: {output.strip()})"
+        )
+        self.assertEqual(j["phase"], LC.PHASE_COMMITTED_INCOMPLETE)
+        self.assertTrue(
+            LC.receipt_path_for(self.root, "abc123").exists(),
+            f"receipt was consumed by real CLI preview (output: {output.strip()})",
+        )
+
+    def test_cli_set_executed_dry_run_on_committed_incomplete_preserves_journal_and_receipt(
+        self,
+    ):
+        """E-03: aw set executed --dry-run and aw ipd set executed --dry-run preserve journal and receipt."""
+        for cmd_prefix in [["set", "executed"], ["ipd", "set", "executed"]]:
+            self.tearDown()
+            self.setUp()
+            self._wedge_committed_incomplete()
+
+            argv = cmd_prefix + [
+                "abc123",
+                "--dir",
+                str(self.root),
+                "--actor",
+                "opencode/test",
+                "--message",
+                "dry run message",
+                "--dry-run",
+            ]
+            from contextlib import redirect_stderr, redirect_stdout
+
+            out, err = io.StringIO(), io.StringIO()
+            with redirect_stdout(out), redirect_stderr(err):
+                try:
+                    rc = cli.main(argv)
+                except SystemExit as e:
+                    rc = int(e.code or 0)
+            output = out.getvalue() + err.getvalue()
+
+            self.assertEqual(rc, 0, f"{cmd_prefix} exited with {rc}: {output}")
+            j = LC.read_finalize_journal(self.root, "abc123")
+            self.assertIsNotNone(
+                j,
+                f"journal was cleared by {' '.join(cmd_prefix)} --dry-run (output: {output.strip()})",
+            )
+            self.assertEqual(j["phase"], LC.PHASE_COMMITTED_INCOMPLETE)
+            self.assertTrue(
+                LC.receipt_path_for(self.root, "abc123").exists(),
+                f"receipt was consumed by {' '.join(cmd_prefix)} --dry-run (output: {output.strip()})",
+            )
+
+    def _run_cli_capture(self, argv: list[str]) -> tuple[int, str]:
+        from contextlib import redirect_stderr, redirect_stdout
+
+        out, err = io.StringIO(), io.StringIO()
+        with redirect_stdout(out), redirect_stderr(err):
+            try:
+                rc = cli.main(argv)
+            except SystemExit as e:
+                rc = int(e.code or 0)
+        return rc, out.getvalue() + err.getvalue()
+
+    def test_cli_finalize_preview_finding_id_visibility_in_all_modes(self):
+        """E-05: finding id is visible in human and --json, findings count in --agent, clean in ordinary preview."""
+        self._wedge_committed_incomplete()
+
+        # 1. Human mode
+        argv_human = [
+            "ipd",
+            "finalize",
+            "abc123",
+            "--dir",
+            str(self.root),
+            "--actor",
+            "opencode/test",
+            "--message",
+            "m",
+        ]
+        rc, out_human = self._run_cli_capture(argv_human)
+        self.assertEqual(rc, 0, f"human preview exited with {rc}: {out_human}")
+        self.assertIn("IPD-FINALIZE", out_human)
+        self.assertIn(LC.FINDING_FINALIZE_JOURNAL_COMMITTED_INCOMPLETE, out_human)
+
+        # 2. JSON mode
+        argv_json = argv_human + ["--json"]
+        rc, out_json = self._run_cli_capture(argv_json)
+        self.assertEqual(rc, 0, f"json preview exited with {rc}: {out_json}")
+        data_json = json.loads(out_json)
+        details = [d.get("detail") for d in data_json.get("diagnostics", [])]
+        self.assertIn(LC.FINDING_FINALIZE_JOURNAL_COMMITTED_INCOMPLETE, details)
+        severities = [d.get("severity") for d in data_json.get("diagnostics", [])]
+        self.assertIn("warning", severities)
+
+        # 3. Agent mode
+        argv_agent = argv_human + ["--agent"]
+        rc, out_agent = self._run_cli_capture(argv_agent)
+        self.assertEqual(rc, 0, f"agent preview exited with {rc}: {out_agent}")
+        data_agent = json.loads(out_agent)
+        self.assertEqual(data_agent.get("outcome"), "clean")
+        self.assertEqual(data_agent.get("exit"), 0)
+        self.assertEqual(data_agent.get("findings"), 1)
+        rules = [d.get("rule") for d in data_agent.get("diagnostics", [])]
+        self.assertIn("IPD-FINALIZE", rules)
+
+        # 4. Clean ordinary preview with no journal in agent mode
+        self.tearDown()
+        self.setUp()
+        self._begin_and_work()
+        argv_clean_agent = [
+            "ipd",
+            "finalize",
+            "abc123",
+            "--dir",
+            str(self.root),
+            "--actor",
+            "opencode/test",
+            "--message",
+            "m",
+            "--agent",
+        ]
+        rc, out_clean_agent = self._run_cli_capture(argv_clean_agent)
+        self.assertEqual(rc, 0, f"clean preview exited with {rc}: {out_clean_agent}")
+        data_clean_agent = json.loads(out_clean_agent)
+        self.assertEqual(data_clean_agent.get("outcome"), "clean")
+        self.assertEqual(data_clean_agent.get("exit"), 0)
+        self.assertEqual(data_clean_agent.get("findings"), 0)
+        self.assertNotIn("diagnostics", data_clean_agent)
+
+    def test_controls_apply_true_resumes_and_recovery_reachable_after_preview(self):
+        """E-06 controls 1 & 2: apply=True still resumes; preview-then-apply succeeds on same fixture."""
+        # Control 1: apply=True on committed-incomplete STILL resumes
+        head_after_wedge = self._wedge_committed_incomplete()
+        res_apply = LC.finalize(
+            self.root, self._executed_path(), "opencode/test", "resume", apply=True
+        )
+        self.assertEqual(res_apply.exit_code, LC.EXIT_OK)
+        self.assertEqual(self._head(), head_after_wedge)
+        self.assertIsNone(LC.read_finalize_journal(self.root, "abc123"))
+        self.assertFalse(LC.receipt_path_for(self.root, "abc123").exists())
+
+        # Control 2: preview (apply=False) then apply=True on the SAME fixture succeeds
+        self.tearDown()
+        self.setUp()
+        head_after_wedge2 = self._wedge_committed_incomplete()
+        # Preview first
+        res_prev = LC.finalize(
+            self.root, self._executed_path(), "opencode/test", "preview", apply=False
+        )
+        self.assertEqual(res_prev.exit_code, LC.EXIT_OK)
+        self.assertIsNotNone(LC.read_finalize_journal(self.root, "abc123"))
+        self.assertTrue(LC.receipt_path_for(self.root, "abc123").exists())
+        # Now apply
+        res_apply2 = LC.finalize(
+            self.root, self._executed_path(), "opencode/test", "resume", apply=True
+        )
+        self.assertEqual(res_apply2.exit_code, LC.EXIT_OK)
+        self.assertEqual(self._head(), head_after_wedge2)
+        self.assertIsNone(LC.read_finalize_journal(self.root, "abc123"))
+        self.assertFalse(LC.receipt_path_for(self.root, "abc123").exists())
+
+    def test_controls_unknown_outcome_and_ordinary_preview_unchanged(self):
+        """E-06 controls 3 & 4: unknown-outcome returns EXIT_CANNOT_RUN for both flags; ordinary preview unchanged."""
+        # Control 3: PHASE_UNKNOWN_OUTCOME returns EXIT_CANNOT_RUN for BOTH apply=False and apply=True
+        self._begin_and_work()
+        with mock.patch.object(
+            LC,
+            "_rollback_precommit",
+            return_value=(False, "simulated rollback failure"),
+        ):
+            res_fault = LC.finalize(
+                self.root,
+                self.plan,
+                "opencode/test",
+                "m",
+                apply=True,
+                fault_injection="after_move",
+            )
+        self.assertEqual(res_fault.exit_code, LC.EXIT_CANNOT_RUN)
+        j = LC.read_finalize_journal(self.root, "abc123")
+        self.assertIsNotNone(j)
+        self.assertEqual(j["phase"], LC.PHASE_UNKNOWN_OUTCOME)
+
+        # Re-invocation with apply=False fails closed
+        res_prev = LC.finalize(
+            self.root, self.plan, "opencode/test", "preview", apply=False
+        )
+        self.assertEqual(res_prev.exit_code, LC.EXIT_CANNOT_RUN)
+        self.assertIn("unknown-outcome", res_prev.message)
+
+        # Re-invocation with apply=True fails closed
+        res_apply = LC.finalize(
+            self.root, self.plan, "opencode/test", "apply", apply=True
+        )
+        self.assertEqual(res_apply.exit_code, LC.EXIT_CANNOT_RUN)
+        self.assertIn("unknown-outcome", res_apply.message)
+
+        # Control 4: Ordinary preview with NO journal returns exactly what it returns today, finding id ABSENT
+        self.tearDown()
+        self.setUp()
+        self._begin_and_work()
+        self.assertIsNone(LC.read_finalize_journal(self.root, "abc123"))
+        res_ord = LC.finalize(
+            self.root, self.plan, "opencode/test", "preview", apply=False
+        )
+        self.assertEqual(res_ord.exit_code, LC.EXIT_OK)
+        self.assertNotIn(
+            LC.FINDING_FINALIZE_JOURNAL_COMMITTED_INCOMPLETE, res_ord.findings
+        )
+        self.assertEqual(res_ord.findings, ())
+
     def test_unrecoverable_failures_and_unknown_outcome(self):
         """Rollback failure retains journal in unknown outcome; corrupt/unknown-outcome journal fails closed."""
         self._begin_and_work()
