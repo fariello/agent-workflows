@@ -105,7 +105,7 @@ ORDER_KEYS: Tuple[str, ...] = (
     "rqs",  # resolved questions count (descending)
     "ctime",  # filesystem creation time (newest first)
     "mtime",  # filesystem modification time (newest first)
-    "runs",  # runner session status: running > merging > queued > done > blocked > failed
+    "runs",  # runner session status: running > merge-retry > interrupted > merge-unchecked > queued > reviewed > approved > executed > already-landed > fail-gate > fail-depend > fail-lane > fail-begin > fail-merge > fail-verify > failed > not-run > retired
     "run",  # alias for runs
 )
 
@@ -116,11 +116,23 @@ PRIORITY_ORDER: Tuple[str, ...] = ("high", "medium", "low")
 READINESS_ORDER: Tuple[str, ...] = ("go", "go-pending-approval", "no-go")
 RUN_SORT_ORDER: Tuple[str, ...] = (
     "running",
-    "merging",
+    "merge-retry",
+    "interrupted",
+    "merge-unchecked",
     "queued",
-    "done",
-    "blocked",
+    "reviewed",
+    "approved",
+    "executed",
+    "already-landed",
+    "fail-gate",
+    "fail-depend",
+    "fail-lane",
+    "fail-begin",
+    "fail-merge",
+    "fail-verify",
     "failed",
+    "not-run",
+    "retired",
 )
 
 

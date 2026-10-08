@@ -712,7 +712,26 @@ _RUN_SORT_RANK = {
         getattr(
             A,
             "RUN_SORT_ORDER",
-            ("running", "merging", "queued", "done", "blocked", "failed"),
+            (
+                "running",
+                "merge-retry",
+                "interrupted",
+                "merge-unchecked",
+                "queued",
+                "reviewed",
+                "approved",
+                "executed",
+                "already-landed",
+                "fail-gate",
+                "fail-depend",
+                "fail-lane",
+                "fail-begin",
+                "fail-merge",
+                "fail-verify",
+                "failed",
+                "not-run",
+                "retired",
+            ),
         )
     )
 }
@@ -2082,33 +2101,41 @@ def parse_readiness_filters(raw_readiness: Sequence[str] | None) -> set[str]:
 
 
 _RUN_STATUS_ALIASES = {
-    "executed": "done",
-    "reviewed": "done",
-    "approved": "done",
-    "substantially-complete": "done",
-    "completed": "done",
+    # Canonical runner item statuses (identity mappings so selector_vocabulary and filters see them)
+    "running": "running",
+    "queued": "queued",
     "failed": "failed",
-    "failed-safely": "failed",
-    "interrupted": "failed",
-    "fail-gate": "blocked",
-    "fail-begin": "blocked",
-    "fail-lane": "blocked",
-    "fail-verify": "blocked",
-    "fail-depend": "blocked",
-    "fail-merge": "blocked",
-    "not-run": "blocked",
-    "partial": "blocked",
-    "blocked": "blocked",
-    "dependency-blocked": "blocked",
-    "integration-blocked": "blocked",
-    "merge-conflict": "blocked",
-    # `l2mzxn` renamed the integration vocabulary; BOTH spellings map here, because this table is
-    # consulted with a status READ FROM A RUN DIRECTORY and pre-rename runs are durable records.
-    # NOTE the deferrable pair (`merge-retry`, `merge-unchecked`) is DELIBERATELY ABSENT, exactly as
-    # its pre-rename twin `integration-deferred` was: those are non-terminal and retry themselves, so
-    # classifying them as `blocked` would report an item needing no attention as needing attention.
-    "merge-needs-human": "blocked",
-    "merge-refused": "blocked",
+    "executed": "executed",
+    "approved": "approved",
+    "reviewed": "reviewed",
+    "already-landed": "already-landed",
+    "interrupted": "interrupted",
+    "merge-retry": "merge-retry",
+    "fail-gate": "fail-gate",
+    "fail-begin": "fail-begin",
+    "fail-lane": "fail-lane",
+    "fail-verify": "fail-verify",
+    "fail-depend": "fail-depend",
+    "fail-merge": "fail-merge",
+    "not-run": "not-run",
+    "retired": "retired",
+    # Legacy terminal status aliases (spec uonrjg Section 7.2)
+    "substantially-complete": "fail-gate",
+    "partial": "fail-verify",
+    "failed-safely": "fail-gate",
+    "blocked": "fail-gate",
+    "dependency-blocked": "fail-depend",
+    "integration-blocked": "fail-merge",
+    "merge-conflict": "fail-merge",
+    "merge-needs-human": "fail-merge",
+    "merge-refused": "fail-merge",
+    "not-attempted": "not-run",
+    # Legacy integration status aliases
+    "integration-deferred": "merge-retry",
+    "integration-unmeasured": "merge-unchecked",
+    # Legacy completion synonyms
+    "completed": "executed",
+    "done": "executed",
 }
 
 
@@ -2524,15 +2551,10 @@ def _render_item_row(
             inline_gate = f"  [gate {g.get('kind')}: {ref_txt}]"
         run_txt = ""
         if runs_mode and run_state and run_state != "-":
-            run_code = {
-                "running": 51,
-                "queued": 220,
-                "merging": 201,
-                "done": 40,
-                "failed": 196,
-                "blocked": 214,
-            }.get(run_state, 244)
-            run_txt = "  " + term.color256(f"[run:{run_state}]", run_code, bold=True)
+            run_resolved = _resolve_run_lifecycle(run_state)
+            run_txt = "  " + term.style_lifecycle_text(
+                f"[run:{run_state}]", run_resolved
+            )
         prio = ""
         if it.priority:
             pcode = {"high": 196, "medium": 214, "low": 244}.get(it.priority, 244)
@@ -2710,11 +2732,49 @@ def _resolve_runs_repo_root(repo_root: Path) -> Path:
     return repo_root
 
 
+def canonical_run_status(status: Any) -> str:
+    """Canonicalize a runner status token through legacy integration and terminal aliases."""
+    from agent_workflows import runner_shared as rs
+
+    return rs.canonical_run_status(status)
+
+
+def _resolve_run_lifecycle(run_state: str | None) -> LS.Resolved:
+    """Resolve a runner item status (spec Section 7.2) through the shared lifecycle resolver."""
+    token = (run_state or "").strip().lower()
+    activity = None
+    if token == "merging":
+        activity = "merging"
+    return T.resolve_lifecycle(LS.FAMILY_RUNNER_ITEM, run_state, activity=activity)
+
+
+_RUN_PRIORITY_ORDER: Dict[str, int] = {
+    "running": 20,
+    "merge-retry": 19,
+    "interrupted": 18,
+    "merge-unchecked": 17,
+    "queued": 16,
+    "reviewed": 15,
+    "approved": 14,
+    "executed": 13,
+    "already-landed": 12,
+    "fail-gate": 11,
+    "fail-depend": 10,
+    "fail-lane": 9,
+    "fail-begin": 8,
+    "fail-merge": 7,
+    "fail-verify": 6,
+    "failed": 5,
+    "not-run": 4,
+    "retired": 3,
+}
+
+
 def get_active_runs_map(repo_root: Path) -> Dict[str, str]:
     """Scan active runner sessions and return a mapping of id6/path to runner state.
 
     Only live runs (whose driver process currently holds driver.lock) are inspected.
-    States are mapped to: 'running', 'queued', 'merging', 'done', 'failed', 'blocked'.
+    States are emitted in the runner's canonical item status vocabulary.
     """
     from agent_workflows import run_viewer
 
@@ -2731,14 +2791,7 @@ def get_active_runs_map(repo_root: Path) -> Dict[str, str]:
     if not live_runs:
         return run_map
 
-    priority_order = {
-        "running": 6,
-        "merging": 5,
-        "queued": 4,
-        "done": 3,
-        "blocked": 2,
-        "failed": 1,
-    }
+    priority_order = _RUN_PRIORITY_ORDER
 
     for run_dir in live_runs:
         state_file = run_dir / "state.json"
@@ -2752,44 +2805,10 @@ def get_active_runs_map(repo_root: Path) -> Dict[str, str]:
                 cfg_file = item.get("configured_file")
                 raw_st = (item.get("status") or "").lower()
 
-                if raw_st == "running":
-                    mapped = "running"
-                elif raw_st == "merging":
-                    mapped = "merging"
-                elif raw_st == "queued":
-                    mapped = "queued"
-                elif raw_st in (
-                    "executed",
-                    "reviewed",
-                    "approved",
-                    "substantially-complete",
-                    "done",
-                    "completed",
-                ):
-                    mapped = "done"
-                elif raw_st in ("failed", "failed-safely", "interrupted"):
-                    mapped = "failed"
-                elif raw_st in (
-                    "blocked",
-                    "dependency-blocked",
-                    "integration-blocked",
-                    "merge-conflict",
-                    # post-rename spellings (`l2mzxn`); both vocabularies classify identically.
-                    # The deferrable pair is absent for the reason given at `_RUN_STATUS_ALIASES`.
-                    "merge-needs-human",
-                    "merge-refused",
-                    "fail-gate",
-                    "fail-begin",
-                    "fail-lane",
-                    "fail-verify",
-                    "fail-depend",
-                    "fail-merge",
-                    "not-run",
-                    "partial",
-                ):
-                    mapped = "blocked"
+                if raw_st:
+                    mapped = canonical_run_status(raw_st) or raw_st
                 else:
-                    mapped = raw_st[:7] if raw_st else "-"
+                    mapped = "-"
 
                 new_prio = priority_order.get(mapped, 0)
 
@@ -2888,28 +2907,23 @@ def _render_table_row(
     st_col = st_marker + T.pad_visible(st_styled, 8)
 
     if runs_mode:
-        run_raw = (run_state or "-")[:7]
-        if colored:
-            if run_raw == "-":
+        run_raw = (run_state or "-")[:14]
+        if run_raw == "-":
+            run_marker = "  "
+            if colored:
                 run_styled = term.color256("-", 244)
-            elif run_raw == "running":
-                run_styled = term.color256(run_raw, 51, bold=True)
-            elif run_raw == "queued":
-                run_styled = term.color256(run_raw, 220, bold=False)
-            elif run_raw == "merging":
-                run_styled = term.color256(run_raw, 201, bold=True)
-            elif run_raw == "done":
-                run_styled = term.color256(run_raw, 40, bold=True)
-            elif run_raw == "failed":
-                run_styled = term.color256(run_raw, 196, bold=True)
-            elif run_raw == "blocked":
-                run_styled = term.color256(run_raw, 214, bold=False)
             else:
-                run_styled = term.color256(run_raw, 244)
+                run_styled = "-"
         else:
-            run_styled = run_raw
-        run_pad = " " * (7 - len(run_raw))
-        run_col = f"{run_styled}{run_pad}"
+            run_resolved = _resolve_run_lifecycle(run_raw)
+            run_marker = term.format_lifecycle_marker(
+                run_resolved, width=2, style=colored
+            )
+            if colored:
+                run_styled = term.style_lifecycle_text(run_raw, run_resolved)
+            else:
+                run_styled = run_raw
+        run_col = f"{run_marker}{T.pad_visible(run_styled, 14)}"
 
     type_word = _SINGULAR_TYPE.get(it.tree, it.tree)
     tp_raw = type_word[:8]
@@ -3142,7 +3156,7 @@ def render_table(
 ) -> str:
     """Render items in a compact columnar table for interactive/TTY viewing.
 
-    Columns: Status (8), [Run (7)], Type (8), Blocks (6), Priority (8), Readiness (9), OQs (3), Exec (4), Valid (5), Date (8), SetID, N, ID6 (6), Deps.
+    Columns: Status (8), [Run (14)], Type (8), Blocks (6), Priority (8), Readiness (9), OQs (3), Exec (4), Valid (5), Date (8), SetID, N, ID6 (6), Deps.
     Sorted by Type, Blocking (non-blocking first), SetID, N, ID6, Priority (none first, then low, med, high), name.
     """
     if term is None:
@@ -3274,7 +3288,7 @@ def render_table(
     id6_hdr = "ID6".ljust(6)
 
     if runs_mode:
-        run_hdr = "Run".ljust(7)
+        run_hdr = "  " + "Run".ljust(14)
         header = (
             f"{st_hdr} {run_hdr} {tp_hdr} {blk_hdr} {prio_hdr} {rd_hdr} {oq_hdr} "
             f"{exec_hdr} {valid_hdr} {date_hdr} {set_hdr} {num_hdr} {id6_hdr} Deps"

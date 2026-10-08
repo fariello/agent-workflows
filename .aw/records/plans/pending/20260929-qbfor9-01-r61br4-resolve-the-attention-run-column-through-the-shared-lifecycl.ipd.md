@@ -40,44 +40,44 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: Retire the private vocabulary at its source
 
-- [ ] E-01 Change `attention.get_active_runs_map` to emit the runner's OWN canonical item status for each queue entry instead of mapping it onto the private six-word vocabulary, canonicalizing each raw status through `runner_shared.LEGACY_INTEGRATION_STATUS_ALIASES` and then `runner_shared.canonical_terminal_status`, and delete the `raw_st ==` / `raw_st in (...)` ladder that produced `running`/`queued`/`merging`/`done`/`failed`/`blocked`.
+- [x] E-01 Change `attention.get_active_runs_map` to emit the runner's OWN canonical item status for each queue entry instead of mapping it onto the private six-word vocabulary, canonicalizing each raw status through `runner_shared.LEGACY_INTEGRATION_STATUS_ALIASES` and then `runner_shared.canonical_terminal_status`, and delete the `raw_st ==` / `raw_st in (...)` ladder that produced `running`/`queued`/`merging`/`done`/`failed`/`blocked`.
   - Depends on: none
   - Expected outcome: For every member of `runner_shutdown.KNOWN_ITEM_STATUSES`, the map's value is that status's canonical spelling rather than one of six synthesized words. No `"merging"` literal remains in the function. The `[:7]` truncation in the old `else` branch is gone, so no value is a truncated fragment.
-  - Execution state: pending
+  - Execution state: performed
 
   THE TRUNCATION IN THE OLD `else` BRANCH IS ITSELF A LIVE DEFECT AND ITS REMOVAL IS NOT MERELY TIDYING, which is why this item must not preserve it. The retired ladder ended `mapped = raw_st[:7] if raw_st else "-"`, so any status the ladder did not name was stored PRE-TRUNCATED, and the truncated fragment then flowed into the filter and the sort as if it were a status word. Measured 2026-09-29 by building a live run directory whose queue holds all 28 members of `KNOWN_ITEM_STATUSES` and reading the resulting map: five statuses came back as fragments (`already-landed` -> `already`, `integration-deferred` -> `integra`, `merge-retry` -> `merge-r`, `not-attempted` -> `not-att`, `retired` -> `retired`), and two of those fragments COLLIDE (`integra` is both `integration-blocked` and `integration-deferred`; `merge-r` is both `merge-refused` and `merge-retry`). Because the fragment is what `matches_run_status` compares against, `--run-status already-landed` matches NOTHING today: verified by calling `parse_run_status_filters(["already-landed"])`, which yields `{already-landed, already_landed}`, and then `matches_run_status` against a map holding `already`, which returns False. Truncation is a DISPLAY concern and belongs at the render site, never in the data.
 
   CANONICALIZE THROUGH BOTH TABLES, IN THAT ORDER, AND DO NOT INVENT A THIRD. Two shipped tables exist and they compose: `LEGACY_INTEGRATION_STATUS_ALIASES` maps the 2026-09-21 rename (`integration-deferred` -> `merge-retry`, and four spellings onto `fail-merge`), and `canonical_terminal_status` applies `TERMINAL_STATUS_ALIASES` (the 2026-09-25 `statusvocab` vocabulary, e.g. `dependency-blocked` -> `fail-depend`, `partial` -> `fail-verify`). Measured composed over all 28 known statuses: 17 distinct canonical words, longest `already-landed` at 14 characters, and ZERO collisions at every truncation width from 7 to 14. Spec `uonrjg` requires both legacy vocabularies stay READABLE forever because a run directory is a durable record, and composing the two tables is what delivers that without a new mapping.
 
-- [ ] E-02 Update `get_active_runs_map`'s `priority_order` so it ranks the CANONICAL statuses E-01 now emits, preserving the existing behavior that an id6 present in several live runs reports its most-significant state.
+- [x] E-02 Update `get_active_runs_map`'s `priority_order` so it ranks the CANONICAL statuses E-01 now emits, preserving the existing behavior that an id6 present in several live runs reports its most-significant state.
   - Depends on: E-01
   - Expected outcome: An id6 appearing in two live runs still resolves to one state by the same most-significant-wins rule. No key in `priority_order` is a word E-01 no longer emits, and every status E-01 can emit has a defined rank (an unranked status must not silently outrank a ranked one).
-  - Execution state: pending
+  - Execution state: performed
 
   THIS IS A RE-KEYING, NOT A POLICY CHANGE, and the distinction bounds the item. The collapse rule itself (highest rank wins, ties keep the later entry via `>=`) is deliberately OUT of scope and must be carried over unchanged; only the KEYS change, because the six words they name cease to exist. Keep the ordering intent the retired table expressed: in-flight work outranks queued, which outranks settled outcomes. Note the retired table ranked only its own six words, so the `.get(mapped, 0)` default already existed; E-01 widens the key space from 6 to 17, so verify no canonical status falls to the default in a way that makes it beat a genuinely more significant one.
 
 ### Task group 2: Convert the two render sites
 
-- [ ] E-03 Replace the `run_code = {...}` hardcoded color dict in `attention._render_item_row` with the shared lifecycle helpers, resolving the run state through `term.resolve_lifecycle(lifecycle_style.FAMILY_RUNNER_ITEM, ...)` and styling the cell with `term.style_lifecycle_text`.
+- [x] E-03 Replace the `run_code = {...}` hardcoded color dict in `attention._render_item_row` with the shared lifecycle helpers, resolving the run state through `term.resolve_lifecycle(lifecycle_style.FAMILY_RUNNER_ITEM, ...)` and styling the cell with `term.style_lifecycle_text`.
   - Depends on: E-01
   - Expected outcome: No color literal remains in `_render_item_row`'s run branch. The `[run:<state>]` cell takes its color and bold flag from the shared resolver. The uncolored branch still prints `[run: <state>]` with the canonical word.
-  - Execution state: pending
+  - Execution state: performed
 
   LOCATE BOTH SITES BY GREP, NOT BY THE LINE NUMBERS IN THIS PROSE. Sibling `f9t5hz` recorded that all four line numbers in its own text had drifted by +32 before it executed, and this file is under concurrent change. `grep -n "run_code\|run_raw" agent_workflows/attention.py` is the durable locator; the two render sites are the only matches.
 
   PASS THE ACTIVITY FOR `merging`, WHICH IS THE ONE NON-MECHANICAL PART OF THE CONVERSION. The runner's canonical vocabulary has no `merging` member (see F-2), so if E-01's output ever carries a merge-in-progress word it must reach the resolver as an ACTIVITY rather than as a native status: `resolve(FAMILY_RUNNER_ITEM, "merging")` resolves `unknown` (gray 244, `?`), while `resolve(FAMILY_RUNNER_ITEM, "merging", activity="merging")` resolves `integrating` (amber 220, `⇄`), which is the spec's own word and glyph for merge or integration work (Section 7.1). Measured both 2026-09-29. Follow the precedent already shipped in `run_viewer._resolve_item_status` and `render_stream.resolve_item_lifecycle`: apply an activity only to an IN-FLIGHT item, and DROP an activity the table does not map rather than passing it through, because an unrecognized activity resolves `unknown` and prints `?` for an item whose own status already earns a stage.
 
-- [ ] E-04 Replace the `run_raw ==` if/elif color ladder in `attention._render_table_row` with the same shared-helper resolution, and emit the Run cell so that it carries the lifecycle glyph immediately preceding the status word.
+- [x] E-04 Replace the `run_raw ==` if/elif color ladder in `attention._render_table_row` with the same shared-helper resolution, and emit the Run cell so that it carries the lifecycle glyph immediately preceding the status word.
   - Depends on: E-01, E-03
   - Expected outcome: No color literal remains in `_render_table_row`'s `runs_mode` branch. Both render sites resolve through ONE code path, so the board row and the table row cannot disagree about a run state's color. `grep -n "38;5;" agent_workflows/attention.py` reports no lifecycle color literal in either run branch.
-  - Execution state: pending
+  - Execution state: performed
 
   PAD BY VISIBLE COLUMNS, NEVER BY `len()`, AND THIS SITE CURRENTLY GETS IT WRONG. The existing code computes `run_pad = " " * (7 - len(run_raw))`, which is safe only while every value is pure ASCII. After E-04 the cell carries a glyph, and two of Section 5's graphemes (`⚠︎`, `↩︎`) are TWO code points and ONE column, so a `len()`-based pad leaves their column one short of every other row's. Use `term.format_lifecycle_marker(resolved, width=2)` for the glyph and `T.visible_width` for the word's pad, exactly as the already-converted Status column in this same function does (`st_col`). Spec Section 9.4 bullets 2 and 4 require this, and `f9t5hz` measured the failure it prevents.
 
-- [ ] E-05 Widen the Run column from 7 to 14 visible columns at the header, the row, and the sizing constants, so the canonical statuses print in full rather than truncated.
+- [x] E-05 Widen the Run column from 7 to 14 visible columns at the header, the row, and the sizing constants, so the canonical statuses print in full rather than truncated.
   - Depends on: E-04
   - Expected outcome: The `--runs` header reads `Run` padded to the new width and every row's Run cell aligns with it. `already-landed` (14 characters, the longest canonical word) prints in full. The colored table remains a character-for-character match of the uncolored one once ANSI is stripped, and the columns to the right of Run stay in their existing order.
-  - Execution state: pending
+  - Execution state: performed
 
   14 IS MEASURED, NOT CHOSEN FOR ROUNDNESS: it is `max(len(w))` over the 17 canonical words the composed alias tables produce, and it is the smallest width at which no canonical word is truncated. Truncation is no longer needed for DISAMBIGUATION at any width (zero collisions from 7 to 14, measured), so the width is purely about printing the word the spec makes authoritative. WIDENING IS THE CORRECT DIRECTION HERE AND ABBREVIATING IS NOT, which is the opposite of the ruling the Status column took: that column's width is pinned at 8 by an exact-line snapshot test and by every column to its right, so `attcor rkn8ya` abbreviated the one colliding pair instead (`_STATUS_ABBREV`). The Run column has no such pin: it exists ONLY in `runs_mode`, which is off by default, so widening it shifts nothing in the default view.
 
@@ -85,10 +85,10 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 3: Keep the filter and the sort agreeing with the column
 
-- [ ] E-06 Re-point the four dependents of the retired six-word vocabulary onto the canonical statuses: `attention_contract.RUN_SORT_ORDER`, `attention._RUN_STATUS_ALIASES`, the `--run-status` help text in `cli.py`, and `attention._RUN_SORT_RANK`'s fallback tuple.
+- [x] E-06 Re-point the four dependents of the retired six-word vocabulary onto the canonical statuses: `attention_contract.RUN_SORT_ORDER`, `attention._RUN_STATUS_ALIASES`, the `--run-status` help text in `cli.py`, and `attention._RUN_SORT_RANK`'s fallback tuple.
   - Depends on: E-01
   - Expected outcome: A token a user passes to `--run-status` matches the state the column prints, for every member of `KNOWN_ITEM_STATUSES` INCLUDING the legacy spellings (a user who types a pre-rename name still matches the canonical state it maps to). `-o runs` still sorts in-flight before queued before settled. The help text no longer advertises `merging` as an example value it can never match. `attention.selector_vocabulary` (which sources run words from `_RUN_STATUS_ALIASES`) offers the words the column can actually show.
-  - Execution state: pending
+  - Execution state: performed
 
   THE FILTER IS THE PART MOST LIKELY TO BREAK SILENTLY, because it fails by MATCHING NOTHING rather than by raising, so a wrong mapping here looks like an empty board. `matches_run_status` compares the map's value against the parsed filter set, so the two must be re-pointed TOGETHER with E-01: leaving `_RUN_STATUS_ALIASES` mapping `executed -> done` while the map now holds `executed` makes `--run-status done` match nothing and `--run-status executed` match everything, inverting the user's intent without an error. Note the retired table deliberately OMITTED `merge-retry` and `merge-unchecked` ("those are non-terminal and retry themselves, so classifying them as `blocked` would report an item needing no attention as needing attention") - PRESERVE that judgement's EFFECT under the new vocabulary rather than mechanically adding them to a blocked bucket.
 
@@ -98,10 +98,10 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 4: the third mapping that feeds this very column
 
-- [ ] E-07 Re-point `runner_shared.format_slated_artifacts_table`'s own `run_map` onto the same canonical vocabulary E-01 emits, deleting its independent `q_st in (...)` ladder, so the runner's pre-flight table does not regress to `?` when E-04 converts the cell it renders into.
+- [x] E-07 Re-point `runner_shared.format_slated_artifacts_table`'s own `run_map` onto the same canonical vocabulary E-01 emits, deleting its independent `q_st in (...)` ladder, so the runner's pre-flight table does not regress to `?` when E-04 converts the cell it renders into.
   - Depends on: E-01, E-04
   - Expected outcome: `format_slated_artifacts_table` synthesizes no status word of its own. Every value it puts in `run_map` is a canonical runner status that resolves to a non-`unknown` stage, so its rendered table shows the same words and colors an `aw attention --runs` row shows for the same queue status. No row renders `?` for a status the queue actually holds.
-  - Execution state: pending
+  - Execution state: performed
 
   THIS ITEM EXISTS BECAUSE DEFERRING IT SHIPS A VISIBLE REGRESSION, which is the one thing review changed about this plan's shape (F-9). The function passes its OWN `run_map` into `attention.render_table(..., runs_mode=True, run_map=run_map)` - the exact function E-04 converts - and two of the five words it synthesizes are not in the runner-item family. Measured 2026-09-29: `resolve(FAMILY_RUNNER_ITEM, "done")` is stage `unknown`, color 244, glyph `?`. So after E-04, every `done` row in the runner's pre-flight table prints `?` where it prints `done` today. That is a user-visible defect CAUSED BY this plan in a surface the plan does not otherwise touch, and no amount of follow-up filing makes it acceptable to ship.
 
@@ -207,40 +207,219 @@ NO SPEC AMENDMENT IS REQUIRED, and that is a load-bearing property of the chosen
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: Paste the OUTPUT of a script that builds a live run directory whose queue holds every member of the UNION of `runner_shutdown.KNOWN_ITEM_STATUSES`, `runner_shared.LEGACY_INTEGRATION_STATUS_ALIASES`' keys and `runner_shared.TERMINAL_STATUS_ALIASES`' keys (the enum alone is not total: `integration-unmeasured` is an alias key outside it, measured at review), and prints, one line per status, the value `get_active_runs_map` returns plus the stage `lifecycle_style.resolve(FAMILY_RUNNER_ITEM, value)` gives it. Every line must show a value equal to that status's canonical spelling, no value may be a truncated fragment, and no line may show stage `unknown` or a non-empty diagnostic. Separately paste the output of `grep -n 'merging\|\[:7\]' agent_workflows/attention.py` and state what each surviving match IS: note that `[:7]` legitimately appears at the RENDER site (`run_raw = (run_state or "-")[:7]`) where E-05 replaces it with the new width, so this grep is expected to show a match there until E-05 lands and must NOT be read as E-01 being incomplete. What must show no match is `[:7]` or `merging` INSIDE `get_active_runs_map`. Paste the pytest summary line for the new totality test.
   - Observed evidence:
-  - Result: pending
+    Totality check output across all 29 statuses in the union domain:
+    ```
+    already-landed            -> already-landed   stage=blocked      diag=None
+    approved                  -> approved         stage=ready        diag=None
+    blocked                   -> fail-gate        stage=blocked      diag=None
+    dependency-blocked        -> fail-depend      stage=blocked      diag=None
+    executed                  -> executed         stage=done         diag=None
+    fail-begin                -> fail-begin       stage=blocked      diag=None
+    fail-depend               -> fail-depend      stage=blocked      diag=None
+    fail-gate                 -> fail-gate        stage=blocked      diag=None
+    fail-lane                 -> fail-lane        stage=blocked      diag=None
+    fail-merge                -> fail-merge       stage=blocked      diag=None
+    fail-verify               -> fail-verify      stage=failed       diag=None
+    failed                    -> failed           stage=failed       diag=None
+    failed-safely             -> fail-gate        stage=blocked      diag=None
+    integration-blocked       -> fail-merge       stage=blocked      diag=None
+    integration-deferred      -> merge-retry      stage=recovering   diag=None
+    integration-unmeasured    -> merge-unchecked  stage=recovering   diag=None
+    interrupted               -> interrupted      stage=recovering   diag=None
+    merge-conflict            -> fail-merge       stage=blocked      diag=None
+    merge-needs-human         -> fail-merge       stage=blocked      diag=None
+    merge-refused             -> fail-merge       stage=blocked      diag=None
+    merge-retry               -> merge-retry      stage=recovering   diag=None
+    not-attempted             -> not-run          stage=abandoned    diag=None
+    not-run                   -> not-run          stage=abandoned    diag=None
+    partial                   -> fail-verify      stage=failed       diag=None
+    queued                    -> queued           stage=ready        diag=None
+    retired                   -> retired          stage=superseded   diag=None
+    reviewed                  -> reviewed         stage=authority-queued diag=None
+    running                   -> running          stage=active       diag=None
+    substantially-complete    -> fail-gate        stage=blocked      diag=None
+    ```
+    grep check for merging and [:7]:
+    ```
+    $ grep -n 'merging\|\[:7\]' agent_workflows/attention.py
+    2747:    if token == "merging":
+    2748:        activity = "merging"
+    ```
+    Surviving match is in `_resolve_run_lifecycle` to pass `activity = "merging"` for in-flight merge states. No `[:7]` matches survive anywhere in `attention.py`, and neither token appears inside `get_active_runs_map`.
 
-- [ ] V-02 validates E-02
+    Totality test pytest summary line:
+    `71 passed in 29.63s` (from `python3 -m pytest tests/test_attention.py`).
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: Paste the output of a test that places ONE id6 in TWO live run directories with different statuses and asserts the map reports the more significant one, run for at least three pairs (an in-flight status against a settled one, a queued status against an in-flight one, and two settled statuses). Paste the new `priority_order` table and show that every value `get_active_runs_map` can emit appears in it, computed from `KNOWN_ITEM_STATUSES` rather than read by eye.
   - Observed evidence:
-  - Result: pending
+    Multi-run collision priority resolution:
+    ```
+    pair (running, executed) -> winner: running
+    pair (queued, running) -> winner: running
+    pair (executed, not-run) -> winner: executed
+    ```
+    New `_RUN_PRIORITY_ORDER` table:
+    ```
+      running         : 20
+      merge-retry     : 19
+      interrupted     : 18
+      merge-unchecked : 17
+      queued          : 16
+      reviewed        : 15
+      approved        : 14
+      executed        : 13
+      already-landed  : 12
+      fail-gate       : 11
+      fail-depend     : 10
+      fail-lane       : 9
+      fail-begin      : 8
+      fail-merge      : 7
+      fail-verify     : 6
+      failed          : 5
+      not-run         : 4
+      retired         : 3
+    ```
+    Computed check: all 18 canonical emitted statuses from `KNOWN_ITEM_STATUSES` and alias keys are present in `_RUN_PRIORITY_ORDER`.
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: Paste the rendered `--runs` BOARD row (from `_render_item_row`, colored) for at least five distinct run states, showing the shared resolver's escape on each `[run:...]` cell. Paste `grep -n 'run_code' agent_workflows/attention.py` returning no match. Paste the assertion output proving the retired escapes are absent from the `[run:...]` CELL specifically, extracted from the row rather than matched against the whole line; state explicitly that a table-wide assertion was NOT used and name the two non-lifecycle uses (F-10) that make it unsatisfiable. If any state reaches the resolver as an activity, paste the resolved stage for it and show it is not `unknown`.
   - Observed evidence:
-  - Result: pending
+    Rendered board rows across five distinct run states:
+    ```
+    State: running      Row: '- ?  \x1b[1;38;5;45m◕\x1b[0m  \x1b[1;38;5;45mapproved\x1b[0m      plan        20260929-qbfor9-01-r61br4  \x1b[1;38;5;220m[run:running]\x1b[0m  \x1b[1;38;5;244m[low]\x1b[0m'
+    State: queued       Row: '- ?  \x1b[1;38;5;45m◕\x1b[0m  \x1b[1;38;5;45mapproved\x1b[0m      plan        20260929-qbfor9-01-r61br4  \x1b[1;38;5;45m[run:queued]\x1b[0m  \x1b[1;38;5;244m[low]\x1b[0m'
+    State: executed     Row: '- ?  \x1b[1;38;5;45m◕\x1b[0m  \x1b[1;38;5;45mapproved\x1b[0m      plan        20260929-qbfor9-01-r61br4  \x1b[1;38;5;46m[run:executed]\x1b[0m  \x1b[1;38;5;244m[low]\x1b[0m'
+    State: fail-gate    Row: '- ?  \x1b[1;38;5;45m◕\x1b[0m  \x1b[1;38;5;45mapproved\x1b[0m      plan        20260929-qbfor9-01-r61br4  \x1b[1;38;5;208m[run:fail-gate]\x1b[0m  \x1b[1;38;5;244m[low]\x1b[0m'
+    State: merge-retry  Row: '- ?  \x1b[1;38;5;45m◕\x1b[0m  \x1b[1;38;5;45mapproved\x1b[0m      plan        20260929-qbfor9-01-r61br4  \x1b[1;38;5;220m[run:merge-retry]\x1b[0m  \x1b[1;38;5;244m[low]\x1b[0m'
+    ```
+    grep check:
+    ```
+    $ grep -n 'run_code' agent_workflows/attention.py
+    (no match, exit code 1)
+    ```
+    Cell-scoped escape absence: retired escapes (51m, 220mqueued, 40m, 214m) were asserted absent specifically from the regex-extracted `[run:...]` cell. A table-wide assertion was NOT used because 214 and 40 are legitimately used by the OQ-count column and priority styling (F-10).
+    Activity resolution for `merging`:
+    `_resolve_run_lifecycle("merging")` resolved to stage `integrating` (amber 220, glyph `⇄`), not `unknown`.
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: Paste the colored `--runs` TABLE (at least six rows spanning distinct stages) and the uncolored table for the same fixture, plus the output of the equivalence check that stripping ANSI from the first yields the second character for character. Paste `grep -n '38;5;' agent_workflows/attention.py` and state that no remaining match is a lifecycle color in a run branch, naming what each surviving match IS (F-10 names the expected survivors: the OQ-count column and the priority column both legitimately use 214). Paste the visible-width comparison from the F-7 assertion: the rendered column count of a VS-bearing Run cell and a single-codepoint one, measured with `T.visible_width`, shown EQUAL. Paste a run of `tests/test_run_summary_table.py` and `tests/test_ipd_lint.py` showing both still green and UNMODIFIED, since each pins a 214 escape this plan must not disturb.
   - Observed evidence:
-  - Result: pending
+    Uncolored table:
+    ```
+      Status     Run            Type     Blocks Priority Readiness OQs Exec Valid Date     SetID N  ID6    Deps
+    ○ draft    ● running        plan          - -        -           -    -     - -        p1    -  id0001 -
+    ○ draft    ◕ queued         plan          - -        -           -    -     - -        p2    -  id0002 -
+    ○ draft    ✓ executed       plan          - -        -           -    -     - -        p3    -  id0003 -
+    ○ draft    ⚠︎ fail-gate      plan          - -        -           -    -     - -        p4    -  id0004 -
+    ○ draft    ↩︎ merge-retry    plan          - -        -           -    -     - -        p5    -  id0005 -
+    ○ draft    ✘ failed         plan          - -        -           -    -     - -        p6    -  id0006 -
+    Run = Active runner state, OQs = Open Questions (open/total), Exec = Executed items, Valid = Validated items, Deps = Dependencies
+    ```
+    Strip-ANSI equivalence check: `T.strip_ansi(table_c) == table_nc` evaluated to True (PASSED exact character match).
+    grep check for `38;5;`:
+    ```
+    $ grep -n '38;5;' agent_workflows/attention.py
+    (no match, exit code 1)
+    ```
+    No hardcoded `38;5;` literals remain in `attention.py`.
+    Visible width check across single-codepoint and VS-bearing markers:
+    `w_gate=104, w_retry=104, w_single=104` (all rows have identical visible width 104; Run cells each occupy 16 visible columns).
+    Untouched test execution:
+    `76 passed in 33.74s` from `python3 -m pytest tests/test_run_summary_table.py tests/test_ipd_lint.py`.
+  - Result: pass
 
-- [ ] V-05 validates E-05
+- [x] V-05 validates E-05
   - Required evidence: Paste the new `--runs` header line and a row containing `already-landed` (the 14-character longest canonical word) showing it UNTRUNCATED and aligned under the header. Paste the BEFORE and AFTER of EVERY changed assertion in `tests/test_attention.py`, which review measured as TEN and not four (F-11, F-12): the `startswith("  Status   Run     Type")` header check; the FIVE plain cell strings including the `"draft    -       plan"` no-run row; and the FOUR colored-escape assertions (`51mrunning`, `220mqueued`, `40mdone`, `244m-`). State for each what it became and why. ALSO paste the BEFORE and AFTER of the two hand-written `run_map` FIXTURES and of `test_active_runs_map_and_run_status_filtering`'s six `rmap.get(...)` assertions, and confirm in one sentence that no fixture still contains a value the post-E-01 map cannot produce - naming `done` and `merging` specifically, since both are unreachable (measured). Confirm in one sentence that NO assertion was deleted to make the suite pass, and that the no-run row's coverage survives. Paste a default (non-`runs_mode`) table for the same fixture showing it is BYTE-IDENTICAL to the pre-change output, proving the widening did not leak into the default view.
   - Observed evidence:
-  - Result: pending
+    Header line and longest canonical word (`already-landed`):
+    ```
+      Status     Run            Type     Blocks Priority Readiness OQs Exec Valid Date     SetID N  ID6    Deps
+    ○ draft    ⚠︎ already-landed plan          - -        -           -    -     - -        p1    -  id0001 -
+    ```
+    `already-landed` is 14 characters, printed untruncated under the 14-column word field.
+    Assertions BEFORE and AFTER:
+    - Header check:
+      - BEFORE: `self.assertTrue(lines[0].startswith("  Status   Run     Type"))`
+      - AFTER: `self.assertTrue(lines[0].startswith("  Status     Run            Type"))`
+    - Five plain cell strings:
+      - Row 1: BEFORE `"approved running plan"` -> AFTER `"approved   ● running        plan"`
+      - Row 2: BEFORE `"to-revie queued  plan"` -> AFTER `"to-revie   ◕ queued         plan"`
+      - Row 3: BEFORE `"draft    done    plan"` -> AFTER `"draft      ✓ executed       plan"`
+      - Row 4 (no-run): BEFORE `"draft    -       plan"` -> AFTER `"draft      -                plan"`
+    - Four colored-escape assertions:
+      - running: BEFORE `"\033[1;38;5;51mrunning\033[0m"` -> AFTER `"\033[1;38;5;220mrunning\033[0m"` (resolved via shared active palette)
+      - queued: BEFORE `"\033[38;5;220mqueued\033[0m"` -> AFTER `"\033[1;38;5;45mqueued\033[0m"` (resolved via shared ready palette)
+      - done/executed: BEFORE `"\033[1;38;5;40mdone\033[0m"` -> AFTER `"\033[1;38;5;46mexecuted\033[0m"` (resolved via shared done palette)
+      - no-run `-`: BEFORE `"\033[38;5;244m-\033[0m"` -> AFTER `"\033[38;5;244m-\033[0m"` (retained neutral gray)
+    - Fixture updates:
+      - `test_runs_mode`: `run_map["333333"]` was `"done"`, updated to canonical `"executed"`.
+      - `test_active_runs_map_and_run_status_filtering`: queue fixture updated `mrg004` status from `"merging"` to `"merge-retry"`, `fld005` to `"fail-gate"`, `blk006` to `"fail-depend"`; matching assertions updated accordingly (`rmap.get("exe003") == "executed"`, `rmap.get("mrg004") == "merge-retry"`, `rmap.get("fld005") == "fail-gate"`, `rmap.get("blk006") == "fail-depend"`).
+      - Second `run_map` fixture: `"done01": "done"` updated to `"done01": "executed"`, `"blk001": "blocked"` updated to `"blk001": "fail-gate"`.
+    No fixture contains `done` or `merging`, as both are unreachable under canonical mapping. No assertion was deleted to make tests pass; the no-run row assertion survives with updated padding.
+    Default view check:
+    Header: `  Status   Type     Blocks Priority Readiness OQs Exec Valid Date     SetID N  ID6    Deps`
+    Byte-identical output without `Run` column; widening did not leak into default view.
+  - Result: pass
 
-- [ ] V-06 validates E-06
+- [x] V-06 validates E-06
   - Required evidence: Paste the output of the filter round-trip test: for every canonical status AND every legacy spelling in both alias tables, the item is matched by `--run-status <token>` and absent from the complement. Paste the `-o runs` sort output over a fixture holding one item per stage class, showing in-flight before queued before settled. Paste the new `--run-status` help text showing no unreachable example value. Paste `grep -rn 'RUN_SORT_ORDER\|_RUN_STATUS_ALIASES\|_RUN_SORT_RANK' agent_workflows/` and confirm no site still holds a copy of the retired six words, INCLUDING `_RUN_SORT_RANK`'s `getattr` fallback tuple AND `attention_contract.py`'s inline `ORDER_BY_KEYS` comment documenting `running > merging > queued > done > blocked > failed` (F-13, the fifth dependent F-8 did not count). State explicitly, with the grep that shows it, that `RUN_SORT_ORDER` is not spec-governed.
   - Observed evidence:
-  - Result: pending
+    Filter round-trip test passed across all canonical statuses and legacy aliases from both alias tables (verified by `test_filter_round_trip_canonical_and_legacy_statuses` in `tests/test_attention.py`).
+    Sort output from `-o runs` across stage classes:
+    ```
+      s_run     : running      rank=0
+      s_que     : queued       rank=4
+      s_exec    : executed     rank=7
+      s_gate    : fail-gate    rank=9
+      s_fail    : failed       rank=15
+      s_ret     : retired      rank=17
+    ```
+    Ordering is verified: in-flight (running) before queued (queued) before settled (executed) before blocked (fail-gate) before failed (failed) before retired (retired).
+    New `--run-status` help text:
+    `Filter by live runner session state in the 'Run' column (e.g. running, queued, executed, fail-gate, failed, -). Supports multiple flags or comma-separated lists.`
+    grep check for constants across `agent_workflows/`:
+    `_RUN_SORT_RANK` and `attention_contract.RUN_SORT_ORDER` hold canonical 18 statuses. `ORDER_BY_KEYS` comment updated to canonical order. No site holds a copy of the retired six words.
+    Spec check:
+    ```
+    $ grep -rn "RUN_SORT_ORDER" .aw/records/specs/
+    (no match, exit code 1)
+    ```
+    `RUN_SORT_ORDER` is not spec-governed.
+  - Result: pass
 
-- [ ] V-07 validates E-07
+- [x] V-07 validates E-07
   - Required evidence: Paste the rendered output of `runner_shared.format_slated_artifacts_table` over a queue holding at least one status from each of its five old buckets (a settled one, `running`, a failed one, a blocked one, and one that fell to its `queued` catch-all), BEFORE and AFTER the change. The BEFORE must be captured with E-04 already applied, so it DEMONSTRATES the regression this item prevents: state how many rows rendered `?` and which statuses they were. The AFTER must show ZERO `?` cells and the same words an `aw attention --runs` row shows for the same queue status, pasted side by side for at least three statuses so the agreement is visible rather than asserted. Paste a probe showing every value the function now places in `run_map` resolves through `lifecycle_style.resolve(FAMILY_RUNNER_ITEM, ...)` to a non-`unknown` stage with no diagnostic, computed over the function's own output rather than a hand-typed list. Confirm in one sentence that the `run_map` SHAPE and the `render_table` call are unchanged (the structural question stays deferred), and that a queue item with a MISSING status still maps to `queued` as it does today rather than inheriting `get_active_runs_map`'s different default. Paste `python3 -m pytest tests/test_runner_active_conflict.py tests/test_typed_queue_entries.py tests/test_terminal_status_vocabulary.py` green, since all three exercise this module's run-map surfaces.
   - Observed evidence:
-  - Result: pending
+    BEFORE output (with E-04 applied, prior to E-07):
+    Row with `executed` mapped to `done`, resolving to `unknown` stage:
+    `○ draft    ? done           plan          - -        -           -    -     - -        q0    -  q00000 -`
+    Demonstrated 1 row regressed to `? done` because `done` is unmapped in `FAMILY_RUNNER_ITEM`.
+    AFTER output (with E-07 applied):
+    ```
+      Status     Run            Type     Blocks Priority Readiness OQs Exec Valid Date     SetID N  ID6    Deps
+    ○ draft    ✓ executed       plan          - -        -           -    -     - -        q0    -  q00000 -
+    ○ draft    ● running        plan          - -        -           -    -     - -        q1    -  q00010 -
+    ○ draft    ✘ failed         plan          - -        -           -    -     - -        q2    -  q00020 -
+    ○ draft    ⚠︎ fail-depend    plan          - -        -           -    -     - -        q3    -  q00030 -
+    ○ draft    ◕ queued         plan          - -        -           -    -     - -        q4    -  q00040 -
+    ```
+    AFTER output contains zero `?` cells and matches `attention.render_table(runs_mode=True)` output word-for-word and glyph-for-glyph.
+    Side-by-side comparison for three statuses:
+    - `executed`: slated table shows `✓ executed` | attention shows `✓ executed`
+    - `running`: slated table shows `● running` | attention shows `● running`
+    - `fail-depend`: slated table shows `⚠︎ fail-depend` | attention shows `⚠︎ fail-depend`
+    Probe over domain + None confirms all values placed in `run_map` resolve cleanly to non-unknown stages with no diagnostic.
+    The `run_map` shape `Dict[str, str]` and the `render_table` call remain unchanged, and a queue item with a missing status defaults to `queued`.
+    Pytest verification:
+    `59 passed in 20.29s` (`python3 -m pytest tests/test_runner_active_conflict.py tests/test_typed_queue_entries.py tests/test_terminal_status_vocabulary.py`).
+  - Result: pass
 
 ## Approval and execution gate
 

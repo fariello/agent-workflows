@@ -1480,7 +1480,7 @@ class ExecValidAndDepsColumnsTests(unittest.TestCase):
             None,
         )
         r_items = [it_r1, it_r2, it_r3, it_r4]
-        run_map = {"111111": "running", "222222": "queued", "333333": "done"}
+        run_map = {"111111": "running", "222222": "queued", "333333": "executed"}
 
         plain_off = att.render_table(
             r_items, [], show_all=True, term=att.T.Term(color=False), runs_mode=False
@@ -1496,16 +1496,16 @@ class ExecValidAndDepsColumnsTests(unittest.TestCase):
             run_map=run_map,
         )
         lines_on = plain_on.splitlines()
-        self.assertTrue(lines_on[0].startswith("  Status   Run     Type"))
+        self.assertTrue(lines_on[0].startswith("  Status     Run            Type"))
         self.assertIn("Run = Active runner state", plain_on)
         row1 = [ln for ln in lines_on if "111111" in ln][0]
-        self.assertIn("approved running plan", row1)
+        self.assertIn("approved ● running        plan", row1)
         row2 = [ln for ln in lines_on if "222222" in ln][0]
-        self.assertIn("to-revie queued  plan", row2)
+        self.assertIn("to-revie ◕ queued         plan", row2)
         row3 = [ln for ln in lines_on if "333333" in ln][0]
-        self.assertIn("draft    done    plan", row3)
+        self.assertIn("draft    ✓ executed       plan", row3)
         row4 = [ln for ln in lines_on if "444444" in ln][0]
-        self.assertIn("draft    -       plan", row4)
+        self.assertIn("draft      -              plan", row4)
 
         colored_r = att.render_table(
             r_items,
@@ -1515,9 +1515,9 @@ class ExecValidAndDepsColumnsTests(unittest.TestCase):
             runs_mode=True,
             run_map=run_map,
         )
-        self.assertIn("\033[1;38;5;51mrunning\033[0m", colored_r)
-        self.assertIn("\033[38;5;220mqueued\033[0m", colored_r)
-        self.assertIn("\033[1;38;5;40mdone\033[0m", colored_r)
+        self.assertIn("\033[1;38;5;220mrunning\033[0m", colored_r)
+        self.assertIn("\033[1;38;5;45mqueued\033[0m", colored_r)
+        self.assertIn("\033[1;38;5;46mexecuted\033[0m", colored_r)
         self.assertIn("\033[38;5;244m-\033[0m", colored_r)
 
     def test_active_runs_map_and_run_status_filtering(self):
@@ -1539,7 +1539,7 @@ class ExecValidAndDepsColumnsTests(unittest.TestCase):
                             {"id6": "run001", "status": "running"},
                             {"id6": "que002", "status": "queued"},
                             {"id6": "exe003", "status": "executed"},
-                            {"id6": "mrg004", "status": "merging"},
+                            {"id6": "mrg004", "status": "merge-retry"},
                             {"id6": "fld005", "status": "failed-safely"},
                             {"id6": "blk006", "status": "dependency-blocked"},
                         ]
@@ -1569,10 +1569,10 @@ class ExecValidAndDepsColumnsTests(unittest.TestCase):
 
             self.assertEqual(rmap.get("run001"), "running")
             self.assertEqual(rmap.get("que002"), "queued")
-            self.assertEqual(rmap.get("exe003"), "done")
-            self.assertEqual(rmap.get("mrg004"), "merging")
-            self.assertEqual(rmap.get("fld005"), "failed")
-            self.assertEqual(rmap.get("blk006"), "blocked")
+            self.assertEqual(rmap.get("exe003"), "executed")
+            self.assertEqual(rmap.get("mrg004"), "merge-retry")
+            self.assertEqual(rmap.get("fld005"), "fail-gate")
+            self.assertEqual(rmap.get("blk006"), "fail-depend")
             self.assertNotIn("dead01", rmap)
 
         # CLI args
@@ -1600,11 +1600,11 @@ class ExecValidAndDepsColumnsTests(unittest.TestCase):
         self.assertIn("running", filters)
         self.assertIn("queued", filters)
         self.assertIn("dependency-blocked", filters)
-        self.assertIn("blocked", filters)
+        self.assertIn("fail-depend", filters)
         self.assertIn("failed-safely", filters)
-        self.assertIn("failed", filters)
+        self.assertIn("fail-gate", filters)
 
-        run_map = {"run001": "running", "done01": "done", "blk001": "blocked"}
+        run_map = {"run001": "running", "done01": "executed", "blk001": "fail-gate"}
         it_running = att.Item(
             "run001", "p/run001.md", "plans", "draft", A.READY, None, None
         )
@@ -1617,7 +1617,12 @@ class ExecValidAndDepsColumnsTests(unittest.TestCase):
 
         self.assertTrue(att.matches_run_status(it_running, {"running"}, run_map))
         self.assertFalse(att.matches_run_status(it_done, {"running"}, run_map))
-        self.assertTrue(att.matches_run_status(it_done, {"done"}, run_map))
+        self.assertTrue(att.matches_run_status(it_done, {"executed"}, run_map))
+        self.assertTrue(
+            att.matches_run_status(
+                it_done, att.parse_run_status_filters(["done"]), run_map
+            )
+        )
         self.assertTrue(att.matches_run_status(it_running, {"any"}, run_map))
         self.assertFalse(att.matches_run_status(it_none, {"any"}, run_map))
         self.assertTrue(att.matches_run_status(it_none, {"-"}, run_map))
@@ -3726,3 +3731,305 @@ class InboxFooterNudgeTests(unittest.TestCase):
         self.assertEqual(set(before), set(after))
         for p, b in before.items():
             self.assertEqual(after[p], b, f"{p} changed")
+
+
+class AttentionRunColumnLifecycleTests(unittest.TestCase):
+    """Tests for IPD r61br4: attention Run column shared lifecycle resolver and canonical vocabulary."""
+
+    def test_active_runs_map_totality_over_known_and_legacy_statuses(self):
+        import fcntl
+        from agent_workflows import (
+            lifecycle_style as LS,
+            runner_shared,
+            runner_shutdown,
+        )
+
+        with tempfile.TemporaryDirectory() as td:
+            repo = Path(td)
+            runs_dir = repo / ".aw" / "records" / "runs"
+            runs_dir.mkdir(parents=True)
+            live_dir = runs_dir / "run-20261001T000000Z-100"
+            live_dir.mkdir()
+            lock_file = live_dir / "driver.lock"
+            lock_file.write_text("pid=100\n", encoding="utf-8")
+            with open(lock_file, "r+") as lf:
+                fcntl.flock(lf, fcntl.LOCK_EX | fcntl.LOCK_NB)
+
+                all_statuses = sorted(
+                    set(runner_shutdown.KNOWN_ITEM_STATUSES)
+                    | set(runner_shared.LEGACY_INTEGRATION_STATUS_ALIASES.keys())
+                    | set(runner_shared.TERMINAL_STATUS_ALIASES.keys())
+                )
+                queue = [
+                    {"id6": f"t{i:05d}", "status": st}
+                    for i, st in enumerate(all_statuses)
+                ]
+                (live_dir / "state.json").write_text(
+                    json.dumps({"queue": queue}), encoding="utf-8"
+                )
+
+                rmap = att.get_active_runs_map(repo)
+                self.assertEqual(len(rmap), len(all_statuses))
+                for i, st in enumerate(all_statuses):
+                    val = rmap[f"t{i:05d}"]
+                    expected = runner_shared.canonical_run_status(st)
+                    self.assertEqual(val, expected, f"{st} -> {val} != {expected}")
+                    self.assertNotIn(":", val)
+                    self.assertGreaterEqual(len(val), 1)
+                    resolved = LS.resolve(LS.FAMILY_RUNNER_ITEM, val)
+                    self.assertNotEqual(
+                        resolved.stage, LS.UNKNOWN, f"{val} resolved unknown"
+                    )
+                    self.assertIsNone(
+                        resolved.diagnostic, f"{val} diagnostic {resolved.diagnostic}"
+                    )
+
+    def test_active_runs_map_multi_run_priority_collapse(self):
+        import fcntl
+        from agent_workflows import runner_shared, runner_shutdown
+
+        with tempfile.TemporaryDirectory() as td:
+            repo = Path(td)
+            runs_dir = repo / ".aw" / "records" / "runs"
+            runs_dir.mkdir(parents=True)
+
+            r1 = runs_dir / "run-20261001T000000Z-100"
+            r1.mkdir()
+            l1 = r1 / "driver.lock"
+            l1.write_text("pid=100\n", encoding="utf-8")
+
+            r2 = runs_dir / "run-20261001T000000Z-200"
+            r2.mkdir()
+            l2 = r2 / "driver.lock"
+            l2.write_text("pid=200\n", encoding="utf-8")
+
+            with open(l1, "r+") as f1, open(l2, "r+") as f2:
+                fcntl.flock(f1, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                fcntl.flock(f2, fcntl.LOCK_EX | fcntl.LOCK_NB)
+
+                pairs = [
+                    ("pair01", "running", "executed", "running"),
+                    ("pair02", "queued", "running", "running"),
+                    ("pair03", "executed", "fail-gate", "executed"),
+                    ("pair04", "fail-gate", "failed", "fail-gate"),
+                ]
+
+                (r1 / "state.json").write_text(
+                    json.dumps(
+                        {"queue": [{"id6": p[0], "status": p[1]} for p in pairs]}
+                    ),
+                    encoding="utf-8",
+                )
+                (r2 / "state.json").write_text(
+                    json.dumps(
+                        {"queue": [{"id6": p[0], "status": p[2]} for p in pairs]}
+                    ),
+                    encoding="utf-8",
+                )
+
+                rmap = att.get_active_runs_map(repo)
+                for id6, st1, st2, expected in pairs:
+                    actual = rmap[id6]
+                    self.assertEqual(
+                        actual,
+                        expected,
+                        f"Priority collapse failed for {id6}: {st1} vs {st2} yielded {actual}, expected {expected}",
+                    )
+
+        all_canonical = {
+            runner_shared.canonical_run_status(st)
+            for st in runner_shutdown.KNOWN_ITEM_STATUSES
+        }
+        missing = all_canonical - set(att._RUN_PRIORITY_ORDER.keys())
+        self.assertEqual(
+            missing, set(), f"Statuses missing from priority_order: {missing}"
+        )
+
+    def test_render_item_row_shared_resolver_styling(self):
+        import re
+        from agent_workflows import lifecycle_style as LS, term as T
+
+        term_c = T.Term(color=True)
+        item = att.Item(
+            "aaa111",
+            ".aw/records/plans/p.ipd.md",
+            "plans",
+            "approved",
+            A.READY,
+            None,
+            None,
+        )
+
+        states = ["running", "queued", "executed", "fail-gate", "merging"]
+        retired_escapes = {
+            "running": "\033[1;38;5;51m",
+            "queued": "\033[38;5;220m",
+            "done": "\033[1;38;5;40m",
+            "merging": "\033[1;38;5;201m",
+            "blocked": "\033[38;5;214m",
+        }
+
+        cell_re = re.compile(r"(\x1b\[[0-9;]+m\[run:[^\]]+\]\x1b\[0m)")
+
+        for st in states:
+            row = att._render_item_row(
+                item,
+                A.READY,
+                term_c,
+                colored=True,
+                long=False,
+                runs_mode=True,
+                run_state=st,
+            )
+            m = cell_re.search(row)
+            self.assertTrue(m, f"Run cell not found in row for {st}")
+            cell = m.group(1)
+
+            resolved = att._resolve_run_lifecycle(st)
+            expected_color = f"38;5;{resolved.style.color}m"
+            self.assertIn(expected_color, cell)
+
+            for ret_name, ret_esc in retired_escapes.items():
+                self.assertNotIn(
+                    ret_esc,
+                    cell,
+                    f"Retired escape {ret_esc} ({ret_name}) found in run cell: {cell}",
+                )
+
+        res_merging = att._resolve_run_lifecycle("merging")
+        self.assertEqual(res_merging.stage, LS.INTEGRATING)
+        self.assertIsNone(res_merging.diagnostic)
+
+    def test_render_table_row_shared_resolver_and_visible_width(self):
+        from agent_workflows import term as T
+
+        stages = ["running", "queued", "executed", "fail-gate", "merge-retry", "failed"]
+        items = [
+            att.Item(
+                f"id{i:04d}",
+                f".aw/records/plans/p{i}.ipd.md",
+                "plans",
+                "draft",
+                A.READY,
+                None,
+                None,
+            )
+            for i, _ in enumerate(stages, 1)
+        ]
+        run_map = {f"id{i:04d}": st for i, st in enumerate(stages, 1)}
+
+        table_c = att.render_table(
+            items,
+            [],
+            show_all=True,
+            term=T.Term(color=True),
+            runs_mode=True,
+            run_map=run_map,
+        )
+        table_nc = att.render_table(
+            items,
+            [],
+            show_all=True,
+            term=T.Term(color=False),
+            runs_mode=True,
+            run_map=run_map,
+        )
+
+        self.assertEqual(T.strip_ansi(table_c), table_nc)
+
+        row_vs_gate = att._render_table_row(
+            items[3],
+            T.Term(color=True),
+            colored=True,
+            long=False,
+            runs_mode=True,
+            run_state="fail-gate",
+        )
+        row_vs_retry = att._render_table_row(
+            items[4],
+            T.Term(color=True),
+            colored=True,
+            long=False,
+            runs_mode=True,
+            run_state="merge-retry",
+        )
+        row_single = att._render_table_row(
+            items[0],
+            T.Term(color=True),
+            colored=True,
+            long=False,
+            runs_mode=True,
+            run_state="running",
+        )
+        self.assertEqual(T.visible_width(row_vs_gate), T.visible_width(row_single))
+        self.assertEqual(T.visible_width(row_vs_retry), T.visible_width(row_single))
+
+    def test_filter_round_trip_canonical_and_legacy_statuses(self):
+        from agent_workflows import runner_shared, runner_shutdown
+
+        all_canonical = sorted(
+            {
+                runner_shared.canonical_run_status(st)
+                for st in runner_shutdown.KNOWN_ITEM_STATUSES
+            }
+        )
+        legacy_integration = sorted(
+            runner_shared.LEGACY_INTEGRATION_STATUS_ALIASES.keys()
+        )
+        legacy_terminal = sorted(runner_shared.TERMINAL_STATUS_ALIASES.keys())
+        all_tokens = sorted(
+            set(all_canonical) | set(legacy_integration) | set(legacy_terminal)
+        )
+
+        for tok in all_tokens:
+            canonical = runner_shared.canonical_run_status(tok)
+            filters = att.parse_run_status_filters([tok])
+
+            it_match = att.Item(
+                "m00001", "p/m.md", "plans", "draft", A.READY, None, None
+            )
+            rmap_match = {"m00001": canonical}
+            self.assertTrue(
+                att.matches_run_status(it_match, filters, rmap_match),
+                f"Token {tok} failed to match canonical {canonical}",
+            )
+
+            other_canonical = "running" if canonical != "running" else "executed"
+            it_other = att.Item(
+                "o00002", "p/o.md", "plans", "draft", A.READY, None, None
+            )
+            rmap_other = {"o00002": other_canonical}
+            self.assertFalse(
+                att.matches_run_status(it_other, filters, rmap_other),
+                f"Token {tok} unexpectedly matched complement {other_canonical}",
+            )
+
+    def test_order_by_runs_sort_order(self):
+        stage_classes = [
+            ("in-flight", "run01", "running"),
+            ("queued", "que02", "queued"),
+            ("settled-done", "exe03", "executed"),
+            ("settled-blocked", "blk04", "fail-gate"),
+            ("settled-failed", "fld05", "failed"),
+            ("settled-retired", "ret06", "retired"),
+        ]
+        items = [
+            att.Item(
+                id6,
+                f".aw/records/plans/{id6}.ipd.md",
+                "plans",
+                "draft",
+                A.READY,
+                None,
+                None,
+            )
+            for _, id6, _ in stage_classes
+        ]
+        run_map = {id6: st for _, id6, st in stage_classes}
+        shuffled = [items[3], items[0], items[5], items[2], items[1], items[4]]
+
+        sorted_items = att.sort_items(shuffled, "runs", run_map=run_map)
+        self.assertEqual(
+            [it.id for it in sorted_items],
+            ["run01", "que02", "exe03", "blk04", "fld05", "ret06"],
+        )

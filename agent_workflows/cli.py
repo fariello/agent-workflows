@@ -4855,7 +4855,7 @@ def _build_parser() -> argparse.ArgumentParser:
         default=[],
         help=(
             "Filter by live runner session state in the 'Run' column "
-            "(e.g. running, queued, merging, done, blocked, failed, -). "
+            "(e.g. running, queued, executed, fail-gate, failed, -). "
             "Supports multiple flags or comma-separated lists."
         ),
     )

@@ -17261,40 +17261,11 @@ def format_slated_artifacts_table(
     for q_item in queue:
         id6 = q_item.get("id6") or ""
         cfg = q_item.get("configured_file") or ""
-        q_st = q_item.get("status") or "queued"
-
-        if q_st in (
-            "executed",
-            "reviewed",
-            "approved",
-            "substantially-complete",
-            "done",
-            "completed",
-        ):
-            mapped_run_st = "done"
-        elif q_st == "running":
-            mapped_run_st = "running"
-        elif q_st in ("failed", "failed-safely", "interrupted"):
-            mapped_run_st = "failed"
-        elif q_st in (
-            "blocked",
-            "dependency-blocked",
-            "integration-blocked",
-            "merge-conflict",
-            "merge-needs-human",
-            "merge-refused",
-            "fail-gate",
-            "fail-begin",
-            "fail-lane",
-            "fail-verify",
-            "fail-depend",
-            "fail-merge",
-            "not-run",
-            "partial",
-        ):
-            mapped_run_st = "blocked"
-        else:
+        q_st = q_item.get("status")
+        if not q_st:
             mapped_run_st = "queued"
+        else:
+            mapped_run_st = canonical_run_status(q_st) or "queued"
 
         if id6:
             run_map[id6] = mapped_run_st
@@ -31372,6 +31343,15 @@ def canonical_terminal_status(status: Any) -> str:
     if not isinstance(status, str):
         return ""
     return TERMINAL_STATUS_ALIASES.get(status, status)
+
+
+def canonical_run_status(status: Any) -> str:
+    """Canonicalize a runner status token through legacy integration and terminal aliases."""
+    if not isinstance(status, str) or not status.strip():
+        return ""
+    st = status.strip().lower()
+    c1 = LEGACY_INTEGRATION_STATUS_ALIASES.get(st, st)
+    return canonical_terminal_status(c1)
 
 
 # statusvocab (`32jpl1`) E-01 / E-02: Driver statuses intentionally having no lifecycle position.
