@@ -77,7 +77,7 @@ STANDALONE_SCRIPTS: Tuple[StandaloneScriptDeclaration, ...] = (
 
 
 # --------------------------------------------------------------------------------------------------
-# Comprehensive Command Surface Inventory (All 78 leaves)
+# Comprehensive Command Surface Inventory (164 declarations across 155 parser leaves, 0 undeclared)
 # --------------------------------------------------------------------------------------------------
 
 COMMAND_INVENTORY: Tuple[CommandDeclaration, ...] = (
@@ -1890,6 +1890,25 @@ COMMAND_INVENTORY: Tuple[CommandDeclaration, ...] = (
     # These forward argv verbatim to the packaged drivers (`add_help=False` +
     # `argparse.REMAINDER`), so the driver's own parser owns help and exit codes. Declared as
     # mutations because a run writes commits, run state, and lifecycle transitions.
+    #
+    # runexitvocab u28vqb E-02: `exit_contract=(0, 1, 2, 3)`.
+    # Exit 3 is reachable at the process exit: `oc_runipd.main` returns `run_queue(...)` unclamped on
+    # both start and resume paths, which returns `runner_shared.run_exit_code(...)`, which delegates
+    # to `run_evidence.aggregate_run_exit(...)`. When an item requires human approval, the aggregate
+    # yields classification `run_evidence.AGGREGATE_NEEDS_INPUT`, which maps to exit 3.
+    # The `needs_input` flag the gate clause reads is set at two production sites:
+    # (1) the queue-build append in `runner_shared` via `item_needs_approval`, and
+    # (2) the spec-artifact branch that sets it when a spec turn ends `reviewed`.
+    # Exit 3 is required by spec `25kzda` 5.6 row 3 ("Human input or explicit acknowledgement is
+    # required") and spec `6kwd2e` R7.3 (a parked run must exit with a distinct, non-failure status).
+    #
+    # Measured reachability limits:
+    # Neither `4` nor `130` is reachable through `run_queue`: `run_exit_code` passes neither
+    # `run_wide_abort_class` nor `interrupted` to `aggregate_run_exit`, so `AGGREGATE_RUN_WIDE` (4)
+    # and `AGGREGATE_INTERRUPTED` (130) cannot be produced on that path. Signal-derived codes
+    # `130`/`143` arrive from a DIFFERENT `return` in `main` (the uncooperative-interrupt arm)
+    # rather than through the aggregate return; per OQ-03, whether signal codes belong in
+    # `exit_contract` is left deferred without declaring them here.
     CommandDeclaration(
         command="oc runipd",
         command_class="mutation",
@@ -1898,7 +1917,7 @@ COMMAND_INVENTORY: Tuple[CommandDeclaration, ...] = (
         mutation_gate="none",
         empty_error_renderer="renderer_boundary",
         legacy_flags=(),
-        exit_contract=(0, 1, 2),
+        exit_contract=(0, 1, 2, 3),
     ),
     # revsweep 76gsmv E-05: `aw <host> review` is declared as an `alias`, not a `mutation`, because
     # that is what it IS: spec 25kzda 2.1 defines it as exactly `run <selector> --action review`, and
@@ -2136,6 +2155,9 @@ COMMAND_INVENTORY: Tuple[CommandDeclaration, ...] = (
         legacy_flags=("--agent", "--json"),
         exit_contract=(0, 2),
     ),
+    # runexitvocab u28vqb E-02: `exit_contract=(0, 1, 2, 3)`. Shares the identical driver structure,
+    # `run_queue` -> `runner_shared.run_exit_code` -> `run_evidence.aggregate_run_exit` call chain,
+    # and `run_evidence.AGGREGATE_NEEDS_INPUT` exit 3 reachability as `oc runipd` (see comments above).
     CommandDeclaration(
         command="agy runipd",
         command_class="mutation",
@@ -2144,7 +2166,7 @@ COMMAND_INVENTORY: Tuple[CommandDeclaration, ...] = (
         mutation_gate="none",
         empty_error_renderer="renderer_boundary",
         legacy_flags=(),
-        exit_contract=(0, 1, 2),
+        exit_contract=(0, 1, 2, 3),
     ),
     CommandDeclaration(
         command="agy exec",

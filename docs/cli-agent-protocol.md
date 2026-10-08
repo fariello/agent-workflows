@@ -26,7 +26,7 @@ Every `aw.agent/v1` record is a single line of compact JSON. The mandatory envel
 | `schema` | Always `aw.agent/v1`. Check this before trusting the record. |
 | `kind` | One of `result`, `summary`, `item`, `error`. |
 | `cmd` | The command that produced the record. |
-| `exit` | The process exit classification: `0`, `1`, or `2`. |
+| `exit` | The agent record exit classification: `0`, `1`, or `2` (a contract of the `aw.agent/v1` envelope; non-agent run commands carry a wider exit vocabulary documented in [CLI Output Mode Contract Section 3.1](cli-output-contract.md#31-run-execution-exit-vocabulary)). |
 | `outcome` | The semantic outcome word (see below). |
 | `verified` | Boolean: was the claim actually verified? |
 | `complete` | Boolean: was the work complete (not truncated or partial)? |

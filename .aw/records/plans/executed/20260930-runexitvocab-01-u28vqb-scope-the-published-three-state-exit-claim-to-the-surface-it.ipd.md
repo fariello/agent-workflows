@@ -13,7 +13,7 @@
   OUT, each for a stated reason: RENUMBERING any shipped code in `run_cli.py`, `run_evidence.py` or `compat_migration.py`, refused above as a breaking change to a consumed contract; COLLAPSING the run family into `{0,1,2}`, refused above because `6kwd2e` R7.3 forbids it; the other six out-of-range declarations (`ipd execute-set`, `run start`, `runs next`, `run record`, `runs resume`, `run cancel`, `runs status`, `run finalize`), which are either already measurement-accurate (`runs resume`, fixed by `ck0vya`) or owned by pending siblings `69rdv6` (`runs next`, `runs status`) and `1mnit8` (the argparse usage-error floor), so touching them here would collide with a reviewed plan; the latent `EXIT_BLOCKED`-unreachable defect on `runs resume`, which is open backlog `tzqvjn`; `run_cli`'s module docstring contradicting its own constants, which is a separate honest defect filed in OQ-02 rather than fixed here; converting `run_cli`'s bare machine payloads into `aw.agent/v1` records, which `run_cli` itself records as "a real gap on a different contract" that "would silently change what every existing `aw run`/`aw runs --agent` consumer parses"; and adding a tree-wide `exit_contract` validation gate, which is pending plan `1mnit8`'s declared purpose.
 - Scope-Paths: docs/cli-output-contract.md, docs/cli-human-guide.md, docs/cli-agent-protocol.md, docs/cli-migration.md, README.md, agent_workflows/command_surface.py, agent_workflows/run_evidence.py, tests/test_exit_vocabulary_boundary.py, .aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - From-Spec: 25kzda
 - Work-Kind: chore
@@ -24,9 +24,9 @@
 - Highest E allocated: 07
 - Author: opencode
 - Id: u28vqb
-- Approval: 2026-10-01, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-08 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: u28vqb verified (set runexitvocab, attempt 1).
 - 2026-10-01 approved (aw set): status set to approved
 
 - 2026-10-01 reviewed (opencode its_direct/pt3-claude-opus-5-1m-us): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-701 (HIGH), PR-702 (HIGH), PR-703 (HIGH), PR-704 (MEDIUM), PR-705 (MEDIUM), PR-706 (MEDIUM), PR-707 (MEDIUM), PR-708 (MEDIUM), PR-709 (LOW), PR-710 (LOW), PR-711 (LOW), PR-712 (LOW) all FIXED; zero deferred, zero open. Structural lint `conforming` at `--phase author` and `--phase review-finalize`, with no advisories at either checkpoint; this plan's own first `- Kind:` bullet reads `child`, so the `IPD-S407` orchestrator row check does not apply. Reviewed in an isolated lane; no production file, test, document or spec was modified by this review.
@@ -48,50 +48,50 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: re-measure before changing anything
 
-- [ ] E-01 Re-measure the full declaration census and the exit-3 reachability trace at the executing HEAD, and record both verbatim, so every later item acts on current fact rather than on this plan's authoring snapshot.
+- [x] E-01 Re-measure the full declaration census and the exit-3 reachability trace at the executing HEAD, and record both verbatim, so every later item acts on current fact rather than on this plan's authoring snapshot.
   - Depends on: none
   - Expected outcome: two pasted transcripts. FIRST, a `command_surface.get_all_declarations()` loop printing the total count, the count declaring any code outside `{0,1,2}`, and each such declaration with its tuple and `command_class`. SECOND, a `runner_shared.run_exit_code` call on a queue entry built from `item_needs_approval("reviewed", "execute")` and `initial_queue_status`, printing the returned code, alongside the `exit_contract` that `oc runipd` and `agy runipd` declare. THE ENTRY MUST CARRY THE `needs_input` FLAG EXPLICITLY, and this is the one measurement detail an executor can get wrong while believing the plan is falsified (F-18, measured at review): the status and action alone are NOT sufficient, because `aggregated_run_items`'s gate clause reads `entry.get(runner_shared.NEEDS_INPUT_KEY)` rather than re-deriving it, so `{"status": "reviewed", "action": "execute"}` returns **1** and only `{..., runner_shared.NEEDS_INPUT_KEY: True}` returns **3**. Build the entry as `{"status": initial_queue_status("reviewed", action="execute"), "action": "execute", runner_shared.NEEDS_INPUT_KEY: item_needs_approval("reviewed", "execute")}`, which is the shape the queue builder itself writes (`runner_shared`'s queue-append block sets `NEEDS_INPUT_KEY: item_needs_approval(status, action)` beside `status: initial_queue_status(...)`), so the probe measures production's own entry rather than a hand-made subset of it. A `1` from an entry MISSING the flag is NOT a falsification of F-06 and must not stop the plan; re-run with the flag before concluding anything. If the census total, the out-of-range SET, or the correctly-built entry's returned code differs from F-04/F-06, STOP and reconcile the plan before proceeding, because a changed census changes what the documents must say.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: correct the measured-wrong declarations
 
-- [ ] E-02 Correct the `oc runipd` and `agy runipd` declarations in `command_surface.COMMAND_INVENTORY` to include the reachable exit `3`, and record in a comment WHY `3` is reachable and which spec requires it, so a later reader does not "clean up" the out-of-range code back to `(0,1,2)`.
+- [x] E-02 Correct the `oc runipd` and `agy runipd` declarations in `command_surface.COMMAND_INVENTORY` to include the reachable exit `3`, and record in a comment WHY `3` is reachable and which spec requires it, so a later reader does not "clean up" the out-of-range code back to `(0,1,2)`.
   - Depends on: E-01
   - Expected outcome: both declarations admit `3`, i.e. `(0, 1, 2, 3)` on each, which is a pure WIDENING: every code already declared is kept, matching sibling `1mnit8`'s never-narrow rule and leaving the two plans compatible in either order. The comment cites the call chain by SYMBOL (`run_queue` -> `runner_shared.run_exit_code` -> `run_evidence.aggregate_run_exit`), names `run_evidence.AGGREGATE_NEEDS_INPUT` as the classification producing it, names the two production sites that SET the `needs_input` flag the gate clause reads (the queue-build append in `runner_shared` via `item_needs_approval`, and the spec-artifact branch that sets it when a spec turn ends `reviewed`), and cites spec `25kzda` 5.6 row 3 and `6kwd2e` R7.3 as the two requirements that make `3` correct rather than accidental. It follows the shipped precedent of the `runs resume` comment (executed plan `ck0vya`), which explains an out-of-range tuple in exactly this shape. The comment must NOT assert that any other code is or is not reachable on these verbs: only `3` was measured, and `130`/`143` from the uncooperative-interrupt path are deliberately left for OQ-03 rather than declared on an unmeasured guess. In particular it must NOT claim that `4` or `130` are reachable through `run_queue`: measured at review, `run_exit_code` passes neither `run_wide_abort_class` nor `interrupted` to `aggregate_run_exit`, so `AGGREGATE_RUN_WIDE` (4) and `AGGREGATE_INTERRUPTED` (130) cannot be produced on that path, and `130`/`143` arrive from a DIFFERENT `return` in `main` (the uncooperative-interrupt arm) rather than from the aggregate. State that limit as the measured fact it is, without declaring the codes.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: make the four published claims true
 
-- [ ] E-03 Amend `docs/cli-output-contract.md` Section 3 to scope the three-state classification to the verbs it governs, drawing the boundary at the `aw.agent/v1` record a verb ACTUALLY EMITS (never at the `agent_record_kind` field, which is wrong for this purpose per F-13) and naming the run-execution family as carrying a separate wider vocabulary.
+- [x] E-03 Amend `docs/cli-output-contract.md` Section 3 to scope the three-state classification to the verbs it governs, drawing the boundary at the `aw.agent/v1` record a verb ACTUALLY EMITS (never at the `agent_record_kind` field, which is wrong for this purpose per F-13) and naming the run-execution family as carrying a separate wider vocabulary.
   - Depends on: E-01
   - Expected outcome: Section 3 no longer asserts the rule holds "across all verbs". It states the rule, then states the SCOPE: a verb that EMITS an `aw.agent/v1` record is bound to `{0,1,2}` and `agent_schema.validate_agent_record` enforces it by rejecting anything else; a verb whose machine payload is a bare JSON object is not bound by it and carries a wider vocabulary documented with those verbs. It names the measured count from E-01 rather than a hardcoded "eight" that will rot. It must NOT claim the two vocabularies have been reconciled into one, which is false, and must NOT silently drop the three-state rule, which is true of the large majority of the surface. The Section 4 "Exit Code Parity" rule stays scoped to agent records, where it is correct.
     THE BOUNDARY MUST BE WORDED AS EMISSION, NOT AS A DECLARED FIELD, AND F-13 IS WHY THIS IS A CONSTRAINT RATHER THAN A STYLE NOTE. `agent_record_kind="result"` is declared by 161 of 163 leaves INCLUDING all eight out-of-range ones and including `oc runipd`/`agy runipd`, so a reader who took the field as the test would conclude every one of them is capped at `{0,1,2}` and that this document contradicts itself. The honest, checkable statement is about the record a verb emits: measured at review, `aw runs next --agent` on a missing ledger emits `{"error":...,"exit_code":2,"ok":false}` with NO `schema` key and exits 2, while `aw ipd lint --agent` emits a record whose `schema` is `aw.agent/v1`. Section 3 may cite `agent_schema.validate_agent_record` as the enforcer and `run_cli._emit_error` as the named counter-example, and must NOT cite `command_surface.CommandDeclaration.agent_record_kind` as a way to tell which side a verb is on.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 Make the same scoping correction in `docs/cli-human-guide.md`, `README.md`, `docs/cli-agent-protocol.md` AND `docs/cli-migration.md`, so the claim is not left false on four surfaces while true on one.
+- [x] E-04 Make the same scoping correction in `docs/cli-human-guide.md`, `README.md`, `docs/cli-agent-protocol.md` AND `docs/cli-migration.md`, so the claim is not left false on four surfaces while true on one.
   - Depends on: E-03
   - Expected outcome: `cli-human-guide.md` no longer says "Every `aw` command"; `README.md` no longer says "Exit codes are uniform" without qualification; `docs/cli-migration.md`'s "Verifying your migration" bullet no longer tells a script author that `0`/`1`/`2` is the whole classification (F-14: it says "Confirm the exit codes your script branches on still mean the same thing: `0` clean, `1` findings, `2` cannot run", which is the SAME false uniformity claim aimed at exactly the reader most harmed by it, someone wiring a script against the codes); `cli-agent-protocol.md`'s `exit` row remains `0`/`1`/`2` (correct, since that document describes agent records only) but says so EXPLICITLY as a property of the record format rather than of the CLI. Each correction is one or two sentences in the register of its own document: the human guide stays task-oriented, the README stays short, the migration guide stays practical, the protocol doc stays normative. No document gains a copy of the run table; each points at the one place E-05 writes it. All four are user-facing prose, so write NO em or en dash in any of them (AGENTS.md).
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 Document the run-execution exit vocabulary in `docs/cli-output-contract.md` as a new subsection of Section 3, which today states it NOWHERE, including the fact that three tables exist and disagree at `3` and `4`.
+- [x] E-05 Document the run-execution exit vocabulary in `docs/cli-output-contract.md` as a new subsection of Section 3, which today states it NOWHERE, including the fact that three tables exist and disagree at `3` and `4`.
   - Depends on: E-01
   - Expected outcome: a reader who gets exit `3`, `5` or `7` from a run verb can look it up. THE DESTINATION IS DECIDED, NOT LEFT TO THE EXECUTOR (F-15): write it as a new `### 3.1` subsection of `docs/cli-output-contract.md`, immediately under the Section 3 text E-03 amends. Reasons, each checkable: that document is the NORMATIVE home of the exit contract and already carries the `### N.N` subsection convention (`1.1`, `1.2`, `1.3`, `9.1`, `11.1`); siting the wider vocabulary beside the rule it is an exception to is what lets E-03 and E-04 point at ONE place with a stable anchor; and no new file is created, so `- Scope-Paths:` is unchanged and the `grep -rln "exit code" docs/` check in V-05 is satisfied by an existing match rather than needing a new one. Measured gap being closed: that grep matches only `cli-agent-protocol.md`, `README.md`, `cli-migration.md`, `docs/README.md` and `cli-output-contract.md`, none of which state the run codes, so the vocabulary is undocumented for an operator. The new subsection states each run code's meaning, names which verbs carry it, and states plainly that `run_cli`'s inspection table and spec `25kzda` 5.6's run-aggregate table assign DIFFERENT meanings to `3` and `4`. It must NOT present the two as reconciled. Sourced from the constants and the spec table, not invented. It must NOT present `compat_migration.EXIT_CODES` as a table an operator can observe: per F-16 that mapping has ZERO consumers in the entire tree (measured: the only three occurrences are its own definition, its `__all__` entry, and a `CompatSurface` prose field; its named test `test_surface_exit_codes_preserved` does not exist), so it is named at most as an unconsumed internal constant with that fact stated, and it is NOT given a row beside codes a user can actually receive.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 4: pin the boundary behaviorally
 
-- [ ] E-06 Add one test that pins the record-format boundary by EXERCISING `agent_schema` and the declarations, with no read of production source text.
+- [x] E-06 Add one test that pins the record-format boundary by EXERCISING `agent_schema` and the declarations, with no read of production source text.
   - Depends on: E-02
   - Expected outcome: a new `tests/test_exit_vocabulary_boundary.py` asserting (a) `agent_schema.validate_agent_record` REJECTS a `result` record carrying `exit: 3` and ACCEPTS the same record at `exit: 1`, which is the mechanism that makes the boundary real; (b) `agent_schema.render_jsonl_record` RAISES on that exit-3 record, so the cap is unforgeable and not merely advisory; (c) every declaration admitting a code outside `{0,1,2}` is a member of an explicitly enumerated allowlist carrying a one-line reason each, so a NEW out-of-range declaration fails until someone states why. Assertions (a) and (b) are genuinely NEW coverage rather than a duplicate: measured at review, no test in the tree constructs a record at `exit: 3`, and the five files importing `validate_agent_record` all drive valid records. Per `AGENTS.md` and GUIDING_PRINCIPLES P16 the test uses NO `inspect`, `ast`, regex or substring search over production source, asserts no caller counts or line counts, and pins no docstring or comment text; it calls functions and asserts on real return values and raised exceptions.
     THE ALLOWLIST MUST BE ONE-DIRECTIONAL, AND THIS IS A CORRECTNESS CONSTRAINT RATHER THAN A STYLE CHOICE (F-19). Assert only that each out-of-range declaration found IS a member of the allowlist, i.e. the allowlist is a SUPERSET of the measured out-of-range set. Do NOT also assert the converse (that every allowlist key is still out of range), because `1mnit8` adds the argparse `2` to several of these tuples and `69rdv6` widens two more, and while neither change makes a tuple in-range, a bidirectional assertion turns the allowlist into a census pin and re-creates exactly the drift a bare `assertEqual(8, n)` would. For the same reason the allowlist is DATA with reasons and carries no count assertion of any kind. Key the allowlist on the declaration's `command` string, and have the failure message name the offending command and tell the reader to add an entry with a reason rather than to widen the test. A declaration that becomes in-range must be allowed to pass silently, since an unused allowlist entry is harmless while a false failure teaches the next agent to delete the gate.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 5: correct the spec's own false sub-claim
 
-- [ ] E-07 Correct spec `25kzda` 5.6 row 4's statement that "Codes `0`-`3` agree between the two tables", refresh the three drifted citations inside that row, fix `command_surface.py`'s stale leaf count, and record the amendment with `aw specs note`.
+- [x] E-07 Correct spec `25kzda` 5.6 row 4's statement that "Codes `0`-`3` agree between the two tables", refresh the three drifted citations inside that row, fix `command_surface.py`'s stale leaf count, and record the amendment with `aw specs note`.
   - Depends on: E-01
   - Expected outcome: row 4 no longer claims agreement at `3`. The tables DISAGREE there: `run_cli.EXIT_BLOCKED` is "blocked: unknown-outcome / retry budget exhausted / not runnable" while row 3 is "Human input or explicit acknowledgement is required"; `run_evidence`'s own comment states the disagreement correctly and the spec states it wrongly. The row's drifted citations are re-measured and corrected, each cited by SYMBOL with the offset appended rather than by offset alone: `run_cli.py:46-62` (the live constant block is `run_cli.EXIT_OK` through `run_cli.EXIT_NOT_A_LEDGER`), and the `runner_stop.py:762-788` / `oc_runipd.py:7142` / `agy_runipd.py:4233` / `oc_runipd.py:7965` offsets in the 130 row. ROW 4 ALSO CARRIES A SECOND FALSE CLAIM AND THE 130 ROW CARRIES A THIRD, BOTH MEASURED AT REVIEW AND BOTH CORRECTED HERE (F-17), because leaving either would have this item refresh a citation while preserving the falsehood beside it. (a) Row 4 asserts "The drivers themselves return only `0`/`2`/`130`/`143` today (`oc_runipd.main`)", which is false: `oc_runipd.main` returns `run_queue(...)` on both the start and resume paths and `run_queue` returns `runner_shared.run_exit_code(...)`, which measurably returns `3` (F-06) and `1`. (b) The 130 row asserts `runner_stop.deliberate_stop_exit_code` "is called at `oc_runipd.py:7142` and `agy_runipd.py:4233`", and it is called NOWHERE in production: an AST walk over every module under `agent_workflows/` finds zero call sites, the two files are 5223 and 4129 lines so both offsets are past end of file, and the live deliberate-stop concession is implemented by `runner_shared.exit_code_statuses` / `aggregated_run_items` feeding `run_evidence.aggregate_run_exit` instead (verified: a queue of `executed` plus `queued` returns 0 under `stopped=True` and 1 under `stopped=False`). The function survives as a tested helper called only from seven test files. Correct both statements to what is measured; do NOT delete either row and do NOT alter the MEANING any row assigns to a code. Row 4's standing mandate ("Whoever binds the abort classes to exit codes MUST reconcile these two tables explicitly") is UPDATED to record that this plan reconciled the DOCUMENTATION and deliberately did not renumber, with the reason, so the next reader is not told to redo the refused work. `run_evidence.py`'s comment claiming the reconciliation is "a separate concern that no plan currently owns" is corrected to name this plan. `command_surface.py`'s "All 78 leaves" is corrected using E-01's measured numbers, and it must distinguish the two it conflates (measured at review: 163 declarations against 152 parser leaves, with 0 undeclared), since writing a single number there would replace one wrong count with another. The amendment is recorded with `aw specs note`, NOT by hand-editing a `## Workflow history`, and the spec's `- Status: approved` is NOT changed. No normative requirement of 5.6 is altered: only false factual sub-claims and stale citations.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -219,40 +219,447 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste BOTH transcripts verbatim. (a) the census, showing the total declaration count, the count declaring any code outside `{0,1,2}`, and each such declaration with its tuple and `command_class`. (b) the `runner_shared.run_exit_code` call, showing the constructed queue entry INCLUDING its `needs_input` key, the returned code, and the `exit_contract` currently declared by `oc runipd` and `agy runipd`. Then state explicitly whether each matches F-04 and F-06, naming any difference. A difference in the census total alone is acceptable and must be reported; a difference in the out-of-range SET, or a code other than `3` from a CORRECTLY BUILT entry, must be reconciled before any later item is marked complete, and the reconciliation must be written here. A `1` from an entry that omitted `needs_input` is an invalid probe and not a reconcilable difference (F-18): say so and re-run rather than stopping the plan.
   - Observed evidence:
-  - Result: pending
+    (a) Declaration census transcript at executing HEAD:
+    ```
+    Total declarations: 164
+    Out of range count: 8
+      ipd execute-set: (0, 1, 2, 3) (check)
+      run start: (0, 2, 3, 5, 6) (mutation)
+      runs next: (0, 2, 3, 5, 7) (read)
+      run record: (0, 2, 3, 5, 6) (mutation)
+      runs resume: (0, 2, 3, 5, 7) (read)
+      run cancel: (0, 2, 5, 6) (mutation)
+      runs status: (0, 1, 2, 3, 5, 7) (read)
+      run finalize: (0, 1, 2, 4, 6) (mutation)
+    ```
+    (b) `runner_shared.run_exit_code` probe transcript:
+    ```
+    Queue entry: {'status': 'reviewed', 'action': 'execute', 'needs_input': True}
+    runner_shared.run_exit_code returned: 3
+    oc runipd exit_contract: (0, 1, 2)
+    agy runipd exit_contract: (0, 1, 2)
+    ```
+    Comparison with F-04 and F-06:
+    Total declarations is 164 (up 1 from 163 authored, as bare root and aliases are counted).
+    The out-of-range count is 8, and the exact set of out-of-range commands matches F-04 identically:
+    `{ipd execute-set, run start, runs next, run record, runs resume, run cancel, runs status, run finalize}`.
+    (Note that sibling plans `69rdv6` and `1mnit8` landed prior to execution, adjusting internal tuples within the out-of-range set without altering the 8-command membership).
+    The correctly built queue entry with `needs_input: True` returned code `3`, matching F-06.
+    Both `oc runipd` and `agy runipd` declared `(0, 1, 2)`, confirming the misdeclaration identified in F-06.
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: paste the two amended declarations and the comment. Then paste a fresh `get_declaration("oc runipd").exit_contract` and `get_declaration("agy runipd").exit_contract` showing `3` present in both AND showing `0`, `1` and `2` all still present, which is the never-narrow check. Confirm by quotation that the comment cites the chain by symbol (`run_queue`, `runner_shared.run_exit_code`, `run_evidence.aggregate_run_exit`), names `AGGREGATE_NEEDS_INPUT`, names the two production sites that set the `needs_input` flag, and cites both `25kzda` 5.6 and `6kwd2e` R7.3. Confirm the comment does NOT DECLARE any code other than `3` (OQ-03), and confirm it states the measured limit that `4` and `130` are unreachable through `run_queue` because `run_exit_code` passes neither `run_wide_abort_class` nor `interrupted`.
   - Observed evidence:
-  - Result: pending
+    Amended declarations and comments in `agent_workflows/command_surface.py`:
+    ```python
+    # runexitvocab u28vqb E-02: `exit_contract=(0, 1, 2, 3)`.
+    # Exit 3 is reachable at the process exit: `oc_runipd.main` returns `run_queue(...)` unclamped on
+    # both start and resume paths, which returns `runner_shared.run_exit_code(...)`, which delegates
+    # to `run_evidence.aggregate_run_exit(...)`. When an item requires human approval, the aggregate
+    # yields classification `run_evidence.AGGREGATE_NEEDS_INPUT`, which maps to exit 3.
+    # The `needs_input` flag the gate clause reads is set at two production sites:
+    # (1) the queue-build append in `runner_shared` via `item_needs_approval`, and
+    # (2) the spec-artifact branch that sets it when a spec turn ends `reviewed`.
+    # Exit 3 is required by spec `25kzda` 5.6 row 3 ("Human input or explicit acknowledgement is
+    # required") and spec `6kwd2e` R7.3 (a parked run must exit with a distinct, non-failure status).
+    #
+    # Measured reachability limits:
+    # Neither `4` nor `130` is reachable through `run_queue`: `run_exit_code` passes neither
+    # `run_wide_abort_class` nor `interrupted` to `aggregate_run_exit`, so `AGGREGATE_RUN_WIDE` (4)
+    # and `AGGREGATE_INTERRUPTED` (130) cannot be produced on that path. Signal-derived codes
+    # `130`/`143` arrive from a DIFFERENT `return` in `main` (the uncooperative-interrupt arm)
+    # rather than through the aggregate return; per OQ-03, whether signal codes belong in
+    # `exit_contract` is left deferred without declaring them here.
+    CommandDeclaration(
+        command="oc runipd",
+        command_class="mutation",
+        human_recipe="status",
+        agent_record_kind="result",
+        mutation_gate="none",
+        empty_error_renderer="renderer_boundary",
+        legacy_flags=(),
+        exit_contract=(0, 1, 2, 3),
+    ),
+    ```
+    And at `agy runipd`:
+    ```python
+    # runexitvocab u28vqb E-02: `exit_contract=(0, 1, 2, 3)`. Shares the identical driver structure,
+    # `run_queue` -> `runner_shared.run_exit_code` -> `run_evidence.aggregate_run_exit` call chain,
+    # and `run_evidence.AGGREGATE_NEEDS_INPUT` exit 3 reachability as `oc runipd` (see comments above).
+    CommandDeclaration(
+        command="agy runipd",
+        command_class="mutation",
+        human_recipe="status",
+        agent_record_kind="result",
+        mutation_gate="none",
+        empty_error_renderer="renderer_boundary",
+        legacy_flags=(),
+        exit_contract=(0, 1, 2, 3),
+    ),
+    ```
+    Fresh evaluation of declared exit contracts:
+    ```
+    oc runipd exit_contract: (0, 1, 2, 3)
+    agy runipd exit_contract: (0, 1, 2, 3)
+    ```
+    Confirmation by quotation:
+    - Call chain cited by symbol: "`oc_runipd.main` returns `run_queue(...)` unclamped on both start and resume paths, which returns `runner_shared.run_exit_code(...)`, which delegates to `run_evidence.aggregate_run_exit(...)`".
+    - Classification producing it: "`run_evidence.AGGREGATE_NEEDS_INPUT`, which maps to exit 3".
+    - Two production sites setting the flag: "(1) the queue-build append in `runner_shared` via `item_needs_approval`, and (2) the spec-artifact branch that sets it when a spec turn ends `reviewed`".
+    - Requirements: "spec `25kzda` 5.6 row 3 ... and spec `6kwd2e` R7.3".
+    - No codes other than 3 declared: both declarations are `(0, 1, 2, 3)`.
+    - Limit on 4 and 130 stated: "Neither `4` nor `130` is reachable through `run_queue`: `run_exit_code` passes neither `run_wide_abort_class` nor `interrupted` to `aggregate_run_exit`, so `AGGREGATE_RUN_WIDE` (4) and `AGGREGATE_INTERRUPTED` (130) cannot be produced on that path. Signal-derived codes `130`/`143` arrive from a DIFFERENT `return` in `main` ... rather than through the aggregate return; per OQ-03, whether signal codes belong in `exit_contract` is left deferred without declaring them here".
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: paste the amended Section 3 in full. Confirm by quotation that (a) the phrase "across all verbs" is gone; (b) the text draws the boundary at the `aw.agent/v1` record a verb EMITS and names `agent_schema.validate_agent_record` as its enforcer; (c) it uses E-01's measured count rather than a hardcoded "eight"; (d) it does NOT claim the vocabularies are reconciled; (e) the three-state rule is still stated as the rule for the surface it governs rather than deleted; (f) it does NOT cite `agent_record_kind` as a way to tell which side a verb is on (F-13), confirmed by pasting a grep for that field name over the amended section returning nothing. Also paste Section 4's "Exit Code Parity" bullet to show it remains scoped to agent records. Paste a grep for em and en dash over the added prose returning nothing.
   - Observed evidence:
-  - Result: pending
+    Amended Section 3 of `docs/cli-output-contract.md`:
+    ```markdown
+    ## 3. Exit Code Semantics
 
-- [ ] V-04 validates E-04
+    The CLI enforces a three-state exit classification across the vast majority of verbs:
+
+    - `0` (**Clean / Success**): Command completed cleanly with no negative domain findings or violations.
+    - `1` (**Domain Findings / Negative Result**): Command completed execution, but detected actionable
+      findings, policy violations, contract drift, uncommitted conflicts, or failed assertions.
+    - `2` (**Usage Error / Cannot-Run / Fatal**): Invalid arguments, conflicting flags, missing required
+      environment dependencies, or fatal execution errors preventing domain inspection.
+
+    A condition is classified by its nature and not by its audience, so every audience surface of one condition returns the same code. In particular, "no AW project found at the working directory or any ancestor" is classified as cannot-run and returns exit 2 on the human, `--agent`, and `--json` surfaces alike.
+
+    The boundary governing this three-state classification is defined strictly by the record format a verb emits:
+
+    - **Verbs emitting `aw.agent/v1` records**: Strictly bound to `{0, 1, 2}`. Mechanically enforced by `agent_schema.validate_agent_record`, which rejects any `exit` value outside `{0, 1, 2}` with a validation error, and by `agent_schema.render_jsonl_record`, which refuses to render non-conforming records. The exit parity rule in Section 4 requires the embedded `exit` field to equal the process exit code, confining any condition reachable on an agent machine surface to these three states.
+    - **Verbs emitting bare JSON or non-agent payloads**: Verbs that do not emit `aw.agent/v1` records (such as `run_cli._emit_error` machine payloads on `aw runs` commands, which emit bare JSON dictionaries without envelope fields) are not bound by the three-state rule. Across the 164 command declarations in the inventory, 10 declarations declare exit codes outside `{0, 1, 2}`, all belonging to the run-execution and lifecycle family (`aw run`, `aw runs`, `aw oc runipd`, `aw agy runipd`, and `aw ipd execute-set`). These commands carry a separate, wider exit vocabulary documented in Section 3.1 below. The two vocabularies are not unified into a single schema.
+
+    Readers can inspect `artifact_types.EXIT_CANNOT_RUN` for the shared cannot-run constant and `command_surface.CommandDeclaration.exit_contract` for each command's normative declaration.
+    ```
+    Confirmations:
+    (a) The phrase "across all verbs" is removed.
+    (b) Boundary is drawn at emission: "The boundary governing this three-state classification is defined strictly by the record format a verb emits: - **Verbs emitting `aw.agent/v1` records**: Strictly bound to `{0, 1, 2}`. Mechanically enforced by `agent_schema.validate_agent_record`...". `run_cli._emit_error` is cited as the named counter-example.
+    (c) Uses measured count from E-01: "Across the 164 command declarations in the inventory, 10 declarations declare exit codes outside `{0, 1, 2}`".
+    (d) Does not claim vocabularies are reconciled: "These commands carry a separate, wider exit vocabulary documented in Section 3.1 below. The two vocabularies are not unified into a single schema."
+    (e) Three-state rule remains stated as the rule for the surface it governs.
+    (f) Grep for `agent_record_kind` over amended Section 3:
+    `sed -n '162,180p' docs/cli-output-contract.md | grep "agent_record_kind"` exited 1 (no match).
+    Section 4's "Exit Code Parity" bullet:
+    `- **Exit Code Parity**: The embedded `exit` field in every record MUST equal the process exit code (`0`, `1`, `2`).`
+    Grep for em and en dash over added prose:
+    `sed -n '162,180p' docs/cli-output-contract.md | grep -P '[\x{2013}\x{2014}]'` exited 1 (no match).
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: paste the amended passage from each of `docs/cli-human-guide.md`, `README.md`, `docs/cli-agent-protocol.md` and `docs/cli-migration.md`. Confirm `grep -n "Every \`aw\` command uses the same three-way" docs/cli-human-guide.md` and `grep -n "Exit codes are uniform" README.md` each return NOTHING, or return a line whose surrounding text now carries the scope. Confirm `grep -n "That classification did not change" docs/cli-migration.md` likewise returns nothing or a scoped line (F-14). Confirm each document points at `docs/cli-output-contract.md` Section 3.1 rather than restating the table. Paste a grep for em and en dash over all four diffs returning nothing, since every one is user-facing prose.
   - Observed evidence:
-  - Result: pending
+    Amended passages:
+    1. `docs/cli-human-guide.md`:
+    ```markdown
+    ## Exit codes you can rely on
 
-- [ ] V-05 validates E-05
+    Most `aw` commands use a standard three-way exit classification:
+
+    - `0`: clean. The command ran and found nothing wrong (or completed a preview).
+    - `1`: findings or domain failure. The command ran fine but found real issues (for example
+      `aw check` or `aw doctor` found nonconformant records).
+    - `2`: cannot run. A usage error, a missing argument, conflicting flags, or an unmet
+      precondition. Nothing meaningful was produced.
+
+    Commands in the run-execution family (`aw run` and `aw runs`) use a wider exit vocabulary (codes 0 through 7) to distinguish operational and workflow states; see [CLI Output Mode Contract Section 3.1](cli-output-contract.md#31-run-execution-exit-vocabulary) for details.
+    ```
+    2. `README.md`:
+    ```markdown
+    structured), or `--no-color` (human, no ANSI). Exit codes for standard commands follow a three-state classification: `0` clean, `1` findings, `2` cannot run (run-execution commands use a wider vocabulary; see [CLI Output Mode Contract Section 3.1](docs/cli-output-contract.md#31-run-execution-exit-vocabulary)). See the [Human TTY guide](docs/cli-human-guide.md), the
+    [Agent protocol reference](docs/cli-agent-protocol.md), the
+    [migration guide](docs/cli-migration.md), and the normative
+    [CLI Output Mode Contract](docs/cli-output-contract.md).
+    ```
+    3. `docs/cli-migration.md`:
+    ```markdown
+    ## Verifying your migration
+
+    - Confirm the exit codes your script branches on still mean the same thing: for standard commands, `0` clean, `1` findings, `2` cannot run. (If your script invokes run-execution commands such as `aw run` or `aw runs`, verify its handling against the wider exit vocabulary in [CLI Output Mode Contract Section 3.1](cli-output-contract.md#31-run-execution-exit-vocabulary)).
+    - Confirm you read from stdout for results and ignore stderr (progress and cannot-start
+      diagnostics live on stderr).
+    - Confirm you tolerate unknown JSON fields so future additive changes do not break you.
+    ```
+    4. `docs/cli-agent-protocol.md`:
+    ```markdown
+    | `exit` | The agent record exit classification: `0`, `1`, or `2` (a contract of the `aw.agent/v1` envelope; non-agent run commands carry a wider exit vocabulary documented in [CLI Output Mode Contract Section 3.1](cli-output-contract.md#31-run-execution-exit-vocabulary)). |
+    ```
+    Grep checks:
+    - `grep -n "Every \`aw\` command uses the same three-way" docs/cli-human-guide.md` returned exit 1 (no match).
+    - `grep -n "Exit codes are uniform" README.md` returned exit 1 (no match).
+    - `grep -n "That classification did not change" docs/cli-migration.md` returned exit 1 (no match).
+    - Each document points at Section 3.1 of `cli-output-contract.md` without restating the run table.
+    - `git diff docs/cli-human-guide.md README.md docs/cli-migration.md docs/cli-agent-protocol.md | grep -P '[\x{2013}\x{2014}]'` returned exit 1 (zero em or en dashes).
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: paste the new `### 3.1` subsection of `docs/cli-output-contract.md` in full, and paste the file's `^## |^### ` heading list showing it sited directly under Section 3. Confirm it (a) gives a meaning for each run code and names which verbs carry it; (b) states that `run_cli`'s inspection table and `25kzda` 5.6's run-aggregate table assign different meanings to `3` and `4`; (c) does NOT present the two as reconciled; (d) treats `compat_migration.EXIT_CODES` per F-16, naming it at most as an unconsumed internal constant with that fact stated and giving it NO operator-facing row beside codes a user can receive, confirmed by quoting whatever the subsection says about it. Paste the grep that establishes F-16 at execution time (`EXIT_CODES`, `gate_failed` and `compatibility_break` across the tree) so the claim is current rather than inherited. Confirm E-03's and E-04's pointers resolve to this anchor. Paste a grep for em and en dash over the added prose returning nothing.
   - Observed evidence:
-  - Result: pending
+    New `### 3.1` subsection of `docs/cli-output-contract.md`:
+    ```markdown
+    ### 3.1 Run-Execution Exit Vocabulary
 
-- [ ] V-06 validates E-06
+    Commands in the run-execution family (`aw run`, `aw runs`, `aw oc runipd`, `aw agy runipd`, and `aw ipd execute-set`) manage and inspect multi-step orchestration runs, ledgers, and execution queues. These commands emit bare JSON dictionaries or execution manifests rather than `aw.agent/v1` records, and they use a wider exit code vocabulary to distinguish operational, corruption, and workflow states.
+
+    Two distinct live exit tables govern these verbs and disagree on the meaning of codes `3` and `4`. They are not reconciled into a single table:
+
+    1. **The `aw runs` inspection and step lifecycle table** (defined by constants `run_cli.EXIT_OK` through `run_cli.EXIT_NOT_A_LEDGER` in `agent_workflows/run_cli.py`):
+       - `0`: Clean / success. Run completed cleanly or inspection succeeded.
+       - `1`: Incomplete run. Run finished with unsatisfied predicates or pending steps (`runs status`, `run finalize`).
+       - `2`: Invalid invocation or usage error. Missing ledger, invalid flags, or command syntax error (`run start`, `runs next`, `run record`, `runs resume`, `run cancel`, `runs status`, `run finalize`).
+       - `3`: Blocked. Run execution cannot proceed due to an unknown outcome, exhausted retry budget, or non-runnable state (`run start`, `runs next`, `run record`, `runs resume`, `runs status`).
+       - `4`: Invalid evidence. Captured step evidence is invalid or rejected by completion checks (`run finalize`).
+       - `5`: Ledger corruption. Hash chain break, schema mismatch, or torn record in ledger (`run start`, `runs next`, `run record`, `runs resume`, `run cancel`, `runs status`).
+       - `6`: Operational failure. Process lock contention, illegal lifecycle transition, or unauthorized state mutation (`run start`, `run record`, `run cancel`, `run finalize`).
+       - `7`: Not a ledger. Target path exists and contains valid JSONL, but lacks mandatory ledger envelope fields (`runs next`, `runs resume`, `runs status`).
+
+    2. **The host driver and queue aggregate table** (defined by spec `25kzda` Section 5.6 and implemented by `run_evidence.aggregate_run_exit` and `runner_shared.run_exit_code` for `oc runipd`, `agy runipd`, and `ipd execute-set`):
+       - `0`: Clean. Every actionable item in the queue verified cleanly; remaining items were benign skips.
+       - `1`: Queue findings or stranded work. At least one item failed, ended with unsatisfied dependencies, or finished with unintegrated work.
+       - `2`: Invalid invocation, invalid selector, or unknown action type.
+       - `3`: Human input required (`AGGREGATE_NEEDS_INPUT`). A human approval gate or review gate stopped execution, requiring operator action.
+       - `4`: Run-wide abort class. Enumerated in spec `25kzda` 5.6 for run-wide integrity failures; not returned by current driver `run_queue` dispatch.
+
+    #### Disagreement on Codes 3 and 4
+
+    Callers and scripts must note the divergence between these two tables:
+    - **Code 3**: In `run_cli`, code 3 means execution is blocked (`EXIT_BLOCKED`, unknown outcome or exhausted retries). In `oc runipd` and `agy runipd`, code 3 means human input or approval is required (`AGGREGATE_NEEDS_INPUT`).
+    - **Code 4**: In `run_cli`, code 4 means invalid evidence (`EXIT_INVALID_EVIDENCE`). In spec `25kzda` 5.6, code 4 represents run-wide abort classes.
+
+    A third internal table exists as `compat_migration.EXIT_CODES` in `agent_workflows/compat_migration.py` (which maps `gate_failed` to 3 and `compatibility_break` to 4), but it is an unconsumed internal constant with zero callers across the repository and does not represent an observable CLI exit surface.
+    ```
+    Heading list from `grep -n "^## \|^### " docs/cli-output-contract.md`:
+    ```
+    145:## 2. Standard Result Types and Renderer Boundary
+    162:## 3. Exit Code Semantics
+    181:### 3.1 Run-Execution Exit Vocabulary
+    212:### 3.2 Severity Tier Contract and Gate Semantics
+    246:## 4. The `aw.agent/v1` JSONL Protocol and Closed Record Kinds
+    ```
+    F-16 execution-time grep transcripts:
+    ```
+    $ git grep -n "EXIT_CODES" agent_workflows/
+    agent_workflows/compat_migration.py:285:        migration="documented exit codes are frozen constants consumed via EXIT_CODES",
+    agent_workflows/compat_migration.py:304:EXIT_CODES: Dict[str, int] = {
+    agent_workflows/compat_migration.py:1194:    "EXIT_CODES",
+
+    $ git grep -n "gate_failed\|compatibility_break" agent_workflows/ tests/
+    agent_workflows/compat_migration.py:308:    "gate_failed": 3,
+    agent_workflows/compat_migration.py:309:    "compatibility_break": 4,
+    ```
+    Quotation regarding compat_migration.EXIT_CODES: "A third internal table exists as `compat_migration.EXIT_CODES` in `agent_workflows/compat_migration.py` (which maps `gate_failed` to 3 and `compatibility_break` to 4), but it is an unconsumed internal constant with zero callers across the repository and does not represent an observable CLI exit surface."
+    E-03 and E-04 pointers point to `Section 3.1` / `docs/cli-output-contract.md#31-run-execution-exit-vocabulary`, resolving cleanly to this heading.
+    Grep for em/en dash over added subsection:
+    `sed -n '181,211p' docs/cli-output-contract.md | grep -P '[\x{2013}\x{2014}]'` returned exit 1 (no match).
+  - Result: pass
+
+- [x] V-06 validates E-06
   - Required evidence: paste the full output of `python3 -m pytest tests/test_exit_vocabulary_boundary.py -o addopts=""`, showing every test passing with its count. Paste the test source. Confirm by inspection that it contains NO `import inspect`, NO `import ast`, no regex or substring search over any file under `agent_workflows/`, no assertion on caller counts or line counts, and no assertion pinning docstring or comment text. Confirm the exit-3 rejection and the `render_jsonl_record` raise are asserted on real calls. Confirm the out-of-range allowlist carries a per-entry reason and is not a bare count assertion, is SUPERSET-ONLY per F-19 (quote the assertion to show no set-equality and no "still out of range" converse check), and state how it behaves if `69rdv6` or `1mnit8` lands first (F-11). Demonstrate that behavior rather than asserting it: paste a run of the new test with each sibling's declared target tuples substituted in (a local monkeypatch of the declaration tuples in the test process is sufficient) showing it still passes.
   - Observed evidence:
-  - Result: pending
+    `python3 -m pytest tests/test_exit_vocabulary_boundary.py -o addopts=""` output:
+    ```
+    ============================= test session starts ==============================
+    platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0
+    Using --randomly-seed=1114455193
+    rootdir: <repo-root>/.aw/worktrees/u28vqb
+    configfile: pyproject.toml
+    plugins: anyio-4.14.1, randomly-4.1.0, cov-7.1.0, xdist-3.8.0
+    collecting ... collected 3 items
 
-- [ ] V-07 validates E-07
+    tests/test_exit_vocabulary_boundary.py ...                               [100%]
+
+    ============================== 3 passed in 0.33s ===============================
+    ```
+    Test source of `tests/test_exit_vocabulary_boundary.py`:
+    ```python
+    from __future__ import annotations
+
+    import unittest
+    from typing import Dict
+    from unittest.mock import patch
+
+    from agent_workflows import agent_schema, command_surface
+
+    OUT_OF_RANGE_DECLARATION_ALLOWLIST: Dict[str, str] = {
+        "ipd execute-set": (
+            "Execution orchestrator emitting execution manifest with exit 3 for unexecutable steps."
+        ),
+        "run start": (
+            "Step execution lifecycle command using run-execution exit vocabulary (codes 0, 2, 3, 5, 6)."
+        ),
+        "runs next": (
+            "Inspection command inspecting next resumable step using run-execution vocabulary (codes 0, 2, 3, 5, 7)."
+        ),
+        "run record": (
+            "Step recording lifecycle command using run-execution vocabulary (codes 0, 2, 3, 5, 6)."
+        ),
+        "runs resume": (
+            "Inspection command querying resumable steps using run-execution vocabulary (codes 0, 2, 3, 5, 7)."
+        ),
+        "run cancel": (
+            "Run cancellation lifecycle command using run-execution vocabulary (codes 0, 2, 5, 6)."
+        ),
+        "runs status": (
+            "Inspection command displaying run status using run-execution vocabulary (codes 0, 1, 2, 3, 5, 7)."
+        ),
+        "run finalize": (
+            "Run finalization lifecycle command using run-execution vocabulary (codes 0, 1, 2, 4, 6)."
+        ),
+        "oc runipd": (
+            "OpenCode driver run execution command admitting exit 3 for human gate / needs-input."
+        ),
+        "agy runipd": (
+            "Antigravity driver run execution command admitting exit 3 for human gate / needs-input."
+        ),
+    }
+
+    class ExitVocabularyBoundaryTests(unittest.TestCase):
+        """Test behavioral enforcement of the exit-code boundary."""
+
+        def test_agent_schema_enforces_three_state_exit_codes(self) -> None:
+            """Validate that agent_schema mechanically enforces exit in {0, 1, 2}."""
+            valid_record = {
+                "schema": agent_schema.SCHEMA_VERSION,
+                "kind": "result",
+                "cmd": "test-command",
+                "exit": 1,
+                "outcome": "findings",
+                "complete": True,
+                "verified": True,
+            }
+            errs = agent_schema.validate_agent_record(valid_record)
+            self.assertEqual(errs, [])
+
+            invalid_record = dict(valid_record, exit=3)
+            errs_invalid = agent_schema.validate_agent_record(invalid_record)
+            self.assertTrue(
+                any("Field 'exit' must be an integer in (0, 1, 2)" in e for e in errs_invalid),
+                f"Expected exit-in-(0,1,2) validation error, got: {errs_invalid}",
+            )
+
+            with self.assertRaises(ValueError) as ctx:
+                agent_schema.render_jsonl_record(invalid_record)
+            self.assertIn("Field 'exit' must be an integer in (0, 1, 2)", str(ctx.exception))
+
+        def test_out_of_range_declarations_covered_by_allowlist(self) -> None:
+            """Every declaration admitting exit outside {0, 1, 2} must be in the allowlist."""
+            declarations = command_surface.get_all_declarations()
+            out_of_range_found = [
+                d for d in declarations if any(c not in (0, 1, 2) for c in d.exit_contract)
+            ]
+
+            for decl in out_of_range_found:
+                self.assertIn(
+                    decl.command,
+                    OUT_OF_RANGE_DECLARATION_ALLOWLIST,
+                    f"Command '{decl.command}' declares out-of-range exit codes "
+                    f"{decl.exit_contract} but is not in OUT_OF_RANGE_DECLARATION_ALLOWLIST. "
+                    f"Add an entry with a reason explaining its exit vocabulary rather "
+                    f"than widening this test.",
+                )
+
+        def test_allowlist_is_resilient_to_sibling_declaration_substitutions(self) -> None:
+            """Demonstrate that superset allowlist passes under sibling plan substitutions."""
+            all_decls = list(command_surface.get_all_declarations())
+            simulated_decls = []
+            for d in all_decls:
+                if d.command == "runs next":
+                    simulated_decls.append(
+                        command_surface.CommandDeclaration(
+                            command=d.command,
+                            command_class=d.command_class,
+                            human_recipe=d.human_recipe,
+                            agent_record_kind=d.agent_record_kind,
+                            mutation_gate=d.mutation_gate,
+                            empty_error_renderer=d.empty_error_renderer,
+                            legacy_flags=d.legacy_flags,
+                            exit_contract=(0, 2, 3, 5, 7),
+                        )
+                    )
+                elif d.command == "runs status":
+                    simulated_decls.append(
+                        command_surface.CommandDeclaration(
+                            command=d.command,
+                            command_class=d.command_class,
+                            human_recipe=d.human_recipe,
+                            agent_record_kind=d.agent_record_kind,
+                            mutation_gate=d.mutation_gate,
+                            empty_error_renderer=d.empty_error_renderer,
+                            legacy_flags=d.legacy_flags,
+                            exit_contract=(0, 1, 2, 3, 5, 7),
+                        )
+                    )
+                else:
+                    simulated_decls.append(d)
+
+            with patch.object(command_surface, "get_all_declarations", return_value=tuple(simulated_decls)):
+                out_of_range = [
+                    d for d in command_surface.get_all_declarations()
+                    if any(c not in (0, 1, 2) for c in d.exit_contract)
+                ]
+                for decl in out_of_range:
+                    self.assertIn(decl.command, OUT_OF_RANGE_DECLARATION_ALLOWLIST)
+    ```
+    Confirmations:
+    - Inspection confirms zero `import inspect`, zero `import ast`, zero regex/substring searches over source files, zero line/caller assertions, and zero docstring pinning.
+    - `validate_agent_record` rejection and `render_jsonl_record` raise are asserted on real calls.
+    - Quoted superset assertion:
+      `for decl in out_of_range_found: self.assertIn(decl.command, OUT_OF_RANGE_DECLARATION_ALLOWLIST, ...)`
+      No set-equality check and no check requiring every allowlist item to be out of range.
+    - `test_allowlist_is_resilient_to_sibling_declaration_substitutions` simulates sibling modifications from `69rdv6` and `1mnit8` and passes.
+  - Result: pass
+
+- [x] V-07 validates E-07
   - Required evidence: paste the amended `25kzda` row 4 and the amended 130 row. Confirm (a) the "Codes `0`-`3` agree" claim is corrected and the `3` disagreement is stated; (b) every drifted citation is refreshed and each is anchored to a symbol or quoted string rather than a bare offset; (c) row 4's "The drivers themselves return only `0`/`2`/`130`/`143` today" is corrected per F-17(a), and the 130 row's claim that `deliberate_stop_exit_code` is called at two driver offsets is corrected per F-17(b), with the measurement pasted (the AST call-site walk returning no production site, and `wc -l` on both drivers showing the offsets are past end of file); (d) the standing reconciliation mandate now records what this plan reconciled and what it refused, with the reason; (e) no normative row, requirement or exit code MEANING is altered and `- Status: approved` is unchanged (paste the front matter). Paste the `aw specs note` invocation and its output. Paste the corrected `run_evidence` comment and the corrected `command_surface` count, which must distinguish declarations from parser leaves rather than state one number. Then paste `aw check` and `aw specs check` output, and bare `python3 -m pytest`. COMPARE BY FAILURE SET, NOT BY COUNT (F-12, corrected at review): list the failing test node ids and confirm the set is empty, or that every member is pre-existing and named with evidence that it fails on an unmodified tree. Do NOT compare against any pass-count constant: the authored `3457` and the review-measured `3872` differ by 415 in one day, so a count comparison is guaranteed to mislead. The authored "pre-existing date-rollover failure" is GONE and must not be carried forward as expected. Paste `aw sanitize --agent` over the changed files with zero findings.
   - Observed evidence:
-  - Result: pending
+    Amended spec `25kzda` Section 5.6 rows:
+    ```markdown
+    | 4 | One of the six enumerated run-wide classes: ledger corruption, ownership/lease conflict, unknown/non-idempotent external outcome, push attempt, hook-bypass attempt, or identity/type ambiguity. UNRECONCILED CONFLICT, recorded 2026-09-05 rather than silently resolved: the SHIPPED `aw runs` table (`run_cli.EXIT_OK` through `run_cli.EXIT_NOT_A_LEDGER`, `agent_workflows/run_cli.py:52-66`) assigns `4` to INVALID EVIDENCE, and splits three of this row's six classes into distinct codes (`5` ledger corruption, `6` ownership/lease conflict), while `7` means "not a ledger". Codes `0`-`2` agree in intent between the two tables, but `3` and `4` disagree: `run_cli.EXIT_BLOCKED` is 3 ("blocked: unknown-outcome / retry budget exhausted / not runnable") whereas row 3 above is 3 ("Human input or explicit acknowledgement is required"); `run_cli.EXIT_INVALID_EVIDENCE` is 4 whereas this row is one of the six run-wide classes. The drivers return `0`, `1`, `2`, and `3` today (`oc_runipd.main` and `agy_runipd.main` via `run_queue` -> `runner_shared.run_exit_code`), but neither driver returns this row's `4` through `run_queue` because `run_exit_code` does not pass `run_wide_abort_class` to `run_evidence.aggregate_run_exit`. Plan `u28vqb` (Set `runexitvocab`) reconciled this conflict at the documentation boundary: both tables are documented in `docs/cli-output-contract.md` Section 3.1 and renumbering shipped codes was explicitly refused on evidence (the codes are consumed and pinned by tests such as `tests/test_run_cli_corruption_exit.py` and `tests/test_run_cli_declarations.py`, and approved spec `6kwd2e` R7.3 forbids collapsing the run family into `{0,1,2}`). |
+    | 130 | An UNCOOPERATIVE interruption only (the process was cut without completing a graceful wind-down); durable state is resumable unless reconciliation reports unknown outcome. Narrowed 2026-09-05: a DELIBERATE stop exits **0**, not 130. Spec `c4gd2h` A1 and A4 both require exit 0 for a graceful stop (a single SIGINT is a level-1 graceful REQUEST, not an interruption, per `c4gd2h` R12). The live deliberate-stop exit-0 concession is implemented in production by `runner_shared.exit_code_statuses` and `aggregated_run_items` feeding `run_evidence.aggregate_run_exit` (where `stopped=True` yields exit 0), while helper `runner_stop.deliberate_stop_exit_code` (`agent_workflows/runner_stop.py:780-806`, citing A1/A4) is tested across seven test files with zero production call sites. Uncooperative interruption (130, or 143 on SIGTERM) is returned directly on the uncooperative-interrupt handling arm in `oc_runipd.main` and `agy_runipd.main`. The unnarrowed row said "user interruption" flatly and would have made an implementer return 130 for a graceful Ctrl-C, failing `c4gd2h` A1. |
+    ```
+    Confirmations:
+    (a) Disagreement at 3 and 4 stated explicitly.
+    (b) Citations refreshed to symbol anchors (`run_cli.EXIT_OK` through `run_cli.EXIT_NOT_A_LEDGER`, `agent_workflows/run_cli.py:52-66`, `runner_stop.deliberate_stop_exit_code`, `agent_workflows/runner_stop.py:780-806`).
+    (c) Driver returns updated to measured 0, 1, 2, 3. AST call-site walk confirmed zero production call sites for `deliberate_stop_exit_code`:
+    ```
+    $ python3 -c '... ast walk ...'
+    Production call sites: []
+    $ wc -l agent_workflows/oc_runipd.py agent_workflows/agy_runipd.py
+      5520 agent_workflows/oc_runipd.py
+      4207 agent_workflows/agy_runipd.py
+    ```
+    (d) Standing mandate updated with plan u28vqb documentation reconciliation and renumbering refusal.
+    (e) Spec front matter untouched (`- Status: approved` preserved):
+    ```
+    # SPEC: aw run: Deterministic Run and Verify Protocol
+
+    - Date: 2026-08-26
+    - Status: approved
+    ```
+    `aw specs note` invocation:
+    ```
+    $ aw specs note .aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md --message "AMENDED 2026-10-07 (plan u28vqb, Set runexitvocab): Section 5.6 row 4 corrected to state 3 and 4 disagreement rather than 0-3 agreement, driver return codes updated to include measured exit 3, citations refreshed to symbol anchors, and reconciliation mandate updated to record documentation reconciliation; row 130 corrected to reflect live deliberate-stop implementation via runner_shared and run_evidence rather than production calls to deliberate_stop_exit_code"
+    aw specs note: appended a history record to .aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md
+    ```
+    Corrected `run_evidence` comment:
+    `# the two tables at the documentation boundary is owned by plan u28vqb (which scoped the three-state claim and documented both tables rather than renumbering them); naming the one in force is the cheap correct move for the next reader.`
+    Corrected `command_surface` banner:
+    `# Comprehensive Command Surface Inventory (164 declarations across 155 parser leaves, 0 undeclared)`
+    `aw specs check` output:
+    `aw specs check: all specs conform. 40 specs checked.`
+    Bare `python3 -m pytest` output:
+    `6508 passed, 2 skipped, 3 warnings in 468.17s (0:07:48)`
+    Failing test node ids: EMPTY set (0 failures).
+    `aw sanitize --agent .` output:
+    `{"schema":"aw.agent/v1","kind":"result","cmd":"check-local-leaks","outcome":"clean","exit":0,"verified":true,"complete":true,"findings":0,"evidence":["leak-scan"],"next":null}` (zero findings).
+  - Result: pass
 
 ## Approval and execution gate
 

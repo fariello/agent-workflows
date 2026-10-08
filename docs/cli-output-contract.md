@@ -161,7 +161,7 @@ All three renderers expose identical domain facts (counts, paths, evidence, exit
 
 ## 3. Exit Code Semantics
 
-The CLI enforces a uniform three-state exit classification across all verbs:
+The CLI enforces a three-state exit classification across the vast majority of verbs:
 
 - `0` (**Clean / Success**): Command completed cleanly with no negative domain findings or violations.
 - `1` (**Domain Findings / Negative Result**): Command completed execution, but detected actionable
@@ -169,9 +169,47 @@ The CLI enforces a uniform three-state exit classification across all verbs:
 - `2` (**Usage Error / Cannot-Run / Fatal**): Invalid arguments, conflicting flags, missing required
   environment dependencies, or fatal execution errors preventing domain inspection.
 
-A condition is classified by its nature and not by its audience, so every audience surface of one condition returns the same code. In particular, "no AW project found at the working directory or any ancestor" is classified as cannot-run and returns exit 2 on the human, `--agent`, and `--json` surfaces alike. The reason stems from the machine envelope contract: `aw.agent/v1` admits only 0, 1, or 2, and the exit parity rule in Section 4 requires the embedded `exit` field to equal the process exit code, confining any condition reachable on a machine surface to the three states. Allowing the human surface to differ would produce one condition answering with two different codes. Readers can inspect `artifact_types.EXIT_CANNOT_RUN` for the shared constant and `command_surface.CommandDeclaration.exit_contract` for each command's normative declaration. Note that commands in the run-execution family (`aw run` and `aw runs`) carry a separate, wider exit vocabulary documented alongside those verbs, and reconciling that separate vocabulary with the three-state classification is outside the scope of this section.
+A condition is classified by its nature and not by its audience, so every audience surface of one condition returns the same code. In particular, "no AW project found at the working directory or any ancestor" is classified as cannot-run and returns exit 2 on the human, `--agent`, and `--json` surfaces alike.
 
-### 3.1 Severity Tier Contract and Gate Semantics
+The boundary governing this three-state classification is defined strictly by the record format a verb emits:
+
+- **Verbs emitting `aw.agent/v1` records**: Strictly bound to `{0, 1, 2}`. Mechanically enforced by `agent_schema.validate_agent_record`, which rejects any `exit` value outside `{0, 1, 2}` with a validation error, and by `agent_schema.render_jsonl_record`, which refuses to render non-conforming records. The exit parity rule in Section 4 requires the embedded `exit` field to equal the process exit code, confining any condition reachable on an agent machine surface to these three states.
+- **Verbs emitting bare JSON or non-agent payloads**: Verbs that do not emit `aw.agent/v1` records (such as `run_cli._emit_error` machine payloads on `aw runs` commands, which emit bare JSON dictionaries without envelope fields) are not bound by the three-state rule. Across the 164 command declarations in the inventory, 10 declarations declare exit codes outside `{0, 1, 2}`, all belonging to the run-execution and lifecycle family (`aw run`, `aw runs`, `aw oc runipd`, `aw agy runipd`, and `aw ipd execute-set`). These commands carry a separate, wider exit vocabulary documented in Section 3.1 below. The two vocabularies are not unified into a single schema.
+
+Readers can inspect `artifact_types.EXIT_CANNOT_RUN` for the shared cannot-run constant and `command_surface.CommandDeclaration.exit_contract` for each command's normative declaration.
+
+### 3.1 Run-Execution Exit Vocabulary
+
+Commands in the run-execution family (`aw run`, `aw runs`, `aw oc runipd`, `aw agy runipd`, and `aw ipd execute-set`) manage and inspect multi-step orchestration runs, ledgers, and execution queues. These commands emit bare JSON dictionaries or execution manifests rather than `aw.agent/v1` records, and they use a wider exit code vocabulary to distinguish operational, corruption, and workflow states.
+
+Two distinct live exit tables govern these verbs and disagree on the meaning of codes `3` and `4`. They are not reconciled into a single table:
+
+1. **The `aw runs` inspection and step lifecycle table** (defined by constants `run_cli.EXIT_OK` through `run_cli.EXIT_NOT_A_LEDGER` in `agent_workflows/run_cli.py`):
+   - `0`: Clean / success. Run completed cleanly or inspection succeeded.
+   - `1`: Incomplete run. Run finished with unsatisfied predicates or pending steps (`runs status`, `run finalize`).
+   - `2`: Invalid invocation or usage error. Missing ledger, invalid flags, or command syntax error (`run start`, `runs next`, `run record`, `runs resume`, `run cancel`, `runs status`, `run finalize`).
+   - `3`: Blocked. Run execution cannot proceed due to an unknown outcome, exhausted retry budget, or non-runnable state (`run start`, `runs next`, `run record`, `runs resume`, `runs status`).
+   - `4`: Invalid evidence. Captured step evidence is invalid or rejected by completion checks (`run finalize`).
+   - `5`: Ledger corruption. Hash chain break, schema mismatch, or torn record in ledger (`run start`, `runs next`, `run record`, `runs resume`, `run cancel`, `runs status`).
+   - `6`: Operational failure. Process lock contention, illegal lifecycle transition, or unauthorized state mutation (`run start`, `run record`, `run cancel`, `run finalize`).
+   - `7`: Not a ledger. Target path exists and contains valid JSONL, but lacks mandatory ledger envelope fields (`runs next`, `runs resume`, `runs status`).
+
+2. **The host driver and queue aggregate table** (defined by spec `25kzda` Section 5.6 and implemented by `run_evidence.aggregate_run_exit` and `runner_shared.run_exit_code` for `oc runipd`, `agy runipd`, and `ipd execute-set`):
+   - `0`: Clean. Every actionable item in the queue verified cleanly; remaining items were benign skips.
+   - `1`: Queue findings or stranded work. At least one item failed, ended with unsatisfied dependencies, or finished with unintegrated work.
+   - `2`: Invalid invocation, invalid selector, or unknown action type.
+   - `3`: Human input required (`AGGREGATE_NEEDS_INPUT`). A human approval gate or review gate stopped execution, requiring operator action.
+   - `4`: Run-wide abort class. Enumerated in spec `25kzda` 5.6 for run-wide integrity failures; not returned by current driver `run_queue` dispatch.
+
+#### Disagreement on Codes 3 and 4
+
+Callers and scripts must note the divergence between these two tables:
+- **Code 3**: In `run_cli`, code 3 means execution is blocked (`EXIT_BLOCKED`, unknown outcome or exhausted retries). In `oc runipd` and `agy runipd`, code 3 means human input or approval is required (`AGGREGATE_NEEDS_INPUT`).
+- **Code 4**: In `run_cli`, code 4 means invalid evidence (`EXIT_INVALID_EVIDENCE`). In spec `25kzda` 5.6, code 4 represents run-wide abort classes.
+
+A third internal table exists as `compat_migration.EXIT_CODES` in `agent_workflows/compat_migration.py` (which maps `gate_failed` to 3 and `compatibility_break` to 4), but it is an unconsumed internal constant with zero callers across the repository and does not represent an observable CLI exit surface.
+
+### 3.2 Severity Tier Contract and Gate Semantics
 
 The `Diagnostic` type defines three severity levels: `error`, `warning`, and `info` (Section 2). While this vocabulary suggests a three-level scale of seriousness, its effect on process exit codes is strictly two-level.
 

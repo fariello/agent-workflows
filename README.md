@@ -199,8 +199,7 @@ text whether stdout is a terminal, a pipe, or a file. The earlier proposal for a
 non-TTY hard cutover to machine JSONL was RETRACTED (maintainer ruling, 2026-09-10): piped
 output remains human text, and `--agent` is the explicit way to select machine JSONL. Non-TTY
 stdout affects color only. Select formats with `--agent` (machine JSONL), `--json` (pretty
-structured), or `--no-color` (human, no ANSI). Exit codes are uniform: `0` clean, `1` findings,
-`2` cannot run. See the [Human TTY guide](docs/cli-human-guide.md), the
+structured), or `--no-color` (human, no ANSI). Exit codes for standard commands follow a three-state classification: `0` clean, `1` findings, `2` cannot run (run-execution commands use a wider vocabulary; see [CLI Output Mode Contract Section 3.1](docs/cli-output-contract.md#31-run-execution-exit-vocabulary)). See the [Human TTY guide](docs/cli-human-guide.md), the
 [Agent protocol reference](docs/cli-agent-protocol.md), the
 [migration guide](docs/cli-migration.md), and the normative
 [CLI Output Mode Contract](docs/cli-output-contract.md).
