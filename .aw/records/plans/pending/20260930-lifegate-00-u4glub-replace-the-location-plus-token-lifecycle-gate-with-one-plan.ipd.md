@@ -6,7 +6,7 @@
 - Scope: Orchestrate three children that together implement decisions D1 through D8. `urv602` records the machine in `driver.lock` and adds the one plan-scoped three-valued live-holder predicate, changing no refusal. `e25iy9` deletes the token and the location guess, places the worker-label and holder checks inside all three core transition functions, adds the recorded `--take-over` override, and amends specs `7ckptx` and `llbr2b`. `m47znv` emits the advisory lane nudge D1 requires, refusing nothing. This plan holds ORCHESTRATION ONLY: every deliverable belongs to a child, and this file contributes no code, no test, no record and no spec edit of its own. EXCLUDES, in every child without exception: the worker-label check's semantics (D1 keeps them verbatim), the opt-in OS sandbox (D7 keeps it as optional isolation), every other anti-malice mechanism in the tree (D5 hands those to backlog `ariaau`), and any attempt to make the new check a hard boundary rather than guidance.
 - Scope-Paths: .aw/records/plans/pending/20260930-lifegate-00-u4glub-replace-the-location-plus-token-lifecycle-gate-with-one-plan.ipd.md
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Coverage: pass
 - Coverage-Fingerprint: 471fccd8c79f3174ba991b1e1d902c52ccd1f0e6fc31e6d05355cfec20beaec4
@@ -21,8 +21,10 @@
 - Highest E allocated: 03
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: u4glub
+- Approval: 2026-10-08, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-08 approved (aw set): status set to approved
 - 2026-10-07 /plan-review (opencode uri/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005 (all fixed; record `.aw/records/reviews/20261007-lifegate-00-u4glub-replace-the-location-plus-token-lifecycle-gate-with-one-plan.review.md`)
 - 2026-10-07 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-001..PR-005 fixed
 - 2026-10-07 coverage pass (aw oc run): fingerprint 471fccd8c79f, model uri/its_direct/pt3-claude-opus-5.5-1m-us

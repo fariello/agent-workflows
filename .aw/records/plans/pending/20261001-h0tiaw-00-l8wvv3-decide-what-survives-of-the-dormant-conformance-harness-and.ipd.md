@@ -6,7 +6,7 @@
 - Scope: IN: decide, from measurement rather than from the harness's own docstring, WHICH of the two deleted drivers' gates are worth reviving, and revive exactly those as two children: the cheap structural + alias + ANSI gate (Order 01) and the renderer-level golden/schema/accessibility/budget gate (Order 02). Also IN: retire the harness's three STALE exemption entries, whose cited owner (`dtq6jr`) is now `done`, and reconcile the `CONTRIBUTING.md` promise and the `command_surface.py` comments with whatever ends up enforced. OUT (each with a named reason in the Deferred section): re-adding the expensive 16-leaf-by-5-scenario live sweep as a default-collected test (measured 98.74s for the 13 cheap leaves alone, and 48.75s for one human pass over all 16); the `FactParityTests` human-banner gate, which is VACUOUS today (measured: 0 of 16 live-safe leaves emit the `AW <command>` banner `semantic_facts_from_human` requires, so every subtest silently degrades to the exit-code fallback that `test_exit_contract_conformance.py` already owns); extending coverage to `mutation` leaves, which is plan `vfv2db`'s declared scope; and fixing any leaf the revival proves non-conformant, which belongs to its filed owner (RE-MEASURED AT REVIEW 2026-10-07: `declared_absent` is now EMPTY because both authoring-time members' owners `68sur3` and `lbbo9s` are `done`, so child 01 pins `set()`).
 - Scope-Paths: .aw/records/plans/pending/20261001-h0tiaw-00-l8wvv3-decide-what-survives-of-the-dormant-conformance-harness-and.ipd.md
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Coverage: pass
 - Coverage-Fingerprint: 0df97fabb73501229e60ffacbc8461e577bd11761c33a5701b91491630959d12
@@ -19,8 +19,10 @@
 - Highest E allocated: 02
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: l8wvv3
+- Approval: 2026-10-08, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-08 approved (aw set): status set to approved
 - 2026-10-07 /plan-review (opencode uri/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005 (all fixed; record `.aw/records/reviews/20261007-h0tiaw-00-l8wvv3-decide-what-survives-of-the-dormant-conformance-harness-and.review.md`)
 - 2026-10-07 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-001..PR-005 fixed (stale declared_absent premise re-measured to set(), stale-exemption count corrected to three, child V-item cross-refs, symbol counts, execution contract added)
 - 2026-10-07 coverage pass (aw oc run): fingerprint 0df97fabb735, model uri/its_direct/pt3-claude-opus-5.5-1m-us

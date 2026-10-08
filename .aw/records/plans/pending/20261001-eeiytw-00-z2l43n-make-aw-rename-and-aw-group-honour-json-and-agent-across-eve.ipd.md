@@ -6,7 +6,7 @@
 - Scope: Orchestrate the three children that close backlog item `eeiytw`: carry the facts out of the backends (Order 01), emit the payload once at each dispatch site (Order 02), and silence the nested manifest-refresh line so stdout is strictly parseable (Order 03). This plan performs NO work of its own; every deliverable belongs to a child.
 - Scope-Paths: .aw/records/plans/pending/20261001-eeiytw-01-x7unul-carry-the-rename-and-group-facts-out-of-the-backends-in-a-ty.ipd.md, .aw/records/plans/pending/20261001-eeiytw-02-vfqjc0-emit-the-aw-agent-v1-payload-once-at-the-rename-and-group-di.ipd.md, .aw/records/plans/pending/20261001-eeiytw-03-gzb2rq-silence-the-nested-index-refresh-and-pin-the-machine-surface.ipd.md
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Coverage: pass
 - Coverage-Fingerprint: 5aa8e931bef7d7271a7e6fd1aae9ded0c6784b348b0704be92c24c4861a8a649
@@ -20,8 +20,10 @@
 - Highest E allocated: 03
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: z2l43n
+- Approval: 2026-10-08, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-08 approved (aw set): status set to approved
 - 2026-10-07 reviewed (aw set): /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005. Reviewed at HEAD e643abfd5. Cross-IPD checks each name their real owning child V-item; 87m438 recorded as executed; index exclusion now cites open carrier 4izduy (4uw9gy is done); eeiytw open state noted; scope-fence wording added. Coverage repair 2 attempts, passing. Review record .aw/records/reviews/20261001-eeiytw-00-z2l43n-make-aw-rename-and-aw-group-honour-json-and-agent-across-eve.review.md.
 - 2026-10-07 coverage pass (aw oc run): fingerprint 5aa8e931bef7, model uri/its_direct/pt3-claude-opus-5.5-1m-us
 - 2026-10-07 coverage fail (aw oc run): fingerprint 9c6fbbdb55a9, model uri/its_direct/pt3-claude-opus-5.5-1m-us

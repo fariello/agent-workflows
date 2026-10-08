@@ -6,7 +6,7 @@
 - Scope: IN: reduce `specs.run_set` to an argument-normalizing adapter that delegates to `status_set.run_set_command`, preserving its name and callable signature; carry its three genuinely-own behaviors into the shared engine as explicitly type-scoped parameters (the post-write `validate_spec` refusal, the `--date` override, the sidecar append); inherit the shared engine's selector vocabulary per `wy9aru` 4.5 and OQ-2; keep every refusal from both sides per `wy9aru` 4.7. OUT, each with a reason recorded under "Deferred": the backlog path (child 05); the two gate bypasses (child 03, which must land first); every axis `wy9aru` Section 7 assigns elsewhere; any change to what a spec status MEANS or to the transition table.
 - Scope-Paths: agent_workflows/specs.py, agent_workflows/status_set.py, agent_workflows/cli.py, tests/test_specs_set_adapter.py, .aw/records/specs/implemented/20260818-1525-02-sidecar-metadata-and-history.spec.md, CHANGELOG.md
 - Item-Dependencies: executed:m1jlwm, executed:ulepef, state:spec:approved:wy9aru
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: medium
@@ -17,8 +17,10 @@
 - Highest E allocated: 07
 - Author: opencode/its_direct/pt3-claude-opus-5-1m-us
 - Id: m94eht
+- Approval: 2026-10-08, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-08 approved (aw set): status set to approved
 - 2026-10-07 reviewed (aw set): /plan-review (opencode/uri/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-006 fixed
 - 2026-10-07 /plan-review (opencode/uri/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005, PR-006 (all fixed; record `.aw/records/reviews/20261001-setdisp-04-m94eht-make-aw-specs-set-status-a-thin-adapter-delegating-to-the-sh.review.md`). Execution remains gated on `wy9aru` reaching `approved` (its OQ-1 is BLOCKING on the maintainer) and on `ulepef` executing.
 - 2026-10-07 to-review (aw set): returned to review: Set-level checks now owned by new Order 06 7zb4ny; coverage pass recorded; open questions are non-blocking executor measurements

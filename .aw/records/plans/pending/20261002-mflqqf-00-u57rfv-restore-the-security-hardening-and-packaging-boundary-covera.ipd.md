@@ -6,7 +6,7 @@
 - Scope: Orchestrate the two children that close the measured remainder of item `mflqqf`: Order 01 restores the security-hardening boundary coverage, fixes the loopback fail-open, covers the module's single production integration point, and corrects the document that overclaims; Order 02 adds only the packaging properties the already-restored wheel guard does not reach. This plan itself touches no product file and performs no work of its own beyond confirming its children and the cross-child properties stated below. Out of scope for the whole Set: wiring any boundary checker into `aw check` or a hook, the `RedactionPolicy` case-sensitivity defect (recorded by Order 01, lives in another module), restoring the deleted benchmark arms, and re-asserting the two packaging properties `tests/test_packaging.py` already covers.
 - Scope-Paths: .aw/records/plans/pending/20261002-mflqqf-00-u57rfv-restore-the-security-hardening-and-packaging-boundary-covera.ipd.md
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Coverage: pass
 - Coverage-Fingerprint: dfe4410d16c2d74d826e0745a1d60db25ee7db7620ce8da425c15d19c50f6914
@@ -19,8 +19,10 @@
 - Highest E allocated: 02
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: u57rfv
+- Approval: 2026-10-08, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-08 approved (aw set): status set to approved
 - 2026-10-07 reviewed (aw set): /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004. Reviewed at HEAD 5ce4a3f2e. d0lg63 evidence range corrected to V-01..V-06; single-child criteria owners narrowed; mflqqf's actual open state recorded and the gate aligned with OQ-02; stale child-approval sentence restated. Coverage repair 2 attempts, passing. Review record .aw/records/reviews/20261002-mflqqf-00-u57rfv-restore-the-security-hardening-and-packaging-boundary-covera.review.md.
 - 2026-10-07 coverage pass (aw oc run): fingerprint dfe4410d16c2, model uri/its_direct/pt3-claude-opus-5.5-1m-us
 - 2026-10-07 coverage fail (aw oc run): fingerprint f0d280890d0c, model uri/its_direct/pt3-claude-opus-5.5-1m-us

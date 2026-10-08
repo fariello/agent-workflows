@@ -6,7 +6,7 @@
 - Scope: Make `orchestrator_readiness.render_human` target-status-aware (`approved`, `reviewed`, `to-review`) and state the causal parent-child constraint clearly. Extract and display the title/text of child blocking open questions. Add ANSI bold and color styling for id6s, setids, and statuses across `orchestrator_readiness.py` and `status_set.py`. Polish and bulletize refusal messages for single-plan approval gates, backward transitions without `--message`, terminal reopenings, and priority backstops. Add regression tests verifying all revised outputs.
 - Scope-Paths: agent_workflows/orchestrator_readiness.py, agent_workflows/status_set.py, agent_workflows/plan_readiness.py, tests/test_orchestrator_readiness.py, tests/test_status_set.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Blocks-Release: next
 - Readiness: go-pending-approval
 - Work-Kind: bug
@@ -17,8 +17,10 @@
 - Highest E allocated: 07
 - Author: antigravity
 - Id: juu1rj
+- Approval: 2026-10-08, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-08 approved (aw set): status set to approved
 - 2026-10-07 /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001 (HIGH, fixed: styling must use the shared lifecycle resolver per approved spec uonrjg R10.3, not a hand palette), PR-002 (HIGH, fixed: render_human's coverage and runner-prompt callers kept byte-identical), PR-003 (MEDIUM, fixed: question extraction moved into review_readiness via defaulted Finding.questions; new E-06/E-07), PR-004 (MEDIUM, fixed: no ANSI in agent/JSON or shared refusal strings), PR-005 (MEDIUM, fixed: test-asserted phrases named), PR-006 (MEDIUM, fixed: V-items demand pasted behavioral output, not diffs), PR-007 (MEDIUM, fixed: inherited Blocks-Release next from hf5cc4), PR-008 (LOW, fixed: execution contract). Lint clean at author and review-finalize. Record: `.aw/records/reviews/20261007-setrefuse-01-juu1rj-clarify-and-style-status-refusal-messages-and-orchestrator-r.review.md`.
 - 2026-10-07 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-001..PR-008 FIXED
 

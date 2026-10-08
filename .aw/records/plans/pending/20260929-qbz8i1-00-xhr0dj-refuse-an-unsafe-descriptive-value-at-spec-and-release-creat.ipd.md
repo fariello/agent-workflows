@@ -6,7 +6,7 @@
 - Scope: Orchestrate three children that together close the descriptive-value write paths (`uz05bl`), the filename derivation (`ribg85`), and the checker coverage (`ynhst5`) for the `specs` and `releases` trees. This plan holds ORCHESTRATION ONLY: every deliverable belongs to a child, and this file contributes no code, no test and no records repair of its own. EXCLUDES, in every child without exception: minting a new rule id, changing `attention_contract.is_safe_descriptive` or `MAX_DESCRIPTIVE_LEN`, changing the on-disk record grammar, guarding the shared positional `aw <tree> set` setter, and bounding a history-record message on LENGTH.
 - Scope-Paths: .aw/records/plans/pending/20260929-qbz8i1-00-xhr0dj-refuse-an-unsafe-descriptive-value-at-spec-and-release-creat.ipd.md
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Coverage: pass
 - Coverage-Fingerprint: 87f85a3fe477e202d958f343bd304b715ffe81f2a1e2b4617294f8d21c53e6c1
@@ -20,8 +20,10 @@
 - Highest E allocated: 03
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: xhr0dj
+- Approval: 2026-10-08, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-08 approved (aw set): status set to approved
 - 2026-10-07 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-601 (MEDIUM, fixed), PR-602 (LOW, fixed), PR-603 (LOW, fixed), PR-604 (LOW, fixed). All three children re-verified executed with the evidence V-01..V-03 demand present; the four vectors were re-driven and all refused on the current tree; bare suite 5233 passed, 2 skipped; aw check specs/releases conforms. PR-601: the 'aw check all CLEAN' bar was unsatisfiable (exit 1 on unrelated findings), restated as no attention.unsafe-field finding and no worse than baseline. Coverage loop: 2 attempts, rows 3 -> 3. Record: .aw/records/reviews/20260929-qbz8i1-00-xhr0dj-refuse-an-unsafe-descriptive-value-at-spec-and-release-creat.review.md.
 - 2026-10-07 coverage pass (aw oc run): fingerprint 87f85a3fe477, model uri/its_direct/pt3-claude-opus-5.5-1m-us
 - 2026-10-07 coverage fail (aw oc run): fingerprint 7ec13aad3cdf, model uri/its_direct/pt3-claude-opus-5.5-1m-us

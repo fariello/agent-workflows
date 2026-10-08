@@ -6,7 +6,7 @@
 - Scope: Orchestrate the Set that builds destination-granular egress filtering as a PROBED, per-host, fail-closed capability: a two-sided hermetic probe, a parent-owned policy and broker, worker confinement that survives an agent's teardown attempt, and the contract amendments plus an audited honest capability report. The Set must not produce any artifact claiming push denial beyond what it measures, and gates no action.
 - Scope-Paths: .aw/records/plans/pending/20261001-netnsfilter-00-m0kl28-build-host-granular-outbound-egress-filtering-as-a-probed-no.ipd.md
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Coverage: pass
 - Coverage-Fingerprint: a2cc304d9eb745094864f11d9f794247cd9612cdbab744dafde75d455e5f726c
@@ -20,8 +20,10 @@
 - Highest E allocated: 04
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: m0kl28
+- Approval: 2026-10-08, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-08 approved (aw set): status set to approved
 - 2026-10-07 reviewed (aw set): /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005, PR-006. Reviewed at HEAD 2f90a295f. E-01 no longer claims a parent-owned baseline; the real-remote git completion criterion is replaced by child 2j4pd0 E-05's hermetic same-port test; V-01..V-04 demand pasted status, post-transition lint and quoted child evidence; gate corrected for sv9ce4 being open and gains the scope-fence wording; OQ-02 (non-blocking, maintainer) notes wcbpqf's text does not yet carry it. Review record .aw/records/reviews/20261001-netnsfilter-00-m0kl28-build-host-granular-outbound-egress-filtering-as-a-probed-no.review.md.
 - 2026-10-07 to-review (aw set): returned to review: Set-level validation sweep owned by wn956n E-05/V-05; coverage pass recorded; open questions are non-blocking
 - 2026-10-07 coverage pass (aw oc run): fingerprint a2cc304d9eb7, model uri/its_direct/pt3-claude-opus-5.5-1m-us

@@ -6,7 +6,7 @@
 - Scope: IN: restore the STRUCTURAL and ALIAS halves of the deleted driver as a new DEFAULT-COLLECTED test module, recovering them from `git show 19313eed7^:tests/test_cli_conformance_matrix.py` rather than rewriting from the docstring; re-pin its `declared_absent` assertion to the set measured at execution (EMPTY at review 2026-10-07, since both former members' owners `68sur3` and `lbbo9s` are `done`), citing the owner of any member that remains; delete the three stale `dtq6jr` exemptions and move the two argument-requiring config leaves into `RUNNABLE_ARGV` where they belong; resolve every remaining dead symbol in `tests/conformance_matrix.py` to either an executor or deletion, leaving no third category; and reconcile the three `command_surface.py` comments with what is then enforced. OUT: the expensive live scenario sweep and the vacuous human-banner parity gate (both carried by `2wowfy`); the renderer-level golden and budget gates (child `9i2hge`); fixing any leaf the re-measured pin names; adding any `LIVE_SAFE_LEAVES` member or any mutation-class coverage (plan `vfv2db`).
 - Scope-Paths: tests/conformance_matrix.py, tests/test_conformance_matrix_structure.py, agent_workflows/command_surface.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -16,8 +16,10 @@
 - Highest E allocated: 06
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: dq9bj9
+- Approval: 2026-10-08, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-08 approved (aw set): status set to approved
 - 2026-10-07 reviewed (aw set): /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005, PR-006. Re-measured at 20cec6d24: declared_absent is now empty (68sur3, lbbo9s done), so E-04 pins the execution-time set; alias pairs re-timed 11.8s/36.4s, now one parametrized case per pair; Exemption gained an importer via gm9baj; fixed probe 2; tied the alias class name to the discover_parser_leaves docstring; completed the execution contract.
 - 2026-10-07 to-review (aw set): returned to review: Set-level checks now owned by 9i2hge E-06 (runs last) and the children's own V-items; coverage pass recorded
 - 2026-10-06 draft (aw set): demoted to-review -> draft: returned to authoring by gradcover 52opph: uncovered obligation: No orphaned golden and no orphaned symbol, checked across both children together

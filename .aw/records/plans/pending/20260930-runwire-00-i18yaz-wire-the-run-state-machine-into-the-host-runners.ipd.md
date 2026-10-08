@@ -10,7 +10,7 @@
   EXCLUDES, AND THIS FENCE IS THE MOST IMPORTANT PART OF THIS PLAN. (1) NO LEDGER. Making a driver run write a hash-chained `ledger.jsonl` so `run_engine.RunEngine` and therefore `run_recovery` become reachable is EXPLICITLY OPEN and is NOT decided here; `runner_shared`'s own comment says "WHETHER A DRIVER RUN SHOULD WRITE A LEDGER IS STILL OPEN ... Nobody may cite this section as a decision to abandon the ledger design", and approved spec `25kzda` concedes the ledger is built but unwired. `run_recovery` is therefore UNREACHABLE BY CONSTRUCTION from a driver run and this Set does not import it; see OQ-01. (2) NO REQUEUE. The `correction_required -> runnable` transition remains unimplemented (`1bfppy` OQ-01). (3) NO VOCABULARY REPLACEMENT. No driver status token is renamed, removed, or re-spelled, and `TERMINAL_STATES` keeps every member: a translation is ADDITIVE and a rename would break `run_viewer`, `runner_shutdown.KNOWN_ITEM_STATUSES`, `artifact_audit` and the attention mapping at once. (4) NO NEW REFUSAL from the transition check (Order 01 is report-only); Order 02 DOES refuse, and its fence says exactly where.
 - Scope-Paths: .aw/records/plans/pending/20260930-runwire-00-i18yaz-wire-the-run-state-machine-into-the-host-runners.ipd.md
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Coverage: pass
 - Coverage-Fingerprint: d3b882caa768fe31875e606991d066d528cd607133270b443758d8686292d710
@@ -23,8 +23,10 @@
 - Highest E allocated: 02
 - Author: opencode/its_direct/pt3-claude-opus-5-1m-us
 - Id: i18yaz
+- Approval: 2026-10-08, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-08 approved (aw set): status set to approved
 - 2026-10-07 reviewed (aw set): /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005, PR-006. E-01/E-02 reduced to confirm-child items reading 32jpl1 (executed) and eow7p4 V-05, which owns the Set-level checks; removed demands on deleted tests (test_runner_shutdown.py, test_runner_refork_guard.py); restated the shared runner_shared.py path as serialized, not colliding; recorded that ildjse reopened and needs re-graduation; fixed the addopts quote; completed the execution contract.
 - 2026-10-07 coverage pass (aw oc run): fingerprint d3b882caa768, model uri/its_direct/pt3-claude-opus-5.5-1m-us
 - 2026-10-07 to-review (aw set): returned to review: Set-level checks owned by eow7p4 E-05 (runs last); coverage pass recorded; open questions non-blocking

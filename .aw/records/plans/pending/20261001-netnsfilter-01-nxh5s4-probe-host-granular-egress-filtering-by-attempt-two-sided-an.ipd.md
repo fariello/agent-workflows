@@ -6,7 +6,7 @@
 - Scope: Add ONE capability, `supports_egress_filtering`, decided by an executed two-sided hermetic probe that creates a network namespace, proves egress is denied by default, and proves a parent-held control channel remains reachable. The probe needs no external network. The capability gates NO action, adds NO finding code, and is NOT named for push denial.
 - Scope-Paths: agent_workflows/host_sandbox_profile.py, tests/test_host_sandbox_profile.py, tests/test_host_capability_extension.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - From-Backlog: sv9ce4
 - From-Spec: 25kzda
@@ -17,8 +17,10 @@
 - Highest E allocated: 05
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: nxh5s4
+- Approval: 2026-10-08, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-08 approved (aw set): status set to approved
 - 2026-10-07 reviewed (aw set): REVIEWED - OPEN QUESTIONS; PR-101..PR-104 FIXED (round 2); OQ-03 non-blocking, open
 - 2026-10-07 /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): REVIEWED - OPEN QUESTIONS; PR-101 (MEDIUM, fixed: F-5/OQ-02 per-item probe cost is stale, runners now freeze the descriptor per run via ensure_frozen_host_capabilities; resumed-run default False recorded), PR-102 (LOW, fixed: V-03 bar is an empty after-minus-before failing set, plus a suite wall-time measurement), PR-103 (LOW, fixed: pi3bk8 status is live, re-derive), PR-104 (LOW, fixed: backlog close ownership). Probe design re-demonstrated at HEAD e9de18a08 (True/not-enforced/launcher-missing distinct). OQ-03 (naming, non-blocking, maintainer, carried by wcbpqf) still open. Lint clean at author and review-finalize. Record: `.aw/records/reviews/20261001-netnsfilter-01-nxh5s4-probe-host-granular-egress-filtering-by-attempt-two-sided-an.review.md` Round 2.
 - 2026-10-07 to-review (aw set): returned to review: Set-level validation sweep owned by wn956n E-05/V-05; coverage pass recorded; open questions are non-blocking

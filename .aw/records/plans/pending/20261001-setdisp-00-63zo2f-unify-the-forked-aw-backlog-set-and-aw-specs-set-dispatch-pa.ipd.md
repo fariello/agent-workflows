@@ -6,7 +6,7 @@
 - Scope: IN: sequence the five work children plus the Order 06 Set-level audit child that take the `set` family from two implementations per verb to one, in an order that ships the two release-gated bug fixes WITHOUT waiting on a blocking maintainer decision, and that lands a differential harness before any behavior moves. OUT: every axis spec `wy9aru` Section 7 assigns elsewhere (the UTC-versus-local clock, the history label, the same-status dedup, the sidecar write order, the dead `apply` read, the defaulted message, the backlog transition table, the closed-item audit, the hand-edit gate, the dead `aw prompts set` verb), each with a named carrier.
 - Scope-Paths: .aw/records/plans/pending/20261001-setdisp-00-63zo2f-unify-the-forked-aw-backlog-set-and-aw-specs-set-dispatch-pa.ipd.md, .aw/records/plans/pending/20261007-setdisp-06-7zb4ny-audit-the-five-setdisp-children-together-and-run-the-set-lev.ipd.md
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Coverage: pass
 - Coverage-Fingerprint: 8a462bdd73338c3baf6bb3fe84e0108ec426ad11f04d70a7644882021a29d5a9
@@ -20,8 +20,10 @@
 - Highest E allocated: 06
 - Author: opencode/its_direct/pt3-claude-opus-5-1m-us
 - Id: 63zo2f
+- Approval: 2026-10-08, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-08 approved (aw set): status set to approved
 - 2026-10-07 reviewed (aw set): /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005. Named the setdispgate overlap (wdyz5n/ju3rhs carry the h4fiwa/fv4b6s gates) and accepted HANDOFF or SATISFIED closes; re-derived the outside prerequisites (jbipfa, nvsz19 executed; ulepef approved, now checked in E-04/V-04); fixed five-vs-six child counts; restated the Section 7 criterion as a property; added finalize ownership; OQ-02 resolved.
 - 2026-10-07 coverage pass (aw oc run): fingerprint 8a462bdd7333, model uri/its_direct/pt3-claude-opus-5.5-1m-us
 - 2026-10-07 to-review (aw set): returned to review: Set-level checks now owned by new Order 06 7zb4ny; coverage pass recorded; open questions are non-blocking executor measurements

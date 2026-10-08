@@ -6,7 +6,7 @@
 - Scope: IN: reduce `backlog.run_set` to an argument-normalizing adapter delegating to `status_set.run_set_command`, preserving its name and callable signature and keeping `--gate-dir` and the lane-carrier override working as engine parameters and the `(aw backlog)` actor preserved; adopt the shared engine's `git mv` relocation per spec `wy9aru` 4.2; adopt the shared engine's selector semantics per 4.5 (a setid acts on every match; an ambiguous substring refuses); carry the backlog-only validations the engine still lacks (`--work-kind`/`--priority` enum, `--gate-dir`, the lane-carrier pair) into the shared engine per 4.7, confirming those `4gwgo3` already carried; verify `runner_shared.close_backlog_item` still works. OUT, each with a reason recorded under "Deferred": the specs path (child 04, which must land first); every axis `wy9aru` Section 7 assigns elsewhere, each with its own carrier; closing any of the carriers whose defects this migration incidentally removes, except where the plan's own evidence proves the fix complete.
 - Scope-Paths: agent_workflows/backlog.py, agent_workflows/status_set.py, agent_workflows/cli.py, tests/test_backlog_set_adapter.py, CHANGELOG.md
 - Item-Dependencies: executed:m94eht
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: medium
@@ -17,8 +17,10 @@
 - Highest E allocated: 07
 - Author: opencode/its_direct/pt3-claude-opus-5-1m-us
 - Id: vhiqo6
+- Approval: 2026-10-08, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-08 approved (aw set): status set to approved
 - 2026-10-07 reviewed (aw set): /plan-review (opencode/uri/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-006 fixed
 - 2026-10-07 /plan-review (opencode/uri/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005, PR-006 (all fixed; record `.aw/records/reviews/20261001-setdisp-05-vhiqo6-make-aw-backlog-set-status-a-thin-adapter-delegating-to-the.review.md`). Execution remains gated on `m94eht` executing, which is gated on `wy9aru` OQ-1 (BLOCKING, maintainer).
 - 2026-10-07 to-review (aw set): returned to review: Set-level checks now owned by new Order 06 7zb4ny; coverage pass recorded; open questions are non-blocking executor measurements

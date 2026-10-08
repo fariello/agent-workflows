@@ -6,7 +6,7 @@
 - Scope: Make both validators REFUSE, rather than greenwash, when their resolved root is not a surveyable AW project root, using the primitive Order 01 adds. IN: the guard in `specs.run_check` and `backlog.run_check`; the human refusal on stderr naming the enclosing root and the corrected command; the machine `cannot-run` record at exit 2 with a path-free summary; PRESERVING the `specs check <path>` single-file form, which deliberately does not consult the root at all (F-04); and a regression test pinning the refusal, the machine record, and the three controls. OUT: changing what either validator CHECKS or any `validate_spec` / `validate_item` rule; changing the `checked` count semantics for a surveyable root; converting any other verb (Orders 03 and 04); touching `aw check`, `aw find` or `aw search`, which under-report through a DIFFERENT mechanism and are Order 03's (F-05); the shared read/write helper split (Order 04); and refactoring `attention.run` or `cli._run_plans`.
 - Scope-Paths: agent_workflows/specs.py, agent_workflows/backlog.py, tests/test_validator_nonsurveyable_dir.py
 - Item-Dependencies: executed:i6mby8
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -17,8 +17,10 @@
 - Highest E allocated: 03
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: jei45f
+- Approval: 2026-10-08, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-08 approved (aw set): status set to approved
 - 2026-10-07 reviewed (aw set): /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005. OQ-02 bare no-project refusal now carried into E/V items; working non-interactive fixture recipe (F-10); HOME isolation; corrected focused test list; alias and CI impact stated.
 - 2026-10-07 to-review (aw set): returned to review: each Set-level check the coverage probe quoted now names its owning child; coverage pass recorded
 - 2026-10-06 draft (aw set): demoted to-review -> draft: returned to authoring by gradcover 52opph: uncovered obligation: Check by reading each converted call site for a call to the primitive

@@ -6,7 +6,7 @@
 - Scope: Orchestrate three children that together apply P15 to the shipped gates: `bec7ee` writes the durable audit record enumerating every mechanism with its keep / simplify / delete decision and evidence, `38pxaz` deletes the five unowned raising predicates in `wtiso_gate` plus the dangling test citations that claim they are pinned and amends spec `7ckptx` accordingly, and `dmjp0u` reframes the comment sites whose stated justification for a mechanism is a hostile agent. This plan holds ORCHESTRATION ONLY: every deliverable belongs to a child, and this file contributes no code, no test, no record and no spec edit of its own. EXCLUDES, in every child without exception: the driver attestation token and the `lane_worktree_active` location guess (designed in backlog `dvonrn`), re-deciding the four items backlog `ariaau` marks ALREADY DECIDED, rewording any honest-limit disclaimer that names a hostile agent in order to deny protecting against one, and restoring any test file deleted by the 2026-09-24 suite trim.
 - Scope-Paths: .aw/records/plans/pending/20260930-malgate-00-qtz0us-apply-p15-to-the-existing-gates-audit-every-anti-malice-chec.ipd.md
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Coverage: pass
 - Coverage-Fingerprint: a55c2d8e222733c5c4c84ee29948d7d86dd23306a1cc9ac3a9c6167b4cc87878
@@ -19,8 +19,10 @@
 - Highest E allocated: 03
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: qtz0us
+- Approval: 2026-10-08, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-08 approved (aw set): status set to approved
 - 2026-10-07 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-501 (HIGH, fixed), PR-502 (MEDIUM, fixed), PR-503 (LOW, fixed), PR-504 (LOW, fixed). All three children re-verified executed on disk with passing V-* evidence and in declared order; the three recorded cross-checks reproduce. PR-501: criterion 4 / V-02 demanded per-child full-suite lines no child recorded; reviewer ran the bare suite on the combined tree (`5219 passed, 2 skipped, 3 warnings in 138.58s`) and recorded it as a Set-level check. PR-502: V-01's green `aw research index --check` was unsatisfiable (exit 1 repo-wide). OQ-01/OQ-02 resolved from on-disk history (D-1, D-2). Coverage repair loop took 2 attempts, rows 3 -> 3. Record: `.aw/records/reviews/20260930-malgate-00-qtz0us-apply-p15-to-the-existing-gates-audit-every-anti-malice-chec.review.md`.
 - 2026-10-07 coverage pass (aw oc run): fingerprint a55c2d8e2227, model uri/its_direct/pt3-claude-opus-5.5-1m-us
 - 2026-10-07 to-review (aw set): returned to review: every child executed; owners named and the three cross-child checks measured and recorded; coverage pass recorded

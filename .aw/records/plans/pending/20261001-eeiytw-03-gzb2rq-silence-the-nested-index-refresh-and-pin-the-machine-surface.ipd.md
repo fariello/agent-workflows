@@ -6,7 +6,7 @@
 - Scope: Pass `quiet=True` at the two nested `run_index` call sites that omit it, carry the regeneration into the structured payload as a `Change` rather than dropping the information, and TIGHTEN Order 02's parseability assertions for the `plans` and `research` types from payload-recoverability to strict `json.loads(stdout)`. EXCLUDES: changing `plans_index.run_index` or `research_index.run_index` themselves, changing `aw index <type>`'s own output, and the `--check` branch of either (which `wgp0g3` already addressed for a different caller).
 - Scope-Paths: agent_workflows/plans_refs.py, agent_workflows/research_refs.py, agent_workflows/cli.py, tests/test_rename_group_machine_output.py, tests/test_mutation_result_facts.py
 - Item-Dependencies: executed:vfqjc0
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: low
@@ -17,8 +17,10 @@
 - Highest E allocated: 04
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: gzb2rq
+- Approval: 2026-10-08, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-08 approved (aw set): status set to approved
 - 2026-10-07 reviewed (opencode uri/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-301..PR-305 fixed
 - 2026-10-07 to-review (aw set): returned to review: every Set-level check the coverage probe quoted now names its owning child (Order 03 gzb2rq) and the backlog close is the runner's; coverage pass recorded
 - 2026-10-06 draft (aw set): demoted to-review -> draft: returned to authoring by gradcover 52opph: uncovered obligation: Close backlog item eeiytw by making both verbs emit exactly one parseable aw.agent/v1 record
