@@ -283,6 +283,21 @@ RULE_REGISTRY: Dict[str, RuleSpec] = {
     "check.plan-spec-link-missing": RuleSpec(
         "info", ASSURANCE_REPOSITORY, DET_DETERMINISTIC, ""
     ),
+    # IPD wyk11f (backlog mt6j1p): advisory check comparing each clustered plan's filename date
+    # against its own `- Date:` metadata.
+    #
+    # WHY `info` AND NOT `warning`: `docs/cli-output-contract.md` Section 3.1 states that `warning`
+    # fails the exit-code gate exactly as an `error` does, and that `info` is the ONLY severity tier
+    # that does not contribute to exit 1. The violating population is measured empty, so a gating
+    # rule would fail CI on an unrelated future change before any true positive was evaluated. `info`
+    # ships the rule as an advisory tripwire without changing any exit code today.
+    #
+    # Invariant is `""`: no catalog invariant in spec `pqsx96` covers agreement between a filename
+    # date and its own front-matter `- Date:` (I-09 is filename grammar shape; I-16/I-17 are setid
+    # semantics and length), and inventing one is out of scope (precedent: `check.lifecycle-placement-conflict`).
+    "check.plan-date-filename-mismatch": RuleSpec(
+        "info", ASSURANCE_REPOSITORY, DET_DETERMINISTIC, ""
+    ),
     # planstale 6h8j1r (backlog mlc6mj): a pending plan whose literal Scope-Paths entry under
     # .aw/records/ no longer exists at its declared path. Pure predicate reports three classifications:
     # moved-terminal (artifact moved to a retired status/path), moved (artifact moved to a non-retired
@@ -1508,6 +1523,18 @@ def check_content(
         try:
             drift.extend(
                 check_plan_work_kind(
+                    repo_root,
+                    include_untracked=include_untracked,
+                    include_retired=include_retired,
+                )
+            )
+        except Exception:
+            pass
+        # datefname wyk11f E-02: validate that each clustered plan's filename date matches its own
+        # `- Date:` metadata. Advisory (info), reached by BOTH `aw check plans` and `aw check all`.
+        try:
+            drift.extend(
+                check_plan_date_filename_mismatch(
                     repo_root,
                     include_untracked=include_untracked,
                     include_retired=include_retired,
@@ -7090,6 +7117,65 @@ def check_plan_work_kind(
                 observed=f"Work-Kind: {value}",
                 required=f"one of {sorted(_backlog.KINDS)} (or omit Work-Kind)",
                 recovery=f"aw ipd set {id6} --work-kind <bug|feature|chore|security|followup>",
+            )
+        )
+    return drift
+
+
+_PLAN_DATE_FILENAME_MISMATCH_RULE = "check.plan-date-filename-mismatch"
+
+
+def check_plan_date_filename_mismatch(
+    repo_root: Path,
+    include_untracked: bool = False,
+    include_retired: bool = False,
+) -> List[_core.Drift]:
+    """Validate that each clustered plan's filename date matches its own `- Date:` metadata.
+
+    IPD wyk11f (from backlog mt6j1p).
+    Fires only when:
+    (1) the filename parses via artifact_naming.parse_clustered (clustered plan name);
+    (2) AND the body carries an anchored ISO `- Date:` line, read via _plan_date_compact;
+    (3) AND the two compact dates differ.
+    Skips non-clustered names (owned by check.name-nonconformant) and missing or unparseable
+    body dates (owned by IPD-M101 and IPD-M104).
+    Self-consistency check on the single plan file: does not consult peer files, Set indexes,
+    or cutover dates (no false-positive population exists; the rule is advisory 'info').
+    """
+    from agent_workflows import artifact_naming as _naming
+
+    drift: List[_core.Drift] = []
+    for p in _iter_type_files(
+        repo_root,
+        "plans",
+        include_untracked=include_untracked,
+        include_retired=include_retired,
+    ):
+        m = _naming.parse_clustered(p.name)
+        if m is None:
+            continue
+        filename_date = m.group("date")
+        try:
+            text = p.read_text(encoding="utf-8")
+        except OSError:
+            continue
+        body_date = _plan_date_compact(text)
+        if body_date is None:
+            continue
+        if filename_date == body_date:
+            continue
+        iso_body_date = f"{body_date[:4]}-{body_date[4:6]}-{body_date[6:]}"
+        drift.append(
+            enrich_drift(
+                _core.Drift(
+                    str(p),
+                    _PLAN_DATE_FILENAME_MISMATCH_RULE,
+                    f"filename date {filename_date} disagrees with - Date: {iso_body_date}",
+                    severity="info",
+                ),
+                observed=f"filename date {filename_date} != - Date: {iso_body_date}",
+                required="clustered plan filename date must match its own - Date:",
+                recovery=f"rename {p.name} to match - Date: or edit - Date: to match filename date",
             )
         )
     return drift

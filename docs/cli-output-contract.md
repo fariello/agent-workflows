@@ -241,6 +241,8 @@ In summary, `info` is advisory everywhere, whereas `warning` is advisory at exac
 
 Practical consequence: to author a rule that reports diagnostics without ever failing any gate or check, register the rule with severity `info`.
 
+A worked example of this decision is `check.plan-date-filename-mismatch`. The rule reports when a clustered plan's leading filename date disagrees with its own `- Date:` metadata. Because the violating population was measured empty across the existing corpus, registering the rule as `warning` or `error` would risk failing CI on an unrelated future change before any true positive was evaluated. Registering it as `info` ships the check as an advisory tripwire that surfaces diagnostics during `aw check plans` without contributing to exit code 1 or blocking any gate.
+
 ---
 
 ## 4. The `aw.agent/v1` JSONL Protocol and Closed Record Kinds
