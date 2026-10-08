@@ -6,7 +6,7 @@
 - Scope: Replace the argv-reserialization seam for this one command with context threading: pass the already-resolved `OutputContext` from `cli.main` into `_run_check_local_leaks` and on into `leak_sanitizer.main`, so `--json`, `--agent`, `--fields` and `--verbose` are honored by construction rather than by a list that must be kept in sync by hand. Add behavioral coverage asserting `--json` emits a parseable payload and `--fields` projects, on BOTH the `check-local-leaks` and `sanitize` spellings and on BOTH tree states (clean and with a planted leak). EXCLUDES any change to what the payload CONTAINS (home-path redaction is owned by `9yd6tx`), any change to the leak RULESET or scan modes, any refactor of the other forwarded driver leaves (`aw oc run`, `aw agy run` and siblings, which the output contract deliberately exempts), and any `aw check` rule generalizing dropped-flag detection.
 - Scope-Paths: agent_workflows/cli.py, agent_workflows/leak_sanitizer.py, tests/test_leak_sanitizer_machine_flags.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -17,9 +17,9 @@
 - Highest E allocated: 06
 - Author: opencode/its_direct/pt3-claude-opus-5-1m-us
 - Id: wyy09f
-- Approval: 2026-10-07, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-08 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: wyy09f verified (set xym8g8, attempt 1).
 - 2026-10-07 approved (aw set): status set to approved
 - 2026-10-07 reviewed (aw set): /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-006 all FIXED. Unsatisfiable 'prose still on stderr' and porcelain-clean demands replaced; --json vs --agent key vocab fixed; --fields scoped to --agent; --fix/exit-2 no-record defect filed as k84fqu. Record: .aw/records/reviews/20261002-xym8g8-01-wyy09f-thread-the-resolved-outputcontext-into-the-leak-sanitizer-so.review.md
 
