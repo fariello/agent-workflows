@@ -37,6 +37,9 @@ def test_fresh_install_inbox_lane(
 
     readme = target / ".aw" / "inbox" / "README.md"
     assert readme.is_file()
+    assert (
+        readme.read_bytes() == (REPO_ROOT / ".aw" / "inbox" / "README.md").read_bytes()
+    )
 
     # git check-ignore -q returns 1 if NOT ignored, 0 if ignored
     p_readme = subprocess.run(

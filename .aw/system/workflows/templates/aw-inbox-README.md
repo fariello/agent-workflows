@@ -61,4 +61,3 @@ record sweep cannot enumerate a drop as an artifact.
 Under this rule, `/inbox/*` ignores every drop, while `!/inbox/README.md` re-includes exactly this
 one documentation file. The default for a NEW drop stays IGNORED, so the containment and safety
 guarantees are fully preserved without needing force-add commands.
-
