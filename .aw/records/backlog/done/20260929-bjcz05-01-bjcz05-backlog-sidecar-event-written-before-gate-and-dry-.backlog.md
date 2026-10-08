@@ -1,5 +1,5 @@
 - Id: bjcz05
-- Status: graduated
+- Status: done
 - Graduated-To: bjcz05
 - Blocks-Release: next
 - Set: bjcz05
@@ -8,6 +8,7 @@
 - Summary: backlog.run_set appends the history sidecar event BEFORE its close-legitimacy gate and BEFORE the dry-run decision, so a refused or previewed transition leaves a phantom event
 
 ## Workflow history
+- 2026-10-08 done (aw backlog): closed by aw agy run: IPD ulepef executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20260930-bjcz05-01-ulepef-write-the-history-sidecar-event-only-after-the-durable-recor.ipd.md); evidence .aw/records/plans/executed/20260930-bjcz05-01-ulepef-write-the-history-sidecar-event-only-after-the-durable-recor.ipd.md
 - 2026-09-30 set (aw backlog): graduated by run run-20260930T053053Z-3200037: ulepef
 - 2026-09-29 created (aw backlog): backlog.run_set appends the history sidecar event BEFORE its close-legitimacy gate and BEFORE the dry-run decision, so a refused or previewed transition leaves a phantom event
 

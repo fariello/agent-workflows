@@ -1,5 +1,5 @@
 - Id: eozq91
-- Status: graduated
+- Status: done
 - Graduated-To: specfin7ck
 - Set: eozq91
 - Priority: medium
@@ -7,6 +7,7 @@
 - Summary: spec 7ckptx is approved while all 42 of its requirements are implemented by 8 executed plans, so attention reports a finished spec as not-started
 
 ## Workflow history
+- 2026-10-08 done (aw backlog): closed by aw agy run: IPD uuh71v executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20260929-specfin7ck-02-uuh71v-re-verify-the-changed-criteria-and-hand-spec-7ckptx-to-the-m.ipd.md); evidence .aw/records/plans/executed/20260929-specfin7ck-02-uuh71v-re-verify-the-changed-criteria-and-hand-spec-7ckptx-to-the-m.ipd.md
 - 2026-09-29 set (aw backlog): graduated by run run-20260928T235941Z-1396311: e9ekuj, uuh71v
 - 2026-09-20 created (aw backlog): spec 7ckptx is approved while all 42 of its requirements are implemented by 8 executed plans, so attention reports a finished spec as not-started
 

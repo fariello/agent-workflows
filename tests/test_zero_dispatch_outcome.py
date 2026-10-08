@@ -382,6 +382,120 @@ class ZeroDispatchOutcomeRegressionFenceTests(unittest.TestCase):
         )
         self.assertEqual(_outcome_word(rendered), render_stream.STRANDED_OUTCOME)
 
+    def test_review_stranded_with_refusal_renders_stranded(self) -> None:
+        """(a) Positive case: review item with success status and review_integrated=False renders STRANDED."""
+        queue = [
+            _item(
+                action="review",
+                status="reviewed",
+                attempts=[{"number": 1}],
+                review_integrated=False,
+            )
+        ]
+        rendered = render_stream.render_run_summary_table(
+            _state(queue), pal=render_stream.Palette(False)
+        )
+        self.assertEqual(_outcome_word(rendered), render_stream.STRANDED_OUTCOME)
+
+    def test_review_absent_review_integrated_key_renders_completed(self) -> None:
+        """(b) Absent-key case: review item without review_integrated renders COMPLETED."""
+        queue = [
+            _item(
+                action="review",
+                status="reviewed",
+                attempts=[{"number": 1}],
+            )
+        ]
+        rendered = render_stream.render_run_summary_table(
+            _state(queue), pal=render_stream.Palette(False)
+        )
+        self.assertEqual(_outcome_word(rendered), "COMPLETED")
+
+    def test_review_landed_renders_completed(self) -> None:
+        """(c) Landed case: review item with review_integrated=True renders COMPLETED."""
+        queue = [
+            _item(
+                action="review",
+                status="reviewed",
+                attempts=[{"number": 1}],
+                review_integrated=True,
+            )
+        ]
+        rendered = render_stream.render_run_summary_table(
+            _state(queue), pal=render_stream.Palette(False)
+        )
+        self.assertEqual(_outcome_word(rendered), "COMPLETED")
+
+    def test_review_stranded_twin_guard_zero_attempts_renders_stranded(self) -> None:
+        """(d) Twin-guard case: review item with review_integrated=False and attempts=[] renders STRANDED."""
+        queue = [
+            _item(
+                action="review",
+                status="reviewed",
+                attempts=[],
+                review_integrated=False,
+            )
+        ]
+        rendered = render_stream.render_run_summary_table(
+            _state(queue), pal=render_stream.Palette(False)
+        )
+        self.assertEqual(_outcome_word(rendered), render_stream.STRANDED_OUTCOME)
+
+    def test_review_relabel_fence_failure_and_blocked_statuses_retain_words(
+        self,
+    ) -> None:
+        """(e) Relabel fence: nine failure/blocked/interrupted statuses retain words with review_integrated=False."""
+        expected_words = {
+            "failed": "FAILED",
+            "failed-safely": "FAILED",
+            "integration-blocked": "FAILED",
+            "merge-conflict": "FAILED",
+            "blocked": "BLOCKED",
+            "dependency-blocked": "BLOCKED",
+            "fail-gate": "BLOCKED",
+            "not-run": "BLOCKED",
+            "interrupted": "INTERRUPTED",
+        }
+        for st, expected_word in expected_words.items():
+            for att in ([], [{"number": 1}]):
+                with self.subTest(status=st, attempts=bool(att)):
+                    queue = [
+                        _item(
+                            action="review",
+                            status=st,
+                            attempts=att,
+                            review_integrated=False,
+                        )
+                    ]
+                    rendered = render_stream.render_run_summary_table(
+                        _state(queue), pal=render_stream.Palette(False)
+                    )
+                    self.assertEqual(_outcome_word(rendered), expected_word)
+
+    def test_review_stranded_partial_queue_renders_stranded(self) -> None:
+        """(f) Partial case: one stranded review and one landed execute item renders STRANDED."""
+        queue = [
+            _item(
+                position=1,
+                id6="rev001",
+                action="review",
+                status="reviewed",
+                attempts=[{"number": 1}],
+                review_integrated=False,
+            ),
+            _item(
+                position=2,
+                id6="exc002",
+                action="execute",
+                status="executed",
+                attempts=[{"number": 1}],
+            ),
+        ]
+        rendered = render_stream.render_run_summary_table(
+            _state(queue), pal=render_stream.Palette(False)
+        )
+        self.assertEqual(_outcome_word(rendered), render_stream.STRANDED_OUTCOME)
+
     def test_placement_proof_predicate_true_word_unchanged(self) -> None:
         """F-14 / PR-602: Predicate returns True for not-attempted and not-run, but their rendered words are unchanged.
 

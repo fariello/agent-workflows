@@ -1,7 +1,8 @@
 # Spec: Worker lane containment: one authoritative signal per instruction
 
 - Date: 2026-09-01
-- Status: approved
+- Status: implementing
+- Graduated-To: lanectn
 - Id: 7ckptx
 - Author: opencode (its_direct/pt3-claude-opus-5-1m-us)
 - From-Backlog: vqv9im
@@ -10,6 +11,7 @@
 - Scope: What an isolated (lane) turn may be told and may reach: signal purity in the prompt, layered enforcement beyond prose, bounded missing-input repair, and the retention rules that decide when a lane may be destroyed.
 
 ## Workflow history
+- 2026-10-08 implementing (aw set): status set to implementing
 
 - 2026-10-02 note (aw specs): AMENDED 2026-10-02 (4xtpvg-01 0b7fic): R4.4(a), R4.4b, and A10c amended to record that stdout permission detection is measured impossible (research 7so8uz), the bound stays at 0 permanently, and log-route detection is refused on cost-benefit
 - 2026-10-01 note (aw specs): AMENDED 2026-10-01 by malgate Order 02 (38pxaz): constraints 0.3, R6.2, and A16 amended following the deletion of wtiso_gate.py under GUIDING_PRINCIPLES P15 (measured zero product callers across all nine predicates; two cited test files were deleted in commit 19313eed; AW_MISSING_INPUT re-homed to lane_containment). R6.1 and R6.3 are preserved untouched; R6.2 and A16 clauses 1-3 have no live subject.
