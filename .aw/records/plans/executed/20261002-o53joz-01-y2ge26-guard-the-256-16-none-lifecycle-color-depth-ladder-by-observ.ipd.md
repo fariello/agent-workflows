@@ -6,7 +6,7 @@
 - Scope: Add two behavioral guards to `tests/test_term.py` that make a re-collapse of the ladder fail regardless of WHICH seam or WHICH renderer commits it. (1) A SEAM SWEEP over the cartesian product of all 20 `lifecycle_style.ALL_STAGES` x 3 pinned tiers x 2 stream kinds, driving all five public rendering seams enumerated AT RUNTIME, asserting the tier-correct byte shape of what each returns. (2) A CROSS-SURFACE CLI GUARD driving real `aw` subprocesses against a SYNTHESIZED fixture repo, extracting SGR-span/token pairs from stdout and asserting that no LIFECYCLE word is wrapped in a `38;5;` escape at pin `16`, that none is styled at all at pin `none`, and that some is at pin `256` (the anti-vacuity cell). Both guards assert only ANSI BYTES PRODUCED BY RUNNING CODE: no `ast`, no `inspect`, no `read_text()` and no regex against `agent_workflows/*.py`. EXCLUDES the API change the item floats as "one direction worth evaluating" (give `Term` no way to express the coercion), which is deliberately NOT adopted here and is argued down in OQ-01 and Deferred on measured grounds: it is a breaking change to 63 call sites that would not have caught the original defect. EXCLUDES the GENERIC color axis (`Term.colorize`, `color256`, `status_256`, `badge`, `format_path`), which MEASURABLY ignores the depth pin entirely and is a SEPARATE, LARGER defect this plan files as a carrier item rather than silently folding in (F-08, D-02). EXCLUDES any production behavior change: no renderer is edited, so the suite must move only by the tests added.
 - Scope-Paths: tests/test_term.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - From-Backlog: o53joz
 - Work-Kind: chore
@@ -16,9 +16,9 @@
 - Highest E allocated: 06
 - Author: opencode/its_direct-pt3-claude-opus-5-1m-us
 - Id: y2ge26
-- Approval: 2026-10-07, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-08 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: y2ge26 verified (set o53joz, attempt 1). [Scope reconciliation - out-of-scope .aw/records/backlog/open/20261008-cvtg9u-01-cvtg9u-generic-color-depth-pin-divergence.backlog.md: changed by the plan's approved execution (auto-reconciled by aw agy run)]
 - 2026-10-07 approved (aw set): status set to approved
 - 2026-10-07 reviewed (opencode/its_direct/pt3-claude-opus-5.5-1m-us): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-001..PR-004, all FIXED. Reviewed in lane review-sweep-run-20261007T032752Z-4094028 at HEAD da982415c; review record .aw/records/reviews/20261002-o53joz-01-y2ge26-guard-the-256-16-none-lifecycle-color-depth-ladder-by-observ.review.md. Fix live, five seams and 15-cell grid hold, generic axis still ignores the pin (F-08). PR-001: NATIVE_MAPS reaches only 17 of 20 stages, so E-03 constructs Resolved per stage. PR-002: anti-vacuity per command (backlog check has no lifecycle spans) and relation to ColorDepthEndToEndLadderTests stated. PR-003: term.resolve_lifecycle is module-level, not a Term method. PR-004: E-06 followup classification marked provisional; scope-reason for the new backlog path.
 
