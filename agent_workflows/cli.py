@@ -32,7 +32,7 @@ import json
 import os
 import re
 import sys
-from collections.abc import Sequence
+from collections.abc import Iterable, Sequence
 from pathlib import Path
 from typing import Any, Dict, FrozenSet, List, NamedTuple, Optional, Set, Tuple, Union
 
@@ -12747,9 +12747,7 @@ def _resolve_selectors_with_kinds(
     seen: dict = {}
     matches: List[_FindMatch] = []
     for tok in tokens:
-        res = sel_mod.resolve(
-            repo_root, artifact_type, tok, deny=frozenset({sel_mod.MATCH_PATH})
-        )
+        res = sel_mod.resolve(repo_root, artifact_type, tok)
         for p in res.paths:
             seen[str(p)] = p
             matches.append(_FindMatch(tok, artifact_type, p, res.kind))
@@ -13205,6 +13203,87 @@ def _find_valid_statuses(artifact_type: str) -> Optional[FrozenSet[str]]:
     return None
 
 
+def find_selector_vocabulary() -> FrozenSet[str]:
+    """The set of selector tokens that are a standing question about repository state for `aw find`.
+
+    IPD zyj8io E-02. Unions `attention.selector_vocabulary()` with `find`'s own accepted tokens
+    derived from `artifact_types.ARTIFACT_TYPES` (and alias map) and every per-type status enum
+    from `_find_valid_statuses`.
+    """
+    from agent_workflows import artifact_types as at
+    from agent_workflows import attention
+
+    vocab: set[str] = set(attention.selector_vocabulary())
+    for t in at.ARTIFACT_TYPES:
+        vocab.add(str(t).lower())
+    for k, v in at._ALIASES.items():
+        vocab.add(str(k).lower())
+        vocab.add(str(v).lower())
+    for t in at.ARTIFACT_TYPES:
+        st = _find_valid_statuses(t)
+        if st:
+            for s in st:
+                vocab.add(str(s).lower())
+    return frozenset(vocab)
+
+
+class FindSelectorMatchFacts(NamedTuple):
+    """Per-token answers to 'did this selector match anything in aw find?' (IPD zyj8io E-03)."""
+
+    matched: Tuple[str, ...]
+    unmatched: Tuple[str, ...]
+    vocabulary: Tuple[str, ...]
+
+    @property
+    def refusable(self) -> Tuple[str, ...]:
+        """Unmatched tokens that are NOT in find's standing vocabulary (refused with exit 2)."""
+        vocab = set(self.vocabulary)
+        return tuple(t for t in self.unmatched if t.lower() not in vocab)
+
+
+def find_selector_match_facts(
+    repo_root: Path,
+    types: Sequence[str],
+    selectors: Sequence[str],
+    matches: Optional[Sequence[_FindMatch]] = None,
+    vocabulary: Optional[Iterable[str]] = None,
+) -> FindSelectorMatchFacts:
+    """Compute per-token match facts for `aw find` (IPD zyj8io E-03).
+
+    Keyed on MATCHED (using `_resolve_selectors_with_kinds`), not resolved identifier alone.
+    A token is matched if it matches under ANY of the searched `types` (preserving multi-type queries).
+    Match facts are pinned to pre-narrowing resolution, so downstream filter flags (--id, --set,
+    --status, --disposition, --topic) narrowing results do not cause false no-match reports.
+    """
+    clean_selectors = [str(s).strip() for s in selectors if str(s).strip()]
+    if matches is None:
+        matches_list: List[_FindMatch] = []
+        for t in types:
+            _, t_matches = _resolve_selectors_with_kinds(repo_root, t, clean_selectors)
+            matches_list.extend(t_matches)
+        matches = matches_list
+
+    matched_tokens: set[str] = {m.token.lower() for m in matches}
+    matched: List[str] = []
+    unmatched: List[str] = []
+    for s in clean_selectors:
+        if s.lower() in matched_tokens:
+            matched.append(s)
+        else:
+            unmatched.append(s)
+
+    vocab = (
+        frozenset(str(v).lower() for v in vocabulary)
+        if vocabulary is not None
+        else find_selector_vocabulary()
+    )
+    return FindSelectorMatchFacts(
+        matched=tuple(matched),
+        unmatched=tuple(unmatched),
+        vocabulary=tuple(vocab),
+    )
+
+
 def _run_find(
     args: argparse.Namespace, term: Term, context: Optional[Any] = None
 ) -> int:
@@ -13372,18 +13451,98 @@ def _run_find(
         else (f"no matching {norm}" if norm != "all" else "no matching artifacts")
     )
 
+    vocab = find_selector_vocabulary()
+    facts = find_selector_match_facts(
+        repo_root=repo_root,
+        types=types,
+        selectors=selectors,
+        matches=all_matches,
+        vocabulary=vocab,
+    )
+
+    if facts.refusable:
+        toks = list(facts.refusable)
+        noun = "selector" if len(toks) == 1 else "selectors"
+        quoted = ", ".join(repr(t) for t in toks)
+        types_searched = norm if norm != "all" else ", ".join(sorted(types))
+        error_msg = f"no artifact matched {noun} {quoted}; searched {types_searched}"
+        if ctx.is_agent:
+            import json
+            from agent_workflows import agent_schema as _schema
+
+            record = {
+                "schema": _schema.SCHEMA_VERSION,
+                "kind": "error",
+                "cmd": "find",
+                "outcome": "cannot-run",
+                "exit": 2,
+                "verified": False,
+                "complete": False,
+                "findings": len(toks),
+                "unresolved_selectors": toks,
+                "unresolved_targets": toks,
+                "error": error_msg,
+                "next": next_cmd,
+            }
+            if facts.matched:
+                record["matched_selectors"] = list(facts.matched)
+            _schema.assert_valid_agent_record(record)
+            ctx.stdout.write(json.dumps(record, ensure_ascii=False) + "\n")
+            ctx.stdout.flush()
+            return 2
+
+        if ctx.is_json:
+            res = CommandResult(
+                command="find",
+                status="cannot-run",
+                exit_code=2,
+                summary=error_msg,
+                verified=False,
+                complete=False,
+                next_actions=[NextAction(command=next_cmd, description=next_desc)],
+                data={
+                    "unresolved_selectors": toks,
+                    "unresolved_targets": toks,
+                    "type": norm,
+                    "selectors": selectors,
+                    "count": 0,
+                    "filters": filters_dict,
+                },
+            )
+            return get_renderer(ctx).emit(res, ctx)
+
+        if getattr(args, "paths", False):
+            # stdout stays empty so a -p consumer sees no path; write refusal to stderr
+            Term(stream=sys.stderr, color=term.color, unicode=term.unicode).status(
+                "fail", f"no artifact matched {noun} {quoted}"
+            )
+            return 2
+
+        # Human surface: format_empty_result on stderr
+        refusal_filters: List[Tuple[str, Any]] = [
+            (f"unmatched {noun}", list(toks)),
+            ("searched types", types_searched),
+        ]
+        if facts.matched:
+            refusal_filters.append(("matched selectors", list(facts.matched)))
+        err_term = Term(stream=sys.stderr, color=term.color, unicode=term.unicode)
+        msg = err_term.format_empty_result(
+            summary=f"no artifact matched {noun} {quoted}",
+            filters=refusal_filters,
+            next_action=(next_cmd, next_desc),
+            status="fail",
+        )
+        err_term.line(msg)
+        return 2
+
     if getattr(args, "paths", False):
-        # IPD okiso1 E-02: --paths remains the bare, script-shaped surface sanctioned by
-        # docs/cli-output-contract.md Section 12. --agent no longer takes this early-return branch
-        # because two documented flags (--limit and --fields) were inert on it (cite backlog wdazvp).
-        # The aw-find-warning: stderr line survives for --paths only if E-03 decides so; E-03 decided
-        # that --paths remains silent on both stdout and stderr, while --agent carries the collision
-        # finding into the summary record's diagnostics in-band.
-        # DO NOT TOUCH THE RETURN VALUE: sibling plan zyj8io owns the zero-match exit-code divergence
-        # across find surfaces (F-07), so the exit expression below is left textually exactly as found.
+        # IPD zyj8io E-06: --paths unifies with other surfaces.
+        # Zero matches for refusable selectors exit 2 above with message on stderr and stdout empty.
+        # Standing vocabulary queries matching zero paths or empty trees exit 0 with stdout empty.
+        # Matching queries print paths and exit 0.
         for p in all_paths:
             print(p)
-        return 0 if (all_paths or not selectors) else 1
+        return 0
 
     if ctx.is_agent:
         # IPD okiso1 E-03 / E-04 / D-3: --agent ALWAYS emits the stream (one item per match, followed

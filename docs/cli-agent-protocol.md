@@ -86,10 +86,16 @@ Three escape hatches tune the token cost:
 
 ## Example records
 
-Clean empty query result (`exit: 0`):
+Clean empty query result for unfiltered or vocabulary query (`exit: 0`):
 
 ```json
 {"schema":"aw.agent/v1","kind":"summary","cmd":"find","outcome":"clean","exit":0,"total":0,"emitted":0,"omitted":0,"complete":true}
+```
+
+Zero-match selector refusal (`exit: 2`):
+
+```json
+{"schema":"aw.agent/v1","kind":"error","cmd":"find","outcome":"cannot-run","exit":2,"verified":false,"complete":false,"findings":1,"unresolved_selectors":["zzzzzz"],"unresolved_targets":["zzzzzz"],"error":"no artifact matched selector 'zzzzzz'; searched plans","next":"aw find plans"}
 ```
 
 
