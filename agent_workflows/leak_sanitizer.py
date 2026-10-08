@@ -44,6 +44,7 @@ import sys
 import zipfile
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Any, Optional
 
 from agent_workflows import agent_schema
 from agent_workflows.artifact_core import replacement_mode
@@ -966,7 +967,11 @@ def run(
     return fails, warns
 
 
-def main(argv: list[str] | None = None) -> int:
+def main(
+    argv: list[str] | None = None,
+    *,
+    context: Optional[Any] = None,
+) -> int:
     import argparse
 
     argv = list(sys.argv[1:] if argv is None else argv)
@@ -1076,7 +1081,10 @@ def main(argv: list[str] | None = None) -> int:
         select_output,
     )
 
-    ctx = select_output(args)
+    # Threaded OutputContext (IPD wyy09f) avoids dropping machine flags (--json, --fields)
+    # between CLI dispatch and the engine. If context was not provided (e.g. direct argv
+    # invocation), resolve it from parsed args as before.
+    ctx = context or select_output(args)
     if ctx.is_agent or ctx.is_json:
         findings = (*fails, *warns)
         exit_code = 1 if fails else 0
