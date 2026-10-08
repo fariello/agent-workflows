@@ -1,5 +1,5 @@
 - Id: f9nf0e
-- Status: graduated
+- Status: done
 - Graduated-To: f9nf0e
 - Set: f9nf0e
 - Priority: low
@@ -7,6 +7,7 @@
 - Summary: check_engine._receipt_is_live's terminal-plan branch is unreachable from its only caller: _iter_type_files filters a terminal plan out before its receipt is read
 
 ## Workflow history
+- 2026-10-08 done (aw backlog): closed by aw agy run: IPD s2e2um executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20261001-f9nf0e-01-s2e2um-pin-both-suppressors-of-the-terminal-plan-scope-drift-silenc.ipd.md); evidence .aw/records/plans/executed/20261001-f9nf0e-01-s2e2um-pin-both-suppressors-of-the-terminal-plan-scope-drift-silenc.ipd.md
 - 2026-10-01 graduated (aw backlog): graduated by run run-20261001T221834Z-1991716: s2e2um
 - 2026-09-30 created (aw backlog): Filed by /plan-review of plan qqg41f 2026-09-30 from a measured finding (F-09).
 
