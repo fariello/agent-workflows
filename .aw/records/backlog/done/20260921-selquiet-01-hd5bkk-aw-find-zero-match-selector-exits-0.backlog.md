@@ -1,5 +1,5 @@
 - Id: hd5bkk
-- Status: graduated
+- Status: done
 - Graduated-To: selquiet
 - Blocks-Release: next
 - Set: selquiet
@@ -8,6 +8,7 @@
 - Summary: aw find reports a zero-match selector as CLEAN exit 0, the same fail-open aw attention just fixed
 
 ## Workflow history
+- 2026-10-08 done (aw backlog): closed by aw agy run: IPD zyj8io executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20260929-selquiet-01-zyj8io-make-aw-find-refuse-a-zero-match-selector-with-exit-2-exempt.ipd.md); evidence .aw/records/plans/executed/20260929-selquiet-01-zyj8io-make-aw-find-refuse-a-zero-match-selector-with-exit-2-exempt.ipd.md
 - 2026-09-29 set (aw backlog): graduated by run run-20260928T235941Z-1396311: zyj8io
 - 2026-09-21 created (aw backlog): aw find reports a zero-match selector as CLEAN exit 0, the same fail-open aw attention just fixed
 
