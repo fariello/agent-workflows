@@ -111,7 +111,7 @@ def test_malformed_entry_without_run_order() -> None:
     assert row[2] == UNREADABLE_MARKER
     assert row[3] == UNREADABLE_MARKER
     assert row[4] == UNREADABLE_MARKER
-    assert row[5] == MALFORMED_ENTRY_TOKEN
+    assert row[5] == f"? {MALFORMED_ENTRY_TOKEN}"
     assert row[6] == "-"
 
     progress_line = _extract_progress_line(rendered)
@@ -136,7 +136,7 @@ def test_malformed_entry_with_run_order() -> None:
     assert row[2] == UNREADABLE_MARKER
     assert row[3] == UNREADABLE_MARKER
     assert row[4] == UNREADABLE_MARKER
-    assert row[5] == MALFORMED_ENTRY_TOKEN
+    assert row[5] == f"? {MALFORMED_ENTRY_TOKEN}"
     assert row[6] == "-"
 
     progress_line = _extract_progress_line(rendered)
@@ -168,7 +168,7 @@ def test_mixed_queue_with_success_item_never_claims_completed() -> None:
     assert len(rows) == len(queue)
 
     # Malformed row
-    malformed_rows = [r for r in rows if r[5] == MALFORMED_ENTRY_TOKEN]
+    malformed_rows = [r for r in rows if r[5] == f"? {MALFORMED_ENTRY_TOKEN}"]
     assert len(malformed_rows) == 1
     m_row = malformed_rows[0]
     assert m_row[1] == UNREADABLE_MARKER
@@ -178,7 +178,7 @@ def test_mixed_queue_with_success_item_never_claims_completed() -> None:
     wf_rows = [r for r in rows if r[2] == "abc123"]
     assert len(wf_rows) == 1
     w_row = wf_rows[0]
-    assert w_row[5] == "executed"
+    assert w_row[5] == "✓ executed"
     assert w_row[6] == "pass"
 
     progress_line = _extract_progress_line(rendered)
@@ -208,9 +208,9 @@ def test_mixed_queue_without_run_order() -> None:
     rows = _extract_body_rows(rendered)
     assert len(rows) == len(queue)
     assert any(
-        r[5] == MALFORMED_ENTRY_TOKEN and r[2] == UNREADABLE_MARKER for r in rows
+        r[5] == f"? {MALFORMED_ENTRY_TOKEN}" and r[2] == UNREADABLE_MARKER for r in rows
     )
-    assert any(r[5] == "reviewed" and r[2] == "def456" for r in rows)
+    assert any(r[5] == "◑ reviewed" and r[2] == "def456" for r in rows)
 
     outcome_word = _extract_outcome_word(rendered)
     assert outcome_word != "COMPLETED"

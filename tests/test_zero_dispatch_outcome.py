@@ -428,19 +428,19 @@ class ZeroDispatchOutcomeRegressionFenceTests(unittest.TestCase):
         # Progress line is byte-identical to progdenom format
         self.assertEqual(
             lines[3].strip(),
-            "│ Progress: 0/1  [          ]   0% (1 reviewed)                                                                           │",
+            "│ Progress: 0/1  [          ]   0% (1 reviewed)                                                                             │",
         )
 
         # Per-artifact row is unchanged
         self.assertEqual(
             lines[7].strip(),
-            "│  01 │  01 │ test01 │ b7oicl │ execute │ reviewed │ verified │        - │     - │       - │      - │       - │         - │",
+            "│  01 │  01 │ test01 │ b7oicl │ execute │ ◑ reviewed │ verified │        - │     - │       - │      - │       - │         - │",
         )
 
         # Totals row is unchanged
         self.assertEqual(
             lines[9].strip(),
-            "│ Total (0/1 items run)                                       │       0s │ $0.00 │       0 │      0 │       0 │         0 │",
+            "│ Total (0/1 items run)                                         │       0s │ $0.00 │       0 │      0 │       0 │         0 │",
         )
 
         # Diagnostics block is empty

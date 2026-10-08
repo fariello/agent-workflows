@@ -1165,9 +1165,19 @@ def add_output_mode_flags(
 
 
 def print_status(run_dir: Path, *, driver_label: str) -> None:
+    from agent_workflows.term import should_unicode
+
     state = load_state(run_dir)
-    pal = Palette(should_color(sys.stdout))
-    print(render_run_summary_table(state, run_dir, pal=pal, driver_label=driver_label))
+    pal = Palette(should_color(sys.stdout), use_unicode=should_unicode(sys.stdout))
+    print(
+        render_run_summary_table(
+            state,
+            run_dir,
+            pal=pal,
+            driver_label=driver_label,
+            use_unicode=should_unicode(sys.stdout),
+        )
+    )
 
 
 # ---- lanes ---------------------------------------------------------------------------------------
