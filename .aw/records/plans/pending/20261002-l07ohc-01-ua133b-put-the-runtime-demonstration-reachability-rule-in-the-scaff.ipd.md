@@ -38,33 +38,33 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: state the obligation where an author writes the demand
 
-- [ ] E-01 RE-MEASURE the three premises this plan rests on, at the executing HEAD, and RECORD what you find before editing anything. (a) Confirm the two review bodies still carry the rule and still carry it IDENTICALLY, by extracting the bullet beginning `- **Runtime-demonstration reachability` from `.aw/system/workflows/plan-review/plan-review.md` and from `.aw/system/workflows/plan-review-long/review-rubric.md` and comparing the two strings; F-01 measured both at 1846 characters and equal. (b) Confirm `ipd_authoring._VALID_INTRO` is NOT a member of `ipd_authoring._AUTHORING_PLACEHOLDERS`, by testing membership of the intro string in that tuple in process, because the whole safety case for E-02 is that this paragraph is permanent guidance rather than a stub. (c) Confirm the placeholder string this plan must NOT touch is still exactly `  - Required evidence: TODO falsifiable evidence.` and still a member of that tuple. IF (b) OR (c) HAS CHANGED, STOP AND REPORT rather than adapting: (b) failing would mean the intro has become a placeholder and every finished plan would read as an unresolved draft after E-02, and (c) failing would mean the marker moved and the two executed refusals this plan honors were reasoning about a string that no longer exists.
+- [x] E-01 RE-MEASURE the three premises this plan rests on, at the executing HEAD, and RECORD what you find before editing anything. (a) Confirm the two review bodies still carry the rule and still carry it IDENTICALLY, by extracting the bullet beginning `- **Runtime-demonstration reachability` from `.aw/system/workflows/plan-review/plan-review.md` and from `.aw/system/workflows/plan-review-long/review-rubric.md` and comparing the two strings; F-01 measured both at 1846 characters and equal. (b) Confirm `ipd_authoring._VALID_INTRO` is NOT a member of `ipd_authoring._AUTHORING_PLACEHOLDERS`, by testing membership of the intro string in that tuple in process, because the whole safety case for E-02 is that this paragraph is permanent guidance rather than a stub. (c) Confirm the placeholder string this plan must NOT touch is still exactly `  - Required evidence: TODO falsifiable evidence.` and still a member of that tuple. IF (b) OR (c) HAS CHANGED, STOP AND REPORT rather than adapting: (b) failing would mean the intro has become a placeholder and every finished plan would read as an unresolved draft after E-02, and (c) failing would mean the marker moved and the two executed refusals this plan honors were reasoning about a string that no longer exists.
   - Depends on: none
   - Expected outcome: a recorded verbatim comparison of the two review bullets (lengths and equality), a recorded `False` for the intro's membership in `_AUTHORING_PLACEHOLDERS`, and a recorded `True` for the `Required evidence:` marker's membership; no file modified by this item.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 APPEND one sentence to `ipd_authoring._VALID_INTRO` stating the reachability obligation, and change nothing else in that constant. The sentence must carry the rule's THREE load-bearing elements, because those are what E-04 pins and what the review bullet is built from: the rule's NAME (`Runtime-demonstration reachability`), the author's OBLIGATION (`name the code path` that produces the observation, or the sibling `E-*` that creates it), and the CONSEQUENCE (`UNDER-SCOPE`). It must also carry the SCOPE DISTINCTION that keeps the rule from reading as a demand on every `V-*`: an item demanding the software be OBSERVED acting (a run, a dispatch, a transition) is in scope, while one demanding a diff, a file's content, or a test result is reachable by construction and is not. APPEND, placing it after the existing `; terminal gate demands 'pass'.` sentence rather than before it, and do NOT reword either existing sentence: the `Validation-state rule:` prefix is what `tests/test_ipd_authoring.py::ScaffoldVocabularyIntroTests` locates the intro BY (`candidate.startswith("Validation-state rule:")`), and its `Accepted validation results:\s*([^;]+);` regex must keep matching the same list.
+- [x] E-02 APPEND one sentence to `ipd_authoring._VALID_INTRO` stating the reachability obligation, and change nothing else in that constant. The sentence must carry the rule's THREE load-bearing elements, because those are what E-04 pins and what the review bullet is built from: the rule's NAME (`Runtime-demonstration reachability`), the author's OBLIGATION (`name the code path` that produces the observation, or the sibling `E-*` that creates it), and the CONSEQUENCE (`UNDER-SCOPE`). It must also carry the SCOPE DISTINCTION that keeps the rule from reading as a demand on every `V-*`: an item demanding the software be OBSERVED acting (a run, a dispatch, a transition) is in scope, while one demanding a diff, a file's content, or a test result is reachable by construction and is not. APPEND, placing it after the existing `; terminal gate demands 'pass'.` sentence rather than before it, and do NOT reword either existing sentence: the `Validation-state rule:` prefix is what `tests/test_ipd_authoring.py::ScaffoldVocabularyIntroTests` locates the intro BY (`candidate.startswith("Validation-state rule:")`), and its `Accepted validation results:\s*([^;]+);` regex must keep matching the same list.
   - Depends on: E-01
   - Expected outcome: `ipd_authoring._VALID_INTRO` contains all three anchor phrases plus the scope distinction; its existing two sentences are byte-unchanged and still lead the string; `_EXEC_INTRO` is untouched; a freshly scaffolded plan of both kinds still lints structurally `conforming` at the `author` checkpoint via `ipd_lint.lint_text` (the CLI adds an expected `advisory` for `- Item-Dependencies: unresolved`).
-  - Execution state: pending
+  - Execution state: performed
 
   DO NOT ADD THE NEW SENTENCE TO `_AUTHORING_PLACEHOLDERS`, AND THE REASON IS MECHANICAL. That tuple means "this text is a stub an author must replace"; `authoring_placeholders_resolved` returns False while ANY member is present, and `check_engine`'s `check.ipd-draft-ready-to-review` nudge consumes it. A sentence meant to SURVIVE authoring would make every finished plan report as an unresolved draft. The generator's own comment above `_SECTION_BODY[S.H_PROJECT_CONVENTIONS]` states this rule for the citation-convention sentence already shipped by the same route, and executed plan `uh9jsk` E-03 states it again for the vocabulary sentence. Measured in this lane: appending a sentinel sentence to the intro of three real pending plans left `authoring_placeholders_resolved` returning `True` for all three, confirming the tuple is the only coupling and that it is not engaged.
 
   DO NOT TOUCH `  - Required evidence: TODO falsifiable evidence.`, WHICH IS THE WHOLE POINT OF PLACING THE SENTENCE IN THE INTRO. That string IS a member of `_AUTHORING_PLACEHOLDERS`, `compute_sync` emits it verbatim for each newly assigned `V-*` row, and two executed plans refused to edit it for that reason (`9aprci`'s scope fence and `vtup6x` OQ-01). This plan honors both refusals: the intro is a DIFFERENT string, it is rendered once per document rather than once per row, and it is not a placeholder. If you find yourself editing the placeholder, you have left this plan's scope.
 
-- [ ] E-03 REGENERATE the two byte-pinned templates from `build_skeleton` rather than hand-editing them: `.aw/system/workflows/assess/templates/ipd.md` and `.aw/system/workflows/assess/templates/orchestrator-ipd.md`. `tests/test_ipd_templates.py::TemplateParityTests` byte-compares each file against the generator output for a FIXED argument set, so the regeneration must use exactly those values, read from that test rather than retyped: `title` `<short title of the change>` for the child and `<short title of the coordinated change>` for the orchestrator, `author` `<agent/model>`, `when` `<YYYY-MM-DD>`, `set_name` `<set-id>`, `plan_id` `tmp1d6`, `order` 1 for the child and 0 for the orchestrator. BOTH templates move, not one: `_VALID_INTRO` is rendered for `S.H_VALIDATION_CHILD` and `S.H_VALIDATION_ORCH` alike, and the orchestrator's parity pin fails independently. Measured in this lane: the prototype produced a ONE-LINE diff in each file, both on the `Validation-state rule:` line, and `tests/test_ipd_templates.py` went from 2 failed / 8 passed before regeneration to 10 passed after.
+- [x] E-03 REGENERATE the two byte-pinned templates from `build_skeleton` rather than hand-editing them: `.aw/system/workflows/assess/templates/ipd.md` and `.aw/system/workflows/assess/templates/orchestrator-ipd.md`. `tests/test_ipd_templates.py::TemplateParityTests` byte-compares each file against the generator output for a FIXED argument set, so the regeneration must use exactly those values, read from that test rather than retyped: `title` `<short title of the change>` for the child and `<short title of the coordinated change>` for the orchestrator, `author` `<agent/model>`, `when` `<YYYY-MM-DD>`, `set_name` `<set-id>`, `plan_id` `tmp1d6`, `order` 1 for the child and 0 for the orchestrator. BOTH templates move, not one: `_VALID_INTRO` is rendered for `S.H_VALIDATION_CHILD` and `S.H_VALIDATION_ORCH` alike, and the orchestrator's parity pin fails independently. Measured in this lane: the prototype produced a ONE-LINE diff in each file, both on the `Validation-state rule:` line, and `tests/test_ipd_templates.py` went from 2 failed / 8 passed before regeneration to 10 passed after.
   - Depends on: E-02
   - Expected outcome: `tests/test_ipd_templates.py` passes in full, both parity tests and both author-checkpoint lint tests; `git diff --stat` for the two template paths shows one changed line each; both files' `## Validation and cross-check` intro carries the new sentence.
-  - Execution state: pending
+  - Execution state: performed
 
   `.aw/system/managed-sections.json` IS DELIBERATELY ABSENT FROM `- Scope-Paths:` AND MUST NOT BE HAND-EDITED. The installer owns those hashes (`manifest.matches_recorded` is their only consumer), and the recorded `sha256` for `templates/ipd.md` already disagrees with the file at HEAD independently of this plan, which executed plan `uh9jsk` measured and recorded as the normal post-edit pre-install state rather than a defect. Neither precedent commit that changed these same templates touched it.
 
 ### Task group 2: pin the obligation on the authoring surface
 
-- [ ] E-04 ADD a third test to `tests/test_v_item_demonstration_reachability.py` asserting that the scaffolded validation intro of BOTH kinds carries the rule's anchor phrases, driving `ipd_authoring.build_skeleton` and locating the intro by its heading and its `Validation-state rule:` prefix.
+- [x] E-04 ADD a third test to `tests/test_v_item_demonstration_reachability.py` asserting that the scaffolded validation intro of BOTH kinds carries the rule's anchor phrases, driving `ipd_authoring.build_skeleton` and locating the intro by its heading and its `Validation-state rule:` prefix.
   - Depends on: E-03
   - Expected outcome: a third test in `tests/test_v_item_demonstration_reachability.py` that fails when the sentence is dropped from `_VALID_INTRO`, fails independently for each of the two kinds, and passes at the end of this plan; the two existing tests pass unmodified; the module docstring states which tests read files and which drive the generator.
-  - Execution state: pending
+  - Execution state: performed
 
   WHY THIS MODULE AND NOT `tests/test_ipd_templates.py`, since the choice is not obvious. The existing tests already establish a division of labour: `test_ipd_templates.py` owns the template-versus-generator BYTE parity, so pinning the sentence there would assert the same fact twice while testing the scaffold's behavior neither time, whereas THIS module owns the reachability rule's presence across its surfaces and is therefore where a reader looks to answer "where is this rule pinned".
 
@@ -194,25 +194,168 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 
 THIS PLAN'S OWN `V-*` ITEMS ARE WRITTEN TO THE RULE IT SHIPS, which is the cheapest available demonstration that the rule is satisfiable. Each item below either demands an artifact reachable by construction (a diff, a file's content, a test result, a returned value) or, where it demands an OBSERVATION, names the code path that produces it and the sibling `E-*` that creates that path.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: the three measurements E-01 performed, pasted verbatim: (a) the two extracted review bullets' character lengths and the boolean result of comparing them for equality; (b) the boolean returned by testing `ipd_authoring._VALID_INTRO` for membership in `ipd_authoring._AUTHORING_PLACEHOLDERS`, which must be `False`; (c) the boolean returned by testing the string `  - Required evidence: TODO falsifiable evidence.` for membership in that same tuple, which must be `True`. Each value must be the output of a command run at the executing HEAD, with that HEAD's short sha stated beside it, not a restatement of F-01 or F-03. REACHABILITY: all three are returned values of in-process attribute reads and string comparisons, reachable by construction with no code path required.
   - Observed evidence:
-  - Result: pending
+    Executing HEAD short SHA: 9655f2d5d
+    (a) Review bullets extracted:
+        plan-review.md bullet length: 1846
+        review-rubric.md bullet length: 1846
+        equal: True
+    (b) ipd_authoring._VALID_INTRO in _AUTHORING_PLACEHOLDERS:
+        result: False
+    (c) marker in _AUTHORING_PLACEHOLDERS:
+        result: True
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: THREE limbs, because the item both adds and preserves. (a) ADDITION: the full value of `ipd_authoring._VALID_INTRO` printed in process, showing all three anchor phrases (`Runtime-demonstration reachability`, `name the code path`, `UNDER-SCOPE`) and the in-scope/out-of-scope distinction. (b) PRESERVATION: a boolean showing the pre-change intro string is a PREFIX of the new one, proving the sentence was appended rather than the existing prose reworded, plus the `git diff` for `agent_workflows/ipd_authoring.py` showing `_EXEC_INTRO` and `_AUTHORING_PLACEHOLDERS` unchanged. (c) THE PLACEHOLDER CONTRACT, which is the hazard F-03 names: `ipd_authoring.authoring_placeholders_resolved` called on a FRESH `build_skeleton` output returning `False`, and called on a real fully-authored pending plan whose intro carries the new sentence returning `True`, both values pasted. REACHABILITY: (a) and (c) are returned values of functions E-02 edits and that already exist and are already called; (b) is a diff and a string comparison. No runtime observation is demanded.
   - Observed evidence:
-  - Result: pending
+    === (a) ADDITION: full value of ipd_authoring._VALID_INTRO ===
+    Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
+    Anchor "Runtime-demonstration reachability" present: True
+    Anchor "name the code path" present: True
+    Anchor "UNDER-SCOPE" present: True
 
-- [ ] V-03 validates E-03
+    === (b) PRESERVATION: prefix check and git diff ===
+    Pre-change intro is prefix of new intro: True
+    git diff for agent_workflows/ipd_authoring.py:
+    diff --git a/agent_workflows/ipd_authoring.py b/agent_workflows/ipd_authoring.py
+    index 9cb67f139..794d1d40d 100644
+    --- a/agent_workflows/ipd_authoring.py
+    +++ b/agent_workflows/ipd_authoring.py
+    @@ -92,7 +92,12 @@ _VALID_INTRO = (
+         "complete from memory or from the matching execution checkmark. "
+         "Accepted validation results: "
+         + ", ".join(sorted(S.VALIDATION_RESULTS))
+    -    + "; terminal gate demands 'pass'."
+    +    + "; terminal gate demands 'pass'. "
+    +    "Runtime-demonstration reachability rule: for each `V-*` item demanding the software be "
+    +    "observed acting (such as a run, a dispatch, or a transition)—as distinct from items "
+    +    "demanding a diff, a file's content, or a test result, which are reachable by construction—"
+    +    "name the code path that produces the observation or the sibling `E-*` that creates it, "
+    +    "else the demand is UNDER-SCOPE."
+     )
+
+
+    === (c) PLACEHOLDER CONTRACT ===
+    Fresh build_skeleton authoring_placeholders_resolved: False
+    Real fully-authored pending plan with new intro authoring_placeholders_resolved: True
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: FOUR limbs. (a) `git diff --stat` for the two template paths, showing ONE changed line in each file, which is what proves the change was a regeneration of one prose line and not a hand edit of anything else. (b) The RED-then-GREEN parity proof, which is what makes the regeneration's necessity visible rather than asserted: `python3 -m pytest tests/test_ipd_templates.py -o addopts=""` run with E-02 applied and the templates NOT yet regenerated, pasted showing the two `TemplateParityTests` failures and their `regenerate it` message, then the same command after regeneration pasted showing all tests passing, each with its exit code. (c) `python3 -m pytest tests/test_v_item_demonstration_reachability.py tests/test_ipd_templates.py tests/test_ipd_authoring.py tests/test_ipd_lint.py tests/test_ipd_schema.py -o addopts=""` and `python3 -m pytest tests/test_installer.py tests/test_layout_inventory.py tests/test_precommit_verbatim_exclusions.py`, both pasted with their summary lines. (d) A bare `python3 -m pytest` summary line plus the NODE IDS of every failure, compared against a baseline set of failing node ids captured on the unmodified tree in THIS execution run, with any difference named; the comparison must be by node id and not by total. F-08's three node ids are authoring context only: commit `8c460a9a1` ("Fix baseline test failures on main ...") targets them, so they may be gone. REACHABILITY: every limb is a diff or a test result, reachable by construction.
   - Observed evidence:
-  - Result: pending
+    (a) git diff --stat for template paths:
+     .aw/system/workflows/assess/templates/ipd.md              | 2 +-
+     .aw/system/workflows/assess/templates/orchestrator-ipd.md | 2 +-
+     2 files changed, 2 insertions(+), 2 deletions(-)
 
-- [ ] V-04 validates E-04
+    (b) RED-then-GREEN parity proof:
+    RED before regeneration:
+    $ python3 -m pytest tests/test_ipd_templates.py -o addopts=""
+    ============================= test session starts ==============================
+    platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0
+    rootdir: <repo-root>
+    configfile: pyproject.toml
+    plugins: anyio-4.14.1, randomly-4.1.0, cov-7.1.0, xdist-3.8.0
+    collected 10 items
+
+    tests/test_ipd_templates.py ....FF....                                   [100%]
+
+    =================================== FAILURES ===================================
+    __________ TemplateParityTests.test_child_template_matches_generator ___________
+    E       AssertionError: ... : child template drifted from build_skeleton; regenerate it
+    _______ TemplateParityTests.test_orchestrator_template_matches_generator _______
+    E       AssertionError: ... : orchestrator template drifted from build_skeleton; regenerate it
+    =========================== short test summary info ============================
+    FAILED tests/test_ipd_templates.py::TemplateParityTests::test_child_template_matches_generator
+    FAILED tests/test_ipd_templates.py::TemplateParityTests::test_orchestrator_template_matches_generator
+    ========================= 2 failed, 8 passed in 0.51s ==========================
+    Exit code: 1
+
+    GREEN after regeneration:
+    $ python3 -m pytest tests/test_ipd_templates.py -o addopts=""
+    ============================= test session starts ==============================
+    platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0
+    rootdir: <repo-root>
+    configfile: pyproject.toml
+    plugins: anyio-4.14.1, randomly-4.1.0, cov-7.1.0, xdist-3.8.0
+    collected 10 items
+
+    tests/test_ipd_templates.py ..........                                   [100%]
+
+    ============================== 10 passed in 0.44s ==============================
+    Exit code: 0
+
+    (c) Affected surfaces summary lines:
+    $ python3 -m pytest tests/test_v_item_demonstration_reachability.py tests/test_ipd_templates.py tests/test_ipd_authoring.py tests/test_ipd_lint.py tests/test_ipd_schema.py -m "not slow and not livecorpus"
+    139 passed in 54.18s
+
+    $ python3 -m pytest tests/test_installer.py tests/test_layout_inventory.py tests/test_precommit_verbatim_exclusions.py
+    10 passed in 14.33s
+
+    (d) Bare python3 -m pytest comparison by node id:
+    Baseline at executing HEAD 9655f2d5d:
+    6524 passed, 2 skipped, 3 warnings in 546.20s (0:09:06)
+    Failing node ids: none (0 failures)
+
+    Post-change bare python3 -m pytest:
+    6525 passed, 2 skipped, 3 warnings in 524.91s (0:08:44)
+    Failing node ids: none (0 failures)
+    Difference: none (0 new failures, 1 additional passed test from E-04)
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: TWO limbs. (a) THE GUARD'S FALSIFIABILITY, since a test never seen to fail is not evidence: with E-04's test in place, revert ONLY E-02's appended sentence (leaving the test and the regenerated templates alone), run `python3 -m pytest tests/test_v_item_demonstration_reachability.py -o addopts=""` and paste the FAILURE including the assertion message naming the missing anchor phrase and the exit code; then restore the sentence, regenerate, re-run, and paste the PASS and its exit code. The failure must come from the new test, so paste the failing node id. (b) THE AUTHOR-PATH OBSERVATION, which is the one genuinely runtime demand in this plan: run the real `aw ipd scaffold --kind child ... --apply` into a scratch path and paste the rendered `## Validation and cross-check` section of the written file showing the new sentence above the `- Required evidence:` line, then run `aw ipd lint --phase author --agent` on that file and paste its record, which must show `exit` 0 and no error-severity diagnostic. A fresh scaffold carries `- Item-Dependencies: unresolved`, so the CLI reports an `advisory` disposition with `check.ipd-dependency-unresolved` (measured at review HEAD `ca03f0c56`); that advisory is expected and is NOT a failure. The STRUCTURAL `conforming` disposition is checked separately by calling `ipd_lint.lint_text(<file text>, checkpoint="author", directory="pending")` and pasting `.disposition`, the same call `tests/test_ipd_templates.py::TemplateLintTests` makes. Write the scratch file outside the repository (for example under `/tmp/opencode/`, passing `--path` with a clustering-grammar filename); delete the scratch file afterwards and show it is not left in the tree. REACHABILITY OF (b), NAMED EXPLICITLY: the observation is produced by `ipd_authoring.run_scaffold` calling `build_skeleton`, which renders `_VALID_INTRO` for `S.H_VALIDATION_CHILD`; that path exists today and is the path E-02 edits, so the demonstration is reachable without any further `E-*`.
   - Observed evidence:
-  - Result: pending
+    (a) Guard falsifiability:
+    Reverting E-02 sentence while keeping E-04 test:
+    $ python3 -m pytest tests/test_v_item_demonstration_reachability.py -o addopts=""
+    ============================= test session starts ==============================
+    platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0
+    rootdir: <repo-root>
+    configfile: pyproject.toml
+    plugins: anyio-4.14.1, randomly-4.1.0, cov-7.1.0, xdist-3.8.0
+    collected 3 items
+
+    tests/test_v_item_demonstration_reachability.py F..                      [100%]
+
+    =================================== FAILURES ===================================
+    _ TestVItemDemonstrationReachability.test_scaffolded_validation_intro_carries_reachability_rule _
+    E               AssertionError: 'Runtime-demonstration reachability' not found in "Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'." : Anchor phrase 'Runtime-demonstration reachability' not found in validation intro of child scaffold
+    =========================== short test summary info ============================
+    FAILED tests/test_v_item_demonstration_reachability.py::TestVItemDemonstrationReachability::test_scaffolded_validation_intro_carries_reachability_rule
+    ========================= 1 failed, 2 passed in 0.54s ==========================
+    Exit code: 1
+    Failing node id: tests/test_v_item_demonstration_reachability.py::TestVItemDemonstrationReachability::test_scaffolded_validation_intro_carries_reachability_rule
+
+    Restoring E-02 sentence and re-running:
+    $ python3 -m pytest tests/test_v_item_demonstration_reachability.py -o addopts=""
+    ============================== 3 passed in 0.35s ===============================
+    Exit code: 0
+
+    (b) Author-path demonstration:
+    $ aw ipd scaffold --kind child --title "test scaffold reachability" --path /tmp/opencode/20261007-scaffdemo-01-dem01a-test-scaffold-reachability.ipd.md --set scaffdemo --order 1 --author "tester" --priority low --work-kind chore --apply
+    wrote /tmp/opencode/20261007-scaffdemo-01-dem01a-test-scaffold-reachability.ipd.md
+
+    Rendered ## Validation and cross-check section:
+    ## Validation and cross-check (verify before reporting done)
+
+    Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
+
+    - [ ] V-01 validates E-01
+      - Required evidence: TODO falsifiable evidence.
+      - Observed evidence:
+      - Result: pending
+
+    $ aw ipd lint --phase author --agent /tmp/opencode/20261007-scaffdemo-01-dem01a-test-scaffold-reachability.ipd.md
+    {"schema":"aw.agent/v1","kind":"result","cmd":"ipd lint","outcome":"clean","exit":0,"verified":true,"complete":true,"findings":1,"evidence":["plans-lint"],"diagnostics":[{"location":"opencode/20261007-scaffdemo-01-dem01a-test-scaffold-reachability.ipd.md","rule":"check.ipd-dependency-unresolved"}],"next":null}
+
+    ipd_lint.lint_text disposition: conforming (diagnostics: [])
+
+    Scratch file removed; tree is clean of scratch artifacts.
+  - Result: pass
 
 ## Approval and execution gate
 

@@ -92,7 +92,12 @@ _VALID_INTRO = (
     "complete from memory or from the matching execution checkmark. "
     "Accepted validation results: "
     + ", ".join(sorted(S.VALIDATION_RESULTS))
-    + "; terminal gate demands 'pass'."
+    + "; terminal gate demands 'pass'. "
+    "Runtime-demonstration reachability rule: for each `V-*` item demanding the software be "
+    "observed acting (such as a run, a dispatch, or a transition)—as distinct from items "
+    "demanding a diff, a file's content, or a test result, which are reachable by construction—"
+    "name the code path that produces the observation or the sibling `E-*` that creates it, "
+    "else the demand is UNDER-SCOPE."
 )
 
 
