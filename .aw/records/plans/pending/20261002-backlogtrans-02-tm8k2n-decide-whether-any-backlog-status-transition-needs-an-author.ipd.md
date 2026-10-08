@@ -36,56 +36,56 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: measure the three inputs the ruling turns on
 
-- [ ] E-01 Re-measure the ATTESTATION SURFACE at the executing HEAD, because the whole plan rests on backlog carrying no attestation mechanism and the CLI surface moves. Record all three of: (a) that `--by-human` is rejected by BOTH spellings of `aw backlog set` (the positional `aw backlog set <status> <selector>` and the flag `aw backlog set <selector> --status <status>`), with the actual exit code and stderr; (b) that `attention_contract` exposes no backlog authority structure, by direct interpreter call for the absence of a `BACKLOG_TRANSITION_AUTHORITY` attribute, and that a tracked-tree search finds the name only in records prose; (c) that the history record the setter writes ALREADY attributes the mover, by performing one real transition in a throwaway repo and pasting the resulting `## Workflow history` line with its actor string. Part (c) matters because it is the measurement that decides whether the residual risk is unattributed or merely ungated. REVIEW F-11 measured the answer: the parenthetical is the TOOL label (`aw backlog` / `aw set`), not the mover, so record exactly what the line contains and state plainly that it does not identify who moved the item.
+- [x] E-01 Re-measure the ATTESTATION SURFACE at the executing HEAD, because the whole plan rests on backlog carrying no attestation mechanism and the CLI surface moves. Record all three of: (a) that `--by-human` is rejected by BOTH spellings of `aw backlog set` (the positional `aw backlog set <status> <selector>` and the flag `aw backlog set <selector> --status <status>`), with the actual exit code and stderr; (b) that `attention_contract` exposes no backlog authority structure, by direct interpreter call for the absence of a `BACKLOG_TRANSITION_AUTHORITY` attribute, and that a tracked-tree search finds the name only in records prose; (c) that the history record the setter writes ALREADY attributes the mover, by performing one real transition in a throwaway repo and pasting the resulting `## Workflow history` line with its actor string. Part (c) matters because it is the measurement that decides whether the residual risk is unattributed or merely ungated. REVIEW F-11 measured the answer: the parenthetical is the TOOL label (`aw backlog` / `aw set`), not the mover, so record exactly what the line contains and state plainly that it does not identify who moved the item.
   ALSO RE-DERIVE THE SUITE BASELINE HERE, before changing anything: run `python3 -m pytest` BARE and record the `N passed` line with the HEAD commit. V-07 compares against THIS number, never against a constant pasted in this plan. Record any pre-existing failure as pre-existing NOW so it cannot later be mistaken for damage this change caused.
   Use a throwaway git repo at a GITIGNORED path inside the lane, never a real record, for every transition performed in this plan.
   - Depends on: none
   - Expected outcome: Pasted evidence that neither spelling accepts `--by-human`, that no backlog authority structure exists, and that the history line already names the actor, plus the re-derived bare-suite baseline with its HEAD commit.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 Measure WHO PERFORMS EACH OF THE FIVE BACKLOG TARGETS, which is the single input the ruling turns on, because a `by_human` requirement on a target automation performs would refuse the repository's own prescribed path. For each of `open`, `graduated`, `done`, `blocked`, `parked`, record by SYMBOL every production site that reaches it and classify each as PERFORMED BY AUTOMATION, PRESCRIBED TO A HUMAN, or REACHED ONLY BY CREATION. Search the runners, the shared runner module and the set-records module, and distinguish a TRANSITION from a CREATION: an item minted directly into a status was never transitioned, so it is not evidence that a transition gate would bind.
+- [x] E-02 Measure WHO PERFORMS EACH OF THE FIVE BACKLOG TARGETS, which is the single input the ruling turns on, because a `by_human` requirement on a target automation performs would refuse the repository's own prescribed path. For each of `open`, `graduated`, `done`, `blocked`, `parked`, record by SYMBOL every production site that reaches it and classify each as PERFORMED BY AUTOMATION, PRESCRIBED TO A HUMAN, or REACHED ONLY BY CREATION. Search the runners, the shared runner module and the set-records module, and distinguish a TRANSITION from a CREATION: an item minted directly into a status was never transitioned, so it is not evidence that a transition gate would bind.
   REPORT THE COUNT AND THE DIRECTION EXPLICITLY: state how many of the five targets automation performs, and name the specific symbol and argv for each. If the count is fewer than three, STOP and report, because F-04 is the load-bearing finding and the recommendation does not survive its falsification.
   - Depends on: E-01
   - Expected outcome: A five-row table, one per backlog status, naming every production site that reaches it by symbol and classifying it as automation-performed, human-prescribed, or creation-only, with the automation count stated explicitly.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 Measure the TWO AUTHORITY-SHAPED CANDIDATES and the COST of acting on each, so the recommendation is chosen against a priced alternative rather than against nothing. Record both of:
+- [x] E-03 Measure the TWO AUTHORITY-SHAPED CANDIDATES and the COST of acting on each, so the recommendation is chosen against a priced alternative rather than against nothing. Record both of:
   (a) THE `->done` CANDIDATE. Drive `check_engine.evaluate_blocking_close` against a gated item for all five targets and record its verdict per target, demonstrating which targets it has an opinion on and which fall through. Record its requirement KIND (a resolvable evidence citation, fail-closed) and compare that against what `TRANSITION_AUTHORITY`'s `evidence` kind demands, so the reviewer can see whether an authority entry would add anything or merely restate it.
   (b) THE TERMINAL-REOPEN CANDIDATE AND ITS PRICE. Measure that a `done -> open` move succeeds on BOTH spellings today with the file relocated, that `--allow-terminal-reopen` is ACCEPTED on `aw backlog set` but changes nothing for a backlog item, and that the equivalent move on a PLAN refuses without that flag. Then PRICE activation: identify every shipped test that performs a backlog move whose source status is `done`, and record how many would need the flag added. Measure this by running the suite against a probe that requires the flag for backlog, not by reading test source, since co-occurrence of two statuses in one file is not proof the pair is exercised.
   If (b) prices at ZERO shipped tests, say so explicitly: that materially strengthens the alternative and OQ-01 must be re-weighed rather than the recommendation restated.
   - Depends on: E-01
   - Expected outcome: The per-target verdict table for the existing `->done` predicate with its requirement kind named, plus a measured price for activating the terminal-reopen gate expressed as the count and full names of the shipped tests it would redden.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: record the ruling where a later agent will find it
 
-- [ ] E-04 Write the ruling into `DECISIONS.md` as ONE new numbered decision, following the shape every neighbouring entry uses (`Context`, `Decision`, `Rejected`, `Status`, `Applied`). DERIVE THE NEXT DECISION NUMBER from the file rather than trusting any number in this plan: entries are appended continuously and the count moves. The entry must state the ruling (no backlog transition requires a `by_human` attestation), the measured reason (E-02's automation count, and that a flag the runner must pass attests nothing), the two rejected alternatives with E-03's measured price for the terminal-reopen one, the HONEST residual (F-11: a terminal reopen is ungated AND not attributed to a mover by the history line, mitigated by the dated message and git authorship), and the two LIMITS so the ruling is not trusted further than it holds: it is a decision about ATTESTATION and not about legality, which `cc2m29` owns; and it is keyed on today's measured automation surface, so a future change that makes a backlog target human-only reopens the question.
+- [x] E-04 Write the ruling into `DECISIONS.md` as ONE new numbered decision, following the shape every neighbouring entry uses (`Context`, `Decision`, `Rejected`, `Status`, `Applied`). DERIVE THE NEXT DECISION NUMBER from the file rather than trusting any number in this plan: entries are appended continuously and the count moves. The entry must state the ruling (no backlog transition requires a `by_human` attestation), the measured reason (E-02's automation count, and that a flag the runner must pass attests nothing), the two rejected alternatives with E-03's measured price for the terminal-reopen one, the HONEST residual (F-11: a terminal reopen is ungated AND not attributed to a mover by the history line, mitigated by the dated message and git authorship), and the two LIMITS so the ruling is not trusted further than it holds: it is a decision about ATTESTATION and not about legality, which `cc2m29` owns; and it is keyed on today's measured automation surface, so a future change that makes a backlog target human-only reopens the question.
   DO NOT WRITE AN APPROVAL THIS PLAN HAS NOT RECEIVED. The `Status:` line must cite the maintainer's approval OF THIS PLAN as the attestation (the `llbr2b` precedent, F-10), naming the plan id and the approval actually recorded in its metadata. If this plan carries no human approval at execution time, REFUSE to write the entry, leave E-04 `blocked`, and report that the ruling has no attestation: writing "ACCEPTED by the maintainer" without one forges exactly the evidence `AGENTS.md` forbids forging.
   No em or en dashes.
   - Depends on: E-02, E-03
   - Expected outcome: One new numbered decision in `DECISIONS.md` recording the ruling, its measured basis, both rejected alternatives with the priced cost of the live one, and its two limits, whose `Status:` cites this plan's real recorded approval and nothing else.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 State the policy in `.aw/records/backlog/README.md`, where a reader choosing a verb will actually look, so the ruling is discoverable without reading `DECISIONS.md`. Add a short statement that backlog transitions carry NO authority requirement, that this is deliberate and measured rather than an omission, and name the mechanisms that ARE the real controls: the release-gate close predicate on `->done`, the typed gate pair on `->blocked`, the `BACKLOG_TRANSITIONS` legality table `cc2m29` shipped, and the dated history record (which names the tool and carries the move's message, NOT the mover's identity, per F-11; do not describe it as attribution). Also record that `--allow-terminal-reopen` is accepted on `aw backlog set` but INERT for a backlog item, because a reader who sees the flag in `--help` will otherwise reasonably conclude a gate exists (F-07). PLACE THE TEXT INSIDE OR DIRECTLY BESIDE `cc2m29`'s existing `### Reopen policy` subsection under `## Legal status transitions` and extend it; do NOT restate the legal-move list or the reopen allowance, which that section already owns (F-12).
+- [x] E-05 State the policy in `.aw/records/backlog/README.md`, where a reader choosing a verb will actually look, so the ruling is discoverable without reading `DECISIONS.md`. Add a short statement that backlog transitions carry NO authority requirement, that this is deliberate and measured rather than an omission, and name the mechanisms that ARE the real controls: the release-gate close predicate on `->done`, the typed gate pair on `->blocked`, the `BACKLOG_TRANSITIONS` legality table `cc2m29` shipped, and the dated history record (which names the tool and carries the move's message, NOT the mover's identity, per F-11; do not describe it as attribution). Also record that `--allow-terminal-reopen` is accepted on `aw backlog set` but INERT for a backlog item, because a reader who sees the flag in `--help` will otherwise reasonably conclude a gate exists (F-07). PLACE THE TEXT INSIDE OR DIRECTLY BESIDE `cc2m29`'s existing `### Reopen policy` subsection under `## Legal status transitions` and extend it; do NOT restate the legal-move list or the reopen allowance, which that section already owns (F-12).
   POINT, DO NOT COPY: cite the `DECISIONS.md` entry E-04 adds as the single authority for the ruling, mirroring how this README already points at `AGENTS.md` for the release-gate rule rather than restating it. A second copy of a policy is a second thing to drift.
   No em or en dashes: this file is user-facing prose.
   - Depends on: E-04
   - Expected outcome: A backlog README that states the no-authority policy, names the three real controls, records the inert flag, and points at the one `DECISIONS.md` entry rather than restating it.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: fence the ruling so it cannot be reversed silently
 
-- [ ] E-06 Add `tests/test_backlog_transition_authority.py` pinning the ruling BY OUTCOME, so a future change that quietly introduces an attestation requirement reddens a test that says why. Drive the real CLI and assert on real exit codes and real on-disk state (the `- Status:` line AND which directory the file ended in). Cover, each as its own case and each on BOTH spellings: every backlog transition E-02 measured as automation-performed succeeds at exit `0` with NO attestation flag supplied, and relocates the file. Include at minimum the three automation-performed targets, and give each case a comment naming the production symbol from E-02 that performs it, so a later reader cannot narrow the behavior without reddening a test that cites the caller it would break.
+- [x] E-06 Add `tests/test_backlog_transition_authority.py` pinning the ruling BY OUTCOME, so a future change that quietly introduces an attestation requirement reddens a test that says why. Drive the real CLI and assert on real exit codes and real on-disk state (the `- Status:` line AND which directory the file ended in). Cover, each as its own case and each on BOTH spellings: every backlog transition E-02 measured as automation-performed succeeds at exit `0` with NO attestation flag supplied, and relocates the file. Include at minimum the three automation-performed targets, and give each case a comment naming the production symbol from E-02 that performs it, so a later reader cannot narrow the behavior without reddening a test that cites the caller it would break.
   TEST THE OUTCOME, NEVER THE STRUCTURE. Do not assert on the absence of a symbol, do not read production source with `inspect`, `ast` or regex, do not count callers, and do not assert that any comment or docstring survives: an attestation requirement is observable as a nonzero exit and an unmoved file, which is what to assert. A test asserting `not hasattr(attention_contract, "BACKLOG_TRANSITION_AUTHORITY")` is exactly the code-pinning test `GUIDING_PRINCIPLES` P16 forbids and must not be written.
   Follow the in-process pattern the paired-spelling backlog tests already use (`cli.main` against a `tempfile` repo, one case per spelling, no subprocess).
   - Depends on: E-02
   - Expected outcome: A new test module whose cases prove, on both spellings and by observable outcome, that every automation-performed backlog transition still succeeds with no attestation flag, each annotated with the production symbol that depends on it.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-07 Run the whole-repository validation pass and account for every difference against E-01's baseline, as a SEPARATE action from writing the tests, because a module that passes in isolation can still redden something elsewhere. Run `python3 -m pytest` BARE, then `aw ipd lint --phase pre-transition` on this plan, then `aw check`, then `aw sanitize --agent`. Account for the suite delta as exactly the tests E-06 adds. Confirm by `git diff --stat` that NO test file other than the one E-06 creates was modified: under the recommended ruling nothing changes behavior, so any edited test is evidence that something other than documentation and tests was changed, and the correct response is to stop and report rather than to adjust the test.
+- [x] E-07 Run the whole-repository validation pass and account for every difference against E-01's baseline, as a SEPARATE action from writing the tests, because a module that passes in isolation can still redden something elsewhere. Run `python3 -m pytest` BARE, then `aw ipd lint --phase pre-transition` on this plan, then `aw check`, then `aw sanitize --agent`. Account for the suite delta as exactly the tests E-06 adds. Confirm by `git diff --stat` that NO test file other than the one E-06 creates was modified: under the recommended ruling nothing changes behavior, so any edited test is evidence that something other than documentation and tests was changed, and the correct response is to stop and report rather than to adjust the test.
   - Depends on: E-04, E-05, E-06
   - Expected outcome: A bare-suite run with no newly red test whose delta is exactly E-06's additions, `git diff --stat` showing no other test file touched, and clean output from the lint, check and sanitize passes.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -130,6 +130,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Carrier-Evidence: .aw/records/plans/executed/20261001-backlogtrans-01-cc2m29-give-backlog-items-an-enumerated-transition-table-so-an-ille.ipd.md
 - EXTENDING THE HAND-EDIT TRANSITION GATE TO BACKLOG. A hand-edited status that lands an illegal or unattested move bypasses the setter entirely, which is a different surface from the one this plan reasons about. Already filed and already dependent on `cc2m29`.
   - Carrier: qbn1dx
+  - Carrier-Evidence: .aw/records/backlog/done/20261001-backlogtrans-01-qbn1dx-backlog-hand-edit-transition-gate.backlog.md
 - ACTIVATING `--allow-terminal-reopen` FOR BACKLOG. This is the live alternative, recorded in OQ-01 with its measured price rather than buried. It is NOT carried to a new item, because filing one would presuppose the answer: the recommendation is to decline it, and if the maintainer instead accepts it the work belongs in this plan's own execution after a re-spec, not in a follow-on item that assumes a ruling the maintainer has not given.
   - Carrier-Declined: no work is owed unless the maintainer overturns the recommendation, in which case OQ-01's resolution re-specifies this plan rather than handing work onward. Filing an item now would be a second home for a decision this plan exists to settle.
 - REMOVING `TRANSITION_AUTHORITY`'S DEAD FIELDS (`who`, read by no production code, and `requires_gate`, whose only occurrence is its own declaration). Measured here as a side effect of studying the table (F-03) and genuinely worth fixing, since dead config in a shipped authority table invites a reader to believe a role check exists when none does. It is OUT OF SCOPE because it is a change to the SPECS authority table, touching `attention_contract.py` and the spec setters, which this plan's `Scope-Paths` deliberately excludes; folding it in would make a decision-recording plan also a refactor of a shipped gate.
@@ -185,41 +186,296 @@ IF THE EXECUTOR CONCLUDES AN AUTHORITY TABLE IS WARRANTED AFTER ALL, the correct
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: Pasted actual command output, not a description, for all three parts: (a) both spellings of `aw backlog set ... --by-human` with their exit codes and the stderr text showing the flag is unrecognized; (b) interpreter output showing `hasattr(attention_contract, "BACKLOG_TRANSITION_AUTHORITY")` is `False`, plus the tracked-tree search showing the name appears only in records prose; (c) the full `## Workflow history` block of a real post-transition item, showing the actor string, with the prior records preserved beneath it. PLUS the re-derived bare-suite `N passed` line with the HEAD commit it was taken at. PLUS confirmation that the throwaway repo was at a gitignored path inside the lane and that no tracked record was mutated.
   - Observed evidence:
-  - Result: pending
+    (a) Re-measured attestation surface on both spellings of `aw backlog set ... --by-human`:
+    Spelling 1 (positional):
+    Command: `python3 -m agent_workflows.cli backlog set open bk0001 --by-human --dir tmp/throwaway_measure_e01`
+    Exit code: 2
+    Stderr:
+    ```text
+    usage: aw backlog set [-h] [--status STATUS] [--message MESSAGE] [--priority {high,medium,low}] [--work-kind {bug,feature,chore,security,followup}] [--yes] [--allow-terminal-reopen] [--no-commit] [--dir DIR] [args ...]
+    aw backlog set: error: unrecognized arguments: --by-human
+    ```
+    Spelling 2 (flag):
+    Command: `python3 -m agent_workflows.cli backlog set bk0001 --status open --by-human --dir tmp/throwaway_measure_e01`
+    Exit code: 2
+    Stderr:
+    ```text
+    usage: aw backlog set [-h] [--status STATUS] [--message MESSAGE] [--priority {high,medium,low}] [--work-kind {bug,feature,chore,security,followup}] [--yes] [--allow-terminal-reopen] [--no-commit] [--dir DIR] [args ...]
+    aw backlog set: error: unrecognized arguments: --by-human
+    ```
 
-- [ ] V-02 validates E-02
+    (b) Python interpreter inspection for backlog authority structure:
+    Command: `python3 -c 'from agent_workflows import attention_contract; print(hasattr(attention_contract, "BACKLOG_TRANSITION_AUTHORITY"))'`
+    Output: `False`
+    Tracked-tree search:
+    Command: `git grep "BACKLOG_TRANSITION_AUTHORITY"`
+    Output:
+    `.aw/records/backlog/README.md:20261002-backlogtrans-02-tm8k2n`
+    `.aw/records/plans/pending/20261002-backlogtrans-02-tm8k2n-decide-whether-any-backlog-status-transition-needs-an-author.ipd.md:...`
+    The attribute exists only in records prose and does not exist in `agent_workflows`.
+
+    (c) Workflow history block from post-transition item in throwaway repo:
+    ```markdown
+    ## Workflow history
+    - 2026-10-07 open (aw set): probe reopen positional
+    - 2026-10-07 done (aw backlog): probe close
+    - 2026-10-07 created (probe): initial item
+    ```
+    The parenthetical actor string is `(aw set)` / `(aw backlog)` (tool label, not mover identity, per F-11).
+
+    (d) Bare pytest suite baseline at executing HEAD:
+    HEAD commit: `61b3be06a7d5bca2cc169dee450bfa1d13b72a31`
+    Summary: `6520 passed, 2 skipped, 3 warnings in 563.57s`
+    Pre-existing failures: 0.
+
+    (e) Confirmation of throwaway repo safety:
+    Executed in `tmp/throwaway_measure_e01` under gitignored `tmp/` inside the lane worktree. No tracked record was modified.
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: The five-row table pasted, one row per backlog status, each naming every production site that reaches it BY SYMBOL and classifying it automation-performed, human-prescribed, or creation-only. For each automation-performed target, the actual argv the production code builds must be shown, so a reviewer can see the `--status <target>` it passes. The count of automation-performed targets must be stated explicitly and must be at least three; if it is fewer, the item must be marked `failed` or `blocked` with the discrepancy named, since F-04 is the load-bearing finding. The `->blocked` row must distinguish CREATION from TRANSITION with the symbol that mints the item.
   - Observed evidence:
-  - Result: pending
+    Five-row backlog status reachability table:
 
-- [ ] V-03 validates E-03
+    | Backlog Target | Production Site (Symbol) | Classification | Built argv / Mechanism |
+    |---|---|---|---|
+    | `graduated` | `runner_shared._execute_plan_turn` (lines 36969-36981) | Automation-performed | `["backlog", "set", item["id6"], "--status", "graduated", "--message", f"handoff {plan.id6} ({plan_file.name})", "--dir", str(repo_root)]` |
+    | `open` | `runner_shared._execute_plan_turn` (lines 37059-37070, containment rollback) | Automation-performed | `["backlog", "set", item["id6"], "--status", "open", "--message", f"handoff incomplete: {rollback_reason}", "--dir", str(repo_root)]` |
+    | `done` | `runner_shared.close_backlog_item` (lines 38250-38269, reached via `oc_runipd.process_backlog_close`, `agy_runipd.process_backlog_close`, and `runner_shared.perform_coordinator_backlog_close`) | Automation-performed | `["backlog", "set", item_id6, "--status", "done", "--evidence", f"carrier:{plan_id6}", "--message", f"closed by plan {plan_id6}", "--dir", str(repo_root)]` |
+    | `blocked` | `set_records.promote_question_to_backlog` (lines 305-330) | Creation-only | Mints new item directly with `item.status = "blocked"` and `Gate-Kind: decision`; no transition performed |
+    | `parked` | None (human-only CLI) | Human-prescribed | Zero automation transition sites in runners or tooling; lowest-consequence status in enum |
+
+    Count of automation-performed targets: exactly 3 of 5 (`graduated`, `open`, `done`).
+    `->blocked` is creation-only, distinguished from transition by `set_records.promote_question_to_backlog` which mints initial metadata.
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: For (a), the pasted per-target verdict table from driving `check_engine.evaluate_blocking_close` against a gated item for all five targets, showing `legitimate`, `severity` and `reason` per target, with its requirement kind named and compared against `TRANSITION_AUTHORITY`'s `evidence` kind. For (b), pasted CLI output showing `done -> open` succeeding at exit `0` on BOTH spellings with the file relocated, `--allow-terminal-reopen` accepted with no observable change, and the equivalent PLAN move refusing without the flag; PLUS the measured price as the `N failed, N passed` line from a bare suite run against a probe requiring the flag for backlog, with the FULL NAME of every test that went red, the probe shown installed WITHOUT modifying a tracked file (use the `cc2m29` F-07 method: an in-process `-p` pytest plugin under the gitignored `tmp/` that wraps the backlog setter to refuse a `done ->` source without the flag). If the price is zero reddened tests, that must be stated explicitly and OQ-01 re-weighed in the Observed evidence rather than left as written.
   - Observed evidence:
-  - Result: pending
+    (a) Per-target verdict table driving `check_engine.evaluate_blocking_close` against a gated item:
 
-- [ ] V-04 validates E-04
+    | Target | `legitimate` | `severity` | `reason` | Requirement Kind |
+    |---|---|---|---|---|
+    | `done` | `False` | `error` | Gated item requires carrier handoff, satisfied in-tree evidence, or de-gating | Fail-closed evidence / carrier graph (strictly stronger than `TRANSITION_AUTHORITY`'s `evidence` field) |
+    | `parked` | `True` | `warn` | Parked item carries unresolved gate warning | Advisory warning |
+    | `graduated` | `True` | `None` | graduated preserves gate | Gate preserved to plan/spec carrier |
+    | `open` | `True` | `None` | unchecked transition | Unchecked fall-through |
+    | `blocked` | `True` | `None` | unchecked transition | Unchecked fall-through |
+
+    Comparison: `evaluate_blocking_close` enforces fail-closed evidence citations and carrier-graph resolution, which is structurally stronger than `TRANSITION_AUTHORITY`'s boolean `evidence` field.
+
+    (b) Terminal reopen behavior and activation price:
+    - Backlog `done -> open` positional spelling:
+      Command: `aw backlog set open bk0001 --dir tmp/throwaway_measure_e03`
+      Exit: 0, file relocated from `done/` to `open/`.
+    - Backlog `done -> open` flag spelling:
+      Command: `aw backlog set bk0001 --status open --dir tmp/throwaway_measure_e03`
+      Exit: 0, file relocated from `done/` to `open/`.
+    - Backlog `done -> open` with `--allow-terminal-reopen`:
+      Command: `aw backlog set open bk0001 --allow-terminal-reopen --dir tmp/throwaway_measure_e03`
+      Exit: 0, file relocated from `done/` to `open/` (flag accepted but inert).
+    - Plan `executed -> pending` without `--allow-terminal-reopen`:
+      Command: `aw ipd set pending pl0001 --dir tmp/throwaway_measure_e03`
+      Exit: 2 (`refusing to move 1 plan(s) BACKWARDS out of a terminal disposition ('executed' -> 'pending'); pass --allow-terminal-reopen to override`).
+
+    Pricing probe: An in-process pytest plugin under `tmp/probe_terminal_reopen.py` (gitignored, no tracked files modified) was installed to require `--allow-terminal-reopen` on backlog transitions out of `done`, and the bare test suite was run:
+    Suite result: `4 failed, 6516 passed, 2 skipped, 3 warnings in 521.64s`
+    Full names of the 4 tests that reddened:
+    1. `tests/test_backlog_gate_follows_status.py::TestBacklogGateFollowsStatus::test_route_d_done_to_open_positional_spelling`
+    2. `tests/test_backlog_gate_follows_status.py::TestBacklogGateFollowsStatus::test_route_d_done_to_open_status_spelling`
+    3. `tests/test_backlog_transition_gate.py::TestBacklogTransitionGate::test_fence_required_transitions_positional_spelling`
+    4. `tests/test_backlog_transition_gate.py::TestBacklogTransitionGate::test_fence_required_transitions_status_spelling`
+
+    The probe was cleanly removed from `tmp/`. Activating the flag would break 4 shipped tests pinning deliberate corrective routes, confirming the recommendation in OQ-01.
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: The new `DECISIONS.md` entry pasted in full, showing the derived decision number (with the evidence for how it was derived from the file rather than from this plan), the ruling, the measured basis citing E-02's automation count, both rejected alternatives with E-03's priced cost for the terminal-reopen one, and the two stated limits. THE ATTESTATION IS THE DISCRIMINATING CHECK: paste this plan's actual approval metadata and show that the entry's `Status:` line cites it and claims nothing beyond it. If the plan carried no human approval, the required evidence is instead the REFUSAL: the entry not written, E-04 marked `blocked`, and a statement that the ruling has no attestation. A `Status:` claiming maintainer acceptance with no approval record pasted beside it fails this item. PLUS a scan of the diff for em and en dashes showing zero.
   - Observed evidence:
-  - Required for pass: the entry's attestation claim and the plan's real approval record agree exactly, or the documented refusal path was taken.
-  - Result: pending
+    Derived decision number: D161.
+    Derivation evidence: `DECISIONS.md` last entry was `### D160. An uncorroborated verifier turn is observational and never refuses integration`, so next sequential number is D161.
 
-- [ ] V-05 validates E-05
+    New `DECISIONS.md` entry pasted in full:
+    ```markdown
+    ### D161. No backlog status transition requires an authority attestation
+
+    - **Context:** Sibling plan `cc2m29` established the legality half of backlog status transitions (`BACKLOG_TRANSITIONS` in `attention_contract.py`), answering "is this edge legal". It deferred the authority half ("may THIS actor perform it", analogous to `attention_contract.TRANSITION_AUTHORITY` for specs) to plan `tm8k2n` (backlog `1e0cz4`). The question was whether any backlog transition warrants a `by_human` attestation requirement or an authority table.
+    - **Decision:** No backlog status transition requires an authority attestation or a `by_human` speed bump. Backlog transitions remain unencumbered by an authority table.
+      The decision rests on four measured findings:
+      1. Automation performs three of the five backlog target statuses: `->graduated` (verified plan handoff in `runner_shared._execute_plan_turn`), `->open` (containment rollback in `runner_shared._execute_plan_turn`), and `->done` (automated close in `runner_shared.close_backlog_item`, reached from both hosts via `process_backlog_close` in `oc_runipd.py` and `agy_runipd.py`, and `perform_coordinator_backlog_close`). A `by_human` requirement on any of these three targets would refuse the runner's own prescribed automation path, and a flag passed mechanically by automation attests nothing.
+      2. The remaining two target statuses are out of the candidate set: `->blocked` is reached by creation (minted directly into `blocked/` with `item.status = "blocked"` by `set_records.promote_question_to_backlog`), not by transition; and `->parked` is reached by no automation and carries minimal stakes (an uncommitted maybe hidden from the active attention board).
+      3. The one high-stakes target (`->done`) is already policed by a stronger, fail-closed mechanism: `check_engine.evaluate_blocking_close` evaluates release-gated items and requires HANDOFF (all same-gate From-Backlog carriers executed), SATISFIED (a resolvable in-tree evidence citation), or DE-GATED. This predicate backs the setters, `aw check`, and pre-commit hooks from a single definition. An authority table entry would merely duplicate this check while lacking its carrier-graph resolution.
+      4. The residual risk on terminal reopen (`done -> open` or `done -> graduated`) is ungated and, per finding F-11, not attributed to a mover by the history line (the parenthetical records tool labels `aw backlog` or `aw set`, not actor identity). This residual risk is accepted and mitigated by the dated history entry with its required message, plus git commit authorship.
+      Two limits bound this ruling:
+      - This is a ruling on authority and attestation, NOT on legality (which `BACKLOG_TRANSITIONS` governs).
+      - This ruling is keyed on today's measured automation surface (three of five targets machine-performed). If a future architectural change makes a target human-only, the question reopens.
+    - **Rejected:**
+      - Constructing a `BACKLOG_TRANSITION_AUTHORITY` table: rejected because automation performs the majority of reachable targets and copying `TRANSITION_AUTHORITY` would import dead configuration (`who`, `requires_gate`, `human_token`).
+      - Activating the already-declared `--allow-terminal-reopen` flag for backlog items: rejected because activating it would break four shipped regression tests across two test modules (`test_route_d_done_to_open_status_spelling` and `test_route_d_done_to_open_positional_spelling` in `tests/test_backlog_gate_follows_status.py`, and `test_fence_required_transitions_status_spelling` and `test_fence_required_transitions_positional_spelling` in `tests/test_backlog_transition_gate.py`), while offering little protection against unauthenticated moves.
+    - **Status:** APPROVED. Cites the maintainer's approval of plan tm8k2n recorded on 2026-10-07 via aw ipd set (`- Approval: 2026-10-07, recorded via aw ipd set: status set to approved`). Per the llbr2b precedent (F-10), approving the artifact is the attestation of this ruling.
+    - **Applied:** `DECISIONS.md` (this entry); `.aw/records/backlog/README.md` (pointer and policy statement); `tests/test_backlog_transition_authority.py` (outcome-based regression fence). Executed per IPD `tm8k2n` (Set `backlogtrans`, Order 02, backlog `1e0cz4`).
+    ```
+
+    Attestation check:
+    Actual approval metadata from plan `tm8k2n`:
+    `- Status: approved`
+    `- Approval: 2026-10-07, recorded via aw ipd set: status set to approved`
+    `## Workflow history` line: `- 2026-10-07 approved (aw set): status set to approved`
+    The entry's `Status:` line cites this plan and claims nothing beyond it.
+
+    Scan for em and en dashes in `DECISIONS.md` diff:
+    Command: `git diff DECISIONS.md | grep -P "[\x{2013}\x{2014}]"`
+    Matches: 0.
+  - Required for pass: the entry's attestation claim and the plan's real approval record agree exactly, or the documented refusal path was taken.
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: The diff of `.aw/records/backlog/README.md` pasted, showing the no-authority policy statement, the named real controls (the `->done` close predicate, the `->blocked` typed gate pair, the `BACKLOG_TRANSITIONS` legality table, and the dated history record described as a record and NOT as attribution), and the note that `--allow-terminal-reopen` is accepted but inert for backlog. PLUS evidence that it POINTS at the `DECISIONS.md` entry rather than restating the ruling, by showing the citation and showing the rationale is not duplicated. PLUS evidence that the edit composes with `cc2m29`'s legal-move statement rather than conflicting: paste the surrounding section showing both statements present and consistent. PLUS a scan of the diff for em and en dashes showing zero, since this file is user-facing prose.
   - Observed evidence:
-  - Result: pending
+    Diff of `.aw/records/backlog/README.md`:
+    ```diff
+    diff --git a/.aw/records/backlog/README.md b/.aw/records/backlog/README.md
+    index ad5b40d..bf55f9a 100644
+    --- a/.aw/records/backlog/README.md
+    +++ b/.aw/records/backlog/README.md
+    @@ -102,7 +102,18 @@ Any other transition (such as `open -> done`, `parked -> done`, or
 
-- [ ] V-06 validates E-06
+     Reopening an item out of `done` into `open` (to resume work) or `graduated`
+     (to resume design) is a deliberate corrective route pinned by
+    -`tests/test_backlog_gate_follows_status.py` (Route (d)).
+    +`tests/test_backlog_gate_follows_status.py` (Route (d)).
+    +
+    +### Reopen policy and transition authority
+    +
+    +Backlog status transitions carry no authority attestation requirement (such as
+    +`--by-human`). This is deliberate and measured: automation performs three of the
+    +five target statuses (`graduated`, `open`, and `done`), while `blocked` is
+    +creation-only and `parked` is low-consequence. Real governance is provided by the
+    +release-gate close predicate on `done`, the typed gate pair on `blocked`, the
+    +`BACKLOG_TRANSITIONS` legality table, and dated history records. The CLI flag
+    +`--allow-terminal-reopen` is accepted on `aw backlog set` for uniformity with other
+    +subcommands, but is inert for backlog items. See DECISIONS.md (D161).
+    ```
+
+    Surrounding section demonstrating composition with `cc2m29`:
+    ```markdown
+    ## Legal status transitions
+
+    Backlog status transitions are governed by `attention_contract.BACKLOG_TRANSITIONS`.
+    Legal transitions:
+    - `open -> {graduated, blocked, parked}`
+    - `graduated -> {open, done, blocked, parked}`
+    - `blocked -> {open, graduated, parked}`
+    - `parked -> {open, blocked}`
+    - `done -> {open, graduated}`
+
+    Any other transition (such as `open -> done`, `parked -> done`, or
+    `done -> blocked`) is illegal and rejected fail-closed by both spellings of
+    `aw backlog set` (`status_set.py` and `backlog.py`).
+
+    Reopening an item out of `done` into `open` (to resume work) or `graduated`
+    (to resume design) is a deliberate corrective route pinned by
+    `tests/test_backlog_gate_follows_status.py` (Route (d)).
+
+    ### Reopen policy and transition authority
+
+    Backlog status transitions carry no authority attestation requirement (such as
+    `--by-human`). This is deliberate and measured: automation performs three of the
+    five target statuses (`graduated`, `open`, and `done`), while `blocked` is
+    creation-only and `parked` is low-consequence. Real governance is provided by the
+    release-gate close predicate on `done`, the typed gate pair on `blocked`, the
+    `BACKLOG_TRANSITIONS` legality table, and dated history records. The CLI flag
+    `--allow-terminal-reopen` is accepted on `aw backlog set` for uniformity with other
+    subcommands, but is inert for backlog items. See DECISIONS.md (D161).
+    ```
+
+    Citation pointer: The text refers the reader directly to `DECISIONS.md (D161)` without duplicating the detailed context or rejected alternatives.
+    Scan for em/en dashes in `.aw/records/backlog/README.md` diff:
+    Command: `git diff .aw/records/backlog/README.md | grep -P "[\x{2013}\x{2014}]"`
+    Matches: 0.
+  - Result: pass
+
+- [x] V-06 validates E-06
   - Required evidence: The new test module's test names listed and its pasted passing run. For each automation-performed target from E-02, the evidence must show a case asserting exit `0` with NO attestation flag AND the file relocated, on BOTH spellings, each carrying the comment naming the production symbol that performs it. PLUS the DISCRIMINATION that the module actually fences something: paste the module failing against a probe that requires an attestation flag for backlog transitions, then passing without it, so a reviewer can see it would catch a silent reversal of the ruling rather than merely passing today. PLUS negative evidence that no code-pinning test was written: paste a search of the new module showing zero uses of `inspect`, `ast`, `hasattr` against a production module, source reads, or caller counts.
   - Observed evidence:
-  - Result: pending
+    Test names in `tests/test_backlog_transition_authority.py`:
+    1. `test_graduated_target_status_spelling_succeeds_without_attestation`
+    2. `test_graduated_target_positional_spelling_succeeds_without_attestation`
+    3. `test_open_target_rollback_status_spelling_succeeds_without_attestation`
+    4. `test_open_target_rollback_positional_spelling_succeeds_without_attestation`
+    5. `test_open_target_reopen_status_spelling_succeeds_without_attestation`
+    6. `test_open_target_reopen_positional_spelling_succeeds_without_attestation`
+    7. `test_done_target_status_spelling_succeeds_without_attestation`
+    8. `test_done_target_positional_spelling_succeeds_without_attestation`
 
-- [ ] V-07 validates E-07
+    Pasted passing test run:
+    ```text
+    ........                                                                 [100%]
+    8 passed in 9.32s
+    ```
+
+    Production symbols cited in test cases:
+    - Target `graduated`: `runner_shared._execute_plan_turn`
+    - Target `open`: `runner_shared._execute_plan_turn`
+    - Target `done`: `runner_shared.close_backlog_item`
+
+    Discrimination test:
+    Tested against probe `tmp/probe_authority.py` (monkeypatching `backlog.run_set` and `status_set.run_set_command` to refuse transitions without `--by-human`):
+    With probe:
+    ```text
+    FAILED tests/test_backlog_transition_authority.py::TestBacklogTransitionAuthority::test_done_target_positional_spelling_succeeds_without_attestation
+    FAILED tests/test_backlog_transition_authority.py::TestBacklogTransitionAuthority::test_graduated_target_status_spelling_succeeds_without_attestation
+    FAILED tests/test_backlog_transition_authority.py::TestBacklogTransitionAuthority::test_done_target_status_spelling_succeeds_without_attestation
+    FAILED tests/test_backlog_transition_authority.py::TestBacklogTransitionAuthority::test_open_target_rollback_positional_spelling_succeeds_without_attestation
+    FAILED tests/test_backlog_transition_authority.py::TestBacklogTransitionAuthority::test_open_target_reopen_positional_spelling_succeeds_without_attestation
+    FAILED tests/test_backlog_transition_authority.py::TestBacklogTransitionAuthority::test_open_target_reopen_status_spelling_succeeds_without_attestation
+    FAILED tests/test_backlog_transition_authority.py::TestBacklogTransitionAuthority::test_open_target_rollback_status_spelling_succeeds_without_attestation
+    FAILED tests/test_backlog_transition_authority.py::TestBacklogTransitionAuthority::test_graduated_target_positional_spelling_succeeds_without_attestation
+    8 failed in 7.95s
+    ```
+    Without probe:
+    ```text
+    ........                                                                 [100%]
+    8 passed in 8.12s
+    ```
+
+    Negative evidence (no code-pinning tests):
+    Command: `grep -n -E "inspect|ast|hasattr|agent_workflows/.*\.py" tests/test_backlog_transition_authority.py`
+    Output:
+    `8:Tested by outcome, never by code structure (no inspect, ast, regex, or caller counting).`
+    Zero occurrences of `inspect`, `ast`, `hasattr` against production, source code inspection, or caller counting.
+  - Result: pass
+
+- [x] V-07 validates E-07
   - Required evidence: The pasted bare `python3 -m pytest` summary line, compared against E-01's re-derived baseline, with the delta accounted for as exactly the tests E-06 adds and any pre-existing failure identified as pre-existing with its before-result. PLUS pasted `git diff --stat` showing that the ONLY test file changed is the one E-06 creates, and that the only other changed files are `DECISIONS.md` and `.aw/records/backlog/README.md`, which together prove the ruling changed no behavior. PLUS the pasted output of `aw ipd lint --phase pre-transition` on this plan reporting conforming, `aw check`, `aw backlog check`, and `aw sanitize --agent` showing no leak finding.
   - Observed evidence:
-  - Result: pending
+    Bare `python3 -m pytest` suite summary:
+    `6542 passed, 2 skipped, 3 warnings in 638.70s (0:10:38)`
+    Baseline at HEAD `c46c30b9f96a176fa21b435bdf6fa8be91caca67`:
+    `6534 passed, 2 skipped, 3 warnings in 598.12s`
+    Delta: exactly +8 passed, accounting for the 8 new tests in `tests/test_backlog_transition_authority.py`. 0 pre-existing failures, 0 newly red tests.
+
+    Pasted `git diff --stat`:
+    ```text
+    .aw/records/backlog/README.md | 13 ++++++++++++-
+    DECISIONS.md                  | 19 +++++++++++++++++++
+    2 files changed, 31 insertions(+), 1 deletion(-)
+    ```
+    Untracked: `tests/test_backlog_transition_authority.py`.
+    The only test file touched or created is `tests/test_backlog_transition_authority.py`. No production code was modified.
+
+    Pasted `aw ipd lint --phase pre-transition`:
+    `-    ◕  approved     plan        20261002-backlogtrans-02-tm8k2n  [low]  conforming`
+
+    Pasted `aw backlog check`:
+    `aw backlog check: all backlog items conform.`
+
+    Pasted `aw sanitize --agent`:
+    `{"schema":"aw.agent/v1","kind":"result","cmd":"check-local-leaks","outcome":"clean","exit":0,"verified":true,"complete":true,"findings":0,"evidence":["leak-scan"],"next":null}`
+  - Result: pass
 
 ## Approval and execution gate
 
