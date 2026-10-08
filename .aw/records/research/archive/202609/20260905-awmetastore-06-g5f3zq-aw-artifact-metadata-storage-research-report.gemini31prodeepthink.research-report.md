@@ -8,7 +8,7 @@ model: gemini31prodeepthink
 kind: research-report
 status: archive
 outcome: rejected
-summary: Gemini 3.1 Pro Deep Think: a fifth answer to prompt 27rjro, DELIBERATELY EXCLUDED from reconciliation 6mye7n on the maintainer instruction because its own author note records that network restrictions prevented it reading the repository, so it reasoned from the prompt prose alone; adopted 2026-09-20 for provenance only
+summary: Gemini 3.1 Pro Deep Think: fifth answer to prompt 27rjro, excluded from reconciliation 6mye7n by maintainer instruction because network restrictions prevented repo access (reasoned from prompt prose alone); adopted 2026-09-20 for provenance only
 consumed-by: []
 ---
 

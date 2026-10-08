@@ -8,7 +8,7 @@ model: reconciliation
 kind: reconciliation-report
 status: reference
 outcome: adopted
-summary: Consolidated finding across GPT-5.6 Sol High, Sonnet 5 High, Gemini 3.1 Pro High and Gemini 3.8 Flash High: all four converge on inline front matter plus git-tracked per-artifact JSONL history keyed by id6, ordered by an explicit per-artifact seq rather than by date; the live-verified disagreements are the inline residue, IPD-S405, and write locking
+summary: Consolidated finding across GPT-5.6, Sonnet 5, Gemini 3.1 Pro and Gemini 3.8 Flash: all four converge on inline front matter plus git-tracked per-artifact JSONL history keyed by id6, ordered by explicit seq rather than date; live disagreements are inline residue, IPD-S405, and write locking
 consumed-by: [ms06pi, tk1gqo]
 ---
 
