@@ -5139,6 +5139,14 @@ class HostReviewAliasExpansionTests(unittest.TestCase):
                 alias["host_capabilities"].pop("observed_at", None)
             if isinstance(canon.get("host_capabilities"), dict):
                 canon["host_capabilities"].pop("observed_at", None)
+            for doc in (alias, canon):
+                driver_rec = doc.get("driver")
+                if isinstance(driver_rec, dict) and isinstance(
+                    driver_rec.get("loaded_code"), list
+                ):
+                    for entry in driver_rec["loaded_code"]:
+                        if isinstance(entry, dict):
+                            entry.pop("recorded_at", None)
             self.assertEqual(alias["options"], canon["options"])
             self.assertEqual(alias["selectors"], canon["selectors"])
             self.assertEqual(alias["queue"], canon["queue"])
