@@ -12,6 +12,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from agent_workflows import attention_contract as A
 from agent_workflows import research_cmd as C
 from agent_workflows import research_contract as R
 
@@ -203,6 +204,130 @@ class ComparisonTests(unittest.TestCase):
         )
         self.assertIsNone(err)
         self.assertEqual(len(files), 4)
+        prompt_content = files[0].content
+        self.assertNotIn("status:", prompt_content)
+        parsed_prompt = _parse_frontmatter(prompt_content)
+        self.assertNotIn("status", parsed_prompt)
+        self.assertEqual(R.validate_frontmatter(parsed_prompt), [])
+
+        for f in files[1:]:
+            self.assertIn("status: todo", f.content)
+            parsed_doc = _parse_frontmatter(f.content)
+            self.assertEqual(parsed_doc.get("status"), "todo")
+            self.assertEqual(R.validate_frontmatter(parsed_doc), [])
+
+    def test_comparison_summary_reaches_all_planned_documents(self):
+        user_summary = "Which widget library should we adopt"
+        files, err = C.plan_new_comparison(
+            research_root=self.research,
+            set_id="widget-set",
+            slug="widget-study",
+            models=["gpt56", "sonnet5"],
+            summary=user_summary,
+        )
+        self.assertIsNone(err)
+        self.assertEqual(len(files), 4)
+
+        role_tokens = [
+            "Originating prompt for the comparison set",
+            "gpt56 report",
+            "sonnet5 report",
+            "Synthesis of the model reports",
+        ]
+        for f, token in zip(files, role_tokens):
+            parsed = _parse_frontmatter(f.content)
+            summary_val = parsed.get("summary", "")
+            self.assertIn(user_summary, summary_val)
+            self.assertIn(token, summary_val)
+            self.assertEqual(R.validate_frontmatter(parsed), [])
+
+    def test_compose_comparison_summary_unit(self):
+        # Empty and whitespace-only return role unchanged
+        self.assertEqual(
+            C._compose_comparison_summary("", "gpt56 report."), "gpt56 report."
+        )
+        self.assertEqual(
+            C._compose_comparison_summary("   ", "gpt56 report."), "gpt56 report."
+        )
+
+        # Normal input composes user and role without trailing dot
+        self.assertEqual(
+            C._compose_comparison_summary("Which widget library", "gpt56 report."),
+            "Which widget library (gpt56 report)",
+        )
+        self.assertEqual(
+            C._compose_comparison_summary(
+                "Which widget library", "Originating prompt for the comparison set."
+            ),
+            "Which widget library (Originating prompt for the comparison set)",
+        )
+        self.assertEqual(
+            C._compose_comparison_summary(
+                "Which widget library", "Synthesis of the model reports."
+            ),
+            "Which widget library (Synthesis of the model reports)",
+        )
+
+        # Over-bound case derived from A.MAX_DESCRIPTIVE_LEN arithmetic
+        long_user = "u" * (A.MAX_DESCRIPTIVE_LEN - 10)
+        res = C._compose_comparison_summary(
+            long_user, "Originating prompt for the comparison set."
+        )
+        self.assertEqual(res, long_user)
+
+        # A.is_safe_descriptive holds on every return
+        for user, role in [
+            ("", "gpt56 report."),
+            ("  ", "gpt56 report."),
+            ("Which widget library", "gpt56 report."),
+            ("Which widget library", "Originating prompt for the comparison set."),
+            ("Which widget library", "Synthesis of the model reports."),
+            (long_user, "Originating prompt for the comparison set."),
+        ]:
+            out = C._compose_comparison_summary(user, role)
+            self.assertTrue(A.is_safe_descriptive(out))
+
+    def test_comparison_no_summary_exact_strings(self):
+        files, err = C.plan_new_comparison(
+            research_root=self.research,
+            set_id="no-summary-set",
+            slug="no-sum",
+            models=["gpt56", "sonnet5"],
+        )
+        self.assertIsNone(err)
+        self.assertEqual(len(files), 4)
+        parsed = [_parse_frontmatter(f.content) for f in files]
+        self.assertEqual(
+            parsed[0].get("summary"), "Originating prompt for the comparison set."
+        )
+        self.assertEqual(parsed[1].get("summary"), "gpt56 report.")
+        self.assertEqual(parsed[2].get("summary"), "sonnet5 report.")
+        self.assertEqual(parsed[3].get("summary"), "Synthesis of the model reports.")
+
+    def test_comparison_invariants_under_non_empty_summary(self):
+        files, err = C.plan_new_comparison(
+            research_root=self.research,
+            set_id="inv-set",
+            slug="inv",
+            models=["gpt56", "sonnet5"],
+            summary="A non-empty user summary",
+        )
+        self.assertIsNone(err)
+        self.assertEqual(len(files), 4)
+
+        parsed_names = [R.parse_name(f.path.name)[0] for f in files]
+        orders = [p.order for p in parsed_names]
+        self.assertEqual(orders, ["00", "01", "02", "03"])
+
+        self.assertEqual(parsed_names[0].kind, "research-prompt")
+        self.assertIsNone(parsed_names[0].model)
+        self.assertEqual(parsed_names[1].kind, "research-report")
+        self.assertEqual(parsed_names[1].model, "gpt56")
+        self.assertEqual(parsed_names[2].kind, "research-report")
+        self.assertEqual(parsed_names[2].model, "sonnet5")
+        self.assertEqual(parsed_names[3].kind, "reconciliation-report")
+        self.assertEqual(parsed_names[3].model, "reconciliation")
+
         prompt_content = files[0].content
         self.assertNotIn("status:", prompt_content)
         parsed_prompt = _parse_frontmatter(prompt_content)
