@@ -7678,8 +7678,8 @@ def _install_one(
 
     This is the ONE per-repo orchestration all entry points use (D85: `aw install <dir>`,
     `aw install all`, `aw setup`, and the engine `run()` path), so none can drift into
-    staging-without-committing. It runs: install_into_repo (steps) -> print_summary -> a status line
-    -> prompt_and_run_commit (auto-commits under --yes, prompts otherwise, and on decline prints the
+    staging-without-committing. It runs: install_into_repo (steps) -> print_summary (including
+    inbox drop zone pointer) -> a status line -> prompt_and_run_commit (auto-commits under --yes, prompts otherwise, and on decline prints the
     "left staged; commit with git commit -- ..." line so a repo is NEVER left SILENTLY dirty). It is
     SystemExit-isolated so a dir-conflict/git failure in one repo cannot abort a batch (R-4).
 
