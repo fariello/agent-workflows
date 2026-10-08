@@ -827,7 +827,7 @@ from agent_workflows.runner_shared import (
 # copies tolerated any whitespace after the `-` while `selectors`' internal readers require
 # exactly one space, and that strictness is a documented `aw find` matching contract.
 #
-# `_read_id` F401 handling is re-homed onto __all__ (s4jctz / h0zk2g). Once
+# `_read_id` F401 handling is re-homed onto __all__ (s4jctz: h0zk2g / sznlsf). Once
 # `parse_plan_file` moved to `runner_shared`, this module stopped calling `_read_id` itself.
 # Historical note (rununify 06 `sy7uwh`): `ruff --fix` previously deleted the import as unused,
 # and an earlier comment noted `as <same-name>` was not enough under the ruff of its time
@@ -837,7 +837,8 @@ from agent_workflows.runner_shared import (
 # In contrast, `agy_runipd` has no `__all__` and retains a noqa F401 directive.
 # Consumer asymmetry: `agy_runipd._read_id` has a live caller via `tools/ipdrunner/runagy.py`
 # consumed in `tools/ipdrunner/test_runagy.py`; `oc_runipd._read_id` has no local caller, but is
-# retained for cross-host symmetry and guarded by `tests/test_runner_shared.py`.
+# retained for cross-host symmetry and guarded by `tests/test_runner_shared.py::CrossHostReadIdReExportTests`.
+# Sznlsf E-01's execution census measured these callers at HEAD, and E-02's conditional gate confirmed retention.
 # (Note: `_read_status` is exposed on neither host; status reading is done via `selectors`.)
 from agent_workflows.selectors import read_front_matter_id as _read_id
 

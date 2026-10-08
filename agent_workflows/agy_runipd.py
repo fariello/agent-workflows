@@ -71,17 +71,22 @@ from agent_workflows.run_selection_policy import (
 # deliberately the PERMISSIVE readers, preserving the whitespace tolerance these copies had;
 # `selectors`' strict internal readers back `aw find` and are unchanged.
 #
-# `_read_id` F401 suppression is retained per s4jctz / h0zk2g; see the fuller note in `oc_runipd`.
+# `_read_id` F401 suppression is retained per s4jctz (h0zk2g / sznlsf).
 # Once `parse_plan_file` moved to `runner_shared` this module stopped calling `_read_id` directly,
 # but `agy_runipd` lacks an `__all__` export list (unlike `oc_runipd`), so noqa F401 remains the
 # mechanism keeping the re-export alive.
-# The re-export has a live consumer: `tools/ipdrunner/runagy.py` imports and re-exports all non-dunder
-# attributes of this module, which `tools/ipdrunner/test_runagy.py` exercises. In addition, cross-host
-# parity and object identity against `selectors.read_front_matter_id` are pinned by
+# The re-export has one live reader in the tree: `tools/ipdrunner/test_runagy.py::AgyParserAndDiscoveryTests::test_read_deps_and_set`,
+# which reaches it as `driver._read_id` through `tools/ipdrunner/runagy.py`, a shim that copies
+# `vars(agy_runipd)` wholesale into its own globals.
+# Two disclosures make this retention honest rather than superstitious:
+# 1. The cited test file is OUTSIDE the bare suite (`pyproject.toml` sets `testpaths = ["tests"]`,
+#    so `python3 -m pytest` never collects `tools/`, and a green bare run is not evidence about this name).
+# 2. That test historically failed at a later assertion for an unrelated missing reader (`_read_status`,
+#    dropped in h0zk2g), and `tools/ipdrunner/test_runagy.py` carries pre-existing suite failures.
+# In addition, cross-host parity and object identity against `selectors.read_front_matter_id` are pinned by
 # `tests/test_runner_shared.py::CrossHostReadIdReExportTests`.
-# (Historical note: tests/test_runner_refork_guard.py was deleted in 19313eed and is no longer cited
-# as a live requirement; _read_status is exposed on neither host.)
-from agent_workflows.selectors import read_front_matter_id as _read_id  # noqa: F401 - re-export for tools/ipdrunner/runagy.py (tested by tools/ipdrunner/test_runagy.py) and pinned by tests/test_runner_shared.py
+# (Note: _read_status is exposed on neither host; status reading is done via selectors.)
+from agent_workflows.selectors import read_front_matter_id as _read_id  # noqa: F401 - re-export for tools/ipdrunner/runagy.py, read as driver._read_id in tools/ipdrunner/test_runagy.py::AgyParserAndDiscoveryTests::test_read_deps_and_set
 
 from agent_workflows.render_stream import (
     Statusline,

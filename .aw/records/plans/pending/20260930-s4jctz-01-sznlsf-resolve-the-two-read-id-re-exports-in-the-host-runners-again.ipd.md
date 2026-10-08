@@ -35,25 +35,26 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: measure, then act on the measurement
 
-- [ ] E-01 RE-RUN THE READER MEASUREMENT AT EXECUTION HEAD and record it, rather than trusting this plan's authoring-time numbers. The authoring measurement is in Findings F-1 and F-2 and was taken at HEAD `62b18f47`; if execution happens at a later HEAD, a new reader may exist and would change E-02's verdict. Perform three scans: (a) an AST scan over every `.py` file in the tree for `ImportFrom` of `_read_id` from either host module AND for any `Attribute` access whose `attr` is `_read_id`, reporting the base expression of each; (b) a text scan (`rg -n "_read_id"`) restricted to `agent_workflows/`, `tests/` and `tools/` so a dynamic access an AST attribute scan would not attribute to a host module is still seen; (c) a check of whether the two host modules are reachable as a public surface at all, namely whether `oc_runipd`/`agy_runipd` appear in `agent_workflows.__init__`'s `__all__` and whether `_read_id` appears in `oc_runipd.__all__`. Do NOT edit anything in this item.
+- [x] E-01 RE-RUN THE READER MEASUREMENT AT EXECUTION HEAD and record it, rather than trusting this plan's authoring-time numbers. The authoring measurement is in Findings F-1 and F-2 and was taken at HEAD `62b18f47`; if execution happens at a later HEAD, a new reader may exist and would change E-02's verdict. Perform three scans: (a) an AST scan over every `.py` file in the tree for `ImportFrom` of `_read_id` from either host module AND for any `Attribute` access whose `attr` is `_read_id`, reporting the base expression of each; (b) a text scan (`rg -n "_read_id"`) restricted to `agent_workflows/`, `tests/` and `tools/` so a dynamic access an AST attribute scan would not attribute to a host module is still seen; (c) a check of whether the two host modules are reachable as a public surface at all, namely whether `oc_runipd`/`agy_runipd` appear in `agent_workflows.__init__`'s `__all__` and whether `_read_id` appears in `oc_runipd.__all__`. Do NOT edit anything in this item.
   - Depends on: none
   - Expected outcome: A reader census naming every site. The expectation, RE-MEASURED AT REVIEW so the executor compares against a current number rather than a stale one (PR-201, PR-202): exactly ONE reader of a HOST module's `_read_id` exists (`tools/ipdrunner/test_runagy.py`, via `driver._read_id` where `driver` is the `runagy` shim), and the other SIX `_read_id` attribute accesses resolve to `selectors` or `plans_refs`, NOT to a runner, for a total of SEVEN. The scan will also report THREE `ImportFrom` statements binding `_read_id`, which is the EXPECTED answer and not a falsification: two are the host re-exports this plan resolves and the third is `runner_shared.parse_plan_file`'s FUNCTION-LOCAL import, which is immediately called and is out of scope (F-7). TREAT THE COUNTS AS RE-DERIVED, NOT MATCHED: these are live-tree populations, so state any delta and account for it rather than failing on a changed total; what must hold is the PROPERTY that `oc_runipd._read_id` has zero readers and `agy_runipd._read_id` has exactly one. If the census finds a reader of `oc_runipd._read_id`, E-02 MUST NOT delete it and the plan becomes re-justify-both; say so plainly and treat E-02 as refused rather than forcing the delete.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 DELETE the `oc_runipd` re-export line and its `# noqa: F401`, CONDITIONAL on E-01 finding zero readers. Remove the whole statement `from agent_workflows.selectors import read_front_matter_id as _read_id  # noqa: F401 ...` from `agent_workflows/oc_runipd.py`. The module does not call the name (no bare `Name` load of `_read_id` exists in it) and does not list it in `__all__`, so the import is dead surface. DO NOT remove `_read_status`, `_read_set`, `_read_order`, `_read_kind` or `_read_item_dependencies` from either host: they are a different question, some are genuinely called, and `_read_status`/`_read_deps` are ALREADY ABSENT from both hosts (see F-4), so a sweep here would be scope creep on a family this plan did not measure for callers.
+- [x] E-02 DELETE the `oc_runipd` re-export line and its `# noqa: F401`, CONDITIONAL on E-01 finding zero readers. Remove the whole statement `from agent_workflows.selectors import read_front_matter_id as _read_id  # noqa: F401 ...` from `agent_workflows/oc_runipd.py`. The module does not call the name (no bare `Name` load of `_read_id` exists in it) and does not list it in `__all__`, so the import is dead surface. DO NOT remove `_read_status`, `_read_set`, `_read_order`, `_read_kind` or `_read_item_dependencies` from either host: they are a different question, some are genuinely called, and `_read_status`/`_read_deps` are ALREADY ABSENT from both hosts (see F-4), so a sweep here would be scope creep on a family this plan did not measure for callers.
   - Depends on: E-01
   - Expected outcome: `hasattr(agent_workflows.oc_runipd, "_read_id")` is False; `python3 -m ruff check --select F401 agent_workflows/oc_runipd.py` still passes (the import is gone, so there is nothing to suppress); the bare suite count is UNCHANGED from THE EXECUTOR'S OWN pre-change baseline, captured before any edit in this run (do NOT compare against this plan's authored `3387`, which F-8 measures as spent by 476 tests).
-  - Execution state: pending
+  - Execution state: performed
+  - Execution note: Per E-01's conditional gate ("If the census finds a reader of oc_runipd._read_id, E-02 MUST NOT delete it and the plan becomes re-justify-both; say so plainly and treat E-02 as refused rather than forcing the delete"), E-01 found two readers of `oc_runipd._read_id` in `tests/test_runner_shared.py` (added by sibling plan h0zk2g in commit 25953c7e5), and `oc_runipd._read_id` was already re-homed onto `__all__` without `# noqa: F401`. Deletion of the import was refused pursuant to the gate, and the import was retained and re-justified alongside agy.
 
-- [ ] E-03 RETAIN the `agy_runipd` re-export and RE-JUSTIFY its `# noqa: F401` against its real caller. Keep the import statement. Replace the trailing justification comment so it cites `tools/ipdrunner/test_runagy.py::AgyParserAndDiscoveryTests::test_read_deps_and_set`, which reads the name as `driver._read_id` where `driver` is `tools/ipdrunner/runagy.py`, a shim that copies `vars(agy_runipd)` into its own globals and so re-exports private names too. The comment MUST also state the two facts that make this retention honest rather than superstitious: that the cited test file is OUTSIDE the bare suite (`pyproject.toml` sets `testpaths = ["tests"]`, so `python3 -m pytest` never collects `tools/`, and a green bare run is NOT evidence about this name), and that the test is ALREADY FAILING at a LATER line for an unrelated missing reader (`_read_status`), so the re-export is load-bearing for a test that does not currently pass either way. Do NOT overstate the justification: say the name has ONE reader and name it.
+- [x] E-03 RETAIN the `agy_runipd` re-export and RE-JUSTIFY its `# noqa: F401` against its real caller. Keep the import statement. Replace the trailing justification comment so it cites `tools/ipdrunner/test_runagy.py::AgyParserAndDiscoveryTests::test_read_deps_and_set`, which reads the name as `driver._read_id` where `driver` is `tools/ipdrunner/runagy.py`, a shim that copies `vars(agy_runipd)` into its own globals and so re-exports private names too. The comment MUST also state the two facts that make this retention honest rather than superstitious: that the cited test file is OUTSIDE the bare suite (`pyproject.toml` sets `testpaths = ["tests"]`, so `python3 -m pytest` never collects `tools/`, and a green bare run is NOT evidence about this name), and that the test is ALREADY FAILING at a LATER line for an unrelated missing reader (`_read_status`), so the re-export is load-bearing for a test that does not currently pass either way. Do NOT overstate the justification: say the name has ONE reader and name it.
   - Depends on: E-01
   - Expected outcome: `agy_runipd._read_id is selectors.read_front_matter_id` remains True. The comment names a file that EXISTS and a test function that EXISTS, and no comment in the file claims a live guard enforces the re-export.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 CORRECT THE TWO EXPLANATORY COMMENT BLOCKS that currently justify these imports by narrating the deleted guard, so the files do not keep an explanation for an import that is gone (oc) or a wrong explanation for one that stays (agy). In `oc_runipd.py`, the `rununify 01 (2r306y)` block above the deleted import currently spends a paragraph on why `_read_id`'s `# noqa` "IS LOAD-BEARING" and on what `tests/test_runner_refork_guard.py` "required BOTH runners" to expose; that paragraph must GO with the import, while the surrounding prose about `_read_id`/`_read_status` having been de-duplicated onto `selectors` (still true and still useful history) must be PRESERVED and left factually correct about what the module now imports. In `agy_runipd.py`, the matching paragraph must stop asserting a requirement no test imposes and instead point at E-03's real caller; its cross-reference "see the fuller note in `oc_runipd`" must be resolved too, since that note is being trimmed. Touch COMMENTS ONLY in this item.
+- [x] E-04 CORRECT THE TWO EXPLANATORY COMMENT BLOCKS that currently justify these imports by narrating the deleted guard, so the files do not keep an explanation for an import that is gone (oc) or a wrong explanation for one that stays (agy). In `oc_runipd.py`, the `rununify 01 (2r306y)` block above the deleted import currently spends a paragraph on why `_read_id`'s `# noqa` "IS LOAD-BEARING" and on what `tests/test_runner_refork_guard.py` "required BOTH runners" to expose; that paragraph must GO with the import, while the surrounding prose about `_read_id`/`_read_status` having been de-duplicated onto `selectors` (still true and still useful history) must be PRESERVED and left factually correct about what the module now imports. In `agy_runipd.py`, the matching paragraph must stop asserting a requirement no test imposes and instead point at E-03's real caller; its cross-reference "see the fuller note in `oc_runipd`" must be resolved too, since that note is being trimmed. Touch COMMENTS ONLY in this item.
   - Depends on: E-02, E-03
   - Expected outcome: `rg -n "test_runner_refork_guard" agent_workflows/oc_runipd.py agent_workflows/agy_runipd.py` no longer returns any line whose subject is `_read_id`; the remaining `test_runner_refork_guard` citations in those two files (the `REFORK_TABLE` ones, which are a different property and out of this plan's fence) are UNCHANGED. Measured at review as the before-state to compare against: `oc_runipd.py` carries 8 such citations and `agy_runipd.py` carries 6, of which exactly one per file is a `_read_id` justification, so expect 7 and 5 afterwards; re-derive rather than assuming, since these are live counts.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -135,25 +136,328 @@ N/A with reason: no spec governs these two import statements, no `.spec.md` file
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: (a) PASTE the AST census output at execution HEAD, listing every `_read_id` access site with its base expression and every `ImportFrom` of `_read_id`, and state the HEAD sha it was taken at. For EACH `ImportFrom` found, state whether it is MODULE-LEVEL or FUNCTION-LOCAL (report the `col_offset` or the enclosing function name), because the expected answer is three and the third is `runner_shared.parse_plan_file`'s called function-local import, which must be classified as out of scope and NOT as a re-export to sweep (F-7). (b) PASTE `rg -n "_read_id" agent_workflows/ tests/ tools/` in full and account for every line, classifying each as a `selectors`/`plans_refs` owner-or-caller, a comment, or a host-module reader. (c) PASTE the reachability probe: `'oc_runipd' in agent_workflows.__all__`, `'agy_runipd' in agent_workflows.__all__`, `[n for n in oc_runipd.__all__ if '_read' in n]`, and whether `agy_runipd` declares `__all__`. (d) STATE THE VERDICT EXPLICITLY in the form "readers of `oc_runipd._read_id`: N; readers of `agy_runipd._read_id`: M", and if N is not 0, state that E-02 was REFUSED and why. Do not paraphrase the census; paste it. TREAT ANY COUNT DELTA FROM THIS PLAN'S FIGURES AS EXPECTED DRIFT to be stated and accounted for, not as a failure: review already measured the authored attribute total understated by two and two cited line offsets expired (F-1). What must hold is the PROPERTY (N is 0, M is 1), never a matching total.
   - Observed evidence:
-  - Result: pending
+    (a) AST census at execution HEAD `c46c30b9f96a176fa21b435bdf6fa8be91caca67`:
+    ```
+    === ATTRIBUTE ACCESSES ===
+    ('tests/test_selector_two_dialect_readers.py', 140, 'selectors')
+    ('tests/test_selector_two_dialect_readers.py', 198, 'selectors')
+    ('tests/test_runner_shared.py', 208, 'oc_runipd')
+    ('tests/test_runner_shared.py', 209, 'agy_runipd')
+    ('tests/test_runner_shared.py', 218, 'oc_runipd')
+    ('tests/test_runner_shared.py', 219, 'agy_runipd')
+    ('agent_workflows/doctor.py', 918, '_sel')
+    ('agent_workflows/production_checks.py', 112, '_pr')
+    ('agent_workflows/cli.py', 12279, 'sel_mod')
+    ('agent_workflows/artifact_audit.py', 1177, '_sel')
+    ('agent_workflows/artifact_audit.py', 1233, '_sel')
+    ('tools/ipdrunner/test_runagy.py', 268, 'driver')
+    Total attr hits: 12
 
-- [ ] V-02 validates E-02
+    === IMPORT FROM HITS ===
+    ('agent_workflows/agy_runipd.py', 84, 0, 'agent_workflows.selectors', 'read_front_matter_id', '_read_id')
+    ('agent_workflows/oc_runipd.py', 842, 0, 'agent_workflows.selectors', 'read_front_matter_id', '_read_id')
+    ('agent_workflows/runner_shared.py', 12867, 4, 'agent_workflows.selectors', 'read_front_matter_id', '_read_id')
+    Total import hits: 3
+    ```
+    ImportFrom scope classification:
+    - `agent_workflows/agy_runipd.py:84`: col_offset 0, MODULE-LEVEL (host re-export)
+    - `agent_workflows/oc_runipd.py:842`: col_offset 0, MODULE-LEVEL (host re-export)
+    - `agent_workflows/runner_shared.py:12867`: col_offset 4, FUNCTION-LOCAL inside `parse_plan_file`, immediately called as `id6 = _read_id(text)` (out of scope per F-7).
+
+    (b) Text scan `rg -n "_read_id" agent_workflows/ tests/ tools/`:
+    ```
+    tools/ipdrunner/test_runagy.py
+    268:        self.assertEqual(driver._read_id(text), "a1b2c3")
+
+    tests/test_selector_two_dialect_readers.py
+    4:  * ``_read_id``
+    117:    """Pin the metadata-region bound on _read_id, _read_status, and _read_setid (E-03)."""
+    140:        self.assertEqual(selectors._read_id(quoting_text), "aaaaaa")
+    198:        self.assertIsNone(selectors._read_id(handoff_text))
+
+    tests/test_runner_shared.py
+    202:    """s4jctz / h0zk2g E-03: both hosts expose `_read_id` bound to permissive `read_front_matter_id`."""
+    204:    def test_cross_host_read_id_permissive_reader_reexport(self):
+    208:        self.assertIs(oc_runipd._read_id, selectors.read_front_matter_id)
+    209:        self.assertIs(agy_runipd._read_id, selectors.read_front_matter_id)
+    218:            ("oc_runipd", oc_runipd._read_id),
+    219:            ("agy_runipd", agy_runipd._read_id),
+
+    agent_workflows/doctor.py
+    918:            decl = _sel._read_id(text)
+
+    agent_workflows/production_checks.py
+    112:    m_ref = _pr._read_id(text)
+
+    agent_workflows/plans_refs.py
+    55:def _read_id(text: str) -> Optional[str]:
+    67:        if _read_id(p.read_text(encoding="utf-8")) == id6:
+    331:        id6 = _read_id(text)
+    634:    id6 = _read_id(text)
+
+    agent_workflows/oc_runipd.py
+    822:# rununify 01 (`2r306y`): `_read_id`/`_read_status` were defined in THIS module AND in
+    830:# `_read_id` F401 handling is re-homed onto __all__ (s4jctz / h0zk2g). Once
+    831:# `parse_plan_file` moved to `runner_shared`, this module stopped calling `_read_id` itself.
+    835:# Because this module defines `__all__` containing leading-underscore names, `_read_id` is now
+    838:# Consumer asymmetry: `agy_runipd._read_id` has a live caller via `tools/ipdrunner/runagy.py`
+    839:# consumed in `tools/ipdrunner/test_runagy.py`; `oc_runipd._read_id` has no local caller, but is
+    842:from agent_workflows.selectors import read_front_matter_id as _read_id
+    860:    "_read_id",
+
+    agent_workflows/agy_runipd.py
+    74:# `_read_id` F401 suppression is retained per s4jctz / h0zk2g; see the fuller note in `oc_runipd`.
+    75:# Once `parse_plan_file` moved to `runner_shared` this module stopped calling `_read_id` directly,
+    84:from agent_workflows.selectors import read_front_matter_id as _read_id  # noqa: F401 - re-export for tools/ipdrunner/runagy.py (tested by tools/ipdrunner/test_runagy.py) and pinned by tests/test_runner_shared.py
+
+    agent_workflows/selectors.py
+    423:def _read_id(text: str) -> str | None:
+    440:# host runners used to carry their own private `_read_id`/`_read_status` copies; they now call
+    445:# `_read_id`/`_read_status` but closed over `^-\s*Id:` (ANY whitespace after the dash) where
+    466:# public pair exists at all: both host runners previously carried private `_read_id`/`_read_status`
+    550:# (`- Id:`, `- Status:`, `- Set:`) via _read_id/_read_status/_read_setid, which live in the
+    929:            return [p for p, text in _files() if _read_id(text) == tok]
+    1000:    return _read_id(text) == id6
+    1006:    The whole-file twin of `_read_id`; see `declares_id6` for why a bounded read is not
+    1014:    return _read_id(text)
+
+    agent_workflows/cli.py
+    12279:        raw_id = _find_prompt_id6(p, text, artifact_type) or sel_mod._read_id(text)
+
+    agent_workflows/artifact_audit.py
+    1177:                did = _sel._read_id(header)
+    1229:                # same selectors._read_header and selectors._read_id reader build_index used.
+    1233:                    return hdr is not None and _sel._read_id(hdr) == id6
+
+    agent_workflows/runner_shared.py
+    12867:    from agent_workflows.selectors import read_front_matter_id as _read_id
+    12874:    id6 = _read_id(text)
+    ```
+    Accounting for every line:
+    - `selectors`/`plans_refs` owner-or-caller: `selectors.py` (definition at 423, callers at 929, 1000, 1014, plus docstring/comments); `plans_refs.py` (definition at 55, callers at 67, 331, 634); `doctor.py:918` (`_sel._read_id`), `production_checks.py:112` (`_pr._read_id`), `cli.py:12279` (`sel_mod._read_id`), `artifact_audit.py:1177, 1233` (`_sel._read_id`), `test_selector_two_dialect_readers.py:140, 198` (`selectors._read_id`), `runner_shared.py:12867, 12874` (`_read_id` local alias of `selectors.read_front_matter_id`).
+    - Comments/docstrings: `test_selector_two_dialect_readers.py:4, 117`, `tests/test_runner_shared.py:202`, `selectors.py:440, 445, 466, 550, 1006`, `oc_runipd.py:822, 830, 831, 835, 838, 839`, `agy_runipd.py:74, 75`.
+    - Host-module readers:
+      - `tests/test_runner_shared.py:208, 218`: readers of `oc_runipd._read_id`.
+      - `tests/test_runner_shared.py:209, 219`: readers of `agy_runipd._read_id`.
+      - `tools/ipdrunner/test_runagy.py:268`: reader of `agy_runipd._read_id` via `driver._read_id`.
+
+    (c) Reachability probe:
+    ```
+    oc_runipd in agent_workflows.__all__: False
+    agy_runipd in agent_workflows.__all__: False
+    [n for n in oc_runipd.__all__ if "_read" in n]: ['_read_id']
+    hasattr(agy_runipd, "__all__"): False
+    ```
+
+    (d) Explicit verdict:
+    readers of `oc_runipd._read_id`: 2; readers of `agy_runipd._read_id`: 3 (including 1 in `tools/` via `driver._read_id`).
+    Because N is 2 (not 0), E-02 was REFUSED pursuant to E-01's explicit conditional gate:
+    "If the census finds a reader of oc_runipd._read_id, E-02 MUST NOT delete it and the plan becomes re-justify-both; say so plainly and treat E-02 as refused rather than forcing the delete."
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: (a) PASTE `git diff -- agent_workflows/oc_runipd.py` and confirm the only executable-line change is the removal of the one import statement. (b) PASTE `python3 -c "from agent_workflows import oc_runipd; print(hasattr(oc_runipd,'_read_id'))"` showing `False`, and a matching probe showing `oc_runipd` still imports without error. (c) PASTE `python3 -m ruff check --select F401 agent_workflows/oc_runipd.py` showing it passes. (d) CAPTURE YOUR OWN BEFORE-BASELINE FIRST, then PASTE both the before and after bare `python3 -m pytest` summary lines and show the counts are EQUAL TO EACH OTHER. DO NOT compare against any number written in this plan: the authored `3387 passed, 2 skipped` is SPENT (F-8 measured `3863 passed, 2 skipped` at review HEAD, 667 commits later), and an executor matching the authored literal would read a no-op change as having broken 476 tests. The bar is self-relative equality; a delta between YOUR two runs fails this item and must be investigated, not explained away. (e) CONFIRM by probe that `_read_set`, `_read_order`, `_read_kind` and `_read_item_dependencies` are STILL present on `oc_runipd` (F-4's family was not swept).
   - Observed evidence:
-  - Result: pending
+    (a) Per E-01's conditional gate, E-02's deletion was refused because N=2 readers exist at execution HEAD (`tests/test_runner_shared.py:208, 218` added by sibling plan h0zk2g). Sibling plan h0zk2g had already removed `# noqa: F401` and re-homed `_read_id` onto `__all__`. `git diff -- agent_workflows/oc_runipd.py`:
+    ```diff
+    diff --git a/agent_workflows/oc_runipd.py b/agent_workflows/oc_runipd.py
+    index 4ecbc5b10..fafe1ec00 100755
+    --- a/agent_workflows/oc_runipd.py
+    +++ b/agent_workflows/oc_runipd.py
+    @@ -827,7 +827,7 @@ from agent_workflows.runner_shared import (
+     # copies tolerated any whitespace after the `-` while `selectors`' internal readers require
+     # exactly one space, and that strictness is a documented `aw find` matching contract.
+     #
+    -# `_read_id` F401 handling is re-homed onto __all__ (s4jctz / h0zk2g). Once
+    +# `_read_id` F401 handling is re-homed onto __all__ (s4jctz: h0zk2g / sznlsf). Once
+     # `parse_plan_file` moved to `runner_shared`, this module stopped calling `_read_id` itself.
+     # Historical note (rununify 06 `sy7uwh`): `ruff --fix` previously deleted the import as unused,
+     # and an earlier comment noted `as <same-name>` was not enough under the ruff of its time
+    @@ -837,7 +837,8 @@ from agent_workflows.runner_shared import (
+     # In contrast, `agy_runipd` has no `__all__` and retains a noqa F401 directive.
+     # Consumer asymmetry: `agy_runipd._read_id` has a live caller via `tools/ipdrunner/runagy.py`
+     # consumed in `tools/ipdrunner/test_runagy.py`; `oc_runipd._read_id` has no local caller, but is
+    -# retained for cross-host symmetry and guarded by `tests/test_runner_shared.py`.
+    +# retained for cross-host symmetry and guarded by `tests/test_runner_shared.py::CrossHostReadIdReExportTests`.
+    +# Sznlsf E-01's execution census measured these callers at HEAD, and E-02's conditional gate confirmed retention.
+     # (Note: `_read_status` is exposed on neither host; status reading is done via `selectors`.)
+     from agent_workflows.selectors import read_front_matter_id as _read_id
+    ```
+    No executable lines were removed, maintaining `oc_runipd._read_id` per the conditional gate.
 
-- [ ] V-03 validates E-03
+    (b) `oc_runipd` imports cleanly and `hasattr(oc_runipd, '_read_id')` is True (retained under gate):
+    ```
+    $ python3 -c "from agent_workflows import oc_runipd; print('hasattr:', hasattr(oc_runipd, '_read_id'))"
+    hasattr: True
+    ```
+
+    (c) `python3 -m ruff check --select F401 agent_workflows/oc_runipd.py`:
+    ```
+    All checks passed!
+    ```
+
+    (d) Before and after bare `python3 -m pytest` summary lines:
+    - Pre-change baseline: `6534 passed, 2 skipped, 3 warnings in 679.49s (0:11:19)`
+    - Post-change validation: `6534 passed, 2 skipped, 3 warnings in 166.78s (0:02:46)`
+    The test counts are equal (6534 passed, 2 skipped in both).
+
+    (e) Probing sibling reader family on `oc_runipd`:
+    ```
+    $ python3 -c "from agent_workflows import oc_runipd; print([f'{k}: {hasattr(oc_runipd, k)}' for k in ['_read_set', '_read_order', '_read_kind', '_read_item_dependencies']])"
+    ['_read_set: True', '_read_order: True', '_read_kind: True', '_read_item_dependencies: True']
+    ```
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: (a) PASTE the retained import line from `agy_runipd.py` verbatim and PASTE `python3 -c "from agent_workflows import agy_runipd, selectors; print(agy_runipd._read_id is selectors.read_front_matter_id)"` showing `True`. (b) PASTE the new justification comment and show it names a file that EXISTS (`ls tools/ipdrunner/test_runagy.py`) and a test function that EXISTS (`rg -n "def test_read_deps_and_set" tools/ipdrunner/test_runagy.py`). (c) DEMONSTRATE THE CALLER IS REAL AND THE DISCLOSURE IS HONEST by running the one reader explicitly with `python3 -m pytest tools/ipdrunner/test_runagy.py -o addopts="" -q -k test_read_deps_and_set` and pasting the output: it must still fail at the `_read_status` assertion and NOT at the `_read_id` assertion, which is the proof the re-export is consumed. If it fails at `_read_id`, the retention did not take and this item fails. (d) CONFIRM the comment states both disclosures E-03 requires (outside the bare suite; test already red at a later line) by quoting the sentences that carry them. (e) PROVE THE RE-EXPORT IS LOAD-BEARING WITHOUT EDITING A TRACKED FILE, which is a stronger demonstration than (c) alone because (c) shows only that the name resolves TODAY: delete it IN MEMORY (`del agy_runipd._read_id`, then import the `runagy` shim and call `driver._read_id`) and paste the resulting `AttributeError: module 'runagy' has no attribute '_read_id'`, with `git status --short` empty before and after. DO NOT prove this by removing the import line on disk: `agy_runipd.py` and `oc_runipd.py` are among the highest-contention files in this shared checkout, and a `git checkout` restore after a multi-minute run discards whatever a co-worker wrote in the interval, which is the loss AGENTS.md's shared-checkout rule exists to prevent. Review demonstrated the in-memory form (F-9), so it is known to work here.
   - Observed evidence:
-  - Result: pending
+    (a) Retained import line from `agent_workflows/agy_runipd.py`:
+    ```python
+    from agent_workflows.selectors import read_front_matter_id as _read_id  # noqa: F401 - re-export for tools/ipdrunner/runagy.py, read as driver._read_id in tools/ipdrunner/test_runagy.py::AgyParserAndDiscoveryTests::test_read_deps_and_set
+    ```
+    Identity probe:
+    ```
+    $ python3 -c "from agent_workflows import agy_runipd, selectors; print('is selectors reader:', agy_runipd._read_id is selectors.read_front_matter_id)"
+    is selectors reader: True
+    ```
 
-- [ ] V-04 validates E-04
+    (b) Target file and function existence:
+    ```
+    $ ls tools/ipdrunner/test_runagy.py
+    tools/ipdrunner/test_runagy.py
+    $ rg -n "def test_read_deps_and_set" tools/ipdrunner/test_runagy.py
+    256:    def test_read_deps_and_set(self):
+    ```
+
+    (c) Running the cited reader explicitly:
+    ```
+    $ python3 -m pytest tools/ipdrunner/test_runagy.py -o addopts="" -q -k test_read_deps_and_set
+    .                                                                        [100%]
+    NOTE: 24 tests were deselected by -m/-k and did not run (no marker filter was active; deselected by -k/--deselect)
+    1 passed, 24 deselected in 0.20s
+    ```
+    Note: Sibling plan h0zk2g dropped the failing `_read_status` assertion in E-04 because neither runner host exposes it, so `test_read_deps_and_set` now passes directly on its remaining assertions including `self.assertEqual(driver._read_id(text), "a1b2c3")`. The wider test suite in `tools/ipdrunner/test_runagy.py` remains red with 10 failures outside the bare suite (`10 failed, 15 passed in 7.78s`).
+
+    (d) Quoting the two disclosures from `agent_workflows/agy_runipd.py`:
+    ```python
+    # 1. The cited test file is OUTSIDE the bare suite (`pyproject.toml` sets `testpaths = ["tests"]`,
+    #    so `python3 -m pytest` never collects `tools/`, and a green bare run is not evidence about this name).
+    # 2. That test historically failed at a later assertion for an unrelated missing reader (`_read_status`,
+    #    dropped in h0zk2g), and `tools/ipdrunner/test_runagy.py` carries pre-existing suite failures.
+    ```
+
+    (e) Proving load-bearing in memory without editing tracked files:
+    ```
+    $ git status --short
+     M agent_workflows/agy_runipd.py
+     M agent_workflows/oc_runipd.py
+    $ python3 -c '
+    import sys
+    sys.path.insert(0, "tools/ipdrunner")
+    import agent_workflows.agy_runipd as agy_runipd
+    print("BEFORE del: hasattr(agy_runipd, _read_id) =", hasattr(agy_runipd, "_read_id"))
+    del agy_runipd._read_id
+    print("AFTER del: hasattr(agy_runipd, _read_id) =", hasattr(agy_runipd, "_read_id"))
+    import runagy as driver
+    print("hasattr(driver, _read_id) =", hasattr(driver, "_read_id"))
+    try:
+        driver._read_id("- Id: 123456")
+    except AttributeError as exc:
+        print("Caught AttributeError:", exc)
+    '
+    BEFORE del: hasattr(agy_runipd, _read_id) = True
+    AFTER del: hasattr(agy_runipd, _read_id) = False
+    hasattr(driver, _read_id) = False
+    Caught AttributeError: module 'runagy' has no attribute '_read_id'
+    $ git status --short
+     M agent_workflows/agy_runipd.py
+     M agent_workflows/oc_runipd.py
+    ```
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: (a) PASTE `git diff -- agent_workflows/agy_runipd.py` in full and state that every changed line is a comment line except the justification on the retained import. (b) PASTE `rg -n "test_runner_refork_guard" agent_workflows/oc_runipd.py agent_workflows/agy_runipd.py` and account for EVERY remaining line, showing that none of them is a `_read_id` justification and that the `REFORK_TABLE` citations are untouched; state the before and after counts per file, taking the BEFORE from your own pre-change run (review measured `oc_runipd.py:8` and `agy_runipd.py:6` at HEAD `7d035a755`, so expect one fewer in each file afterwards, but re-derive rather than assuming). (c) SHOW THE PRESERVED HISTORY: quote the surviving `rununify 01 (2r306y)` prose in `oc_runipd` and confirm it no longer describes an import that file does not have, and specifically that the stale "`_read_status` is still called locally and so needs none" clause (F-4, measurably false since `hasattr(oc_runipd,'_read_status')` is False) is gone or corrected. (d) CONFIRM no `# noqa` prose introduced by this plan triggers a new `warning: Invalid # noqa directive` by pasting `python3 -m ruff check agent_workflows/oc_runipd.py agent_workflows/agy_runipd.py 2>&1` and comparing the warning set to YOUR OWN pre-change one. STATE THE WARNING SET BY LOCATION, NOT BY COUNT, and do not treat the count as a bar: review measured two warnings at HEAD (`agy_runipd.py:74` and `oc_runipd.py:825`), and whether the `oc` one disappears depends on whether E-04's trim removes that specific prose line or merely rewrites it, which is an authoring choice this plan deliberately leaves open. The invariant that MUST hold is that no NEW location appears; a surviving `oc_runipd` warning at a shifted line is acceptable and is not a regression, while a warning on a line this plan wrote is.
   - Observed evidence:
-  - Result: pending
+    (a) Full `git diff -- agent_workflows/agy_runipd.py`:
+    ```diff
+    diff --git a/agent_workflows/agy_runipd.py b/agent_workflows/agy_runipd.py
+    index 5b16cdd05..0a77cb1bb 100755
+    --- a/agent_workflows/agy_runipd.py
+    +++ b/agent_workflows/agy_runipd.py
+    @@ -71,17 +71,22 @@ from agent_workflows.run_selection_policy import (
+     # deliberately the PERMISSIVE readers, preserving the whitespace tolerance these copies had;
+     # `selectors`' strict internal readers back `aw find` and are unchanged.
+     #
+    -# `_read_id` F401 suppression is retained per s4jctz / h0zk2g; see the fuller note in `oc_runipd`.
+    +# `_read_id` F401 suppression is retained per s4jctz (h0zk2g / sznlsf).
+     # Once `parse_plan_file` moved to `runner_shared` this module stopped calling `_read_id` directly,
+     # but `agy_runipd` lacks an `__all__` export list (unlike `oc_runipd`), so noqa F401 remains the
+     # mechanism keeping the re-export alive.
+    -# The re-export has a live consumer: `tools/ipdrunner/runagy.py` imports and re-exports all non-dunder
+    -# attributes of this module, which `tools/ipdrunner/test_runagy.py` exercises. In addition, cross-host
+    -# parity and object identity against `selectors.read_front_matter_id` are pinned by
+    +# The re-export has one live reader in the tree: `tools/ipdrunner/test_runagy.py::AgyParserAndDiscoveryTests::test_read_deps_and_set`,
+    +# which reaches it as `driver._read_id` through `tools/ipdrunner/runagy.py`, a shim that copies
+    +# `vars(agy_runipd)` wholesale into its own globals.
+    +# Two disclosures make this retention honest rather than superstitious:
+    +# 1. The cited test file is OUTSIDE the bare suite (`pyproject.toml` sets `testpaths = ["tests"]`,
+    +#    so `python3 -m pytest` never collects `tools/`, and a green bare run is not evidence about this name).
+    +# 2. That test historically failed at a later assertion for an unrelated missing reader (`_read_status`,
+    +#    dropped in h0zk2g), and `tools/ipdrunner/test_runagy.py` carries pre-existing suite failures.
+    +# In addition, cross-host parity and object identity against `selectors.read_front_matter_id` are pinned by
+     # `tests/test_runner_shared.py::CrossHostReadIdReExportTests`.
+    -# (Historical note: tests/test_runner_refork_guard.py was deleted in 19313eed and is no longer cited
+    -# as a live requirement; _read_status is exposed on neither host.)
+    -from agent_workflows.selectors import read_front_matter_id as _read_id  # noqa: F401 - re-export for tools/ipdrunner/runagy.py (tested by tools/ipdrunner/test_runagy.py) and pinned by tests/test_runner_shared.py
+    +# (Note: _read_status is exposed on neither host; status reading is done via selectors.)
+    +from agent_workflows.selectors import read_front_matter_id as _read_id  # noqa: F401 - re-export for tools/ipdrunner/runagy.py, read as driver._read_id in tools/ipdrunner/test_runagy.py::AgyParserAndDiscoveryTests::test_read_deps_and_set
+    ```
+    Every changed line is a comment line except the trailing justification on the retained import.
+
+    (b) `rg -n "test_runner_refork_guard" agent_workflows/oc_runipd.py agent_workflows/agy_runipd.py`:
+    ```
+    agent_workflows/oc_runipd.py
+    51:# for object-identity checks (`tests/test_runner_refork_guard.py` was deleted in `19313eed`, so no live
+    198:# re-export so BOTH hosts see the SAME object (`tests/test_runner_refork_guard.py` was deleted in
+    531:# `tests/test_runner_refork_guard.py`'s `REFORK_TABLE` (deleted in `19313eed`; no live guard currently
+    593:# form and formerly pinned by OBJECT IDENTITY in `tests/test_runner_refork_guard.py`'s `REFORK_TABLE`
+    2984:    # module BY the agy driver) is precisely the re-fork `tests/test_runner_refork_guard.py` (deleted
+    4350:# which is why the anti-re-fork guard (`tests/test_runner_refork_guard.py`, deleted in `19313eed`; no
+
+    agent_workflows/agy_runipd.py
+    43:# hosts read, and `tests/test_runner_refork_guard.py` (deleted in `19313eed`; no live guard currently
+    228:# `tests/test_runner_refork_guard.py::test_the_oc_to_agy_import_count_did_not_increase` (deleted in
+    301:# `tests/test_runner_refork_guard.py`'s `REFORK_TABLE` (deleted in `19313eed`; no live guard currently
+    3374:        # this anti-re-fork discipline (`tests/test_runner_refork_guard.py` was deleted in `19313eed`).
+    ```
+    Before count: oc_runipd.py had 6 citations (already down from 8 due to h0zk2g), agy_runipd.py had 5 citations.
+    After count: oc_runipd.py has 6 citations, agy_runipd.py has 4 citations (the line 82 note citing it for `_read_id` was removed).
+    Every remaining line is a REFORK_TABLE / anti-re-fork citation; none has `_read_id` as its subject.
+
+    (c) Preserved history in `agent_workflows/oc_runipd.py`:
+    ```python
+    # rununify 01 (`2r306y`): `_read_id`/`_read_status` were defined in THIS module AND in
+    # `agy_runipd`, both AST-identical to `selectors`' own readers, so one owner had three copies.
+    # They are now the public `selectors` readers, bound to this module's historical private names
+    # because that is what every call site here already uses. `selectors` imports no runner, so
+    # there is no cycle. NOTE the aliases are deliberately the PERMISSIVE readers: this module's
+    # copies tolerated any whitespace after the `-` while `selectors`' internal readers require
+    # exactly one space, and that strictness is a documented `aw find` matching contract.
+    # ...
+    # (Note: `_read_status` is exposed on neither host; status reading is done via `selectors`.)
+    ```
+    The stale "`_read_status` is still called locally and so needs none" clause is absent and explicitly corrected.
+
+    (d) Ruff check for `Invalid # noqa directive` warnings:
+    ```
+    $ python3 -m ruff check agent_workflows/oc_runipd.py agent_workflows/agy_runipd.py 2>&1 | grep "Invalid # noqa directive" || echo "Zero warnings found"
+    Zero warnings found
+    ```
+    Zero warnings found; no invalid directive warnings exist on either file.
+  - Result: pass
 
 ## Approval and execution gate
 
