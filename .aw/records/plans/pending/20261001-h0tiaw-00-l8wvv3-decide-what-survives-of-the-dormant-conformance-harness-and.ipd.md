@@ -208,6 +208,7 @@ OWNERS: the first check is satisfied by `9i2hge`'s declared dependency on `dq9bj
   `EXEMPTION_REGISTRY` entries and the module docstring, and adds no `LIVE_SAFE_LEAVES` member, while
   `vfv2db` adds a mutation arm and a fixture. Neither needs the other's change.
   - Carrier: vfv2db
+  - Carrier-Evidence: .aw/records/plans/executed/20261001-w78faq-01-vfv2db-drive-every-mutation-class-machine-surface-in-an-isolated-pr.ipd.md
 - FIXING THE TWO LEAVES THE `declared_absent` PIN NAMED AT AUTHORING (F-04). RE-MEASURED AT REVIEW
   2026-10-07: both carriers are now `done` (`68sur3` in `backlog/done/`; `lbbo9s` via executed plan `7pnneh`)
   and `declared_absent` is empty, so these two rows are historical; they are kept so the provenance of the
