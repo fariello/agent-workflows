@@ -1,5 +1,5 @@
 - Id: h4fiwa
-- Status: graduated
+- Status: done
 - Graduated-To: setdispgate
 - Blocks-Release: next
 - Set: setdispgate
@@ -8,6 +8,7 @@
 - Summary: Positional aw specs set implemented bypasses the --evidence citation gate the --status spelling enforces
 
 ## Workflow history
+- 2026-10-08 done (aw backlog): closed by aw agy run: IPD wdyz5n executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20261002-setdispgate-01-wdyz5n-run-the-shared-evidence-predicate-on-the-positional-aw-specs.ipd.md); evidence .aw/records/plans/executed/20261002-setdispgate-01-wdyz5n-run-the-shared-evidence-predicate-on-the-positional-aw-specs.ipd.md
 - 2026-10-02 graduated (aw backlog): graduated by run run-20261001T221821Z-1985969: wdyz5n
 - 2026-10-01 created (aw backlog): Filed while authoring the fcnz1r dispatch-unification Set; measured, not inferred.
 
