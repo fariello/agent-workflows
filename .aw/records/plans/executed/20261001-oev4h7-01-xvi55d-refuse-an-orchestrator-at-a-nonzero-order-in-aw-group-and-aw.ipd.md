@@ -10,7 +10,7 @@
 - Scope: Make `aw group plans` and `aw rename plans` REFUSE (exit 2, nothing written, in preview as well as apply) when a named plan's own front matter says `- Kind: orchestrator` AND its RESOLVED Order is not 0, naming the plan, the rule, and the override in the message. THE DELIVERABLE IS ONE PREDICATE SERVING BOTH HALVES OF ONE RULE, NOT A SECOND PREDICATE AND NOT, AS THE BACKLOG ITEM GUESSES, "one more clause". `qhcojn`'s OQ-02 resolves its predicate to "call `ipd_schema.validate_metadata` with a minimal field map carrying the plan's own `Kind` and the RESOLVED Order, and look for an `Order` `MetaError`", and that formulation ALREADY RETURNS the orchestrator message with no new comparison (measured: `kind=orchestrator order=5 -> 'orchestrator Order must be 0'`). So the code change is bounded by what `qhcojn` actually lands and may be NOTHING: if that predicate went in kind-agnostically, the orchestrator half already refuses and this plan VERIFIES it and supplies the missing regression and guard tests; if it was narrowed to `Kind: child`, the change is REMOVING that narrowing. Either way the TESTS are the irreducible deliverable, the `--allow-invalid-order` escape hatch is reused unchanged, and the weight goes on the FOUR cases that decide correctness: the multi-plan positional case, the `Kind`-less silence, the bare-regroup filename-fallback path, and the repair direction (`--order 0` on an already-invalid orchestrator must keep working). EXCLUDES: changing `ipd_schema`/`ipd_lint` or their message text; changing `IPD-M104`'s `info` severity in `aw check` (`qhcojn` defers it and declines a carrier, and raising it would change the verdict of every `aw check` run); the negative-`--order` corruption measured here (F-09, filed, not fixed); `research_refs`/`artifact_rename` (no `Kind` field in those trees); any sweep or repair of an existing plan (measured: zero need it); and re-litigating whether `--allow-invalid-order` should exist (`qhcojn` decided it).
 - Scope-Paths: agent_workflows/plans_refs.py, agent_workflows/cli.py, tests/test_group_verb_policy.py
 - Item-Dependencies: executed:qhcojn
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: followup
 - Priority: low
@@ -20,9 +20,9 @@
 - Highest E allocated: 04
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: xvi55d
-- Approval: 2026-10-07, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-08 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: xvi55d verified (set oev4h7, attempt 1).
 - 2026-10-07 approved (aw set): status set to approved
 - 2026-10-07 reviewed (aw set): /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-004 all FIXED. qhcojn executed and is Case B (KIND_CHILD narrowing); existing helpers/guards reused, help text in cli.py made required, override arm added; widened predicate demonstrated in a scratch repo. Record: .aw/records/reviews/20261001-oev4h7-01-xvi55d-refuse-an-orchestrator-at-a-nonzero-order-in-aw-group-and-aw.review.md
 
