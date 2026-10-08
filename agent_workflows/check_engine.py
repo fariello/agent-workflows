@@ -3646,10 +3646,18 @@ def _receipt_is_live(repo_root: Path, plan_path: Path, receipt: Dict) -> bool:
     receipt must no longer drive a SCOPE ADVISORY about the current working tree, because the frozen
     base it carries no longer describes work any live execution owns. Two cases are rejected:
 
-    * TERMINAL PLAN - the plan file sits in a terminal lifecycle directory (``plans.TERMINAL``:
-      executed/superseded/not-executed). Disposition is read from the plan's PATH, not from its
-      ``Status:`` text, because the directory is the authoritative encoding (the lifecycle setters
-      move the file as the authoritative act) and status text may legitimately lag the move.
+    * TERMINAL PLAN (DEFENSE-IN-DEPTH, NOT THE ACTIVE SUPPRESSOR) - the plan file sits in a terminal
+      lifecycle directory (``plans.TERMINAL``: executed/superseded/not-executed). This inner branch is
+      defense-in-depth: the active suppressor today is :func:`_iter_type_files`' retired-path filter
+      via :func:`is_retired`, whose retired path segments are a strict superset of ``plans.TERMINAL``,
+      so a terminal plan is never yielded to :func:`check_scope_drift`'s loop and its receipt is never
+      read. The outer filter is load-bearing because yielding retired plans carries a measured cost:
+      1183 plans with retired included versus 116 without (10.2x plan count and +55% median wall time,
+      measured 2026-10-01), breaking the fast no-op pre-commit invariant. Both the outer suppressor
+      and this inner defense-in-depth branch are pinned by ``tests/test_receipt_liveness_suppressors.py``.
+      Disposition is read from the plan's PATH, not from its ``Status:`` text, because the directory
+      is the authoritative encoding (the lifecycle setters move the file as the authoritative act)
+      and status text may legitimately lag the move.
     * UNREACHABLE BASE - ``base_head`` is not an ancestor of HEAD, so the frozen baseline does not
       describe this history and a diff against it is meaningless.
 
