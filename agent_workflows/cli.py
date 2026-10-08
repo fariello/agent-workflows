@@ -4587,6 +4587,13 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Record the plan Set(s) this artifact graduated into (comma-separated setids); "
         "'-' clears.",
     )
+    # gateparity wdyz5n E-02: register --evidence on untyped setter so the implementing gate
+    # is satisfiable rather than unreachable, and backlog done can close with cited evidence.
+    p_set.add_argument(
+        "--evidence",
+        default=None,
+        help="Resolvable implementation-evidence citation (for specs implemented; satisfies a backlog release gate on done).",
+    )
     p_set.add_argument(
         "--dry-run", action="store_true", help="Preview without writing."
     )

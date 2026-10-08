@@ -1813,7 +1813,20 @@ class SharedLifecycleRenderingTests(StatusSetTestBase):
             "setbeta",
             status="implementing",
         )
-        _rc, set_out = self._echo(["set", "implemented", "bbb222"])
+        (self.repo_root / ".aw" / "records" / "plans" / "executed").mkdir(
+            parents=True, exist_ok=True
+        )
+        ev_plan = self.create_plan(
+            "20260822-setbeta-02-ev1234-evidence.ipd.md",
+            "ev1234",
+            "setbeta",
+            status="executed",
+            disposition="executed",
+        )
+        rel_ev = str(ev_plan.relative_to(self.repo_root))
+        _rc, set_out = self._echo(
+            ["set", "implemented", "bbb222", "--evidence", rel_ev]
+        )
         _rc2, find_out = self._echo(["find", "specs", "bbb222"], confirm=False)
         needle = "\033[1;38;5;46mimplemented\033[0m"
         self.assertIn(needle, set_out)

@@ -24,6 +24,7 @@ now under way. The direction of the 2.x line (in progress, not all shipped in th
 
 Major storage-layout boundary. The logical model (D126-D129) was superseded by the PHYSICAL `.aw/` hierarchy specified in `20260810-1447-01-physical-aw-hierarchy-placement-and-migration.spec.md` (D130, D134-D137), which the framework now implements and has migrated its own repository onto:
 
+- Fixed: aw specs set and aw set now refuse to mark a spec implemented unless a resolvable evidence citation is supplied, whichever spelling is used, and aw set now accepts --evidence so that citation can be given.
 - Added: documented CommandDeclaration.exit_contract as enumerating codes produced by a command's own return path while excluding signal-derived codes (130/143), pinned by a conformance gate on the universal 130 floor (D162).
 - Fixed: failed backlog or spec mutations no longer record phantom history events in the sidecar log if their durable file write fails, preventing false transition records from being shown to operators.
 - Fixed: escaped Markdown metacharacters (backslash, pipe, open and close brackets, open angle bracket) and neutralized control characters to U+FFFD on attention board detail lines, and made the attention command with format markdown a color-free surface.
