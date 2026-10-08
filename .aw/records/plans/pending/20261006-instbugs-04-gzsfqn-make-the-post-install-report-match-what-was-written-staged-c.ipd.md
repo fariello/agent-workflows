@@ -99,6 +99,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 - WHERE STATE IS WRITTEN AND ITS GIT POLICY.
   - Carrier: pfub72
+  - Carrier-Evidence: .aw/records/plans/executed/20261006-instbugs-03-pfub72-write-each-install-state-record-once-in-the-state-class-the.ipd.md
 - The "Installed or updated" listing marks the gitignored `.aw/workflow-artifacts/README.md` as `[added]` (F-08). It is not staged, not committed and not left dirty, so the commit and status are correct; only its listing tag misleads. It is a listing-format question shared by every ignored scaffold file and does not affect D03/N1.
   - Carrier-Declined: not owed; the review records it as an observation only, and the file's handling is correct by design (`ensure_workflow_artifacts_readme`).
 
