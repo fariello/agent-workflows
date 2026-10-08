@@ -46,17 +46,17 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: confirm the premise before changing anything
 
-- [ ] E-01 RE-MEASURE THE FOUR FACTS THIS PLAN TURNS ON AT THE EXECUTING HEAD, AND STOP IF ANY HAS MOVED.
+- [x] E-01 RE-MEASURE THE FOUR FACTS THIS PLAN TURNS ON AT THE EXECUTING HEAD, AND STOP IF ANY HAS MOVED.
   DO THIS FIRST. Three of the four are LIVE properties that other approved lanes are editing (`nwcf8j` declares `agent_workflows/attention.py`, and F-08 lists further approved plans declaring it), so a plan authored on today's tree can be reasoning about code that has since changed.
   THE FOUR, each with the exact check. (1) `attention.inbox_waiting` EXISTS and the human footer line renders: `hasattr(agent_workflows.attention, "inbox_waiting")` is True and a real board over a temp repo with two drops prints the `waiting in `.aw/inbox/`` line. (2) THE EXPLICIT AGENT RECORD STILL OMITS THE COUNT: the same temp repo driven through `--agent` with two drops and with zero yields records whose `evidence` lists are IDENTICAL and contain no inbox key. (3) ROUTE (b) IS STILL BLOCKED: a clean `CommandResult` carrying one `severity="warning"` `Diagnostic` still reports `findings: 1`. (4) ROUTE (c) STILL WORKS: `agent_schema.sanitize_evidence_item` still returns `key:value` for an `int`, demonstrated by `python3 -m agent_workflows layout --agent` still emitting `record_classes:<n>`.
   STOP AND REPORT IF (3) IS FIXED, because route (b) would then be the cheaper answer following a precedent already inside `attention.run`, and this plan's central reasoning would be obsolete rather than merely tunable. STOP AND REPORT IF (4) IS BROKEN, because the chosen route would no longer deliver a visible number and the plan would be shipping the invisibility it exists to fix. STOP AND REPORT IF (2) IS ALREADY FIXED, since the feature would already exist and this plan is moot.
   - Depends on: none
   - Expected outcome: all four facts re-measured at the executing HEAD with commands and output pasted, each either CONFIRMED or reported as moved; execution proceeds only if (1) and (2) confirm the defect is live and (3) and (4) confirm the route choice still holds.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: the one additive key
 
-- [ ] E-02 EMIT ONE ADDITIVE SCALAR `Evidence(key="inbox-waiting", value=<int>)` ON `attention.run`'s EXPLICIT AGENT BRANCH, ONLY WHEN THE COUNT IS NONZERO.
+- [x] E-02 EMIT ONE ADDITIVE SCALAR `Evidence(key="inbox-waiting", value=<int>)` ON `attention.run`'s EXPLICIT AGENT BRANCH, ONLY WHEN THE COUNT IS NONZERO.
   THE SITE IS THE `if ctx.is_agent:` ARM that already builds `evidence = [Evidence(key="attention", value={"items": ..., "drift": ...}, status=status)]`. Append to that list; do not construct a second `CommandResult` and do not touch the `if check:` arm above it, which has its own `attention` Evidence and must stay silent (a waiting drop is not a `--check` condition).
   USE A SCALAR `int` VALUE, AND THAT IS THE WHOLE DESIGN RATHER THAN A STYLE CHOICE. `agent_schema.sanitize_evidence_item` renders an `(int, float, bool)` value as `f"{key}:{val}"` and degrades a DICT to the bare key name, so a dict here would reproduce exactly the invisibility the backlog item wrongly attributed to this route (F-05). Do NOT "improve" it into `value={"waiting": n}`: that silently reverts the fix while leaving the code looking correct, and the `--verbose` surface is not the one this plan is about.
   REUSE `attention.inbox_waiting`, NEVER RE-DERIVE THE COUNT. It shipped with `olmvgw` and carries the listing-only safety property (it lists with `os.scandir` and opens no file, because `selectors._ID_RE` would harvest a body-quoted `- Id:` from unvetted text as an identity claim). A second derivation could disagree with the human footer's number, and only one of them would be right at a time. Call the existing function.
@@ -65,19 +65,19 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   SET NO `status=` THAT IMPLIES A FINDING. The sibling `attention` Evidence carries `status=status` (which is `clean` or `findings` from the drift set); this key describes a local advisory condition and must not claim a finding status of its own. Use the dataclass default (`verified`), and say in a comment that the value is an observation rather than a verdict.
   - Depends on: E-01
   - Expected outcome: `aw attention --agent` on a repo with N>0 waiting drops emits `inbox-waiting:N` in its compact `evidence` list; the same repo drained emits a record byte-identical to today's; the count comes from `attention.inbox_waiting` with no second derivation; no `Diagnostic` is constructed; the `if check:` arm is unmodified.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 PROVE THE ADDITION CANNOT MOVE `findings`, `outcome`, `exit`, OR `diagnostics`, WHICH IS THE ENTIRE REASON THIS ROUTE WAS CHOSEN OVER ROUTE (b).
+- [x] E-03 PROVE THE ADDITION CANNOT MOVE `findings`, `outcome`, `exit`, OR `diagnostics`, WHICH IS THE ENTIRE REASON THIS ROUTE WAS CHOSEN OVER ROUTE (b).
   THIS IS NOT A RESTATEMENT OF E-02; IT IS THE CLAIM THAT JUSTIFIES THE DESIGN. `to_agent_record` derives `findings` from `len(self.diagnostics)` and falls back to `self.data.get("findings", 0)`, so an Evidence entry cannot reach it by construction. Demonstrate that rather than asserting it: capture the full record for a repo with waiting drops and the same repo drained, and show the two differ in the `evidence` list and in NOTHING else.
   INCLUDE THE SCHEMA VALIDATOR IN THE PROOF. `agent_schema.validate_agent_record` enforces exit/outcome parity and refuses greenwashing, so a record carrying the new key must still validate; a route that produced `outcome: clean` with a negative pairing would be rejected at render time. Run the validator (or the real CLI, which renders through it) rather than only inspecting a hand-built dataclass.
   COVER BOTH VERBOSITY LEVELS, because they take different branches of `to_agent_record`'s evidence handling: the default compact path calls `sanitize_evidence_item` (yielding `inbox-waiting:N`) and `--verbose` emits the full dict. Both must carry the number, and neither may alter `findings`.
   - Depends on: E-02
   - Expected outcome: paired full `--agent` records (drops present vs drained) differing ONLY in `evidence`, with `findings`, `outcome`, `exit`, `verified`, `complete`, and `diagnostics` identical; the record validating under `agent_schema.validate_agent_record`; the count present under both default and `--verbose`.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: pin it behaviorally
 
-- [ ] E-04 PIN THE BEHAVIOR IN `tests/test_attention.py` BESIDE THE CLASSES `olmvgw` ALREADY ADDED.
+- [x] E-04 PIN THE BEHAVIOR IN `tests/test_attention.py` BESIDE THE CLASSES `olmvgw` ALREADY ADDED.
   SITE IT WITH ITS TWINS: `InboxWaitingCountTests` and `InboxFooterNudgeTests` already exist in this file and build temp repos via the file's `_mk_repo` helper, driving the CLI with an `argparse.Namespace` plus `attention.run` under `redirect_stdout`. Reuse that pattern; do not found a new test module for one key.
   BUILD EVERY CASE IN A TEMPORARY REPO AND NEVER READ THE REAL `.aw/inbox/`. It is gitignored and per-checkout, so a test pinned to it passes on one machine and fails on another. `olmvgw`'s V-05 evidence records a grep proving its own tests avoid it; hold the same bar.
   THE REQUIRED CASES. (1) N>0 drops: the compact `--agent` record's `evidence` list CONTAINS `inbox-waiting:N` with the right N. (2) DRAINED (bookkeeping-only `README.md` plus `.gitkeep`, which `inbox_waiting` excludes): the key is ABSENT. (3) THE CONTRACT CASE, and the one that makes this plan's reasoning a tested invariant rather than a comment: `findings` is EQUAL between the drops-present and drained records, which is the assertion that would fail had route (b) been taken. (4) `--verbose` carries the number too. (5) THE `--check --agent` ARM IS UNAFFECTED: its record carries no inbox key, pinning that a local gitignored drop never reaches the validity surface.
@@ -85,7 +85,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   `tests/test_attention_contract.py` MUST PASS UNMODIFIED. It owns enum totality and the class maps; if it needs editing, the count has leaked into classification and the design is wrong. Stop and report rather than editing it.
   - Depends on: E-03
   - Expected outcome: new cases covering all five listed conditions pass in temporary repos; `python3 -m pytest tests/test_attention.py tests/test_attention_contract.py tests/test_prompts_attention.py tests/test_attention_blind_spot.py -o addopts=""` passes with a count raised by exactly the number of tests added (authoring measured `106 passed`); `tests/test_attention_contract.py` unmodified; no test reads the real `.aw/inbox/`; the bare suite's failing node-id set unchanged against E-01's re-derived baseline.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -187,25 +187,190 @@ NO USER-FACING DOCUMENT NEEDS EDITING, FOR A STATED REASON RATHER THAN BY OMISSI
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste all four re-measurements with the exact command and its output. (1) `hasattr(agent_workflows.attention, "inbox_waiting")` printing True, plus a real board over a temp repo with two drops showing the `waiting in `.aw/inbox/`` line. (2) The `--agent` record for that SAME repo with two drops and with zero drops, both pasted in full, shown to have IDENTICAL `evidence` lists containing no inbox key (this is the defect; if the key is already present, STOP, the plan is moot). (3) A clean `CommandResult` carrying one `severity="warning"` `Diagnostic` printing `findings: 1`, and the same without it printing `findings: 0` (if the warning no longer inflates, STOP and report: route (b) is now cheaper and this plan's reasoning is obsolete). (4) `python3 -m agent_workflows layout --agent` showing `record_classes:<n>` in its `evidence` list, proving a scalar Evidence value still survives compaction (if it does not, STOP: the chosen route would ship the invisibility it exists to fix). Also paste the bare `python3 -m pytest` baseline summary line AND the full failing node-id list, which every later item compares against.
   - Observed evidence:
-  - Result: pending
+    All four facts re-measured at executing HEAD c8fb45659ddc8e17f360003bef965ff925200555:
+    (1a) hasattr(agent_workflows.attention, "inbox_waiting"):
+    $ python3 -c 'import agent_workflows.attention as a; print("hasattr inbox_waiting:", hasattr(a, "inbox_waiting"))'
+    hasattr inbox_waiting: True
+    (1b) Real board over temp repo with two drops:
+    $ python3 -m agent_workflows attention --dir <tmp> --no-color
+    ## active (1)
+    - [research] .agents/docs/research/20260808-r-00-def456-r.survey.md (active)
+    ## ready (2)
+    - [specs] .agents/docs/specs/s.md (approved)
+    - [plans] .agents/plans/pending/20260808-x-01-abc123-p.md (draft)
+    3 artifacts shown
+    TODO: 2 files waiting in `.aw/inbox/`. Run `aw adopt <path>` to file one.
 
-- [ ] V-02 validates E-02
+    (2) Pre-change --agent record on temp repo with two drops and with zero drops:
+    2 drops:
+    {"schema":"aw.agent/v1","kind":"result","cmd":"attention","outcome":"clean","exit":0,"verified":true,"complete":true,"findings":0,"evidence":["attention"],"next":null}
+    0 drops:
+    {"schema":"aw.agent/v1","kind":"result","cmd":"attention","outcome":"clean","exit":0,"verified":true,"complete":true,"findings":0,"evidence":["attention"],"next":null}
+    Identical evidence lists: ['attention'] == ['attention'], no inbox key present (defect confirmed live).
+
+    (3) Route (b) warning diagnostic inflation check:
+    $ python3 -c 'from agent_workflows.result_types import CommandResult, Diagnostic; r1 = CommandResult(command="test", status="clean", exit_code=0, diagnostics=[Diagnostic(location="loc", rule="warn", detail="msg", severity="warning")]).to_agent_record(); r0 = CommandResult(command="test", status="clean", exit_code=0, diagnostics=[]).to_agent_record(); print("with warn:", r1["findings"], "clean:", r0["findings"])'
+    with warn: 1 clean: 0
+    (findings: 1 vs findings: 0; route (b) remains blocked).
+
+    (4) Route (c) scalar evidence compaction check:
+    $ python3 -m agent_workflows layout --agent
+    {"schema":"aw.agent/v1","kind":"result","cmd":"layout","outcome":"clean","exit":0,"verified":true,"complete":true,"findings":0,"evidence":["record_classes:11","logical_roots:4"],"next":null}
+    (record_classes:11 present in evidence; scalar survives compaction).
+
+    Bare python3 -m pytest baseline summary and failing node-id list:
+    $ python3 -m pytest
+    6430 passed, 2 skipped, 3 warnings in 403.63s (0:06:43) [258 deselected]
+    Full failing node-id list: [] (none)
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: paste the diff of the `if ctx.is_agent:` arm in context, showing the new `Evidence` APPENDED to the existing list beside the `attention` key, with a SCALAR `int` value (not a dict, which F-05 measures as invisible in the compact record) and no `status=` claiming a finding. Paste a grep or the diff itself proving no `Diagnostic` is constructed by the new code and that the `if check:` arm is unmodified. Paste a grep showing the count comes from a CALL to `attention.inbox_waiting` rather than a second `scandir`/`iterdir` derivation. Then paste three `--agent` records: N=1 showing `inbox-waiting:1`, N=2 showing `inbox-waiting:2`, and a bookkeeping-only (`README.md` plus `.gitkeep`) inbox showing the key ABSENT.
   - Observed evidence:
-  - Result: pending
+    (1) Diff of if ctx.is_agent: arm in agent_workflows/attention.py:
+    ```diff
+    @@ -4418,6 +4418,17 @@ def run(args) -> int:
+                     status=status,
+                 )
+             ]
+    +        waiting = inbox_waiting(repo_root)
+    +        if waiting:
+    +            # awinbox Order 04 (`qp8fn1`): emit the waiting-drops count as a scalar Evidence key
+    +            # so it survives compact agent sanitization (f"{key}:{val}") with zero finding inflation.
+    +            # Default status="verified" indicates an observation, not a finding/verdict.
+    +            evidence.append(
+    +                Evidence(
+    +                    key="inbox-waiting",
+    +                    value=waiting,
+    +                )
+    +            )
+             res = CommandResult(
+                 command="attention",
+                 status=status,
+    ```
+    (2) No Diagnostic constructed in new code; `if check:` arm is unmodified (lines 4313-4357 untouched).
+    (3) Count derives from call to `inbox_waiting(repo_root)`:
+    `waiting = inbox_waiting(repo_root)`
+    (4) Three --agent records from temporary test repositories:
+    N=1:
+    {"schema":"aw.agent/v1","kind":"result","cmd":"attention","outcome":"clean","exit":0,"verified":true,"complete":true,"findings":0,"evidence":["attention","inbox-waiting:1"],"next":null}
+    N=2:
+    {"schema":"aw.agent/v1","kind":"result","cmd":"attention","outcome":"clean","exit":0,"verified":true,"complete":true,"findings":0,"evidence":["attention","inbox-waiting:2"],"next":null}
+    Bookkeeping-only (README.md + .gitkeep):
+    {"schema":"aw.agent/v1","kind":"result","cmd":"attention","outcome":"clean","exit":0,"verified":true,"complete":true,"findings":0,"evidence":["attention"],"next":null}
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: paste the FULL `--agent` record for a populated inbox and for the same repo drained, side by side, and state explicitly which fields differ: `evidence` must differ and `findings`, `outcome`, `exit`, `verified`, `complete`, and `diagnostics` must be IDENTICAL. Paste the `--agent --verbose` record for the populated case showing the number present in the expanded evidence dict. Paste the result of validating the populated record through `agent_schema.validate_agent_record` (empty error list, or the real CLI rendering it, which validates at render time). Paste `render_json`'s top-level key list and `schema_version` for both states, IDENTICAL and still `4`, proving the versioned payload did not move.
   - Observed evidence:
-  - Result: pending
+    (1) Full --agent records for populated vs drained side by side:
+    Populated:
+    {"schema":"aw.agent/v1","kind":"result","cmd":"attention","outcome":"clean","exit":0,"verified":true,"complete":true,"findings":0,"evidence":["attention","inbox-waiting:1"],"next":null}
+    Drained:
+    {"schema":"aw.agent/v1","kind":"result","cmd":"attention","outcome":"clean","exit":0,"verified":true,"complete":true,"findings":0,"evidence":["attention"],"next":null}
+    Field-by-field diff:
+    - evidence: ['attention', 'inbox-waiting:1'] vs ['attention'] (DIFFERS as expected)
+    - schema: 'aw.agent/v1' == 'aw.agent/v1' (IDENTICAL)
+    - kind: 'result' == 'result' (IDENTICAL)
+    - cmd: 'attention' == 'attention' (IDENTICAL)
+    - outcome: 'clean' == 'clean' (IDENTICAL)
+    - exit: 0 == 0 (IDENTICAL)
+    - verified: True == True (IDENTICAL)
+    - complete: True == True (IDENTICAL)
+    - findings: 0 == 0 (IDENTICAL)
+    - next: None == None (IDENTICAL)
 
-- [ ] V-04 validates E-04
+    (2) --agent --verbose record for populated case:
+    {"schema":"aw.agent/v1","kind":"result","cmd":"attention","outcome":"clean","exit":0,"verified":true,"complete":true,"findings":0,"evidence":[{"key":"attention","value":{"items":3,"drift":0},"status":"clean","detail":""},{"key":"inbox-waiting","value":1,"status":"verified","detail":""}],"next":null}
+    Number present in evidence dict: {'key': 'inbox-waiting', 'value': 1, 'status': 'verified', 'detail': ''}.
+
+    (3) agent_schema.validate_agent_record validation:
+    validate_agent_record(obj_pop): [] (valid, 0 errors)
+    validate_agent_record(obj_pop_verbose): [] (valid, 0 errors)
+
+    (4) render_json comparison:
+    Populated: keys=['schema_version', 'mapping_version', 'valid', 'items', 'violations', 'stranded_lanes'], schema_version=4
+    Drained:   keys=['schema_version', 'mapping_version', 'valid', 'items', 'violations', 'stranded_lanes'], schema_version=4
+    Key lists and schema_version are identical and unchanged at 4.
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: paste the new test names and the PASSING run of `python3 -m pytest tests/test_attention.py tests/test_attention_contract.py tests/test_prompts_attention.py tests/test_attention_blind_spot.py -o addopts=""` with its count stated against your own re-derived baseline (authoring measured `106 passed`). Paste IN FULL the test asserting `findings` EQUALITY between the drops-present and drained records, plus its passing output, since that is the assertion carrying this plan's central contract claim; then PROVE IT BITES by pasting the failure you get when the same case is evaluated against a deliberately route-(b) record (construct a `CommandResult` carrying one warning `Diagnostic` and show the equality assertion failing on it), demonstrating the test discriminates rather than passing vacuously. Paste the `--check --agent` case showing no inbox key. Paste a grep over the new tests showing NO reference to the real `.aw/inbox/` and no `inspect`/`ast`/regex read of `attention.py`. Paste `git diff --stat tests/test_attention_contract.py` showing it UNMODIFIED. Paste the FULL bare `python3 -m pytest` summary and state the delta against YOUR V-01 baseline: failing NODE-ID set UNCHANGED and passed count up by exactly the number of tests added. Paste `aw sanitize --agent` and its exit code.
   - Observed evidence:
-  - Result: pending
+    (1) New test names in tests/test_attention.py under InboxAgentEvidenceTests:
+    - test_compact_agent_record_contains_inbox_waiting_count
+    - test_drained_inbox_omits_inbox_waiting_key
+    - test_findings_equal_between_populated_and_drained_records
+    - test_verbose_agent_record_contains_inbox_waiting_number
+    - test_check_agent_stays_silent_with_waiting_drops
+
+    Passing run of targeted 4-suite run:
+    $ python3 -m pytest tests/test_attention.py tests/test_attention_contract.py tests/test_prompts_attention.py tests/test_attention_blind_spot.py -o addopts=""
+    111 passed in 19.83s (baseline was 106 passed; count increased by exactly 5).
+
+    (2) Test asserting findings EQUALITY in full:
+    ```python
+    def test_findings_equal_between_populated_and_drained_records(self):
+        """Case 3: THE CONTRACT CASE: `findings` is EQUAL between the drops-present and drained records.
+
+        This is the assertion that would fail had route (b) been taken, where a warning Diagnostic
+        inflates findings on a clean repo.
+        """
+        box = self._inbox()
+        (box / "README.md").write_text("what this lane is", encoding="utf-8")
+        (box / ".gitkeep").write_text("", encoding="utf-8")
+        drained_rec = self._run_agent()
+
+        (box / "drop1.md").write_text("x", encoding="utf-8")
+        (box / "drop2.md").write_text("x", encoding="utf-8")
+        populated_rec = self._run_agent()
+
+        self.assertEqual(
+            populated_rec.get("findings"),
+            drained_rec.get("findings"),
+            "findings must be equal between populated and drained inboxes",
+        )
+        self.assertEqual(populated_rec.get("outcome"), drained_rec.get("outcome"))
+        self.assertEqual(populated_rec.get("exit"), drained_rec.get("exit"))
+        self.assertEqual(populated_rec.get("verified"), drained_rec.get("verified"))
+        self.assertEqual(populated_rec.get("complete"), drained_rec.get("complete"))
+        self.assertEqual(populated_rec.get("cmd"), drained_rec.get("cmd"))
+        self.assertEqual(populated_rec.get("schema"), drained_rec.get("schema"))
+    ```
+    Passing output:
+    $ python3 -m pytest tests/test_attention.py -k test_findings_equal_between_populated_and_drained_records -v
+    1 passed in 4.52s
+
+    Proof it bites under route (b):
+    Evaluating the equality assertion against a CommandResult with Diagnostic(severity="warning"):
+    route_b_rec["findings"] == 1, drained_rec["findings"] == 0
+    AssertionError: 1 != 0 : findings must be equal between populated and drained inboxes
+
+    (3) --check --agent case:
+    $ python3 -m pytest tests/test_attention.py -k test_check_agent_stays_silent_with_waiting_drops -v
+    1 passed in 4.38s
+    (evidence is ["attention"], findings=0, exit=0, outcome='clean', no inbox-waiting).
+
+    (4) Grep over new tests proving no reference to real .aw/inbox/ and no inspect/ast/regex:
+    Matches for real .aw/inbox/: none
+    Matches for inspect/ast/regex on attention.py: none
+
+    (5) git diff --stat tests/test_attention_contract.py:
+    Empty (0 files changed, completely unmodified).
+
+    (6) Full bare python3 -m pytest summary:
+    $ python3 -m pytest
+    6435 passed, 2 skipped, 3 warnings in 408.45s (0:06:48) [258 deselected]
+    Delta against V-01 baseline (6430 passed): exactly +5 passed, 0 failures, failing node-id set unchanged ([]).
+
+    (7) aw sanitize --agent:
+    $ python3 -m agent_workflows sanitize --agent
+    {"schema":"aw.agent/v1","kind":"result","cmd":"check-local-leaks","outcome":"clean","exit":0,"verified":true,"complete":true,"findings":0,"evidence":["leak-scan"],"next":null}
+    Exit code: 0
+  - Result: pass
 
 ## Approval and execution gate
 

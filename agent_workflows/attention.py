@@ -4418,6 +4418,17 @@ def run(args) -> int:
                 status=status,
             )
         ]
+        waiting = inbox_waiting(repo_root)
+        if waiting:
+            # awinbox Order 04 (`qp8fn1`): emit the waiting-drops count as a scalar Evidence key
+            # so it survives compact agent sanitization (f"{key}:{val}") with zero finding inflation.
+            # Default status="verified" indicates an observation, not a finding/verdict.
+            evidence.append(
+                Evidence(
+                    key="inbox-waiting",
+                    value=waiting,
+                )
+            )
         res = CommandResult(
             command="attention",
             status=status,
