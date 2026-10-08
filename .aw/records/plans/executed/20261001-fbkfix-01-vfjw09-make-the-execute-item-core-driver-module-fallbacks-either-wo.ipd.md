@@ -6,7 +6,7 @@
 - Scope: Repair the FALLBACK SHAPE of the broken `getattr(driver_module, ...)` defaults in `runner_shared.execute_item_core`, per symbol, with the choice recorded per symbol; and add a behavioral guard that drives a turn through a descriptor-only host so the seam is exercised in the direction a third host will actually use it. NO behavior change on either shipped host: both define every rebound name, so every host-bound path resolves exactly as it does today. This plan does NOT lift any forked function, does NOT add a third host to `DEFAULT_HOSTS`, and does NOT attempt to make a descriptor-only host fully execute (four unrelated structural walls block that, and they are out of scope).
 - Scope-Paths: agent_workflows/runner_shared.py, tests/test_runner_fallback_bindings.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: medium
@@ -16,9 +16,9 @@
 - Highest E allocated: 05
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: vfjw09
-- Approval: 2026-10-07, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-08 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: vfjw09 verified (set fbkfix, attempt 1). [Scope reconciliation - out-of-scope .aw/records/backlog/open/20261008-877qmy-01-877qmy-guard-or-provide-working-fallbacks-for-none-defaul.backlog.md: changed by the plan's approved execution (auto-reconciled by aw agy run)]
 - 2026-10-07 approved (aw set): status set to approved
 - 2026-10-07 reviewed (opencode/its_direct/pt3-claude-opus-5.5-1m-us): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-401, PR-402, PR-403, PR-404, PR-405. Reviewed at HEAD bc5b6b18e; census re-derived (25 rebindings, the same five broken). PR-401 (HIGH, fixed): E-04's 'reaches a terminal item status' is unreachable; with the five fixes the turn raises at integration_is_earned and leaves the item running (measured), contradicting E-05. E-04 now asserts the observed starting_head/starting_status inside pytest.raises, and the harness hard-codes oc_runipd in an out-of-scope file, so it is reused locally. PR-404 (MEDIUM, fixed): E-03's 'full keyword set' would break both hosts, whose wrappers are 4-positional; both take the shim's first branch today. PR-405: lambda shape and globals() rule stated. PR-402/403: call-site counts and regression set corrected. Review record .aw/records/reviews/20261001-fbkfix-01-vfjw09-make-the-execute-item-core-driver-module-fallbacks-either-wo.review.md.
 
