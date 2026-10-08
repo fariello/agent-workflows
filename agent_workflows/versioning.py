@@ -326,6 +326,12 @@ def parse_our_version(version: str) -> Optional[Parsed]:
     )
 
 
+def extract_git_sha(version: str) -> Optional[str]:
+    """Extract the git commit SHA from the +g<sha> local segment of a version string."""
+    m = re.search(r"\+g([0-9a-fA-F]+)", version)
+    return m.group(1) if m else None
+
+
 def _sort_key(parsed: Parsed) -> tuple:
     """Ordering key (PEP 440 semantics).
 
