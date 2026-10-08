@@ -6,7 +6,7 @@
 - Scope: IN: split the managed `aw:pointer` prose into target-neutral content (stays in `agents_pointer_prose`) and agent-workflows-only content (moves BELOW `<!-- /aw:block -->` in this repository's own `AGENTS.md`, the repo-local region that already exists and is never installed); rephrase the runner-guarantees paragraph to point at `aw host capabilities` and `aw oc run --help` instead of source symbols; point the IPD contract at the installed `ipd-lifecycle` workflow, `.aw/records/plans/README.md` and `aw ipd --help` instead of an uninstalled spec; replace the hard-coded test command with "run the project's own test command (see `/setup-repo` or the project's docs)"; repoint the two existing tests that pin AW-only text to `agents_pointer_prose`; add a dangling-reference probe reported by `aw doctor` (advisory `info` severity) and as a post-install advisory line, scanning the managed `AGENTS.md` block and the installed records READMEs; tests. OUT: the retired `.agents/` strings in installed READMEs and install messages (Order 06 `jbnkkh`); the inbox README (Order 05 `xzlu9b`, which this plan's check must find present); rewriting the content of the AW-only paragraphs (they move verbatim); the installed workflow bundle `.aw/system/**` (see Deferred); the `aw:reporting` section (measured: it cites no path).
 - Scope-Paths: agent_workflows/engine.py, agent_workflows/doctor.py, agent_workflows/check_engine.py, agent_workflows/cli.py, AGENTS.md, tests/test_suite_instruction_marker_parity.py, tests/test_agents_block_target_neutral.py
 - Item-Dependencies: executed:xzlu9b, executed:jbnkkh
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Blocks-Release: f33nrj
 - Work-Kind: bug
@@ -16,9 +16,9 @@
 - Highest E allocated: 06
 - Author: antigravity/claude-opus-5.5
 - Id: ka0g86
-- Approval: 2026-10-07, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-08 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: ka0g86 verified (set instbugs, attempt 1).
 - 2026-10-07 approved (aw set): status set to approved
 - 2026-10-07 reviewed (opencode/its_direct/pt3-claude-opus-5.5-1m-us): plan-review
 - 2026-10-07 same-status (aw set): gate on release 2.0.0 (f33nrj) at the maintainer's instruction 2026-10-06: all instbugs plans block 2.0.0
