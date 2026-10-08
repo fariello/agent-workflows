@@ -6,7 +6,7 @@
 - Scope: Correct the one false sentence in the `config get` inline `description=` to the DRIVEN behavior, add a default-visible regression guard that fails on a re-introduced exit-code promise, and record the fix in the changelog. No handler, exit code, flag, or `help=` string changes.
 - Scope-Paths: agent_workflows/cli.py, tests/test_config.py, CHANGELOG.md, .aw/records/research/20260924-cliinv-00-ffi66q-aw-cli-command-inventory.survey.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -17,9 +17,9 @@
 - Highest E allocated: 06
 - Author: opencode model=its_direct/pt3-claude-opus-5-1m-us
 - Id: w89bo8
-- Approval: 2026-10-07, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-08 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: w89bo8 verified (set uip0z6, attempt 1). [Scope reconciliation - out-of-scope .aw/records/backlog/open/20261008-upkghw-01-upkghw-update-stale-agents-prompt-path-assertion-in-test-.backlog.md: changed by the plan's approved execution (auto-reconciled by aw agy run)]
 - 2026-10-07 approved (aw set): status set to approved
 - 2026-10-07 reviewed (opencode/its_direct/pt3-claude-opus-5.5-1m-us): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-001..PR-004, all FIXED. Reviewed in lane review-sweep-run-20261007T032752Z-4094028 at HEAD 2745954be; review record .aw/records/reviews/20261001-uip0z6-01-w89bo8-replace-the-false-exit-code-claim-in-the-config-get-help-wit.review.md. Re-drove F-01/F-03 (all match). PR-001: ypnk56 has EXECUTED, so the slow set is green (237 passed) and the bare run is 2 failed, 5219 passed, 2 skipped (unrelated live-corpus failures); E-06/V-06 now re-derive the baseline at the executing HEAD and compare failing-node sets. PR-002: OQ-01 named config show as a route to the unset/empty distinction; driven, config show aw_home prints the identical row in both states; E-02/OQ-01/F-04/V-02 corrected. PR-003: E-03 description guard made concrete (negative falsehood token plus positive authored anchor). PR-004: stale ypnk56-pending and backlog-transition wording swept from the scope fence and gate.
 
