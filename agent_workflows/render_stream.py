@@ -3449,7 +3449,7 @@ def render_run_summary_table(
         # hand reported `COMPLETED` again, so the summary silently REWROTE HISTORY. A run summary is a
         # statement about what THAT RUN DID, so it must be reproducible from `state.json` alone. Do NOT
         # "improve" this by consulting plan directories, `git`, or current statuses.
-        and not any(integration_was_refused(it) for it in queue)
+        and not any(work_did_not_land(it) for it in queue)
         # b7oicl (4po0sc) E-02: a run that dispatched nothing and carries an operator remedy is
         # NO WORK PERFORMED, not COMPLETED. Placement last is load-bearing: the FAILED and BLOCKED
         # branches above already fire for refused or dependency-blocked items, and testing earlier
@@ -3466,19 +3466,24 @@ def render_run_summary_table(
         )
         and total_items > 0
         and not any(refusal_of_item(it) is not None for it in queue)
-        and not any(integration_was_refused(it) for it in queue)
+        and not any(work_did_not_land(it) for it in queue)
         and queue_performed_no_work(queue)
     ):
         # b7oicl (4po0sc) E-02: say NO WORK PERFORMED when nothing was dispatched and an operator
         # remedy exists, matching the closing disposition summary. Placed beside STRANDED so the two
         # honest-verdict words sit together.
         outcome_str = NO_WORK_OUTCOME
-    elif any(integration_was_refused(it) for it in queue):
+    elif any(work_did_not_land(it) for it in queue):
         # ys1dor E-02: a run holding unintegrated work is STRANDED, and a PARTIALLY stranded run is
         # still stranded (OQ-02, resolved). Precedence matches the `FAILED` branch's established shape
         # in this same function: one bad item colors the whole outcome, and the recovery section below
         # names exactly which items are affected so the body distinguishes "all of it" from "one of
         # four" while the headline stays honest.
+        #
+        # w5uowt E-03: work_did_not_land composes two predicates reading DIFFERENT fields written by
+        # DIFFERENT paths (integration_signal by the execute path, review_integrated by the review path).
+        # It is the SAME question runner_shared asks for the exit code, and the two surfaces call one
+        # predicate precisely so they cannot drift.
         outcome_str = STRANDED_OUTCOME
     elif completed_count > 0:
         outcome_str = "PARTIAL"

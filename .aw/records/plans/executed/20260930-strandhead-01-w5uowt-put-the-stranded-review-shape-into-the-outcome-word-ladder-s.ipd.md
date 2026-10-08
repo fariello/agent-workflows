@@ -6,7 +6,7 @@
 - Scope: Teach the outcome-word ladder in `render_stream.render_run_summary_table` the REVIEW stranded shape it already renders a recovery section for, by calling the shipped composed predicate `work_did_not_land` at the two success-branch guards and the `STRANDED` arm, leaving the branch ORDER and all three predicate bodies untouched (the predicate choice was corrected at review, PR-001: `entv1d` has executed and already composes both shapes into the one question the exit code asks). Add a review-shaped case plus a relabel fence to the module that actually tests this ladder.
 - Scope-Paths: agent_workflows/render_stream.py, tests/test_zero_dispatch_outcome.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -17,9 +17,9 @@
 - Highest E allocated: 05
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: w5uowt
-- Approval: 2026-10-01, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-08 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: w5uowt verified (set strandhead, attempt 1).
 - 2026-10-01 approved (aw set): status set to approved
 - 2026-10-01 reviewed (aw set): /plan-review complete: APPROVE WITH REVISIONS APPLIED; PR-001 (HIGH), PR-002 (MEDIUM), PR-003 (LOW), all FIXED. Findings and two decision rows in .aw/records/reviews/20260930-strandhead-01-w5uowt-put-the-stranded-review-shape-into-the-outcome-word-ladder-s.review.md.
 
@@ -39,36 +39,36 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: re-measure the premise before changing anything
 
-- [ ] E-01 Re-measure the defect at the executing HEAD and record the numbers in V-01, because every citation below is a point-in-time snapshot and this plan's own authoring already caught one rotted claim in the backlog item (its named test file, F-06). Build a one-item queue dict with `action: "review"`, a status inside the ladder's success tuple (`reviewed`), a non-empty `attempts` list, and `review_integrated: False`; render it through `render_stream.render_run_summary_table` with `pal=render_stream.Palette(False)` and record THREE facts: the outcome word, whether `render_stream.format_stranded_work_section` returns a non-empty section for the same queue, and what each of `render_stream.review_integration_was_refused` and `render_stream.integration_was_refused` returns for that item. The defect is confirmed only if the word is `COMPLETED`, the section is NON-EMPTY, and the two predicates disagree (`True` and `False` respectively). If the word is already `STRANDED`, STOP and report: the defect has been fixed or altered by other work and this plan's premise needs re-authoring rather than execution.
+- [x] E-01 Re-measure the defect at the executing HEAD and record the numbers in V-01, because every citation below is a point-in-time snapshot and this plan's own authoring already caught one rotted claim in the backlog item (its named test file, F-06). Build a one-item queue dict with `action: "review"`, a status inside the ladder's success tuple (`reviewed`), a non-empty `attempts` list, and `review_integrated: False`; render it through `render_stream.render_run_summary_table` with `pal=render_stream.Palette(False)` and record THREE facts: the outcome word, whether `render_stream.format_stranded_work_section` returns a non-empty section for the same queue, and what each of `render_stream.review_integration_was_refused` and `render_stream.integration_was_refused` returns for that item. The defect is confirmed only if the word is `COMPLETED`, the section is NON-EMPTY, and the two predicates disagree (`True` and `False` respectively). If the word is already `STRANDED`, STOP and report: the defect has been fixed or altered by other work and this plan's premise needs re-authoring rather than execution.
   - Depends on: none
   - Expected outcome: A recorded reproduction showing `COMPLETED` printed above a non-empty stranded section, with `review_integration_was_refused` True and `integration_was_refused` False for the same item.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 Record the BASELINE outcome word for every shape the change could touch, BEFORE editing, because this plan's central risk is relabelling an outcome that is already correct and a baseline captured after the edit cannot prove anything. Probe the cartesian product of the sixteen statuses in F-04's table against `attempts` present and absent, for BOTH shapes (an EXEC item carrying `integration_signal: "suite-failed"` and a REVIEW item carrying `review_integrated: False`), and save the resulting word for each of the 64 cells. MEASURE FROM THE WORKING TREE, NOT AN INSTALLED COPY, and verify it: assert that `render_stream.__file__` resolves under the executing checkout before trusting any cell. This is not a hypothetical caution, it is the authoring bug this plan hit - a probe script invoked by absolute path from a temp directory silently imported a DIFFERENT checkout's `agent_workflows` and produced a 32-cell table that disagreed with the correct one, which was caught only because an inline measurement of the same input contradicted it (F-08). Keep the baseline as a file so E-04 can diff against it mechanically rather than by eye.
+- [x] E-02 Record the BASELINE outcome word for every shape the change could touch, BEFORE editing, because this plan's central risk is relabelling an outcome that is already correct and a baseline captured after the edit cannot prove anything. Probe the cartesian product of the sixteen statuses in F-04's table against `attempts` present and absent, for BOTH shapes (an EXEC item carrying `integration_signal: "suite-failed"` and a REVIEW item carrying `review_integrated: False`), and save the resulting word for each of the 64 cells. MEASURE FROM THE WORKING TREE, NOT AN INSTALLED COPY, and verify it: assert that `render_stream.__file__` resolves under the executing checkout before trusting any cell. This is not a hypothetical caution, it is the authoring bug this plan hit - a probe script invoked by absolute path from a temp directory silently imported a DIFFERENT checkout's `agent_workflows` and produced a 32-cell table that disagreed with the correct one, which was caught only because an inline measurement of the same input contradicted it (F-08). Keep the baseline as a file so E-04 can diff against it mechanically rather than by eye.
   - Depends on: E-01
   - Expected outcome: A saved 64-cell baseline of outcome words, measured against a `render_stream` whose `__file__` was asserted to be inside the executing checkout.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: the change
 
-- [ ] E-03 In `render_stream.render_run_summary_table`'s outcome-word ladder, add the REVIEW stranded question at exactly three sites, KEEPING THE BRANCH ORDER UNCHANGED. The three sites are the two success-branch guards that currently read `and not any(integration_was_refused(it) for it in queue)` (one in the `COMPLETED` branch, one in the `NO WORK PERFORMED` branch) and the `STRANDED` arm whose condition currently reads `elif any(integration_was_refused(it) for it in queue):`.
+- [x] E-03 In `render_stream.render_run_summary_table`'s outcome-word ladder, add the REVIEW stranded question at exactly three sites, KEEPING THE BRANCH ORDER UNCHANGED. The three sites are the two success-branch guards that currently read `and not any(integration_was_refused(it) for it in queue)` (one in the `COMPLETED` branch, one in the `NO WORK PERFORMED` branch) and the `STRANDED` arm whose condition currently reads `elif any(integration_was_refused(it) for it in queue):`.
   CALL THE SHIPPED COMPOSED PREDICATE `render_stream.work_did_not_land`, NOT THE TWO PREDICATES BY NAME. THIS IS A CORRECTION APPLIED AT REVIEW (PR-001) AND IT CHANGES THE PRESCRIBED IMPLEMENTATION, because the premise of the original instruction has expired: plan `entv1d` has EXECUTED since this plan was authored (it is in `.aw/records/plans/executed/` with `- Status: executed`, and `git log -S "def work_did_not_land"` attributes the symbol to its commit `12804f8c8`). Its E-02 deliverable is exactly the predicate this ladder needs - `work_did_not_land` composes `integration_was_refused(item) or review_integration_was_refused(item)` and its own docstring states its purpose: "This is the one question the exit code and the headline must both ask so the two cannot drift." The HEADLINE is this plan. So writing a second hand-rolled `A or B` at three sites would duplicate a shipped composition and defeat the anti-drift property that symbol was added for, which is the "ONE PREDICATE, MANY SURFACES, NEVER A SECOND COPY" convention this plan's own Step 0 section records. OQ-02 already anticipated this exact case ("if `entv1d` lands first its composed predicate will already answer both shapes, and a later executor of this plan MAY call that one predicate at the three sites instead of two by name"); it has landed, so the MAY is now a MUST. The behavior is identical either way, measured at review: substituting `work_did_not_land` at all three sites produces exactly F-04's fourteen REVIEW cells and zero EXEC cells.
   At each site, therefore, replace `integration_was_refused(it)` with `work_did_not_land(it)`, so a queue holding EITHER stranded shape fails the success guards and reaches the `STRANDED` word. `runner_shared` already imports `work_did_not_land` from this module for the exit code, so the symbol is proven exported and callable. DO NOT reorder the ladder, DO NOT move the `STRANDED` arm, and DO NOT touch either predicate's body: the arm's own comment records that `ys1dor`'s review measured testing a signal BEFORE the status as "a regression dressed as the feature", and the fix needs no reordering because the review shape fails the success guards for the same reason the exec shape does. EDIT BOTH SUCCESS GUARDS, NOT ONE: the two success tuples in this ladder are BYTE-IDENTICAL (plan `165lkb` F-19 records that a `replace`-with-count-1 edit misses the twin), so a single-site edit will leave `NO WORK PERFORMED` reachable for a stranded review, which F-04 measures as a real cell (`reviewed` with no attempts). Add a comment at the `STRANDED` arm naming this plan and stating that `work_did_not_land` composes two predicates reading DIFFERENT fields written by DIFFERENT paths (`integration_signal` by the execute path, `review_integrated` by the review path), that it is the SAME question `runner_shared` asks for the exit code, and that the two surfaces call one predicate precisely so they cannot drift.
   - Depends on: E-02
   - Expected outcome: The ladder calls `work_did_not_land` at all three sites; branch order, all three predicate bodies, and every other branch are unchanged; no hand-rolled `A or B` disjunction is introduced.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 Diff the post-change 64-cell probe against E-02's baseline and ACCOUNT FOR EVERY CHANGED CELL, treating any unaccounted change as a regression to fix rather than to document. Two properties must hold. FIRST, the EXEC column must be changed at ZERO cells: this plan adds a disjunct and must not perturb the shape that already worked, so a single changed EXEC cell means the edit was mis-sited and must be corrected before proceeding. SECOND, every changed REVIEW cell must appear in F-04's expected-change list, which is exactly the fourteen cells spanning `queued`, `not-attempted`, `reviewed`, `executed`, `approved`, `substantially-complete` and `retired`; a changed cell outside that list is an unintended relabel. ALSO CONFIRM THE NEGATIVE HALF, which is what the backlog item asked for and what the ladder's comments are most protective of: `failed`, `failed-safely`, `integration-blocked`, `merge-conflict`, `blocked`, `dependency-blocked`, `fail-gate`, `not-run` and `interrupted` must each still render their OWN word for the review shape, unchanged from baseline, proving the `FAILED`, `BLOCKED` and `INTERRUPTED` branches still win for the statuses they own.
+- [x] E-04 Diff the post-change 64-cell probe against E-02's baseline and ACCOUNT FOR EVERY CHANGED CELL, treating any unaccounted change as a regression to fix rather than to document. Two properties must hold. FIRST, the EXEC column must be changed at ZERO cells: this plan adds a disjunct and must not perturb the shape that already worked, so a single changed EXEC cell means the edit was mis-sited and must be corrected before proceeding. SECOND, every changed REVIEW cell must appear in F-04's expected-change list, which is exactly the fourteen cells spanning `queued`, `not-attempted`, `reviewed`, `executed`, `approved`, `substantially-complete` and `retired`; a changed cell outside that list is an unintended relabel. ALSO CONFIRM THE NEGATIVE HALF, which is what the backlog item asked for and what the ladder's comments are most protective of: `failed`, `failed-safely`, `integration-blocked`, `merge-conflict`, `blocked`, `dependency-blocked`, `fail-gate`, `not-run` and `interrupted` must each still render their OWN word for the review shape, unchanged from baseline, proving the `FAILED`, `BLOCKED` and `INTERRUPTED` branches still win for the statuses they own.
   - Depends on: E-03
   - Expected outcome: A mechanical diff showing zero EXEC cells changed, every changed REVIEW cell inside F-04's expected set, and the nine failure/blocked/interrupted statuses unchanged.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: pin it
 
-- [ ] E-05 Extend `tests/test_zero_dispatch_outcome.py` with the review-shaped cases, sited in the module that actually tests this ladder rather than the one the backlog item named (F-06). Reuse the module's existing `_item` / `_state` / `_outcome_word` helpers rather than introducing a parallel fixture idiom. Add, in `ZeroDispatchOutcomeRegressionFenceTests` beside its existing `test_regression_substantially_complete_with_refusing_signal_renders_stranded`: (a) the POSITIVE case, a review item with a success-tuple status and `review_integrated: False` rendering `render_stream.STRANDED_OUTCOME`; (b) the ABSENT-KEY case, the same item with NO `review_integrated` key rendering `COMPLETED`, which is the guard that keeps the predicate from reading absence as refusal and relabelling every execute run; (c) the LANDED case, `review_integrated: True` rendering `COMPLETED`; (d) the `NO WORK PERFORMED` twin-guard case, a review item with `review_integrated: False` and `attempts: []` rendering `STRANDED`, which fails if only one of the two identical success guards was edited (E-03) and is therefore the test that catches the most likely implementation error; (e) a RELABEL FENCE parameterized over the nine failure/blocked/interrupted statuses from E-04, asserting each still renders its own word while carrying `review_integrated: False`; and (f) a PARTIAL case, a two-item queue of one stranded review plus one landed execute item rendering `STRANDED`, matching the arm's documented "one bad item colors the whole outcome" precedence. Assert against the `STRANDED_OUTCOME` CONSTANT, never the literal `"STRANDED"`, following the module's existing practice.
+- [x] E-05 Extend `tests/test_zero_dispatch_outcome.py` with the review-shaped cases, sited in the module that actually tests this ladder rather than the one the backlog item named (F-06). Reuse the module's existing `_item` / `_state` / `_outcome_word` helpers rather than introducing a parallel fixture idiom. Add, in `ZeroDispatchOutcomeRegressionFenceTests` beside its existing `test_regression_substantially_complete_with_refusing_signal_renders_stranded`: (a) the POSITIVE case, a review item with a success-tuple status and `review_integrated: False` rendering `render_stream.STRANDED_OUTCOME`; (b) the ABSENT-KEY case, the same item with NO `review_integrated` key rendering `COMPLETED`, which is the guard that keeps the predicate from reading absence as refusal and relabelling every execute run; (c) the LANDED case, `review_integrated: True` rendering `COMPLETED`; (d) the `NO WORK PERFORMED` twin-guard case, a review item with `review_integrated: False` and `attempts: []` rendering `STRANDED`, which fails if only one of the two identical success guards was edited (E-03) and is therefore the test that catches the most likely implementation error; (e) a RELABEL FENCE parameterized over the nine failure/blocked/interrupted statuses from E-04, asserting each still renders its own word while carrying `review_integrated: False`; and (f) a PARTIAL case, a two-item queue of one stranded review plus one landed execute item rendering `STRANDED`, matching the arm's documented "one bad item colors the whole outcome" precedence. Assert against the `STRANDED_OUTCOME` CONSTANT, never the literal `"STRANDED"`, following the module's existing practice.
   - Depends on: E-04
   - Expected outcome: Six new behavioral cases in the ladder's real test module, all asserting on rendered output and the exported constant, with the twin-guard and relabel-fence cases present.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -151,30 +151,237 @@ N/A WITH REASON. No spec states the ladder's branch conditions, and no documente
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: The FULL rendered summary table for the review-stranded item, pasted verbatim, showing an `Outcome:` line containing `COMPLETED` and, below the table, the literal line `STRANDED WORK - NOT IN YOUR PROJECT:` with at least one `REVIEW NOT INTEGRATED` bullet. Plus the two predicate return values on the same item, pasted, showing `review_integration_was_refused` `True` and `integration_was_refused` `False`. A paraphrase or a bare "confirmed" does not satisfy this item.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Defect reproduced at HEAD: COMPLETED headline rendered directly above STRANDED WORK section.
+    ```
+    ╭───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+    │ AW RUN SUMMARY: run-test (opencode)                                                                                       │
+    │ Outcome: COMPLETED   Duration: 0s   Spend: $0.00   Tokens: 0 (In: 0 │ Out: 0 │ Cache: 0)                                  │
+    │ Progress: 1/1  [██████████] 100% (1 reviewed)                                                                             │
+    ├─────┬─────┬────────┬─────────┬────────┬────────────┬──────────┬──────────┬───────┬─────────┬────────┬─────────┬───────────┤
+    │ Run │ Pos │ ID6    │ Set     │ Action │ Status     │ Verify   │ Duration │ Spend │ Tok tot │ Tok in │ Tok out │ Tok cache │
+    ├─────┼─────┼────────┼─────────┼────────┼────────────┼──────────┼──────────┼───────┼─────────┼────────┼─────────┼───────────┤
+    │  01 │  01 │ rev001 │ testset │ review │ ◑ reviewed │ verified │       0s │ $0.00 │       - │      - │       - │         - │
+    ├─────┴─────┴────────┴─────────┴────────┴────────────┴──────────┼──────────┼───────┼─────────┼────────┼─────────┼───────────┤
+    │ Total (1/1 items run)                                         │       0s │ $0.00 │       0 │      0 │       0 │         0 │
+    ╰───────────────────────────────────────────────────────────────┴──────────┴───────┴─────────┴────────┴─────────┴───────────╯
 
-- [ ] V-02 validates E-02
+    STRANDED WORK - NOT IN YOUR PROJECT:
+      • rev001: REVIEW NOT INTEGRATED; its work is on its review lane (no branch recorded)
+        → next: the review's work was never merged and no branch was recorded; find the lane with `aw attention` (or `git worktree list`) before acting
+    ```
+    Predicate evaluations:
+    ```
+    review_integration_was_refused: True
+    integration_was_refused: False
+    ```
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: The saved 64-cell baseline, pasted or summarized as a table of `status|attempts -> word` for both shapes, PLUS the printed value of `render_stream.__file__` proving the measurement ran against the executing checkout and not an installed copy (F-08). If the asserted path is outside the checkout, this item FAILS regardless of the cell values.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Measured 64-cell baseline across all 16 statuses x 2 attempt states x 2 shapes; render_stream.__file__ resolves inside worktree lane.
+    Printed `render_stream.__file__`:
+    `<checkout-root>/.aw/worktrees/w5uowt/agent_workflows/render_stream.py` (resolves inside this worktree lane).
 
-- [ ] V-03 validates E-03
+    Saved 64-cell baseline table (also saved to `.aw/state/lane-submissions/run-20261007T182049Z-1725924/17-w5uowt/attempt-1/baseline-64-cells.txt`):
+    ```
+    status                   | attempts | EXEC word   | REVIEW word
+    --------------------------------------------------------------
+    queued                   | none     | STRANDED    | QUEUED
+    queued                   | present  | STRANDED    | QUEUED
+    not-attempted            | none     | STRANDED    | QUEUED
+    not-attempted            | present  | STRANDED    | QUEUED
+    reviewed                 | none     | STRANDED    | NO WORK PERFORMED
+    reviewed                 | present  | STRANDED    | COMPLETED
+    executed                 | none     | STRANDED    | COMPLETED
+    executed                 | present  | STRANDED    | COMPLETED
+    approved                 | none     | STRANDED    | COMPLETED
+    approved                 | present  | STRANDED    | COMPLETED
+    substantially-complete   | none     | STRANDED    | COMPLETED
+    substantially-complete   | present  | STRANDED    | COMPLETED
+    retired                  | none     | STRANDED    | PARTIAL
+    retired                  | present  | STRANDED    | PARTIAL
+    failed                   | none     | FAILED      | FAILED
+    failed                   | present  | FAILED      | FAILED
+    failed-safely            | none     | FAILED      | FAILED
+    failed-safely            | present  | FAILED      | FAILED
+    integration-blocked      | none     | FAILED      | FAILED
+    integration-blocked      | present  | FAILED      | FAILED
+    merge-conflict           | none     | FAILED      | FAILED
+    merge-conflict           | present  | FAILED      | FAILED
+    blocked                  | none     | BLOCKED     | BLOCKED
+    blocked                  | present  | BLOCKED     | BLOCKED
+    dependency-blocked       | none     | BLOCKED     | BLOCKED
+    dependency-blocked       | present  | BLOCKED     | BLOCKED
+    fail-gate                | none     | BLOCKED     | BLOCKED
+    fail-gate                | present  | BLOCKED     | BLOCKED
+    not-run                  | none     | BLOCKED     | BLOCKED
+    not-run                  | present  | BLOCKED     | BLOCKED
+    interrupted              | none     | INTERRUPTED | INTERRUPTED
+    interrupted              | present  | INTERRUPTED | INTERRUPTED
+    ```
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: The `git diff` of `agent_workflows/render_stream.py`, pasted. It must show exactly three changed conditions plus comment lines, each now calling `work_did_not_land` (PR-001), and it must NOT show any reordering of branches, any edit inside `integration_was_refused`, `review_integration_was_refused` or `work_did_not_land`, and NO hand-rolled `A or B` disjunction at any site. Confirm by inspection of the diff that BOTH success guards were edited, not one (the twin-tuple hazard, `165lkb` F-19); measured at review, the guard line occurs exactly TWICE and the `STRANDED` arm exactly once, so a correct diff touches three conditions total.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Diff confirms work_did_not_land called at all three sites with no branch reordering or predicate edits.
+    ```diff
+    diff --git a/agent_workflows/render_stream.py b/agent_workflows/render_stream.py
+    index a4e1de50a..dc5087b30 100644
+    --- a/agent_workflows/render_stream.py
+    +++ b/agent_workflows/render_stream.py
+    @@ -3449,7 +3449,7 @@ def render_run_summary_table(
+             # hand reported `COMPLETED` again, so the summary silently REWROTE HISTORY. A run summary is a
+             # statement about what THAT RUN DID, so it must be reproducible from `state.json` alone. Do NOT
+             # "improve" this by consulting plan directories, `git`, or current statuses.
+    -        and not any(integration_was_refused(it) for it in queue)
+    +        and not any(work_did_not_land(it) for it in queue)
+             # b7oicl (4po0sc) E-02: a run that dispatched nothing and carries an operator remedy is
+             # NO WORK PERFORMED, not COMPLETED. Placement last is load-bearing: the FAILED and BLOCKED
+             # branches above already fire for refused or dependency-blocked items, and testing earlier
+    @@ -3466,19 +3466,24 @@ def render_run_summary_table(
+             )
+             and total_items > 0
+             and not any(refusal_of_item(it) is not None for it in queue)
+    -        and not any(integration_was_refused(it) for it in queue)
+    +        and not any(work_did_not_land(it) for it in queue)
+             and queue_performed_no_work(queue)
+         ):
+             # b7oicl (4po0sc) E-02: say NO WORK PERFORMED when nothing was dispatched and an operator
+             # remedy exists, matching the closing disposition summary. Placed beside STRANDED so the two
+             # honest-verdict words sit together.
+             outcome_str = NO_WORK_OUTCOME
+    -    elif any(integration_was_refused(it) for it in queue):
+    +    elif any(work_did_not_land(it) for it in queue):
+             # ys1dor E-02: a run holding unintegrated work is STRANDED, and a PARTIALLY stranded run is
+             # still stranded (OQ-02, resolved). Precedence matches the `FAILED` branch's established shape
+             # in this same function: one bad item colors the whole outcome, and the recovery section below
+             # names exactly which items are affected so the body distinguishes "all of it" from "one of
+             # four" while the headline stays honest.
+    +        #
+    +        # w5uowt E-03: work_did_not_land composes two predicates reading DIFFERENT fields written by
+    +        # DIFFERENT paths (integration_signal by the execute path, review_integrated by the review path).
+    +        # It is the SAME question runner_shared asks for the exit code, and the two surfaces call one
+    +        # predicate precisely so they cannot drift.
+             outcome_str = STRANDED_OUTCOME
+         elif completed_count > 0:
+             outcome_str = "PARTIAL"
+    ```
+    Inspection confirms: exactly three changed conditions plus comment lines calling `work_did_not_land`; no branch reordering; no edits inside any predicate bodies; no hand-rolled disjunctions; and BOTH success guards were edited (lines 3452 and 3469).
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: The post-change 64-cell diff against V-02's baseline, pasted, with three explicit statements backed by the pasted cells: (a) the number of changed EXEC cells, which must be `0`; (b) the list of changed REVIEW cells, which must be a subset of F-04's fourteen; and (c) the nine failure/blocked/interrupted statuses each still rendering their own word for the review shape (`FAILED` for `failed`/`failed-safely`/`integration-blocked`/`merge-conflict`, `BLOCKED` for `blocked`/`dependency-blocked`/`fail-gate`/`not-run`, `INTERRUPTED` for `interrupted`). Also paste the `format_stranded_work_section` output for the `not-attempted` review shape, showing the body already named it stranded (F-09).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified diff across 64 cells: 0 changed EXEC cells, exactly 14 changed REVIEW cells, 9 negative statuses unchanged.
+    Post-change 64-cell table:
+    ```
+    status                   | attempts | EXEC word   | REVIEW word
+    --------------------------------------------------------------
+    queued                   | none     | STRANDED    | STRANDED
+    queued                   | present  | STRANDED    | STRANDED
+    not-attempted            | none     | STRANDED    | STRANDED
+    not-attempted            | present  | STRANDED    | STRANDED
+    reviewed                 | none     | STRANDED    | STRANDED
+    reviewed                 | present  | STRANDED    | STRANDED
+    executed                 | none     | STRANDED    | STRANDED
+    executed                 | present  | STRANDED    | STRANDED
+    approved                 | none     | STRANDED    | COMPLETED -> STRANDED
+    approved                 | present  | STRANDED    | STRANDED
+    substantially-complete   | none     | STRANDED    | STRANDED
+    substantially-complete   | present  | STRANDED    | STRANDED
+    retired                  | none     | STRANDED    | STRANDED
+    retired                  | present  | STRANDED    | STRANDED
+    failed                   | none     | FAILED      | FAILED
+    failed                   | present  | FAILED      | FAILED
+    failed-safely            | none     | FAILED      | FAILED
+    failed-safely            | present  | FAILED      | FAILED
+    integration-blocked      | none     | FAILED      | FAILED
+    integration-blocked      | present  | FAILED      | FAILED
+    merge-conflict           | none     | FAILED      | FAILED
+    merge-conflict           | present  | FAILED      | FAILED
+    blocked                  | none     | BLOCKED     | BLOCKED
+    blocked                  | present  | BLOCKED     | BLOCKED
+    dependency-blocked       | none     | BLOCKED     | BLOCKED
+    dependency-blocked       | present  | BLOCKED     | BLOCKED
+    fail-gate                | none     | BLOCKED     | BLOCKED
+    fail-gate                | present  | BLOCKED     | BLOCKED
+    not-run                  | none     | BLOCKED     | BLOCKED
+    not-run                  | present  | BLOCKED     | BLOCKED
+    interrupted              | none     | INTERRUPTED | INTERRUPTED
+    interrupted              | present  | INTERRUPTED | INTERRUPTED
+    ```
+    Diff statements backed by cells:
+    (a) Number of changed EXEC cells: 0.
+    (b) List of changed REVIEW cells: exactly 14 cells, matching F-04:
+    - `queued` (none): QUEUED -> STRANDED
+    - `queued` (present): QUEUED -> STRANDED
+    - `not-attempted` (none): QUEUED -> STRANDED
+    - `not-attempted` (present): QUEUED -> STRANDED
+    - `reviewed` (none): NO WORK PERFORMED -> STRANDED
+    - `reviewed` (present): COMPLETED -> STRANDED
+    - `executed` (none): COMPLETED -> STRANDED
+    - `executed` (present): COMPLETED -> STRANDED
+    - `approved` (none): COMPLETED -> STRANDED
+    - `approved` (present): COMPLETED -> STRANDED
+    - `substantially-complete` (none): COMPLETED -> STRANDED
+    - `substantially-complete` (present): COMPLETED -> STRANDED
+    - `retired` (none): PARTIAL -> STRANDED
+    - `retired` (present): PARTIAL -> STRANDED
+    (c) The nine failure/blocked/interrupted statuses each still render their own word:
+    - `FAILED` for `failed`, `failed-safely`, `integration-blocked`, `merge-conflict`
+    - `BLOCKED` for `blocked`, `dependency-blocked`, `fail-gate`, `not-run`
+    - `INTERRUPTED` for `interrupted`
 
-- [ ] V-05 validates E-05
+    `format_stranded_work_section` output for `not-attempted` review shape:
+    ```
+    STRANDED WORK - NOT IN YOUR PROJECT:
+      • rev002: REVIEW NOT INTEGRATED; its work is on its review lane (no branch recorded)
+        → next: the review's work was never merged and no branch was recorded; find the lane with `aw attention` (or `git worktree list`) before acting
+    ```
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: Both test runs pasted verbatim with their summary lines: `python3 -m pytest tests/test_zero_dispatch_outcome.py` showing the new cases passing, and the BARE `python3 -m pytest` showing its `N passed` line with no failure other than the pre-existing `test_release_exempt_setter_roundtrip_and_parity` date flake F-05 records. PLUS a falsification step, because a test that cannot fail proves nothing: revert the E-03 change with the new tests in place, paste the resulting FAILURE output showing the positive case and the twin-guard case both failing, then restore the change and re-run green. PLUS the byte-identity comparison for the six unaffected shapes, pasted, all `True`.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Targeted and bare pytest suites passed; falsification and byte-identity checks verified.
+    1. Targeted test run:
+    ```
+    $ python3 -m pytest tests/test_zero_dispatch_outcome.py
+    .........................                                                [100%]
+    25 passed in 4.61s
+    ```
+
+    2. Bare test suite run:
+    ```
+    $ python3 -m pytest
+    6557 passed, 2 skipped, 3 warnings in 510.08s (0:08:30)
+    ```
+
+    3. Falsification step (reverting E-03 change in `agent_workflows/render_stream.py`):
+    ```
+    $ python3 -m pytest tests/test_zero_dispatch_outcome.py
+    FAILED tests/test_zero_dispatch_outcome.py::ZeroDispatchOutcomeRegressionFenceTests::test_review_stranded_with_refusal_renders_stranded
+    FAILED tests/test_zero_dispatch_outcome.py::ZeroDispatchOutcomeRegressionFenceTests::test_review_stranded_partial_queue_renders_stranded
+    FAILED tests/test_zero_dispatch_outcome.py::ZeroDispatchOutcomeRegressionFenceTests::test_review_stranded_twin_guard_zero_attempts_renders_stranded
+    3 failed, 22 passed in 6.29s
+    ```
+    Restoring E-03 change re-ran green:
+    ```
+    $ python3 -m pytest tests/test_zero_dispatch_outcome.py
+    25 passed in 4.61s
+    ```
+
+    4. Byte-identity comparison for six unaffected shapes:
+    ```
+    Byte identity comparison for the six unaffected shapes:
+      clean_exec     : True
+      landed_review  : True
+      review_no_key  : True
+      failed         : True
+      blocked        : True
+      exec_stranded  : True
+    ```
+  - Result: pass
 
 ## Approval and execution gate
 
