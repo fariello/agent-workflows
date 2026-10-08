@@ -34,7 +34,7 @@ import re
 import sys
 from collections.abc import Sequence
 from pathlib import Path
-from typing import Any, Dict, FrozenSet, List, NamedTuple, Optional, Tuple, Union
+from typing import Any, Dict, FrozenSet, List, NamedTuple, Optional, Set, Tuple, Union
 
 from . import __version__, config, discovery, engine, versioning
 from . import lifecycle_style as _LS
@@ -1031,6 +1031,130 @@ class _VersionAction(argparse.Action):
             pass
         parser._print_message("\n".join(lines) + "\n", sys.stdout)
         parser.exit()
+
+
+# --------------------------------------------------------------------------------------
+# Dest shadowing refusal & validation pass (z05z73 E-02, E-03)
+# --------------------------------------------------------------------------------------
+
+
+class DestShadowFinding(NamedTuple):
+    """A detected argparse dest collision where an argument shadows an ancestor subparsers action."""
+
+    prog: str
+    dest: str
+    option_strings: Tuple[str, ...]
+
+
+def find_dest_shadowing(
+    parser: argparse.ArgumentParser,
+    inherited_subparser_dests: Optional[Set[str]] = None,
+    visited: Optional[Set[int]] = None,
+) -> List[DestShadowFinding]:
+    """Inspect parser tree for arguments whose dest collides with an ancestor subparsers dest.
+
+    NARROW RULE SPECIFICATION (F-02, F-03):
+    This validation pass deliberately implements the NARROW rule: the inherited ancestor
+    set contains SUBPARSERS dests only (e.g. 'command', 'runs_command', 'oc_command').
+    The broader any-dest-repeat rule must NOT be used: it reports thousands of false-positive
+    repeats on the clean tree caused by benign shared flags (such as 'help', 'json', 'agent',
+    'no_color') inherited via parents=[common]. A refusal built on the broad rule would refuse
+    to build the shipped CLI.
+
+    SUPPRESS DEST HANDLING (PR-906):
+    Subparsers actions with dest=argparse.SUPPRESS are excluded from the inherited set.
+    When add_subparsers() is called with no dest specified, argparse defaults dest to SUPPRESS
+    ('==SUPPRESS=='). Treating SUPPRESS as a colliding dest would invent false collisions.
+
+    PARSER DEDUPLICATION BY IDENTITY (PR-907):
+    Parsers are tracked and deduplicated by id(), never by name. add_parser(name, aliases=[...])
+    registers the same parser object under multiple keys in _name_parser_map. Deduplicating by
+    identity prevents reporting duplicate findings for aliased commands (avoiding 22 duplicate
+    visits on the shipped CLI tree).
+
+    KNOWN LIMITATION (F-10):
+    This choices walk cannot inspect the 'runs' viewer parser (prog 'aw runs') because
+    _ViewerOrLeafSubParsersAction.viewer_parser is reached via explicit viewer.parse_args()
+    rather than through any _SubParsersAction.choices mapping. This limitation is harmless
+    because the viewer declares no subparsers of its own and its arguments are benign shared
+    flags.
+    """
+    if inherited_subparser_dests is None:
+        inherited_subparser_dests = set()
+    if visited is None:
+        visited = set()
+
+    pid = id(parser)
+    if pid in visited:
+        return []
+    visited.add(pid)
+
+    findings: List[DestShadowFinding] = []
+
+    # Check non-subparsers actions on this parser against inherited subparsers dests
+    for action in getattr(parser, "_actions", []):
+        if not isinstance(action, argparse._SubParsersAction):
+            if action.dest in inherited_subparser_dests:
+                opt_tuple = (
+                    tuple(action.option_strings)
+                    if action.option_strings
+                    else ("<positional>",)
+                )
+                findings.append(
+                    DestShadowFinding(
+                        prog=getattr(parser, "prog", ""),
+                        dest=action.dest,
+                        option_strings=opt_tuple,
+                    )
+                )
+
+    # Discover subparsers actions and recurse into child choices
+    for action in getattr(parser, "_actions", []):
+        if isinstance(action, argparse._SubParsersAction):
+            new_inherited = set(inherited_subparser_dests)
+            if action.dest and action.dest != argparse.SUPPRESS:
+                new_inherited.add(action.dest)
+            for subparser in getattr(action, "choices", {}).values():
+                findings.extend(find_dest_shadowing(subparser, new_inherited, visited))
+
+    return findings
+
+
+def validate_dest_shadowing(parser: argparse.ArgumentParser) -> None:
+    """Validate that no argument in parser shadows an ancestor subparsers action dest.
+
+    If collisions are detected:
+    - If AW_ALLOW_DEST_SHADOWING=1 is set, a warning is printed to sys.stderr and the
+      build completes without raising (escape hatch for field emergencies).
+    - Otherwise, raises ValueError naming every offending prog, dest, and option string.
+    """
+    findings = find_dest_shadowing(parser)
+    if not findings:
+        return
+
+    lines = [
+        f"  - prog: {f.prog!r}, dest: {f.dest!r}, options: {', '.join(f.option_strings)}"
+        for f in findings
+    ]
+    formatted_findings = "\n".join(lines)
+
+    if os.environ.get("AW_ALLOW_DEST_SHADOWING") == "1":
+        print(
+            f"WARNING: argparse dest shadowing detected across {len(findings)} action(s):\n"
+            f"{formatted_findings}\n"
+            "Continuing because AW_ALLOW_DEST_SHADOWING=1 (warns on stderr, does not raise).",
+            file=sys.stderr,
+        )
+        return
+
+    raise ValueError(
+        f"argparse dest shadowing detected across {len(findings)} action(s):\n"
+        f"{formatted_findings}\n"
+        "A leaf argument dest cannot shadow an ancestor subparsers dest because parsing "
+        "an argument overwrites the subcommand dispatch token.\n"
+        "To bypass this build-time refusal in emergency situations, set "
+        "AW_ALLOW_DEST_SHADOWING=1 (warns on stderr, does not raise)."
+    )
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -7017,6 +7141,7 @@ EXAMPLES
     )
 
     _apply_descriptions(parser)
+    validate_dest_shadowing(parser)
     return parser
 
 
