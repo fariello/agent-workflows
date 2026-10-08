@@ -6,7 +6,7 @@
 - Scope: Add ONE new advisory (`info`) check rule, `check.plan-date-filename-mismatch`, to the plans-type content path in `check_engine`, comparing each clustered plan's leading filename `YYYYMMDD` against its own parseable `- Date:` and reporting a disagreement. Register it in `RULE_REGISTRY` and pin it with behavioral tests driving the real engine over a synthetic tree. THE RULE IS UNCONDITIONAL AND NEEDS NO SET-CANONICAL EXEMPTION, which is the one substantive design finding of this plan and inverts the backlog item's stated premise: the exemption the item says a human must design first is measured UNNECESSARY, because a set-canonical date is shared per MEMBER with its OWN body date and never across members (F-04, F-05, F-06). OUT: every repair of any existing record (none is needed; the corpus is clean, F-03), the `20260101` fabricators in `plans_refs._plan_date` and `plans_archive._plan_date`, any widening to a non-plans artifact type, and any attempt to make the rule `warning` or `error` (F-10 fixes the tier at `info` for this change).
 - Scope-Paths: agent_workflows/check_engine.py, tests/test_check_engine_plan_date_filename.py, docs/cli-output-contract.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: followup
 - Priority: low
@@ -16,9 +16,9 @@
 - Highest E allocated: 05
 - Author: opencode/its_direct/pt3-claude-opus-5-1m-us
 - Id: wyk11f
-- Approval: 2026-10-07, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-08 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: wyk11f verified (set mt6j1p, attempt 1).
 - 2026-10-07 approved (aw set): status set to approved
 - 2026-10-07 reviewed (aw set): /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005, PR-006. Re-measured the corpus: default walk 149 plans, --all walk 1309 clustered, zero disagreements in both; the plan's 1198 figure described --all only, so E-04/V-04 now run both and label populations. Added no-date, retired-reach, entry-point and non-vacuity rows to E-01; addressed spec 4.3's share-the-set's-date wording; corrected the NO CUTOVER citation to config.py; removed a stop directive from spec sync; required reuse of _plan_date_compact.
 
