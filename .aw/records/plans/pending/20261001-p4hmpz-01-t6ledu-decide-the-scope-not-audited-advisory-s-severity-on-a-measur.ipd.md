@@ -41,40 +41,40 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: re-measure the premise before changing anything
 
-- [ ] E-01 RE-DERIVE THE THREE MEASUREMENTS THIS PLAN RESTS ON at execution HEAD, because each is a property of code that other pending plans are actively changing and because the whole argument collapses if any one of them has moved. Produce four things, each as pasted output of a command or a short script, never as a restatement of this plan.
+- [x] E-01 RE-DERIVE THE THREE MEASUREMENTS THIS PLAN RESTS ON at execution HEAD, because each is a property of code that other pending plans are actively changing and because the whole argument collapses if any one of them has moved. Produce four things, each as pasted output of a command or a short script, never as a restatement of this plan.
   FIRST, the severity-blindness itself: for one `info`, one `warning` and one `error` finding, print the enriched `severity`, `artifact_core.drift_exit_code([d])`, and the exit code `hooks/precommit_scope_gate.check` returns with `check_engine.check_commit_invariants` patched to return that single finding. Authoring measured `info` at `severity=info drift_exit_code=0 hook=1`, and both `warning` and `error` at `drift_exit_code=1 hook=1`. The `info` row is the defect; if it now reads `hook=0`, the defect is already fixed and E-02 must STOP and report rather than editing anything.
   SECOND, the latency claim, which is what makes this safe: confirm the opt-in hook is still NOT wired in `.pre-commit-config.yaml` (authoring found `ipd-executed-transition-gate` and `ipd-status-untooled-gate`, no `aw-precommit-scope-gate`), and confirm that no rule id emitted by the three rules `check_commit_invariants` composes is registered at a non-`error` severity (authoring measured all three emitting only `error` ids: `check.status-untooled`, `check.blocking-item-closed-without-gate`, `check.from-backlog-gate-mismatch`, `check.scope-drift`). If a non-`error` emitter has appeared, the defect is LIVE rather than latent; say so explicitly, because it changes the finding's severity but not the fix.
   THIRD, the precondition: confirm `iqtt8d` is still un-executed and that no `scope-not-audited` rule exists yet (authoring: `iqtt8d` is `- Status: approved` under `.aw/records/plans/pending/`, and a tree-wide search for `not-audited`/`not_audited` across `agent_workflows/` and `tests/` matched nothing). If `iqtt8d` HAS executed, do NOT change this plan's scope: the fix is unchanged and still correct, but record the residual-rate observation OQ-01 asks for if the data is now available, since that is the item's actual question and an executor sitting on fresh data should not discard it.
   FOURTH, the registry census, as the denominator for "how much of the registry this tier silently mis-tiers": the count of rules at each severity (authoring: 33 error, 12 warning, 11 info, 56 total).
   - Depends on: none
   - Expected outcome: four pasted measurements, with an explicit statement for each of whether the authored figure still holds and what it is now, plus a STOP report if the `info` row already returns `hook=0`.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: make the info tier mean what the registry says
 
-- [ ] E-02 DERIVE THE HOOK'S EXIT CODE FROM SEVERITY INSTEAD OF FROM LIST EMPTINESS, in `hooks/precommit_scope_gate.check`. Today the function returns `1` whenever `check_commit_invariants` returns a non-empty list; change it to return `artifact_core.drift_exit_code(...)` so the ONE shared severity convention decides, exactly as every other `--check` surface in this repository already does (`artifact_types.exit_code_for` is the same one-line delegation, and its docstring records the same 0-ok/1-findings convention).
+- [x] E-02 DERIVE THE HOOK'S EXIT CODE FROM SEVERITY INSTEAD OF FROM LIST EMPTINESS, in `hooks/precommit_scope_gate.check`. Today the function returns `1` whenever `check_commit_invariants` returns a non-empty list; change it to return `artifact_core.drift_exit_code(...)` so the ONE shared severity convention decides, exactly as every other `--check` surface in this repository already does (`artifact_types.exit_code_for` is the same one-line delegation, and its docstring records the same 0-ok/1-findings convention).
   BACKFILL A MISSING SEVERITY FIRST, OR THE FIX DOES NOT WORK FOR THE RULE THAT MOTIVATED IT. This is PR-001, measured at review and not predicted, and it is the single most important sentence in this item. A BARE `drift_exit_code(drift)` is INSUFFICIENT, because `check_commit_invariants` enriches CONDITIONALLY: its last line is `return [enrich_drift(d) if not d.recovery else d for d in drift]`, so a finding whose producer ALREADY SET `recovery` is never enriched, reaches the hook with `severity == ''`, and `drift_exit_code` treats an empty severity as FAILING (deliberately, per its own docstring, so legacy 3-field callers are unchanged). `check_scope_drift` IS exactly such a producer - it sets `recovery="restrict the change to Scope-Paths, ..."` inline - and `iqtt8d` E-04 emits its new advisory FROM `check_scope_drift` and REQUIRES it to carry a message naming the plan and its lanes. Measured: that rule registered `info` and emitted with a pre-set `recovery` arrives with `severity == ''` and scores `drift_exit_code == 1`, so the bare fix STILL REFUSES THE COMMIT and this plan's goal is unmet on its own motivating case. SO: normalize before scoring, with the SHARED enricher and nothing hand-rolled - `[d if getattr(d, "severity", "") else _ce.enrich_drift(d) for d in drift]` - then pass that to `drift_exit_code`. `enrich_drift` is documented "Idempotent-safe" and PRESERVES a pre-set `recovery` (measured: `recovery` survives verbatim, `severity` is stamped `info`), so nothing the hook teaches is lost. Do this IN THE HOOK, not in the aggregator: changing the aggregator's conditional-enrich would alter what `aw check` sees, which is the divergence its no-new-policy property exists to prevent. Measured at review, the backfilled form scores all four shapes correctly: `info`+preset-recovery -> 0, `info`+no-recovery -> 0, `error`+preset-recovery -> 1, `warning` -> 1.
   REPORT EVERY FINDING EITHER WAY, AND DO NOT CONFLATE THE TWO DECISIONS. The messages list must keep including advisories: an `info` finding is still worth printing, it just must not refuse the commit. So the function returns `(0, [<advisory message>])` for an advisory-only run, which is a shape the current code cannot produce because its exit code IS its emptiness test. Keep `main`'s existing behavior of printing whenever `messages` is non-empty, so an advisory still reaches the operator's stderr; its refusal BANNER, however, currently asserts "REFUSED this commit" unconditionally, which would be a false statement over an advisory-only run, so the banner must become conditional on the exit code. Do not restructure `main` beyond that: its honest-limits footer is load-bearing prose and must survive verbatim.
   FIX `main`'s MACHINE ENVELOPE TOO, NOT ONLY ITS HUMAN BANNER (PR-002, measured at review). `main` derives the agent/JSON record's `status` as `"clean" if exit_code == 0 else "findings"` and its `summary` as `"gate passed"` versus `"refused (N finding(s))"`. Post-fix an advisory-only run is `exit_code == 0` with ONE message, so the record reads `outcome: clean` with `findings: 1` and the summary says `gate passed` while a finding is attached - measured verbatim at review. THE SHAPE IS NOT WRONG AND MUST NOT BE "FIXED" BY FORCING exit 1: `aw check specs` on this checkout ALREADY emits `outcome: conforms, exit: 0, findings: 1` for a live advisory, and prints `✓ CONFORMS` above a `Findings:` block, so advisory-with-success is the established house convention and `docs/cli-output-contract.md`'s Anti-Greenwashing Invariant is not breached (nothing was skipped, partial or unverified). What must change is only the SUMMARY WORDING, so a reader is not told "gate passed" with no hint that something was reported: make the `exit_code == 0` summary distinguish the advisory case (name the advisory count) from the genuinely empty case. Change NO envelope FIELD - not `status`, not `exit`, not `findings` - because exit-code parity and the `clean`/`findings` mapping are published contract.
   DO NOT FIX THIS IN `check_commit_invariants` BY FILTERING, and the reason is the whole design. Dropping `info` findings inside the aggregator would make the advisory INVISIBLE rather than non-gating, which destroys the detect-and-nudge the `info` tier exists for, and it would also change what `aw check` sees, since the aggregator's docstring states it "introduces NO new policy logic" so the hook and `aw check` "can never diverge". The severity convention belongs at the EXIT-CODE boundary, which is where every other surface applies it. Add no filtering, no allowlist, and no new rule-id special case.
   - Depends on: E-01
   - Expected outcome: `precommit_scope_gate.check` returns `(0, [msg])` for a single `info` finding and `(1, [msg])` for a single `warning` or `error` finding, AND returns `(0, [msg])` for an `info` finding that arrives carrying a pre-set `recovery` (the PR-001 case the bare fix fails, and the shape `iqtt8d` E-04 actually produces); `check_commit_invariants` is unmodified; the hook still reports the advisory text in every case; `main`'s human banner no longer asserts a refusal that did not happen; and `main`'s agent/JSON summary distinguishes an advisory-only success from an empty one while changing no envelope field.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 UPDATE THE HOOK'S LOAD-BEARING DOCSTRINGS so the next reader is not told the old contract, treating this as part of the change rather than as tidying. The module docstring currently says "Fail-closed on a refusal (exit 1)" without qualifying WHICH findings constitute a refusal; `check`'s docstring says "exit 0 = ok/no-op, 1 = refused" with the same gap. State that the exit code follows the shared severity convention (`info` is reported and does not refuse; `warning` and `error` refuse), and state WHY in one sentence that a later reader cannot mistake for tidying: an advisory tier that refuses a commit is a gate nobody decided on, and the tier is relied on as a parking place for an undecided rule (name `p4hmpz` as the decision that depended on it). PRESERVE VERBATIM THE QUOTED SPAN, WHICH IS NARROWER THAN THE PARAGRAPH, and this distinction is a correction applied at review (PR-003) because the instruction as first written was impossible to satisfy. `check_engine._receipt_is_live`'s docstring quotes the hook and the quotation ENDS at "...the authoritative boundary is phase-5 CI running the same engine." The very NEXT sentence in the same paragraph is "Fail-closed on a refusal (exit 1)", which is the sentence this item must CHANGE. So an instruction to preserve "the honest-limits paragraph" byte-identically while correcting that sentence contradicts itself, since the sentence lives inside the paragraph. Measured at review: the quoted span IS present verbatim in the hook today, it does NOT contain "Fail-closed", and the paragraph DOES. THE OBLIGATION IS THEREFORE: keep byte-identical exactly the span `_receipt_is_live` quotes, from "git hooks are LOCAL" through "phase-5 CI running the same engine.", because softening it would break a citation and weaken a recorded position; and DO correct the "Fail-closed on a refusal (exit 1)" sentence that follows it, since leaving it would state the old contract in the same breath as the new one. Do not reword anything else in the module.
+- [x] E-03 UPDATE THE HOOK'S LOAD-BEARING DOCSTRINGS so the next reader is not told the old contract, treating this as part of the change rather than as tidying. The module docstring currently says "Fail-closed on a refusal (exit 1)" without qualifying WHICH findings constitute a refusal; `check`'s docstring says "exit 0 = ok/no-op, 1 = refused" with the same gap. State that the exit code follows the shared severity convention (`info` is reported and does not refuse; `warning` and `error` refuse), and state WHY in one sentence that a later reader cannot mistake for tidying: an advisory tier that refuses a commit is a gate nobody decided on, and the tier is relied on as a parking place for an undecided rule (name `p4hmpz` as the decision that depended on it). PRESERVE VERBATIM THE QUOTED SPAN, WHICH IS NARROWER THAN THE PARAGRAPH, and this distinction is a correction applied at review (PR-003) because the instruction as first written was impossible to satisfy. `check_engine._receipt_is_live`'s docstring quotes the hook and the quotation ENDS at "...the authoritative boundary is phase-5 CI running the same engine." The very NEXT sentence in the same paragraph is "Fail-closed on a refusal (exit 1)", which is the sentence this item must CHANGE. So an instruction to preserve "the honest-limits paragraph" byte-identically while correcting that sentence contradicts itself, since the sentence lives inside the paragraph. Measured at review: the quoted span IS present verbatim in the hook today, it does NOT contain "Fail-closed", and the paragraph DOES. THE OBLIGATION IS THEREFORE: keep byte-identical exactly the span `_receipt_is_live` quotes, from "git hooks are LOCAL" through "phase-5 CI running the same engine.", because softening it would break a citation and weaken a recorded position; and DO correct the "Fail-closed on a refusal (exit 1)" sentence that follows it, since leaving it would state the old contract in the same breath as the new one. Do not reword anything else in the module.
   REPOINT THE CITATION'S OFFSET WHILE YOU ARE HERE, or leave it demonstrably correct. `_receipt_is_live` cites the hook as `hooks/precommit_scope_gate.py:17-19`, a BARE LINE RANGE with no symbol anchor, and this item edits that very docstring, so the offset will move. `check_engine.py` is NOT in `- Scope-Paths:` and MUST NOT be edited to chase it (that file is excluded for a load-bearing reason stated in the gate). So: after editing, CHECK whether the cited range still spans the quoted sentences, and if it no longer does, record that drift in V-03 as a known, deliberately-uncorrected citation offset and name the one-line follow-up needed. Do NOT silently leave a reader with a range that points at the wrong lines and no note saying so.
   - Depends on: E-02
   - Expected outcome: both docstrings state the severity-derived exit contract and the reason for it; the span `_receipt_is_live` quotes is byte-identical to before, proven mechanically; the stale "Fail-closed on a refusal (exit 1)" sentence is corrected; no other prose in the module is reworded; and the `:17-19` citation offset is either still accurate or its drift is recorded in V-03 with the follow-up named.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: keep it from regressing
 
-- [ ] E-04 ADD A BEHAVIORAL REGRESSION TEST at `tests/test_precommit_scope_gate_severity.py` that drives the real `hooks/precommit_scope_gate.check` and asserts on real return values. Four cases, and the first must FAIL before E-02: (a) a single `info`-severity finding yields exit `0` AND a non-empty messages list, which is the whole fix (report, do not refuse); (b) a single `warning` finding yields exit `1`, and (c) a single `error` finding yields exit `1`, pinning that nothing was loosened; (d) an empty findings list yields exit `0` with no messages, pinning the fast no-op path. Add a fifth case for the case that motivated the plan, AND GIVE IT A PRE-SET `recovery` STRING, which is the detail PR-001 turns on and without which the case cannot fail: a finding whose rule id is registered `info`, carrying a NON-EMPTY `recovery`, arriving through the real `check_engine.check_commit_invariants` with `check_scope_drift` patched (NOT the aggregator, since the aggregator's conditional enrich is the mechanism under test - it enriches only `if not d.recovery`, so a pre-set recovery reaches the hook with an EMPTY severity that `drift_exit_code` reads as failing). Assert it is reported and the commit is NOT refused. Measured at review: without the severity backfill this case scores exit `1`, so it is the one row that distinguishes the working fix from the plausible-but-broken one, and it must be shown going red against a bare `drift_exit_code` form in V-04. A fifth case patching the AGGREGATOR instead would pass against the broken fix and pin nothing.
+- [x] E-04 ADD A BEHAVIORAL REGRESSION TEST at `tests/test_precommit_scope_gate_severity.py` that drives the real `hooks/precommit_scope_gate.check` and asserts on real return values. Four cases, and the first must FAIL before E-02: (a) a single `info`-severity finding yields exit `0` AND a non-empty messages list, which is the whole fix (report, do not refuse); (b) a single `warning` finding yields exit `1`, and (c) a single `error` finding yields exit `1`, pinning that nothing was loosened; (d) an empty findings list yields exit `0` with no messages, pinning the fast no-op path. Add a fifth case for the case that motivated the plan, AND GIVE IT A PRE-SET `recovery` STRING, which is the detail PR-001 turns on and without which the case cannot fail: a finding whose rule id is registered `info`, carrying a NON-EMPTY `recovery`, arriving through the real `check_engine.check_commit_invariants` with `check_scope_drift` patched (NOT the aggregator, since the aggregator's conditional enrich is the mechanism under test - it enriches only `if not d.recovery`, so a pre-set recovery reaches the hook with an EMPTY severity that `drift_exit_code` reads as failing). Assert it is reported and the commit is NOT refused. Measured at review: without the severity backfill this case scores exit `1`, so it is the one row that distinguishes the working fix from the plausible-but-broken one, and it must be shown going red against a bare `drift_exit_code` form in V-04. A fifth case patching the AGGREGATOR instead would pass against the broken fix and pin nothing.
   CONSTRUCT THE FINDINGS, DO NOT DEPEND ON THE LIVE TREE. Patch `check_engine.check_commit_invariants` (or the composed rule) to return constructed `artifact_core.Drift` values enriched through `check_engine.enrich_drift`, so the test is independent of which receipts and lanes happen to exist; a test asserting against this checkout's live receipt population would be worthless, since lanes are created and reclaimed continuously. For the `info` cases use a rule id ALREADY registered `info` (authoring measured 11 such ids, e.g. `check.spec-criteria-uncovered`) rather than registering a new one, because registering one inside a test would couple this test to `iqtt8d`'s unlanded rule id and would make the test assert a severity decision this plan explicitly refuses to make.
   ASSERT ON OUTCOMES ONLY, per GUIDING_PRINCIPLES P16: never read the hook's source with `inspect`, `ast`, regex or substring search, never assert a caller count or symbol census, and pin no line numbers. Each case calls `check` and asserts on the returned exit code and messages.
   - Depends on: E-03
   - Expected outcome: a new test file that passes, whose case (a) demonstrably FAILS against the pre-E-02 hook (paste the failure, then the pass after restoring), whose case (e) demonstrably FAILS against a bare `drift_exit_code` form lacking the severity backfill (the PR-001 proof), and whose `warning`/`error` cases pass both before and after, proving the change is a narrowing of refusal rather than a loosening of the gate.
-  - Execution state: pending
+  - Execution state: performed
 
 Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids.
 
@@ -158,28 +158,244 @@ No `.spec.md` file is amended and none is in `- Scope-Paths:`. Checked before as
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: all four measurements pasted as raw command or script output, not summarized. (1) The three-row severity table with, per row, the enriched `severity`, `artifact_core.drift_exit_code` and the `precommit_scope_gate.check` exit code; authoring measured `info` at `0`/`1`, `warning` at `1`/`1`, `error` at `1`/`1`. (2) The relevant `.pre-commit-config.yaml` hook ids, plus the severity of every rule id the three composed rules can emit. (3) `iqtt8d`'s current `- Status:` and directory, plus the result of the tree-wide `not-audited`/`not_audited` search. (4) The per-severity registry counts. Each must carry an explicit "still holds" or "now reads X" statement. A paste that omits the `info` row does NOT satisfy this item, because that row IS the defect. If the `info` row reads hook `0`, the required evidence is instead a STOP report stating the defect is already fixed and naming what fixed it.
   - Observed evidence:
-  - Result: pending
+    All four measurements executed at execution HEAD eff0ebdabb756f95d41d434c5cf080032e10651c:
 
-- [ ] V-02 validates E-02
+    (1) Severity-blindness table (re-derived before fix):
+    ```
+    === FIRST: Severity Table ===
+    tier=info severity=info drift_exit_code=0 hook=1
+    tier=warning severity=warning drift_exit_code=1 hook=1
+    tier=error severity=error drift_exit_code=1 hook=1
+    ```
+    Statement: The authored figure STILL HOLDS. The `info` row reads hook=1, proving the defect is present and unfixed.
+
+    (2) Latency claim:
+    ```
+    === SECOND: Pre-commit hooks ===
+    Hook IDs in .pre-commit-config.yaml: ['trailing-whitespace', 'end-of-file-fixer', 'check-yaml', 'check-added-large-files', 'gitleaks', 'ruff', 'ruff-format', 'local-leaks', 'ipd-executed-transition-gate', 'ipd-status-untooled-gate']
+    aw-precommit-scope-gate in config: False
+    === Composed Rule Severities ===
+    check.status-untooled: severity=error
+    check.blocking-item-closed-without-gate: severity=error
+    check.from-backlog-gate-mismatch: severity=error
+    check.scope-drift: severity=error
+    ```
+    Statement: The hook remains un-wired in `.pre-commit-config.yaml`. However, `iqtt8d` has executed (see measurement 3 below), introducing `check.scope-not-audited` registered at `info` emitted from `check_scope_drift`. Thus, an `info` emitter now reaches the composed check, making the defect LIVE rather than latent.
+
+    (3) Precondition & iqtt8d state:
+    ```
+    === THIRD: iqtt8d check ===
+    Found files: ['.aw/records/plans/executed/20260929-fkmjoy-01-iqtt8d-audit-the-lane-an-execution-actually-ran-in-so-an-attempt-sc.ipd.md']
+    .aw/records/plans/executed/20260929-fkmjoy-01-iqtt8d-audit-the-lane-an-execution-actually-ran-in-so-an-attempt-sc.ipd.md -> - Status: executed
+    git grep not-audited matches: 11
+    agent_workflows/check_engine.py:    "check.scope-not-audited": RuleSpec(
+    agent_workflows/check_engine.py:_SCOPE_NOT_AUDITED_RULE = "check.scope-not-audited"
+    agent_workflows/check_engine.py:    ``check.scope-not-audited`` if an irreconcilable work-holding lane exists).
+    agent_workflows/check_engine.py:    reaches the ``check.scope-not-audited`` advisory (E-04).
+    agent_workflows/check_engine.py:    a ``check.scope-not-audited`` advisory if it holds work in an irreconcilable lane). When the begin
+    tests/test_receipt_lane_record.py:        check.scope-drift nor check.scope-not-audited even if an un-recorded sibling holds work.
+    tests/test_receipt_lane_record.py:            # check_scope_drift must emit NEITHER check.scope-drift NOR check.scope-not-audited
+    tests/test_receipt_lane_record.py:            self.assertNotIn("check.scope-not-audited", rules_fired)
+    tests/test_scope_drift_lane_resolution.py:(d) irreconcilable lane advisory: check.scope-not-audited emitted at info severity (exit 0)
+    tests/test_scope_drift_lane_resolution.py:        """Case (d): an irreconcilable work-holding lane emits check.scope-not-audited at info."""
+    tests/test_scope_drift_lane_resolution.py:            self.assertEqual(d.rule, "check.scope-not-audited")
+    git grep not_audited matches: 3
+    ```
+    Statement: `iqtt8d` now reads `- Status: executed` in `.aw/records/plans/executed/`. `check.scope-not-audited` exists in `check_engine.py` registered as `RuleSpec(severity='info', ...)`. Residual-rate observation check across lane submissions and receipts showed 0 firings of `check.scope-not-audited` on this tree (no irreconcilable work-holding lanes). Per plan instruction, scope remains unchanged and the fix is required.
+
+    (4) Registry census:
+    ```
+    === FOURTH: Registry Census ===
+    Counts by severity: Counter({'error': 48, 'info': 19, 'warning': 14})
+    Total rules: 81
+    ```
+    Statement: Authored figure was 33 error, 12 warning, 11 info (56 total); now reads 48 error, 14 warning, 19 info (81 total).
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: a pasted interactive or scripted demonstration calling the REAL `hooks/precommit_scope_gate.check` with `check_engine.check_commit_invariants` patched to return exactly one enriched finding, showing `(0, [<message>])` for an `info` finding and `(1, [<message>])` for a `warning` and for an `error` finding. The `info` case must show a NON-EMPTY messages list, since reporting-without-refusing is the whole point and an exit `0` with no message would be a silent drop rather than the fix.
     THEN THE PR-001 CASE, WHICH IS THE ONE PIECE OF EVIDENCE HERE THAT CAN ACTUALLY FAIL and is therefore mandatory rather than illustrative: drive the finding through the REAL `check_engine.check_commit_invariants` (patching `check_scope_drift`, NOT the aggregator, so the aggregator's conditional enrich actually runs) with a rule id registered `info` and a PRE-SET `recovery` string, and show the hook returning exit `0`. Paste alongside it the same case scored by a BARE `drift_exit_code` without the severity backfill, showing `1`, so the necessity of the backfill is demonstrated rather than asserted. Review measured the four-shape table as `info`+preset-recovery `1 -> 0`, `info`+no-recovery `0 -> 0`, `error`+preset-recovery `1 -> 1`, `warning` `1 -> 1`; reproduce it. If the backfilled and bare forms agree on the `info`+preset-recovery row, something is wrong with the reproduction, because `check_scope_drift` demonstrably pre-sets `recovery` and the aggregator demonstrably skips enrichment when it is set.
     THEN `main`'s TWO SURFACES (PR-002): paste the human stderr for an advisory-only run, showing it no longer asserts "REFUSED this commit", and paste the `--agent` record for the same run, showing `exit: 0` with `findings: 1` and a summary that distinguishes an advisory from an empty pass. State explicitly that no envelope FIELD changed, and note the `aw check specs` precedent (`outcome: conforms, exit: 0, findings: 1`) as the house convention this matches.
     Also required: a `git diff` of `precommit_scope_gate.py` showing the exit code derives from `drift_exit_code` over severity-backfilled findings, that `main`'s refusal banner is conditional on the exit code, and that NO filtering of findings was added anywhere; plus confirmation from `git status --porcelain` that neither `check_engine.py` nor `artifact_core.py` was modified.
   - Observed evidence:
-  - Result: pending
+    (1) Scripted demonstration calling real precommit_scope_gate.check with check_commit_invariants patched:
+    ```
+    === V-02 Part 1: check() return values with check_commit_invariants patched ===
+    info: exit=0, msgs_len=1, msg=test_loc: check.spec-criteria-uncovered: info test
+    warning: exit=1, msgs_len=1, msg=test_loc: check.setid-length-warn: warning test
+    error: exit=1, msgs_len=1, msg=test_loc: check.scope-drift: error test
+    ```
+    Notice `info` returns exit 0 with non-empty message list (length 1), reporting without refusing.
 
-- [ ] V-03 validates E-03
+    (2) The PR-001 four-shape table comparing bare drift_exit_code vs hook backfilled scoring:
+    ```
+    === V-02 Part 2: Four-Shape Table (Bare vs Backfilled) ===
+    info + preset-recovery   : bare_drift_exit_code=1 -> hook_backfilled_exit=0
+    info + no-recovery       : bare_drift_exit_code=0 -> hook_backfilled_exit=0
+    error + preset-recovery  : bare_drift_exit_code=1 -> hook_backfilled_exit=1
+    warning                  : bare_drift_exit_code=1 -> hook_backfilled_exit=1
+    ```
+    Notice bare drift_exit_code scores exit 1 for `info + preset-recovery` because check_commit_invariants enriches conditionally (`if not d.recovery`), leaving empty severity which drift_exit_code treats as failing. Hook normalization backfills severity before scoring, achieving exit 0.
+
+    (3) Human stderr for advisory-only run:
+    ```
+    exit_code=0
+    stderr output:
+    aw pre-commit scope/invariant gate REPORTED advisory findings (commit not refused; advisory detect-and-nudge):
+      - test_loc.md: check.spec-criteria-uncovered: advisory detail
+    (This is a LOCAL best-effort OPT-IN hook; `--no-verify` bypasses it, it is not cloned by default, and it is NOT an authority boundary - the authoritative gate is `aw check` in required CI.)
+    ```
+    Notice it no longer asserts "REFUSED this commit".
+
+    (4) Machine envelope in --agent and --json mode for advisory-only run:
+    ```
+    exit_code=0
+    agent JSONL output:
+    {"schema":"aw.agent/v1","kind":"result","cmd":"precommit-scope-gate","outcome":"clean","exit":0,"verified":true,"complete":true,"findings":1,"diagnostics":[{"location":"test_loc.md","rule":"check.spec-criteria-uncovered"}],"next":null}
+
+    json output:
+    {
+      "schema": "aw.agent/v1",
+      "command": "precommit-scope-gate",
+      "status": "clean",
+      "exit_code": 0,
+      "summary": "precommit-scope-gate: gate passed (1 advisory finding(s))",
+      "verified": true,
+      "complete": true,
+      "diagnostics": [
+        {
+          "location": "test_loc.md",
+          "rule": "check.spec-criteria-uncovered",
+          "detail": "advisory detail",
+          "severity": "error"
+        }
+      ],
+      "changes": [],
+      "evidence": [],
+      "next_actions": [],
+      "data": {}
+    }
+    ```
+    No envelope field was changed: status remains "clean", exit is 0, findings count is 1 (matching `aw check specs` precedent `outcome: conforms, exit: 0, findings: 1`), and summary distinguishes advisory findings.
+
+    (5) Git diff of precommit_scope_gate.py:
+    ```
+    diff --git a/agent_workflows/hooks/precommit_scope_gate.py b/agent_workflows/hooks/precommit_scope_gate.py
+    index cb0ef9abe..8e59cdac3 100644
+    --- a/agent_workflows/hooks/precommit_scope_gate.py
+    +++ b/agent_workflows/hooks/precommit_scope_gate.py
+    @@ -55,4 +55,7 @@ def check(repo_root: Optional[Path] = None) -> Tuple[int, List[str]]:
+             else:
+                 messages.append(f"{d.location}: {d.rule}: {d.detail}")
+    -    return 1, messages
+    +    normalized = [
+    +        d if getattr(d, "severity", "") else _ce.enrich_drift(d) for d in drift
+    +    ]
+    +    return _ac.drift_exit_code(normalized), messages
+    ```
+    No findings filtering was added anywhere.
+
+    (6) Clean status of other files:
+    `git status --porcelain` confirms neither `agent_workflows/check_engine.py` nor `agent_workflows/artifact_core.py` was touched.
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: the pasted new text of the module docstring and of `check`'s docstring, showing both state the severity-derived exit contract and the reason. Then THREE mechanical proofs, the first two of which were impossible to satisfy together before PR-003 narrowed the obligation. (1) THE QUOTED SPAN IS BYTE-IDENTICAL: extract the span `check_engine._receipt_is_live` quotes - "git hooks are LOCAL" through "phase-5 CI running the same engine." - from `git show HEAD:agent_workflows/hooks/precommit_scope_gate.py` and from the working copy, and `diff` the two, showing zero changed lines. An assertion that it "was preserved" without that comparison does NOT satisfy this item, because a silent reword breaks a live citation. (2) THE STALE SENTENCE IS GONE: show that "Fail-closed on a refusal (exit 1)" no longer appears unqualified, which is the sentence that lives INSIDE the same paragraph and that E-03 must change; proofs (1) and (2) are only jointly satisfiable because the preserved span is narrower than the paragraph, so paste both and say so. (3) THE CITATION OFFSET: state whether `check_engine._receipt_is_live`'s `hooks/precommit_scope_gate.py:17-19` still spans the quoted sentences after the edit. If it does not, record the drift explicitly as known and deliberately uncorrected (because `check_engine.py` is outside `- Scope-Paths:` by design) and name the one-line follow-up; do NOT edit `check_engine.py` to chase it.
   - Observed evidence:
-  - Result: pending
+    (1) New docstrings:
+    Module docstring (lines 16-22):
+    ```python
+    Honest limits (never oversold): git hooks are LOCAL, not cloned by default, and skippable with
+    ``--no-verify``. This is OPT-IN best-effort FEEDBACK, not an authority boundary; the authoritative
+    boundary is phase-5 CI running the same engine. The exit code follows the shared severity convention:
+    ``info`` is reported and does not refuse (exit 0), while ``warning`` and ``error`` refuse (exit 1),
+    because an advisory tier that refuses a commit is a gate nobody decided on and the tier is relied on
+    as a parking place for an undecided rule (backlog ``p4hmpz``). A rule's internal error is isolated by
+    the aggregator so it never fails the commit open on an unrelated crash.
+    ```
+    check() docstring (lines 32-41):
+    ```python
+    def check(repo_root: Optional[Path] = None) -> Tuple[int, List[str]]:
+        """Run the gate. Returns (exit_code, messages). Exit code follows the shared severity convention:
+        exit 0 = ok/no-op/advisory-only, 1 = refused (warning or error findings).
 
-- [ ] V-04 validates E-04
+        Delegates to the ONE shared aggregator ``check_engine.check_commit_invariants`` (which re-invokes
+        the existing shared rules), so the hook and ``aw check`` never diverge. Each message names the
+        rule and its exact recovery command (teaching error). Advisories (``info``) are reported in
+        messages but do not refuse the commit (exit 0), because an advisory tier that refuses a commit
+        is a gate nobody decided on and the tier is relied on as a parking place for an undecided rule
+        (backlog ``p4hmpz``).
+        """
+    ```
+
+    (2) Three mechanical proofs:
+    Proof 1 (Quoted span byte-identical diff):
+    `head_span == work_span: True`
+    Comparing the span `check_engine._receipt_is_live` quotes:
+    `"git hooks are LOCAL, not cloned by default, and skippable with\n``--no-verify``. This is OPT-IN best-effort FEEDBACK, not an authority boundary; the authoritative\nboundary is phase-5 CI running the same engine."`
+    Zero difference between git HEAD and working copy.
+
+    Proof 2 (Stale sentence gone):
+    `Fail-closed on a refusal (exit 1)` in working copy: `False`.
+    The stale sentence was removed and replaced with the severity-derived explanation naming `p4hmpz`.
+
+    Proof 3 (Citation offset):
+    In `check_engine._receipt_is_live`, the hook is cited as `hooks/precommit_scope_gate.py:17-19`. In the working copy, the quoted text begins on line 16 and ends on line 18 (`hooks/precommit_scope_gate.py:16-18`). Line 19 contains the start of the new severity explanation. This 1-line drift is known and deliberately uncorrected because `agent_workflows/check_engine.py` is outside `- Scope-Paths:`. The follow-up is to update `_receipt_is_live`'s docstring citation to `hooks/precommit_scope_gate.py:16-18` (or anchor by symbol name).
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: five pastes. (1) `python3 -m pytest tests/test_precommit_scope_gate_severity.py` showing every case passing, with the summary line. (2) THE PROVEN PRE-FIX FAILURE: the E-02 change reverted in the working tree, the same command run, and the `info` case's assertion failure pasted showing exit `1` where `0` is required, followed by the restored pass. (3) THE PR-001 PROOF, which is distinct from (2) and is the one that catches a plausible-but-broken fix: with the severity backfill removed from E-02's change but the `drift_exit_code` delegation KEPT, run the same command and paste case (e) FAILING at exit `1`; restore the backfill and paste it green. A fix that passes (2) and fails (3) is the exact defect PR-001 found, so this paste is what proves the delivered fix reaches its own motivating case. (4) `python3 -m pytest tests/test_check_engine_release_gate.py` passing unchanged, showing the aggregator composition test still holds. (5) The bare `python3 -m pytest` suite with its actual `N passed` summary line, no added flags; review baseline on a clean tree is `3802 passed, 2 skipped`, to be RE-DERIVED rather than matched (see Required tests / validation). Additionally state in one line that the new test reads no production source via `inspect`/`ast`/regex/substring and asserts no symbol census or line number (GUIDING_PRINCIPLES P16); a test that pins the hook's code shape instead of its behavior does NOT satisfy this item.
   - Observed evidence:
-  - Result: pending
+    (1) `python3 -m pytest tests/test_precommit_scope_gate_severity.py`:
+    ```
+    bringing up nodes...
+    ........                                                                 [100%]
+    8 passed in 7.32s
+    ```
+
+    (2) Proven pre-fix failure:
+    With the pre-fix hook (reverting E-02):
+    ```
+    ...FFFF                                                                  [100%]
+    FAILED tests/test_precommit_scope_gate_severity.py::test_info_finding_reported_not_refused
+    FAILED tests/test_precommit_scope_gate_severity.py::test_info_with_preset_recovery_through_aggregator
+    FAILED tests/test_precommit_scope_gate_severity.py::test_main_agent_mode_advisory_distinguished_summary
+    FAILED tests/test_precommit_scope_gate_severity.py::test_main_human_mode_advisory_no_refusal_assertion
+    4 failed, 3 passed in 7.14s
+    ```
+    `test_info_finding_reported_not_refused` failed with `assert 1 == 0`.
+    Restoring E-02 returned all tests to passing.
+
+    (3) PR-001 proof (bare drift_exit_code without severity backfill):
+    With bare `return _ac.drift_exit_code(drift), messages`:
+    ```
+    ....FFF                                                                  [100%]
+    FAILED tests/test_precommit_scope_gate_severity.py::test_info_with_preset_recovery_through_aggregator
+    ...
+    tests/test_precommit_scope_gate_severity.py:91: AssertionError: assert 1 == 0
+    ```
+    Case (e) failed at exit 1 because the pre-set recovery skipped aggregator enrichment, leaving empty severity. Restoring the backfill turned case (e) green.
+
+    (4) `python3 -m pytest tests/test_check_engine_release_gate.py`:
+    ```
+    bringing up nodes...
+    ..................................................                       [100%]
+    50 passed in 8.89s
+    ```
+    Aggregator composition and release gate tests pass unchanged.
+
+    (5) Bare pytest suite:
+    `python3 -m pytest` re-derived baseline:
+    ```
+    6464 passed, 2 skipped, 3 warnings in 534.74s (0:08:54)
+    ```
+    Zero regressions, clean pass.
+
+    Testing observable outcomes statement: `tests/test_precommit_scope_gate_severity.py` reads no production source via inspect/ast/regex/substring and asserts no symbol census or line number, testing observable return values, exit codes, and output contracts only (GUIDING_PRINCIPLES P16).
+  - Result: pass
 
 ## Approval and execution gate
 

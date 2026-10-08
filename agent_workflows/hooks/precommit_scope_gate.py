@@ -15,8 +15,11 @@ NOT the typed command (a hook cannot reconstruct ``git add -A``).
 
 Honest limits (never oversold): git hooks are LOCAL, not cloned by default, and skippable with
 ``--no-verify``. This is OPT-IN best-effort FEEDBACK, not an authority boundary; the authoritative
-boundary is phase-5 CI running the same engine. Fail-closed on a refusal (exit 1); a rule's internal
-error is isolated by the aggregator so it never fails the commit open on an unrelated crash.
+boundary is phase-5 CI running the same engine. The exit code follows the shared severity convention:
+``info`` is reported and does not refuse (exit 0), while ``warning`` and ``error`` refuse (exit 1),
+because an advisory tier that refuses a commit is a gate nobody decided on and the tier is relied on
+as a parking place for an undecided rule (backlog ``p4hmpz``). A rule's internal error is isolated by
+the aggregator so it never fails the commit open on an unrelated crash.
 """
 
 from __future__ import annotations
@@ -26,12 +29,17 @@ from typing import List, Optional, Tuple
 
 
 def check(repo_root: Optional[Path] = None) -> Tuple[int, List[str]]:
-    """Run the gate. Returns (exit_code, messages). exit 0 = ok/no-op, 1 = refused.
+    """Run the gate. Returns (exit_code, messages). Exit code follows the shared severity convention:
+    exit 0 = ok/no-op/advisory-only, 1 = refused (warning or error findings).
 
     Delegates to the ONE shared aggregator ``check_engine.check_commit_invariants`` (which re-invokes
     the existing shared rules), so the hook and ``aw check`` never diverge. Each message names the
-    rule and its exact recovery command (teaching error).
+    rule and its exact recovery command (teaching error). Advisories (``info``) are reported in
+    messages but do not refuse the commit (exit 0), because an advisory tier that refuses a commit
+    is a gate nobody decided on and the tier is relied on as a parking place for an undecided rule
+    (backlog ``p4hmpz``).
     """
+    from agent_workflows import artifact_core as _ac
     from agent_workflows import check_engine as _ce
 
     root = Path(repo_root) if repo_root is not None else Path(".")
@@ -47,7 +55,10 @@ def check(repo_root: Optional[Path] = None) -> Tuple[int, List[str]]:
             )
         else:
             messages.append(f"{d.location}: {d.rule}: {d.detail}")
-    return 1, messages
+    normalized = [
+        d if getattr(d, "severity", "") else _ce.enrich_drift(d) for d in drift
+    ]
+    return _ac.drift_exit_code(normalized), messages
 
 
 def main(argv: Optional[List[str]] = None, args: Optional[object] = None) -> int:
@@ -95,24 +106,34 @@ def main(argv: Optional[List[str]] = None, args: Optional[object] = None) -> int
                     detail="gate refused",
                 )
             )
+        if exit_code == 0:
+            summary = (
+                f"precommit-scope-gate: gate passed ({len(messages)} advisory finding(s))"
+                if messages
+                else "precommit-scope-gate: gate passed"
+            )
+        else:
+            summary = f"precommit-scope-gate: refused ({len(messages)} finding(s))"
         res = CommandResult(
             command="precommit-scope-gate",
             status="clean" if exit_code == 0 else "findings",
             exit_code=exit_code,
-            summary=(
-                "precommit-scope-gate: gate passed"
-                if exit_code == 0
-                else f"precommit-scope-gate: refused ({len(messages)} finding(s))"
-            ),
+            summary=summary,
             diagnostics=diagnostics,
         )
         return get_renderer(ctx).emit(res, ctx)
 
     if messages:
-        sys.stderr.write(
-            "aw pre-commit scope/invariant gate REFUSED this commit (local prevention; a staged "
-            "change violates a repository invariant or falls outside a plan's declared Scope-Paths):\n"
-        )
+        if exit_code != 0:
+            sys.stderr.write(
+                "aw pre-commit scope/invariant gate REFUSED this commit (local prevention; a staged "
+                "change violates a repository invariant or falls outside a plan's declared Scope-Paths):\n"
+            )
+        else:
+            sys.stderr.write(
+                "aw pre-commit scope/invariant gate REPORTED advisory findings (commit not refused; "
+                "advisory detect-and-nudge):\n"
+            )
         for m in messages:
             sys.stderr.write(f"  - {m}\n")
         sys.stderr.write(
