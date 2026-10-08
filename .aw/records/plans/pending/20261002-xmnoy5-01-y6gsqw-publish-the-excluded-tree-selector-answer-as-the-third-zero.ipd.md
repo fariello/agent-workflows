@@ -45,7 +45,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: confirm the behavior exists before describing it
 
-- [ ] E-01 VERIFY, AT YOUR OWN BASE COMMIT AND BEFORE EDITING ONE CHARACTER OF THE DOCUMENT, that the excluded-tree behavior this plan publishes is actually shipped, and RECORD what you measured as the evidence the amendment rests on.
+- [x] E-01 VERIFY, AT YOUR OWN BASE COMMIT AND BEFORE EDITING ONE CHARACTER OF THE DOCUMENT, that the excluded-tree behavior this plan publishes is actually shipped, and RECORD what you measured as the evidence the amendment rests on.
 
   WHY THIS IS AN EXECUTION STEP AND NOT CEREMONY. This plan's deliverable is a normative sentence in a published contract. If the behavior is absent, that sentence is a false claim, and `o6ksmw`'s F-02 records what happens next: the one document that speaks to this mandates the opposite of what shipped, a maintainer reading it to decide finds the document forbidding the behavior, and an agent in a later review correctly cites a published contract against working code. The `- Item-Dependencies: executed:uxb0tz` edge is the mechanical guard and the runner re-checks it at dispatch, but the edge proves only that a plan reached `executed/`, not that any particular surface behaves as this plan describes. This item is what closes that gap.
 
@@ -56,11 +56,11 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   EXIT CODE ALONE IS NOT SUFFICIENT EVIDENCE and the reason is measured rather than theoretical: `uxb0tz`'s own F-12 demonstrated that the half-implemented state exits 0 on all four surfaces with NO message at all, which is why that plan's E-06 carries a silence guard. So an exit 0 with empty output means the behavior is PARTIALLY shipped and this plan must still stop, because the sentence E-02 writes promises an explanation, not a return code.
   - Depends on: none
   - Expected outcome: a pasted per-surface record for three tokens from three different excluded trees (at least one outside `walkthroughs`/`roadmaps`) plus the bogus control, each showing its exit code and its actual output text, with an explicit statement of whether the excluded-tree explanation is PRESENT on each surface. The statement must name which surfaces carry it and which do not, rather than summarizing as shipped or not shipped.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: publish the third class
 
-- [ ] E-02 AMEND the `### 11.1 Empty Result Convention (Read and List Verbs)` discriminator in `docs/cli-output-contract.md` so it enumerates THREE classes, adding the excluded-tree class and correcting the count sentence the addition falsifies.
+- [x] E-02 AMEND the `### 11.1 Empty Result Convention (Read and List Verbs)` discriminator in `docs/cli-output-contract.md` so it enumerates THREE classes, adding the excluded-tree class and correcting the count sentence the addition falsifies.
 
   FIX THE COUNT SENTENCE, NOT ONLY THE LIST. The line `The convention distinguishes between two kinds of zero-match requests:` sits immediately above the two sub-bullets. Adding a third bullet without touching it leaves the document contradicting itself inside one paragraph, which is the same class of defect as the `moegsl` plan's "Two escape hatches" undercount. State the count as three, or drop the numeral.
 
@@ -79,11 +79,11 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   TOUCH NOTHING ELSE IN THE DOCUMENT. Section 11.4, Section 12, the Section 3 exit classification and the `25kzda` precedent paragraph all stay byte-identical. Write no em or en dashes: this is user-facing published prose.
   - Depends on: E-01
   - Expected outcome: `git diff docs/cli-output-contract.md` shows the count sentence corrected from two to three, a third sub-bullet published carrying all four required facts, the exit claim worded as NOT REFUSED rather than a flat exit 0, the class scoped to `TREE_POLICY` as authority, the per-surface channel rule stated, and symbol citations present. Sections 11.4 and 12 unchanged in the same diff.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: stop the section drifting again
 
-- [ ] E-03 ADD `tests/test_empty_result_convention_doc.py`, the first behavioral guard over Section 11.1, driving the real verb once per published class and asserting the published outcome.
+- [x] E-03 ADD `tests/test_empty_result_convention_doc.py`, the first behavioral guard over Section 11.1, driving the real verb once per published class and asserting the published outcome.
 
   WHY A BEHAVIOR TEST AND NOT A PROSE TEST, since the choice is the substance of this item. A test that greps Section 11.1 for the word "three" would pass against a document describing behavior the code does not have, which is the precise defect `o6ksmw` existed to repair and that this plan must not reintroduce one class along. So the subject under test is the VERB, and the document is the specification the assertions encode. Test outcomes, not code structure: drive the CLI or the public functions and assert on real exit codes, stdout, and stderr. Use no `inspect`, no `ast`, and no source-text search over `agent_workflows/` (GUIDING_PRINCIPLES P16).
 
@@ -98,16 +98,16 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   DO NOT ASSERT A FLAT EXIT 0 ANYWHERE. Assert "not refused" the way the document words it, by checking the outcome or the absence of the refusal, which is the same correction `o6ksmw`'s review applied to its own E-01 when a prescribed exit-0 criterion would have halted a correct plan on a correct tree.
   - Depends on: E-02
   - Expected outcome: a new test module that passes, covering all three published classes plus the silence guard and the list-mode stdout channel, built in `tmp_path`, driving `attention.run` in-process, deriving its excluded tree from `TREE_POLICY`, containing no hard-coded count of this repository's artifacts and no source-text introspection.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 PROVE THE GUARD BITES, by breaking each published class in memory and confirming the matching assertion fails, then restoring.
+- [x] E-04 PROVE THE GUARD BITES, by breaking each published class in memory and confirming the matching assertion fails, then restoring.
 
   WHY THIS IS A SEPARATE ITEM FROM E-03. A test that passes proves only that it passes. `o6ksmw`'s review found one of its own prescribed bite tests to be a measured NO-OP (emptying `TRACKED_TREES` changed the derived vocabulary by zero tokens, because `TYPE_ALIASES` already covered every tree name), so a bite test that does not bite is itself a defect this repository has already shipped once and caught. Each break must be performed by in-memory patching or by an edit that is restored, NEVER by leaving a modified production file behind, and `agent_workflows/` is deliberately outside `- Scope-Paths:` so any such edit would also fail the finalize scope gate.
 
   THREE BREAKS, one per class, each with its own failure pasted. First, suppress the excluded-tree exemption so the resolving token is refused again, and confirm the excluded-tree assertion fails. Second, widen the exemption so any unmatched token is exempt, and confirm the bogus-token assertion fails, which is the guard against over-broadening and is the clause `25kzda` names explicitly. Third, and this is the one `uxb0tz` F-12 makes mandatory, suppress only the EXPLANATION while leaving the exemption in place, reproducing the measured silent state, and confirm the silence guard fails. Without the third, the suite cannot distinguish the fix from the silent regression and E-03 is not a regression guard at all.
   - Depends on: E-03
   - Expected outcome: three pasted test failures, one per break, each naming the assertion that caught it, plus confirmation that the production tree is unmodified afterwards (`git status --short agent_workflows/` empty).
-  - Execution state: pending
+  - Execution state: performed
 
 Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids.
 
@@ -200,25 +200,258 @@ No `.spec.md` file is amended and none is declared in `- Scope-Paths:`. The reas
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: the pasted per-surface measurement for at least three tokens drawn from three DIFFERENT excluded trees, at least one outside `walkthroughs` and `roadmaps` (for example `docs-prompts` via `.aw/records/prompt-library/`, or `comms`), plus the bogus control, each entry showing the command, its exit code, AND its actual output text. PASTING EXIT CODES ALONE DOES NOT SATISFY THIS ITEM, and the reason is measured: `uxb0tz` F-12 drove four surfaces in the half-implemented state and got exit 0 with no message on every one, so the output text is the only thing that distinguishes shipped behavior from a silent regression. The evidence must close with an explicit per-surface statement of which surfaces carry the excluded-tree explanation and which do not, plus a confirmation that `aw find <token>` still resolves each token used (the remedy the document will point an operator at must actually work). If any surface lacks the explanation, the evidence must say so plainly rather than summarizing the behavior as shipped.
   - Observed evidence:
-  - Result: pending
+    Confirmation of resolution via `aw find <token>`:
+    `aw find 7ny1bg` (tree: roadmaps) -> exit 0:
+    `·  -             -  .aw/records/roadmaps/20260712-7ny1bg-01-7ny1bg-agent-workflows-bounded-iteration-skills-roadmap-for-consideration.roadmap.md`
+    `aw find v0nmuv` (tree: walkthroughs) -> exit 0:
+    `·  -             v0nmuv  .aw/records/walkthroughs/20260917-lanectn-07-v0nmuv-whole-set-verification-of-spec-7ckptx.walkthrough.md`
+    `aw find ocman` (tree: comms) -> exit 0:
+    `·  -             -  .aw/records/comms/shared/archive/20260720-2023-01-ocman.agent--to--agent-workflows.agent-task-full-release-means-published-gh-release.md`
+    (None of these resolve into any tracked tree).
 
-- [ ] V-02 validates E-02
+    Per-surface measurement across four surfaces:
+    1. Human board:
+       - `python3 -m agent_workflows.cli attention 7ny1bg`: exit 0, stderr:
+         ```
+         ✓ CLEAN  artifact matched selector '7ny1bg' in excluded tree roadmaps
+
+         Active filters:
+           excluded selector: 7ny1bg
+           resolved path: .aw/records/roadmaps/20260712-7ny1bg-01-7ny1bg-agent-workflows-bounded-iteration-skills-roadmap-for-consideration.roadmap.md
+           excluded tree: roadmaps
+           exclusion reason: intent, not commitment; no lifecycle status in v1 (OQ8)
+
+         Next  aw find 7ny1bg (show the artifact directly)
+         ```
+       - `python3 -m agent_workflows.cli attention v0nmuv`: exit 0, stderr:
+         ```
+         ✓ CLEAN  artifact matched selector 'v0nmuv' in excluded tree walkthroughs
+
+         Active filters:
+           excluded selector: v0nmuv
+           resolved path: .aw/records/walkthroughs/20260917-lanectn-07-v0nmuv-whole-set-verification-of-spec-7ckptx.walkthrough.md
+           excluded tree: walkthroughs
+           exclusion reason: narrative records; no lifecycle status in v1 (OQ8)
+
+         Next  aw find v0nmuv (show the artifact directly)
+         ```
+       - `python3 -m agent_workflows.cli attention ocman`: exit 0, stderr:
+         ```
+         ✓ CLEAN  artifact matched selectors 'ocman', 'ocman', 'ocman', 'ocman' in excluded tree comms
+
+         Active filters:
+           excluded selector: ocman
+           resolved path (ocman): .aw/records/comms/shared/archive/20260720-2023-01-ocman.agent--to--agent-workflows.agent-task-full-release-means-published-gh-release.md
+           excluded tree (ocman): comms
+           exclusion reason (ocman): deferred to Phase 3 (OQ3); own ack lifecycle not contracted here
+           ...
+         Next  aw find ocman ocman ocman ocman (show the artifact directly)
+         ```
+
+    2. Machine agent surface (`--agent`):
+       - `python3 -m agent_workflows.cli attention 7ny1bg --agent`: exit 0, stdout:
+         ```json
+         {"schema": "aw.agent/v1", "kind": "result", "cmd": "attention", "outcome": "clean", "exit": 0, "verified": true, "complete": true, "excluded_selectors": ["7ny1bg"], "excluded_tree_selectors": ["7ny1bg"], "excluded_artifacts": [{"selector": "7ny1bg", "path": ".aw/records/roadmaps/20260712-7ny1bg-01-7ny1bg-agent-workflows-bounded-iteration-skills-roadmap-for-consideration.roadmap.md", "tree": "roadmaps", "reason": "intent, not commitment; no lifecycle status in v1 (OQ8)"}], "summary": "artifact matched selector '7ny1bg' in excluded tree roadmaps", "next": "aw find 7ny1bg"}
+         ```
+       - `python3 -m agent_workflows.cli attention v0nmuv --agent`: exit 0, stdout:
+         ```json
+         {"schema": "aw.agent/v1", "kind": "result", "cmd": "attention", "outcome": "clean", "exit": 0, "verified": true, "complete": true, "excluded_selectors": ["v0nmuv"], "excluded_tree_selectors": ["v0nmuv"], "excluded_artifacts": [{"selector": "v0nmuv", "path": ".aw/records/walkthroughs/20260917-lanectn-07-v0nmuv-whole-set-verification-of-spec-7ckptx.walkthrough.md", "tree": "walkthroughs", "reason": "narrative records; no lifecycle status in v1 (OQ8)"}], "summary": "artifact matched selector 'v0nmuv' in excluded tree walkthroughs", "next": "aw find v0nmuv"}
+         ```
+       - `python3 -m agent_workflows.cli attention ocman --agent`: exit 0, stdout:
+         ```json
+         {"schema": "aw.agent/v1", "kind": "result", "cmd": "attention", "outcome": "clean", "exit": 0, "verified": true, "complete": true, "excluded_selectors": ["ocman", "ocman", "ocman", "ocman"], "excluded_tree_selectors": ["ocman", "ocman", "ocman", "ocman"], "excluded_artifacts": [{"selector": "ocman", "path": ".aw/records/comms/shared/archive/20260720-2023-01-ocman.agent--to--agent-workflows.agent-task-full-release-means-published-gh-release.md", "tree": "comms", "reason": "deferred to Phase 3 (OQ3); own ack lifecycle not contracted here"}], "summary": "artifacts matched selectors 'ocman', 'ocman', 'ocman', 'ocman' in excluded trees: comms", "next": "aw find ocman ocman ocman ocman"}
+         ```
+
+    3. Machine check surface (`--check`):
+       - `python3 -m agent_workflows.cli attention 7ny1bg --check`: exit 0, stdout:
+         ```
+         ✓ CLEAN  artifact matched selector '7ny1bg' in excluded tree roadmaps
+         ```
+       - `python3 -m agent_workflows.cli attention v0nmuv --check`: exit 0, stdout:
+         ```
+         ✓ CLEAN  artifact matched selector 'v0nmuv' in excluded tree walkthroughs
+         ```
+       - `python3 -m agent_workflows.cli attention ocman --check`: exit 0, stdout:
+         ```
+         ✓ CLEAN  artifact matched selectors 'ocman', 'ocman', 'ocman', 'ocman' in excluded tree comms
+         ```
+
+    4. List mode (`--paths`):
+       - `python3 -m agent_workflows.cli attention 7ny1bg --paths`: exit 0, stdout: (empty, 0 bytes), stderr carries `✓ CLEAN artifact matched selector '7ny1bg' in excluded tree roadmaps...`
+       - `python3 -m agent_workflows.cli attention v0nmuv --paths`: exit 0, stdout: (empty, 0 bytes), stderr carries `✓ CLEAN artifact matched selector 'v0nmuv' in excluded tree walkthroughs...`
+       - `python3 -m agent_workflows.cli attention ocman --paths`: exit 0, stdout: (empty, 0 bytes), stderr carries `✓ CLEAN artifact matched selectors 'ocman'... in excluded tree comms...`
+
+    Control (`definitelynotanid6`):
+       - Human: exit 2, stderr: `✗ FAIL  no artifact matched selector 'definitelynotanid6'`
+       - `--agent`: exit 2, stdout: `{"schema": "aw.agent/v1", "kind": "error", "cmd": "attention", "outcome": "cannot-run", "exit": 2, ...}`
+       - `--check`: exit 2, stderr: `✗ FAIL  no artifact matched selector 'definitelynotanid6'`
+       - `--paths`: exit 2, stdout: (empty, 0 bytes), stderr: `✗ FAIL  no artifact matched selector 'definitelynotanid6'`
+
+    Per-surface statement: The excluded-tree explanation is PRESENT on all four surfaces (human board, `--agent`, `--check`, `--paths`). On list modes (`--paths`), `stdout` remains strictly empty (0 bytes) while `stderr` carries the explanation.
+    Adjacent code finding noted: `fix-bar` in `.aw/records/prompt-library/` exits 2 because `attention.py::resolve_excluded_tree_matches` queries `selectors.resolve_selectors` with policy name `docs-prompts`, which is not registered as a directory mapping in `selectors.py`.
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: the `git diff` of `docs/cli-output-contract.md`, showing all of: the count sentence no longer saying "two kinds" while three bullets follow; a third sub-bullet carrying the four required facts (that the selector RESOLVED, that the tree is excluded by policy with its recorded `reason` quoted, the not-refused record shape, and the `aw find` remedy); the exit claim worded as NOT REFUSED rather than a flat "exits 0" (a diff containing a bare "exits 0" promise for this class is a FAILED validation, on F-04, since `aw attention reusable` exits 1 on this repository today); the class scoped to `attention_contract.TREE_POLICY` as the authority rather than to a prose list of trees; the per-surface channel rule stated and MATCHING what V-01 observed rather than what this plan predicted; and at least one symbol citation in the section's existing style with no bare line number. The same diff must show Section 11.4 and Section 12 byte-unchanged. PLUS a pasted check that the added prose contains no em or en dash.
   - Observed evidence:
-  - Result: pending
+    `git diff docs/cli-output-contract.md`:
+    ```diff
+    --- a/docs/cli-output-contract.md
+    +++ b/docs/cli-output-contract.md
+    @@ -420,16 +420,17 @@ mutation feedback, and error states across all `aw` verbs.
 
-- [ ] V-03 validates E-03
+     ### 11.1 Empty Result Convention (Read and List Verbs)
+     When a query, find, search, or list verb matches zero records or produces an empty result set:
+    -- **Discriminator (Standing Question vs. Named-Artifact Assertion)**:
+    -  The convention distinguishes between two kinds of zero-match requests:
+    +- **Discriminator (Standing Question vs. Named-Artifact Assertion vs. Excluded-Tree Selector)**:
+    +  The convention distinguishes among three kinds of zero-match requests:
+       - **Standing questions about repository state**: A query asking about a category of artifacts (a tree name, an attention class, an artifact status, a priority, a run state, or a bare invocation with no selector at all) is a standing question. A zero-match result indicates the repository currently has zero artifacts in that state; this is a clean empty result and is **not refused**.
+       - **Assertions that a named artifact exists**: A query specifying an artifact identifier (an id6, a setid, or a filename fragment) asserts that a specific artifact exists. If that selector matches zero records, the invocation is treated under Section 11.4 as an unresolved selector refusal and exits 2 (`attention.EXIT_UNRESOLVED_SELECTOR`) with `outcome: "cannot-run"`, `verified: false`, and `complete: false`.
+    +  - **Resolving selectors in excluded trees**: A query specifying an artifact selector (an id6, a setid, or a filename fragment) that resolves to an artifact on disk, but whose artifact resides in a tree excluded from the view by policy. Because the selector resolved, this is neither a standing question nor an unresolvable assertion. The class covers every tree marked excluded (`tracked=False`) in the policy inventory `attention_contract.TREE_POLICY`, which serves as the authority (including walkthroughs, roadmaps, comms, docs-prompts, and reviews). The invocation is **not refused** (evaluated via `attention.resolve_excluded_tree_matches` and `attention.SelectorMatchFacts.excluded_tree`). When not accompanied by a refusable selector, it yields a clean outcome with `outcome: "clean"`, `exit: 0`, and `verified: true`, naming the matched tree and quoting that policy's own recorded `reason`. In agent mode (`--agent`), `attention.excluded_tree_agent_record` emits a `kind: "result"` record with `excluded_tree_selectors` and `excluded_artifacts` details. The offered remedy is `aw find <token>` (suggested via `next: "aw find <token>"`), which resolves these artifacts directly. Under `attention._emit_excluded_tree_explanation`, the explanation is emitted to `stdout` for machine surfaces (`--agent`, `--json`/`--format json`, and `--check`), and to `stderr` for the interactive human board and list modes (`-id`, `--paths`, `--filenames`), ensuring list-mode `stdout` remains strictly clean (0 bytes) for pipe safety.
+     - **Precedent and Scope**:
+       Spec `25kzda` Sections 2.3 and 2.4a established the precedent for this distinction, observing that an empty status query such as `reviews` matching nothing is a successful answer rather than an error, while a misspelled id6 exits 2. Spec `25kzda` specifically governs the runner verbs `aw oc run` and `aw agy run` rather than read verbs generally, so its status-selector carve-out serves as precedent rather than a binding contract. The read verbs `aw attention` and `aw find` follow and extend this pattern by deriving their exempt vocabulary (via `attention.selector_vocabulary` and `cli.find_selector_vocabulary`) and evaluating refusable match facts, following the shipped precedent in `run_viewer.emit_unresolvable_target_refusal`.
+     - **Not Refused vs. Exit Codes (Drift Separation)**:
+    -  The standing-question exemption is worded as **not refused** rather than flatly "exits 0". The exemption skips the refusal predicate, after which the verb's ordinary exit classification still applies. In a repository without drift or findings, the exempt query yields `outcome: "clean"` with exit 0. However, if the repository concurrently contains contract drift or policy violations, a concurrent drift finding still reports itself normally and exits 1 through the drift path. Conversely, a selector refusal is a separate condition from a contract finding: it neither appends a drift record nor flips the `--json` `valid` flag, ensuring an operator typo is never misreported as repository damage.
+    +  The exemptions for standing questions and excluded-tree selectors are worded as **not refused** rather than flatly "exits 0". The exemption skips the refusal predicate, after which the verb's ordinary exit classification still applies. In a repository without drift or findings, the exempt query yields `outcome: "clean"` with exit 0. However, if the repository concurrently contains contract drift or policy violations, a concurrent drift finding still reports itself normally and exits 1 through the drift path. Conversely, a selector refusal is a separate condition from a contract finding: it neither appends a drift record nor flips the `--json` `valid` flag, ensuring an operator typo is never misreported as repository damage.
+     - **List-Mode Stream Rule (Pipe Safety)**:
+    -  For list modes targeting machine ingestion (`-id`, `--paths`, `--filenames`), a selector refusal emits its diagnostic message to `stderr` while `stdout` remains strictly empty (0 bytes). This prevents error text from corrupting shell pipes or downstream tool consumers.
+    +  For list modes targeting machine ingestion (`-id`, `--paths`, `--filenames`), a selector refusal emits its diagnostic message to `stderr` while `stdout` remains strictly empty (0 bytes). Excluded-tree explanations likewise emit to `stderr` on list modes so `stdout` remains strictly clean (0 bytes) for piping. This prevents error text or non-path explanations from corrupting shell pipes or downstream tool consumers.
+    ```
+    Sections 11.4 and 12 byte-unchanged (diff touches only lines 423-435).
+    Dash check: em dash in diff: False, en dash in diff: False.
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: a targeted run of `tests/test_empty_result_convention_doc.py` with its individual test results pasted, plus the bare `python3 -m pytest` summary line showing its `N passed` count. PLUS pasted proof of four structural properties, each of which a plausible-looking test could silently violate: that the fixture is built in `tmp_path` and the module contains no assertion keyed to a count of THIS repository's artifacts (paste the fixture construction); that the excluded tree under test is read from `attention_contract.TREE_POLICY` at test time rather than hard-coded (paste the derivation); that the bogus-token case asserts refusal at `attention.EXIT_UNRESOLVED_SELECTOR`, preserving the `25kzda` Section 2.4a clause; and that the excluded-tree case asserts on OUTPUT TEXT naming the tree, not merely on an exit code. PLUS three further properties added at review: that the verb is driven IN-PROCESS through `attention.run` (paste the call site), since a subprocess-driven test cannot observe E-04's in-memory breaks (F-09); that the fixture asserts `attention._classify_tree` maps the excluded artifact onto a `tracked=False` policy (paste the assertion); and that a list-mode case asserts the explanation is absent from stdout. PLUS a grep of the module showing no use of `inspect`, `ast`, or source-text search over `agent_workflows/` (GUIDING_PRINCIPLES P16). A test asserting a literal exit 0 anywhere is a FAILED validation on F-04.
   - Observed evidence:
-  - Result: pending
+    Targeted test run (`python3 -m pytest tests/test_empty_result_convention_doc.py -v -o addopts=""`):
+    ```
+    tests/test_empty_result_convention_doc.py::EmptyResultConventionDocSection111Tests::test_class3_excluded_tree_human_board_is_not_refused_and_names_tree PASSED [ 20%]
+    tests/test_empty_result_convention_doc.py::EmptyResultConventionDocSection111Tests::test_class3_excluded_tree_agent_surface_is_not_refused_with_clean_record PASSED [ 40%]
+    tests/test_empty_result_convention_doc.py::EmptyResultConventionDocSection111Tests::test_class2_named_artifact_assertion_is_refused PASSED [ 60%]
+    tests/test_empty_result_convention_doc.py::EmptyResultConventionDocSection111Tests::test_class1_standing_question_is_not_refused PASSED [ 80%]
+    tests/test_empty_result_convention_doc.py::EmptyResultConventionDocSection111Tests::test_class3_excluded_tree_list_mode_paths_channel_split PASSED [100%]
 
-- [ ] V-04 validates E-04
+    5 passed in 0.37s
+    ```
+
+    Bare `python3 -m pytest` summary line:
+    ```
+    6784 passed, 2 skipped, 3 warnings in 179.11s (0:02:59)
+    ```
+
+    Pasted structural properties:
+    1. Fixture construction in `tmp_path` (no count assertion of live repo):
+       ```python
+       def _build_fixture_repo(root: Path) -> tuple[Path, A.TreePolicy, str]:
+           config = root / ".aw" / "config"
+           plans = root / ".aw" / "records" / "plans" / "pending"
+           for d in (config, plans):
+               d.mkdir(parents=True, exist_ok=True)
+           (config / "project.json").write_text("{}", encoding="utf-8")
+           (plans / "20260901-test-01-pln001-sample.ipd.md").write_text(
+               "# IPD: sample plan\n\n- Status: draft\n- Id: pln001\n\n## Workflow history\n- 2026-09-01 draft (t): created.\n",
+               encoding="utf-8",
+           )
+       ```
+    2. Excluded tree derived at test time from `attention_contract.TREE_POLICY`:
+       ```python
+       excluded_policy = next(
+           p for p in A.TREE_POLICY if not p.tracked and p.name in ("walkthroughs", "roadmaps")
+       )
+       ```
+    3. Bogus-token case asserts refusal at `attention.EXIT_UNRESOLVED_SELECTOR` (preserving spec `25kzda` Section 2.4a):
+       ```python
+       rc, out, err = _run_attention_in_process(root, selectors=[bogus_token])
+       self.assertEqual(rc, att.EXIT_UNRESOLVED_SELECTOR)
+       ```
+    4. Excluded-tree case asserts output text names tree and quotes reason (silence guard):
+       ```python
+       rc, out, err = _run_attention_in_process(root, selectors=[token])
+       self.assertNotEqual(rc, att.EXIT_UNRESOLVED_SELECTOR)
+       combined = out + err
+       self.assertTrue(len(combined.strip()) > 0, "Silence guard failed: output is empty")
+       self.assertIn(policy.name, combined)
+       self.assertIn(policy.reason, combined)
+       ```
+    5. Driven in-process through `attention.run`:
+       ```python
+       with redirect_stdout(out), redirect_stderr(err):
+           rc = att.run(args)
+       ```
+    6. Fixture asserts `attention._classify_tree` maps artifact to `tracked=False` policy:
+       ```python
+       rel_path = f".aw/records/{excluded_policy.name}/{artifact_file.name}"
+       classified = att._classify_tree(rel_path)
+       assert classified is not None, f"Failed to classify fixture artifact: {rel_path}"
+       assert not classified.tracked, f"Classified policy for {rel_path} must be tracked=False"
+       assert classified.name == excluded_policy.name, f"Expected {excluded_policy.name}, got {classified.name}"
+       ```
+    7. List mode asserts explanation absent from stdout:
+       ```python
+       rc, out, err = _run_attention_in_process(root, selectors=[token], paths=True)
+       self.assertNotEqual(rc, att.EXIT_UNRESOLVED_SELECTOR)
+       self.assertEqual(out, "")
+       self.assertIn(policy.name, err)
+       ```
+
+    Grep check for inspect, ast, agent_workflows/ in `tests/test_empty_result_convention_doc.py`: 0 matches (exit 1).
+    No flat exit 0 assertions: verified no `assertEqual(rc, 0)` present.
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: THREE pasted test failures, one per break, each showing the actual failure output and naming which assertion caught it. First break, the excluded-tree exemption suppressed so the resolving token is refused again. Second break, the exemption widened so any unmatched token is exempt, with the failure showing the bogus-token assertion catching it. Third break, and this one is mandatory rather than optional, the explanation suppressed while the exemption stays in place, reproducing the measured silent state, with the failure showing the silence guard catching it. A validation presenting only two breaks does NOT satisfy this item: without the third the suite cannot distinguish the fix from the silent regression, which is the specific failure `uxb0tz` F-12 measured. PLUS a pasted `git status --short agent_workflows/` showing EMPTY output afterwards, proving no production file was left modified (that tree is outside `- Scope-Paths:` and a left-behind edit would also fail the finalize scope gate). PLUS, for each break, a statement of HOW it was applied (in-memory patch or restored edit).
   - Observed evidence:
-  - Result: pending
+    Break 1: Suppress excluded-tree exemption so resolving token is refused again.
+    Applied via in-memory patch (`unittest.mock.patch.object(att, 'resolve_excluded_tree_matches', return_value=[])`).
+    Failure output:
+    ```
+    FAIL: test_class3_excluded_tree_human_board_is_not_refused_and_names_tree (tests.test_empty_result_convention_doc.EmptyResultConventionDocSection111Tests.test_class3_excluded_tree_human_board_is_not_refused_and_names_tree)
+    ----------------------------------------------------------------------
+    Traceback (most recent call last):
+      File "tests/test_empty_result_convention_doc.py", line 145, in test_class3_excluded_tree_human_board_is_not_refused_and_names_tree
+        self.assertNotEqual(rc, att.EXIT_UNRESOLVED_SELECTOR)
+        ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    AssertionError: 2 == 2
+    ```
+    Caught by assertion: `self.assertNotEqual(rc, att.EXIT_UNRESOLVED_SELECTOR)`.
+
+    Break 2: Widen exemption so any unmatched token is exempt.
+    Applied via in-memory patch (`unittest.mock.patch.object(att, 'selector_vocabulary', return_value=att.selector_vocabulary() | {'definitelybogustoken123'})`).
+    Failure output:
+    ```
+    FAIL: test_class2_named_artifact_assertion_is_refused (tests.test_empty_result_convention_doc.EmptyResultConventionDocSection111Tests.test_class2_named_artifact_assertion_is_refused)
+    ----------------------------------------------------------------------
+    Traceback (most recent call last):
+      File "tests/test_empty_result_convention_doc.py", line 134, in test_class2_named_artifact_assertion_is_refused
+        self.assertEqual(rc, att.EXIT_UNRESOLVED_SELECTOR)
+        ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    AssertionError: 0 != 2
+    ```
+    Caught by assertion: `self.assertEqual(rc, att.EXIT_UNRESOLVED_SELECTOR)`.
+
+    Break 3: Suppress explanation while leaving exemption in place (reproducing silent state).
+    Applied via in-memory patch (`unittest.mock.patch.object(att, '_emit_excluded_tree_explanation', lambda *a, **kw: None)`).
+    Failure output:
+    ```
+    FAIL: test_class3_excluded_tree_human_board_is_not_refused_and_names_tree (tests.test_empty_result_convention_doc.EmptyResultConventionDocSection111Tests.test_class3_excluded_tree_human_board_is_not_refused_and_names_tree)
+    ----------------------------------------------------------------------
+    Traceback (most recent call last):
+      File "tests/test_empty_result_convention_doc.py", line 148, in test_class3_excluded_tree_human_board_is_not_refused_and_names_tree
+        self.assertTrue(len(combined.strip()) > 0, "Silence guard failed: output is empty")
+        ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    AssertionError: False is not true : Silence guard failed: output is empty
+    ```
+    Caught by assertion: `self.assertTrue(len(combined.strip()) > 0, "Silence guard failed: output is empty")`.
+
+    Verification that production tree was not modified:
+    `git status --short agent_workflows/` output:
+    (empty)
+  - Result: pass
 
 ## Approval and execution gate
 
