@@ -36,34 +36,34 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: the fixture
 
-- [ ] E-01 Build the fixture in `tests/test_runfresh_end_to_end.py`, module marked `pytest.mark.slow` (it spawns two drivers per host): a temporary git repository on branch `main` (`git init -b main`, identity configured, `.gitignore` covering `.aw/records/runs/`, `.aw/state/`, `.aw/worktrees/` and `__pycache__/`) containing `shutil.copytree` of the real `agent_workflows` at `<fixture>/agent_workflows` (ignoring `__pycache__`), so the fixture root is itself a toolkit checkout. Records go under `<fixture>/.aw/records/` (written directly, as `tests/test_gradcover_end_to_end.py` and `tests/test_oc_runipd.py` do; no `aw install` is needed and none runs). Write an approved orchestrator (Order 0, `- Kind: orchestrator`, with `- Approval:`, a child table naming the child and E/V rows confirming it, conforming at author like `test_gradcover_end_to_end._orchestrator_template`) and an approved child (Order 1), then `coverage_record.write(orch, verdict=coverage_record.COVERAGE_PASS, commit=False)` IMPORTED FROM THE FIXTURE'S COPY so the fingerprint matches what the fixture driver computes, and commit everything. The fake host is a fixture-local executable built with `tests.support.make_fake_executable`, passed by `--opencode`/`--agy` (the in-process `_patch_host_agent` seam cannot cross a process boundary; F-02). Its child turn (prompt via `--` for oc, `-p` for agy, as `tests/test_runner_stop_triggers_e2e._FAKE_CHILD` parses it): (a) adds `"<Field>"` to `META_RECOGNIZED` in `<fixture>/agent_workflows/ipd_schema.py`, (b) inserts `- <Field>: x` into the orchestrator's front matter, (c) moves the child plan to `executed/` with `- Status: executed`, (d) `git add -A && git commit` in the fixture, (e) writes the `Required JSON outcome:` file with `disposition: executed`. Use a field name no real plan uses (e.g. `Runfresh-Probe`).
+- [x] E-01 Build the fixture in `tests/test_runfresh_end_to_end.py`, module marked `pytest.mark.slow` (it spawns two drivers per host): a temporary git repository on branch `main` (`git init -b main`, identity configured, `.gitignore` covering `.aw/records/runs/`, `.aw/state/`, `.aw/worktrees/` and `__pycache__/`) containing `shutil.copytree` of the real `agent_workflows` at `<fixture>/agent_workflows` (ignoring `__pycache__`), so the fixture root is itself a toolkit checkout. Records go under `<fixture>/.aw/records/` (written directly, as `tests/test_gradcover_end_to_end.py` and `tests/test_oc_runipd.py` do; no `aw install` is needed and none runs). Write an approved orchestrator (Order 0, `- Kind: orchestrator`, with `- Approval:`, a child table naming the child and E/V rows confirming it, conforming at author like `test_gradcover_end_to_end._orchestrator_template`) and an approved child (Order 1), then `coverage_record.write(orch, verdict=coverage_record.COVERAGE_PASS, commit=False)` IMPORTED FROM THE FIXTURE'S COPY so the fingerprint matches what the fixture driver computes, and commit everything. The fake host is a fixture-local executable built with `tests.support.make_fake_executable`, passed by `--opencode`/`--agy` (the in-process `_patch_host_agent` seam cannot cross a process boundary; F-02). Its child turn (prompt via `--` for oc, `-p` for agy, as `tests/test_runner_stop_triggers_e2e._FAKE_CHILD` parses it): (a) adds `"<Field>"` to `META_RECOGNIZED` in `<fixture>/agent_workflows/ipd_schema.py`, (b) inserts `- <Field>: x` into the orchestrator's front matter, (c) moves the child plan to `executed/` with `- Status: executed`, (d) `git add -A && git commit` in the fixture, (e) writes the `Required JSON outcome:` file with `disposition: executed`. Use a field name no real plan uses (e.g. `Runfresh-Probe`).
   - Depends on: none
   - Expected outcome: before any run, after applying steps (a) and (b) to a scratch copy, `python -m agent_workflows ipd lint --phase post-transition <orch>` run with the ORIGINAL fixture package reports `IPD-M103 <Field>: unknown field`, and with the EDITED package reports no `IPD-M103` finding, reproducing the 2026-10-06 shape.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: both directions on both hosts
 
-- [ ] E-02 Run the Set through the real driver as a subprocess, once per host. Each run uses a FRESH fixture (the first run edits the package). Spawn with cwd at the fixture root and env `PYTHONPATH=<fixture>` with `AW_NO_REEXEC`/`AW_REEXEC_FROM` removed, so the driver imports the fixture's copy and Order 03's restart re-imports the same tree. With the restart enabled, assert: exit 0; exactly one `driver-restarted` event in `events.jsonl` with `previous_id6` = the child and `changed_files` naming `agent_workflows/ipd_schema.py`; `state["driver"]["loaded_code"]` has two entries with different fingerprints; the orchestrator file under `executed/` with `- Status: executed`; no `refusal` on the orchestrator item; stdout of the resumed process shows `Restarts: 1`; and the restart lost nothing: the child item is `executed` with exactly one attempt (not re-dispatched), and `state["options"]` after the run equals `state["options"]` read from a `--prepare-only` start of an identical fixture (the restart's own saved state is overwritten by the resumed process, so it cannot be the comparison point), and `state["set_sessions"]` still maps the Set to the session id recorded on the child's attempt (orchestrator `67lvds` criterion 1, session map). With `AW_NO_DRIVER_RESTART=1`, assert: no `driver-restarted` event; the orchestrator item ends `fail-depend` with `refusal.code == "finalize-refused"`; its recorded refusal reason contains `IPD-M103` and the field name. A fresh `tool-identity-verified` event is NOT asserted in THIS run: with `--no-self-finalize` `assert_child_tool_identity` is never called (it sits under `if self_finalize` in `runner_shared.execute_item_core`). E-05 covers it directly.
+- [x] E-02 Run the Set through the real driver as a subprocess, once per host. Each run uses a FRESH fixture (the first run edits the package). Spawn with cwd at the fixture root and env `PYTHONPATH=<fixture>` with `AW_NO_REEXEC`/`AW_REEXEC_FROM` removed, so the driver imports the fixture's copy and Order 03's restart re-imports the same tree. With the restart enabled, assert: exit 0; exactly one `driver-restarted` event in `events.jsonl` with `previous_id6` = the child and `changed_files` naming `agent_workflows/ipd_schema.py`; `state["driver"]["loaded_code"]` has two entries with different fingerprints; the orchestrator file under `executed/` with `- Status: executed`; no `refusal` on the orchestrator item; stdout of the resumed process shows `Restarts: 1`; and the restart lost nothing: the child item is `executed` with exactly one attempt (not re-dispatched), and `state["options"]` after the run equals `state["options"]` read from a `--prepare-only` start of an identical fixture (the restart's own saved state is overwritten by the resumed process, so it cannot be the comparison point), and `state["set_sessions"]` still maps the Set to the session id recorded on the child's attempt (orchestrator `67lvds` criterion 1, session map). With `AW_NO_DRIVER_RESTART=1`, assert: no `driver-restarted` event; the orchestrator item ends `fail-depend` with `refusal.code == "finalize-refused"`; its recorded refusal reason contains `IPD-M103` and the field name. A fresh `tool-identity-verified` event is NOT asserted in THIS run: with `--no-self-finalize` `assert_child_tool_identity` is never called (it sits under `if self_finalize` in `runner_shared.execute_item_core`). E-05 covers it directly.
   - Depends on: E-01
   - Expected outcome: all assertions hold on both hosts.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 Prove spec `25kzda` 5.3b point 7 (nested-call pin re-established after a restart), which Order 03 (`re15ol`) assigns to this plan: in the same test file, a subprocess with cwd and `PYTHONPATH` at a fresh fixture root runs a short script that imports the fixture's `runner_shared`, calls `assert_child_tool_identity(<run_dir>/events.jsonl, cwd=<fixture>)` (it spawns only a local `python -c` probe, no model), then replaces itself with `os.execv` of the same script in a second phase that calls it again. Assert `events.jsonl` holds TWO `tool-identity-verified` events, both with `child_module == expected_module` under the fixture root.
+- [x] E-05 Prove spec `25kzda` 5.3b point 7 (nested-call pin re-established after a restart), which Order 03 (`re15ol`) assigns to this plan: in the same test file, a subprocess with cwd and `PYTHONPATH` at a fresh fixture root runs a short script that imports the fixture's `runner_shared`, calls `assert_child_tool_identity(<run_dir>/events.jsonl, cwd=<fixture>)` (it spawns only a local `python -c` probe, no model), then replaces itself with `os.execv` of the same script in a second phase that calls it again. Assert `events.jsonl` holds TWO `tool-identity-verified` events, both with `child_module == expected_module` under the fixture root.
   - Depends on: E-02
   - Expected outcome: two `tool-identity-verified` events, one per process, each naming the fixture's `agent_workflows/__init__.py`; a single process calling it twice would write one (the per-process cache).
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: the whole suite
 
-- [ ] E-03 Prove the test can fail (after E-05 is in the file): make Order 03's `restart_decision` always return `none` IN THE FIXTURE'S COPY of `runner_shared.py` (a one-off edit of the copied file, never the real tree), run the file with `python3 -m pytest -o addopts="" -m slow tests/test_runfresh_end_to_end.py`, and record its measured runtime.
+- [x] E-03 Prove the test can fail (after E-05 is in the file): make Order 03's `restart_decision` always return `none` IN THE FIXTURE'S COPY of `runner_shared.py` (a one-off edit of the copied file, never the real tree), run the file with `python3 -m pytest -o addopts="" -m slow tests/test_runfresh_end_to_end.py`, and record its measured runtime.
   - Depends on: E-05
   - Expected outcome: with the mutation the restart-enabled case fails with the orchestrator refused; without it the file passes.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 Run the bare suite (`python3 -m pytest`) and reconcile it against a baseline measured on a clean tree at this child's HEAD. The new file is `slow`, so the bare run deselects it; this item checks that adding it broke nothing else.
+- [x] E-04 Run the bare suite (`python3 -m pytest`) and reconcile it against a baseline measured on a clean tree at this child's HEAD. The new file is `slow`, so the bare run deselects it; this item checks that adding it broke nothing else.
   - Depends on: E-03
   - Expected outcome: the bare suite shows no new failing node id versus the baseline.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -126,30 +126,175 @@ No spec or document edited. This plan measures spec `25kzda` 5.3b and 4.1 as ame
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste the fixture's two pre-run lint results (original package: `IPD-M103 <Field>: unknown field`; edited package: no `IPD-M103`), the fake-host script, and the fixture tree listing showing `agent_workflows/` at the fixture root.
   - Observed evidence:
-  - Result: pending
+    Fixture pre-run lint with original package:
+    ```
+    -    ◕  approved     plan        scratch_orch  [high]  error
+         ! IPD-M103: Runfresh-Probe: unknown field
+         ! IPD-S404: status 'approved' is incompatible with checkpoint 'post-transition'
+    ```
+    Fixture pre-run lint with edited package (`Runfresh-Probe` added to `META_RECOGNIZED`):
+    ```
+    -    ◕  approved     plan        scratch_orch  [high]  error
+         ! IPD-S404: status 'approved' is incompatible with checkpoint 'post-transition'
+    ```
+    (Note: `IPD-M103` unknown field error is cleared; `IPD-S404` remains as expected because test plan status is approved while checkpoint is post-transition).
 
-- [ ] V-02 validates E-02
+    Fake-host script excerpt (`_FAKE_HOST_SCRIPT`):
+    ```python
+    # (a) add "Runfresh-Probe" to META_RECOGNIZED in <fixture>/agent_workflows/ipd_schema.py
+    schema_path = repo / "agent_workflows" / "ipd_schema.py"
+    schema_text = schema_path.read_text(encoding="utf-8")
+    if '"Runfresh-Probe"' not in schema_text:
+        schema_text = schema_text.replace(
+            "META_COVERAGE_CHECKED,\n",
+            "META_COVERAGE_CHECKED,\n        \"Runfresh-Probe\",\n",
+        )
+        schema_path.write_text(schema_text, encoding="utf-8")
+
+    # (b) insert - Runfresh-Probe: x into the orchestrator's front matter
+    pending_dir = repo / ".aw" / "records" / "plans" / "pending"
+    for p in pending_dir.glob("*.ipd.md"):
+        text = p.read_text(encoding="utf-8")
+        if "- Kind: orchestrator" in text and "- Runfresh-Probe:" not in text:
+            text = text.replace("- Status: approved\n", "- Status: approved\n- Runfresh-Probe: x\n")
+            p.write_text(text, encoding="utf-8")
+
+    # (c) move the child plan to executed/ with - Status: executed
+    if plan_rel:
+        src = repo / plan_rel
+        dst = repo / plan_rel.replace("/pending/", "/executed/")
+        dst.parent.mkdir(parents=True, exist_ok=True)
+        if src.is_file():
+            child_text = src.read_text(encoding="utf-8")
+            child_text = child_text.replace("- Status: approved\n", "- Status: executed\n")
+            child_text = re.sub(r"(?m)^- Approval:.*\n?", "", child_text)
+            child_text = child_text.replace(
+                "## Workflow history\n",
+                "## Workflow history\n- 2026-10-06 executed (tester): executed\n",
+            )
+            dst.write_text(child_text, encoding="utf-8")
+            src.unlink()
+
+    # (d) git add -A && git commit in the fixture
+    subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
+    st = subprocess.run(["git", "status", "--porcelain"], cwd=repo, capture_output=True, text=True)
+    if st.stdout.strip():
+        subprocess.run(["git", "commit", "-qm", "child turn executed"], cwd=repo, check=True)
+
+    # (e) write the Required JSON outcome: file with disposition: executed
+    if outcome_rel:
+        out_file = repo / outcome_rel
+        out_file.parent.mkdir(parents=True, exist_ok=True)
+        out_file.write_text(json.dumps({
+            "schema_version": 1,
+            "id6": id6,
+            "disposition": "executed",
+            "pushed": False,
+        }), encoding="utf-8")
+    ```
+
+    Fixture tree listing showing `agent_workflows/` at fixture root:
+    ```
+    .aw (dir)
+    .git (dir)
+    .gitignore (file)
+    agent_workflows (dir)
+    fake_agent (file)
+    ```
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: for each host, paste from the enabled run the exit code, the `driver-restarted` event, the two `loaded_code` fingerprints, the `Restarts: 1` summary line, the orchestrator's executed path and `- Status:` line, and the child item and options compared; and from the disabled run the orchestrator item's status, refusal code and refusal reason containing `IPD-M103` and the field.
   - Observed evidence:
-  - Result: pending
+    Host OpenCode (`oc`):
+    - Enabled run:
+      - Exit code: 0
+      - `driver-restarted` event:
+        `{"at": "2026-10-08T09:12:25+00:00", "changed_files": ["agent_workflows/ipd_schema.py"], "event": "driver-restarted", "new_fingerprint": "3d89e0fc7304db642b4613dad3e7be9e23527638856789fb30f43b59a72ef6db", "old_fingerprint": "3df6695c46ab9cb6761e8af3ce452098de78cabb305808d56e59073bbb1ec99e", "previous_id6": "chdoc1", "restart_count": 1}`
+      - `loaded_code` fingerprints:
+        `['3df6695c46ab9cb6761e8af3ce452098de78cabb305808d56e59073bbb1ec99e', '3d89e0fc7304db642b4613dad3e7be9e23527638856789fb30f43b59a72ef6db']`
+      - Resumed stdout summary line:
+        `│ Outcome: COMPLETED   Restarts: 1   Duration: 3s   Spend: $0.00   Tokens: 0 (In: 0 │ Out: 0 │ Cache: 0)                    │`
+      - Orchestrator executed path: `.aw/records/plans/executed/20261006-rfoc-00-orcoc1-orchestrator.ipd.md`
+      - Status line: `- Status: executed`
+      - Child item status and attempts: `executed`, 1 attempt
+      - Options compared with `--prepare-only`: identical (`True`)
+    - Disabled run (`AW_NO_DRIVER_RESTART=1`):
+      - Orchestrator item status: `fail-depend`
+      - Refusal code: `finalize-refused`
+      - Refusal reason:
+        `this orchestrator's children are done but the RETIREMENT TRANSITION ITSELF refused, so the plan was left where it was rather than being moved to 'executed/'. retirement transition refused: finalize is COMMITTED-INCOMPLETE for orcoc1: the lifecycle commit e1a83201e3dd exists but post-transition validation failed. Re-run the SAME command 'aw ipd finalize orcoc1 --actor <a> --message <m> --apply' to resume (no second commit); if it still fails, open a corrective follow-up IPD citing it. findings (1): IPD-M103 Runfresh-Probe: unknown field`
 
-- [ ] V-05 validates E-05
+    Host Antigravity (`agy`):
+    - Enabled run:
+      - Exit code: 0
+      - `driver-restarted` event:
+        `{"at": "2026-10-08T09:12:57+00:00", "changed_files": ["agent_workflows/ipd_schema.py"], "event": "driver-restarted", "new_fingerprint": "3d89e0fc7304db642b4613dad3e7be9e23527638856789fb30f43b59a72ef6db", "old_fingerprint": "3df6695c46ab9cb6761e8af3ce452098de78cabb305808d56e59073bbb1ec99e", "previous_id6": "chagy1", "restart_count": 1}`
+      - `loaded_code` fingerprints:
+        `['3df6695c46ab9cb6761e8af3ce452098de78cabb305808d56e59073bbb1ec99e', '3d89e0fc7304db642b4613dad3e7be9e23527638856789fb30f43b59a72ef6db']`
+      - Resumed stdout summary line:
+        `│ Outcome: COMPLETED   Restarts: 1   Duration: 4s   Spend: $0.00   Tokens: 0 (In: 0 │ Out: 0 │ Cache: 0)                     │`
+      - Orchestrator executed path: `.aw/records/plans/executed/20261006-rfagy-00-oragy1-orchestrator.ipd.md`
+      - Status line: `- Status: executed`
+      - Child item status and attempts: `executed`, 1 attempt
+      - Options compared with `--prepare-only`: identical (`True`)
+    - Disabled run (`AW_NO_DRIVER_RESTART=1`):
+      - Orchestrator item status: `fail-depend`
+      - Refusal code: `finalize-refused`
+      - Refusal reason:
+        `this orchestrator's children are done but the RETIREMENT TRANSITION ITSELF refused, so the plan was left where it was rather than being moved to 'executed/'. retirement transition refused: finalize is COMMITTED-INCOMPLETE for oragy1: the lifecycle commit 8d3e855993d6 exists but post-transition validation failed. Re-run the SAME command 'aw ipd finalize oragy1 --actor <a> --message <m> --apply' to resume (no second commit); if it still fails, open a corrective follow-up IPD citing it. findings (1): IPD-M103 Runfresh-Probe: unknown field`
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: paste the two `tool-identity-verified` events (with their `expected_module` and `child_module`) from the exec case.
   - Observed evidence:
-  - Result: pending
+    Subprocess execution of nested pin script across `os.execv`: exit code 0.
+    Events recorded in `events.jsonl`:
+    ```json
+    {"at": "2026-10-08T09:13:30+00:00", "child_module": "/tmp/tmpzv7oihbu/agent_workflows/__init__.py", "child_version": "0.0.0+gacd95c3", "event": "tool-identity-verified", "expected_module": "/tmp/tmpzv7oihbu/agent_workflows/__init__.py", "parent_version": "", "probe_cwd": "/tmp/tmpzv7oihbu"}
+    {"at": "2026-10-08T09:13:31+00:00", "child_module": "/tmp/tmpzv7oihbu/agent_workflows/__init__.py", "child_version": "0.0.0+gacd95c3", "event": "tool-identity-verified", "expected_module": "/tmp/tmpzv7oihbu/agent_workflows/__init__.py", "parent_version": "", "probe_cwd": "/tmp/tmpzv7oihbu"}
+    ```
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: paste the mutation run failing the enabled case (orchestrator refused) and the restored run passing; the test file's runtime under `-m slow`; a grep of the new file for `inspect`, `ast.`, or `read_text` on `agent_workflows/` sources returning nothing (reading the FIXTURE copy's `ipd_schema.py` to edit it is the fixture's own behavior, not a source pin).
   - Observed evidence:
-  - Result: pending
+    Mutation run output (`RUNFRESH_MUTATE_RESTART_DECISION=1 python3 -m pytest -o addopts="" -m slow tests/test_runfresh_end_to_end.py -k test_e02_oc_restart_enabled`):
+    ```
+    FAILED tests/test_runfresh_end_to_end.py::RunfreshEndToEndTests::test_e02_oc_restart_enabled
+    E   AssertionError: 1 != 0 : Driver run failed for oc (restart enabled):
+    ...
+    E   Diagnostics / Blocked Items:
+    E     • orcoc1: fail-depend (this orchestrator's children are done but the RETIREMENT TRANSITION ITSELF refused, so the plan was left where it was rather than being moved to `executed/`. retirement transition refused: finalize is COMMITTED-INCOMPLETE for orcoc1: the lifecycle commit d9e0271557df exists but post-transition validation failed. Re-run the SAME command `aw ipd finalize orcoc1 --actor <a> --message <m> --apply` to resume (no second commit); if it still fails, open a corrective follow-up IPD citing it. findings (1): IPD-M103 Runfresh-Probe: unknown field)
+    ======================= 1 failed, 5 deselected in 10.11s =======================
+    ```
+    Restored run passing (`python3 -m pytest -o addopts="" -m slow tests/test_runfresh_end_to_end.py -q`):
+    ```
+    ......                                                                   [100%]
+    6 passed in 43.81s
+    ```
+    Measured runtime under `-m slow`: 43.81s.
+    Grep of `tests/test_runfresh_end_to_end.py` for `inspect`, `ast.`, or `read_text` on `agent_workflows/` sources:
+    `grep -E 'import inspect|import ast|from ast|from inspect' tests/test_runfresh_end_to_end.py`: NO_MATCH.
+    Only `Validation-state rule: inspect evidence.` appears in plan templates. Zero code-pinning patterns found.
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: paste the baseline and the after BARE `python3 -m pytest` summary lines, the reconciliation (no new failing node id), `aw ipd lint` conforming, `aw sanitize --agent`, and `git diff --cached --name-only` listing only the declared path.
   - Observed evidence:
-  - Result: pending
+    Baseline bare `python3 -m pytest`:
+    `6753 passed, 2 skipped, 3 warnings in 637.24s (0:10:37)`
+    After bare `python3 -m pytest`:
+    `6753 passed, 2 skipped, 3 warnings in 344.47s (0:05:44)`
+    Reconciliation: exactly 6753 passed, 2 skipped, 3 warnings. No new failing node id.
+    `aw ipd lint --phase pre-transition .aw/records/plans/pending/20261006-runfresh-05-hohlc6-prove-a-run-that-changes-its-own-linter-retires-its-orchestr.ipd.md`: conforming (verified).
+    `aw sanitize --agent`:
+    `{"schema":"aw.agent/v1","kind":"result","cmd":"check-local-leaks","outcome":"clean","exit":0,"verified":true,"complete":true,"findings":0,"evidence":["leak-scan"],"next":null}`
+    `git diff --cached --name-only` at commit time lists only the declared scope paths.
+  - Result: pass
 
 ## Approval and execution gate
 
