@@ -317,6 +317,7 @@ To minimize token usage during agent orchestration while preserving complete dec
 - **`stdout`**: Reserved strictly for final structured results (the interactive human view or machine JSONL records).
 - **`stderr`**: Reserved for interactive progress indicators, transient status updates, cannot-start errors, and usage diagnostics. Diagnostics are never duplicated across both streams.
 - **Broken Pipes**: A top-level guard at the single process entry point `cli.main` catches `BrokenPipeError` when writing or flushing stdout, redirecting stdout to `os.devnull` to ensure the process exits cleanly within Section 3's three-state vocabulary (`0`, `1`, `2`) without dumping Python stack traces or shutdown flush errors (exit 120). When the command completed dispatch and only the final stdout flush failed, the command's computed verdict (`rc`) is preserved and returned unchanged. When the command was interrupted mid-write during dispatch, the guard returns `0`; in that case output is truncated and the exit code describes the closed pipe rather than repository findings, so callers requiring an authoritative domain verdict must consume the full stream or use machine surfaces (`--agent` / `--json`). The guard catches `BrokenPipeError` specifically and never bare `OSError`, ensuring genuine write failures such as `ENOSPC` (no space left on device) are not suppressed.
+- **Validation Failure Degradation**: When a record constructed during dispatch fails schema validation during rendering, the agent serializer replaces it with a conforming `kind: error` record carrying `exit: 2` and rule-text diagnostics rather than crashing with a Python traceback on stderr, ensuring the machine stream remains parseable and handlers exit cleanly without dumping Python stack traces.
 
 ---
 
@@ -460,7 +461,7 @@ When a query, find, search, or list verb matches zero records or produces an emp
 - **Usage / Cannot-Run Errors (`exit: 2`)**:
   - Missing mandatory arguments, unknown subcommands, or invalid selectors MUST exit `2`.
   - Human TTY: prints diagnostic message and usage help to `stderr`.
-  - Agent Mode: emits a `kind: "error"` record with `outcome: "cannot-run"` (or `"error"`), `exit: 2`, `verified: false`, `complete: false`, and a `next` recovery command (e.g. `aw <cmd> --help`).
+  - Agent Mode: emits a `kind: "error"` record with `outcome: "cannot-run"` (or `"error"`), `exit: 2`, `verified: false`, `complete: false`, and a `next` recovery command (e.g. `aw <cmd> --help`). If a record constructed by a command fails schema validation during rendering, it is substituted with a conforming `kind: "error"` record carrying `exit: 2` and `outcome: "error"`, naming the violated rules while omitting offending values to prevent secondary leaks.
 - **Domain Findings / Violations (`exit: 1`)**:
   - Verification failures, policy drift, or schema nonconformance MUST exit `1`.
   - Emits diagnostic findings with actionable `Fix:` hints and appropriate follow-up `next` actions.

@@ -390,6 +390,88 @@ def assert_valid_agent_record(record: Dict[str, Any]) -> None:
 
 
 # --------------------------------------------------------------------------------------------------
+# Rule Text Extraction & Degradation Constants (Order 01 / wqiofa)
+# --------------------------------------------------------------------------------------------------
+
+LAST_RESORT_ERROR_DIAGNOSTIC: str = "aw.agent/v1 record failed schema validation"
+
+_REDUCER_RULES: Sequence[tuple[re.Pattern[str], str]] = (
+    # 1. Unsanitized home paths and ANSI escapes in path_prefix fields
+    (re.compile(r"^(Unsanitized absolute home path in field '[^']+'): .*$"), r"\1"),
+    (re.compile(r"^(ANSI escape code detected in field '[^']+'): .*$"), r"\1"),
+    # 2. Exit field range violation
+    (re.compile(r"^(Field 'exit' must be an integer in \(0, 1, 2\)), got .*$"), r"\1"),
+    # 3. Outcome field violations
+    (
+        re.compile(r"^Unknown outcome '[^']*'; (expected one of .*)$"),
+        r"Unknown outcome; \1",
+    ),
+    (re.compile(r"^(Field 'outcome' must be a string), got .*$"), r"\1"),
+    # 4. Schema and Kind violations
+    (re.compile(r"^(Invalid schema: expected '[^']+'), got .*$"), r"\1"),
+    (
+        re.compile(r"^Invalid kind: '[^']*' must be one of (.*)$"),
+        r"Invalid kind: must be one of \1",
+    ),
+    # 5. Anti-greenwash invariants
+    (
+        re.compile(r"^Greenwash violation: outcome cannot be '[^']*' (when .*)$"),
+        r"Greenwash violation: outcome cannot be positive \1",
+    ),
+    (
+        re.compile(
+            r"^Greenwash violation: outcome cannot be positive for '[^']*' (state)$"
+        ),
+        r"Greenwash violation: outcome cannot be positive for incomplete \1",
+    ),
+    # 6. Exit code parity mismatches
+    (
+        re.compile(
+            r"^(Exit code mismatch: exit=0 incompatible with negative outcome).*$"
+        ),
+        r"\1",
+    ),
+    (
+        re.compile(r"^(Exit code mismatch: exit=1 incompatible with clean outcome).*$"),
+        r"\1",
+    ),
+    (
+        re.compile(
+            r"^(Exit code mismatch: exit=2 requires outcome 'cannot-run' or 'error'), got .*$"
+        ),
+        r"\1",
+    ),
+    # 7. Summary record counts
+    (
+        re.compile(
+            r"^Summary counts inconsistent: emitted \([^)]*\) \+ omitted \([^)]*\) != total \([^)]*\)$"
+        ),
+        "Summary counts inconsistent: emitted + omitted != total",
+    ),
+    # 8. Error record invariants
+    (re.compile(r"^(Error record must carry exit=2), got exit=.*$"), r"\1"),
+    (
+        re.compile(
+            r"^(Error record must carry outcome 'error' or 'cannot-run'), got .*$"
+        ),
+        r"\1",
+    ),
+)
+
+
+def reduce_violation_to_rule_text(violation: str) -> str:
+    """Reduce a validation error string to its rule text, discarding the quoted offending value."""
+    for pattern, repl in _REDUCER_RULES:
+        if pattern.match(violation):
+            return pattern.sub(repl, violation)
+    if ": '" in violation or ': "' in violation:
+        prefix, _, _ = violation.partition(": ")
+        if prefix:
+            return redact_home_paths(_ANSI_ESCAPE_RE.sub("", prefix))
+    return redact_home_paths(_ANSI_ESCAPE_RE.sub("", violation))
+
+
+# --------------------------------------------------------------------------------------------------
 # Field Filtering & Projection (Token Control)
 # --------------------------------------------------------------------------------------------------
 
@@ -441,3 +523,140 @@ def render_jsonl_record(record: Dict[str, Any]) -> str:
     """Render an agent record as a single-line, compact JSONL string terminated by newline."""
     assert_valid_agent_record(record)
     return json.dumps(record, separators=(",", ":"), ensure_ascii=False) + "\n"
+
+
+LAST_RESORT_ERROR_RECORD: Dict[str, Any] = {
+    "schema": SCHEMA_VERSION,
+    "kind": "error",
+    "cmd": "aw",
+    "exit": 2,
+    "outcome": "error",
+    "verified": False,
+    "complete": False,
+    "error": LAST_RESORT_ERROR_DIAGNOSTIC,
+    "next": None,
+}
+
+LAST_RESORT_JSONL_RECORD: str = (
+    json.dumps(LAST_RESORT_ERROR_RECORD, separators=(",", ":"), ensure_ascii=False)
+    + "\n"
+)
+
+
+def build_substitute_error_record(
+    errors: Sequence[str],
+    cmd: Optional[str] = None,
+) -> Dict[str, Any]:
+    """Build a conforming aw.agent/v1 substitute error record carrying rule-text-only violations."""
+    clean_cmd = "aw"
+    if isinstance(cmd, str) and cmd.strip():
+        stripped = cmd.strip()
+        if not _HOME_PATH_RE.search(stripped) and not _ANSI_ESCAPE_RE.search(stripped):
+            clean_cmd = stripped
+
+    reduced_rules = [reduce_violation_to_rule_text(err) for err in errors]
+    if reduced_rules:
+        error_msg = f"Invalid aw.agent/v1 record: {'; '.join(reduced_rules)}"
+    else:
+        error_msg = LAST_RESORT_ERROR_DIAGNOSTIC
+
+    return {
+        "schema": SCHEMA_VERSION,
+        "kind": "error",
+        "cmd": clean_cmd,
+        "exit": 2,
+        "outcome": "error",
+        "verified": False,
+        "complete": False,
+        "error": error_msg,
+        "next": None,
+    }
+
+
+def render_guarded_jsonl_record(
+    record: Dict[str, Any],
+    *,
+    strict: Optional[bool] = None,
+    guarded: Optional[bool] = None,
+) -> str:
+    """Render an agent record as a single-line compact JSONL string, degrading invalid records in production.
+
+    When `strict` is True, raises `ValueError` on schema violations with the original unredacted message.
+    When `strict` is False (or `guarded=True`), catches `ValueError` and returns a conforming substitute
+    error record carrying rule-text-only violations.
+    When neither is passed (`strict is None` and `guarded is None`), defaults to strict under pytest
+    (detected via `PYTEST_CURRENT_TEST` in `os.environ`) and guarded in production.
+    """
+    if guarded is not None:
+        if strict is not None:
+            raise ValueError("Cannot specify both strict and guarded")
+        strict = not guarded
+    if strict is None:
+        strict = "PYTEST_CURRENT_TEST" in os.environ
+
+    try:
+        return render_jsonl_record(record)
+    except ValueError as exc:
+        if strict:
+            raise
+
+        # Production / guarded mode: build a conforming substitute error record
+        errors: List[str]
+        cmd_val: Optional[str] = None
+        if isinstance(record, dict):
+            cmd_val = record.get("cmd")
+            errors = validate_agent_record(record)
+        else:
+            errors = []
+
+        if not errors:
+            exc_msg = str(exc)
+            prefix = "Invalid aw.agent/v1 record: "
+            if exc_msg.startswith(prefix):
+                errors = [
+                    e.strip() for e in exc_msg[len(prefix) :].split("; ") if e.strip()
+                ]
+            else:
+                errors = [exc_msg]
+
+        try:
+            substitute = build_substitute_error_record(errors, cmd=cmd_val)
+            assert_valid_agent_record(substitute)
+            return (
+                json.dumps(substitute, separators=(",", ":"), ensure_ascii=False) + "\n"
+            )
+        except Exception:
+            return LAST_RESORT_JSONL_RECORD
+
+
+def degrade_validation_error_to_record(
+    exc: ValueError,
+    cmd: Optional[str] = None,
+    *,
+    strict: Optional[bool] = None,
+    guarded: Optional[bool] = None,
+) -> str:
+    """Degrade an already-raised schema ValueError into a conforming JSONL error record."""
+    if guarded is not None:
+        if strict is not None:
+            raise ValueError("Cannot specify both strict and guarded")
+        strict = not guarded
+    if strict is None:
+        strict = "PYTEST_CURRENT_TEST" in os.environ
+
+    if strict:
+        raise exc
+
+    exc_msg = str(exc)
+    prefix = "Invalid aw.agent/v1 record: "
+    if exc_msg.startswith(prefix):
+        errors = [e.strip() for e in exc_msg[len(prefix) :].split("; ") if e.strip()]
+    else:
+        errors = [exc_msg]
+
+    try:
+        substitute = build_substitute_error_record(errors, cmd=cmd)
+        assert_valid_agent_record(substitute)
+        return json.dumps(substitute, separators=(",", ":"), ensure_ascii=False) + "\n"
+    except Exception:
+        return LAST_RESORT_JSONL_RECORD

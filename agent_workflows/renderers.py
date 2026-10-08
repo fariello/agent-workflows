@@ -189,16 +189,35 @@ class HumanRenderer(BaseRenderer):
 class AgentRenderer(BaseRenderer):
     """Agent-facing compact aw.agent/v1 JSONL renderer (Order 01/03)."""
 
+    def __init__(self, *, strict: Optional[bool] = None) -> None:
+        self.strict = strict
+
     def render(
-        self, result: CommandResult, context: Optional[OutputContext] = None
+        self,
+        result: CommandResult,
+        context: Optional[OutputContext] = None,
+        *,
+        strict: Optional[bool] = None,
     ) -> str:
-        rec = result.to_agent_record(context)
-        return _schema.render_jsonl_record(rec)
+        strict_mode = self.strict if strict is None else strict
+        try:
+            rec = result.to_agent_record(context)
+            return _schema.render_guarded_jsonl_record(rec, strict=strict_mode)
+        except ValueError as exc:
+            return _schema.degrade_validation_error_to_record(
+                exc, cmd=result.command, strict=strict_mode
+            )
 
     def render_item(
-        self, item: Dict[str, Any], cmd: str, context: Optional[OutputContext] = None
+        self,
+        item: Dict[str, Any],
+        cmd: str,
+        context: Optional[OutputContext] = None,
+        *,
+        strict: Optional[bool] = None,
     ) -> str:
         """Render a single stream item record."""
+        strict_mode = self.strict if strict is None else strict
         rec: Dict[str, Any] = {
             "schema": _schema.SCHEMA_VERSION,
             "kind": "item",
@@ -207,7 +226,7 @@ class AgentRenderer(BaseRenderer):
         }
         if context and context.fields:
             rec = _schema.filter_record_fields(rec, context.fields)
-        return _schema.render_jsonl_record(rec)
+        return _schema.render_guarded_jsonl_record(rec, strict=strict_mode)
 
     def render_summary(
         self,
@@ -221,8 +240,11 @@ class AgentRenderer(BaseRenderer):
         complete: bool = True,
         context: Optional[OutputContext] = None,
         diagnostics: Optional[Sequence[Dict[str, Any]]] = None,
+        *,
+        strict: Optional[bool] = None,
     ) -> str:
         """Render a stream summary record."""
+        strict_mode = self.strict if strict is None else strict
         rec: Dict[str, Any] = {
             "schema": _schema.SCHEMA_VERSION,
             "kind": "summary",
@@ -248,7 +270,7 @@ class AgentRenderer(BaseRenderer):
             if diagnostics and "diagnostics" not in filtered:
                 filtered["diagnostics"] = list(diagnostics)
             rec = filtered
-        return _schema.render_jsonl_record(rec)
+        return _schema.render_guarded_jsonl_record(rec, strict=strict_mode)
 
     def render_stream(
         self,

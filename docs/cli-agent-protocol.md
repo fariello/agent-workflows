@@ -47,6 +47,8 @@ validator rejects such greenwashing. Exit code parity is enforced:
 
 Parse the terminal record's `exit` and compare it to the process return code; they must agree.
 
+When a record constructed by a command fails schema validation during rendering, it is replaced by a conforming `kind: error` record carrying `exit: 2` and `outcome: "error"` rather than crashing with a traceback. The substitute record reports rule text only, preserving field names and naming the violated rules while discarding the offending values (such as unsanitized absolute paths or ANSI escapes) to prevent secondary leaks.
+
 ## Stream truncation is honest
 
 When a stream is bounded (for example with `--limit`), the terminating `summary` record retains
