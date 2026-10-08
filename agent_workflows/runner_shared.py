@@ -33330,7 +33330,17 @@ def execute_item_core(
         driver_module, "reconcile_disposition", globals().get("reconcile_disposition")
     )
     integrate_lane_branch = getattr(
-        driver_module, "integrate_lane_branch", globals().get("integrate_lane_branch")
+        driver_module,
+        "integrate_lane_branch",
+        lambda repo, handle, id6, validation_runner: globals()["integrate_lane_branch"](
+            repo,
+            handle,
+            id6,
+            validation_runner,
+            host_label=host_labels.command,
+            run_checked=run_checked,
+            action_kind="execute",
+        ),
     )
     integrate_review_lane_branch = getattr(
         driver_module,
@@ -33343,7 +33353,11 @@ def execute_item_core(
         globals().get("acquire_review_sweep_lane"),
     )
     route_recovery_turn = getattr(
-        driver_module, "route_recovery_turn", globals().get("route_recovery_turn")
+        driver_module,
+        "route_recovery_turn",
+        lambda rd, st, it, rec: globals()["route_recovery_turn"](
+            rd, st, it, rec, save_state=save_state
+        ),
     )
     make_integration_validation_runner = getattr(
         driver_module,
@@ -33364,14 +33378,26 @@ def execute_item_core(
     # refused item's record saw no file list. Binding the wrapper here fixes that call and this
     # plan's own use of it with one line, rather than leaving a second broken copy behind.
     build_lane_outcome = getattr(
-        driver_module, "build_lane_outcome", globals().get("build_lane_outcome")
+        driver_module,
+        "build_lane_outcome",
+        lambda repo, handle, id6: globals()["build_lane_outcome"](
+            repo, handle, id6, run_checked=run_checked
+        ),
     )
     set_plan_approved = getattr(driver_module, "set_plan_approved", None)
     is_plan_review_approved = getattr(
         driver_module, "is_plan_review_approved", is_plan_review_approved
     )
-    git_head = getattr(driver_module, "git_head", globals().get("git_head"))
-    git_status = getattr(driver_module, "git_status", globals().get("git_status"))
+    git_head = getattr(
+        driver_module,
+        "git_head",
+        lambda repo: globals()["git_head"](repo, run_checked=run_checked),
+    )
+    git_status = getattr(
+        driver_module,
+        "git_status",
+        lambda repo: globals()["git_status"](repo, run_checked=run_checked),
+    )
     run_suite_check = getattr(driver_module, "run_suite_check", run_suite_check)
     process_backlog_close = getattr(
         driver_module, "process_backlog_close", process_backlog_close
@@ -37405,20 +37431,9 @@ def execute_item_core(
                         # held lock, and main's tip is re-resolved there, so the tip the merge sees cannot
                         # move under it.
                         def _publish(_item: Any, _handle: Any) -> tuple[bool, str, str]:
-                            try:
-                                return integrate_lane_branch(
-                                    repo, _handle, _item["id6"], val_runner
-                                )
-                            except TypeError:
-                                return integrate_lane_branch(
-                                    repo,
-                                    _handle,
-                                    _item["id6"],
-                                    val_runner,
-                                    host_label=host_labels.command,
-                                    run_checked=globals()["run_checked"],
-                                    action_kind="execute",
-                                )
+                            return integrate_lane_branch(
+                                repo, _handle, _item["id6"], val_runner
+                            )
 
                         integrated, integ_reason, integ_kind = (
                             integrate_under_repository_lock(
