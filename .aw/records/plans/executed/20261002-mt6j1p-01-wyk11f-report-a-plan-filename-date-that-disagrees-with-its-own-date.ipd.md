@@ -6,7 +6,7 @@
 - Scope: Add ONE new advisory (`info`) check rule, `check.plan-date-filename-mismatch`, to the plans-type content path in `check_engine`, comparing each clustered plan's leading filename `YYYYMMDD` against its own parseable `- Date:` and reporting a disagreement. Register it in `RULE_REGISTRY` and pin it with behavioral tests driving the real engine over a synthetic tree. THE RULE IS UNCONDITIONAL AND NEEDS NO SET-CANONICAL EXEMPTION, which is the one substantive design finding of this plan and inverts the backlog item's stated premise: the exemption the item says a human must design first is measured UNNECESSARY, because a set-canonical date is shared per MEMBER with its OWN body date and never across members (F-04, F-05, F-06). OUT: every repair of any existing record (none is needed; the corpus is clean, F-03), the `20260101` fabricators in `plans_refs._plan_date` and `plans_archive._plan_date`, any widening to a non-plans artifact type, and any attempt to make the rule `warning` or `error` (F-10 fixes the tier at `info` for this change).
 - Scope-Paths: agent_workflows/check_engine.py, tests/test_check_engine_plan_date_filename.py, docs/cli-output-contract.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: followup
 - Priority: low
@@ -16,9 +16,9 @@
 - Highest E allocated: 05
 - Author: opencode/its_direct/pt3-claude-opus-5-1m-us
 - Id: wyk11f
-- Approval: 2026-10-07, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-08 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: wyk11f verified (set mt6j1p, attempt 1).
 - 2026-10-07 approved (aw set): status set to approved
 - 2026-10-07 reviewed (aw set): /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005, PR-006. Re-measured the corpus: default walk 149 plans, --all walk 1309 clustered, zero disagreements in both; the plan's 1198 figure described --all only, so E-04/V-04 now run both and label populations. Added no-date, retired-reach, entry-point and non-vacuity rows to E-01; addressed spec 4.3's share-the-set's-date wording; corrected the NO CUTOVER citation to config.py; removed a stop directive from spec sync; required reuse of _plan_date_compact.
 
@@ -41,18 +41,18 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: pin the gap before closing it
 
-- [ ] E-01 ADD THE FAILING BEHAVIORAL TEST FIRST, in a NEW module `tests/test_check_engine_plan_date_filename.py`, driving the real `check_engine` over a synthetic plans tree built in a `tempfile` directory rather than asserting against the live corpus. A new module is correct here rather than a row in an existing one because this is a new rule with its own fixture shape (it needs plan files whose NAME and BODY disagree, which no existing module builds); the module naming follows the shipped `tests/test_check_engine_spec_criteria.py` precedent of one module per check-engine rule family.
+- [x] E-01 ADD THE FAILING BEHAVIORAL TEST FIRST, in a NEW module `tests/test_check_engine_plan_date_filename.py`, driving the real `check_engine` over a synthetic plans tree built in a `tempfile` directory rather than asserting against the live corpus. A new module is correct here rather than a row in an existing one because this is a new rule with its own fixture shape (it needs plan files whose NAME and BODY disagree, which no existing module builds); the module naming follows the shipped `tests/test_check_engine_spec_criteria.py` precedent of one module per check-engine rule family.
   WRITE THESE ROWS, each a separate observable assertion. (1) THE DEFECT ROW: a plan named `20260101-probeset-01-aaa111-probe.ipd.md` whose body reads `- Date: 2026-10-01` yields a `check.plan-date-filename-mismatch` finding naming that path. MUST FAIL AT HEAD, where no such rule exists and the finding list contains no date rule at all. (2) THE AGREEING CONTROL: the same plan named `20261001-...` with the same body yields NO such finding, and MUST PASS AT HEAD (vacuously, since the rule does not exist); it is what proves the rule later refuses only what it is aimed at. (3) THE SET-CANONICAL ROW, which is the row that encodes this plan's central finding as a test: TWO plans in one Set carrying DIFFERENT leading dates (`20260712-probeset-01-aaa111-...` with `- Date: 2026-07-12`, and `20260915-probeset-02-bbb222-...` with `- Date: 2026-09-15`), each internally consistent, yield NO finding. It MUST PASS AT HEAD and MUST STILL PASS after E-02; a failure there means the implementation compared members to each other instead of each member to itself, which is exactly the misfire the backlog item feared. (4) THE NO-DATE ROW: a clustered plan with no `- Date:` line, and one with `- Date: <YYYY-MM-DD>` (the template placeholder), yield NO finding, pinning the F-09/OQ-03 skip. (5) THE RETIRED-REACH ROW: a disagreeing plan placed under `.aw/records/plans/executed/` with `- Status: executed` yields the finding with `include_retired=True` and none without it, pinning that `--all` reaches the retired corpus and the default walk does not. (6) THE ENTRY-POINT ROW: drive `check_engine.check_content(root, "plans", include_untracked=True)` (not only the bare function) over the defect fixture and assert the finding is present, so the wiring in E-02 is proven by behavior rather than by diff.
   PROVE THE FIXTURE IS NOT VACUOUS WITHOUT READING SOURCE: in the same fixture, also write a plan carrying an out-of-vocab `- Work-Kind: bogus` and assert `check_plan_work_kind(root, include_untracked=True)` reports it. That is the examined-file proof V-01 asks for, obtained from an existing rule's behavior over the same tree.
   ASSERT ON THE RULE ID AND THE LOCATION, NOT ON DETAIL PROSE. A test pinning the detail string would refuse a later reword that changes no behavior. Assert that a `Drift` with `rule == "check.plan-date-filename-mismatch"` and `location` equal to the offending path is present (or absent), following the `drift` filtering idiom `tests/test_plan_priority_required.py` already uses against `ce.check_plan_work_kind(root, include_untracked=True)`.
   PASS `include_untracked=True`, because a `tempfile` tree is not a git repository and `check_engine._iter_type_files` consults `_core.is_ignored_path` with that flag; omitting it is the standard way this fixture shape silently yields zero files and makes a negative row pass vacuously.
   - Depends on: none
   - Expected outcome: A new test module whose DEFECT, RETIRED-REACH (positive half) and ENTRY-POINT rows FAIL at HEAD (the finding list contains no `check.plan-date-filename-mismatch`), and whose agreeing-control, set-canonical and no-date rows PASS at HEAD, with the non-vacuity control passing in both runs.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: add the rule
 
-- [ ] E-02 IMPLEMENT `check_plan_date_filename_mismatch` IN `check_engine`, as a module-level function beside the `check_plan_priority` / `check_plan_work_kind` pair it should mirror line for line, and wire it into the `record_type == "plans"` branch of `check_engine.check_content` inside the same `try/except` shape its neighbours use. That placement is the shipped convention for a plans-scoped metadata check and its documented reason is reach: the plans-type content path is traversed by BOTH `aw check plans` and the `aw check all` fan-out, exactly once each, and is deliberately NOT the cross-tree collision sweep (which would double-report).
+- [x] E-02 IMPLEMENT `check_plan_date_filename_mismatch` IN `check_engine`, as a module-level function beside the `check_plan_priority` / `check_plan_work_kind` pair it should mirror line for line, and wire it into the `record_type == "plans"` branch of `check_engine.check_content` inside the same `try/except` shape its neighbours use. That placement is the shipped convention for a plans-scoped metadata check and its documented reason is reach: the plans-type content path is traversed by BOTH `aw check plans` and the `aw check all` fan-out, exactly once each, and is deliberately NOT the cross-tree collision sweep (which would double-report).
   THE PREDICATE IS A THREE-WAY CONJUNCTION AND EVERY CONJUNCT IS LOAD-BEARING. Fire only when: the filename parses via the single naming authority `artifact_naming.parse_clustered` (NOT a locally written regex, and not `parse_uniform_permissive`, whose open facet would admit a non-plan artifact); AND the body carries a `- Date:` matching the anchored ISO shape, read through the EXISTING `check_engine._plan_date_compact` (which applies `_CARRIER_DATE_RE`, `(?m)^- Date:[ \t]*(\d{4})-(\d{2})-(\d{2})[ \t]*$`) rather than a new regex, so this rule and the carrier-cutover rule can never disagree about what a plan's body date is; AND the two compact dates differ. SKIP SILENTLY in every other case. A non-clustered name is `check.name-nonconformant`'s subject and re-reporting it here would double-report one authoring mistake under a second rule id, which is the reason `check_engine.check_identity_absent_from_name` already gives for excluding its own `junk_names` set. An absent `- Date:` is `IPD-M101`'s subject and an unparseable one is `IPD-M104`'s since `fqcax0` landed; this rule must invent no second consequence for either, which is the same deferral `check_engine.carrier_severity_for_plan` documents in its own docstring.
   DO NOT ADD A SET-CANONICAL EXEMPTION, AND DO NOT LOOK AT ANY OTHER FILE. This is the instruction that encodes the plan's central finding, and it is stated as a prohibition because the backlog item asks for the opposite. The comparison is BETWEEN ONE FILE'S NAME AND ITS OWN BODY, so the rule needs no Set index, no sibling lookup and no peer date at all; a member of a differing-date Set is silent for free because it is internally consistent (F-05, F-06). Writing an exemption would require reading peers, would make a per-file check O(corpus), and would EXEMPT THE VERY CASE THE RULE EXISTS TO CATCH, since the `qrokie` casualty is itself a member of a multi-member Set (`instsafe`).
   DO NOT CONSULT A CUTOVER DATE. Every other shape of grandfathering in this module exists to protect a POPULATION that already violates a new rule, and `config.KNOWN_FEATURE_CUTOVERS`'s own block comment states that registering a feature is what makes its `error` tier reachable. Here the population is measured EMPTY (F-03) so there is nothing to grandfather, and the tier is `info` so there is no refusal to gate. Adding a cutover would be unreachable code plus a `KNOWN_FEATURE_CUTOVERS` entry asserting a boundary that governs nothing.
@@ -61,33 +61,33 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Depends on: E-01
   TAKE THE SAME SIGNATURE AS `check_plan_work_kind`, `(repo_root, include_untracked=False, include_retired=False)`, iterate with `_iter_type_files(repo_root, "plans", include_untracked=..., include_retired=...)`, and pass both flags from `check_content`'s plans branch exactly as the `check_plan_work_kind` call does, so `aw check plans --all` reaches retired plans (E-01 row 5).
   - Expected outcome: One new function in `check_engine` plus one wiring block in the plans branch of `check_content`; E-01's defect row now PASSES while its agreeing-control and set-canonical rows still pass.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 REGISTER THE RULE IN `RULE_REGISTRY` AS `info`, with a comment stating WHY the tier is forced rather than chosen, because a later reader will otherwise try to "strengthen" it and silently break CI. The entry is `RuleSpec("info", ASSURANCE_REPOSITORY, DET_DETERMINISTIC, "")`.
+- [x] E-03 REGISTER THE RULE IN `RULE_REGISTRY` AS `info`, with a comment stating WHY the tier is forced rather than chosen, because a later reader will otherwise try to "strengthen" it and silently break CI. The entry is `RuleSpec("info", ASSURANCE_REPOSITORY, DET_DETERMINISTIC, "")`.
   `info` IS THE ONLY AVAILABLE ADVISORY TIER, which is a published contract and not a preference: `docs/cli-output-contract.md` Section 3.1 states that `warning` "fails the exit-code gate exactly as an `error` does" and that `info` "is the ONLY severity tier that does not contribute to exit 1", summarising that to ship a rule that reports without failing a gate an author must register `info`. So a `warning` here would make `aw check`, CI and `aw ipd lint`'s durable-carrier merge all fail on a cosmetic finding.
   REGISTRATION IS MANDATORY AND OMITTING IT FAILS CLOSED, which is the specific trap this item guards: `check_engine._DEFAULT_RULESPEC` is `RuleSpec("error", ...)`, and `tests/test_severity_tier_contract.py` pins that an unregistered rule id resolves to `error`. So an unregistered new rule would silently become a repository-wide ERROR and fail `aw check` on every disagreement.
   LEAVE THE INVARIANT FIELD EMPTY (`""`) AND DO NOT INVENT A CATALOG ENTRY. The invariant catalog in spec `pqsx96` has no invariant covering agreement between a filename and its own body: `I-09` is filename GRAMMAR conformance (a name's shape) and `I-16`/`I-17` are setid semantics and length. The precedent for an empty invariant with a stated reason is `check.lifecycle-placement-conflict`, whose registry comment says in as many words that its invariant is `""` because no catalog invariant covers its subject "and inventing one is out of scope".
   - Depends on: E-02
   - Expected outcome: One `RULE_REGISTRY` entry with the `info` tier and a comment recording the forced tier, the empty invariant and its reason; `check_engine.rule_spec("check.plan-date-filename-mismatch").severity` is `"info"`.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: prove the corpus and the gates survive it
 
-- [ ] E-04 PROVE THE LIVE CORPUS IS CLEAN AND THE EXIT CODE IS UNCHANGED, by running the real `aw check plans` and `aw check all` on this tree after the change and comparing the finding set and exit code against the same commands before it. This item exists because adding a repository-wide rule is a CORPUS MIGRATION RISK, and the whole argument that this one is safe rests on a measurement that must be re-taken rather than quoted: the authoring figure is ZERO disagreements over 1198 clustered plans (F-03), and that population is live and grows daily.
+- [x] E-04 PROVE THE LIVE CORPUS IS CLEAN AND THE EXIT CODE IS UNCHANGED, by running the real `aw check plans` and `aw check all` on this tree after the change and comparing the finding set and exit code against the same commands before it. This item exists because adding a repository-wide rule is a CORPUS MIGRATION RISK, and the whole argument that this one is safe rests on a measurement that must be re-taken rather than quoted: the authoring figure is ZERO disagreements over 1198 clustered plans (F-03), and that population is live and grows daily.
   RUN BOTH WITH AND WITHOUT `--all`, AND REPORT THEM SEPARATELY. `_iter_type_files` drops retired plans (`executed/`, `superseded/`, `not-executed/`, `archive/` and a terminal `- Status:`) unless `include_retired` is set, and `aw check` sets it only from `--all`. MEASURED at review HEAD `9ccffaca3`: the default plans walk examines 149 plans (149 clustered, 0 disagreements) while the `--all` walk examines 1313 (1309 clustered, 1 with no parseable `- Date:`, 0 disagreements). So the authoring figure of "zero over 1198" is a claim about `--all`; the default `aw check plans` an author runs sees only live plans. That is the intended reach for a tripwire (a new disagreement enters through a live plan), but the evidence must name which population each count describes. Pass `include_untracked` and `include_retired` through to `_iter_type_files` exactly as `check_plan_work_kind` does, so `--all` reaches the retired corpus.
   THE BAR IS TWO INVARIANTS, NOT A LITERAL COUNT. First, the new rule contributes ZERO findings on this tree. Second, `aw check plans`'s exit code is IDENTICAL before and after. Report the re-derived file count as context only; the authoring triple (1202 total `.ipd.md`, 1198 clustered, 4 non-clustered legacy names) will have drifted and must not be used as the expected value. The sibling plan `fqcax0` recorded this exact drift happening to it twice (1090 at authoring, 1143 at review, 1166 at execution), so re-deriving is the posture that has already been shown necessary here.
   IF THE COUNT IS NOT ZERO, STOP AND REPORT rather than repairing the record or exempting it. A newly-flagged plan means a live record's name contradicts its own body, which is a finding about the corpus a human should see, and silently renaming records is `tf4jz5`'s scope and not this plan's. Note also the second possibility: a nonzero count could mean the implementation compared peers instead of self, so re-read E-02's prohibition before concluding the corpus changed.
   - Depends on: E-03
   - Expected outcome: `aw check plans`, `aw check plans --all` and `aw check all` run on this tree reporting ZERO `check.plan-date-filename-mismatch` findings, with the before/after exit codes of each shown equal (all three were rc 1 at review from unrelated pre-existing findings, so "equal" is the bar, not 0), and the default and `--all` clustered-plan counts re-derived and reported as context.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 DOCUMENT THE ADVISORY IN `docs/cli-output-contract.md`, adding the new rule to Section 3.1's rule-author guidance as a worked example of the tier decision that section's summary prescribes. Keep it to a short paragraph or a list entry; this is a user-facing doc, so write NO em or en dashes in it, per AGENTS.md.
+- [x] E-05 DOCUMENT THE ADVISORY IN `docs/cli-output-contract.md`, adding the new rule to Section 3.1's rule-author guidance as a worked example of the tier decision that section's summary prescribes. Keep it to a short paragraph or a list entry; this is a user-facing doc, so write NO em or en dashes in it, per AGENTS.md.
   THIS IS REQUIRED RATHER THAN OPTIONAL, and the reason is that Section 3.1 already carries the exact instruction this rule follows ("to author a rule that reports diagnostics without ever failing any gate or check, register the rule with severity `info`") while naming only `check.scope-drift` as a worked rule-ID case, which is an override in the OPPOSITE direction (a rule registered `error` routed to advisory by id at one gate). A rule deliberately registered `info` so it never gates is the complementary case and the section has no example of it.
   DO NOT RESTATE THE SEVERITY CONTRACT, and do not edit Section 3's exit-code table or the two per-gate contracts below it. The contract is unchanged by this plan: one new `info` rule is an instance of the published rule, not an amendment to it. Say what the rule reports, that it is advisory by construction, and why the tier is forced.
   NO SPEC IS AMENDED, which is a deliberate conclusion and is justified in the Spec / documentation sync section below rather than assumed here.
   - Depends on: E-03
   - Expected outcome: One short addition to `docs/cli-output-contract.md` Section 3.1 naming the rule, what it reports and why its tier is `info`; Section 3's tables and the two per-gate contracts are byte-unchanged; no dash characters of the em or en class are introduced.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -203,30 +203,182 @@ IF THE EXECUTOR FINDS a spec, README or DECISIONS entry asserting that a plan's 
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: The pytest output for the new `tests/test_check_engine_plan_date_filename.py` run against UNFIXED source, pasted verbatim, showing the DEFECT row FAILING with the actual observed result (the returned finding list containing no `check.plan-date-filename-mismatch`). A PASS on the defect row here is a FAILURE of this validation: a row that does not fail at HEAD is not pinning this gap, and the most likely cause is a fixture yielding zero files, so also paste the non-vacuity control (the `check.work-kind-invalid` finding the same fixture yields) passing in that run, which proves the engine examined the fixture's files. Plus the agreeing-control, set-canonical and no-date rows shown PASSING in that same pre-fix run, and the retired-reach and entry-point rows shown FAILING. Plus an explicit statement that no test in the module reads production source with `inspect`, `ast`, regex or substring search (GUIDING_PRINCIPLES P16).
   - Observed evidence:
-  - Result: pending
+    Pytest run against unfixed source (`python3 -m pytest tests/test_check_engine_plan_date_filename.py -v -o addopts=""`):
+    ```
+    =========================== short test summary info ============================
+    FAILED tests/test_check_engine_plan_date_filename.py::CheckEnginePlanDateFilenameTests::test_defect_row_filename_date_mismatch_reported
+    FAILED tests/test_check_engine_plan_date_filename.py::CheckEnginePlanDateFilenameTests::test_entry_point_check_content_surfaces_date_mismatch
+    FAILED tests/test_check_engine_plan_date_filename.py::CheckEnginePlanDateFilenameTests::test_retired_reach_executed_plan_only_found_with_include_retired
+    ========================= 3 failed, 4 passed in 2.55s ==========================
+    ```
+    Actual observed defect row failure:
+    ```
+    AssertionError: 0 != 1 : Expected check.plan-date-filename-mismatch for /tmp/tmp1_8lj0j7/.aw/records/plans/pending/20260101-probeset-01-aaa111-probe.ipd.md, got: []
+    ```
+    Non-vacuity control passed: `test_non_vacuity_control_work_kind_invalid_reported PASSED` (proving check_plan_work_kind examined the fixture's files).
+    Agreeing-control, set-canonical, and no-date rows passed:
+    - `test_agreeing_control_no_finding PASSED`
+    - `test_set_canonical_row_differing_dates_within_set_no_finding PASSED`
+    - `test_no_date_row_missing_or_placeholder_date_skipped PASSED`
+    Retired-reach (positive half) and entry-point rows failed as expected at HEAD:
+    - `test_retired_reach_executed_plan_only_found_with_include_retired FAILED`
+    - `test_entry_point_check_content_surfaces_date_mismatch FAILED`
+    No test in `tests/test_check_engine_plan_date_filename.py` reads production source with `inspect`, `ast`, regex or substring search; all tests drive public check_engine entry points over synthetic tempfile plan trees and assert on returned Drift objects (GUIDING_PRINCIPLES P16).
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: Every row of the module now PASSING, pasted by name (defect, agreeing control, set-canonical, no-date, retired-reach, entry-point, non-vacuity control). Plus the `git diff` of `check_engine.py` showing the three-way conjunction (clustered-name parse via `artifact_naming.parse_clustered`, anchored body-date parse, inequality), the wiring block in the plans branch of `check_content`, and the ABSENCE of any peer-file read, Set index lookup or cutover call inside the new function. State in one explicit sentence that the comparison is between one file's name and its own body, citing the set-canonical row as the behavioral proof.
   - Observed evidence:
-  - Result: pending
+    All 7 rows in `tests/test_check_engine_plan_date_filename.py` passing:
+    ```
+    tests/test_check_engine_plan_date_filename.py::CheckEnginePlanDateFilenameTests::test_set_canonical_row_differing_dates_within_set_no_finding PASSED [ 14%]
+    tests/test_check_engine_plan_date_filename.py::CheckEnginePlanDateFilenameTests::test_non_vacuity_control_work_kind_invalid_reported PASSED [ 28%]
+    tests/test_check_engine_plan_date_filename.py::CheckEnginePlanDateFilenameTests::test_entry_point_check_content_surfaces_date_mismatch PASSED [ 42%]
+    tests/test_check_engine_plan_date_filename.py::CheckEnginePlanDateFilenameTests::test_retired_reach_executed_plan_only_found_with_include_retired PASSED [ 57%]
+    tests/test_check_engine_plan_date_filename.py::CheckEnginePlanDateFilenameTests::test_agreeing_control_no_finding PASSED [ 71%]
+    tests/test_check_engine_plan_date_filename.py::CheckEnginePlanDateFilenameTests::test_defect_row_filename_date_mismatch_reported PASSED [ 85%]
+    tests/test_check_engine_plan_date_filename.py::CheckEnginePlanDateFilenameTests::test_no_date_row_missing_or_placeholder_date_skipped PASSED [100%]
+    ============================== 7 passed in 0.41s ===============================
+    ```
+    Git diff in `agent_workflows/check_engine.py`:
+    ```diff
+    @@ -1530,6 +1530,18 @@ def check_content(...)
+                 )
+             except Exception:
+                 pass
+    +        # datefname wyk11f E-02: validate that each clustered plan's filename date matches its own
+    +        # `- Date:` metadata. Advisory (info), reached by BOTH `aw check plans` and `aw check all`.
+    +        try:
+    +            drift.extend(
+    +                check_plan_date_filename_mismatch(
+    +                    repo_root,
+    +                    include_untracked=include_untracked,
+    +                    include_retired=include_retired,
+    +                )
+    +            )
+    +        except Exception:
+    +            pass
+    ...
+    +def check_plan_date_filename_mismatch(
+    +    repo_root: Path,
+    +    include_untracked: bool = False,
+    +    include_retired: bool = False,
+    +) -> List[_core.Drift]:
+    +    from agent_workflows import artifact_naming as _naming
+    +
+    +    drift: List[_core.Drift] = []
+    +    for p in _iter_type_files(
+    +        repo_root,
+    +        "plans",
+    +        include_untracked=include_untracked,
+    +        include_retired=include_retired,
+    +    ):
+    +        m = _naming.parse_clustered(p.name)
+    +        if m is None:
+    +            continue
+    +        filename_date = m.group("date")
+    +        try:
+    +            text = p.read_text(encoding="utf-8")
+    +        except OSError:
+    +            continue
+    +        body_date = _plan_date_compact(text)
+    +        if body_date is None:
+    +            continue
+    +        if filename_date == body_date:
+    +            continue
+    +        id6 = m.group("id6") or _read_item_id(text) or p.stem
+    +        iso_body_date = f"{body_date[:4]}-{body_date[4:6]}-{body_date[6:]}"
+    +        drift.append(
+    +            enrich_drift(
+    +                _core.Drift(
+    +                    str(p),
+    +                    _PLAN_DATE_FILENAME_MISMATCH_RULE,
+    +                    f"filename date {filename_date} disagrees with - Date: {iso_body_date}",
+    +                    severity="info",
+    +                ),
+    +                observed=f"filename date {filename_date} != - Date: {iso_body_date}",
+    +                required="clustered plan filename date must match its own - Date:",
+    +                recovery=f"rename {p.name} to match - Date: or edit - Date: to match filename date",
+    +            )
+    +        )
+    +    return drift
+    ```
+    The comparison is strictly between one file's filename date and its own `- Date:` metadata, with no peer-file reads, Set index lookups, or cutover date checks; `test_set_canonical_row_differing_dates_within_set_no_finding` provides behavioral proof that members of a multi-date Set with internally consistent dates yield no finding.
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: Pasted output of `check_engine.rule_spec("check.plan-date-filename-mismatch")` showing severity `info`, the empty invariant, and that it is NOT `_DEFAULT_RULESPEC` (which would mean registration silently did not take and the rule is a repository-wide error). Plus the `git diff` of the `RULE_REGISTRY` entry showing the comment that records why the tier and the empty invariant are forced. Plus `python3 -m pytest tests/test_severity_tier_contract.py tests/test_work_gate_severity.py -o addopts=""` passing, pasted, which is the pair a new registry entry can disturb.
   - Observed evidence:
-  - Result: pending
+    `check_engine.rule_spec("check.plan-date-filename-mismatch")` output:
+    ```
+    spec: RuleSpec(severity='info', assurance='repository', determinism='deterministic', invariant='')
+    severity: info
+    invariant: ''
+    is default: False
+    ```
+    Git diff of `RULE_REGISTRY`:
+    ```diff
+    +    # IPD wyk11f (backlog mt6j1p): advisory check comparing each clustered plan's filename date
+    +    # against its own `- Date:` metadata.
+    +    #
+    +    # WHY `info` AND NOT `warning`: `docs/cli-output-contract.md` Section 3.1 states that `warning`
+    +    # fails the exit-code gate exactly as an `error` does, and that `info` is the ONLY severity tier
+    +    # that does not contribute to exit 1. The violating population is measured empty, so a gating
+    +    # rule would fail CI on an unrelated future change before any true positive was evaluated. `info`
+    +    # ships the rule as an advisory tripwire without changing any exit code today.
+    +    #
+    +    # Invariant is `""`: no catalog invariant in spec `pqsx96` covers agreement between a filename
+    +    # date and its own front-matter `- Date:` (I-09 is filename grammar shape; I-16/I-17 are setid
+    +    # semantics and length), and inventing one is out of scope (precedent: `check.lifecycle-placement-conflict`).
+    +    "check.plan-date-filename-mismatch": RuleSpec(
+    +        "info", ASSURANCE_REPOSITORY, DET_DETERMINISTIC, ""
+    +    ),
+    ```
+    Test pair run (`python3 -m pytest tests/test_severity_tier_contract.py tests/test_work_gate_severity.py -o addopts=""`):
+    ```
+    tests/test_severity_tier_contract.py .........                           [ 39%]
+    tests/test_work_gate_severity.py ..............                          [100%]
+    ============================== 23 passed in 3.36s ==============================
+    ```
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: The real `aw check plans`, `aw check plans --all` and `aw check all` output on this tree AFTER the change, pasted, showing ZERO `check.plan-date-filename-mismatch` findings, beside the same commands' EXIT CODES before the change, with the two stated equal. Plus the clustered-plan count RE-DERIVED on the post-change tree for BOTH the default walk and the `--all` walk, each labelled with its population, and reported as context, explicitly NOT compared against this plan's authoring figures (1202 total, 1198 clustered, 4 non-clustered), which will have drifted. A NONZERO count is a STOP-AND-REPORT condition and must not be resolved by renaming a record or exempting it; state which of the two causes you investigated, a genuinely new disagreement in the corpus or an implementation that compared peers instead of self.
   - Observed evidence:
-  - Result: pending
+    Before vs after exit codes and finding counts:
+    - `aw check plans`: before exit code 1, after exit code 1 (equal); 0 findings of `check.plan-date-filename-mismatch`.
+    - `aw check plans --all`: before exit code 1, after exit code 1 (equal); 0 findings of `check.plan-date-filename-mismatch`.
+    - `aw check all`: before exit code 1, after exit code 1 (equal); 0 findings of `check.plan-date-filename-mismatch`.
+    Re-derived clustered-plan counts:
+    - Default plans walk (live plans): total=96, clustered=96, no_date=0, disagreements=0.
+    - All plans walk (`--all`, including retired): total=1329, clustered=1325, no_date=1 (the historical `qrokie` record), disagreements=0.
+  - Result: pass
 
-- [ ] V-05 validates E-05
+- [x] V-05 validates E-05
   - Required evidence: The `git diff` of `docs/cli-output-contract.md`, pasted, showing the addition inside Section 3.1 and showing that Section 3's exit-code bullets and the two per-gate contract subsections are byte-unchanged. Plus an explicit confirmation that the added prose contains NO em or en dash characters, since this is user-facing documentation (AGENTS.md). Plus the bare `python3 -m pytest` summary line and the `git diff --stat` proving only the three declared paths changed and specifically that no `.spec.md`, no record file, and none of `plans_refs.py` / `plans_archive.py` / `artifact_naming.py` / `ipd_schema.py` / `config.py` was touched.
   - Observed evidence:
-  - Result: pending
+    Git diff of `docs/cli-output-contract.md`:
+    ```diff
+    @@ -241,6 +241,8 @@
+
+      Practical consequence: to author a rule that reports diagnostics without ever failing any gate or check, register the rule with severity `info`.
+
+    +A worked example of this decision is `check.plan-date-filename-mismatch`. The rule reports when a clustered plan's leading filename date disagrees with its own `- Date:` metadata. Because the violating population was measured empty across the existing corpus, registering the rule as `warning` or `error` would risk failing CI on an unrelated future change before any true positive was evaluated. Registering it as `info` ships the check as an advisory tripwire that surfaces diagnostics during `aw check plans` without contributing to exit code 1 or blocking any gate.
+    +
+     ---
+
+     ## 4. The `aw.agent/v1` JSONL Protocol and Closed Record Kinds
+    ```
+    Section 3's exit-code bullets and per-gate contract subsections are byte-unchanged.
+    Confirmed zero non-ASCII dashes (em/en dashes) in `docs/cli-output-contract.md`.
+    Bare pytest summary line:
+    `6632 passed, 2 skipped, 3 warnings in 440.20s (0:07:20)` (delta of exactly +7 passed, 0 failures against 6625 baseline).
+    `git diff --stat` lists only:
+    `agent_workflows/check_engine.py`, `docs/cli-output-contract.md`, and the plan file itself (with `tests/test_check_engine_plan_date_filename.py` untracked); specifically no `.spec.md`, no record file, and none of `plans_refs.py`, `plans_archive.py`, `artifact_naming.py`, `ipd_schema.py`, or `config.py` was touched.
+  - Result: pass
 
 ## Approval and execution gate
 
