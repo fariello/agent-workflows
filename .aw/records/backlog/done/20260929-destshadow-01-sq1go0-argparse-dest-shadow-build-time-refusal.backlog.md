@@ -1,5 +1,5 @@
 - Id: sq1go0
-- Status: graduated
+- Status: done
 - Graduated-To: destshadow
 - Set: destshadow
 - Priority: low
@@ -7,6 +7,7 @@
 - Summary: Decide whether an argparse dest that shadows an ancestor subparsers dest should be refused at parser build rather than only caught by a test
 
 ## Workflow history
+- 2026-10-08 done (aw backlog): closed by aw agy run: IPD z05z73 executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20261001-destshadow-03-z05z73-refuse-at-parser-build-an-argparse-dest-that-shadows-an-ance.ipd.md); evidence .aw/records/plans/executed/20261001-destshadow-03-z05z73-refuse-at-parser-build-an-argparse-dest-that-shadows-an-ance.ipd.md
 - 2026-10-01 set (aw backlog): graduated by run run-20260930T053024Z-3198670: z05z73
 - 2026-09-29 created (aw backlog): Carries OQ-02 of plan 8kd4eo (destshadow Order 01), which deferred the question to the maintainer.
 

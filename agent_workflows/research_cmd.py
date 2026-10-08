@@ -19,6 +19,7 @@ import re
 from typing import List, NamedTuple, Optional, Tuple
 
 from agent_workflows import artifact_core as _core
+from agent_workflows import attention_contract as A
 from agent_workflows import research_contract as R
 
 # --------------------------------------------------------------------------------------
@@ -294,6 +295,22 @@ def plan_new(
     return [PlannedFile(research_root / filename, content)], None
 
 
+def _compose_comparison_summary(user_summary: str, role: str) -> str:
+    """Compose the user's comparison summary with the document role.
+
+    If user_summary is empty or all whitespace, returns role unchanged.
+    Otherwise, candidate is f"{user} ({role.rstrip('.')})".
+    If that candidate fails A.is_safe_descriptive, degrades to stripped user_summary alone.
+    """
+    user = user_summary.strip()
+    if not user:
+        return role
+    candidate = f"{user} ({role.rstrip('.')})"
+    if not A.is_safe_descriptive(candidate):
+        return user
+    return candidate
+
+
 def plan_new_comparison(
     *,
     research_root: Path,
@@ -371,24 +388,38 @@ def plan_new_comparison(
             kind=kind,
             status=init_status,
             outcome="none-yet",
-            summary=sm or summary,
+            summary=sm,
         )
         return PlannedFile(research_root / R.format_name(name), content)
 
     # 00 = originating prompt
     files.append(
-        _mk(0, "research-prompt", None, "Originating prompt for the comparison set.")
+        _mk(
+            0,
+            "research-prompt",
+            None,
+            _compose_comparison_summary(
+                summary, "Originating prompt for the comparison set."
+            ),
+        )
     )
     # 01..N = one report per model
     for i, m in enumerate(norm_models, start=1):
-        files.append(_mk(i, "research-report", m, f"{m} report."))
+        files.append(
+            _mk(
+                i,
+                "research-report",
+                m,
+                _compose_comparison_summary(summary, f"{m} report."),
+            )
+        )
     # N+1 = reconciliation
     files.append(
         _mk(
             len(norm_models) + 1,
             "reconciliation-report",
             "reconciliation",
-            "Synthesis of the model reports.",
+            _compose_comparison_summary(summary, "Synthesis of the model reports."),
         )
     )
     return files, None

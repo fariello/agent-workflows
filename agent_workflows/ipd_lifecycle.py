@@ -1393,6 +1393,10 @@ FINDING_RECEIPT_STALE = "plan content digest no longer matches the receipt"
 #: the wedged journal refusal without matching prose (E-03).
 FINDING_FINALIZE_JOURNAL_UNKNOWN_OUTCOME = "finalize-journal-unknown-outcome"
 
+#: A prior finalize attempt reached committed-incomplete (lifecycle commit already landed;
+#: a no-apply preview reports and preserves the receipt instead of completing it; E-05).
+FINDING_FINALIZE_JOURNAL_COMMITTED_INCOMPLETE = "finalize-journal-committed-incomplete"
+
 #: THE CONTRACT REDUCTION FINDING NAMES ITS INVARIANT TEXT AS ITS ID, following the precedent
 #: set by FINDING_RECEIPT_STALE above. Because the emitted string is composed with a singular/plural
 #: stem ("Scope-Paths entry..." vs "Scope-Paths entries..."), this constant names the invariant
@@ -4077,7 +4081,11 @@ def _rollback_precommit(
 
 
 def _early_recovery_result(
-    repo_root: Path, plan_path: Path, evidence: Dict[str, Any]
+    repo_root: Path,
+    plan_path: Path,
+    evidence: Dict[str, Any],
+    *,
+    apply: bool = True,
 ) -> Optional[FinalizeResult]:
     """EARLY CRASH RECOVERY, shared by `finalize` and `retire_orchestrator` (Order 3xh53a).
 
@@ -4108,6 +4116,24 @@ def _early_recovery_result(
         return None
     phase = journal.get("phase")
     if phase == PHASE_COMMITTED_INCOMPLETE:
+        # hernns y8cgvm E-04: when apply is False, report the recoverable committed-incomplete state
+        # instead of performing the resume. The apply test cannot simply be moved ahead of early
+        # recovery in finalize: that would also skip the PHASE_UNKNOWN_OUTCOME refusal, so a preview
+        # of an ambiguously-wedged plan would report the ordinary precheck result and tell the operator
+        # to proceed, which converts this bug into a worse fail-OPEN one.
+        # Site this check before acquire_finalize_lock so a preview takes no writer lock.
+        if not apply:
+            lifecycle_commit = journal.get("lifecycle_commit") or "unknown"
+            return FinalizeResult(
+                EXIT_OK,
+                None,
+                f"WOULD RESUME: finalize for {early_id} is in committed-incomplete "
+                f"(prior lifecycle commit {lifecycle_commit} already landed). "
+                f"Nothing changed and begin receipt was NOT consumed; "
+                f"re-invoke with --apply to complete post-commit steps.",
+                evidence,
+                (FINDING_FINALIZE_JOURNAL_COMMITTED_INCOMPLETE,),
+            )
         try:
             acquire_finalize_lock(repo_root, early_id)
         except TransactionLockError as exc:
@@ -4579,7 +4605,7 @@ def retire_orchestrator(
         )
 
     # --- GATE: early crash recovery, via the SAME shared helper `finalize` uses.
-    early = _early_recovery_result(repo_root, plan_path, evidence)
+    early = _early_recovery_result(repo_root, plan_path, evidence, apply=apply)
     if early is not None:
         return early
 
@@ -4782,7 +4808,7 @@ def finalize(
     # EXTRACTED into `_early_recovery_result` (orchretire-02 `ueg5cf` E-01/E-02) so the runner-owned
     # rollup transition performs the IDENTICAL recovery, shared by construction rather than by a
     # second copy that could drift from this one.
-    early = _early_recovery_result(repo_root, plan_path, evidence)
+    early = _early_recovery_result(repo_root, plan_path, evidence, apply=apply)
     if early is not None:
         return early
 
@@ -5804,10 +5830,20 @@ def run_finalize(args) -> int:
     )
 
     if result.exit_code == EXIT_OK:
+        diags = [
+            OutDiag(
+                location=str(plan_path),
+                rule="IPD-FINALIZE",
+                detail=f,
+                severity="warning",
+            )
+            for f in result.findings
+        ]
         return _emit(
             EXIT_OK,
             "clean",
             result.message,
+            diags=diags,
             data={"commit": result.commit, "evidence": result.evidence},
         )
     if result.exit_code == EXIT_FINDINGS:

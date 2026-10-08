@@ -6,7 +6,7 @@
 - Scope: Make the flag live by COMPOSING rather than replacing: each planned document's `summary:` becomes `<user summary> (<role>)` when `--summary` is given, and stays exactly the present hardcoded role string when it is not. Add one module-private composer in `research_cmd.py`, call it at the three `_mk` call sites, and pin the behavior plus the no-flag non-regression in `tests/test_research_cmd_create.py`. The composition is DEGRADING: when the composed value would exceed `attention_contract.MAX_DESCRIPTIVE_LEN` the user's summary is written alone rather than a value the shipped descriptive-field contract forbids. DELIBERATELY NOT IN SCOPE: the descriptive-safety guard on this parameter, which pending plan `deftzy` owns and which this plan declares as a hard execution dependency rather than duplicating.
 - Scope-Paths: agent_workflows/research_cmd.py, tests/test_research_cmd_create.py, CHANGELOG.md
 - Item-Dependencies: executed:deftzy
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: low
@@ -17,9 +17,9 @@
 - Highest E allocated: 05
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: wjvn8a
-- Approval: 2026-10-07, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-08 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: wjvn8a verified (set ol1m2q, attempt 1).
 - 2026-10-07 approved (aw set): status set to approved
 - 2026-10-07 reviewed (opencode/its_direct/pt3-claude-opus-5.5-1m-us): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-001..PR-006, all FIXED. Reviewed in lane review-sweep-run-20261007T032752Z-4094028 at HEAD ea6badb04; review record .aw/records/reviews/20261002-ol1m2q-01-wjvn8a-make-aw-research-new-comparison-honor-summary-by-composing-t.review.md. Defect re-driven and reproduces. PR-001: deftzy is executed and added only a lazy attention_contract import, so E-01 adds the module-level import; F-08/OQ-04/gate annotated satisfied. PR-002: nonexistent tests/test_research_contract.py replaced; descriptive-safety tests added to the regression set. PR-003: a bare git-init fixture writes under ~/.aw/projects/, so fixtures must set records_backend repository. PR-004: index --check baseline re-derived at execution (142 -> 179 drift). PR-005: falsification ordering made explicit. PR-006: CHANGELOG Fixed line added as E-05/V-05.
 
@@ -35,44 +35,44 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: compose the summary
 
-- [ ] E-01 Add a module-private composer to `agent_workflows/research_cmd.py` that takes the user's `--summary` and one document's role string and returns the value to write. Shape: `_compose_comparison_summary(user_summary: str, role: str) -> str`. Rules, in this order: an empty or whitespace-only `user_summary` returns `role` UNCHANGED (byte-identical to today's output, which is what keeps every existing caller and the whole committed corpus unaffected); otherwise the candidate is `f"{user} ({role.rstrip('.')})"` with `user` stripped; and if that candidate fails `attention_contract.is_safe_descriptive` the function returns the stripped `user_summary` ALONE.
+- [x] E-01 Add a module-private composer to `agent_workflows/research_cmd.py` that takes the user's `--summary` and one document's role string and returns the value to write. Shape: `_compose_comparison_summary(user_summary: str, role: str) -> str`. Rules, in this order: an empty or whitespace-only `user_summary` returns `role` UNCHANGED (byte-identical to today's output, which is what keeps every existing caller and the whole committed corpus unaffected); otherwise the candidate is `f"{user} ({role.rstrip('.')})"` with `user` stripped; and if that candidate fails `attention_contract.is_safe_descriptive` the function returns the stripped `user_summary` ALONE.
   THE DEGRADING FALLBACK IS LOAD-BEARING, NOT DEFENSIVE PADDING, and this is the detail the backlog item does not anticipate. `deftzy` guards the INPUT, so a 290-character `--summary` is accepted as safe; composing it with the longest role string (`Originating prompt for the comparison set.`, 42 characters, costing 44 as a parenthetical) yields 334, and `A.is_safe_descriptive` on that returns **False** (F-07). Without the fallback this plan would make a guarded verb write a value the guard exists to forbid, turning a cosmetic bug fix into a contract violation. Falling back to the user's own value is the right degradation because the user's text is the information they asked for and the role string is the decoration.
   DROP THE ROLE'S TRAILING PERIOD when composing. Every one of the three shipped role strings ends in `.` (`"Originating prompt for the comparison set."`, `f"{m} report."`, `"Synthesis of the model reports."`), so composing verbatim reads `... (gpt56 report.)` with a period inside the bracket. `rstrip('.')` is deliberately applied to the ROLE ONLY and never to the user's value, which is theirs to punctuate.
   CONSULT `attention_contract` FOR THE VERDICT, do not reimplement a length test. Import it as a module-level `from agent_workflows import attention_contract as A`, matching `backlog.py`'s spelling. UPDATED AT REVIEW (PR-001): `deftzy` HAS EXECUTED, and it did NOT add a module-level import: `research_cmd._refuse_unsafe_descriptive` imports `attention_contract as _A` LAZILY inside its body. So the module-level `A` import is still absent and E-01 ADDS it (no circular-import risk: `attention_contract` imports only `lifecycle_dirs` from the package). Leave the existing lazy import inside `_refuse_unsafe_descriptive` alone; it is `deftzy`'s code and outside this item's concern.
   - Depends on: none
   - Expected outcome: `research_cmd._compose_comparison_summary("", "gpt56 report.")` returns `"gpt56 report."`; `_compose_comparison_summary("  ", "gpt56 report.")` returns `"gpt56 report."`; `_compose_comparison_summary("Which widget library", "gpt56 report.")` returns `"Which widget library (gpt56 report)"`; and `_compose_comparison_summary("u"*290, "Originating prompt for the comparison set.")` returns the bare 290-character value, with `A.is_safe_descriptive` True on every return.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 Call the composer at the three `_mk` call sites in `research_cmd.plan_new_comparison` and REMOVE the dead `sm or summary` fallback that currently makes the bug invisible. Concretely: `_mk`'s `sm` parameter becomes the already-composed value, so its `build_frontmatter(... summary=sm or summary ...)` becomes `summary=sm`, and each call site passes `_compose_comparison_summary(summary, <role>)` where it today passes the bare role string.
+- [x] E-02 Call the composer at the three `_mk` call sites in `research_cmd.plan_new_comparison` and REMOVE the dead `sm or summary` fallback that currently makes the bug invisible. Concretely: `_mk`'s `sm` parameter becomes the already-composed value, so its `build_frontmatter(... summary=sm or summary ...)` becomes `summary=sm`, and each call site passes `_compose_comparison_summary(summary, <role>)` where it today passes the bare role string.
   DELETE THE `or summary` RATHER THAN LEAVING IT, and the reason is the backlog item's own analysis: that expression is what made the defect look intentional, because it reads as a working fallback while being unreachable for every non-empty role string. Leaving it would preserve exactly the misleading code the item had to reason past. After this change `summary` is consumed ONLY through the composer, which gives the parameter one reader instead of two.
   KEEP `_mk`'s SIGNATURE, including the `sm` parameter name. Composing at the call site rather than inside `_mk` keeps `_mk` a pure name-and-frontmatter builder with no opinion about summaries, and keeps the three role strings visible at the three places that decide what each document IS, which is where a reader looks for them.
   - Depends on: E-01
   - Expected outcome: `aw research new-comparison . --set s --slug x --models gpt56,sonnet5 --summary 'Which widget library should we adopt' --apply` writes four documents whose `summary:` lines read `Which widget library should we adopt (Originating prompt for the comparison set)`, `... (gpt56 report)`, `... (sonnet5 report)` and `... (Synthesis of the model reports)`, where before the user value appeared in none of them. The same command with NO `--summary` writes the four present-day strings byte-identically.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: pin the behavior and the silence
 
-- [ ] E-03 Add a test to `tests/test_research_cmd_create.py::ComparisonTests` pinning the PRIMARY property: a `--summary` passed to `plan_new_comparison` reaches EVERY planned document. Assert per document that the user's exact substring is present in the rendered `summary:` value AND that the document's own role token is still present, so the test fails both if the value is discarded (today's bug) and if a future change replaces the role labels wholesale. Parse through the module's existing `_parse_frontmatter` helper and assert `R.validate_frontmatter` is `[]` on each, so a composed value that breaks the block fails here.
+- [x] E-03 Add a test to `tests/test_research_cmd_create.py::ComparisonTests` pinning the PRIMARY property: a `--summary` passed to `plan_new_comparison` reaches EVERY planned document. Assert per document that the user's exact substring is present in the rendered `summary:` value AND that the document's own role token is still present, so the test fails both if the value is discarded (today's bug) and if a future change replaces the role labels wholesale. Parse through the module's existing `_parse_frontmatter` helper and assert `R.validate_frontmatter` is `[]` on each, so a composed value that breaks the block fails here.
   ALSO PIN THE COMPOSER DIRECTLY as a unit, covering the empty, whitespace-only, normal and over-bound cases E-01 enumerates, including that the over-bound case returns the user's value ALONE and that `A.is_safe_descriptive` holds on every return. The over-bound case must be constructed from `A.MAX_DESCRIPTIVE_LEN` arithmetic rather than a copied `300`, so the test pins the predicate rather than a literal.
   Follow the module's established shape: a `tempfile` root with `R.RESEARCH_ROOT` created in `setUp`, calling `C.plan_new_comparison` directly, as `test_scaffold_order_and_tags` and `test_comparison_scaffold_prompt_has_no_status_and_reports_are_todo` already do.
   - Depends on: E-02
   ORDERING FOR THE FALSIFICATION (PR-005): write this test after E-01 but run it BEFORE applying E-02 (or against a `git worktree` at the pre-change HEAD) so V-03 can paste it RED; then apply E-02 and run it GREEN. The composer unit cases need E-01 and are expected to pass in both of those states, since E-01 is present in both.
   - Expected outcome: a primary test that FAILS against pre-E-02 code (the user substring is absent from all N+2 planned documents) and passes after, plus composer unit cases that pass once E-01 exists.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 In the same class, pin the NO-FLAG NON-REGRESSION as an exact-string assertion, because it is the property that protects the entire committed corpus and every caller that passes no summary. With `summary` omitted, assert the planned documents carry EXACTLY `Originating prompt for the comparison set.`, `gpt56 report.`, `sonnet5 report.` and `Synthesis of the model reports.`, period included.
+- [x] E-04 In the same class, pin the NO-FLAG NON-REGRESSION as an exact-string assertion, because it is the property that protects the entire committed corpus and every caller that passes no summary. With `summary` omitted, assert the planned documents carry EXACTLY `Originating prompt for the comparison set.`, `gpt56 report.`, `sonnet5 report.` and `Synthesis of the model reports.`, period included.
   THIS IS DELIBERATELY AN EXACT-STRING TEST, which is normally worth avoiding, and the justification is specific: these four strings are the OUTPUT CONTRACT this plan is changing the conditions of, and 9 documents in this repository's research tree carry them verbatim today (F-04), so a silent drift in the no-flag path would alter what a reader of those documents' siblings sees. The assertion is on a rendered OUTPUT value, not on source structure, so it is an outcome test and not a code-structure pin (AGENTS.md, GUIDING_PRINCIPLES P16).
   ALSO ASSERT THE ORDER AND KIND INVARIANTS STILL HOLD under a non-empty `--summary`: N+2 files, orders `00..N+1`, `research-prompt` at `00` with no model, one `research-report` per model in order, `reconciliation-report` with model `reconciliation` last, and the prompt still carrying NO `status:` while every other document carries `status: todo`. Those are what `test_scaffold_order_and_tags` and the status test already pin for the no-summary path; a summary must not perturb them, and nothing currently proves that because no existing test passes a summary at all.
   - Depends on: E-03
   - Expected outcome: the no-flag test passes identically before and after E-02 (proving the change is opt-in), and the order/kind/status invariants pass under a non-empty summary where today no test exercises that combination.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: record the user-visible fix
 
-- [ ] E-05 ADD exactly one `- Fixed:` line to `CHANGELOG.md` under the current `## 2.0.0 (pending)` heading, in the style of the existing `- Fixed:` entries, saying that `aw research new-comparison --summary` is now written onto every scaffolded document as `<summary> (<role>)` instead of being silently discarded, and that omitting `--summary` leaves the output unchanged. Write NO em or en dashes (user-facing prose under the AGENTS.md dash rule). ADDED AT REVIEW (PR-006): the repository records user-visible fixes in the changelog as part of the fixing plan (39 `- Fixed:` lines under the pending heading, for example executed plan `w89bo8` E-05), so deferring it to release time would be the exception, not the convention.
+- [x] E-05 ADD exactly one `- Fixed:` line to `CHANGELOG.md` under the current `## 2.0.0 (pending)` heading, in the style of the existing `- Fixed:` entries, saying that `aw research new-comparison --summary` is now written onto every scaffolded document as `<summary> (<role>)` instead of being silently discarded, and that omitting `--summary` leaves the output unchanged. Write NO em or en dashes (user-facing prose under the AGENTS.md dash rule). ADDED AT REVIEW (PR-006): the repository records user-visible fixes in the changelog as part of the fixing plan (39 `- Fixed:` lines under the pending heading, for example executed plan `w89bo8` E-05), so deferring it to release time would be the exception, not the convention.
   - Depends on: E-02
   - Expected outcome: one added changelog line recording the user-visible behavior change, with no em or en dash.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -179,31 +179,322 @@ N/A with reason. No `.spec.md` appears in `- Scope-Paths:` and none is owed. Spe
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste an actual Python session calling `research_cmd._compose_comparison_summary` and showing each returned value, covering: `("", "gpt56 report.")` -> `"gpt56 report."` (byte-identical to the role); `("   ", "gpt56 report.")` -> the same, proving whitespace-only is treated as absent; `("Which widget library", "gpt56 report.")` -> `"Which widget library (gpt56 report)"`, showing the role's trailing period dropped and the user's text unpunctuated by the composer; `("Which widget library", "Originating prompt for the comparison set.")` and `("Which widget library", "Synthesis of the model reports.")` -> the corresponding composed forms. Then the OVER-BOUND case, which is MANDATORY and whose absence fails this item: a user summary of length `A.MAX_DESCRIPTIVE_LEN - 10` composed with `"Originating prompt for the comparison set."` must return the user's value ALONE, and the session must print `len()` of both the rejected candidate and the returned value plus `A.is_safe_descriptive` on each, showing False for the candidate and True for the return. Finally assert `A.is_safe_descriptive` is True on EVERY return across all cases. Also paste the helper's source showing it calls `A.is_safe_descriptive` for the verdict and does NOT reimplement a length or control-character test, and state whether the `attention_contract` import was already present from `deftzy` or added here.
   - Observed evidence:
-  - Result: pending
+    Actual Python session output:
+    ```
+    === Standard cases ===
+    User: ''
+    Role: 'gpt56 report.'
+    Result: 'gpt56 report.'
+    is_safe_descriptive: True
+    ---
+    User: '   '
+    Role: 'gpt56 report.'
+    Result: 'gpt56 report.'
+    is_safe_descriptive: True
+    ---
+    User: 'Which widget library'
+    Role: 'gpt56 report.'
+    Result: 'Which widget library (gpt56 report)'
+    is_safe_descriptive: True
+    ---
+    User: 'Which widget library'
+    Role: 'Originating prompt for the comparison set.'
+    Result: 'Which widget library (Originating prompt for the comparison set)'
+    is_safe_descriptive: True
+    ---
+    User: 'Which widget library'
+    Role: 'Synthesis of the model reports.'
+    Result: 'Which widget library (Synthesis of the model reports)'
+    is_safe_descriptive: True
+    ---
 
-- [ ] V-02 validates E-02
+    === Over-bound case ===
+    MAX_DESCRIPTIVE_LEN: 300
+    User length: 290
+    Candidate length: 334
+    Candidate is_safe_descriptive: False
+    Return value length: 290
+    Return value is_safe_descriptive: True
+    Returned user alone: True
+    ```
+    Every return satisfies `A.is_safe_descriptive == True`.
+
+    Helper source:
+    ```python
+    def _compose_comparison_summary(user_summary: str, role: str) -> str:
+        """Compose the user's comparison summary with the document role.
+
+        If user_summary is empty or all whitespace, returns role unchanged.
+        Otherwise, candidate is f"{user} ({role.rstrip('.')})".
+        If that candidate fails A.is_safe_descriptive, degrades to stripped user_summary alone.
+        """
+        user = user_summary.strip()
+        if not user:
+            return role
+        candidate = f"{user} ({role.rstrip('.')})"
+        if not A.is_safe_descriptive(candidate):
+            return user
+        return candidate
+    ```
+    The helper calls `A.is_safe_descriptive` for the verdict and does not reimplement a length or control-character test.
+    The module-level import `from agent_workflows import attention_contract as A` was added here in `research_cmd.py:22` (pre-existing `deftzy` code had only a lazy import inside `_refuse_unsafe_descriptive`).
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: paste the actual terminal output of these runs against a throwaway `git init` fixture under the gitignored `tmp/` that carries `.aw/config/project.json` = `{"records_backend": "repository"}`, and paste one `wrote ...` line proving the files landed INSIDE the fixture (PR-003); remove the fixture afterwards. (a) THE FIX: `aw research new-comparison . --set s --slug widget-study --models gpt56,sonnet5 --summary 'Which widget library should we adopt' --apply` at exit 0, followed by `grep -n '^summary:'` over the written files showing all four carrying the user's subject AND its own role parenthetical. (b) THE PRE-FIX COUNTERPART, run at HEAD or in a worktree: the same command at exit 0 with the four generic placeholders and a `grep -rn` for the user string returning NO match, which is the defect as filed (F-01). (c) THE NO-FLAG NON-REGRESSION: the same command with `--summary` omitted, showing the four present-day strings byte-identically including their trailing periods. (d) THE PREVIEW PATH: the `--summary` run WITHOUT `--apply`, showing the composed values in the rendered blocks, since F-03 measured the preview is silent today too. (e) THE MANIFEST: `aw research index --dir .` on the fixture and the resulting `INDEX.md` entries, proving the composed value renders where a human reads it. (f) paste the `summary=sm` line and the three call sites after the edit, showing the dead `or summary` operand is gone and `_mk`'s signature unchanged.
   - Observed evidence:
-  - Result: pending
+    All commands run against throwaway fixture carrying `.aw/config/project.json` = `{"records_backend": "repository"}`:
 
-- [ ] V-03 validates E-03
+    (a) THE FIX:
+    ```
+    cmd: aw research new-comparison . --set s --slug widget-study --models gpt56,sonnet5 --summary 'Which widget library should we adopt' --apply
+    exit: 0
+    wrote <repo-root>/tmp/v02-fixture/.aw/records/research/20261008-s-00-3x8tlt-widget-study.research-prompt.md
+    wrote <repo-root>/tmp/v02-fixture/.aw/records/research/20261008-s-01-okezhn-widget-study.gpt56.research-report.md
+    wrote <repo-root>/tmp/v02-fixture/.aw/records/research/20261008-s-02-dmkqjx-widget-study.sonnet5.research-report.md
+    wrote <repo-root>/tmp/v02-fixture/.aw/records/research/20261008-s-03-2xpwt9-widget-study.reconciliation.reconciliation-report.md
+    next step (informational): run `aw research index` to refresh the manifest
+
+    Grep summary:
+    ./.aw/records/research/20261008-s-01-okezhn-widget-study.gpt56.research-report.md:11:summary: Which widget library should we adopt (gpt56 report)
+    ./.aw/records/research/20261008-s-00-3x8tlt-widget-study.research-prompt.md:10:summary: Which widget library should we adopt (Originating prompt for the comparison set)
+    ./.aw/records/research/20261008-s-03-2xpwt9-widget-study.reconciliation.reconciliation-report.md:11:summary: Which widget library should we adopt (Synthesis of the model reports)
+    ./.aw/records/research/20261008-s-02-dmkqjx-widget-study.sonnet5.research-report.md:11:summary: Which widget library should we adopt (sonnet5 report)
+    ```
+
+    (b) THE PRE-FIX COUNTERPART:
+    ```
+    cmd: aw research new-comparison . --set s --slug widget-study --models gpt56,sonnet5 --summary 'Which widget library should we adopt' --apply
+    exit: 0
+    wrote <repo-root>/tmp/fixture-prefix/.aw/records/research/20261008-s-00-slm1bd-widget-study.research-prompt.md
+    wrote <repo-root>/tmp/fixture-prefix/.aw/records/research/20261008-s-01-jj7ck3-widget-study.gpt56.research-report.md
+    wrote <repo-root>/tmp/fixture-prefix/.aw/records/research/20261008-s-02-ubh8q7-widget-study.sonnet5.research-report.md
+    wrote <repo-root>/tmp/fixture-prefix/.aw/records/research/20261008-s-03-6v8zqh-widget-study.reconciliation.reconciliation-report.md
+
+    Grep summary:
+    ./.aw/records/research/20261008-s-01-jj7ck3-widget-study.gpt56.research-report.md:11:summary: gpt56 report.
+    ./.aw/records/research/20261008-s-00-slm1bd-widget-study.research-prompt.md:10:summary: Originating prompt for the comparison set.
+    ./.aw/records/research/20261008-s-02-ubh8q7-widget-study.sonnet5.research-report.md:11:summary: sonnet5 report.
+    ./.aw/records/research/20261008-s-03-6v8zqh-widget-study.reconciliation.reconciliation-report.md:11:summary: Synthesis of the model reports.
+
+    grep -rn 'Which widget library should we adopt' .:
+    exit code: 1, output: ''
+    ```
+
+    (c) THE NO-FLAG NON-REGRESSION:
+    ```
+    cmd: aw research new-comparison . --set s --slug widget-study --models gpt56,sonnet5 --apply
+    exit: 0
+    wrote <repo-root>/tmp/v02-fixture/.aw/records/research/20261008-s-00-npfzyr-widget-study.research-prompt.md
+    wrote <repo-root>/tmp/v02-fixture/.aw/records/research/20261008-s-01-huj7qc-widget-study.gpt56.research-report.md
+    wrote <repo-root>/tmp/v02-fixture/.aw/records/research/20261008-s-02-q5lpf1-widget-study.sonnet5.research-report.md
+    wrote <repo-root>/tmp/v02-fixture/.aw/records/research/20261008-s-03-f2ksri-widget-study.reconciliation.reconciliation-report.md
+
+    Grep summary:
+    ./.aw/records/research/20261008-s-01-huj7qc-widget-study.gpt56.research-report.md:11:summary: gpt56 report.
+    ./.aw/records/research/20261008-s-00-npfzyr-widget-study.research-prompt.md:10:summary: Originating prompt for the comparison set.
+    ./.aw/records/research/20261008-s-03-f2ksri-widget-study.reconciliation.reconciliation-report.md:11:summary: Synthesis of the model reports.
+    ./.aw/records/research/20261008-s-02-q5lpf1-widget-study.sonnet5.research-report.md:11:summary: sonnet5 report.
+    ```
+
+    (d) THE PREVIEW PATH:
+    ```
+    cmd: aw research new-comparison . --set s --slug widget-study --models gpt56,sonnet5 --summary 'Which widget library should we adopt'
+    exit: 0
+    --- would write <repo-root>/tmp/v02-fixture/.aw/records/research/20261008-s-00-d857e9-widget-study.research-prompt.md ---
+    summary: Which widget library should we adopt (Originating prompt for the comparison set)
+    --- would write <repo-root>/tmp/v02-fixture/.aw/records/research/20261008-s-01-jpw4st-widget-study.gpt56.research-report.md ---
+    summary: Which widget library should we adopt (gpt56 report)
+    --- would write <repo-root>/tmp/v02-fixture/.aw/records/research/20261008-s-02-w9ekeh-widget-study.sonnet5.research-report.md ---
+    summary: Which widget library should we adopt (sonnet5 report)
+    --- would write <repo-root>/tmp/v02-fixture/.aw/records/research/20261008-s-03-dgn6kb-widget-study.reconciliation.reconciliation-report.md ---
+    summary: Which widget library should we adopt (Synthesis of the model reports)
+    ```
+
+    (e) THE MANIFEST:
+    ```
+    cmd: aw research index --dir .
+    exit: 0
+    wrote        .aw/records/research/INDEX.json, INDEX.md (4 docs)
+    INDEX.md contents:
+    - `3x8tlt` [unrun] 20261008-s-00-3x8tlt-widget-study.research-prompt.md - Which widget library should we adopt (Originating prompt for the comparison set)
+    - `okezhn` 20261008-s-01-okezhn-widget-study.gpt56.research-report.md - Which widget library should we adopt (gpt56 report)
+    - `dmkqjx` 20261008-s-02-dmkqjx-widget-study.sonnet5.research-report.md - Which widget library should we adopt (sonnet5 report)
+    - `2xpwt9` 20261008-s-03-2xpwt9-widget-study.reconciliation.reconciliation-report.md - Which widget library should we adopt (Synthesis of the model reports)
+    ```
+    Fixture removed cleanly.
+
+    (f) `summary=sm` and call sites in `research_cmd.plan_new_comparison`:
+    ```python
+            summary=sm,
+        )
+        return PlannedFile(research_root / R.format_name(name), content)
+
+    # 00 = originating prompt
+    files.append(
+        _mk(
+            0,
+            "research-prompt",
+            None,
+            _compose_comparison_summary(
+                summary, "Originating prompt for the comparison set."
+            ),
+        )
+    )
+    # 01..N = one report per model
+    for i, m in enumerate(norm_models, start=1):
+        files.append(
+            _mk(
+                i,
+                "research-report",
+                m,
+                _compose_comparison_summary(summary, f"{m} report."),
+            )
+        )
+    # N+1 = reconciliation
+    files.append(
+        _mk(
+            len(norm_models) + 1,
+            "reconciliation-report",
+            "reconciliation",
+            _compose_comparison_summary(
+                summary, "Synthesis of the model reports."
+            ),
+        )
+    )
+    return files, None
+    ```
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: paste the full `python3 -m pytest tests/test_research_cmd_create.py` output including the `N passed` summary line, naming the added tests. Then paste the PRE-FIX run of the same module showing the primary test FAILING with its assertion text visible, and state explicitly which property failed (the user substring absent from all N+2 planned documents). Confirm which added cases pass in BOTH states and why: the composer unit cases exercise code E-01 adds, so they cannot run pre-E-01 at all, and that must be reported as such rather than as a pass. Show that the over-bound case derives its length from `A.MAX_DESCRIPTIVE_LEN` arithmetic rather than a literal `300`, by pasting the test source line. Also paste, for at least one planned document, that `R.validate_frontmatter` on the parsed block returns `[]` with the composed summary in place.
   - Observed evidence:
-  - Result: pending
+    Post-fix run output:
+    ```
+    python3 -m pytest tests/test_research_cmd_create.py
+    ....................                                                     [100%]
+    20 passed in 5.24s
+    ```
+    Added tests:
+    - `test_comparison_summary_reaches_all_planned_documents`
+    - `test_compose_comparison_summary_unit`
+    - `test_comparison_no_summary_exact_strings`
+    - `test_comparison_invariants_under_non_empty_summary`
 
-- [ ] V-04 validates E-04
+    Pre-fix falsification run output (executed after E-01/E-03 but before E-02):
+    ```
+    =================================== FAILURES ===================================
+    ____ ComparisonTests.test_comparison_summary_reaches_all_planned_documents _____
+    [gw11] linux -- Python 3.14.6 <python3>
+
+    self = <tests.test_research_cmd_create.ComparisonTests testMethod=test_comparison_summary_reaches_all_planned_documents>
+
+        def test_comparison_summary_reaches_all_planned_documents(self):
+            user_summary = "Which widget library should we adopt"
+            files, err = C.plan_new_comparison(
+                research_root=self.research,
+                set_id="widget-set",
+                slug="widget-study",
+                models=["gpt56", "sonnet5"],
+                summary=user_summary,
+            )
+            self.assertIsNone(err)
+            self.assertEqual(len(files), 4)
+
+            role_tokens = [
+                "Originating prompt for the comparison set",
+                "gpt56 report",
+                "sonnet5 report",
+                "Synthesis of the model reports",
+            ]
+            for f, token in zip(files, role_tokens):
+                parsed = _parse_frontmatter(f.content)
+                summary_val = parsed.get("summary", "")
+    >           self.assertIn(user_summary, summary_val)
+    E           AssertionError: 'Which widget library should we adopt' not found in 'Originating prompt for the comparison set.'
+
+    tests/test_research_cmd_create.py:240: AssertionError
+    =========================== short test summary info ============================
+    FAILED tests/test_research_cmd_create.py::ComparisonTests::test_comparison_summary_reaches_all_planned_documents
+    1 failed, 19 passed in 4.55s
+    ```
+    Property that failed: user substring was absent from all planned documents because `_mk` hardcoded `sm` and bypassed `summary`.
+    Added cases that pass in both states: `test_compose_comparison_summary_unit`, `test_comparison_no_summary_exact_strings`, and `test_comparison_invariants_under_non_empty_summary` passed before and after E-02. The composer unit test exercises E-01 code and cannot run pre-E-01 at all.
+    Over-bound case length derivation (from `tests/test_research_cmd_create.py:268`):
+    ```python
+        long_user = "u" * (A.MAX_DESCRIPTIVE_LEN - 10)
+    ```
+    `R.validate_frontmatter` on planned documents with composed summaries:
+    ```
+    20261008-widget-set-00-yuoawc-widget-study.research-prompt.md -> summary: 'Which widget library should we adopt (Originating prompt for the comparison set)' -> validate_frontmatter: []
+    20261008-widget-set-01-wpdu5b-widget-study.gpt56.research-report.md -> summary: 'Which widget library should we adopt (gpt56 report)' -> validate_frontmatter: []
+    20261008-widget-set-02-2uqupo-widget-study.sonnet5.research-report.md -> summary: 'Which widget library should we adopt (sonnet5 report)' -> validate_frontmatter: []
+    20261008-widget-set-03-2t99pu-widget-study.reconciliation.reconciliation-report.md -> summary: 'Which widget library should we adopt (Synthesis of the model reports)' -> validate_frontmatter: []
+    ```
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: paste the test output for the no-flag and invariant tests by name. The no-flag test must assert and show EXACT equality against `Originating prompt for the comparison set.`, `gpt56 report.`, `sonnet5 report.` and `Synthesis of the model reports.`, trailing periods included, and must PASS both before and after the E-02 edit; paste both runs, because a no-flag test that only passes afterwards would mean the change is not opt-in. The invariant test must show, under a NON-EMPTY summary, N+2 files with orders `00..N+1` and the kinds in order (`research-prompt` at `00` with `model` None, one `research-report` per model in the given order, `reconciliation-report` with model `reconciliation` last), the prompt carrying NO `status:` key and every other document carrying `status: todo`.
   Then paste the full-suite run (`python3 -m pytest`, bare) with its `N passed` line, the targeted regression set from the validation section with its own `N passed` line, and the repository-tree `aw research index --check --agent` output. For that last one paste the PRE-CHANGE rule set (taken at the executing HEAD before E-02) and the POST-CHANGE rule set, and show no rule id appears after that was absent before; authored counts (142 at authoring, 179 at review) are context only. The required property is that this plan ADDS no rule, not that the count is zero (F-11, PR-004).
   - Observed evidence:
-  - Result: pending
+    No-flag and invariant tests by name:
+    ```
+    python3 -m pytest tests/test_research_cmd_create.py -k "test_comparison_no_summary_exact_strings or test_comparison_invariants_under_non_empty_summary" -v
+    ..                                                                       [100%]
+    2 passed in 4.38s
+    ```
+    Exact equality against four strings with trailing periods:
+    - `test_comparison_no_summary_exact_strings` asserts exact equality against `Originating prompt for the comparison set.`, `gpt56 report.`, `sonnet5 report.`, and `Synthesis of the model reports.`; passed both in pre-E-02 run (`1 failed, 19 passed`) and post-E-02 run (`20 passed`).
+    - `test_comparison_invariants_under_non_empty_summary` asserts N+2 files, orders `00..03`, kinds and models in order (`research-prompt` None, `research-report` gpt56, `research-report` sonnet5, `reconciliation-report` reconciliation), prompt has no `status:`, other reports have `status: todo`, all `validate_frontmatter == []`.
 
-- [ ] V-05 validates E-05
+    Full suite bare run:
+    ```
+    python3 -m pytest
+    6637 passed, 2 skipped, 3 warnings in 922.81s (0:15:22)
+    ```
+
+    Targeted regression set:
+    ```
+    python3 -m pytest tests/test_research_cmd_create.py tests/test_research_descriptive_safety.py tests/test_research_index.py tests/test_artifact_adopt.py
+    ........................................................................ [ 56%]
+    ........................................................                 [100%]
+    128 passed in 5.34s
+    ```
+
+    `aw research index --check --agent` rule set comparison:
+    Pre-change rule set: `['adopted-without-consumer', 'check.stale-index-missing', 'dangling-citation', 'frontmatter-invalid', 'stale-state-to-promote']` (229 diagnostics)
+    Post-change rule set: `['adopted-without-consumer', 'check.stale-index-missing', 'dangling-citation', 'frontmatter-invalid', 'stale-state-to-promote']` (229 diagnostics)
+    Zero new rules added.
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: paste `git diff CHANGELOG.md` showing exactly ONE added `- Fixed:` line under the `## 2.0.0 (pending)` heading, and paste a search over that line for em and en dashes returning nothing.
   - Observed evidence:
-  - Result: pending
+    `git diff CHANGELOG.md`:
+    ```diff
+    diff --git a/CHANGELOG.md b/CHANGELOG.md
+    index 6902506d9..e26f645e6 100644
+    --- a/CHANGELOG.md
+    +++ b/CHANGELOG.md
+    @@ -24,6 +24,7 @@ now under way. The direction of the 2.x line (in progress, not all shipped in th
+
+     Major storage-layout boundary. The logical model (D126-D129) was superseded by the PHYSICAL `.aw/` hierarchy specified in `20260810-1447-01-physical-aw-hierarchy-placement-and-migration.spec.md` (D130, D134-D137), which the framework now implements and has migrated its own repository onto:
+
+    +- Fixed: aw research new-comparison --summary is now written onto every scaffolded document as <summary> (<role>) instead of being silently discarded, and omitting --summary leaves the output unchanged.
+     - Fixed: aw specs set and aw set now refuse to mark a spec implemented unless a resolvable evidence citation is supplied, whichever spelling is used, and aw set now accepts --evidence so that citation can be given.
+     - Added: documented CommandDeclaration.exit_contract as enumerating codes produced by a command's own return path while excluding signal-derived codes (130/143), pinned by a conformance gate on the universal 130 floor (D162).
+     - Fixed: aw config get --help no longer claims a nonzero exit for an unset variable.
+    ```
+    Dash check on added line:
+    ```
+    Line: '+- Fixed: aw research new-comparison --summary is now written onto every scaffolded document as <summary> (<role>) instead of being silently discarded, and omitting --summary leaves the output unchanged.'
+    Has em dash: False
+    Has en dash: False
+    ```
+  - Result: pass
 
 ## Approval and execution gate
 

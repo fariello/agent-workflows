@@ -1,5 +1,5 @@
 - Id: ol1m2q
-- Status: graduated
+- Status: done
 - Graduated-To: ol1m2q
 - Blocks-Release: next
 - Set: ol1m2q
@@ -8,6 +8,7 @@
 - Summary: aw research new-comparison silently ignores --summary: plan_new_comparison passes a fixed per-file string to _mk so the user value is never written, and the flag is documented as a one-line human summary
 
 ## Workflow history
+- 2026-10-08 done (aw backlog): closed by aw agy run: IPD wjvn8a executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20261002-ol1m2q-01-wjvn8a-make-aw-research-new-comparison-honor-summary-by-composing-t.ipd.md); evidence .aw/records/plans/executed/20261002-ol1m2q-01-wjvn8a-make-aw-research-new-comparison-honor-summary-by-composing-t.ipd.md
 - 2026-10-02 graduated (aw backlog): graduated by run run-20261001T222151Z-2118435: wjvn8a
 - 2026-10-01 created (aw backlog): aw research new-comparison silently ignores --summary: plan_new_comparison passes a fixed per-file string to _mk so the user value is never written, and the flag is documented as a one-line human summary
 

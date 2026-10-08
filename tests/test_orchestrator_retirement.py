@@ -2801,6 +2801,56 @@ class TheSharedGatesActuallyFireOnTheRollupPath(RollupTransitionCase):
         self.assertEqual(res_pl.exit_code, LC.EXIT_FINDINGS, res_pl.message)
         self.assertIn("COMMITTED-INCOMPLETE", res_pl.message)
 
+    def test_committed_incomplete_rollup_remains_unreachable_control(self):
+        """E-08: committed-incomplete orchestrator is refused as already-terminal under both apply=False and apply=True."""
+        from unittest import mock
+        from agent_workflows import ipd_lifecycle as LC
+        from agent_workflows import ipd_lint as L
+
+        orch = self.make_set("cictl", [("aaa111", 1, "executed", "executed")])
+        real_lint = L.lint_file
+
+        def failing(path, checkpoint="author", **kw):
+            if checkpoint == "post-transition":
+                return L.LintResult(
+                    "error",
+                    [
+                        L.Diagnostic(
+                            0, 0, "IPD-TEST", "injected post-transition failure"
+                        )
+                    ],
+                )
+            return real_lint(path, checkpoint=checkpoint, **kw)
+
+        # 1. Wedge into committed-incomplete via post-transition lint error
+        with mock.patch.object(L, "lint_file", failing):
+            res_wedge = self.retire(orch, "cictl", apply=True)
+        self.assertEqual(res_wedge.exit_code, LC.EXIT_FINDINGS)
+        j1 = LC.read_finalize_journal(self.root, "orc000")
+        self.assertIsNotNone(j1)
+        self.assertEqual(j1["phase"], LC.PHASE_COMMITTED_INCOMPLETE)
+
+        orch_exec = self.root / ".aw/records/plans/executed" / orch.name
+        self.assertTrue(orch_exec.is_file())
+
+        # 2. Both apply=False and apply=True return EXIT_FINDINGS with ROLLUP_REFUSED_ALREADY_TERMINAL
+        # and preserve the journal in committed-incomplete.
+        res_preview = self.retire(orch_exec, "cictl", apply=False)
+        self.assertEqual(res_preview.exit_code, LC.EXIT_FINDINGS)
+        self.assertEqual(res_preview.findings, (LC.ROLLUP_REFUSED_ALREADY_TERMINAL,))
+        self.assertIn("already terminal", res_preview.message)
+        j2 = LC.read_finalize_journal(self.root, "orc000")
+        self.assertIsNotNone(j2)
+        self.assertEqual(j2["phase"], LC.PHASE_COMMITTED_INCOMPLETE)
+
+        res_apply = self.retire(orch_exec, "cictl", apply=True)
+        self.assertEqual(res_apply.exit_code, LC.EXIT_FINDINGS)
+        self.assertEqual(res_apply.findings, (LC.ROLLUP_REFUSED_ALREADY_TERMINAL,))
+        self.assertIn("already terminal", res_apply.message)
+        j3 = LC.read_finalize_journal(self.root, "orc000")
+        self.assertIsNotNone(j3)
+        self.assertEqual(j3["phase"], LC.PHASE_COMMITTED_INCOMPLETE)
+
     def test_transaction_journal_lifecycle_and_fault_recovery(self):
         from unittest import mock
         from agent_workflows import ipd_lifecycle as LC
