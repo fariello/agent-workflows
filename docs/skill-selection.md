@@ -24,7 +24,7 @@ clauses, references a missing resource, exceeds the entry-point byte budget, or 
 the canonical digest. `check_authority_not_inlined` fails a router that copied the canonical
 body into its own prose.
 
-## The aw router skill
+## The `aw` router skill
 
 In addition to per-workflow skills, the compiler generates a unified router skill package at `.agents/skills/aw/SKILL.md` (via `agent_workflows/host_adapters.build_aw_router_skill_package`).
 
