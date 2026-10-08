@@ -6,7 +6,7 @@
 - Scope: IN: move the advisory append AFTER the durable write it describes at all four reachable pre-write call sites (`backlog.run_set`, `backlog.run_note`, `specs.run_set` via `_sidecar_append`, `specs.run_note` via `_sidecar_append`), so a failed durable write leaves no event; a new behavioral test module driving each of the four verbs through a real CLI invocation whose durable write fails, asserting no sidecar record and the artifact unchanged, plus the converse that a SUCCEEDING write still records exactly one event; a correction to the four in-module comments that currently justify the placement on advisory grounds without addressing ordering; an amendment to spec `2vev8j` Section 7's second bullet, which states the defect in its already-fixed shape and is the authority a future author would read; and one CHANGELOG entry. OUT, each with a reason recorded under "Deferred": `backlog.run_new`, which already appends AFTER its write and is correct; `status_set.apply_status_change`, which writes NO sidecar record at all (that asymmetry is item `fcnz1r`'s, and `47ttnv` deliberately left it); C5's SECOND clause ("no status change may succeed while its durable history write silently fails"), which OQ-01 resolves from the spec's own text as binding the future tracked journal rather than today's gitignored sidecar, and which would contradict the maintainer's 2026-09-10 `vhbvwz` OQ-01 ruling recorded verbatim at `record_history.append_advisory` if applied to the sidecar; the per-artifact journal, `seq` ordering and locking that `2vev8j` specifies (this plan fixes ordering within TODAY's global sidecar and does not begin that migration); the uncaught `OSError` propagating out of `cli.main` on a failed artifact write, which is a separate robustness defect this plan measured and must not absorb; the history DATE-CLOCK skew between the two writers; and closing release-blocking item `19lmbe`, whose defect commit `23ec426df` fixed but which is still `open`.
 - Scope-Paths: agent_workflows/backlog.py, agent_workflows/specs.py, tests/test_history_write_order.py, .aw/records/specs/approved/20260908-2vev8j-01-2vev8j-artifact-metadata-storage.spec.md, CHANGELOG.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -18,9 +18,9 @@
 - Highest E allocated: 06
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: ulepef
-- Approval: 2026-10-01, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-08 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: ulepef verified (set bjcz05, attempt 1).
 - 2026-10-01 approved (aw set): status set to approved
 
 - 2026-10-01 reviewed (opencode its_direct/pt3-claude-opus-5-1m-us): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-801 (HIGH), PR-802 (HIGH), PR-803 (MEDIUM), PR-804 (MEDIUM), PR-805 (MEDIUM), PR-806 (LOW), PR-807 (LOW), PR-808 (LOW), PR-809 (LOW) all FIXED; zero deferred, zero open. Structural lint `conforming` at `--phase author` (one `IPD-Z602` density advisory on E-02, unassessed by the plan, now assessed and accepted in the Scope check) and at `--phase review-finalize`. This plan's own first `- Kind:` bullet reads `child`, so the `IPD-S407` orchestrator row check does not apply. No production file, test, document or spec was modified by this review; four throwaway probe repositories were created under `.aw/state/tmp/` and deleted, and `git status --porcelain` is clean of them.
