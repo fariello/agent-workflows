@@ -38,3 +38,10 @@ Verified: all eight child plans exist in `pending/` with ids, Orders and `Item-D
 | D-2 | Edit the child plans for PR-003? | No; note it here. | Edit 05/07 (outside this review's ledger). | plan-review 0.1 ledger rule. | yes |
 
 PR-001 is OPEN at HIGH and is escalated as OQ-02 with `- Finding: PR-001`.
+
+### Driver correction turn 1 of 2 (2026-10-08)
+
+- Reported: `[child-lint-failing] tb6lw3: IPD-Q501 OQ-02: BLOCKING question is still 'open'`, remedy "fix the child's named lint finding".
+- Searched for a recorded maintainer answer: backlog `coivul` (ruling 2026-10-07 covers push, hook bypass, status changes and out-of-scope edits, not tool identity), spec `25kzda`, and review record `tb6lw3` PR-003 (which raised the question). None answers it.
+- Change made: none. The only lint-clearing edits are resolving the question or setting `Blocking: no`. Either one would invent a maintainer decision (`Owner: maintainer`, changes the spec's abort contract) or misclassify a question the child's reviewer judged blocking, so both are refused under plan-review Step 3 ("never guess a human decision"). Rows: 8 -> 8 (child table unchanged). `lxb1ew` stays `to-review` with `- Readiness:` absent, and OQ-02 (`Finding: PR-001`) is still open.
+- Needed to proceed: the maintainer answers `tb6lw3` OQ-02 (A: corrupt ledger and tool-identity mismatch both abort, the recommendation; B: ledger only; C: tool identity counts as a corrupt ledger), then resolves `lxb1ew` OQ-02 citing that answer.
