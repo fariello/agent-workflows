@@ -6,7 +6,7 @@
 - Scope: Give the `aw` parser a build-time refusal for the one defect shape `8kd4eo` proved unreachable, implemented as a post-build validation pass over the tree the builder already returns, and prove it refuses the defect while leaving every shipped invocation working. IN: a validation pass plus its raise, wired into `agent_workflows/cli.py` so that building the parser refuses a colliding `dest`; an escape hatch so a refusal can never make the CLI unusable in the field; and `tests/test_cli_dest_shadow_refusal.py` asserting the refusal fires for each of the FOUR registration routes a collision can arrive by, that the clean tree builds, and that the hatch works. OUT: the BROADER any-dest-repeat rule and the option-default shape owned by `zwv1sa` (Order 02), which is a DIFFERENT rule firing on live pairs and is not made to raise here; any rename of a shipped dest, flag, or positional; the reachability walk itself, which `8kd4eo` already shipped and which this plan does not replace; and extending the refusal to the six non-`cli` builders, declined with reason in Deferred.
 - Scope-Paths: agent_workflows/cli.py, tests/test_cli_dest_shadow_refusal.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: followup
 - Priority: low
@@ -16,9 +16,9 @@
 - Highest E allocated: 07
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: z05z73
-- Approval: 2026-10-01, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-08 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: z05z73 verified (set destshadow, attempt 1).
 - 2026-10-01 approved (aw set): status set to approved
 
 - 2026-10-01 reviewed (opencode its_direct/pt3-claude-opus-5-1m-us): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-901 (HIGH), PR-902 (HIGH), PR-903 (MEDIUM), PR-904 (MEDIUM), PR-905 (MEDIUM), PR-906 (LOW), PR-907 (LOW), PR-908 (LOW), PR-909 (LOW) all FIXED; zero deferred, zero open. Structural lint `conforming` at `--phase author` and `--phase review-finalize` with NO advisories at either checkpoint. This plan's own first `- Kind:` bullet reads `child`, so the `IPD-S407` orchestrator row check does not apply. No production file, test, document or spec was modified by this review; every probe ran in-process or in a throwaway synthetic tree and `git status --porcelain` is clean.
