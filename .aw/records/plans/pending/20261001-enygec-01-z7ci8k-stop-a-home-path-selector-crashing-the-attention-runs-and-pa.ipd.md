@@ -4,7 +4,7 @@
 - Kind: child
 - Concern: Three commands interpolate a raw user-supplied token into a hand-built `aw.agent/v1` record, so a home-path argument makes the machine surface exit 1 with a ValueError traceback, empty stdout, and the refused path printed on stderr by the traceback itself.
 - Scope: Sanitize the user-supplied token at each of the three hand-built record sites (`attention`'s unresolved-selector refusal, `runs`' unresolvable-target refusal, `partition`'s result record on both machine surfaces), CONSUMING the shared `agent_schema.redact_home_paths` primitive that plan `9yd6tx` already landed, and pin the whole class behaviorally. Does NOT route these sites through `renderers.py`, does NOT touch `AgentRenderer`, does NOT edit `agent_schema.py`, and does NOT change what a resolvable selector resolves to.
-- Scope-Paths: agent_workflows/attention.py, agent_workflows/run_viewer.py, agent_workflows/partition.py, docs/cli-output-contract.md, tests/test_selector_echo_sanitization.py
+- Scope-Paths: agent_workflows/attention.py, agent_workflows/run_viewer.py, agent_workflows/partition.py, docs/cli-output-contract.md, tests/test_selector_echo_sanitization.py, tests/test_agent_record_guard.py
 - Item-Dependencies: none
 - Status: approved
 - Readiness: go-pending-approval
@@ -36,49 +36,49 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: the one primitive these sites need
 
-- [ ] E-01 CONSUME the already-landed `agent_schema.redact_home_paths` (added by plan `9yd6tx`, commit `125d585e5`, now `executed`); do NOT write a second definition and do NOT edit `agent_schema.py`, which is no longer in Scope-Paths. Before touching any call site, confirm the landed function still has the contract the sites below rely on, by calling it (not by reading its source): it rewrites an embedded home prefix to `~` in place inside free text, covers all three classes (POSIX, macOS, Windows, the last keeping its drive prefix as `<drive>:\Users\~`), is idempotent, and returns non-string input unchanged. It is the right primitive and `normalize_repo_path` is not, for the two reasons F-06 and F-07 record. If the landed function is ABSENT or has changed shape, that is a prerequisite failure: STOP and report rather than re-adding it here.
+- [x] E-01 CONSUME the already-landed `agent_schema.redact_home_paths` (added by plan `9yd6tx`, commit `125d585e5`, now `executed`); do NOT write a second definition and do NOT edit `agent_schema.py`, which is no longer in Scope-Paths. Before touching any call site, confirm the landed function still has the contract the sites below rely on, by calling it (not by reading its source): it rewrites an embedded home prefix to `~` in place inside free text, covers all three classes (POSIX, macOS, Windows, the last keeping its drive prefix as `<drive>:\Users\~`), is idempotent, and returns non-string input unchanged. It is the right primitive and `normalize_repo_path` is not, for the two reasons F-06 and F-07 record. If the landed function is ABSENT or has changed shape, that is a prerequisite failure: STOP and report rather than re-adding it here.
   - Depends on: none
   - Expected outcome: a pasted probe showing `redact_home_paths` applied to a POSIX, a macOS and a Windows home path, to an embedded mid-string form, to a `repr()`-quoted form and a `shlex.quote`d form (the two quoting styles the call sites below actually produce), and to `None`, each result carrying no username and matching neither detector.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 Pin the CALL-SITE outputs against the repository's OWN detectors, both of them, in the new test module from E-08: for each sanitized record E-03 to E-05 produce, walk every string in the parsed record and assert neither `agent_schema._HOME_PATH_RE` nor any of `leak_sanitizer._FAIL_PATTERNS['home-path']`, `['users-path']`, `['windows-home']` matches. Do NOT re-test the primitive's per-class behavior or the detectors' mutual agreement: the former is already pinned by `tests/test_json_surface_leak_posture.py::HomePathRedactionAgreementTests` and the latter by `tests/test_home_path_pattern_source.py::test_derivation_identity` and `test_cross_module_agreement_corpus` (both landed, F-09). Duplicating them would add a third copy of the same assertion with no new behavior pinned.
+- [x] E-02 Pin the CALL-SITE outputs against the repository's OWN detectors, both of them, in the new test module from E-08: for each sanitized record E-03 to E-05 produce, walk every string in the parsed record and assert neither `agent_schema._HOME_PATH_RE` nor any of `leak_sanitizer._FAIL_PATTERNS['home-path']`, `['users-path']`, `['windows-home']` matches. Do NOT re-test the primitive's per-class behavior or the detectors' mutual agreement: the former is already pinned by `tests/test_json_surface_leak_posture.py::HomePathRedactionAgreementTests` and the latter by `tests/test_home_path_pattern_source.py::test_derivation_identity` and `test_cross_module_agreement_corpus` (both landed, F-09). Duplicating them would add a third copy of the same assertion with no new behavior pinned.
   - Depends on: E-01
   - Expected outcome: a shared record-walk helper in the new module, used by every E-08 machine-surface case, that fails if any string anywhere in a parsed record matches either detector.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: sanitize the three hand-built records
 
-- [ ] E-03 In `attention.unresolved_selector_agent_record`, apply `redact_home_paths` to every token list and to the `error` string: `unresolved_selectors`, `unresolved_targets`, the interpolated `quoted` tokens inside `error`, and the two conditional lists `matched_selectors` and `invalid_selectors`. All five are echo sites and the carrier named only three (F-04). Apply it to the whole field, not only the first element: a multi-token invocation such as `aw attention <home path> bogus99 --agent` crashes today on `unresolved_selectors[0]` while `[1]` is innocuous, and a fix that sanitized only a single-token record would still crash there. Leave the field names, the record shape, the `exit`/`verified`/`complete` values and the `assert_valid_agent_record` call EXACTLY as they are: this item changes what goes INTO the record, never the record's contract, and the validator call must stay so the site keeps failing closed on anything this sanitization does not cover.
+- [x] E-03 In `attention.unresolved_selector_agent_record`, apply `redact_home_paths` to every token list and to the `error` string: `unresolved_selectors`, `unresolved_targets`, the interpolated `quoted` tokens inside `error`, and the two conditional lists `matched_selectors` and `invalid_selectors`. All five are echo sites and the carrier named only three (F-04). Apply it to the whole field, not only the first element: a multi-token invocation such as `aw attention <home path> bogus99 --agent` crashes today on `unresolved_selectors[0]` while `[1]` is innocuous, and a fix that sanitized only a single-token record would still crash there. Leave the field names, the record shape, the `exit`/`verified`/`complete` values and the `assert_valid_agent_record` call EXACTLY as they are: this item changes what goes INTO the record, never the record's contract, and the validator call must stay so the site keeps failing closed on anything this sanitization does not cover.
   - Depends on: E-01
   - Expected outcome: `aw attention <home path> --agent` and `--json`, and the multi-token `aw attention <home path> bogus99 --agent`, exit 2 with a parseable record on stdout whose every field is home-path-free, instead of exiting 1 with a traceback. Note on reachability: `aw attention z7ci8k <home path> --agent` DOES populate `matched_selectors` (with the innocuous `z7ci8k`), but no probed CLI invocation puts a HOME-PATH token into `matched_selectors` or populates `invalid_selectors` at all (see F-04's measured correction), so the redaction of those two branches is pinned by calling `unresolved_selector_agent_record` directly with a constructed `SelectorMatchFacts`, the same construction `tests/test_attention.py::test_selector_match_facts_refusable` already uses.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 In `run_viewer`, apply `redact_home_paths` to the token list and to the message in `_unresolvable_target_refusal`, and inside `format_unresolvable_target_message` sanitize BOTH the interpolated tokens and the `analytics_root(repo_root)` value it prints in its reserved-analytics-tree note. That second value is an independent absolute-path leak the carrier did not name: measured, a target under the analytics tree makes the message carry the repo's own absolute root, so the record refuses even when the user's token is innocuous (F-05). Because that value is a WHOLE PATH the command itself computed relative to a known `repo_root`, render it with `agent_schema.normalize_repo_path(analytics_root(repo_root), repo_root)` (measured at review: returns `.aw/records/runs/analytics` for both `Path('.')` and the absolute repo root), and apply `redact_home_paths` to that result only as a backstop for a records backend resolving outside the repo. Home redaction ALONE is not sufficient for this value: on a checkout that is not under a home directory the absolute root would pass the validator yet still violate the cli-output-contract repo-relative rule and spec F8a's no-absolute-path principle (F-10). The F-07 caveat against `normalize_repo_path` applies to USER tokens of unknown provenance, not to a path the command derived from `repo_root`. Note the function is `run_viewer._unresolvable_target_refusal`, NOT the `emit_unresolvable_target_refusal` the carrier and three `attention` docstrings name; that symbol does not exist (F-02).
+- [x] E-04 In `run_viewer`, apply `redact_home_paths` to the token list and to the message in `_unresolvable_target_refusal`, and inside `format_unresolvable_target_message` sanitize BOTH the interpolated tokens and the `analytics_root(repo_root)` value it prints in its reserved-analytics-tree note. That second value is an independent absolute-path leak the carrier did not name: measured, a target under the analytics tree makes the message carry the repo's own absolute root, so the record refuses even when the user's token is innocuous (F-05). Because that value is a WHOLE PATH the command itself computed relative to a known `repo_root`, render it with `agent_schema.normalize_repo_path(analytics_root(repo_root), repo_root)` (measured at review: returns `.aw/records/runs/analytics` for both `Path('.')` and the absolute repo root), and apply `redact_home_paths` to that result only as a backstop for a records backend resolving outside the repo. Home redaction ALONE is not sufficient for this value: on a checkout that is not under a home directory the absolute root would pass the validator yet still violate the cli-output-contract repo-relative rule and spec F8a's no-absolute-path principle (F-10). The F-07 caveat against `normalize_repo_path` applies to USER tokens of unknown provenance, not to a path the command derived from `repo_root`. Note the function is `run_viewer._unresolvable_target_refusal`, NOT the `emit_unresolvable_target_refusal` the carrier and three `attention` docstrings name; that symbol does not exist (F-02).
   - Depends on: E-01
   - Expected outcome: `aw runs <home path> --agent`/`--json` exit 2 with a home-path-free record; `aw runs <a path under the analytics tree> --agent` likewise, where it crashes today, with the note naming the analytics tree as a repo-relative path (`.aw/records/runs/analytics` on a repository-backed checkout) rather than as `~/...` or an absolute path.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 In `partition.run_partition`, apply `redact_home_paths` to each `commands` entry for the two MACHINE surfaces only, i.e. build one redacted list and use it in BOTH the `is_agent` record and the `is_json` payload, leaving the HUMAN branch (`for cmd in commands: print(cmd)`) emitting the unredacted command. This is the ACTUAL partition defect and it is not the one the carrier described: the carrier's `unknown` field was unreachable dead weight (F-03) and has since been REMOVED from both machine surfaces by plan `0hz005` (commit `3595e1796`), so there is nothing left to say about it. What really crashes is `commands`, built by `format_shard` from `--model`, `--variant` and `--as`, any of which may legitimately be a path. WHY THE HUMAN BRANCH STAYS RAW: it is the only surface whose output is meant to be piped straight into a shell, and `~` inside a `shlex.quote`d argument (`'~/x'`) is NOT tilde-expanded, so a redacted command would silently point the runner at a nonexistent model path; the machine records are descriptive and are where the validator and the cli-output-contract apply. WHY `is_json` IS INCLUDED (reversing the authored Deferred entry, see PR-004): `--json` shares the exact same `commands` list, `9yd6tx` has since landed and declared the `--json` posture as home-path-redacted for free-text fields (`docs/cli-output-contract.md` "Path Sanitization and Leak Posture"), so there is no longer a pending decision to pre-empt, and leaving it raw would keep a silent leak at exit 0 on a surface this plan already edits.
+- [x] E-05 In `partition.run_partition`, apply `redact_home_paths` to each `commands` entry for the two MACHINE surfaces only, i.e. build one redacted list and use it in BOTH the `is_agent` record and the `is_json` payload, leaving the HUMAN branch (`for cmd in commands: print(cmd)`) emitting the unredacted command. This is the ACTUAL partition defect and it is not the one the carrier described: the carrier's `unknown` field was unreachable dead weight (F-03) and has since been REMOVED from both machine surfaces by plan `0hz005` (commit `3595e1796`), so there is nothing left to say about it. What really crashes is `commands`, built by `format_shard` from `--model`, `--variant` and `--as`, any of which may legitimately be a path. WHY THE HUMAN BRANCH STAYS RAW: it is the only surface whose output is meant to be piped straight into a shell, and `~` inside a `shlex.quote`d argument (`'~/x'`) is NOT tilde-expanded, so a redacted command would silently point the runner at a nonexistent model path; the machine records are descriptive and are where the validator and the cli-output-contract apply. WHY `is_json` IS INCLUDED (reversing the authored Deferred entry, see PR-004): `--json` shares the exact same `commands` list, `9yd6tx` has since landed and declared the `--json` posture as home-path-redacted for free-text fields (`docs/cli-output-contract.md` "Path Sanitization and Leak Posture"), so there is no longer a pending decision to pre-empt, and leaving it raw would keep a silent leak at exit 0 on a surface this plan already edits.
   - Depends on: E-01
   - Expected outcome: `aw partition -t plans -s to-review --model <a home path> --agent` emits its result record with the model path redacted inside every `commands[i]` instead of exiting 1 with a traceback; the same with `--variant` and `--as`; `--json` emits the same redacted `commands`; the human surface prints the command with the real path unchanged.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-06 Apply `redact_home_paths` to the human-surface counterparts of the two REFUSAL sites, so the human and machine surfaces say the same thing about the same token. For `attention` that is `format_unresolved_selector_message`: its `summary` and EVERY `filters` value (`unmatched`, `matched selectors`, `not a valid selector`), since each echoes tokens. For `runs` the human stderr path prints the SAME `format_unresolvable_target_message` string E-04 already sanitizes, so E-04 covers it and this item only verifies it; do not add a second redaction there. `partition`'s human surface is deliberately NOT redacted (E-05 states why: it is a shell-ready command line). This is not cosmetic parity: these messages print the operator's own argument back to a terminal that is routinely pasted into a shared context, which is the exact reason spec `attention-registry-and-cross-tree-status` F8a gives for forbidding an absolute path on any surface (F-10). The human path does not crash today, so this item is a leak fix and not a crash fix, and it must be reported as such.
+- [x] E-06 Apply `redact_home_paths` to the human-surface counterparts of the two REFUSAL sites, so the human and machine surfaces say the same thing about the same token. For `attention` that is `format_unresolved_selector_message`: its `summary` and EVERY `filters` value (`unmatched`, `matched selectors`, `not a valid selector`), since each echoes tokens. For `runs` the human stderr path prints the SAME `format_unresolvable_target_message` string E-04 already sanitizes, so E-04 covers it and this item only verifies it; do not add a second redaction there. `partition`'s human surface is deliberately NOT redacted (E-05 states why: it is a shell-ready command line). This is not cosmetic parity: these messages print the operator's own argument back to a terminal that is routinely pasted into a shared context, which is the exact reason spec `attention-registry-and-cross-tree-status` F8a gives for forbidding an absolute path on any surface (F-10). The human path does not crash today, so this item is a leak fix and not a crash fix, and it must be reported as such.
   - Depends on: E-01
   - Expected outcome: the human refusal for a home-path token, on both `aw attention` and `aw runs`, names the token in redacted form on stderr, still identifying which argument failed, still exits 2, and no line of that stderr matches either home detector.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: declare it and pin it
 
-- [ ] E-07 Amend `docs/cli-output-contract.md` so its "Path Sanitization and Leak Posture" invariant (as rewritten by `9yd6tx`) covers an INBOUND user-supplied token and a command-specific field of a HAND-BUILT record, not only the named envelope fields. The invariant today enumerates `target`, `location`, `path`, `detail`, `fix`, `summary`, `next`, all fields `CommandResult` emits, so a record a command builds by hand (`unresolved_selectors`, `unresolved_targets`, `error`, `commands`) is not visibly covered, which is why three hand-built records could echo an argument verbatim while every author believed they were conforming. State that any record field carrying a user-supplied token or a command-composed path is sanitized by the producer before the record is built, and that the validator is a backstop rather than the mechanism. Keep the existing wording (repo-relative normalization, the `data` exemption, the composed-path sentence) intact: this adds a clause, it does not rewrite the invariant.
+- [x] E-07 Amend `docs/cli-output-contract.md` so its "Path Sanitization and Leak Posture" invariant (as rewritten by `9yd6tx`) covers an INBOUND user-supplied token and a command-specific field of a HAND-BUILT record, not only the named envelope fields. The invariant today enumerates `target`, `location`, `path`, `detail`, `fix`, `summary`, `next`, all fields `CommandResult` emits, so a record a command builds by hand (`unresolved_selectors`, `unresolved_targets`, `error`, `commands`) is not visibly covered, which is why three hand-built records could echo an argument verbatim while every author believed they were conforming. State that any record field carrying a user-supplied token or a command-composed path is sanitized by the producer before the record is built, and that the validator is a backstop rather than the mechanism. Keep the existing wording (repo-relative normalization, the `data` exemption, the composed-path sentence) intact: this adds a clause, it does not rewrite the invariant.
   - Depends on: E-03, E-04, E-05
   - Expected outcome: a reader can answer "may I interpolate the user's argument into a record I build by hand?" from the contract, without reading the validator.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-08 Add `tests/test_selector_echo_sanitization.py` driving the commands as SUBPROCESSES (against a temp repository fixture holding at least one `to-review` plan, so `partition` has a non-empty shard to format a command for and the outcome does not depend on the live corpus' plan population) with a home-path-shaped token, asserting per invocation: the EXPECTED exit code (`2` for the `attention` and `runs` refusals; `0` for `partition`, whose record is a result and not a refusal), stdout parses as JSON on the machine surfaces, every string in the parsed record passes the E-02 walk helper, stderr carries no `Traceback`, and the token is still IDENTIFIABLE in redacted form (its non-home tail is present) so the refusal remains actionable. Cases: `attention` single-token and multi-token (`<home path> bogus99`) on `--agent`, `--json` and human; `runs` on `--agent`, `--json` and human; the analytics-tree target from E-04 on `--agent` and human, asserting the note names a repo-relative tree; `partition` with `--model`, `--variant` and `--as` on `--agent` and `--json`, plus one human-surface case asserting the printed command still carries the UNREDACTED path (E-05's deliberate exception). Pin the `matched_selectors`/`invalid_selectors` branches of E-03 by a direct call to `attention.unresolved_selector_agent_record` with a constructed `SelectorMatchFacts` carrying a home path in `matched` and `invalid`. Build every path literal by concatenation with a `# split: leak guard` comment, the technique `tests/test_agent_schema_paths.py` already uses, so the test file does not itself trip the repository's leak sanitizer.
+- [x] E-08 Add `tests/test_selector_echo_sanitization.py` driving the commands as SUBPROCESSES (against a temp repository fixture holding at least one `to-review` plan, so `partition` has a non-empty shard to format a command for and the outcome does not depend on the live corpus' plan population) with a home-path-shaped token, asserting per invocation: the EXPECTED exit code (`2` for the `attention` and `runs` refusals; `0` for `partition`, whose record is a result and not a refusal), stdout parses as JSON on the machine surfaces, every string in the parsed record passes the E-02 walk helper, stderr carries no `Traceback`, and the token is still IDENTIFIABLE in redacted form (its non-home tail is present) so the refusal remains actionable. Cases: `attention` single-token and multi-token (`<home path> bogus99`) on `--agent`, `--json` and human; `runs` on `--agent`, `--json` and human; the analytics-tree target from E-04 on `--agent` and human, asserting the note names a repo-relative tree; `partition` with `--model`, `--variant` and `--as` on `--agent` and `--json`, plus one human-surface case asserting the printed command still carries the UNREDACTED path (E-05's deliberate exception). Pin the `matched_selectors`/`invalid_selectors` branches of E-03 by a direct call to `attention.unresolved_selector_agent_record` with a constructed `SelectorMatchFacts` carrying a home path in `matched` and `invalid`. Build every path literal by concatenation with a `# split: leak guard` comment, the technique `tests/test_agent_schema_paths.py` already uses, so the test file does not itself trip the repository's leak sanitizer.
   - Depends on: E-02, E-03, E-04, E-05, E-06
   - Expected outcome: a module whose machine-surface cases fail on pre-change code (`attention`/`runs`/`partition --agent`: exit 1, empty stdout, traceback; `partition --json`: exit 0 with a home path in `commands`, i.e. a leak and not a crash) and all pass after task group 2.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -171,45 +171,320 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste the `git log --oneline -1 125d585e5` line proving `9yd6tx` landed the primitive, and the output of `git diff <base>..HEAD -- agent_workflows/agent_schema.py` being EMPTY, proving no second definition was added. Then paste a Python session calling `agent_schema.redact_home_paths` on one input per home class (POSIX, macOS, Windows), on an embedded mid-string form, on a `repr()`-quoted and a `shlex.quote`d form, and on `None`. For each paste the returned value AND the boolean `agent_schema._HOME_PATH_RE.search(result) is None`. Every boolean must be `True`, `None` must return `None`, and the embedded case must show the surrounding text preserved (a redaction, not a drop). If the function is absent or behaves otherwise, the item FAILS and the executor stops per E-01.
   - Observed evidence:
-  - Result: pending
+    `git log --oneline -1 125d585e5`:
+    ```
+    125d585e5 work(9yd6tx): Give the --json surface one declared leak posture and sanitize the fields that carry a home path
+    ```
+    `git diff de3edd0cc75c383ff804a0cddfd9863bbd7d9caa..HEAD -- agent_workflows/agent_schema.py`: (empty)
+    Python session probe:
+    ```
+    POSIX: inp='/home/alice/foo.txt' -> res='~/foo.txt', _HOME_PATH_RE search is None: True
+    macOS: inp='/Users/<user>/bar.txt' -> res='~/bar.txt', _HOME_PATH_RE search is None: True
+    Windows: inp='C:\\Users\\<user>\\baz.txt' -> res='C:\\Users\\~\\baz.txt', _HOME_PATH_RE search is None: True
+    embedded: inp='error in /home/alice/nested/file.txt during test' -> res='error in ~/nested/file.txt during test', _HOME_PATH_RE search is None: True
+    repr-quoted: inp="'/home/alice/quoted.txt'" -> res="'~/quoted.txt'", _HOME_PATH_RE search is None: True
+    shlex-quoted: inp='/home/alice/quoted.txt' -> res='~/quoted.txt', _HOME_PATH_RE search is None: True
+    None: inp=None -> res=None, _HOME_PATH_RE search is None: True
+    ```
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: paste the record-walk helper's source from the new module (a test FILE, not production code, so P16 is not engaged) and a run of the E-08 module with `-o addopts=""` showing every machine-surface case calls it. Prove the helper is FALSIFIABLE without touching production code: in a scratch Python session, feed it a hand-constructed record carrying a home path in a nested list element and paste the assertion failure naming that element; feed it the same record with the value redacted and paste it passing. Paste one failing case per detector, so the walk is shown to consult `_HOME_PATH_RE` AND each of the three `leak_sanitizer._FAIL_PATTERNS` home rules by name.
   - Observed evidence:
-  - Result: pending
+    Record-walk helper source in `tests/test_selector_echo_sanitization.py`:
+    ```python
+    def walk_and_assert_no_home_paths(record: Any, path: str = "root") -> None:
+        """Recursively assert that no string value in `record` matches any home-path detector.
 
-- [ ] V-03 validates E-03
+        Checks both `agent_schema._HOME_PATH_RE` and `leak_sanitizer._FAIL_PATTERNS` home rules
+        ('home-path', 'users-path', 'windows-home').
+        """
+        if isinstance(record, str):
+            match_schema = agent_schema._HOME_PATH_RE.search(record)
+            ls_matches = [
+                p
+                for p in ("home-path", "users-path", "windows-home")
+                if leak_sanitizer._FAIL_PATTERNS[p].search(record)
+            ]
+            if match_schema or ls_matches:
+                reasons = []
+                if match_schema:
+                    reasons.append("agent_schema._HOME_PATH_RE")
+                if ls_matches:
+                    reasons.append(f"leak_sanitizer._FAIL_PATTERNS[{ls_matches}]")
+                raise AssertionError(
+                    f"Home path detected by {' and '.join(reasons)} at {path}: {record!r}"
+                )
+        elif isinstance(record, dict):
+            for k, v in record.items():
+                walk_and_assert_no_home_paths(v, f"{path}[{k!r}]")
+        elif isinstance(record, (list, tuple, set)):
+            for idx, item in enumerate(record):
+                walk_and_assert_no_home_paths(item, f"{path}[{idx}]")
+    ```
+    Falsifiability demonstration across all detectors:
+    ```
+    POSIX: Home path detected by agent_schema._HOME_PATH_RE and leak_sanitizer._FAIL_PATTERNS[['home-path']] at root['data']['nested'][1]: '/home/<user>/secret.txt'
+    Redacted POSIX: passed
+    macOS: Home path detected by agent_schema._HOME_PATH_RE and leak_sanitizer._FAIL_PATTERNS[['users-path']] at root['items'][0]: '/Users/<user>/secret.txt'
+    Windows: Home path detected by agent_schema._HOME_PATH_RE and leak_sanitizer._FAIL_PATTERNS[['windows-home']] at root['commands'][0]: 'C:\\Users\\<user>\\secret.txt'
+    ```
+    Run of E-08 module with `-o addopts=""` showing all 20 cases passed:
+    `20 passed in 69.32s (0:01:09)`
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: paste, for `aw attention <home path> --agent`, `--json`, and the multi-token `aw attention <home path> bogus99 --agent`, the exit code (must be `2`; each is `1` today, the F-01 regression) and the full stdout record. Paste the record walk over each reporting zero matches for both detectors. Paste `aw attention z7ci8k <home path> --agent` (or another real id6) showing `matched_selectors` present and the record valid. For the two branches no CLI invocation reaches with a home path (F-04 correction), paste the direct-call test from E-08 passing, with the constructed `SelectorMatchFacts` putting a home path in `matched` and `invalid`, and the resulting `matched_selectors`/`invalid_selectors` values in `~` form. Finally paste the `error` field in full, showing the token present in `~` form so the message is still actionable.
   - Observed evidence:
-  - Result: pending
+    `aw attention <home path> --agent`:
+    ```
+    exit: 2
+    stdout:
+    {"schema": "aw.agent/v1", "kind": "error", "cmd": "attention", "outcome": "cannot-run", "exit": 2, "verified": false, "complete": false, "findings": 1, "unresolved_selectors": ["~/sample_target.ipd.md"], "unresolved_targets": ["~/sample_target.ipd.md"], "error": "no artifact matched selector '~/sample_target.ipd.md'; searched the tracked record trees backlog, plans, prompts, releases, research, specs", "next": "aw next"}
+    walk_and_assert_no_home_paths: PASS
+    ```
+    `aw attention <home path> --json`:
+    ```
+    exit: 2
+    stdout:
+    {
+      "schema": "aw.agent/v1",
+      "kind": "error",
+      "cmd": "attention",
+      "outcome": "cannot-run",
+      "exit": 2,
+      "verified": false,
+      "complete": false,
+      "findings": 1,
+      "unresolved_selectors": [
+        "~/sample_target.ipd.md"
+      ],
+      "unresolved_targets": [
+        "~/sample_target.ipd.md"
+      ],
+      "error": "no artifact matched selector '~/sample_target.ipd.md'; searched the tracked record trees backlog, plans, prompts, releases, research, specs",
+      "next": "aw next"
+    }
+    walk_and_assert_no_home_paths: PASS
+    ```
+    `aw attention <home path> bogus99 --agent`:
+    ```
+    exit: 2
+    stdout:
+    {"schema": "aw.agent/v1", "kind": "error", "cmd": "attention", "outcome": "cannot-run", "exit": 2, "verified": false, "complete": false, "findings": 2, "unresolved_selectors": ["~/sample_target.ipd.md", "bogus99"], "unresolved_targets": ["~/sample_target.ipd.md", "bogus99"], "error": "no artifact matched selectors '~/sample_target.ipd.md', 'bogus99'; searched the tracked record trees backlog, plans, prompts, releases, research, specs", "next": "aw next"}
+    walk_and_assert_no_home_paths: PASS
+    ```
+    `aw attention z7ci8k <home path> --agent`:
+    ```
+    exit: 2
+    stdout:
+    {"schema": "aw.agent/v1", "kind": "error", "cmd": "attention", "outcome": "cannot-run", "exit": 2, "verified": false, "complete": false, "findings": 1, "unresolved_selectors": ["~/sample_target.ipd.md"], "unresolved_targets": ["~/sample_target.ipd.md"], "error": "no artifact matched selector '~/sample_target.ipd.md'; searched the tracked record trees backlog, plans, prompts, releases, research, specs", "next": "aw next", "matched_selectors": ["z7ci8k"]}
+    walk_and_assert_no_home_paths: PASS
+    ```
+    Direct-call test from E-08 (`test_attention_direct_call_matched_and_invalid_redacted`): PASSED.
+    Full `error` field:
+    `"no artifact matched selector '~/sample_target.ipd.md'; searched the tracked record trees backlog, plans, prompts, releases, research, specs"`
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: paste `aw runs <home path> --agent` and `--json` with exit code `2` and their full records, plus the record walk. SEPARATELY paste the F-05 case, `aw runs .aw/records/runs/analytics/<a nonexistent run> --agent`, showing exit `2` and a record whose reserved-analytics-tree note names the tree REPO-RELATIVE (`.aw/records/runs/analytics` on this repository-backed checkout) and contains no absolute path of any kind (not only no home path); this case exits 1 with a traceback today and is the one a token-only fix would miss. Paste the human-surface stderr for the same target showing the same repo-relative note.
   - Observed evidence:
-  - Result: pending
+    `aw runs <home path> --agent`:
+    ```
+    exit: 2
+    stdout:
+    {"schema": "aw.agent/v1", "kind": "error", "cmd": "runs", "outcome": "cannot-run", "exit": 2, "verified": false, "complete": false, "findings": 1, "unresolved_targets": ["~/sample_target.ipd.md"], "error": "error: no run matched target '~/sample_target.ipd.md'\n  leaves: decisions evidence list next questions resume show status verify-ledger\n  a TARGET is a run id, a run directory path, or a Set id; force viewer interpretation of a leaf-like name with `aw runs -- <target>`", "next": null}
+    walk_and_assert_no_home_paths: PASS
+    ```
+    `aw runs <home path> --json`:
+    ```
+    exit: 2
+    stdout:
+    {
+      "schema": "aw.agent/v1",
+      "kind": "error",
+      "cmd": "runs",
+      "outcome": "cannot-run",
+      "exit": 2,
+      "verified": false,
+      "complete": false,
+      "findings": 1,
+      "unresolved_targets": [
+        "~/sample_target.ipd.md"
+      ],
+      "error": "error: no run matched target '~/sample_target.ipd.md'\n  leaves: decisions evidence list next questions resume show status verify-ledger\n  a TARGET is a run id, a run directory path, or a Set id; force viewer interpretation of a leaf-like name with `aw runs -- <target>`",
+      "next": null
+    }
+    walk_and_assert_no_home_paths: PASS
+    ```
+    `aw runs .aw/records/runs/analytics/nonexistent-run --agent` (F-05 case):
+    ```
+    exit: 2
+    stdout:
+    {"schema": "aw.agent/v1", "kind": "error", "cmd": "runs", "outcome": "cannot-run", "exit": 2, "verified": false, "complete": false, "findings": 1, "unresolved_targets": [".aw/records/runs/analytics/nonexistent-run"], "error": "error: no run matched target '.aw/records/runs/analytics/nonexistent-run'\n  note: '.aw/records/runs/analytics/nonexistent-run' is within the reserved analytics tree (.aw/records/runs/analytics); analytics artifacts cannot be targeted as execution runs\n  leaves: decisions evidence list next questions resume show status verify-ledger\n  a TARGET is a run id, a run directory path, or a Set id; force viewer interpretation of a leaf-like name with `aw runs -- <target>`", "next": null}
+    walk_and_assert_no_home_paths: PASS
+    ```
+    Human-surface stderr for the same target:
+    ```
+    error: no run matched target '.aw/records/runs/analytics/nonexistent-run'
+      note: '.aw/records/runs/analytics/nonexistent-run' is within the reserved analytics tree (.aw/records/runs/analytics); analytics artifacts cannot be targeted as execution runs
+      leaves: decisions evidence list next questions resume show status verify-ledger
+      a TARGET is a run id, a run directory path, or a Set id; force viewer interpretation of a leaf-like name with `aw runs -- <target>`
+    ```
+  - Result: pass
 
-- [ ] V-05 validates E-05
+- [x] V-05 validates E-05
   - Required evidence: paste, against a fixture or the live tree with at least one `to-review` plan, `aw partition -t plans -s to-review --max 2 --model <home path> --agent` before (exit 1, traceback naming `commands[0]`) and after (exit 0, valid record with every `commands[i]` carrying the model path in `~` form). Repeat for `--variant` and `--as`. Paste the `--json` form with `--model <home path>` before (exit 0, home path verbatim in `commands`, the F-14 leak) and after (exit 0, `~` form). Paste the HUMAN form after, showing the printed command still carries the REAL path, so the deliberate exception is observed and not assumed.
   - Observed evidence:
-  - Result: pending
+    Before:
+    `aw partition -t plans -s to-review --model <home>/model --agent` exited 1 with traceback: `ValueError: Invalid aw.agent/v1 record: Unsanitized absolute home path in field 'commands[0]': '... --model <home>/model'`
+    After:
+    `aw partition -t plans -s to-review --max 2 --model <home>/model --agent`:
+    ```
+    exit: 0
+    stdout:
+    {"schema":"aw.agent/v1","kind":"result","cmd":"partition","exit":0,"outcome":"ok","verified":true,"complete":true,"shards":[["2j4pd0"],["62sdwr"]],"commands":["aw oc run --action review 2j4pd0 --model ~/model","aw oc run --action review 62sdwr --model ~/model"],"split_components":[],"cycles":[]}
+    walk_and_assert_no_home_paths: PASS
+    ```
+    `aw partition -t plans -s to-review --max 2 --variant <home>/variant --agent`:
+    ```
+    exit: 0
+    stdout:
+    {"schema":"aw.agent/v1","kind":"result","cmd":"partition","exit":0,"outcome":"ok","verified":true,"complete":true,"shards":[["2j4pd0"],["62sdwr"]],"commands":["aw oc run --action review 2j4pd0 --variant ~/variant","aw oc run --action review 62sdwr --variant ~/variant"],"split_components":[],"cycles":[]}
+    walk_and_assert_no_home_paths: PASS
+    ```
+    `aw partition -t plans -s to-review --max 2 --as <home>/profile --agent`:
+    ```
+    exit: 0
+    stdout:
+    {"schema":"aw.agent/v1","kind":"result","cmd":"partition","exit":0,"outcome":"ok","verified":true,"complete":true,"shards":[["2j4pd0"],["62sdwr"]],"commands":["aw run as ~/profile --action review 2j4pd0","aw run as ~/profile --action review 62sdwr"],"split_components":[],"cycles":[]}
+    walk_and_assert_no_home_paths: PASS
+    ```
+    `aw partition -t plans -s to-review --max 2 --model <home>/model --json`:
+    Before: exited 0 with `<home>/model` verbatim in `commands`.
+    After:
+    ```
+    exit: 0
+    stdout:
+    {
+      "shards": [
+        [
+          "2j4pd0"
+        ],
+        [
+          "62sdwr"
+        ]
+      ],
+      "commands": [
+        "aw oc run --action review 2j4pd0 --model ~/model",
+        "aw oc run --action review 62sdwr --model ~/model"
+      ],
+      "split_components": [],
+      "cycles": []
+    }
+    walk_and_assert_no_home_paths: PASS
+    ```
+    HUMAN form after:
+    ```
+    exit: 0
+    stdout:
+    aw oc run --action review 2j4pd0 --model <home>/model
+    aw oc run --action review 62sdwr --model <home>/model
+    ```
+    The printed command in human mode carries the unredacted path verbatim for shell execution.
+  - Result: pass
 
-- [ ] V-06 validates E-06
+- [x] V-06 validates E-06
   - Required evidence: paste the human-surface stderr for `aw attention <home path>` and `aw runs <home path>` (both exit 2), showing the token in `~` form in the summary line AND in every `Active filters:` value, and the message otherwise unchanged. State explicitly that the human path did not crash before this change, so this item is validated as a leak fix and not as a crash fix. Paste the E-08 human-surface test cases passing. (`aw sanitize --agent` is NOT evidence for this item: it never reads command stdout or stderr.)
   - Observed evidence:
-  - Result: pending
+    The human paths did not crash prior to this change (they exited 2 but printed the unredacted home path on stderr); this item is validated as a leak fix.
+    Human stderr for `aw attention <home>/sample_target.ipd.md`:
+    ```
+    ✗ FAIL  no artifact matched selector '~/sample_target.ipd.md'
 
-- [ ] V-07 validates E-07
+    Active filters:
+      unmatched selector: ~/sample_target.ipd.md
+      searched trees: backlog, plans, prompts, releases, research, specs
+
+    Next  aw next (show the whole board, then copy an id6 from it)
+    ```
+    Human stderr for `aw runs <home>/sample_target.ipd.md`:
+    ```
+    error: no run matched target '~/sample_target.ipd.md'
+      leaves: decisions evidence list next questions resume show status verify-ledger
+      a TARGET is a run id, a run directory path, or a Set id; force viewer interpretation of a leaf-like name with `aw runs -- <target>`
+    ```
+    E-08 human-surface test cases (`test_attention_single_token_human`, `test_attention_multi_token_human`, `test_runs_unresolvable_target_human`, `test_runs_analytics_tree_target_human`, `test_partition_human_command_unredacted`): all PASSED.
+  - Result: pass
+
+- [x] V-07 validates E-07
   - Required evidence: paste the `git diff` of `docs/cli-output-contract.md`. It must show the "Path Sanitization and Leak Posture" invariant extended to an inbound user-supplied token and to a hand-built record's command-specific fields, state that the validator is a backstop rather than the mechanism, and leave the existing repo-relative normalization, `data` exemption and composed-path wording intact. Confirm the added prose contains no em or en dashes (user-facing doc, per the execution contract) by pasting a search over the added lines returning nothing.
   - Observed evidence:
-  - Result: pending
+    `git diff docs/cli-output-contract.md`:
+    ```diff
+    diff --git a/docs/cli-output-contract.md b/docs/cli-output-contract.md
+    index 761ef6b49..2cc735e5a 100644
+    --- a/docs/cli-output-contract.md
+    +++ b/docs/cli-output-contract.md
+    @@ -267,7 +267,7 @@ Agents (GPT, Gemini, Opus, GLM, etc.) and CI runners must **consume structured r
+       - If `complete=False` (and not a non-destructive preview), the outcome is `partial` or `skipped`.
+       - If `exit=2`, kind is `error` and outcome is `cannot-run` or `error`.
+     - **Exit Code Parity**: The embedded `exit` field in every record MUST equal the process exit code (`0`, `1`, `2`).
+    -- **Path Sanitization and Leak Posture**: On both machine surfaces (`--agent` and `--json`), all path-valued and free-text envelope fields (`target`, `location`, `path`, `detail`, `fix`, `summary`, `next`) MUST be repo-relative, normalized (forward slashes, no leading `./`), or home-path-redacted to `~` (POSIX `/home/<user>`, macOS `/Users/<user>`, Windows `<drive>:\Users\<user>`). All records pass `aw sanitize --agent` with zero findings. The `data` dictionary on `--json` is explicitly exempt: it is an unredacted passthrough of command-specific facts where an approved spec (such as spec `kw5y2s` Section 2.4 for `data.logical_roots`) requires absolute paths. The `data` exemption is an exemption from downstream redaction and not a licence for a producer to put an absolute path there: a command-specific payload must itself carry repo-relative text unless an approved spec requires otherwise (as spec `kw5y2s` Section 2.4 does for `data.logical_roots`). Similarly, a field that a producer composes from multiple paths is not reached by `normalize_repo_path`, which takes a whole path value, so relativizing every path component during composition is the producer's responsibility.
+    +- **Path Sanitization and Leak Posture**: On both machine surfaces (`--agent` and `--json`), all path-valued and free-text envelope fields (`target`, `location`, `path`, `detail`, `fix`, `summary`, `next`), as well as command-specific fields of hand-built records and any field carrying an inbound user-supplied token (such as `unresolved_selectors`, `unresolved_targets`, `error`, or `commands`), MUST be repo-relative, normalized (forward slashes, no leading `./`), or home-path-redacted to `~` (POSIX `/home/<user>`, macOS `/Users/<user>`, Windows `<drive>:\Users\<user>`). Any record field carrying a user-supplied token or a command-composed path is sanitized by the producer before the record is built, with the validator acting as a backstop rather than the mechanism. All records pass `aw sanitize --agent` with zero findings. The `data` dictionary on `--json` is explicitly exempt: it is an unredacted passthrough of command-specific facts where an approved spec (such as spec `kw5y2s` Section 2.4 for `data.logical_roots`) requires absolute paths. The `data` exemption is an exemption from downstream redaction and not a licence for a producer to put an absolute path there: a command-specific payload must itself carry repo-relative text unless an approved spec requires otherwise (as spec `kw5y2s` Section 2.4 does for `data.logical_roots`). Similarly, a field that a producer composes from multiple paths is not reached by `normalize_repo_path`, which takes a whole path value, so relativizing every path component during composition is the producer's responsibility.
+     - **ANSI-Free**: Agent records never contain ANSI escape codes or terminal control characters.
+    ```
+    Search for em or en dashes:
+    ```
+    $ git diff docs/cli-output-contract.md | grep '^[+]' | grep -P '[\x{2013}\x{2014}]'
+    (empty)
+    ```
+  - Result: pass
 
-- [ ] V-08 validates E-08
+- [x] V-08 validates E-08
   - Required evidence: paste the bare full-suite run `python3 -m pytest` with its actual `N passed` summary line, and `python3 -m pytest tests/test_selector_echo_sanitization.py -o addopts=""` with per-test counts. Paste the Required-tests regression command proving the F-13 tests and the two primitive/datum modules still pass unmodified. Demonstrate the new module is a real regression test by running it against PRE-CHANGE source WITHOUT `git stash` or `git checkout` in this shared checkout (a restore after a long run can silently discard a co-worker's concurrent edit): use a throwaway `git worktree add` at the pre-change commit with the new test file copied in, run it there, paste the failures (machine-surface cases exiting 1 with empty stdout; `partition --json` showing the leak), and remove the worktree. Finally paste `aw sanitize --agent` clean and `aw ipd lint --phase pre-transition` conforming.
   - Observed evidence:
-  - Result: pending
+    Bare full-suite run (`python3 -m pytest`):
+    ```
+    6702 passed, 2 skipped, 3 warnings in 400.07s (0:06:40)
+    ```
+    Per-test count run of `tests/test_selector_echo_sanitization.py`:
+    ```
+    tests/test_selector_echo_sanitization.py ....................            [100%]
+    20 passed in 69.32s (0:01:09)
+    ```
+    Required-tests regression command (`python3 -m pytest tests/test_attention.py tests/test_run_viewer.py tests/test_partition.py tests/test_agent_schema_paths.py tests/test_json_surface_leak_posture.py tests/test_home_path_pattern_source.py`):
+    ```
+    176 passed in 59.39s
+    ```
+    Pre-change test run failure demonstration:
+    Running `tests/test_selector_echo_sanitization.py` on the pre-change commit produced 19 failures and 1 pass (the deliberate human raw exception):
+    ```
+    FAILED tests/test_selector_echo_sanitization.py::SelectorEchoSanitizationTests::test_attention_single_token_agent - AssertionError: 1 != 2
+    FAILED tests/test_selector_echo_sanitization.py::SelectorEchoSanitizationTests::test_attention_single_token_json - AssertionError: 1 != 2
+    FAILED tests/test_selector_echo_sanitization.py::SelectorEchoSanitizationTests::test_attention_multi_token_agent - AssertionError: 1 != 2
+    FAILED tests/test_selector_echo_sanitization.py::SelectorEchoSanitizationTests::test_attention_multi_token_json - AssertionError: 1 != 2
+    FAILED tests/test_selector_echo_sanitization.py::SelectorEchoSanitizationTests::test_runs_unresolvable_target_agent - AssertionError: 1 != 2
+    FAILED tests/test_selector_echo_sanitization.py::SelectorEchoSanitizationTests::test_runs_unresolvable_target_json - AssertionError: 1 != 2
+    FAILED tests/test_selector_echo_sanitization.py::SelectorEchoSanitizationTests::test_partition_model_agent - AssertionError: 1 != 0
+    FAILED tests/test_selector_echo_sanitization.py::SelectorEchoSanitizationTests::test_partition_variant_agent - AssertionError: 1 != 0
+    FAILED tests/test_selector_echo_sanitization.py::SelectorEchoSanitizationTests::test_partition_as_agent - AssertionError: 1 != 0
+    FAILED tests/test_selector_echo_sanitization.py::SelectorEchoSanitizationTests::test_partition_model_json - AssertionError: Home path detected by agent_schema._HOME_PATH_RE and leak_sanitizer._FAIL_PATTERNS[['home-path']]
+    FAILED tests/test_selector_echo_sanitization.py::SelectorEchoSanitizationTests::test_partition_variant_json - AssertionError: Home path detected by agent_schema._HOME_PATH_RE and leak_sanitizer._FAIL_PATTERNS[['home-path']]
+    FAILED tests/test_selector_echo_sanitization.py::SelectorEchoSanitizationTests::test_partition_as_json - AssertionError: Home path detected by agent_schema._HOME_PATH_RE and leak_sanitizer._FAIL_PATTERNS[['home-path']]
+    ...
+    19 failed, 1 passed in 56.58s
+    ```
+    `aw sanitize --agent`:
+    ```json
+    {"schema":"aw.agent/v1","kind":"result","cmd":"check-local-leaks","outcome":"clean","exit":0,"verified":true,"complete":true,"findings":0,"evidence":["leak-scan"],"next":null}
+    ```
+    `aw ipd lint --phase pre-transition`:
+    conforming.
+  - Result: pass
 
 ## Approval and execution gate
 
