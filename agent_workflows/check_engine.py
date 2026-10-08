@@ -758,6 +758,29 @@ RULE_REGISTRY: Dict[str, RuleSpec] = {
     "check.ipd-carrier-finished-unverified": RuleSpec(
         "info", ASSURANCE_REPOSITORY, DET_DETERMINISTIC, "I-07"
     ),
+    # carriergate Order 01 (`rpw4sb`) E-01: a carried open question whose plan declares no dependency
+    # edge on that carrier. The population is visible and re-derivable from the shipped tooling rather
+    # than by hand-written script, without pre-empting the maintainer's enforcement decision (OQ-01).
+    #
+    # `info`, AND THIS IS SELECTED BY THE BACKLOG ITEM'S OWN STATED GOAL, NOT AGAINST IT. Backlog hc6n7r
+    # asks for a tier that will not "turn `aw check` red for authors who did nothing wrong" and concludes
+    # `warning`. That conclusion is falsified on evidence: `artifact_core.drift_exit_code` returns 1 for
+    # every severity except `info` (error -> 1, warning -> 1, info -> 0; docs/cli-output-contract.md
+    # section 3.1: "to author a rule that reports diagnostics without ever failing any gate or check,
+    # register the rule with severity `info`"). A `warning` tier would exit 1 on 19 pending plans and
+    # fail CI (which enforces `aw check plans` fail-closed). Precedent: `_CARRIER_LEGACY_SEVERITY` in
+    # this same module ("MISSING -> `info`, the ONLY non-failing severity", citing `check.stale-index-missing`).
+    #
+    # Invariant `""` DELIBERATELY. Do not claim I-07 (release gating / uncarried obligations) or I-08
+    # (cross-IPD dependency statements). This rule reports neither a broken gate nor a malformed statement:
+    # it reports the ABSENCE of a voluntary linkage between two well-formed fields. Follows
+    # `check.review-decision-unescalated` ("Claiming a neighbouring id would be a false trace").
+    #
+    # Deterministic: a literal `- Status:` / `- Carrier:` match from `ipd_lint.parse` against parsed
+    # `Item-Dependencies` edges through `ipd_schema.parse_item_dependencies`. No inference.
+    "check.ipd-carrier-ungated": RuleSpec(
+        "info", ASSURANCE_REPOSITORY, DET_DETERMINISTIC, ""
+    ),
     # findtier Order 02 (`3i6rso`) E-04: a record whose declared `- Id:` or `- Set:` is ABSENT from
     # its own filename. This is the EXCEPTION SET that forces `aw find`'s content fallback, and the
     # rule exists so the set is COUNTABLE (and provably not growing) rather than invisible.
@@ -1578,6 +1601,18 @@ def check_content(
         try:
             drift.extend(
                 check_durable_carrier(repo_root, include_untracked=include_untracked)
+            )
+        except Exception:
+            pass
+        # carriergate Order 01 (`rpw4sb`) E-03: a carried open question whose plan declares no
+        # dependency edge on that carrier. SAME PLACEMENT as its `check_durable_carrier` neighbour
+        # above: the concern is keyed off the PLAN, so it belongs in the plans-type content path,
+        # reached by BOTH `aw check plans` and the `aw check all` fan-out exactly once, and deliberately
+        # NOT in the collisions-only cross-tree sweep. Advisory (`info`), so it cannot move any exit code.
+        # Fail-isolated in the same shape as every neighbour here.
+        try:
+            drift.extend(
+                check_carrier_ungated(repo_root, include_untracked=include_untracked)
             )
         except Exception:
             pass
@@ -9733,6 +9768,138 @@ def check_durable_carrier(
                 carrier_index=carrier_index,
             )
         )
+    return drift
+
+
+_CARRIER_UNGATED_RULE = "check.ipd-carrier-ungated"
+_CARRIER_UNGATED_SHOWN = 5
+
+
+def evaluate_carrier_ungated(
+    repo_root: Path,
+    *,
+    plan_path: Path,
+    plan_text: str,
+    open_questions=None,
+) -> List[_core.Drift]:
+    """The pure per-plan evaluator for `check.ipd-carrier-ungated` (carriergate rpw4sb E-02).
+
+    Reports at most ONE `info` Drift per plan enumerating its carried-but-unedged open questions.
+    A row is "edged" when ANY declared edge targets the carrier (by edge.id6 alone, accepting any
+    status qualifier).
+    Excludes deferred questions, rows with Carrier-Evidence or Carrier-Declined and no Carrier,
+    and malformed carrier tokens (owned by check.ipd-uncarried-obligation).
+    Never raises.
+    """
+    drift: List[_core.Drift] = []
+    try:
+        from agent_workflows import ipd_lint as _lint
+        from agent_workflows import ipd_schema as _ipd_schema
+
+        parsed = None
+        if open_questions is None:
+            parsed = _lint.parse(plan_text)
+            open_questions = parsed.open_questions
+
+        if not open_questions:
+            return drift
+
+        if parsed is None:
+            parsed = _lint.parse(plan_text)
+
+        meta_fields = getattr(parsed, "meta_fields", None) or {}
+        raw_deps = (meta_fields.get(_ipd_schema.META_ITEM_DEPENDENCIES) or "").strip()
+        edges, _valid, _ = _ipd_schema.parse_item_dependencies(raw_deps)
+        declared_edge_ids = {
+            edge.id6 for edge in (edges or []) if getattr(edge, "id6", None)
+        }
+
+        offending: List[Tuple[str, List[str]]] = []
+        for oq in open_questions:
+            status = (oq.get("Status") or "").strip().lower()
+            if status != "open":
+                continue
+            raw_carrier = (oq.get("Carrier") or "").strip()
+            if not raw_carrier:
+                continue
+            valid_ids, _invalid = _ipd_schema.parse_carrier_ids(raw_carrier)
+            if not valid_ids:
+                continue
+            unedged = [cid for cid in valid_ids if cid not in declared_edge_ids]
+            if not unedged:
+                continue
+            loc = (oq.get("id") or "").strip() or "OQ"
+            offending.append((loc, unedged))
+
+        if not offending:
+            return drift
+
+        total_count = len(offending)
+        shown = offending[:_CARRIER_UNGATED_SHOWN]
+        shown_items = [f"{loc} (carrier {', '.join(cids)})" for loc, cids in shown]
+        tail = (
+            ""
+            if total_count <= _CARRIER_UNGATED_SHOWN
+            else f" (and {total_count - _CARRIER_UNGATED_SHOWN} more)"
+        )
+        detail = (
+            f"{total_count} open question(s) name a carrier with no declared dependency edge: "
+            f"{'; '.join(shown_items)}{tail}"
+        )
+        drift.append(
+            enrich_drift(
+                _core.Drift(
+                    str(plan_path),
+                    _CARRIER_UNGATED_RULE,
+                    detail,
+                ),
+                observed=f"{total_count} open question(s) name a carrier with no declared dependency edge",
+                required=(
+                    "a plan that must wait for a carried question's answer should declare an "
+                    "explicit dependency edge (e.g. `state:backlog:<status>:<carrier>`)"
+                ),
+                recovery=(
+                    f"aw ipd dependencies set {_finding_rel_path(repo_root, plan_path)} "
+                    f"state:backlog:<status>:<carrier>"
+                ),
+            )
+        )
+    except Exception:
+        return []
+    return drift
+
+
+def check_carrier_ungated(
+    repo_root: Path, include_untracked: bool = False
+) -> List[_core.Drift]:
+    """Sweep every PENDING-lane plan for carried open questions with no declared dependency edge.
+
+    Scoped to pending-lane plans, following the identical grandfathering precedent as
+    :func:`check_durable_carrier` and :func:`check_review_decision_unescalated`: a terminal plan
+    is already past the decision window this rule is about, and litigating the executed corpus would
+    be a whole-tree false-positive explosion.
+    """
+    drift: List[_core.Drift] = []
+    try:
+        repo_root = Path(repo_root)
+        for p in _iter_type_files(
+            repo_root, "plans", include_untracked=include_untracked
+        ):
+            if "pending" not in p.parts:
+                continue
+            try:
+                text = p.read_text(encoding="utf-8")
+            except OSError:
+                continue
+            drift.extend(
+                evaluate_carrier_ungated(
+                    repo_root,
+                    plan_path=p,
+                    plan_text=text,
+                )
+            )
+    except Exception:
+        return drift
     return drift
 
 

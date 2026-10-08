@@ -62,6 +62,41 @@ disambiguator are unchanged. An agent may GROUP pending plans by adding these fi
 a set's membership, order, or id must be surfaced (in Workflow history) and confirmed with the human,
 never done silently; set fields on plans already in a terminal directory are frozen history.
 
+## Durable carrier vocabulary for obligations
+
+Every outstanding obligation in an IPD (an item in `## Deferred / out of scope (with reason)` or an open or deferred question under `## Open questions`) must name a durable carrier before the plan reaches terminal execution. Once a plan reaches `executed`, it classes `done` in `aw attention`, so uncarried items would vanish from operational attention with no record.
+
+The carrier gate recognizes three escapes:
+
+1. **Handoff**: `- Carrier: <id6>`
+   Names an open backlog item (file one with `aw backlog new`) or a pending plan. The referenced id6 must resolve to a live, non-terminal record; a dangling id6 or a terminal record (executed plan, completed backlog) is refused because nothing revisits it.
+2. **Satisfied by evidence**: `- Carrier-Evidence: <in-tree artifact path>`
+   Cites an in-tree artifact demonstrating the obligation is already addressed (for example, a prior executed plan). The path must resolve to a valid in-tree artifact. Walkthrough paths are explicitly refused because walkthroughs carry no lifecycle status (`tracked=False`) and are never scanned by `aw attention`.
+3. **Explicitly declined**: `- Carrier-Declined: <reason>`
+   Declines the obligation explicitly with a non-empty rationale explaining why it requires no carrier. The merit of the reason is judged by the reviewer during plan review.
+
+### Discharged carriers and the Carrier-Evidence remedy
+
+A carrier that reaches `done` (backlog) or `executed` (plans) before your plan finishes turns the row into a refusal on purpose. A reader pointed at a closed item would assume the work is still pending elsewhere rather than finished. This commonly arises in an ordered Set where a later sibling plan declares an earlier sibling as a dependency and names it as a carrier.
+
+When a carrier resolves to finished work, the pre-transition gate prints the exact `- Carrier-Evidence: <path>` line to paste in place of `- Carrier:`. You may optionally explain the context in the row's own prose; do not write an unparsed custom field for this note.
+
+Do not use `Carrier-Declined` for work that has shipped. `Carrier-Declined` records an obligation as needing no carrier, whereas finished work shipped and should cite evidence instead.
+
+### Carrier records durable ownership, not a dispatch gate
+
+`Carrier` records durable ownership and is NOT a dispatch gate. Nothing in the lifecycle makes a plan wait for a carried question's answer: the pre-execution checkpoint refuses an open question only when it carries `Blocking: yes`. An approved plan with an open, non-blocking carried question can execute and reach `executed/` without waiting for the carrier.
+
+To make a plan wait for a carried decision, declare the dependency explicitly with an edge:
+
+```sh
+aw ipd dependencies set <plan> state:backlog:<status>:<carrier>
+```
+
+`aw check plans` now reports carried open questions that declare no dependency edge on their carrier advisorily (`check.ipd-carrier-ungated` at `info` severity).
+
+Beware the exact-status trap: `state:backlog:<status>:<carrier>` requires the carrier status to match EXACTLY. An edge written against `done` refuses while the carrier is `graduated` (handed off to a plan or spec, but code not yet written). Check the carrier's actual status with `aw attention` or `aw backlog list` before setting the edge, so the plan does not block on a decision that has already been handed off.
+
 ## Execution contract in every plan's gate
 
 Every IPD's `Approval and execution gate` MUST carry an execution contract so the plan is

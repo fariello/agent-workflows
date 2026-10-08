@@ -1,5 +1,5 @@
 - Id: hc6n7r
-- Status: graduated
+- Status: done
 - Graduated-To: carriergate
 - Set: denypush
 - Priority: low
@@ -7,6 +7,7 @@
 - Summary: Decide whether a carried non-blocking open question should gate its plan dispatch, and if so wire the Carrier field to an enforced dependency edge (29 open carried questions across 23 pending plans, zero edge-backed)
 
 ## Workflow history
+- 2026-10-08 done (aw backlog): closed by aw agy run: IPD rpw4sb executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20261002-carriergate-01-rpw4sb-decide-whether-a-carried-open-question-gates-its-plan-and-re.ipd.md); evidence .aw/records/plans/executed/20261002-carriergate-01-rpw4sb-decide-whether-a-carried-open-question-gates-its-plan-and-re.ipd.md
 - 2026-10-02 graduated (aw backlog): graduated by run run-20261001T222151Z-2118435: rpw4sb
 - 2026-10-01 created (aw backlog): Decide whether a carried non-blocking open question should gate its plan dispatch, and if so wire the Carrier field to an enforced dependency edge (29 open carried questions across 23 pending plans, zero edge-backed)
 
