@@ -6,7 +6,7 @@
 - Scope: IN, all inside `renderers.HumanRenderer.render`'s Findings block and the `next_actions` construction that feeds it: (a) group findings by RULE plus the per-rule `summary_fix` instead of by the path-interpolating `detailed_fix`, so repetition of one rule collapses into one block; (b) render the group's severity set as a badge on the block header AND on each member line, in BOTH `dir_str` branches, so severity is visible for a records-tree finding; (c) order blocks by worst severity first so an `error` is never printed below an `info`, and within a severity by rule name for determinism; (d) keep a SINGLETON group byte-identical to today by using its `detailed_fix`, so the collapse fires only where there is real repetition; (e) de-duplicate `Next` to one line per distinct remediation; (f) correct the two now-false statements in `docs/cli-human-guide.md` and add a behavior test module, because F-09 measured that NOTHING in `tests/` asserts `HumanRenderer`'s check rendering. OUT, and these exclusions are load-bearing because four other pending plans touch these files: the `errors`/`warnings` Evidence TALLY in `cli._run_check`, which is a separate measured defect owned by pending `tzjtg4` (set `checkinfotally`) and NOT touched here (F-10); the `recovery=` kwarg on `ce.enrich_drift` in `cli._run_check`, owned by pending `wef7yo` (F-11); `doctor.build_remediation`'s generic fallback string, owned by `reviewed` plan `iyilwm` (F-12); `doctor.render_human_report` and `attention`'s severity handling, owned by pending `nwcf8j` (F-13); the agent-hint line and the four human goldens, owned by pending `zosxj4` (F-14); the four machine emission sites in `renderers.py`, owned by pending `wqiofa` (F-15); any change to a registered severity, to `artifact_core.drift_exit_code`, or to any engine-side cap (`_SCOPE_DRIFT_PATHS_NAMED`, `_IPD_LINT_SHOWN`, `evaluate_durable_carrier`'s five), all of which already work and are the PRECEDENT this plan follows rather than edits it makes; and the `--agent`/`--json` payloads, which are untouched by construction (F-08).
 - Scope-Paths: agent_workflows/renderers.py, docs/cli-human-guide.md, tests/test_check_findings_grouping.py, CHANGELOG.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: followup
 - Priority: low
@@ -16,9 +16,9 @@
 - Highest E allocated: 06
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: xs557y
-- Approval: 2026-10-03, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-08 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: xs557y verified (set ct1n04, attempt 1).
 - 2026-10-03 approved (aw set): status set to approved
 
 - 2026-10-02 readiness re-check (agent (aw ipd recheck-readiness)): `- Readiness:` CHANGED `no-go` -> `go-pending-approval`. THIS IS A RE-CHECK, NOT A REVIEW: no finding was re-derived and no plan content was re-critiqued. The three `no-go` conditions were RECOMPUTED with the shipped predicates and each was found clear: unresolved-blocking-question -> clear (no unresolved BLOCKING open question; `has_unresolved_blocking_question` -> False (a NON-blocking open question is deliberately not counted, per the maintainer's 2026-09-10 ruling on qhy3i3 OQ-01)); unresolved-gating-finding -> clear (no unresolved gating finding; `review_findings.subject_gating_blocks` -> empty (an ABSENT review artifact is silent by that predicate's documented contract)); negative-review-verdict -> clear (the newest review record's verdict is not negative; `newest_verdict` -> neutral). RE-CHECKED REVIEW: the review of 2026-09-30, findings PR-302..D-2. Recomputed at HEAD `f3f7f9d83`. HUMAN APPROVAL IS STILL REQUIRED AND WAS NOT GIVEN: `go-pending-approval` means the plan awaits sign-off, and nothing here approves it or clears it to execute. Only a review may set `go`.
