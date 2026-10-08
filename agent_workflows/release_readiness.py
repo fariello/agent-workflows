@@ -250,15 +250,54 @@ def gate_generated_drift(drift_files: Sequence[str] = ()) -> GateResult:
     )
 
 
-def gate_docs_checks(doc_findings: Sequence[str] = ()) -> GateResult:
-    """Documentation link/command/option checks pass: no findings."""
-    findings = list(doc_findings)
+def gate_docs_checks(
+    doc_findings: Optional[Sequence[str]] = None,
+    repo_root: Optional[Path] = None,
+) -> GateResult:
+    """Documentation link/command/option checks pass: no findings.
+
+    When ``doc_findings`` is None (the default), computes the findings live from
+    ``docs/`` under ``repo_root`` via :func:`docs_check.check_docs_dir`. Explicit
+    injection (including an empty sequence) bypasses filesystem inspection.
+    """
+    if doc_findings is not None:
+        findings = [str(f) for f in doc_findings]
+        passed = not findings
+        return GateResult(
+            name="docs_checks",
+            passed=passed,
+            detail="docs checks pass" if passed else f"{len(findings)} doc finding(s)",
+            evidence={"findings": findings},
+        )
+
+    root = repo_root or _repo_root()
+    docs_dir = root / "docs"
+    if not docs_dir.is_dir():
+        return GateResult(
+            name="docs_checks",
+            passed=False,
+            detail="docs tree missing or not a directory: docs",
+            evidence={"missing": True, "path": "docs", "findings": []},
+        )
+
+    try:
+        from agent_workflows import docs_check
+
+        raw_findings = docs_check.check_docs_dir(docs_dir)
+    except Exception as exc:
+        return GateResult(
+            name="docs_checks",
+            passed=False,
+            detail=f"docs check could not run: {type(exc).__name__}",
+            evidence={"error": type(exc).__name__, "findings": []},
+        )
+
+    findings = [str(f) for f in raw_findings]
+    passed = not findings
     return GateResult(
         name="docs_checks",
-        passed=not findings,
-        detail="docs checks pass"
-        if not findings
-        else f"{len(findings)} doc finding(s)",
+        passed=passed,
+        detail="docs checks pass" if passed else f"{len(findings)} doc finding(s)",
         evidence={"findings": findings},
     )
 
@@ -393,7 +432,7 @@ def build_report(
     suite_passed: bool,
     suite_counts: Optional[Dict[str, int]] = None,
     drift_files: Sequence[str] = (),
-    doc_findings: Sequence[str] = (),
+    doc_findings: Optional[Sequence[str]] = None,
     undispositioned: Sequence[str] = (),
     stale_claims: Sequence[str] = (),
     threshold_policy: Optional[bt.ThresholdPolicy] = None,
@@ -419,7 +458,7 @@ def build_report(
     gates.extend(
         [
             gate_generated_drift(drift_files),
-            gate_docs_checks(doc_findings),
+            gate_docs_checks(doc_findings, repo_root=repo_root),
             gate_workflow_disposition(undispositioned),
             gate_capability_freshness(stale_claims),
             gate_benchmark_thresholds(threshold_policy),

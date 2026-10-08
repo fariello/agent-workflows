@@ -41,49 +41,49 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: re-measure before changing anything
 
-- [ ] E-01 Re-measure the inert gate and the dependency's state at the executing HEAD, and record the transcript, so every later item acts on current fact rather than on this plan's authoring snapshot.
+- [x] E-01 Re-measure the inert gate and the dependency's state at the executing HEAD, and record the transcript, so every later item acts on current fact rather than on this plan's authoring snapshot.
   - Depends on: none
   - Expected outcome: one pasted transcript proving four things by DRIVING the code, not by reading it. (a) The gate is still inert: a tree-wide search for `doc_findings` still matches only `agent_workflows/release_readiness.py`, and `check_docs_dir` still has no caller outside its own module. (b) The vacuous pass still reproduces: `gate_docs_checks()` called with no argument returns `passed=True` with detail `docs checks pass`. (c) THE DEPENDENCY HAS LANDED, shown two ways: `aw find plans t9lcdu` resolves under `.aw/records/plans/executed/`, AND `check_docs_dir(Path("docs"))` no longer contains the `'aw router' is not a known subcommand` finding. Do NOT key this on a ZERO total: other lanes edit `docs/` concurrently, so a NEW, genuine finding (an em dash, a broken link) may exist at execution. That is not a stop condition, because reporting it is exactly what the wired gate is for; record every finding present and continue. (d) The serialization break still reproduces, so E-03's normalization is still required: feeding a hand-built `DocFinding` into the gate makes `json.dumps(gate.to_dict())` raise `TypeError`.
     IF `t9lcdu` IS NOT IN `executed/`, OR (c) STILL RETURNS THE `'aw router' is not a known subcommand` FINDING, STOP: `t9lcdu` has not executed, this plan's `- Item-Dependencies: executed:t9lcdu` is unmet, and proceeding would wire the gate onto a known false positive (F-03). Mark this item `blocked`, do not edit any file, and report the unmet edge. Do NOT "fix" it by editing `docs_check.py` or `docs/skill-selection.md`; both are `t9lcdu`'s declared scope.
     IF (b) ALREADY RETURNS `passed=False` with no argument, the wiring has been done by another plan; stop and reconcile rather than writing it twice.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: give the gate a real input
 
-- [ ] E-02 Make `release_readiness.gate_docs_checks` COMPUTE its findings from the repository's `docs/` tree when the caller injects nothing, while preserving explicit injection for tests.
+- [x] E-02 Make `release_readiness.gate_docs_checks` COMPUTE its findings from the repository's `docs/` tree when the caller injects nothing, while preserving explicit injection for tests.
   - Depends on: E-01
   - Expected outcome: `gate_docs_checks` takes an explicit sentinel default (`doc_findings: Optional[Sequence[str]] = None`) plus the `repo_root: Optional[Path] = None` argument its sibling gates already carry, and when `doc_findings is None` it calls `docs_check.check_docs_dir(root / "docs")` to produce the findings itself. Injection must still work and must still be distinguishable from absence: passing an EMPTY sequence explicitly means "the caller checked and found nothing" and passes, while passing `None` means "compute it", and the two must not collapse. THE SENTINEL IS THE WHOLE POINT: changing the default from `()` to a computed call is what converts a gate that cannot fail into one that can, and keeping injection is what keeps the unit tests hermetic.
     FOLLOW THE ESTABLISHED PATTERN IN THIS MODULE rather than inventing one: `gate_changelog_versioning` already takes `repo_root: Optional[Path] = None`, resolves it with `root = repo_root or _repo_root()`, and imports its producer INSIDE the function (`from agent_workflows import versioning as vmod`). Use the same local-import form for `docs_check`, which also avoids adding a module-level import to a module whose docstring advertises pure stdlib.
     Keep the gate's NAME (`docs_checks`), its passing condition (no findings), and its `evidence` key (`findings`) unchanged; consumers and the rendered table depend on them.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 Normalize findings to `str` at the gate boundary so the declared `Sequence[str]` contract holds and `GateResult.to_dict()` stays JSON-serializable.
+- [x] E-03 Normalize findings to `str` at the gate boundary so the declared `Sequence[str]` contract holds and `GateResult.to_dict()` stays JSON-serializable.
   - Depends on: E-02
   - Expected outcome: the gate renders each finding through `str()` before storing it in `evidence={"findings": ...}`, so a `DocFinding` dataclass becomes its canonical `doc:line: [check] message` text (which `DocFinding.__str__` already produces) and `json.dumps(report.to_dict())` succeeds. This is a SEPARATE item from E-02 because it fixes a different defect: E-02 supplies an input, this one stops that input from crashing the serializer (F-04). Without it the wiring converts a vacuous pass into a `TypeError` at the exact moment the gate first has a finding to report.
     Do NOT widen the annotation to `Sequence[object]` or `Sequence[Any]` to make the type error go away. The declared contract is `Sequence[str]` and the report is meant to be serialized; normalizing at the boundary keeps both true, whereas widening the type would legalize storing an unserializable object in a structure whose `to_dict()` exists to be dumped.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 Make a MISSING or unreadable `docs/` tree FAIL the gate instead of rendering as clean, closing the fail-open mode the computation would otherwise inherit.
+- [x] E-04 Make a MISSING or unreadable `docs/` tree FAIL the gate instead of rendering as clean, closing the fail-open mode the computation would otherwise inherit.
   - Depends on: E-02
   - Expected outcome: when the gate computes its own findings and the resolved docs directory does not exist (or is not a directory), the gate returns `passed=False` with a detail that says the tree could not be checked, distinguishable from both `docs checks pass` and the `N doc finding(s)` wording. The evidence dict records the condition (for example a flag and the docs path RELATIVE to the root, never the absolute path, since the report is meant to be serialized and shared) so a reader of the report can tell "could not check" from "checked, clean".
     A FAILURE INSIDE THE CHECKER ITSELF MUST FAIL THE GATE, NOT CRASH THE REPORT AND NOT PASS. Measured at review: a `docs/*.md` that is not valid UTF-8 makes `check_docs_dir` raise `UnicodeDecodeError` (`check_doc` calls `read_text(encoding="utf-8")` with no error handler), and `build_report` has no handler, so today that would abort the whole report rather than render one failing row. Catch `Exception` around the computed call ONLY, and return `passed=False` with a detail naming the exception type (for example `docs check could not run: UnicodeDecodeError`), distinct from the missing-tree and N-findings details, with the type in `evidence`. Do not catch around the injected path, which runs no checker.
     THIS IS THE SAME DEFECT CLASS THE PLAN EXISTS TO REMOVE, which is why it is fixed here rather than deferred: `check_docs_dir` is `rglob`-based and returns `[]` for a nonexistent path with no exception (F-05), so a gate that trusted it would report "docs checks pass" for a tree containing no documentation at all. A gate must never report PASS for a check it did not perform.
     An EXPLICIT injection must keep bypassing this entirely: a caller who passes findings is asserting they already checked, so the gate must not go looking for a directory that is irrelevant to that call.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 Carry the same sentinel through `release_readiness.build_report`'s `doc_findings` parameter so the aggregate report inherits the live computation.
+- [x] E-05 Carry the same sentinel through `release_readiness.build_report`'s `doc_findings` parameter so the aggregate report inherits the live computation.
   - Depends on: E-03, E-04
   - Expected outcome: `build_report`'s `doc_findings` parameter defaults to the same `None` sentinel instead of `()` and passes it through unchanged, so a caller who says nothing about docs gets the real check rather than a vacuous pass, and a caller who injects keeps injecting. `build_report` already forwards `repo_root` to the gates that take it, so pass it to `gate_docs_checks` the same way; the gate must receive the SAME root the other gates use rather than silently falling back to `_repo_root()` when the caller supplied one. The parameter stays keyword-only (the signature is already `*`-prefixed) and its position is unchanged, so no existing call site is affected. This is a separate item from E-02 because it changes a different public signature, and the aggregate is what any real consumer would call.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: make inertness fail
 
-- [ ] E-06 Add `tests/test_release_readiness_docs_gate.py` driving the gate over real temporary trees, with the falsifiability arm that a dirty tree actually fails.
+- [x] E-06 Add `tests/test_release_readiness_docs_gate.py` driving the gate over real temporary trees, with the falsifiability arm that a dirty tree actually fails.
   - Depends on: E-05
   - Expected outcome: a new test file whose every assertion is BEHAVIORAL, calling the real functions over `tmp_path` trees and asserting real return values (P16: no reading production source, no `inspect`/`ast`/regex, no symbol censuses). At minimum: (a) THE FALSIFIABILITY ARM, which is the one that would have caught this defect, builds a `tmp_path` repo whose `docs/` contains a document with a genuine violation (an em dash is the cheapest, since `check_no_unicode_dashes` needs no CLI knowledge and no missing-file setup) and asserts `gate_docs_checks(repo_root=tmp)` returns `passed=False` with the finding count in the detail; (b) a clean `docs/` tree returns `passed=True`; (c) a repo with NO `docs/` directory returns `passed=False` (E-04), and its detail is distinct from the clean-pass detail, so the test pins "could not check" as separate from "clean"; (d) explicit injection still wins, both an empty sequence passing and a nonempty one failing, with the injected case NOT consulting the filesystem; (e) `json.dumps` over the full `build_report(...).to_dict()` succeeds with a real `DocFinding`-derived finding present (E-03), which is the arm that pins the serialization fix; (f) THE END-TO-END CONTRAST PAIR, which must be a pair or it proves nothing: build a `tmp_path` repo that satisfies EVERY other non-subprocess gate (a `CHANGELOG.md` containing a `##` heading, a `.aw/system/VERSION` file, and `residual_risk_signed=True, residual_risk_signer=...` passed to `build_report`, with `run_subprocess_gates=False`), assert `build_report` with no `doc_findings` argument returns `VERDICT_GO` with `failing_gates() == []` over a clean `docs/`, then introduce one violation and assert `VERDICT_NO_GO` with `failing_gates() == ["docs_checks"]` EXACTLY. Measured at review: a bare `tmp_path` repo is ALREADY `NO-GO` via `changelog_versioning` and `residual_risk`, so asserting `NO-GO` alone would pass against the unwired gate; with the fixture above the clean case renders `GO []` and an injected dirty case `NO-GO ['docs_checks']`. (g) a `docs/` containing a non-UTF-8 `.md` returns `passed=False` with the could-not-run detail, and `build_report` over that tree still RETURNS a report (does not raise) with `docs_checks` failing (E-04).
     DRIVE THE GATE AT A `tmp_path` ROOT, NEVER AT THE REAL `docs/`. A test asserting the live tree is clean would couple this file to every future documentation edit and would go red for reasons that have nothing to do with this gate; `t9lcdu` E-02 already owns the whole-tree arm against the real `docs/`, so asserting it here would also duplicate an approved sibling's test.
     Mutation-check each arm per P16 ("a test is only valid if breaking the underlying behavior makes the test fail"): arms (a) and (f) must be shown RED against the pre-E-02 gate, since a gate that cannot fail is precisely what they exist to detect.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -169,35 +169,245 @@ No user-facing document is edited either, which is deliberate: `docs/troubleshoo
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste the full re-measurement transcript showing all four probes. It must show (a) `doc_findings` still matching only `agent_workflows/release_readiness.py`; (b) `gate_docs_checks()` with no argument returning `passed=True` / `docs checks pass`, the vacuous pass this plan removes; (c) `aw find plans t9lcdu` resolving under `executed/` and the full `check_docs_dir(Path("docs"))` finding list printed, with the `'aw router'` finding ABSENT (any other finding listed and named, not treated as a stop); and (d) `json.dumps(gate_docs_checks([DocFinding(...)]).to_dict())` still raising `TypeError: Object of type DocFinding is not JSON serializable`. If (c) still reports the `'aw router' is not a known subcommand` finding, this item is `blocked`, NOT `pass`: the dependency is unmet and no file may be edited. If (b) already fails, this item is `failed` and the plan stops for reconciliation, because the wiring would then be duplicate work.
   - Observed evidence:
-  - Result: pending
+```
+(a) Tree-wide search for doc_findings matches only agent_workflows/release_readiness.py:
+$ git grep -n "doc_findings" agent_workflows/ tests/
+agent_workflows/release_readiness.py:253:def gate_docs_checks(doc_findings: Sequence[str] = ()) -> GateResult:
+agent_workflows/release_readiness.py:255:    findings = list(doc_findings)
+agent_workflows/release_readiness.py:396:    doc_findings: Sequence[str] = (),
+agent_workflows/release_readiness.py:422:            gate_docs_checks(doc_findings),
 
-- [ ] V-02 validates E-02
+Search for check_docs_dir callers outside docs_check.py matches only tests/test_docs_check.py and docs/troubleshooting.md:
+$ git grep -n "check_docs_dir" agent_workflows/ docs/ tests/
+agent_workflows/docs_check.py:14:  * :func:`check_docs_dir`          - run all checks over a docs directory.
+agent_workflows/docs_check.py:186:def check_docs_dir(
+agent_workflows/docs_check.py:211:    "check_docs_dir",
+docs/troubleshooting.md:57:[print(f) for f in c.check_docs_dir(Path('docs'))]"
+tests/test_docs_check.py:156:        findings = dc.check_docs_dir(DOCS_DIR)
+tests/test_docs_check.py:159:    def test_check_docs_dir_respects_ignored_directories(self):
+tests/test_docs_check.py:166:            findings = dc.check_docs_dir(base)
+
+(b) Vacuous pass reproduces:
+>>> rr.gate_docs_checks()
+GateResult(name='docs_checks', passed=True, detail='docs checks pass', evidence={'findings': []})
+
+(c) Dependency t9lcdu resolved in executed/:
+$ aw find plans t9lcdu
+✓  executed      t9lcdu  gzmr54          .aw/records/plans/executed/20260930-gzmr54-01-t9lcdu-restore-the-docs-check-and-docs-render-test-coverage-deleted.ipd.md
+
+And check_docs_dir(Path("docs")) returns 0 findings (no 'aw router' finding):
+>>> dc.check_docs_dir(Path("docs"))
+[]
+
+(d) Serialization break reproduces:
+>>> df = dc.DocFinding(doc=Path("docs/test.md"), line=1, check="test", message="test message")
+>>> gate = rr.gate_docs_checks([df])
+>>> json.dumps(gate.to_dict())
+TypeError: Object of type DocFinding is not JSON serializable
+```
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: paste `git diff agent_workflows/release_readiness.py` showing `gate_docs_checks` taking the `None` sentinel and a `repo_root` argument, resolving the root in the same `root = repo_root or _repo_root()` form its sibling gates use, and calling `docs_check.check_docs_dir` inside the function. Then paste a driven three-way probe proving the sentinel actually distinguishes the cases, which is the behavior under test: over a `tmp_path` repo whose `docs/` contains one em-dash violation, `gate_docs_checks(repo_root=tmp)` returns `passed=False`; `gate_docs_checks([], repo_root=tmp)` returns `passed=True` (explicit empty injection is "checked, clean" and must NOT be collapsed into "compute"); and `gate_docs_checks(["x:1: [c] m"], repo_root=tmp)` returns `passed=False` with that exact string in `evidence["findings"]`. Confirm the gate's `name` is still `docs_checks` and its evidence key is still `findings`.
   - Observed evidence:
-  - Result: pending
+```
+Git diff in agent_workflows/release_readiness.py showing sentinel and repo_root:
+```diff
+@@ -250,15 +250,54 @@ def gate_generated_drift(drift_files: Sequence[str] = ()) -> GateResult:
+     )
 
-- [ ] V-03 validates E-03
+
+-def gate_docs_checks(doc_findings: Sequence[str] = ()) -> GateResult:
+-    """Documentation link/command/option checks pass: no findings."""
+-    findings = list(doc_findings)
++def gate_docs_checks(
++    doc_findings: Optional[Sequence[str]] = None,
++    repo_root: Optional[Path] = None,
++) -> GateResult:
++    """Documentation link/command/option checks pass: no findings.
++
++    When ``doc_findings`` is None (the default), computes the findings live from
++    ``docs/`` under ``repo_root`` via :func:`docs_check.check_docs_dir`. Explicit
++    injection (including an empty sequence) bypasses filesystem inspection.
++    """
++    if doc_findings is not None:
++        findings = [str(f) for f in doc_findings]
++        passed = not findings
++        return GateResult(
++            name="docs_checks",
++            passed=passed,
++            detail="docs checks pass" if passed else f"{len(findings)} doc finding(s)",
++            evidence={"findings": findings},
++        )
++
++    root = repo_root or _repo_root()
++    docs_dir = root / "docs"
++...
++    try:
++        from agent_workflows import docs_check
++
++        raw_findings = docs_check.check_docs_dir(docs_dir)
+```
+
+Driven three-way probe:
+Computed (None sentinel over tmp with em dash):
+  passed: False
+  detail: 1 doc finding(s)
+  name: docs_checks
+  evidence: {'findings': ['test.md:1: [no-unicode-dashes] em dash (U+2014) in user-facing prose']}
+Explicit empty injection ([]):
+  passed: True
+  detail: docs checks pass
+  name: docs_checks
+  evidence: {'findings': []}
+Explicit non-empty injection (["x:1: [c] m"]):
+  passed: False
+  detail: 1 doc finding(s)
+  name: docs_checks
+  evidence: {'findings': ['x:1: [c] m']}
+Gate name remains 'docs_checks' and evidence key remains 'findings'.
+```
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: paste a driven probe over a `tmp_path` repo with a real violation showing `evidence["findings"]` is a list of `str` (print the element types) whose text carries the canonical `doc:line: [check] message` shape, and `json.dumps(gate.to_dict())` SUCCEEDING where V-01's probe (d) raised `TypeError`. Paste the before/after pair side by side, since the contrast is the whole evidence. Also confirm the annotation still reads `Sequence[str]` and was NOT widened to `Sequence[Any]`/`Sequence[object]`, which would have made the error disappear by legalizing the unserializable value instead of fixing it.
   - Observed evidence:
-  - Result: pending
+```
+Annotation check:
+  Annotation for doc_findings: Optional[Sequence[str]]
+  Default for doc_findings: None
+(Annotation preserved as Sequence[str], not widened to Any or object).
 
-- [ ] V-04 validates E-04
+Driven probe over tmp_path with violation:
+  findings count: 1
+  findings element types: ['str']
+  findings elements: ['test.md:1: [no-unicode-dashes] em dash (U+2014) in user-facing prose']
+  json.dumps succeeded; serialized output: {"name": "docs_checks", "passed": false, "detail": "1 doc finding(s)", "evidence": {"findings": ["test.md:1: [no-unicode-dashes] em dash (U+2014) in user-facing prose"]}}
+
+Contrast with V-01 (d) where json.dumps raised TypeError:
+  Before: TypeError: Object of type DocFinding is not JSON serializable
+  After:  {"name": "docs_checks", "passed": false, "detail": "1 doc finding(s)", "evidence": {"findings": ["docs/test.md:1: [test-check] test msg"]}}
+```
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: paste a driven probe over a `tmp_path` repo containing NO `docs/` directory, showing `gate_docs_checks(repo_root=tmp)` returns `passed=False` with a detail that is textually DISTINCT from both `docs checks pass` and the `N doc finding(s)` form, and whose `evidence` records the could-not-check condition. Paste alongside it the clean-tree case (a `tmp_path` repo WITH a valid `docs/`) returning `passed=True`, so the two are shown to be distinguishable rather than merely both failing. Then paste the bypass proof: `gate_docs_checks([], repo_root=tmp_without_docs)` returns `passed=True`, since an explicit injection asserts the caller already checked and must not trigger a directory probe. Paste the checker-exception case: a `tmp_path` `docs/` holding a non-UTF-8 `.md` gives `passed=False` with a could-not-run detail naming `UnicodeDecodeError`, distinct from the other three details, and `build_report` over it returns a report rather than raising. Confirm the evidence carries no absolute path. Finally paste the pre-change behavior for contrast, i.e. V-01's `check_docs_dir` on a nonexistent path returning `[]` and on the non-UTF-8 tree raising, which are the fail-open and crash modes this item closes.
   - Observed evidence:
-  - Result: pending
+```
+1. Missing docs/ directory:
+  passed: False
+  detail: docs tree missing or not a directory: docs
+  evidence: {'missing': True, 'path': 'docs', 'findings': []}
+  bypass ([] on missing docs/):
+    passed: True
+    detail: docs checks pass
+    evidence: {'findings': []}
+2. Clean docs/ directory:
+  passed: True
+  detail: docs checks pass
+  evidence: {'findings': []}
+3. Checker-exception case (non-UTF-8):
+  passed: False
+  detail: docs check could not run: UnicodeDecodeError
+  evidence: {'error': 'UnicodeDecodeError', 'findings': []}
+  build_report on corrupt docs:
+    isinstance ReleaseReadinessReport: True
+    verdict: NO-GO
+    failing_gates: ['docs_checks', 'changelog_versioning']
+4. Pre-change contrast:
+  check_docs_dir on nonexistent path: []
+  check_docs_dir on corrupt dir raised: UnicodeDecodeError 'utf-8' codec can't decode byte 0xff in position 0: invalid start byte
+No absolute paths present in evidence (evidence uses relative 'docs' path and exception class name only).
+```
+  - Result: pass
 
-- [ ] V-05 validates E-05
+- [x] V-05 validates E-05
   - Required evidence: paste `inspect.signature(release_readiness.build_report)` showing `doc_findings` defaulting to `None` rather than `()`, with every other parameter's default unchanged (paste the full dump so a reviewer can diff it against F-01's). Then paste the end-to-end CONTRAST PAIR over a `tmp_path` repo that satisfies every other non-subprocess gate (CHANGELOG with `##`, `.aw/system/VERSION`, `residual_risk_signed=True` with a signer, `run_subprocess_gates=False`): clean `docs/` gives `VERDICT_GO` with `failing_gates() == []`, and the same repo with one violation gives `VERDICT_NO_GO` with `failing_gates() == ["docs_checks"]`. Paste the same dirty call against the PRE-change code returning `GO`, since a bare `tmp_path` repo is NO-GO for unrelated gates and a lone NO-GO proves nothing. Also show that the `repo_root` the caller passed is the root the docs gate actually used (a dirty `tmp_path` docs tree must fail even when the real repository's `docs/` is clean), which is what proves the root is threaded through rather than silently falling back to `_repo_root()`.
   - Observed evidence:
-  - Result: pending
+```
+inspect.signature(build_report):
+  suite_passed: default=<class 'inspect._empty'>, annotation=bool
+  suite_counts: default=None, annotation=Optional[Dict[str, int]]
+  drift_files: default=(), annotation=Sequence[str]
+  doc_findings: default=None, annotation=Optional[Sequence[str]]
+  undispositioned: default=(), annotation=Sequence[str]
+  stale_claims: default=(), annotation=Sequence[str]
+  threshold_policy: default=None, annotation=Optional[bt.ThresholdPolicy]
+  manifest_present: default=True, annotation=bool
+  manifest_consistent: default=True, annotation=bool
+  residual_risk_signed: default=False, annotation=bool
+  residual_risk_signer: default='', annotation=str
+  repo_root: default=None, annotation=Optional[Path]
+  run_subprocess_gates: default=True, annotation=bool
 
-- [ ] V-06 validates E-06
+End-to-end clean docs:
+  verdict: GO
+  failing_gates: []
+
+End-to-end dirty docs:
+  verdict: NO-GO
+  failing_gates: ['docs_checks']
+
+repo_root threading verification:
+  r_dirty used tmp repo_root and detected violation -> failing_gates: ['docs_checks']
+
+Pre-change contrast:
+  Pre-change build_report returned GO with failing_gates: [] against the identical dirty fixture (seen in red run assertion error: assert 'GO' == 'NO-GO').
+```
+  - Result: pass
+
+- [x] V-06 validates E-06
   - Required evidence: THE RED RUN COMES FIRST AND IS MANDATORY: paste the new `tests/test_release_readiness_docs_gate.py` run against the PRE-E-02 gate with the falsifiability arm FAILING, then paste it green after. A test that was never red proves nothing, and this defect IS an assertion that passes everywhere, so an arm that cannot fail would reproduce the bug it is meant to catch. The red run must show arms (a) and (f) failing. Paste the full green run showing all seven arms (dirty fails, clean passes, missing-docs fails with a distinct detail, injection wins both ways, `json.dumps` over `build_report(...).to_dict()` succeeds, the end-to-end GO/NO-GO contrast pair with `failing_gates() == ["docs_checks"]`, and the checker-exception arm). Paste `rg -n 'getsource|getsourcelines|import ast|ast\.parse|import inspect' tests/test_release_readiness_docs_gate.py` returning NOTHING, confirming no production source is read (P16). Paste a probe confirming no arm asserts against the REAL `docs/` tree, since that coupling belongs to `t9lcdu` E-02 and would go red on any future documentation edit. Paste `python3 -m pytest tests/test_release_readiness_child_pin.py` green, proving the module's existing subprocess pinning is undisturbed. Finally paste the bare `python3 -m pytest` tail AND its `FAILED` name list next to a pre-change bare run from the SAME session, comparing failure sets BY NAME: the post-change set must introduce no new name. Per F-08 the AUTHORING baseline carried three pre-existing failures (`test_every_real_spec_in_this_repository_still_conforms`, `test_unreachable_binding_refusal_fires_under_perturbation`, `test_must_not_refuse_matrix`); the executing session's own baseline is authoritative, whatever names it contains; do NOT assert a pass count and do NOT attribute any of those three to this plan.
   - Observed evidence:
-  - Result: pending
+```
+Mandatory red run against pre-E-02 gate:
+$ python3 -m pytest tests/test_release_readiness_docs_gate.py
+=========================== short test summary info ============================
+FAILED tests/test_release_readiness_docs_gate.py::test_json_dumps_with_doc_finding_evidence - TypeError: gate_docs_checks() got an unexpected keyword argument 'repo_root'
+FAILED tests/test_release_readiness_docs_gate.py::test_dirty_docs_tree_fails_gate - TypeError: gate_docs_checks() got an unexpected keyword argument 'repo_root'
+FAILED tests/test_release_readiness_docs_gate.py::test_end_to_end_contrast_pair - AssertionError: assert 'GO' == 'NO-GO'
+FAILED tests/test_release_readiness_docs_gate.py::test_missing_docs_directory_fails_gate - TypeError: gate_docs_checks() got an unexpected keyword argument 'repo_root'
+FAILED tests/test_release_readiness_docs_gate.py::test_clean_docs_tree_passes_gate - TypeError: gate_docs_checks() got an unexpected keyword argument 'repo_root'
+FAILED tests/test_release_readiness_docs_gate.py::test_checker_exception_handled_cleanly - TypeError: gate_docs_checks() got an unexpected keyword argument 'repo_root'
+FAILED tests/test_release_readiness_docs_gate.py::test_explicit_injection_bypasses_filesystem - TypeError: gate_docs_checks() got an unexpected keyword argument 'repo_root'
+7 failed in 2.31s
+
+Post-change green run:
+$ python3 -m pytest -o addopts="" -v tests/test_release_readiness_docs_gate.py
+tests/test_release_readiness_docs_gate.py::test_checker_exception_handled_cleanly PASSED [ 14%]
+tests/test_release_readiness_docs_gate.py::test_clean_docs_tree_passes_gate PASSED [ 28%]
+tests/test_release_readiness_docs_gate.py::test_explicit_injection_bypasses_filesystem PASSED [ 42%]
+tests/test_release_readiness_docs_gate.py::test_missing_docs_directory_fails_gate PASSED [ 57%]
+tests/test_release_readiness_docs_gate.py::test_dirty_docs_tree_fails_gate PASSED [ 71%]
+tests/test_release_readiness_docs_gate.py::test_end_to_end_contrast_pair PASSED [ 85%]
+tests/test_release_readiness_docs_gate.py::test_json_dumps_with_doc_finding_evidence PASSED [100%]
+============================== 7 passed in 0.57s ===============================
+
+P16 source inspection check returns nothing:
+$ git grep -n -E 'getsource|getsourcelines|import ast|ast\.parse|import inspect' tests/test_release_readiness_docs_gate.py
+(no matches, exit code 1)
+
+Probe confirming no arm asserts against the live docs/ directory:
+$ git grep -n 'Path("docs")' tests/test_release_readiness_docs_gate.py
+(no matches, exit code 1)
+
+Subprocess child pin test green:
+$ python3 -m pytest tests/test_release_readiness_child_pin.py
+..                                                                       [100%]
+2 passed in 2.78s
+
+Full test suite comparison:
+Pre-change session baseline:
+  FAILED tests/test_ipd_lifecycle_cli.py::RollbackFailureSemanticsTests::test_two_process_lock_wait_succeeds (transient lock timeout; passed in isolation)
+  1 failed, 6761 passed, 2 skipped in 520.09s
+Post-change full suite:
+  6769 passed, 2 skipped, 3 warnings in 167.30s (0:02:47)
+Zero failures! No new failure names introduced.
+```
+  - Result: pass
 
 ## Approval and execution gate
 
