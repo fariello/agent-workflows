@@ -6,7 +6,7 @@
 - Scope: IN: (1) bake the build-time resolved version into the wheel's bundled `VERSION` so the bundled file, the dist METADATA and the version an install writes into a target all agree; (2) make `_resolve_own_version` prefer the installed distribution's own metadata version when the package runs from an installed distribution, keeping the bundled file as fallback; (3) an `aw doctor` signal that warns when the installed distribution was built from a local directory (`direct_url.json` with a `file://` url and no `editable` flag) whose git HEAD differs from the build's `+g<sha>`, naming the rebuild command. OUT: changing the git-tag-driven version scheme (D44); a warning on every `aw` invocation (see Scope check); registry or editable installs (both run the code they report).
 - Scope-Paths: hatch_build.py, pyproject.toml, agent_workflows/__init__.py, agent_workflows/versioning.py, agent_workflows/doctor.py, agent_workflows/cli.py, tests/test_installed_version_reporting.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: high
@@ -16,9 +16,9 @@
 - Highest E allocated: 06
 - Author: antigravity/claude-opus-5.5
 - Id: whz0oi
-- Approval: 2026-10-07, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-08 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: whz0oi verified (set instbugs, attempt 1).
 - 2026-10-07 approved (aw set): status set to approved
 - 2026-10-07 same-status (aw set): gate on release 2.0.0 (f33nrj) at the maintainer's instruction 2026-10-06: all instbugs plans block 2.0.0
 - 2026-10-07 reviewed (aw set): plan-review
