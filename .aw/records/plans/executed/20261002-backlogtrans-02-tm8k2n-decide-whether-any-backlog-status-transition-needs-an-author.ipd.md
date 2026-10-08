@@ -6,7 +6,7 @@
 - Scope: Settle the question with a RECORDED RULING rather than with a table built on speculation, and let the measurement decide. The plan measures who actually performs each of the five backlog transitions, finds that automation legitimately performs three of the five targets, and on that basis recommends that backlog get NO `by_human` authority table; it then writes that ruling into `DECISIONS.md` and the backlog README and pins it by outcome with a regression fence. The deliverable is the decision plus the fence, NOT a new table.
 - Scope-Paths: DECISIONS.md, .aw/records/backlog/README.md, tests/test_backlog_transition_authority.py
 - Item-Dependencies: executed:cc2m29
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -16,9 +16,9 @@
 - Highest E allocated: 07
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: tm8k2n
-- Approval: 2026-10-07, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-08 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: tm8k2n verified (set backlogtrans, attempt 2).
 - 2026-10-07 approved (aw set): status set to approved
 - 2026-10-07 reviewed (aw set): status transition for the /plan-review record below
 
