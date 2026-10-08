@@ -1,5 +1,5 @@
 - Id: 6wd42q
-- Status: graduated
+- Status: done
 - Graduated-To: 6wd42q
 - Set: 6wd42q
 - Priority: low
@@ -7,6 +7,7 @@
 - Summary: Decide whether command_surface exit_contract is meant to enumerate signal-derived codes (130/143) at all
 
 ## Workflow history
+- 2026-10-08 done (aw backlog): closed by aw agy run: IPD ug85or executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20261001-6wd42q-01-ug85or-decide-and-publish-what-exit-contract-means-a-returned-code.ipd.md); evidence .aw/records/plans/executed/20261001-6wd42q-01-ug85or-decide-and-publish-what-exit-contract-means-a-returned-code.ipd.md
 - 2026-10-01 graduated (aw backlog): graduated by run run-20261001T221821Z-1985969: ug85or
 - 2026-09-30 created (aw backlog): Decide whether command_surface exit_contract is meant to enumerate signal-derived codes (130/143) at all
 
