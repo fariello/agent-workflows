@@ -322,6 +322,7 @@ def _build_synthetic_root(tmp_path: Path) -> Path:
     vdir = root / ".aw" / "system"
     vdir.mkdir(parents=True, exist_ok=True)
     (vdir / "VERSION").write_text("1.0.0\n", encoding="utf-8")
+    (root / "docs").mkdir(parents=True, exist_ok=True)
     return root
 
 
@@ -432,4 +433,7 @@ def test_allowlist_recorder_decision_path(
     assert rep.verdict == rr.VERDICT_GO
     assert len(recorded_calls) > 0
     for argv in recorded_calls:
-        assert argv[:2] == ["git", "describe"], f"unexpected command spawned: {argv}"
+        assert argv[:2] in (
+            ["git", "describe"],
+            ["git", "ls-files"],
+        ), f"unexpected command spawned: {argv}"
