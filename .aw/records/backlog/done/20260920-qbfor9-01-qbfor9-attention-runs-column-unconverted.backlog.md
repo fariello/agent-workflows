@@ -1,5 +1,5 @@
 - Id: qbfor9
-- Status: graduated
+- Status: done
 - Graduated-To: qbfor9
 - Blocks-Release: next
 - Set: qbfor9
@@ -8,6 +8,7 @@
 - Summary: aw attention --runs Run column hardcodes six lifecycle colors that contradict spec uonrjg Section 5, and two of its run states have no semantic stage at all
 
 ## Workflow history
+- 2026-10-08 done (aw backlog): closed by aw agy run: IPD r61br4 executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20260929-qbfor9-01-r61br4-resolve-the-attention-run-column-through-the-shared-lifecycl.ipd.md); evidence .aw/records/plans/executed/20260929-qbfor9-01-r61br4-resolve-the-attention-run-column-through-the-shared-lifecycl.ipd.md
 - 2026-09-29 set (aw backlog): graduated by run run-20260928T235941Z-1396311: r61br4
 - 2026-09-20 created (aw backlog): Found while executing plan f9t5hz (lifeglyph-05).
 
