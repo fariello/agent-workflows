@@ -6,7 +6,7 @@
 - Scope: Add ONE deterministic Markdown escaper to `attention_contract` and apply it to `detail_text` at the three board detail-emission sites in `attention.py` plus the fourth site `attention.format_plan_detail_line` (which reproduces the board's detail line "identically to `aw att -d`" in the run banner; found at review), plus a control-character neutralizer applied at the same sites. Add the A14 fixture that does not exist. EXCLUDES the JSON and `--agent` surfaces (measured already safe) and excludes making a metacharacter a `--check` violation.
 - Scope-Paths: agent_workflows/attention_contract.py, agent_workflows/attention.py, tests/test_attention_output_safety.py, .aw/records/specs/implemented/20260808-1945-01-attention-registry-and-cross-tree-status.spec.md, CHANGELOG.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -16,9 +16,9 @@
 - Highest E allocated: 06
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: qpw45x
-- Approval: 2026-10-07, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-08 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: qpw45x verified (set llnvwj, attempt 1).
 - 2026-10-07 approved (aw set): status set to approved
 - 2026-10-07 reviewed (opencode/its_direct/pt3-claude-opus-5.5-1m-us): /plan-review: APPROVE WITH REVISIONS APPLIED; round 2 (status had been reset to to-review and `Readiness` removed by `8c460a9a1`). PR-007 (MEDIUM, fixed): executed plan `0obt4k` widened `_CONTROL_CHAR_RE` to the nine bidi code points and amended Section 8.8 after round 1, so E-01's quoted regex, its 'do not widen' rationale, OQ-05 and the bidi Deferred row were stale; E-01/V-01/E-05 now expect bidi neutralization through the shared regex, OQ-05 is resolved, the Deferred row and Under-scope line are reconciled. PR-008 (LOW, fixed): E-05 prescribed pytest `monkeypatch` for a `unittest`-style module; now `mock.patch.dict(os.environ)`. PR-009 (LOW, fixed): V-04's pre-change ESC-line count marked as context, re-measured (916 at `ca03f0c56`). Re-verified at `ca03f0c56`: F-1/F-3 reproduce on `_render_item_row`; four emission sites unchanged; `--no-color --details` and `--format markdown --details` byte-identical; forced-color markdown emits ESC; `FORCE_COLOR=1` makes `Term(color=None).color` True; no Markdown library importable; test module absent. PR-010 (LOW, fixed): review record Round 1 PR-005 row had an unescaped pipe (REV-P001) that made review-finalize lint fail; escaped in place, syntax only, noted in Round 2.
 
