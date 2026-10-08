@@ -7,12 +7,15 @@ Enforces load-bearing exit contract invariants across the command surface:
    with skip-on-non-zero documenting REMAINDER-forwarding leaves (E-05).
 3. Live observed-membership gate: every safe read/check leaf executed live in a real
    subprocess must yield an exit code declared in its exit_contract (E-04).
+4. Universal 130 floor and signal code exclusion gate: cli.main returns 130 on
+   interruption and no declaration enumerates signal-derived codes (130, 143) (IPD ug85or).
 """
 
 from __future__ import annotations
 
 import contextlib
 import io
+from unittest import mock
 import pytest
 
 from agent_workflows import cli, command_surface
@@ -193,5 +196,66 @@ def test_live_safe_leaves_exit_contract_membership() -> None:
         + "\n".join(
             f"  leaf={leaf!r}, surface={surface}, observed_rc={rc}, declared={contract}"
             for leaf, surface, rc, contract in violations
+        )
+    )
+
+
+def test_universal_130_floor_and_signal_code_exclusion() -> None:
+    """Universal 130 floor and tree-wide signal code exclusion gate (IPD ug85or).
+
+    Enforces two load-bearing exit contract invariants:
+    1. THE UNIVERSAL 130 FLOOR IS REAL: cli.main returns 130 when execution is
+       interrupted by KeyboardInterrupt or EOFError.
+    2. TREE-WIDE SIGNAL CODE EXCLUSION: no declaration in
+       command_surface.get_all_declarations() enumerates signal-derived codes
+       (130 or 143) in its exit_contract.
+
+    In-process shortcut justification and signal measurement:
+    Real signal probes (SIGINT via os.killpg to doctor, check, and next subprocesses)
+    empirically return 130 (measured out-of-band in IPD ug85or E-01). Real signal
+    probes are omitted from this suite because process-group signaling is slow (requiring
+    sleep periods to reach work) and flaky under pytest-xdist parallel execution.
+    The in-process cli.main invocation exercises the exact except KeyboardInterrupt
+    and except EOFError arms reached by SIGINT/EOF, providing deterministic, fast
+    verification without sleep overhead. Testing multiple argvs in-process does not
+    prove verb-independence (since the patched cli._dispatch ignores argv); the
+    multi-verb proof is the out-of-band subprocess signal measurement.
+
+    Exclusion rationale:
+    Exit contracts declare codes produced by a command's own return path and deliberately
+    exclude signal-derived codes (DECISIONS.md D162, command_surface.CommandDeclaration.exit_contract).
+    Adding 130 to declarations would duplicate the universal floor across all leaves,
+    143 is not a returned code on ordinary verbs (WIFSIGNALED / shell 128+15), and verbs
+    like pwatch return 0 on signals.
+    """
+    # 1. Universal 130 floor assertion
+    with mock.patch.object(cli, "_dispatch", side_effect=KeyboardInterrupt):
+        rc_ki = cli.main(["status"])
+        assert (
+            rc_ki == 130
+        ), f"Expected cli.main to return 130 on KeyboardInterrupt, got {rc_ki}"
+
+    with mock.patch.object(cli, "_dispatch", side_effect=EOFError):
+        rc_eof = cli.main(["status"])
+        assert (
+            rc_eof == 130
+        ), f"Expected cli.main to return 130 on EOFError, got {rc_eof}"
+
+    # 2. Tree-wide signal code exclusion assertion
+    violations = []
+    for decl in command_surface.get_all_declarations():
+        forbidden = set(decl.exit_contract) & {130, 143}
+        if forbidden:
+            violations.append((decl.command, decl.exit_contract, sorted(forbidden)))
+
+    assert not violations, (
+        f"Found {len(violations)} declarations containing signal-derived exit codes (130/143) "
+        f"in exit_contract, violating the contract decided in DECISIONS.md D162 and "
+        f"documented in command_surface.CommandDeclaration.exit_contract. "
+        f"Do NOT widen exit_contract to include signal-derived codes; document unusual signal "
+        f"behavior at the verb instead:\n"
+        + "\n".join(
+            f"  command={cmd!r}, declared exit_contract={contract}, forbidden_codes={forb}"
+            for cmd, contract, forb in violations
         )
     )

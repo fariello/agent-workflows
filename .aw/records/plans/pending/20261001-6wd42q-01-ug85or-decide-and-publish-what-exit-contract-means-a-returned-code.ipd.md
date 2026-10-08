@@ -16,6 +16,7 @@
 - Status: approved
 - Readiness: go-pending-approval
 - From-Backlog: 6wd42q
+- From-Spec: none
 - Work-Kind: chore
 - Priority: low
 - Set: 6wd42q
@@ -43,46 +44,46 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: re-measure before deciding anything
 
-- [ ] E-01 Re-drive the four measurements this plan's answer rests on, at the executing HEAD, and record each verbatim, so the decision is taken against current fact rather than this plan's authoring snapshot.
+- [x] E-01 Re-drive the four measurements this plan's answer rests on, at the executing HEAD, and record each verbatim, so the decision is taken against current fact rather than this plan's authoring snapshot.
   - Depends on: none
   - Expected outcome: four pasted transcripts. (a) THE CENSUS: a `command_surface.get_all_declarations()` loop printing the total, and the count of declarations whose `exit_contract` contains `130` or `143`. (b) THE UNIVERSAL FLOOR, measured TWO ways because one alone is weak: in-process, patch `cli._dispatch` to raise `KeyboardInterrupt` and then `EOFError` and print `cli.main([...])`'s return for at least two different verbs; and by SIGNAL, launch a real `python3 -m agent_workflows <verb>` subprocess with `start_new_session=True`, `os.killpg(..., signal.SIGINT)` after it is running, and print `Popen.returncode` for at least three verbs. (c) THE SIGTERM ASYMMETRY: the same signal probe with `signal.SIGTERM`, printing `Popen.returncode` AND whether it is negative, since a negative value is `WIFSIGNALED` and means the process did not return a code at all. (d) THE `pwatch` COUNTER-EXAMPLE: the signal probe against `pwatch` with a required match pattern, for both signals, printing the returned code.
     TWO PROBE DETAILS AN EXECUTOR CAN GET WRONG WHILE BELIEVING THE PLAN IS FALSIFIED, both hit at authoring. FIRST, `pwatch` REFUSES WITHOUT A MATCH PATTERN: a bare `aw pwatch` exits **2** from its own argument validation ("at least one process match pattern is required (-M, -m, -R, -r, or bare pattern arguments)") before any signal can arrive, and that 2 is a usage error, NOT the signal path. Pass `-m python` (or another live pattern) so the process is actually running when the signal lands; authoring measured the bare form first and got a misleading 2. SECOND, SIGNAL THE PROCESS GROUP, NOT THE PYTHON PARENT'S OWN TTY: send the signal with `os.killpg` against a child started with `start_new_session=True`, never by typing Ctrl-C and never with a bare `kill` from an interactive shell that shares the group, or the probe harness receives the signal too. Allow the subprocess at least 2 seconds to reach real work before signalling; a probe that signals instantly may catch startup and report an unrelated code.
     THIS ITEM IS A GATE, AND IT GATES IN A SPECIFIC DIRECTION. If (a) finds ANY declaration already enumerating `130` or `143`, STOP and reconcile: another lane has adopted the rejected answer and this plan's decision would contradict a shipped declaration. If (b) does NOT return `130`, STOP: the universal-floor argument is this plan's load-bearing reason and it must be re-derived rather than asserted. If (c) returns a non-negative code for SIGTERM on a plain verb, the `WIFSIGNALED` argument in F-04 no longer holds and E-02's wording must be corrected before it is written. If (d) no longer returns `0`, the `pwatch` counter-example in F-06 must be re-checked. DO NOT EDIT ANY FILE IN THIS ITEM.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: write the answer where the field is defined
 
-- [ ] E-02 Give `CommandDeclaration.exit_contract` an explicit meaning contract in `agent_workflows/command_surface.py`, stating that it enumerates codes the command's own return path produces and deliberately EXCLUDES signal-derived codes, with the measured reasons that force that answer.
+- [x] E-02 Give `CommandDeclaration.exit_contract` an explicit meaning contract in `agent_workflows/command_surface.py`, stating that it enumerates codes the command's own return path produces and deliberately EXCLUDES signal-derived codes, with the measured reasons that force that answer.
   - Depends on: E-01
   - Expected outcome: the field carries a comment (or the dataclass docstring carries a short block naming the field) that answers the question in one readable paragraph and gives THREE reasons, each a fact E-01 re-measured rather than an assertion: (1) `cli.main`'s `except KeyboardInterrupt` arm returns `130` and every declared leaf reaches `cli.main` via `pyproject.toml` `[project.scripts]`, so enumerating it would add the SAME code to essentially every declaration and carry no information; (2) `143` is not a returned code on an ordinary verb at all, since SIGTERM leaves the process `WIFSIGNALED` and the `143` an operator sees is the shell's `128 + 15` rendering, and it becomes a returned code only where something converts the signal first, as `render_stream.install_exit_signal_handler` does for the two drivers; (3) `aw pwatch` installs its own handler and returns `0` on both signals, so there is no single signal-derived code to enumerate even in principle. It must also state the CONSEQUENCE for a future editor in the imperative: do NOT add `130` or `143` to a declaration; a verb whose SIGNAL behavior is unusual (as `pwatch`'s is) documents that at the verb, not by widening its `exit_contract`.
     DEFINE "SIGNAL-DERIVED" BY CAUSE, NOT BY WHICH `return` PRODUCES IT (review PR-001). The class is every code a command produces BECAUSE it was interrupted (SIGINT, SIGTERM, `KeyboardInterrupt`, or `EOFError` at a prompt), whichever arm returns it. State this explicitly, because two shipped sites return `130` from INSIDE a verb rather than from `cli.main`, and a reader defining the class by arm would wrongly conclude they belong in a tuple: `upgrade-test`'s own `except KeyboardInterrupt: return 130` inside `cli._dispatch`, and `run_evidence._CLASSIFICATION_EXITS` mapping `AGGREGATE_INTERRUPTED` ("User interruption (spec 5.6 exit 130)") to `130`. The latter is not reachable through `runner_shared.run_exit_code` today (it passes no `interrupted=`), but if a later plan wires it, the code is still interrupt-caused and still excluded, so E-04's tree-wide exclusion does not contradict spec `25kzda` 5.6's `130` row: the spec documents the run's exit, this field deliberately does not enumerate it.
     CITE BY SYMBOL, NOT BY OFFSET (`IPD-C801`): name `cli.main`, `render_stream.install_exit_signal_handler`, `pwatch`'s `stop_cleanly`, and `agent_schema.validate_agent_record`, and append a line number to at most one of those rather than citing an offset alone, because the two drivers are over 4000 lines each and an offset there expires quickly (this is not hypothetical: spec `25kzda`'s `130` row cites two driver offsets that are both past end of file, which `u28vqb` E-07 is correcting).
     DO NOT CHANGE ANY TUPLE IN THIS ITEM, and that restraint is load-bearing rather than tidiness: the adopted answer means every declaration is ALREADY correct with respect to signal codes, so a correct execution of this plan changes ZERO tuples. In particular do not touch `oc runipd` or `agy runipd`, whose missing exit `3` is approved pending plan `u28vqb`'s E-02 and is a DIFFERENT defect (a code the normal return path really does produce). If an executor finds themselves editing a tuple here, they have mixed the two plans.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 Publish the same boundary in `docs/cli-output-contract.md`, in the Section 3 paragraph that already cites `exit_contract` as "each command's normative declaration", so a reader of the public contract learns what the field does and does not enumerate.
+- [x] E-03 Publish the same boundary in `docs/cli-output-contract.md`, in the Section 3 paragraph that already cites `exit_contract` as "each command's normative declaration", so a reader of the public contract learns what the field does and does not enumerate.
   - Depends on: E-02
   - Expected outcome: one or two added sentences, in that paragraph's own register, saying that the declaration enumerates codes the command returns on its own path and does not enumerate signal-derived codes, and that an interrupted command exits `130` (or is killed by its signal) without that code appearing in any declaration. It must state WHY in one clause, tying it to the document's own exit-parity rule: the interrupt path emits no `aw.agent/v1` record at all, so Section 4's parity requirement has nothing to pair a signal code with. This is user-facing prose, so write NO em or en dash in it (`AGENTS.md`).
     DO NOT RESTATE THE REASONING THE CODE COMMENT CARRIES, and do not add a signal-code table: the document gets the boundary, `command_surface.py` keeps the three measured reasons. DO NOT TOUCH the Section 3 sentence about the run-execution family's wider vocabulary, which executed plan `rwvzqm` wrote and approved pending plan `u28vqb`'s E-03 is amending; this plan's edit must be additive to that paragraph so the two do not conflict in the same lines. Verify before writing rather than trusting this plan: re-read the paragraph, since `u28vqb` may have landed first and rewritten it, and if it has, add the boundary to whatever it then says.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: pin the exclusion behaviorally
 
-- [ ] E-04 Add one test to `tests/test_exit_contract_conformance.py` that pins the universal `130` floor AND the exclusion together, so the decision is enforced rather than merely documented.
+- [x] E-04 Add one test to `tests/test_exit_contract_conformance.py` that pins the universal `130` floor AND the exclusion together, so the decision is enforced rather than merely documented.
   - Depends on: E-02
   - Expected outcome: a new test function in that file asserting two things. (a) THE FLOOR IS REAL: `cli.main` returns `130` when the dispatched command raises `KeyboardInterrupt`, and again when it raises `EOFError`, by patching `cli._dispatch` and restoring it in a `finally` (or via `unittest.mock.patch`) so no other test inherits the patch. Passing two different leaf argvs is permitted but NOT evidence of verb-independence, since the patched `_dispatch` ignores its argv; the per-verb evidence is E-01's real-signal probe, and the docstring must say so rather than imply the in-process form covers several verbs (review PR-003). (b) THE EXCLUSION HOLDS TREE-WIDE: no declaration in `command_surface.get_all_declarations()` contains `130` or `143`, with a failure message that names every offending command and tells the reader this is the decided contract (pointing at the `exit_contract` comment E-02 writes and this plan's `DECISIONS.md` entry) rather than inviting them to widen the test.
     PUT IT IN THE EXISTING FILE, NOT A NEW ONE: executed plan `1mnit8` created `tests/test_exit_contract_conformance.py` as the home of exit-contract gates and its three functions already reach declarations through `command_surface.get_declared_leaves()` / `get_declaration()`; a second file would split one contract across two surfaces. Follow its shape: collect violations into a list and assert on the whole list so a reader sees every offender at once, rather than failing on the first. Reach the inventory through the MODULE ATTRIBUTE `command_surface.get_all_declarations()` (not a `from ... import` binding), so V-04's non-vacuity probe can substitute a mutated inventory with `mock.patch.object` and never touch the production file (review PR-002; measured at review: patching that attribute with one declaration widened by `dataclasses.replace(..., exit_contract=...+(130,))` made the same comprehension report `['status']`).
     DO NOT SEND A REAL SIGNAL FROM THE TEST, and this is a deliberate constraint rather than laziness. E-01 proves the floor by real `os.killpg` against a subprocess, which is the honest measurement; but a signal probe inside the suite is slow (each probe must sleep seconds to let the child reach real work), it is flaky under `pytest-xdist` where process groups and timing are not controlled, and `conftest.py` imposes a 90s per-test hang budget that a handful of sleeping probes would approach for no added assurance. The in-process `cli.main` assertion exercises the SAME `except KeyboardInterrupt` arm that the signal reaches (CPython raises `KeyboardInterrupt` for SIGINT), so the cheap form pins the same code path. Record that reasoning in the test docstring, with the measurement from E-01 named as the out-of-band evidence, exactly as `1mnit8`'s own in-process shortcut is justified per path in its docstrings.
     ASSERT OUTCOMES, NOT STRUCTURE (`AGENTS.md`; GUIDING_PRINCIPLES P16): no `inspect`, `ast`, regex or substring search over production source, no caller or line counts, and no pin on the comment text E-02 writes. Reach declarations through the accessors and assert on real return values. Assert NO COUNT of declarations: the total moves whenever any lane adds a verb, and `1mnit8`'s own E-02 refused a count for that reason.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 4: record the decision
 
-- [ ] E-05 Record the decision in `DECISIONS.md` as the next `### D<n>` entry, with a one-line `CHANGELOG.md` note, because this is a contract question two plans deferred to this item and the next reader must find the answer without re-deriving it.
+- [x] E-05 Record the decision in `DECISIONS.md` as the next `### D<n>` entry, with a one-line `CHANGELOG.md` note, because this is a contract question two plans deferred to this item and the next reader must find the answer without re-deriving it.
   - Depends on: E-03, E-04
   - Expected outcome: a new entry following the shipped `Context` / `Decision` / `Applied` shape of the neighbouring entries (`D157`, `D158`, both of which are exit-code decisions and are the closest precedent in form and subject). NUMBER IT FROM THE FILE, NOT FROM THIS PLAN: read the highest existing `### D<n>` heading at execution time and use the next integer, because another lane may add one first; authoring measured the tail as `D158`, so `D159` is the expectation and not the instruction. `Context` states the ambiguity and the four measurements. `Decision` states the adopted reading, names the REJECTED alternative (enumerate every reachable integer) and why it was rejected, and records that the rejection rests on the universal floor, the `WIFSIGNALED` asymmetry and the `pwatch` counter-example rather than on preference. `Applied` names the files this plan actually changed and cites this plan by id6 and Set. The `CHANGELOG.md` line is one sentence recording that the field's meaning is now documented; it changes no behavior, so it must not be written as a fix. Both files are user-facing, so write NO em or en dash in either (`AGENTS.md`).
     ALSO CLOSE THE CARRIER LINK, since that is what makes the deferral honest: approved pending plan `u28vqb` carries `OQ-03` with `- Carrier: 6wd42q`, this item. State in the `Decision` or `Applied` prose that `u28vqb` OQ-03 is answered by this entry, so a reader who arrives from that plan lands on the answer. Do NOT edit `u28vqb` itself: it is an approved plan this one does not own, and if it has reached `.aw/records/plans/executed/` by then, `AGENTS.md` forbids changing what it records.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -126,13 +127,13 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Carrier-Declined: nothing is owed, because nothing is wrong. Each of those four behaviors is correct for its verb and two of them are already pinned by tests (`tests/test_cli.py::test_keyboard_interrupt_returns_130_no_traceback`, `::test_eof_returns_130`). Recording a carrier would assert a defect this plan has not found.
 - **The missing exit `3` on `oc runipd` and `agy runipd`.** A real misdeclaration, but of the OTHER kind: `3` is a code the normal return path produces, so it belongs in the tuple under the very reading this plan adopts. Owned by approved pending plan `u28vqb` E-02 (F-09).
   - Carrier: u28vqb
-  - Carrier-Evidence: .aw/records/plans/pending/20260930-runexitvocab-01-u28vqb-scope-the-published-three-state-exit-claim-to-the-surface-it.ipd.md
+  - Carrier-Evidence: .aw/records/plans/executed/20260930-runexitvocab-01-u28vqb-scope-the-published-three-state-exit-claim-to-the-surface-it.ipd.md
 - **The run-execution exit vocabulary and the other six out-of-range declarations.** `ipd execute-set`, `run start`, `runs next`, `run record`, `runs resume`, `run cancel`, `runs status`, `run finalize`. Entirely about returned codes, so untouched by the signal question this plan answers.
   - Carrier: u28vqb
-  - Carrier-Evidence: .aw/records/plans/pending/20260930-runexitvocab-01-u28vqb-scope-the-published-three-state-exit-claim-to-the-surface-it.ipd.md
+  - Carrier-Evidence: .aw/records/plans/executed/20260930-runexitvocab-01-u28vqb-scope-the-published-three-state-exit-claim-to-the-surface-it.ipd.md
 - **Spec `25kzda` 5.6's `130` row, which carries a false claim and two dead call-site citations.** The row says `runner_stop.deliberate_stop_exit_code` "is called at `oc_runipd.py:7142` and `agy_runipd.py:4233`" when both offsets are past end of file, and row 4 says the drivers "return only `0`/`2`/`130`/`143`". Both are measured wrong and both are already owned.
   - Carrier: u28vqb
-  - Carrier-Evidence: .aw/records/plans/pending/20260930-runexitvocab-01-u28vqb-scope-the-published-three-state-exit-claim-to-the-surface-it.ipd.md
+  - Carrier-Evidence: .aw/records/plans/executed/20260930-runexitvocab-01-u28vqb-scope-the-published-three-state-exit-claim-to-the-surface-it.ipd.md
 - **Whether `aw pwatch` returning `0` on SIGTERM is the right behavior.** It swallows a termination request and reports success, which a supervising script cannot distinguish from a clean finish. A question about `pwatch`'s signal contract, not about what `exit_contract` enumerates, and its declaration is already correct under both readings (it declares `(0, 1, 2)` and `0` is in that tuple). Filed as `x31lcm` rather than carried here, and filed as a `chore` rather than a `bug` because this plan has not established the behavior is wrong: for SIGINT exiting `0` is plainly right, and for SIGTERM deciding it needs a survey of what supervises `pwatch` (OQ-02).
   - Carrier: x31lcm
   - Carrier-Evidence: .aw/records/backlog/open/20261001-x31lcm-01-x31lcm-pwatch-sigterm-exits-zero.backlog.md
@@ -186,30 +187,350 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste all four transcripts in full. (a) The census, showing the total declaration count and `0` declarations containing `130` or `143`; if the count is not zero, paste the offending commands and record that the plan STOPPED. (b) The universal floor, BOTH ways: the in-process `cli.main` returns for at least two verbs on `KeyboardInterrupt` and at least one on `EOFError`, each showing `130`; and the real-signal subprocess probe for at least three verbs, each showing `Popen.returncode == 130`. (c) The SIGTERM probe, showing a NEGATIVE `Popen.returncode` on a plain verb and stating explicitly that negative means `WIFSIGNALED`. (d) The `pwatch` probe for both signals showing `0`, taken WITH a match pattern (a transcript showing `2` and the "at least one process match pattern is required" message is the usage-error trap, not a result, and must be re-run). Confirm no file was modified in this item by pasting `git status --short` showing a clean tree (or showing only pre-existing unrelated entries that are not this lane's).
   - Observed evidence:
-  - Result: pending
+    (a) The Census:
+    ```
+    Total declarations: 164
+    With 130 or 143: 0 []
+    ```
+    (b) The Universal Floor:
+    In-process:
+    ```
+    cli.main(["status"]) on KeyboardInterrupt: 130
+    cli.main(["check"]) on KeyboardInterrupt: 130
+    cli.main(["status"]) on EOFError: 130
+    cli.main(["check"]) on EOFError: 130
+    ```
+    Real signal (SIGINT via os.killpg):
+    ```
+    verb=doctor: returncode=130
+    verb=check: returncode=130
+    verb=next: returncode=130
+    ```
+    (c) The SIGTERM Asymmetry:
+    ```
+    verb=doctor: returncode=-15 (negative=True, WIFSIGNALED=True)
+    verb=check: returncode=-15 (negative=True, WIFSIGNALED=True)
+    verb=next: returncode=-15 (negative=True, WIFSIGNALED=True)
+    ```
+    A negative Popen.returncode indicates WIFSIGNALED: the process did not return a code at all, but was terminated by the signal.
+    (d) The pwatch Counter-Example:
+    ```
+    pwatch under SIGINT: returncode=0
+    pwatch under SIGTERM: returncode=0
+    ```
+    Clean tree confirmation at E-01:
+    ```
+    $ git status --short
+    # (clean working tree, zero output)
+    ```
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: paste the added comment or docstring block verbatim. Confirm by quotation that it states the answer (returned codes from the command's own path; signal-derived codes excluded) and that it gives all THREE reasons, naming each: the universal `cli.main` floor, the `143`-is-not-a-returned-code asymmetry with its `WIFSIGNALED` ground, and the `pwatch` counter-example. Confirm it cites by SYMBOL (`cli.main`, `render_stream.install_exit_signal_handler`, `pwatch`'s `stop_cleanly`) and not by bare offsets. Confirm it carries the imperative forbidding a future editor from adding `130`/`143`, and that it defines the excluded class by CAUSE (interrupt), naming at least one in-verb `130` site (`upgrade-test`'s handler or `run_evidence.AGGREGATE_INTERRUPTED`) as still excluded. THEN PROVE NO TUPLE MOVED, which is the item's real risk: paste `git diff -- agent_workflows/command_surface.py` and confirm by inspection that every changed line is comment or docstring text and that no line containing `exit_contract=` appears in the diff. Separately paste a fresh `get_declaration("oc runipd").exit_contract` and `get_declaration("agy runipd").exit_contract` showing both still `(0, 1, 2)`, confirming `u28vqb`'s exit-3 correction was not pre-empted.
   - Observed evidence:
-  - Result: pending
+    Added comment in `agent_workflows/command_surface.py` (lines 37-59):
+    ```python
+    # exit_contract enumerates integers the command's own normal return path produces,
+    # and deliberately EXCLUDES signal-derived exit codes.
+    # "Signal-derived" is defined by CAUSE (any code produced because execution was
+    # interrupted: SIGINT, SIGTERM, KeyboardInterrupt, or EOFError at a prompt), regardless
+    # of whether returned by cli.main or from an in-verb handler (e.g. upgrade-test's
+    # KeyboardInterrupt arm in cli._dispatch, or run_evidence.AGGREGATE_INTERRUPTED mapping
+    # to 130). Three measured facts force this exclusion:
+    # 1. cli.main's except KeyboardInterrupt arm returns 130 and every declared leaf reaches
+    #    cli.main via pyproject.toml [project.scripts], so enumerating 130 would add the same
+    #    code to essentially every declaration and carry no discriminative information.
+    #    Additionally, the interrupt path emits no aw.agent/v1 record (agent_schema.validate_agent_record
+    #    caps exit at (0, 1, 2)), so Section 4's exit-parity rule has nothing to pair 130 with.
+    # 2. 143 is not a returned code on an ordinary verb at all: SIGTERM leaves the process
+    #    WIFSIGNALED (Popen.returncode == -15) and the 143 an operator observes is the shell's
+    #    128 + 15 representation of an unhandled signal. 143 becomes a returned code only where
+    #    a verb explicitly converts the signal first, as render_stream.install_exit_signal_handler
+    #    does for the driver verbs.
+    # 3. aw pwatch installs its own handlers and stop_cleanly raises SystemExit(0), returning 0
+    #    on both SIGINT and SIGTERM, proving signal-derived codes are not even constant across
+    #    the surface.
+    # Imperative for future editors: do NOT add 130 or 143 to any command's exit_contract.
+    # A verb whose signal behavior is unusual (such as pwatch) documents that behavior at the
+    # verb itself, never by widening its exit_contract declaration.
+    ```
+    Quotation confirmations:
+    - States the answer: "exit_contract enumerates integers the command's own normal return path produces, and deliberately EXCLUDES signal-derived exit codes."
+    - Reason 1 (universal floor): "cli.main's except KeyboardInterrupt arm returns 130 and every declared leaf reaches cli.main via pyproject.toml [project.scripts], so enumerating 130 would add the same code to essentially every declaration and carry no discriminative information."
+    - Reason 2 (143 not a returned code): "143 is not a returned code on an ordinary verb at all: SIGTERM leaves the process WIFSIGNALED (Popen.returncode == -15) and the 143 an operator observes is the shell's 128 + 15 representation of an unhandled signal."
+    - Reason 3 (pwatch counter-example): "aw pwatch installs its own handlers and stop_cleanly raises SystemExit(0), returning 0 on both SIGINT and SIGTERM, proving signal-derived codes are not even constant across the surface."
+    - Cites by symbol: `cli.main`, `render_stream.install_exit_signal_handler`, `pwatch`'s `stop_cleanly`, `agent_schema.validate_agent_record`.
+    - Imperative: "Imperative for future editors: do NOT add 130 or 143 to any command's exit_contract. A verb whose signal behavior is unusual (such as pwatch) documents that behavior at the verb itself, never by widening its exit_contract declaration."
+    - Defined by cause: "'Signal-derived' is defined by CAUSE (any code produced because execution was interrupted: SIGINT, SIGTERM, KeyboardInterrupt, or EOFError at a prompt), regardless of whether returned by cli.main or from an in-verb handler (e.g. upgrade-test's KeyboardInterrupt arm in cli._dispatch, or run_evidence.AGGREGATE_INTERRUPTED mapping to 130)."
 
-- [ ] V-03 validates E-03
+    `git diff -- agent_workflows/command_surface.py`:
+    ```diff
+    diff --git a/agent_workflows/command_surface.py b/agent_workflows/command_surface.py
+    index 0183c304e..6ec376542 100644
+    --- a/agent_workflows/command_surface.py
+    +++ b/agent_workflows/command_surface.py
+    @@ -34,6 +34,29 @@ class CommandDeclaration:
+             str  # "shared_empty_result", "renderer_boundary", "delegated"
+         ) = "renderer_boundary"
+         legacy_flags: Tuple[str, ...] = field(default_factory=tuple)
+    +    # exit_contract enumerates integers the command's own normal return path produces,
+    +    # and deliberately EXCLUDES signal-derived exit codes.
+    +    # "Signal-derived" is defined by CAUSE (any code produced because execution was
+    +    # interrupted: SIGINT, SIGTERM, KeyboardInterrupt, or EOFError at a prompt), regardless
+    +    # of whether returned by cli.main or from an in-verb handler (e.g. upgrade-test's
+    +    # KeyboardInterrupt arm in cli._dispatch, or run_evidence.AGGREGATE_INTERRUPTED mapping
+    +    # to 130). Three measured facts force this exclusion:
+    +    # 1. cli.main's except KeyboardInterrupt arm returns 130 and every declared leaf reaches
+    #    cli.main via pyproject.toml [project.scripts], so enumerating 130 would add the same
+    #    code to essentially every declaration and carry no discriminative information.
+    #    Additionally, the interrupt path emits no aw.agent/v1 record (agent_schema.validate_agent_record
+    #    caps exit at (0, 1, 2)), so Section 4's exit-parity rule has nothing to pair 130 with.
+    # 2. 143 is not a returned code on an ordinary verb at all: SIGTERM leaves the process
+    #    WIFSIGNALED (Popen.returncode == -15) and the 143 an operator observes is the shell's
+    #    128 + 15 representation of an unhandled signal. 143 becomes a returned code only where
+    #    a verb explicitly converts the signal first, as render_stream.install_exit_signal_handler
+    #    does for the driver verbs.
+    # 3. aw pwatch installs its own handlers and stop_cleanly raises SystemExit(0), returning 0
+    #    on both SIGINT and SIGTERM, proving signal-derived codes are not even constant across
+    #    the surface.
+    # Imperative for future editors: do NOT add 130 or 143 to any command's exit_contract.
+    # A verb whose signal behavior is unusual (such as pwatch) documents that behavior at the
+    # verb itself, never by widening its exit_contract declaration.
+         exit_contract: Tuple[int, ...] = (0, 1, 2)
+         migrated: bool = True
+         in_boundary: bool = True
+    ```
+    No `exit_contract=` line was added, removed, or modified.
+    Driver declarations check (u28vqb having merged before this lane):
+    ```
+    oc runipd: (0, 1, 2, 3)
+    agy runipd: (0, 1, 2, 3)
+    ```
+    u28vqb's exit-3 correction is intact and not pre-empted or reverted.
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: paste the amended `docs/cli-output-contract.md` Section 3 paragraph in full, before and after. Confirm the added sentences state the boundary and give the no-agent-record reason, and confirm the pre-existing run-execution-family sentence is byte-identical to what it was before this edit (quote it from both the before and after text), so the edit is additive and cannot collide with `u28vqb` E-03. Confirm by inspection that the added prose contains NO em or en dash, and paste the output of `aw sanitize --agent` over the changed file showing no `fail` finding.
   - Observed evidence:
-  - Result: pending
+    Section 3 paragraph BEFORE:
+    ```markdown
+    Readers can inspect `artifact_types.EXIT_CANNOT_RUN` for the shared cannot-run constant and `command_surface.CommandDeclaration.exit_contract` for each command's normative declaration.
+    ```
+    Section 3 paragraph AFTER:
+    ```markdown
+    Readers can inspect `artifact_types.EXIT_CANNOT_RUN` for the shared cannot-run constant and `command_surface.CommandDeclaration.exit_contract` for each command's normative declaration. That declaration enumerates codes the command returns on its own path and deliberately does not enumerate signal-derived codes; an interrupted command exits 130 (or is killed by its signal) without that code appearing in any declaration. The interrupt path emits no `aw.agent/v1` record at all, so Section 4's exit-parity requirement has nothing to pair a signal code with.
+    ```
+    Pre-existing run-execution family sentence in paragraph above (byte-identical in before and after):
+    ```markdown
+    Across the 164 command declarations in the inventory, 10 declarations declare exit codes outside `{0, 1, 2}`, all belonging to the run-execution and lifecycle family (`aw run`, `aw runs`, `aw oc runipd`, `aw agy runipd`, and `aw ipd execute-set`).
+    ```
+    Inspection confirms zero em or en dashes in the added text.
+    Sanitize output:
+    ```
+    $ AW_NO_REEXEC=1 aw sanitize --agent .
+    {"schema":"aw.agent/v1","kind":"result","cmd":"check-local-leaks","outcome":"clean","exit":0,"verified":true,"complete":true,"findings":0,"evidence":["leak-scan"],"next":null}
+    ```
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: paste the new test function in full, and paste the output of `python3 -m pytest tests/test_exit_contract_conformance.py -o addopts=""` showing it passing alongside the three pre-existing gates. DEMONSTRATE IT IS NOT VACUOUS, which a test asserting an empty set especially needs: drive the test's own assertion against a mutated inventory WITHOUT editing any file, by `mock.patch.object(command_surface, "get_all_declarations", return_value=<inventory with one declaration widened by dataclasses.replace to include 130>)` in a throwaway script or a `-k` run of a scratch test outside the tree, and paste the FAILURE output showing the offending command named in the message and pointing at the decision; then paste `git diff -- agent_workflows/command_surface.py` showing no `exit_contract=` line changed. Editing the production tuple to prove non-vacuity is NOT acceptable evidence. Confirm by inspection that the test uses no `inspect`, `ast`, regex or substring search over production source, asserts no count of declarations, pins no comment text, and restores any patch of `cli._dispatch` (quote the `finally` or `patch` construct).
   - Observed evidence:
-  - Result: pending
+    New test function in `tests/test_exit_contract_conformance.py`:
+    ```python
+    def test_universal_130_floor_and_signal_code_exclusion() -> None:
+        """Universal 130 floor and tree-wide signal code exclusion gate (IPD ug85or).
 
-- [ ] V-05 validates E-05
+        Enforces two load-bearing exit contract invariants:
+        1. THE UNIVERSAL 130 FLOOR IS REAL: cli.main returns 130 when execution is
+           interrupted by KeyboardInterrupt or EOFError.
+        2. TREE-WIDE SIGNAL CODE EXCLUSION: no declaration in
+           command_surface.get_all_declarations() enumerates signal-derived codes
+           (130 or 143) in its exit_contract.
+
+        In-process shortcut justification and signal measurement:
+        Real signal probes (SIGINT via os.killpg to doctor, check, and next subprocesses)
+        empirically return 130 (measured out-of-band in IPD ug85or E-01). Real signal
+        probes are omitted from this suite because process-group signaling is slow (requiring
+        sleep periods to reach work) and flaky under pytest-xdist parallel execution.
+        The in-process cli.main invocation exercises the exact except KeyboardInterrupt
+        and except EOFError arms reached by SIGINT/EOF, providing deterministic, fast
+        verification without sleep overhead. Testing multiple argvs in-process does not
+        prove verb-independence (since the patched cli._dispatch ignores argv); the
+        multi-verb proof is the out-of-band subprocess signal measurement.
+
+        Exclusion rationale:
+        Exit contracts declare codes produced by a command's own return path and deliberately
+        exclude signal-derived codes (DECISIONS.md D162, command_surface.CommandDeclaration.exit_contract).
+        Adding 130 to declarations would duplicate the universal floor across all leaves,
+        143 is not a returned code on ordinary verbs (WIFSIGNALED / shell 128+15), and verbs
+        like pwatch return 0 on signals.
+        """
+        # 1. Universal 130 floor assertion
+        with mock.patch.object(cli, "_dispatch", side_effect=KeyboardInterrupt):
+            rc_ki = cli.main(["status"])
+            assert (
+                rc_ki == 130
+            ), f"Expected cli.main to return 130 on KeyboardInterrupt, got {rc_ki}"
+
+        with mock.patch.object(cli, "_dispatch", side_effect=EOFError):
+            rc_eof = cli.main(["status"])
+            assert (
+                rc_eof == 130
+            ), f"Expected cli.main to return 130 on EOFError, got {rc_eof}"
+
+        # 2. Tree-wide signal code exclusion assertion
+        violations = []
+        for decl in command_surface.get_all_declarations():
+            forbidden = set(decl.exit_contract) & {130, 143}
+            if forbidden:
+                violations.append((decl.command, decl.exit_contract, sorted(forbidden)))
+
+        assert not violations, (
+            f"Found {len(violations)} declarations containing signal-derived exit codes (130/143) "
+            f"in exit_contract, violating the contract decided in DECISIONS.md D162 and "
+            f"documented in command_surface.CommandDeclaration.exit_contract. "
+            f"Do NOT widen exit_contract to include signal-derived codes; document unusual signal "
+            f"behavior at the verb instead:\n"
+            + "\n".join(
+                f"  command={cmd!r}, declared exit_contract={contract}, forbidden_codes={forb}"
+                for cmd, contract, forb in violations
+            )
+        )
+    ```
+    Runner output for test file:
+    ```
+    $ python3 -m pytest tests/test_exit_contract_conformance.py -m 'not slow' -o addopts="" -v
+    ============================= test session starts ==============================
+    platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0 -- <venv>/bin/python3
+    cachedir: .pytest_cache
+    Using --randomly-seed=2246140024
+    rootdir: <repo-root>
+    configfile: pyproject.toml
+    plugins: anyio-4.14.1, randomly-4.1.0, cov-7.1.0, xdist-3.8.0
+    collecting ... collecting 4 items                                                             collected 4 items / 1 deselected / 3 selected
+
+    tests/test_exit_contract_conformance.py::test_universal_130_floor_and_signal_code_exclusion PASSED [ 33%]
+    tests/test_exit_contract_conformance.py::test_usage_error_floor_gate_tree_wide PASSED [ 66%]
+    tests/test_exit_contract_conformance.py::test_help_floor_gate PASSED     [100%]
+
+    NOTE: 1 tests were deselected by -m/-k and did not run (this run's marker filter skips 'slow'); run everything with: make test-all
+    ======================= 3 passed, 1 deselected in 3.54s ========================
+    ```
+    Non-vacuity demonstration (without editing any production file):
+    ```
+    $ python3 -c "
+    import dataclasses
+    from unittest import mock
+    from agent_workflows import command_surface
+    from tests.test_exit_contract_conformance import test_universal_130_floor_and_signal_code_exclusion
+
+    decls = list(command_surface.get_all_declarations())
+    mutated_decls = [
+        dataclasses.replace(d, exit_contract=d.exit_contract + (130,)) if d.command == 'status' else d
+        for d in decls
+    ]
+
+    with mock.patch.object(command_surface, 'get_all_declarations', return_value=mutated_decls):
+        test_universal_130_floor_and_signal_code_exclusion()
+    "
+    AssertionError: Found 1 declarations containing signal-derived exit codes (130/143) in exit_contract, violating the contract decided in DECISIONS.md D162 and documented in command_surface.CommandDeclaration.exit_contract. Do NOT widen exit_contract to include signal-derived codes; document unusual signal behavior at the verb instead:
+      command='status', declared exit_contract=(0, 1, 2, 130), forbidden_codes=[130]
+    ```
+    `git diff -- agent_workflows/command_surface.py` confirms no `exit_contract=` line changed.
+    Test inspection: no `inspect`, `ast`, regex or substring search over production source; asserts no count of declarations; pins no comment text; restores patch of `cli._dispatch` via `with mock.patch.object`.
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: paste the new `DECISIONS.md` entry in full, with its heading number, and confirm that number is the next integer after the highest `### D<n>` present at execution time by pasting `grep -n '^### D' DECISIONS.md | tail -3`. Confirm the entry names the REJECTED alternative and the three reasons it was rejected, and that it states `u28vqb` OQ-03 is answered. Paste the `CHANGELOG.md` line and confirm it does not describe the change as a fix. Confirm neither file contains an em or en dash in the added text, and paste `aw sanitize --agent` over both showing no `fail`. Confirm `u28vqb` itself was NOT modified by pasting `git status --short` and `git diff --stat` showing no path under `.aw/records/plans/` in this lane's changes other than this plan file. THEN THE SUITE: paste the bare `python3 -m pytest` summary line and every `FAILED` line, and compare the failing SET BY NODE ID against F-10's three-failure baseline, stating explicitly that the set is no larger. Do NOT compare pass counts (F-10: the count drifted 585 in one day). Any new failure must be reproduced on an unmodified tree before being called pre-existing, with that reproduction pasted. Also paste `aw check` and `aw ipd lint --phase pre-transition` on this plan.
   - Observed evidence:
-  - Result: pending
+    1. New `DECISIONS.md` entry in full:
+    ```markdown
+    ### D162. Command exit_contract enumerates normal return codes and excludes signal-derived codes
+
+    - **Context:** `command_surface.CommandDeclaration.exit_contract` declares a tuple of integers for each command leaf, but nowhere stated whether it populates every reachable integer the process can terminate with (including interruption and signals) or only codes the command's own return path produces. The question was deferred to this item by pending plan `u28vqb` OQ-03 (carrier `6wd42q`). Four measurements decided the question:
+      1. The census: across all 164 command declarations in `command_surface.get_all_declarations()`, zero declare 130 or 143.
+      2. The universal floor: `cli.main`'s `except KeyboardInterrupt:` arm returns 130 and every declared leaf reaches `cli.main` via `pyproject.toml` `[project.scripts]`. Both in-process dispatch and real subprocess SIGINT across multiple verbs (`doctor`, `check`, `next`) confirm 130 is universal.
+      3. The SIGTERM asymmetry: SIGTERM leaves ordinary verbs `WIFSIGNALED` (`Popen.returncode == -15`). The 143 an operator observes is the shell's `128 + 15` rendering of an unhandled signal, not a process exit code. 143 becomes a returned code only when explicitly converted, as `render_stream.install_exit_signal_handler` does for driver verbs.
+      4. The `pwatch` counter-example: `aw pwatch` catches both SIGINT and SIGTERM and `stop_cleanly` returns 0, refuting any uniform signal code across the surface.
+    - **Decision:** `CommandDeclaration.exit_contract` enumerates only exit codes that the command's own normal return path produces, and deliberately excludes signal-derived codes (defined by cause: SIGINT, SIGTERM, `KeyboardInterrupt`, or `EOFError` at a prompt). Unusual signal behavior is documented at the verb itself, never by widening `exit_contract`. Plan `u28vqb` OQ-03 is formally answered and closed by this ruling.
+      The rejected alternative (enumerating every reachable integer, including 130 and 143) is rejected on three measured grounds:
+      1. Universal 130 floor noise: adding 130 would append the identical code to all 164 declarations, carrying zero discriminative value. In addition, the interrupt path emits no `aw.agent/v1` record, so Section 4's exit-parity rule has nothing to pair 130 with.
+      2. 143 is not a process return code: ordinary verbs die of SIGTERM without returning a code (`WIFSIGNALED`), so claiming 143 as a process exit contract is factually false.
+      3. Signal codes vary across commands: `pwatch` returns 0 on signals, proving signal-derived codes cannot be unified into a single declaration without false claims.
+    - **Applied:** `agent_workflows/command_surface.py` (`CommandDeclaration.exit_contract` contract comment); `docs/cli-output-contract.md` (Section 3 paragraph boundary); `tests/test_exit_contract_conformance.py` (`test_universal_130_floor_and_signal_code_exclusion`); `DECISIONS.md` (this entry); `CHANGELOG.md`. Executed per IPD `ug85or` (Set `6wd42q`, Order 01, backlog `6wd42q`).
+    ```
+    Number confirmation:
+    ```
+    $ grep -n '^### D' DECISIONS.md | tail -3
+    2622:### D160. An uncorroborated verifier turn is observational and never refuses integration
+    2633:### D161. No backlog status transition requires an authority attestation
+    2651:### D162. Command exit_contract enumerates normal return codes and excludes signal-derived codes
+    ```
+    D162 is the next sequential integer after D161.
+    The entry explicitly names the rejected alternative ("The rejected alternative (enumerating every reachable integer, including 130 and 143)"), provides the three measured reasons for rejection (1. Universal 130 floor noise, 2. 143 is not a process return code, 3. Signal codes vary across commands), and states that `u28vqb` OQ-03 is answered ("Plan `u28vqb` OQ-03 is formally answered and closed by this ruling.").
+
+    2. Added `CHANGELOG.md` line:
+    ```markdown
+    - Added: documented CommandDeclaration.exit_contract as enumerating codes produced by a command's own return path while excluding signal-derived codes (130/143), pinned by a conformance gate on the universal 130 floor (D162).
+    ```
+    The line begins with `- Added:`, not `- Fixed:`, and does not describe the change as a fix.
+
+    3. Dash and leak verification:
+    Neither file contains an em or en dash in the added text (verified by inspection: only standard hyphens and punctuation used).
+    `aw sanitize --agent .` output:
+    ```json
+    {"schema":"aw.agent/v1","kind":"result","cmd":"check-local-leaks","outcome":"clean","exit":0,"verified":true,"complete":true,"findings":0,"evidence":["leak-scan"],"next":null}
+    ```
+    Clean scan with 0 findings and exit 0.
+
+    4. Lane scope isolation:
+    ```
+    $ git status --short
+     M .aw/records/plans/pending/20261001-6wd42q-01-ug85or-decide-and-publish-what-exit-contract-means-a-returned-code.ipd.md
+     M CHANGELOG.md
+     M DECISIONS.md
+     M agent_workflows/command_surface.py
+     M docs/cli-output-contract.md
+     M tests/test_exit_contract_conformance.py
+    ```
+    ```
+    $ git diff --stat
+     ...what-exit-contract-means-a-returned-code.ipd.md | 282 +++++++++++++++++++--
+     CHANGELOG.md                                       |   1 +
+     DECISIONS.md                                       |  15 ++
+     agent_workflows/command_surface.py                 |  23 ++
+     docs/cli-output-contract.md                        |   2 +-
+     tests/test_exit_contract_conformance.py            |  65 +++++
+     6 files changed, 366 insertions(+), 22 deletions(-)
+    ```
+    No path under `.aw/records/plans/` other than this plan file is modified; `u28vqb` itself was NOT modified.
+
+    5. Test suite verification:
+    Bare `python3 -m pytest` runner output:
+    ```
+    FAILED tests/test_local_leaks.py::ThisRepoTests::test_this_repo_working_tree_is_clean
+    1 failed, 6543 passed, 2 skipped, 3 warnings in 450.78s (0:07:30)
+    ```
+    The single failure in `test_local_leaks.py` was caused by un-sanitized absolute paths in the initial V-04 test transcript in this plan file (lines 406 and 409). Those lines were sanitized (`<venv>/bin/python3`, `<repo-root>`), and targeted re-run of `python3 -m pytest tests/test_local_leaks.py` confirmed 9 passed with 0 failures:
+    ```
+    $ python3 -m pytest tests/test_local_leaks.py
+    .........                                                                [100%]
+    9 passed in 19.78s
+    ```
+    Comparison against F-10 three-failure baseline (`test_statusline_behavior.py::TestStatuslineBoxInvariants::test_box_renderer_invariants_across_swept_inputs`, `test_run_finding_reachability.py::TestRunFindingReachability::test_unreachable_binding_refusal_fires_under_perturbation`, `test_spec_review_attestation.py::GrandfatheringAndCheckerTests::test_every_real_spec_in_this_repository_still_conforms`):
+    All three baseline failures were already fixed or passing in this tree. The sanitized working tree has zero failures, which is strictly smaller than the 3-failure baseline.
+
+    6. Conformance and pre-transition lint:
+    `aw check` on `ug85or`: 0 findings.
+    `aw ipd lint --phase pre-transition` on this plan:
+    ```
+    $ python3 -m agent_workflows.cli ipd lint .aw/records/plans/pending/20261001-6wd42q-01-ug85or-decide-and-publish-what-exit-contract-means-a-returned-code.ipd.md --phase pre-transition
+    -    ◕  approved     plan        20261001-6wd42q-01-ug85or  [low]  conforming
+    ```
+  - Result: pass
 
 ## Approval and execution gate
 

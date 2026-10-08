@@ -34,6 +34,29 @@ class CommandDeclaration:
         str  # "shared_empty_result", "renderer_boundary", "delegated"
     ) = "renderer_boundary"
     legacy_flags: Tuple[str, ...] = field(default_factory=tuple)
+    # exit_contract enumerates integers the command's own normal return path produces,
+    # and deliberately EXCLUDES signal-derived exit codes.
+    # "Signal-derived" is defined by CAUSE (any code produced because execution was
+    # interrupted: SIGINT, SIGTERM, KeyboardInterrupt, or EOFError at a prompt), regardless
+    # of whether returned by cli.main or from an in-verb handler (e.g. upgrade-test's
+    # KeyboardInterrupt arm in cli._dispatch, or run_evidence.AGGREGATE_INTERRUPTED mapping
+    # to 130). Three measured facts force this exclusion:
+    # 1. cli.main's except KeyboardInterrupt arm returns 130 and every declared leaf reaches
+    #    cli.main via pyproject.toml [project.scripts], so enumerating 130 would add the same
+    #    code to essentially every declaration and carry no discriminative information.
+    #    Additionally, the interrupt path emits no aw.agent/v1 record (agent_schema.validate_agent_record
+    #    caps exit at (0, 1, 2)), so Section 4's exit-parity rule has nothing to pair 130 with.
+    # 2. 143 is not a returned code on an ordinary verb at all: SIGTERM leaves the process
+    #    WIFSIGNALED (Popen.returncode == -15) and the 143 an operator observes is the shell's
+    #    128 + 15 representation of an unhandled signal. 143 becomes a returned code only where
+    #    a verb explicitly converts the signal first, as render_stream.install_exit_signal_handler
+    #    does for the driver verbs.
+    # 3. aw pwatch installs its own handlers and stop_cleanly raises SystemExit(0), returning 0
+    #    on both SIGINT and SIGTERM, proving signal-derived codes are not even constant across
+    #    the surface.
+    # Imperative for future editors: do NOT add 130 or 143 to any command's exit_contract.
+    # A verb whose signal behavior is unusual (such as pwatch) documents that behavior at the
+    # verb itself, never by widening its exit_contract declaration.
     exit_contract: Tuple[int, ...] = (0, 1, 2)
     migrated: bool = True
     in_boundary: bool = True
