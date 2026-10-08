@@ -44,21 +44,7 @@ class ResearchIndexNameFmMismatchTests(unittest.TestCase):
         )
 
         # Create two research files in set 'tst' using 'research new --apply' subprocess
-        # 1. Create dummy file so the next file gets order 01
-        support.run_cli(
-            "research",
-            "new",
-            "--set",
-            "tst",
-            "--slug",
-            "dummy",
-            "--kind",
-            "research-report",
-            "--apply",
-            cwd=self.repo_dir,
-            env=self.env,
-        )
-        # 2. Plain file (will be order 01)
+        # 1. Plain file (order 01)
         support.run_cli(
             "research",
             "new",
@@ -72,7 +58,7 @@ class ResearchIndexNameFmMismatchTests(unittest.TestCase):
             cwd=self.repo_dir,
             env=self.env,
         )
-        # 3. Model file (will be order 02 with .gpt56. facet)
+        # 2. Model file (will be order 02 with .gpt56. facet)
         support.run_cli(
             "research",
             "new",
@@ -90,10 +76,6 @@ class ResearchIndexNameFmMismatchTests(unittest.TestCase):
         )
 
         rroot = self.repo_dir / ".aw" / "records" / "research"
-        dummy_files = list(rroot.glob("*dummy.research-report.md"))
-        for d in dummy_files:
-            d.unlink()
-
         plain_files = list(rroot.glob("*plaindoc.research-report.md"))
         self.assertEqual(len(plain_files), 1)
         self.plain_file = plain_files[0]

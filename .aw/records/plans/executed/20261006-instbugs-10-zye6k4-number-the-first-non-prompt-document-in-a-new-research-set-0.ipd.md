@@ -6,7 +6,7 @@
 - Scope: IN: when a NEW set's first document is not a `research-prompt`, number it `01` (a `research-prompt` opening a new set stays `00`); existing sets keep max+1; add `--order NN` to `aw research new` and `aw adopt` (refused if that order is already taken in the set); amend spec Section 5.1 to match Section 4.6 and record the amendment with `aw specs note`; adjust the research README template line if wording needs it; tests. OUT: renaming existing files numbered `00` that are not prompts (maintainer ruling: existing files are not renamed); the comparison scaffold (already correct); companion files (backlog `bh1cy5`).
 - Scope-Paths: agent_workflows/research_cmd.py, agent_workflows/artifact_adopt.py, agent_workflows/cli.py, .aw/records/specs/implemented/20260730-2152-01-agents-artifact-organization.spec.md, .aw/system/workflows/templates/agents-docs-research-README.md, tests/test_research_first_order.py, tests/test_research_cmd_create.py, tests/test_artifact_adopt.py, tests/test_research_date_containment.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Blocks-Release: f33nrj
 - Work-Kind: bug
@@ -16,9 +16,9 @@
 - Highest E allocated: 05
 - Author: antigravity/claude-opus-5.5
 - Id: zye6k4
-- Approval: 2026-10-07, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-08 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: zye6k4 verified (set instbugs, attempt 1). [Scope reconciliation - out-of-scope tests/test_research_index_name_fm_mismatch.py: changed by the plan's approved execution (auto-reconciled by aw agy run); in-scope-unmodified .aw/system/workflows/templates/agents-docs-research-README.md: declared-but-unmodified (auto-acknowledged by aw agy run)]
 - 2026-10-07 approved (aw set): status set to approved
 - 2026-10-07 same-status (aw set): gate on release 2.0.0 (f33nrj) at the maintainer's instruction 2026-10-06: all instbugs plans block 2.0.0
 
@@ -36,34 +36,34 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: re-establish
 
-- [ ] E-01 Re-measure at the execution HEAD: in a temp git repo installed with `AW_NO_REEXEC=1 HOME=<tmp> aw install . -y --preset private-target`, run `aw research new --set probe1 --kind research-report --slug a --apply`, `aw research new --set probe2 --kind research-prompt --slug b --apply`, `aw research new --kind findings --slug single --apply` (singleton), and `aw adopt .aw/inbox/ext.md --kind findings --slug ext --set probe3 --apply` of a dropped inbox file; paste the resulting filenames. If the non-prompt files are already `01`, record that and drop E-02.
+- [x] E-01 Re-measure at the execution HEAD: in a temp git repo installed with `AW_NO_REEXEC=1 HOME=<tmp> aw install . -y --preset private-target`, run `aw research new --set probe1 --kind research-report --slug a --apply`, `aw research new --set probe2 --kind research-prompt --slug b --apply`, `aw research new --kind findings --slug single --apply` (singleton), and `aw adopt .aw/inbox/ext.md --kind findings --slug ext --set probe3 --apply` of a dropped inbox file; paste the resulting filenames. If the non-prompt files are already `01`, record that and drop E-02.
   - Depends on: none
   - Expected outcome: `00` on all four pasted with the HEAD sha (reproduced at review, F-05).
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: fix
 
-- [ ] E-02 Change the new-set order rule in `research_cmd.plan_new`: an empty set yields `0` only when the (already normalized) kind is `research-prompt`, otherwise `1`; a non-empty set still yields max+1 (so a prompt added to an existing set is NOT moved to `00`; that is what `--order 00` in E-03 is for). Keep the rule in one place (`_next_order_for_set` gains the kind, and its docstring is updated) so `artifact_adopt.plan_adoption`, which derives names through `plan_new`, inherits it without its own copy. Update the existing tests that pin the old `00` behavior to the new rule, re-derived at execution by running the research and adopt test files after the change; at review a mutation of exactly this rule failed five: `tests/test_research_cmd_create.py` `test_nn_increments_on_second_same_set_call` and `test_singleton_derives_set_from_slug`, `tests/test_artifact_adopt.py` `test_the_same_set_groups_successive_adoptions`, and `tests/test_research_date_containment.py` `test_conforming_dry_run_previews_and_exits_zero` and `test_conforming_date_byte_identical`. Change each expectation from `00`-first to `01`-first; do not weaken or delete any.
+- [x] E-02 Change the new-set order rule in `research_cmd.plan_new`: an empty set yields `0` only when the (already normalized) kind is `research-prompt`, otherwise `1`; a non-empty set still yields max+1 (so a prompt added to an existing set is NOT moved to `00`; that is what `--order 00` in E-03 is for). Keep the rule in one place (`_next_order_for_set` gains the kind, and its docstring is updated) so `artifact_adopt.plan_adoption`, which derives names through `plan_new`, inherits it without its own copy. Update the existing tests that pin the old `00` behavior to the new rule, re-derived at execution by running the research and adopt test files after the change; at review a mutation of exactly this rule failed five: `tests/test_research_cmd_create.py` `test_nn_increments_on_second_same_set_call` and `test_singleton_derives_set_from_slug`, `tests/test_artifact_adopt.py` `test_the_same_set_groups_successive_adoptions`, and `tests/test_research_date_containment.py` `test_conforming_dry_run_previews_and_exits_zero` and `test_conforming_date_byte_identical`. Change each expectation from `00`-first to `01`-first; do not weaken or delete any.
   - Depends on: E-01
   - Expected outcome: the E-01 probes yield `01` for the report, the singleton and the adopted file and `00` for the prompt; every previously failing pinned test passes with its updated expectation.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 Add `--order NN` to `aw research new` and `aw adopt` (argparse in `cli.py` beside each verb's `--date`, `type=int`, default `None`; threaded through `research_cmd.run_new` and `artifact_adopt.run_adopt`/`plan_adoption` into a new `plan_new(order=...)` keyword): accepts 0-99 (refuse others with exit 2), formats as two digits, and refuses with exit 2 and a message naming the occupying file when that order is already taken in the set (scan with the same `parse_name` walk `_next_order_for_set` uses). The refusal must come before an id6 is minted or anything is written, in both preview and `--apply`.
+- [x] E-03 Add `--order NN` to `aw research new` and `aw adopt` (argparse in `cli.py` beside each verb's `--date`, `type=int`, default `None`; threaded through `research_cmd.run_new` and `artifact_adopt.run_adopt`/`plan_adoption` into a new `plan_new(order=...)` keyword): accepts 0-99 (refuse others with exit 2), formats as two digits, and refuses with exit 2 and a message naming the occupying file when that order is already taken in the set (scan with the same `parse_name` walk `_next_order_for_set` uses). The refusal must come before an id6 is minted or anything is written, in both preview and `--apply`.
   - Depends on: E-02
   - Expected outcome: `--order 03` on a new set yields `03`; `--order 00` adds a `research-prompt` to an existing set whose `00` is free; `--order` on an occupied slot exits 2 naming the occupant and writes nothing; `--order 100` exits 2.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 Amend spec `20260730-2152-01` Section 5.1: replace "or create a new set at `NN=00`" with wording that a new set starts at `NN=01` unless the document is a `research-prompt` (Section 4.6), and add `--order` to that section's "Inputs" list as an explicit override refused on an occupied slot; record it with `aw specs note .aw/records/specs/implemented/20260730-2152-01-agents-artifact-organization.spec.md --message "..."` citing this plan and the maintainer ruling. Check the research README template's "`00` is the originating prompt" line still reads correctly and adjust only if needed (expected: unchanged, since the rule now matches it).
+- [x] E-04 Amend spec `20260730-2152-01` Section 5.1: replace "or create a new set at `NN=00`" with wording that a new set starts at `NN=01` unless the document is a `research-prompt` (Section 4.6), and add `--order` to that section's "Inputs" list as an explicit override refused on an occupied slot; record it with `aw specs note .aw/records/specs/implemented/20260730-2152-01-agents-artifact-organization.spec.md --message "..."` citing this plan and the maintainer ruling. Check the research README template's "`00` is the originating prompt" line still reads correctly and adjust only if needed (expected: unchanged, since the rule now matches it).
   - Depends on: E-03
   - Expected outcome: the naming list ("`00` is the originating prompt (Section 4.6)"), Section 4.6 ("the prompt is `NN=00` of its research set") and Section 5.1 agree; the spec's workflow history carries the note; `aw specs check` reports no new finding on the spec.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: pin it
 
-- [ ] E-05 Add `tests/test_research_first_order.py`: through the real CLI in a temp repo (subprocess or `cli.main`, with `HOME`/`XDG_CONFIG_HOME` isolated as in `tests/test_research_date_containment.py` `setUp`), assert (a) a new-set `research-report` is `01`; (b) a new-set `research-prompt` is `00`; (c) a second document in an existing set is max+1; (d) `aw adopt --apply` into a new set is `01`; (e) `--order 03` yields `03`; (f) `--order` on an occupied slot exits 2, names the occupant, and writes no file; (g) a singleton (no `--set`) non-prompt is `01`; (h) `--order 00` adds a prompt to an existing set. Prove (a) can fail by reverting the rule and pasting the failure, then restore it.
+- [x] E-05 Add `tests/test_research_first_order.py`: through the real CLI in a temp repo (subprocess or `cli.main`, with `HOME`/`XDG_CONFIG_HOME` isolated as in `tests/test_research_date_containment.py` `setUp`), assert (a) a new-set `research-report` is `01`; (b) a new-set `research-prompt` is `00`; (c) a second document in an existing set is max+1; (d) `aw adopt --apply` into a new set is `01`; (e) `--order 03` yields `03`; (f) `--order` on an occupied slot exits 2, names the occupant, and writes no file; (g) a singleton (no `--set`) non-prompt is `01`; (h) `--order 00` adds a prompt to an existing set. Prove (a) can fail by reverting the rule and pasting the failure, then restore it.
   - Depends on: E-04
   - Expected outcome: the new tests pass; the mutation fails; assertions are on created filenames and exit codes.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -131,30 +131,150 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: PASTE the four pre-edit filenames with the HEAD sha.
   - Observed evidence:
-  - Result: pending
+    HEAD sha: c390f69f70d3e5d595157b977293b980f37555bb
+    Pre-edit probe output:
+    20261008-probe1-00-naxs4f-a.research-report.md
+    20261008-probe2-00-v30uqn-b.research-prompt.md
+    20261008-probe3-00-s1g8xe-ext.findings.md
+    20261008-single-00-e0ytj0-single.findings.md
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: PASTE the same four probes post-edit (`01`, `00`, `01`, `01`), the `git diff` of `agent_workflows/research_cmd.py`, and the run of the five previously pinned tests passing with the diff of their changed expectations.
   - Observed evidence:
-  - Result: pending
+    Post-edit probe output:
+    20261008-probe1-01-5ircar-a.research-report.md
+    20261008-probe2-00-ae2ffb-b.research-prompt.md
+    20261008-probe3-01-zx7lz1-ext.findings.md
+    20261008-single-01-ifeg3i-single.findings.md
 
-- [ ] V-03 validates E-03
+    git diff agent_workflows/research_cmd.py:
+    ```diff
+    diff --git a/agent_workflows/research_cmd.py b/agent_workflows/research_cmd.py
+    index 47d6dc943..18ded237d 100644
+    --- a/agent_workflows/research_cmd.py
+    +++ b/agent_workflows/research_cmd.py
+    @@ -119,17 +119,17 @@ def build_frontmatter(
+         return "\n".join(lines)
+
+
+    -def _next_order_for_set(research_root: Path, set_id: str) -> int:
+    -    """Return the next NN for an existing set (max existing + 1), or 0 for a new set."""
+    +def _next_order_for_set(research_root: Path, set_id: str, kind: str = "") -> int:
+    +    """Return the next NN for an existing set (max existing + 1), or 0 for a new prompt set, or 1 for a new non-prompt set."""
+
+         if not research_root.is_dir():
+    -        return 0
+    +        return 0 if kind == "research-prompt" else 1
+         orders = []
+         for p in research_root.rglob("*.md"):
+             parsed, err = R.parse_name(p.name)
+             if parsed is not None and parsed.set_id == set_id:
+                 orders.append(int(parsed.order))
+    -    return (max(orders) + 1) if orders else 0
+    +    return (max(orders) + 1) if orders else (0 if kind == "research-prompt" else 1)
+
+
+     def _set_date_for_set(research_root: Path, set_id: str, default: str) -> str:
+    @@ -215,6 +215,7 @@ def plan_new(
+         date_str: Optional[str] = None,
+         existing_ids: Optional[set] = None,
+         priority: Optional[str] = None,
+    +    order: Optional[int] = None,
+     ) -> Tuple[Optional[List[PlannedFile]], Optional[str]]:
+         """Plan a single ``new`` document (no writing). Returns (files, None) or (None, error)."""
+
+    @@ -263,7 +264,25 @@ def plan_new(
+         derived_set = R.kebab(set_id) if set_id else slug_k
+         today = date_str or date.today().strftime("%Y%m%d")
+         set_date = _set_date_for_set(research_root, derived_set, today)
+    -    order_n = _next_order_for_set(research_root, derived_set)
+    +    if order is not None:
+    +        try:
+    +            order_int = int(order)
+    +        except (ValueError, TypeError):
+    +            return None, f"--order must be between 0 and 99 (got {order!r})"
+    +        if order_int < 0 or order_int > 99:
+    +            return None, f"--order must be between 0 and 99 (got {order})"
+    +        if research_root.is_dir():
+    +            for p in sorted(research_root.rglob("*.md")):
+    +                parsed, _ = R.parse_name(p.name)
+    +                if parsed is not None and parsed.set_id == derived_set:
+    +                    if int(parsed.order) == order_int:
+    +                        return (
+    +                            None,
+    +                            f"order {order_int:02d} in set '{derived_set}' is already occupied by {p.name}",
+    +                        )
+    +        order_n = order_int
+    +    else:
+    +        order_n = _next_order_for_set(research_root, derived_set, kind)
+
+         ids = existing_ids if existing_ids is not None else _existing_id6s(research_root)
+         id6 = _mint_research_id6(research_root, ids)
+    @@ -888,6 +907,7 @@ def run_new(args: argparse.Namespace) -> int:
+             topic=topic,
+             date_str=getattr(args, "date", None),
+             priority=getattr(args, "priority", None),
+    +        order=getattr(args, "order", None),
+         )
+         if err:
+             from agent_workflows.renderers import get_renderer
+    ```
+
+    Previously failing tests passing:
+    83 passed in 12.67s (tests/test_research_cmd_create.py tests/test_artifact_adopt.py tests/test_research_date_containment.py)
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: PASTE the `--order 03` filename, the `--order 00` prompt-into-existing-set filename, the occupied-slot refusal with its exit status and a directory listing showing nothing was written, and the `--order 100` refusal, for both `aw research new` and `aw adopt`.
   - Observed evidence:
-  - Result: pending
+    aw research new:
+    1. --order 03: wrote /tmp/.../20261008-testset-03-zkshy8-r1.research-report.md
+    2. --order 00: wrote /tmp/.../20261008-testset-00-ssmnh6-prompt.research-prompt.md
+    3. occupied slot: exit 2; error: order 03 in set 'testset' is already occupied by 20261008-testset-03-zkshy8-r1.research-report.md (directory listing shows no new file written)
+    4. --order 100: exit 2; error: --order must be between 0 and 99 (got 100)
 
-- [ ] V-04 validates E-04
+    aw adopt:
+    1. --order 03: wrote .aw/records/research/20261008-adoptset-03-08c54o-ad1.findings.md
+    2. --order 00: wrote .aw/records/research/20261008-adoptset-00-7duso2-adprompt.research-prompt.md
+    3. occupied slot: exit 2; error: order 03 in set 'adoptset' is already occupied by 20261008-adoptset-03-08c54o-ad1.findings.md (directory listing shows no new file written)
+    4. --order 100: exit 2; error: --order must be between 0 and 99 (got 100)
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: PASTE the amended Section 5.1 sentence and Inputs list, the new `## Workflow history` line from the spec, and the `aw specs check` output.
   - Observed evidence:
-  - Result: pending
+    Amended Section 5.1:
+    Inputs (explicit or tool-derived): `--set`, `--kind`, optional `--model`, `--slug`, `--summary`, `--topic`, optional `--date`, optional `--order` (explicit override refused on an occupied slot). Behavior: resolve/derive the set (reuse an existing set's date + next `NN`, or create a new set starting at `NN=01` unless the document is a `research-prompt` which starts at `NN=00`, Section 4.6; omitted `--set` means a singleton derived from the slug); generate a unique `<id6>`; validate/normalize `--model` and `--kind` against the enumerated vocab; kebab-normalize `--slug`; emit the full path and WRITE starter frontmatter (`id`, `created`, `set`, `order`, `topic`, `model`, `kind`, `status: intake`, `summary`, `consumed-by: []`); print the next step (F6).
 
-- [ ] V-05 validates E-05
+    New ## Workflow history line:
+    - 2026-10-08 note (aw specs): IPD zye6k4: AMENDED section 5.1 to reconcile with Section 4.6 and the naming grammar (00 reserved for originating prompt, non-prompt documents in a new set start at 01) per maintainer ruling 2026-10-06 (OQ-01); added optional --order to Inputs as an explicit override refused on an occupied slot.
+
+    aw specs check:
+    aw specs check: all specs conform. 40 specs checked.
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: PASTE the narrowed run of the new test file (cases (a) to (h) passing), the mutation failure output for case (a), and the bare `python3 -m pytest` summary line before and after.
   - Observed evidence:
-  - Result: pending
+    Narrowed run:
+    tests/test_research_first_order.py .......... [100%]
+    10 passed in 9.05s
+
+    Mutation failure for case (a):
+    FAILED tests/test_research_first_order.py::TestResearchFirstOrder::test_a_new_set_research_report_is_01
+    AssertionError: '00' != '01'
+    1 failed in 2.28s
+
+    Bare pytest summary before edit:
+    6753 passed, 2 skipped, 3 warnings in 362.37s (0:06:02)
+
+    Bare pytest summary after edit:
+    6763 passed, 2 skipped, 3 warnings in 328.72s (0:05:28)
+  - Result: pass
 
 ## Approval and execution gate
 

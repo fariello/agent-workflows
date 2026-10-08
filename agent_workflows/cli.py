@@ -3344,6 +3344,12 @@ def _build_parser() -> argparse.ArgumentParser:
         "--date", default=None, help="Override the set date (YYYYMMDD)."
     )
     p_research_new.add_argument(
+        "--order",
+        type=int,
+        default=None,
+        help="Order within the set (0-99; omitted = next order).",
+    )
+    p_research_new.add_argument(
         "--apply", action="store_true", help="Write the file (default is preview only)."
     )
     p_research_new.add_argument(
@@ -6828,6 +6834,12 @@ OUTPUT & EXITS
     p_adopt.add_argument("--topic", default=None, help="Comma-separated topics.")
     p_adopt.add_argument(
         "--date", default=None, help="Override the set date (YYYYMMDD)."
+    )
+    p_adopt.add_argument(
+        "--order",
+        type=int,
+        default=None,
+        help="Order within the set (0-99; omitted = next order).",
     )
     p_adopt.add_argument(
         "--actor",
