@@ -6,7 +6,7 @@
 - Scope: IN: make the `implementing -> implemented` evidence requirement fire on every surface reaching `status_set.validate_transition_allowed`, by CONSUMING the existing `specs._evidence_resolvable` predicate rather than writing a second copy; register `--evidence` on the untyped `aw set` parser and declare it in that command's `CommandDeclaration`, so the refusal is satisfiable rather than merely unreachable; repair the one existing test this breaks; and pin the parity as paired outcome tests on both spellings. OUT, each with a reason recorded under "Deferred": the `deferred` gate-kind validation bypass (a separate measured defect under its own release-gated carrier `fv4b6s`); removing the `cli.main` dispatch fork itself (the durable fix, gated on a blocking maintainer decision); changing what `_evidence_resolvable` ACCEPTS; the post-write `validate_spec` conformance refusal; and the three pre-existing suite failures this plan neither causes nor fixes.
 - Scope-Paths: agent_workflows/status_set.py, agent_workflows/specs.py, agent_workflows/cli.py, agent_workflows/command_surface.py, tests/test_specs_evidence_gate_parity.py, tests/test_status_set.py, CHANGELOG.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: high
@@ -17,9 +17,9 @@
 - Highest E allocated: 06
 - Author: opencode/its_direct/pt3-claude-opus-5-1m-us
 - Id: wdyz5n
-- Approval: 2026-10-07, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-08 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: wdyz5n verified (set setdispgate, attempt 1).
 - 2026-10-07 approved (aw set): status set to approved
 - 2026-10-07 reviewed (aw set): /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005, PR-006. Re-measured F-01/F-02 at review HEAD 9ccffaca3. Found the --status spelling already refuses an implemented no-op, so E-04's no-op fence is unpaired by design; required the stale legacy path fixed in both messages; replaced a nonexistent set agreement test with an E-04 assertion; surfaced that aw set --evidence also feeds the backlog close gate; corrected the stale h4fiwa open expectation (it is graduated); named m94eht as the overlapping sibling; added the scope fence and finalize ownership; replaced git stash with a scratch worktree.
 
