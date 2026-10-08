@@ -7748,6 +7748,16 @@ def _install_one(
         use_git=result["use_git"],
     )
 
+    try:
+        from agent_workflows import doctor
+
+        for d in doctor.probe_installed_doc_references(repo_root):
+            term.status(
+                "warn", f"{d.location}: dangling reference to missing path `{d.detail}`"
+            )
+    except Exception:
+        pass
+
     n = len(result["installed"])
     if n == 0:
         term.status(

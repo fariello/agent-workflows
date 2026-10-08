@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import subprocess
 import sys
 import urllib.parse
@@ -216,6 +217,7 @@ class DoctorReport:
     attention: AttentionProbeResult
     artifacts: ArtifactsProbeResult
     sanitizer: SanitizerProbeResult
+    doc_references: List[core.Drift] = field(default_factory=list)
     all_drift: List[core.Drift] = field(default_factory=list)
 
     def to_dict(self) -> Dict[str, Any]:
@@ -226,6 +228,10 @@ class DoctorReport:
             "attention": self.attention.to_dict(),
             "artifacts": self.artifacts.to_dict(),
             "sanitizer": self.sanitizer.to_dict(),
+            "doc_references": [
+                {"location": d.location, "rule": d.rule, "detail": d.detail}
+                for d in self.doc_references
+            ],
             "all_drift": [
                 {"location": d.location, "rule": d.rule, "detail": d.detail}
                 for d in self.all_drift
@@ -737,6 +743,171 @@ def probe_sanitizer(repo_root: Path) -> SanitizerProbeResult:
     return res
 
 
+# --------------------------------------------------------------------------------------
+# Installed doc reference probe (ka0g86 E-04)
+# --------------------------------------------------------------------------------------
+
+_KNOWN_ROOTS = (".aw/", ".agents/", ".opencode/", ".claude/")
+_KNOWN_EXTENSIONS = (".md", ".py", ".toml", ".json", ".yaml", ".yml")
+_DANGLING_REF_ALLOWLIST = {
+    # Generated index files created on demand by aw index / aw research index
+    "INDEX.json",
+    "INDEX.md",
+    # Deprecated work surface cited in AGENTS.md as an explicitly untracked surface
+    "TODO.md",
+    # Optional project contribution guidelines referenced in plans README
+    "CONTRIBUTING.md",
+    # Lazily created research models configuration referenced in research README
+    ".aw/config/research-models.toml",
+    # Subdir relative index reference in research README
+    "records/plans/INDEX.json",
+    # Gitignored external drop zone used by aw adopt
+    ".aw/inbox/",
+}
+
+
+def _is_path_candidate(token: str) -> bool:
+    """Return True if token extracted from backticks is a candidate relative path or installed root.
+
+    Candidate rule (ka0g86 E-04):
+    A backticked span is a path candidate iff it contains no whitespace, '<', '*', '...', '!', '@',
+    does not start with '/' (slash commands) or '-' (naming suffixes/options), and either starts with
+    a known install root (.aw/, .agents/, .opencode/, .claude/) or matches a relative file shape with
+    a supported extension (.md, .py, .toml, .json, .yaml, .yml) where the filename does not start with '.'.
+    """
+    if any(c in token for c in (" ", "\t", "\n", "\r", "<", "*", "!", "@")):
+        return False
+    if "..." in token or token.startswith("/") or token.startswith("-"):
+        return False
+    if any(token.startswith(root) for root in _KNOWN_ROOTS):
+        return True
+    p = Path(token)
+    if not p.name.startswith(".") and p.suffix.lower() in _KNOWN_EXTENSIONS:
+        return True
+    return False
+
+
+def _map_aw_to_legacy(tok: str) -> Optional[str]:
+    """Map canonical .aw/ path reference to legacy .agents/ layout equivalent."""
+    m = {
+        ".aw/system/workflows/index.md": ".agents/workflows/index.md",
+        ".aw/system/workflows/": ".agents/workflows/",
+        ".aw/records/plans/": ".agents/plans/",
+        ".aw/records/prompts/": ".agents/prompts/",
+        ".aw/records/prompt-library/": ".agents/docs/prompts/",
+        ".aw/records/research/README.md": ".agents/docs/research/README.md",
+        ".aw/records/prompts/untracked/": ".agents/prompts/untracked/",
+        ".aw/records/": ".agents/",
+        ".aw/.gitignore": ".gitignore",
+        ".aw/config/project.json": ".agents/workflows/index.md",
+        ".aw/inbox/": ".agents/inbox/",
+    }
+    return m.get(tok)
+
+
+def _extract_dangling_references(
+    repo_root: Path,
+    file_path: Path,
+    content: str,
+    layout: str,
+) -> List[core.Drift]:
+    findings: List[core.Drift] = []
+    seen_tokens: Set[str] = set()
+    try:
+        rel_loc = str(file_path.relative_to(repo_root))
+    except ValueError:
+        rel_loc = str(file_path)
+
+    for tok in re.findall(r"`([^`\n]+)`", content):
+        if tok in seen_tokens:
+            continue
+        seen_tokens.add(tok)
+        if not _is_path_candidate(tok):
+            continue
+        if tok in _DANGLING_REF_ALLOWLIST or Path(tok).name in _DANGLING_REF_ALLOWLIST:
+            continue
+        exists = (repo_root / tok).exists() or (file_path.parent / tok).exists()
+        if not exists and layout == "legacy":
+            leg = _map_aw_to_legacy(tok)
+            if leg and (
+                (repo_root / leg).exists() or (file_path.parent / leg).exists()
+            ):
+                exists = True
+        if not exists:
+            findings.append(
+                core.Drift(
+                    rel_loc,
+                    "doctor.dangling-doc-reference",
+                    tok,
+                    severity="info",
+                )
+            )
+    return findings
+
+
+def probe_installed_doc_references(repo_root: Path) -> List[core.Drift]:
+    """Inspect installed agent docs for backticked paths that dangle.
+
+    Scan set (ka0g86 E-04):
+    - managed region of target's AGENTS.md (from <!-- aw:block --> to <!-- /aw:block -->)
+    - every .aw/records/**/README.md (legacy: .agents/**/README.md outside workflows/ and skills/)
+    - .aw/inbox/README.md when present
+    """
+    layout = engine.resolve_target_layout(repo_root)
+    findings: List[core.Drift] = []
+
+    # 1. AGENTS.md managed block
+    agents_path = repo_root / "AGENTS.md"
+    if agents_path.is_file():
+        try:
+            agents_text = agents_path.read_text(encoding="utf-8")
+            parsed = engine.parse_aw_block(agents_text)
+            if parsed.found and not parsed.ambiguous:
+                open_m = re.search(r"<!--\s*aw:block\s*-->", agents_text)
+                close_m = re.search(r"<!--\s*/aw:block\s*-->", agents_text)
+                if open_m:
+                    start_pos = open_m.end()
+                    end_pos = close_m.start() if close_m else len(agents_text)
+                    managed_content = agents_text[start_pos:end_pos]
+                else:
+                    managed_content = "\n".join(s.body for s in parsed.sections)
+                findings.extend(
+                    _extract_dangling_references(
+                        repo_root, agents_path, managed_content, layout
+                    )
+                )
+        except OSError:
+            pass
+
+    # 2. Records READMEs
+    readme_paths: List[Path] = []
+    if layout == "aw":
+        records_dir = repo_root / ".aw" / "records"
+        if records_dir.is_dir():
+            readme_paths.extend(records_dir.glob("**/README.md"))
+        inbox_readme = repo_root / ".aw" / "inbox" / "README.md"
+        if inbox_readme.is_file():
+            readme_paths.append(inbox_readme)
+    else:
+        agents_dir = repo_root / ".agents"
+        if agents_dir.is_dir():
+            for p in sorted(agents_dir.rglob("README.md")):
+                if "workflows" not in p.parts and "skills" not in p.parts:
+                    readme_paths.append(p)
+
+    for r_path in readme_paths:
+        try:
+            content = r_path.read_text(encoding="utf-8")
+            findings.extend(
+                _extract_dangling_references(repo_root, r_path, content, layout)
+            )
+        except OSError:
+            pass
+
+    findings.sort(key=lambda d: (d.location, d.rule, d.detail))
+    return findings
+
+
 def collect_doctor_report(
     repo_root: Path,
     include_untracked: bool = False,
@@ -794,6 +965,8 @@ def collect_doctor_report(
         include_executed=include_executed,
     )
 
+    doc_res = probe_installed_doc_references(repo_root)
+
     if verbose_progress and term is not None:
         term.line("")
 
@@ -806,6 +979,7 @@ def collect_doctor_report(
         + attn_res.drift
         + art_res.all_drift
         + san_res.drift
+        + doc_res
     ):
         key = (d.location, d.rule, d.detail)
         if key not in seen:
@@ -820,6 +994,7 @@ def collect_doctor_report(
         attention=attn_res,
         artifacts=art_res,
         sanitizer=san_res,
+        doc_references=doc_res,
         all_drift=combined,
     )
 
@@ -1517,6 +1692,16 @@ def build_remediation(d: core.Drift, repo_root: Path) -> Remediation:
             file_path=loc,
         )
 
+    if "dangling-doc-reference" in rule:
+        title = f"Installed documentation references missing path '{detail}'"
+        return Remediation(
+            title=title,
+            summary_fix=f"update or remove reference to missing path '{detail}'.",
+            detailed_fix=f"the installed doc {loc} references '{detail}' which does not exist in the target repository.",
+            command=None,
+            file_path=loc,
+        )
+
     title = detail if len(detail) < 60 else rule
     # Prefer the finding's structured recovery command over the generic fallback,
     # treating the if-chain above as an override layer rather than the only source.
@@ -2041,7 +2226,9 @@ def inspect_repo(
                 location=d.location,
                 rule=d.rule,
                 detail=d.detail,
-                severity="error",
+                severity=getattr(d, "severity", "")
+                or check_engine.rule_spec(d.rule).severity
+                or "error",
                 fix=fix or None,
             )
         )

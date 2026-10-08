@@ -1027,6 +1027,11 @@ RULE_REGISTRY: Dict[str, RuleSpec] = {
     "check.graduation-incomplete": RuleSpec(
         "error", ASSURANCE_REPOSITORY, DET_DETERMINISTIC, ""
     ),
+    # instbugs Order 07 (ka0g86 E-04): doctor diagnostic for backticked path references in
+    # installed agent docs pointing to nonexistent files. Advisory info severity.
+    "doctor.dangling-doc-reference": RuleSpec(
+        "info", ASSURANCE_REPOSITORY, DET_DETERMINISTIC, ""
+    ),
 }
 
 # Conservative default for an unregistered rule id: treat it as an error-severity, repository-class,
