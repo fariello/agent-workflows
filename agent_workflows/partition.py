@@ -597,6 +597,9 @@ def run_partition(args: Any, term: Any, context: Any = None) -> int:
     if part_res.cycles:
         print(f"Detected dependency cycles: {part_res.cycles}", file=sys.stderr)
 
+    if is_agent or is_json:
+        redacted_commands = [agent_schema.redact_home_paths(cmd) for cmd in commands]
+
     if is_agent:
         record = {
             "schema": agent_schema.SCHEMA_VERSION,
@@ -607,7 +610,7 @@ def run_partition(args: Any, term: Any, context: Any = None) -> int:
             "verified": True,
             "complete": True,
             "shards": [[it.id for it in s if it.id] for s in part_res.shards],
-            "commands": commands,
+            "commands": redacted_commands,
             "split_components": [sc.to_dict() for sc in part_res.split_components],
             "cycles": part_res.cycles,
         }
@@ -617,7 +620,7 @@ def run_partition(args: Any, term: Any, context: Any = None) -> int:
     if is_json:
         payload = {
             "shards": [[it.id for it in s if it.id] for s in part_res.shards],
-            "commands": commands,
+            "commands": redacted_commands,
             "split_components": [sc.to_dict() for sc in part_res.split_components],
             "cycles": part_res.cycles,
         }

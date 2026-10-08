@@ -3344,18 +3344,23 @@ def format_unresolvable_target_message(
     import difflib
 
     tokens = list(unresolved)
+    sanitized_tokens = [_agent_schema.redact_home_paths(t) for t in tokens]
     if len(tokens) == 1:
-        head = f"error: no run matched target {tokens[0]!r}"
+        head = f"error: no run matched target {sanitized_tokens[0]!r}"
     else:
-        joined = ", ".join(repr(t) for t in tokens)
+        joined = ", ".join(repr(t) for t in sanitized_tokens)
         head = f"error: no run matched targets {joined}"
 
+    rendered_analytics_root = _agent_schema.redact_home_paths(
+        _agent_schema.normalize_repo_path(analytics_root(repo_root), repo_root)
+    )
+
     lines = [head]
-    for tok in tokens:
+    for tok, sanitized_tok in zip(tokens, sanitized_tokens):
         if path_is_within_analytics(tok, repo_root):
             lines.append(
-                f"  note: {tok!r} is within the reserved analytics tree "
-                f"({analytics_root(repo_root)}); analytics artifacts cannot be targeted as execution runs"
+                f"  note: {sanitized_tok!r} is within the reserved analytics tree "
+                f"({rendered_analytics_root}); analytics artifacts cannot be targeted as execution runs"
             )
         else:
             close = difflib.get_close_matches(
@@ -3363,7 +3368,7 @@ def format_unresolvable_target_message(
             )
             if close:
                 lines.append(
-                    f"  did you mean the leaf `aw runs {close[0]}`? (not {tok!r})"
+                    f"  did you mean the leaf `aw runs {close[0]}`? (not {sanitized_tok!r})"
                 )
     lines.append(f"  leaves: {' '.join(RUNS_VIEWER_LEAF_NAMES)}")
     lines.append(
@@ -3394,6 +3399,7 @@ def _unresolvable_target_refusal(
     """
     message = format_unresolvable_target_message(unresolved, repo_root=repo_root)
     if is_agent or is_json:
+        sanitized_unresolved = [_agent_schema.redact_home_paths(t) for t in unresolved]
         record = {
             "schema": _agent_schema.SCHEMA_VERSION,
             "kind": "error",
@@ -3402,9 +3408,9 @@ def _unresolvable_target_refusal(
             "exit": EXIT_UNRESOLVABLE_TARGET,
             "verified": False,
             "complete": False,
-            "findings": len(list(unresolved)),
-            "unresolved_targets": list(unresolved),
-            "error": message,
+            "findings": len(sanitized_unresolved),
+            "unresolved_targets": sanitized_unresolved,
+            "error": _agent_schema.redact_home_paths(message),
             "next": None,
         }
         _agent_schema.assert_valid_agent_record(record)

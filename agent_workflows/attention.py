@@ -3910,9 +3910,11 @@ def format_unresolved_selector_message(
     NO "DID YOU MEAN" GUESS. A wrong guess is worse than a clean negative and the operator knows what
     they typed; fuzzy matching is a separate feature with its own design question.
     """
+    from agent_workflows import agent_schema as _agent_schema
+
     if term is None:
         term = T.Term(stream=sys.stderr, color=False)
-    toks = facts.refusable
+    toks = [_agent_schema.redact_home_paths(t) for t in facts.refusable]
     noun = "selector" if len(toks) == 1 else "selectors"
     quoted = ", ".join(repr(t) for t in toks)
     summary = f"no artifact matched {noun} {quoted}"
@@ -3922,11 +3924,21 @@ def format_unresolved_selector_message(
     ]
     if facts.matched:
         # Say which tokens DID match, so a mixed invocation reads as "these worked, that one did not".
-        filters.append(("matched selectors", list(facts.matched)))
+        filters.append(
+            (
+                "matched selectors",
+                [_agent_schema.redact_home_paths(t) for t in facts.matched],
+            )
+        )
     if facts.invalid:
         # F3: "this token is not a valid selector at all" is a DIFFERENT message from "this valid
         # token matched nothing", and reporting only the second would trade one ambiguity for another.
-        filters.append(("not a valid selector", list(facts.invalid)))
+        filters.append(
+            (
+                "not a valid selector",
+                [_agent_schema.redact_home_paths(t) for t in facts.invalid],
+            )
+        )
     return term.format_empty_result(
         summary,
         filters=filters,
@@ -3964,9 +3976,13 @@ def unresolved_selector_agent_record(facts: SelectorMatchFacts) -> Dict[str, Any
     """
     from agent_workflows import agent_schema as _agent_schema
 
-    toks = list(facts.refusable)
+    toks = [_agent_schema.redact_home_paths(t) for t in facts.refusable]
     noun = "selector" if len(toks) == 1 else "selectors"
     quoted = ", ".join(repr(t) for t in toks)
+    error_msg = _agent_schema.redact_home_paths(
+        f"no artifact matched {noun} {quoted}; searched the tracked record trees "
+        + ", ".join(sorted(str(t) for t in A.TRACKED_TREES))
+    )
     record: Dict[str, Any] = {
         "schema": _agent_schema.SCHEMA_VERSION,
         "kind": "error",
@@ -3979,20 +3995,25 @@ def unresolved_selector_agent_record(facts: SelectorMatchFacts) -> Dict[str, Any
         "unresolved_selectors": toks,
         # D2: the precedent's own field name, same list, for a consumer written against `aw runs`.
         "unresolved_targets": toks,
-        "error": (
-            f"no artifact matched {noun} {quoted}; searched the tracked record trees "
-            + ", ".join(sorted(str(t) for t in A.TRACKED_TREES))
-        ),
+        "error": error_msg,
         "next": "aw next",
     }
     if facts.matched:
-        record["matched_selectors"] = list(facts.matched)
+        record["matched_selectors"] = [
+            _agent_schema.redact_home_paths(t) for t in facts.matched
+        ]
     if facts.invalid:
         # F3: kept distinct from merely-unmatched, since they are different messages.
-        record["invalid_selectors"] = list(facts.invalid)
+        record["invalid_selectors"] = [
+            _agent_schema.redact_home_paths(t) for t in facts.invalid
+        ]
     if facts.excluded_tree:
-        record["excluded_selectors"] = [m.token for m in facts.excluded_tree]
-        record["excluded_tree_selectors"] = [m.token for m in facts.excluded_tree]
+        record["excluded_selectors"] = [
+            _agent_schema.redact_home_paths(m.token) for m in facts.excluded_tree
+        ]
+        record["excluded_tree_selectors"] = [
+            _agent_schema.redact_home_paths(m.token) for m in facts.excluded_tree
+        ]
     # Fail closed on our OWN record rather than trusting it by eye (the plan forbids asserting schema
     # validity without the validator).
     _agent_schema.assert_valid_agent_record(record)

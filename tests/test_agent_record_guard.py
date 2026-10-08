@@ -287,9 +287,9 @@ class AgentRecordGuardTests(unittest.TestCase):
 
 
 class HonestyBoundSubprocessTests(unittest.TestCase):
-    """Assert the disclosed honesty bounds: hand-built crash sites outside renderers.py still raise."""
+    """Assert previously disclosed honesty bounds (hand-built crash sites in attention and runs) now emit valid exit 2 refusals (resolved by enygec/z7ci8k)."""
 
-    def test_attention_agent_with_home_path_still_crashes(self) -> None:
+    def test_attention_agent_with_home_path_refuses(self) -> None:
         env = {**os.environ, "AW_NO_REEXEC": "1"}
         target = str(Path.home() / "nonexistent")
         proc = subprocess.run(
@@ -298,12 +298,15 @@ class HonestyBoundSubprocessTests(unittest.TestCase):
             text=True,
             env=env,
         )
-        self.assertEqual(proc.returncode, 1)
-        self.assertEqual(proc.stdout, "")
-        self.assertIn("ValueError", proc.stderr)
-        self.assertIn("Unsanitized absolute home path", proc.stderr)
+        self.assertEqual(proc.returncode, 2)
+        self.assertNotIn("Traceback", proc.stderr)
+        self.assertNotIn("ValueError", proc.stderr)
+        parsed = json.loads(proc.stdout)
+        self.assertEqual(parsed.get("exit"), 2)
+        self.assertEqual(parsed.get("outcome"), "cannot-run")
+        self.assertEqual(validate_agent_record(parsed), [])
 
-    def test_attention_json_with_home_path_still_crashes(self) -> None:
+    def test_attention_json_with_home_path_refuses(self) -> None:
         env = {**os.environ, "AW_NO_REEXEC": "1"}
         target = str(Path.home() / "nonexistent")
         proc = subprocess.run(
@@ -312,12 +315,14 @@ class HonestyBoundSubprocessTests(unittest.TestCase):
             text=True,
             env=env,
         )
-        self.assertEqual(proc.returncode, 1)
-        self.assertEqual(proc.stdout, "")
-        self.assertIn("ValueError", proc.stderr)
-        self.assertIn("Unsanitized absolute home path", proc.stderr)
+        self.assertEqual(proc.returncode, 2)
+        self.assertNotIn("Traceback", proc.stderr)
+        self.assertNotIn("ValueError", proc.stderr)
+        parsed = json.loads(proc.stdout)
+        self.assertEqual(parsed.get("exit"), 2)
+        self.assertEqual(parsed.get("outcome"), "cannot-run")
 
-    def test_runs_agent_with_home_path_still_crashes(self) -> None:
+    def test_runs_agent_with_home_path_refuses(self) -> None:
         env = {**os.environ, "AW_NO_REEXEC": "1"}
         target = str(Path.home() / "nonexistent")
         proc = subprocess.run(
@@ -326,7 +331,10 @@ class HonestyBoundSubprocessTests(unittest.TestCase):
             text=True,
             env=env,
         )
-        self.assertEqual(proc.returncode, 1)
-        self.assertEqual(proc.stdout, "")
-        self.assertIn("ValueError", proc.stderr)
-        self.assertIn("Unsanitized absolute home path", proc.stderr)
+        self.assertEqual(proc.returncode, 2)
+        self.assertNotIn("Traceback", proc.stderr)
+        self.assertNotIn("ValueError", proc.stderr)
+        parsed = json.loads(proc.stdout)
+        self.assertEqual(parsed.get("exit"), 2)
+        self.assertEqual(parsed.get("outcome"), "cannot-run")
+        self.assertEqual(validate_agent_record(parsed), [])
