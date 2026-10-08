@@ -305,6 +305,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   `EXEMPTION_REGISTRY`, `RUNNABLE_ARGV`, the symbol set and the docstring, and adds no `LIVE_SAFE_LEAVES`
   member; `vfv2db` adds a mutation arm and an installed-project fixture. Neither needs the other's change.
   - Carrier: vfv2db
+  - Carrier-Evidence: .aw/records/plans/executed/20261001-w78faq-01-vfv2db-drive-every-mutation-class-machine-surface-in-an-isolated-pr.ipd.md
 - `CONTRIBUTING.md` STEP 6, whose six promised live checks currently resolve to one. Reconciled by sibling
   `9i2hge` rather than here, because only the child that lands the SECOND half of the enforced set can state
   the final answer promise by promise; splitting the edit across two children would leave the file

@@ -796,8 +796,22 @@ def run_index(args: argparse.Namespace) -> int:
         )
     # Regenerate.
     entries, drift = _scan_docs(research_root, repo_root=repo_root)
+    from agent_workflows.result_types import select_output, CommandResult
+    from agent_workflows.renderers import get_renderer
+
+    ctx = select_output(args)
     if drift:
         # Refuse to write over invalid input; report and exit nonzero.
+        if ctx.is_agent or ctx.is_json:
+            res = CommandResult(
+                status="findings",
+                summary=f"refusing to regenerate index: {len(drift)} drift finding(s)",
+                command="research index",
+                exit_code=1,
+                verified=False,
+                complete=False,
+            )
+            return get_renderer(ctx).emit(res, ctx)
         if not getattr(args, "quiet", False):
             for d in drift:
                 print(f"{d.location}: {d.rule}: {d.detail}")
@@ -818,6 +832,37 @@ def run_index(args: argparse.Namespace) -> int:
         json_path.write_text(new_json, encoding="utf-8")
     if md_changed:
         md_path.write_text(new_md, encoding="utf-8")
+
+    if ctx.is_agent or ctx.is_json:
+        applied = bool(json_changed or md_changed)
+        try:
+            rel_dir = research_root.relative_to(repo_root).as_posix()
+        except ValueError:
+            rel_dir = research_root.as_posix()
+        dir_prefix = f"{rel_dir}/" if rel_dir and not rel_dir.endswith("/") else rel_dir
+        if not json_changed and not md_changed:
+            summary = f"up to date: {dir_prefix}{INDEX_JSON}, {INDEX_MD} ({len(entries)} docs)"
+        elif json_changed and md_changed:
+            summary = (
+                f"wrote {dir_prefix}{INDEX_JSON}, {INDEX_MD} ({len(entries)} docs)"
+            )
+        elif md_changed:
+            summary = f"updated {dir_prefix}{INDEX_MD} ({INDEX_JSON} up to date; {len(entries)} docs)"
+        else:
+            summary = f"updated {dir_prefix}{INDEX_JSON} ({INDEX_MD} up to date; {len(entries)} docs)"
+        res = CommandResult(
+            status="ok",
+            summary=summary,
+            command="research index",
+            applied=applied,
+            complete=True,
+            data={
+                "docs_count": len(entries),
+                "json_changed": json_changed,
+                "md_changed": md_changed,
+            },
+        )
+        return get_renderer(ctx).emit(res, ctx)
 
     if not getattr(args, "quiet", False):
         # NOT CONVERTED TO THE LIFECYCLE RESOLVER, for the same measured reason as its twin in

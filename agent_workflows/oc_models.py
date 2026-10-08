@@ -1050,24 +1050,70 @@ def run(
     args = build_parser().parse_args(list(argv or []))
     fetcher = fetch if fetch is not None else http_fetch_json
 
+    from agent_workflows.renderers import get_renderer
+    from agent_workflows.result_types import CommandResult, NextAction, select_output
+
+    ctx = select_output(args)
+    is_agent_or_json = ctx.is_agent or ctx.is_json
+
     if args.config:
         candidate = Path(args.config).expanduser()
         if not candidate.is_file():
+            if is_agent_or_json:
+                res = CommandResult(
+                    status="cannot-run",
+                    summary=f"config not found: {candidate}",
+                    command="oc update-models",
+                    exit_code=2,
+                    verified=False,
+                    complete=False,
+                )
+                return get_renderer(ctx).emit(res, ctx)
             print(f"error: config not found: {candidate}")
             return 2
         target = _classify_target(candidate)
     else:
         target = resolve_config_path(env=env)
         if target is None:
+            if is_agent_or_json:
+                res = CommandResult(
+                    status="cannot-run",
+                    summary="no OpenCode config found (set $OPENCODE_CONFIG or pass --config)",
+                    command="oc update-models",
+                    exit_code=2,
+                    verified=False,
+                    complete=False,
+                )
+                return get_renderer(ctx).emit(res, ctx)
             print(
                 "error: no OpenCode config found (set $OPENCODE_CONFIG or pass --config)"
             )
             return 2
 
     if args.apply and not target.writable:
+        if is_agent_or_json:
+            res = CommandResult(
+                status="cannot-run",
+                summary=f"refusing to rewrite {target.path}: {target.reason}",
+                command="oc update-models",
+                exit_code=2,
+                verified=False,
+                complete=False,
+            )
+            return get_renderer(ctx).emit(res, ctx)
         print(f"error: refusing to rewrite {target.path}: {target.reason}")
         return 2
     if not target.writable:
+        if is_agent_or_json:
+            res = CommandResult(
+                status="cannot-run",
+                summary=f"{target.path} is preview-only: {target.reason}",
+                command="oc update-models",
+                exit_code=2,
+                verified=False,
+                complete=False,
+            )
+            return get_renderer(ctx).emit(res, ctx)
         print(f"note: {target.path} is preview-only: {target.reason}")
         return 2
 
@@ -1076,6 +1122,15 @@ def run(
 
     providers = discover_providers(config)
     if not providers:
+        if is_agent_or_json:
+            res = CommandResult(
+                status="clean",
+                summary=f"no OpenAI-compatible providers declared in {target.path}",
+                command="oc update-models",
+                applied=False,
+                complete=True,
+            )
+            return get_renderer(ctx).emit(res, ctx)
         print(f"no OpenAI-compatible providers declared in {target.path}")
         return 0
 
@@ -1085,6 +1140,44 @@ def run(
     ]
     synced = [o for o in outcomes if o.synced]
     mutated = [o for o in synced if o.has_changes]
+
+    if is_agent_or_json:
+        if not mutated:
+            res = CommandResult(
+                status="clean",
+                summary="providers up to date; no changes",
+                command="oc update-models",
+                applied=False,
+                complete=True,
+            )
+            return get_renderer(ctx).emit(res, ctx)
+        if not args.apply:
+            res = CommandResult(
+                status="preview",
+                summary=f"{len(mutated)} provider(s) have changes",
+                command="oc update-models",
+                applied=False,
+                complete=False,
+                next_actions=[
+                    NextAction(
+                        command="aw oc update-models --apply",
+                        description="apply model updates",
+                    )
+                ],
+            )
+            return get_renderer(ctx).emit(res, ctx)
+        text = serialize(config, detect_indent(original))
+        backup_path = write_config(
+            target.path, text, backup=not args.no_backup, original=original
+        )
+        res = CommandResult(
+            status="ok",
+            summary=f"wrote {target.path}",
+            command="oc update-models",
+            applied=True,
+            complete=True,
+        )
+        return get_renderer(ctx).emit(res, ctx)
 
     print(f"config: {target.path}")
     for outcome in outcomes:

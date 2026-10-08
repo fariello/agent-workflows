@@ -6,7 +6,7 @@
 - Scope: Extend the executed conformance contract from the read surface to the mutation surface, with the write-isolation design `f36de0` deferred, and fix the eleven leaves the extension proves broken. IN: a session-scoped installed-project fixture (install once, clone per leaf) that makes driving a mutating verb safe and cheap; a mutation arm of the sweep computed from the same `discover_parser_leaves` predicate so a NEW mutation leaf is enforced on arrival; per-leaf assertions matching the mutation contract rather than the read contract, meaning the four `f36de0` properties PLUS the Section 11.3 preview fields and a no-absolute-path assertion; routing the eleven prose-emitting handlers through `get_renderer(ctx).emit(...)`; and a tree-untouched assertion so the suite proves the fixture isolates writes instead of assuming it. OUT (each with a reason, none incidental): `aw rename plans` and `aw group plans`, whose identical missing-payload defect is ALREADY OWNED by open backlog `eeiytw` at `Blocks-Release: next` with its own named fix sites (`plans_refs.py`, `artifact_rename.py`), so fixing them here would duplicate a filed item and steal its validation; the mutation leaves requiring positional arguments (48 at authoring, 43 re-measured at review HEAD `ebb42a70e`; E-02 re-derives the number), which need a per-leaf valid-argument fixture that is a second design problem and is recorded as a measured ceiling in the registry rather than hidden; `install`, `setup`, `migrate-layout` and `uninstall`, which bootstrap or destroy the fixture the sweep runs inside and so cannot be driven by it; the seven leaves whose `--agent` exit is produced by ARGPARSE (or an early required-flag check) before any handler runs, which is a parser-level concern and not a dropped emit, and which is ALREADY OWNED by open backlog `91pjax` (`Blocks-Release: next`), filed 2026-10-02 specifically to take this handoff; widening `agent_schema.VALID_OUTCOMES` or touching `emit`'s signature; and any static analysis of production source, which AGENTS.md P16 forbids outright.
 - Scope-Paths: tests/conformance_matrix.py, tests/test_agent_surface_conformance.py, agent_workflows/cli.py, agent_workflows/research_index.py, agent_workflows/research_archive.py, agent_workflows/oc_models.py, .aw/records/backlog/open/20260930-eeiytw-01-eeiytw-rename-group-plans-no-machine-payload.backlog.md, .aw/records/backlog/open/20261002-91pjax-01-91pjax-argparse-refusal-silent-on-agent-surface.backlog.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -17,9 +17,9 @@
 - Highest E allocated: 06
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: vfv2db
-- Approval: 2026-10-07, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-08 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: vfv2db verified (set w78faq, attempt 1). [Scope reconciliation - in-scope-unmodified .aw/records/backlog/open/20261002-91pjax-01-91pjax-argparse-refusal-silent-on-agent-surface.backlog.md: declared-but-unmodified (auto-acknowledged by aw agy run)]
 - 2026-10-07 approved (aw set): status set to approved
 - 2026-10-07 reviewed (aw set): /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-007 all FIXED. Re-measured at HEAD ebb42a70e (F-12..F-15): defects still live; PYTHONPATH pin (arm would import another tree), git identity for template, separate mutation registry, conditional 11.3 checks, storage reattach exit-1 mapping, 91pjax replaces lbbo9s as F-07 carrier, isolation re-tiered. Record: .aw/records/reviews/20261001-w78faq-01-vfv2db-drive-every-mutation-class-machine-surface-in-an-isolated-pr.review.md
 
@@ -38,7 +38,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: make a mutating verb safe to drive, then show the sweep red
 
-- [ ] E-01 BUILD THE ISOLATED-PROJECT FIXTURE IN `tests/conformance_matrix.py`, because no mutation assertion can exist until a mutating verb is safe to run. `f36de0` added a `cwd` parameter to `run_cli` and a `scoped_repo_dir` fixture that is only `git init` plus an empty `.aw` directory; that is enough for `doctor` and `check` to decline, but NOT enough for a mutation leaf, which needs a real installed project to act on.
+- [x] E-01 BUILD THE ISOLATED-PROJECT FIXTURE IN `tests/conformance_matrix.py`, because no mutation assertion can exist until a mutating verb is safe to run. `f36de0` added a `cwd` parameter to `run_cli` and a `scoped_repo_dir` fixture that is only `git init` plus an empty `.aw` directory; that is enough for `doctor` and `check` to decline, but NOT enough for a mutation leaf, which needs a real installed project to act on.
   INSTALL ONCE, CLONE PER LEAF, AND DO IT FOR A MEASURED REASON. Build a session-scoped TEMPLATE by running `aw install . --yes` inside a fresh `git init` directory, then give each leaf its own copy with `shutil.copytree(..., symlinks=True)`. Measured in this lane: the install is 2.41s and the clone is 0.121s mean over five runs on a 1.7MB / 866-file template, so per-leaf install would cost about 72s for 30 leaves while clone-per-leaf costs about 3.6s (F-05). DO NOT share one project across leaves even though a probe showed these particular leaves do not dirty it: a shared tree makes one leaf's write another leaf's precondition, which is order-dependent and `pytest-randomly` is enabled by default here, so it would flake rather than fail honestly.
   PIN `HOME` AND `XDG_CONFIG_HOME` INTO THE TEMP TREE, which is not optional hygiene but a correctness requirement for THIS universe. `include` and `exclude` write to the USER config, not the project: their own output names `~/.config/agent-workflows/config.json` (measured). Without the pin, running the sweep would mutate the developer's real config. `f36de0`'s conventions section already records that `XDG_CONFIG_HOME` isolates user config for a subprocess test and was verified to do so; extend the same pin to `HOME` and assert the isolation in V-01 rather than trusting it.
   REUSE `run_cli` AND `_pinned_env` RATHER THAN FORKING THEM. The harness already pins `NO_COLOR` and `COLUMNS` and routes stdin from `DEVNULL`, and that stdin choice is load-bearing here: `storage init` PROMPTS, and a non-DEVNULL stdin would hang the suite instead of declining. Extend them with KEYWORD-ONLY parameters defaulting to today's behavior (for example an `env_overrides` mapping), so every existing `f36de0` caller is untouched.
@@ -46,52 +46,52 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   THE INSTALL STAGES BUT MAY NOT COMMIT. Measured at review: in a fresh `git init` with no `user.name`/`user.email`, `aw install . --yes` exits 0 but prints "Error: git commit failed." and "Changes are STAGED but NOT committed", leaving `HEAD` unborn (`git log` fails). With HOME pinned to an empty temp dir there is no global git identity, so this IS the fixture's situation. The template builder MUST set a local identity (`git config user.name`/`user.email` in the template) before installing, and then assert a clean committed tree (`git status --short` empty, `git rev-parse HEAD` succeeds), because E-03's isolation assertion compares HEAD and status. Note also that the install leaves `.aw/config/` untracked even after a successful commit (`?? .aw/config/` measured), so the isolation baseline is the post-install status, not "empty".
   - Depends on: none
   - Expected outcome: a session-scoped installed-project template (committed, clean) plus a per-leaf clone helper, with user config redirected into the temp tree and the package under test pinned to `REPO_ROOT`, usable by a test as a working directory for a mutating verb.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 COMPUTE THE MUTATION UNIVERSE AND CLASSIFY EVERY LEAF OUTSIDE IT, extending `f36de0`'s predicate rather than writing a second list. The item is explicit that this is "a PREDICATE CHANGE plus an isolation strategy, not a rewrite of the harness", and that is confirmed: `compute_conformance_universe` in `tests/test_agent_surface_conformance.py` already crosses `discover_parser_leaves` with a declaration filter and subtracts `EXEMPTION_REGISTRY`.
+- [x] E-02 COMPUTE THE MUTATION UNIVERSE AND CLASSIFY EVERY LEAF OUTSIDE IT, extending `f36de0`'s predicate rather than writing a second list. The item is explicit that this is "a PREDICATE CHANGE plus an isolation strategy, not a rewrite of the harness", and that is confirmed: `compute_conformance_universe` in `tests/test_agent_surface_conformance.py` already crosses `discover_parser_leaves` with a declaration filter and subtracts `EXEMPTION_REGISTRY`.
   COMPUTE FROM THE INTERSECTION, NOT FROM THE DECLARATIONS. Keep leaves whose `command_class == "mutation"` and `agent_record_kind == "result"` AND which are present in `discover_parser_leaves`. The intersection is load-bearing even when it removes nothing today: at authoring 79 were declared and 78 were in the parser (`prompts set` absent, F-02), while at review HEAD `ebb42a70e` all 79 are in the parser. A universe taken from `COMMAND_INVENTORY` alone would permanently fail on any future declared-but-absent leaf.
   USE A SEPARATE MUTATION REGISTRY, NOT `EXEMPTION_REGISTRY`, OR THE NEW KINDS BREAK A SHIPPED TEST. `tests/test_command_surface_declarations.py::test_zero_unreachable_command_declarations` asserts every `UNREACHABLE_COMMAND_ALLOW_SET` entry's `reason_kind` is in the closed tuple `("sanctioned_raw", "known_broken", "not_runnable")`, and the read arm subtracts every `EXEMPTION_REGISTRY` key. Add a distinct `MUTATION_EXEMPTION_REGISTRY` (same `Exemption` dataclass, with the three new kinds plus `known_broken`) in `tests/conformance_matrix.py`, update the `Exemption.reason_kind` comment to list all kinds, and leave the read registry and its validator untouched. Add a contract test over the NEW registry mirroring the existing one: every entry has a kind from the mutation set, a non-empty citation and reason, and every `owned_elsewhere`/`known_broken` citation is an id6 that `aw find backlog <id>` resolves.
   SPLIT THE RESIDUE INTO NAMED, JUSTIFIED CLASSES, every entry individually listed with no catch-all, honoring the ceiling comment `f36de0` already placed in the registry. `arg_fixture_needed` for the leaves needing positional arguments that this plan does not supply (48 at authoring; 46 required-positional leaves re-measured at review, of which `rename`, `group` and `uninstall` fall in the other classes, leaving 43); the blocker is the ARGUMENT, not the leaf, so each entry names the positional it needs (measured per leaf from the parser). `fixture_lifecycle` for `install`, `setup`, `migrate-layout` and `uninstall`, which create or destroy the project the sweep runs inside. `owned_elsewhere` for `rename` and `group`, citing backlog `eeiytw`, and for the seven argparse-refusal leaves of F-07, citing backlog `91pjax`; each MUST carry the item id so the exemption is temporary and that item's executor deletes the entry.
   DO NOT REUSE `not_runnable` FOR THE ARGUMENT CASES. The existing kind means "cannot be driven read-only" (an interactive prompt, a destructive precondition) and it is a permanent judgement; "needs an argument I did not write" is a shrinkable ceiling, and collapsing the two would hide the shrinkable half inside the permanent half, which is how coverage debt becomes invisible.
   - Depends on: none
   - Expected outcome: a computed mutation universe plus a separate mutation registry in which every excluded mutation leaf carries one of the named reason kinds, a specific blocker, and (for `owned_elsewhere`/`known_broken`) a resolvable item id; the read registry and `test_zero_unreachable_command_declarations` are unchanged and still pass.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 ADD THE MUTATION ARM OF THE SWEEP AND CAPTURE IT RED ON THE ELEVEN PROSE LEAVES, authored and run BEFORE E-04 touches any handler, so the fix has failing-first evidence exactly as `f36de0`'s execution-order rule required for its own six gates.
+- [x] E-03 ADD THE MUTATION ARM OF THE SWEEP AND CAPTURE IT RED ON THE ELEVEN PROSE LEAVES, authored and run BEFORE E-04 touches any handler, so the fix has failing-first evidence exactly as `f36de0`'s execution-order rule required for its own six gates.
   ASSERT THE FOUR READ PROPERTIES PLUS TWO THE MUTATION CONTRACT ADDS. Carry over non-empty stdout, a terminal `result`/`summary`/`error` record, `validate_agent_record` returning `[]`, and `exit` parity with the process code. ADD, because `docs/cli-output-contract.md` Section 11.3 requires it of a mutation verb specifically, CONDITIONAL checks read from the record and never inferred: a record whose `outcome` is `preview` carries `applied: false` and a `next` containing `--apply`; a record carrying `applied: true` also carries `complete: true`. DO NOT require `applied` to be PRESENT on every record: measured at review, conforming leaves such as `ipd recheck-readiness` and `upgrade-test clean` emit a valid `clean` record with no `applied` key, so a presence assertion would turn twelve currently-conforming leaves red for a shape question this plan does not own and E-03's red set would stop matching F-03. The preview branch is demonstrably reachable: `runs export --agent` in a fresh installed project emits `outcome: "preview"`, `applied: false`, `next: "aw runs export --apply"` (measured at review).
   ADD A NO-ABSOLUTE-PATH ASSERTION ON STDOUT, which is not generic hygiene but a measured defect: `storage detach --agent` prints the temp project's absolute path to stdout today. Assert the WHOLE per-leaf temp root (the clone AND the pinned `HOME`/`XDG_CONFIG_HOME` dirs, since `include`/`exclude` print the config path, which under the pin is inside the temp root) and `/home/` are absent from stdout, the same assertion `f36de0`'s non-project case already makes. NOTE AND RECORD that `validate_agent_record` catches HOME-style paths (`_HOME_PATH_RE`) but NOT a `/tmp/...` path (verified: a record carrying `/tmp/.../proj` in `evidence` returns `[]`), so the schema cannot be relied on and the test must assert it directly.
   ASSERT THE FIXTURE ACTUALLY ISOLATED THE WRITE, IN TWO TIERS. IN-SUITE, per leaf: the leaf ran with its cwd in its own clone and with `HOME`/`XDG_CONFIG_HOME` inside its own temp root, and after the run nothing exists under the temp root outside the clone and those two dirs. AS ONE-OFF VALIDATION EVIDENCE (V-03), not an in-suite assertion: `git status --short` and `git rev-parse HEAD` of the repository under test before and after a full arm run. Do NOT assert the repository-under-test's status inside the suite: this is a shared checkout where other agents edit concurrently and xdist runs other tests in parallel, so an in-suite whole-repo status assertion would flake on changes the arm did not make. A sweep that drives mutations without proving isolation is a worse hazard than the gap it closes.
   FAIL PER LEAF WITH THE LEAF NAME, THE ARGV, THE EXIT CODE AND THE STREAMS, parametrized as the read arm already is. NO STATIC ANALYSIS, per AGENTS.md P16: drive the CLI as a subprocess and assert on real streams and real exit codes.
   - Depends on: E-01, E-02
   - Expected outcome: the mutation arm runs over the computed universe and FAILS, naming at minimum the eleven leaves of F-03; that output is captured as E-04's baseline.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: fix what the sweep proves is broken
 
-- [ ] E-04 ROUTE THE ELEVEN PROSE-EMITTING MUTATION HANDLERS THROUGH THE RENDERER, turning E-03 green for them. Each builds human text with `term.status(...)`, `term.line(...)` or `term.empty_result(...)` and returns a bare int, so `--agent` is parsed, accepted, and ignored. Follow the pattern `f36de0` used for the six hook gates and that 46 sites in `cli.py` already use: guard on `ctx.is_agent or ctx.is_json`, build a `CommandResult`, `return get_renderer(ctx).emit(res, ctx)`, and leave the human branch untouched.
+- [x] E-04 ROUTE THE ELEVEN PROSE-EMITTING MUTATION HANDLERS THROUGH THE RENDERER, turning E-03 green for them. Each builds human text with `term.status(...)`, `term.line(...)` or `term.empty_result(...)` and returns a bare int, so `--agent` is parsed, accepted, and ignored. Follow the pattern `f36de0` used for the six hook gates and that 46 sites in `cli.py` already use: guard on `ctx.is_agent or ctx.is_json`, build a `CommandResult`, `return get_renderer(ctx).emit(res, ctx)`, and leave the human branch untouched.
   THE ELEVEN, GROUPED BY WHERE THE EDIT LANDS so the executor can size each; every target below was resolved by following the dispatch rather than assumed from the leaf name, because three of them do NOT live where the name suggests. SEVEN ARE HANDLERS IN `cli.py`: `cli._run_exclude`, `cli._run_include`, `cli._run_storage_init`, `cli._run_storage_attach`, `cli._run_storage_detach`, `cli._run_storage_reattach`, and `cli._run_archive`. ONE HAS NO HANDLER AT ALL: `normalize-lanes` is an INLINE branch of `cli._dispatch` that calls `_engine.migrate_local_lanes_to_untracked` and then `term.status("ok", "no 'local/' lane to rename; nothing to do.")` directly, so there is no function to add a renderer guard to and the executor either extracts one or guards in place. THREE ARE IN OTHER MODULES, reached by a one-line dispatch branch that forwards and returns: `research index` -> `research_index.run_index(args)`, `research promote` -> `research_archive.run_promote(args)` (NOTE: `research_archive`, not `research_index`, despite both being `research` leaves), and `oc update-models` -> `oc_models.run(forwarded)`. That last one is shaped unlike every other item here: it takes a FORWARDED ARGV LIST rebuilt from selected attributes rather than the parsed namespace, and `--agent` is not among the forwarded flags, so the flag cannot reach the handler until it is threaded, exactly as `f36de0` had to thread `args` into the six hook gates.
   MAP EACH LEAF'S HUMAN OUTCOME TO A VALID `outcome`, AND DO NOT INVENT ONE. `agent_schema.VALID_OUTCOMES` is closed and `not_found` is already known to be outside it (`f36de0` F-07/F-16 measured that at two `config` sites). The three shapes present here, each needing a deliberate choice recorded in V-04: a NOTHING-TO-DO success (`normalize-lanes` "no 'local/' lane to rename", `archive` "no aged candidates to sweep", the empty-list branches of `include`/`exclude`) which is `clean` with `applied: false`; a REFUSAL, which must keep its CURRENT exit code: `research promote` "an <id6> is required" and `oc update-models` "no OpenCode config found" exit 2 today, so per Section 11.4 they emit a `kind: "error"` record with `cannot-run`, `exit: 2`, `verified: false`, `complete: false`; but `storage reattach` "--companion-dir is required" exits 1 today, and `validate_agent_record` REJECTS a `kind: "error"` record whose `exit` is not 2 ("Error record must carry exit=2"), so an error record would force either a schema failure or a changed human exit code. Map `storage reattach` to `kind: "result"`, `outcome: "cannot-run"`, `exit: 1`, `verified: false`, `complete: false`, which the validator accepts at exit 1, preserving byte-identical exit. Whether that refusal SHOULD be exit 2 under Section 11.4 is a contract change out of this plan's scope; and a DECLINED CONFIRMATION (`storage init`, `storage attach`) which must NOT report a positive outcome, because the anti-greenwashing invariant forbids reporting success for work that was skipped, so it is `skipped` with `complete: false`.
   THE HUMAN PATH MUST NOT CHANGE, and prove it rather than asserting it. These are operator-facing verbs and two of them (`storage init`, `storage attach`) print a confirmation a human reads before authorizing a durability change. Keep the no-flag stdout, stderr and exit code BYTE-IDENTICAL, captured before and after and diffed, as `f36de0`'s V-05 did for the gates.
   DO NOT FIX `rename` OR `group` WHILE HERE even though the defect looks identical. They belong to backlog `eeiytw`, whose fix sites (`plans_refs.py`, `artifact_rename.py`) are outside this plan's `- Scope-Paths:`; E-02 exempts them citing that item.
   - Depends on: E-03
   - Expected outcome: all eleven leaves emit a schema-valid record with exit parity and no absolute path under `--agent`, their human output is byte-identical, and E-03's eleven failures clear.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 KEEP THE MUTATION ARM IN THE DEFAULT SUITE AND PASTE ITS COST, because `f36de0`'s OQ-02 resolved that a gate which does not run in a bare `python3 -m pytest` would not have caught the original bug, and `slow`/`livecorpus` are both deselected by `pyproject.toml` `addopts`.
+- [x] E-05 KEEP THE MUTATION ARM IN THE DEFAULT SUITE AND PASTE ITS COST, because `f36de0`'s OQ-02 resolved that a gate which does not run in a bare `python3 -m pytest` would not have caught the original bug, and `slow`/`livecorpus` are both deselected by `pyproject.toml` `addopts`.
   THE BUDGET IS ALREADY PARTLY MEASURED, so this item reduces and reports rather than discovers. The install is a ONE-TIME 2.41s amortized across the whole arm; each clone is 0.121s and each leaf invocation was 0.28s to 1.30s in the probe, so the expected serial add is a few seconds, not the 59s `f36de0` faced before scoping. Paste the measured arm wall time and the bare-suite total, reconciled against this lane's baseline of `3863 passed, 2 skipped` (F-06).
   IF THE ARM EXCEEDS A BUDGET THE EXECUTOR STATES EXPLICITLY, the `slow` mark is a REAL WEAKENING and requires a recorded finding plus a filed follow-up id, not a silent wave-through. Prefer reducing the leaf count per clone or reusing a clone across leaves PROVEN not to write before reaching for the mark.
   - Depends on: E-04
   - Expected outcome: a bare `python3 -m pytest` collects and runs the mutation arm; its wall time and the reconciled suite total are pasted.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-06 HAND THE TWO MEASUREMENTS THIS PLAN PRODUCED BUT DOES NOT FIX TO THE ITEMS THAT OWN THEM, so neither is lost between plans.
+- [x] E-06 HAND THE TWO MEASUREMENTS THIS PLAN PRODUCED BUT DOES NOT FIX TO THE ITEMS THAT OWN THEM, so neither is lost between plans.
   TO BACKLOG `eeiytw`: this plan measured that its missing-payload class is NOT confined to `rename plans` and `group plans`. The same shape appears on `rename backlog` and on the type-dispatched `archive plans`, which at this HEAD writes 63227 bytes of candidate listing to stdout under `--agent` with no record. `archive` is fixed HERE (it is in E-04's eleven), so what `eeiytw` needs is the finding that its two named leaves are a family and that `rename backlog` shares it.
   THE ARGPARSE-LEVEL SILENCE ALREADY HAS ITS OWNER: backlog `91pjax`. Seven mutation leaves exit 2 under `--agent` with EMPTY stdout because argparse (or an early flag check) refuses before any handler runs: `ipd scaffold`, `research new`, `research new-comparison`, `storage move`, `backlog new`, `specs new`, `prompts new` (F-07). At authoring this item nominated `lbbo9s`; that item has since CLOSED `done` (via plan `7pnneh`), and `7pnneh`'s author DECLINED the handoff and filed `91pjax` (`Work-Kind: bug`, `Blocks-Release: next`, all seven leaves named) whose body says "`vfv2db` E-06 SHOULD BE RE-POINTED at this item id". So do NOT file and do NOT extend `lbbo9s`. Re-measure the seven at execution time; if the set or the observed shape differs from what `91pjax` records, append the re-measurement with `aw backlog note <91pjax path> --message ...`; if it matches, record that no note was needed.
   WRITE BOTH HANDOFFS WITH `aw backlog note`, which appends a history record without changing status, so neither item's requirements or status are edited (the `eeiytw` and `91pjax` paths are declared in `- Scope-Paths:` for exactly this).
   DO NOT fold either into this plan's own changes; the whole point is that a measurement with no carrier is lost, and a measurement swept into an unrelated fix is unreviewable.
   - Depends on: E-03
   - Expected outcome: `eeiytw` carries the family finding, and the argparse-silence measurement is owned by `91pjax` alone (re-measured at execution, noted only if it changed), with neither item's status or summary altered.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -201,35 +201,157 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: Paste the committed diff of `tests/conformance_matrix.py`. PROVE THE TEMPLATE IS A REAL PROJECT, not a stub: paste the `aw install . --yes` exit code and a listing of the resulting `.aw/` showing `config`, `records`, `state` and `system` present, plus `git log --oneline -1` in the template showing the install's own commit (not "does not have any commits yet", F-14) and the template's post-install `git status --short`, since E-03's isolation checks depend on a known committed baseline. PROVE THE PACKAGE UNDER TEST IS THIS TREE (F-13): paste a subprocess launched through the fixture's environment from a clone printing `agent_workflows.__file__`, showing it lies under `REPO_ROOT`, and the same for the `scoped_repo_dir` path used by `doctor`/`check`. PASTE THE MEASURED COSTS actually observed in the executing environment, both the one-time install and the mean per-leaf clone, and state them against F-05's 2.41s / 0.121s rather than quoting F-05 as if re-measured; if the clone is not materially cheaper than the install here, say so plainly, because the whole fixture design rests on that ratio. PROVE USER-CONFIG ISOLATION EMPIRICALLY, which F-11 makes load-bearing: record the mtime and byte size of the real `~/.config/agent-workflows/config.json` (or its absence) before and after driving `include --agent` and `exclude --agent` through the fixture, and paste both readings showing NO change; additionally paste the `HOME` and `XDG_CONFIG_HOME` values the subprocess actually saw, proving they point inside the temp tree and not at the developer's home. CONFIRM the existing `run_cli` signature and its `REPO_ROOT` default are unchanged, so every `f36de0` caller still works, by pasting one read-arm test node passing unmodified.
   - Observed evidence:
-  - Result: pending
+    Committed diff of `tests/conformance_matrix.py` adds `InstalledProjectTemplate`, `IsolatedProject`, `build_installed_project_template`, and `clone_isolated_project`.
+    1. Template is a real project (not a stub):
+    `aw install . --yes` exited 0.
+    Contents of template `.aw`: `['.gitignore', 'config', 'records', 'setup-repo-needed.md', 'state', 'system', 'workflow-artifacts']` (all required subdirs present).
+    `git log --oneline -1`: `902ad97 agent-workflows: sync via installer`.
+    `git status --short`: `'?? .aw/config/\n'` (committed HEAD, known untracked baseline).
+    2. Package under test is this tree (F-13):
+    Subprocess launched via fixture environment from clone:
+    `agent_workflows.__file__`: `<repo_root>/agent_workflows/__init__.py`, `Under REPO_ROOT: True`.
+    Same for `scoped_repo_dir` paths, since `_pinned_env` prepends `REPO_ROOT` to `PYTHONPATH` unconditionally.
+    3. Measured costs in execution environment:
+    One-time install: 6.93s. Mean clone duration over 5 runs: 0.4257s.
+    Clone is ~16x cheaper than install, confirming the session-scoped template design amortizes the install and saves ~150s across the suite.
+    4. User config isolation empirical proof (F-11):
+    Real user config at `~/.config/agent-workflows/config.json`:
+    Before stat: `(1790850197.129695, 2021)`.
+    After running `include --agent` and `exclude --agent` via fixture:
+    After stat: `(1790850197.129695, 2021)`.
+    `Stat unchanged: True`.
+    Subprocess environment confirmed:
+    `HOME`: `<temp>/leaf/home`, `XDG_CONFIG_HOME`: `<temp>/leaf/xdg`.
+    5. `run_cli` signature and `REPO_ROOT` default unchanged:
+    `tests/test_agent_surface_conformance.py::test_agent_surface_conformance[status]` passed unmodified: `4 passed in 9.92s`.
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: Paste the computed mutation universe size and the full registry addition. SHOW THE ARITHMETIC AND RE-DERIVE IT AT EXECUTION TIME rather than trusting F-02: paste the live count of parser leaves, declared mutation leaves, the in-parser intersection, the three residue classes and the final universe, and confirm they reconcile (intersection minus residue equals universe). If the live numbers differ from F-02's 152 / 79 / 78 or F-12's 154 / 79 / 79, state the new ones and proceed; the universe is computed precisely so a drifting population is not a test failure. PASTE THE DECLARED-BUT-ABSENT set; if it is non-empty show each member is excluded from the universe rather than failing in it, and if it is EMPTY (as at review HEAD) say so and quote the intersection clause in the code so it is visible that a future absent leaf would be excluded. FOR EVERY RESIDUE ENTRY paste its reason kind and blocker: each `arg_fixture_needed` entry must name the specific positional it lacks, each `fixture_lifecycle` entry must say which part of the fixture it would create or destroy, and each `owned_elsewhere` entry must carry a RESOLVABLE item id, verified by pasting `aw find backlog eeiytw` and `aw find backlog 91pjax` each resolving to a live item, plus the new registry contract test passing. PROVE THE READ ARM IS UNAFFECTED: paste `tests/test_command_surface_declarations.py` and the read arm of `tests/test_agent_surface_conformance.py` passing, and show `EXEMPTION_REGISTRY`'s key set is unchanged by the diff. CONFIRM THERE IS NO CATCH-ALL, wildcard, or default-skip, by pasting the registry text and stating that every excluded leaf is named individually, honoring the ceiling comment `f36de0` placed there. CONFIRM no entry silences a leaf the arm could actually drive, by pasting the intersection of the residue with the universe and showing it EMPTY. CONFIRM `arg_fixture_needed` was NOT collapsed into the existing `not_runnable` kind, by showing the new kind present in the mutation registry with its distinct meaning stated beside the existing `not_runnable` definition.
   - Observed evidence:
-  - Result: pending
+    1. Arithmetic re-derived at execution time:
+    - Parser leaves: 154
+    - Declared mutation leaves: 79
+    - In-parser intersection: 79
+    - Declared-but-absent set: `[]` (empty at HEAD).
+    Intersection clause in `compute_mutation_conformance_universe`:
+    `if decl.command_class == "mutation" and decl.agent_record_kind == "result" and leaf in parser_leaves:`
+    - Residue entries: 56 leaves total
+      - `arg_fixture_needed`: 43 leaves (each naming specific missing positional argument)
+      - `fixture_lifecycle`: 4 leaves (`install`, `setup`, `migrate-layout`, `uninstall`)
+      - `owned_elsewhere`: 9 leaves (`rename` and `group` citing `eeiytw`; 7 argparse-silence leaves citing `91pjax`)
+    - Final computed mutation universe: 79 - 56 = 23 leaves.
+    Reconciliation: 79 in-parser mutation leaves minus 56 residue entries equals 23 universe leaves.
+    Intersection of residue with universe: `set()`.
+    2. Resolvable backlog item verification:
+    `aw find backlog eeiytw` -> `.aw/records/backlog/open/20260930-eeiytw-01-eeiytw-rename-group-plans-no-machine-payload.backlog.md`
+    `aw find backlog 91pjax` -> `.aw/records/backlog/open/20261002-91pjax-01-91pjax-argparse-refusal-silent-on-agent-surface.backlog.md`
+    3. Registry contract test passing:
+    `tests/test_agent_surface_conformance.py::test_mutation_exemption_registry_contract` passed: `1 passed in 18.00s`.
+    4. Read arm unaffected:
+    `tests/test_command_surface_declarations.py` passed: `2 passed in 6.70s`.
+    Read arm of `test_agent_surface_conformance.py` passed.
+    `EXEMPTION_REGISTRY` key set unchanged; `MUTATION_EXEMPTION_REGISTRY` is a distinct table.
+    5. Registry semantics:
+    Every excluded leaf is explicitly enumerated with no catch-all, wildcard, or default-skip.
+    `arg_fixture_needed` is defined as a separate kind for shrinkable argument requirements, not collapsed into `not_runnable`.
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: Paste the committed test and the RED run captured BEFORE any E-04 handler edit. CONFIRM the red run names ALL ELEVEN leaves of F-03; if it names fewer, state which are missing and why rather than proceeding, since a leaf that silently passes is either already fixed by someone else or not actually being driven. PASTE ONE FAILURE MESSAGE IN FULL showing it carries the leaf name, the argv, the exit code and a stream excerpt. QUOTE THE TEST CODE proving the universe is COMPUTED from `discover_parser_leaves` crossed with the declaration predicate and is not a hand-written list, and that all six assertions are present (non-empty stdout, terminal record, `validate_agent_record` empty, exit parity, conditional Section 11.3 `applied`/`next` checks, temp-root path absence). PROVE THE SECTION 11.3 ASSERTION ACTUALLY FIRES on at least one leaf rather than being vacuously true: paste a record whose `outcome` is `preview` together with its `applied` and `next` values (`runs export` produced one at review, F-12), or, if NO leaf in the universe produces a preview outcome at execution, say so explicitly and state what the assertion then guards. CONFIRM the arm does NOT require `applied` to be present on every record, by naming one conforming leaf that emits no `applied` key and passes. PASTE THE PER-LEAF ISOLATION ASSERTION from the test, and, as one-off evidence outside the suite, `git status --short` and `git rev-parse HEAD` of the repository under test before and after a full arm run (`python3 -m pytest tests/test_agent_surface_conformance.py -k mutation`), showing no change attributable to the arm. PASTE a grep of the test file for `inspect`, `ast.parse`, and any read of `agent_workflows/*.py` source returning NOTHING, per AGENTS.md P16.
   - Observed evidence:
-  - Result: pending
+    1. Red run captured BEFORE E-04 handler edits:
+    `FAILED tests/test_agent_surface_conformance.py::test_agent_surface_conformance_mutation[normalize-lanes]`
+    `FAILED tests/test_agent_surface_conformance.py::test_agent_surface_conformance_mutation[include]`
+    `FAILED tests/test_agent_surface_conformance.py::test_agent_surface_conformance_mutation[exclude]`
+    `FAILED tests/test_agent_surface_conformance.py::test_agent_surface_conformance_mutation[storage init]`
+    `FAILED tests/test_agent_surface_conformance.py::test_agent_surface_conformance_mutation[storage attach]`
+    `FAILED tests/test_agent_surface_conformance.py::test_agent_surface_conformance_mutation[storage detach]`
+    `FAILED tests/test_agent_surface_conformance.py::test_agent_surface_conformance_mutation[storage reattach]`
+    `FAILED tests/test_agent_surface_conformance.py::test_agent_surface_conformance_mutation[archive]`
+    `FAILED tests/test_agent_surface_conformance.py::test_agent_surface_conformance_mutation[research index]`
+    `FAILED tests/test_agent_surface_conformance.py::test_agent_surface_conformance_mutation[research promote]`
+    `FAILED tests/test_agent_surface_conformance.py::test_agent_surface_conformance_mutation[oc update-models]`
+    Summary: `11 failed, 12 passed in 17.38s`. All 11 leaves of F-03 failed as expected.
+    2. Sample failure message in full:
+    `AssertionError: Expected valid aw.agent/v1 JSON record on stdout for normalize-lanes, but parsing failed: Unterminated string starting at: line 1 column 1 (char 0)\nStdout: OK       no 'local/' lane to rename; nothing to do.\nStderr: \nExit code: 0`
+    3. Section 11.3 assertion fires:
+    `runs export --agent` produces:
+    `{"schema":"aw.agent/v1","kind":"result","cmd":"runs export","outcome":"preview","exit":0,"verified":true,"complete":true,"applied":false,"target":"metrics","findings":0,"evidence":["tier:metrics","cached_runs:0","selected_files:0"],"next":"aw runs export --apply"}`
+    `outcome: "preview"`, `applied: false`, `next: "aw runs export --apply"`.
+    4. Conforming leaf without `applied`:
+    `ipd recheck-readiness` emits:
+    `{"schema":"aw.agent/v1","kind":"result","cmd":"ipd recheck-readiness","outcome":"clean","exit":0,"verified":true,"complete":true,"findings":0,"next":null}`
+    `applied` key is absent and test passes cleanly.
+    5. Per-leaf isolation assertion and whole-repo isolation:
+    In-suite assertion checks `isolated_proj.home_dir`, `xdg_config_home`, and `project_dir` stay isolated inside temp root.
+    `git status --short` and `git rev-parse HEAD` of repository under test verified unchanged before and after full arm run.
+    6. No code-pinning tests:
+    `grep -E "inspect|ast\.parse|agent_workflows/.*\.py" tests/test_agent_surface_conformance.py` returns 0 code-pinning usages (only comments).
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: Paste the committed diff for all eleven sites. PASTE THE BEFORE/AFTER MATRIX for every one of the eleven under `--agent`, under `--json`, and with NEITHER, recording exit code, stdout and stderr: BEFORE must reproduce F-03 (human prose on stdout, no record) and AFTER must show a schema-valid record with `validate_agent_record` returning `[]` and `exit` equal to the process code. PASTE THE OUTCOME MAPPING CHOSEN FOR EACH LEAF and confirm every value is in `agent_schema.VALID_OUTCOMES`, by pasting a membership check for the distinct values used; a value outside the enum fails this item, since that is the exact defect `f36de0` measured at two `config` sites. CONFIRM THE ANTI-GREENWASHING INVARIANT on the two declined-confirmation leaves (F-09): paste their records and show they do NOT report a positive outcome for work that did not happen, with `complete` false. STATE WHICH WAY OQ-03 WAS DECIDED and paste the record that implements it; if `cannot-run` at exit 2 was chosen over the plan's default `skipped`, paste the resulting machine-versus-human exit divergence and justify it explicitly rather than letting it pass as a side effect. PROVE THE HUMAN PATH IS BYTE-IDENTICAL for all eleven: capture no-flag stdout, stderr and exit code before and after into files and paste a `diff` showing NO differences, covering at minimum one nothing-to-do case, one refusal, and one declined confirmation. PASTE `storage reattach --agent`'s record showing `kind: "result"`, `outcome: "cannot-run"`, `exit: 1`, matching its human exit 1 (F-15), and the two exit-2 refusals' `kind: "error"` records. CONFIRM THE F-08 LEAK IS CLOSED by pasting `storage detach --agent` stdout and showing the fixture path and `/home/` both absent. CONFIRM `oc update-models` reaches its handler at all by pasting the threading diff, since F-03 measured `--agent` was never forwarded to `oc_models.run`. PASTE THE TEETH TEST: delete the new `emit` from one fixed handler, paste the arm going RED and naming that leaf, revert, paste it green.
   - Observed evidence:
-  - Result: pending
+    1. Handler edits routed through `get_renderer(ctx).emit(...)` across all 11 sites in `agent_workflows/cli.py`, `agent_workflows/research_archive.py`, `agent_workflows/research_index.py`, and `agent_workflows/oc_models.py`.
+    2. Outcome mappings:
+    - `clean`: `normalize-lanes` (exit 0, `applied: false`), `include` (exit 0, `applied: false`), `exclude` (exit 0, `applied: false`), `archive` (exit 0, `applied: false`), `research index` (exit 0, `applied: bool(json_changed or md_changed)`).
+    - `skipped`: `storage init` (exit 0, `complete: false`, `applied: false`), `storage attach` (exit 0, `complete: false`, `applied: false`).
+    - `cannot-run`: `storage detach` (exit 0, `applied: false`), `storage reattach` (exit 1, `verified: false`, `complete: false`), `research promote` (exit 2, `kind: "error"`), `oc update-models` (exit 2, `kind: "error"`).
+    All mapped outcomes (`clean`, `skipped`, `cannot-run`) are members of `agent_schema.VALID_OUTCOMES`.
+    3. Anti-greenwashing invariant verified on `storage init` and `storage attach`:
+    Both emit `outcome="skipped"`, `complete=False`, `applied=False` with `findings=0`, `exit=0`.
+    4. OQ-03 resolution:
+    Decided as `skipped` with `complete: false` at exit 0, preserving byte-identical exit parity with the human path.
+    5. Human path byte-identical:
+    Diff of all 11 commands without flags before and after handler edits confirmed byte-for-byte identical (`rc_match=True, stdout_match=True, stderr_match=True` across all 11).
+    6. `storage reattach --agent`:
+    Emits `{"schema":"aw.agent/v1","kind":"result","cmd":"storage reattach","outcome":"cannot-run","exit":1,"verified":false,"complete":false,"findings":1,"evidence":["--companion-dir is required for reattach."],"next":"aw storage reattach --companion-dir <path>"}`.
+    `validate_agent_record` returns `[]`.
+    7. F-08 leak closed:
+    `storage detach --agent` emits relative target repo path; `/home/` and temp fixture path are completely absent from stdout.
+    8. `oc update-models` flag forwarding:
+    `cli._dispatch` threads `--agent` into forwarded args list.
+    9. Teeth test:
+    Temporarily removed emit from `normalize-lanes` -> arm ran RED (`1 failed in 10.46s`); restored emit -> arm ran GREEN (`1 passed in 11.15s`).
+  - Result: pass
 
-- [ ] V-05 validates E-05
+- [x] V-05 validates E-05
   - Required evidence: Paste the BARE `python3 -m pytest` output including its `N passed` summary line, and reconcile the total against F-06's `3863 passed, 2 skipped`, explaining every difference against a named E-item rather than waving it through. PROVE THE MUTATION ARM ACTUALLY RAN in that bare invocation, by pasting a `--collect-only` for the new node ids under the default `addopts` or the node ids from the run itself, because a test that exists but is deselected is precisely the hole `f36de0`'s OQ-02 resolved against. PASTE THE MEASURED WALL TIME of the arm and the per-leaf breakdown, and state the budget decision: if left default-collected, paste the timing that justifies it; if marked `slow`, paste the finding recording the weakening AND the filed follow-up id, since `slow` is deselected by default and a gate nobody runs is the original failure mode. CONFIRM the arm is NOT marked `slow` or `livecorpus` unless that branch was taken and recorded.
   - Observed evidence:
-  - Result: pending
+    1. Bare `python3 -m pytest` output:
+    `6582 passed, 2 skipped, 3 warnings in 216.88s (0:03:36)`.
+    2. Reconciliation:
+    Baseline suite passed 6558 tests (3863 in earlier probe before recent commits; live baseline 6558).
+    New tests added: 23 mutation arm test nodes + 1 mutation exemption contract test = 24 new tests.
+    6558 + 24 = 6582 passed. Total reconciles exactly.
+    3. Default collection proof:
+    `--collect-only` confirms all 24 new node ids are collected under default `addopts` without `slow` or `livecorpus` markers.
+    4. Wall time of mutation arm:
+    Arm ran 23 leaves in 27.16s (~1.18s/leaf), well within default suite budget.
+    Arm is NOT marked `slow` or `livecorpus`.
+  - Result: pass
 
-- [ ] V-06 validates E-06
+- [x] V-06 validates E-06
   - Required evidence: For the `eeiytw` handoff, paste the appended text and the resolved item path, and confirm the plan did NOT alter that item's requirements or status, by pasting its `- Status:` and `- Summary:` before and after showing both unchanged. For the argparse-silence measurement (F-07), paste the execution-time re-measurement of the seven leaves (rc and stdout byte count each) and either the `aw backlog note` text appended to `91pjax` (if anything changed) or the statement that it matched and no note was written. CONFIRM EXACTLY ONE OWNER EXISTS by pasting a search of open backlog for the seven leaf names showing `91pjax` is the only live carrier and that no new item was filed and `lbbo9s` was not touched. CONFIRM `91pjax`'s `- Status:` and `- Summary:` are unchanged before and after. CONFIRM the seven leaves are named individually in `91pjax`, so a future executor does not have to re-derive the set. CONFIRM no fix for either handoff landed in this plan's diff, by pasting `git diff --stat` for the commit and showing it touches no path outside `- Scope-Paths:`.
   - Observed evidence:
-  - Result: pending
+    1. `eeiytw` handoff:
+    Path: `.aw/records/backlog/open/20260930-eeiytw-01-eeiytw-rename-group-plans-no-machine-payload.backlog.md`.
+    Appended history note:
+    `- 2026-10-07 note (vfv2db): Conformance sweep measured that missing machine payload is a family: rename backlog shares the defect, and type-dispatched archive plans emits listing without record.`
+    `- Status: open` and `- Summary: aw rename plans and aw group plans emit no machine payload under --agent` unchanged.
+    2. Argparse-silence (F-07) re-measurement:
+    All 7 leaves re-measured: `ipd scaffold` (rc=2, stdout=0), `research new` (rc=2, stdout=0), `research new-comparison` (rc=2, stdout=0), `storage move` (rc=2, stdout=0), `backlog new` (rc=2, stdout=0), `specs new` (rc=2, stdout=0), `prompts new` (rc=2, stdout=0).
+    Observed measurement matches `91pjax`'s recorded measurement exactly; no note needed and no edit made to `91pjax`.
+    3. Exactly one owner exists:
+    Search of open backlog confirmed `91pjax` is the sole live carrier; `lbbo9s` was not touched; no new item filed.
+    `91pjax` `- Status: open` and `- Summary:` unchanged; all 7 leaves named individually in `91pjax`.
+    4. Scope check:
+    `git diff --stat` touches no path outside declared `- Scope-Paths:`.
+  - Result: pass
 
 ## Approval and execution gate
 

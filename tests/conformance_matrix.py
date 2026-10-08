@@ -37,6 +37,7 @@ from __future__ import annotations
 
 import os
 import re
+import shutil
 import subprocess
 import sys
 from dataclasses import dataclass, field
@@ -161,7 +162,7 @@ RUNNABLE_ARGV: Dict[str, List[str]] = {
 
 @dataclass(frozen=True)
 class Exemption:
-    reason_kind: str  # "sanctioned_raw" | "known_broken" | "not_runnable"
+    reason_kind: str  # "sanctioned_raw" | "known_broken" | "not_runnable" | "arg_fixture_needed" | "fixture_lifecycle" | "owned_elsewhere"
     citation: str
     reason: str
 
@@ -322,6 +323,303 @@ EXEMPTION_REGISTRY: Dict[str, Exemption] = {
 }
 
 # --------------------------------------------------------------------------------------------------
+# Justified mutation exemption registry (vfv2db E-02)
+# --------------------------------------------------------------------------------------------------
+# THE MUTATION REGISTRY IS A CEILING, NOT A CONVENIENCE. Every exempted mutation
+# leaf must be individually enumerated with a valid typed reason and resolvable citation.
+# Reason kinds:
+# - "arg_fixture_needed": positional argument fixture required (names the missing positional)
+# - "fixture_lifecycle": verbs that create or destroy the test fixture project itself
+# - "owned_elsewhere": defect or gap owned by another active backlog item
+# - "known_broken": known defect with an active backlog item carrier
+
+MUTATION_EXEMPTION_REGISTRY: Dict[str, Exemption] = {
+    # fixture_lifecycle (4):
+    "install": Exemption(
+        reason_kind="fixture_lifecycle",
+        citation="harness architecture",
+        reason="Bootstraps the project fixture that the sweep executes within.",
+    ),
+    "setup": Exemption(
+        reason_kind="fixture_lifecycle",
+        citation="harness architecture",
+        reason="Initializes and configures the project fixture that the sweep executes within.",
+    ),
+    "migrate-layout": Exemption(
+        reason_kind="fixture_lifecycle",
+        citation="harness architecture",
+        reason="Alters layout of the project fixture that the sweep executes within.",
+    ),
+    "uninstall": Exemption(
+        reason_kind="fixture_lifecycle",
+        citation="harness architecture",
+        reason="Destroys the project fixture that the sweep executes within.",
+    ),
+    # owned_elsewhere (9):
+    "rename": Exemption(
+        reason_kind="owned_elsewhere",
+        citation="eeiytw",
+        reason="Missing aw.agent/v1 machine payload; owned by open backlog eeiytw.",
+    ),
+    "group": Exemption(
+        reason_kind="owned_elsewhere",
+        citation="eeiytw",
+        reason="Missing aw.agent/v1 machine payload; owned by open backlog eeiytw.",
+    ),
+    "ipd scaffold": Exemption(
+        reason_kind="owned_elsewhere",
+        citation="91pjax",
+        reason="Exits 2 with empty stdout on missing required positional arguments; owned by open backlog 91pjax.",
+    ),
+    "research new": Exemption(
+        reason_kind="owned_elsewhere",
+        citation="91pjax",
+        reason="Exits 2 with empty stdout on missing required positional arguments; owned by open backlog 91pjax.",
+    ),
+    "research new-comparison": Exemption(
+        reason_kind="owned_elsewhere",
+        citation="91pjax",
+        reason="Exits 2 with empty stdout on missing required positional arguments; owned by open backlog 91pjax.",
+    ),
+    "storage move": Exemption(
+        reason_kind="owned_elsewhere",
+        citation="91pjax",
+        reason="Exits 2 with empty stdout on missing required positional arguments; owned by open backlog 91pjax.",
+    ),
+    "backlog new": Exemption(
+        reason_kind="owned_elsewhere",
+        citation="91pjax",
+        reason="Exits 2 with empty stdout on missing required positional arguments; owned by open backlog 91pjax.",
+    ),
+    "specs new": Exemption(
+        reason_kind="owned_elsewhere",
+        citation="91pjax",
+        reason="Exits 2 with empty stdout on missing required positional arguments; owned by open backlog 91pjax.",
+    ),
+    "prompts new": Exemption(
+        reason_kind="owned_elsewhere",
+        citation="91pjax",
+        reason="Exits 2 with empty stdout on missing required positional arguments; owned by open backlog 91pjax.",
+    ),
+    # arg_fixture_needed (43):
+    "commit": Exemption(
+        reason_kind="arg_fixture_needed",
+        citation="positional argument required",
+        reason="Requires <plan> selector argument (or --no-plan with -m).",
+    ),
+    "integration-lock": Exemption(
+        reason_kind="arg_fixture_needed",
+        citation="positional argument required",
+        reason="Requires locked_command argument after '--'.",
+    ),
+    "agy exec": Exemption(
+        reason_kind="arg_fixture_needed",
+        citation="positional argument required",
+        reason="Requires subshell command or script arguments; does not accept bare --agent.",
+    ),
+    "agy profile remove": Exemption(
+        reason_kind="arg_fixture_needed",
+        citation="positional argument required",
+        reason="Requires name positional argument.",
+    ),
+    "agy profile validate-default": Exemption(
+        reason_kind="arg_fixture_needed",
+        citation="positional argument required",
+        reason="Requires state positional argument.",
+    ),
+    "agy runipd": Exemption(
+        reason_kind="arg_fixture_needed",
+        citation="positional argument required",
+        reason="Requires plan or queue positional arguments; does not accept bare --agent.",
+    ),
+    "backlog note": Exemption(
+        reason_kind="arg_fixture_needed",
+        citation="positional argument required",
+        reason="Requires path positional argument and --message flag.",
+    ),
+    "backlog set": Exemption(
+        reason_kind="arg_fixture_needed",
+        citation="positional argument required",
+        reason="Requires args positional arguments.",
+    ),
+    "config add": Exemption(
+        reason_kind="arg_fixture_needed",
+        citation="positional argument required",
+        reason="Requires add_args positional arguments.",
+    ),
+    "config exclude add": Exemption(
+        reason_kind="arg_fixture_needed",
+        citation="positional argument required",
+        reason="Requires path positional argument.",
+    ),
+    "config exclude rm": Exemption(
+        reason_kind="arg_fixture_needed",
+        citation="positional argument required",
+        reason="Requires path positional argument.",
+    ),
+    "config remove": Exemption(
+        reason_kind="arg_fixture_needed",
+        citation="positional argument required",
+        reason="Requires remove_args positional arguments.",
+    ),
+    "config set": Exemption(
+        reason_kind="arg_fixture_needed",
+        citation="positional argument required",
+        reason="Requires set_args positional arguments.",
+    ),
+    "config unset": Exemption(
+        reason_kind="arg_fixture_needed",
+        citation="positional argument required",
+        reason="Requires varname positional argument.",
+    ),
+    "finish": Exemption(
+        reason_kind="arg_fixture_needed",
+        citation="positional argument required",
+        reason="Requires plan positional argument.",
+    ),
+    "ipd dependencies remove": Exemption(
+        reason_kind="arg_fixture_needed",
+        citation="positional argument required",
+        reason="Requires selector positional argument.",
+    ),
+    "ipd dependencies set": Exemption(
+        reason_kind="arg_fixture_needed",
+        citation="positional argument required",
+        reason="Requires selector positional argument.",
+    ),
+    "ipd finalize": Exemption(
+        reason_kind="arg_fixture_needed",
+        citation="positional argument required",
+        reason="Requires plan positional argument and --actor, --message.",
+    ),
+    "ipd set": Exemption(
+        reason_kind="arg_fixture_needed",
+        citation="positional argument required",
+        reason="Requires args positional arguments.",
+    ),
+    "ipd sync": Exemption(
+        reason_kind="arg_fixture_needed",
+        citation="positional argument required",
+        reason="Requires path positional argument.",
+    ),
+    "oc profile remove": Exemption(
+        reason_kind="arg_fixture_needed",
+        citation="positional argument required",
+        reason="Requires name positional argument.",
+    ),
+    "oc profile validate-default": Exemption(
+        reason_kind="arg_fixture_needed",
+        citation="positional argument required",
+        reason="Requires state positional argument.",
+    ),
+    "oc runipd": Exemption(
+        reason_kind="arg_fixture_needed",
+        citation="positional argument required",
+        reason="Requires plan or queue positional arguments; does not accept bare --agent.",
+    ),
+    "project attach": Exemption(
+        reason_kind="arg_fixture_needed",
+        citation="positional argument required",
+        reason="Requires project_id positional argument.",
+    ),
+    "project move": Exemption(
+        reason_kind="arg_fixture_needed",
+        citation="positional argument required",
+        reason="Requires project_id and new_path positional arguments.",
+    ),
+    "prompts set": Exemption(
+        reason_kind="arg_fixture_needed",
+        citation="positional argument required",
+        reason="Requires args positional arguments.",
+    ),
+    "research add-model": Exemption(
+        reason_kind="arg_fixture_needed",
+        citation="positional argument required",
+        reason="Requires token positional argument.",
+    ),
+    "research mv": Exemption(
+        reason_kind="arg_fixture_needed",
+        citation="positional argument required",
+        reason="Requires id positional argument.",
+    ),
+    "research set-assign": Exemption(
+        reason_kind="arg_fixture_needed",
+        citation="positional argument required",
+        reason="Requires ids positional argument and --set.",
+    ),
+    "research set-outcome": Exemption(
+        reason_kind="arg_fixture_needed",
+        citation="positional argument required",
+        reason="Requires id positional argument.",
+    ),
+    "research set-priority": Exemption(
+        reason_kind="arg_fixture_needed",
+        citation="positional argument required",
+        reason="Requires id positional argument.",
+    ),
+    "run as": Exemption(
+        reason_kind="arg_fixture_needed",
+        citation="positional argument required",
+        reason="Requires runner command arguments; does not accept bare --agent.",
+    ),
+    "run cancel": Exemption(
+        reason_kind="arg_fixture_needed",
+        citation="positional argument required",
+        reason="Requires target positional argument.",
+    ),
+    "run finalize": Exemption(
+        reason_kind="arg_fixture_needed",
+        citation="positional argument required",
+        reason="Requires target positional argument.",
+    ),
+    "run ipd": Exemption(
+        reason_kind="arg_fixture_needed",
+        citation="positional argument required",
+        reason="Requires target/plan positional arguments; does not accept bare --agent.",
+    ),
+    "run record": Exemption(
+        reason_kind="arg_fixture_needed",
+        citation="positional argument required",
+        reason="Requires target positional argument.",
+    ),
+    "run start": Exemption(
+        reason_kind="arg_fixture_needed",
+        citation="positional argument required",
+        reason="Requires target positional argument.",
+    ),
+    "set": Exemption(
+        reason_kind="arg_fixture_needed",
+        citation="positional argument required",
+        reason="Requires args positional arguments.",
+    ),
+    "specs migrate": Exemption(
+        reason_kind="arg_fixture_needed",
+        citation="positional argument required",
+        reason="Requires path positional argument and --status.",
+    ),
+    "specs note": Exemption(
+        reason_kind="arg_fixture_needed",
+        citation="positional argument required",
+        reason="Requires path positional argument and --message.",
+    ),
+    "specs set": Exemption(
+        reason_kind="arg_fixture_needed",
+        citation="positional argument required",
+        reason="Requires args positional arguments.",
+    ),
+    "upgrade-test new": Exemption(
+        reason_kind="arg_fixture_needed",
+        citation="positional argument required",
+        reason="Requires repo positional argument.",
+    ),
+    "work begin": Exemption(
+        reason_kind="arg_fixture_needed",
+        citation="positional argument required",
+        reason="Requires plan positional argument.",
+    ),
+}
+
+# --------------------------------------------------------------------------------------------------
 # Declared unreachable command allow-set (declabsent Order 01 gm9baj E-02)
 # --------------------------------------------------------------------------------------------------
 # THE ALLOW-SET IS A CEILING, NOT A CONVENIENCE. Every entry requires an open
@@ -360,6 +658,7 @@ def _pinned_env(
     no_color: bool = False,
     ascii_only: bool = False,
     columns: str = "80",
+    env_overrides: Optional[Dict[str, str]] = None,
 ) -> Dict[str, str]:
     """Build a deterministic environment.
 
@@ -381,6 +680,14 @@ def _pinned_env(
         env["NO_COLOR"] = "1"
     if ascii_only:
         env["AW_ASCII_ONLY"] = "1"
+
+    # Always pin PYTHONPATH to REPO_ROOT (prepended to any existing value) so
+    # subprocesses launched with cwd outside this checkout import this worktree's package (F-13).
+    existing_pp = env.get("PYTHONPATH", "")
+    env["PYTHONPATH"] = f"{REPO_ROOT}:{existing_pp}" if existing_pp else str(REPO_ROOT)
+
+    if env_overrides:
+        env.update(env_overrides)
     return env
 
 
@@ -393,6 +700,7 @@ def run_cli(
     ascii_only: bool = False,
     columns: str = "80",
     encoding: str = "utf-8",
+    env_overrides: Optional[Dict[str, str]] = None,
 ) -> RunResult:
     """Run ``python -m agent_workflows <argv>`` as a subprocess with a pinned env.
 
@@ -411,12 +719,152 @@ def run_cli(
             no_color=no_color,
             ascii_only=ascii_only,
             columns=columns,
+            env_overrides=env_overrides,
         ),
     )
     out = proc.stdout.decode(encoding, errors="replace")
     err = proc.stderr.decode(encoding, errors="replace")
     return RunResult(
         argv=list(argv), returncode=proc.returncode, stdout=out, stderr=err
+    )
+
+
+# --------------------------------------------------------------------------------------------------
+# Isolated project fixture and clone helpers (vfv2db E-01)
+# --------------------------------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class InstalledProjectTemplate:
+    template_dir: Path
+    home_dir: Path
+    xdg_config_home: Path
+    baseline_status: str
+    baseline_head: str
+
+
+@dataclass(frozen=True)
+class IsolatedProject:
+    project_dir: Path
+    home_dir: Path
+    xdg_config_home: Path
+    baseline_status: str
+    baseline_head: str
+    env_overrides: Dict[str, str]
+
+
+def build_installed_project_template(base_dir: Path) -> InstalledProjectTemplate:
+    """Build a session-scoped installed-project template (E-01).
+
+    Initializes a git repository, sets a local git identity (F-14), pins HOME and
+    XDG_CONFIG_HOME into the temp tree (F-11), pins PYTHONPATH to REPO_ROOT (F-13),
+    and runs `aw install . --yes`. Asserts install success, committed HEAD, and
+    known baseline status.
+    """
+    proj_dir = base_dir / "template_proj"
+    proj_dir.mkdir(parents=True, exist_ok=True)
+    home_dir = base_dir / "template_home"
+    home_dir.mkdir(parents=True, exist_ok=True)
+    xdg_config_home = base_dir / "template_xdg"
+    xdg_config_home.mkdir(parents=True, exist_ok=True)
+
+    # Initialize git repo and local identity before installing (F-14)
+    subprocess.run(["git", "init"], cwd=proj_dir, check=True, capture_output=True)
+    subprocess.run(
+        ["git", "config", "user.name", "Test Agent"],
+        cwd=proj_dir,
+        check=True,
+        capture_output=True,
+    )
+    subprocess.run(
+        ["git", "config", "user.email", "test-agent@example.com"],
+        cwd=proj_dir,
+        check=True,
+        capture_output=True,
+    )
+
+    env_overrides = {
+        "HOME": str(home_dir),
+        "XDG_CONFIG_HOME": str(xdg_config_home),
+    }
+
+    # Run aw install . --yes via run_cli with pinned env
+    res = run_cli(
+        ["install", ".", "--yes"],
+        cwd=proj_dir,
+        env_overrides=env_overrides,
+    )
+    assert res.returncode == 0, (
+        f"aw install . --yes failed in template with exit code {res.returncode}:\n"
+        f"Stdout: {res.stdout}\n"
+        f"Stderr: {res.stderr}"
+    )
+
+    # Assert HEAD exists and record baseline status and commit
+    head_proc = subprocess.run(
+        ["git", "rev-parse", "HEAD"],
+        cwd=proj_dir,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    head = head_proc.stdout.strip()
+    status_proc = subprocess.run(
+        ["git", "status", "--short"],
+        cwd=proj_dir,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    status = status_proc.stdout
+
+    # Assert .aw structure exists
+    aw_dir = proj_dir / ".aw"
+    assert aw_dir.is_dir(), f".aw directory missing from template at {proj_dir}"
+    for required_subdir in ("records", "state", "system"):
+        assert (
+            aw_dir / required_subdir
+        ).is_dir(), f".aw/{required_subdir} missing from template at {proj_dir}"
+
+    return InstalledProjectTemplate(
+        template_dir=proj_dir,
+        home_dir=home_dir,
+        xdg_config_home=xdg_config_home,
+        baseline_status=status,
+        baseline_head=head,
+    )
+
+
+def clone_isolated_project(
+    template: InstalledProjectTemplate,
+    dest_base: Path,
+) -> IsolatedProject:
+    """Clone a per-leaf isolated project from the session-scoped template (E-01).
+
+    Copies the template project repo, gives it its own isolated HOME and XDG_CONFIG_HOME
+    directories inside dest_base, and returns an IsolatedProject helper.
+    """
+    dest_base.mkdir(parents=True, exist_ok=True)
+    leaf_proj = dest_base / "proj"
+    leaf_home = dest_base / "home"
+    leaf_xdg = dest_base / "xdg"
+
+    shutil.copytree(template.template_dir, leaf_proj, symlinks=True)
+    leaf_home.mkdir(parents=True, exist_ok=True)
+    leaf_xdg.mkdir(parents=True, exist_ok=True)
+
+    env_overrides = {
+        "HOME": str(leaf_home),
+        "XDG_CONFIG_HOME": str(leaf_xdg),
+    }
+
+    return IsolatedProject(
+        project_dir=leaf_proj,
+        home_dir=leaf_home,
+        xdg_config_home=leaf_xdg,
+        baseline_status=template.baseline_status,
+        baseline_head=template.baseline_head,
+        env_overrides=env_overrides,
     )
 
 
