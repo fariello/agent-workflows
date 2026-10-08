@@ -1,5 +1,5 @@
 - Id: nvymif
-- Status: graduated
+- Status: done
 - Graduated-To: nvymif
 - Set: nvymif
 - Priority: medium
@@ -7,6 +7,7 @@
 - Summary: The R5.5 teardown gate refuses every interrupted lane, because an absent collection receipt reads as uncollected even for a lane that submitted nothing
 
 ## Workflow history
+- 2026-10-08 done (aw backlog): closed by aw agy run: IPD z8ex9f executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20260930-nvymif-01-z8ex9f-distinguish-a-lane-that-provably-submitted-nothing-from-one.ipd.md); evidence .aw/records/plans/executed/20260930-nvymif-01-z8ex9f-distinguish-a-lane-that-provably-submitted-nothing-from-one.ipd.md
 - 2026-09-30 set (aw backlog): graduated by run run-20260930T053024Z-3198670: z8ex9f
 - 2026-09-22 created (aw backlog): The R5.5 teardown gate refuses every interrupted lane, because an absent collection receipt reads as uncollected even for a lane that submitted nothing
 
