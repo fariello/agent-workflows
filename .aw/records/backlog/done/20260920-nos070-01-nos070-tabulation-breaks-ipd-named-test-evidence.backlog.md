@@ -1,5 +1,5 @@
 - Id: nos070
-- Status: graduated
+- Status: done
 - Graduated-To: nos070
 - Set: nos070
 - Priority: medium
@@ -7,6 +7,7 @@
 - Summary: A tabulated test suite makes named-test and test-count evidence requirements in already-approved IPDs unsatisfiable as written
 
 ## Workflow history
+- 2026-10-08 done (aw backlog): closed by aw agy run: IPD t5txjk executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20260929-nos070-02-t5txjk-give-row-level-test-evidence-a-sound-repeatable-driver-and-f.ipd.md); evidence .aw/records/plans/executed/20260929-nos070-02-t5txjk-give-row-level-test-evidence-a-sound-repeatable-driver-and-f.ipd.md
 - 2026-09-29 set (aw backlog): graduated by run run-20260928T235632Z-1358353: t5txjk, vtup6x
 - 2026-09-20 created (aw backlog): A tabulated test suite makes named-test and test-count evidence requirements in already-approved IPDs unsatisfiable as written
 

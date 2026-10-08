@@ -6,7 +6,7 @@
 - Scope: Make per-row verdicts truthful in the four affected `subTest` blocks, and ship one sound reusable driver so row-level evidence is a repeatable paste rather than a per-plan ad-hoc script.
 - Scope-Paths: tests/test_executed_transition_gate_e2e.py, tests/test_subtest_row_verdicts.py, agent_workflows/subtest_rows.py, docs/row-level-test-evidence.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: followup
 - Priority: medium
@@ -16,9 +16,9 @@
 - Highest E allocated: 05
 - Author: opencode/its_direct/pt3-claude-opus-5-1m-us
 - Id: t5txjk
-- Approval: 2026-10-03, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-08 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: t5txjk verified (set nos070, attempt 1).
 - 2026-10-03 approved (aw set): status set to approved
 
 - 2026-10-02 readiness re-check (agent (aw ipd recheck-readiness)): `- Readiness:` CHANGED `no-go` -> `go-pending-approval`. THIS IS A RE-CHECK, NOT A REVIEW: no finding was re-derived and no plan content was re-critiqued. The three `no-go` conditions were RECOMPUTED with the shipped predicates and each was found clear: unresolved-blocking-question -> clear (no unresolved BLOCKING open question; `has_unresolved_blocking_question` -> False (a NON-blocking open question is deliberately not counted, per the maintainer's 2026-09-10 ruling on qhy3i3 OQ-01)); unresolved-gating-finding -> clear (no unresolved gating finding; `review_findings.subject_gating_blocks` -> empty (an ABSENT review artifact is silent by that predicate's documented contract)); negative-review-verdict -> clear (the newest review record's verdict is not negative; `newest_verdict` -> neutral). RE-CHECKED REVIEW: the review of 2026-09-29, findings PR-001..OQ-01. Recomputed at HEAD `22d50ce93`. HUMAN APPROVAL IS STILL REQUIRED AND WAS NOT GIVEN: `go-pending-approval` means the plan awaits sign-off, and nothing here approves it or clears it to execute. Only a review may set `go`.
@@ -36,7 +36,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: stop the four blocks reporting false per-row verdicts
 
-- [ ] E-01 In `tests/test_executed_transition_gate_e2e.py`, make each of the four accumulate-style `subTest` blocks able to FAIL INSIDE the subtest context when its row is wrong, UNDER AN OPT-IN STRICT MODE THAT IS OFF BY DEFAULT, in addition to (never instead of) appending to the existing `wrong` list. The four enclosing tests are `PreCommitExecutedGateTests.test_each_staged_situation_gets_its_own_verdict_and_reason` (over `SITUATIONS`), `MergeAwareInTreeEvidenceTests.test_the_merge_detector_reports_the_incoming_side_in_every_state` (over `DETECTOR_STATES`, which accumulates a single `problem` rather than a `problems` list), `MergeAwareInTreeEvidenceTests.test_merge_state_never_becomes_a_blanket_exemption` (over `MERGE_DECISIONS`) and `MergeAwareInTreeEvidenceTests.test_git_itself_enforces_the_gate_at_both_merge_stages` (over `INSTALLED_HOOK_RUNS`).
+- [x] E-01 In `tests/test_executed_transition_gate_e2e.py`, make each of the four accumulate-style `subTest` blocks able to FAIL INSIDE the subtest context when its row is wrong, UNDER AN OPT-IN STRICT MODE THAT IS OFF BY DEFAULT, in addition to (never instead of) appending to the existing `wrong` list. The four enclosing tests are `PreCommitExecutedGateTests.test_each_staged_situation_gets_its_own_verdict_and_reason` (over `SITUATIONS`), `MergeAwareInTreeEvidenceTests.test_the_merge_detector_reports_the_incoming_side_in_every_state` (over `DETECTOR_STATES`, which accumulates a single `problem` rather than a `problems` list), `MergeAwareInTreeEvidenceTests.test_merge_state_never_becomes_a_blanket_exemption` (over `MERGE_DECISIONS`) and `MergeAwareInTreeEvidenceTests.test_git_itself_enforces_the_gate_at_both_merge_stages` (over `INSTALLED_HOOK_RUNS`).
 
   **THE UNCONDITIONAL `self.fail`-INSIDE-THE-CONTEXT FIX IS MEASURED TO BREAK THE DEFAULT RUN, AND THIS IS THE LOAD-BEARING CORRECTION IN THE PLAN (F-08).** Measured at review through the REAL `python3 -m pytest` with this repository's configuration: with an unconditional in-context `self.fail`, pytest reports ONLY THE FIRST failing row, the trailing `self.assertEqual(wrong, [], ...)` IS NEVER REACHED, and the aggregate diagnostic prose plus the complete list of wrong rows are BOTH ABSENT from the output. With today's append-only code both are present. So the authored E-01 would have silently deleted the channel the plan's own fence names as "the maintainer's diagnostic reasoning ... the channel a normal `pytest` run reports through", while its `Expected outcome` asserted the opposite. The plan's F-04 is not false; it measured `unittest`, where every subtest failure IS recorded and the aggregate still runs. Pytest without `pytest-subtests` behaves differently, and pytest is what this repository runs (F-05 already establishes the plugin is absent).
 
@@ -45,35 +45,35 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   PRESERVE THE EXISTING PROPERTIES EXACTLY. Do NOT delete, shorten or reword any aggregate assertion message, any `why` string, or any row datum. Every row must still RUN after an earlier row fails, in BOTH modes, which is why a bare `assert` in the loop body but outside the subtest context is wrong in either mode (it aborts the sweep; see the gate's silent-failure paragraph).
   - Depends on: none
   - Expected outcome: with strict mode OFF, a bare `python3 -m pytest` on the file behaves exactly as before, including the aggregate message and the complete wrong-row list; with strict mode ON, a corrupted row makes an `addSubTest`-observing runner print FAIL for that row and PASS for the others with every row still executed. BOTH halves are required; one without the other is a failed item.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 Add `tests/test_subtest_row_verdicts.py` proving the PROPERTY E-01 establishes, generically rather than by pinning the four call sites: build a throwaway `TestCase` in-process whose table has one passing and one failing row in each of the two idioms (fail-inside-context and append-only), run it under a result class that records `addSubTest` outcomes, and assert that the fail-inside-context idiom reports the failing row as FAILED while the append-only idiom does NOT. That second assertion is the one that documents the hazard: it pins the WRONG idiom's observable behaviour so a future reader can see why the convention exists. Then assert the same property holds for the real repaired tests by running one of them with a deliberately corrupted table row injected on the class and checking the recorded per-row outcomes. This test exercises code by running it and asserts on observable outcomes; it reads no production source text, so it is clear of GUIDING_PRINCIPLES P16.
+- [x] E-02 Add `tests/test_subtest_row_verdicts.py` proving the PROPERTY E-01 establishes, generically rather than by pinning the four call sites: build a throwaway `TestCase` in-process whose table has one passing and one failing row in each of the two idioms (fail-inside-context and append-only), run it under a result class that records `addSubTest` outcomes, and assert that the fail-inside-context idiom reports the failing row as FAILED while the append-only idiom does NOT. That second assertion is the one that documents the hazard: it pins the WRONG idiom's observable behaviour so a future reader can see why the convention exists. Then assert the same property holds for the real repaired tests by running one of them with a deliberately corrupted table row injected on the class and checking the recorded per-row outcomes. This test exercises code by running it and asserts on observable outcomes; it reads no production source text, so it is clear of GUIDING_PRINCIPLES P16.
 
   COVER BOTH MODES, since after F-08 the property is mode-dependent and a test that only exercises strict mode would let the default run regress unnoticed. Assert, over the throwaway in-process `TestCase`: with the switch OFF, the failing row is NOT recorded as a failing subtest and the enclosing test still fails at its aggregate assertion whose message names every wrong row; with the switch ON, the failing row IS recorded as FAILED, the other rows are recorded as passing, and every row still executed. Read the switch the same way E-01's production code reads it, so the test cannot pass against an implementation that evaluates it at import time (measured at review: a class-attribute read does not see an environment variable set by a subprocess-spawning driver).
   - Depends on: E-01
   - Expected outcome: a test that goes red if anyone reverts a repaired block to append-only reporting, and which fails for the right reason (a row's recorded verdict, not a string in a file).
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: make the paste repeatable
 
-- [ ] E-03 Add `agent_workflows/subtest_rows.py` exposing a small, importable helper that runs one or more named test methods and returns plus prints the per-row verdicts (the row's `subTest` parameters and PASS/FAIL), built on a `unittest.TextTestResult` subclass overriding `addSubTest`. Model it on the harness executed plan `0i4fkt` pasted as evidence, which is the shape already proven in this repository. TWO HONESTY REQUIREMENTS ARE PART OF THE DELIVERABLE, not decoration. FIRST, the output must report the ENCLOSING test's own pass/fail beside the row verdicts, because a test can fail outside any subtest (in `setUp`, or at a trailing aggregate assertion) and a row listing alone would then read as an all-clear. SECOND, when the enclosing test FAILED but no row was recorded as failing, the helper must say so explicitly rather than printing a clean row list, since that combination is the exact signature of the append-only hazard and of a failure raised outside the loop. Expose it as a module callable from a one-line `python3 -c` invocation an executor can paste into a V-item; do NOT add a CLI verb (see Deferred).
+- [x] E-03 Add `agent_workflows/subtest_rows.py` exposing a small, importable helper that runs one or more named test methods and returns plus prints the per-row verdicts (the row's `subTest` parameters and PASS/FAIL), built on a `unittest.TextTestResult` subclass overriding `addSubTest`. Model it on the harness executed plan `0i4fkt` pasted as evidence, which is the shape already proven in this repository. TWO HONESTY REQUIREMENTS ARE PART OF THE DELIVERABLE, not decoration. FIRST, the output must report the ENCLOSING test's own pass/fail beside the row verdicts, because a test can fail outside any subtest (in `setUp`, or at a trailing aggregate assertion) and a row listing alone would then read as an all-clear. SECOND, when the enclosing test FAILED but no row was recorded as failing, the helper must say so explicitly rather than printing a clean row list, since that combination is the exact signature of the append-only hazard and of a failure raised outside the loop. Expose it as a module callable from a one-line `python3 -c` invocation an executor can paste into a V-item; do NOT add a CLI verb (see Deferred).
 
   THE HELPER OWNS TURNING STRICT MODE ON, so an executor pastes one command and cannot get silent all-PASS output by forgetting a flag. Set the switch inside the helper before running the tests and restore it afterwards, and STATE IN THE OUTPUT that strict mode was in effect, because a row listing produced without it is exactly the forgeable artifact this plan exists to eliminate (F-01). A THIRD HONESTY REQUIREMENT follows from F-08 and is part of the deliverable: the helper must NOT be the only way to run these tests correctly, so it must not be needed for, and must not alter, an ordinary `python3 -m pytest` run.
   - Depends on: E-01
   - Expected outcome: one documented import that prints per-row verdicts plus the enclosing verdict, usable in a single pasteable command, and which cannot silently present a failing test as a set of passing rows.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 Add `docs/row-level-test-evidence.md`: a short page stating what row-level evidence is for (satisfying a V-item whose named test has become a table row), the exact pasteable command using E-03's helper, the two-idiom hazard in one paragraph with the reason a passing `subTest` is silent under this repository's runner configuration, and the rule that a row verdict is only trustworthy when the row's failure is raised inside the subtest context. Link it from the convention amended by sibling plan `vtup6x` so the substitution rule has somewhere to point for the mechanism. The page is written for an executing agent, not an end user.
+- [x] E-04 Add `docs/row-level-test-evidence.md`: a short page stating what row-level evidence is for (satisfying a V-item whose named test has become a table row), the exact pasteable command using E-03's helper, the two-idiom hazard in one paragraph with the reason a passing `subTest` is silent under this repository's runner configuration, and the rule that a row verdict is only trustworthy when the row's failure is raised inside the subtest context. Link it from the convention amended by sibling plan `vtup6x` so the substitution rule has somewhere to point for the mechanism. The page is written for an executing agent, not an end user.
   - Depends on: E-03
   - Expected outcome: an executor needing a row verdict finds one command and one caveat, without reading this plan or reverse-engineering a past plan's evidence block.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 PROVE THE DEFAULT RUN IS UNCHANGED, which is the regression F-08 measured and which no other item owns.
+- [x] E-05 PROVE THE DEFAULT RUN IS UNCHANGED, which is the regression F-08 measured and which no other item owns.
 
   Before any edit, capture the EXACT pytest output of `python3 -m pytest tests/test_executed_transition_gate_e2e.py -o addopts="" -p no:randomly` with one row of `MERGE_DECISIONS` corrupted on the class attribute in the driver process, recording whether the aggregate diagnostic prose appears and whether EVERY wrong row is listed. After E-01, repeat it with strict mode OFF and compare: the aggregate message must still appear and the same rows must still be listed. This is a BEFORE/AFTER on the DEFAULT path, distinct from V-01's before/after on the DRIVER path, and both are required because F-08 is precisely a case where improving the driver path silently degraded the default one.
   - Depends on: E-01
   - Expected outcome: with strict mode off, the corrupted-row run produces the same aggregate diagnostic and the same wrong-row list before and after the change, demonstrated by pasted output rather than asserted.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -116,6 +116,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Carrier-Declined: No obligation is left outstanding. This is a rejected remedy rather than postponed work: the plugin cannot surface a row that raises nothing, so adding it would not fix the defect E-01 fixes. Nothing remains for a carrier to own.
 - RESTATING THE ROW SHAPE OR THE `why` COLUMN CONVENTION. Out of scope; no table's data is edited by this plan, only the reporting of a wrong row.
   - Carrier: 7fzqop
+  - Carrier-Evidence: .aw/records/backlog/done/20260929-7fzqop-01-7fzqop-document-tabulated-test-convention.backlog.md
 - THE AUTHORING AND SUBSTITUTION CONVENTIONS THEMSELVES. Owned by sibling plan `vtup6x` (`nos070-01`). This plan supplies the mechanism that plan's rule needs; it states no rule about how a V-item must be worded.
   - Carrier: vtup6x
   - Carrier-Evidence: .aw/records/plans/executed/20260929-nos070-01-vtup6x-make-v-item-test-evidence-survive-test-reorganization-demand.ipd.md
@@ -153,30 +154,502 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste the BEFORE and AFTER halves of the corrupted-row comparison IN STRICT MODE for at least two of the four repaired tables, including the one over `MERGE_DECISIONS`. BEFORE (from the pre-change tree) must show the per-row listing reporting every row PASS while the enclosing test FAILS. AFTER must show the corrupted row reporting FAIL, every other row still reporting a verdict (proving the sweep was not aborted), and the enclosing test still failing. ALSO paste the switch-OFF half for the same corrupted row, showing the aggregate assertion still fires with its original diagnostic prose and still lists every wrong row; an AFTER that shows only the strict-mode listing FAILS this item, because F-08 measured that an unconditional in-context failure makes pytest report only the first row and never reach the aggregate. Paste the actual switch you used and show it is read INSIDE the test method, not as an import-time class attribute (measured at review not to work under a subprocess driver). Also paste `git diff -- tests/test_executed_transition_gate_e2e.py` and confirm by reading it that no row DATA, no `why` string and no aggregate assertion message was altered, and that no test was deleted or weakened; if the diff removes any line other than the reporting change, report it rather than explaining it. Finally paste the row census read off the tables after the change and confirm it is unchanged at 33.
   - Observed evidence:
-  - Result: pending
+    1. BEFORE halves of corrupted-row comparison (pre-change tree):
+    Table 1 (`MERGE_DECISIONS` with row 0 corrupted to want_rc=99):
+    ```
+    === TABLE 1: MERGE_DECISIONS (row 0 corrupted: want_rc=99) ===
+      (case='a merge whose incoming side carries the matching finalize commit'): PASS
+      (case='a merge whose incoming side has NO finalize commit'): PASS
+      (case='a merge carrying a finalize commit for a DIFFERENT id6'): PASS
+      (case='a finalize commit already reachable from HEAD'): PASS
+      (case='a plan with no readable `- Id:`, during a merge'): PASS
+      (case='a hand-edited status flip OUTSIDE any merge'): PASS
+      (case='a `git mv` into executed/ OUTSIDE any merge'): PASS
+    FAIL: test_merge_state_never_becomes_a_blanket_exemption (tests.test_executed_transition_gate_e2e.MergeAwareInTreeEvidenceTests.test_merge_state_never_becomes_a_blanket_exemption)
+    AssertionError: Lists differ: ['  a merge whose incoming side carries th[440 chars]nts'] != []
+    Enclosing test failures: 1
+    ```
+    Table 2 (`DETECTOR_STATES` with row 0 corrupted to return `['corrupted_sha']`):
+    ```
+    === TABLE 2: DETECTOR_STATES (row 0 corrupted: expected=[corrupted]) ===
+      (case='no merge in progress at all'): PASS
+      (case='a lane exists but no merge has been started'): PASS
+      (case='a hand merge (`git merge --no-commit`) in progress'): PASS
+      (case='a merge inside a WORKTREE, where `.git` is a FILE'): PASS
+    FAIL: test_the_merge_detector_reports_the_incoming_side_in_every_state (tests.test_executed_transition_gate_e2e.MergeAwareInTreeEvidenceTests.test_the_merge_detector_reports_the_incoming_side_in_every_state)
+    AssertionError: Lists differ: ["  no merge in progress at all:\n    - ex[261 chars]mit"] != []
+    Enclosing test failures: 1
+    ```
 
-- [ ] V-02 validates E-02
+    2. AFTER halves of corrupted-row comparison IN STRICT MODE (`AW_ROW_STRICT=1`):
+    Table 1 (`MERGE_DECISIONS` with row 0 corrupted to want_rc=99):
+    ```
+    === TABLE 1: MERGE_DECISIONS (row 0 corrupted: want_rc=99, STRICT MODE) ===
+      (case='a merge whose incoming side carries the matching finalize commit'): FAIL
+      (case='a merge whose incoming side has NO finalize commit'): PASS
+      (case='a merge carrying a finalize commit for a DIFFERENT id6'): PASS
+      (case='a finalize commit already reachable from HEAD'): PASS
+      (case='a plan with no readable `- Id:`, during a merge'): PASS
+      (case='a hand-edited status flip OUTSIDE any merge'): PASS
+      (case='a `git mv` into executed/ OUTSIDE any merge'): PASS
+    FAIL: test_merge_state_never_becomes_a_blanket_exemption (tests.test_executed_transition_gate_e2e.MergeAwareInTreeEvidenceTests.test_merge_state_never_becomes_a_blanket_exemption) (case='a merge whose incoming side carries the matching finalize commit')
+    AssertionError:   a merge whose incoming side carries the matching finalize commit:
+        - expected exit code 99, got 0 with messages []
+        this row exists because: THE WHOLE POINT OF THE SECOND PATH...
+    FAIL: test_merge_state_never_becomes_a_blanket_exemption (tests.test_executed_transition_gate_e2e.MergeAwareInTreeEvidenceTests.test_merge_state_never_becomes_a_blanket_exemption)
+    AssertionError: Lists differ: ['  a merge whose incoming side carries th[440 chars]nts'] != []
+    FAILED (failures=2)
+    Enclosing test failures: 2
+    ```
+    Table 2 (`DETECTOR_STATES` with row 0 corrupted to return `['corrupted_sha']`):
+    ```
+    === TABLE 2: DETECTOR_STATES (row 0 corrupted: expected=[corrupted], STRICT MODE) ===
+      (case='no merge in progress at all'): FAIL
+      (case='a lane exists but no merge has been started'): PASS
+      (case='a hand merge (`git merge --no-commit`) in progress'): PASS
+      (case='a merge inside a WORKTREE, where `.git` is a FILE'): PASS
+    FAIL: test_the_merge_detector_reports_the_incoming_side_in_every_state (tests.test_executed_transition_gate_e2e.MergeAwareInTreeEvidenceTests.test_the_merge_detector_reports_the_incoming_side_in_every_state) (case='no merge in progress at all')
+    AssertionError:   no merge in progress at all:
+        - expected ['corrupted_sha'], got []
+        this row exists because: EMPTY MEANS NOT-A-MERGE, and the caller REFUSES on empty...
+    FAIL: test_the_merge_detector_reports_the_incoming_side_in_every_state (tests.test_executed_transition_gate_e2e.MergeAwareInTreeEvidenceTests.test_the_merge_detector_reports_the_incoming_side_in_every_state)
+    AssertionError: Lists differ: ["  no merge in progress at all:\n    - ex[261 chars]mit"] != []
+    FAILED (failures=2)
+    Enclosing test failures: 2
+    ```
+    In both tables, row 0 reported FAIL, every remaining row reported a verdict (sweep was not aborted), and the enclosing test failed.
+
+    3. Switch-OFF half for the same corrupted row:
+    With `AW_ROW_STRICT` unset / off, the aggregate assertion fires with its original diagnostic prose:
+    ```
+    tests/test_executed_transition_gate_e2e.py:1051: AssertionError: Lists differ: ['  a merge whose incoming side carries th[440 chars]nts'] != []
+    : `check` decided 1 of 7 merge situations wrongly. Read the grouping: if EVERY in-merge refusal row now passes, merge state has become a blanket exemption and staging a hand-edit inside a merge commit is an open bypass; if the accepting row refuses, no finalized lane can be integrated at all and `--no-verify` becomes routine again, which is the practice this path was built to end; if the two OUTSIDE-a-merge rows changed, the merge-awareness work altered non-merge behavior, which it is required not to do; if only the wording rows failed the verdicts are right but the messages send operators to the wrong remedy. FIX: keep the three bindings intact (plan-bound id6, incoming-side-only `HEAD..MERGE_HEAD`, exact subject form); each row above corresponds to dropping exactly one of them.
+      a merge whose incoming side carries the matching finalize commit:
+        - expected exit code 99, got 0 with messages []
+        this row exists because: THE WHOLE POINT OF THE SECOND PATH...
+    ```
+
+    4. Actual switch used and where it is read:
+    `strict = os.environ.get("AW_ROW_STRICT") == "1"`
+    Read directly inside each of the four test methods at call time:
+    - `PreCommitExecutedGateTests.test_each_staged_situation_gets_its_own_verdict_and_reason` (line 518)
+    - `MergeAwareInTreeEvidenceTests.test_the_merge_detector_reports_the_incoming_side_in_every_state` (line 803)
+    - `MergeAwareInTreeEvidenceTests.test_merge_state_never_becomes_a_blanket_exemption` (line 1004)
+    - `MergeAwareInTreeEvidenceTests.test_git_itself_enforces_the_gate_at_both_merge_stages` (line 1150)
+
+    5. `git diff -- tests/test_executed_transition_gate_e2e.py`:
+    ```diff
+    diff --git a/tests/test_executed_transition_gate_e2e.py b/tests/test_executed_transition_gate_e2e.py
+    index 8b3fc1687..d10b9caf4 100644
+    --- a/tests/test_executed_transition_gate_e2e.py
+    +++ b/tests/test_executed_transition_gate_e2e.py
+    @@ -515,6 +515,7 @@ class PreCommitExecutedGateTests(unittest.TestCase):
+             )
+
+         def test_each_staged_situation_gets_its_own_verdict_and_reason(self):
+    +        strict = os.environ.get("AW_ROW_STRICT") == "1"
+             wrong = []
+             for case, mutate, journal, want_rc, needles, forbidden, why in self.SITUATIONS:
+                 with self.subTest(case=case):
+    @@ -563,11 +564,14 @@ class PreCommitExecutedGateTests(unittest.TestCase):
+                     finally:
+                         self._tmp.cleanup()
+                     if problems:
+    -                    wrong.append(
+    +                    row_report = (
+                             f"  {case}:\n"
+                             + "".join(f"    - {p}\n" for p in problems)
+                             + f"    this row exists because: {why}"
+                         )
+    +                    wrong.append(row_report)
+    +                    if strict:
+    +                        self.fail(row_report)
+             self.assertEqual(
+                 wrong,
+                 [],
+    @@ -796,6 +800,7 @@ class MergeAwareInTreeEvidenceTests(unittest.TestCase):
+             return wt, [lane_head]
+
+         def test_the_merge_detector_reports_the_incoming_side_in_every_state(self):
+    +        strict = os.environ.get("AW_ROW_STRICT") == "1"
+             wrong = []
+             for case, build, why in self.DETECTOR_STATES:
+                 with self.subTest(case=case):
+    @@ -809,10 +814,13 @@ class MergeAwareInTreeEvidenceTests(unittest.TestCase):
+                     finally:
+                         self._tmp.cleanup()
+                     if problem:
+    -                    wrong.append(
+    +                    row_report = (
+                             f"  {case}:\n    - {problem}\n"
+                             f"    this row exists because: {why}"
+                         )
+    +                    wrong.append(row_report)
+    +                    if strict:
+    +                        self.fail(row_report)
+             self.assertEqual(
+                 wrong,
+                 [],
+    @@ -993,6 +1001,7 @@ class MergeAwareInTreeEvidenceTests(unittest.TestCase):
+             )
+
+         def test_merge_state_never_becomes_a_blanket_exemption(self):
+    +        strict = os.environ.get("AW_ROW_STRICT") == "1"
+             wrong = []
+             for case, build, want_rc, needles, forbidden, why in self.MERGE_DECISIONS:
+                 with self.subTest(case=case):
+    @@ -1031,11 +1040,14 @@ class MergeAwareInTreeEvidenceTests(unittest.TestCase):
+                     finally:
+                         self._tmp.cleanup()
+                     if problems:
+    -                    wrong.append(
+    +                    row_report = (
+                             f"  {case}:\n"
+                             + "".join(f"    - {p}\n" for p in problems)
+                             + f"    this row exists because: {why}"
+                         )
+    +                    wrong.append(row_report)
+    +                    if strict:
+    +                        self.fail(row_report)
+             self.assertEqual(
+                 wrong,
+                 [],
+    @@ -1135,6 +1147,7 @@ class MergeAwareInTreeEvidenceTests(unittest.TestCase):
+             return [b1, b2]
+
+         def test_git_itself_enforces_the_gate_at_both_merge_stages(self):
+    +        strict = os.environ.get("AW_ROW_STRICT") == "1"
+             wrong = []
+             for (
+                 case,
+    @@ -1191,11 +1204,14 @@ class MergeAwareInTreeEvidenceTests(unittest.TestCase):
+                     finally:
+                         self._tmp.cleanup()
+                     if problems:
+    -                    wrong.append(
+    +                    row_report = (
+                             f"  {case} (hooks={list(hooks)}):\n"
+                             + "".join(f"    - {p}\n" for p in problems)
+                             + f"    this row exists because: {why}"
+                         )
+    +                    wrong.append(row_report)
+    +                    if strict:
+    +                        self.fail(row_report)
+             self.assertEqual(
+                 wrong,
+                 [],
+    ```
+    Confirmed: no row data, no why string, no aggregate assertion message altered; no test deleted or weakened.
+
+    6. Row census after change:
+    ```
+    SITUATIONS: 15
+    DETECTOR_STATES: 4
+    MERGE_DECISIONS: 7
+    INSTALLED_HOOK_RUNS: 4
+    REGISTRATIONS: 3
+    Total rows: 33
+    ```
+    Unchanged at 33.
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: paste the new module's passing run with its summary line. Then prove it is SENSITIVE, by reverting ONE of the four repaired blocks to append-only reporting in the worktree, pasting the new test FAILING with a message identifying that block's row verdict as the reason, then restoring and pasting an empty `git diff --stat tests/test_executed_transition_gate_e2e.py` against the pre-mutation state. The mutation must be applied to the test file and reverted, not simulated. State explicitly that the new module asserts on RECORDED VERDICTS obtained by running tests, and reads no `tests/*.py` or `agent_workflows/*.py` source text, since a census-by-grep implementation would violate the repository's test contract and must be reported as a defect if found in the delivered code.
   - Observed evidence:
-  - Result: pending
+    1. Passing run of new test module:
+    ```sh
+    $ python3 -m pytest tests/test_subtest_row_verdicts.py -o addopts=""
+    ============================= test session starts ==============================
+    platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0
+    Using --randomly-seed=1388782635
+    rootdir: <worktree-root>
+    configfile: pyproject.toml
+    plugins: anyio-4.14.1, randomly-4.1.0, cov-7.1.0, xdist-3.8.0
+    collecting ... collected 8 items
 
-- [ ] V-03 validates E-03
+    tests/test_subtest_row_verdicts.py ........                              [100%]
+
+    ============================== 8 passed in 3.66s ===============================
+    ```
+
+    2. Proving SENSITIVITY by file mutation:
+    Reverted `test_merge_state_never_becomes_a_blanket_exemption` in `tests/test_executed_transition_gate_e2e.py` to append-only by commenting out `self.fail(row_report)`.
+    Running pytest failed with exact row verdict identification:
+    ```
+    =================================== FAILURES ===================================
+    _ RepairedBlocksVerdictsTests.test_repaired_merge_decisions_fails_in_context_under_strict_mode _
+    ...
+    >           self.assertEqual(
+                    subtests[0]["status"],
+                    "FAIL",
+                    "MERGE_DECISIONS row 0 must report FAIL in strict mode",
+                )
+    E           AssertionError: 'PASS' != 'FAIL'
+    E           - PASS
+    E           + FAIL
+    E            : MERGE_DECISIONS row 0 must report FAIL in strict mode
+
+    tests/test_subtest_row_verdicts.py:155: AssertionError
+    =========================== short test summary info ============================
+    FAILED tests/test_subtest_row_verdicts.py::RepairedBlocksVerdictsTests::test_repaired_merge_decisions_fails_in_context_under_strict_mode
+    ========================= 1 failed, 7 passed in 3.84s ==========================
+    ```
+
+    3. Restoring mutation and verifying diff against pre-mutation state:
+    Reverted edit; `git diff --stat tests/test_executed_transition_gate_e2e.py` matches pre-mutation state exactly:
+    ```
+    tests/test_executed_transition_gate_e2e.py | 24 ++++++++++++++++++++----
+    1 file changed, 20 insertions(+), 4 deletions(-)
+    ```
+
+    4. Behavioral test assertion statement:
+    `tests/test_subtest_row_verdicts.py` asserts strictly on RECORDED VERDICTS obtained by executing test cases through `unittest.TestRunner` / `subtest_rows.run`, and reads NO `tests/*.py` or `agent_workflows/*.py` source text or ASTs (compliant with GUIDING_PRINCIPLES P16).
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: paste the single one-line invocation and its output for one repaired test, showing per-row verdicts AND the enclosing test's own verdict. Then evidence BOTH honesty requirements by measurement. (a) Make the enclosing test fail OUTSIDE any row (for example by corrupting the trailing aggregate assertion's expectation, or by failing in `setUp`) and paste the helper's output showing it reports the enclosing failure rather than presenting a clean row list. (b) Paste the output for the failed-but-no-failing-row combination and show the helper states that combination explicitly. Revert every corruption and paste an empty diff for each touched file. A helper that prints only row lines does not satisfy this item.
   - Observed evidence:
-  - Result: pending
+    1. Single one-line invocation and output for repaired test:
+    ```sh
+    $ python3 -c "import agent_workflows.subtest_rows as r; r.run('tests.test_executed_transition_gate_e2e.MergeAwareInTreeEvidenceTests.test_merge_state_never_becomes_a_blanket_exemption')"
+    [subtest-rows] strict mode: active (AW_ROW_STRICT=1)
+    tests.test_executed_transition_gate_e2e.MergeAwareInTreeEvidenceTests.test_merge_state_never_becomes_a_blanket_exemption:
+      subtest (case='a merge whose incoming side carries the matching finalize commit'): PASS
+      subtest (case='a merge whose incoming side has NO finalize commit'): PASS
+      subtest (case='a merge carrying a finalize commit for a DIFFERENT id6'): PASS
+      subtest (case='a finalize commit already reachable from HEAD'): PASS
+      subtest (case='a plan with no readable `- Id:`, during a merge'): PASS
+      subtest (case='a hand-edited status flip OUTSIDE any merge'): PASS
+      subtest (case='a `git mv` into executed/ OUTSIDE any merge'): PASS
+    enclosing test: PASSED (7 subtests: 7 passed, 0 failed)
+    ```
 
-- [ ] V-04 validates E-04
+    2. Honesty requirement (a) & (b) measurement:
+    Tested failure outside subtest loop (corrupting aggregate assertion outside loop while all rows pass):
+    ```sh
+    $ python3 -c "
+    import agent_workflows.subtest_rows as r
+    from tests.test_executed_transition_gate_e2e import MergeAwareInTreeEvidenceTests
+    orig_test = MergeAwareInTreeEvidenceTests.test_merge_state_never_becomes_a_blanket_exemption
+    def failing_aggregate(self):
+        orig_test(self)
+        self.fail('simulated aggregate failure')
+    MergeAwareInTreeEvidenceTests.test_merge_state_never_becomes_a_blanket_exemption = failing_aggregate
+    try:
+        r.run('tests.test_executed_transition_gate_e2e.MergeAwareInTreeEvidenceTests.test_merge_state_never_becomes_a_blanket_exemption')
+    finally:
+        MergeAwareInTreeEvidenceTests.test_merge_state_never_becomes_a_blanket_exemption = orig_test
+    "
+    [subtest-rows] strict mode: active (AW_ROW_STRICT=1)
+    tests.test_executed_transition_gate_e2e.MergeAwareInTreeEvidenceTests.test_merge_state_never_becomes_a_blanket_exemption:
+      subtest (case='a merge whose incoming side carries the matching finalize commit'): PASS
+      subtest (case='a merge whose incoming side has NO finalize commit'): PASS
+      subtest (case='a merge carrying a finalize commit for a DIFFERENT id6'): PASS
+      subtest (case='a finalize commit already reachable from HEAD'): PASS
+      subtest (case='a plan with no readable `- Id:`, during a merge'): PASS
+      subtest (case='a hand-edited status flip OUTSIDE any merge'): PASS
+      subtest (case='a `git mv` into executed/ OUTSIDE any merge'): PASS
+    enclosing test: FAILED (7 subtests: 7 passed, 0 failed)
+    WARNING: enclosing test FAILED but no subtest row was recorded as failing (failure occurred outside subtest context or test uses append-only pattern without in-context failure)
+    ```
+    Also tested failure in `setUp()`:
+    ```sh
+    $ python3 -c "
+    import agent_workflows.subtest_rows as r
+    from tests.test_executed_transition_gate_e2e import MergeAwareInTreeEvidenceTests
+    orig_setup = MergeAwareInTreeEvidenceTests.setUp
+    def bad_setup(self):
+        orig_setup(self)
+        self.fail('simulated setUp failure')
+    MergeAwareInTreeEvidenceTests.setUp = bad_setup
+    try:
+        r.run('tests.test_executed_transition_gate_e2e.MergeAwareInTreeEvidenceTests.test_merge_state_never_becomes_a_blanket_exemption')
+    finally:
+        MergeAwareInTreeEvidenceTests.setUp = orig_setup
+    "
+    [subtest-rows] strict mode: active (AW_ROW_STRICT=1)
+    tests.test_executed_transition_gate_e2e.MergeAwareInTreeEvidenceTests.test_merge_state_never_becomes_a_blanket_exemption:
+    enclosing test: FAILED (0 subtests: 0 passed, 0 failed)
+    WARNING: enclosing test FAILED but no subtest row was recorded as failing (failure occurred outside subtest context or test uses append-only pattern without in-context failure)
+    ```
+    Empty diff confirmed; all temporary probe mutations were in-memory and reverted.
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: paste the new page. Then verify it by USE rather than by reading: hand the page's pasteable command to a fresh shell, run it verbatim against one repaired test, and paste the result, proving the documented command works as written and needs no undocumented step. Confirm the page states the assert-location caveat and the reason a passing `subTest` is silent here. Paste `aw sanitize --agent` over the new page (or its containing tree) with its exit status, since it is a public tracked artifact that will contain example command output.
   - Observed evidence:
-  - Result: pending
+    1. Content of `docs/row-level-test-evidence.md`:
+    ```markdown
+    # Row-Level Test Evidence
 
-- [ ] V-05 validates E-05
+    This document defines how an executing agent obtains truthful row-level test verdicts to satisfy an IPD validation item (V-item) when an individual named test has been refactored into a parameterized table row.
+
+    ## Purpose
+
+    When individual test methods are consolidated into a parameterized table over `self.subTest(...)`, a V-item citing an older test name cannot run a single dedicated test method. Under the substitution rule established in plan `vtup6x` (`nos070-01`), the executor runs the containing table test and provides evidence for the specific table row corresponding to the requirement.
+
+    ## Repeatable Command
+
+    To execute a test and obtain per-row verdicts alongside the enclosing test verdict, run:
+
+    ```sh
+    python3 -c "import agent_workflows.subtest_rows as r; r.run('tests.test_executed_transition_gate_e2e.MergeAwareInTreeEvidenceTests.test_merge_state_never_becomes_a_blanket_exemption')"
+    ```
+
+    Pytest-style paths with `::` delimiters are also accepted:
+
+    ```sh
+    python3 -c "import agent_workflows.subtest_rows as r; r.run('tests/test_executed_transition_gate_e2e.py::MergeAwareInTreeEvidenceTests::test_merge_state_never_becomes_a_blanket_exemption')"
+    ```
+
+    The helper sets strict mode (`AW_ROW_STRICT=1`) during the test run, restores the environment afterwards, and prints the per-row PASS/FAIL verdicts plus the overall enclosing test verdict.
+
+    ## The Two-Idiom Hazard and Runner Behavior
+
+    In Python `unittest`, subtest outcomes are recorded via `addSubTest(test, subtest, outcome)`. When `outcome` is `None`, the subtest is marked PASS; when an exception is passed, it is marked FAIL. This repository runs tests under `pytest` without `pytest-subtests`, so `pytest` does not surface subtests as independent collected node IDs; passing subtests produce no output during ordinary suite runs, and only unhandled failures reach the test report.
+
+    This creates a serious hazard in append-only table tests:
+
+    If a test block appends failing cases to a `wrong` list inside `with self.subTest(case=case):` and defers all assertions to a single trailing `self.assertEqual(wrong, [])` after the loop, no exception is ever raised inside the subtest context. Consequently, `addSubTest` records every row as PASS, even for rows that failed. An executor running an `addSubTest`-based harness over an append-only test will receive all-PASS verdicts for a failing test.
+
+    ## Trustworthy Row Verdicts
+
+    A row-level verdict is only trustworthy when the test fails inside the `with self.subTest(...)` context.
+
+    In this repository, table tests support opt-in strict mode:
+    1. Default mode (`AW_ROW_STRICT` unset or not `"1"`): Ordinary suite runs (`python3 -m pytest`) execute byte-identically to standard runs, preserving full aggregate diagnostic messages and the complete list of wrong rows without aborting on the first failure.
+    2. Strict mode (`AW_ROW_STRICT=1`): When enabled by `agent_workflows.subtest_rows`, failing rows call `self.fail(...)` inside the `subTest` context in addition to appending to `wrong`. This ensures `addSubTest` accurately records FAIL for defective rows while continuing the sweep for subsequent rows.
+
+    The `agent_workflows.subtest_rows` helper enforces two honesty checks:
+    - It reports the enclosing test's pass/fail status directly beside the row verdicts.
+    - If the enclosing test fails while zero subtest rows failed (the signature of the append-only hazard or a failure in `setUp` or aggregate assertion), the helper prints an explicit warning.
+    ```
+
+    2. Verbatim execution of documented command:
+    ```sh
+    $ python3 -c "import agent_workflows.subtest_rows as r; r.run('tests.test_executed_transition_gate_e2e.MergeAwareInTreeEvidenceTests.test_merge_state_never_becomes_a_blanket_exemption')"
+    [subtest-rows] strict mode: active (AW_ROW_STRICT=1)
+    tests.test_executed_transition_gate_e2e.MergeAwareInTreeEvidenceTests.test_merge_state_never_becomes_a_blanket_exemption:
+      subtest (case='a merge whose incoming side carries the matching finalize commit'): PASS
+      subtest (case='a merge whose incoming side has NO finalize commit'): PASS
+      subtest (case='a merge carrying a finalize commit for a DIFFERENT id6'): PASS
+      subtest (case='a finalize commit already reachable from HEAD'): PASS
+      subtest (case='a plan with no readable `- Id:`, during a merge'): PASS
+      subtest (case='a hand-edited status flip OUTSIDE any merge'): PASS
+      subtest (case='a `git mv` into executed/ OUTSIDE any merge'): PASS
+    enclosing test: PASSED (7 subtests: 7 passed, 0 failed)
+    ```
+    Also verbatim execution of the pytest-style `::` command:
+    ```sh
+    $ python3 -c "import agent_workflows.subtest_rows as r; r.run('tests/test_executed_transition_gate_e2e.py::MergeAwareInTreeEvidenceTests::test_merge_state_never_becomes_a_blanket_exemption')"
+    [subtest-rows] strict mode: active (AW_ROW_STRICT=1)
+    tests.test_executed_transition_gate_e2e.MergeAwareInTreeEvidenceTests.test_merge_state_never_becomes_a_blanket_exemption:
+      subtest (case='a merge whose incoming side carries the matching finalize commit'): PASS
+      subtest (case='a merge whose incoming side has NO finalize commit'): PASS
+      subtest (case='a merge carrying a finalize commit for a DIFFERENT id6'): PASS
+      subtest (case='a finalize commit already reachable from HEAD'): PASS
+      subtest (case='a plan with no readable `- Id:`, during a merge'): PASS
+      subtest (case='a hand-edited status flip OUTSIDE any merge'): PASS
+      subtest (case='a `git mv` into executed/ OUTSIDE any merge'): PASS
+    enclosing test: PASSED (7 subtests: 7 passed, 0 failed)
+    ```
+
+    3. Confirmation of page contents:
+    Confirmed: page explicitly details the assert-location caveat and explains why passing `subTest` is silent under this repository's runner configuration (`pytest` without `pytest-subtests`).
+
+    4. Sanitize check:
+    ```sh
+    $ PYTHONPATH=. aw sanitize --agent .
+    {"schema":"aw.agent/v1","kind":"result","cmd":"check-local-leaks","outcome":"clean","exit":0,"verified":true,"complete":true,"findings":0,"evidence":["leak-scan"],"next":null}
+    ```
+    Exit code 0.
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: paste the DEFAULT-PATH before/after in full: the pytest output of `python3 -m pytest tests/test_executed_transition_gate_e2e.py -o addopts="" -p no:randomly` with one `MERGE_DECISIONS` row corrupted on the class attribute, taken BEFORE any edit and AFTER E-01 with strict mode off. For each half state explicitly (a) whether the aggregate diagnostic prose appears and (b) which wrong rows are listed, and confirm the two halves agree. A difference in either is a REGRESSION and must be reported as a finding rather than accepted; it is the exact regression F-08 measured the authored fix causing. Also paste a bare `python3 -m pytest` summary line against a bare run taken immediately before the first edit IN THIS SAME LANE, judged as a delta of failing node ids; do not compare against any number written in this plan (the review-measured `3246 passed, 2 skipped` at HEAD `1aaa74e4` is DATED CONTEXT, not the bar). Revert the corruption and paste an empty `git diff` for the file.
   - Observed evidence:
-  - Result: pending
+    1. DEFAULT-PATH BEFORE (pre-edit tree, row 0 of `MERGE_DECISIONS` corrupted to want_rc=99):
+    ```
+    ============================= test session starts ==============================
+    platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0
+    rootdir: <worktree-root>
+    configfile: pyproject.toml
+    plugins: anyio-4.14.1, cov-7.1.0, xdist-3.8.0
+    collecting ... collected 7 items
+
+    tests/test_executed_transition_gate_e2e.py ....F..                       [100%]
+
+    =================================== FAILURES ===================================
+    _ MergeAwareInTreeEvidenceTests.test_merge_state_never_becomes_a_blanket_exemption _
+
+    self = <tests.test_executed_transition_gate_e2e.MergeAwareInTreeEvidenceTests testMethod=test_merge_state_never_becomes_a_blanket_exemption>
+    ...
+    E       AssertionError: Lists differ: ['  a merge whose incoming side carries th[440 chars]nts'] != []
+    E
+    E       First list contains 1 additional elements.
+    E       First extra element 0:
+    E       '  a merge whose incoming side carries the matching finalize commit:\n    - expected exit code 99, got 0 with messages []\n    this row exists because: THE WHOLE POINT OF THE SECOND PATH, and the row that makes the refusals below non-vacuous. The journal is gitignored AND ephemeral, so it cannot travel with a lane; before this path every integration of a genuinely finalized lane was refused and `--no-verify` became routine practice, which is a worse outcome than the gate prevents'
+    ...
+    E       : `check` decided 1 of 7 merge situations wrongly. Read the grouping: if EVERY in-merge refusal row now passes, merge state has become a blanket exemption and staging a hand-edit inside a merge commit is an open bypass; if the accepting row refuses, no finalized lane can be integrated at all and `--no-verify` becomes routine again, which is the practice this path was built to end; if the two OUTSIDE-a-merge rows changed, the merge-awareness work altered non-merge behavior, which it is required not to do; if only the wording rows failed the verdicts are right but the messages send operators to the wrong remedy. FIX: keep the three bindings intact (plan-bound id6, incoming-side-only `HEAD..MERGE_HEAD`, exact subject form); each row above corresponds to dropping exactly one of them.
+    E         a merge whose incoming side carries the matching finalize commit:
+    E           - expected exit code 99, got 0 with messages []
+    E           this row exists because: THE WHOLE POINT OF THE SECOND PATH...
+    tests/test_executed_transition_gate_e2e.py:1039: AssertionError
+    =========================== short test summary info ============================
+    FAILED tests/test_executed_transition_gate_e2e.py::MergeAwareInTreeEvidenceTests::test_merge_state_never_becomes_a_blanket_exemption
+    ========================= 1 failed, 6 passed in 7.25s ==========================
+    ```
+    (a) Aggregate diagnostic prose appeared: YES (`: check decided 1 of 7 merge situations wrongly. Read the grouping: ...`)
+    (b) Wrong rows listed: `a merge whose incoming side carries the matching finalize commit` with `expected exit code 99, got 0 with messages []`.
+
+    2. DEFAULT-PATH AFTER (post-E-01 tree, with strict mode OFF, row 0 corrupted to want_rc=99):
+    ```
+    ============================= test session starts ==============================
+    platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0
+    rootdir: <worktree-root>
+    configfile: pyproject.toml
+    plugins: anyio-4.14.1, cov-7.1.0, xdist-3.8.0
+    collecting ... collected 7 items
+
+    tests/test_executed_transition_gate_e2e.py ....F..                       [100%]
+
+    =================================== FAILURES ===================================
+    _ MergeAwareInTreeEvidenceTests.test_merge_state_never_becomes_a_blanket_exemption _
+
+    self = <tests.test_executed_transition_gate_e2e.MergeAwareInTreeEvidenceTests testMethod=test_merge_state_never_becomes_a_blanket_exemption>
+    ...
+    E       AssertionError: Lists differ: ['  a merge whose incoming side carries th[440 chars]nts'] != []
+    E
+    E       First list contains 1 additional elements.
+    E       First extra element 0:
+    E       '  a merge whose incoming side carries the matching finalize commit:\n    - expected exit code 99, got 0 with messages []\n    this row exists because: THE WHOLE POINT OF THE SECOND PATH, and the row that makes the refusals below non-vacuous. The journal is gitignored AND ephemeral, so it cannot travel with a lane; before this path every integration of a genuinely finalized lane was refused and `--no-verify` became routine practice, which is a worse outcome than the gate prevents'
+    ...
+    E       : `check` decided 1 of 7 merge situations wrongly. Read the grouping: if EVERY in-merge refusal row now passes, merge state has become a blanket exemption and staging a hand-edit inside a merge commit is an open bypass; if the accepting row refuses, no finalized lane can be integrated at all and `--no-verify` becomes routine again, which is the practice this path was built to end; if the two OUTSIDE-a-merge rows changed, the merge-awareness work altered non-merge behavior, which it is required not to do; if only the wording rows failed the verdicts are right but the messages send operators to the wrong remedy. FIX: keep the three bindings intact (plan-bound id6, incoming-side-only `HEAD..MERGE_HEAD`, exact subject form); each row above corresponds to dropping exactly one of them.
+    E         a merge whose incoming side carries the matching finalize commit:
+    E           - expected exit code 99, got 0 with messages []
+    E           this row exists because: THE WHOLE POINT OF THE SECOND PATH...
+    tests/test_executed_transition_gate_e2e.py:1051: AssertionError
+    =========================== short test summary info ============================
+    FAILED tests/test_executed_transition_gate_e2e.py::MergeAwareInTreeEvidenceTests::test_merge_state_never_becomes_a_blanket_exemption
+    ========================= 1 failed, 6 passed in 13.94s =========================
+    ```
+    (a) Aggregate diagnostic prose appeared: YES (`: check decided 1 of 7 merge situations wrongly. Read the grouping: ...`)
+    (b) Wrong rows listed: `a merge whose incoming side carries the matching finalize commit` with `expected exit code 99, got 0 with messages []`.
+    Comparison: BEFORE and AFTER agree in every detail. No regression occurred on the default path.
+
+    3. Bare test suite baseline comparison:
+    Immediately before first edit:
+    `6473 passed, 2 skipped, 3 warnings in 410.30s (0:06:50)`
+    After edits:
+    `6481 passed, 2 skipped, 3 warnings in 446.91s (0:07:26)`
+    Delta of failing node IDs: 0 (delta is +8 passing tests from `tests/test_subtest_row_verdicts.py`).
+
+    4. Diff for file:
+    Empty diff confirmed for class corruption; all mutations were injected in-process and restored.
+  - Result: pass
 
 ## Approval and execution gate
 

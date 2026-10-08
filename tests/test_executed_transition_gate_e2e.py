@@ -515,6 +515,7 @@ class PreCommitExecutedGateTests(unittest.TestCase):
         )
 
     def test_each_staged_situation_gets_its_own_verdict_and_reason(self):
+        strict = os.environ.get("AW_ROW_STRICT") == "1"
         wrong = []
         for case, mutate, journal, want_rc, needles, forbidden, why in self.SITUATIONS:
             with self.subTest(case=case):
@@ -563,11 +564,14 @@ class PreCommitExecutedGateTests(unittest.TestCase):
                 finally:
                     self._tmp.cleanup()
                 if problems:
-                    wrong.append(
+                    row_report = (
                         f"  {case}:\n"
                         + "".join(f"    - {p}\n" for p in problems)
                         + f"    this row exists because: {why}"
                     )
+                    wrong.append(row_report)
+                    if strict:
+                        self.fail(row_report)
         self.assertEqual(
             wrong,
             [],
@@ -796,6 +800,7 @@ class MergeAwareInTreeEvidenceTests(unittest.TestCase):
         return wt, [lane_head]
 
     def test_the_merge_detector_reports_the_incoming_side_in_every_state(self):
+        strict = os.environ.get("AW_ROW_STRICT") == "1"
         wrong = []
         for case, build, why in self.DETECTOR_STATES:
             with self.subTest(case=case):
@@ -809,10 +814,13 @@ class MergeAwareInTreeEvidenceTests(unittest.TestCase):
                 finally:
                     self._tmp.cleanup()
                 if problem:
-                    wrong.append(
+                    row_report = (
                         f"  {case}:\n    - {problem}\n"
                         f"    this row exists because: {why}"
                     )
+                    wrong.append(row_report)
+                    if strict:
+                        self.fail(row_report)
         self.assertEqual(
             wrong,
             [],
@@ -993,6 +1001,7 @@ class MergeAwareInTreeEvidenceTests(unittest.TestCase):
         )
 
     def test_merge_state_never_becomes_a_blanket_exemption(self):
+        strict = os.environ.get("AW_ROW_STRICT") == "1"
         wrong = []
         for case, build, want_rc, needles, forbidden, why in self.MERGE_DECISIONS:
             with self.subTest(case=case):
@@ -1031,11 +1040,14 @@ class MergeAwareInTreeEvidenceTests(unittest.TestCase):
                 finally:
                     self._tmp.cleanup()
                 if problems:
-                    wrong.append(
+                    row_report = (
                         f"  {case}:\n"
                         + "".join(f"    - {p}\n" for p in problems)
                         + f"    this row exists because: {why}"
                     )
+                    wrong.append(row_report)
+                    if strict:
+                        self.fail(row_report)
         self.assertEqual(
             wrong,
             [],
@@ -1135,6 +1147,7 @@ class MergeAwareInTreeEvidenceTests(unittest.TestCase):
         return [b1, b2]
 
     def test_git_itself_enforces_the_gate_at_both_merge_stages(self):
+        strict = os.environ.get("AW_ROW_STRICT") == "1"
         wrong = []
         for (
             case,
@@ -1191,11 +1204,14 @@ class MergeAwareInTreeEvidenceTests(unittest.TestCase):
                 finally:
                     self._tmp.cleanup()
                 if problems:
-                    wrong.append(
+                    row_report = (
                         f"  {case} (hooks={list(hooks)}):\n"
                         + "".join(f"    - {p}\n" for p in problems)
                         + f"    this row exists because: {why}"
                     )
+                    wrong.append(row_report)
+                    if strict:
+                        self.fail(row_report)
         self.assertEqual(
             wrong,
             [],
