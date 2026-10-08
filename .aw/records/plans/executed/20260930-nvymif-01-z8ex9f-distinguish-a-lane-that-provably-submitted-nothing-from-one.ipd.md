@@ -6,7 +6,7 @@
 - Scope: Give spec `7ckptx` R2.5 the distinction it is missing (an absent receipt for a lane that PROVABLY submitted nothing is not the same observation as an absent receipt for a lane that WROTE one), implement it as a whole-tree submission probe in the ONE shared predicate, and - because narrowing a refusal WIDENS destruction - add the blocking condition that narrowing exposes: a lane whose commits have NOT landed on the integration target must refuse teardown. Amends the spec in the same change. EXPLICITLY NOT IN SCOPE: collapsing `65cuw0`'s two interrupt-path teardown routes into one (a driver change that becomes POSSIBLE once this lands, and is its own plan), and any change to the ignored-file half of R5.5.
 - Scope-Paths: agent_workflows/lane_containment.py, tests/test_lane_reclaim_decision_order.py, tests/test_lane_submission_retention_narrowing.py, .aw/records/specs/implementing/20260901-7ckptx-01-7ckptx-worker-lane-containment.spec.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - From-Spec: 7ckptx
 - Work-Kind: chore
@@ -17,9 +17,9 @@
 - Highest E allocated: 05
 - Author: opencode model=its_direct/pt3-claude-opus-5-1m-us
 - Id: z8ex9f
-- Approval: 2026-10-01, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-08 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: z8ex9f verified (set nvymif, attempt 2).
 - 2026-10-01 approved (aw set): status set to approved
 - 2026-10-01 reviewed (aw set): /plan-review verdict APPROVE WITH REVISIONS APPLIED; PR-001 (HIGH) through PR-005 all fixed; every load-bearing measurement independently reproduced incl. the F-05/F-06 data-loss BLOCKER; readiness go-pending-approval
 - 2026-09-30 same-status (aw set): status unchanged (to-review)
