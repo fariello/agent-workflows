@@ -30140,6 +30140,10 @@ def initialize_run_core(
         caps = _hsp.HostSandboxCapabilities()
         caps.probe_notes["initialization_probe_error"] = f"{type(exc).__name__}: {exc}"
 
+    from agent_workflows.loaded_code import loaded_code_record
+
+    loaded_code_rec = loaded_code_record(repo)
+
     state = {
         "schema_version": SCHEMA_VERSION,
         "run_id": run_id,
@@ -30209,6 +30213,7 @@ def initialize_run_core(
                 if (driver_path is not None and Path(driver_path).is_file())
                 else None
             ),
+            "loaded_code": [loaded_code_rec],
         },
     }
     atomic_write_json(run_dir / "state.json", state)
@@ -30216,6 +30221,17 @@ def initialize_run_core(
         run_dir / "events.jsonl",
         {"at": utc_now(), "event": "run-created", "run_id": run_id, "queue": queue_ids},
     )
+    if not loaded_code_rec.get("is_target_checkout", False):
+        append_jsonl(
+            run_dir / "events.jsonl",
+            {
+                "at": utc_now(),
+                "event": "driver-restart-unavailable",
+                "reason": "non-target-checkout",
+                "package_root": str(loaded_code_rec.get("package_root", "")),
+                "repo": str(repo),
+            },
+        )
     append_jsonl(
         run_dir / "events.jsonl",
         {
