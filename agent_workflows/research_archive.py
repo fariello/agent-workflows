@@ -408,6 +408,11 @@ def _roots(args: argparse.Namespace) -> Tuple[Path, Path]:
 
 def run_archive(args: argparse.Namespace) -> int:
     """`aw archive [<set-id|doc-id>]`: targeted deep-shelve, or a bare aged sweep."""
+    from agent_workflows.renderers import get_renderer
+    from agent_workflows.result_types import CommandResult, NextAction, select_output
+
+    ctx = select_output(args)
+    is_agent_or_json = ctx.is_agent or ctx.is_json
 
     repo_root, research_root = _roots(args)
     target = getattr(args, "target", None)
@@ -422,6 +427,21 @@ def run_archive(args: argparse.Namespace) -> int:
         )
         if err:
             if err.startswith("no research artifact matched"):
+                if is_agent_or_json:
+                    res = CommandResult(
+                        status="clean",
+                        summary=f"no research doc or set matches '{target}'",
+                        command="archive",
+                        applied=False,
+                        complete=True,
+                        next_actions=[
+                            NextAction(
+                                command="aw research find",
+                                description="find research docs",
+                            )
+                        ],
+                    )
+                    return get_renderer(ctx).emit(res, ctx)
                 from agent_workflows.term import Term
                 from agent_workflows.result_types import NextAction
 
@@ -433,10 +453,34 @@ def run_archive(args: argparse.Namespace) -> int:
                     ),
                 )
                 return 0
+            if is_agent_or_json:
+                res = CommandResult(
+                    status="cannot-run",
+                    summary=err,
+                    command="archive",
+                    exit_code=2,
+                    verified=False,
+                    complete=False,
+                )
+                return get_renderer(ctx).emit(res, ctx)
             print(f"error: {err}")
             return 2
 
         if not paths:
+            if is_agent_or_json:
+                res = CommandResult(
+                    status="clean",
+                    summary=f"no research doc or set matches '{target}'",
+                    command="archive",
+                    applied=False,
+                    complete=True,
+                    next_actions=[
+                        NextAction(
+                            command="aw research find", description="find research docs"
+                        )
+                    ],
+                )
+                return get_renderer(ctx).emit(res, ctx)
             from agent_workflows.term import Term
             from agent_workflows.result_types import NextAction
 
@@ -454,6 +498,16 @@ def run_archive(args: argparse.Namespace) -> int:
         for p in paths:
             mv, err = plan_transition_for_path(research_root, p, "archive")
             if err:
+                if is_agent_or_json:
+                    res = CommandResult(
+                        status="cannot-run",
+                        summary=err,
+                        command="archive",
+                        exit_code=2,
+                        verified=False,
+                        complete=False,
+                    )
+                    return get_renderer(ctx).emit(res, ctx)
                 print(f"error: {err}")
                 return 2
             if mv.old_path.resolve() == mv.new_path.resolve():
@@ -462,6 +516,20 @@ def run_archive(args: argparse.Namespace) -> int:
             moves.append(mv)
 
         if not moves and not already_archived:
+            if is_agent_or_json:
+                res = CommandResult(
+                    status="clean",
+                    summary=f"no research doc or set matches '{target}'",
+                    command="archive",
+                    applied=False,
+                    complete=True,
+                    next_actions=[
+                        NextAction(
+                            command="aw research find", description="find research docs"
+                        )
+                    ],
+                )
+                return get_renderer(ctx).emit(res, ctx)
             from agent_workflows.term import Term
             from agent_workflows.result_types import NextAction
 
@@ -475,6 +543,21 @@ def run_archive(args: argparse.Namespace) -> int:
             return 0
 
         if not apply:
+            if is_agent_or_json:
+                res = CommandResult(
+                    status="preview",
+                    summary=f"{len(moves)} doc(s) to archive",
+                    command="archive",
+                    applied=False,
+                    complete=False,
+                    next_actions=[
+                        NextAction(
+                            command=f"aw archive {target} --apply",
+                            description="apply archive moves",
+                        )
+                    ],
+                )
+                return get_renderer(ctx).emit(res, ctx)
             for m in moves:
                 print(
                     f"--- would archive {m.old_path.name} -> {m.new_path.parent.name}/ ---"
@@ -485,6 +568,16 @@ def run_archive(args: argparse.Namespace) -> int:
                 )
             return 0
         touched = apply_moves(repo_root, research_root, moves)
+        if is_agent_or_json:
+            res = CommandResult(
+                status="ok",
+                summary=f"archived {len(moves)} doc(s)",
+                command="archive",
+                applied=True,
+                complete=True,
+            )
+            _offer_archive_commit(args, repo_root, touched)
+            return get_renderer(ctx).emit(res, ctx)
         for m in moves:
             print(
                 f"archived {m.id6} -> {m.new_path.relative_to(research_root).as_posix()}"
@@ -498,6 +591,16 @@ def run_archive(args: argparse.Namespace) -> int:
     try:
         older_than_days = parse_age_duration(raw_age, default_days=14.0)
     except ValueError as e:
+        if is_agent_or_json:
+            res = CommandResult(
+                status="cannot-run",
+                summary=str(e),
+                command="archive",
+                exit_code=2,
+                verified=False,
+                complete=False,
+            )
+            return get_renderer(ctx).emit(res, ctx)
         print(f"error: {e}")
         return 2
 
@@ -505,15 +608,40 @@ def run_archive(args: argparse.Namespace) -> int:
         repo_root, research_root, older_than_days=older_than_days
     )
     if not candidates:
+        if is_agent_or_json:
+            res = CommandResult(
+                status="clean",
+                summary="no aged candidates to sweep",
+                command="archive",
+                applied=False,
+                complete=True,
+            )
+            return get_renderer(ctx).emit(res, ctx)
         print("no aged candidates to sweep")
         return 0
     age_label = str(raw_age) if raw_age else "14d"
-    print(
-        f"Sweep candidates (aged >= {age_label}, keeping sets together; default classification = archive):"
-    )
-    for id6 in candidates:
-        print(f"  {id6} -> archive (override to 'reference' with --keep {id6})")
     if not apply:
+        if is_agent_or_json:
+            res = CommandResult(
+                status="preview",
+                summary=f"Sweep candidates (aged >= {age_label}, keeping sets together; default classification = archive)",
+                command="archive",
+                applied=False,
+                complete=False,
+                next_actions=[
+                    NextAction(
+                        command="aw archive --apply",
+                        description="apply archive sweep moves",
+                    )
+                ],
+                data={"candidates": candidates},
+            )
+            return get_renderer(ctx).emit(res, ctx)
+        print(
+            f"Sweep candidates (aged >= {age_label}, keeping sets together; default classification = archive):"
+        )
+        for id6 in candidates:
+            print(f"  {id6} -> archive (override to 'reference' with --keep {id6})")
         print(
             "preview only; re-run with --apply to move (and --keep <id6> to send to reference)"
         )
@@ -524,10 +652,30 @@ def run_archive(args: argparse.Namespace) -> int:
         new_status = "reference" if id6 in keep else "archive"
         mv, err = plan_transition(research_root, id6, new_status)
         if err:
+            if is_agent_or_json:
+                res = CommandResult(
+                    status="cannot-run",
+                    summary=err,
+                    command="archive",
+                    exit_code=2,
+                    verified=False,
+                    complete=False,
+                )
+                return get_renderer(ctx).emit(res, ctx)
             print(f"error: {err}")
             return 2
         moves.append(mv)
     touched = apply_moves(repo_root, research_root, moves)
+    if is_agent_or_json:
+        res = CommandResult(
+            status="ok",
+            summary=f"archived {len(moves)} doc(s)",
+            command="archive",
+            applied=True,
+            complete=True,
+        )
+        _offer_archive_commit(args, repo_root, touched)
+        return get_renderer(ctx).emit(res, ctx)
     for m in moves:
         print(
             f"{m.new_status}: {m.id6} -> {m.new_path.relative_to(research_root).as_posix()}"
@@ -633,6 +781,11 @@ def run_promote(args: argparse.Namespace) -> int:
     uncited dead-end -> archive) and previews the moves, applying only under ``--apply`` (H2:
     distrust blind writes). Otherwise a single deliberate ``<id6>`` transition as before.
     """
+    from agent_workflows.renderers import get_renderer
+    from agent_workflows.result_types import CommandResult, NextAction, select_output
+
+    ctx = select_output(args)
+    is_agent_or_json = ctx.is_agent or ctx.is_json
 
     repo_root, research_root = _roots(args)
     apply = getattr(args, "apply", False)
@@ -640,9 +793,33 @@ def run_promote(args: argparse.Namespace) -> int:
     if getattr(args, "suggest", False):
         moves = suggest_triage(repo_root, research_root)
         if not moves:
+            if is_agent_or_json:
+                res = CommandResult(
+                    status="clean",
+                    summary="no stale research docs to triage",
+                    command="research promote",
+                    applied=False,
+                    complete=True,
+                )
+                return get_renderer(ctx).emit(res, ctx)
             print("no stale research docs to triage")
             return 0
         if not apply:
+            if is_agent_or_json:
+                res = CommandResult(
+                    status="preview",
+                    summary=f"{len(moves)} stale research doc(s) to triage",
+                    command="research promote",
+                    applied=False,
+                    complete=False,
+                    next_actions=[
+                        NextAction(
+                            command="aw research promote --suggest --apply",
+                            description="apply suggested triage moves",
+                        )
+                    ],
+                )
+                return get_renderer(ctx).emit(res, ctx)
             for m in moves:
                 print(
                     f"--- would set {m.id6} status={m.new_status} and move to {m.new_path.relative_to(research_root).as_posix()} ---"
@@ -650,6 +827,15 @@ def run_promote(args: argparse.Namespace) -> int:
             print("preview only; re-run with --suggest --apply to move")
             return 0
         apply_moves(repo_root, research_root, moves)
+        if is_agent_or_json:
+            res = CommandResult(
+                status="ok",
+                summary=f"triaged {len(moves)} doc(s)",
+                command="research promote",
+                applied=True,
+                complete=True,
+            )
+            return get_renderer(ctx).emit(res, ctx)
         for m in moves:
             print(
                 f"{m.new_status}: {m.id6} -> {m.new_path.relative_to(research_root).as_posix()}"
@@ -657,6 +843,16 @@ def run_promote(args: argparse.Namespace) -> int:
         return 0
 
     if not (getattr(args, "id", None) or "").strip():
+        if is_agent_or_json:
+            res = CommandResult(
+                status="cannot-run",
+                summary="an <id6> is required (or use --suggest to triage the stale cohort)",
+                command="research promote",
+                exit_code=2,
+                verified=False,
+                complete=False,
+            )
+            return get_renderer(ctx).emit(res, ctx)
         print(
             "error: an <id6> is required (or use --suggest to triage the stale cohort)"
         )
@@ -664,14 +860,49 @@ def run_promote(args: argparse.Namespace) -> int:
     new_status = getattr(args, "to", None) or "reference"
     mv, err = plan_transition(research_root, getattr(args, "id", "") or "", new_status)
     if err:
+        if is_agent_or_json:
+            res = CommandResult(
+                status="cannot-run",
+                summary=err,
+                command="research promote",
+                exit_code=2,
+                verified=False,
+                complete=False,
+            )
+            return get_renderer(ctx).emit(res, ctx)
         print(f"error: {err}")
         return 2
     if not apply:
+        if is_agent_or_json:
+            target_id = getattr(args, "id", "")
+            res = CommandResult(
+                status="preview",
+                summary=f"would set {mv.id6} status={mv.new_status}",
+                command="research promote",
+                applied=False,
+                complete=False,
+                next_actions=[
+                    NextAction(
+                        command=f"aw research promote {target_id} --to {new_status} --apply",
+                        description="apply promotion",
+                    )
+                ],
+            )
+            return get_renderer(ctx).emit(res, ctx)
         print(
             f"--- would set {mv.id6} status={mv.new_status} and move to {mv.new_path.relative_to(research_root).as_posix()} ---"
         )
         return 0
     apply_moves(repo_root, research_root, [mv])
+    if is_agent_or_json:
+        res = CommandResult(
+            status="ok",
+            summary=f"{mv.new_status}: {mv.id6} -> {mv.new_path.relative_to(research_root).as_posix()}",
+            command="research promote",
+            applied=True,
+            complete=True,
+        )
+        return get_renderer(ctx).emit(res, ctx)
     print(
         f"{mv.new_status}: {mv.id6} -> {mv.new_path.relative_to(research_root).as_posix()}"
     )

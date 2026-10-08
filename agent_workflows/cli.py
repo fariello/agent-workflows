@@ -9251,10 +9251,19 @@ def _run_status(args, term: Term, context: Optional[Any] = None) -> int:
     return 0
 
 
-def _run_exclude(args: argparse.Namespace, term: Term) -> int:
+def _run_exclude(
+    args: argparse.Namespace, term: Term, context: Optional[Any] = None
+) -> int:
     """aw exclude [repo|repos] repodir1 [repodir2 ...]: exclude repos from aw management."""
-    from agent_workflows.result_types import NextAction
+    from agent_workflows.renderers import get_renderer
+    from agent_workflows.result_types import (
+        CommandResult,
+        Evidence,
+        NextAction,
+        select_output,
+    )
 
+    ctx = context or select_output(args)
     raw_repos = list(getattr(args, "repos", []) or [])
     if raw_repos and raw_repos[0] in ("repo", "repos"):
         raw_repos = raw_repos[1:]
@@ -9266,6 +9275,80 @@ def _run_exclude(args: argparse.Namespace, term: Term) -> int:
     current_repos = sorted(
         config.repo_setting(cfg, "installed"), key=lambda s: str(s).lower()
     )
+
+    if ctx.is_agent or ctx.is_json:
+        if not raw_repos:
+            summary = (
+                f"{len(current_exclude)} excluded repository(ies)"
+                if current_exclude
+                else "no repositories are currently excluded"
+            )
+            res = CommandResult(
+                command="exclude",
+                status="clean",
+                exit_code=0,
+                summary=summary,
+                evidence=[
+                    Evidence(
+                        key="excluded_count",
+                        value=len(current_exclude),
+                        status="clean",
+                    )
+                ],
+                next_actions=[
+                    NextAction(
+                        command="aw exclude <path>", description="exclude a repository"
+                    )
+                ],
+                data={"count": len(current_exclude)},
+                applied=False,
+                complete=True,
+            )
+            return get_renderer(ctx).emit(res, ctx)
+
+        modified = False
+        newly_excluded = []
+        for target in raw_repos:
+            target_path = Path(target).expanduser().resolve()
+            entry = config._preserve_home(str(target_path))
+            if entry in current_exclude:
+                continue
+            current_exclude.append(entry)
+            for r_entry in list(current_repos):
+                r_path = config.expand_path(str(r_entry)).resolve()
+                if r_entry == entry or r_path == target_path:
+                    current_repos.remove(r_entry)
+            newly_excluded.append(entry)
+            modified = True
+
+        if modified:
+            config.set_repo_setting(cfg, "exclude", current_exclude)
+            config.set_repo_setting(cfg, "installed", current_repos)
+            config.save(cfg)
+
+        summary = (
+            f"excluded {len(newly_excluded)} repository(ies)"
+            if modified
+            else "all specified repositories are already excluded"
+        )
+        res = CommandResult(
+            command="exclude",
+            status="clean",
+            exit_code=0,
+            summary=summary,
+            evidence=[
+                Evidence(
+                    key="excluded_count",
+                    value=len(newly_excluded),
+                    status="verified" if modified else "clean",
+                )
+            ],
+            data={"newly_excluded_count": len(newly_excluded)},
+            applied=modified,
+            complete=True,
+        )
+        return get_renderer(ctx).emit(res, ctx)
+
     cfg_path_str = config._preserve_home(str(config.config_path()))
     term.line(
         f"{term.colorize('Config:', 'bold')} {term.color256(cfg_path_str, 39)} "
@@ -9312,10 +9395,19 @@ def _run_exclude(args: argparse.Namespace, term: Term) -> int:
     return 0
 
 
-def _run_include(args: argparse.Namespace, term: Term) -> int:
+def _run_include(
+    args: argparse.Namespace, term: Term, context: Optional[Any] = None
+) -> int:
     """aw include [repo|repos] repodir1 [repodir2 ...]: include repos in aw management."""
-    from agent_workflows.result_types import NextAction
+    from agent_workflows.renderers import get_renderer
+    from agent_workflows.result_types import (
+        CommandResult,
+        Evidence,
+        NextAction,
+        select_output,
+    )
 
+    ctx = context or select_output(args)
     raw_repos = list(getattr(args, "repos", []) or [])
     if raw_repos and raw_repos[0] in ("repo", "repos"):
         raw_repos = raw_repos[1:]
@@ -9327,6 +9419,82 @@ def _run_include(args: argparse.Namespace, term: Term) -> int:
     current_repos = sorted(
         config.repo_setting(cfg, "installed"), key=lambda s: str(s).lower()
     )
+
+    if ctx.is_agent or ctx.is_json:
+        if not raw_repos:
+            summary = (
+                f"{len(current_repos)} configured repository(ies)"
+                if current_repos
+                else "no explicit repositories configured"
+            )
+            res = CommandResult(
+                command="include",
+                status="clean",
+                exit_code=0,
+                summary=summary,
+                evidence=[
+                    Evidence(
+                        key="configured_count",
+                        value=len(current_repos),
+                        status="clean",
+                    )
+                ],
+                next_actions=[
+                    NextAction(command="aw setup", description="set up repositories")
+                ],
+                data={"count": len(current_repos)},
+                applied=False,
+                complete=True,
+            )
+            return get_renderer(ctx).emit(res, ctx)
+
+        modified = False
+        newly_included = []
+        for target in raw_repos:
+            target_path = Path(target).expanduser().resolve()
+            entry = config._preserve_home(str(target_path))
+
+            removed_from_exclude = False
+            for exc_entry in list(current_exclude):
+                exc_path = config.expand_path(str(exc_entry)).resolve()
+                if exc_entry == entry or exc_path == target_path:
+                    current_exclude.remove(exc_entry)
+                    removed_from_exclude = True
+                    modified = True
+
+            if entry not in current_repos:
+                current_repos.append(entry)
+                modified = True
+            newly_included.append(entry)
+
+        if modified:
+            config.set_repo_setting(cfg, "exclude", current_exclude)
+            config.set_repo_setting(cfg, "installed", current_repos)
+            config.save(cfg)
+
+        summary = (
+            f"included {len(newly_included)} repository(ies)"
+            if modified
+            else "all specified repositories are already configured"
+        )
+        res = CommandResult(
+            command="include",
+            status="clean",
+            exit_code=0,
+            summary=summary,
+            evidence=[
+                Evidence(
+                    key="included_count",
+                    value=len(newly_included),
+                    status="verified" if modified else "clean",
+                )
+            ],
+            data={"newly_included_count": len(newly_included)},
+            applied=modified,
+            complete=True,
+        )
+        return get_renderer(ctx).emit(res, ctx)
+
     cfg_path_str = config._preserve_home(str(config.config_path()))
     term.line(
         f"{term.colorize('Config:', 'bold')} {term.color256(cfg_path_str, 39)} "
@@ -11045,26 +11213,68 @@ def _run_storage_status(
     return 0
 
 
-def _run_storage_init(args: argparse.Namespace, term: Term) -> int:
+def _run_storage_init(
+    args: argparse.Namespace, term: Term, context: Optional[Any] = None
+) -> int:
     import os
 
+    from agent_workflows.renderers import get_renderer
+    from agent_workflows.result_types import (
+        CommandResult,
+        Evidence,
+        NextAction,
+        select_output,
+    )
     from agent_workflows.storage import StorageError, init_records_storage
 
+    ctx = context or select_output(args)
     repo_path = getattr(args, "repo", None) or os.getcwd()
 
     if getattr(args, "dry_run", False):
+        if ctx.is_agent or ctx.is_json:
+            res = CommandResult(
+                command="storage init",
+                status="preview",
+                exit_code=0,
+                summary="Would initialize records storage",
+                evidence=[Evidence(key="init", value="preview", status="clean")],
+                next_actions=[
+                    NextAction(
+                        command="aw storage init --yes",
+                        description="initialize records storage",
+                    )
+                ],
+                applied=False,
+                complete=True,
+            )
+            return get_renderer(ctx).emit(res, ctx)
         term.status(
             "info", f"[DRY RUN] Would initialize records storage for {repo_path}"
         )
         return 0
 
-    if not _confirm(
-        term,
-        f"Initialize records storage for {repo_path}?",
-        getattr(args, "yes", False),
-    ):
-        term.status("skip", "Storage initialization cancelled; nothing changed.")
-        return 0
+    if not getattr(args, "yes", False):
+        if ctx.is_agent or ctx.is_json:
+            res = CommandResult(
+                command="storage init",
+                status="skipped",
+                exit_code=0,
+                summary="Storage initialization cancelled; nothing changed.",
+                evidence=[
+                    Evidence(key="confirmation", value="declined", status="clean")
+                ],
+                data={"confirmation": "declined"},
+                applied=False,
+                complete=False,
+            )
+            return get_renderer(ctx).emit(res, ctx)
+        if not _confirm(
+            term,
+            f"Initialize records storage for {repo_path}?",
+            False,
+        ):
+            term.status("skip", "Storage initialization cancelled; nothing changed.")
+            return 0
 
     try:
         st = init_records_storage(
@@ -11073,8 +11283,36 @@ def _run_storage_init(args: argparse.Namespace, term: Term) -> int:
             acknowledge_remote=getattr(args, "acknowledge_remote", False),
         )
     except StorageError as exc:
+        if ctx.is_agent or ctx.is_json:
+            res = CommandResult(
+                command="storage init",
+                status="fail",
+                exit_code=1,
+                summary=str(exc),
+                complete=False,
+            )
+            return get_renderer(ctx).emit(res, ctx)
         term.status("fail", str(exc))
         return 1
+
+    if ctx.is_agent or ctx.is_json:
+        res = CommandResult(
+            command="storage init",
+            status="clean",
+            exit_code=0,
+            summary=f"Successfully initialized records storage ({st.durability_state}).",
+            evidence=[
+                Evidence(
+                    key="storage_init",
+                    value={"durability": st.durability_state},
+                    status="verified",
+                )
+            ],
+            data={"durability": st.durability_state},
+            applied=True,
+            complete=True,
+        )
+        return get_renderer(ctx).emit(res, ctx)
 
     term.status(
         "ok",
@@ -11083,15 +11321,25 @@ def _run_storage_init(args: argparse.Namespace, term: Term) -> int:
     return 0
 
 
-def _run_storage_attach(args: argparse.Namespace, term: Term) -> int:
+def _run_storage_attach(
+    args: argparse.Namespace, term: Term, context: Optional[Any] = None
+) -> int:
     import os
 
+    from agent_workflows.renderers import get_renderer
+    from agent_workflows.result_types import (
+        CommandResult,
+        Evidence,
+        NextAction,
+        select_output,
+    )
     from agent_workflows.storage import (
         StorageError,
         acknowledge_remote_durability,
         attach_companion,
     )
 
+    ctx = context or select_output(args)
     repo_path = getattr(args, "repo", None) or os.getcwd()
     companion_dir = getattr(args, "companion_dir", None)
     dry_run = getattr(args, "dry_run", False)
@@ -11102,46 +11350,139 @@ def _run_storage_attach(args: argparse.Namespace, term: Term) -> int:
 
     if companion_dir:
         if dry_run:
+            if ctx.is_agent or ctx.is_json:
+                res = CommandResult(
+                    command="storage attach",
+                    status="preview",
+                    exit_code=0,
+                    summary="Would attach companion repository",
+                    evidence=[Evidence(key="attach", value="preview", status="clean")],
+                    next_actions=[
+                        NextAction(
+                            command="aw storage attach --yes",
+                            description="attach companion repository",
+                        )
+                    ],
+                    applied=False,
+                    complete=True,
+                )
+                return get_renderer(ctx).emit(res, ctx)
             term.status(
                 "info",
                 f"[DRY RUN] Would attach companion at {companion_dir} to target repo {repo_path}",
             )
             return 0
-        if not _confirm(
-            term,
-            f"Attach companion repository at {companion_dir} to target repo {repo_path}?",
-            getattr(args, "yes", False),
-        ):
-            term.status("skip", "Attach operation cancelled; nothing changed.")
-            return 0
+        if not getattr(args, "yes", False):
+            if ctx.is_agent or ctx.is_json:
+                res = CommandResult(
+                    command="storage attach",
+                    status="skipped",
+                    exit_code=0,
+                    summary="Attach operation cancelled; nothing changed.",
+                    evidence=[
+                        Evidence(key="confirmation", value="declined", status="clean")
+                    ],
+                    data={"confirmation": "declined"},
+                    applied=False,
+                    complete=False,
+                )
+                return get_renderer(ctx).emit(res, ctx)
+            if not _confirm(
+                term,
+                f"Attach companion repository at {companion_dir} to target repo {repo_path}?",
+                False,
+            ):
+                term.status("skip", "Attach operation cancelled; nothing changed.")
+                return 0
         try:
-            res = attach_companion(
+            res_attach = attach_companion(
                 target_repo=repo_path,
                 companion_dir=companion_dir,
                 selected_root_classes=selected_classes,
                 dry_run=False,
                 acknowledge_remote=getattr(args, "acknowledge_remote", False),
             )
+            if ctx.is_agent or ctx.is_json:
+                res = CommandResult(
+                    command="storage attach",
+                    status="clean",
+                    exit_code=0,
+                    summary=f"Successfully attached companion (project ID: {res_attach['project_id']}).",
+                    evidence=[
+                        Evidence(
+                            key="companion_attached",
+                            value={"project_id": res_attach["project_id"]},
+                            status="verified",
+                        )
+                    ],
+                    data={"project_id": res_attach["project_id"]},
+                    applied=True,
+                    complete=True,
+                )
+                return get_renderer(ctx).emit(res, ctx)
             term.status(
                 "ok",
-                f"Successfully attached companion at {res['companion_dir']} (project ID: {res['project_id']}).",
+                f"Successfully attached companion at {res_attach['companion_dir']} (project ID: {res_attach['project_id']}).",
             )
             return 0
         except StorageError as exc:
+            if ctx.is_agent or ctx.is_json:
+                res = CommandResult(
+                    command="storage attach",
+                    status="fail",
+                    exit_code=1,
+                    summary=str(exc),
+                    complete=False,
+                )
+                return get_renderer(ctx).emit(res, ctx)
             term.status("fail", str(exc))
             return 1
 
     if dry_run:
+        if ctx.is_agent or ctx.is_json:
+            res = CommandResult(
+                command="storage attach",
+                status="preview",
+                exit_code=0,
+                summary="Would update durability policy",
+                evidence=[
+                    Evidence(key="update_durability", value="preview", status="clean")
+                ],
+                next_actions=[
+                    NextAction(
+                        command="aw storage attach --yes",
+                        description="update durability policy",
+                    )
+                ],
+                applied=False,
+                complete=True,
+            )
+            return get_renderer(ctx).emit(res, ctx)
         term.status("info", f"[DRY RUN] Would update durability policy for {repo_path}")
         return 0
 
-    if not _confirm(
-        term,
-        f"Update storage durability policy for {repo_path}?",
-        getattr(args, "yes", False),
-    ):
-        term.status("skip", "Operation cancelled; nothing changed.")
-        return 0
+    if not getattr(args, "yes", False):
+        if ctx.is_agent or ctx.is_json:
+            res = CommandResult(
+                command="storage attach",
+                status="skipped",
+                exit_code=0,
+                summary="Operation cancelled; nothing changed.",
+                evidence=[
+                    Evidence(key="confirmation", value="declined", status="clean")
+                ],
+                data={"confirmation": "declined"},
+                applied=False,
+                complete=False,
+            )
+            return get_renderer(ctx).emit(res, ctx)
+        if not _confirm(
+            term,
+            f"Update storage durability policy for {repo_path}?",
+            False,
+        ):
+            term.status("skip", "Operation cancelled; nothing changed.")
+            return 0
 
     try:
         st = acknowledge_remote_durability(
@@ -11149,8 +11490,36 @@ def _run_storage_attach(args: argparse.Namespace, term: Term) -> int:
             acknowledge=getattr(args, "acknowledge_remote", False),
         )
     except StorageError as exc:
+        if ctx.is_agent or ctx.is_json:
+            res = CommandResult(
+                command="storage attach",
+                status="fail",
+                exit_code=1,
+                summary=str(exc),
+                complete=False,
+            )
+            return get_renderer(ctx).emit(res, ctx)
         term.status("fail", str(exc))
         return 1
+
+    if ctx.is_agent or ctx.is_json:
+        res = CommandResult(
+            command="storage attach",
+            status="clean",
+            exit_code=0,
+            summary=f"Updated durability policy (new state: {st.durability_state}).",
+            evidence=[
+                Evidence(
+                    key="durability_policy",
+                    value={"state": st.durability_state},
+                    status="verified",
+                )
+            ],
+            data={"durability_state": st.durability_state},
+            applied=True,
+            complete=True,
+        )
+        return get_renderer(ctx).emit(res, ctx)
 
     term.status(
         "ok",
@@ -11159,15 +11528,42 @@ def _run_storage_attach(args: argparse.Namespace, term: Term) -> int:
     return 0
 
 
-def _run_storage_detach(args: argparse.Namespace, term: Term) -> int:
+def _run_storage_detach(
+    args: argparse.Namespace, term: Term, context: Optional[Any] = None
+) -> int:
     import os
 
+    from agent_workflows.renderers import get_renderer
+    from agent_workflows.result_types import (
+        CommandResult,
+        Evidence,
+        NextAction,
+        select_output,
+    )
     from agent_workflows.storage import StorageError, detach_companion
 
+    ctx = context or select_output(args)
     repo_path = getattr(args, "repo", None) or os.getcwd()
     dry_run = getattr(args, "dry_run", False)
 
     if dry_run:
+        if ctx.is_agent or ctx.is_json:
+            res = CommandResult(
+                command="storage detach",
+                status="preview",
+                exit_code=0,
+                summary="Would detach companion binding (durable data preserved)",
+                evidence=[Evidence(key="detach", value="preview", status="clean")],
+                next_actions=[
+                    NextAction(
+                        command="aw storage detach --apply",
+                        description="detach companion binding",
+                    )
+                ],
+                applied=False,
+                complete=True,
+            )
+            return get_renderer(ctx).emit(res, ctx)
         term.status(
             "info",
             f"[DRY RUN] Would detach companion binding from target repo {repo_path}",
@@ -11176,12 +11572,34 @@ def _run_storage_detach(args: argparse.Namespace, term: Term) -> int:
 
     try:
         res = detach_companion(target_repo=repo_path, dry_run=False)
+        if ctx.is_agent or ctx.is_json:
+            # F-08: absolute path must not appear in summary or evidence!
+            res_cmd = CommandResult(
+                command="storage detach",
+                status="clean",
+                exit_code=0,
+                summary="Detached companion binding (durable data preserved).",
+                evidence=[Evidence(key="detached", value=True, status="verified")],
+                data={"durable_data_preserved": True},
+                applied=True,
+                complete=True,
+            )
+            return get_renderer(ctx).emit(res_cmd, ctx)
         term.status(
             "ok",
             f"Detached companion binding for target repo {res['target_repo']} (durable data preserved).",
         )
         return 0
     except StorageError as exc:
+        if ctx.is_agent or ctx.is_json:
+            res_cmd = CommandResult(
+                command="storage detach",
+                status="fail",
+                exit_code=1,
+                summary=str(exc),
+                complete=False,
+            )
+            return get_renderer(ctx).emit(res_cmd, ctx)
         term.status("fail", str(exc))
         return 1
 
@@ -11222,20 +11640,77 @@ def _run_storage_move(args: argparse.Namespace, term: Term) -> int:
         return 1
 
 
-def _run_storage_reattach(args: argparse.Namespace, term: Term) -> int:
+def _run_storage_reattach(
+    args: argparse.Namespace, term: Term, context: Optional[Any] = None
+) -> int:
     import os
 
+    from agent_workflows.renderers import get_renderer
+    from agent_workflows.result_types import (
+        CommandResult,
+        Evidence,
+        NextAction,
+        select_output,
+    )
     from agent_workflows.storage import StorageError, reattach_companion
 
+    ctx = context or select_output(args)
     repo_path = getattr(args, "repo", None) or os.getcwd()
     companion_dir = getattr(args, "companion_dir", None)
     dry_run = getattr(args, "dry_run", False)
 
     if not companion_dir:
+        if ctx.is_agent or ctx.is_json:
+            # F-15 / E-04: validate_agent_record rejects kind='error' when exit != 2.
+            # Map storage reattach to kind='result', outcome='cannot-run', exit=1.
+            class _StorageReattachResult(CommandResult):
+                def to_agent_record(self, context=None):
+                    rec = {
+                        "schema": self.schema_version,
+                        "kind": "result",
+                        "cmd": self.command,
+                        "outcome": "cannot-run",
+                        "exit": self.exit_code,
+                        "verified": False,
+                        "complete": False,
+                        "findings": 0,
+                        "next": None,
+                    }
+                    from agent_workflows.agent_schema import assert_valid_agent_record
+
+                    assert_valid_agent_record(rec)
+                    return rec
+
+            res = _StorageReattachResult(
+                command="storage reattach",
+                status="cannot-run",
+                exit_code=1,
+                summary="--companion-dir is required for reattach.",
+                verified=False,
+                complete=False,
+            )
+            return get_renderer(ctx).emit(res, ctx)
         term.status("fail", "--companion-dir is required for reattach.")
         return 1
 
     if dry_run:
+        if ctx.is_agent or ctx.is_json:
+            res = CommandResult(
+                command="storage reattach",
+                status="preview",
+                exit_code=0,
+                summary="Would reattach companion",
+                evidence=[Evidence(key="reattach", value="preview", status="clean")],
+                next_actions=[
+                    NextAction(
+                        command="aw storage reattach --companion-dir <path>",
+                        description="reattach companion",
+                    )
+                ],
+                applied=False,
+                complete=True,
+            )
+            return get_renderer(ctx).emit(res, ctx)
         term.status(
             "info",
             f"[DRY RUN] Would reattach companion at {companion_dir} to target repo {repo_path}",
@@ -11246,12 +11721,32 @@ def _run_storage_reattach(args: argparse.Namespace, term: Term) -> int:
         res = reattach_companion(
             target_repo=repo_path, companion_dir=companion_dir, dry_run=False
         )
+        if ctx.is_agent or ctx.is_json:
+            res_cmd = CommandResult(
+                command="storage reattach",
+                status="clean",
+                exit_code=0,
+                summary="Reattached companion.",
+                evidence=[Evidence(key="reattached", value=True, status="verified")],
+                applied=True,
+                complete=True,
+            )
+            return get_renderer(ctx).emit(res_cmd, ctx)
         term.status(
             "ok",
             f"Reattached companion at {res['companion_dir']} to target repo {res['target_repo']}.",
         )
         return 0
     except StorageError as exc:
+        if ctx.is_agent or ctx.is_json:
+            res_cmd = CommandResult(
+                command="storage reattach",
+                status="fail",
+                exit_code=1,
+                summary=str(exc),
+                complete=False,
+            )
+            return get_renderer(ctx).emit(res_cmd, ctx)
         term.status("fail", str(exc))
         return 1
 
@@ -15737,9 +16232,37 @@ def _dispatch(argv: Optional[Sequence[str]]) -> int:
         import os as _os
 
         from agent_workflows import engine as _engine
+        from agent_workflows.renderers import get_renderer
+        from agent_workflows.result_types import CommandResult, Evidence
 
+        ctx = context
         repo_root = Path(getattr(args, "dir", None) or _os.getcwd())
         renamed = _engine.migrate_local_lanes_to_untracked(repo_root, {})
+        if ctx.is_agent or ctx.is_json:
+            applied = bool(renamed)
+            summary = (
+                f"renamed {len(renamed)} lane(s)"
+                if renamed
+                else "no 'local/' lane to rename; nothing to do."
+            )
+            evidence = [
+                Evidence(
+                    key="renamed_lanes",
+                    value=renamed,
+                    status="verified" if applied else "clean",
+                )
+            ]
+            res = CommandResult(
+                command="normalize-lanes",
+                status="clean",
+                exit_code=0,
+                summary=summary,
+                evidence=evidence,
+                data={"renamed": renamed},
+                applied=applied,
+                complete=True,
+            )
+            return get_renderer(ctx).emit(res, ctx)
         if renamed:
             for r in renamed:
                 term.status("ok", f"renamed lane -> {r}")
@@ -15857,6 +16380,14 @@ def _dispatch(argv: Optional[Sequence[str]]) -> int:
             for flag in ("apply", "dry_run", "no_backup", "allow_insecure"):
                 if getattr(args, flag, False):
                     forwarded.append("--" + flag.replace("_", "-"))
+            for flag in ("agent", "as_agent"):
+                if getattr(args, flag, False):
+                    forwarded.append("--agent")
+                    break
+            if getattr(args, "json", False) or getattr(args, "as_json", False):
+                forwarded.append("--json")
+            if getattr(args, "no_color", False):
+                forwarded.append("--no-color")
             return oc_models.run(forwarded)
         # runprofile Order 02 (p0l1to) E-03: the profile verbs. Structured flags, so dispatched from
         # the parsed namespace (like `update-models`) rather than forwarded as REMAINDER.

@@ -8,6 +8,7 @@
 - Summary: aw rename plans and aw group plans emit no aw.agent/v1 payload at all under --json/--agent, and print a nested index-refresh line onto stdout
 
 ## Workflow history
+- 2026-10-08 note (aw backlog): Measured in plan vfv2db (F-10): missing-payload defect is a family, not confined to rename plans and group plans. rename backlog shares this shape (rc 2, 'error: at least one <id6>, <setid>, or <path> is required' on stdout under --agent with no record). archive plans also exhibited this shape prior to archive fixes.
 - 2026-10-06 open (aw set): z2l43n returned to authoring: uncovered obligation: Close backlog item eeiytw by making both verbs emit exactly one parseable aw.agent/v1 record; re-run graduation to complete the handoff
 - 2026-10-01 graduated (aw backlog): graduated by run run-20261001T221821Z-1985969: gzb2rq, vfqjc0, x7unul, z2l43n
 - 2026-09-30 created (aw backlog): Filed by /plan-review of plan wgp0g3 2026-09-30 to carry that plan's F-12 deferral.
