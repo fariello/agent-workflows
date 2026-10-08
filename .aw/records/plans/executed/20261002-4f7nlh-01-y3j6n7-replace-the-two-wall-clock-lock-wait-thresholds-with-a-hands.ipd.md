@@ -6,7 +6,7 @@
 - Scope: Rewrite `test_two_process_lock_wait_succeeds` and `test_finalize_lock_WAITS_for_a_short_lived_live_holder` in `tests/test_ipd_lifecycle_cli.py` to release their holder on a handshake and to assert on observed poll attempts plus lock ownership. No production code changes.
 - Scope-Paths: tests/test_ipd_lifecycle_cli.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: low
@@ -17,9 +17,9 @@
 - Highest E allocated: 04
 - Author: opencode
 - Id: y3j6n7
-- Approval: 2026-10-07, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-08 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: y3j6n7 verified (set 4f7nlh, attempt 1).
 - 2026-10-07 approved (aw set): status set to approved
 - 2026-10-07 reviewed (aw set): /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005. Re-verified both tests and the wait_until ordering at a2b959f5a; probed the mutation and found functools.partial(timeout=0) is a silent no-op and a closing lambda recurses, so validation now names a default-arg-capture mock that measured TransactionLockError polls 0; restored the dropped take-on-release property as a poll bound; made the liveness assertion satisfiable via per-poll samples; added finalize ownership, scope fence, and backlog filing for E-04.
 
@@ -36,27 +36,27 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: Remove the timing dependency from the two-process test
 
-- [ ] E-01 In `tests/test_ipd_lifecycle_cli.py`, change `RollbackFailureSemanticsTests.test_two_process_lock_wait_succeeds` so its child process holds the lock until the PARENT says to release it instead of for a fixed `time.sleep(1.0)`: have the child poll for a release sentinel file (bounded by its own bail-out deadline so an abandoned child cannot outlive the suite), and have the parent create that sentinel from inside the `sleep` callable it injects into `acquire_finalize_lock`, once at least two polls have been observed. THE INJECTED `sleep` MUST STILL REALLY SLEEP (call `time.sleep(sec)` after recording) and the test must NOT inject `now`: unlike the sibling injected-clock tests, this one exercises two real processes, and the child needs real time to observe the sentinel and unlink the lock; a non-sleeping callable would spin through the poll budget. Keep `timeout=` generous (the existing 5.0s, or larger) since it is now only a hang bound, not an assertion. RECORD `child.poll() is None` INSIDE the callable on each call (before writing the sentinel), because by the time `acquire_finalize_lock` returns the child has released and exited, so a post-return `child.poll()` would be `0`, not `None`.
+- [x] E-01 In `tests/test_ipd_lifecycle_cli.py`, change `RollbackFailureSemanticsTests.test_two_process_lock_wait_succeeds` so its child process holds the lock until the PARENT says to release it instead of for a fixed `time.sleep(1.0)`: have the child poll for a release sentinel file (bounded by its own bail-out deadline so an abandoned child cannot outlive the suite), and have the parent create that sentinel from inside the `sleep` callable it injects into `acquire_finalize_lock`, once at least two polls have been observed. THE INJECTED `sleep` MUST STILL REALLY SLEEP (call `time.sleep(sec)` after recording) and the test must NOT inject `now`: unlike the sibling injected-clock tests, this one exercises two real processes, and the child needs real time to observe the sentinel and unlink the lock; a non-sleeping callable would spin through the poll budget. Keep `timeout=` generous (the existing 5.0s, or larger) since it is now only a hang bound, not an assertion. RECORD `child.poll() is None` INSIDE the callable on each call (before writing the sentinel), because by the time `acquire_finalize_lock` returns the child has released and exited, so a post-return `child.poll()` would be `0`, not `None`.
   - Depends on: none
   - Expected outcome: The holder's lifetime is controlled by the parent, so the child is still holding the lock at the moment the parent begins waiting no matter how long the parent was descheduled first.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 In the same test, replace the wall-clock assertion `assertGreater(elapsed, 0.7, ...)` with assertions that do not read the clock: assert the injected `sleep` callable was invoked at least twice (so the acquire provably POLLED rather than taking a free lock), assert the holder subprocess was alive at every recorded poll before the sentinel was written (the liveness samples E-01 records inside the callable; a post-return `child.poll()` is necessarily non-`None` because the child has exited), and keep the existing ownership assertion that the lock file's `pid` is `os.getpid()`. Also replace the bounded `for _ in range(50)` lock-appearance spin with a deadline-based wait so a slow child start is a wait rather than a failure.
+- [x] E-02 In the same test, replace the wall-clock assertion `assertGreater(elapsed, 0.7, ...)` with assertions that do not read the clock: assert the injected `sleep` callable was invoked at least twice (so the acquire provably POLLED rather than taking a free lock), assert the holder subprocess was alive at every recorded poll before the sentinel was written (the liveness samples E-01 records inside the callable; a post-return `child.poll()` is necessarily non-`None` because the child has exited), and keep the existing ownership assertion that the lock file's `pid` is `os.getpid()`. Also replace the bounded `for _ in range(50)` lock-appearance spin with a deadline-based wait so a slow child start is a wait rather than a failure.
   - Depends on: E-01
   - Expected outcome: The test asserts the waiting BEHAVIOR (polled while a live holder held it, then acquired it) and no longer asserts a duration.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: Fix the same defect in the sibling test
 
-- [ ] E-03 Apply the same handshake treatment to `RollbackFailureSemanticsTests.test_finalize_lock_WAITS_for_a_short_lived_live_holder`, whose releasing thread sleeps a fixed `0.5` and whose `assertGreaterEqual(waited, 0.4, ...)` has the same wall-clock dependency with a tighter margin: release the lock from the injected `sleep` callable after at least two observed polls rather than from a timed thread, assert on the observed poll count, and keep its existing assertions that the lock is owned by this PID and that the holder subprocess was never killed (`holder.poll() is None`). REPLACE, DO NOT DROP, the `assertLess(waited, 5, "it must take the lock as soon as the holder releases it")` half: that is an upper bound with 5s of headroom and is not the fragile direction, but rather than keep a clock read, assert the same property by poll count, namely that the injected `sleep` was called NO MORE than one time after the release (record the call index at which the lock was unlinked and assert `len(sleep_calls) <= release_index + 1`), which proves the acquire took the lock on the very next poll. Do NOT copy this bound into E-02: there the CHILD unlinks asynchronously after it notices the sentinel, so the parent may legitimately poll several more times before the release is visible; E-02's release-side proof is the child exiting `0` via the handshake (V-01) plus parent ownership. Preserve the test's documented provenance comment naming `run-20260927T001634Z-258437`.
+- [x] E-03 Apply the same handshake treatment to `RollbackFailureSemanticsTests.test_finalize_lock_WAITS_for_a_short_lived_live_holder`, whose releasing thread sleeps a fixed `0.5` and whose `assertGreaterEqual(waited, 0.4, ...)` has the same wall-clock dependency with a tighter margin: release the lock from the injected `sleep` callable after at least two observed polls rather than from a timed thread, assert on the observed poll count, and keep its existing assertions that the lock is owned by this PID and that the holder subprocess was never killed (`holder.poll() is None`). REPLACE, DO NOT DROP, the `assertLess(waited, 5, "it must take the lock as soon as the holder releases it")` half: that is an upper bound with 5s of headroom and is not the fragile direction, but rather than keep a clock read, assert the same property by poll count, namely that the injected `sleep` was called NO MORE than one time after the release (record the call index at which the lock was unlinked and assert `len(sleep_calls) <= release_index + 1`), which proves the acquire took the lock on the very next poll. Do NOT copy this bound into E-02: there the CHILD unlinks asynchronously after it notices the sentinel, so the parent may legitimately poll several more times before the release is visible; E-02's release-side proof is the child exiting `0` via the handshake (V-01) plus parent ownership. Preserve the test's documented provenance comment naming `run-20260927T001634Z-258437`.
   - Depends on: none
   - Expected outcome: The sibling test proves the same contract (a live holder is waited for, a released lock is taken on the next poll, the holder is never killed) without depending on when the test process is scheduled.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 Confirm no OTHER test in the repository asserts a finalize-lock or contention wait duration against a fixed-duration holder, and record the search performed. At review `grep -rln "monotonic()" tests/*.py` named eight modules (`test_concurrent_driver_guard.py`, `test_ipd_lifecycle_cli.py`, `test_oc_runipd.py`, `test_permission_bound_disabled.py`, `test_platform_lock.py`, `test_runner_stop_triggers_e2e.py`, `test_statusline_ascii_mode.py`, `test_turn_bounds.py`); give every `monotonic()`-derived assertion in them a one-line disposition, rather than only those near the word "lock". Re-derive the list at execution; do not treat these eight as the bar. If another instance exists outside this plan's declared scope, do NOT widen scope: FILE it with `aw backlog new` (Work-Kind `bug`, which auto-gates it) and record its id6 in the evidence; a follow-up left only in this plan's prose is not tracked.
+- [x] E-04 Confirm no OTHER test in the repository asserts a finalize-lock or contention wait duration against a fixed-duration holder, and record the search performed. At review `grep -rln "monotonic()" tests/*.py` named eight modules (`test_concurrent_driver_guard.py`, `test_ipd_lifecycle_cli.py`, `test_oc_runipd.py`, `test_permission_bound_disabled.py`, `test_platform_lock.py`, `test_runner_stop_triggers_e2e.py`, `test_statusline_ascii_mode.py`, `test_turn_bounds.py`); give every `monotonic()`-derived assertion in them a one-line disposition, rather than only those near the word "lock". Re-derive the list at execution; do not treat these eight as the bar. If another instance exists outside this plan's declared scope, do NOT widen scope: FILE it with `aw backlog new` (Work-Kind `bug`, which auto-gates it) and record its id6 in the evidence; a follow-up left only in this plan's prose is not tracked.
   - Depends on: none
   - Expected outcome: Either a recorded finding that these two were the only instances, or a recorded follow-up naming any further instance without editing it.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -126,25 +126,229 @@ N/A with reason: no `.spec.md` governs these two tests, and the production contr
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: Paste the rewritten child source block from `tests/test_ipd_lifecycle_cli.py` showing the child waits on the release sentinel with its own bail-out deadline and contains no fixed `time.sleep(1.0)` hold. Paste the output of a run of `test_two_process_lock_wait_succeeds` showing it passes, plus the child's exit status observed by the test (`child.wait` returning 0), proving the handshake released the child rather than the cleanup killing it.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Rewritten child source block from `tests/test_ipd_lifecycle_cli.py`:
+    ```python
+    sentinel = self.root / "release.sentinel"
 
-- [ ] V-02 validates E-02
+    child_code = (
+        "import os, sys, time, json\n"
+        f"p = {repr(str(lock))}\n"
+        f"sentinel = {repr(str(sentinel))}\n"
+        "with open(p, 'w') as f: json.dump({'owner': 'child_worker', 'pid': os.getpid()}, f)\n"
+        "deadline = time.monotonic() + 30.0\n"
+        "while not os.path.exists(sentinel) and time.monotonic() < deadline:\n"
+        "    time.sleep(0.01)\n"
+        "try: os.unlink(p)\n"
+        "except OSError: pass\n"
+    )
+    ```
+    Test execution output:
+    ```
+    $ PYTHONPATH=. python3 -m unittest -v tests.test_ipd_lifecycle_cli.RollbackFailureSemanticsTests.test_two_process_lock_wait_succeeds
+    test_two_process_lock_wait_succeeds (tests.test_ipd_lifecycle_cli.RollbackFailureSemanticsTests.test_two_process_lock_wait_succeeds)
+    Two real processes: child holds lock until parent sentinel, parent waits and succeeds. ... ok
+
+    ----------------------------------------------------------------------
+    Ran 1 test in 0.596s
+
+    OK
+    ```
+    Child exit status: `child_rc = child.wait(timeout=5)`; `self.assertEqual(child_rc, 0, "child process must exit 0 via handshake")` passed, proving child exited 0 via handshake.
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: Paste the rewritten assertion block showing no `monotonic`/`elapsed` duration assertion remains in this test, and showing the poll-count floor, the per-poll holder-liveness samples, and `pid == os.getpid()` assertions (no taken-on-next-poll bound here; see E-03). Then paste BOTH halves of a mutation check, performed with the in-process `mock.patch.object` wrapper named in `## Required tests / validation` (no production file edited): with waiting neutralized the test FAILS, and with it restored the test PASSES. Finally paste a scheduling-independence run at stalls of at least 0s and 2s (2s being past the old child's entire 1.0s hold) showing a pass at each.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Rewritten assertion block from `tests/test_ipd_lifecycle_cli.py`:
+    ```python
+    child_rc = child.wait(timeout=5)
+    self.assertEqual(child_rc, 0, "child process must exit 0 via handshake")
 
-- [ ] V-03 validates E-03
+    self.assertGreaterEqual(
+        len(sleep_calls), 2, "acquire must have polled at least twice"
+    )
+    self.assertTrue(
+        all(liveness_before_sentinel),
+        "holder must be alive at every poll before release sentinel",
+    )
+    self.assertGreaterEqual(
+        len(liveness_before_sentinel),
+        2,
+        "must have sampled liveness at least twice before release",
+    )
+    self.assertEqual(_json.loads(lock.read_text())["pid"], _os.getpid())
+    LC.release_finalize_lock(self.root)
+    ```
+    Mutation check (`wait_until` timeout mocked to 0):
+    Mutated run:
+    ```
+    ERROR: test_two_process_lock_wait_succeeds (tests.test_ipd_lifecycle_cli.RollbackFailureSemanticsTests.test_two_process_lock_wait_succeeds)
+    Two real processes: child holds lock until parent sentinel, parent waits and succeeds.
+    ----------------------------------------------------------------------
+    Traceback (most recent call last):
+      File "tests/test_ipd_lifecycle_cli.py", line 1500, in test_two_process_lock_wait_succeeds
+        LC.acquire_finalize_lock(
+            self.root, "abc123", timeout=5.0, sleep=_handshake_sleep
+        )
+      File "agent_workflows/ipd_lifecycle.py", line 647, in acquire_finalize_lock
+        raise TransactionLockError(
+        ...
+        )
+    agent_workflows.ipd_lifecycle.TransactionLockError: ipd finalize writer lock held by active PID 967805 (owner child_worker) for longer than 5s
+
+    FAILED (errors=1)
+    Mutated result: wasSuccessful=False, errors=1, failures=0
+    ```
+    Restored run:
+    ```
+    test_two_process_lock_wait_succeeds (tests.test_ipd_lifecycle_cli.RollbackFailureSemanticsTests.test_two_process_lock_wait_succeeds) ... ok
+    Ran 1 test in 0.394s
+    OK
+    Restored result: wasSuccessful=True
+    ```
+    Scheduling-independence run (stalls at 0s and 2s):
+    ```
+    --- Stalling 0.0s for test_two_process_lock_wait_succeeds ---
+    test_two_process_lock_wait_succeeds ... ok
+    Ran 1 test in 0.417s
+    OK
+    stall=0.0s result: wasSuccessful=True
+
+    --- Stalling 2.0s for test_two_process_lock_wait_succeeds ---
+    test_two_process_lock_wait_succeeds ... ok
+    Ran 1 test in 2.371s
+    OK
+    stall=2.0s result: wasSuccessful=True
+    ```
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: Paste the rewritten `test_finalize_lock_WAITS_for_a_short_lived_live_holder` showing the timed releasing thread and the `assertGreaterEqual(waited, 0.4, ...)` assertion are both gone, that the `run-20260927T001634Z-258437` provenance comment survives, that `holder.poll() is None` is still asserted, and that the former `assertLess(waited, 5, ...)` property is now asserted as the taken-on-next-poll bound rather than deleted. Paste a passing run, a mutation check (same in-process wrapper) showing it FAILS with waiting neutralized, and a stall run at 0s and 2s showing it passes at both. Paste a run of the whole `RollbackFailureSemanticsTests` class with its `N passed` line.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Rewritten `test_finalize_lock_WAITS_for_a_short_lived_live_holder`:
+    ```python
+    def test_finalize_lock_WAITS_for_a_short_lived_live_holder(self):
+        """A peer's sub-second hold must not refuse finalize (run-20260927T001634Z-258437)."""
+        import json as _json
+        import os as _os
+        import subprocess as _subprocess
+        import sys as _sys
+        import time as _time
 
-- [ ] V-04 validates E-04
+        lock = LC.finalize_lock_path(self.root)
+        lock.parent.mkdir(parents=True, exist_ok=True)
+        holder = _subprocess.Popen(
+            [_sys.executable, "-c", "import time; time.sleep(60)"]
+        )
+        self.addCleanup(holder.wait)
+        self.addCleanup(holder.kill)
+        lock.write_text(
+            _json.dumps({"owner": "git_commit_helper.offer_commit", "pid": holder.pid}),
+            encoding="utf-8",
+        )
+
+        sleep_calls = []
+        release_index = None
+
+        def _handshake_sleep(sec):
+            nonlocal release_index
+            sleep_calls.append(sec)
+            if len(sleep_calls) >= 2 and lock.exists():
+                lock.unlink()  # the peer's `commit_lock.release`
+                release_index = len(sleep_calls)
+            _time.sleep(sec)
+
+        LC.acquire_finalize_lock(
+            self.root, "abc123", timeout=10, sleep=_handshake_sleep
+        )
+        self.assertGreaterEqual(
+            len(sleep_calls), 2, "it must have WAITED for the live holder"
+        )
+        self.assertIsNotNone(
+            release_index, "the lock must have been released during wait"
+        )
+        self.assertLessEqual(
+            len(sleep_calls),
+            release_index + 1,
+            "it must take the lock as soon as the holder releases it",
+        )
+        self.assertEqual(_json.loads(lock.read_text())["pid"], _os.getpid())
+        self.assertIsNone(holder.poll(), "waiting must never kill the holder")
+        LC.release_finalize_lock(self.root)
+    ```
+    Passing run:
+    ```
+    test_finalize_lock_WAITS_for_a_short_lived_live_holder (tests.test_ipd_lifecycle_cli.RollbackFailureSemanticsTests.test_finalize_lock_WAITS_for_a_short_lived_live_holder) ... ok
+    Ran 1 test in 0.291s
+    OK
+    Restored result: wasSuccessful=True
+    ```
+    Mutation check:
+    ```
+    ERROR: test_finalize_lock_WAITS_for_a_short_lived_live_holder (tests.test_ipd_lifecycle_cli.RollbackFailureSemanticsTests.test_finalize_lock_WAITS_for_a_short_lived_live_holder)
+    Traceback (most recent call last):
+      File "tests/test_ipd_lifecycle_cli.py", line 1342, in test_finalize_lock_WAITS_for_a_short_lived_live_holder
+        LC.acquire_finalize_lock(
+            self.root, "abc123", timeout=10, sleep=_handshake_sleep
+        )
+      File "agent_workflows/ipd_lifecycle.py", line 647, in acquire_finalize_lock
+        raise TransactionLockError(...)
+    agent_workflows.ipd_lifecycle.TransactionLockError: ipd finalize writer lock held by active PID 968267 (owner git_commit_helper.offer_commit) for longer than 10s
+
+    FAILED (errors=1)
+    Mutated result: wasSuccessful=False, errors=1, failures=0
+    ```
+    Stall run at 0s and 2s:
+    ```
+    --- Stalling 0.0s for test_finalize_lock_WAITS_for_a_short_lived_live_holder ---
+    test_finalize_lock_WAITS_for_a_short_lived_live_holder ... ok
+    Ran 1 test in 0.287s
+    OK
+    stall=0.0s result: wasSuccessful=True
+
+    --- Stalling 2.0s for test_finalize_lock_WAITS_for_a_short_lived_live_holder ---
+    test_finalize_lock_WAITS_for_a_short_lived_live_holder ... ok
+    Ran 1 test in 2.333s
+    OK
+    stall=2.0s result: wasSuccessful=True
+    ```
+    Class run:
+    ```
+    $ python3 -m pytest tests/test_ipd_lifecycle_cli.py -k "RollbackFailureSemanticsTests"
+    ....................                                                     [100%]
+    20 passed in 11.96s
+    ```
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: Paste the exact search command(s) run over `tests/` for duration assertions against a fixed-duration holder (for example a search for `assertGreater`/`assertGreaterEqual`/`assertLess` near `monotonic`) and their full output, with a one-line disposition for every hit stating either that it is one of the two tests this plan fixes, or why it is not fragile in this direction (as recorded for `tests/test_platform_lock.py`), or that it was filed as a new backlog item (give the item id6). Paste the bare `python3 -m pytest` summary line for the full suite.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Search command: `grep -rln "monotonic()" tests/*.py`.
+    Output:
+    ```
+    tests/test_concurrent_driver_guard.py
+    tests/test_ipd_lifecycle_cli.py
+    tests/test_oc_runipd.py
+    tests/test_permission_bound_disabled.py
+    tests/test_platform_lock.py
+    tests/test_runner_stop_triggers_e2e.py
+    tests/test_statusline_ascii_mode.py
+    tests/test_turn_bounds.py
+    ```
+    One-line dispositions:
+    1. `tests/test_ipd_lifecycle_cli.py`: `test_two_process_lock_wait_succeeds` and `test_finalize_lock_WAITS_for_a_short_lived_live_holder` fixed in this IPD (duration thresholds replaced by handshake and poll counts).
+    2. `tests/test_platform_lock.py`: Line 146 asserts upper bound `assertLess(elapsed, 5.0)` on non-blocking `LockBusy` refusal with 5s headroom (not fragile); lines 323, 325 print timing in subprocess order observation (no assertion).
+    3. `tests/test_concurrent_driver_guard.py`: Line 745 is a bounded thread shutdown cleanup loop (`time.monotonic() - t < 20`); no wait duration assertion.
+    4. `tests/test_oc_runipd.py`: Lines 1521, 1538 use synthetic monotonic timestamps to test idle string formatting; no contention waiting.
+    5. `tests/test_permission_bound_disabled.py`: Lines 51, 55, 58 use deadline ceiling for mock event loop; asserts reap count, not duration against a fixed holder.
+    6. `tests/test_runner_stop_triggers_e2e.py`: Lines 252, 272, 298 are bounded spin loops for IPC stop triggers; no hold duration assertion.
+    7. `tests/test_statusline_ascii_mode.py`: Line 92 supplies run start timestamp to statusline renderer; no assertion.
+    8. `tests/test_turn_bounds.py`: Lines 52, 60, 106, 115, 168 use elapsed time only in timeout diagnostics; no wait duration assertion against a fixed holder.
+    Full test suite bare summary:
+    ```
+    $ python3 -m pytest
+    6670 passed, 2 skipped, 3 warnings in 694.17s (0:11:34)
+    ```
+  - Result: pass
 
 ## Approval and execution gate
 

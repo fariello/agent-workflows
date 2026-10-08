@@ -1314,7 +1314,6 @@ class RollbackFailureSemanticsTests(unittest.TestCase):
         import os as _os
         import subprocess as _subprocess
         import sys as _sys
-        import threading as _threading
         import time as _time
 
         lock = LC.finalize_lock_path(self.root)
@@ -1329,19 +1328,30 @@ class RollbackFailureSemanticsTests(unittest.TestCase):
             encoding="utf-8",
         )
 
-        def _finish_the_peer_commit():
-            _time.sleep(0.5)
-            lock.unlink()  # the peer's `commit_lock.release`
+        sleep_calls = []
+        release_index = None
 
-        t = _threading.Thread(target=_finish_the_peer_commit)
-        t.start()
-        started = _time.monotonic()
-        LC.acquire_finalize_lock(self.root, "abc123", timeout=10)
-        waited = _time.monotonic() - started
-        t.join()
-        self.assertGreaterEqual(waited, 0.4, "it must have WAITED for the live holder")
-        self.assertLess(
-            waited, 5, "it must take the lock as soon as the holder releases it"
+        def _handshake_sleep(sec):
+            nonlocal release_index
+            sleep_calls.append(sec)
+            if len(sleep_calls) >= 2 and lock.exists():
+                lock.unlink()  # the peer's `commit_lock.release`
+                release_index = len(sleep_calls)
+            _time.sleep(sec)
+
+        LC.acquire_finalize_lock(
+            self.root, "abc123", timeout=10, sleep=_handshake_sleep
+        )
+        self.assertGreaterEqual(
+            len(sleep_calls), 2, "it must have WAITED for the live holder"
+        )
+        self.assertIsNotNone(
+            release_index, "the lock must have been released during wait"
+        )
+        self.assertLessEqual(
+            len(sleep_calls),
+            release_index + 1,
+            "it must take the lock as soon as the holder releases it",
         )
         self.assertEqual(_json.loads(lock.read_text())["pid"], _os.getpid())
         self.assertIsNone(holder.poll(), "waiting must never kill the holder")
@@ -1445,7 +1455,7 @@ class RollbackFailureSemanticsTests(unittest.TestCase):
         LC.release_finalize_lock(self.root)
 
     def test_two_process_lock_wait_succeeds(self):
-        """Two real processes: child holds lock for ~1s, parent waits and succeeds."""
+        """Two real processes: child holds lock until parent sentinel, parent waits and succeeds."""
         import json as _json
         import os as _os
         import subprocess as _subprocess
@@ -1454,12 +1464,16 @@ class RollbackFailureSemanticsTests(unittest.TestCase):
 
         lock = LC.finalize_lock_path(self.root)
         lock.parent.mkdir(parents=True, exist_ok=True)
+        sentinel = self.root / "release.sentinel"
 
         child_code = (
             "import os, sys, time, json\n"
             f"p = {repr(str(lock))}\n"
+            f"sentinel = {repr(str(sentinel))}\n"
             "with open(p, 'w') as f: json.dump({'owner': 'child_worker', 'pid': os.getpid()}, f)\n"
-            "time.sleep(1.0)\n"
+            "deadline = time.monotonic() + 30.0\n"
+            "while not os.path.exists(sentinel) and time.monotonic() < deadline:\n"
+            "    time.sleep(0.01)\n"
             "try: os.unlink(p)\n"
             "except OSError: pass\n"
         )
@@ -1467,21 +1481,39 @@ class RollbackFailureSemanticsTests(unittest.TestCase):
         self.addCleanup(child.wait)
         self.addCleanup(child.kill)
 
-        for _ in range(50):
-            if lock.exists():
-                break
+        deadline = _time.monotonic() + 10.0
+        while not lock.exists() and _time.monotonic() < deadline:
             _time.sleep(0.02)
         self.assertTrue(lock.exists(), "child should have written the lock")
 
-        started = _time.monotonic()
-        LC.acquire_finalize_lock(self.root, "abc123", timeout=5.0)
-        elapsed = _time.monotonic() - started
-        child.wait(timeout=5)
+        sleep_calls = []
+        liveness_before_sentinel = []
 
-        self.assertGreater(
-            elapsed,
-            0.7,
-            f"parent must have WAITED longer than child's hold (elapsed={elapsed:.2f}s)",
+        def _handshake_sleep(sec):
+            if not sentinel.exists():
+                liveness_before_sentinel.append(child.poll() is None)
+            sleep_calls.append(sec)
+            if len(sleep_calls) >= 2 and not sentinel.exists():
+                sentinel.touch()
+            _time.sleep(sec)
+
+        LC.acquire_finalize_lock(
+            self.root, "abc123", timeout=5.0, sleep=_handshake_sleep
+        )
+        child_rc = child.wait(timeout=5)
+        self.assertEqual(child_rc, 0, "child process must exit 0 via handshake")
+
+        self.assertGreaterEqual(
+            len(sleep_calls), 2, "acquire must have polled at least twice"
+        )
+        self.assertTrue(
+            all(liveness_before_sentinel),
+            "holder must be alive at every poll before release sentinel",
+        )
+        self.assertGreaterEqual(
+            len(liveness_before_sentinel),
+            2,
+            "must have sampled liveness at least twice before release",
         )
         self.assertEqual(_json.loads(lock.read_text())["pid"], _os.getpid())
         LC.release_finalize_lock(self.root)
