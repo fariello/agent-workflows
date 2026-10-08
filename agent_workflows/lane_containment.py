@@ -3283,6 +3283,9 @@ RETENTION_DIRTY_TRACKED = "dirty-tracked-file"
 RETENTION_UNKNOWN_UNTRACKED = "unknown-untracked-file"
 RETENTION_UNCOLLECTED_SUBMISSION = "uncollected-submission"
 RETENTION_INVENTORY_FAILED = "inventory-failed"
+#: Added 2026-09-30 by nvymif Order 01 (`z8ex9f`, spec R5.7): teardown is refused while the lane's
+#: commits have not reached the integration target or when the landing question is unanswerable.
+RETENTION_UNLANDED_LANE_COMMITS = "unlanded-lane-commits"
 
 #: RETIRED AS A REFUSAL REASON by the 2026-09-18 amendment to spec R5.5 (`laneign` `5w8g8j`), and kept
 #: DEFINED rather than deleted for two reasons: historical run records already carry the literal in
@@ -3318,7 +3321,7 @@ def _name_paths(paths: Sequence[str]) -> str:
 
 
 class LaneInventory(NamedTuple):
-    """What a lane holds, classified for the retention decision (spec R5.5).
+    """What a lane holds, classified for the retention decision (spec R5.5, R5.7).
 
     `readable` is `False` when the enumeration itself could not run. That is NOT the same as an empty
     inventory and must never be treated as one: an inventory that could not run knows nothing, so
@@ -3334,6 +3337,7 @@ class LaneInventory(NamedTuple):
     uncollected_submission: bool = False
     failure: str | None = None
     submission_detail: str | None = None
+    unlanded_commits: bool = False
 
     @property
     def unknown(self) -> tuple[str, ...]:
@@ -3347,26 +3351,23 @@ class LaneInventory(NamedTuple):
 
     @property
     def classified(self) -> bool:
-        """True only when EVERY condition in R5.5 is answered and none of them holds.
+        """True only when EVERY condition in R5.5 / R5.7 is answered and none of them holds.
 
-        R5.5 AS AMENDED 2026-09-18 (`laneign` `5w8g8j`): the blocking conditions are an unreadable
-        inventory, a dirty TRACKED file, an unknown UNTRACKED file, and an uncollected submission.
-        Gitignored files are disposable upon lane destruction and do not block teardown.
-
-        WHY THE AMENDMENT, since this direction WIDENS destruction and that is the dangerous direction:
-        the original rule refused on any unknown ignored file on the premise that "ignored means
-        disposable" had once deleted real work. In practice a lane that merely RAN THE TEST SUITE holds
-        `__pycache__/*.pyc`, and a lane that ran an agent holds `.opencode/node_modules/`, so the
-        refusal fired on 100 percent of clean runs and stranded 38 worktrees in this checkout. The
-        protection that actually matters is untouched: an uncommitted TRACKED edit and an uncommitted
-        UNTRACKED source file both still refuse, and so does an uncollected submission, so no path
-        holding the only copy of real work is discarded.
+        R5.5 AS AMENDED 2026-09-18 (`laneign` `5w8g8j`) and 2026-09-30 (`z8ex9f`): the blocking
+        conditions are an unreadable inventory, a dirty TRACKED file, an unknown UNTRACKED file, an
+        uncollected submission, and unlanded lane commits (spec R5.7). Gitignored files are disposable
+        upon lane destruction and do not block teardown.
         """
-        return self.readable and not self.unknown and not self.uncollected_submission
+        return (
+            self.readable
+            and not self.unknown
+            and not self.uncollected_submission
+            and not self.unlanded_commits
+        )
 
     @property
     def reason_codes(self) -> tuple[str, ...]:
-        """WHICH conditions held, as stable codes (spec R5.6). Empty for a classified lane."""
+        """WHICH conditions held, as stable codes (spec R5.6, R5.7). Empty for a classified lane."""
         codes: list[str] = []
         if not self.readable:
             codes.append(RETENTION_INVENTORY_FAILED)
@@ -3378,6 +3379,8 @@ class LaneInventory(NamedTuple):
         # reason code the record of a refusal. See `RETENTION_UNKNOWN_IGNORED`.
         if self.uncollected_submission:
             codes.append(RETENTION_UNCOLLECTED_SUBMISSION)
+        if self.unlanded_commits:
+            codes.append(RETENTION_UNLANDED_LANE_COMMITS)
         return tuple(codes)
 
     @property
@@ -3418,6 +3421,10 @@ class LaneInventory(NamedTuple):
                     self.submission_detail or "no attempt-keyed collection receipt"
                 )
             )
+        if self.unlanded_commits:
+            parts.append(
+                "unlanded lane commits (commits on the lane branch have not reached the integration target)"
+            )
         return "the lane holds content the driver cannot account for: " + "; ".join(
             parts
         )
@@ -3434,6 +3441,7 @@ class LaneInventory(NamedTuple):
             "discardable": list(self.discardable),
             "uncollected_submission": self.uncollected_submission,
             "submission_detail": self.submission_detail,
+            "unlanded_commits": self.unlanded_commits,
             "retention_reasons": list(self.reason_codes),
         }
 
@@ -3552,6 +3560,31 @@ def submission_retention(
     n = attempt_key(item) if attempt is None else attempt
     receipt = read_collection_receipt(run_dir, item, n)
     if receipt is None:
+        try:
+            lane = Path(lane_root).resolve(strict=True)
+            sub_tree = lane_submission_root(lane, run_dir.name, item).parent
+            has_files = False
+            if sub_tree.exists():
+
+                def _walk_err(err: OSError) -> None:
+                    raise err
+
+                for _root, _dirs, filenames in os.walk(sub_tree, onerror=_walk_err):
+                    if filenames:
+                        has_files = True
+                        break
+            if not has_files:
+                return SubmissionRetention(
+                    uncollected=False,
+                    detail="the lane's submission tree holds no file for this run, so there is nothing to collect",
+                    collected_paths=(),
+                )
+        except Exception as exc:
+            return SubmissionRetention(
+                uncollected=True,
+                detail="submission tree enumeration failed: {0}".format(exc),
+                collected_paths=(),
+            )
         return SubmissionRetention(
             uncollected=True,
             detail=(
@@ -3619,8 +3652,9 @@ def inventory_lane(
     item: dict[str, Any] | None = None,
     attempt: int | None = None,
     git_runner: Callable[[Path, list[str]], tuple[int, str, str]] | None = None,
+    branch: str | None = None,
 ) -> LaneInventory:
-    """Classify everything a lane holds BEFORE any teardown decision (spec R5.5, criterion A15).
+    """Classify everything a lane holds BEFORE any teardown decision (spec R5.5, R5.7, criterion A15, A21).
 
     HOST-NEUTRAL (spec R2.6): both drivers call THIS, and neither reimplements any part of it, so the
     rule cannot be present on one host and absent on the other (orchestrator CID-2/CID-3).
@@ -3636,12 +3670,14 @@ def inventory_lane(
         tracked modification is by construction the worker's work;
       * an untracked or ignored path is DISCARDABLE when the SEALED MANIFEST says the driver wrote it,
         or when the COLLECTION RECEIPT says that submission was collected;
+      * unlanded commits on the lane branch refuse teardown (spec R5.7);
       * everything else is UNKNOWN, bucketed by whether git called it untracked or ignored so the
         refusal can name WHICH condition held (R5.6).
 
     FAILS TOWARD PRESERVATION. A non-zero git exit, an unreadable lane, or any exception yields
-    `readable=False`, which makes `classified` False. `git_runner` is injectable for tests only; it
-    defaults to the shared `runner_shared._run_git` so no second git wrapper is introduced (R6.1).
+    `readable=False`, which makes `classified` False. An unanswerable landing question (missing or
+    unresolvable branch) likewise fails toward preservation. `git_runner` is injectable for tests only;
+    it defaults to the shared `runner_shared._run_git` so no second git wrapper is introduced (R6.1).
     """
     lane = Path(lane_root)
     runner = git_runner or runner_shared._run_git
@@ -3668,6 +3704,12 @@ def inventory_lane(
     accounted = sorted(
         driver_written_lane_paths(lane) | set(submissions.collected_paths)
     )
+
+    if not branch:
+        unlanded = True
+    else:
+        landed = runner_shared.lane_work_has_landed(lane, str(branch))
+        unlanded = landed is not True
 
     dirty_tracked: list[str] = []
     unknown_untracked: list[str] = []
@@ -3738,6 +3780,7 @@ def inventory_lane(
         discardable=tuple(sorted(set(discardable))),
         uncollected_submission=submissions.uncollected,
         submission_detail=submissions.detail,
+        unlanded_commits=unlanded,
     )
 
 
@@ -3794,6 +3837,7 @@ def teardown_lane_if_classified(
         item=item,
         attempt=attempt,
         git_runner=git_runner,
+        branch=getattr(handle, "branch", None),
     )
     if not inventory.classified:
         return LaneTeardownDecision(torn_down=False, inventory=inventory)
@@ -3872,10 +3916,11 @@ def teardown_review_sweep_lane(
             run_dir=run_dir,
             item=item,
             git_runner=git_runner,
+            branch=getattr(handle, "branch", None),
         )
-        if not probe.readable or probe.uncollected_submission:
-            # An unreadable lane or an uncollected submission is a REFUSAL for the whole lane: neither is
-            # something another item's receipt can explain away.
+        if not probe.readable or probe.uncollected_submission or probe.unlanded_commits:
+            # An unreadable lane, an uncollected submission, or unlanded commits is a REFUSAL for the whole lane:
+            # none is something another item's receipt can explain away.
             return LaneTeardownDecision(torn_down=False, inventory=probe)
         accounted.update(probe.discardable)
         worst = probe if worst is None else worst
@@ -3887,6 +3932,7 @@ def teardown_review_sweep_lane(
         run_dir=run_dir,
         item=items[-1],
         git_runner=git_runner,
+        branch=getattr(handle, "branch", None),
     )
     remaining_untracked = tuple(
         p for p in final.unknown_untracked if p not in accounted

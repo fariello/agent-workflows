@@ -310,12 +310,26 @@ class LaneReclaimDecisionOrderTests(unittest.TestCase):
                     write_receipt=False,
                 )
 
-                # Precondition: no receipt written
+                # Precondition: no receipt written, but submission file exists
                 receipt_path = lane_containment.collection_receipt_path(
                     run_dir, item, 1
                 )
                 self.assertFalse(
                     receipt_path.exists(), "Collection receipt must not exist"
+                )
+                sub_dir = (
+                    handle.path
+                    / ".aw"
+                    / "state"
+                    / "lane-submissions"
+                    / "run-mrg004"
+                    / "01-mrg004"
+                    / "attempt-1"
+                    / "outcomes"
+                )
+                sub_dir.mkdir(parents=True, exist_ok=True)
+                (sub_dir / "01-mrg004.json").write_text(
+                    json.dumps({"disposition": "partial"}), encoding="utf-8"
                 )
 
                 reclaimed = driver.reclaim_lanes_on_interrupt(
