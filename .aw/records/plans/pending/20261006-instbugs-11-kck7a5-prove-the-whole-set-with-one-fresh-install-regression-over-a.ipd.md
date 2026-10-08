@@ -37,14 +37,14 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: baseline
 
-- [ ] E-01 Record the baseline at the execution HEAD: confirm with `aw find plans <id6>` that all ten other children of Set `instbugs` (the six direct `Item-Dependencies` and the four they reach transitively) are under `executed/`; run the bare suite `python3 -m pytest` and paste the summary line; run one manual scratch install (package.json-only temp git repo, `AW_NO_REEXEC=1`, `HOME` pointed at a temp dir, git identity in env, first `aw install . --dry-run --preset private-target -y --no-interactive` to capture the consent plan, then `aw install . --preset private-target -y --no-interactive`) and paste the consent plan's "Resolved Physical Classes" lines, `git status --short --ignored`, `stat -c '%a %n'` of any record created, and the install log tail. STOP and report if any of them is not executed, because the module's assertions would then encode the unfixed state.
+- [x] E-01 Record the baseline at the execution HEAD: confirm with `aw find plans <id6>` that all ten other children of Set `instbugs` (the six direct `Item-Dependencies` and the four they reach transitively) are under `executed/`; run the bare suite `python3 -m pytest` and paste the summary line; run one manual scratch install (package.json-only temp git repo, `AW_NO_REEXEC=1`, `HOME` pointed at a temp dir, git identity in env, first `aw install . --dry-run --preset private-target -y --no-interactive` to capture the consent plan, then `aw install . --preset private-target -y --no-interactive`) and paste the consent plan's "Resolved Physical Classes" lines, `git status --short --ignored`, `stat -c '%a %n'` of any record created, and the install log tail. STOP and report if any of them is not executed, because the module's assertions would then encode the unfixed state.
   - Depends on: none
   - Expected outcome: the baseline suite summary and the manual install observations pasted with the HEAD sha.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: the regression module
 
-- [ ] E-02 Add `tests/test_fresh_target_install_regression.py`, marked `pytestmark = pytest.mark.slow` (OQ-01). Install-level part: one module-scoped fixture builds a package.json-only temp git repo with a committed initial commit, sets `AW_NO_REEXEC=1`, `HOME` and `XDG_CONFIG_HOME` to a distinctively named temp dir and a git identity in the subprocess env, runs `python -m agent_workflows install . --dry-run --preset private-target -y --no-interactive` (captures the consent plan), then the same without `--dry-run` (captures the install output), all as subprocesses. Tests then assert on the target and the captured output, each assertion message naming its defect id:
+- [x] E-02 Add `tests/test_fresh_target_install_regression.py`, marked `pytestmark = pytest.mark.slow` (OQ-01). Install-level part: one module-scoped fixture builds a package.json-only temp git repo with a committed initial commit, sets `AW_NO_REEXEC=1`, `HOME` and `XDG_CONFIG_HOME` to a distinctively named temp dir and a git identity in the subprocess env, runs `python -m agent_workflows install . --dry-run --preset private-target -y --no-interactive` (captures the consent plan), then the same without `--dry-run` (captures the install output), all as subprocesses. Tests then assert on the target and the captured output, each assertion message naming its defect id:
   - D01/N2: the `installed_version` in `.aw/state/durable/install.json` equals the version printed by `python -m agent_workflows --version` in the same env, and neither that file nor `.aw/state/durable/history/installs.jsonl` contains the temp HOME path.
   - D02: `git check-ignore -q` succeeds for `.aw/state/durable/install.json` and `.aw/config/local.json`.
   - D03/N1: `git status --porcelain` after the `-y` install is empty; the captured install output's "Gitignore (run scratch)" line says "is ignored" and `git check-ignore -q .aw/workflow-artifacts/README.md` succeeds; the output does not contain "STAGED but NOT committed".
@@ -58,19 +58,19 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Dangling references: `python -m agent_workflows doctor --json --dir <target>` returns a `diagnostics` list with no entry whose `rule` is the dangling-reference rule id `ka0g86` registers (`doctor.dangling-doc-reference` per its plan; use the shipped id). Do NOT assert doctor's exit code: it exits 1 on unrelated drift in a fresh target (measured: `doctor.git-staged` before the commit).
   - Depends on: E-01
   - Expected outcome: every assertion passes; each assertion's message names the defect id so a regression points at its owner.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 Same module, research-composition part, in the same installed target, every subprocess run with `preexec_fn=lambda: os.umask(0o022)` (POSIX; skip on Windows): `python -m agent_workflows research new --kind research-report --set newset --slug a --apply`; then write `.aw/inbox/drop.md` and run `python -m agent_workflows adopt .aw/inbox/drop.md --type research --kind research-report --set otherset --slug b --apply --yes`. Assert both written filenames carry `-01-` and front matter `order: 01` (D12), both files have mode `0o644` (D11), and `research index --check` exits 0. Then rewrite one file's front matter to `order: 05` (leaving its filename `-01-`) and assert `research index --check` exits non-zero and its output names `order` (D10 check half, delivered by `okw4ke`). Record the module's wall time in the evidence.
+- [x] E-03 Same module, research-composition part, in the same installed target, every subprocess run with `preexec_fn=lambda: os.umask(0o022)` (POSIX; skip on Windows): `python -m agent_workflows research new --kind research-report --set newset --slug a --apply`; then write `.aw/inbox/drop.md` and run `python -m agent_workflows adopt .aw/inbox/drop.md --type research --kind research-report --set otherset --slug b --apply --yes`. Assert both written filenames carry `-01-` and front matter `order: 01` (D12), both files have mode `0o644` (D11), and `research index --check` exits 0. Then rewrite one file's front matter to `order: 05` (leaving its filename `-01-`) and assert `research index --check` exits non-zero and its output names `order` (D10 check half, delivered by `okw4ke`). Record the module's wall time in the evidence.
   - Depends on: E-02
   - Expected outcome: all composition assertions pass; the module's wall time recorded.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: close
 
-- [ ] E-04 Prove the module can fail: in the working tree, temporarily revert one child's fix (for example restore the `0o600` mode in `artifact_core.atomic_write`), run the module narrowed, paste the D11-named failure, then restore the file with `git checkout -- <path>` and confirm `git status` shows it clean. Add a CHANGELOG.md entry under the pending `## 2.0.0 (pending)` section describing the fixed install and research problems in user terms with no em or en dashes. Run the bare suite `python3 -m pytest` and paste its summary against the E-01 baseline, plus the narrowed `slow` run of the new module.
+- [x] E-04 Prove the module can fail: in the working tree, temporarily revert one child's fix (for example restore the `0o600` mode in `artifact_core.atomic_write`), run the module narrowed, paste the D11-named failure, then restore the file with `git checkout -- <path>` and confirm `git status` shows it clean. Add a CHANGELOG.md entry under the pending `## 2.0.0 (pending)` section describing the fixed install and research problems in user terms with no em or en dashes. Run the bare suite `python3 -m pytest` and paste its summary against the E-01 baseline, plus the narrowed `slow` run of the new module.
   - Depends on: E-03
   - Expected outcome: the mutation fails with a defect-named message and is reverted; the CHANGELOG entry exists; the full suite passes.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -137,25 +137,218 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: PASTE the ten `aw find plans` lines showing `executed/`, the baseline suite summary line, and the manual install observations (consent plan lines, `git status --short --ignored`, modes, log tail) with the HEAD sha.
   - Observed evidence:
-  - Result: pending
+    All ten children confirmed executed under `.aw/records/plans/executed/`:
+    ```
+    ✓  executed      whz0oi  instbugs        .aw/records/plans/executed/20261006-instbugs-01-whz0oi-report-the-version-of-the-build-that-is-actually-executing-a.ipd.md
+    ✓  executed      gi1w75  instbugs        .aw/records/plans/executed/20261006-instbugs-02-gi1w75-make-the-install-consent-plan-show-real-paths-and-the-tracki.ipd.md
+    ✓  executed      pfub72  instbugs        .aw/records/plans/executed/20261006-instbugs-03-pfub72-write-each-install-state-record-once-in-the-state-class-the.ipd.md
+    ✓  executed      gzsfqn  instbugs        .aw/records/plans/executed/20261006-instbugs-04-gzsfqn-make-the-post-install-report-match-what-was-written-staged-c.ipd.md
+    ✓  executed      xzlu9b  instbugs        .aw/records/plans/executed/20261006-instbugs-05-xzlu9b-install-the-inbox-lane-and-its-tracked-readme-into-every-tar.ipd.md
+    ✓  executed      jbnkkh  instbugs        .aw/records/plans/executed/20261006-instbugs-06-jbnkkh-remove-retired-paths-statuses-and-naming-rules-from-installe.ipd.md
+    ✓  executed      ka0g86  instbugs        .aw/records/plans/executed/20261006-instbugs-07-ka0g86-make-the-managed-agents-md-block-target-neutral-and-refuse-d.ipd.md
+    ✓  executed      okw4ke  instbugs        .aw/records/plans/executed/20261006-instbugs-08-okw4ke-make-research-index-check-catch-order-kind-and-model-mismatc.ipd.md
+    ✓  executed      ic4eg0  instbugs        .aw/records/plans/executed/20261006-instbugs-09-ic4eg0-give-atomically-written-records-the-normal-umask-mode-instea.ipd.md
+    ✓  executed      zye6k4  instbugs        .aw/records/plans/executed/20261006-instbugs-10-zye6k4-number-the-first-non-prompt-document-in-a-new-research-set-0.ipd.md
+    ```
 
-- [ ] V-02 validates E-02
+    Bare suite baseline summary line:
+    ```
+    6787 passed, 2 skipped, 3 warnings in 294.74s (0:04:54)
+    ```
+
+    Manual install observations at execution HEAD `d14b76296395a84e1274c7a15dde0b94a1dbdacf`:
+    Consent plan lines:
+    ```
+    Resolved Physical Classes & Git Policies:
+      - system         : /tmp/aw_test_repo_FGWXjj/.aw/system/          [target] (target-git)
+      - config_project : /tmp/aw_test_repo_FGWXjj/.aw/config/project.json [target] (target-git)
+      - config_local   : /tmp/aw_test_repo_FGWXjj/.aw/config/local.json [target] (ignored)
+      - state_durable  : /tmp/aw_test_repo_FGWXjj/.aw/state/durable/   [target] (ignored)
+      - state_runtime  : /tmp/aw_test_repo_FGWXjj/.aw/state/runtime/   [target] (ignored)
+      - records        : /tmp/aw_test_repo_FGWXjj/.aw/records/         [target] (target-git)
+
+    Host Adapter Exceptions:
+      - AGENTS.md:       /tmp/aw_test_repo_FGWXjj/AGENTS.md (adapter pointer)
+      - .claude/:        /tmp/aw_test_repo_FGWXjj/.claude/ (discovery adapter)
+      - .opencode/:      /tmp/aw_test_repo_FGWXjj/.opencode/ (discovery adapter)
+
+    Expected Deltas:
+      Target Delta:     .aw/system/, .aw/config/project.json (tracked); .aw/config/local.json, .aw/state/ (written-but-ignored) created/updated.
+      Companion Delta:  None.
+    ```
+    `git status --short --ignored`:
+    ```
+    !! .agent-workflows-installer-backups/
+    !! .aw/config/local.json
+    !! .aw/setup-repo-needed.md
+    !! .aw/state/
+    !! .aw/system/layout.json
+    !! .aw/system/layout.schema.json
+    !! .aw/workflow-artifacts/
+    ```
+    `stat -c '%a %n'` of created records:
+    ```
+    644 .aw/records/prompts/executed/.gitkeep
+    644 .aw/records/prompts/executed/README.md
+    644 .aw/records/prompts/README.md
+    644 .aw/records/prompts/reusable/.gitkeep
+    644 .aw/records/prompts/reusable/README.md
+    644 .aw/records/prompts/superseded/.gitkeep
+    644 .aw/records/prompts/superseded/README.md
+    644 .aw/records/prompts/pending/.gitkeep
+    644 .aw/records/prompts/pending/README.md
+    644 .aw/records/prompts/not-executed/.gitkeep
+    644 .aw/records/prompts/not-executed/README.md
+    644 .aw/records/releases/.gitkeep
+    644 .aw/records/walkthroughs/.gitkeep
+    644 .aw/records/walkthroughs/README.md
+    644 .aw/records/README.md
+    644 .aw/records/roadmaps/.gitkeep
+    644 .aw/records/research/.gitkeep
+    644 .aw/records/research/reference/.gitkeep
+    644 .aw/records/research/README.md
+    644 .aw/records/research/archive/.gitkeep
+    644 .aw/records/comms/README.md
+    644 .aw/records/comms/shared/inbox/.gitkeep
+    644 .aw/records/comms/shared/sent/.gitkeep
+    644 .aw/records/comms/shared/archive/.gitkeep
+    644 .aw/records/reviews/.gitkeep
+    644 .aw/records/specs/.gitkeep
+    644 .aw/records/specs/README.md
+    644 .aw/records/backlog/.gitkeep
+    644 .aw/records/plans/executed/.gitkeep
+    644 .aw/records/plans/executed/README.md
+    644 .aw/records/plans/README.md
+    644 .aw/records/plans/reusable/.gitkeep
+    644 .aw/records/plans/reusable/README.md
+    644 .aw/records/plans/superseded/.gitkeep
+    644 .aw/records/plans/superseded/README.md
+    644 .aw/records/plans/pending/.gitkeep
+    644 .aw/records/plans/pending/README.md
+    644 .aw/records/plans/not-executed/.gitkeep
+    644 .aw/records/plans/not-executed/README.md
+    644 .aw/records/prompt-library/.gitkeep
+    644 .aw/records/prompt-library/README.md
+    644 .aw/state/durable/install.json
+    644 .aw/state/durable/history/installs.jsonl
+    ```
+    Install log tail:
+    ```
+      [added    ] .opencode/commands/getting-started.md
+      [added    ] .opencode/commands/handoff.md
+      [added    ] .opencode/commands/incident.md
+      [added    ] .opencode/commands/ipd-lifecycle.md
+      [added    ] .opencode/commands/list-workflows.md
+      [added    ] .opencode/commands/migrate.md
+      [added    ] .opencode/commands/plan-review-long.md
+      [added    ] .opencode/commands/plan-review.md
+      [added    ] .opencode/commands/release-notes.md
+      [added    ] .opencode/commands/release-review-plan.md
+      [added    ] .opencode/commands/release-review.md
+      [added    ] .opencode/commands/research.md
+      [added    ] .opencode/commands/scaffold.md
+      [added    ] .opencode/commands/setup-repo.md
+      [added    ] .opencode/commands/spec-review.md
+      [added    ] .opencode/commands/spec.md
+      [added    ] .opencode/commands/verify-execution.md
+      [added    ] .opencode/commands/verify.md
+      [added    ] .opencode/commands/whatnext.md
+      [modified ] AGENTS.md
+
+    Committing changes...
+    Changes committed: 65791d5
+
+    OK       Tip: Enable tab-completion with 'aw completion install'
+    ```
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: PASTE the narrowed run of the install-level tests (`python3 -m pytest -o addopts="" tests/test_fresh_target_install_regression.py -k install -v`) showing each defect-named test passing.
   - Observed evidence:
-  - Result: pending
+    ```
+    ============================= test session starts ==============================
+    platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0
+    cachedir: .pytest_cache
+    Using --randomly-seed=582599294
+    rootdir: .
+    configfile: pyproject.toml
+    plugins: anyio-4.14.1, randomly-4.1.0, cov-7.1.0, xdist-3.8.0
+    collecting ... collected 12 items
 
-- [ ] V-03 validates E-03
+    tests/test_fresh_target_install_regression.py::test_install_d08_d09_no_retired_agents_paths_or_intake PASSED [  8%]
+    tests/test_fresh_target_install_regression.py::test_install_d05_no_root_state_files PASSED [ 16%]
+    tests/test_fresh_target_install_regression.py::test_install_d01_n2_version_consistency PASSED [ 25%]
+    tests/test_fresh_target_install_regression.py::test_install_d04_consent_plan_paths_exist PASSED [ 33%]
+    tests/test_fresh_target_install_regression.py::test_install_d07_managed_agents_block_neutral PASSED [ 41%]
+    tests/test_fresh_target_install_regression.py::test_install_d14_inbox_readme_tracked_and_drops_ignored PASSED [ 50%]
+    tests/test_fresh_target_install_regression.py::test_research_composition_d10_d11_d12 PASSED [ 58%]
+    tests/test_fresh_target_install_regression.py::test_install_d06_no_root_workflow_artifacts PASSED [ 66%]
+    tests/test_fresh_target_install_regression.py::test_install_d02_state_and_config_ignored PASSED [ 75%]
+    tests/test_fresh_target_install_regression.py::test_install_d03_n1_clean_porcelain_and_run_scratch_ignored PASSED [ 83%]
+    tests/test_fresh_target_install_regression.py::test_install_d15_tracking_truth_table PASSED [ 91%]
+    tests/test_fresh_target_install_regression.py::test_install_doctor_zero_dangling_references PASSED [100%]
+
+    ============================== 12 passed in 6.15s ==============================
+    ```
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: PASTE the narrowed run of the composition tests (`-k research -v`) and the module's measured wall time.
   - Observed evidence:
-  - Result: pending
+    ```
+    ============================= test session starts ==============================
+    platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0
+    cachedir: .pytest_cache
+    Using --randomly-seed=3580211141
+    rootdir: .
+    configfile: pyproject.toml
+    plugins: anyio-4.14.1, randomly-4.1.0, cov-7.1.0, xdist-3.8.0
+    collecting ... collected 12 items / 11 deselected / 1 selected
 
-- [ ] V-04 validates E-04
+    tests/test_fresh_target_install_regression.py::test_research_composition_d10_d11_d12 PASSED [100%]
+
+    NOTE: 11 tests were deselected by -m/-k and did not run (no marker filter was active; deselected by -k/--deselect)
+    ======================= 1 passed, 11 deselected in 4.67s =======================
+    ```
+    Measured module wall time: 6.12s across all 12 tests (under 15s budget); research composition step wall time: 1.51s.
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: PASTE the defect-named mutation failure, the `git status` showing the mutation reverted, the CHANGELOG entry text, and the bare-suite summary line from `python3 -m pytest` against the E-01 baseline.
   - Observed evidence:
-  - Result: pending
+    Defect-named mutation failure under temporary 0o600 mode mutation in `artifact_core.replacement_mode`:
+    ```
+    FAILED tests/test_fresh_target_install_regression.py::test_research_composition_d10_d11_d12
+    E   AssertionError: D11: 20261008-newset-01-cn0tv8-a.research-report.md mode is 0o600, expected 0o644
+    E   assert 384 == 420
+    ```
+
+    `git status` showing mutation reverted:
+    ```
+    On branch aw/lane/kck7a5
+    Changes not staged for commit:
+      (use "git add <file>..." to update what will be committed)
+      (use "git restore <file>..." to discard changes in working directory)
+    	modified:   CHANGELOG.md
+
+    Untracked files:
+      (use "git add <file>..." to include in what will be committed)
+    	tests/test_fresh_target_install_regression.py
+    ```
+
+    CHANGELOG entry text (under `## 2.0.0 (pending)` with no em or en dashes):
+    ```markdown
+    - Fixed: fresh repository installation into non-Python targets now reports the running package version accurately, places durable install state exclusively under .aw/state/durable/ with machine-identifying home paths redacted, tracks only intended project config while ignoring local config and state, aligns consent plan physical paths with on-disk reality, installs a tracked .aw/inbox/README.md while keeping inbox drops ignored, makes the managed AGENTS.md block target-neutral without dangling references, numbers initial research set documents consistently starting at 01 with normal file permissions (0644), and checks for order and kind mismatches during research index verification.
+    ```
+
+    Bare-suite summary line comparison:
+    - E-01 baseline: `6787 passed, 2 skipped, 3 warnings in 294.74s (0:04:54)`
+    - Post-change bare suite: `6787 passed, 2 skipped, 3 warnings in 164.03s (0:02:44)`
+    - Narrowed slow run (`tests/test_fresh_target_install_regression.py`): `12 passed in 6.12s`
+  - Result: pass
 
 ## Approval and execution gate
 
