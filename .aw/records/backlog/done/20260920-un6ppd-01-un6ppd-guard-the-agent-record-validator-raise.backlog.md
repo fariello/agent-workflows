@@ -1,5 +1,5 @@
 - Id: un6ppd
-- Status: graduated
+- Status: done
 - Graduated-To: un6ppd
 - Set: un6ppd
 - Priority: medium
@@ -7,6 +7,7 @@
 - Summary: assert_valid_agent_record raises unguarded from the machine renderer, so any out-of-range exit crashes the CLI with a traceback
 
 ## Workflow history
+- 2026-10-08 done (aw backlog): closed by aw agy run: IPD wqiofa executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20260929-un6ppd-01-wqiofa-degrade-an-invalid-aw-agent-v1-record-into-a-conforming-erro.ipd.md); evidence .aw/records/plans/executed/20260929-un6ppd-01-wqiofa-degrade-an-invalid-aw-agent-v1-record-into-a-conforming-erro.ipd.md
 - 2026-09-29 set (aw backlog): graduated by run run-20260928T235632Z-1358353: wqiofa
 - 2026-09-20 created (aw backlog): assert_valid_agent_record raises unguarded from the machine renderer, so any out-of-range exit crashes the CLI with a traceback
 
