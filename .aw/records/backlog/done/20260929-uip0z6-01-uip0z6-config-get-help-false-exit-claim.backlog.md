@@ -1,5 +1,5 @@
 - Id: uip0z6
-- Status: graduated
+- Status: done
 - Graduated-To: uip0z6
 - Blocks-Release: next
 - Set: uip0z6
@@ -8,6 +8,7 @@
 - Summary: aw config get --help claims a nonzero exit for an unset variable that never happens
 
 ## Workflow history
+- 2026-10-08 done (aw backlog): closed by aw agy run: IPD w89bo8 executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20261001-uip0z6-01-w89bo8-replace-the-false-exit-code-claim-in-the-config-get-help-wit.ipd.md); evidence .aw/records/plans/executed/20261001-uip0z6-01-w89bo8-replace-the-false-exit-code-claim-in-the-config-get-help-wit.ipd.md
 - 2026-10-01 set (aw backlog): graduated by run run-20260930T053053Z-3200037: w89bo8
 - 2026-09-29 created (aw backlog): Filed at review of plan ypnk56 (/plan-review). Measured, not inferred.
 

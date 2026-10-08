@@ -90,7 +90,7 @@ is `R` read-only, `W` writes, `R/W` previews by default and writes with a flag.
 |---|---|---|---|
 | `aw config` | `conf` | | Parent for the user-level CLI configuration. |
 | `aw config show [var]` | | R | Shows where the user config file lives, whether it exists, and every setting, or one group or variable when named. |
-| `aw config get <var>` | | R | Prints one variable's value only, for scripts. Exits nonzero when unset, so "unset" differs from "empty". |
+| `aw config get <var>` | | R | Prints one variable's value only, for scripts. Recognized keys exit 0 (printing empty when unset); unrecognized keys exit 2 (corrected in uip0z6). |
 | `aw config set <var> <val>` | | W | Replaces a variable's value. Accepts `var val`, `var=val`, `var = val`, `var to val`. Replaces a whole list; use `add`/`remove` for one entry. |
 | `aw config add <val> to <var>` | | W | Appends one item to a list variable. Adding an existing item is a no-op. |
 | `aw config remove <val> from <var>` | `rm` | W | Removes one item from a list variable. Reports (rather than silently succeeding) when the item is absent. |

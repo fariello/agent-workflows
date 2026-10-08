@@ -3870,8 +3870,10 @@ def _build_parser() -> argparse.ArgumentParser:
         description=(
             "Print the value of exactly one configuration variable, resolved the same way the rest of "
             "the toolkit resolves it. Unlike `config show`, the output is the value alone, which makes "
-            "it usable in a script or a shell substitution. Exits nonzero when the variable is not "
-            "set, so a caller can distinguish 'unset' from 'set to an empty value'."
+            "it usable in a script or a shell substitution. A recognized variable always exits 0, "
+            "printing its value or an empty line when unset; only an unrecognized variable name is "
+            "refused with exit 2 naming valid keys. An empty value is not stored, so it reads the "
+            "same as unset."
         ),
     )
     p_config_get.add_argument(

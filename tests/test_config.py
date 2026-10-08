@@ -942,6 +942,69 @@ class InstallPolicyDefaultsConfigTests(unittest.TestCase):
         self.assertIsNone(val)
 
 
+class ConfigGetBehaviorAndDescriptionTests(unittest.TestCase):
+    """Behavioral and description regression guard for config get (plan w89bo8)."""
+
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self._tmp.cleanup)
+        patcher = mock.patch.dict(os.environ, {"XDG_CONFIG_HOME": self._tmp.name})
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def test_config_get_behavior_contract(self):
+        # (1) DRIVE command: recognized keys always exit 0 (unset prints empty line), unrecognized exits 2
+        for key in ("defaults.migrate_layout", "color_depth", "aw_home"):
+            buf = io.StringIO()
+            with redirect_stdout(buf):
+                self.assertEqual(cli.main(["config", "get", key]), 0)
+            self.assertEqual(buf.getvalue(), "\n")
+
+        for key in ("defaults.backup", "repos.search"):
+            buf = io.StringIO()
+            with redirect_stdout(buf):
+                self.assertEqual(cli.main(["config", "get", key]), 0)
+            self.assertTrue(len(buf.getvalue().strip()) > 0)
+
+        buf_err = io.StringIO()
+        with redirect_stdout(buf_err):
+            self.assertEqual(cli.main(["config", "get", "no.such.key"]), 2)
+        self.assertIn("Unknown config key 'no.such.key'", buf_err.getvalue())
+
+    def test_config_get_description_contract(self):
+        # (2) Parser object's description attribute for config get does not claim a nonzero exit
+        parser = cli._build_parser()
+        config_p = None
+        for action in parser._actions:
+            if (
+                isinstance(action, cli.argparse._SubParsersAction)
+                and "config" in action.choices
+            ):
+                config_p = action.choices["config"]
+                break
+        self.assertIsNotNone(config_p, "config subparser not found")
+
+        get_p = None
+        for action in config_p._actions:
+            if (
+                isinstance(action, cli.argparse._SubParsersAction)
+                and "get" in action.choices
+            ):
+                get_p = action.choices["get"]
+                break
+        self.assertIsNotNone(get_p, "config get subparser not found")
+
+        desc_norm = " ".join((get_p.description or "").split())
+        desc_lower = desc_norm.lower()
+
+        # Negative limb: falsehood tokens absent (case-insensitive)
+        self.assertNotIn("nonzero when", desc_lower)
+        self.assertNotIn("not set, so", desc_lower)
+
+        # Positive content anchor: authored exit-0 statement present
+        self.assertIn("recognized variable always exits 0", desc_lower)
+
+
 class DynamicCutoverResolutionTests(unittest.TestCase):
     def test_cutover_resolution_precedence(self):
         with tempfile.TemporaryDirectory() as d:
