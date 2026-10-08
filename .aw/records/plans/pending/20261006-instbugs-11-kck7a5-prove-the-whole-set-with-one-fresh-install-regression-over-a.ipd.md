@@ -108,6 +108,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Carrier: bh1cy5
 - The wheel-build proof of D01.
   - Carrier: whz0oi
+  - Carrier-Evidence: .aw/records/plans/executed/20261006-instbugs-01-whz0oi-report-the-version-of-the-build-that-is-actually-executing-a.ipd.md
 
 ## Scope check
 
