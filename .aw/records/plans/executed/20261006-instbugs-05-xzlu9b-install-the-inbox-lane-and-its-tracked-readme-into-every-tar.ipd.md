@@ -6,7 +6,7 @@
 - Scope: IN: (1) a packaged template `.aw/system/workflows/templates/aw-inbox-README.md` whose content is this repository's `.aw/inbox/README.md` (one source; this repo's copy becomes an installed instance); (2) install (fresh and upgrade) creates `.aw/inbox/` and writes its README with the same no-clobber semantics as the records READMEs, staged and listed; (3) the ignore rule becomes `/inbox/*` followed by `!/inbox/README.md` in the template, and the back-fill rewrites an existing exact `/inbox/` line into the pair, keeping the leading-slash anchoring that protects `records/comms/shared/inbox/`; this repository's own `.aw/.gitignore` is updated the same way; (4) the post-install "next steps" and the `getting-started` workflow name `.aw/inbox/` as where to drop external material for `aw adopt`. OUT: the content of the README beyond what is needed to be target-correct; `aw adopt` itself.
 - Scope-Paths: .aw/system/workflows/templates/aw-inbox-README.md, .aw/inbox/README.md, .aw/.gitignore, agent_workflows/engine.py, agent_workflows/cli.py, .aw/system/workflows/getting-started/getting-started.md, tests/test_install_inbox_lane.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -16,9 +16,9 @@
 - Highest E allocated: 05
 - Author: antigravity/claude-opus-5.5
 - Id: xzlu9b
-- Approval: 2026-10-07, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-08 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: xzlu9b verified (set instbugs, attempt 1).
 - 2026-10-07 approved (aw set): status set to approved
 - 2026-10-07 same-status (aw set): gate on release 2.0.0 (f33nrj) at the maintainer's instruction 2026-10-06: all instbugs plans block 2.0.0
 - 2026-10-07 reviewed (aw set): plan-review
