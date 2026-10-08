@@ -1571,5 +1571,282 @@ class LifecycleDepthConsumerTests(_DepthTestBase):
                 )
 
 
+class LifecycleColorDepthSeamSweepTests(_DepthTestBase):
+    """Guard the 256/16/none lifecycle color-depth ladder across all rendering seams (E-03).
+
+    Residual exposure and limits (E-05):
+    1. Covers the LIFECYCLE axis only: the generic color axis (colorize, color256,
+       status_256, badge, format_path) ignores the depth pin entirely per finding F-08,
+       tracked in carrier backlog item cvtg9u.
+    2. Proves the five enumerated public rendering seams across all stages, tiers, and
+       streams, but does not mechanically prevent a future renderer from re-deriving or
+       coercing a tier; it catches a re-collapse by asserting on returned byte output
+       at breadth rather than by inspecting code structure (per maintainer ruling p5qx91).
+    3. The ladder is CAUGHT, not structurally PREVENTED.
+    """
+
+    def test_seam_sweep_across_all_stages_tiers_and_streams(self):
+        stages = LS.ALL_STAGES
+        tiers = T.COLOR_DEPTHS
+        streams = (
+            ("tty", lambda: (T.Term(stream=_FakeTTY()), render_stream.Palette(True))),
+            (
+                "pipe",
+                lambda: (
+                    T.Term(stream=_FakePipe(), color=True),
+                    render_stream.Palette(True),
+                ),
+            ),
+        )
+
+        failures: list[str] = []
+        total_cells = 0
+        total_seam_evaluations = 0
+
+        for tier in tiers:
+            self._capable_tty()
+            self._pin(tier)
+            for stage in stages:
+                # Construct Resolved directly per stage (PR-001) to cover all 20 stages
+                resolved = LS.Resolved(
+                    stage=stage,
+                    style=LS.STAGES[stage],
+                    family=LS.FAMILY_BACKLOG,
+                )
+                for stream_name, make_pair in streams:
+                    total_cells += 1
+                    term_obj, pal = make_pair()
+
+                    # Two-consumer agreement between Palette.lifecycle and Term.style_lifecycle_text
+                    s_term = term_obj.style_lifecycle_text(stage, resolved)
+                    s_pal = pal.lifecycle(resolved, stage)
+                    if s_term != s_pal:
+                        failures.append(
+                            f"[{tier}/{stage}/{stream_name}] two-consumer disagreement: "
+                            f"Term={s_term!r} != Palette={s_pal!r}"
+                        )
+
+                    seams = {
+                        "Term.style_lifecycle_text": s_term,
+                        "Term.format_lifecycle_marker": term_obj.format_lifecycle_marker(
+                            resolved
+                        ),
+                        "Term.format_lifecycle_compact": term_obj.format_lifecycle_compact(
+                            "abc123", resolved
+                        ),
+                        "Palette.lifecycle": s_pal,
+                        "Palette.lifecycle_glyph": pal.lifecycle_glyph(resolved),
+                    }
+
+                    for seam_name, out in seams.items():
+                        total_seam_evaluations += 1
+                        if tier == T.DEPTH_NONE:
+                            if "\033" in out:
+                                failures.append(
+                                    f"[{tier}/{stage}/{stream_name}/{seam_name}] "
+                                    f"unexpected escape in none tier: {out!r}"
+                                )
+                        elif tier == T.DEPTH_16:
+                            if "38;5;" in out:
+                                failures.append(
+                                    f"[{tier}/{stage}/{stream_name}/{seam_name}] "
+                                    f"38;5; escape found in 16 tier: {out!r}"
+                                )
+                            if "\033[" not in out:
+                                failures.append(
+                                    f"[{tier}/{stage}/{stream_name}/{seam_name}] "
+                                    f"expected SGR escape in 16 tier: {out!r}"
+                                )
+                        elif tier == T.DEPTH_256:
+                            if "38;5;" not in out:
+                                failures.append(
+                                    f"[{tier}/{stage}/{stream_name}/{seam_name}] "
+                                    f"expected 38;5; escape in 256 tier: {out!r}"
+                                )
+
+        expected_cells = len(stages) * len(tiers) * len(streams)
+        expected_evaluations = expected_cells * 5
+        self.assertEqual(total_cells, expected_cells)
+        self.assertEqual(total_seam_evaluations, expected_evaluations)
+
+        self.assertEqual(
+            failures,
+            [],
+            f"Seam sweep failed {len(failures)}/{total_seam_evaluations} evaluations:\n"
+            + "\n".join(failures[:20]),
+        )
+
+
+class LifecycleColorDepthCrossSurfaceCliTests(unittest.TestCase):
+    """End-to-end CLI guard across terminal surfaces on a synthesized fixture repo (E-04).
+
+    Residual exposure and limits (E-05):
+    1. Covers the LIFECYCLE axis only: generic color output (paths, badges, status)
+       ignores color_depth per F-08 (tracked in backlog item cvtg9u), so assertions
+       on the 'none' tier are scoped strictly to lifecycle tokens rather than blanket
+       escape absence.
+    2. Proves the CLI command(s) driven against the synthesized fixture, exercising
+       the full real subprocess execution path, but is a sample rather than an exhaustive
+       sweep across every CLI subcommand (which was measured at 108s+ over live corpus).
+    3. The ladder is CAUGHT, not structurally PREVENTED: no mechanical rule forbids a
+       new renderer from re-deriving a tier, but any surface reaching the CLI output
+       exercised here is guarded by these observable byte assertions.
+    """
+
+    def setUp(self):
+        self._repo_root = str(Path(__file__).resolve().parent.parent)
+
+    def _extract_styled_lifecycle_spans(
+        self, stdout: str, native_words: set[str]
+    ) -> list[tuple[str, str]]:
+        spans: list[tuple[str, str]] = []
+        for match in re.finditer(r"\033\[([0-9;]+)m([^\033]+)", stdout):
+            codes = match.group(1)
+            text = match.group(2).strip()
+            parts = [p for p in codes.split(";") if p]
+            is_styled = bool(parts and not all(p == "0" for p in parts))
+            if text in native_words and is_styled:
+                spans.append((codes, text))
+        return spans
+
+    def test_cross_surface_cli_color_depth_ladder(self):
+        # Derive native lifecycle words at runtime from NATIVE_MAPS
+        native_words: set[str] = set()
+        for family_map in LS.NATIVE_MAPS.values():
+            native_words.update(family_map.keys())
+
+        with tempfile.TemporaryDirectory() as fixture_dir, tempfile.TemporaryDirectory() as config_dir:
+            # Synthesize fixture repo with 4 items across 4 states (P16 location independence)
+            subprocess.run(["git", "init", "-q"], cwd=fixture_dir, check=True)
+            states = ["open", "blocked", "done", "graduated"]
+            for idx, st in enumerate(states, 1):
+                d = Path(fixture_dir) / ".aw" / "records" / "backlog" / st
+                d.mkdir(parents=True, exist_ok=True)
+                fname = f"20261001-item0{idx}-01-item0{idx}-sample-{st}.backlog.md"
+                content = (
+                    f"# Backlog: Sample {st}\n\n"
+                    f"- Id: item0{idx}\n"
+                    f"- Status: {st}\n"
+                    f"- Set: item0{idx}\n"
+                    f"- Priority: low\n"
+                    f"- Work-Kind: chore\n"
+                    f"- Summary: Sample item for testing {st}\n"
+                )
+                (d / fname).write_text(content, encoding="utf-8")
+
+            child_env = os.environ.copy()
+            child_env["XDG_CONFIG_HOME"] = config_dir
+            child_env["AW_NO_REEXEC"] = "1"
+            child_env["TERM"] = "xterm-256color"
+            child_env["PYTHONPATH"] = self._repo_root
+            for k in ("NO_COLOR", "FORCE_COLOR", "COLORTERM"):
+                child_env.pop(k, None)
+
+            # Confirm subprocess imports repository's own package under test (F-10)
+            verify_imp = subprocess.run(
+                [
+                    sys.executable,
+                    "-c",
+                    "import agent_workflows; print(agent_workflows.__file__)",
+                ],
+                env=child_env,
+                capture_output=True,
+                text=True,
+                check=True,
+            )
+            self.assertTrue(
+                verify_imp.stdout.strip().startswith(self._repo_root),
+                f"Subprocess imported wrong package: {verify_imp.stdout.strip()} (expected within {self._repo_root})",
+            )
+
+            def _pin_tier(tier: str) -> None:
+                subprocess.run(
+                    [
+                        sys.executable,
+                        "-m",
+                        "agent_workflows",
+                        "config",
+                        "set",
+                        "color_depth",
+                        tier,
+                    ],
+                    env=child_env,
+                    cwd=fixture_dir,
+                    check=True,
+                    capture_output=True,
+                )
+
+            # Commands to test (each must produce lifecycle words to be non-vacuous per PR-002)
+            commands = [
+                ("find backlog", ["find", "backlog", "--color"]),
+            ]
+
+            for cmd_name, cmd_args in commands:
+                # Cell 1 (256 tier): Anti-vacuity cell. At least one lifecycle word sits in a 38;5; span
+                _pin_tier("256")
+                res_256 = subprocess.run(
+                    [sys.executable, "-m", "agent_workflows", *cmd_args],
+                    env=child_env,
+                    cwd=fixture_dir,
+                    capture_output=True,
+                    text=True,
+                    check=True,
+                )
+                spans_256 = self._extract_styled_lifecycle_spans(
+                    res_256.stdout, native_words
+                )
+                self.assertGreater(
+                    len(spans_256),
+                    0,
+                    f"[{cmd_name}] Anti-vacuity check failed: no lifecycle words found in 256 output",
+                )
+                self.assertTrue(
+                    any("38;5;" in code for code, _ in spans_256),
+                    f"[{cmd_name}] Expected 38;5; escape for lifecycle words in 256 pin output, got: {spans_256}",
+                )
+
+                # Cell 2 (16 tier): NO lifecycle word sits in a 38;5; span AND at least one is still styled
+                _pin_tier("16")
+                res_16 = subprocess.run(
+                    [sys.executable, "-m", "agent_workflows", *cmd_args],
+                    env=child_env,
+                    cwd=fixture_dir,
+                    capture_output=True,
+                    text=True,
+                    check=True,
+                )
+                spans_16 = self._extract_styled_lifecycle_spans(
+                    res_16.stdout, native_words
+                )
+                self.assertGreater(
+                    len(spans_16),
+                    0,
+                    f"[{cmd_name}] Expected styled lifecycle words in 16 pin output",
+                )
+                self.assertFalse(
+                    any("38;5;" in code for code, _ in spans_16),
+                    f"[{cmd_name}] Expected no 38;5; escape for lifecycle words in 16 pin output, got: {spans_16}",
+                )
+
+                # Cell 3 (none tier): NO lifecycle word is styled at all (token-scoped per F-08)
+                _pin_tier("none")
+                res_none = subprocess.run(
+                    [sys.executable, "-m", "agent_workflows", *cmd_args],
+                    env=child_env,
+                    cwd=fixture_dir,
+                    capture_output=True,
+                    text=True,
+                    check=True,
+                )
+                spans_none = self._extract_styled_lifecycle_spans(
+                    res_none.stdout, native_words
+                )
+                self.assertEqual(
+                    spans_none,
+                    [],
+                    f"[{cmd_name}] Expected no styled lifecycle words at color_depth=none, got: {spans_none}",
+                )
+
+
 if __name__ == "__main__":
     unittest.main()
