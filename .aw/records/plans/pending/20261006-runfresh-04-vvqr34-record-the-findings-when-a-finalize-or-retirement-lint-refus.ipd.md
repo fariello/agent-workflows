@@ -36,22 +36,22 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: carry the findings
 
-- [ ] E-01 In `runner_shared`, add one helper `refusal_findings_text(findings, cap=20)` that returns `""` for no findings and otherwise ONE line, `findings (N): <f1>; <f2>; ...`, listing at most `cap` findings (each already a `"<code> <message>"` string, as `FinalizeResult.findings` carries them) and ending `; ... and K more` when capped. One line, not one per finding, because the run summary's diagnostics block renders a reason inside a single `  • <id6>: <status> (<reason>)` line (`render_stream.render_run_summary_table`), and `render_stream.refusal_of_item`'s legacy arm already flattens multi-line reasons for exactly that reason. Then, in `dispatch_orchestrator_item`'s RETIRE branch where `why` is built from `result.message`, append `" " + refusal_findings_text(getattr(result, "findings", ()) or ())` when it is non-empty, so the `retirement transition refused: ...` detail, and through it the `Refusal` reason, `orchestrator_refusal_detail`, and the `orchestrator-deferred` event detail, name every finding. Use `getattr` because the existing test double in `tests/test_orchestrator_retirement.py` (the `_No` class in the four-causes test) has no `findings` attribute. Typed rollup refusals (`ROLLUP_REFUSED_*` codes such as `set-ineligible`) are findings too and will be listed the same way; that is intended. Do NOT change any `FinalizeResult.message` in `ipd_lifecycle` (review PR-001).
+- [x] E-01 In `runner_shared`, add one helper `refusal_findings_text(findings, cap=20)` that returns `""` for no findings and otherwise ONE line, `findings (N): <f1>; <f2>; ...`, listing at most `cap` findings (each already a `"<code> <message>"` string, as `FinalizeResult.findings` carries them) and ending `; ... and K more` when capped. One line, not one per finding, because the run summary's diagnostics block renders a reason inside a single `  • <id6>: <status> (<reason>)` line (`render_stream.render_run_summary_table`), and `render_stream.refusal_of_item`'s legacy arm already flattens multi-line reasons for exactly that reason. Then, in `dispatch_orchestrator_item`'s RETIRE branch where `why` is built from `result.message`, append `" " + refusal_findings_text(getattr(result, "findings", ()) or ())` when it is non-empty, so the `retirement transition refused: ...` detail, and through it the `Refusal` reason, `orchestrator_refusal_detail`, and the `orchestrator-deferred` event detail, name every finding. Use `getattr` because the existing test double in `tests/test_orchestrator_retirement.py` (the `_No` class in the four-causes test) has no `findings` attribute. Typed rollup refusals (`ROLLUP_REFUSED_*` codes such as `set-ineligible`) are findings too and will be listed the same way; that is intended. Do NOT change any `FinalizeResult.message` in `ipd_lifecycle` (review PR-001).
   - Depends on: none
   - Expected outcome: a retirement refused at post-transition lint with three findings records a detail whose text is the unchanged `retirement transition refused: <message>` followed by `findings (3): ...` naming each code and message; a result with no findings records exactly the old detail.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 Confirm by observation, without changing any renderer, that the refusal detail reaches every reading surface: `aw runs --dir <fixture>` (the `Refusals (what the run declined, and what to do):` block from `run_viewer.format_refusal_summary`), `aw runs --json` (`issue_reasons` / `refusal`), and `render_stream.render_run_summary_table`'s diagnostics block. Measured at review against the current code: none truncates a reason. If execution finds one that does, fix only that renderer's handling of the reason and add it to `- Scope-Paths:` with the reason recorded (the finalize scope gate will require a `--scope-reason`).
+- [x] E-02 Confirm by observation, without changing any renderer, that the refusal detail reaches every reading surface: `aw runs --dir <fixture>` (the `Refusals (what the run declined, and what to do):` block from `run_viewer.format_refusal_summary`), `aw runs --json` (`issue_reasons` / `refusal`), and `render_stream.render_run_summary_table`'s diagnostics block. Measured at review against the current code: none truncates a reason. If execution finds one that does, fix only that renderer's handling of the reason and add it to `- Scope-Paths:` with the reason recorded (the finalize scope gate will require a `--scope-reason`).
   - Depends on: E-01
   - Expected outcome: each of the three surfaces shows the `IPD-M103` code and the offending field name for the fixture refusal.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: pin it
 
-- [ ] E-03 Add `tests/test_finalize_refusal_findings.py` with: (a) a git-backed fixture Set (one `executed` child, an `approved` orchestrator carrying a coverage record written with `coverage_record.write(..., verdict=coverage_record.COVERAGE_PASS, commit=False)` so the retirement re-check asks no model, and an extra unknown front-matter field such as `- Bogus-Field: x`, committed), dispatched through `runner_shared.dispatch_orchestrator_item` with the REAL `retire_orchestrator` and a run dir under `runner_shared.state_root(<fixture>)`, asserting outcome `terminate`/`finalize-refused` and that `refusal_of_item(item).reason`, `item["orchestrator_refusal_detail"]`, the `orchestrator-deferred` event detail in `events.jsonl`, and `aw runs --dir <fixture> --no-color` stdout (subprocess, after writing `state.json`) each contain `IPD-M103` and `Bogus-Field`; (b) a no-findings case (a result double with empty `findings`) whose detail equals the old text exactly; (c) a cap case calling `refusal_findings_text` with 25 findings, asserting 20 listed and `and 5 more`; (d) a child `aw ipd finalize --apply` subprocess on a fixture plan that has a begin receipt but pending `E-*` items, asserting each `IPD-S404` finding line appears in stdout EXACTLY ONCE (guards against the double-print PR-001 removed). The fixture may reuse the plan-writing helpers in `tests/test_orchestrator_retirement.py` (`_write_conforming_plan`, `_init_git_repo`) by import or copy them. Prove the test can fail by removing the E-01 append and pasting the failure.
+- [x] E-03 Add `tests/test_finalize_refusal_findings.py` with: (a) a git-backed fixture Set (one `executed` child, an `approved` orchestrator carrying a coverage record written with `coverage_record.write(..., verdict=coverage_record.COVERAGE_PASS, commit=False)` so the retirement re-check asks no model, and an extra unknown front-matter field such as `- Bogus-Field: x`, committed), dispatched through `runner_shared.dispatch_orchestrator_item` with the REAL `retire_orchestrator` and a run dir under `runner_shared.state_root(<fixture>)`, asserting outcome `terminate`/`finalize-refused` and that `refusal_of_item(item).reason`, `item["orchestrator_refusal_detail"]`, the `orchestrator-deferred` event detail in `events.jsonl`, and `aw runs --dir <fixture> --no-color` stdout (subprocess, after writing `state.json`) each contain `IPD-M103` and `Bogus-Field`; (b) a no-findings case (a result double with empty `findings`) whose detail equals the old text exactly; (c) a cap case calling `refusal_findings_text` with 25 findings, asserting 20 listed and `and 5 more`; (d) a child `aw ipd finalize --apply` subprocess on a fixture plan that has a begin receipt but pending `E-*` items, asserting each `IPD-S404` finding line appears in stdout EXACTLY ONCE (guards against the double-print PR-001 removed). The fixture may reuse the plan-writing helpers in `tests/test_orchestrator_retirement.py` (`_write_conforming_plan`, `_init_git_repo`) by import or copy them. Prove the test can fail by removing the E-01 append and pasting the failure.
   - Depends on: E-02
   - Expected outcome: the new file passes; with the append removed, case (a) fails; existing finalize and retirement tests pass unchanged.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -111,20 +111,134 @@ Implements spec `25kzda` 4.1 as amended by Order 01 (A.3). No spec edited here.
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste the `runner_shared` diff (the helper and the one append in `dispatch_orchestrator_item`), `git diff --stat -- agent_workflows/ipd_lifecycle.py` showing no change, and test output showing a refused retirement's detail beginning with the unchanged `retirement transition refused: ` text followed by `findings (N): ` naming each finding, plus the no-findings case's detail equal to the old text.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified runner_shared diff and refusal detail formatting in test runs.
+    ```diff
+    diff --git a/agent_workflows/runner_shared.py b/agent_workflows/runner_shared.py
+    index 0a86d0169..a5c68a686 100644
+    --- a/agent_workflows/runner_shared.py
+    +++ b/agent_workflows/runner_shared.py
+    @@ -20794,6 +20794,23 @@ def decide_orchestrator_dispatch(
+         )
 
-- [ ] V-02 validates E-02
+
+    +def refusal_findings_text(findings: Iterable[Any] | None, cap: int = 20) -> str:
+    +    """Format refusal findings as a single line, capped at ``cap`` entries."""
+    +    if not findings:
+    +        return ""
+    +    items = [str(f).strip() for f in findings if str(f).strip()]
+    +    if not items:
+    +        return ""
+    +    n = len(items)
+    +    if cap <= 0:
+    +        return f"findings ({n}): ... and {n} more"
+    +    if n <= cap:
+    +        return f"findings ({n}): {'; '.join(items)}"
+    +    shown = items[:cap]
+    +    remainder = n - cap
+    +    return f"findings ({n}): {'; '.join(shown)}; ... and {remainder} more"
+    +
+    +
+     def dispatch_orchestrator_item(
+         repo: Path,
+         run_dir: Path,
+    @@ -20947,6 +20964,9 @@ def dispatch_orchestrator_item(
+                     if result is not None
+                     else f"the orchestrator plan file for Set {setid!r} could not be located on disk"
+                 )
+    +            extra = refusal_findings_text(getattr(result, "findings", ()) or ())
+    +            if extra:
+    +                why += f" {extra}"
+                 decision = decision._replace(
+                     outcome=ORCH_DISPATCH_TERMINATE,
+                     reason=ORCH_REASON_FINALIZE_REFUSED,
+    ```
+    `git diff --stat -- agent_workflows/ipd_lifecycle.py` output: 0 changes (clean).
+    Refused retirement detail with findings:
+    ```
+    this orchestrator's children are done but the RETIREMENT TRANSITION ITSELF refused, so the plan was left where it was rather than being moved to `executed/`. retirement transition refused: finalize is COMMITTED-INCOMPLETE for orc001: the lifecycle commit 6cb8be21b868 exists but post-transition validation failed. Re-run the SAME command `aw ipd finalize orc001 --actor <a> --message <m> --apply` to resume (no second commit); if it still fails, open a corrective follow-up IPD citing it. findings (1): IPD-M103 Bogus-Field: unknown field
+    ```
+    No-findings case preserves exact old detail:
+    ```
+    decision.detail == "retirement transition refused: some transition error"
+    decision2.detail == "retirement transition refused: no findings attribute"
+    ```
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: paste, from the fixture refusal, the `aw runs --dir <fixture> --no-color` Refusals block, the `aw runs --json` `refusal`/`issue_reasons` entry, and the `render_run_summary_table` diagnostics line, each containing `IPD-M103` and the field name; state whether any renderer had to change (expected: none).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified refusal rendering in aw runs --no-color, aw runs --json, and render_run_summary_table.
+    `aw runs --dir <fixture> --no-color` Refusals block:
+    ```
+    Refusals (what the run declined, and what to do):
+      ! 20260906-set001-00-orc001 [finalize-refused]: this orchestrator's children are done but the RETIREMENT TRANSITION ITSELF refused, so the plan was left where it was rather than being moved to `executed/`. retirement transition refused: finalize is COMMITTED-INCOMPLETE for orc001: the lifecycle commit 6cb8be21b868 exists but post-transition validation failed. Re-run the SAME command `aw ipd finalize orc001 --actor <a> --message <m> --apply` to resume (no second commit); if it still fails, open a corrective follow-up IPD citing it. findings (1): IPD-M103 Bogus-Field: unknown field
+        → remedy: read the transition's refusal named above: it states which condition failed. Resolve that condition, then retire the orchestrator through `aw ipd finalize`. Never complete the move with a raw `git mv` plus a hand-edited `- Status:`, which is precisely what the refusing gate exists to catch
+    ```
+    `aw runs --json` `refusal`/`issue_reasons`:
+    ```json
+    "refusal": {"code": "finalize-refused", "reason": "this orchestrator's children are done but the RETIREMENT TRANSITION ITSELF refused, so the plan was left where it was rather than being moved to `executed/`. retirement transition refused: finalize is COMMITTED-INCOMPLETE for orc001: the lifecycle commit 6cb8be21b868 exists but post-transition validation failed. Re-run the SAME command `aw ipd finalize orc001 --actor <a> --message <m> --apply` to resume (no second commit); if it still fails, open a corrective follow-up IPD citing it. findings (1): IPD-M103 Bogus-Field: unknown field", "remedy": "read the transition's refusal named above: it states which condition failed. Resolve that condition, then retire the orchestrator through `aw ipd finalize`. Never complete the move with a raw `git mv` plus a hand-edited `- Status:`, which is precisely what the refusing gate exists to catch"}
+    "issue_reasons": null
+    ```
+    `render_run_summary_table` diagnostics line:
+    ```
+    Diagnostics / Blocked Items:
+      • orc001: fail-depend (this orchestrator's children are done but the RETIREMENT TRANSITION ITSELF refused, so the plan was left where it was rather than being moved to `executed/`. retirement transition refused: finalize is COMMITTED-INCOMPLETE for orc001: the lifecycle commit 6cb8be21b868 exists but post-transition validation failed. Re-run the SAME command `aw ipd finalize orc001 --actor <a> --message <m> --apply` to resume (no second commit); if it still fails, open a corrective follow-up IPD citing it. findings (1): IPD-M103 Bogus-Field: unknown field)
+        → remedy: read the transition's refusal named above: it states which condition failed. Resolve that condition, then retire the orchestrator through `aw ipd finalize`. Never complete the move with a raw `git mv` plus a hand-edited `- Status:`, which is precisely what the refusing gate exists to catch
+    ```
+    State whether any renderer had to change: none. All three reading surfaces render `refusal.reason` without alteration or truncation.
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: paste the new test file passing with its count; the mutation (E-01 append removed) failing case (a) and the revert passing; case (d)'s assertion that each `IPD-S404` line appears exactly once; existing finalize and retirement tests passing; a grep of the new file for `inspect`, `ast.`, `read_text` on `agent_workflows/` sources returning nothing. Paste the BARE `python3 -m pytest` summary reconciled against your baseline, `aw ipd lint` conforming, `aw sanitize --agent`, and `git diff --cached --name-only` listing only declared paths.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified test suite pass counts, mutation test failure/pass, and code-pinning checks.
+New test file passing with count:
+```
+tests/test_finalize_refusal_findings.py::FinalizeRefusalFindingsTests::test_no_findings_preserves_old_detail PASSED [ 25%]
+tests/test_finalize_refusal_findings.py::FinalizeRefusalFindingsTests::test_orchestrator_retirement_refusal_findings_recorded PASSED [ 50%]
+tests/test_finalize_refusal_findings.py::FinalizeRefusalFindingsTests::test_child_finalize_prints_findings_exactly_once PASSED [ 75%]
+tests/test_finalize_refusal_findings.py::FinalizeRefusalFindingsTests::test_refusal_findings_text_cap PASSED [100%]
+============================== 4 passed in 17.59s ==============================
+```
+Mutation test failure on case (a) when E-01 append removed:
+```
+FAILED tests/test_finalize_refusal_findings.py::FinalizeRefusalFindingsTests::test_orchestrator_retirement_refusal_findings_recorded - AssertionError: 'IPD-M103' not found in "this orchestrator's children are done but the RETIREMENT TRANSITION ITSELF refused, so the plan was left where it was rather than being moved to `executed/`. retirement transition refused: finalize is COMMITTED-INCOMPLETE for orc001: the lifecycle commit 24458df8a349 exists but post-transition validation failed. Re-run the SAME command `aw ipd finalize orc001 --actor <a> --message <m> --apply` to resume (no second commit); if it still fails, open a corrective follow-up IPD citing it."
+```
+Revert passing: all 4 tests pass.
+Case (d)'s assertion that each `IPD-S404` line appears exactly once:
+```python
+s404_lines = [
+    line.strip()
+    for line in finalize_res.stdout.splitlines()
+    if "IPD-S404" in line
+]
+self.assertGreater(len(s404_lines), 0, "must have at least one IPD-S404 finding")
+for line in s404_lines:
+    self.assertEqual(
+        finalize_res.stdout.count(line),
+        1,
+        f"finding line {line!r} must appear exactly once in stdout",
+    )
+```
+Existing finalize and retirement tests passing:
+`python3 -m pytest -o addopts="" tests/test_finalize_refusal_findings.py tests/test_orchestrator_retirement.py tests/test_ipd_lifecycle_cli.py tests/test_finalize_sendback.py tests/test_runner_finalize_message.py -q`:
+`186 passed in 109.59s`
+
+Grep for `inspect`, `ast.`, `read_text` on `agent_workflows/` sources in `tests/test_finalize_refusal_findings.py`:
+`grep -E "(inspect|ast\.|agent_workflows.*read_text|read_text.*agent_workflows)" tests/test_finalize_refusal_findings.py` returned nothing (0 matches).
+
+Bare `python3 -m pytest` summary reconciled against baseline:
+Baseline: `6682 passed, 2 skipped, 3 warnings in 394.44s (0:06:34)`
+Post-change: `6686 passed, 2 skipped, 3 warnings in 792.79s (0:13:12)` (reconciled, +4 tests).
+
+`aw ipd lint`:
+`- >  ◕  approved     plan        20261006-runfresh-04-vvqr34  [high]  [blocking]  conforming`
+
+`aw sanitize --agent`:
+`{"schema":"aw.agent/v1","kind":"result","cmd":"check-local-leaks","outcome":"clean","exit":0,"verified":true,"complete":true,"findings":0,"evidence":["leak-scan"],"next":null}`
+
+`git diff --cached --name-only`: verified via `aw commit` staging only declared scope paths (`agent_workflows/runner_shared.py`, `tests/test_finalize_refusal_findings.py`, `.aw/records/plans/pending/20261006-runfresh-04-vvqr34-record-the-findings-when-a-finalize-or-retirement-lint-refus.ipd.md`).
+  - Result: pass
 
 ## Approval and execution gate
 

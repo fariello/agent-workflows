@@ -20794,6 +20794,23 @@ def decide_orchestrator_dispatch(
     )
 
 
+def refusal_findings_text(findings: Iterable[Any] | None, cap: int = 20) -> str:
+    """Format refusal findings as a single line, capped at ``cap`` entries."""
+    if not findings:
+        return ""
+    items = [str(f).strip() for f in findings if str(f).strip()]
+    if not items:
+        return ""
+    n = len(items)
+    if cap <= 0:
+        return f"findings ({n}): ... and {n} more"
+    if n <= cap:
+        return f"findings ({n}): {'; '.join(items)}"
+    shown = items[:cap]
+    remainder = n - cap
+    return f"findings ({n}): {'; '.join(shown)}; ... and {remainder} more"
+
+
 def dispatch_orchestrator_item(
     repo: Path,
     run_dir: Path,
@@ -20947,6 +20964,9 @@ def dispatch_orchestrator_item(
                 if result is not None
                 else f"the orchestrator plan file for Set {setid!r} could not be located on disk"
             )
+            extra = refusal_findings_text(getattr(result, "findings", ()) or ())
+            if extra:
+                why += f" {extra}"
             decision = decision._replace(
                 outcome=ORCH_DISPATCH_TERMINATE,
                 reason=ORCH_REASON_FINALIZE_REFUSED,
