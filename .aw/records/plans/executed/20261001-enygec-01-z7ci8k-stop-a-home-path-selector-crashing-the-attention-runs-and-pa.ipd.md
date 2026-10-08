@@ -6,7 +6,7 @@
 - Scope: Sanitize the user-supplied token at each of the three hand-built record sites (`attention`'s unresolved-selector refusal, `runs`' unresolvable-target refusal, `partition`'s result record on both machine surfaces), CONSUMING the shared `agent_schema.redact_home_paths` primitive that plan `9yd6tx` already landed, and pin the whole class behaviorally. Does NOT route these sites through `renderers.py`, does NOT touch `AgentRenderer`, does NOT edit `agent_schema.py`, and does NOT change what a resolvable selector resolves to.
 - Scope-Paths: agent_workflows/attention.py, agent_workflows/run_viewer.py, agent_workflows/partition.py, docs/cli-output-contract.md, tests/test_selector_echo_sanitization.py, tests/test_agent_record_guard.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -17,9 +17,9 @@
 - Highest E allocated: 08
 - Author: opencode
 - Id: z7ci8k
-- Approval: 2026-10-07, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-08 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: z7ci8k verified (set enygec, attempt 1). [Scope reconciliation - widened-scope tests/test_agent_record_guard.py: declared in Scope-Paths during execution because the approved work required it (additive widening, auto-reconciled by aw agy run)]
 - 2026-10-07 approved (aw set): status set to approved
 - 2026-10-07 reviewed (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED via /plan-review; PR-001..PR-010 all FIXED. Reviewed at HEAD `db8c72a9a`; lint `author` and `review-finalize` both conforming. Every crash re-measured and reproduces. Main defect was staleness: `9yd6tx` (primitive), `1xthrh` (detector datum) and `0hz005` (partition `unknown` key) had executed since authoring, so E-01 now consumes the landed `redact_home_paths` and `agent_schema.py` left Scope-Paths (PR-001, PR-002). Also: unreachable `matched/invalid_selectors` CLI demand rewritten to a direct-call pin (PR-003); `partition --json` leak brought in scope, human command kept raw by design (PR-004); analytics root rendered repo-relative (PR-005); partition exit 0 not 2 (PR-006); `git stash` replaced by a throwaway worktree (PR-007); execution contract completed (PR-008); `aw sanitize` no longer cited as surface evidence, multi-token case added (PR-009); E-06 de-duplicated (PR-010). Findings and five decisions in `.aw/records/reviews/20261001-enygec-01-z7ci8k-stop-a-home-path-selector-crashing-the-attention-runs-and-pa.review.md`.
 
