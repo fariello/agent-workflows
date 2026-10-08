@@ -10,6 +10,7 @@
 
 ## Workflow history
 
+- 2026-10-08 note (aw specs): AMENDED 2026-10-08 (plan xtensb / backlog nzqj6m): corrected stale citations and measurements in spec uonrjg without changing any criterion requirements or lifecycle presentation: re-pointed four line citations (S1 to symbol term.should_unicode, S2 and S6 to retracted contract doc section 9, S3 to normative 256->16->none ladder in accessibility lens); re-measured subcommand census at HEAD (253 leaves / 34 groups / 287 nodes, 29 accounted misses); marked Section 12a 25-of-219 census as pre-yaxr4i historical measurement; retired A13 former document-conflict warning as resolved with cli-output-contract agreeing with code; no criterion requirement, stage, color, glyph, or mapping changed.
 - 2026-10-01 note (aw specs): AMENDED 2026-10-01 (plan nw088c / backlog p5qx91): Section 9.3 single-originating-definition citation amended: structural assertion in tests/test_term.py was deleted in 19313eed and not restored per maintainer ruling (2026-09-28 on p5qx91); property now rests on behavioral coverage in tests/test_term.py plus re-exports.
 - 2026-09-25 note (aw specs): AMENDED 2026-09-25 (mergeskip 8k0z40): added already-landed to Section 7.2 blocked row as a normative stage classification (needs human act: aw ipd finalize). Note this row is normative-but-unenforced (tests/test_lifecycle_style.py enforces Section 5 only).
 - 2026-09-25 note (aw specs): AMENDED 2026-09-25 (statusvocab 9x7otz / cyamvi): canonical terminal status vocabulary updated (fail-depend, fail-merge, fail-gate, fail-verify, fail-begin, fail-lane, not-run, interrupted). Legacy terminal status tokens (including dependency-blocked, integration-blocked, merge-needs-human, merge-conflict, merge-refused, substantially-complete, failed-safely, not-attempted) remain readable forever for backward compatibility on historical run records (via TERMINAL_STATUS_ALIASES), but are no longer written by the runner.
@@ -50,7 +51,7 @@ not widen them.
 |---|---|---|---|
 | The five-color runner scheme: cyan for "running or verifying", green for verified, yellow for "skipped, needs input, or ran but unverifiable", red for failed, gray for informational | `.aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md` (`25kzda`) Section 5.6 | `approved`, `Blocks-Release: next` | Section 5's table. Three differences are deliberate: `running` and `verifying` get DISTINCT glyphs (`▶` versus `◆`) rather than sharing cyan; green is reserved for `done` while `ready` is cyan; and `blocked` is orange 208 rather than folded into yellow. `25kzda`'s outcome VOCABULARY, exit codes, and reporting columns are untouched. |
 | "The wizard MUST use the existing `Term` abstraction and 16 named colors", with green for recommended states | `.aw/records/specs/superseded/20260809-2211-01-aw-project-layout-storage-wizard-and-state.spec.md` Section 11.4 | `superseded` | Nothing, for two reasons: that spec is already superseded, and its successor (`20260810-1447-01`, `implemented`) carries the accessibility clause forward WITHOUT the 16-color restriction. The wizard is also not a lifecycle surface, so Section 3's non-goal on generic command outcomes exempts it. Recorded so Section 11.4 is not resurrected as a live palette. |
-| "Do not assume 256-color or truecolor; fall back through 16-color and then no-color ... prefer the terminal's default fg/bg and the 16 named colors", with a narrow `aw attention`-only xterm-256 exception attributed to DECISIONS D133 | `.aw/system/workflows/assess/lenses/accessibility.md:56-63` | not a spec; it is the normative rubric `20260706-0000-01` Goal 9 delegates to | REQUIRES AN AMENDMENT RATHER THAN AN OVERRIDE, because it is a rubric this spec should satisfy, not a competitor. The D133 exception is currently scoped to `aw attention` alone and must be widened to every renderer this spec names, in the same change that lands the resolver. See the open question in Section 16, which is the one thing here this spec does NOT settle on its own authority. |
+| The historical wording of the accessibility lens ("Do not assume 256-color... prefer the 16 named colors", with an `aw attention`-only D133 exception), which survived only until OQ-01 corrected the lens | `.aw/system/workflows/assess/lenses/accessibility.md` | not a spec; it is the normative rubric `20260706-0000-01` Goal 9 delegates to | RETIRED BY AMENDMENT RATHER THAN AN OVERRIDE. The lens was corrected 2026-09-13 by OQ-01's resolution to adopt DECISIONS D42's normative 256 -> 16 -> none degradation ladder, with 256 as the top tier and 16-color and no-color as required fallbacks. The old "prefer the 16 named colors" wording survives only as marked history in the lens, so the former conflict is resolved. |
 
 WHAT AN IMPLEMENTER MUST DO WITH THIS SECTION, so the override is real rather than asserted: the plan
 that lands the resolver MUST amend `25kzda` Section 5.6 to point here rather than leaving two live
@@ -520,16 +521,17 @@ citations an implementer can check:
   (or set once per invocation via `term.set_color_override`), because this package spawns nested `aw`
   processes and an environment variable is INHERITED, which would silently restyle a child's output. A
   depth resolver added for R9.3a.2 MUST follow the same rule for the same reason.
-- THE FLAG SURFACE IS UNIFORM, so a renderer may assume the flags exist everywhere. Measured 2026-09-19
-  by walking `cli._build_parser()`: 200 LEAF subcommands (229 subcommand nodes in total, of which 29 are
-  intermediate groups that dispatch no action of their own). Exactly 29 leaves DECLARE neither flag, and
-  all 29 are accounted for: 28 are host-driver leaves whose argv is intercepted and forwarded VERBATIM
-  (the `oc`/`opencode`/`agy`/`antigravity` families plus `run as`/`run ipd`), and they honor the flags by
-  CONSUMPTION in `cli._dispatch` before any interception runs; the 29th is the hidden `__complete` shell
-  callback, which likewise accepts the flag and emits unstyled candidates. Zero leaves are unexplained.
-  STATE THE DENOMINATOR WHENEVER THIS IS RE-MEASURED: 200 and 229 are both true of this tree and count
-  different things, and the leaf-miss count (29) coincides numerically with the group count (29), so a
-  bare "29 of 229" reads as self-consistent while being the wrong ratio.
+- THE FLAG SURFACE IS UNIFORM, so a renderer may assume the flags exist everywhere. Measured 2026-10-08
+  by walking `cli._build_parser()`: 253 LEAF subcommands (287 subcommand nodes in total, of which 34 are
+  intermediate groups that dispatch no action of their own; count a node as a GROUP when its parser itself
+  carries a subparsers action and as a LEAF otherwise). Exactly 29 leaves DECLARE neither flag, and
+  all 29 are accounted for across three groups: 26 host-driver leaves whose argv is intercepted and forwarded
+  VERBATIM (the `oc`, `opencode`, `agy`, and `antigravity` families), plus `run as` and `run ipd` (2 leaves),
+  both honoring flags by consumption in `cli._dispatch` before interception runs, and the hidden `__complete`
+  shell callback (1 leaf), which accepts the flag and emits unstyled candidates. Zero leaves are unexplained.
+  STATE THE DENOMINATOR WHENEVER THIS IS RE-MEASURED: 253 and 287 are both true of this tree and count
+  different things. Note that the group count (34) no longer coincides numerically with the leaf-miss count
+  (29), retiring the numerical coincidence that earlier versions of this bullet warned about.
 
 ### 9.3a Color depth: the 256 -> 16 -> none ladder, and the user's override
 
@@ -729,18 +731,20 @@ It owns the presentation-override surface that Sections 9.3 and 11 are written a
 1. IT IS NOT A DESIGN CONFLICT. That plan explicitly records `STATUS_COLOR_256` and `Term.color256` as
    "prior art, not a conflict", and it never touches the lifecycle color table this spec replaces. So
    nothing in it needs overriding.
-2. IT ADDS THE FLAGS THIS SPEC ASSUMES. `--no-color` is currently missing from 25 of 219 subcommands
-   (measured in that plan, and the gap is regrowing as new subcommands miss the shared parent), and
-   `--color` has NO flag form at all, existing only as `FORCE_COLOR`. A13 of this spec speaks of
-   `FORCE_COLOR` "according to existing precedence", and that precedence is exactly what `yaxr4i`
-   settles. Landing this spec's resolver first would validate A11 to A13 against a surface about to move.
+2. IT ADDS THE FLAGS THIS SPEC ASSUMES. `--no-color` is missing from 25 of 219 subcommands as a pre-`yaxr4i`
+   historical measurement (measured in that plan before `yaxr4i` added the flags; at later HEADs 29 of 253
+   leaves declare neither flag, all accounted for as in Section 9.3), and `--color` has NO flag form at all,
+   existing only as `FORCE_COLOR`. A13 of this spec speaks of `FORCE_COLOR` "according to existing precedence",
+   and that precedence is exactly what `yaxr4i` settles. Landing this spec's resolver first would validate A11
+   to A13 against a surface about to move.
 3. IT CARRIES A SETTLED RULING THAT MAKES A11 SAFE, and this was CORRECTED at review after an earlier
    draft of this section got it backwards. `yaxr4i` OQ-01 asked whether non-TTY stdout should select AGENT
-   mode as `docs/cli-output-contract.md:159-163` promises. It is `- Status: resolved`: the maintainer ruled
-   OPTION B on 2026-09-10, correct the document, because the promise NEVER SHIPPED (piping `aw` emits prose
-   today), nothing can depend on behavior that never existed, an unknown number of external consumers
-   depend on the ACTUAL behavior, and `--agent` already covers the capability. So piped output stays human,
-   A11 is UNCONDITIONAL, and the document is being retracted rather than implemented.
+   mode as `docs/cli-output-contract.md` promised at the time (in the text now retracted under
+   `## 9. Automatic Non-TTY Migration Policy: RETRACTED 2026-09-19`). It is `- Status: resolved`: the
+   maintainer ruled OPTION B on 2026-09-10, correct the document, because the promise NEVER SHIPPED (piping
+   `aw` emits prose today), nothing can depend on behavior that never existed, an unknown number of external
+   consumers depend on the ACTUAL behavior, and `--agent` already covers the capability. So piped output
+   stays human, A11 is UNCONDITIONAL, and the document is being retracted rather than implemented.
    THE HAZARD THAT REMAINS IS A DOCUMENTATION LAG, not a design risk: the contract file still carries the
    unretracted promise until `yaxr4i` E-05 rewrites it, so anyone validating A11 from that document rather
    than from the ruling will reach the wrong conclusion. That is the strongest reason to land `yaxr4i`
@@ -762,7 +766,8 @@ TWO OBLIGATIONS FOLLOW, both on the implementing plan rather than on `yaxr4i`:
 2. RE-REVIEW THIS SPEC AFTER `yaxr4i` EXECUTES, BEFORE THE RESOLVER IS BUILT. This is a requirement, not a
    suggestion, and the reason is that `yaxr4i` changes the very surface three of this spec's criteria are
    written against: it adds `--color` where only `FORCE_COLOR` existed, adds `--no-color` to 25 of 219
-   subcommands, settles `--color`/`--no-color` precedence, and rewrites `docs/cli-output-contract.md`. A11,
+   subcommands (pre-`yaxr4i` historical measurement), settles `--color`/`--no-color` precedence, and
+   rewrites `docs/cli-output-contract.md`. A11,
    A12 and A13 must be re-read against the flags and precedence as SHIPPED rather than as anticipated
    here, and Section 9.3's "MUST preserve current ... behavior" needs re-pointing at whatever "current"
    then means. Run `/spec-review` on this spec again at that point; a re-review appends a new round and
@@ -830,9 +835,9 @@ through the merge-and-revalidate gate. Those four are ordinary rebase friction a
   a live warning. `docs/cli-output-contract.md` section 9 is headed "Automatic Non-TTY Migration Policy:
   RETRACTED 2026-09-19" and states "Piping or redirecting `aw` emits HUMAN-READABLE TEXT. `--agent` is
   the explicit and only way to obtain `aw.agent/v1` JSONL". The retracted sentence survives there only
-  as explicitly-quoted retracted text (`docs/cli-output-contract.md:225`), and section 1 now says outright
-  that "THE TTY-NESS OF STDOUT DOES NOT AFFECT THE MODE". So the document and the ruling agree, and an
-  implementer may now read either.
+  as explicitly-quoted retracted text under section `## 9. Automatic Non-TTY Migration Policy: RETRACTED 2026-09-19`
+  (line 343), and section 1 now says outright that "THE TTY-NESS OF STDOUT DOES NOT AFFECT THE MODE". So
+  the document and the ruling agree, and an implementer may now read either.
   SECOND, AND SUBSTANTIVE: "UNCONDITIONAL" IS NO LONGER TRUE AS WRITTEN, because `yaxr4i` added the very
   flag layer this spec asked for and placed it ABOVE the environment. `--color` now OVERRIDES all three
   of this criterion's conditions. Measured 2026-09-19 against `term.should_color` on a non-TTY stream,
@@ -855,7 +860,7 @@ through the merge-and-revalidate gate. Those four are ordinary rebase friction a
   `yaxr4i` touched neither (it adds no ASCII flag, and `should_unicode` takes no `override` parameter,
   unlike `should_color`). Only the CITATION was stale. This line read `term.py:224-227`, and at this HEAD
   those lines sit inside `should_color`'s `NO_COLOR`/`FORCE_COLOR` block rather than the ASCII test,
-  which lives in `term.should_unicode` (`agent_workflows/term.py:374` at this HEAD). CITED BY SYMBOL
+  which lives in symbol `term.should_unicode` in `agent_workflows/term.py`. CITED BY SYMBOL
   RATHER THAN BY LINE FROM HERE ON, deliberately: a line number in a spec rots on the next unrelated
   edit to the file above it, and a wrong line is worse than no line, because it sends a reader to code
   that looks relevant.
@@ -901,13 +906,13 @@ through the merge-and-revalidate gate. Those four are ordinary rebase friction a
   `term._FORCE_COLOR_FALSEY` and both `FORCE_COLOR` readings route through the single
   `term._force_color_is_forcing` predicate; splitting them re-creates a measured defect in which six
   `NO_COLOR`-set cells colorized.
-  NOTE THE FALSEY RULE IS NARROWER THAN THE PUBLISHED TABLE, recorded here rather than resolved because
-  it is not this spec's to decide. `docs/cli-output-contract.md` section 1.1 row 2 reads "`NO_COLOR` ...
-  disables, UNLESS `FORCE_COLOR` is set; `FORCE_COLOR` (any non-empty value) enables", which by its own
-  words makes `FORCE_COLOR=0` both cancel `NO_COLOR` and enable color. The SHIPPED code does NEITHER
-  (measured above). The code's behavior is the better one on accessibility grounds and is the one this
-  criterion ADOPTS; the document's wording is the stale artifact. AN IMPLEMENTER MUST FOLLOW THE CODE AND
-  THIS CRITERION, NOT THAT ROW. Filed as a defect against the document, not against this spec.
+  NOTE ON THE FORMER DOCUMENT CONFLICT (RESOLVED): An earlier draft of this criterion noted that
+  `docs/cli-output-contract.md` section 1.1 row 2 previously stated that any non-empty `FORCE_COLOR` enabled
+  color and warned an implementer to follow the code rather than that row. That document defect has since been
+  corrected: `docs/cli-output-contract.md` section 1.1 row 2 now states the falsey-value rule and explicitly
+  names `term._force_color_is_forcing`, so the document and this criterion agree. The code's behavior
+  (where falsey values neither force nor suppress) was adopted on accessibility grounds and remains the
+  contract across both documents.
   MUTUAL EXCLUSION IS A USAGE ERROR, NOT A PRECEDENCE QUESTION. Passing `--color` and `--no-color`
   together exits 2 on both the ordinary and the verbatim-forwarding paths (measured 2026-09-19, exit 2
   with `argument --color: not allowed with argument --no-color`), so no implementation needs a tie-break
@@ -1026,25 +1031,14 @@ Added at review, 2026-09-13:
   exactly the `blocked`/`waiting-input` pair, so deferring the override would strand the very users the
   lens protects. `config.CONFIG_SCHEMA` is also a declarative map, so a depth key is a schema entry rather
   than a mechanism, making the deferral argument weak on cost as well.
-- Resolution or deferral rationale: THIS IS THE ONE CONFLICT THE OVERRIDE RULING DOES NOT SETTLE, because
-  the counterparty is not a competing spec but a RUBRIC THIS SPEC SHOULD SATISFY.
-  `.aw/system/workflows/assess/lenses/accessibility.md:56-63` says "Do not assume 256-color or truecolor;
-  fall back through 16-color and then no-color" and "prefer the terminal's default fg/bg and the 16 named
-  colors, which users theme for their own contrast", with a NARROW exception attributed to DECISIONS D133
-  scoped to the `aw attention` human view alone. That lens is the binding rubric which spec
-  `20260706-0000-01` Goal 9 delegates to, so it is not something this spec may simply override.
-  THIS SPEC EXTENDS xterm-256 TO EVERY RENDERER IT NAMES (both runners, indexes, lint views, run viewers,
-  status commands) and specifies NO 16-color degradation path at all. Two things follow and only a human
-  can choose between them. EITHER the D133 exception is widened to every renderer here, in the same change
-  that lands the resolver, accepting that a 16-color terminal gets approximate colors while the word and
-  glyph still carry the meaning. OR this spec owes a 16-color fallback column beside its ASCII column,
-  which is real added scope and a second table to keep correct.
-  WHY IT BLOCKS: the lens is the standard a reviewer would hold an implementation to, so shipping the
-  resolver without settling this leaves the implementing plan unable to satisfy both documents at once.
-  THE ACCESSIBILITY COST IS ALREADY PARTLY MITIGATED and that is worth weighing: this spec never makes
-  color the sole carrier (Section 11 item 2), so a user whose terminal renders 214 and 208 as the same
-  orange still reads `waiting-input` versus `blocked` from the word and from `…` versus `⚠︎`. The residual
-  risk is scanning speed on a dense board, not lost information.
+- Resolution or deferral rationale: THIS CONFLICT WAS RESOLVED BY CORRECTING THE LENS, not by overriding it.
+  The accessibility lens at `.aw/system/workflows/assess/lenses/accessibility.md` was corrected during review
+  of this spec (2026-09-13) to normatively specify the 256 -> 16 -> none degradation ladder of DECISIONS D42:
+  256-color is the top tier and may be used where it earns its keep, while 16-color and no-color are the
+  required fallbacks below it. The former wording ("prefer the terminal's default fg/bg and the 16 named
+  colors", which contradicted D42 and created an artificial conflict) survives in the lens only as explicitly
+  marked history. The lens and this spec now agree on the 256 -> 16 -> none ladder, and Section 9.3a defines
+  the authored 16-color palette and fallbacks.
 
 ### OQ-02: Should one of `needs_input` and `awaiting-human` retire once `run_gates` is wired?
 
