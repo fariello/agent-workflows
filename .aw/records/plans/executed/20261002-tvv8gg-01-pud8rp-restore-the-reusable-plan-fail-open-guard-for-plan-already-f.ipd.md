@@ -6,7 +6,7 @@
 - Scope: Add behavioral coverage at `tests/test_finidem_reusable_not_finalized.py` that drives the shipped predicate and the shipped driver seam over a synthesized repo, asserting (a) `plan_already_finalized` answers False for a `reusable/` plan and True for an `executed/` one, (b) a receipt-less reusable plan classifies `receipt-never-issued` and NOT `receipt-consumed-already-finalized`, and (c) `runner_shared.finalize_outcome` keeps a nonzero refusal for that plan. Then repoint BOTH dangling citations in `ipd_lifecycle.py` at tests that actually exist. EXCLUDES widening any `aw check` rule to scan source docstrings (owned by `j7daih`), the other 87 dangling source citations measured during authoring (owned by `iosmvn`, `9vfxhn`, and per-path items), and restoring any other class from the deleted file.
 - Scope-Paths: agent_workflows/ipd_lifecycle.py, tests/test_finidem_reusable_not_finalized.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: medium
@@ -16,9 +16,9 @@
 - Highest E allocated: 06
 - Author: opencode/its_direct/pt3-claude-opus-5-1m-us
 - Id: pud8rp
-- Approval: 2026-10-07, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-08 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: pud8rp verified (set tvv8gg, attempt 1).
 - 2026-10-07 approved (aw set): status set to approved
 - 2026-10-07 reviewed (opencode/its_direct/pt3-claude-opus-5.5-1m-us): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-001 (MEDIUM, fixed: E-04/V-04 gain an `executed/` positive contrast at the driver seam so the nonzero assertion cannot pass vacuously), PR-002 (MEDIUM, fixed: gate's unconditional `aw ipd finalize` made conditional on runner ownership), PR-003 (LOW, fixed: E-01/E-05/V-06 name the exact mutation and use `git grep` so the `.pyc` binary match is not counted), PR-004 (LOW, fixed: F-05 purge date corrected to 2026-09-23). Re-measured at HEAD `ca03f0c56`: dead file absent, two `git grep` citation sites, `if bucket != "executed"` present, `/reusable/` in `TERMINAL_DIRECTORY_SEGMENTS`, deletion by `19313eed7`, no surviving reusable+finalize guard; scratch-repo probe gave precheck `(1, receipt-never-issued)`, `finalize_outcome` 1 for reusable and 0 for an `executed/` plan, and under the in-process substitution `(1, receipt-consumed-already-finalized)` with `finalize_outcome` 0.
 
