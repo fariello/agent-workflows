@@ -6,7 +6,7 @@
 - Scope: IN: append ONE sentence stating the reachability obligation to `ipd_authoring._VALID_INTRO`, the prose an author reads immediately above the `- Required evidence:` line it governs, and REGENERATE the two byte-pinned templates from `build_skeleton`; add a behavioral guard that the scaffolded validation intro of BOTH kinds carries the rule's three load-bearing elements. OUT, each with a reason recorded under "Deferred": the `- Required evidence: TODO falsifiable evidence.` placeholder string itself, which is a tracked authoring-incomplete marker two executed plans refused to touch; a lint rule rejecting an unreachable demand, which spec `ipd-structure-and-linting` Section 5.4 forbids; the spec amendment recording a reachability property of `Required evidence:`, which sibling carrier `ezv744` owns; the two review bodies, which already carry the rule and are not re-worded; and `_EXEC_INTRO`, which governs execution items and not evidence demands.
 - Scope-Paths: agent_workflows/ipd_authoring.py, .aw/system/workflows/assess/templates/ipd.md, .aw/system/workflows/assess/templates/orchestrator-ipd.md, tests/test_v_item_demonstration_reachability.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -16,9 +16,9 @@
 - Highest E allocated: 04
 - Author: opencode/its_direct/pt3-claude-opus-5-1m-us
 - Id: ua133b
-- Approval: 2026-10-07, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-08 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: ua133b verified (set l07ohc, attempt 1).
 - 2026-10-07 approved (aw set): status set to approved
 - 2026-10-07 reviewed (opencode/its_direct/pt3-claude-opus-5.5-1m-us): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-001 (MEDIUM, fixed: V-04(b) demanded an unreachable CLI conforming disposition; a fresh scaffold lints advisory via check.ipd-dependency-unresolved, so it now demands exit 0 plus lint_text conforming), PR-002 (LOW, fixed: baseline by execution-time failing node ids), PR-003 (LOW, fixed: ezv744 graduated to 5q9a6a; its Section 14 handoff to l07ohc explicitly declined), PR-004 (MEDIUM, fixed: gate runner/hand lifecycle ownership, scope fence, l07ohc close), PR-005 (LOW, fixed: OQ-01 resolved no; CHANGELOG no entry). Re-verified at ca03f0c56: review bullets 1846/1846 equal, intro not a placeholder, Required-evidence marker is one, 12 passed on the two directly affected modules, real scaffold writes the current intro.
 
