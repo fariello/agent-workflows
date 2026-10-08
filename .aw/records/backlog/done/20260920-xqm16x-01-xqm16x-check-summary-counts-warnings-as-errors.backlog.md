@@ -1,5 +1,5 @@
 - Id: xqm16x
-- Status: graduated
+- Status: done
 - Graduated-To: sevtruth
 - Blocks-Release: next
 - Set: xqm16x
@@ -8,6 +8,7 @@
 - Summary: aw check's errors/warnings tally keys on the rule NAME prefix instead of the finding's severity, so every warning is counted as an error
 
 ## Workflow history
+- 2026-10-08 done (aw backlog): closed by aw agy run: IPD nwcf8j executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20260929-sevtruth-01-nwcf8j-report-each-finding-s-real-severity-in-the-doctor-and-attent.ipd.md); evidence .aw/records/plans/executed/20260929-sevtruth-01-nwcf8j-report-each-finding-s-real-severity-in-the-doctor-and-attent.ipd.md
 - 2026-09-29 set (aw backlog): graduated by run run-20260928T235632Z-1358353: nwcf8j
 - 2026-09-20 created (aw backlog): Found while wiring the IPD lint family into the plan sweep (lintreach k9awrq).
 
