@@ -92,6 +92,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 - THE ORCHESTRATOR HALF OF THE KIND RULE. Owned by pending plan `xvi55d`.
   - Carrier: xvi55d
+  - Carrier-Evidence: .aw/records/plans/executed/20261001-oev4h7-01-xvi55d-refuse-an-orchestrator-at-a-nonzero-order-in-aw-group-and-aw.ipd.md
 - OTHER ARTIFACT TYPES' `aw group`/`aw rename`. They route through `artifact_rename`, whose regex E-03 widens; their name builder `compute_target_name` is not shown to accept an out-of-range order, and no measurement shows a defect there.
   - Carrier-Declined: not measured as broken; E-03's regex widening removes the shared duplicate-line trap
 
