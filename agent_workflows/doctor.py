@@ -5,9 +5,12 @@ structured, actionable report. Composes existing checks; reimplements none; writ
 
 from __future__ import annotations
 
+import json
 import os
 import subprocess
 import sys
+import urllib.parse
+import urllib.request
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Sequence, Set, Tuple
@@ -426,6 +429,11 @@ def probe_environment(
                     )
                 )
 
+        # Stale local build check (IPD whz0oi / E-04)
+        stale_build_drift = check_stale_build()
+        if stale_build_drift is not None:
+            res.drift.append(stale_build_drift)
+
         # wslayout Order 05 (30jug9), spec kw5y2s Section 6.2: the emitted machine-readable layout
         # document is absent from, or stale relative to, an INSTALLED workspace. Attached to THIS
         # probe (rather than `probe_artifacts`) because this probe already owns every layout and
@@ -810,6 +818,184 @@ def run_doctor(
 def _version_drift(repo_root: Path) -> List[core.Drift]:
     """Legacy helper for testing version drift isolatedly."""
     return probe_environment(repo_root).drift
+
+
+_ACTIVE_DIST_INFO_OVERRIDE: Optional[Path] = None
+
+
+def check_stale_build(
+    dist_info_path: Optional[Path] = None,
+    *,
+    running_version: Optional[str] = None,
+) -> Optional[core.Drift]:
+    """Detect whether an installed distribution was built from a local git checkout that is ahead.
+
+    Detection (IPD whz0oi / E-04):
+    1. Read the running distribution's direct_url.json from dist_info_path (or the sibling dist-info).
+    2. When url is file://<dir>, dir_info.editable is not true, <dir> is a git work tree, and its
+       git rev-parse --short=<len of the build sha> HEAD differs from the +g<sha> local segment of
+       the running version, report both shas, the commit distance if git rev-list --count
+       <build-sha>..HEAD succeeds, and the remedy pip install <dir>.
+    3. When the build sha is not an object in <dir>, still warn, omit distance, and say so.
+    4. A .d<date> dirty segment in the running version is ignored.
+    5. Returns None for editable, registry (no direct_url.json), non-file://, missing directory,
+       non-git directory, a version with no +g<sha> segment, or git that fails/times out.
+    6. All git calls carry a 5-second timeout and never raise.
+    """
+    if dist_info_path is None:
+        if _ACTIVE_DIST_INFO_OVERRIDE is not None:
+            dist_info_path = _ACTIVE_DIST_INFO_OVERRIDE
+        else:
+            try:
+                from agent_workflows._compat import packaged_source_root
+
+                if packaged_source_root() is None:
+                    return None
+                package_dir = Path(__file__).resolve().parent
+                site_packages = package_dir.parent
+                candidates = sorted(site_packages.glob("agent_workflows-*.dist-info"))
+                if not candidates:
+                    candidates = sorted(
+                        site_packages.glob("agent-workflows-*.dist-info")
+                    )
+                for d in candidates:
+                    if d.is_dir():
+                        dist_info_path = d
+                        break
+            except Exception:
+                return None
+
+    if dist_info_path is None or not dist_info_path.is_dir():
+        return None
+
+    direct_url_file = dist_info_path / "direct_url.json"
+    if not direct_url_file.is_file():
+        return None
+
+    try:
+        data = json.loads(direct_url_file.read_text(encoding="utf-8"))
+    except Exception:
+        return None
+
+    if not isinstance(data, dict):
+        return None
+
+    dir_info = data.get("dir_info") or {}
+    if dir_info.get("editable"):
+        return None
+
+    url = data.get("url")
+    if not isinstance(url, str) or not url.startswith("file://"):
+        return None
+
+    try:
+        parsed = urllib.parse.urlparse(url)
+        if parsed.scheme != "file":
+            return None
+        dir_str = urllib.request.url2pathname(urllib.parse.unquote(parsed.path))
+        dir_path = Path(dir_str)
+        if not dir_path.is_dir():
+            return None
+    except Exception:
+        return None
+
+    # Check that dir_path is a git work tree
+    try:
+        proc = subprocess.run(
+            ["git", "rev-parse", "--is-inside-work-tree"],
+            cwd=str(dir_path),
+            capture_output=True,
+            text=True,
+            timeout=5.0,
+            check=False,
+        )
+        if proc.returncode != 0 or proc.stdout.strip() != "true":
+            return None
+    except Exception:
+        return None
+
+    # Resolve running version
+    if running_version is None:
+        try:
+            import importlib.metadata
+
+            running_version = importlib.metadata.Distribution.at(
+                str(dist_info_path)
+            ).version
+        except Exception:
+            pass
+    if running_version is None:
+        try:
+            from agent_workflows import __version__ as pkg_ver
+
+            running_version = pkg_ver
+        except Exception:
+            pass
+
+    if not running_version:
+        return None
+
+    # Extract +g<sha> (ignoring any subsequent .d<date> dirty suffix)
+    build_sha = versioning.extract_git_sha(running_version)
+    if not build_sha:
+        return None
+    sha_len = len(build_sha)
+
+    # Check source checkout HEAD sha
+    try:
+        proc = subprocess.run(
+            ["git", "rev-parse", f"--short={sha_len}", "HEAD"],
+            cwd=str(dir_path),
+            capture_output=True,
+            text=True,
+            timeout=5.0,
+            check=False,
+        )
+        if proc.returncode != 0:
+            return None
+        head_sha = proc.stdout.strip()
+    except Exception:
+        return None
+
+    if not head_sha or head_sha.lower() == build_sha.lower():
+        return None
+
+    # Check commit distance if build_sha is in git history
+    distance = None
+    sha_in_history = False
+    try:
+        proc_dist = subprocess.run(
+            ["git", "rev-list", "--count", f"{build_sha}..HEAD"],
+            cwd=str(dir_path),
+            capture_output=True,
+            text=True,
+            timeout=5.0,
+            check=False,
+        )
+        if proc_dist.returncode == 0:
+            distance = int(proc_dist.stdout.strip())
+            sha_in_history = True
+    except Exception:
+        pass
+
+    rebuild_cmd = f"pip install {dir_str}"
+    if sha_in_history and distance is not None:
+        detail = (
+            f"installed build {build_sha} is {distance} commit{'s' if distance != 1 else ''} "
+            f"behind source checkout {head_sha} at {dir_str}; rebuild with '{rebuild_cmd}'"
+        )
+    else:
+        detail = (
+            f"installed build {build_sha} differs from source checkout {head_sha} at {dir_str} "
+            f"(build sha is not an object in {dir_str}); rebuild with '{rebuild_cmd}'"
+        )
+
+    return core.Drift(
+        "<build>",
+        "doctor.stale-build",
+        detail,
+        recovery=rebuild_cmd,
+    )
 
 
 # --------------------------------------------------------------------------------------
@@ -1259,6 +1445,19 @@ def build_remediation(d: core.Drift, repo_root: Path) -> Remediation:
                 "run 'pip install -U agent-workflows' (or 'pipx upgrade agent-workflows') to "
                 "upgrade the running package, then 'aw install' in each repo to refresh its "
                 "managed files to the new version."
+            ),
+            command=cmd,
+            file_path=None,
+        )
+
+    if rule.startswith("doctor.stale-build"):
+        title = "Installed build is behind local source checkout"
+        cmd = d.recovery if d.recovery else "pip install ."
+        return Remediation(
+            title=title,
+            summary_fix=cmd,
+            detailed_fix=(
+                f"{detail}. Run '{cmd}' to rebuild and reinstall from the local source checkout."
             ),
             command=cmd,
             file_path=None,

@@ -992,6 +992,47 @@ class _RunStatusAction(argparse.Action):
         namespace.active_state = items
 
 
+class _VersionAction(argparse.Action):
+    """Print the version and exit, conditionally appending a stale-build note (IPD whz0oi / E-06)."""
+
+    def __init__(
+        self,
+        option_strings,
+        version=None,
+        dest=argparse.SUPPRESS,
+        default=argparse.SUPPRESS,
+        help="Print the agent-workflows version and exit.",
+    ):
+        super().__init__(
+            option_strings=option_strings,
+            dest=dest,
+            default=default,
+            nargs=0,
+            help=help,
+        )
+        self.version = version
+
+    def __call__(self, parser, namespace, values, option_string=None):
+        version_str = (
+            self.version
+            if self.version is not None
+            else f"agent-workflows {__version__}"
+        )
+        lines = [version_str]
+        try:
+            from . import doctor
+
+            stale = doctor.check_stale_build()
+            if stale is not None and stale.recovery:
+                lines.append(
+                    f"warning: build is stale; rebuild with '{stale.recovery}'"
+                )
+        except Exception:
+            pass
+        parser._print_message("\n".join(lines) + "\n", sys.stdout)
+        parser.exit()
+
+
 def _build_parser() -> argparse.ArgumentParser:
     # ttyflags `yaxr4i` E-01/E-02: TWO nested parents, because the two flag pairs have different
     # reach and collapsing them into one was measurably wrong.
@@ -1102,7 +1143,7 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "-V",
         "--version",
-        action="version",
+        action=_VersionAction,
         version=f"agent-workflows {__version__}",
         help="Print the agent-workflows version and exit.",
     )
