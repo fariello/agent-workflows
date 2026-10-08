@@ -3698,11 +3698,78 @@ def selector_vocabulary() -> frozenset:
     return frozenset(vocab)
 
 
+class ExcludedTreeMatch(NamedTuple):
+    """An artifact in a deliberately excluded records tree matched by a selector token (uxb0tz E-02)."""
+
+    token: str
+    path: str  # repo-relative POSIX path
+    policy: A.TreePolicy
+
+    @property
+    def name(self) -> str:
+        return self.policy.name
+
+    @property
+    def reason(self) -> str:
+        return self.policy.reason
+
+
+def resolve_excluded_tree_matches(
+    token: str, repo_root: Path
+) -> List[ExcludedTreeMatch]:
+    """Pure helper answering does this token resolve to an artifact under an EXCLUDED TreePolicy.
+
+    treegap `uxb0tz` E-02.
+
+    DERIVES TYPES FROM TREE_POLICY, NOT A HARD-CODED TUPLE (F-15, PR-04).
+    Composes selectors.resolve_selectors and _classify_tree. If the token resolves
+    to an artifact in a TRACKED tree, returns empty (the attention view already shows it).
+    """
+    tok = (token or "").strip()
+    if not tok:
+        return []
+
+    # If the token resolves in any tracked tree, it is an artifact the view already shows;
+    # do not treat it as an excluded-tree artifact.
+    for pol in A.TREE_POLICY:
+        if pol.tracked:
+            try:
+                if _sel.resolve_selectors(repo_root, pol.name, [tok]):
+                    return []
+            except Exception:
+                pass
+
+    matches: List[ExcludedTreeMatch] = []
+    seen: set = set()
+    for pol in A.TREE_POLICY:
+        if pol.tracked:
+            continue
+        try:
+            paths = _sel.resolve_selectors(repo_root, pol.name, [tok])
+        except Exception:
+            continue
+        for p in paths:
+            rel = _rel_posix(repo_root, p)
+            cpol = _classify_tree(rel)
+            if cpol is not None and not cpol.tracked and (rel, cpol.name) not in seen:
+                seen.add((rel, cpol.name))
+                matches.append(ExcludedTreeMatch(token=tok, path=rel, policy=cpol))
+    return matches
+
+
+def resolve_excluded_tree_policy(token: str, repo_root: Path) -> List[A.TreePolicy]:
+    """Pure helper answering does this token resolve to an artifact under an EXCLUDED TreePolicy.
+
+    treegap `uxb0tz` E-02. Returns the matching TreePolicy objects (name + reason) or empty.
+    """
+    return [m.policy for m in resolve_excluded_tree_matches(token, repo_root)]
+
+
 class SelectorMatchFacts(NamedTuple):
     """Per-token answers to "did this selector match anything, and is it even a valid selector?".
 
-    attsel `fqnj8k` E-03. Two facts are kept SEPARATE because they are different messages and
-    conflating them would trade one ambiguity for another (F3):
+    attsel `fqnj8k` E-03 / treegap `uxb0tz` E-03. Three facts are kept SEPARATE because they are
+    different messages and conflating them would trade one ambiguity for another (F3):
 
     * ``unmatched`` - the token is a well-formed selector that matched NO artifact in the unfiltered
       scan. This is the typo case.
@@ -3710,18 +3777,25 @@ class SelectorMatchFacts(NamedTuple):
       swallows that in a bare `except Exception: pass`, so today a malformed selector is as silent as
       a merely-absent one. A token here is also in ``unmatched`` when it matched nothing, because a
       malformed token that somehow matched by path substring is still a match.
+    * ``excluded_tree`` - the token resolved to an artifact in an excluded records tree (E-03).
     """
 
     matched: Tuple[str, ...]
     unmatched: Tuple[str, ...]
     invalid: Tuple[str, ...]
     vocabulary: Tuple[str, ...]
+    excluded_tree: Tuple[ExcludedTreeMatch, ...] = ()
 
     @property
     def refusable(self) -> Tuple[str, ...]:
-        """The unmatched tokens that are NOT a standing vocabulary question, i.e. the refusals."""
+        """The unmatched tokens that are NOT a standing vocabulary question or an excluded-tree artifact."""
         vocab = set(self.vocabulary)
-        return tuple(t for t in self.unmatched if t.lower() not in vocab)
+        excluded_tokens = {m.token.lower() for m in self.excluded_tree}
+        return tuple(
+            t
+            for t in self.unmatched
+            if t.lower() not in vocab and t.lower() not in excluded_tokens
+        )
 
 
 def selector_match_facts(
@@ -3782,6 +3856,7 @@ def selector_match_facts(
         "roadmaps",
         "releases",
     )
+    excluded_matches: List[ExcludedTreeMatch] = []
     for tok in tokens:
         # Ask the ONE matcher the view uses, for this token alone. Calling it per token is what turns
         # its set-valued answer into a per-token fact without duplicating any matching rung.
@@ -3793,6 +3868,10 @@ def selector_match_facts(
             matched.append(tok)
         else:
             unmatched.append(tok)
+            # treegap `uxb0tz` E-03: check if unmatched token resolves into an excluded records tree
+            ex_matches = resolve_excluded_tree_matches(tok, repo_root)
+            if ex_matches:
+                excluded_matches.extend(ex_matches)
         # Independently: did the resolver raise for EVERY record type? That is the malformed-selector
         # fact, which the filter's bare `except Exception: pass` currently hides. Raising for every
         # type is the test, not raising for one: most tokens raise for the types they are not.
@@ -3811,6 +3890,7 @@ def selector_match_facts(
         unmatched=tuple(unmatched),
         invalid=tuple(invalid),
         vocabulary=tuple(sorted(selector_vocabulary())),
+        excluded_tree=tuple(excluded_matches),
     )
 
 
@@ -3910,6 +3990,9 @@ def unresolved_selector_agent_record(facts: SelectorMatchFacts) -> Dict[str, Any
     if facts.invalid:
         # F3: kept distinct from merely-unmatched, since they are different messages.
         record["invalid_selectors"] = list(facts.invalid)
+    if facts.excluded_tree:
+        record["excluded_selectors"] = [m.token for m in facts.excluded_tree]
+        record["excluded_tree_selectors"] = [m.token for m in facts.excluded_tree]
     # Fail closed on our OWN record rather than trusting it by eye (the plan forbids asserting schema
     # validity without the validator).
     _agent_schema.assert_valid_agent_record(record)
@@ -3946,6 +4029,127 @@ def _emit_unresolved_selector_refusal(
     term = T.Term(stream=sys.stderr, color=color)
     sys.stderr.write(format_unresolved_selector_message(facts, term=term) + "\n")
     return EXIT_UNRESOLVED_SELECTOR
+
+
+def format_excluded_tree_message(
+    facts: SelectorMatchFacts, *, term: Optional[T.Term] = None
+) -> str:
+    """The human report for selector tokens that resolved into an excluded records tree.
+
+    treegap `uxb0tz` E-04. Reuses `term.Term.format_empty_result`.
+    """
+    if term is None:
+        term = T.Term(stream=sys.stderr, color=False)
+
+    matches = facts.excluded_tree
+    tokens = [m.token for m in matches]
+    noun = "selector" if len(tokens) == 1 else "selectors"
+    quoted = ", ".join(repr(t) for t in tokens)
+    trees = ", ".join(sorted({m.policy.name for m in matches}))
+    summary = f"artifact matched {noun} {quoted} in excluded tree {trees}"
+    if len(matches) == 1:
+        m = matches[0]
+        filters: List[Tuple[str, Any]] = [
+            ("excluded selector", m.token),
+            ("resolved path", m.path),
+            ("excluded tree", m.policy.name),
+            ("exclusion reason", m.policy.reason),
+        ]
+    else:
+        filters = []
+        for m in matches:
+            filters.append(("excluded selector", m.token))
+            filters.append((f"resolved path ({m.token})", m.path))
+            filters.append((f"excluded tree ({m.token})", m.policy.name))
+            filters.append((f"exclusion reason ({m.token})", m.policy.reason))
+
+    next_cmd = f"aw find {' '.join(tokens)}"
+    return term.format_empty_result(
+        summary,
+        filters=filters,
+        next_action=(
+            next_cmd,
+            "show the artifact directly",
+        ),
+        status="clean",
+    )
+
+
+def excluded_tree_agent_record(
+    facts: SelectorMatchFacts, repo_root: Path
+) -> Dict[str, Any]:
+    """The `aw.agent/v1` result record for selector tokens that resolved into an excluded tree.
+
+    treegap `uxb0tz` E-04 (F-13, PR-02). Emits kind: "result" with outcome: "clean",
+    verified: true, complete: true, exit: 0. Names excluded tokens in a dedicated field.
+    """
+    from agent_workflows import agent_schema as _agent_schema
+
+    matches = facts.excluded_tree
+    tokens = [m.token for m in matches]
+    quoted = ", ".join(repr(t) for t in tokens)
+    trees = ", ".join(sorted({m.policy.name for m in matches}))
+
+    if len(matches) == 1:
+        summary = f"artifact matched selector {quoted} in excluded tree {trees}"
+    else:
+        summary = f"artifacts matched selectors {quoted} in excluded trees: {trees}"
+
+    record: Dict[str, Any] = {
+        "schema": _agent_schema.SCHEMA_VERSION,
+        "kind": "result",
+        "cmd": "attention",
+        "outcome": "clean",
+        "exit": 0,
+        "verified": True,
+        "complete": True,
+        "excluded_selectors": tokens,
+        "excluded_tree_selectors": tokens,
+        "excluded_artifacts": [
+            {
+                "selector": m.token,
+                "path": m.path,
+                "tree": m.policy.name,
+                "reason": m.policy.reason,
+            }
+            for m in matches
+        ],
+        "summary": summary,
+        "next": f"aw find {' '.join(tokens)}",
+    }
+    if facts.matched:
+        record["matched_selectors"] = list(facts.matched)
+    if facts.invalid:
+        record["invalid_selectors"] = list(facts.invalid)
+
+    _agent_schema.assert_valid_agent_record(record)
+    return record
+
+
+def _emit_excluded_tree_explanation(
+    facts: SelectorMatchFacts, *, args, ctx, repo_root: Path
+) -> None:
+    """Emit the excluded-tree explanation on whichever surface is active.
+
+    treegap `uxb0tz` E-04. Channel split:
+    - stdout for --agent, --json/--format json, and --check
+    - stderr for human board and list modes
+    """
+    is_json = ctx.is_json or getattr(args, "format", None) == "json"
+    is_agent = ctx.is_agent
+    check = getattr(args, "check", False)
+
+    if not facts.refusable and (is_agent or is_json):
+        record = excluded_tree_agent_record(facts, repo_root=repo_root)
+        indent = 2 if is_json else None
+        sys.stdout.write(json.dumps(record, indent=indent, ensure_ascii=False) + "\n")
+        return
+
+    color = False if getattr(args, "no_color", False) else None
+    stream = sys.stdout if (check and not facts.refusable) else sys.stderr
+    term = T.Term(stream=stream, color=color)
+    msg = format_excluded_tree_message(facts, term=term) + "\n"
+    stream.write(msg)
 
 
 def run(args) -> int:
@@ -4192,6 +4396,17 @@ def run(args) -> int:
     # through the drift set would get the `--check` behavior for free but would make `--json`'s `valid`
     # flag mean "you typed wrong", and would leave the maintainer unable to relax OQ-02 without
     # touching the drift path.
+    # treegap `uxb0tz` E-04: THE EXCLUDED-TREE EXPLANATION, EVALUATED BEFORE THE REFUSAL GUARD.
+    # Evaluated immediately before the refusal guard, keyed on the excluded-tree fact rather than
+    # on refusable, so it fires for an excluded token even when a second token in the same
+    # invocation is refusable (ordering matters; mixed case emits explanation first, then refuses).
+    if selector_facts is not None and selector_facts.excluded_tree:
+        _emit_excluded_tree_explanation(
+            selector_facts, args=args, ctx=ctx, repo_root=repo_root
+        )
+        if not selector_facts.refusable:
+            return 0
+
     if selector_facts is not None and selector_facts.refusable:
         return _emit_unresolved_selector_refusal(
             selector_facts, args=args, ctx=ctx, repo_root=repo_root
