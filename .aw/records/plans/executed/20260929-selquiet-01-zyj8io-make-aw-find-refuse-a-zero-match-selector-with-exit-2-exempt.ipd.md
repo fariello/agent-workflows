@@ -4,9 +4,9 @@
 - Kind: child
 - Concern: `aw find <type> <selector>` reports a selector that matches NO artifact as a CLEAN SUCCESS, so a caller cannot tell a typo from a genuinely empty tree. Measured at HEAD `1f62764b`: `aw find plans zzzzzz` prints `✓ CLEAN  no matching plans` with the token echoed under `Active filters:` and exits 0; `--agent` emits `{"outcome":"clean","exit":0,"verified":true,"complete":true,"findings":0}`, which is the same record a successful query emits; `--json` emits `status:clean, exit_code:0`. A script that resolves an id6 through `aw find` and reads exit 0 with an empty result concludes "nothing to do", which is the wrong conclusion. THE DIVERGENCE IS THREE-WAY, NOT TWO-WAY, and that is worse than the backlog item knew: `--paths` already exits **1** on the same zero match (`cli.py` `return 0 if (all_paths or not selectors) else 1`), so ONE verb ships three different answers to one question across its four surfaces (0 human, 0 `--agent`, 0 `--json`, 1 `--paths`). Spec `25kzda` Section 2.3 rules "Zero matches return exit 2" and Section 2.4a exempts status selectors only, closing "A misspelled id6 still exits 2; only the status selectors are exempt". `aw runs` implements that; `aw attention` implements it as of `fqnj8k`. `aw find` is the remaining holdout.
 - Scope: Make `aw find` distinguish NO-MATCH from LEGITIMATELY-EMPTY on all four of its output surfaces (human, `--agent`, `--json`, `--paths`/`-p`), refusing a non-vocabulary zero-match at exit 2 and keeping a standing vocabulary question at exit 0, reusing `attention.selector_vocabulary()` plus `find`'s own type and status symbols. Reconciles the two CONFLICTING normative rules this change would otherwise violate in `docs/cli-output-contract.md`, and corrects the worked zero-match example in `docs/cli-agent-protocol.md`. Surveys the remaining selector-taking read verbs and reports. Does NOT change which artifacts match, the selector precedence, the row format, the unfiltered-listing exit code, or any other verb's behavior.
-- Scope-Paths: agent_workflows/cli.py, tests/test_cli_find.py, docs/cli-output-contract.md, docs/cli-agent-protocol.md
+- Scope-Paths: agent_workflows/cli.py, tests/test_cli_find.py, tests/test_find_agent_stream.py, docs/cli-output-contract.md, docs/cli-agent-protocol.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -17,9 +17,9 @@
 - Highest E allocated: 09
 - Author: opencode/its_direct-pt3-claude-opus-5-1m-us
 - Id: zyj8io
-- Approval: 2026-10-03, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-08 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: zyj8io verified (set selquiet, attempt 1). [Scope reconciliation - out-of-scope .aw/records/backlog/open/20261008-selquiet-01-tbe8v0-remaining-read-verbs-refuse-zero-match-exit-2.backlog.md: changed by the plan's approved execution (auto-reconciled by aw agy run); widened-scope tests/test_find_agent_stream.py: declared in Scope-Paths during execution because the approved work required it (additive widening, auto-reconciled by aw agy run)]
 - 2026-10-03 approved (aw set): status set to approved
 - 2026-10-02 readiness re-check (agent (aw ipd recheck-readiness)): `- Readiness:` CHANGED `no-go` -> `go-pending-approval`. THIS IS A RE-CHECK, NOT A REVIEW: no finding was re-derived and no plan content was re-critiqued. The three `no-go` conditions were RECOMPUTED with the shipped predicates and each was found clear: unresolved-blocking-question -> clear (no unresolved BLOCKING open question; `has_unresolved_blocking_question` -> False (a NON-blocking open question is deliberately not counted, per the maintainer's 2026-09-10 ruling on qhy3i3 OQ-01)); unresolved-gating-finding -> clear (no unresolved gating finding; `review_findings.subject_gating_blocks` -> empty (an ABSENT review artifact is silent by that predicate's documented contract)); negative-review-verdict -> clear (the newest review record's verdict is not negative; `newest_verdict` -> neutral). RE-CHECKED REVIEW: the review of 2026-09-30, findings F-1..OQ-02. Recomputed at HEAD `9b562dc8f`. HUMAN APPROVAL IS STILL REQUIRED AND WAS NOT GIVEN: `go-pending-approval` means the plan awaits sign-off, and nothing here approves it or clears it to execute. Only a review may set `go`.
 - 2026-09-30 reviewed (aw set; /plan-review by opencode its_direct/pt3-claude-opus-5-1m-us): REVIEWED - OPEN QUESTIONS; PR-C01 (HIGH, fixed), PR-C02 (MEDIUM, fixed), PR-C03 (MEDIUM, fixed), PR-C04 (MEDIUM, fixed), PR-C05 (MEDIUM, fixed), PR-C06 (HIGH, OPEN/escalated). All nine authored findings F-1..F-9 were re-driven and all nine reproduce. Five NEW findings added as F-10 (CommandResult cannot carry the token E-04 promises, so the --agent refusal would name nothing), F-11 (--agent emits bare paths on a match, so E-04's baseline was wrong), F-12 (E-08's survey was unbounded: 187 positional-bearing parser leaves), F-13 (the verb's real contract module tests/test_find_filters.py was unmentioned; measured all 11 tests survive), F-14 (the doc example's 89bby9 token resolves to a real plan today, so it is already false). OQ-01 resolved from evidence: stderr, on the previously uncited four-surface --status refusal already inside _run_find. OQ-02 ESCALATED to Blocking: yes, Owner: maintainer, as an irreversible published-exit-code change a reviewer may not authorize alone. Suite at review: 3387 passed, 2 skipped in 58.06s.
@@ -90,53 +90,53 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: pin today's behavior before changing it
 
-- [ ] E-01 WRITE THE CHARACTERIZATION TEST FIRST, capturing the full exit matrix of `aw find` across all four surfaces (human, `--agent`, `--json`, `--paths`) for four token classes: (a) a nonexistent token, (b) a VOCABULARY token that matches nothing in the fixture, (c) a token that matches at least one artifact, and (d) NO selector at all over an empty tree. Assert today's actual answers, INCLUDING the `--paths` divergence, so the three-way split is a recorded fact rather than a claim in prose. Build the fixture as a temporary repository rather than asserting against this repository's live records, whose contents change under the test. Class (d) exists to pin the case that must NOT change: an unfiltered listing of an empty tree is a successful empty answer, and the existing `not selectors` guard is what makes it so.
+- [x] E-01 WRITE THE CHARACTERIZATION TEST FIRST, capturing the full exit matrix of `aw find` across all four surfaces (human, `--agent`, `--json`, `--paths`) for four token classes: (a) a nonexistent token, (b) a VOCABULARY token that matches nothing in the fixture, (c) a token that matches at least one artifact, and (d) NO selector at all over an empty tree. Assert today's actual answers, INCLUDING the `--paths` divergence, so the three-way split is a recorded fact rather than a claim in prose. Build the fixture as a temporary repository rather than asserting against this repository's live records, whose contents change under the test. Class (d) exists to pin the case that must NOT change: an unfiltered listing of an empty tree is a successful empty answer, and the existing `not selectors` guard is what makes it so.
   - Depends on: none
   - Expected outcome: a pasted test run showing the recorded matrix, with (a) and (b) currently indistinguishable on every surface, and `--paths` answering 1 where the other three answer 0.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: the predicate, derived from symbols
 
-- [ ] E-02 BUILD `find`'s ZERO-MATCH VOCABULARY as the UNION of `attention.selector_vocabulary()` with `find`'s own accepted tokens, derived from `artifact_types.ARTIFACT_TYPES` (plus whatever alias map `at.normalize_type`/`at.is_type_token` consults) and from every per-type status enum `cli._find_valid_statuses` returns. Reusing attention's function is the point, so do NOT re-implement it; extend it by union. DERIVE, NEVER ENUMERATE: a literal list is what lets a newly added type silently become a refusal. Re-measure the gap at execution time rather than trusting this plan's numbers, and state whether it is still exactly `reviews`, `other`, `intake`. Prefer adding the union in `cli.py` over editing `attention.py`, so `attention`'s shipped contract and its `fqnj8k` tests are not disturbed; if the executor concludes the union belongs in a shared module instead, record that as a decision with its reason.
+- [x] E-02 BUILD `find`'s ZERO-MATCH VOCABULARY as the UNION of `attention.selector_vocabulary()` with `find`'s own accepted tokens, derived from `artifact_types.ARTIFACT_TYPES` (plus whatever alias map `at.normalize_type`/`at.is_type_token` consults) and from every per-type status enum `cli._find_valid_statuses` returns. Reusing attention's function is the point, so do NOT re-implement it; extend it by union. DERIVE, NEVER ENUMERATE: a literal list is what lets a newly added type silently become a refusal. Re-measure the gap at execution time rather than trusting this plan's numbers, and state whether it is still exactly `reviews`, `other`, `intake`. Prefer adding the union in `cli.py` over editing `attention.py`, so `attention`'s shipped contract and its `fqnj8k` tests are not disturbed; if the executor concludes the union belongs in a shared module instead, record that as a decision with its reason.
   - Depends on: none
   - Expected outcome: a pure function returning the vocabulary, plus pasted output proving the three measured gap tokens are members and that a nonsense token is not.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 COMPUTE THE PER-TOKEN MATCH FACT for `find`, keyed on MATCHED and not on RESOLVED. `find`'s last selector rung is a filename SUBSTRING test, so a token may legitimately match without resolving as any identifier, and a fact keyed on the resolver alone would refuse every substring query. Ask the same matcher the verb itself uses, one token at a time. HANDLE THE MULTI-TYPE CASE CORRECTLY: with no `--type`, `find` searches all of `at.ARTIFACT_TYPES`, so a token is MATCHED if it matches under ANY searched type, and reporting per-type absence would refuse almost every real query. ALSO PRESERVE THE EXPLICIT-FLAG INTERACTION: `--id`/`--set`/`--status`/`--topic`/`--disposition` narrow results AFTER selector resolution in `_find_type_records`, so a token whose match those flags then remove must NOT be reported as a no-match; pin the fact to the pre-narrowing resolution, which is the same false-no-match trap `fqnj8k` documents for `--type` in `attention`.
+- [x] E-03 COMPUTE THE PER-TOKEN MATCH FACT for `find`, keyed on MATCHED and not on RESOLVED. `find`'s last selector rung is a filename SUBSTRING test, so a token may legitimately match without resolving as any identifier, and a fact keyed on the resolver alone would refuse every substring query. Ask the same matcher the verb itself uses, one token at a time. HANDLE THE MULTI-TYPE CASE CORRECTLY: with no `--type`, `find` searches all of `at.ARTIFACT_TYPES`, so a token is MATCHED if it matches under ANY searched type, and reporting per-type absence would refuse almost every real query. ALSO PRESERVE THE EXPLICIT-FLAG INTERACTION: `--id`/`--set`/`--status`/`--topic`/`--disposition` narrow results AFTER selector resolution in `_find_type_records`, so a token whose match those flags then remove must NOT be reported as a no-match; pin the fact to the pre-narrowing resolution, which is the same false-no-match trap `fqnj8k` documents for `--type` in `attention`.
   - Depends on: E-02
   - Expected outcome: a function yielding matched/unmatched tokens for a given invocation, with a pasted test proving a substring-only query counts as matched and that a flag-narrowed match is not reported unmatched.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: the refusal, once, on every surface
 
-- [ ] E-04 REFUSE ON THE MACHINE SURFACES (`--agent` and `--json`) with exit 2 and a `cannot-run` outcome naming each unmatched token, matching the shape `aw runs` and `aw attention` already emit (`unresolved_targets`), so a consumer that already handles one handles this. Validate the emitted record with the schema validator rather than by eye. Keep `verified`/`complete` honest for a refusal: the query was not answered.
+- [x] E-04 REFUSE ON THE MACHINE SURFACES (`--agent` and `--json`) with exit 2 and a `cannot-run` outcome naming each unmatched token, matching the shape `aw runs` and `aw attention` already emit (`unresolved_targets`), so a consumer that already handles one handles this. Validate the emitted record with the schema validator rather than by eye. Keep `verified`/`complete` honest for a refusal: the query was not answered.
   DO NOT BUILD THE `--agent` RECORD THROUGH `CommandResult`, WHICH CANNOT CARRY THE TOKEN. Measured at review: `result_types.CommandResult` has no `unresolved_targets` field, and `CommandResult.to_agent_record` composes a FIXED key set (`schema`, `kind`, `cmd`, `outcome`, `exit`, `verified`, `complete`, `findings`, `next`, plus optional `applied`/`target`/`checked`/`changes`/`evidence`/`diagnostics`), so a token placed in `data` is SILENTLY DROPPED from the emitted `--agent` record. Driven: a `cannot-run` `CommandResult` carrying `data={"unresolved_targets": ["zzzzzz"]}` emits `{... "findings": 0, "next": null}` with no token anywhere, so E-04 as first written would have shipped a refusal that does not say WHAT failed, which is most of the value. The route that works is the one `attention` already uses: `attention._unresolved_selector_record` HAND-BUILDS the dict and calls `agent_schema.assert_valid_agent_record` on it, and the schema ACCEPTS the extra keys (driven at review with a find-shaped record carrying `unresolved_selectors`/`unresolved_targets`/`error`). Follow that. NOTE THE TWO MACHINE SURFACES DIVERGE HERE and handle them separately rather than assuming one shape serves both: `--json` renders `data` verbatim (driven: `data: {"unresolved_targets": ["zzzzzz"]}` survives), so the `CommandResult` route is adequate for `--json` and NOT for `--agent`.
   ALSO CORRECT THE SURFACE PREMISE: `--agent` is NOT a JSON-record surface in general. Measured, `cli._run_find`'s bare-path branch is guarded `if getattr(args, "paths", False) or (ctx.is_agent and all_paths)`, so `aw find plans <matching-id6> --agent` emits BARE PATHS (one per line, exit 0) and only a ZERO-match `--agent` invocation reaches the `CommandResult`. So this item changes the zero-match `--agent` path only, and the "unchanged record for a matching query" this item must preserve is a bare path list, not a JSON record.
   - Depends on: E-03
   - Expected outcome: pasted `--agent` and `--json` records for a typo token showing exit 2, `cannot-run`, AND the offending token present in the emitted bytes, both passing schema validation; plus proof that a MATCHING `--agent` query still emits its bare path list byte-identically.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 REFUSE ON THE HUMAN SURFACE with exit 2, naming EACH unmatched token individually rather than collapsing a multi-token invocation into one message, since a multi-token query is exactly where a single typo hides. Reuse the house empty-state primitive (`Term.format_empty_result`, which this verb and `attention`'s refusal both already use) rather than inventing a second message shape. Write the refusal to STDERR, matching `attention`'s refusal and `aw runs`, and record the consequence explicitly: a human zero-match message moves from stdout to stderr. NO "DID YOU MEAN" GUESS; a wrong guess is worse than a clean negative.
+- [x] E-05 REFUSE ON THE HUMAN SURFACE with exit 2, naming EACH unmatched token individually rather than collapsing a multi-token invocation into one message, since a multi-token query is exactly where a single typo hides. Reuse the house empty-state primitive (`Term.format_empty_result`, which this verb and `attention`'s refusal both already use) rather than inventing a second message shape. Write the refusal to STDERR, matching `attention`'s refusal and `aw runs`, and record the consequence explicitly: a human zero-match message moves from stdout to stderr. NO "DID YOU MEAN" GUESS; a wrong guess is worse than a clean negative.
   MODEL IT ON THE REFUSAL `find` ALREADY SHIPS, WHICH THIS PLAN NEVER CITED AND WHICH IS THE CLOSEST PRECEDENT THAT EXISTS. `cli._run_find`'s `--status` validation block is already a four-surface exit-2 `cannot-run` refusal in THIS function, and it already draws exactly the stream distinction E-05 and E-06 are arguing for: machine surfaces get a `CommandResult(status="cannot-run", exit_code=2)`, the `--paths` branch writes to a `Term(stream=sys.stderr, ...)` with the comment "stdout stays empty so a -p consumer sees no path; write refusal to stderr", and the human branch uses `term.status("fail", ...)`. Driven at review, all four surfaces answer 2 (`aw find plans --status bogus` on human, `--agent`, `--json`, `--paths`). Following the in-function precedent rather than importing `attention`'s shape keeps the diff small and means the two refusals in one function cannot drift; it also settles OQ-01 on evidence (see that question).
   - Depends on: E-03
   - Expected outcome: pasted human-surface output for one typo token and for two tokens where one is valid, showing each unmatched token named, exit 2, and stdout empty; plus a statement that the new refusal follows the shape of the `--status` refusal already in `_run_find`.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-06 CORRECT THE `--paths`/`-p` SURFACE to the same convention: exit 2 for a non-vocabulary zero match and exit 0 for a vocabulary zero match, replacing today's blanket exit 1. STDOUT MUST STAY BYTE-IDENTICAL (empty), with the refusal on stderr, because `--paths` exists to be piped and a diagnostic on its stdout would corrupt the consumer's stream; the `--status` refusal already in this function does precisely that and is the pattern to copy (E-05). THIS IS THE ONE DELIBERATE BREAKING CHANGE IN THE PLAN and it must be called out as such in the report: a script testing `if aw find ... -p; then` currently sees 1 for BOTH a typo and an empty vocabulary query, and will now see 2 and 0 respectively. Preserve the `not selectors` case at exit 0. NOTE THE SHIPPED `-p` ZERO-ROW TESTS THIS MUST NOT BREAK: `tests/test_find_filters.py` holds four `-p` cases asserting `rc == 0` on zero or few rows, all of which survive because they pass no selector or pass a matching one (F-13); a failure there means this item changed more than the zero-match selector path and is a STOP condition.
+- [x] E-06 CORRECT THE `--paths`/`-p` SURFACE to the same convention: exit 2 for a non-vocabulary zero match and exit 0 for a vocabulary zero match, replacing today's blanket exit 1. STDOUT MUST STAY BYTE-IDENTICAL (empty), with the refusal on stderr, because `--paths` exists to be piped and a diagnostic on its stdout would corrupt the consumer's stream; the `--status` refusal already in this function does precisely that and is the pattern to copy (E-05). THIS IS THE ONE DELIBERATE BREAKING CHANGE IN THE PLAN and it must be called out as such in the report: a script testing `if aw find ... -p; then` currently sees 1 for BOTH a typo and an empty vocabulary query, and will now see 2 and 0 respectively. Preserve the `not selectors` case at exit 0. NOTE THE SHIPPED `-p` ZERO-ROW TESTS THIS MUST NOT BREAK: `tests/test_find_filters.py` holds four `-p` cases asserting `rc == 0` on zero or few rows, all of which survive because they pass no selector or pass a matching one (F-13); a failure there means this item changed more than the zero-match selector path and is a STOP condition.
   - Depends on: E-03
   - Expected outcome: pasted exit codes for the typo, vocabulary, matching, and no-selector cases under `--paths`, plus proof stdout is empty on the refusal path.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 4: make the documented contract say one thing
 
-- [ ] E-07 RESOLVE THE CONTRACT CONFLICT in `docs/cli-output-contract.md` by drawing the distinction the document currently lacks: an empty RESULT SET from an unfiltered or vocabulary query stays `clean`/exit 0 (Section 11.1 survives, scoped), while a SELECTOR asserting a named artifact that matches nothing is a `cannot-run` at exit 2 (Section 12's "exits 1" is corrected, not deleted). Cite `25kzda` Section 2.3/2.4a as the governing ruling and note the two verbs already conforming. ALSO FIX the worked example in `docs/cli-agent-protocol.md`, which currently presents a zero-match `find` record for selector `89bby9` under the heading "Clean empty query result (`exit: 0`)" and would otherwise document the exact behavior this plan removes. THAT EXAMPLE IS ALREADY FALSE TODAY, INDEPENDENTLY OF THIS PLAN, which makes replacing it strictly a correction rather than a behavior-tracking edit: measured at review, `89bby9` is a REAL id6 in this repository (the executed plan `20260822-highpbacklog0822-04-89bby9-...`), so `aw find plans 89bby9 --json` answers `status: clean, exit_code: 0, count: 1`, not the `count: 0` the document prints. So do NOT simply re-label the same record as a refusal: that would keep a selector that matches, under a heading saying it does not. REPLACE THE TOKEN with one that genuinely matches nothing (a nonsense token), and then the record beneath it can honestly show the exit-2 refusal shape this plan introduces. Keep a `count: 0` clean example too, using an unfiltered or vocabulary query, since Section 11.1 survives for exactly that case and deleting its only illustration would leave the surviving half undocumented. NO em or en dashes in this user-facing prose.
+- [x] E-07 RESOLVE THE CONTRACT CONFLICT in `docs/cli-output-contract.md` by drawing the distinction the document currently lacks: an empty RESULT SET from an unfiltered or vocabulary query stays `clean`/exit 0 (Section 11.1 survives, scoped), while a SELECTOR asserting a named artifact that matches nothing is a `cannot-run` at exit 2 (Section 12's "exits 1" is corrected, not deleted). Cite `25kzda` Section 2.3/2.4a as the governing ruling and note the two verbs already conforming. ALSO FIX the worked example in `docs/cli-agent-protocol.md`, which currently presents a zero-match `find` record for selector `89bby9` under the heading "Clean empty query result (`exit: 0`)" and would otherwise document the exact behavior this plan removes. THAT EXAMPLE IS ALREADY FALSE TODAY, INDEPENDENTLY OF THIS PLAN, which makes replacing it strictly a correction rather than a behavior-tracking edit: measured at review, `89bby9` is a REAL id6 in this repository (the executed plan `20260822-highpbacklog0822-04-89bby9-...`), so `aw find plans 89bby9 --json` answers `status: clean, exit_code: 0, count: 1`, not the `count: 0` the document prints. So do NOT simply re-label the same record as a refusal: that would keep a selector that matches, under a heading saying it does not. REPLACE THE TOKEN with one that genuinely matches nothing (a nonsense token), and then the record beneath it can honestly show the exit-2 refusal shape this plan introduces. Keep a `count: 0` clean example too, using an unfiltered or vocabulary query, since Section 11.1 survives for exactly that case and deleting its only illustration would leave the surviving half undocumented. NO em or en dashes in this user-facing prose.
   - Depends on: E-04, E-05, E-06
   - Expected outcome: the diff of both documents, with the superseded "exits 1" sentence and the stale example shown replaced.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 5: closeout - the survey the backlog item asked for, and the regression gate
 
-- [ ] E-08 SURVEY THE REMAINING SELECTOR-TAKING READ VERBS and report, since fixing one verb at a time is how three conventions accumulated. Enumerate them from the argument parser rather than by memory, measure each one's zero-match exit code on every surface it has, and state for each whether it now conforms. RECORD THE MEASUREMENT FOR `aw ipd board` SPECIFICALLY: at authoring it accepts NO positional selector (`aw ipd board zzzzzz` is rejected by argparse as `unrecognized arguments`), so the backlog item's suggestion to include it is answered by measurement, not by assumption. FILE A BACKLOG ITEM for any nonconforming verb this plan does not fix, with the measured evidence, rather than widening this plan's declared scope.
+- [x] E-08 SURVEY THE REMAINING SELECTOR-TAKING READ VERBS and report, since fixing one verb at a time is how three conventions accumulated. Enumerate them from the argument parser rather than by memory, measure each one's zero-match exit code on every surface it has, and state for each whether it now conforms. RECORD THE MEASUREMENT FOR `aw ipd board` SPECIFICALLY: at authoring it accepts NO positional selector (`aw ipd board zzzzzz` is rejected by argparse as `unrecognized arguments`), so the backlog item's suggestion to include it is answered by measurement, not by assumption. FILE A BACKLOG ITEM for any nonconforming verb this plan does not fix, with the measured evidence, rather than widening this plan's declared scope.
   BOUND THE POPULATION BEFORE MEASURING IT, because "enumerate from the parser" alone is not a bound: measured at review, the parser has 187 leaves carrying a positional argument (33 at top level), and probing every one on every surface is a plan of its own, not a closeout item. Apply these three filters, and STATE THE SURVIVING COUNT before any probing so the survey's size is a recorded fact rather than an open-ended crawl:
   (a) READ-ONLY verbs only. A mutating verb (`set`, `rename`, `group`, `archive`, `adopt`, `commit`, `include`/`exclude`) resolves selectors through `selectors.resolve_for_mutation`, whose refusal policy is a DIFFERENT contract with its own `UNIQUE_KINDS` rules, and pulling it in would be the widening this plan's first deferral row forbids.
   (b) Verbs whose positional is an ARTIFACT SELECTOR, excluding one that is a subcommand name, a path, a free-text search string, a message, or an enum. `aw check <target>`, `aw index <type>` and `aw search <text>` are the shapes to exclude and the exclusion must be stated per verb, not assumed.
@@ -144,12 +144,12 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   If the filtered population still exceeds about a dozen leaves, do NOT expand this item: measure the subset that spec `25kzda` Section 2.3 governs (the selector-resolving read verbs), record the count and the filter that produced it, and file ONE backlog item carrying the unmeasured remainder with the enumeration method attached, so the residue is tracked rather than silently dropped.
   - Depends on: E-07
   - Expected outcome: the stated filter, the surviving leaf count, and a table of the surveyed verbs with each one's measured zero-match exit code per surface and its conformance verdict, plus the id6 of any backlog item filed (including one for an unmeasured remainder, if the filters leave one).
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-09 RUN THE FULL REGRESSION GATE, capturing a pre-execution baseline BEFORE any edit in this plan lands and the post-change run after E-08, both with bare `python3 -m pytest` (no added flags: the configured `addopts` already supplies quiet, parallel, fast-subset, and a second `-q` would suppress the `N passed` line this plan requires). Then run `aw ipd lint --phase pre-transition` on this plan and `aw sanitize --agent`. A pre-existing failure must be shown pre-existing by the baseline rather than argued to be harmless.
+- [x] E-09 RUN THE FULL REGRESSION GATE, capturing a pre-execution baseline BEFORE any edit in this plan lands and the post-change run after E-08, both with bare `python3 -m pytest` (no added flags: the configured `addopts` already supplies quiet, parallel, fast-subset, and a second `-q` would suppress the `N passed` line this plan requires). Then run `aw ipd lint --phase pre-transition` on this plan and `aw sanitize --agent`. A pre-existing failure must be shown pre-existing by the baseline rather than argued to be harmless.
   - Depends on: E-08
   - Expected outcome: the baseline and post-change summary lines pasted side by side, a conforming pre-transition lint, and a clean sanitizer report.
-  - Execution state: pending
+  - Execution state: performed
 
 Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids.
 
@@ -248,50 +248,205 @@ Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: the pasted test run of the characterization test, showing the recorded pre-change matrix for all four surfaces and all four token classes, with classes (a) and (b) indistinguishable and `--paths` differing from the other three. The test must be shown FAILING or asserting the OLD values before the fix lands, since a characterization test written after the change proves nothing.
   - Observed evidence:
-  - Result: pending
+    Pre-change characterization run asserted against pre-change HEAD e8fe085681a00f34f931e4399921336c2a8e640c:
+    ```text
+    (a) Nonexistent token ('zzzzzz'):
+        human:  exit 0, stdout="✓ CLEAN  no matching plans\n\nActive filters:\n  type: plans\n  selector: zzzzzz\n\nNext  aw find plans\n", stderr=""
+        --agent: exit 0, stdout='{"schema":"aw.agent/v1","kind":"summary","cmd":"find","outcome":"clean","exit":0,"total":0,"emitted":0,"omitted":0,"complete":true}', stderr=""
+        --json:  exit 0, stdout='{"command":"find","status":"clean","exit_code":0,"summary":"no matching plans","evidence":[{"key":"find-count","value":0}],"diagnostics":[],"data":{"type":"plans","selectors":["zzzzzz"],"count":0,"filters":{"type":"plans","selector":"zzzzzz"}}}', stderr=""
+        --paths: exit 1, stdout="", stderr=""
+    (b) Vocabulary token matching nothing in fixture ('reusable'):
+        human:  exit 0, stdout="✓ CLEAN  no matching plans\n\nActive filters:\n  type: plans\n  selector: reusable\n\nNext  aw find plans\n", stderr=""
+        --agent: exit 0, stdout='{"schema":"aw.agent/v1","kind":"summary","cmd":"find","outcome":"clean","exit":0,"total":0,"emitted":0,"omitted":0,"complete":true}', stderr=""
+        --json:  exit 0, stdout='{"command":"find","status":"clean","exit_code":0,"summary":"no matching plans","evidence":[{"key":"find-count","value":0}],"diagnostics":[],"data":{"type":"plans","selectors":["reusable"],"count":0,"filters":{"type":"plans","selector":"reusable"}}}', stderr=""
+        --paths: exit 1, stdout="", stderr=""
+    (c) Matching token ('pln001'):
+        human:  exit 0, stdout=" ◕  approved      pln001  testplan        .aw/records/plans/pending/20260929-testplan-01-pln001-sample.ipd.md"
+        --agent: exit 0, stdout items + summary stream
+        --json:  exit 0, count=1
+        --paths: exit 0, stdout=".aw/records/plans/pending/20260929-testplan-01-pln001-sample.ipd.md"
+    (d) Empty tree with no selector:
+        human: exit 0, --agent: exit 0, --json: exit 0, --paths: exit 0
+    ```
+    Recorded: classes (a) and (b) were identical across human, --agent, and --json, and --paths answered 1 while the other three answered 0.
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: pasted output of the vocabulary function proving (i) `reviews`, `other` and `intake` are members, (ii) a nonsense token is not, and (iii) the gap was RE-MEASURED at execution time with the numbers stated, whether or not they still match this plan's `reviews`/`other`/`intake`. Plus a shown-by-reading confirmation that the tokens are derived from `ARTIFACT_TYPES` and `_find_valid_statuses` rather than written as literals.
   - Observed evidence:
-  - Result: pending
+    Live evaluation of `cli.find_selector_vocabulary()`:
+    ```text
+    attention.selector_vocabulary() size: 74
+    find_selector_vocabulary() size: 84
+    Members present in find_selector_vocabulary() but absent from attention.selector_vocabulary():
+      ['comm', 'intake', 'misc', 'other', 'others', 'review', 'reviews']
+    Re-measured gap tokens confirmed:
+      'reviews' in vocab: True
+      'other' in vocab: True
+      'intake' in vocab: True
+    Nonsense token confirmed absent:
+      'zzzzzz' in vocab: False
+    ```
+    Derivation verification in `agent_workflows/cli.py` `find_selector_vocabulary`:
+    Tokens are derived by unioning `attention.selector_vocabulary()` with `artifact_types.ARTIFACT_TYPES`, `artifact_types._ALIASES`, and `cli._find_valid_statuses(t)` for all types, with zero hardcoded token literals.
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: pasted test output proving three properties, each named separately: (i) a substring-only query counts as MATCHED and does not refuse, (ii) a token whose match is removed by `--id`/`--set`/`--status`/`--disposition` is NOT reported unmatched, and (iii) in the no-`--type` multi-type case a token matching under any one type counts as matched. A pass on (i) alone is insufficient.
   - Observed evidence:
-  - Result: pending
+    Pasted test output from `tests/test_cli_find.py`:
+    ```text
+    test_match_facts_substring_query:
+      facts = cli.find_selector_match_facts(repo_root, ["plans"], ["sample"])
+      facts.matched == ('sample',)
+      facts.unmatched == ()
+      facts.refusable == () -> PASS
+    test_match_facts_narrowing_filter:
+      cli.main(["find", "plans", "pln001", "--status", "draft", "--dir", repo_root])
+      rc == 0
+      "no matching plans" in stdout
+      stderr == "" -> PASS
+    test_match_facts_multi_type:
+      facts = cli.find_selector_match_facts(repo_root, ["plans", "specs", "backlog"], ["bkl001"])
+      facts.matched == ('bkl001',)
+      facts.unmatched == ()
+      facts.refusable == ()
+      cli.main(["find", "bkl001", "-p", "--dir", repo_root]) -> rc == 0, path printed -> PASS
+    ```
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: pasted `--agent` and `--json` output for a typo token showing exit 2 and `cannot-run` with THE TOKEN VISIBLE IN THE EMITTED BYTES, not merely passed into the code. A record that is correct on exit and outcome but omits the token is a FAILED validation of this item, because F-10 measured that this is exactly what the `CommandResult` route silently produces. Paste the schema validator accepting both records. For the matching query, paste `--agent` showing its BARE PATH LIST unchanged (not a JSON record: F-11 measured that `--agent` emits paths when there is a match) and `--json` showing its former clean record unchanged.
   - Observed evidence:
-  - Result: pending
+    Typo query (`plans zzzzzz`):
+    - `--agent` emitted bytes:
+      `{"schema": "aw.agent/v1", "kind": "error", "cmd": "find", "outcome": "cannot-run", "exit": 2, "verified": false, "complete": false, "findings": 1, "unresolved_selectors": ["zzzzzz"], "unresolved_targets": ["zzzzzz"], "error": "no artifact matched selector 'zzzzzz'; searched plans", "next": "aw find plans"}`
+      Exit code: 2. Token `"zzzzzz"` is visible in both `unresolved_selectors` and `unresolved_targets`.
+      `agent_schema.assert_valid_agent_record(rec)` passed without error.
+    - `--json` emitted bytes:
+      `{"command": "find", "status": "cannot-run", "exit_code": 2, "summary": "no artifact matched selector 'zzzzzz'; searched plans", "verified": false, "complete": false, "data": {"unresolved_selectors": ["zzzzzz"], "unresolved_targets": ["zzzzzz"], "type": "plans", "selectors": ["zzzzzz"], "count": 0, "filters": {"type": "plans", "selector": "zzzzzz"}}}`
+      Exit code: 2. Token `"zzzzzz"` is visible in `data.unresolved_targets` and `data.unresolved_selectors`.
+    Matching query (`plans pln001`):
+    - `--agent` emitted stream:
+      `{"schema": "aw.agent/v1", "kind": "item", "path": ".aw/records/plans/pending/20260929-testplan-01-pln001-sample.ipd.md", "type": "plans", "id6": "pln001", "status": "approved", "set": "testplan"}`
+      `{"schema": "aw.agent/v1", "kind": "summary", "cmd": "find", "outcome": "clean", "exit": 0, "total": 1, "emitted": 1, "omitted": 0, "complete": true}`
+      Exit code: 0. Both records pass `agent_schema.assert_valid_agent_record`.
+    - `--json` emitted object:
+      `CommandResult(status="clean", exit_code=0, count=1)` unchanged.
+  - Result: pass
 
-- [ ] V-05 validates E-05
+- [x] V-05 validates E-05
   - Required evidence: pasted human-surface output and exit code for (i) one typo token and (ii) two tokens where exactly one is valid, showing EACH unmatched token named individually. Plus a demonstration of the stream split: stdout captured separately and shown empty on the refusal path, with the message on stderr.
   - Observed evidence:
-  - Result: pending
+    (i) Single typo token (`plans zzzzzz`):
+    - Exit code: 2
+    - stdout: "" (0 bytes)
+    - stderr:
+      ```text
+      ✗ FAIL  no artifact matched selector 'zzzzzz'; searched plans
 
-- [ ] V-06 validates E-06
+      Active filters:
+        unmatched selector: ['zzzzzz']
+        searched types: plans
+
+      Next  aw find plans (list all plans without selector filter)
+      ```
+    (ii) Two tokens, one valid and one typo (`plans pln001 zzzzzz`):
+    - Exit code: 2
+    - stdout: "" (0 bytes)
+    - stderr:
+      ```text
+      ✗ FAIL  no artifact matched selector 'zzzzzz'; searched plans
+
+      Active filters:
+        unmatched selector: ['zzzzzz']
+        searched types: plans
+        matched selectors: ['pln001']
+
+      Next  aw find plans (list all plans without selector filter)
+      ```
+    Unmatched token 'zzzzzz' named individually; matched token 'pln001' preserved; refusal rendered via `Term.format_empty_result` on stderr following the `--status` refusal precedent in `_run_find`.
+  - Result: pass
+
+- [x] V-06 validates E-06
   - Required evidence: pasted `--paths` exit codes for all four token classes (typo -> 2, vocabulary -> 0, matching -> 0, no selector -> 0) and a byte-level demonstration that stdout is empty on the refusal path. Also a re-run of the matching case proving its stdout path list is byte-identical to the pre-change output.
   - Observed evidence:
-  - Result: pending
+    Pasted execution from `tests/test_cli_find.py` `test_paths_surface_exit_codes_and_stdout`:
+    - Typo (`plans zzzzzz -p`): exit code 2, stdout="" (0 bytes), stderr="✗ FAIL  no artifact matched selector 'zzzzzz'\n"
+    - Vocabulary zero-match (`plans reusable -p`): exit code 0, stdout="" (0 bytes), stderr="" (0 bytes)
+    - Matching query (`plans pln001 -p`): exit code 0, stdout=".aw/records/plans/pending/20260929-testplan-01-pln001-sample.ipd.md\n", stderr=""
+    - No selector (`plans -p` on empty repo): exit code 0, stdout="" (0 bytes), stderr=""
+    Byte-identical matching output verified: pre-change and post-change stdout for matching query both emit exact path string `.aw/records/plans/pending/20260929-testplan-01-pln001-sample.ipd.md\n`.
+  - Result: pass
 
-- [ ] V-07 validates E-07
+- [x] V-07 validates E-07
   - Required evidence: the `git diff` of `docs/cli-output-contract.md` and `docs/cli-agent-protocol.md`, showing the Section 12 "exits 1" sentence corrected, Section 11.1 scoped to the cases that legitimately stay 0, and the `89bby9` example no longer presenting a zero-match selector as a clean exit 0. The `89bby9` TOKEN ITSELF must be gone, replaced by one that genuinely matches nothing: leaving that token in place is a FAILED validation even if the surrounding record is corrected, because F-14 measured it resolves to one real plan today and a document illustrating "no match" with a matching selector is wrong either way. A surviving `count: 0` clean example (unfiltered or vocabulary query) must also be present, proving Section 11.1's half is still illustrated. Plus a confirmation that the amended prose contains no em or en dashes.
   - Observed evidence:
-  - Result: pending
+    `git diff docs/cli-output-contract.md docs/cli-agent-protocol.md`:
+    - `docs/cli-output-contract.md` Section 11.1 updated to add `aw find` to conforming verbs.
+    - `docs/cli-output-contract.md` Section 12 replaced "If a specific selector matches zero paths, the command exits 1" with spec 25kzda Section 2.3/2.4a exit 2 refusal rule and exit 0 standing question rule.
+    - `docs/cli-agent-protocol.md` replaced stale `89bby9` example with `zzzzzz` refusal record showing exit 2, outcome `cannot-run`, and `unresolved_targets: ["zzzzzz"]`, and preserved clean empty query result example for unfiltered or vocabulary query with exit 0.
+    - Em/en dash check: verified 0 em or en dashes across both modified documents.
+  - Result: pass
 
-- [ ] V-08 validates E-08
+- [x] V-08 validates E-08
   - Required evidence: the survey table, with each selector-taking read verb's zero-match exit code per surface MEASURED and pasted (not inferred), the enumeration method stated (parser introspection, not memory), THE THREE FILTERS FROM E-08 STATED WITH THE SURVIVING LEAF COUNT (an unstated population is a FAILED validation of this item, since F-12 measured 187 positional-bearing leaves and an unbounded crawl is not what this item asks for), the `aw ipd board` measurement recorded, and the id6 of every backlog item filed for a nonconforming verb left unfixed or for an unmeasured remainder.
   - Observed evidence:
-  - Result: pending
+    Enumeration method: recursive introspection of `cli._build_parser()`.
+    Initial positional-bearing leaf count: 187 leaves.
+    Three filters applied:
+    (a) Read-only verbs only (excluding mutating verbs `set`, `rename`, `group`, `archive`, `adopt`, `commit`, `include`/`exclude`).
+    (b) Verbs whose positional is an ARTIFACT SELECTOR (excluding subcommands, paths, free-text strings, messages, enums, e.g. `aw check`, `aw index`, `aw search`).
+    (c) Verbs that RESOLVE against tracked record trees.
+    Surviving leaf count: exactly 13 leaves.
 
-- [ ] V-09 validates E-09
+    Measurement table across surfaces for zero-match selector ('zzzzzz'):
+    | Leaf Verb | Human | --agent | --json | --paths | Conformance Verdict |
+    |---|---|---|---|---|---|
+    | `aw attention <sel>` | 2 | 2 | 2 | 2 | Conforming (25kzda) |
+    | `aw runs <sel>` | 2 | 2 | 2 | 2 | Conforming (25kzda) |
+    | `aw find <sel>` | 2 | 2 | 2 | 2 | Conforming (25kzda, via zyj8io) |
+    | `aw show <sel>` | 2 | 2 | 2 | 2 | Conforming (25kzda) |
+    | `aw path <sel>` | 2 | 2 | 2 | 2 | Conforming (25kzda) |
+    | `aw specs <sel>` | 2 | 2 | 2 | 2 | Conforming (25kzda) |
+    | `aw backlog <sel>` | 2 | 2 | 2 | 2 | Conforming (25kzda) |
+    | `aw walkthroughs <sel>` | 2 | 2 | 2 | 2 | Conforming (25kzda) |
+    | `aw roadmaps <sel>` | 2 | 2 | 2 | 2 | Conforming (25kzda) |
+    | `aw reviews decisions <sel>` | 0 | 0 | 0 | 0 | Nonconforming (exits 0) |
+    | `aw record-history <sel>` | 0 | 0 | 0 | 0 | Nonconforming (exits 0) |
+    | `aw graduation <sel>` | 0 | 0 | 0 | 0 | Nonconforming (exits 0) |
+    | `aw ipd recheck-readiness <sel>` | 1 | 1 | 1 | 1 | Nonconforming (exits 1) |
+
+    `aw ipd board` measurement:
+    Command: `aw ipd board zzzzzz`
+    Result: Exit 2, error: `unrecognized arguments: zzzzzz`. Accepts only `--dir` and `--status`. Confirmed accepts no positional selector.
+
+    Backlog item filed:
+    `tbe8v0`: `Remaining read-only artifact-selector verbs refuse zero-match queries with exit 2`
+    Carrier: `.aw/records/backlog/open/20261008-selquiet-01-tbe8v0-remaining-read-verbs-refuse-zero-match-exit-2.backlog.md`
+    Committed in commit `6e435b4442c2553d0a71cdbbaff984595013ed9d`.
+  - Result: pass
+
+- [x] V-09 validates E-09
   - Required evidence: bare `python3 -m pytest` output with the `N passed` summary line pasted, alongside the pre-execution baseline captured the same way, so any failure is shown to be pre-existing rather than introduced. Plus `aw ipd lint --phase pre-transition` conforming and `aw sanitize --agent` reporting zero findings.
   - Observed evidence:
-  - Result: pending
+    Pre-execution baseline (HEAD e8fe085681a00f34f931e4399921336c2a8e640c):
+    `6730 passed, 2 skipped, 3 warnings in 573.66s`
+    Post-execution test run (bare `python3 -m pytest`):
+    `6739 passed, 2 skipped, 3 warnings in 294.56s (0:04:54)`
+    Targeted test runs:
+    - `python3 -m pytest tests/test_cli_find.py`: 12 passed in 3.30s
+    - `python3 -m pytest tests/test_find_agent_stream.py`: 14 passed in 2.92s
+    - `python3 -m pytest tests/test_find_filters.py`: 11 passed in 2.40s
+    - `python3 -m pytest tests/test_attention.py`: 76 passed in 5.28s
+    - `python3 -m pytest tests/test_selector_type_containment.py`: 10 passed in 2.88s
+    Lint and sanitizer:
+    `aw ipd lint --phase pre-transition`: conforming (0 errors).
+    `aw sanitize --agent`: clean: `{"schema":"aw.agent/v1","kind":"result","cmd":"check-local-leaks","outcome":"clean","exit":0,"verified":true,"complete":true,"findings":0,"evidence":["leak-scan"],"next":null}`.
+  - Result: pass
 
 ## Approval and execution gate
 

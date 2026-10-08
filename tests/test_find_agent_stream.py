@@ -207,8 +207,22 @@ class TestFindAgentStream(unittest.TestCase):
         self.assertFalse(summary.get("complete"))
 
     def test_08_agent_stream_zero_match_lone_summary(self):
-        """E-01(8): A zero-match query emits exactly one summary record with total: 0 at exit 0."""
+        """E-01(8): A zero-match vocabulary query emits exactly one summary record with total: 0 at exit 0,
+        while a non-vocabulary zero-match selector is refused with exit 2 and cannot-run record (zyj8io).
+        """
+        # 1. Non-vocabulary selector exits 2 with cannot-run record
         rc, out, _ = self.run_find(["plans", "zzzzzz", "--agent"])
+        self.assertEqual(rc, 2)
+        lines = [line.strip() for line in out.splitlines() if line.strip()]
+        self.assertEqual(len(lines), 1)
+        err_rec = json.loads(lines[0])
+        self.assertEqual(err_rec.get("kind"), "error")
+        self.assertEqual(err_rec.get("outcome"), "cannot-run")
+        self.assertEqual(err_rec.get("exit"), 2)
+        self.assertEqual(err_rec.get("unresolved_targets"), ["zzzzzz"])
+
+        # 2. Standing vocabulary selector with zero matches emits lone summary at exit 0
+        rc, out, _ = self.run_find(["plans", "reusable", "--agent"])
         self.assertEqual(rc, 0)
         lines = [line.strip() for line in out.splitlines() if line.strip()]
         self.assertEqual(
