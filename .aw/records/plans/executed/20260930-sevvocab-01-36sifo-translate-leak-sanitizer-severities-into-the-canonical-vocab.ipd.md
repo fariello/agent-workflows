@@ -6,7 +6,7 @@
 - Scope: IN: (a) introducing ONE canonical translation point so no raw `fail`/`warn` token leaves `doctor` in a severity field or a rendered string, covering the three measured sites (`probe_sanitizer`'s drift detail, `SanitizerProbeResult.to_dict`'s `severity` key, and `render_human_report`'s per-finding line); (b) a behavior test pinning that property, because F-06 measured that NO test anywhere asserts on any of the three. OUT: `leak_sanitizer`'s OWN `fail`/`warn` vocabulary, which is correct and stays (F-03 explains why renaming it is the wrong fix); the `check-local-leaks` CLI's own `--agent`/human output, whose `fail`/`warn` wording is its documented contract (F-04); the two internal consumers that compare against `"fail"` as a CONTROL-FLOW predicate rather than rendering it (`security_hardening.check_evidence_redaction`, documented in `host_runner`), which are correct and must not be touched (F-05); and any change to `artifact_core.drift_exit_code` or to the exit code `aw doctor` returns (F-07 measures why this is a REPORTING fix that must stay exit-neutral).
 - Scope-Paths: agent_workflows/doctor.py, tests/test_sanitizer_severity_vocabulary.py
 - Item-Dependencies: executed:nwcf8j
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: low
@@ -17,9 +17,9 @@
 - Highest E allocated: 04
 - Author: opencode/its_direct/pt3-claude-opus-5-1m-us
 - Id: 36sifo
-- Approval: 2026-10-01, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-08 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: 36sifo verified (set sevvocab, attempt 1). [Scope reconciliation - out-of-scope .aw/records/backlog/open/20261008-wxpytg-01-wxpytg-doctor-machine-diagnostic-construction-hardcodes-s.backlog.md: changed by the plan's approved execution (auto-reconciled by aw agy run)]
 - 2026-10-01 approved (aw set): status set to approved
 - 2026-10-01 reviewed (opencode/its_direct/pt3-claude-opus-5-1m-us): plan-review complete: PR-101..PR-105 all fixed, zero deferred, zero open
 
