@@ -1,5 +1,5 @@
 - Id: sinhkj
-- Status: graduated
+- Status: done
 - Graduated-To: runverdict
 - Set: runverdict
 - Priority: medium
@@ -7,6 +7,7 @@
 - Summary: Decide whether an uncorroborated verifier turn (claimed tests_run unmatched by its own session log) should ever refuse integration
 
 ## Workflow history
+- 2026-10-08 done (aw backlog): closed by aw agy run: IPD q4uifc executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20261002-runverdict-11-q4uifc-decide-that-an-uncorroborated-verifier-turn-never-refuses-in.ipd.md); evidence .aw/records/plans/executed/20261002-runverdict-11-q4uifc-decide-that-an-uncorroborated-verifier-turn-never-refuses-in.ipd.md
 - 2026-10-02 graduated (aw backlog): graduated by run run-20261001T221834Z-1991716: q4uifc
 - 2026-09-30 created (aw backlog): Filed as the durable carrier for the refusal question plans bjx20r and btak7a deliberately do not decide
 

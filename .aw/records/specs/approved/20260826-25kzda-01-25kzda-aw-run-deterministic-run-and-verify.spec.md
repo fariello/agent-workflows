@@ -1199,6 +1199,18 @@ mitigates SLOPPINESS and not deception, and ATTRIBUTION is what makes it safe: a
 durably recorded, named, and reviewable afterwards, in the same way an attested `- Readiness:` field
 and a `V-*` evidence block are made safe by being attributed rather than by machine verification.
 
+VERIFIER TEST EVIDENCE CORROBORATION IS OBSERVATIONAL (plan `q4uifc`, backlog `sinhkj`). The run records
+a three-state corroboration verdict (`corroborated`, `uncorroborated`, or `indeterminate`) comparing a
+verifier's claimed test commands against the tool calls extracted from its own session log. That verdict is
+strictly OBSERVATIONAL: no refusal, downgrade, or disposition change may be keyed on it, in accordance with
+the same direction established above for the suite baseline (a comparison that makes an outcome more
+permissive is permitted, but using an observation to disbelieve an agent is forbidden). Furthermore, this
+section's classification of an agent's self-report or a verifier's opinion as inadmissible completion
+evidence is NOT an instruction to refuse or fail a lane on a mismatch between claimed commands and observed
+tool calls: the extraction predicate has measured false positives (such as Antigravity subagent delegations,
+bug `iuhx9d`), and GUIDING_PRINCIPLES P15 forbids any mechanism whose justification is "in case the agent
+lies". The inadmissible and admissible completion evidence lists above remain unchanged.
+
 ### 5.2 Safety policy
 
 #### Per-host capability descriptor
@@ -1692,6 +1704,7 @@ This example demonstrates the revised guarantees: `all` is safely bounded; depen
 
 ## Workflow history
 
+- 2026-10-07 note (aw specs): AMENDED (plan q4uifc, backlog sinhkj): Section 5.1 amended to declare verifier test evidence corroboration observational and non-refusing, consistent with P15 and the baseline direction constraint; admissible and inadmissible completion evidence lists, the attributed suite-attribution exception and all of its conditions, and the HONEST LIMIT paragraph's existing wording remain unchanged.
 - 2026-10-07 note (aw specs): AMENDED 2026-10-06 (plan 0bjke0, Set runfresh): new Section 5.3b requires the driver to record the toolkit code it loaded, to restart itself between items on the current code when an item of the run changed it (recorded, bounded, never inside an item, no restart when the loaded package is not the checkout's own), and to keep nested calls pinned to its own package; Section 5.3 driver record gains the loaded-code record; Section 4.1 requires finalize and retirement lint refusals to carry their findings; Section 6.1 gains limit 10. Motivated by run-20261006T134924Z-332833, whose orchestrator retirement was refused by a linter older than the fields its own children added.
 - 2026-10-06 note (aw specs): AMENDED 2026-10-04 (plan hm1h3l, Set gradcover): Section 2.5b scoped to orchestrators whose action is orchestrate, re-check added at the retirement point, answer format extended to a verdict plus verbatim QUOTE lines, named-child credit rule added, override scoped to the run-start gate; new Section 2.5d defines orchestrator review readiness and its consumers; new Section 2.5e records the coverage answer in the plan itself (Coverage, Coverage-Fingerprint, Coverage-Checked, ## Coverage findings), written only by the tool with a matching history line and excluded from the execution-receipt fingerprint, retiring the gitignored 30-day verdict cache; Sections 3.2-3.4 gate orchestrator status and production on it and allow continuing an unfinished handoff; new codes IPD-REVIEW-ORCHESTRATOR-READY, SPEC-PLAN-SET, BACKLOG-GRADUATE-SET; SPEC-PLAN-COUNT and BACKLOG-GRADUATE-COUNT pass criteria accept continued output; Section 5.5 classifies the new refusals as bounded corrections. Motivated by the 2026-10-03 refusal of three review runs over 13 orchestrators handed off as graduated.
 - 2026-10-03 note (aw specs): Plan e6w056 (backlog ymlyqf): amended 5.2 guarantee rows 1 and 3 to state enforcement status. Deliberately unamended: row 2 already amended by 00pirb; row 4 carried by gqy7yd; row 5 measured honest.

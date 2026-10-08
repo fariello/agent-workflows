@@ -14,6 +14,30 @@ DESIGN CONSTRAINTS AND SCOPE BOUNDARIES:
   commands were observed, all observed commands resolved, and no claimed command matched.
 - No refusal or downgrade: this module is a measurement and predicate only.
 
+DECISION: OBSERVATIONAL VERDICT, REFUSAL FORBIDDEN:
+========================================================================================
+The verdict computed by this module and recorded by `runner_shared.execute_item_core`
+is strictly observational. An `uncorroborated` verdict MUST NOT refuse, downgrade, or
+alter any item disposition, verification status, or integration decision (such as
+`runner_shared.integration_is_earned`). This policy is forced by three measured facts:
+(1) GUIDING_PRINCIPLES.md P15 forbids "any mechanism whose justification is 'in case
+    the agent lies'", and the maintainer rulings of 2026-09-08 and 2026-09-20 reject
+    gates keyed on suspected deception; reason 3 of the four recorded reasons in
+    `runner_shared`'s pre-work-suite-baseline block applies to this module verbatim:
+    an agent attempting to fabricate would have write access to this file.
+(2) Spec `25kzda` Section 5.1's HONEST LIMIT paragraph permits only comparisons that
+    make an outcome MORE permissive and explicitly forbids using an observation to
+    disbelieve the agent; a corroboration refusal is the forbidden sign.
+(3) The extraction predicate has known false positives that make it unsafe to strand a
+    lane on: specifically, the Antigravity `step_type == "subagent"` delegation shape
+    is unobserved by the reader, causing genuine test delegations to resolve to
+    `uncorroborated` (tracked as bug `iuhx9d`).
+IMPERATIVE: A future consumer may read this verdict and may make an outcome MORE
+permissive on it, but MUST NOT refuse, downgrade, or change a disposition on it. A
+reader who believes a refusal is warranted opens a new decision rather than wiring
+one here.
+========================================================================================
+
 CLOSED-SET VERDICT CONDITIONS:
 ========================================================================================
 The turn-level corroboration verdict is partitioned into a closed set of conditions:
