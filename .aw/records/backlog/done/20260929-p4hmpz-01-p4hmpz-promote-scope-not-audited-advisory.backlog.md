@@ -1,5 +1,5 @@
 - Id: p4hmpz
-- Status: graduated
+- Status: done
 - Graduated-To: p4hmpz
 - Set: p4hmpz
 - Priority: low
@@ -7,6 +7,7 @@
 - Summary: Decide whether the scope-not-audited advisory from plan iqtt8d should be promoted from info to a gating severity, on a measured residual rate
 
 ## Workflow history
+- 2026-10-08 done (aw backlog): closed by aw agy run: IPD t6ledu executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20261001-p4hmpz-01-t6ledu-decide-the-scope-not-audited-advisory-s-severity-on-a-measur.ipd.md); evidence .aw/records/plans/executed/20261001-p4hmpz-01-t6ledu-decide-the-scope-not-audited-advisory-s-severity-on-a-measur.ipd.md
 - 2026-10-01 set (aw backlog): graduated by run run-20260930T053024Z-3198670: t6ledu
 - 2026-09-29 created (aw backlog): Filed as the durable carrier for OQ-01 of plan iqtt8d (Set fkmjoy).
 
