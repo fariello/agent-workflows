@@ -6,7 +6,7 @@
 - Scope: ORCHESTRATION ONLY. This plan sequences six children and contributes no implementation, no test and no deliverable of its own. IN: the dependency order, the Set-level completion criteria with the child that owns each, and the cross-child checks. OUT: everything the children do: the spec amendment (Order 01), detecting that an integrated item changed the toolkit code (Order 02), restarting the driver on current code and resuming the same run (Order 03), recording lint findings on a finalize or retirement refusal (Order 04), the end-to-end proof (Order 05), and stopping `aw ipd coverage` and the other asking checks from reporting a plan ready when its coverage answer was not saved (Order 06).
 - Scope-Paths: .aw/records/plans/pending/20261006-runfresh-01-0bjke0-amend-the-run-spec-so-a-run-restarts-on-the-toolkit-code-its.ipd.md, .aw/records/plans/pending/20261006-runfresh-02-34zv7d-detect-when-an-integrated-item-changed-the-toolkit-code-the.ipd.md, .aw/records/plans/pending/20261006-runfresh-03-re15ol-restart-the-runner-on-the-current-code-between-items-and-res.ipd.md, .aw/records/plans/pending/20261006-runfresh-04-vvqr34-record-the-findings-when-a-finalize-or-retirement-lint-refus.ipd.md, .aw/records/plans/pending/20261006-runfresh-05-hohlc6-prove-a-run-that-changes-its-own-linter-retires-its-orchestr.ipd.md, .aw/records/plans/pending/20261006-runfresh-06-7kczdo-never-report-a-coverage-answer-as-recorded-when-it-was-not-w.ipd.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Coverage: pass
 - Coverage-Fingerprint: 075fd266849a7dcfd932bad79dc221ef06fdd2ec8d62a5b35af69eb8fb77c2df
@@ -20,9 +20,9 @@
 - Highest E allocated: 06
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: 67lvds
-- Approval: 2026-10-07, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-08 executed (aw agy run model=Gemini-3.8-Flash-High): RETIRED as the orchestrator rollup step of a runner Set completion, not executed by an agent: every child of Set runfresh reached executed, so the runner (run run-20261007T182049Z-1725924) retired this Order-0 plan as bookkeeping. Its own E-*/V-* items were NOT performed; the runner superseded them by enforcing the ordering, the isolation and the per-child merge gate. Justifying children: 0bjke0, 34zv7d, re15ol, vvqr34, hohlc6, 7kczdo.
 - 2026-10-07 approved (aw set): status set to approved
 - 2026-10-07 reviewed (aw set): plan-review: APPROVE WITH REVISIONS APPLIED
 - 2026-10-06 coverage pass (aw oc run): fingerprint 075fd266849a, model uri/its_direct/pt3-claude-opus-5.5-1m-us
@@ -38,6 +38,9 @@
 After this Set, a run whose children change the toolkit's own code restarts itself on the new code before its next item and continues the same run, so every later check, finalize and retirement is judged by the rules that are actually on `main`; and any finalize or retirement lint refusal records its findings.
 
 ## Detailed Implementation Checklist (TODO)
+
+
+> Its own E-*/V-* items were NOT performed; the runner superseded them by enforcing the ordering, the isolation and the per-child merge gate.
 
 Execution-state rule: mark an `E-*` item complete only after performing the action. That mark is not validation. Right-sizing rule: each E-item must address one concern and be executable in one focused pass; split when an E-item names multiple distinct deliverables or independent test-surfaces. Accepted execution states: blocked, failed, pending, performed; terminal gate demands 'performed'.
 
