@@ -108,6 +108,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Carrier-Evidence: .aw/records/plans/executed/20261006-instbugs-06-jbnkkh-remove-retired-paths-statuses-and-naming-rules-from-installe.ipd.md
 - The inbox README existence is delivered elsewhere.
   - Carrier: xzlu9b
+  - Carrier-Evidence: .aw/records/plans/executed/20261006-instbugs-05-xzlu9b-install-the-inbox-lane-and-its-tracked-readme-into-every-tar.ipd.md
 - The whole-Set fresh-install regression that re-runs this check end to end.
   - Carrier: kck7a5
 - Scanning the installed workflow bundle `.aw/system/**` for dangling references: F-09 shows the token rule cannot tell an example artifact name or a conditional discovery list from a real reference there, so a zero-finding bar is unreachable without per-file semantics; the managed block and records READMEs are the surfaces an agent is told to obey unconditionally.
