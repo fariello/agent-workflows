@@ -6,7 +6,7 @@
 - Scope: Amend `docs/cli-output-contract.md` Section 11.1 so its discriminator enumerates THREE zero-match classes instead of two, publishing the excluded-tree class with the exit code, the record shape, and the per-surface channel rule `uxb0tz` actually ships, and correct the "two kinds" count sentence that the addition falsifies. Add the document's first behavioral guard over Section 11.1 (`tests/test_empty_result_convention_doc.py`), which drives the real verb for one token of each published class and asserts the published outcome, so the section cannot silently drift from the code again. EXCLUDES changing any production behavior (`agent_workflows/` is absent from `- Scope-Paths:` and no `.py` under it is edited): this plan publishes a contract `uxb0tz` implements and must not reimplement it. EXCLUDES Section 12, whose contradictory `aw find` zero-match sentence is owned by `zyj8io` (approved; its OQ-02 was resolved by the maintainer on 2026-10-02), and EXCLUDES the `aw find` scoping `zyj8io` E-07 writes into Section 11.1 itself; this plan runs AFTER `zyj8io` and builds on the section as that plan leaves it (F-05, F-08). EXCLUDES amending spec `25kzda`, whose Section 2.4a is cited by the shipped section as PRECEDENT with its scope limit already stated and which governs the runner verbs rather than read verbs (F-06). EXCLUDES the `.aw/records/` tree READMEs, which `uxb0tz` E-05 declares and writes.
 - Scope-Paths: docs/cli-output-contract.md, tests/test_empty_result_convention_doc.py
 - Item-Dependencies: executed:uxb0tz, executed:zyj8io
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -16,9 +16,9 @@
 - Highest E allocated: 04
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: y6gsqw
-- Approval: 2026-10-07, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-08 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: y6gsqw verified (set xmnoy5, attempt 1).
 - 2026-10-07 approved (aw set): status set to approved
 - 2026-10-07 reviewed (opencode its_direct/pt3-claude-opus-5.5-1m-us): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-001..PR-006 all fixed. Re-measured at HEAD `0ffb1e798`: `uxb0tz` still pending (`approved`), `aw attention 7ny1bg` still exits 2, `grep -c excluded docs/cli-output-contract.md` 0, `TREE_POLICY` 5 excluded vs 6 tracked with populated reasons, Section 11.1 untested; F-01..F-04, F-06, F-07 reproduce. PR-001: F-05/OQ-01 were stale, `zyj8io` OQ-02 is resolved by the maintainer and that plan is approved, and its E-07 rewrites Section 11.1 itself, so the plans are not section-disjoint; added `executed:zyj8io` and an edit-as-found instruction (F-08). PR-002: E-03 left in-process vs subprocess open, and E-04's in-memory breaks are invisible to a subprocess; E-03 now drives `attention.run` in-process (F-09). PR-003: E-01/V-01 measured only walkthroughs+roadmaps while E-02 publishes all five excluded trees; now three trees, with `fix-bar` (docs-prompts via prompt-library) and `ocman` (comms) measured as exit-2 candidates today. PR-004: fixture must assert `_classify_tree` maps onto a tracked=False policy, since `.aw/records/<dir>` and policy names differ. PR-005: list-mode stdout channel now pinned by E-03/V-03. PR-006: gate's unconditional finalize instruction made runner/executor conditional. Review record `.aw/records/reviews/20261002-xmnoy5-01-y6gsqw-publish-the-excluded-tree-selector-answer-as-the-third-zero.review.md`.
 
