@@ -8,7 +8,7 @@
 - Scope: Remove the anchoring asymmetry the item measured, by routing the owner-record path through the SAME checkout anchor `receipt_dir` already uses, and make the "absent" versus "unreachable" distinction representable so the gate cannot silently answer "unclaimed" about a store it could not read. IN: anchoring `worktree_lease._owner_record_path` on the checkout; a behavioral regression test that drives a real `git worktree` and pins that the owner-record and liveness answers are IDENTICAL from the main tree and from inside the lane. OUT: the SECOND, independent anchoring defect this authoring measured in the landing predicate (`lane_work_has_landed`'s symbolic `HEAD` target resolving to the lane's own tip, making UNMERGED work report reclaimable), which is filed as its own gated `bug` backlog item `cjrjtu` and is NOT fixed here; changing `ipd_lifecycle.checkout_control_root`; changing `teardown_worktree`, `reclaim_lanes_on_interrupt`, or any other consumer's logic; and unifying `attention._resolve_runs_repo_root`'s third bespoke anchoring workaround.
 - Scope-Paths: agent_workflows/worktree_lease.py, tests/test_lane_owner_record_anchoring.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -18,9 +18,9 @@
 - Highest E allocated: 04
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: tjags7
-- Approval: 2026-10-07, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-08 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: tjags7 verified (set voxbcx, attempt 1).
 - 2026-10-07 approved (aw set): status set to approved
 - 2026-10-07 reviewed (opencode/its_direct/pt3-claude-opus-5.5-1m-us): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-301, PR-302, PR-303, PR-304, PR-305. Reviewed at HEAD c8908e61b; F-1, F-2 and F-3 re-measured on a scratch worktree and all still hold. PR-301 (HIGH, fixed): E-03 named no mechanism and the existing .exists() test is blind to both a chmod 0 owners dir and one replaced by a file (measured: both (True, 'no owner record; unclaimed')); E-03 now specifies a demonstrated os.stat classifier, extends it to lane_owned_by_other_live_process, and V-03/E-04 require both constructions with a pre-change baseline. PR-302: cjrjtu has since been fixed by executed 3mv7li (reclaimable False from both roots); F-7, Under-scope and gate updated. PR-303: anchored path composition stated. PR-304: fallback and memo noted. PR-305: addopts and validation commands corrected. Review record .aw/records/reviews/20261001-voxbcx-01-tjags7-anchor-the-lane-owner-record-on-the-checkout-so-an-in-lane-r.review.md.
 
