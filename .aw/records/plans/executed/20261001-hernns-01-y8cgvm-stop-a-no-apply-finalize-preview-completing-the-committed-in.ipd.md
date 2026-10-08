@@ -6,7 +6,7 @@
 - Scope: IN: thread an `apply` flag through `ipd_lifecycle._early_recovery_result` so that, when false, the `PHASE_COMMITTED_INCOMPLETE` arm REPORTS the recoverable state and the exact command that would complete it instead of performing it; forward the flag from BOTH call sites (`finalize` and `retire_orchestrator`), which share that helper by construction; mint a stable finding id for the new report so no caller branches on prose; surface that id as a diagnostic on `aw ipd finalize`'s EXIT_OK preview, which today drops it on all three output modes (and reaches human plus `--json` only, per F-13); behavioral regression tests covering `finalize`, the real CLI, both `--dry-run` spellings, and a control pinning the rollup path UNCHANGED (F-8 measures its `committed-incomplete` arm unreachable, so forwarding the flag there is drift defense, not a live fix); one CHANGELOG line. OUT: changing the `apply=True` resume in ANY way (it stays "RESUMED, never reverted"); changing `PHASE_UNKNOWN_OUTCOME`'s existing refusal, which already fails closed identically for both flag values; `finalize_precheck`, whose own blindness to a wedged journal is `bn58ha`/`hlv737`'s subject and is deliberately untouched here; adding any auto-clear or remedy for a wedged journal; and `runner_shared.driver_finalize`, measured passing `--apply` unconditionally so no driver path changes behavior.
 - Scope-Paths: agent_workflows/ipd_lifecycle.py, tests/test_ipd_lifecycle_cli.py, tests/test_orchestrator_retirement.py, CHANGELOG.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -17,9 +17,9 @@
 - Highest E allocated: 08
 - Author: opencode/its_direct-pt3-claude-opus-5-1m-us
 - Id: y8cgvm
-- Approval: 2026-10-01, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-08 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: y8cgvm verified (set hernns, attempt 1).
 - 2026-10-01 approved (aw set): status set to approved
 - 2026-10-01 reviewed (opencode/its_direct-pt3-claude-opus-5-1m-us): /plan-review round 1: 5 findings (PR-001 HIGH .. PR-005 LOW), all FIXED in place
 
