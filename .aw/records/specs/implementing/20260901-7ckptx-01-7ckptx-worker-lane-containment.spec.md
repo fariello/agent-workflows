@@ -11,6 +11,8 @@
 - Scope: What an isolated (lane) turn may be told and may reach: signal purity in the prompt, layered enforcement beyond prose, bounded missing-input repair, and the retention rules that decide when a lane may be destroyed.
 
 ## Workflow history
+
+- 2026-10-08 note (aw specs): AMENDED 2026-10-08 (nvymif-01 z8ex9f): R2.5 narrowed to distinguish provably-empty lanes from uncollected submissions; R5.5 updated to four conditions; R5.7 added to block teardown on unlanded lane commits; A21 added to pin the six-shape classification table.
 - 2026-10-08 implementing (aw set): status set to implementing
 
 - 2026-10-02 note (aw specs): AMENDED 2026-10-02 (4xtpvg-01 0b7fic): R4.4(a), R4.4b, and A10c amended to record that stdout permission detection is measured impossible (research 7so8uz), the bound stays at 0 permanently, and log-route detection is refused on cost-benefit
@@ -171,9 +173,22 @@ deletes output whose collection FAILED.
 
 The driver MUST therefore write an ATTEMPT-KEYED collection record naming, per submission, its source
 digest and its destination result (success, or failure with a reason). Absence of a record means NOT
-collected and MUST NOT be inferred from a file existing somewhere. A FAILED collection MUST be recorded
-as failed rather than omitted, because a silently omitted failure is indistinguishable from a lane that
-wrote nothing.
+collected for a lane whose submission tree holds any file for the run, and MUST NOT be inferred from a
+file existing somewhere; conversely, a lane whose submission tree provably holds NO file for the run has
+nothing outstanding, so an absent record indicates there was nothing to collect rather than a retention
+refusal. A FAILED collection MUST be recorded as failed rather than omitted, because a silently omitted
+failure is indistinguishable from a lane that wrote nothing.
+
+AMENDED 2026-09-30 by nvymif Order 01 (`z8ex9f`): narrowed to distinguish a lane that provably submitted
+nothing from one whose submission was never collected. Measured at authoring on a real git lane with a
+real run directory: `dirty_tracked ()`, `unknown_untracked ()`, `unknown_ignored ()`, `commits_ahead 0`,
+yet `classified False` and `reason_codes ('uncollected-submission',)` because an interrupted lane never has
+a completed collection receipt by definition; that is what forced plan `65cuw0` to keep separate
+interrupt-path teardown routes. Absence of a record means NOT collected when the lane's submission tree
+holds any file for the run; for a lane whose submission tree provably holds NO file for the run, there is
+nothing outstanding to collect. The asymmetry is normative: the probe may only answer "provably nothing",
+never "probably nothing", so an unreadable or unresolvable submission root or enumeration failure MUST be
+treated as an uncollected submission (failing toward preservation), exactly as an unreadable inventory is.
 
 R2.6 THE SHARED-CODE HOME MUST BE DECLARED. Added 2026-09-01 after `/aw plan-review` observed that
 requiring host-neutral code while every plan's scope fence named only the two driver modules told an
@@ -467,9 +482,9 @@ would make an unattended run unstartable in any working checkout. Untracked cont
 run instead.
 
 R5.5 Teardown MUST be refused while a lane holds content the driver cannot classify: a dirty tracked
-file, an unknown untracked file, or an unimported submission. Gitignored files (including interpreter
-bytecode caches, toolchain dependencies, and build or test residues) are disposable upon lane destruction
-and do not block teardown.
+file, an unknown untracked file, an uncollected submission, or unlanded lane commits. Gitignored files
+(including interpreter bytecode caches, toolchain dependencies, and build or test residues) are
+disposable upon lane destruction and do not block teardown.
 
 AMENDED 2026-09-18 by maintainer ruling: R5.5 originally required unknown ignored files to refuse teardown
 on the premise that "ignored means disposable" had previously deleted uncommitted files. In practice,
@@ -490,6 +505,14 @@ The maintainer learned that work had been stranded by ASKING, not from the run's
 READS IS CLOSE TO NO RECORD AT ALL, and silent stranding is precisely the failure this whole effort
 exists to remove, so recording it in a log while the summary reports success reproduces that failure in a
 quieter form. The summary MUST name each preserved lane and the reason it was preserved.
+
+R5.7 Teardown MUST be refused while the lane's own commits have not reached the integration target, and
+an UNANSWERABLE landing question (the lane branch cannot be determined or resolved, the target cannot be
+resolved, or git reachability fails) MUST likewise refuse teardown. Added 2026-09-30 by nvymif Order 01
+(`z8ex9f`): narrowing R2.5's refusal widens destruction, and measurement showed that `uncollected-submission`
+was previously the only condition preventing a lane holding unmerged committed work from being force-removed
+and its branch deleted (leaving `git rev-parse` at rc=128 with the commit unreferenced). The landing condition
+restores safety by refusing teardown whenever `lane_work_has_landed` is False or None.
 
 ### R6. Shared predicates, single definition
 
@@ -678,6 +701,16 @@ re-flag it as a traceability gap.
   the prompt still naming out-of-lane paths the turn FAILS, and that with R1.1 satisfied it does not. A
   plan may satisfy this by citing the sequencing constraint and showing the two states, but it MUST NOT
   claim R4.6 holds without evidence that the ordering was actually respected. (R4.6)
+- A21. TEARDOWN GATE DISCRIMINATES ACROSS ALL SIX LANE SHAPES AND FAILS CLOSED ON UNCERTAINTY.
+  Demonstrate by outcome in real git lanes with real run directories that the gate discriminates in all six
+  shapes measured by F-08: (1) interrupted, wrote nothing, no submission tree -> torn down; (2) interrupted,
+  submission tree prepared by driver but no files written -> torn down; (3) wrote submission, never collected ->
+  preserved with `uncollected-submission`; (4) wrote submission, receipt complete -> torn down; (5) unmerged
+  commits, clean porcelain, no submission -> preserved with `unlanded-lane-commits`; (6) merged commits,
+  clean porcelain, no submission -> torn down. Also demonstrate that the three fail-toward-preservation
+  cases preserve the lane: a prior attempt's uncollected submission when the current attempt is empty preserves;
+  `item=None` preserves; and an unanswerable landing question (deleted branch) preserves with
+  `unlanded-lane-commits`. (R2.5, R5.5, R5.7)
 
 ## 5. Research recommendations NOT adopted, and why
 

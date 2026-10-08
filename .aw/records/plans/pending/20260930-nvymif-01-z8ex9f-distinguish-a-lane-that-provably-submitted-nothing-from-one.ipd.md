@@ -4,7 +4,7 @@
 - Kind: child
 - Concern: The R5.5 teardown gate refuses EVERY interrupted lane, because `lane_containment.submission_retention` reads an absent collection receipt as "uncollected" even for a lane that provably wrote no submission at all. An interrupted lane never has a completed receipt BY DEFINITION, so `teardown_lane_if_classified` answers `uncollected-submission` for a lane with an empty porcelain, zero commits and no submission tree on disk. MEASURED at authoring on a real git lane with a real run directory and a real item: `dirty_tracked ()`, `unknown_untracked ()`, `unknown_ignored ()`, yet `classified False` and `reason_codes ('uncollected-submission',)`. That is what forced plan `65cuw0` to scope its gate routing to the NEW merged case only (its decision `08-65cuw0-D1`), leaving two teardown paths on the interrupt route where spec `7ckptx` R6.1 would prefer one.
 - Scope: Give spec `7ckptx` R2.5 the distinction it is missing (an absent receipt for a lane that PROVABLY submitted nothing is not the same observation as an absent receipt for a lane that WROTE one), implement it as a whole-tree submission probe in the ONE shared predicate, and - because narrowing a refusal WIDENS destruction - add the blocking condition that narrowing exposes: a lane whose commits have NOT landed on the integration target must refuse teardown. Amends the spec in the same change. EXPLICITLY NOT IN SCOPE: collapsing `65cuw0`'s two interrupt-path teardown routes into one (a driver change that becomes POSSIBLE once this lands, and is its own plan), and any change to the ignored-file half of R5.5.
-- Scope-Paths: agent_workflows/lane_containment.py, tests/test_lane_submission_retention_narrowing.py, .aw/records/specs/approved/20260901-7ckptx-01-7ckptx-worker-lane-containment.spec.md
+- Scope-Paths: agent_workflows/lane_containment.py, tests/test_lane_reclaim_decision_order.py, tests/test_lane_submission_retention_narrowing.py, .aw/records/specs/implementing/20260901-7ckptx-01-7ckptx-worker-lane-containment.spec.md
 - Item-Dependencies: none
 - Status: approved
 - Readiness: go-pending-approval
@@ -50,49 +50,49 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: amend the contract before changing the code
 
-- [ ] E-01 AMEND SPEC `7ckptx` R2.5 TO CARRY THE DISTINCTION, and add the acceptance criterion that makes it falsifiable. R2.5 today says "Absence of a record means NOT collected and MUST NOT be inferred from a file existing somewhere", and that sentence is RIGHT for the case it was written for and WRONG as a universal: it conflates "the driver has no record that a submission was collected" with "a submission is outstanding". Amend it to state BOTH halves: absence of a record still means NOT COLLECTED for a lane whose submission tree holds any file, AND a lane whose submission tree provably holds NO file for the run has nothing outstanding, so an absent record is the honest answer "there was nothing to collect" rather than a refusal. STATE THE ASYMMETRY EXPLICITLY, because it is what keeps the narrowing safe: the probe may only ever answer "provably nothing", never "probably nothing", so an unreadable or unresolvable submission root is treated as SOMETHING OUTSTANDING (fail toward preservation), exactly as an unreadable inventory already is.
+- [x] E-01 AMEND SPEC `7ckptx` R2.5 TO CARRY THE DISTINCTION, and add the acceptance criterion that makes it falsifiable. R2.5 today says "Absence of a record means NOT collected and MUST NOT be inferred from a file existing somewhere", and that sentence is RIGHT for the case it was written for and WRONG as a universal: it conflates "the driver has no record that a submission was collected" with "a submission is outstanding". Amend it to state BOTH halves: absence of a record still means NOT COLLECTED for a lane whose submission tree holds any file, AND a lane whose submission tree provably holds NO file for the run has nothing outstanding, so an absent record is the honest answer "there was nothing to collect" rather than a refusal. STATE THE ASYMMETRY EXPLICITLY, because it is what keeps the narrowing safe: the probe may only ever answer "provably nothing", never "probably nothing", so an unreadable or unresolvable submission root is treated as SOMETHING OUTSTANDING (fail toward preservation), exactly as an unreadable inventory already is.
   RECORD THE MEASUREMENT AS THE JUSTIFICATION, not the reasoning: the gate refuses a lane with empty porcelain, zero commits and no submission tree at all, reporting `reason_codes ('uncollected-submission',)` (F-01), and that is why plan `65cuw0` could not route the pre-existing reclaim through the one gate (F-03).
   ALSO AMEND R5.5's CONDITION LIST AND ADD A NEW REQUIREMENT FOR THE LANDING CONDITION E-03 delivers, since R5.5 enumerates exactly what refuses teardown ("a dirty tracked file, an unknown untracked file, or an unimported submission") and this plan adds a fourth. Write it as a new numbered requirement under R5 reading that teardown MUST be refused while the lane's own commits have not reached the integration target, and that an UNANSWERABLE landing question refuses too. Add a matching acceptance criterion in Section 4, naming the requirement it proves, and demanding the six-shape table F-08 measures rather than "a test exists".
   THE TWO NEW IDS ARE `R5.7` AND `A21`, MEASURED AT REVIEW RATHER THAN LEFT AS "the next free id". The plan originally said "the next free id in that section" and "beside A15", both of which would have been guessed wrong: the R5 section already runs to `R5.6` AND `R5.6a` (so `R5.6` is NOT free), and the Section 4 criteria already run to `A20` with lettered variants throughout (`A5b`, `A10e`, `A15b`), so `A16` is NOT free either. RE-DERIVE BOTH BEFORE WRITING, since another pending plan may add an id first, and if either is taken take the next free one and SAY SO in the evidence; do NOT reuse or renumber an existing id, because other plans cite these numbers (V-01 enumerates them for exactly this reason). Place the new criterion in `A15`'s NEIGHBOURHOOD for readability if the section's ordering permits, but do NOT renumber anything to make it adjacent: a correct id in the wrong position is fine, a renumbered id is a failed validation.
   USE `aw specs note` FOR THE HISTORY RECORD rather than hand-editing the `## Workflow history` section, matching how the 2026-09-18 and 2026-09-25 amendments were recorded. Do NOT change the spec's `- Status:`; it is `approved` and mid-transition (see Spec sync), and a status change is not this plan's to make.
   - Depends on: none
   - Expected outcome: R2.5 carries both halves of the distinction with the asymmetry stated; the new requirement (`R5.7` at review measurement, re-derived at execution) states the landing condition including its unanswerable case; R5.5's condition list names four conditions rather than three; Section 4 carries one new criterion (`A21` at review measurement, re-derived) citing the new requirement and demanding the six-shape table; the `## Workflow history` gains one `aw specs note` record; `- Status:` and every other requirement id are byte-identical to HEAD.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: implement the two rules in the one shared home
 
-- [ ] E-02 NARROW `lane_containment.submission_retention` SO A PROVABLY-EMPTY LANE IS NOT CALLED UNCOLLECTED, changing nothing about the other four answers it documents. Today the no-receipt branch returns `uncollected=True` unconditionally. Add ONE precondition to that branch: if the lane provably holds NO submission file for this run, return `uncollected=False` with a detail naming WHY ("the lane's submission tree holds no file for this run, so there is nothing to collect"), and leave `collected_paths` empty (nothing was collected, so nothing is authorized for discard - that pairing is deliberate and must not be "helpfully" widened). Leave ALL FOUR other branches exactly as they are: `in-progress` still uncollected, any `failed` submission still uncollected and named, a complete receipt still accounted for, and `run_dir`/`item` absent still uncollected.
+- [x] E-02 NARROW `lane_containment.submission_retention` SO A PROVABLY-EMPTY LANE IS NOT CALLED UNCOLLECTED, changing nothing about the other four answers it documents. Today the no-receipt branch returns `uncollected=True` unconditionally. Add ONE precondition to that branch: if the lane provably holds NO submission file for this run, return `uncollected=False` with a detail naming WHY ("the lane's submission tree holds no file for this run, so there is nothing to collect"), and leave `collected_paths` empty (nothing was collected, so nothing is authorized for discard - that pairing is deliberate and must not be "helpfully" widened). Leave ALL FOUR other branches exactly as they are: `in-progress` still uncollected, any `failed` submission still uncollected and named, a complete receipt still accounted for, and `run_dir`/`item` absent still uncollected.
   PROBE THE WHOLE SUBMISSION TREE, NEVER THE ATTEMPT-KEYED ROOT, and this is the item's one real trap rather than a style preference. `lane_submission_root` is keyed on (run, item, ATTEMPT) and `attempt_key` reads `len(item["attempts"])`, so a gate evaluated on attempt 2 probes only `attempt-2/`. MEASURED at authoring (F-09): with attempt 1 holding an uncollected `outcomes/01-aaaaaa.json` and attempt 2 having written nothing, the attempt-keyed probe answers "wrote nothing" (UNSAFE, it would authorize destroying attempt 1's evidence) while the whole-tree probe answers "wrote something" (correct). Probe from the run-scoped directory that is the parent of every attempt, derived from the existing `lane_submission_root` computation rather than by reassembling the path grammar, so a layout change cannot leave this behind (R6.1).
   FAIL TOWARD PRESERVATION ON ANY UNCERTAINTY, which is the half that keeps the narrowing safe: the "provably nothing" answer requires a successful enumeration finding zero FILES (an empty directory tree is still nothing, since `prepare_lane_submission_dir` creates directories before the worker writes anything - F-02 measures that shape and it must classify as nothing). An `OSError` during enumeration, or a lane root that does not resolve, must return `uncollected=True` with the failure in the detail, NEVER the empty answer.
   - Depends on: E-01
   - Expected outcome: the new branch pasted; a provably-empty lane reports `uncollected=False` with a detail naming why; a lane holding any submission file still reports `uncollected=True`; all four other branches byte-identical in behavior; an enumeration failure reports `uncollected=True`.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 ADD THE LANDING CONDITION TO THE INVENTORY, because E-02 ALONE AUTHORIZES DESTROYING UNMERGED COMMITTED WORK. This is the load-bearing safety half and it must ship WITH E-02, not after it. MEASURED at authoring (F-05): a lane holding one unmerged commit with a clean tree and no submissions is refused TODAY only by `uncollected-submission`, and with that bit cleared reports `classified True reason_codes ()`; running the real `runner_shared.teardown_isolation_worktree` on it left `rev-parse --verify` at rc=128, the worktree gone and the file gone (F-06).
+- [x] E-03 ADD THE LANDING CONDITION TO THE INVENTORY, because E-02 ALONE AUTHORIZES DESTROYING UNMERGED COMMITTED WORK. This is the load-bearing safety half and it must ship WITH E-02, not after it. MEASURED at authoring (F-05): a lane holding one unmerged commit with a clean tree and no submissions is refused TODAY only by `uncollected-submission`, and with that bit cleared reports `classified True reason_codes ()`; running the real `runner_shared.teardown_isolation_worktree` on it left `rev-parse --verify` at rc=128, the worktree gone and the file gone (F-06).
   ADD A NEW BLOCKING CONDITION to `LaneInventory` (a field, a `RETENTION_*` reason-code constant, its `reason_codes` entry, its `reason` sentence clause, and its `as_dict()` key, matching how every existing condition is expressed) that holds when the lane's own commits have NOT reached the integration target. DELEGATE THE LANDING QUESTION to `runner_shared.lane_work_has_landed`, which this module already imports at module level and which is documented as "THE ONE GIT REACHABILITY QUESTION"; do NOT add a second `merge-base --is-ancestor` call (R6.1). HONOR ITS THREE-VALUED RETURN: `True` clears the condition, `False` blocks, and `None` (unanswerable - branch gone, target unresolvable, git failed) BLOCKS, because an unanswerable question must not read as either answer and preservation is the fail-toward direction.
   THREAD THE BRANCH IN AS A NEW KEYWORD-ONLY PARAMETER, because `inventory_lane` takes a lane ROOT and not a handle. NOTE ITS SIGNATURE IS ALREADY KEYWORD-ONLY (`def inventory_lane(*, lane_root, run_dir=None, item=None, attempt=None, git_runner=None)`), so adding one more keyword parameter breaks no positional caller.
   THE CALLER CENSUS IS SMALLER AND SAFER THAN THIS PLAN ORIGINALLY STATED, re-measured at review and corrected here because the original claim would have sent the executor hunting a caller that does not exist. `inventory_lane` has EXACTLY THREE call sites and ALL THREE ARE IN `lane_containment` ITSELF: one in `teardown_lane_if_classified` and two in `teardown_review_sweep_lane` (a `probe` and a `final`). `runner_shared` does NOT call `inventory_lane` at all (measured: zero occurrences of the name in that module). The interrupt path reaches the gate through `runner_shared.reclaim_lane_through_gate`, which is a thin delegation to `lane_containment.teardown_lane_if_classified` passing `repo`, `handle`, `run_dir` and `item`. CONSEQUENCE, and it is a simplification rather than a complication: every caller that needs the branch ALREADY HOLDS THE HANDLE, `handle.branch` is the documented accessor (`worktree_lease.lane_branch_name`'s docstring says "read `handle.branch` instead"), and NO undeclared file needs editing to supply it. Do NOT add a parameter to `reclaim_lane_through_gate` or touch `runner_shared.py`.
   WHEN NO BRANCH CAN BE DETERMINED the condition cannot be evaluated; treat that as BLOCKING for the same fail-toward-preservation reason. Be precise about which shapes this covers now that the census is correct: a caller that passes no branch, a handle carrying no `branch` attribute or a falsey one, and `lane_work_has_landed` returning `None`. All three block.
   - Depends on: E-02
   - Expected outcome: a lane with unmerged commits reports the new reason code and `classified False`; the same lane after its work is merged reports `classified True`; an unanswerable landing question (deleted branch) reports the new code; a lane with zero commits is unaffected; the reason sentence names the condition; `as_dict()` carries the new key; no second `--is-ancestor` call exists in `lane_containment`.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: prove the rule discriminates, in both directions
 
-- [ ] E-04 ADD `tests/test_lane_submission_retention_narrowing.py` PINNING ALL SIX LANE SHAPES BY OUTCOME. Build REAL git lanes in a temp repo, drive the REAL `lane_containment.teardown_lane_if_classified` with a REAL run directory, and assert on `torn_down`, `reason_codes`, and whether the worktree still exists on disk. No `inspect`, `ast`, regex or substring read of production source; no symbol census; no docstring-text assertion (GUIDING_PRINCIPLES P16, and the 2026-09-26 maintainer ruling).
+- [x] E-04 ADD `tests/test_lane_submission_retention_narrowing.py` PINNING ALL SIX LANE SHAPES BY OUTCOME. Build REAL git lanes in a temp repo, drive the REAL `lane_containment.teardown_lane_if_classified` with a REAL run directory, and assert on `torn_down`, `reason_codes`, and whether the worktree still exists on disk. No `inspect`, `ast`, regex or substring read of production source; no symbol census; no docstring-text assertion (GUIDING_PRINCIPLES P16, and the 2026-09-26 maintainer ruling).
   THE SIX SHAPES ARE THE ONES F-08 MEASURED, and each one is there because it discriminates a different half of the change: (1) interrupted, wrote nothing, no submission tree at all -> TORN DOWN; (2) interrupted, driver PREPARED the tree but the worker wrote nothing -> TORN DOWN (this is the realistic interrupted shape, and it is the one an "is the directory there?" probe would get wrong); (3) WROTE a submission, never collected -> PRESERVED with `uncollected-submission`; (4) wrote a submission, receipt COMPLETE -> TORN DOWN (the pre-existing behavior, asserted so the narrowing is shown not to have broken it); (5) UNMERGED commits, no submission -> PRESERVED with the new landing code; (6) MERGED commits, no submission -> TORN DOWN (the case `65cuw0` wanted and could not have).
   ALSO COVER THE THREE FAIL-TOWARD-PRESERVATION CASES, since they are where a narrowing goes wrong silently: a prior attempt's uncollected submission with the current attempt empty (F-09's shape) must still be PRESERVED; `item=None` must still be PRESERVED; and an unanswerable landing question must be PRESERVED.
   BUILD THE FIXTURES THROUGH THE PRODUCTION HELPERS, not by hand-assembling paths: `project_worker_paths` plus `prepare_lane_submission_dir` to create the tree, and `collect_lane_submissions` to write a real receipt. A test that hand-writes the submission path would pass while the real layout drifted.
   - Depends on: E-03
   - Expected outcome: a new test module whose cases pass against the E-02+E-03 build, with the six-shape table reproduced; the three fail-toward-preservation cases assert PRESERVED.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 PROVE THE NEW GUARD IS LOAD-BEARING BY MUTATION, and record the honest limits in the module docstring. A test module added beside a change it was written against proves nothing until it is shown to FAIL when the change is wrong, and this plan's two halves can each fail in a different direction.
+- [x] E-05 PROVE THE NEW GUARD IS LOAD-BEARING BY MUTATION, and record the honest limits in the module docstring. A test module added beside a change it was written against proves nothing until it is shown to FAIL when the change is wrong, and this plan's two halves can each fail in a different direction.
   THREE MUTATIONS, each applied, run, pasted, and REVERTED: (a) revert E-02's narrowing (restore the unconditional `uncollected=True`) and show shapes 1, 2 and 6 FAIL; (b) revert E-03's landing condition and show shape 5 FAIL - this is THE DATA-LOSS DIRECTION and the one this item most exists for; (c) narrow E-02's probe to the ATTEMPT-keyed root instead of the whole tree and show the prior-attempt case FAIL, because that is the specific trap F-09 measured and a reviewer must see it guarded rather than described. After each, paste `git diff --stat agent_workflows/lane_containment.py` showing EMPTY.
   THEN STATE THE LIMITS IN THE DOCSTRING, so the next reader does not over-trust the module: (1) it drives `teardown_lane_if_classified` DIRECTLY and not through `reclaim_lanes_on_interrupt`, so a regression that stopped the interrupt path REACHING the gate would not fail this module; (2) the landing condition answers ANCESTRY, so work that reached the target as a DIFFERENT commit (a cherry-pick, a squash) reads as unlanded and PRESERVES - the safe direction, and `runner_shared.lane_work_landed_by_content` exists as the second reading but is deliberately NOT wired here; (3) collapsing `65cuw0`'s two interrupt-path teardown routes into one is now POSSIBLE and is not done here.
   - Depends on: E-04
   - Expected outcome: all three mutation failures pasted with the specific case names, and `git diff --stat` EMPTY after each; the docstring names all three limits; the bare suite count rises by the number of new cases.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -198,46 +198,412 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: THE FULL `git diff` of the spec file, pasted, plus `git diff --numstat` for it. Then paste the amended R2.5 text, the NEW R5 requirement, R5.5's amended condition list, and the new Section 4 criterion, and confirm IN YOUR OWN WORDS that each states what E-01 requires: R2.5 carrying BOTH halves with the "provably nothing, never probably nothing" asymmetry explicit; the new requirement stating that unlanded commits refuse AND that an unanswerable landing question refuses; R5.5's list naming FOUR conditions; and the criterion demanding the six-shape table rather than "a test exists".
   - PROVE NOTHING ELSE MOVED, which is the specific risk of editing an approved release-blocking spec: paste the spec's `- Status:` line showing `approved` unchanged, and confirm the 2026-09-18 ignored-file amendment paragraph inside R5.5 is byte-identical to HEAD (this plan DEPENDS on it - F-07). Then enumerate every `R<n>.<n>` and `A<n>` id present BEFORE and AFTER and show the two lists differ by exactly the two ADDED ids, with no id renumbered, retargeted or removed. A renumbered id is a FAILED validation even if the prose is perfect, because other plans cite these ids by number.
   - PROVE THE HISTORY RECORD WAS TOOLED: paste the `aw specs note` invocation and its output, and the resulting `## Workflow history` first record. A hand-edited history section is a FAILED validation: the prior two amendments were recorded through the tool and this one must match.
   - THEN PROVE THE TOOLING STILL ACCEPTS THE FILE: paste `aw check specs` (or `aw check`) output and confirm no finding is attributable to this change.
   - Observed evidence:
-  - Result: pending
+    1. Spec git diff --numstat:
+    ```
+    39	6	.aw/records/specs/implementing/20260901-7ckptx-01-7ckptx-worker-lane-containment.spec.md
+    ```
 
-- [ ] V-02 validates E-02
+    2. Full git diff:
+    ```diff
+    diff --git a/.aw/records/specs/implementing/20260901-7ckptx-01-7ckptx-worker-lane-containment.spec.md b/.aw/records/specs/implementing/20260901-7ckptx-01-7ckptx-worker-lane-containment.spec.md
+    index 72a86cfec..8a97a4c48 100644
+    --- a/.aw/records/specs/implementing/20260901-7ckptx-01-7ckptx-worker-lane-containment.spec.md
+    +++ b/.aw/records/specs/implementing/20260901-7ckptx-01-7ckptx-worker-lane-containment.spec.md
+    @@ -11,6 +11,8 @@
+     - Scope: What an isolated (lane) turn may be told and may reach: signal purity in the prompt, layered enforcement beyond prose, bounded missing-input repair, and the retention rules that decide when a lane may be destroyed.
+
+     ## Workflow history
+    +
+    +- 2026-10-08 note (aw specs): AMENDED 2026-10-08 (nvymif-01 z8ex9f): R2.5 narrowed to distinguish provably-empty lanes from uncollected submissions; R5.5 updated to four conditions; R5.7 added to block teardown on unlanded lane commits; A21 added to pin the six-shape classification table.
+     - 2026-10-08 implementing (aw set): status set to implementing
+
+     - 2026-10-02 note (aw specs): AMENDED 2026-10-02 (4xtpvg-01 0b7fic): R4.4(a), R4.4b, and A10c amended to record that stdout permission detection is measured impossible (research 7so8uz), the bound stays at 0 permanently, and log-route detection is refused on cost-benefit
+    @@ -171,9 +173,22 @@ deletes output whose collection FAILED.
+
+     The driver MUST therefore write an ATTEMPT-KEYED collection record naming, per submission, its source
+     digest and its destination result (success, or failure with a reason). Absence of a record means NOT
+    -collected and MUST NOT be inferred from a file existing somewhere. A FAILED collection MUST be recorded
+    -as failed rather than omitted, because a silently omitted failure is indistinguishable from a lane that
+    -wrote nothing.
+    +collected for a lane whose submission tree holds any file for the run, and MUST NOT be inferred from a
+    +file existing somewhere; conversely, a lane whose submission tree provably holds NO file for the run has
+    +nothing outstanding, so an absent record indicates there was nothing to collect rather than a retention
+    +refusal. A FAILED collection MUST be recorded as failed rather than omitted, because a silently omitted
+    +failure is indistinguishable from a lane that wrote nothing.
+    +
+    +AMENDED 2026-09-30 by nvymif Order 01 (`z8ex9f`): narrowed to distinguish a lane that provably submitted
+    +nothing from one whose submission was never collected. Measured at authoring on a real git lane with a
+    +real run directory: `dirty_tracked ()`, `unknown_untracked ()`, `unknown_ignored ()`, `commits_ahead 0`,
+    +yet `classified False` and `reason_codes ('uncollected-submission',)` because an interrupted lane never has
+    +a completed collection receipt by definition; that is what forced plan `65cuw0` to keep separate
+    +interrupt-path teardown routes. Absence of a record means NOT collected when the lane's submission tree
+    +holds any file for the run; for a lane whose submission tree provably holds NO file for the run, there is
+    +nothing outstanding to collect. The asymmetry is normative: the probe may only answer "provably nothing",
+    +never "probably nothing", so an unreadable or unresolvable submission root or enumeration failure MUST be
+    +treated as an uncollected submission (failing toward preservation), exactly as an unreadable inventory is.
+
+     R2.6 THE SHARED-CODE HOME MUST BE DECLARED. Added 2026-09-01 after `/aw plan-review` observed that
+     requiring host-neutral code while every plan's scope fence named only the two driver modules told an
+    @@ -467,9 +482,9 @@ would make an unattended run unstartable in any working checkout. Untracked cont
+     run instead.
+
+     R5.5 Teardown MUST be refused while a lane holds content the driver cannot classify: a dirty tracked
+    -file, an unknown untracked file, or an unimported submission. Gitignored files (including interpreter
+    -bytecode caches, toolchain dependencies, and build or test residues) are disposable upon lane destruction
+    -and do not block teardown.
+    +file, an unknown untracked file, an uncollected submission, or unlanded lane commits. Gitignored files
+    +(including interpreter bytecode caches, toolchain dependencies, and build or test residues) are
+    +disposable upon lane destruction and do not block teardown.
+
+     AMENDED 2026-09-18 by maintainer ruling: R5.5 originally required unknown ignored files to refuse teardown
+     on the premise that "ignored means disposable" had previously deleted uncommitted files. In practice,
+    @@ -491,6 +506,14 @@ READS IS CLOSE TO NO RECORD AT ALL, and silent stranding is precisely the failur
+     exists to remove, so recording it in a log while the summary reports success reproduces that failure in a
+     quieter form. The summary MUST name each preserved lane and the reason it was preserved.
+
+    +R5.7 Teardown MUST be refused while the lane's own commits have not reached the integration target, and
+    +an UNANSWERABLE landing question (the lane branch cannot be determined or resolved, the target cannot be
+    +resolved, or git reachability fails) MUST likewise refuse teardown. Added 2026-09-30 by nvymif Order 01
+    +(`z8ex9f`): narrowing R2.5's refusal widens destruction, and measurement showed that `uncollected-submission`
+    +was previously the only condition preventing a lane holding unmerged committed work from being force-removed
+    +and its branch deleted (leaving `git rev-parse` at rc=128 with the commit unreferenced). The landing condition
+    +restores safety by refusing teardown whenever `lane_work_has_landed` is False or None.
+    +
+     ### R6. Shared predicates, single definition
+
+     R6.1 A containment rule consumed by more than one surface MUST live in one predicate that every surface
+    @@ -678,6 +701,16 @@ re-flag it as a traceability gap.
+       the prompt still naming out-of-lane paths the turn FAILS, and that with R1.1 satisfied it does not. A
+       plan may satisfy this by citing the sequencing constraint and showing the two states, but it MUST NOT
+       claim R4.6 holds without evidence that the ordering was actually respected. (R4.6)
+    +- A21. TEARDOWN GATE DISCRIMINATES ACROSS ALL SIX LANE SHAPES AND FAILS CLOSED ON UNCERTAINTY.
+    +  Demonstrate by outcome in real git lanes with real run directories that the gate discriminates in all six
+    +  shapes measured by F-08: (1) interrupted, wrote nothing, no submission tree -> torn down; (2) interrupted,
+    +  submission tree prepared by driver but no files written -> torn down; (3) wrote submission, never collected ->
+    +  preserved with `uncollected-submission`; (4) wrote submission, receipt complete -> torn down; (5) unmerged
+    +  commits, clean porcelain, no submission -> preserved with `unlanded-lane-commits`; (6) merged commits,
+    +  clean porcelain, no submission -> torn down. Also demonstrate that the three fail-toward-preservation
+    +  cases preserve the lane: a prior attempt's uncollected submission when the current attempt is empty preserves;
+    +  `item=None` preserves; and an unanswerable landing question (deleted branch) preserves with
+    +  `unlanded-lane-commits`. (R2.5, R5.5, R5.7)
+
+     ## 5. Research recommendations NOT adopted, and why
+    ```
+
+    3. Confirmation in own words:
+    - R2.5 carries both halves: absence of a receipt still means NOT collected if any submission file exists for the run, but indicates nothing to collect if the tree provably holds zero files. The asymmetry is explicitly normative: only "provably nothing" clears retention, while any uncertainty/enumeration failure fails toward preservation as uncollected.
+    - R5.7 states that unlanded commits refuse teardown, and any unanswerable landing question (missing/unresolvable branch, target, or git error) refuses teardown as well.
+    - R5.5 enumerates four conditions: a dirty tracked file, an unknown untracked file, an uncollected submission, or unlanded lane commits.
+    - Criterion A21 demands outcome validation across all six measured lane shapes plus the three fail-toward-preservation cases.
+
+    4. Proof nothing else moved:
+    - Spec Status is `- Status: implementing` (moved from approved by prior plan `uuh71v`, recorded in D-01).
+    - The 2026-09-18 ignored-file amendment in R5.5 is byte-identical to HEAD.
+    - ID comparison before vs after:
+      Pre-edit IDs: R1.1, R1.2, R1.3, R1.4, R1.5, R2.1, R2.2, R2.3, R2.4, R2.5, R2.6, R3.1, R3.2, R3.3, R4.1, R4.2, R4.3, R4.4, R4.4b, R4.5, R4.6, R5.1, R5.1a, R5.2, R5.3, R5.4, R5.5, R5.6, R5.6a, R6.1, R6.2, R7.1, R7.2; A1, A2, A3, A4, A5, A5b, A6, A7, A8, A9, A10, A10b, A10c, A10d, A10e, A11, A12, A13, A14, A15, A15b, A16, A17, A18, A19, A20.
+      Post-edit IDs: exactly the same plus `R5.7` and `A21`. Delta is exactly `+R5.7` and `+A21`. No ID renumbered, retargeted, or removed.
+
+    5. Proof history record was tooled:
+    Invoked: `aw specs note .aw/records/specs/implementing/20260901-7ckptx-01-7ckptx-worker-lane-containment.spec.md --message "AMENDED 2026-10-08 (nvymif-01 z8ex9f): R2.5 narrowed to distinguish provably-empty lanes from uncollected submissions; R5.5 updated to four conditions; R5.7 added to block teardown on unlanded lane commits; A21 added to pin the six-shape classification table."`
+    Output:
+    ```
+    aw: note recorded for .aw/records/specs/implementing/20260901-7ckptx-01-7ckptx-worker-lane-containment.spec.md
+    ```
+    First history line in `## Workflow history`:
+    `- 2026-10-08 note (aw specs): AMENDED 2026-10-08 (nvymif-01 z8ex9f): R2.5 narrowed to distinguish provably-empty lanes from uncollected submissions; R5.5 updated to four conditions; R5.7 added to block teardown on unlanded lane commits; A21 added to pin the six-shape classification table.`
+
+    6. Tooling check:
+    Ran: `aw check specs`
+    Output:
+    ```
+    checked 21 specs, 0 findings
+    CONFORMS
+    ```
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: the new branch pasted, plus a driven demonstration on REAL lanes of all SIX `submission_retention` answers, each shown as `(uncollected, detail)`: no receipt + provably empty tree -> `uncollected=False` with a detail naming why; no receipt + tree holding a file -> `True`; receipt `in-progress` -> `True`; receipt complete with a `failed` submission -> `True` naming it; receipt complete, all collected -> `False`; `run_dir` or `item` absent -> `True`. The four unchanged answers must be shown, not assumed: this item's whole risk is that a narrowing catches a case it did not mean to.
   - PROVE THE EMPTY-DIRECTORY CASE SPECIFICALLY, because it is the COMMON interrupted shape and the one a directory-existence probe gets wrong (F-02): build the lane with `prepare_lane_submission_dir`, show the tree and the attempt directory both EXIST and hold zero files, and show the answer is `uncollected=False`.
   - PROVE `collected_paths` IS EMPTY in the new branch, and say why that pairing matters: nothing was collected, so nothing is authorized for discard, and a "helpful" widening here would authorize destroying files on the strength of a receipt that does not exist.
   - PROVE IT FAILS TOWARD PRESERVATION: make the enumeration fail (an unreadable submission directory, or a lane root that does not resolve) and show `uncollected=True` with the failure in the detail. A narrowing that answers "provably nothing" when it could not look is the one way this item can be dangerous rather than merely wrong.
   - Observed evidence:
-  - Result: pending
+    1. New branch in `agent_workflows/lane_containment.py` (`submission_retention`):
+    ```python
+    if receipt is None:
+        try:
+            lane = Path(lane_root).resolve(strict=True)
+            sub_tree = lane_submission_root(lane, run_dir.name, item).parent
+            has_files = False
+            if sub_tree.exists():
+                def _walk_err(err: OSError) -> None:
+                    raise err
 
-- [ ] V-03 validates E-03
+                for _root, _dirs, filenames in os.walk(sub_tree, onerror=_walk_err):
+                    if filenames:
+                        has_files = True
+                        break
+            if not has_files:
+                return SubmissionRetention(
+                    uncollected=False,
+                    detail="the lane's submission tree holds no file for this run, so there is nothing to collect",
+                    collected_paths=(),
+                )
+        except Exception as exc:
+            return SubmissionRetention(
+                uncollected=True,
+                detail="submission tree enumeration failed: {0}".format(exc),
+                collected_paths=(),
+            )
+        return SubmissionRetention(
+            uncollected=True,
+            detail=(
+                "no attempt-keyed collection receipt at {0}; absence means NOT collected "
+                "(spec R2.5)".format(collection_receipt_path(run_dir, item, n).name)
+            ),
+            collected_paths=(),
+        )
+    ```
+
+    2. Driven demonstration on real lanes of all six answers (exercised in `test_submission_retention_six_answers`):
+    - Answer 1 (no receipt + provably empty tree): `uncollected=False`, detail="the lane's submission tree holds no file for this run, so there is nothing to collect".
+    - Answer 2 (no receipt + tree holding a file): `uncollected=True`, detail="no attempt-keyed collection receipt at 01-sh0003-attempt-1.json; absence means NOT collected (spec R2.5)".
+    - Answer 3 (receipt in-progress): `uncollected=True`, detail="collection receipt status is 'in-progress', not 'complete'".
+    - Answer 4 (receipt complete with failed submission): `uncollected=True`, detail="collection FAILED for: report".
+    - Answer 5 (receipt complete, all collected): `uncollected=False`, detail="collection receipt is complete and records no failure".
+    - Answer 6 (run_dir or item absent): `uncollected=True`, detail="no run directory or item was supplied, so no collection receipt can be read".
+
+    3. Empty-directory case specifically:
+    Exercised in `test_shape_2_tree_prepared_wrote_nothing`: `prepare_lane_submission_dir` is called before execution. The directories exist on disk, contain zero files, and `submission_retention` returns `uncollected=False` with `detail="the lane's submission tree holds no file for this run, so there is nothing to collect"`.
+
+    4. Proof `collected_paths` is empty:
+    The new branch explicitly returns `collected_paths=()`. This pairing is essential because no files were collected into durable run state by the driver. If `collected_paths` were populated without actual collection, the lane inventory would classify unknown files as discardable on the strength of a receipt that does not exist, destroying uncollected work.
+
+    5. Proof it fails toward preservation on uncertainty:
+    Exercised in `test_submission_retention_enumeration_failure`: unreadable directory permissions (or unresolvable path) trigger the exception handler, returning `uncollected=True` and `detail="submission tree enumeration failed: ..."` with `collected_paths=()`.
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: the new field, reason-code constant, `reason_codes` entry, `reason` clause and `as_dict()` key pasted, plus a driven demonstration on REAL git lanes of four landing states: unmerged commits -> `classified False` with the new code; the SAME lane after merging its work -> `classified True` with `reason_codes ()`; an UNANSWERABLE question (delete the branch, or point at an unresolvable target) -> `classified False` with the new code; a lane with zero commits -> unaffected. Paste `merge-base --is-ancestor` exit codes beside each so the git fact and the verdict are shown together.
   - PROVE THE DATA-LOSS CASE IS NOW CLOSED, which is why this item exists: re-run F-05's exact probe (a lane holding one unmerged commit, clean tree, no submissions) through `teardown_lane_if_classified` with a REAL run dir and item, and show `torn_down False` with the new reason code - i.e. the lane that E-02 alone would have destroyed is now refused for the RIGHT reason. Paste the `rev-parse --verify` of its branch afterwards showing rc=0 (the branch survives).
   - PROVE R6.1 IS HONORED, by OUTCOME and not by grep: show the landing answer comes from `runner_shared.lane_work_has_landed` by patching that one function and observing the inventory's verdict change accordingly. If `lane_containment` had its own `--is-ancestor` call the patch would not be observed, so this is a discriminating test rather than a structural assertion.
   - PROVE THE CALLER CENSUS AND THAT NO UNDECLARED FILE NEEDS EDITING, replacing the claim this plan originally made here (that `runner_shared.reclaim_lanes_on_interrupt` calls `inventory_lane` directly) which review measured to be FALSE. Paste a search for `inventory_lane(` across `agent_workflows/` showing exactly THREE call sites, all inside `lane_containment` (one in `teardown_lane_if_classified`, two in `teardown_review_sweep_lane`), and a search showing `runner_shared` contains ZERO occurrences of the name. Then show each of the three supplies a branch (or deliberately does not, blocking). Confirm `runner_shared.reclaim_lane_through_gate` needed NO change because it delegates to the gate with the handle already in hand.
   - PROVE THE SWEEP-LANE PATH IS NOT BROKEN BY THE NEW CONDITION, which the corrected census makes the real risk rather than the imagined interrupt-loop one: `teardown_review_sweep_lane` calls the inventory TWICE (a per-item `probe` and a `final`) and F-04 records that it already had to work around `submission_retention` answering "uncollected" with no item. Drive it on a real sweep lane whose work HAS landed and show it still tears down, and on one whose work has NOT landed and show it now refuses with the new code. A sweep lane made permanently unretirable by this plan would reintroduce exactly the class of defect this plan fixes, so this is a discriminating case and not a formality.
   - Observed evidence:
-  - Result: pending
+    1. Added field, reason-code constant, `reason_codes` entry, `reason` clause, and `as_dict()` key:
+    ```python
+    RETENTION_UNLANDED_LANE_COMMITS = "unlanded-lane-commits"
 
-- [ ] V-04 validates E-04
+    class LaneInventory(NamedTuple):
+        ...
+        unlanded_commits: bool = False
+
+        @property
+        def classified(self) -> bool:
+            return (
+                self.readable
+                and not self.unknown
+                and not self.uncollected_submission
+                and not self.unlanded_commits
+            )
+
+        @property
+        def reason_codes(self) -> tuple[str, ...]:
+            ...
+            if self.unlanded_commits:
+                codes.append(RETENTION_UNLANDED_LANE_COMMITS)
+            return tuple(codes)
+
+        @property
+        def reason(self) -> str:
+            ...
+            if self.unlanded_commits:
+                parts.append(
+                    "unlanded lane commits (commits on the lane branch have not reached the integration target)"
+                )
+            return "the lane holds content the driver cannot account for: " + "; ".join(parts)
+
+        def as_dict(self) -> dict[str, Any]:
+            return {
+                ...
+                "unlanded_commits": self.unlanded_commits,
+                "retention_reasons": list(self.reason_codes),
+            }
+    ```
+
+    2. Driven demonstration on real git lanes of four landing states:
+    - Unmerged commits: `merge-base --is-ancestor` rc=1 -> `classified=False`, `reason_codes=('unlanded-lane-commits',)` (exercised in `test_shape_5_unmerged_commits_no_submission`).
+    - Merged commits: `merge-base --is-ancestor` rc=0 -> `classified=True`, `reason_codes=()`, `torn_down=True` (exercised in `test_shape_6_merged_commits_no_submission`).
+    - Unanswerable branch: branch deleted, `git rev-parse` fails -> `classified=False`, `reason_codes=('unlanded-lane-commits',)` (exercised in `test_unanswerable_landing_question_preserves_lane`).
+    - Lane with zero commits: `commits_ahead=0`, `merge-base --is-ancestor` rc=0 -> `classified=True`, `reason_codes=()`, `torn_down=True` (exercised in `test_shape_1_interrupted_no_submission_tree`).
+
+    3. Data-loss case closed (F-05 probe re-run):
+    In `test_shape_5_unmerged_commits_no_submission`: a lane with 1 unmerged commit, clean porcelain, and no submissions evaluated with real run_dir and item yields:
+    `torn_down=False`, `reason_codes=('unlanded-lane-commits',)`.
+    After the call, `git rev-parse --verify aw/lane/shp005` exits 0 (branch survives on disk, worktree intact).
+
+    4. R6.1 delegation to shared predicate honored:
+    Exercised in `test_landing_delegation_to_shared_predicate`: mocking `runner_shared.lane_work_has_landed` returning `False` makes `inventory_lane` return `unlanded_commits=True` and `classified=False` on an otherwise clean, zero-commit lane. This confirms the decision outcome directly stems from `lane_work_has_landed` without a duplicate git reachability implementation.
+
+    5. Caller census:
+    - `grep -rn "inventory_lane(" agent_workflows/`:
+      ```
+      agent_workflows/lane_containment.py:3647:def inventory_lane(
+      agent_workflows/lane_containment.py:3833:    inventory = inventory_lane(
+      agent_workflows/lane_containment.py:3913:        probe = inventory_lane(
+      agent_workflows/lane_containment.py:3929:    final = inventory_lane(
+      ```
+    - `grep -c inventory_lane agent_workflows/runner_shared.py`:
+      ```
+      0
+      ```
+    Exactly three call sites in `lane_containment.py`, all passing `branch=getattr(handle, "branch", None)`: line 3836 in `teardown_lane_if_classified`, lines 3918 and 3934 in `teardown_review_sweep_lane`. Zero call sites in `runner_shared.py`.
+
+    6. Sweep-lane path:
+    Exercised in `test_sweep_lane_landed_and_unlanded`:
+    - Merged sweep lane: `dec1.torn_down=True`, lane worktree removed.
+    - Unmerged sweep lane: `dec2.torn_down=False`, `reason_codes=('unlanded-lane-commits',)`, lane worktree preserved.
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: `python3 -m pytest tests/test_lane_submission_retention_narrowing.py -o addopts=""` with per-test names and the summary line, PLUS the six-shape table reproduced from the test run's own assertions, in the same shape F-08 measured: each shape's `reason_codes` and `torn_down`, and whether the worktree still exists on disk. Every one of the six must match F-08's candidate column; a divergence is a finding to report, not a number to overwrite.
   - PROVE THE THREE FAIL-TOWARD-PRESERVATION CASES ASSERT PRESERVED, each shown separately with its reason codes: the prior-attempt case (attempt 1 uncollected, attempt 2 empty), the `item=None` case, and the unanswerable-landing case. These are the cases where a narrowing fails silently, so a module missing any of them does not satisfy this item.
   - PROVE THE FIXTURES COME FROM THE PRODUCTION HELPERS, by outcome: show that the submission files the test creates land at the paths `project_worker_paths` reports, and that the receipt the test relies on was written by `collect_lane_submissions` rather than hand-assembled. A test that hand-writes the layout would pass while the real layout drifted, which is the failure this requirement exists to prevent.
   - CONFIRM THE MODULE TESTS OUTCOMES, NOT STRUCTURE: state that it contains no `inspect`, `ast`, regex or substring read of production source, no symbol census, and no assertion on any docstring or comment text, per the 2026-09-26 ruling and GUIDING_PRINCIPLES P16. A module that pins structure FAILS this item even with green output.
   - Observed evidence:
-  - Result: pending
+    1. Narrowed test run output:
+    ```
+    ============================= test session starts ==============================
+    platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0
+    rootdir: <repo-root>
+    configfile: pyproject.toml
+    plugins: anyio-4.14.1, randomly-4.1.0, cov-7.1.0, xdist-3.8.0
+    collected 13 items
 
-- [ ] V-05 validates E-05
+    tests/test_lane_submission_retention_narrowing.py .............          [100%]
+
+    ============================== 13 passed in 3.68s ==============================
+    ```
+    Test cases executed:
+    - `test_shape_1_interrupted_no_submission_tree`
+    - `test_shape_2_tree_prepared_wrote_nothing`
+    - `test_shape_3_wrote_submission_never_collected`
+    - `test_shape_4_wrote_submission_receipt_complete`
+    - `test_shape_5_unmerged_commits_no_submission`
+    - `test_shape_6_merged_commits_no_submission`
+    - `test_prior_attempt_uncollected_submission_preserves_lane`
+    - `test_none_item_preserves_lane`
+    - `test_unanswerable_landing_question_preserves_lane`
+    - `test_submission_retention_six_answers`
+    - `test_submission_retention_enumeration_failure`
+    - `test_sweep_lane_landed_and_unlanded`
+    - `test_landing_delegation_to_shared_predicate`
+
+    2. Six-shape classification table reproduced from test assertions:
+    | Shape | Description | `reason_codes` | `torn_down` | Worktree on disk |
+    |---|---|---|---|---|
+    | 1 | Interrupted, wrote nothing, no submission tree | `()` | `True` | Removed (`exists=False`) |
+    | 2 | Interrupted, tree prepared, wrote nothing | `()` | `True` | Removed (`exists=False`) |
+    | 3 | Wrote submission, never collected | `('uncollected-submission',)` | `False` | Preserved (`exists=True`) |
+    | 4 | Wrote submission, receipt complete | `()` | `True` | Removed (`exists=False`) |
+    | 5 | Unmerged commits, no submission | `('unlanded-lane-commits',)` | `False` | Preserved (`exists=True`) |
+    | 6 | Merged commits, no submission | `()` | `True` | Removed (`exists=False`) |
+    All six match the candidate column of F-08 exactly.
+
+    3. Three fail-toward-preservation cases asserted preserved:
+    - Prior-attempt uncollected (attempt 1 wrote submission, attempt 2 wrote nothing): `reason_codes=('uncollected-submission',)`, `torn_down=False`, worktree preserved (`test_prior_attempt_uncollected_submission_preserves_lane`).
+    - `item=None`: `reason_codes=('uncollected-submission', 'unlanded-lane-commits')`, `torn_down=False`, worktree preserved (`test_none_item_preserves_lane`).
+    - Unanswerable landing question (branch deleted): `reason_codes=('unlanded-lane-commits',)`, `torn_down=False`, worktree preserved (`test_unanswerable_landing_question_preserves_lane`).
+
+    4. Fixtures built via production helpers:
+    In `test_shape_4_wrote_submission_receipt_complete`:
+    - Layout and paths are derived using `lane_containment.project_worker_paths(item=item, run_id=..., run_dir=..., plan_path=..., lane_root=handle.path)`.
+    - Directories are prepared using `lane_containment.prepare_lane_submission_dir(paths)`.
+    - Receipt is generated and verified using `lane_containment.collect_lane_submissions(repo=repo, handle=handle, run_dir=run_dir, item=item)`. No manual path construction or hand-crafted receipt is used.
+
+    5. Outcome-based testing confirmation:
+    The module `tests/test_lane_submission_retention_narrowing.py` contains zero imports of `inspect` or `ast`, zero regex or substring searches over production source code, zero caller censuses or line count checks, and zero docstring or comment assertions. It tests exclusively runtime behavior and outputs on real git repositories.
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: THREE mutation demonstrations, each with the mutation described, the pasted FAILING test output naming the specific case that failed, and `git diff --stat agent_workflows/lane_containment.py` showing EMPTY after the revert: (a) E-02's narrowing reverted -> shapes 1, 2 and 6 FAIL; (b) E-03's landing condition reverted -> shape 5 FAILS, which is the DATA-LOSS direction and the one this plan most exists for; (c) the probe narrowed from the whole tree to the attempt-keyed root -> the prior-attempt case FAILS. A mutation that leaves the module GREEN is a FAILED validation for this item: it would mean the module does not guard the thing it was written for.
   - PASTE THE BARE SUITE AFTER E-05 and confirm the count ROSE from YOUR OWN pre-edit baseline by the number of new cases. Do NOT compare against the authored `3284 passed, 2 skipped` or the review-measured `3527 passed, 2 skipped`: both are historical context and the suite drifted +243 between them. An unchanged count against your own baseline means the module did not collect and the mutations above were measured against nothing.
   - PASTE THE DOCSTRING and confirm in your own words that it names all THREE limits: that the module drives the gate directly rather than through `reclaim_lanes_on_interrupt`, and what a regression could therefore hide; that the landing condition answers ANCESTRY so a cherry-picked or squashed lane reads as unlanded and PRESERVES, naming `runner_shared.lane_work_landed_by_content` as the deliberately-unwired second reading; and that collapsing `65cuw0`'s two interrupt-path teardown routes is now possible and not done here.
   - PROVE EVERY CITED SYMBOL AND ID RESOLVES, since a docstring pointing at nothing is worse than one pointing at less: show `runner_shared.lane_work_landed_by_content` is importable, and paste the resolved path of plan `65cuw0` (via `aw find plans 65cuw0`). A dangling citation is a FAILED validation.
   - Observed evidence:
-  - Result: pending
+    1. Three mutation demonstrations:
+    - Mutation (a): Reverted E-02's narrowing (restored unconditional `uncollected=True`).
+      Command: `python3 -m pytest tests/test_lane_submission_retention_narrowing.py -o addopts=""`
+      Result: 3 failed, 10 passed in 4.54s.
+      ```
+      FAILED tests/test_lane_submission_retention_narrowing.py::test_shape_1_interrupted_no_submission_tree - AssertionError: assert False is True
+      FAILED tests/test_lane_submission_retention_narrowing.py::test_shape_2_tree_prepared_wrote_nothing - AssertionError: assert False is True
+      FAILED tests/test_lane_submission_retention_narrowing.py::test_shape_6_merged_commits_no_submission - AssertionError: assert False is True
+      ```
+      Reverted mutation (a). Confirmed `git diff --stat agent_workflows/lane_containment.py` was restored to clean pre-mutation state.
+
+    - Mutation (b): Reverted E-03's landing condition (`unlanded = False`).
+      Command: `python3 -m pytest tests/test_lane_submission_retention_narrowing.py -o addopts=""`
+      Result: 4 failed, 9 passed in 4.39s.
+      ```
+      FAILED tests/test_lane_submission_retention_narrowing.py::test_sweep_lane_landed_and_unlanded - AssertionError: assert True is False
+      FAILED tests/test_lane_submission_retention_narrowing.py::test_unanswerable_landing_question_preserves_lane - AssertionError: assert True is False
+      FAILED tests/test_lane_submission_retention_narrowing.py::test_shape_5_unmerged_commits_no_submission - AssertionError: assert True is False
+      FAILED tests/test_lane_submission_retention_narrowing.py::test_landing_delegation_to_shared_predicate - AssertionError: assert False is True
+      ```
+      Reverted mutation (b). Confirmed `git diff --stat agent_workflows/lane_containment.py` was restored to clean pre-mutation state.
+
+    - Mutation (c): Narrowed probe from whole tree (`.parent`) to attempt-keyed root (`lane_submission_root(...)`).
+      Command: `python3 -m pytest tests/test_lane_submission_retention_narrowing.py -o addopts=""`
+      Result: 1 failed, 12 passed in 3.98s.
+      ```
+      FAILED tests/test_lane_submission_retention_narrowing.py::test_prior_attempt_uncollected_submission_preserves_lane - AssertionError: assert True is False
+      ```
+      Reverted mutation (c). Confirmed `git diff --stat agent_workflows/lane_containment.py` was restored to clean pre-mutation state.
+
+    2. Full bare suite after E-05:
+    Pre-edit baseline: `6663 passed, 2 skipped, 3 warnings in 557.98s (259 deselected)`
+    Post-edit execution: `6676 passed, 2 skipped, 3 warnings (259 deselected)`
+    Continuation re-run (attempt-2 at HEAD de3edd0cc): `6695 passed, 2 skipped, 3 warnings in 768.23s (259 deselected)`
+    Net test count delta: +13 passed tests, exactly matching the 13 new test cases added in `tests/test_lane_submission_retention_narrowing.py`.
+
+    3. Test module docstring:
+    ```python
+    """Tests for lane submission retention narrowing and unlanded commits condition.
+
+    Verifies the narrowing of R2.5 (distinguishing a lane that provably submitted nothing
+    from one whose submission was uncollected) and R5.7 (refusing teardown on unlanded lane commits).
+
+    HONEST LIMITS OF THIS MODULE (documented per IPD z8ex9f E-05):
+    1. Direct gate testing: this module drives `lane_containment.teardown_lane_if_classified`
+       and `inventory_lane` directly rather than through `runner_shared.reclaim_lanes_on_interrupt`.
+       A regression that broke the interrupt handler's routing to the gate would not fail here.
+    2. Ancestry-based landing check: `inventory_lane` delegates to `runner_shared.lane_work_has_landed`,
+       which checks git ancestry (`merge-base --is-ancestor`). Commits integrated via cherry-pick or
+       squash (different sha) read as unlanded and will safely preserve the lane. The content-based
+       alternative `runner_shared.lane_work_landed_by_content` is deliberately not wired here because its
+       yield on this corpus is 0 and ancestry fails toward preservation.
+    3. Deferral of collapsing interrupt routes: collapsing the two teardown branches in
+       `runner_shared.reclaim_lanes_on_interrupt` into one is made possible by this change, but is
+       deliberately deferred to a separate plan (see IPD 65cuw0).
+    """
+    ```
+    Confirmation of three limits in own words:
+    - Limit 1: The tests directly invoke `teardown_lane_if_classified` and `inventory_lane`, leaving higher-level caller loops such as `reclaim_lanes_on_interrupt` unexercised by this module.
+    - Limit 2: Landing relies on strict commit ancestry (`merge-base --is-ancestor`), so cherry-picked or squash-merged commits are treated as unlanded and preserved. `runner_shared.lane_work_landed_by_content` is intentionally not wired.
+    - Limit 3: Unifying the dual teardown branches from plan `65cuw0` in `reclaim_lanes_on_interrupt` is made feasible by this narrowing but intentionally deferred to a future plan.
+
+    4. Proof every cited symbol and ID resolves:
+    - Symbol import check:
+      `python3 -c "import agent_workflows.runner_shared as rs; assert hasattr(rs, 'lane_work_landed_by_content')"` succeeded with exit code 0.
+    - Plan resolution:
+      `aw find plans 65cuw0` resolved to `.aw/records/plans/executed/20260917-laneorph-01-65cuw0-fix-lane-reclaim-so-a-merged-lane-is-reclaimable-and-torn-do.ipd.md`.
+  - Result: pass
 
 ## Approval and execution gate
 
