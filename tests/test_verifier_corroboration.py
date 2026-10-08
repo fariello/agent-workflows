@@ -388,6 +388,7 @@ def _drive_execute_turn(
     spawn_executor: Any = None,
     spawn_verifier: Any = None,
     validate: bool = True,
+    self_finalize: bool = False,
 ) -> tuple[dict[str, Any], dict[str, Any]]:
     """Drive the real runner_shared.execute_item_core execution path."""
     run_dir = repo_root / ".aw/runs/run-test"
@@ -410,7 +411,7 @@ def _drive_execute_turn(
         "queue": [item],
         "options": {
             "isolate_worktrees": False,
-            "self_finalize": False,
+            "self_finalize": self_finalize,
             "validate": validate,
         },
     }
@@ -579,6 +580,122 @@ class TestCorroborationInteractionAndOutcomeEquality:
                 suite_result=0,
             )
             assert earned.earned is True
+
+    @pytest.mark.parametrize(
+        "verdict_kind",
+        ["corroborated", "uncorroborated", "indeterminate"],
+    )
+    def test_pipeline_integration_decision_identical_across_corroboration_verdicts(
+        self, verdict_kind: str, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """E-03 / V-03: Under self-finalize ON, the integration signal recorded by the pipeline
+
+        itself is strictly identical across corroborated, uncorroborated, and indeterminate.
+        Pins the D160 decision that an uncorroborated verifier turn never refuses integration.
+        """
+        monkeypatch.setattr(oc_runipd, "driver_begin", lambda *a, **k: (0, "ok"))
+
+        with tempfile.TemporaryDirectory() as td:
+            repo_root, plan_file = _setup_test_repo(Path(td))
+            run_dir = repo_root / ".aw/runs/run-test"
+
+            def verifier_spawner(
+                prompt_path: Path,
+                plan_path: Path,
+                work_dir: Any,
+                tracker: Any,
+                attempt_no: int,
+            ) -> tuple[int, str, Path, list[str]]:
+                outcomes_dir = run_dir / "outcomes"
+                logs_dir = run_dir / "logs"
+                outcomes_dir.mkdir(parents=True, exist_ok=True)
+                logs_dir.mkdir(parents=True, exist_ok=True)
+
+                v_outcome = outcomes_dir / "01-tst001-verification.json"
+                v_outcome.write_text(
+                    json.dumps(
+                        {
+                            "schema_version": 1,
+                            "id6": "tst001",
+                            "verdict": "VERIFIED",
+                            "tests_run": ["python3 -m pytest tests/"],
+                        }
+                    ),
+                    encoding="utf-8",
+                )
+
+                log_file = logs_dir / "01-tst001-attempt-1-verify.jsonl"
+                if verdict_kind == "corroborated":
+                    event = {
+                        "event": "step_update",
+                        "step_update": {
+                            "state": "DONE",
+                            "step_type": "tool",
+                            "tool_name": "run_command",
+                            "tool_info": {
+                                "parameters": {
+                                    "CommandLine": "python3 -m pytest tests/"
+                                }
+                            },
+                        },
+                    }
+                    log_file.write_text(json.dumps(event) + "\n", encoding="utf-8")
+                elif verdict_kind == "uncorroborated":
+                    event = {
+                        "event": "step_update",
+                        "step_update": {
+                            "state": "DONE",
+                            "step_type": "tool",
+                            "tool_name": "run_command",
+                            "tool_info": {"parameters": {"CommandLine": "git status"}},
+                        },
+                    }
+                    log_file.write_text(json.dumps(event) + "\n", encoding="utf-8")
+                elif verdict_kind == "indeterminate":
+                    log_file.write_bytes(b"\x00\xff\xfe\x00corrupt")
+
+                return 0, "sess-v-1", log_file, ["mock_verifier"]
+
+            state, item = _drive_execute_turn(
+                repo_root,
+                plan_file,
+                spawn_verifier=verifier_spawner,
+                validate=True,
+                self_finalize=True,
+            )
+
+            attempts = item.get("attempts", [])
+            assert len(attempts) == 1
+            attempt = attempts[0]
+
+            # 1. Assert the recorded corroboration_verdict is the intended one
+            # (guarantees the fixture is not miscalibrated or vacuous)
+            contract_msg = f"corroboration_verdict must be {verdict_kind!r} per fixture calibration"
+            assert attempt.get("corroboration_verdict") == verdict_kind, contract_msg
+            assert item.get("corroboration_verdict") == verdict_kind, contract_msg
+
+            # 2. Integration signal must be recorded by the pipeline (self_finalize was engaged)
+            # and must be non-None in every arm
+            assert (
+                attempt.get("integration_signal") is not None
+            ), "integration_signal must be recorded by pipeline when self_finalize=True"
+            assert (
+                item.get("integration_signal") is not None
+            ), "integration_signal must be recorded on item when self_finalize=True"
+
+            # 3. Assert pipeline-recorded integration_signal, status, and verification_status
+            # are identical across all three verdicts (specifically 'verifier', 'executed', 'verified')
+            failure_msg = (
+                f"Pipeline recorded integration signal {item.get('integration_signal')!r} for "
+                f"verdict {verdict_kind!r}, violating DECISIONS.md D160 (an uncorroborated "
+                f"verifier turn must never refuse integration or downgrade disposition)"
+            )
+            assert item["integration_signal"] == "verifier", failure_msg
+            assert attempt["integration_signal"] == "verifier", failure_msg
+            assert item["status"] == "executed", failure_msg
+            assert attempt["disposition"] == "executed", failure_msg
+            assert item["verification_status"] == "verified", failure_msg
+            assert attempt["verification_status"] == "verified", failure_msg
 
     def test_corroboration_raising_computation_cannot_break_turn(
         self, monkeypatch: pytest.MonkeyPatch

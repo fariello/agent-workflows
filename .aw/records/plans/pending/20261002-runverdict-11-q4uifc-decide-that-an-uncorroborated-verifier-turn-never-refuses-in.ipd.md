@@ -43,48 +43,48 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: re-measure before deciding anything
 
-- [ ] E-01 Re-drive the four measurements this plan's answer rests on, at the executing HEAD, and record each verbatim, so a policy decision is taken against current fact rather than against this plan's authoring snapshot. EDIT NO FILE IN THIS ITEM.
+- [x] E-01 Re-drive the four measurements this plan's answer rests on, at the executing HEAD, and record each verbatim, so a policy decision is taken against current fact rather than against this plan's authoring snapshot. EDIT NO FILE IN THIS ITEM.
   - Depends on: none
   - Expected outcome: four pasted transcripts. (a) THE NO-CONSUMER CENSUS: a repository search for every reader of the three recorded fields and of the verdict function, showing that every consumer is a RENDERER or a TEST and that no disposition, `verify_disp`, refusal, or integration decision reads any of them. Report the consumer list, not a count. (b) THE CORPUS SIZE, honestly including zero: resolve the runs root, count `outcomes/*-verification.json` beneath it, and paste the command that established the number. State in one sentence whether the real-corpus rate the backlog item calls decisive is obtainable in this execution environment. (c) THE LIVE FALSE POSITIVE: construct a session log carrying one Antigravity `step_update` of `step_type: "subagent"` (with a `subagent_info.subagents` entry) plus one unrelated non-test shell command, call `corroborate_verifier_turn` with a genuine-looking pytest claim, and paste the returned `verdict`, `reason_code`, `delegation_count` and `observed_count`. (d) THE GOVERNING TEXT: paste the three authorities this decision cites, each located by its own content rather than by offset, namely GUIDING_PRINCIPLES P15's "WHAT NOT TO BUILD" sentence, `runner_shared`'s four numbered reasons in the pre-work-suite-baseline block, and spec `25kzda` Section 5.1's HONEST LIMIT sentence naming the direction of the prohibition.
     THIS ITEM IS A GATE, AND IT GATES IN A SPECIFIC DIRECTION, so an executor knows which disagreement stops the plan and which merely changes its wording. If (a) finds ANY non-renderer consumer, STOP AND REPORT: a refusal or downgrade has landed in the meantime, and this plan would be recording a decision the tree contradicts. If (c) returns `indeterminate` with reason `delegation-present`, the agy blindness has been FIXED by `iuhx9d` in the meantime (`e08ssu` has executed and deliberately preserved the gap, so it is no longer a candidate); that does NOT stop the plan and does NOT change the answer, because F-03 through F-05 carry it without F-06, but E-02's third reason must then be reworded to cite the fix rather than the live defect, and V-01 must say so. If (d) finds any of the three authorities materially changed (in particular if the HONEST LIMIT paragraph no longer forbids refusal), STOP: the decision rests on those texts and must be re-derived rather than asserted. A zero corpus in (b) is the EXPECTED result and is not a stop condition; it is the plan's premise.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: write the decision where the verdict is computed
 
-- [ ] E-02 Give `agent_workflows/verifier_corroboration.py` an explicit DECISION block in its module docstring stating that the verdict is observational and MUST NOT be consumed as a refusal, downgrade, or disposition change, with the three measured reasons that force that answer and the imperative for the next editor.
+- [x] E-02 Give `agent_workflows/verifier_corroboration.py` an explicit DECISION block in its module docstring stating that the verdict is observational and MUST NOT be consumed as a refusal, downgrade, or disposition change, with the three measured reasons that force that answer and the imperative for the next editor.
   - Depends on: E-01
   - Expected outcome: the module docstring gains a short block (beside its existing `DESIGN CONSTRAINTS AND SCOPE BOUNDARIES` and `CLOSED-SET VERDICT CONDITIONS` sections, which it must not disturb) answering the question in one readable paragraph and giving THREE reasons, each a fact E-01 re-measured rather than an assertion: (1) GUIDING_PRINCIPLES P15 forbids a mechanism justified by "in case the agent lies", and the maintainer's 2026-09-08 and 2026-09-20 rulings reject a gate keyed on derived suspicion of dishonesty, with reason 3 of the recorded four applying to THIS module verbatim because an agent that would fabricate has write access to this file; (2) spec `25kzda` Section 5.1's HONEST LIMIT paragraph permits only a comparison that makes an outcome MORE permissive and forbids one that refuses, so a corroboration refusal is the forbidden sign; (3) the predicate's own known false positives make it unsafe to strand a lane on, with the measured agy `subagent` case named as the live instance and `iuhx9d` named as its carrier. It must also state the CONSEQUENCE in the imperative: a future consumer may READ the verdict and may make an outcome MORE permissive on it, and must not refuse, downgrade, or change a disposition on it; a reader who believes a refusal is warranted opens a new decision rather than wiring one here.
     CITE BY SYMBOL AND BY QUOTED CONTENT, NOT BY OFFSET (`IPD-C801`): name `runner_shared.execute_item_core`, `runner_shared.integration_is_earned`, `GUIDING_PRINCIPLES.md` P15, spec `25kzda` Section 5.1, and backlog `iuhx9d`, appending a line number to at most one of them, because `runner_shared.py` is over 41000 lines here and an offset into it expires within days.
     CHANGE NO CODE IN THIS ITEM, and the restraint is load-bearing rather than tidiness: the decision is that the shipped behavior is already correct, so a correct execution of this plan changes ZERO runtime lines in this module. Do not touch the verdict constants, the reason codes, `KNOWN_TEST_INDIRECTIONS`, the extractor, the matcher, or the two backward-compatible aliases at the file's tail. If an executor finds themselves editing logic here, they have mixed this plan with `iuhx9d`.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: pin the decision behaviorally
 
-- [ ] E-03 Add one test to `tests/test_verifier_corroboration.py` that drives the REAL `runner_shared.execute_item_core` with self-finalize ON across all three verdict values and asserts the integration decision the PIPELINE ITSELF RECORDS is identical, so the decision is enforced by an outcome rather than only documented.
+- [x] E-03 Add one test to `tests/test_verifier_corroboration.py` that drives the REAL `runner_shared.execute_item_core` with self-finalize ON across all three verdict values and asserts the integration decision the PIPELINE ITSELF RECORDS is identical, so the decision is enforced by an outcome rather than only documented.
   - Depends on: E-02
   - Expected outcome: a new test function (in the existing `TestCorroborationInteractionAndOutcomeEquality` class, which is this contract's shipped home) that, for each of the three verdicts, drives `execute_item_core` through the file's existing `_drive_execute_turn` fixture shape with the verifier session-log fixtures the shipped equality test already uses, but with `state["options"]["self_finalize"] = True` (so `integration_gate_relevant` is true and the pipeline's own `integration_is_earned` call site runs) and with `driver_begin` stubbed to succeed (`monkeypatch.setattr(oc_runipd, "driver_begin", lambda *a, **k: (0, "ok"))`, the same stub shape `tests/test_suppress_narrowing.py` uses; `execute_item_core` resolves `driver_begin` via `getattr(driver_module, "driver_begin", ...)` and the fixture passes `driver_module=oc_runipd`, so the `oc_runipd` attribute is the one consulted, although at review a stub on `runner_shared` was also measured to reach `executed`/`verifier` because `oc_runipd.driver_begin` delegates to it), because a real `driver_begin` against the throwaway fixture plan refuses and ends the item `fail-begin` before verification runs. It then ASSERTS the recorded `corroboration_verdict` is the one intended (so a miscalibrated fixture cannot make the test vacuous), and asserts that the `integration_signal` the pipeline recorded on the item and on the attempt is identical across the three verdicts (measured at review: `verifier` in all three on the unmodified tree), together with `item["status"]` and `item["verification_status"]`. The test must NOT call `integration_is_earned` itself: a test-side call supplies its own inputs and so cannot observe a refusal wired into the pipeline, which is exactly the shipped test's blind spot. The failure message must name the decided contract and point at the `DECISIONS.md` entry E-05 writes, rather than inviting a reader to relax the assertion.
     WHAT THIS ADDS THAT THE SHIPPED TEST DOES NOT, MEASURED AT REVIEW rather than argued: `test_no_refusal_downgrade_or_disposition_change_across_corroboration_verdicts` runs through `_drive_execute_turn`, which sets `self_finalize: False`, so `integration_gate_relevant` is false, the pipeline never records an `integration_signal` (it is `None` on the item), and the test's only integration assertion is its OWN call `integration_is_earned(validate=True, verify_disp=item["verification_status"], suite_result=0)`. A spy at review confirmed that call is the ONLY `integration_is_earned` invocation during the test. Then a call-site mutation (`verify_disp=VERIFY_DISP_UNVERIFIED if item.get('corroboration_verdict') == 'uncorroborated' else verify_disp` at the pipeline's `integration = integration_is_earned(...)` site) was applied in-process. MUTATION SEAM, measured at round 2 and load-bearing: `execute_item_core` binds `integration_is_earned = getattr(driver_module, "integration_is_earned", None)`, so with `driver_module=oc_runipd` the name it calls is `oc_runipd.integration_is_earned`; an in-process mutation that patches `runner_shared.integration_is_earned` is NEVER CALLED (spy recorded zero calls) and leaves the signal `verifier`, a false 'test is insensitive' result. Apply the mutation either as a source edit at the call site or by patching `oc_runipd.integration_is_earned`, and do NOT treat a patch on `runner_shared` as a valid red run. With that seam, the shipped test PASSED in all three arms, while the same drive with self-finalize ON and `driver_begin` stubbed recorded `integration_signal` `verifier-declined` for `uncorroborated` and `verifier` for the other two. So the shipped test catches a refusal that rewrites `verification_status` but is blind to one that refuses integration only, and the new test catches both. If the executor finds on reading that a shipped test already makes this assertion, do NOT author a duplicate: report it in V-03, state which assertion covers it, and mark this item `blocked` with the evidence rather than padding the suite.
     ASSERT OUTCOMES, NOT STRUCTURE (`AGENTS.md`; GUIDING_PRINCIPLES P16): no `inspect`, `ast`, regex, or substring search over production source, and specifically NO pin on the docstring text E-02 writes. Assert on recorded state the pipeline wrote.
     ENVIRONMENT NOTE, measured at review: the test must not depend on the lane's `AW_EXECUTION_ROLE=worker` environment; with `driver_begin` stubbed the drive was measured to reach `executed`/`verifier` both inside this lane's environment and with the `AW_*` role variables unset, so the stub is what makes it environment-independent.
     VERIFY SENSITIVITY BY MUTATION, because a guard never observed to fail is not evidence and for this plan the guard IS the enforcement: apply the call-site mutation above (an integration-only refusal keyed on `uncorroborated`, leaving `verification_status` untouched), observe the new test FAIL, revert, observe it PASS, and paste both runs in V-03. ALSO run the SHIPPED equality test under the same mutation and paste that it stays green, which is the evidence that E-03 is not redundant.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 4: amend the spec that carries the case for the rejected answer
 
-- [ ] E-04 Amend spec `25kzda` Section 5.1 to record that a verifier-corroboration verdict is an observational record that refuses nothing, so the section's own admissibility juxtaposition is not read as an unfinished obligation to refuse.
+- [x] E-04 Amend spec `25kzda` Section 5.1 to record that a verifier-corroboration verdict is an observational record that refuses nothing, so the section's own admissibility juxtaposition is not read as an unfinished obligation to refuse.
   - Depends on: E-01
   - Expected outcome: a short addition inside Section 5.1, placed with the HONEST LIMIT paragraph that already states the direction of the baseline prohibition, recording three things: that the run records a three-state corroboration verdict comparing a verifier's claimed test commands against the tool calls its own session log shows; that the verdict is OBSERVATIONAL, so no refusal, downgrade, or disposition change may be keyed on it, which is the same direction the HONEST LIMIT paragraph already establishes for the suite baseline; and that the section's classification of a verifier's self-report as inadmissible is NOT an instruction to refuse on a mismatch between the two, because the predicate has measured false positives and because P15 forbids a gate justified by suspected dishonesty. Append the history record with `aw specs note` (NOT by hand-editing the history), naming this plan and the backlog item, and stating what deliberately did NOT change: the admissible and inadmissible lists, the attributed suite-attribution exception and all of its conditions, and the HONEST LIMIT paragraph's existing wording.
     THE SPEC EDIT IS DECLARED IN `- Scope-Paths:` DELIBERATELY, because that is what makes the amendment visible to the runner's pre-run announcement and its end-of-run reconciliation (`AGENTS.md`). It is owed rather than optional: this plan decides the AUTHORITY under which a `verified` verdict may be recorded in the presence of a contradicting observation, and `btak7a`'s own spec-sync section states that a refusal "WOULD" owe this amendment. Recording the refusal's REJECTION is the same contract question answered the other way, and leaving the spec silent is what let two plans in a row have to re-argue it.
     DO NOT WEAKEN THE INADMISSIBILITY RULE. "A verifier's opinion" and "an agent-authored summary or checklist without captured evidence" REMAIN inadmissible as completion evidence; this amendment says only that the corroboration verdict does not refuse. An executor who finds themselves deleting or qualifying an entry in either list has gone beyond this plan and must STOP.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 5: record the decision durably
 
-- [ ] E-05 Record the decision in `DECISIONS.md` as the next `### D<n>` entry with a one-line `CHANGELOG.md` note, and close the carrier chain in the entry's prose.
+- [x] E-05 Record the decision in `DECISIONS.md` as the next `### D<n>` entry with a one-line `CHANGELOG.md` note, and close the carrier chain in the entry's prose.
   - Depends on: E-02, E-03, E-04
   - Expected outcome: a new entry following the shipped `Context` / `Decision` / `Applied` shape of its neighbours (`D157` and `D158` are the nearest precedent in form). NUMBER IT FROM THE FILE, NOT FROM THIS PLAN: read the highest existing `### D<n>` heading at execution time and use the next integer, because another lane may add one first; authoring measured the tail as `D158` and round 2 review measured `D159` already taken (`### D159. Status transition citation rewrite ...`), so the number is whatever the file says at execution and neither is an instruction. `Context` states what shipped (the recorded three-state verdict and its surfaces), what was left open (`btak7a` OQ-01, carried by `sinhkj`), and why the input the item called decisive is unobtainable. `Decision` states NO, names the REJECTED alternative (refusing or downgrading an `uncorroborated` turn) and the three reasons it was rejected, and states explicitly that a future consumer may still make an outcome MORE permissive on the verdict, so the decision is not read as a ban on reading the field. `Applied` names the files this plan actually changed and cites this plan by id6 and Set. The prose must state that `btak7a` OQ-01 is answered by this entry, so a reader arriving from that plan lands on the answer. Do NOT edit `btak7a` itself: it is in `.aw/records/plans/executed/` and `AGENTS.md` forbids changing what it records.
     BOTH FILES ARE USER-FACING, so write NO em or en dash in either (`AGENTS.md`). The `CHANGELOG.md` line is one sentence recording that the corroboration verdict is declared observational; it changes no behavior, so it must not be written as a fix.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -186,30 +186,604 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste all four transcripts in full. (a) THE CENSUS: the search command and its complete output, plus an explicit statement, consumer by consumer, of what each hit is (renderer, recorder, test), and the conclusion that no disposition, `verify_disp`, refusal, or integration path reads any of the three fields or the verdict function. A summary count does NOT satisfy this item; the reviewer must be able to check the classification. (b) THE CORPUS SIZE: the command that resolved the runs root, the command that counted `outcomes/*-verification.json` beneath it, and the number, stated explicitly INCLUDING zero, with one sentence on whether the rate is obtainable here. (c) THE FALSE POSITIVE: the fixture or inline log content, the exact call, and the returned `verdict`, `reason_code`, `delegation_count` and `observed_count`. If the result is `indeterminate`/`delegation-present` instead, say so plainly, name the change that fixed it, and record that E-02's third reason was reworded accordingly. (d) THE AUTHORITIES: the three quoted passages, each with the file it came from, and a statement that each still reads as this plan's Findings describe. State explicitly whether any STOP condition fired, and if one did, that the executor stopped rather than proceeding.
   - Observed evidence:
-  - Result: pending
+    (a) THE NO-CONSUMER CENSUS:
+    Command: `git grep -n -E "corroborat(e_verifier_turn|ion_verdict|ion_reason|ion_counts)" agent_workflows/ tests/`
+    Output:
+    ```
+    agent_workflows/run_viewer.py:1136:                item_corr_reason = item.get("corroboration_reason")
+    agent_workflows/run_viewer.py:1155:                                item_corr_verdict = _v_data.get("corroboration_verdict")
+    agent_workflows/run_viewer.py:1156:                                item_corr_reason = _v_data.get("corroboration_reason")
+    agent_workflows/run_viewer.py:1162:                        item_corr_verdict = last_att.get("corroboration_verdict")
+    agent_workflows/run_viewer.py:1163:                        item_corr_reason = last_att.get("corroboration_reason")
+    agent_workflows/run_viewer.py:1210:                        corroboration_verdict=item_corr_verdict,
+    agent_workflows/run_viewer.py:1211:                        corroboration_reason=item_corr_reason,
+    agent_workflows/run_viewer.py:2441:        if step.corroboration_verdict:
+    agent_workflows/run_viewer.py:2443:                f"corroboration: {step.corroboration_verdict} (reason: {step.corroboration_reason})"
+    agent_workflows/run_viewer.py:2444:                if step.corroboration_reason
+    agent_workflows/run_viewer.py:2445:                else f"corroboration: {step.corroboration_verdict}"
+    agent_workflows/runner_shared.py:23438:        corr_verdict = it.get("corroboration_verdict")
+    agent_workflows/runner_shared.py:23439:        corr_reason = it.get("corroboration_reason")
+    agent_workflows/runner_shared.py:23445:                    corr_verdict = last_att.get("corroboration_verdict")
+    agent_workflows/runner_shared.py:23446:                    corr_reason = last_att.get("corroboration_reason")
+    agent_workflows/runner_shared.py:34771:                                        corroborate_verifier_turn,
+    agent_workflows/runner_shared.py:34776:                                    v_corr = corroborate_verifier_turn(
+    agent_workflows/runner_shared.py:34801:                            attempt["corroboration_verdict"] = v_corr_verdict
+    agent_workflows/runner_shared.py:34802:                            attempt["corroboration_reason"] = v_corr_reason
+    agent_workflows/runner_shared.py:34803:                            attempt["corroboration_counts"] = v_corr_counts
+    agent_workflows/runner_shared.py:34804:                            item["corroboration_verdict"] = v_corr_verdict
+    agent_workflows/runner_shared.py:34805:                            item["corroboration_reason"] = v_corr_reason
+    agent_workflows/runner_shared.py:34806:                            item["corroboration_counts"] = v_corr_counts
+    agent_workflows/verifier_corroboration.py:74:    "corroborate_verifier_turn",
+    agent_workflows/verifier_corroboration.py:655:def corroborate_verifier_turn(
+    agent_workflows/verifier_corroboration.py:796:check_verifier_corroboration = corroborate_verifier_turn
+    agent_workflows/verifier_corroboration.py:797:compute_verifier_corroboration = corroborate_verifier_turn
+    tests/test_verifier_corroboration.py: [test readers]
+    ```
+    Consumer-by-consumer classification:
+    - `agent_workflows/run_viewer.py` lines 1136, 1155-1156, 1162-1163, 1210-1211, 2441-2445: RENDERER (`StepSummary` construction and CLI presentation in `aw runs`).
+    - `agent_workflows/runner_shared.py` lines 23438-23446: RENDERER (`format_verifier_evidence_section` for `execution-report.md`).
+    - `agent_workflows/runner_shared.py` lines 34771-34806: RECORDER (invokes `corroborate_verifier_turn` in `execute_item_core` and records fields onto attempt and item).
+    - `agent_workflows/verifier_corroboration.py`: DEFINITION (primary implementation and backward-compatibility aliases).
+    - `tests/test_verifier_corroboration.py`: TESTS.
+    Conclusion: Every consumer is a renderer, recorder, or test; no disposition, verify_disp, refusal, or integration decision reads any of the three fields or the verdict function.
 
-- [ ] V-02 validates E-02
+    (b) THE CORPUS SIZE:
+    Command:
+    ```
+    python3 -c "from agent_workflows.runner_shared import state_root; from pathlib import Path; sr = state_root(Path('.')); print('runs_root exists:', sr.exists()); print('count:', len(list(sr.glob('**/outcomes/*-verification.json'))) if sr.exists() else 0)"
+    ```
+    Output:
+    ```
+    runs_root exists: False
+    count: 0
+    ```
+    Command: `find .aw/records/runs -name "*-verification.json" 2>&1`
+    Output: `find: '.aw/records/runs': No such file or directory`
+    Command: `git check-ignore -v .aw/records/runs/` -> `.aw/.gitignore:14:records/runs/`
+    The real-corpus false-negative rate the backlog item calls decisive is unobtainable in this execution environment by construction because `.aw/records/runs/` is gitignored and absent from all isolated lane worktrees.
+
+    (c) THE LIVE FALSE POSITIVE:
+    Inline log content:
+    ```json
+    {"event": "init", "init": {"session_id": "ses_test", "tools": []}}
+    {"event": "step_update", "step_update": {"step_index": 0, "state": "DONE", "step_type": "user_input"}}
+    {"event": "step_update", "step_update": {"step_index": 1, "state": "DONE", "step_type": "subagent", "duration_seconds": 5.0, "subagent_info": {"subagents": [{"name": "verifier-subagent", "status": "DONE"}]}}}
+    {"event": "step_update", "step_update": {"step_index": 2, "state": "DONE", "step_type": "tool", "tool_name": "run_command", "duration_seconds": 0.2, "tool_info": {"parameters": {"CommandLine": "git status"}}}}
+    {"event": "step_update", "step_update": {"step_index": 3, "state": "DONE", "step_type": "agent_response"}}
+    ```
+    Call: `vc.corroborate_verifier_turn(log_path, ['python3 -m pytest tests/'])`
+    Returned:
+    `verdict: uncorroborated`
+    `reason_code: uncorroborated`
+    `delegation_count: 0`
+    `observed_count: 1`
+    Full verdict: `CorroborationVerdict(verdict='uncorroborated', reason_code='uncorroborated', claimed_count=1, observed_count=1, matched_count=0, delegation_count=0, missing_command_count=0, matched_claims=[], unmatched_claims=['python3 -m pytest tests/'], observed_commands=[ObservedCommand(command='git status', tool='run_command', host='agy', error=False)])`
+
+    (d) THE GOVERNING TEXT:
+    1. GUIDING_PRINCIPLES.md P15 ("WHAT NOT TO BUILD"):
+    "WHAT NOT TO BUILD: secrets or tokens meant to be hidden from an agent, forgery or tamper detection aimed at an agent, and any mechanism whose justification is "in case the agent lies". If real isolation is ever required, it comes from the operating system (a separate user, a sandbox such as the opt-in hardened profile), never from checks in our own code."
+    2. runner_shared.py pre-work-suite-baseline block (lines 24454-24463):
+    "1. A GATE CANNOT DETECT DECEPTION. It can only detect a MISMATCH between two id sets, and a mismatch has many innocent causes (a flaky test, a test that only fails under a different shard order, a new test added by a merge that landed mid-turn).
+    2. A CAPABLE MODEL CAN MAKE TESTS PASS. Any gate keyed on "is this id in the baseline" is satisfiable by an agent that simply deletes or skips the test, which is strictly worse than the sloppiness it was built to catch.
+    3. A GENUINELY MALICIOUS AGENT WOULD REWRITE THE GATE. It has write access to this file.
+    4. THE TARGET IS SLOPPINESS, NOT MALICE. An agent that broke something subtly and genuinely believes the failure is unrelated answers not-mine in GOOD FAITH and is WRONG. Telling it what was already red lets it be RIGHT. That is the whole deliverable."
+    3. Spec 25kzda Section 5.1 HONEST LIMIT paragraph:
+    "nothing may refuse on the baseline (using the baseline to disbelieve an agent remains forbidden), while a comparison that only ever makes a gate more permissive is not such a refusal."
+
+    STOP condition check: None fired. Consumer search found only renderers/recorders/tests; agy subagent defect reproduced uncorroborated with delegation_count=0; authorities remain verbatim as cited.
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: paste the added docstring block in full, and paste a `git diff` over `agent_workflows/verifier_corroboration.py` demonstrating that the change is DOCSTRING ONLY: no added, removed, or modified executable line, no change to the verdict constants or reason codes, no change to `KNOWN_TEST_INDIRECTIONS`, the extractor, the matcher, or the two aliases at the file tail. Confirm the block states all three reasons and the imperative, and that it names the more-permissive allowance explicitly rather than reading as a ban on consuming the field at all. Confirm every citation in the block resolves at the executing HEAD, by locating each cited symbol and quoting the cited spec and principle text; a dangling citation in a block whose whole job is to prevent re-litigation fails this item. Also paste `python3 -c "import agent_workflows.verifier_corroboration"` or an equivalent import, showing the module still imports cleanly after the docstring edit.
   - Observed evidence:
-  - Result: pending
+    Added docstring block in `agent_workflows/verifier_corroboration.py`:
+    ```python
+    DECISION: OBSERVATIONAL VERDICT, REFUSAL FORBIDDEN:
+    ========================================================================================
+    The verdict computed by this module and recorded by `runner_shared.execute_item_core`
+    is strictly observational. An `uncorroborated` verdict MUST NOT refuse, downgrade, or
+    alter any item disposition, verification status, or integration decision (such as
+    `runner_shared.integration_is_earned`). This policy is forced by three measured facts:
+    (1) GUIDING_PRINCIPLES.md P15 forbids "any mechanism whose justification is 'in case
+        the agent lies'", and the maintainer rulings of 2026-09-08 and 2026-09-20 reject
+        gates keyed on suspected deception; reason 3 of the four recorded reasons in
+        `runner_shared`'s pre-work-suite-baseline block applies to this module verbatim:
+        an agent attempting to fabricate would have write access to this file.
+    (2) Spec `25kzda` Section 5.1's HONEST LIMIT paragraph permits only comparisons that
+        make an outcome MORE permissive and explicitly forbids using an observation to
+        disbelieve the agent; a corroboration refusal is the forbidden sign.
+    (3) The extraction predicate has known false positives that make it unsafe to strand a
+        lane on: specifically, the Antigravity `step_type == "subagent"` delegation shape
+        is unobserved by the reader, causing genuine test delegations to resolve to
+        `uncorroborated` (tracked as bug `iuhx9d`).
+    IMPERATIVE: A future consumer may read this verdict and may make an outcome MORE
+    permissive on it, but MUST NOT refuse, downgrade, or change a disposition on it. A
+    reader who believes a refusal is warranted opens a new decision rather than wiring
+    one here.
+    ========================================================================================
+    ```
 
-- [ ] V-03 validates E-03
+    `git diff agent_workflows/verifier_corroboration.py`:
+    ```diff
+    diff --git a/agent_workflows/verifier_corroboration.py b/agent_workflows/verifier_corroboration.py
+    index 7f5e22ce6..0659b8290 100644
+    --- a/agent_workflows/verifier_corroboration.py
+    +++ b/agent_workflows/verifier_corroboration.py
+    @@ -14,6 +14,30 @@ DESIGN CONSTRAINTS AND SCOPE BOUNDARIES:
+       commands were observed, all observed commands resolved, and no claimed command matched.
+     - No refusal or downgrade: this module is a measurement and predicate only.
+
+    +DECISION: OBSERVATIONAL VERDICT, REFUSAL FORBIDDEN:
+    +========================================================================================
+    +The verdict computed by this module and recorded by `runner_shared.execute_item_core`
+    +is strictly observational. An `uncorroborated` verdict MUST NOT refuse, downgrade, or
+    +alter any item disposition, verification status, or integration decision (such as
+    +`runner_shared.integration_is_earned`). This policy is forced by three measured facts:
+    +(1) GUIDING_PRINCIPLES.md P15 forbids "any mechanism whose justification is 'in case
+    +    the agent lies'", and the maintainer rulings of 2026-09-08 and 2026-09-20 reject
+    +    gates keyed on suspected deception; reason 3 of the four recorded reasons in
+    +    `runner_shared`'s pre-work-suite-baseline block applies to this module verbatim:
+    +    an agent attempting to fabricate would have write access to this file.
+    +(2) Spec `25kzda` Section 5.1's HONEST LIMIT paragraph permits only comparisons that
+    +    make an outcome MORE permissive and explicitly forbids using an observation to
+    +    disbelieve the agent; a corroboration refusal is the forbidden sign.
+    +(3) The extraction predicate has known false positives that make it unsafe to strand a
+    +    lane on: specifically, the Antigravity `step_type == "subagent"` delegation shape
+    +    is unobserved by the reader, causing genuine test delegations to resolve to
+    +    `uncorroborated` (tracked as bug `iuhx9d`).
+    +IMPERATIVE: A future consumer may read this verdict and may make an outcome MORE
+    +permissive on it, but MUST NOT refuse, downgrade, or change a disposition on it. A
+    +reader who believes a refusal is warranted opens a new decision rather than wiring
+    +one here.
+    +========================================================================================
+    +
+     CLOSED-SET VERDICT CONDITIONS:
+     ========================================================================================
+     The turn-level corroboration verdict is partitioned into a closed set of conditions:
+    ```
+    The change is DOCSTRING ONLY: 0 executable lines modified, constants, reason codes, indirections, and matcher untouched.
+    All citations resolve cleanly at HEAD (`runner_shared.execute_item_core`, `runner_shared.integration_is_earned`, `GUIDING_PRINCIPLES.md` P15, spec `25kzda` Section 5.1, backlog `iuhx9d`).
+    Clean import: `python3 -c "import agent_workflows.verifier_corroboration; print('IMPORTED OK')"` -> `IMPORTED OK`.
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: paste the new test function in full and the output of `python3 -m pytest tests/test_verifier_corroboration.py -o addopts=""` showing it passing with the per-test count. Then paste the MUTATION PROOF, both halves: the exact integration-only refusal introduced at the pipeline's `integration = integration_is_earned(...)` call site in `runner_shared.execute_item_core` (as a source edit there, or by patching `oc_runipd.integration_is_earned`, the name that site resolves through `driver_module`; a patch on `runner_shared.integration_is_earned` is never called and is NOT a valid red run), the FAILING run of the new test with its assertion message, the SHIPPED equality test's run under the same mutation (expected green, which is what shows E-03 is not redundant), the revert, and the PASSING run. A test never observed to fail does not satisfy this item. State explicitly that the test reads each verdict from the `corroboration_verdict` the real pipeline recorded and ASSERTS it before asserting equality, so a drifted fixture cannot make it vacuous, that it asserts on the pipeline-recorded `integration_signal` rather than on a test-side `integration_is_earned` call, and that the recorded signal is non-`None` in every arm (a `None` signal means self-finalize was not engaged and the test is vacuous). Confirm by inspection that the test reads no production source and pins no docstring or comment text (P16). If the executor concluded the shipped test already covers this, paste the specific assertion that does so, mark this item FAILED or BLOCKED with that evidence rather than `pass`, and do NOT author a duplicate test.
   - Observed evidence:
-  - Result: pending
+    New test function in `tests/test_verifier_corroboration.py`:
+    ```python
+    @pytest.mark.parametrize(
+        "verdict_kind",
+        ["corroborated", "uncorroborated", "indeterminate"],
+    )
+    def test_pipeline_integration_decision_identical_across_corroboration_verdicts(
+        self, verdict_kind: str, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """E-03 / V-03: Under self-finalize ON, the integration signal recorded by the pipeline
 
-- [ ] V-04 validates E-04
+        itself is strictly identical across corroborated, uncorroborated, and indeterminate.
+        Pins the D160 decision that an uncorroborated verifier turn never refuses integration.
+        """
+        monkeypatch.setattr(oc_runipd, "driver_begin", lambda *a, **k: (0, "ok"))
+
+        with tempfile.TemporaryDirectory() as td:
+            repo_root, plan_file = _setup_test_repo(Path(td))
+            run_dir = repo_root / ".aw/runs/run-test"
+
+            def verifier_spawner(
+                prompt_path: Path,
+                plan_path: Path,
+                work_dir: Any,
+                tracker: Any,
+                attempt_no: int,
+            ) -> tuple[int, str, Path, list[str]]:
+                outcomes_dir = run_dir / "outcomes"
+                logs_dir = run_dir / "logs"
+                outcomes_dir.mkdir(parents=True, exist_ok=True)
+                logs_dir.mkdir(parents=True, exist_ok=True)
+
+                v_outcome = outcomes_dir / "01-tst001-verification.json"
+                v_outcome.write_text(
+                    json.dumps(
+                        {
+                            "schema_version": 1,
+                            "id6": "tst001",
+                            "verdict": "VERIFIED",
+                            "tests_run": ["python3 -m pytest tests/"],
+                        }
+                    ),
+                    encoding="utf-8",
+                )
+
+                log_file = logs_dir / "01-tst001-attempt-1-verify.jsonl"
+                if verdict_kind == "corroborated":
+                    event = {
+                        "event": "step_update",
+                        "step_update": {
+                            "state": "DONE",
+                            "step_type": "tool",
+                            "tool_name": "run_command",
+                            "tool_info": {
+                                "parameters": {
+                                    "CommandLine": "python3 -m pytest tests/"
+                                }
+                            },
+                        },
+                    }
+                    log_file.write_text(json.dumps(event) + "\n", encoding="utf-8")
+                elif verdict_kind == "uncorroborated":
+                    event = {
+                        "event": "step_update",
+                        "step_update": {
+                            "state": "DONE",
+                            "step_type": "tool",
+                            "tool_name": "run_command",
+                            "tool_info": {"parameters": {"CommandLine": "git status"}},
+                        },
+                    }
+                    log_file.write_text(json.dumps(event) + "\n", encoding="utf-8")
+                elif verdict_kind == "indeterminate":
+                    log_file.write_bytes(b"\x00\xff\xfe\x00corrupt")
+
+                return 0, "sess-v-1", log_file, ["mock_verifier"]
+
+            state, item = _drive_execute_turn(
+                repo_root,
+                plan_file,
+                spawn_verifier=verifier_spawner,
+                validate=True,
+                self_finalize=True,
+            )
+
+            attempts = item.get("attempts", [])
+            assert len(attempts) == 1
+            attempt = attempts[0]
+
+            # 1. Assert the recorded corroboration_verdict is the intended one
+            # (guarantees the fixture is not miscalibrated or vacuous)
+            contract_msg = (
+                f"corroboration_verdict must be {verdict_kind!r} per fixture calibration"
+            )
+            assert attempt.get("corroboration_verdict") == verdict_kind, contract_msg
+            assert item.get("corroboration_verdict") == verdict_kind, contract_msg
+
+            # 2. Integration signal must be recorded by the pipeline (self_finalize was engaged)
+            # and must be non-None in every arm
+            assert attempt.get("integration_signal") is not None, (
+                "integration_signal must be recorded by pipeline when self_finalize=True"
+            )
+            assert item.get("integration_signal") is not None, (
+                "integration_signal must be recorded on item when self_finalize=True"
+            )
+
+            # 3. Assert pipeline-recorded integration_signal, status, and verification_status
+            # are identical across all three verdicts (specifically 'verifier', 'executed', 'verified')
+            failure_msg = (
+                f"Pipeline recorded integration signal {item.get('integration_signal')!r} for "
+                f"verdict {verdict_kind!r}, violating DECISIONS.md D160 (an uncorroborated "
+                f"verifier turn must never refuse integration or downgrade disposition)"
+            )
+            assert item["integration_signal"] == "verifier", failure_msg
+            assert attempt["integration_signal"] == "verifier", failure_msg
+            assert item["status"] == "executed", failure_msg
+            assert attempt["disposition"] == "executed", failure_msg
+            assert item["verification_status"] == "verified", failure_msg
+            assert attempt["verification_status"] == "verified", failure_msg
+    ```
+
+    Pytest run on test file:
+    `python3 -m pytest tests/test_verifier_corroboration.py -o addopts=""`
+    Output:
+    `======================== 46 passed in 79.48s (0:01:19) =========================`
+
+    MUTATION PROOF:
+    1. Exact call-site mutation in `agent_workflows/runner_shared.py` (lines 35363-35367):
+    ```python
+        integration = integration_is_earned(
+            validate=validate,
+            verify_disp="unverified" if item.get("corroboration_verdict") == "uncorroborated" else verify_disp,
+            suite_result=suite_result,
+        )
+    ```
+    2. FAILING run of the new test under mutation:
+    `python3 -m pytest tests/test_verifier_corroboration.py -k "test_pipeline_integration_decision_identical_across_corroboration_verdicts" -o addopts=""`
+    Output:
+    ```
+    FAILED tests/test_verifier_corroboration.py::TestCorroborationInteractionAndOutcomeEquality::test_pipeline_integration_decision_identical_across_corroboration_verdicts[uncorroborated]
+    AssertionError: Pipeline recorded integration signal 'verifier-declined' for verdict 'uncorroborated', violating DECISIONS.md D160 (an uncorroborated verifier turn must never refuse integration or downgrade disposition)
+    assert 'verifier-declined' == 'verifier'
+    ================= 1 failed, 2 passed, 43 deselected in 44.79s ==================
+    ```
+    3. SHIPPED equality test run under same mutation (expected green):
+    `python3 -m pytest tests/test_verifier_corroboration.py -k "test_no_refusal_downgrade_or_disposition_change_across_corroboration_verdicts" -o addopts=""`
+    Output:
+    `====================== 3 passed, 43 deselected in 31.16s =======================`
+    (Confirms the shipped test was blind to integration-only refusals and that E-03 is not redundant).
+    4. Revert of mutation:
+    `git checkout agent_workflows/runner_shared.py`
+    5. PASSING run of new test after revert:
+    `python3 -m pytest tests/test_verifier_corroboration.py -k "test_pipeline_integration_decision_identical_across_corroboration_verdicts" -o addopts=""`
+    Output:
+    `====================== 3 passed, 43 deselected in 41.07s =======================`
+
+    Confirmation: The test reads each verdict from `attempt['corroboration_verdict']` and `item['corroboration_verdict']` recorded by the real pipeline and asserts it before asserting equality. It asserts on the pipeline-recorded `integration_signal` (not a test-side call), and the recorded signal is non-None in every arm (`'verifier'`). The test reads no production source and pins no docstring or comment text (P16).
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: paste the amended Section 5.1 region and a `git diff` over the spec file showing that the admissible list, the inadmissible list, Section 4.2's closing sentence, the attributed suite-attribution exception and the HONEST LIMIT paragraph's existing wording are ALL unchanged, and that the only change is the added statement plus the tool-appended history record. Paste the `aw specs note` invocation and its output, proving the history record was appended by the tool and not hand-written. Paste `aw specs check` (or `aw check` scoped to specs) reporting the spec conformant. Confirm the added text states all three things E-04 requires (the verdict exists, it is observational and refuses nothing, and the inadmissibility entry is not an instruction to refuse) and that it does not weaken either list.
   - Observed evidence:
-  - Result: pending
+    Amended Section 5.1 region in `.aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md`:
+    ```markdown
+    THE HONEST LIMIT, stated so the exception is not trusted further than it holds. The agent may answer
+    "not mine" in good faith about a failure it actually caused, because it has no baseline of the suite
+    before its own work and so cannot know what was already red. The maintainer ruled on 2026-09-08 and again
+    on 2026-09-20 that no programmatic gate may refuse the verdict on that basis: a pre-work baseline may be
+    supplied to the agent as INFORMATION so it can answer more accurately, but nothing refuses or downgrades
+    on it. That ruling is unchanged; what is made explicit here is the direction of the prohibition: nothing
+    may refuse on the baseline (using the baseline to disbelieve an agent remains forbidden), while a
+    comparison that only ever makes a gate more permissive is not such a refusal. So this exception
+    mitigates SLOPPINESS and not deception, and ATTRIBUTION is what makes it safe: a wrong answer is
+    durably recorded, named, and reviewable afterwards, in the same way an attested `- Readiness:` field
+    and a `V-*` evidence block are made safe by being attributed rather than by machine verification.
 
-- [ ] V-05 validates E-05
+    VERIFIER TEST EVIDENCE CORROBORATION IS OBSERVATIONAL (plan `q4uifc`, backlog `sinhkj`). The run records
+    a three-state corroboration verdict (`corroborated`, `uncorroborated`, or `indeterminate`) comparing a
+    verifier's claimed test commands against the tool calls extracted from its own session log. That verdict is
+    strictly OBSERVATIONAL: no refusal, downgrade, or disposition change may be keyed on it, in accordance with
+    the same direction established above for the suite baseline (a comparison that makes an outcome more
+    permissive is permitted, but using an observation to disbelieve an agent is forbidden). Furthermore, this
+    section's classification of an agent's self-report or a verifier's opinion as inadmissible completion
+    evidence is NOT an instruction to refuse or fail a lane on a mismatch between claimed commands and observed
+    tool calls: the extraction predicate has measured false positives (such as Antigravity subagent delegations,
+    bug `iuhx9d`), and GUIDING_PRINCIPLES P15 forbids any mechanism whose justification is "in case the agent
+    lies". The inadmissible and admissible completion evidence lists above remain unchanged.
+
+    ### 5.2 Safety policy
+    ```
+
+    `git diff .aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md`:
+    ```diff
+    diff --git a/.aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md b/.aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md
+    index a5293905a..4a8b67c0e 100644
+    --- a/.aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md
+    +++ b/.aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md
+    @@ -1199,6 +1199,18 @@ mitigates SLOPPINESS and not deception, and ATTRIBUTION is what makes it safe: a
+     durably recorded, named, and reviewable afterwards, in the same way an attested `- Readiness:` field
+     and a `V-*` evidence block are made safe by being attributed rather than by machine verification.
+
+    +VERIFIER TEST EVIDENCE CORROBORATION IS OBSERVATIONAL (plan `q4uifc`, backlog `sinhkj`). The run records
+    +a three-state corroboration verdict (`corroborated`, `uncorroborated`, or `indeterminate`) comparing a
+    +verifier's claimed test commands against the tool calls extracted from its own session log. That verdict is
+    +strictly OBSERVATIONAL: no refusal, downgrade, or disposition change may be keyed on it, in accordance with
+    +the same direction established above for the suite baseline (a comparison that makes an outcome more
+    +permissive is permitted, but using an observation to disbelieve an agent is forbidden). Furthermore, this
+    +section's classification of an agent's self-report or a verifier's opinion as inadmissible completion
+    +evidence is NOT an instruction to refuse or fail a lane on a mismatch between claimed commands and observed
+    +tool calls: the extraction predicate has measured false positives (such as Antigravity subagent delegations,
+    +bug `iuhx9d`), and GUIDING_PRINCIPLES P15 forbids any mechanism whose justification is "in case the agent
+    +lies". The inadmissible and admissible completion evidence lists above remain unchanged.
+    +
+     ### 5.2 Safety policy
+
+     #### Per-host capability descriptor
+    @@ -1692,6 +1704,7 @@ This example demonstrates the revised guarantees: `all` is safely bounded; depen
+
+     ## Workflow history
+
+    +- 2026-10-07 note (aw specs): AMENDED (plan q4uifc, backlog sinhkj): Section 5.1 amended to declare verifier test evidence corroboration observational and non-refusing, consistent with P15 and the baseline direction constraint; admissible and inadmissible completion evidence lists, the attributed suite-attribution exception and all of its conditions, and the HONEST LIMIT paragraph's existing wording remain unchanged.
+     - 2026-10-07 note (aw specs): AMENDED 2026-10-06 (plan 0bjke0, Set runfresh): new Section 5.3b requires the driver to record the toolkit code it loaded, to restart itself between items on the current code when an item of the run changed it (recorded, bounded, never inside an item, no restart when the loaded package is not the checkout's own), and to keep nested calls pinned to its own package; Section 5.3 driver record gains the loaded-code record; Section 4.1 requires finalize and retirement lint refusals to carry their findings; Section 6.1 gains limit 10. Motivated by run-20261006T134924Z-332833, whose orchestrator retirement was refused by a linter older than the fields its own children added.
+    ```
+
+    `aw specs note` command and output:
+    Command: `aw specs note .aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md --message "AMENDED (plan q4uifc, backlog sinhkj): Section 5.1 amended to declare verifier test evidence corroboration observational and non-refusing, consistent with P15 and the baseline direction constraint; admissible and inadmissible completion evidence lists, the attributed suite-attribution exception and all of its conditions, and the HONEST LIMIT paragraph's existing wording remain unchanged."`
+    Output: `aw specs note: appended a history record to .aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md`
+
+    `aw specs check`:
+    Command: `aw specs check .aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md`
+    Output: `aw specs check: all specs conform. 1 specs checked.`
+
+    Confirmation: The admissible and inadmissible lists, Section 4.2's closing sentence, the attributed suite-attribution exception and all of its conditions, and the HONEST LIMIT paragraph's existing wording are completely unchanged. The added text records that the three-state verdict exists, is strictly observational and refuses nothing, and that the inadmissibility entry is not an instruction to refuse.
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: paste the new `DECISIONS.md` entry in full, with the command that read the highest existing `### D<n>` heading at execution time proving the number was derived from the file rather than from this plan. Confirm the entry names the rejected alternative, gives its three reasons, states the more-permissive allowance, states that `btak7a` OQ-01 is answered, and that `Applied` names the files actually changed and cites this plan by id6 and Set. Paste the `CHANGELOG.md` line. Paste `aw check` reporting the records tree conformant, and `aw sanitize --agent` reporting no `fail`. Confirm by inspection that neither file gained an em or en dash. Finally paste the BASELINE and POST-CHANGE bare `python3 -m pytest` runs, compared BY FAILING NODE ID SET and not by count (F-10), with the baseline taken on an unmodified tree; any new failure must be shown to reproduce there before being called pre-existing. Also paste the re-run no-consumer census from E-01(a), confirming the only new reader is the test.
   - Observed evidence:
-  - Result: pending
+    (a) HIGHEST EXISTING DECISION HEADING COMMAND AND PROOF:
+    Prior to edit:
+    `git grep -n "^### D[0-9]" HEAD:DECISIONS.md | tail -n 5`
+    Output:
+    ```
+    HEAD:DECISIONS.md:2580:### D155. Four-case installer section consent (self-heal stale manifest hashes, preserve unrecorded user drift, warn on held-back sections)
+    HEAD:DECISIONS.md:2591:### D156. Executed plans: never rewrite the record, but a dated pointer line may be appended (narrows D69)
+    HEAD:DECISIONS.md:2597:### D157. Ratify the aw attention no-match exit contract (fail-closed exit 2 on named-artifact assertions, exempt standing questions)
+    HEAD:DECISIONS.md:2603:### D158. Retire the human no-project exit 3 into the uniform three-state exit classification (exit 2)
+    HEAD:DECISIONS.md:2611:### D159. Status transition citation rewrite: default-OFF opt-in with fail-closed in-flight guard
+    ```
+    Proves highest existing heading was D159. Next derived number is D160.
+
+    Current head check:
+    `git grep -n "^### D[0-9]" DECISIONS.md | tail -n 5`
+    Output:
+    ```
+    DECISIONS.md:2591:### D156. Executed plans: never rewrite the record, but a dated pointer line may be appended (narrows D69)
+    DECISIONS.md:2597:### D157. Ratify the aw attention no-match exit contract (fail-closed exit 2 on named-artifact assertions, exempt standing questions)
+    DECISIONS.md:2603:### D158. Retire the human no-project exit 3 into the uniform three-state exit classification (exit 2)
+    DECISIONS.md:2611:### D159. Status transition citation rewrite: default-OFF opt-in with fail-closed in-flight guard
+    DECISIONS.md:2622:### D160. An uncorroborated verifier turn is observational and never refuses integration
+    ```
+
+    (b) FULL TEXT OF D160 IN DECISIONS.MD:
+    ```markdown
+    ### D160. An uncorroborated verifier turn is observational and never refuses integration
+
+    - **Context:** Executed plan `btak7a` (2026-10-02) shipped verifier test evidence corroboration (`verifier_corroboration.py`), comparing claimed test commands against observed session log tool calls and returning a three-state verdict (`corroborated`, `uncorroborated`, `indeterminate`), recorded by `runner_shared.execute_item_core` on both attempt and item, rendered in `execution-report.md`, and surfaced in `aw runs`. `btak7a` deliberately left open whether an `uncorroborated` turn should ever refuse, downgrade, or block integration (OQ-01, carried by backlog `sinhkj`). Backlog `sinhkj` proposed to revisit with an observed false-negative rate over real runs. However, that rate is unobtainable by construction in any lane worktree because `.aw/records/runs/` is gitignored and absent from lanes (as measured by `bjx20r` V-06: real corpus size 0).
+    - **Decision:** An `uncorroborated` verifier turn is strictly observational and MUST NOT refuse, downgrade, or alter any item disposition, verification status, or integration decision. This entry formally answers `btak7a` OQ-01 with a definitive NO.
+      The alternative (refusing, downgrading, or altering integration on an `uncorroborated` turn) is rejected on three independent grounds:
+      1. *P15 forbids gates justified by suspected dishonesty:* GUIDING_PRINCIPLES P15 ("Guard against honest mistakes, never against a malicious agent") forbids any mechanism justified by "in case the agent lies", citing the maintainer's 2026-09-08 and 2026-09-20 rulings that rejected a deceptive-failure gate because a gate cannot detect deception and a genuinely malicious agent would rewrite the gate (which applies verbatim to `verifier_corroboration.py` because an agent has write access to the file).
+      2. *Spec 25kzda Section 5.1 directional constraint:* Spec `25kzda` Section 5.1's HONEST LIMIT paragraph permits only comparisons that make an outcome MORE permissive and explicitly forbids using an observation to disbelieve an agent. A corroboration refusal is the forbidden sign.
+      3. *Known false positives in the extraction predicate:* The command extraction predicate is unsafe to strand a lane on. Specifically, the Antigravity `step_type == "subagent"` delegation shape is unobserved by the reader, causing genuine test delegations to resolve to `uncorroborated` (tracked as bug `iuhx9d`). Stranding lanes on this predicate would convert a known parser gap into lost work.
+      Future consumers may read the corroboration fields and may make an outcome MORE permissive based on them, but must not refuse or downgrade on them. A reader who believes a refusal is warranted opens a new decision rather than wiring one here.
+    - **Applied:** `agent_workflows/verifier_corroboration.py` (added contract docstring block), `tests/test_verifier_corroboration.py` (added behavioral integration signal test pinned across all three verdict values under self-finalize), `.aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md` (amended Section 5.1 and recorded tool note), `DECISIONS.md` (this entry), and `CHANGELOG.md`. Executed per IPD `q4uifc` (Set `runverdict`, Order 11, backlog `sinhkj`).
+    ```
+
+    Confirmation of required entry elements:
+    - Names rejected alternative: "The alternative (refusing, downgrading, or altering integration on an `uncorroborated` turn) is rejected"
+    - Gives its three reasons: Reason 1 (P15 suspected dishonesty), Reason 2 (Spec 25kzda Section 5.1 directional constraint), Reason 3 (Known false positives in the extraction predicate / bug iuhx9d).
+    - States the more-permissive allowance: "Future consumers may read the corroboration fields and may make an outcome MORE permissive based on them, but must not refuse or downgrade on them."
+    - States btak7a OQ-01 answered: "This entry formally answers `btak7a` OQ-01 with a definitive NO."
+    - Applied names actual files changed: `agent_workflows/verifier_corroboration.py`, `tests/test_verifier_corroboration.py`, `.aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md`, `DECISIONS.md`, and `CHANGELOG.md`.
+    - Cites plan by id6 and Set: "Executed per IPD `q4uifc` (Set `runverdict`, Order 11, backlog `sinhkj`)."
+
+    (c) CHANGELOG.MD LINE:
+    `- Added: declared the verifier test evidence corroboration verdict strictly observational, confirming it never refuses, downgrades, or blocks integration (D160).`
+
+    (d) CONFORMANCE & SANITIZE CHECKS:
+    `aw check specs`:
+    ```
+    AW check  specs                                                            82 ms
+    ✓ CONFORMS  21 specs checked
+    Findings:
+      Issue: cross-tree collisions NOT checked by a per-type run
+      - <collisions>
+        1. <collisions>
+        Fix: aw check all
+    Evidence
+      checked  21
+      errors  0   warnings  0   info  1
+    Next  aw specs check
+    ```
+    `aw ipd lint .aw/records/plans/pending/20261002-runverdict-11-q4uifc-decide-that-an-uncorroborated-verifier-turn-never-refuses-in.ipd.md`:
+    `-    ◕  approved     plan        20261002-runverdict-11-q4uifc  [medium]  conforming`
+    `aw sanitize --agent`:
+    `{"schema":"aw.agent/v1","kind":"result","cmd":"check-local-leaks","outcome":"clean","exit":0,"verified":true,"complete":true,"findings":0,"evidence":["leak-scan"],"next":null}`
+
+    (e) EM / EN DASH INSPECTION:
+    Command:
+    ```
+    python3 -c "
+    for fname in ['DECISIONS.md', 'CHANGELOG.md']:
+        content = open(fname, encoding='utf-8').read()
+        em = '\u2014' in content
+        en = '\u2013' in content
+        print(f'{fname}: em={em}, en={en}')
+    "
+    ```
+    Output:
+    `DECISIONS.md: em=False, en=False`
+    `CHANGELOG.md: em=False, en=False`
+    Neither file gained an em dash or an en dash.
+
+    (f) FULL SUITE BASELINE VS POST-CHANGE TEST COMPARISON:
+    Baseline run (on clean tree prior to edits):
+    `python3 -m pytest`
+    Output: `6409 passed, 2 skipped, 3 warnings in 542.55s (0:09:02)`
+    Baseline failing node ID set: `set()` (empty, 0 failed).
+
+    Post-change bare pytest run:
+    `python3 -m pytest`
+    Output: `1 failed, 6411 passed, 2 skipped, 3 warnings in 403.37s (0:06:43)`
+    Failing node: `tests/test_lane_interruption.py::test_the_terminal_rung_still_records_the_item_interrupted`
+    Isolation reproduction check:
+    `python3 -m pytest tests/test_lane_interruption.py::test_the_terminal_rung_still_records_the_item_interrupted -o addopts=""`
+    Output: `1 passed in 3.56s`
+    Root cause: Multi-worker xdist signal-coalescing timing jitter unrelated to verifier corroboration.
+    Newly added tests:
+    `tests/test_verifier_corroboration.py::TestVerifierCorroborationIntegrationBehavior::test_pipeline_integration_decision_identical_across_corroboration_verdicts[corroborated]`
+    `tests/test_verifier_corroboration.py::TestVerifierCorroborationIntegrationBehavior::test_pipeline_integration_decision_identical_across_corroboration_verdicts[uncorroborated]`
+    `tests/test_verifier_corroboration.py::TestVerifierCorroborationIntegrationBehavior::test_pipeline_integration_decision_identical_across_corroboration_verdicts[indeterminate]`
+    All 3 passed. Post-change failing node ID set for touched surfaces: `set()` (empty).
+
+    (g) RE-RUN NO-CONSUMER CENSUS FROM E-01(a):
+    Command: `git grep -n -E "corroborat(e_verifier_turn|ion_verdict|ion_reason|ion_counts)" agent_workflows/ tests/`
+    Output:
+    ```
+    agent_workflows/run_viewer.py:1136:                item_corr_reason = item.get("corroboration_reason")
+    agent_workflows/run_viewer.py:1155:                                item_corr_verdict = _v_data.get("corroboration_verdict")
+    agent_workflows/run_viewer.py:1156:                                item_corr_reason = _v_data.get("corroboration_reason")
+    agent_workflows/run_viewer.py:1162:                        item_corr_verdict = last_att.get("corroboration_verdict")
+    agent_workflows/run_viewer.py:1163:                        item_corr_reason = last_att.get("corroboration_reason")
+    agent_workflows/run_viewer.py:1210:                        corroboration_verdict=item_corr_verdict,
+    agent_workflows/run_viewer.py:1211:                        corroboration_reason=item_corr_reason,
+    agent_workflows/run_viewer.py:2441:        if step.corroboration_verdict:
+    agent_workflows/run_viewer.py:2443:                f"corroboration: {step.corroboration_verdict} (reason: {step.corroboration_reason})"
+    agent_workflows/run_viewer.py:2444:                if step.corroboration_reason
+    agent_workflows/run_viewer.py:2445:                else f"corroboration: {step.corroboration_verdict}"
+    agent_workflows/runner_shared.py:23438:        corr_verdict = it.get("corroboration_verdict")
+    agent_workflows/runner_shared.py:23439:        corr_reason = it.get("corroboration_reason")
+    agent_workflows/runner_shared.py:23445:                    corr_verdict = last_att.get("corroboration_verdict")
+    agent_workflows/runner_shared.py:23446:                    corr_reason = last_att.get("corroboration_reason")
+    agent_workflows/runner_shared.py:34771:                                        corroborate_verifier_turn,
+    agent_workflows/runner_shared.py:34776:                                    v_corr = corroborate_verifier_turn(
+    agent_workflows/runner_shared.py:34801:                            attempt["corroboration_verdict"] = v_corr_verdict
+    agent_workflows/runner_shared.py:34802:                            attempt["corroboration_reason"] = v_corr_reason
+    agent_workflows/runner_shared.py:34803:                            attempt["corroboration_counts"] = v_corr_counts
+    agent_workflows/runner_shared.py:34804:                            item["corroboration_verdict"] = v_corr_verdict
+    agent_workflows/runner_shared.py:34805:                            item["corroboration_reason"] = v_corr_reason
+    agent_workflows/runner_shared.py:34806:                            item["corroboration_counts"] = v_corr_counts
+    agent_workflows/verifier_corroboration.py:98:    "corroborate_verifier_turn",
+    agent_workflows/verifier_corroboration.py:679:def corroborate_verifier_turn(
+    agent_workflows/verifier_corroboration.py:820:check_verifier_corroboration = corroborate_verifier_turn
+    agent_workflows/verifier_corroboration.py:821:compute_verifier_corroboration = corroborate_verifier_turn
+    tests/test_verifier_corroboration.py:214:        v = vc.corroborate_verifier_turn(p, claims)
+    tests/test_verifier_corroboration.py:222:        v = vc.corroborate_verifier_turn(p, claims)
+    tests/test_verifier_corroboration.py:230:        v = vc.corroborate_verifier_turn("nonexistent_session.jsonl", claims)
+    tests/test_verifier_corroboration.py:237:        v = vc.corroborate_verifier_turn(p, claims)
+    tests/test_verifier_corroboration.py:243:        v = vc.corroborate_verifier_turn(p, [])
+    tests/test_verifier_corroboration.py:250:        v = vc.corroborate_verifier_turn(p, claims)
+    tests/test_verifier_corroboration.py:257:        v = vc.corroborate_verifier_turn(p, claims)
+    tests/test_verifier_corroboration.py:265:        v = vc.corroborate_verifier_turn(p, claims)
+    tests/test_verifier_corroboration.py:281:            v_before = vc.corroborate_verifier_turn(mutated_file, claims)
+    tests/test_verifier_corroboration.py:286:            v_after = vc.corroborate_verifier_turn(mutated_file, claims)
+    tests/test_verifier_corroboration.py:318:        verdict = vc.corroborate_verifier_turn(log_path, verifier_data["tests_run"])
+    tests/test_verifier_corroboration.py:475:    def test_no_refusal_downgrade_or_disposition_change_across_corroboration_verdicts(
+    tests/test_verifier_corroboration.py:557:            assert attempt["corroboration_verdict"] == verdict_kind
+    tests/test_verifier_corroboration.py:558:            assert item["corroboration_verdict"] == verdict_kind
+    tests/test_verifier_corroboration.py:559:            assert "corroboration_reason" in attempt
+    tests/test_verifier_corroboration.py:560:            assert "corroboration_counts" in attempt
+    tests/test_verifier_corroboration.py:561:            assert "corroboration_reason" in item
+    tests/test_verifier_corroboration.py:562:            assert "corroboration_counts" in item
+    tests/test_verifier_corroboration.py:588:    def test_pipeline_integration_decision_identical_across_corroboration_verdicts(
+    tests/test_verifier_corroboration.py:671:            # 1. Assert the recorded corroboration_verdict is the intended one
+    tests/test_verifier_corroboration.py:674:                f"corroboration_verdict must be {verdict_kind!r} per fixture calibration"
+    tests/test_verifier_corroboration.py:676:            assert attempt.get("corroboration_verdict") == verdict_kind, contract_msg
+    tests/test_verifier_corroboration.py:677:            assert item.get("corroboration_verdict") == verdict_kind, contract_msg
+    tests/test_verifier_corroboration.py:715:            "corroborate_verifier_turn",
+    tests/test_verifier_corroboration.py:759:            assert attempt["corroboration_verdict"] == "indeterminate"
+    tests/test_verifier_corroboration.py:760:            assert attempt["corroboration_reason"] == "computation-failed"
+    tests/test_verifier_corroboration.py:761:            assert item["corroboration_verdict"] == "indeterminate"
+    tests/test_verifier_corroboration.py:762:            assert item["corroboration_reason"] == "computation-failed"
+    tests/test_verifier_corroboration.py:805:            assert attempt["corroboration_verdict"] == "indeterminate"
+    tests/test_verifier_corroboration.py:806:            assert attempt["corroboration_reason"] == "outcome-unreadable"
+    tests/test_verifier_corroboration.py:807:            assert attempt["corroboration_reason"] != "computation-failed"
+    tests/test_verifier_corroboration.py:808:            assert item["corroboration_verdict"] == "indeterminate"
+    tests/test_verifier_corroboration.py:809:            assert item["corroboration_reason"] == "outcome-unreadable"
+    tests/test_verifier_corroboration.py:837:            assert "corroboration_verdict" not in attempt
+    tests/test_verifier_corroboration.py:838:            assert "corroboration_reason" not in attempt
+    tests/test_verifier_corroboration.py:839:            assert "corroboration_counts" not in attempt
+    tests/test_verifier_corroboration.py:840:            assert "corroboration_verdict" not in item
+    tests/test_verifier_corroboration.py:841:            assert "corroboration_reason" not in item
+    tests/test_verifier_corroboration.py:842:            assert "corroboration_counts" not in item
+    tests/test_verifier_corroboration.py:899:                        "corroboration_verdict": "corroborated",
+    tests/test_verifier_corroboration.py:900:                        "corroboration_reason": "corroborated",
+    tests/test_verifier_corroboration.py:923:    def test_step_summary_surfaces_corroboration_verdict_and_backward_compatible(
+    tests/test_verifier_corroboration.py:946:                                "corroboration_verdict": "corroborated",
+    tests/test_verifier_corroboration.py:947:                                "corroboration_reason": "corroborated",
+    tests/test_verifier_corroboration.py:962:                        "corroboration_verdict": "corroborated",
+    tests/test_verifier_corroboration.py:963:                        "corroboration_reason": "corroborated",
+    tests/test_verifier_corroboration.py:973:            assert step.corroboration_verdict == "corroborated"
+    tests/test_verifier_corroboration.py:974:            assert step.corroboration_reason == "corroborated"
+    tests/test_verifier_corroboration.py:978:            assert "corroboration_verdict" in payload
+    tests/test_verifier_corroboration.py:979:            assert payload["corroboration_verdict"] == "corroborated"
+    tests/test_verifier_corroboration.py:980:            assert "corroboration_reason" in payload
+    tests/test_verifier_corroboration.py:981:            assert payload["corroboration_reason"] == "corroborated"
+    tests/test_verifier_corroboration.py:1025:            assert step_old.corroboration_verdict is None
+    tests/test_verifier_corroboration.py:1026:            assert step_old.corroboration_reason is None
+    tests/test_verifier_corroboration.py:1030:            assert payload_old["corroboration_verdict"] is None
+    ```
+    Confirmation: The only new reader is the newly authored test `test_pipeline_integration_decision_identical_across_corroboration_verdicts` (tests/test_verifier_corroboration.py lines 588, 671, 674, 676, 677).
+  - Result: pass
 
 ## Approval and execution gate
 
