@@ -6,7 +6,7 @@
 - Scope: Teach the outcome-word ladder in `render_stream.render_run_summary_table` the REVIEW stranded shape it already renders a recovery section for, by calling the shipped composed predicate `work_did_not_land` at the two success-branch guards and the `STRANDED` arm, leaving the branch ORDER and all three predicate bodies untouched (the predicate choice was corrected at review, PR-001: `entv1d` has executed and already composes both shapes into the one question the exit code asks). Add a review-shaped case plus a relabel fence to the module that actually tests this ladder.
 - Scope-Paths: agent_workflows/render_stream.py, tests/test_zero_dispatch_outcome.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -17,9 +17,9 @@
 - Highest E allocated: 05
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: w5uowt
-- Approval: 2026-10-01, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-08 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: w5uowt verified (set strandhead, attempt 1).
 - 2026-10-01 approved (aw set): status set to approved
 - 2026-10-01 reviewed (aw set): /plan-review complete: APPROVE WITH REVISIONS APPLIED; PR-001 (HIGH), PR-002 (MEDIUM), PR-003 (LOW), all FIXED. Findings and two decision rows in .aw/records/reviews/20260930-strandhead-01-w5uowt-put-the-stranded-review-shape-into-the-outcome-word-ladder-s.review.md.
 
