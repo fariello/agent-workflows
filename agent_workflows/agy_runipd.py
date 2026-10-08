@@ -20,6 +20,7 @@ import shutil
 import subprocess
 import sys
 import time
+from collections.abc import Mapping
 from pathlib import Path
 from typing import Any, Callable, Iterable, Optional
 
@@ -2855,7 +2856,65 @@ def run_agy_turn(
             os.fsync(log.fileno())
 
     captured_conv_id = extract_session_id(log_path) or session_id
+    if captured_conv_id:
+        init_model: str | None = None
+        try:
+            if log_path.is_file():
+                with log_path.open("r", encoding="utf-8") as f:
+                    first_line = f.readline()
+                if first_line:
+                    ev = json.loads(first_line)
+                    if isinstance(ev, dict) and ev.get("event") == "init":
+                        init_data = ev.get("init")
+                        if isinstance(init_data, dict):
+                            raw_model = init_data.get("model")
+                            if (
+                                raw_model
+                                and isinstance(raw_model, str)
+                                and raw_model.strip()
+                                and raw_model.strip() != "antigravity"
+                            ):
+                                init_model = raw_model.strip()
+        except Exception:
+            init_model = None
+        _INIT_MODEL_ECHO[captured_conv_id] = init_model
+
     return rc, captured_conv_id, log_path, argv
+
+
+# attmodel (rejqff) E-03/E-04: Module-level map caching model echo from turn's init event.
+# Keys are captured conversation IDs; values are model string or None.
+_INIT_MODEL_ECHO: dict[str, str | None] = {}
+HOST_MODEL_SOURCE_INIT = "init-event-echo"
+
+
+def observe_host_model(
+    session_id: str,
+    *,
+    options: Mapping[str, Any] | None = None,
+    repo_root: Path | str | None = None,
+) -> dict[str, Any] | None:
+    """Bounded, memory-backed observation of the Antigravity host model echo.
+
+    Consumes the model echo captured from the attempt log's `init` event during
+    `run_agy_turn`. The returned `host_model_source` is 'init-event-echo'.
+
+    This value is the host's echo of the `--model` argument rather than an
+    independent observation, it is absent for a flagless turn, and it does
+    prove host acceptance because a bogus model is rejected before any `init`
+    event is emitted.
+    """
+    try:
+        model = _INIT_MODEL_ECHO.pop(session_id, None)
+        if model and isinstance(model, str) and model.strip():
+            return {
+                "host_model": model.strip(),
+                "host_model_provider": "",
+                "host_model_source": HOST_MODEL_SOURCE_INIT,
+            }
+        return None
+    except Exception:
+        return None
 
 
 def execute_item(

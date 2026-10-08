@@ -11,6 +11,7 @@
 - Work-Kind: feature
 - Priority: medium
 - From-Backlog: qswokt
+- From-Spec: none
 - Set: agymodel
 - Order: 1
 - Highest E allocated: 06
@@ -51,45 +52,45 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: re-measure the host surface, because this plan exists to correct a stale premise
 
-- [ ] E-01 RE-MEASURE THE FOUR HOST FACTS THIS PLAN TURNS ON, AT EXECUTION, BEFORE WRITING ANY CODE, AND STOP IF ANY HAS CHANGED. Each was measured at authoring against agy 1.2.14 and each is version-dependent, so none may be trusted from this document. (a) THE ECHO: a turn launched `--model gemini-3.8-flash-low` emits a first-line `init` event whose `init.model` is exactly `"gemini-3.8-flash-low"`; a turn launched `--model "Gemini 3.8 Flash (High)"` echoes that display-name spelling verbatim. (b) THE ABSENCE, WHICH IS THE FINDING THAT RESHAPED THIS PLAN: a turn launched with NO `--model` at all emits an `init` event with NO `model` key (`init.model is None`). (c) THE REJECTION: a turn launched `--model totally-bogus-model-xyz` exits NONZERO having emitted no usable stream, so an echoed value does at least prove host acceptance. (d) THE STREAM CENSUS: across all events of a complete turn, `model` appears in the `init` event ONLY and in no `step_update` or `result` event, so `init` is the only in-stream source. Record `agy --version` beside the measurements. IF (b) NOW REPORTS A MODEL FOR A FLAGLESS TURN, STOP AND REPORT: that would mean the host began observing rather than echoing, which makes OQ-01's gap closable and changes this plan's central claim, and that is a human's call rather than an executor's.
+- [x] E-01 RE-MEASURE THE FOUR HOST FACTS THIS PLAN TURNS ON, AT EXECUTION, BEFORE WRITING ANY CODE, AND STOP IF ANY HAS CHANGED. Each was measured at authoring against agy 1.2.14 and each is version-dependent, so none may be trusted from this document. (a) THE ECHO: a turn launched `--model gemini-3.8-flash-low` emits a first-line `init` event whose `init.model` is exactly `"gemini-3.8-flash-low"`; a turn launched `--model "Gemini 3.8 Flash (High)"` echoes that display-name spelling verbatim. (b) THE ABSENCE, WHICH IS THE FINDING THAT RESHAPED THIS PLAN: a turn launched with NO `--model` at all emits an `init` event with NO `model` key (`init.model is None`). (c) THE REJECTION: a turn launched `--model totally-bogus-model-xyz` exits NONZERO having emitted no usable stream, so an echoed value does at least prove host acceptance. (d) THE STREAM CENSUS: across all events of a complete turn, `model` appears in the `init` event ONLY and in no `step_update` or `result` event, so `init` is the only in-stream source. Record `agy --version` beside the measurements. IF (b) NOW REPORTS A MODEL FOR A FLAGLESS TURN, STOP AND REPORT: that would mean the host began observing rather than echoing, which makes OQ-01's gap closable and changes this plan's central claim, and that is a human's call rather than an executor's.
   - NOTE THE FLAG UNIT, because the obvious invocation fails: `--print-timeout` requires a duration UNIT (`180s`), and a bare `180` exits 2 with `missing unit in duration "180"`. Measured at authoring; it cost a wasted probe.
   - PROBE INSIDE A GITIGNORED DIRECTORY, not the working tree: `.aw/records/runs/` is ignored (`.aw/.gitignore` line `records/runs/`), which is where authoring's probes were run and why they left the tree clean. Do NOT probe into a tracked path and do NOT commit probe output.
   - Depends on: none
   - Expected outcome: pasted `agy --version`; the pasted first `init` line for each of the three launch shapes in (a) and (b) with `init.model` extracted and shown; the pasted nonzero exit and error text from (c); the pasted per-event model-key census from (d); and an explicit statement that all four match this plan's premises or naming exactly which did not.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 CONFIRM, BY CODE READING AND BY A DRIVEN CALL, THAT THE DEFAULT-CONFIGURATION RUNNER PATH PASSES NO `--model`, BECAUSE THAT IS WHAT MAKES (b) BITE IN PRODUCTION RATHER THAN ONLY IN A PROBE. `agy_runipd.initialize_run` freezes `"model": effective_model` (CLI value or `agy_models.resolve_agy_default_model`'s settings reading) and `"explicit_model": cli_model`, so on a run started with no `--model` the key `explicit_model` IS PRESENT with value `None`. `run_agy_turn`'s promotion guard is `if model_flag is None and "explicit_model" not in options`, whose second conjunct is then FALSE, so the frozen `model` is NOT promoted and no `--model` reaches the child. Verify this by evaluating the guard against both option shapes and pasting the result, rather than by asserting it from the prose. THIS IS THE JOINT THAT DECIDES OQ-01: if the guard were to promote the frozen model, the echo would cover the default path and the gap would close by itself.
+- [x] E-02 CONFIRM, BY CODE READING AND BY A DRIVEN CALL, THAT THE DEFAULT-CONFIGURATION RUNNER PATH PASSES NO `--model`, BECAUSE THAT IS WHAT MAKES (b) BITE IN PRODUCTION RATHER THAN ONLY IN A PROBE. `agy_runipd.initialize_run` freezes `"model": effective_model` (CLI value or `agy_models.resolve_agy_default_model`'s settings reading) and `"explicit_model": cli_model`, so on a run started with no `--model` the key `explicit_model` IS PRESENT with value `None`. `run_agy_turn`'s promotion guard is `if model_flag is None and "explicit_model" not in options`, whose second conjunct is then FALSE, so the frozen `model` is NOT promoted and no `--model` reaches the child. Verify this by evaluating the guard against both option shapes and pasting the result, rather than by asserting it from the prose. THIS IS THE JOINT THAT DECIDES OQ-01: if the guard were to promote the frozen model, the echo would cover the default path and the gap would close by itself.
   - DO NOT "FIX" THE GUARD AS PART OF THIS PLAN. Promoting the frozen config model into a `--model` flag on every turn would change what the host is ASKED for, not what is recorded about it, which is a behavior change to the launch path and is out of this plan's scope and its `Scope-Paths` intent. Record it as an option in OQ-01 for a human to decide.
   - Depends on: E-01
   - Expected outcome: the guard evaluated and pasted for both shapes (present-and-`None` versus absent), showing no flag promoted in the default case; plus a pasted statement of what `resolve_agy_default_model()` returns on the executing box and what `resolve_attempt_model` therefore reports today for such an attempt.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: the reader, at the signature the existing seam actually calls
 
-- [ ] E-03 DEFINE `observe_host_model` IN `agy_runipd` WITH THE EXACT SIGNATURE `execute_item_core` CALLS, READING THE ATTEMPT'S OWN LOG RATHER THAN SPAWNING ANYTHING. The seam calls it as `observe_host_model(session_id, options=..., repo_root=...)` and wraps the call in `try/except Exception: host_model_rec = None`, so A SIGNATURE MISMATCH IS SILENTLY SWALLOWED AND THE FEATURE SIMPLY NEVER WORKS. Measured at authoring: calling the OpenCode twin with an extra `log_path=` keyword raises `TypeError: observe_host_model() got an unexpected keyword argument 'log_path'`, which at that seam would be indistinguishable from a host that could not be asked. So the signature MUST be positional `session_id` plus keyword-only `options` and `repo_root`, accepting and ignoring what it does not need, and E-05 must assert the keys appear rather than merely asserting the function returns a record in isolation. THE LOG IS THE SOURCE, BUT THE OBSERVER CANNOT FIND IT, AND THIS IS THE MECHANISM (corrected at review, F-07): the seam passes ONLY `session_id`, `options` and `repo_root`, while `attempt_log_path` needs `run_dir`, `item` and `attempt_no`, none of which the observer receives, so "resolve the log by the same `attempt_log_path`" is unreachable from inside the observer. Instead: (1) at the end of `run_agy_turn`, after `captured_conv_id = extract_session_id(log_path) or session_id`, parse the FIRST line of `log_path` (the `init` event; a single-line parse of a file this host already wrote, timed at authoring at 0.131 ms) and, when `captured_conv_id` is truthy, ALWAYS write `_INIT_MODEL_ECHO[captured_conv_id] = <model or None>` into a module-level dict in `agy_runipd` (writing `None` when absent, blank, unparseable or the `"antigravity"` placeholder, so a reused `--conversation` id from an earlier turn of the same Set can never leave a stale value behind); wrap the parse in `try/except Exception` so it cannot fail the turn; (2) `observe_host_model` POPS `_INIT_MODEL_ECHO.get(session_id)` (pop, so a value is consumed exactly once) and returns the record when it is a non-empty string, else `None`. The key is the same value the seam receives, because `execute_item_core` unpacks `session_id` from `spawn_executor`, which is `run_agy_turn`'s returned `captured_conv_id`. A verifier turn writes its own (different) conversation id and is never popped by the executor-only seam; that entry is harmless, but pop-on-read keeps the map bounded to at most one stale verifier entry per attempt. NOTE THE SEAM'S PRECONDITION: it calls the observer only `if session_id`, and the agy session id comes from `extract_session_id` reading `conversation_id`, which the live host writes on the `init` line (re-measured at review on agy 1.2.15), so a stream without `conversation_id` records nothing, which is the honest outcome. Review demonstrated this mechanism end to end in memory through `execute_item_core` with `driver_module=agy_runipd`: a modelled `init` recorded `{'host_model': 'gemini-3.8-flash-low', 'host_model_provider': '', 'host_model_source': 'init-event-echo'}`, while a flagless `init` and an `"antigravity"` placeholder each recorded `{}`. NEVER RAISE, for the same reason `runner_shared.turn_telemetry` swallows everything: this runs immediately after a completed agent turn and an observability read must not turn a completed turn into a failed one.
+- [x] E-03 DEFINE `observe_host_model` IN `agy_runipd` WITH THE EXACT SIGNATURE `execute_item_core` CALLS, READING THE ATTEMPT'S OWN LOG RATHER THAN SPAWNING ANYTHING. The seam calls it as `observe_host_model(session_id, options=..., repo_root=...)` and wraps the call in `try/except Exception: host_model_rec = None`, so A SIGNATURE MISMATCH IS SILENTLY SWALLOWED AND THE FEATURE SIMPLY NEVER WORKS. Measured at authoring: calling the OpenCode twin with an extra `log_path=` keyword raises `TypeError: observe_host_model() got an unexpected keyword argument 'log_path'`, which at that seam would be indistinguishable from a host that could not be asked. So the signature MUST be positional `session_id` plus keyword-only `options` and `repo_root`, accepting and ignoring what it does not need, and E-05 must assert the keys appear rather than merely asserting the function returns a record in isolation. THE LOG IS THE SOURCE, BUT THE OBSERVER CANNOT FIND IT, AND THIS IS THE MECHANISM (corrected at review, F-07): the seam passes ONLY `session_id`, `options` and `repo_root`, while `attempt_log_path` needs `run_dir`, `item` and `attempt_no`, none of which the observer receives, so "resolve the log by the same `attempt_log_path`" is unreachable from inside the observer. Instead: (1) at the end of `run_agy_turn`, after `captured_conv_id = extract_session_id(log_path) or session_id`, parse the FIRST line of `log_path` (the `init` event; a single-line parse of a file this host already wrote, timed at authoring at 0.131 ms) and, when `captured_conv_id` is truthy, ALWAYS write `_INIT_MODEL_ECHO[captured_conv_id] = <model or None>` into a module-level dict in `agy_runipd` (writing `None` when absent, blank, unparseable or the `"antigravity"` placeholder, so a reused `--conversation` id from an earlier turn of the same Set can never leave a stale value behind); wrap the parse in `try/except Exception` so it cannot fail the turn; (2) `observe_host_model` POPS `_INIT_MODEL_ECHO.get(session_id)` (pop, so a value is consumed exactly once) and returns the record when it is a non-empty string, else `None`. The key is the same value the seam receives, because `execute_item_core` unpacks `session_id` from `spawn_executor`, which is `run_agy_turn`'s returned `captured_conv_id`. A verifier turn writes its own (different) conversation id and is never popped by the executor-only seam; that entry is harmless, but pop-on-read keeps the map bounded to at most one stale verifier entry per attempt. NOTE THE SEAM'S PRECONDITION: it calls the observer only `if session_id`, and the agy session id comes from `extract_session_id` reading `conversation_id`, which the live host writes on the `init` line (re-measured at review on agy 1.2.15), so a stream without `conversation_id` records nothing, which is the honest outcome. Review demonstrated this mechanism end to end in memory through `execute_item_core` with `driver_module=agy_runipd`: a modelled `init` recorded `{'host_model': 'gemini-3.8-flash-low', 'host_model_provider': '', 'host_model_source': 'init-event-echo'}`, while a flagless `init` and an `"antigravity"` placeholder each recorded `{}`. NEVER RAISE, for the same reason `runner_shared.turn_telemetry` swallows everything: this runs immediately after a completed agent turn and an observability read must not turn a completed turn into a failed one.
   - DO NOT PERSIST THE `"antigravity"` PLACEHOLDER. `render_agy_event` reads `init_data.get("model", "antigravity")` for DISPLAY, and that literal is a placeholder, not a model id; persisting it would write a value that looks concrete, would be returned by `resolve_attempt_model` at tier 1 ahead of a real frozen model, and would therefore make the record WORSE than the absent field it replaces. Return `None` when the key is missing or blank, which is the (b) case and is the common one.
   - DO NOT SPAWN A SUBPROCESS AND DO NOT READ THE CONVERSATION STORE. The host offers no `export` subcommand (so the OpenCode route does not transfer), and the per-conversation SQLite stores under the host's app data dir carry only an opaque `model_enum` placeholder (`MODEL_PLACEHOLDER_M318`, measured at authoring across the local corpus) rather than a model id, so that route is both useless and refused on the same grounds `ov2c9n` refused OpenCode's store: an undocumented internal schema with no compatibility promise, a locking hazard against a live application, and a machine-local absolute path of exactly the kind the leak sanitizer exists to keep out.
   - Depends on: E-02
   - Expected outcome: the function and the module-level echo map exist in `agy_runipd`, and `run_agy_turn` populates the map; a pasted `run_agy_turn` call (subprocess patched to emit a modelled `init` line carrying a `conversation_id`) followed by `observe_host_model(<that id>, options=..., repo_root=...)` returning the record, and a second call returning `None` (consumed); pasted `None` returns after turns whose `init` carries no model, carries the literal `"antigravity"`, whose first line is unparseable, and whose log is empty, none of them raising; and a pasted reused-conversation case (modelled turn then flagless turn on the same id) returning `None`, proving no stale value survives.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 CHOOSE AND DOCUMENT THE SOURCE LABEL SO THE FIELD CANNOT BE READ AS STRONGER EVIDENCE THAN IT IS, AND FILL THE PROVIDER KEY HONESTLY. Record `host_model_source` as a value naming THIS mechanism and its grain, `init-event-echo`, and state in the code comment that the value is the host's echo of the `--model` argument rather than an independent observation, that it is absent for a flagless turn, and that it does prove host acceptance because a bogus model is rejected before any `init` event is emitted. DO NOT REUSE `export-session-current`: that label names OpenCode's `opencode export` mechanism, and reusing it would assert a mechanism that was never run. MIND THE DEFAULT IN THE CONSUMER: `resolve_attempt_model` substitutes the literal `"export-session-current"` when `host_model_source` is absent but `host_model` is present, so this plan MUST always write the source key alongside the model key; writing the model alone would mislabel an agy echo as an OpenCode export. For `host_model_provider`, the agy `init` event carries NO provider field, so write the empty string rather than inventing one (the OpenCode twin writes `""` when `providerID` is absent, so the empty value is the established shape). Omit `host_model_variant` entirely unless the re-measurement in E-01 finds a variant in the stream; the host takes reasoning effort as a separate `--effort` flag and does not report it on `init`.
+- [x] E-04 CHOOSE AND DOCUMENT THE SOURCE LABEL SO THE FIELD CANNOT BE READ AS STRONGER EVIDENCE THAN IT IS, AND FILL THE PROVIDER KEY HONESTLY. Record `host_model_source` as a value naming THIS mechanism and its grain, `init-event-echo`, and state in the code comment that the value is the host's echo of the `--model` argument rather than an independent observation, that it is absent for a flagless turn, and that it does prove host acceptance because a bogus model is rejected before any `init` event is emitted. DO NOT REUSE `export-session-current`: that label names OpenCode's `opencode export` mechanism, and reusing it would assert a mechanism that was never run. MIND THE DEFAULT IN THE CONSUMER: `resolve_attempt_model` substitutes the literal `"export-session-current"` when `host_model_source` is absent but `host_model` is present, so this plan MUST always write the source key alongside the model key; writing the model alone would mislabel an agy echo as an OpenCode export. For `host_model_provider`, the agy `init` event carries NO provider field, so write the empty string rather than inventing one (the OpenCode twin writes `""` when `providerID` is absent, so the empty value is the established shape). Omit `host_model_variant` entirely unless the re-measurement in E-01 finds a variant in the stream; the host takes reasoning effort as a separate `--effort` flag and does not report it on `init`.
   - Depends on: E-03
   - Expected outcome: the chosen label pasted beside the code comment stating its grain and its echo nature; a pasted record showing `host_model_source` written on every success path; a pasted `resolve_attempt_model` call on a synthetic attempt carrying this plan's keys, showing the agy label returned rather than the OpenCode default.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: prove it, including that it cannot hurt a run and cannot break a consumer
 
-- [ ] E-05 PIN THE BEHAVIOR IN A NEW `tests/test_attempt_agy_model_observation.py`, DRIVEN THROUGH `execute_item_core` AND NOT ONLY THROUGH THE READER. A new file, because no pending plan declares this path and because the OpenCode twin's file (`tests/test_attempt_host_model_observation.py`) is organized around a launcher-injected subprocess this plan does not use. Required cases, each an OUTCOME, none of them reading production source, none requiring a host binary: (a) an attempt whose log's `init` carries a model records all three keys this plan writes, with the agy source label; (b) an attempt whose log's `init` carries NO model records NONE of them and is otherwise identical to (a)'s run in exit code, disposition, and item status; (c) an attempt whose log carries the literal `"antigravity"` records none, which is the placeholder guard; (d) an empty or unparseable log records none and raises nothing; (d2) a reused conversation id whose second turn's `init` carries no model records none for that second attempt; (e) THE SEAM-CONTRACT CASE, which is the one that must not be omitted: the reader is invoked BY `execute_item_core` through the real `driver_module` resolution (not passed explicitly), proving the symbol is found where the seam looks for it and that its signature matches, since a mismatch there is swallowed and invisible; (f) THE CONSUMER CASE: an attempt carrying this plan's keys is returned by `resolve_attempt_model` at tier 1 with the agy source label, ahead of a frozen `model` that differs, and both values remain on the record unmodified.
+- [x] E-05 PIN THE BEHAVIOR IN A NEW `tests/test_attempt_agy_model_observation.py`, DRIVEN THROUGH `execute_item_core` AND NOT ONLY THROUGH THE READER. A new file, because no pending plan declares this path and because the OpenCode twin's file (`tests/test_attempt_host_model_observation.py`) is organized around a launcher-injected subprocess this plan does not use. Required cases, each an OUTCOME, none of them reading production source, none requiring a host binary: (a) an attempt whose log's `init` carries a model records all three keys this plan writes, with the agy source label; (b) an attempt whose log's `init` carries NO model records NONE of them and is otherwise identical to (a)'s run in exit code, disposition, and item status; (c) an attempt whose log carries the literal `"antigravity"` records none, which is the placeholder guard; (d) an empty or unparseable log records none and raises nothing; (d2) a reused conversation id whose second turn's `init` carries no model records none for that second attempt; (e) THE SEAM-CONTRACT CASE, which is the one that must not be omitted: the reader is invoked BY `execute_item_core` through the real `driver_module` resolution (not passed explicitly), proving the symbol is found where the seam looks for it and that its signature matches, since a mismatch there is swallowed and invisible; (f) THE CONSUMER CASE: an attempt carrying this plan's keys is returned by `resolve_attempt_model` at tier 1 with the agy source label, ahead of a frozen `model` that differs, and both values remain on the record unmodified.
   - SHOW ONE CASE RED FIRST and paste both runs, so the file is proven non-vacuous.
   - Depends on: E-04
   - Expected outcome: the new file with all SEVEN cases; a pasted `python3 -m pytest tests/test_attempt_agy_model_observation.py -o addopts=""` green with case names visible; plus the pasted RED run proving non-vacuity.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-06 PROVE THE SHIPPED CONSUMER TESTS STILL PASS UNEDITED, AND RUN THE BARE SUITE. Three shipped dashboard tests already assert model attribution and one of them is the agy row specifically: `tests/test_run_dashboard.py::test_antigravity_run` asserts `rows[0]["model"] == "Flash"` from a fixture whose agy `init` event is `{"event": "init", "init": {"tools": []}}` (NO model key, which is this plan's (b) case) and whose model therefore comes from `options["cost_attribution"]["model"]` at tier 5. That test MUST pass WITHOUT EDITING IT. IT IS A CONSUMER-REGRESSION CHECK, NOT A GUARD ON THIS PLAN'S READER (corrected at review): it reads a hand-written fixture `state.json` through `run_dashboard.collect_rows` and never runs `execute_item_core` or any observer, so it cannot detect a reader that persists the placeholder; E-05 cases (b) and (c) are the guards on the absence and placeholder discipline. Also pass unedited: `test_unrecorded_model_is_labeled_per_host` and `test_per_row_model_attribution_across_roles`. Run the three named tests, then the bare suite, and paste both. DO NOT EDIT ANY OF THE THREE; if one fails, the reader is wrong, not the test.
+- [x] E-06 PROVE THE SHIPPED CONSUMER TESTS STILL PASS UNEDITED, AND RUN THE BARE SUITE. Three shipped dashboard tests already assert model attribution and one of them is the agy row specifically: `tests/test_run_dashboard.py::test_antigravity_run` asserts `rows[0]["model"] == "Flash"` from a fixture whose agy `init` event is `{"event": "init", "init": {"tools": []}}` (NO model key, which is this plan's (b) case) and whose model therefore comes from `options["cost_attribution"]["model"]` at tier 5. That test MUST pass WITHOUT EDITING IT. IT IS A CONSUMER-REGRESSION CHECK, NOT A GUARD ON THIS PLAN'S READER (corrected at review): it reads a hand-written fixture `state.json` through `run_dashboard.collect_rows` and never runs `execute_item_core` or any observer, so it cannot detect a reader that persists the placeholder; E-05 cases (b) and (c) are the guards on the absence and placeholder discipline. Also pass unedited: `test_unrecorded_model_is_labeled_per_host` and `test_per_row_model_attribution_across_roles`. Run the three named tests, then the bare suite, and paste both. DO NOT EDIT ANY OF THE THREE; if one fails, the reader is wrong, not the test.
   - Depends on: E-05
   - Expected outcome: a pasted run of the three named dashboard tests, green, with a `git diff --stat -- tests/test_run_dashboard.py` showing NO change to that file; plus a pasted bare `python3 -m pytest` summary line.
-  - Execution state: pending
+  - Execution state: performed
 
 Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids.
 
@@ -250,27 +251,34 @@ symbol the seam looks for.
   `agy models` to resolve a default is a new per-run subprocess against a host surface this plan did
   not design for. Both are human decisions about launch behavior rather than recording, so they are
   raised in OQ-01 rather than absorbed.
+  - Carrier-Declined: Option A accepted for this plan; closing the gap requires changing launch behavior (Option B or C) which is a maintainer decision rather than an executor defect.
 - THE `audit` VERB, which writes its own `state.json` and its own lean attempt dict without passing
   through `execute_item_core`, so this plan's seam never runs for it. Same reason `ov2c9n` and its
   Order 01 excluded it; the Set orchestrator `1u4olp` names it as a separate residue.
+  - Carrier-Declined: out of scope; audit verb writes its own attempt dict outside this seam, tracked at Set level in 1u4olp.
 - ANY GATE, REFUSAL, OR WARNING-TO-FAILURE on a model value or on a disagreement between the frozen and
   echoed values. `25kzda` Section 5.3a's never-a-gate posture for derived observations is the
   precedent, and `ov2c9n` declined the same obligation explicitly.
+  - Carrier-Declined: not an obligation; spec 25kzda Section 5.3a establishes a never-a-gate posture for derived observations, and ov2c9n declined the same obligation explicitly.
 - READING THE HOST'S CONVERSATION STORE. Refused on measurement (F-04: it holds an opaque
   `MODEL_PLACEHOLDER_M318` enum, not a model id) and on principle (undocumented internal schema, no
   compatibility promise, locking hazard against a live application, machine-local absolute path of the
   kind the leak sanitizer exists to exclude).
+  - Carrier-Declined: refused on principle and measurement; internal schema carries only opaque placeholder enum and presents locking and absolute-path leakage hazards.
 - BACK-FILLING HISTORY. Same reason `ov2c9n` and `w33lrl` gave: a run record is an immutable record of
   what was observed at the time, and writing a model into an old attempt would assert an observation
   that never happened.
+  - Carrier-Declined: not an obligation; run records are immutable historical observations, consistent with ov2c9n and w33lrl.
 - A VERIFY-ROLE TWIN (`verify_host_model`). `resolve_attempt_model` documents a verify tier that reads
   `verify_host_model`, and measured at authoring NOTHING in `runner_shared` writes that key on EITHER
   host (zero matches), so the verify-role observation is absent for OpenCode too. Adding it here would
   make this host diverge from the twin in the opposite direction; it is a Set-level gap, not an agy
   one, and is named rather than silently skipped.
+  - Carrier-Declined: cross-host parity; runner_shared does not write this key on either host today, so addressing it is a cross-host Set-level concern.
 - WIDENING THE PRIVACY ALLOWLIST to admit `host_model_source`. `model_source` is already not
   allowlisted and `1u4olp` recorded a deliberate preference not to widen it; this plan inherits that
   choice rather than reopening it.
+  - Carrier-Declined: deliberate preference inherited from 1u4olp; model_source is intentionally omitted from the privacy allowlist.
 
 ## Scope check
 
@@ -321,6 +329,7 @@ plan does not touch and must not be miscredited with.
 - Blocking: no
 - Status: open
 - Owner: human (maintainer)
+- Carrier-Declined: not blocking; Option A is implemented in this plan, leaving the field empty on flagless default runs with honest labeling.
 - Resolution or deferral rationale: NOT BLOCKING, because this plan delivers a correct and honestly
   labeled field either way: with an explicit `--model` it records the accepted echo, and without one it
   records nothing and says so. The question is whether the gap should be closed, and both routes change
@@ -342,6 +351,7 @@ plan does not touch and must not be miscredited with.
 - Blocking: no
 - Status: open
 - Owner: human (maintainer)
+- Carrier-Declined: not blocking; cross-host asymmetry in runner_shared belongs to a cross-host Set plan.
 - Resolution or deferral rationale: NOT BLOCKING and deliberately out of scope. `resolve_attempt_model`
   documents a verify tier reading `verify_host_model`, and measured at authoring NOTHING writes that key
   in `runner_shared` on either host, so a verifier turn's model resolves through the frozen verify keys
@@ -354,35 +364,154 @@ plan does not touch and must not be miscredited with.
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: pasted `agy --version`; pasted first `init` line for all three launch shapes with `init.model` extracted, showing the two echoes and the one absence; pasted nonzero exit and error text for the bogus model; pasted per-event model-key census showing `model` in `init` only; and an explicit sentence stating all four facts match this plan or naming which did not. A re-measurement that finds a model for a FLAGLESS turn must be reported as a STOP, not adapted around.
   - Observed evidence:
-  - Result: pending
+    1. agy --version:
+    1.3.1
 
-- [ ] V-02 validates E-02
+    2. Launch shapes and first-line init.model:
+    - Explicit model gemini-3.8-flash-low:
+    First line JSON: {"event": "init", "conversation_id": "6e7ec968-f9c7-44a1-bf4c-ceb0c31ea13e", "init": {"model": "gemini-3.8-flash-low", ...}}
+    init.model: gemini-3.8-flash-low
+
+    - Explicit display-name model "Gemini 3.8 Flash (High)":
+    First line JSON: {"event": "init", "conversation_id": "a8b2fef6-b37e-4906-8841-bde4c59d2a34", "init": {"model": "Gemini 3.8 Flash (High)", ...}}
+    init.model: Gemini 3.8 Flash (High)
+
+    - Flagless turn (no --model passed):
+    First line JSON: {"event": "init", "conversation_id": "449bc32a-c78d-41f7-b6b1-924d6af9e066", "init": {...}}
+    init.model: None (key absent from init)
+
+    3. Rejection of bogus model:
+    $ agy -p "Say ok" --output-format stream-json --print-timeout 60s --dangerously-skip-permissions --model totally-bogus-model-xyz
+    Exit code 1:
+    error: invalid model selection (--model "totally-bogus-model-xyz" --effort ""): model totally-bogus-model-xyz is not recognized as a known model or custom model in settings
+    Available models:
+      Gemini 3.8 Flash (High)
+      ...
+    {"event":"result","result":{"conversation_id":"","status":"ERROR","response":"","error":"invalid model selection...","duration_seconds":0,"num_turns":0,...}}
+
+    4. Stream census across events:
+    nomodel.jsonl:
+    Line 0 event=init: top=[], init=[], res=[], step=[]
+    Line 1 event=step_update: top=[], init=[], res=[], step=[]
+    Line 2 event=step_update: top=[], init=[], res=[], step=[]
+    Line 3 event=step_update: top=[], init=[], res=[], step=[]
+    Line 4 event=result: top=[], init=[], res=[], step=[]
+
+    probe_low.jsonl:
+    Line 0 event=init: top=[], init=['model'], res=[], step=[]
+    Line 1 event=step_update: top=[], init=[], res=[], step=[]
+    Line 2 event=step_update: top=[], init=[], res=[], step=[]
+    Line 3 event=step_update: top=[], init=[], res=[], step=[]
+    Line 4 event=result: top=[], init=[], res=[], step=[]
+
+    probe_high.jsonl:
+    Line 0 event=init: top=[], init=['model'], res=[], step=[]
+    Line 1 event=step_update: top=[], init=[], res=[], step=[]
+    Line 2 event=step_update: top=[], init=[], res=[], step=[]
+    Line 3 event=step_update: top=[], init=[], res=[], step=[]
+    Line 4 event=result: top=[], init=[], res=[], step=[]
+
+    All four facts match this plan's premises exactly; specifically, the flagless turn reports no model (init.model is None), confirming the echo behavior holds on agy 1.3.1.
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: the promotion guard evaluated and pasted for both option shapes (`explicit_model` present-and-`None` versus absent), showing no `--model` promoted in the default case; plus the pasted return of `agy_models.resolve_agy_default_model()` on the executing box and a pasted statement of what `resolve_attempt_model` reports today for such an attempt.
   - Observed evidence:
-  - Result: pending
+    1. Promotion guard evaluation:
+    Default options (explicit_model=None): promoted model_flag = None
+    Absent explicit_model key: promoted model_flag = gemini-2.5-pro
+    Explicit CLI model: promoted model_flag = gemini-2.5-flash
 
-- [ ] V-03 validates E-03
+    2. resolve_agy_default_model() on executing box:
+    resolve_agy_default_model() -> ('Gemini 3.8 Flash (High)', 'settings.json')
+
+    3. resolve_attempt_model() reporting:
+    resolve_attempt_model({}, state={"options": {"model": "Gemini 3.8 Flash (High)"}}) -> ('Gemini 3.8 Flash (High)', 'options')
+    resolve_attempt_model({}, state={"options": {}}) -> ('', 'unrecorded')
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: a pasted patched-subprocess `run_agy_turn` call followed by a successful call using the SEAM'S EXACT keyword set (`observe_host_model(session_id, options=..., repo_root=...)`) returning the record, then a repeat call returning `None` (consumed); pasted `None` returns after turns whose `init` has no model, carries the literal `"antigravity"`, has an unparseable first line, or whose log is empty, plus the reused-conversation case, with no traceback in any case; plus a pasted `inspect.signature` of the new function showing no parameter the seam does not pass.
   - Observed evidence:
-  - Result: pending
+    inspect.signature(agy_runipd.observe_host_model): (session_id: 'str', *, options: 'Mapping[str, Any] | None' = None, repo_root: 'Path | str | None' = None) -> 'dict[str, Any] | None'
 
-- [ ] V-04 validates E-04
+    Turn A returned conv_id: conv-v03-a
+    First call observe_host_model: {'host_model': 'gemini-3.8-flash-low', 'host_model_provider': '', 'host_model_source': 'init-event-echo'}
+    Repeat call observe_host_model (consumed): None
+    No-model turn observe_host_model: None
+    Placeholder turn observe_host_model: None
+    Unparseable first line observe_host_model: None
+    Empty log observe_host_model: None
+    Reused conversation observe_host_model after flagless turn: None
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: the chosen `host_model_source` value pasted beside the code comment stating that it is the host's echo of the argument, absent for a flagless turn, and proof of acceptance; a pasted record showing the source key present on every success path and `host_model_provider` as the empty string; and a pasted `resolve_attempt_model` call on an attempt carrying these keys returning the agy label rather than the `export-session-current` default.
   - Observed evidence:
-  - Result: pending
+    HOST_MODEL_SOURCE_INIT = 'init-event-echo'
 
-- [ ] V-05 validates E-05
+    observe_host_model docstring:
+    Bounded, memory-backed observation of the Antigravity host model echo.
+
+    Consumes the model echo captured from the attempt log's `init` event during
+    `run_agy_turn`. The returned `host_model_source` is 'init-event-echo'.
+
+    This value is the host's echo of the `--model` argument rather than an
+    independent observation, it is absent for a flagless turn, and it does
+    prove host acceptance because a bogus model is rejected before any `init`
+    event is emitted.
+
+    Success path record: {'host_model': 'gemini-3.8-flash-low', 'host_model_provider': '', 'host_model_source': 'init-event-echo'}
+    host_model_source in rec: True 'init-event-echo'
+    host_model_provider in rec: ''
+    resolve_attempt_model(att, state={}) -> ('gemini-3.8-flash-low', 'init-event-echo')
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: pasted `python3 -m pytest tests/test_attempt_agy_model_observation.py -o addopts=""` green with all seven case names visible; the pasted RED run of one case before its fix, proving non-vacuity; and explicit confirmation that case (e) drives `execute_item_core` through the real `driver_module` resolution rather than passing the observer explicitly, with a `spawn_executor` that calls the REAL `run_agy_turn` (subprocess patched) so the map is populated by production code and not by the test, since that is the case that catches the swallowed signature mismatch in F-05.
   - Observed evidence:
-  - Result: pending
+    1. Non-vacuous RED run before observe_host_model implementation:
+    $ python3 -m pytest tests/test_attempt_agy_model_observation.py -o addopts=""
+    FAILED tests/test_attempt_agy_model_observation.py::TestAttemptAgyModelObservation::test_case_e_seam_contract_resolution_through_driver_module
+    FAILED tests/test_attempt_agy_model_observation.py::TestAttemptAgyModelObservation::test_case_a_successful_read_records_all_three_keys
+    FAILED tests/test_attempt_agy_model_observation.py::TestAttemptAgyModelObservation::test_case_d2_reused_conversation_clears_stale_model
+    3 failed, 4 passed in 5.31s
 
-- [ ] V-06 validates E-06
+    2. GREEN run after implementation with all seven case names visible:
+    $ python3 -m pytest tests/test_attempt_agy_model_observation.py -v -o addopts=""
+    tests/test_attempt_agy_model_observation.py::TestAttemptAgyModelObservation::test_case_a_successful_read_records_all_three_keys PASSED [ 14%]
+    tests/test_attempt_agy_model_observation.py::TestAttemptAgyModelObservation::test_case_f_consumer_precedence_tier_1_with_agy_source PASSED [ 28%]
+    tests/test_attempt_agy_model_observation.py::TestAttemptAgyModelObservation::test_case_d2_reused_conversation_clears_stale_model PASSED [ 42%]
+    tests/test_attempt_agy_model_observation.py::TestAttemptAgyModelObservation::test_case_d_empty_or_unparseable_log_records_none_and_raises_nothing PASSED [ 57%]
+    tests/test_attempt_agy_model_observation.py::TestAttemptAgyModelObservation::test_case_b_no_model_in_init_records_none_and_preserves_outcome PASSED [ 71%]
+    tests/test_attempt_agy_model_observation.py::TestAttemptAgyModelObservation::test_case_c_antigravity_placeholder_records_none PASSED [ 85%]
+    tests/test_attempt_agy_model_observation.py::TestAttemptAgyModelObservation::test_case_e_seam_contract_resolution_through_driver_module PASSED [100%]
+    7 passed in 6.02s
+
+    Confirmed: Case (e) drives execute_item_core with driver_module=agy_runipd and observe_host_model=None (allowing execute_item_core to resolve observe_host_model off driver_module), with a spawn_executor that calls the real agy_runipd.run_agy_turn (subprocess patched to emit stream JSON), ensuring _INIT_MODEL_ECHO is populated by production code and consumed by observe_host_model through the real seam.
+  - Result: pass
+
+- [x] V-06 validates E-06
   - Required evidence: pasted green run of `tests/test_run_dashboard.py::test_antigravity_run`, `::test_unrecorded_model_is_labeled_per_host`, and `::test_per_row_model_attribution_across_roles`; pasted `git diff --stat -- tests/test_run_dashboard.py` showing NO change to that file; and a pasted bare `python3 -m pytest` summary line. A failure in any of the three is evidence the reader is wrong and must not be resolved by editing the test.
   - Observed evidence:
-  - Result: pending
+    1. Shipped dashboard model tests:
+    $ python3 -m pytest tests/test_run_dashboard.py -k "test_antigravity_run or test_unrecorded_model_is_labeled_per_host or test_per_row_model_attribution_across_roles" -v -o addopts=""
+    tests/test_run_dashboard.py::CollectRowsTests::test_unrecorded_model_is_labeled_per_host PASSED [ 33%]
+    tests/test_run_dashboard.py::CollectRowsTests::test_per_row_model_attribution_across_roles PASSED [ 66%]
+    tests/test_run_dashboard.py::CollectRowsTests::test_antigravity_run PASSED [100%]
+    3 passed, 14 deselected in 2.37s
+
+    2. Git diff stat on dashboard test file:
+    $ git diff --stat -- tests/test_run_dashboard.py
+    (empty output: no changes)
+
+    3. Bare pytest suite run:
+    $ python3 -m pytest
+    6519 passed, 2 skipped, 3 warnings in 545.23s (0:09:05)
+  - Result: pass
 
 ## Approval and execution gate
 
