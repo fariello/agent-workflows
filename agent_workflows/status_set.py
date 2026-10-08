@@ -770,6 +770,22 @@ def validate_transition_allowed(
                     # multi-line for the CLI, so it is flattened here rather than forked into a second
                     # wording that could drift from the other surface's.
                     return False, " ".join(reason.split())
+            # gateparity wdyz5n E-01: the `->implemented` EVIDENCE GATE, on THIS surface too. The
+            # positional `aw specs set implemented <selector>` spelling and the untyped `aw set`
+            # surfaces route HERE while the `--status` spelling routes to `specs.run_set`. Both call
+            # the SAME `specs._evidence_resolvable` predicate: one rule, one gate, consumed across
+            # both surfaces. Guarded by `old_status != norm_status` above so a NO-OP re-set is not
+            # retroactively refused.
+            if auth.get("evidence"):
+                from agent_workflows import specs as _specs
+
+                ev = getattr(args, "evidence", None)
+                if not ev or not _specs._evidence_resolvable(rec.path, ev):
+                    return (
+                        False,
+                        f"{old_status} -> {norm_status} requires a resolvable --evidence citation "
+                        "(an existing .aw/records/plans/executed/ IPD path)",
+                    )
 
     if rec.record_type == "plans":
         from agent_workflows import ipd_lifecycle as _life

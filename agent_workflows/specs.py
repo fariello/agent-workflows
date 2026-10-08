@@ -766,7 +766,7 @@ def run_set(args) -> int:
         if not ev or not _evidence_resolvable(path, ev):
             sys.stderr.write(
                 "aw specs set: implementing -> implemented requires a resolvable --evidence citation "
-                "(an existing .agents/plans/executed/ IPD path); refused.\n"
+                "(an existing .aw/records/plans/executed/ IPD path); refused.\n"
             )
             return 1
     # revsweep 5slbpi E-04: the `->reviewed` ATTESTATION. Enforced through the ONE shared predicate

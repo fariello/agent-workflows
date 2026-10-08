@@ -615,6 +615,7 @@ COMMAND_INVENTORY: Tuple[CommandDeclaration, ...] = (
             "--gate-ref",
             "--gate-summary",
             "--blocks-release",
+            "--evidence",
             "--dry-run",
             "--json",
             "--agent",
