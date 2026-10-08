@@ -1,5 +1,5 @@
 - Id: 6offt7
-- Status: graduated
+- Status: done
 - Graduated-To: 6offt7
 - Set: 6offt7
 - Priority: low
@@ -7,6 +7,7 @@
 - Summary: Derive deselected category names in tests/deselect_notice.py instead of hardcoding
 
 ## Workflow history
+- 2026-10-08 done (aw backlog): closed by aw agy run: IPD qsz23k executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20261002-6offt7-01-qsz23k-derive-the-deselect-notice-s-category-list-from-the-run-s-ow.ipd.md); evidence .aw/records/plans/executed/20261002-6offt7-01-qsz23k-derive-the-deselect-notice-s-category-list-from-the-run-s-ow.ipd.md
 - 2026-10-02 graduated (aw backlog): graduated by run run-20261001T222151Z-2118435: qsz23k
 - 2026-10-01 created (aw backlog): Derive deselected category names in tests/deselect_notice.py instead of hardcoding
 

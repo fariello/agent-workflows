@@ -2,10 +2,38 @@
 
 from __future__ import annotations
 
+import re
 from typing import Any
 
 _deselected_count = 0
 _worker_counts: list[int] = []
+
+_TERM_RE = re.compile(r"^not\s+([A-Za-z_]\w*)$")
+
+
+def parse_negated_markers(markexpr: str) -> list[str] | None:
+    """Turn a marker expression into a list of categories it negates.
+
+    This reader is deliberately partial and conservative by construction.
+    Returns:
+      - [] for an empty or whitespace-only expression (no marker filter active).
+      - list of str for a plain conjunction of negated bare names ('not <name>').
+      - None for any expression it declines to interpret (meaning print verbatim).
+    """
+    if not isinstance(markexpr, str):
+        return None
+    stripped = markexpr.strip()
+    if not stripped:
+        return []
+
+    terms = re.split(r"\s+\band\b\s+", stripped)
+    names: list[str] = []
+    for term in terms:
+        m = _TERM_RE.match(term.strip())
+        if not m:
+            return None
+        names.append(m.group(1))
+    return names
 
 
 def pytest_configure(config: Any) -> None:
@@ -43,8 +71,40 @@ def pytest_terminal_summary(
     worker_max = max(_worker_counts) if _worker_counts else 0
     total_deselected = max(worker_max, _deselected_count)
     if total_deselected > 0:
+        markexpr = getattr(config.option, "markexpr", "") or ""
+        keyword = getattr(config.option, "keyword", "") or ""
+        deselect = getattr(config.option, "deselect", None) or []
+        has_k_or_deselect = bool(keyword or deselect)
+
+        names = parse_negated_markers(markexpr)
+        if names is not None and len(names) > 0:
+            if len(names) == 1:
+                cats = f"'{names[0]}'"
+            elif len(names) == 2:
+                cats = f"'{names[0]}' and '{names[1]}'"
+            else:
+                cats = f"{', '.join(repr(n) for n in names[:-1])} and {names[-1]!r}"
+            if has_k_or_deselect:
+                parenthetical = (
+                    f"(this run's marker filter skips {cats}, and -k/--deselect also contributed); "
+                    "run everything with: make test-all"
+                )
+            else:
+                parenthetical = (
+                    f"(this run's marker filter skips {cats}); "
+                    "run everything with: make test-all"
+                )
+        elif names is not None:
+            # Empty list: no marker filter active
+            parenthetical = "(no marker filter was active; deselected by -k/--deselect)"
+        else:
+            # None: print expression verbatim
+            if has_k_or_deselect:
+                parenthetical = f"(filtered by marker expression: '{markexpr}', and -k/--deselect also contributed)"
+            else:
+                parenthetical = f"(filtered by marker expression: '{markexpr}')"
+
         terminalreporter.write_line(
             f"NOTE: {total_deselected} tests were deselected by -m/-k and did not "
-            "run (the default run skips 'slow' and 'livecorpus'); run everything with: "
-            "make test-all"
+            f"run {parenthetical}"
         )
