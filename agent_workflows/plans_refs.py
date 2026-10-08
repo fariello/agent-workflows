@@ -251,15 +251,15 @@ def _validate_plan_order(text: str, order: int) -> Optional[str]:
     """Validate that the resolved Order is permitted for the plan's Kind.
 
     Consults `ipd_schema.validate_metadata` with the plan's Kind and resolved Order.
-    Refuses only when Kind is present and equal to 'child' and the resolved Order is
-    forbidden by schema rules (e.g. Order 0). Silent when Kind is absent or not 'child'
-    (orchestrator-at-nonzero is deferred to backlog oev4h7).
+    Refuses when Kind is present and the resolved Order is forbidden by schema rules
+    (child Order must be an integer >= 1, orchestrator Order must be 0; see qhcojn, xvi55d).
+    Silent when Kind is absent.
     """
     from agent_workflows import ipd_schema
     from agent_workflows.runner_shared import _read_kind
 
     kind = _read_kind(text)
-    if kind != ipd_schema.KIND_CHILD:
+    if not kind:
         return None
     fields = {"Kind": kind, "Set": "set", "Order": str(order)}
     for err in ipd_schema.validate_metadata(fields):
@@ -291,10 +291,10 @@ def plan_set_assign(
       own filename contradicts.
     * an INTEGER (including 0) renumbers the named plans SEQUENTIALLY from it (``start_order + i``),
       which is the legitimate way an operator assembles a Set out of scattered plans.
-    * resolved Order validity (qhcojn): if a plan's resolved Order is 0 and its own front matter
-      declares ``Kind: child``, the mutation is refused (returns ``None, err``, exit 2) by
-      consulting ``ipd_schema.validate_metadata`` unless ``allow_invalid_order=True``. An
-      orchestrator at Order 0 is permitted. Mirrors ``run_mv``.
+    * resolved Order validity (qhcojn, xvi55d): if a plan's resolved Order violates either half
+      of ``ipd_schema``'s kind-conditional rule (child Order must be >= 1, orchestrator Order must
+      be 0), the mutation is refused (returns ``None, err``, exit 2) by consulting
+      ``ipd_schema.validate_metadata`` unless ``allow_invalid_order=True``. Mirrors ``run_mv``.
     """
 
     set_k = _core.kebab(set_id)
@@ -649,8 +649,9 @@ def run_mv(args: argparse.Namespace) -> "MutationResult":
         else:
             parsed = _CLUSTERED_RE.match(src.name)
             order = int(parsed.group("nn")) if parsed else 0
-    # Validity refusal (qhcojn): refuse resolved Order 0 when Kind: child unless --allow-invalid-order
-    # is passed, consulting ipd_schema.validate_metadata. An orchestrator at Order 0 is permitted.
+    # Validity refusal (qhcojn, xvi55d): refuse a resolved Order violating either half of
+    # ipd_schema's kind-conditional rule (child must be >= 1, orchestrator must be 0)
+    # unless --allow-invalid-order is passed, consulting ipd_schema.validate_metadata.
     # Mirrors plan_set_assign.
     allow_invalid_order = bool(getattr(args, "allow_invalid_order", False))
     order_err = _validate_plan_order(text, order)

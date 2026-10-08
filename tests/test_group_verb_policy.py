@@ -967,3 +967,326 @@ def test_group_and_rename_command_surface_declarations():
         diff = set(decl.legacy_flags) - accepted
         assert diff == set(), f"Undeclared or missing flags for {v}: {diff}"
         assert decl.exit_contract == (0, 2)
+
+
+def test_group_plans_refuses_orchestrator_at_nonzero_order(temp_git_repo: Path):
+    """E-01/V-01 must-fail: aw group plans refuses a Kind: orchestrator at resolved nonzero Order with exit 2 and writes nothing."""
+    seeded = _seed_plan_record(
+        temp_git_repo,
+        "20260920-probeset-00-orc001-probe-orch.ipd.md",
+        "orc001",
+        kind="orchestrator",
+        order=0,
+        item_dependencies="none",
+    )
+    original_text = seeded.read_text(encoding="utf-8")
+    rc, out, err = _run_group_plans(
+        ["orc001"], "newset", temp_git_repo, order=5, rename=True, apply=True
+    )
+    assert rc == 2, f"Expected rc 2, got {rc}. Output:\n{out}\n{err}"
+    combined = out + err
+    assert "orchestrator Order must be 0" in combined
+    assert "orc001" in combined
+    assert "--allow-invalid-order" in combined
+    assert seeded.exists(), "Original file should still exist"
+    assert seeded.read_text(encoding="utf-8") == original_text
+    pdir = temp_git_repo / ".aw" / "records" / "plans" / "pending"
+    files = sorted(pdir.glob("*.md"))
+    assert len(files) == 1
+    assert files[0].name == "20260920-probeset-00-orc001-probe-orch.ipd.md"
+
+
+def test_rename_plans_refuses_orchestrator_at_nonzero_order(temp_git_repo: Path):
+    """E-01/V-01 must-fail: aw rename plans refuses a Kind: orchestrator at resolved nonzero Order with exit 2 and writes nothing."""
+    seeded = _seed_plan_record(
+        temp_git_repo,
+        "20260920-probeset-00-orc002-probe-orch-rename.ipd.md",
+        "orc002",
+        kind="orchestrator",
+        order=0,
+        item_dependencies="none",
+    )
+    original_text = seeded.read_text(encoding="utf-8")
+    rc, out, err = _run_rename_plans("orc002", temp_git_repo, order=7, apply=True)
+    assert rc == 2, f"Expected rc 2, got {rc}. Output:\n{out}\n{err}"
+    combined = out + err
+    assert "orchestrator Order must be 0" in combined
+    assert "orc002" in combined
+    assert "--allow-invalid-order" in combined
+    assert seeded.exists(), "Original file should still exist"
+    assert seeded.read_text(encoding="utf-8") == original_text
+    pdir = temp_git_repo / ".aw" / "records" / "plans" / "pending"
+    files = sorted(pdir.glob("*.md"))
+    assert len(files) == 1
+    assert files[0].name == "20260920-probeset-00-orc002-probe-orch-rename.ipd.md"
+
+
+def test_group_plans_kindless_plan_at_nonzero_order_permitted(temp_git_repo: Path):
+    """E-01/V-01 guard (b): aw group plans permits a plan without a - Kind: line at a nonzero Order."""
+    _seed_plan_record(
+        temp_git_repo,
+        "20260920-oldset-01-knd002-probe-kindless-nonzero.ipd.md",
+        "knd002",
+        kind=None,
+        order=1,
+        item_dependencies="none",
+    )
+    rc, out, err = _run_group_plans(
+        ["knd002"], "newset", temp_git_repo, order=5, rename=True, apply=True
+    )
+    assert rc == 0, f"Expected rc 0, got {rc}. Output:\n{out}\n{err}"
+    pdir = temp_git_repo / ".aw" / "records" / "plans" / "pending"
+    files = sorted(pdir.glob("*.md"))
+    assert len(files) == 1
+    assert files[0].name == "20260920-newset-05-knd002-probe-kindless-nonzero.ipd.md"
+    content = files[0].read_text(encoding="utf-8")
+    assert "- Set: newset" in content
+    assert "- Order: 5" in content
+    assert "- Kind:" not in content
+
+
+def test_group_plans_bare_regroup_preserves_orchestrator_order_zero(
+    temp_git_repo: Path,
+):
+    """E-01/V-01 guard (d): bare regroup (no --order) preserves orchestrator Order 0 on both branches."""
+    # Branch 1: clustering rename (--rename)
+    _seed_plan_record(
+        temp_git_repo,
+        "20260920-oldset-00-orc003-orch-bare.ipd.md",
+        "orc003",
+        kind="orchestrator",
+        order=0,
+        item_dependencies="none",
+    )
+    rc1, out1, err1 = _run_group_plans(
+        ["orc003"],
+        "bareset",
+        temp_git_repo,
+        order=None,
+        rename=True,
+        apply=True,
+    )
+    assert rc1 == 0, f"Expected rc 0, got {rc1}. Output:\n{out1}\n{err1}"
+    pdir = temp_git_repo / ".aw" / "records" / "plans" / "pending"
+    f_003 = pdir / "20260920-bareset-00-orc003-orch-bare.ipd.md"
+    assert f_003.exists()
+    assert "- Order: 0" in f_003.read_text(encoding="utf-8")
+    assert "- Kind: orchestrator" in f_003.read_text(encoding="utf-8")
+
+    # Branch 2: metadata-only (no --rename)
+    _seed_plan_record(
+        temp_git_repo,
+        "20260920-oldset-00-orc004-orch-meta.ipd.md",
+        "orc004",
+        kind="orchestrator",
+        order=0,
+        item_dependencies="none",
+    )
+    rc2, out2, err2 = _run_group_plans(
+        ["orc004"], "metaset", temp_git_repo, order=None, rename=False, apply=True
+    )
+    assert rc2 == 0, f"Expected rc 0, got {rc2}. Output:\n{out2}\n{err2}"
+    f_004 = pdir / "20260920-oldset-00-orc004-orch-meta.ipd.md"
+    assert f_004.exists()
+    content_004 = f_004.read_text(encoding="utf-8")
+    assert "- Set: metaset" in content_004
+    assert "- Order: 0" in content_004
+    assert "- Kind: orchestrator" in content_004
+
+
+def test_rename_plans_repair_direction_orchestrator_to_order_zero_permitted(
+    temp_git_repo: Path,
+):
+    """E-01/V-01 guard (e): repairing an invalid orchestrator to Order 0 via aw rename plans is permitted."""
+    _seed_plan_record(
+        temp_git_repo,
+        "20260920-oldset-05-orc005-probe-repair.ipd.md",
+        "orc005",
+        kind="orchestrator",
+        order=5,
+        item_dependencies="none",
+    )
+    rc, out, err = _run_rename_plans("orc005", temp_git_repo, order=0, apply=True)
+    assert rc == 0, f"Expected rc 0, got {rc}. Output:\n{out}\n{err}"
+    pdir = temp_git_repo / ".aw" / "records" / "plans" / "pending"
+    files = sorted(pdir.glob("*.md"))
+    assert len(files) == 1
+    repaired_file = files[0]
+    assert repaired_file.name == "20260920-oldset-00-orc005-probe-repair.ipd.md"
+    content = repaired_file.read_text(encoding="utf-8")
+    assert "- Order: 0" in content
+    assert "- Kind: orchestrator" in content
+
+
+def test_group_plans_multi_plan_positional_refuses_orchestrator_at_nonzero_order(
+    temp_git_repo: Path,
+):
+    """E-01/V-01 positional: multi-plan resolves per plan; orchestrator at non-zero positional order is refused."""
+    _seed_plan_record(
+        temp_git_repo,
+        "20260920-oldset-01-chd010-child.ipd.md",
+        "chd010",
+        kind="child",
+        order=1,
+        item_dependencies="none",
+    )
+    _seed_plan_record(
+        temp_git_repo,
+        "20260920-oldset-00-orc010-orch.ipd.md",
+        "orc010",
+        kind="orchestrator",
+        order=0,
+        item_dependencies="none",
+    )
+    # Child resolves to 1 (valid); orchestrator resolves to 1+1=2 (invalid!)
+    rc, out, err = _run_group_plans(
+        ["chd010", "orc010"], "newset", temp_git_repo, order=1, rename=True, apply=True
+    )
+    assert rc == 2, f"Expected rc 2, got {rc}. Output:\n{out}\n{err}"
+    combined = out + err
+    assert "orchestrator Order must be 0" in combined
+    assert "orc010" in combined
+    assert "--allow-invalid-order" in combined
+
+
+def test_group_plans_metadata_only_refuses_orchestrator_at_nonzero_order(
+    temp_git_repo: Path,
+):
+    """E-02/V-02: aw group plans metadata-only (no --rename) refuses Kind: orchestrator at nonzero Order with exit 2 and writes nothing."""
+    seeded = _seed_plan_record(
+        temp_git_repo,
+        "20260920-oldset-00-orc006-probe-orch-meta.ipd.md",
+        "orc006",
+        kind="orchestrator",
+        order=0,
+        item_dependencies="none",
+    )
+    original_text = seeded.read_text(encoding="utf-8")
+    rc, out, err = _run_group_plans(
+        ["orc006"], "metaset", temp_git_repo, order=5, rename=False, apply=True
+    )
+    assert rc == 2, f"Expected rc 2, got {rc}. Output:\n{out}\n{err}"
+    combined = out + err
+    assert "orchestrator Order must be 0" in combined
+    assert "orc006" in combined
+    assert "--allow-invalid-order" in combined
+    assert seeded.exists()
+    assert seeded.read_text(encoding="utf-8") == original_text
+
+
+def test_group_plans_preview_refuses_orchestrator_at_nonzero_order(temp_git_repo: Path):
+    """E-02/V-02: aw group plans dry-run preview refuses Kind: orchestrator at nonzero Order with exit 2 and prints no 'would rename' line."""
+    seeded = _seed_plan_record(
+        temp_git_repo,
+        "20260920-oldset-00-orc007-probe-preview.ipd.md",
+        "orc007",
+        kind="orchestrator",
+        order=0,
+        item_dependencies="none",
+    )
+    original_text = seeded.read_text(encoding="utf-8")
+    rc, out, err = _run_group_plans(
+        ["orc007"], "newset", temp_git_repo, order=5, rename=True, apply=False
+    )
+    assert rc == 2, f"Expected rc 2, got {rc}. Output:\n{out}\n{err}"
+    combined = out + err
+    assert "orchestrator Order must be 0" in combined
+    assert "orc007" in combined
+    assert "would rename" not in combined
+    assert seeded.exists()
+    assert seeded.read_text(encoding="utf-8") == original_text
+
+
+def test_rename_plans_preview_refuses_orchestrator_at_nonzero_order(
+    temp_git_repo: Path,
+):
+    """E-02/V-02: aw rename plans dry-run preview refuses Kind: orchestrator at nonzero Order with exit 2 and prints no 'would rename' line."""
+    seeded = _seed_plan_record(
+        temp_git_repo,
+        "20260920-oldset-00-orc008-probe-prev-rename.ipd.md",
+        "orc008",
+        kind="orchestrator",
+        order=0,
+        item_dependencies="none",
+    )
+    original_text = seeded.read_text(encoding="utf-8")
+    rc, out, err = _run_rename_plans("orc008", temp_git_repo, order=7, apply=False)
+    assert rc == 2, f"Expected rc 2, got {rc}. Output:\n{out}\n{err}"
+    combined = out + err
+    assert "orchestrator Order must be 0" in combined
+    assert "orc008" in combined
+    assert "would rename" not in combined
+    assert seeded.exists()
+    assert seeded.read_text(encoding="utf-8") == original_text
+
+
+def test_group_plans_allow_invalid_order_permits_orchestrator_write(
+    temp_git_repo: Path,
+):
+    """E-02/V-02: aw group plans with --allow-invalid-order permits writing nonzero Order to orchestrator, prints note, and result lints IPD-M104."""
+    _seed_plan_record(
+        temp_git_repo,
+        "20260920-oldset-00-orc009-probe-override.ipd.md",
+        "orc009",
+        kind="orchestrator",
+        order=0,
+        item_dependencies="none",
+    )
+    rc, out, err = _run_group_plans(
+        ["orc009"],
+        "newset",
+        temp_git_repo,
+        order=5,
+        rename=True,
+        apply=True,
+        allow_invalid_order=True,
+    )
+    assert rc == 0, f"Expected rc 0, got {rc}. Output:\n{out}\n{err}"
+    combined = out + err
+    assert "note:" in combined
+    assert "orc009" in combined
+    assert "orchestrator Order must be 0" in combined
+
+    pdir = temp_git_repo / ".aw" / "records" / "plans" / "pending"
+    files = sorted(pdir.glob("*.md"))
+    assert len(files) == 1
+    written_file = files[0]
+    assert written_file.name == "20260920-newset-05-orc009-probe-override.ipd.md"
+    content = written_file.read_text(encoding="utf-8")
+    assert "- Order: 5" in content
+
+    # Assert IPD-M104 diagnostic is emitted on lint
+    lint_res = ipd_lint.lint_file(written_file)
+    m104 = [d for d in lint_res.diagnostics if d.code == "IPD-M104"]
+    assert len(m104) > 0, f"Expected IPD-M104 diagnostic, got: {lint_res.diagnostics}"
+    assert "orchestrator Order must be 0" in m104[0].message
+
+
+def test_rename_plans_allow_invalid_order_permits_orchestrator_write(
+    temp_git_repo: Path,
+):
+    """E-02/V-02: aw rename plans with --allow-invalid-order permits writing nonzero Order to orchestrator and prints note."""
+    _seed_plan_record(
+        temp_git_repo,
+        "20260920-oldset-00-orc011-probe-rename-override.ipd.md",
+        "orc011",
+        kind="orchestrator",
+        order=0,
+        item_dependencies="none",
+    )
+    rc, out, err = _run_rename_plans(
+        "orc011", temp_git_repo, order=7, apply=True, allow_invalid_order=True
+    )
+    assert rc == 0, f"Expected rc 0, got {rc}. Output:\n{out}\n{err}"
+    combined = out + err
+    assert "note:" in combined
+    assert "orc011" in combined
+    assert "orchestrator Order must be 0" in combined
+
+    pdir = temp_git_repo / ".aw" / "records" / "plans" / "pending"
+    files = sorted(pdir.glob("*.md"))
+    assert len(files) == 1
+    written_file = files[0]
+    assert written_file.name == "20260920-oldset-07-orc011-probe-rename-override.ipd.md"
+    content = written_file.read_text(encoding="utf-8")
+    assert "- Order: 7" in content

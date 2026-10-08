@@ -4519,7 +4519,7 @@ def _build_parser() -> argparse.ArgumentParser:
             help=(
                 "Order NN (rename/group). Omit it to PRESERVE each artifact's existing Order; "
                 "give it to renumber the named artifacts sequentially from NN "
-                "(for plans, Order 0 is refused for a Kind: child; an orchestrator at 0 is permitted)."
+                "(for plans, a child Order must be >= 1, an orchestrator Order must be 0)."
             ),
         )
         _p.add_argument(
@@ -4564,8 +4564,9 @@ def _build_parser() -> argparse.ArgumentParser:
                 action="store_true",
                 default=False,
                 help=(
-                    "rename/group: allow assigning Order 0 to a Kind: child plan, overriding "
-                    "the schema rule; result will fail aw ipd lint with IPD-M104."
+                    "rename/group: allow assigning an invalid Order to a plan (child Order 0 or "
+                    "orchestrator Order nonzero), overriding the schema rule; result will fail "
+                    "aw ipd lint with IPD-M104."
                 ),
             )
         if _verb == "check":
