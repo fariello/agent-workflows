@@ -6,7 +6,7 @@
 - Scope: Triage all ten individually and act on the measurement. SHARE the three genuinely host-invariant immutable values (`DEFAULT_RUNBOOK_TEXT`, `DEFAULT_STALL_TIMEOUT`, `LANE_PROMPT_TIMEOUT`) by pointing each host at one `runner_shared` definition. DELETE the four with zero readers (`OUTPUT_MODES`, `_ID_RE`, `_STATUS_RE`, `_close_process_streams`) from both hosts, since a shared home for dead surface preserves the surface rather than removing the hazard. DECLINE the three per-host ones with their reasons recorded in the code. No behavior change: every resolved value, every argv, and the grace-tuning seam are identical before and after.
 - Scope-Paths: agent_workflows/runner_shared.py, agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, tests/test_forkresid_shared_shells.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -16,9 +16,9 @@
 - Highest E allocated: 06
 - Author: opencode/its_direct-pt3-claude-opus-5-1m-us
 - Id: s2ewh8
-- Approval: 2026-10-07, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-08 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: s2ewh8 verified (set kz4j7o, attempt 1).
 - 2026-10-07 approved (aw set): status set to approved
 - 2026-10-07 reviewed (opencode/its_direct/pt3-claude-opus-5.5-1m-us): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-001 (MEDIUM, fixed: suite bar by failing node-id set; F-11 failures may be fixed by 8c460a9a1), PR-002 (LOW, fixed: b02ohu/76ic0k are executed), PR-003 (MEDIUM, fixed: out-of-scope STOPs converted to declarations; runner/hand finalize ownership and kz4j7o close added), PR-004 (LOW, fixed: E-03 checks the runagy vars() shim for re readers; none measured), PR-005 (LOW, fixed: stale _close_process_streams docstring example noted). Re-verified at ca03f0c56: ten names defined in both hosts, four dead names have no reader, agy re used only by the two compiles, three share candidates equal across hosts, ruff F401/F821 clean, test_runagy 11 failed/14 passed baseline.
 
