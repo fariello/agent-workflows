@@ -12,7 +12,7 @@
   OUT, each for a stated reason. BUILDING ANY REFUSAL, DOWNGRADE, OR DISPOSITION CHANGE on the verdict: that is the REJECTED answer, refused on the evidence in F-03 through F-06 rather than deferred. FIXING THE AGY `subagent` DELEGATION BLINDNESS: measured here as F-06 because it is load-bearing for the decision, but owned by backlog `iuhx9d` (plan `e08ssu`, now executed, routed the readers through a shared primitive and deliberately preserved the gap); this plan changes no matching, extraction, or verdict logic, and a plan that answered a policy question by also editing the predicate could not be reviewed for either. CHANGING ANY RECORDED FIELD OR RENDERED SURFACE: `corroboration_verdict`, `corroboration_reason`, `corroboration_counts`, the `execution-report.md` line, and the `aw runs` rendering all stay exactly as `btak7a` shipped them. REVISITING THE SUITE-BASELINE RULING or the attributed suite-attribution exception, which are settled and cited here only as precedent. TOUCHING `bjx20r` OR `btak7a`, which are in `.aw/records/plans/executed/` and whose records `AGENTS.md` forbids changing. RE-MEASURING THE REAL-CORPUS RATE IN A WAY THAT CLAIMS A NUMBER: E-01 reports the corpus size it actually finds, which in a lane is zero, and the decision is explicitly NOT contingent on it (F-02 is why).
 - Scope-Paths: agent_workflows/verifier_corroboration.py, tests/test_verifier_corroboration.py, .aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md, DECISIONS.md, CHANGELOG.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: followup
 - Priority: medium
@@ -23,9 +23,9 @@
 - Highest E allocated: 05
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: q4uifc
-- Approval: 2026-10-07, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-08 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: q4uifc verified (set runverdict, attempt 1).
 - 2026-10-07 approved (aw set): status set to approved
 - 2026-10-07 reviewed (opencode/its_direct/pt3-claude-opus-5.5-1m-us): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-101, PR-102, PR-103, PR-104. Round 2 re-review at HEAD `1ec59c8a1`. PR-101 (MEDIUM): `execute_item_core` resolves `integration_is_earned` and `driver_begin` through `driver_module` (`oc_runipd`), so an in-process mutation patching `runner_shared.integration_is_earned` is never called (spy: zero calls; signal stays `verifier`), a false insensitivity result; E-03/V-03 now name `oc_runipd` as the seam, and the mutation re-measured through it flips `uncorroborated` to `verifier-declined` (others `verifier`); the stub is now `oc_runipd.driver_begin`. PR-102: `e08ssu` executed (commit `9c5f53f18`) and preserved the subagent gap; F-06 re-driven, still `uncorroborated`, delegations 0. PR-103: `D159` already exists. PR-104: the three F-10 baseline failures now pass (commit `8c460a9a1`); `runner_shared.py` is now 41024 lines. Readiness re-written as the review output after `8c460a9a1` removed it from the `to-review` plan. Review record round 2.
 
