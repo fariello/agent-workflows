@@ -634,6 +634,7 @@ def plan_adoption(
     date_str: Optional[str] = None,
     allow_leaks: bool = False,
     override_actor: str = "",
+    order: Optional[int] = None,
 ) -> Tuple[Optional[AdoptionPlan], Optional[str]]:
     """Plan ONE adoption. Returns ``(plan, None)`` or ``(None, error)``. Writes NOTHING.
 
@@ -755,6 +756,7 @@ def plan_adoption(
         topic=list(topic or []),
         date_str=date_str,
         existing_ids=existing,
+        order=order,
     )
     if err or not files:
         if err and not summary and heading_text:
@@ -1057,6 +1059,7 @@ def run_adopt(args: argparse.Namespace) -> int:
         date_str=getattr(args, "date", None),
         allow_leaks=allow_leaks,
         override_actor=getattr(args, "actor", "") or "",
+        order=getattr(args, "order", None),
     )
     if err or plan is None:
         return _emit("cannot-run", 2, err or "could not plan the adoption")

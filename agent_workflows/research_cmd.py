@@ -119,17 +119,17 @@ def build_frontmatter(
     return "\n".join(lines)
 
 
-def _next_order_for_set(research_root: Path, set_id: str) -> int:
-    """Return the next NN for an existing set (max existing + 1), or 0 for a new set."""
+def _next_order_for_set(research_root: Path, set_id: str, kind: str = "") -> int:
+    """Return the next NN for an existing set (max existing + 1), or 0 for a new prompt set, or 1 for a new non-prompt set."""
 
     if not research_root.is_dir():
-        return 0
+        return 0 if kind == "research-prompt" else 1
     orders = []
     for p in research_root.rglob("*.md"):
         parsed, err = R.parse_name(p.name)
         if parsed is not None and parsed.set_id == set_id:
             orders.append(int(parsed.order))
-    return (max(orders) + 1) if orders else 0
+    return (max(orders) + 1) if orders else (0 if kind == "research-prompt" else 1)
 
 
 def _set_date_for_set(research_root: Path, set_id: str, default: str) -> str:
@@ -215,6 +215,7 @@ def plan_new(
     date_str: Optional[str] = None,
     existing_ids: Optional[set] = None,
     priority: Optional[str] = None,
+    order: Optional[int] = None,
 ) -> Tuple[Optional[List[PlannedFile]], Optional[str]]:
     """Plan a single ``new`` document (no writing). Returns (files, None) or (None, error)."""
 
@@ -263,7 +264,25 @@ def plan_new(
     derived_set = R.kebab(set_id) if set_id else slug_k
     today = date_str or date.today().strftime("%Y%m%d")
     set_date = _set_date_for_set(research_root, derived_set, today)
-    order_n = _next_order_for_set(research_root, derived_set)
+    if order is not None:
+        try:
+            order_int = int(order)
+        except (ValueError, TypeError):
+            return None, f"--order must be between 0 and 99 (got {order!r})"
+        if order_int < 0 or order_int > 99:
+            return None, f"--order must be between 0 and 99 (got {order})"
+        if research_root.is_dir():
+            for p in sorted(research_root.rglob("*.md")):
+                parsed, _ = R.parse_name(p.name)
+                if parsed is not None and parsed.set_id == derived_set:
+                    if int(parsed.order) == order_int:
+                        return (
+                            None,
+                            f"order {order_int:02d} in set '{derived_set}' is already occupied by {p.name}",
+                        )
+        order_n = order_int
+    else:
+        order_n = _next_order_for_set(research_root, derived_set, kind)
 
     ids = existing_ids if existing_ids is not None else _existing_id6s(research_root)
     id6 = _mint_research_id6(research_root, ids)
@@ -888,6 +907,7 @@ def run_new(args: argparse.Namespace) -> int:
         topic=topic,
         date_str=getattr(args, "date", None),
         priority=getattr(args, "priority", None),
+        order=getattr(args, "order", None),
     )
     if err:
         from agent_workflows.renderers import get_renderer

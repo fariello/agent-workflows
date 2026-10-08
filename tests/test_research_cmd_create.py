@@ -73,8 +73,8 @@ class NewPlanTests(unittest.TestCase):
         )
         p1, _ = R.parse_name(f1[0].path.name)
         p2, _ = R.parse_name(f2[0].path.name)
-        self.assertEqual(p1.order, "00")
-        self.assertEqual(p2.order, "01")
+        self.assertEqual(p1.order, "01")
+        self.assertEqual(p2.order, "02")
         # Same set shares the date.
         self.assertEqual(p1.date, p2.date)
 
@@ -89,7 +89,7 @@ class NewPlanTests(unittest.TestCase):
         self.assertIsNone(err)
         parsed, _ = R.parse_name(files[0].path.name)
         self.assertEqual(parsed.set_id, "my-finding")
-        self.assertEqual(parsed.order, "00")
+        self.assertEqual(parsed.order, "01")
 
     def test_unknown_kind_rejected_with_suggestion(self):
         files, err = C.plan_new(

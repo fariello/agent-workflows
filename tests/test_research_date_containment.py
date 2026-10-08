@@ -606,7 +606,7 @@ class TestResearchNonRegressions(_ResearchContainmentTestCase):
             )
         self.assertEqual(rc, 0, f"Expected 0, got {rc}. out: {out}, err: {err}")
         expected_file = (
-            self.research_root / "20260929-conf1-00-fx1234-conf1.findings.md"
+            self.research_root / "20260929-conf1-01-fx1234-conf1.findings.md"
         )
         self.assertTrue(expected_file.exists())
         text = expected_file.read_text(encoding="utf-8")
@@ -703,7 +703,7 @@ class TestResearchNonRegressions(_ResearchContainmentTestCase):
         )
         self.assertEqual(rc, 0)
         self.assertIn("--- would write", out)
-        self.assertIn("20260929-dry-conf-00-", out)
+        self.assertIn("20260929-dry-conf-01-", out)
 
         # 2. Agent preview
         rc_agent, out_agent, _ = self._run(

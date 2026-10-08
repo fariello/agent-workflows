@@ -542,7 +542,7 @@ class ScopeAndPreviewTests(_AdoptRepo):
         names = sorted(p.name for p in self._adopted_files())
         self.assertEqual(len(names), 2, names)
         orders = sorted(n.split("-")[2] for n in names)
-        self.assertEqual(orders, ["00", "01"], names)
+        self.assertEqual(orders, ["01", "02"], names)
 
 
 class SuggestionTests(_AdoptRepo):
