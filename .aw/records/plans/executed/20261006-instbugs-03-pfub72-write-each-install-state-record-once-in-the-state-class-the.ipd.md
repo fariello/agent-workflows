@@ -6,7 +6,7 @@
 - Scope: IN: one writer for the install snapshot and the install history, writing under `state/durable/` (`install.json`, `history/installs.jsonl`); the snapshot carries the running version (`agent_workflows.__version__`) and no absolute home path; `persist_project_policy` stops writing state (it keeps writing `config/project.json` and `config/local.json`); an upgrade migrates any root-level `state/install.json` and `state/history/installs.jsonl` into `state/durable/` (merging history lines without duplication) and removes the root copies; readers (`config._find_install_history_cutover`) read the durable path first and keep the legacy root as a fallback. OUT: the git policy of `state_durable` (Order 02 `gi1w75`); what is staged (Order 04 `gzsfqn`); any other `state/runtime/` producer.
 - Scope-Paths: agent_workflows/install_history.py, agent_workflows/install_wizard.py, agent_workflows/config.py, agent_workflows/engine.py, tests/test_install_state_records.py, tests/test_config.py
 - Item-Dependencies: executed:gi1w75
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Blocks-Release: f33nrj
 - From-Spec: kw5y2s
@@ -17,9 +17,9 @@
 - Highest E allocated: 05
 - Author: antigravity/claude-opus-5.5
 - Id: pfub72
-- Approval: 2026-10-07, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-08 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: pfub72 verified (set instbugs, attempt 1). [Scope reconciliation - in-scope-unmodified tests/test_config.py: declared-but-unmodified (auto-acknowledged by aw agy run)]
 - 2026-10-07 approved (aw set): status set to approved
 - 2026-10-07 same-status (aw set): gate on release 2.0.0 (f33nrj) at the maintainer's instruction 2026-10-06: all instbugs plans block 2.0.0
 
