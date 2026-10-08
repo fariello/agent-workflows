@@ -153,6 +153,7 @@ THIS PLAN AMENDS AN APPROVED SPEC, declared in `- Scope-Paths:`. Why: the mainta
 - Options: (A) the abort set is "Corrupt run ledger" plus "Runner tool-identity mismatch", both described as "the runner cannot trust its own state or tooling"; the code is unchanged. (B) the abort set is "Corrupt run ledger" only, and the tool-identity mismatch is filed as a stop-item class with a carrier (a backlog item to change `run_queue`), accepting that later items run under the wrong tooling until it lands. (C) treat a tool-identity mismatch as a form of corrupt ledger and say so in 4.1.
 - Recommendation: (A). It keeps the ruling's reason (the runner cannot trust itself) and matches shipped behavior, so spec and code agree without a new child.
 - Resolution or deferral rationale: open; E-03, E-05 and E-07 read the answer.
+- Carrier-Declined: answered in this plan before execution; `Blocking: yes` keeps the plan from `approved` and from dispatch until the maintainer answers, so it cannot reach `executed` with this outstanding.
 
 ## Validation and cross-check (verify before reporting done)
 
