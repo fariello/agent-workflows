@@ -1,5 +1,5 @@
 - Id: mt6j1p
-- Status: graduated
+- Status: done
 - Graduated-To: mt6j1p
 - Set: mt6j1p
 - Priority: low
@@ -7,6 +7,7 @@
 - Summary: No checker reports a plan whose filename date disagrees with its own - Date: metadata, so a wrong filename date is silent even after the value itself is validated
 
 ## Workflow history
+- 2026-10-08 done (aw backlog): closed by aw agy run: IPD wyk11f executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20261002-mt6j1p-01-wyk11f-report-a-plan-filename-date-that-disagrees-with-its-own-date.ipd.md); evidence .aw/records/plans/executed/20261002-mt6j1p-01-wyk11f-report-a-plan-filename-date-that-disagrees-with-its-own-date.ipd.md
 - 2026-10-02 graduated (aw backlog): graduated by run run-20261001T221821Z-1985969: wyk11f
 - 2026-09-30 created (aw backlog): Filed while authoring plan fqcax0 (graduating 5h8u3z) as the carrier for its OQ-03: the wider gap the 5h8u3z backlog item raises in its last sentence and does not answer.
 
