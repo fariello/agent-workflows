@@ -37,34 +37,34 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: re-establish
 
-- [ ] E-01 Re-measure at the execution HEAD: fresh install into a temp git repo (`AW_NO_REEXEC=1`), then `ls -la .aw/inbox`; in this repository `git ls-files .aw/inbox` and `git check-ignore -v --no-index .aw/inbox/README.md`.
+- [x] E-01 Re-measure at the execution HEAD: fresh install into a temp git repo (`AW_NO_REEXEC=1`), then `ls -la .aw/inbox`; in this repository `git ls-files .aw/inbox` and `git check-ignore -v --no-index .aw/inbox/README.md`.
   - Depends on: none
   - Expected outcome: pasted evidence that the target has no inbox and that this repository's README is tracked while matched by an ignore rule. STOP and report if either changed.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: fix
 
-- [ ] E-02 Add `.aw/system/workflows/templates/aw-inbox-README.md` with the content of `.aw/inbox/README.md`, reviewing it for target-correctness (no citation of a file a target lacks; Order 07's check will enforce this), and make `.aw/inbox/README.md` in this repository identical to the template. REWRITE the README's closing section "Why this directory is gitignored" (it currently says the ignore is `/inbox/`, instructs `git add -f .aw/inbox/README.md`, and argues AGAINST narrowing the pattern) so it states the new rule: `/inbox/*` ignores every drop, `!/inbox/README.md` re-includes exactly this one file, and the default for a NEW drop stays IGNORED, so the containment that paragraph defended is preserved (see Findings F-04/F-05). No em or en dashes (user-facing prose).
+- [x] E-02 Add `.aw/system/workflows/templates/aw-inbox-README.md` with the content of `.aw/inbox/README.md`, reviewing it for target-correctness (no citation of a file a target lacks; Order 07's check will enforce this), and make `.aw/inbox/README.md` in this repository identical to the template. REWRITE the README's closing section "Why this directory is gitignored" (it currently says the ignore is `/inbox/`, instructs `git add -f .aw/inbox/README.md`, and argues AGAINST narrowing the pattern) so it states the new rule: `/inbox/*` ignores every drop, `!/inbox/README.md` re-includes exactly this one file, and the default for a NEW drop stays IGNORED, so the containment that paragraph defended is preserved (see Findings F-04/F-05). No em or en dashes (user-facing prose).
   - Depends on: E-01
   - Expected outcome: the template exists and ships in the wheel through the existing `.aw/system` force-include; the two files are byte-identical; neither mentions `git add -f` or claims the ignore pattern is `/inbox/`.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 Write the README on install through the EXISTING scaffold machinery rather than a bespoke writer: add an `inbox` category to `engine.collect_scaffold_members` mapping `.aw/inbox/README.md` to template `aw-inbox-README.md` (aw layout only; a legacy `.agents/` layout has no inbox and gets nothing), and an `ensure_inbox_readme(plan, use_git, installed, skipped)` modeled on `engine.ensure_docs_readmes` (no-clobber, dry-run aware, `git_add_optional`), called from `engine.install_into_repo` beside the other `ensure_*_readmes` calls (the single shared install chokepoint, before `create_setup_artifacts`). Because `collect_scaffold_members(category=None)` feeds the `--diff` preview in `engine.run`, the preview then shows the README for free. STAGING ORDER HAZARD: on a FRESH install `.aw/.gitignore` does not yet exist when the ensurer runs (it is created later by `create_setup_artifacts`), so `git add` succeeds; on an UPGRADE the old `/inbox/` rule exists, so `git_add_optional` returns False ('ignored by') and the README is written but silently unstaged. So E-04's `_ensure_aw_gitignore` rewrite must run BEFORE this ensurer: call `_ensure_aw_gitignore(repo_root)` immediately before `ensure_inbox_readme` when `.aw/.gitignore` already exists, and if `git_add_optional` still returns False, record the README under `skipped` with the reason rather than `installed`.
+- [x] E-03 Write the README on install through the EXISTING scaffold machinery rather than a bespoke writer: add an `inbox` category to `engine.collect_scaffold_members` mapping `.aw/inbox/README.md` to template `aw-inbox-README.md` (aw layout only; a legacy `.agents/` layout has no inbox and gets nothing), and an `ensure_inbox_readme(plan, use_git, installed, skipped)` modeled on `engine.ensure_docs_readmes` (no-clobber, dry-run aware, `git_add_optional`), called from `engine.install_into_repo` beside the other `ensure_*_readmes` calls (the single shared install chokepoint, before `create_setup_artifacts`). Because `collect_scaffold_members(category=None)` feeds the `--diff` preview in `engine.run`, the preview then shows the README for free. STAGING ORDER HAZARD: on a FRESH install `.aw/.gitignore` does not yet exist when the ensurer runs (it is created later by `create_setup_artifacts`), so `git add` succeeds; on an UPGRADE the old `/inbox/` rule exists, so `git_add_optional` returns False ('ignored by') and the README is written but silently unstaged. So E-04's `_ensure_aw_gitignore` rewrite must run BEFORE this ensurer: call `_ensure_aw_gitignore(repo_root)` immediately before `ensure_inbox_readme` when `.aw/.gitignore` already exists, and if `git_add_optional` still returns False, record the README under `skipped` with the reason rather than `installed`.
   - Depends on: E-02
   - Expected outcome: a fresh install and an upgrade from a `/inbox/`-only `.aw/.gitignore` both list `.aw/inbox/README.md` as added AND have it in `git diff --cached --name-only`; a re-install lists it `[already current]` and changes nothing.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 Change the ignore rule: in `engine._AW_GITIGNORE_TEMPLATE` replace `/inbox/` with `/inbox/*` and `!/inbox/README.md` (keeping the explanatory comment and adding one sentence on why a directory pattern cannot be negated); in `engine._ensure_aw_gitignore` (which every install reaches through `write_setup_marker` and `migrate_local_lanes_to_untracked`, and which E-03 now also calls before the inbox ensurer) rewrite an exact `/inbox/` line into the pair, keep the existing bare-`inbox/` repair but make it produce the pair, and add the pair when neither form is present; the presence test must match the two pattern LINES, never the substring in the comment. Return True when it rewrote, so the caller's commit set includes `.aw/.gitignore`. Apply the same edit to this repository's `.aw/.gitignore`. POINTERS: add one line naming `.aw/inbox/` as the drop zone for `aw adopt` to the closing guidance `cli._install_one` prints after a successful install (the block that ends "Changes are STAGED but NOT committed"), and add the same pointer to `.aw/system/workflows/getting-started/getting-started.md` (it mentions the inbox nowhere today).
+- [x] E-04 Change the ignore rule: in `engine._AW_GITIGNORE_TEMPLATE` replace `/inbox/` with `/inbox/*` and `!/inbox/README.md` (keeping the explanatory comment and adding one sentence on why a directory pattern cannot be negated); in `engine._ensure_aw_gitignore` (which every install reaches through `write_setup_marker` and `migrate_local_lanes_to_untracked`, and which E-03 now also calls before the inbox ensurer) rewrite an exact `/inbox/` line into the pair, keep the existing bare-`inbox/` repair but make it produce the pair, and add the pair when neither form is present; the presence test must match the two pattern LINES, never the substring in the comment. Return True when it rewrote, so the caller's commit set includes `.aw/.gitignore`. Apply the same edit to this repository's `.aw/.gitignore`. POINTERS: add one line naming `.aw/inbox/` as the drop zone for `aw adopt` to the closing guidance `cli._install_one` prints after a successful install (the block that ends "Changes are STAGED but NOT committed"), and add the same pointer to `.aw/system/workflows/getting-started/getting-started.md` (it mentions the inbox nowhere today).
   - Depends on: E-03
   - Expected outcome: `git check-ignore` reports the README not ignored, `drop.md` and `sub/README.md` inside `.aw/inbox/` ignored, in a fresh target, in an upgraded target that had `/inbox/`, and in this repository; `.aw/records/comms/shared/inbox/.gitkeep` stays not ignored; the `.aw/.gitignore` contains `!/inbox/README.md` exactly once after two installs.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: pin it
 
-- [ ] E-05 Add `tests/test_install_inbox_lane.py` with real installs into temp git repos: (a) fresh: `.aw/inbox/README.md` exists, `git check-ignore -q .aw/inbox/README.md` exits 1, `git check-ignore -q .aw/inbox/some-drop.md` exits 0, `git check-ignore -q .aw/records/comms/shared/inbox/.gitkeep` exits 1, and the README is in `git ls-files` after a `-y` install; (b) upgrade: seed a `.aw/.gitignore` with the old `/inbox/` line, reinstall, assert the same four outcomes and that the file now contains `!/inbox/README.md` once; (c) the human `aw attention` board in a target whose inbox holds only the README prints no `waiting in `.aw/inbox/`` TODO line, and prints `TODO: 1 file waiting` after a drop is added (the count is rendered only in the human board footer, not in `--format json`; measured: `attention.inbox_waiting` has one caller, the footer); (d) a nested `.aw/inbox/sub/README.md` is ignored (the re-include must not leak into subdirectories). Prove (a) can fail by restoring the bare `/inbox/` template line and pasting the failure, and prove (b) can fail by removing the E-03 pre-ensurer `_ensure_aw_gitignore` call and pasting the 'not staged' failure.
+- [x] E-05 Add `tests/test_install_inbox_lane.py` with real installs into temp git repos: (a) fresh: `.aw/inbox/README.md` exists, `git check-ignore -q .aw/inbox/README.md` exits 1, `git check-ignore -q .aw/inbox/some-drop.md` exits 0, `git check-ignore -q .aw/records/comms/shared/inbox/.gitkeep` exits 1, and the README is in `git ls-files` after a `-y` install; (b) upgrade: seed a `.aw/.gitignore` with the old `/inbox/` line, reinstall, assert the same four outcomes and that the file now contains `!/inbox/README.md` once; (c) the human `aw attention` board in a target whose inbox holds only the README prints no `waiting in `.aw/inbox/`` TODO line, and prints `TODO: 1 file waiting` after a drop is added (the count is rendered only in the human board footer, not in `--format json`; measured: `attention.inbox_waiting` has one caller, the footer); (d) a nested `.aw/inbox/sub/README.md` is ignored (the re-include must not leak into subdirectories). Prove (a) can fail by restoring the bare `/inbox/` template line and pasting the failure, and prove (b) can fail by removing the E-03 pre-ensurer `_ensure_aw_gitignore` call and pasting the 'not staged' failure.
   - Depends on: E-04
   - Expected outcome: the new tests pass; the mutation fails (a); no test reads production source.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -126,30 +126,138 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: PASTE the pre-edit `ls -la .aw/inbox` failure in a fresh target and the two commands from this repository, with the HEAD sha.
   - Observed evidence:
-  - Result: pending
+    Execution starting HEAD: ccc66aadf93c9c9aa168b97ba9879e59ef02c06d
 
-- [ ] V-02 validates E-02
+    Fresh target pre-edit:
+    $ ls -la .aw/inbox
+    ls: cannot access '.aw/inbox': No such file or directory
+
+    This repository pre-edit:
+    $ git ls-files .aw/inbox
+    .aw/inbox/README.md
+
+    $ git check-ignore -v --no-index .aw/inbox/README.md
+    .aw/.gitignore:28:/inbox/	.aw/inbox/README.md
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: PASTE `cmp .aw/system/workflows/templates/aw-inbox-README.md .aw/inbox/README.md && echo identical`, `grep -n 'add -f\|ignores `/inbox/`' .aw/inbox/README.md` returning nothing, the rewritten gitignore section, and a listing of the built wheel (or `_data` tree) showing the template.
   - Observed evidence:
-  - Result: pending
+    $ cmp .aw/system/workflows/templates/aw-inbox-README.md .aw/inbox/README.md && echo identical
+    identical
 
-- [ ] V-03 validates E-03
+    $ grep -n 'add -f\|ignores `/inbox/`' .aw/inbox/README.md
+    (no output, exit code 1)
+
+    Rewritten gitignore section in .aw/inbox/README.md:
+    ```markdown
+    ## Why this directory is gitignored
+
+    The `.aw/.gitignore` configuration applies `/inbox/*` followed by `!/inbox/README.md`, and that is
+    deliberate on two counts. The content is unvetted third-party text that has not passed the leak
+    sanitizer, and git history is permanent. And the directory sits OUTSIDE `.aw/records/` so the
+    record sweep cannot enumerate a drop as an artifact.
+    ```
+
+    Built wheel listing:
+    $ python3 -m build --wheel --outdir /tmp/whl_test && unzip -l /tmp/whl_test/*.whl | grep aw-inbox-README.md
+    Successfully built agent_workflows-1.3.0rc2.dev8830+gccc66aadf.d20261008-py3-none-any.whl
+         3833  2020-02-02 00:00   agent_workflows/_data/.aw/system/workflows/templates/aw-inbox-README.md
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: PASTE the fresh-install listing line for `.aw/inbox/README.md` plus `git diff --cached --name-only | grep inbox`; the same two for an upgrade over a seeded `/inbox/`-only `.aw/.gitignore`; and a re-install showing `[already current]`.
   - Observed evidence:
-  - Result: pending
+    Fresh install:
+    [added    ] .aw/inbox/README.md
+    $ git diff --cached --name-only | grep inbox
+    .aw/inbox/README.md
+    .aw/records/comms/shared/inbox/.gitkeep
+    .aw/system/workflows/templates/aw-inbox-README.md
 
-- [ ] V-04 validates E-04
+    Upgrade over seeded /inbox/-only .aw/.gitignore:
+    [added    ] .aw/inbox/README.md
+    $ git diff --cached --name-only | grep inbox
+    .aw/inbox/README.md
+    .aw/records/comms/shared/inbox/.gitkeep
+    .aw/system/workflows/templates/aw-inbox-README.md
+
+    Re-install:
+    [no change] .aw/inbox/README.md
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: PASTE the four `git check-ignore` results in a fresh target, in an upgraded target, and in this repository (README not ignored; drop ignored; comms `.gitkeep` not ignored), plus `.aw/inbox/sub/README.md` ignored, `grep -c '^!/inbox/README.md$' .aw/.gitignore` = 1 after a second install, the new post-install pointer line, and the `getting-started` diff.
   - Observed evidence:
-  - Result: pending
+    Fresh target:
+    .aw/inbox/README.md: rc=0 out=.aw/.gitignore:31:!/inbox/README.md	.aw/inbox/README.md
+    .aw/inbox/some-drop.md: rc=0 out=.aw/.gitignore:30:/inbox/*	.aw/inbox/some-drop.md
+    .aw/records/comms/shared/inbox/.gitkeep: rc=1 out=
+    .aw/inbox/sub/README.md: rc=0 out=.aw/.gitignore:30:/inbox/*	.aw/inbox/sub/README.md
+    Count of '!/inbox/README.md' after second install: 1
 
-- [ ] V-05 validates E-05
+    Upgraded target:
+    .aw/inbox/README.md: rc=0 out=.aw/.gitignore:3:!/inbox/README.md	.aw/inbox/README.md
+    .aw/inbox/some-drop.md: rc=0 out=.aw/.gitignore:2:/inbox/*	.aw/inbox/some-drop.md
+    .aw/records/comms/shared/inbox/.gitkeep: rc=1 out=
+    .aw/inbox/sub/README.md: rc=0 out=.aw/.gitignore:2:/inbox/*	.aw/inbox/sub/README.md
+    Count of '!/inbox/README.md' after second install (upgraded): 1
+
+    This repository:
+    .aw/inbox/README.md: rc=0 out=.aw/.gitignore:31:!/inbox/README.md	.aw/inbox/README.md
+    .aw/inbox/some-drop.md: rc=0 out=.aw/.gitignore:30:/inbox/*	.aw/inbox/some-drop.md
+    .aw/records/comms/shared/inbox/.gitkeep: rc=1 out=
+    .aw/inbox/sub/README.md: rc=0 out=.aw/.gitignore:30:/inbox/*	.aw/inbox/sub/README.md
+
+    Post-install pointer line:
+    Inbox drop zone: drop raw external material into .aw/inbox/ for 'aw adopt'.
+
+    getting-started diff:
+    ```diff
+    diff --git a/.aw/system/workflows/getting-started/getting-started.md b/.aw/system/workflows/getting-started/getting-started.md
+    --- a/.aw/system/workflows/getting-started/getting-started.md
+    +++ b/.aw/system/workflows/getting-started/getting-started.md
+    @@ -40,7 +40,8 @@ In a few sentences, not a lecture:
+     - **Guided/meta** workflows change files with your confirmation (`setup-repo`, `scaffold`);
+       `verify` produces evidence; `list-workflows` shows everything.
+     - Where things land: assessment/plan proposals as IPDs in `.aw/records/plans/pending/`; durable
+    -  run records under `.aw/workflow-artifacts/<workflow>/<RUN_ID>/`.
+    +  run records under `.aw/workflow-artifacts/<workflow>/<RUN_ID>/`; raw external research or
+    +  notes awaiting adoption in `.aw/inbox/` (adopted with `aw adopt`).
+
+     ## Step 3: Ask the goal and route
+
+    @@ -63,6 +64,7 @@ inside the prompt itself so it is decidable from the prompt alone (GUIDING_PRINC
+     - "Write release notes / bump the version" -> `release-notes`
+     - "Do a post-mortem" -> `incident`
+     - "Add a new workflow/lens/persona to the toolkit" -> `scaffold`
+    +- "Adopt external research or raw notes into records" -> drop files into `.aw/inbox/` and run `aw adopt`
+    ```
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: PASTE the narrowed run of the new test file, the mutation failure, and the bare-suite summary line against the baseline.
   - Observed evidence:
-  - Result: pending
+    Narrowed test run:
+    $ python3 -m pytest tests/test_install_inbox_lane.py
+    ....                                                                     [100%]
+    4 passed in 12.68s
+
+    Mutation failure (a) (restoring bare /inbox/ without negation rewrite):
+    FAILED tests/test_install_inbox_lane.py::test_fresh_install_inbox_lane - AssertionError: assert 0 == 1
+    where 0 = CompletedProcess(args=['git', 'check-ignore', '-q', '--no-index', '.aw/inbox/README.md'], returncode=0).returncode
+
+    Mutation failure (b) (omitting _ensure_aw_gitignore pre-call before ensure_inbox_readme):
+    FAILED tests/test_install_inbox_lane.py::test_upgrade_from_seeded_inbox_gitignore
+    AssertionError: assert '.aw/inbox/README.md' in []
+
+    Bare test suite against baseline:
+    Baseline: 6693 passed, 2 skipped, 3 warnings in 825.97s
+    Current:  6697 passed, 2 skipped, 3 warnings in 355.98s (0:05:55)
+  - Result: pass
 
 ## Approval and execution gate
 

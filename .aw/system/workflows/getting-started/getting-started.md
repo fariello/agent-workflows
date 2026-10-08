@@ -40,7 +40,8 @@ In a few sentences, not a lecture:
 - **Guided/meta** workflows change files with your confirmation (`setup-repo`, `scaffold`);
   `verify` produces evidence; `list-workflows` shows everything.
 - Where things land: assessment/plan proposals as IPDs in `.aw/records/plans/pending/`; durable
-  run records under `.aw/workflow-artifacts/<workflow>/<RUN_ID>/`.
+  run records under `.aw/workflow-artifacts/<workflow>/<RUN_ID>/`; raw external research or
+  notes awaiting adoption in `.aw/inbox/` (adopted with `aw adopt`).
 
 ## Step 3: Ask the goal and route
 
@@ -63,6 +64,7 @@ inside the prompt itself so it is decidable from the prompt alone (GUIDING_PRINC
 - "Write release notes / bump the version" -> `release-notes`
 - "Do a post-mortem" -> `incident`
 - "Add a new workflow/lens/persona to the toolkit" -> `scaffold`
+- "Adopt external research or raw notes into records" -> drop files into `.aw/inbox/` and run `aw adopt`
 
 If the goal is unclear, ask a clarifying question rather than guessing. If several fit,
 recommend the best first step and explain why.
