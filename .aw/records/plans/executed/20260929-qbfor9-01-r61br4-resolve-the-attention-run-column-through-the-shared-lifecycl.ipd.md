@@ -8,7 +8,7 @@
   OUT: changing WHICH runs are scanned or the liveness test that selects them (`run_viewer.driver_holder_state`, untouched); the `priority_order` collapse that picks ONE state when an id6 appears in several live runs (retained, re-keyed; see Deferred); whether the runner should build a `run_map` at all rather than handing `render_table` its queue (the structural question inside `format_slated_artifacts_table`, still deferred; only its WORDS change, see Deferred); adding any status to `lifecycle_style` or amending spec `uonrjg` (no new mapping is needed once the vocabulary is the runner's own, which is the point of the chosen option); and the artifact Status column, already converted by `f9t5hz`.
 - Scope-Paths: agent_workflows/attention.py, agent_workflows/attention_contract.py, agent_workflows/cli.py, agent_workflows/runner_shared.py, tests/test_attention.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -20,9 +20,9 @@
 - Highest E allocated: 07
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: r61br4
-- Approval: 2026-09-30, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-08 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: r61br4 verified (set qbfor9, attempt 1).
 - 2026-09-30 approved (aw set): status set to approved
 - 2026-09-30 reviewed (aw set): status set to reviewed
 
