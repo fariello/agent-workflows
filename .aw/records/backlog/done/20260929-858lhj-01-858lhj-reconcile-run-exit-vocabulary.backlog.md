@@ -1,5 +1,5 @@
 - Id: 858lhj
-- Status: graduated
+- Status: done
 - Graduated-To: runexitvocab
 - Set: 858lhj
 - Priority: low
@@ -7,6 +7,7 @@
 - Summary: Reconcile the run-execution exit vocabulary with the CLI three-state exit classification
 
 ## Workflow history
+- 2026-10-08 done (aw backlog): closed by aw agy run: IPD u28vqb executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20260930-runexitvocab-01-u28vqb-scope-the-published-three-state-exit-claim-to-the-surface-it.ipd.md); evidence .aw/records/plans/executed/20260930-runexitvocab-01-u28vqb-scope-the-published-three-state-exit-claim-to-the-surface-it.ipd.md
 - 2026-09-30 set (aw backlog): graduated by run run-20260930T053053Z-3200037: u28vqb
 - 2026-09-29 created (aw backlog): Reconcile the run-execution exit vocabulary with the CLI three-state exit classification
 
