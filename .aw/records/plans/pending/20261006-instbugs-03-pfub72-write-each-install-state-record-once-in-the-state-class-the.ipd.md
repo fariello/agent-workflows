@@ -37,34 +37,34 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: re-establish
 
-- [ ] E-01 Re-measure at the execution HEAD: with `AW_NO_REEXEC=1` and `HOME` set to a temp dir with a distinctive name (e.g. `<tmp>/pfhome-zzuniq`), fresh `aw install . --preset private-target -y --no-interactive` into a temp git repo, then a second `aw install . -y --no-interactive`; after each, `find .aw/state -type f | sort`, `cat .aw/state/durable/install.json`, `wc -l` of both history files, and `grep -c pfhome-zzuniq` over `.aw/state`. Do NOT use `check-local-leaks` here: it scans git-TRACKED content, and `.aw/state/` is gitignored, so it reports clean whatever the files contain (measured at review, F-06). If only one set of files is written, record that and narrow E-02/E-03 to what remains.
+- [x] E-01 Re-measure at the execution HEAD: with `AW_NO_REEXEC=1` and `HOME` set to a temp dir with a distinctive name (e.g. `<tmp>/pfhome-zzuniq`), fresh `aw install . --preset private-target -y --no-interactive` into a temp git repo, then a second `aw install . -y --no-interactive`; after each, `find .aw/state -type f | sort`, `cat .aw/state/durable/install.json`, `wc -l` of both history files, and `grep -c pfhome-zzuniq` over `.aw/state`. Do NOT use `check-local-leaks` here: it scans git-TRACKED content, and `.aw/state/` is gitignored, so it reports clean whatever the files contain (measured at review, F-06). If only one set of files is written, record that and narrow E-02/E-03 to what remains.
   - Depends on: none
   - Expected outcome: the four files, the literal `"installed_version": "2026.8.10"`, `"aw_home": null` after the first install and the temp HOME path after the second, and two lines in each history after the second install (all reproduced at review, F-05).
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: one writer
 
-- [ ] E-02 Make `install_history.record_install_history` write under the `state_durable` physical class (`ctx.physical_classes[RootClass.STATE_DURABLE.value]`, which resolves to `.aw/state/durable` for target placements, as measured at review) instead of the logical `state` root, using the `layout.DURABLE_STATE_CLASSES` names (`install.json`, `history`). Extend its snapshot with `installed_version` set to `agent_workflows.__version__` (whose correctness for an installed build is Order 01 `whz0oi`'s fix, not this plan's) and a policy summary built from `ProjectPolicySchema`'s portable fields only (preset, role, placements, git policies, enabled hosts, delivery mode, records backend), which by construction excludes `aw_home` and `companion_dir` (rather than relying on `_redact_details` for the policy, since it only redacts top-level string values that trip a leak rule). Keep the snapshot write atomic and the history append-only with mode `0o644` as today. Update the module docstring to name the durable paths.
+- [x] E-02 Make `install_history.record_install_history` write under the `state_durable` physical class (`ctx.physical_classes[RootClass.STATE_DURABLE.value]`, which resolves to `.aw/state/durable` for target placements, as measured at review) instead of the logical `state` root, using the `layout.DURABLE_STATE_CLASSES` names (`install.json`, `history`). Extend its snapshot with `installed_version` set to `agent_workflows.__version__` (whose correctness for an installed build is Order 01 `whz0oi`'s fix, not this plan's) and a policy summary built from `ProjectPolicySchema`'s portable fields only (preset, role, placements, git policies, enabled hosts, delivery mode, records backend), which by construction excludes `aw_home` and `companion_dir` (rather than relying on `_redact_details` for the policy, since it only redacts top-level string values that trip a leak rule). Keep the snapshot write atomic and the history append-only with mode `0o644` as today. Update the module docstring to name the durable paths.
   - Depends on: E-01
   - Expected outcome: one snapshot and one history file, both under `.aw/state/durable/`, carrying the running version and neither the temp HOME path nor `aw_home`/`companion_dir` keys, after a fresh install and after a reinstall.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 Remove steps 3 and 4 (the durable snapshot and history writes) from `install_wizard.persist_project_policy`, along with the now-unused `durable_state_dir` creation, so the wizard writes only `config/project.json`, `config/local.json` and the cutover sync. Confirm by call-site search that `record_install_history` is reached once per repo install (`cli.py`, after `install_into_repo` returns, the block commented "Record install history event"). Note for the executor: `project_layout.install_system_tree` also writes `durable/install.json` and `installs.jsonl` with a literal `"installed_at": "2026-08-10T00:00:00Z"` and an absolute `system_root`, but at review it has no caller outside `tests/test_installer.py`, so it is not on the install path and is left alone (recorded in Scope check).
+- [x] E-03 Remove steps 3 and 4 (the durable snapshot and history writes) from `install_wizard.persist_project_policy`, along with the now-unused `durable_state_dir` creation, so the wizard writes only `config/project.json`, `config/local.json` and the cutover sync. Confirm by call-site search that `record_install_history` is reached once per repo install (`cli.py`, after `install_into_repo` returns, the block commented "Record install history event"). Note for the executor: `project_layout.install_system_tree` also writes `durable/install.json` and `installs.jsonl` with a literal `"installed_at": "2026-08-10T00:00:00Z"` and an absolute `system_root`, but at review it has no caller outside `tests/test_installer.py`, so it is not on the install path and is left alone (recorded in Scope check).
   - Depends on: E-02
   - Expected outcome: a fresh install and a reinstall each add exactly one history line; no literal version string remains in the wizard.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 Upgrade migration and readers: in `engine.install_into_repo`, beside `migrate_root_workflow_artifacts` (it runs before `install_all`; the `migrated` list is what the install reports), add a migration that runs before `record_install_history` appends: when a root-level `.aw/state/install.json` exists, move it into `state/durable/install.json` if no durable snapshot exists, else delete it; append each root `history/installs.jsonl` line not already present byte-for-byte in the durable history (preserving root order, appended after the existing durable lines); delete the root history file and the root `history/` directory if empty; report through the `migrated` list only when something moved (silent otherwise, matching `migrate_root_workflow_artifacts`), and do nothing under `dry_run`. Make `config._find_install_history_cutover` read the durable history first and fall back to the root path (today the root path is first and the loop breaks on the first file with entries).
+- [x] E-04 Upgrade migration and readers: in `engine.install_into_repo`, beside `migrate_root_workflow_artifacts` (it runs before `install_all`; the `migrated` list is what the install reports), add a migration that runs before `record_install_history` appends: when a root-level `.aw/state/install.json` exists, move it into `state/durable/install.json` if no durable snapshot exists, else delete it; append each root `history/installs.jsonl` line not already present byte-for-byte in the durable history (preserving root order, appended after the existing durable lines); delete the root history file and the root `history/` directory if empty; report through the `migrated` list only when something moved (silent otherwise, matching `migrate_root_workflow_artifacts`), and do nothing under `dry_run`. Make `config._find_install_history_cutover` read the durable history first and fall back to the root path (today the root path is first and the loop breaks on the first file with entries).
   - Depends on: E-03
   - Expected outcome: an upgrade over the four-file layout leaves only the durable pair, with every distinct history line preserved once; a second install migrates nothing and reports nothing; a dry run changes nothing; the cutover reader returns the same date for durable-only and root-only fixtures.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: pin it
 
-- [ ] E-05 Add `tests/test_install_state_records.py`: (a) fresh install AND a second install into a temp git repo with `AW_NO_REEXEC=1` and `HOME`/`XDG_CONFIG_HOME` set to a temp dir with a distinctive name: `.aw/state` holds exactly `durable/install.json` and `durable/history/installs.jsonl` (other durable or runtime files the install legitimately creates elsewhere are not asserted against, only that nothing is at the `state/` root); the snapshot's `installed_version` equals the running `agent_workflows.__version__` as reported by the same subprocess interpreter; neither file contains the temp HOME path or an `aw_home`/`companion_dir` key; the history has two lines after two installs; (b) upgrade: seed the four-file layout with two distinct root history lines and one line shared with the durable history, reinstall, assert the durable history holds each distinct line once and the root files are gone; (c) the cutover reader returns the same date from a durable-only and a root-only fixture. Prove (a) can fail by restoring the wizard's step 3 and pasting the failure, then restore. The existing `tests/test_config.py` cutover tests seed the ROOT history path; they must keep passing (the fallback), and are only edited if E-04's reorder changes their outcome.
+- [x] E-05 Add `tests/test_install_state_records.py`: (a) fresh install AND a second install into a temp git repo with `AW_NO_REEXEC=1` and `HOME`/`XDG_CONFIG_HOME` set to a temp dir with a distinctive name: `.aw/state` holds exactly `durable/install.json` and `durable/history/installs.jsonl` (other durable or runtime files the install legitimately creates elsewhere are not asserted against, only that nothing is at the `state/` root); the snapshot's `installed_version` equals the running `agent_workflows.__version__` as reported by the same subprocess interpreter; neither file contains the temp HOME path or an `aw_home`/`companion_dir` key; the history has two lines after two installs; (b) upgrade: seed the four-file layout with two distinct root history lines and one line shared with the durable history, reinstall, assert the durable history holds each distinct line once and the root files are gone; (c) the cutover reader returns the same date from a durable-only and a root-only fixture. Prove (a) can fail by restoring the wizard's step 3 and pasting the failure, then restore. The existing `tests/test_config.py` cutover tests seed the ROOT history path; they must keep passing (the fallback), and are only edited if E-04's reorder changes their outcome.
   - Depends on: E-04
   - Expected outcome: the new tests pass; the mutation fails (a); no test reads production source.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -131,30 +131,347 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: PASTE the pre-edit `find .aw/state -type f | sort`, the durable `install.json` and the history line counts after each of the two installs, and the `grep -c` of the temp HOME name over `.aw/state`, with the HEAD sha.
   - Observed evidence:
-  - Result: pending
+    HEAD SHA: 36187f26bf415c3350ecb9fa78f9da19bc4f3ce9
+    === FIRST INSTALL ===
+    --- Post First Install: find .aw/state ---
+    .aw/state/durable/history/installs.jsonl
+    .aw/state/durable/install.json
+    .aw/state/history/installs.jsonl
+    .aw/state/install.json
+    --- Post First Install: cat .aw/state/durable/install.json ---
+    {
+      "installed_version": "2026.8.10",
+      "schema_version": 2,
+      "policy": {
+        "schema_version": 2,
+        "preset": "private-target",
+        "role": "target",
+        "delivery_mode": "tracked",
+        "records_backend": "repository",
+        "durability_state": "local-git",
+        "aw_home": null,
+        "companion_dir": null,
+        "enabled_hosts": [
+          "opencode",
+          "claude",
+          "antigravity"
+        ],
+        "placements": {
+          "system": "target-tracked",
+          "config_project": "target-tracked",
+          "config_local": "target-ignored",
+          "state_durable": "target-ignored",
+          "state_runtime": "target-ignored",
+          "records": "target-tracked"
+        },
+        "git_policies": {
+          "system": "target-git",
+          "config_project": "target-git",
+          "config_local": "ignored",
+          "state_durable": "ignored",
+          "state_runtime": "ignored",
+          "records": "target-git"
+        },
+        "non_secret_consent": {},
+        "target_visibility": "private",
+        "migration_required": false
+      }
+    }
+    --- Post First Install: wc -l history files ---
+       1 .aw/state/history/installs.jsonl
+       1 .aw/state/durable/history/installs.jsonl
+       2 total
+    --- Post First Install: grep -rc pfhome-zzuniq.AEVEwt .aw/state ---
+    .aw/state/install.json:0
+    .aw/state/history/installs.jsonl:0
+    .aw/state/durable/install.json:0
+    .aw/state/durable/history/installs.jsonl:0
+    === SECOND INSTALL ===
+    --- Post Second Install: find .aw/state ---
+    .aw/state/durable/history/installs.jsonl
+    .aw/state/durable/install.json
+    .aw/state/history/installs.jsonl
+    .aw/state/install.json
+    --- Post Second Install: cat .aw/state/durable/install.json ---
+    {
+      "installed_version": "2026.8.10",
+      "schema_version": 2,
+      "policy": {
+        "schema_version": 2,
+        "preset": "private-target",
+        "role": "target",
+        "delivery_mode": "tracked",
+        "records_backend": "repository",
+        "durability_state": "repository-managed",
+        "aw_home": "/tmp/pfhome-zzuniq.AEVEwt/.aw",
+        "companion_dir": null,
+        "enabled_hosts": [
+          "opencode",
+          "claude",
+          "antigravity"
+        ],
+        "placements": {
+          "system": "target-tracked",
+          "config_project": "target-tracked",
+          "config_local": "target-ignored",
+          "state_durable": "target-ignored",
+          "state_runtime": "target-ignored",
+          "records": "target-tracked"
+        },
+        "git_policies": {
+          "system": "target-git",
+          "config_project": "target-git",
+          "config_local": "ignored",
+          "state_durable": "ignored",
+          "state_runtime": "ignored",
+          "records": "target-git"
+        },
+        "non_secret_consent": {},
+        "target_visibility": "private",
+        "migration_required": false
+      }
+    }
+    --- Post Second Install: wc -l history files ---
+       2 .aw/state/history/installs.jsonl
+       2 .aw/state/durable/history/installs.jsonl
+       4 total
+    --- Post Second Install: grep -rc pfhome-zzuniq.AEVEwt .aw/state ---
+    .aw/state/install.json:0
+    .aw/state/history/installs.jsonl:0
+    .aw/state/durable/install.json:1
+    .aw/state/durable/history/installs.jsonl:1
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: PASTE, after a post-edit fresh install and a second install, `find .aw/state -type f | sort`, `cat .aw/state/durable/install.json` showing the running version and no `aw_home`/`companion_dir` key, and `grep -rc <temp HOME name> .aw/state` returning 0 for every file.
   - Observed evidence:
-  - Result: pending
+    === FIRST INSTALL ===
+    --- Post First Install: find .aw/state ---
+    .aw/state/durable/history/installs.jsonl
+    .aw/state/durable/install.json
+    --- Post First Install: cat .aw/state/durable/install.json ---
+    {
+      "project_id": "",
+      "last_installed_at": "2026-10-08T10:39:06Z",
+      "installed_version": "1.3.0rc2.dev8893+g36187f26b.d20261008",
+      "schema_version": 2,
+      "delivery_mode": "tracked",
+      "records_backend": "repository",
+      "event_type": "install",
+      "policy": {
+        "preset": "private-target",
+        "role": "target",
+        "placements": {
+          "system": "target-tracked",
+          "config_project": "target-tracked",
+          "config_local": "target-ignored",
+          "state_durable": "target-ignored",
+          "state_runtime": "target-ignored",
+          "records": "target-tracked"
+        },
+        "git_policies": {
+          "system": "target-git",
+          "config_project": "target-git",
+          "config_local": "ignored",
+          "state_durable": "ignored",
+          "state_runtime": "ignored",
+          "records": "target-git"
+        },
+        "enabled_hosts": [
+          "opencode",
+          "claude",
+          "antigravity"
+        ],
+        "delivery_mode": "tracked",
+        "records_backend": "repository"
+      }
+    }
+    --- Post First Install: wc -l history files ---
+    1 .aw/state/durable/history/installs.jsonl
+    --- Post First Install: grep -rc pfhome-zzuniq.W9CA4d .aw/state ---
+    .aw/state/durable/install.json:0
+    .aw/state/durable/history/installs.jsonl:0
+    === SECOND INSTALL ===
+    --- Post Second Install: find .aw/state ---
+    .aw/state/durable/history/installs.jsonl
+    .aw/state/durable/install.json
+    --- Post Second Install: cat .aw/state/durable/install.json ---
+    {
+      "project_id": "",
+      "last_installed_at": "2026-10-08T10:39:06Z",
+      "installed_version": "1.3.0rc2.dev8893+g36187f26b.d20261008",
+      "schema_version": 2,
+      "delivery_mode": "tracked",
+      "records_backend": "repository",
+      "event_type": "install",
+      "policy": {
+        "preset": "private-target",
+        "role": "target",
+        "placements": {
+          "system": "target-tracked",
+          "config_project": "target-tracked",
+          "config_local": "target-ignored",
+          "state_durable": "target-ignored",
+          "state_runtime": "target-ignored",
+          "records": "target-tracked"
+        },
+        "git_policies": {
+          "system": "target-git",
+          "config_project": "target-git",
+          "config_local": "ignored",
+          "state_durable": "ignored",
+          "state_runtime": "ignored",
+          "records": "target-git"
+        },
+        "enabled_hosts": [
+          "opencode",
+          "claude",
+          "antigravity"
+        ],
+        "delivery_mode": "tracked",
+        "records_backend": "repository"
+      }
+    }
+    --- Post Second Install: wc -l history files ---
+    2 .aw/state/durable/history/installs.jsonl
+    --- Post Second Install: grep -rc pfhome-zzuniq.W9CA4d .aw/state ---
+    .aw/state/durable/install.json:0
+    .aw/state/durable/history/installs.jsonl:0
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: PASTE the `git diff` of `agent_workflows/install_wizard.py` removing steps 3 and 4, the `grep -rn record_install_history agent_workflows/` call-site listing, and the history line counts (1 then 2) from the V-02 runs.
   - Observed evidence:
-  - Result: pending
+    git diff agent_workflows/install_wizard.py:
+    ```diff
+    diff --git a/agent_workflows/install_wizard.py b/agent_workflows/install_wizard.py
+    index 1172876fa..8ab44a0c2 100644
+    --- a/agent_workflows/install_wizard.py
+    +++ b/agent_workflows/install_wizard.py
+    @@ -912,13 +912,10 @@ def persist_project_policy(
+         """Persist confirmed policy atomically to .aw/config/project.json and local.json (E-05)."""
+         p_repo = Path(repo_path)
+         config_dir = p_repo / ".aw" / "config"
+    -    durable_state_dir = p_repo / ".aw" / "state" / "durable"
+    -
+         if dry_run:
+             return policy.to_dict()
 
-- [ ] V-04 validates E-04
+         config_dir.mkdir(parents=True, exist_ok=True)
+    -    durable_state_dir.mkdir(parents=True, exist_ok=True)
+
+         # 1. Write portable project policy (.aw/config/project.json)
+         proj_schema = ProjectPolicySchema(
+    @@ -949,26 +946,7 @@ def persist_project_policy(
+             json.dump(local_schema.to_dict(), f, indent=2)
+         os.replace(tmp_local, local_json)
+
+    -    # 3. Update durable install snapshot (.aw/state/durable/install.json)
+    -    install_snapshot = durable_state_dir / "install.json"
+    -    tmp_snap = durable_state_dir / ".tmp_install.json"
+    -    snapshot_data = {
+    -        "installed_version": "2026.8.10",
+    -        "schema_version": 2,
+    -        "policy": policy.to_dict(),
+    -    }
+    -    with open(tmp_snap, "w", encoding="utf-8") as f:
+    -        json.dump(snapshot_data, f, indent=2)
+    -    os.replace(tmp_snap, install_snapshot)
+    -
+    -    # 4. Append to durable install history (.aw/state/durable/history/installs.jsonl)
+    -    history_dir = durable_state_dir / "history"
+    -    history_dir.mkdir(parents=True, exist_ok=True)
+    -    history_file = history_dir / "installs.jsonl"
+    -    with open(history_file, "a", encoding="utf-8") as f:
+    -        f.write(json.dumps(snapshot_data) + "\n")
+    -
+    -    # 5. Synchronize cutover dates into project.json
+    +    # 3. Synchronize cutover dates into project.json
+         from agent_workflows import config as _config
+
+         _config.sync_cutovers_on_install(repo_path)
+    ```
+    grep -rn record_install_history agent_workflows/:
+    agent_workflows/cli.py:7779:        from agent_workflows.install_history import record_install_history
+    agent_workflows/cli.py:7781:        record_install_history(
+    agent_workflows/record_producers.py:337:        anchor="record_install_history",
+    agent_workflows/actions.py:16:    record_install_history,
+    agent_workflows/install_history.py:44:def record_install_history(
+
+    History line counts from V-02 runs:
+    Post First Install: 1 line
+    Post Second Install: 2 lines
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: PASTE an upgrade over a seeded four-file layout: the migration report from the install output, `find .aw/state -type f` after, the durable history content, a second install's output showing no migration report, a `--dry-run` over a fresh seed showing the files unchanged, and the `git diff` of `config._find_install_history_cutover`.
   - Observed evidence:
-  - Result: pending
+    === FIRST INSTALL (UPGRADE) OUTPUT ===
+    Legacy layout migrated (pre-restructure repo):
+      - .aw/state/install.json [removed: superseded by durable snapshot]
+      - .aw/state/history/installs.jsonl -> .aw/state/durable/history/installs.jsonl [migrated]
 
-- [ ] V-05 validates E-05
+    === POST UPGRADE FIND .aw/state ===
+    .aw/state/durable/history/installs.jsonl
+    .aw/state/durable/install.json
+
+    === POST UPGRADE DURABLE HISTORY ===
+    {"timestamp": "2026-07-31T00:00:00Z", "event": "durable_prior"}
+    {"timestamp": "2026-08-02T00:00:00Z", "event": "shared"}
+    {"timestamp": "2026-08-01T00:00:00Z", "event": "root_one"}
+    {"timestamp": "2026-08-03T00:00:00Z", "event": "root_three"}
+    {"timestamp": "2026-10-08T10:39:21Z", "details": {"version": "1.3.0rc2.dev8893+g36187f26b.d20261008", "installed_files": 328}, "project_id": "", "last_installed_at": "2026-10-08T10:39:21Z", "installed_version": "1.3.0rc2.dev8893+g36187f26b.d20261008", "schema_version": 2, "delivery_mode": "tracked", "records_backend": "repository", "event_type": "install", "policy": {"preset": "private-target", "role": "target", "placements": {"system": "target-tracked", "config_project": "target-tracked", "config_local": "target-ignored", "state_durable": "target-ignored", "state_runtime": "target-ignored", "records": "target-tracked"}, "git_policies": {"system": "target-git", "config_project": "target-git", "config_local": "ignored", "state_durable": "ignored", "state_runtime": "ignored", "records": "target-git"}, "enabled_hosts": ["opencode", "claude", "antigravity"], "delivery_mode": "tracked", "records_backend": "repository"}}
+
+    === SECOND INSTALL OUTPUT (NO-OP MIGRATION) ===
+    No migration report (Legacy layout migrated does not appear)
+
+    === DRY-RUN OVER FRESH SEED ===
+    .aw/state/durable/history/installs.jsonl
+    .aw/state/durable/install.json
+    .aw/state/history/installs.jsonl
+    .aw/state/install.json
+
+    === git diff of config._find_install_history_cutover ===
+    ```diff
+    diff --git a/agent_workflows/config.py b/agent_workflows/config.py
+    index b3de87572..d586f9e8d 100644
+    --- a/agent_workflows/config.py
+    +++ b/agent_workflows/config.py
+    @@ -1352,8 +1352,8 @@ def _find_install_history_cutover(repo_root: Path, feature: str) -> Optional[str
+         intro_compact = _format_date(intro_date, compact=True)
+
+         history_paths = [
+    -        repo_root / ".aw" / "state" / "history" / "installs.jsonl",
+             repo_root / ".aw" / "state" / "durable" / "history" / "installs.jsonl",
+    +        repo_root / ".aw" / "state" / "history" / "installs.jsonl",
+         ]
+         entries: List[str] = []
+         for hpath in history_paths:
+    ```
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: PASTE the narrowed run of the new test file (cases (a) to (c) passing), the mutation failure output for case (a), the `tests/test_config.py` and `tests/test_installer.py` runs, and the bare `python3 -m pytest` summary line before and after.
   - Observed evidence:
-  - Result: pending
+    Narrowed run of tests/test_install_state_records.py:
+    ============================== 3 passed in 5.99s ===============================
+
+    Mutation failure output for case (a) when restoring wizard steps 3 and 4:
+    FAILED tests/test_install_state_records.py::TestInstallStateRecords::test_fresh_install_and_reinstall_state_records
+    AssertionError: 'aw_home' unexpectedly found in '{"installed_version": "2026.8.10", "schema_version": 2, "policy": {"schema_version": 2, "preset": "private-target", "role": "target", "delivery_mode": "tracked", "records_backend": "repository", "durability_state": "local-git", "aw_home": null, "companion_dir": null, "enabled_hosts": ["opencode", "claude", "antigravity"], "placements": {"system": "target-tracked", "config_project": "target-tracked", "config_local": "target-ignored", "state_durable": "target-ignored", "state_runtime": "target-ignored", "records": "target-tracked"}, "git_policies": {"system": "target-git", "config_project": "target-git", "config_local": "ignored", "state_durable": "ignored", "state_runtime": "ignored", "records": "target-git"}, "non_secret_consent": {}, "target_visibility": "private", "migration_required": false}}\n{"timestamp": "2026-10-08T10:40:21Z", "details": {"version": "1.3.0rc2.dev8893+g36187f26b.d20261008", "installed_files": 328}, "project_id": "", "last_installed_at": "2026-10-08T10:40:21Z", "installed_version": "1.3.0rc2.dev8893+g36187f26b.d20261008", "schema_version": 2, "delivery_mode": "tracked", "records_backend": "repository", "event_type": "install", "policy": {"preset": "private-target", "role": "target", "placements": {"system": "target-tracked", "config_project": "target-tracked", "config_local": "target-ignored", "state_durable": "target-ignored", "state_runtime": "target-ignored", "records": "target-tracked"}, "git_policies": {"system": "target-git", "config_project": "target-git", "config_local": "ignored", "state_durable": "ignored", "state_runtime": "ignored", "records": "target-git"}, "enabled_hosts": ["opencode", "claude", "antigravity"], "delivery_mode": "tracked", "records_backend": "repository"}}\n'
+
+    tests/test_config.py and tests/test_installer.py run:
+    33 passed in 3.02s
+
+    Bare python3 -m pytest summary line before:
+    6784 passed, 2 skipped, 3 warnings in 322.14s (0:05:22)
+
+    Bare python3 -m pytest summary line after:
+    6787 passed, 2 skipped, 3 warnings in 155.23s (0:02:35)
+  - Result: pass
 
 ## Approval and execution gate
 

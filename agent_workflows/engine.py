@@ -3319,6 +3319,100 @@ def _report_misplaced_run_records(repo_root: Path) -> list[str]:
     return [report]
 
 
+def migrate_root_state_records(
+    repo_root: Path,
+    dry_run: bool = False,
+) -> list[str]:
+    """Relocate legacy root-level state records (.aw/state/install.json and
+    .aw/state/history/installs.jsonl) into the durable state class (.aw/state/durable/).
+
+    instbugs Order 03 (pfub72). Pre-cutover installs wrote snapshot and history at both
+    the state root and durable paths. This migration moves or cleans up the root copies:
+    moves root install.json to durable if none exists, else deletes it; appends distinct
+    root history lines to durable history; and removes root history file/dir.
+    Reports only when something moved; does nothing on dry_run.
+    """
+    if dry_run:
+        return []
+
+    repo = Path(repo_root)
+    root_state = repo / ".aw" / "state"
+    if not root_state.is_dir():
+        return []
+
+    root_install = root_state / "install.json"
+    root_history_dir = root_state / "history"
+    root_history = root_history_dir / "installs.jsonl"
+
+    durable_state = root_state / "durable"
+    durable_install = durable_state / "install.json"
+    durable_history_dir = durable_state / "history"
+    durable_history = durable_history_dir / "installs.jsonl"
+
+    migrated: list[str] = []
+
+    # 1. Migrate install.json
+    if root_install.is_file():
+        durable_state.mkdir(parents=True, exist_ok=True)
+        if durable_install.exists():
+            root_install.unlink()
+            migrated.append(
+                ".aw/state/install.json [removed: superseded by durable snapshot]"
+            )
+        else:
+            shutil.move(str(root_install), str(durable_install))
+            migrated.append(
+                ".aw/state/install.json -> .aw/state/durable/install.json [migrated]"
+            )
+
+    # 2. Migrate history/installs.jsonl
+    if root_history.is_file():
+        try:
+            root_content = root_history.read_text(encoding="utf-8")
+        except OSError:
+            root_content = ""
+        root_lines = [
+            line.strip() for line in root_content.splitlines() if line.strip()
+        ]
+
+        existing_lines: list[str] = []
+        if durable_history.is_file():
+            try:
+                durable_content = durable_history.read_text(encoding="utf-8")
+                existing_lines = [
+                    line.strip()
+                    for line in durable_content.splitlines()
+                    if line.strip()
+                ]
+            except OSError:
+                existing_lines = []
+
+        existing_set = set(existing_lines)
+        lines_to_append: list[str] = []
+        for line in root_lines:
+            if line not in existing_set:
+                lines_to_append.append(line)
+                existing_set.add(line)
+
+        if lines_to_append or not durable_history.is_file():
+            durable_history_dir.mkdir(parents=True, exist_ok=True)
+            with open(durable_history, "a", encoding="utf-8") as f:
+                for line in lines_to_append:
+                    f.write(line + "\n")
+
+        root_history.unlink()
+        try:
+            root_history_dir.rmdir()
+        except OSError:
+            pass
+
+        migrated.append(
+            ".aw/state/history/installs.jsonl -> .aw/state/durable/history/installs.jsonl [migrated]"
+        )
+
+    return migrated
+
+
 def check_gitignore(plan: InstallPlan) -> str:
     """Report whether the run-scratch tree (`ARTIFACTS_DIR`) is actually ignored in this repo.
 
@@ -7026,6 +7120,7 @@ def install_into_repo(
     migrated.extend(
         migrate_root_workflow_artifacts(repo_root, use_git=use_git, dry_run=dry_run)
     )
+    migrated.extend(migrate_root_state_records(repo_root, dry_run=dry_run))
     installed, skipped, _ = install_all(plan, body_members, generated_members, use_git)
     pruned = prune_stale(
         plan, body_members, generated_members, use_git, target_layout=target_layout

@@ -912,13 +912,10 @@ def persist_project_policy(
     """Persist confirmed policy atomically to .aw/config/project.json and local.json (E-05)."""
     p_repo = Path(repo_path)
     config_dir = p_repo / ".aw" / "config"
-    durable_state_dir = p_repo / ".aw" / "state" / "durable"
-
     if dry_run:
         return policy.to_dict()
 
     config_dir.mkdir(parents=True, exist_ok=True)
-    durable_state_dir.mkdir(parents=True, exist_ok=True)
 
     # 1. Write portable project policy (.aw/config/project.json)
     proj_schema = ProjectPolicySchema(
@@ -949,26 +946,7 @@ def persist_project_policy(
         json.dump(local_schema.to_dict(), f, indent=2)
     os.replace(tmp_local, local_json)
 
-    # 3. Update durable install snapshot (.aw/state/durable/install.json)
-    install_snapshot = durable_state_dir / "install.json"
-    tmp_snap = durable_state_dir / ".tmp_install.json"
-    snapshot_data = {
-        "installed_version": "2026.8.10",
-        "schema_version": 2,
-        "policy": policy.to_dict(),
-    }
-    with open(tmp_snap, "w", encoding="utf-8") as f:
-        json.dump(snapshot_data, f, indent=2)
-    os.replace(tmp_snap, install_snapshot)
-
-    # 4. Append to durable install history (.aw/state/durable/history/installs.jsonl)
-    history_dir = durable_state_dir / "history"
-    history_dir.mkdir(parents=True, exist_ok=True)
-    history_file = history_dir / "installs.jsonl"
-    with open(history_file, "a", encoding="utf-8") as f:
-        f.write(json.dumps(snapshot_data) + "\n")
-
-    # 5. Synchronize cutover dates into project.json
+    # 3. Synchronize cutover dates into project.json
     from agent_workflows import config as _config
 
     _config.sync_cutovers_on_install(repo_path)

@@ -1352,8 +1352,8 @@ def _find_install_history_cutover(repo_root: Path, feature: str) -> Optional[str
     intro_compact = _format_date(intro_date, compact=True)
 
     history_paths = [
-        repo_root / ".aw" / "state" / "history" / "installs.jsonl",
         repo_root / ".aw" / "state" / "durable" / "history" / "installs.jsonl",
+        repo_root / ".aw" / "state" / "history" / "installs.jsonl",
     ]
     entries: List[str] = []
     for hpath in history_paths:
