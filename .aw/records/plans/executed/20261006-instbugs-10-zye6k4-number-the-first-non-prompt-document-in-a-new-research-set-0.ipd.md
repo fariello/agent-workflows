@@ -6,7 +6,7 @@
 - Scope: IN: when a NEW set's first document is not a `research-prompt`, number it `01` (a `research-prompt` opening a new set stays `00`); existing sets keep max+1; add `--order NN` to `aw research new` and `aw adopt` (refused if that order is already taken in the set); amend spec Section 5.1 to match Section 4.6 and record the amendment with `aw specs note`; adjust the research README template line if wording needs it; tests. OUT: renaming existing files numbered `00` that are not prompts (maintainer ruling: existing files are not renamed); the comparison scaffold (already correct); companion files (backlog `bh1cy5`).
 - Scope-Paths: agent_workflows/research_cmd.py, agent_workflows/artifact_adopt.py, agent_workflows/cli.py, .aw/records/specs/implemented/20260730-2152-01-agents-artifact-organization.spec.md, .aw/system/workflows/templates/agents-docs-research-README.md, tests/test_research_first_order.py, tests/test_research_cmd_create.py, tests/test_artifact_adopt.py, tests/test_research_date_containment.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Blocks-Release: f33nrj
 - Work-Kind: bug
@@ -16,9 +16,9 @@
 - Highest E allocated: 05
 - Author: antigravity/claude-opus-5.5
 - Id: zye6k4
-- Approval: 2026-10-07, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-08 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: zye6k4 verified (set instbugs, attempt 1). [Scope reconciliation - out-of-scope tests/test_research_index_name_fm_mismatch.py: changed by the plan's approved execution (auto-reconciled by aw agy run); in-scope-unmodified .aw/system/workflows/templates/agents-docs-research-README.md: declared-but-unmodified (auto-acknowledged by aw agy run)]
 - 2026-10-07 approved (aw set): status set to approved
 - 2026-10-07 same-status (aw set): gate on release 2.0.0 (f33nrj) at the maintainer's instruction 2026-10-06: all instbugs plans block 2.0.0
 
