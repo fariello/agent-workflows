@@ -3660,8 +3660,10 @@ def render_run_summary_table(
         col_widths[idx_c] = max(col_widths[idx_c], _T.visible_width(tot_str))
 
     b_title = f"AW RUN SUMMARY: {run_id} ({driver_label})"
+    restarts_cnt = state.get("driver_restarts", 0)
+    restarts_str = f"   Restarts: {restarts_cnt}" if restarts_cnt > 0 else ""
     b_line1 = (
-        f"Outcome: {outcome_color}{outcome_str}{c_reset}   "
+        f"Outcome: {outcome_color}{outcome_str}{c_reset}{restarts_str}   "
         f"Duration: {c_cyan}{tot_dur_str}{c_reset}   "
         f"Spend: {c_green}{tot_cost_str}{c_reset}   "
         f"Tokens: {tot_tok_str} (In: {tot_in_str} {vl} Out: {tot_out_str} {vl} Cache: {tot_cache_str})"
@@ -3889,6 +3891,14 @@ def render_run_summary_table(
             diag_lines.append(f"  • {id6}: {st} ({it['integration_deferral']})")
         elif st == "interrupted" and _interrupt_reason_of(it):
             diag_lines.append(f"  • {id6}: interrupted ({_interrupt_reason_of(it)})")
+
+    dr_refusal = state.get("driver_restart_refusal")
+    if isinstance(dr_refusal, dict):
+        dr_reason = dr_refusal.get("reason", "")
+        dr_remedy = dr_refusal.get("remedy", "")
+        diag_lines.append(f"  • driver-restart-limit: {dr_reason}")
+        if dr_remedy:
+            diag_lines.append(f"    → remedy: {dr_remedy}")
 
     if diag_lines:
         lines.append("")

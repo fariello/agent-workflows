@@ -457,6 +457,16 @@ def get_run_attestation(run_dir: Path | str | None) -> str | None:
     return None
 
 
+_HELD_RUN_LOCKS: dict[str, Any] = {}
+
+
+def held_run_lock(run_dir: Path | str | None) -> Any | None:
+    """Retrieve the held RunLockHandle for a run directory from the registry."""
+    if run_dir is None:
+        return None
+    return _HELD_RUN_LOCKS.get(str(Path(run_dir).resolve()))
+
+
 # ---- analytics namespace reservation -------------------------------------------------------------
 
 ANALYTICS_DIRNAME: str = "analytics"
@@ -31248,9 +31258,12 @@ def run_lock(run_dir: Path):
     # RunLockHandle owns the OBSERVABLE release (unlink-then-unlock under the inode check); the
     # underlying platform lock is released after it, so the descriptor outlives the unlink.
     lock = runner_shutdown.RunLockHandle(path=lock_path, handle=handle, owner=held)
+    resolved_key = str(run_dir.resolve())
+    _HELD_RUN_LOCKS[resolved_key] = lock
     try:
         yield lock
     finally:
+        _HELD_RUN_LOCKS.pop(resolved_key, None)
         lock.release()
         held.release()
 
@@ -31296,6 +31309,221 @@ def locked_run(run_dir: Path):
             )
             if not report.all_satisfied or report.dirty_paths or report.reaped_pids:
                 print(report.render(), file=sys.stderr)
+
+
+def restart_decision(
+    change: Any,
+    restart_count: int,
+    limit: int = 20,
+    *,
+    disabled: bool = False,
+    stop_level: int | None = None,
+    has_work: bool = True,
+) -> str:
+    """Pure decision for whether to restart the driver process between items.
+
+    Returns one of:
+      - 'none': disabled (AW_NO_DRIVER_RESTART=1), stop requested, no remaining work,
+        or no toolkit code change detected.
+      - 'unavailable': code changed but checkout is not restartable (non-target checkout).
+      - 'limit-reached': code changed, restartable, but restart_count >= limit.
+      - 'restart': code changed, restartable, under limit, work remains, not stopped.
+    """
+    if disabled or stop_level is not None or not has_work or not change.changed:
+        return "none"
+    if not change.restartable:
+        return "unavailable"
+    if restart_count >= limit:
+        return "limit-reached"
+    return "restart"
+
+
+def build_resume_argv(
+    state: dict[str, Any],
+    *,
+    host_labels: Any,
+    run_dir: Path | str | None = None,
+) -> list[str]:
+    """Build the command-line argv for resuming a run under the specified host."""
+    host_id = getattr(host_labels, "id", None)
+    if host_id == OC_HOST_LABELS.id:
+        host_token = "oc"
+    elif host_id == AGY_HOST_LABELS.id:
+        host_token = "agy"
+    elif hasattr(host_labels, "argv_tokens") and host_labels.argv_tokens:
+        host_token = host_labels.argv_tokens[0]
+    else:
+        host_token = "oc"
+
+    run_id = state.get("run_id") or (
+        Path(run_dir).name if run_dir is not None else "run-unknown"
+    )
+    repo = state.get("repo", ".")
+    argv = [
+        sys.executable,
+        "-m",
+        "agent_workflows",
+        host_token,
+        "run",
+        "resume",
+        run_id,
+        "--repo",
+        str(repo),
+    ]
+
+    options = state.get("options", {})
+    output_mode = options.get("output_mode", "clean")
+    if output_mode == "quiet":
+        argv.append("--quiet")
+    elif output_mode == "raw":
+        argv.append("--raw")
+
+    verbosity = int(options.get("verbosity", 0) or 0)
+    if verbosity > 0:
+        argv.extend(["-v"] * verbosity)
+
+    return argv
+
+
+def _default_replace(argv: list[str], env: dict[str, str]) -> None:
+    """Default process replacement: os.execve on POSIX, subprocess.call + sys.exit on Windows."""
+    if os.name == "nt":
+        import subprocess
+
+        code = subprocess.call(argv, env=env)
+        sys.exit(code)
+    else:
+        os.execve(sys.executable, argv, env)
+
+
+def restart_on_new_code_if_needed(
+    run_dir: Path,
+    state: dict[str, Any],
+    *,
+    host_labels: Any,
+    previous_id6: str | None = None,
+    stop_level: int | None = None,
+    replace: Callable[[list[str], dict[str, str]], None] | None = None,
+    package_root: Path | str | None = None,
+    has_work: bool | None = None,
+) -> str:
+    """Check if toolkit code changed; if so, record and restart driver into resume.
+
+    Acts on the pure restart_decision ('none', 'restart', 'unavailable', 'limit-reached').
+    When 'restart' is decided:
+      - verifies a held run lock exists (otherwise records driver-restart-unavailable and returns 'unavailable')
+      - increments state['driver_restarts']
+      - appends entry to state['driver']['loaded_code']
+      - appends driver-restarted event to events.jsonl
+      - saves state
+      - releases the held run lock
+      - flushes stdout and stderr
+      - calls replace(argv, env)
+    """
+    from agent_workflows import loaded_code
+
+    repo = Path(state.get("repo", "."))
+    change = loaded_code.code_changed(repo, package_root=package_root)
+    restart_count = state.get("driver_restarts", 0)
+    if has_work is None:
+        has_work = any(
+            item.get("status") == "queued" for item in state.get("queue", [])
+        ) or bool(deferred_integration_items(state))
+    disabled = os.environ.get("AW_NO_DRIVER_RESTART") == "1"
+
+    decision = restart_decision(
+        change,
+        restart_count,
+        disabled=disabled,
+        stop_level=stop_level,
+        has_work=has_work,
+    )
+
+    if decision in ("none", "unavailable"):
+        return decision
+
+    if decision == "limit-reached":
+        append_jsonl(
+            run_dir / "events.jsonl",
+            {
+                "at": utc_now(),
+                "event": "driver-restart-limit",
+                "restart_count": restart_count,
+                "limit": 20,
+                "old_fingerprint": change.old,
+                "new_fingerprint": change.new,
+            },
+        )
+        reason = "Driver restart limit of 20 reached with toolkit code still changing"
+        remedy = "Resume the run once the toolkit code has settled"
+        refusal = {
+            "code": "driver-restart-limit",
+            "reason": reason,
+            "remedy": remedy,
+        }
+        state["driver_restart_refusal"] = refusal
+        print(f"driver-restart-limit: {reason} (remedy: {remedy})", file=sys.stderr)
+        sys.stderr.flush()
+        save_state(run_dir, state)
+        return decision
+
+    # decision == "restart"
+    lock = held_run_lock(run_dir)
+    if lock is None:
+        append_jsonl(
+            run_dir / "events.jsonl",
+            {
+                "at": utc_now(),
+                "event": "driver-restart-unavailable",
+                "reason": "no-run-lock",
+            },
+        )
+        return "unavailable"
+
+    new_count = restart_count + 1
+    state["driver_restarts"] = new_count
+
+    if package_root is not None:
+        pkg_root_str = str(Path(package_root).resolve())
+    else:
+        pkg_root_str = str(Path(runner_package_root()).resolve())
+
+    loaded_code_entry = {
+        "package_root": pkg_root_str,
+        "fingerprint": change.new,
+        "recorded_at": utc_now(),
+        "is_target_checkout": True,
+        "restart": new_count,
+    }
+    state.setdefault("driver", {}).setdefault("loaded_code", []).append(
+        loaded_code_entry
+    )
+
+    append_jsonl(
+        run_dir / "events.jsonl",
+        {
+            "at": utc_now(),
+            "event": "driver-restarted",
+            "old_fingerprint": change.old,
+            "new_fingerprint": change.new,
+            "changed_files": list(change.changed_files),
+            "previous_id6": previous_id6,
+            "restart_count": new_count,
+        },
+    )
+
+    save_state(run_dir, state)
+    lock.release()
+    sys.stdout.flush()
+    sys.stderr.flush()
+
+    argv = build_resume_argv(state, host_labels=host_labels, run_dir=run_dir)
+    env = dict(os.environ)
+    env["AW_DRIVER_RESTART"] = str(new_count)
+
+    replacer = replace if replace is not None else _default_replace
+    replacer(argv, env)
+    return "restart"
 
 
 def terminate_process(
