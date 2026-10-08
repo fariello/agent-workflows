@@ -37,34 +37,34 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: re-establish
 
-- [ ] E-01 Re-measure at the execution HEAD (after Orders 02 and 03): fresh `aw install . --preset private-target -y --no-interactive > log 2>&1` in a temp git repo containing only a committed `package.json`, with `AW_NO_REEXEC=1`, `HOME` pointed at a temp dir and a git identity in the environment; record `git status --short`, `git ls-files .aw/config`, `git check-ignore -v .aw/workflow-artifacts/README.md`, and the log lines containing "Gitignore (run scratch)", "Git: staging", "STAGED", and "committed". Then commit any leftover, re-run the same install (upgrade) and record `git status --short` and the same log lines.
+- [x] E-01 Re-measure at the execution HEAD (after Orders 02 and 03): fresh `aw install . --preset private-target -y --no-interactive > log 2>&1` in a temp git repo containing only a committed `package.json`, with `AW_NO_REEXEC=1`, `HOME` pointed at a temp dir and a git identity in the environment; record `git status --short`, `git ls-files .aw/config`, `git check-ignore -v .aw/workflow-artifacts/README.md`, and the log lines containing "Gitignore (run scratch)", "Git: staging", "STAGED", and "committed". Then commit any leftover, re-run the same install (upgrade) and record `git status --short` and the same log lines.
   - Depends on: none
   - Expected outcome: pasted evidence of `?? .aw/config/`, the false advisory, and the contradictory messages, with the HEAD sha. STOP and report any part already fixed, and narrow the plan to what remains.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: fix
 
-- [ ] E-02 Make the wizard's writes visible to staging. The writer is `install_wizard.persist_project_policy`, called from `cli._run_install` before `cli._install_one`; `config.sync_cutovers_on_install` (called inside it, and again inside `engine.install_into_repo`) may rewrite `project.json` on every run. Implement it as one helper in `engine` (e.g. `stage_tracked_policy_files(repo_root, use_git, installed)`), called inside `engine.install_into_repo` after `sync_cutovers_on_install`, so `aw install`, `aw install all` and `aw setup` all get it from the one shared core: for each wizard-written path (today `.aw/config/project.json`) whose class git policy in the stored `project.json` is `target-git` and which `git status --porcelain -- <path>` reports as new or modified, stage it through `_stage_installed_file` and append `"<path> [install]"` or `"<path> [overwrite]"` to `installed`, so both the listing and `prompt_and_run_commit` include it. Never stage a path whose class policy is `ignored`, nor any path `git check-ignore` reports ignored. Have `persist_project_policy` return (in its dict, under a new key) the repo-relative paths it wrote, so the helper's path list is not a second hard-coded copy.
+- [x] E-02 Make the wizard's writes visible to staging. The writer is `install_wizard.persist_project_policy`, called from `cli._run_install` before `cli._install_one`; `config.sync_cutovers_on_install` (called inside it, and again inside `engine.install_into_repo`) may rewrite `project.json` on every run. Implement it as one helper in `engine` (e.g. `stage_tracked_policy_files(repo_root, use_git, installed)`), called inside `engine.install_into_repo` after `sync_cutovers_on_install`, so `aw install`, `aw install all` and `aw setup` all get it from the one shared core: for each wizard-written path (today `.aw/config/project.json`) whose class git policy in the stored `project.json` is `target-git` and which `git status --porcelain -- <path>` reports as new or modified, stage it through `_stage_installed_file` and append `"<path> [install]"` or `"<path> [overwrite]"` to `installed`, so both the listing and `prompt_and_run_commit` include it. Never stage a path whose class policy is `ignored`, nor any path `git check-ignore` reports ignored. Have `persist_project_policy` return (in its dict, under a new key) the repo-relative paths it wrote, so the helper's path list is not a second hard-coded copy.
   - Depends on: E-01
   - Expected outcome: after a fresh `-y` install, `git ls-files .aw/config` lists `.aw/config/project.json` and the listing shows it; `.aw/config/local.json` and `.aw/state/` remain untracked and ignored; an upgrade whose cutover sync changes `project.json` stages and commits it too.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 Move the `check_gitignore(plan)` evaluation in `engine.install_into_repo` (the one shared core reached by `engine.run`, `cli._install_one`, `aw install all` and `aw setup`) to after the last step in that function that writes an ignore file (`create_setup_artifacts` and anything after it that can append to `.aw/.gitignore`), keeping the writer order recorded at "Canonical step order (D83)" unchanged. Check whether `backups_ignore_status`/`untracked_ignore_status` read ignore state rather than report their own write; move any that do the same way.
+- [x] E-03 Move the `check_gitignore(plan)` evaluation in `engine.install_into_repo` (the one shared core reached by `engine.run`, `cli._install_one`, `aw install all` and `aw setup`) to after the last step in that function that writes an ignore file (`create_setup_artifacts` and anything after it that can append to `.aw/.gitignore`), keeping the writer order recorded at "Canonical step order (D83)" unchanged. Check whether `backups_ignore_status`/`untracked_ignore_status` read ignore state rather than report their own write; move any that do the same way.
   - Depends on: E-02
   - Expected outcome: a fresh install prints "Gitignore (run scratch): .aw/workflow-artifacts/ is ignored by .aw/.gitignore (correct ...)", matching `git check-ignore`.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 Make the closing report truthful. In `engine.print_summary`, replace "Git: staging changes (no commit)" with a neutral statement of fact (e.g. "Git: changes staged; commit offered below") and remove the "Changes are STAGED but NOT committed" block from the summary. In `engine.prompt_and_run_commit`, emit exactly one closing line on every path where the run changed something: on a successful commit, "Changes committed: <short sha>" read from `git rev-parse --short HEAD`; on a failed commit, the existing error plus the staged-not-committed line; on decline or non-interactive without `-y`, the staged-not-committed line plus the existing manual command; when its filtered set is empty (nothing changed), no staged claim at all. Both `engine.run` and `cli._install_one` call these two functions in the same order, so one change covers every entry point.
+- [x] E-04 Make the closing report truthful. In `engine.print_summary`, replace "Git: staging changes (no commit)" with a neutral statement of fact (e.g. "Git: changes staged; commit offered below") and remove the "Changes are STAGED but NOT committed" block from the summary. In `engine.prompt_and_run_commit`, emit exactly one closing line on every path where the run changed something: on a successful commit, "Changes committed: <short sha>" read from `git rev-parse --short HEAD`; on a failed commit, the existing error plus the staged-not-committed line; on decline or non-interactive without `-y`, the staged-not-committed line plus the existing manual command; when its filtered set is empty (nothing changed), no staged claim at all. Both `engine.run` and `cli._install_one` call these two functions in the same order, so one change covers every entry point.
   - Depends on: E-03
   - Expected outcome: a `-y` fresh run's log contains the committed line with a sha `git log -1 --format=%h` confirms and no "STAGED but NOT committed"; a no-change upgrade's log contains neither.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: pin it
 
-- [ ] E-05 Add `tests/test_install_report_truth.py` (mark `slow` like `tests/test_installer.py`, since it runs real installs) driving `aw install . --preset private-target -y --no-interactive` in a subprocess into a temp git repo (non-Python: committed `package.json` only; `AW_NO_REEXEC=1`, temp `HOME`, git identity in env): (a) after `-y`, `git status --porcelain` is empty and `git ls-files .aw/config` contains `project.json` but not `local.json`; (b) the captured output's run-scratch line says "is ignored" and agrees with `git check-ignore -q .aw/workflow-artifacts/README.md` (exit 0); (c) the `-y` output contains the committed line with the HEAD short sha and does not contain "STAGED but NOT committed"; (d) a second `-y` install leaves `git status --porcelain` empty and its output contains neither the staged line nor a false committed line when nothing changed; (e) the decline path, which a non-interactive CLI run cannot reach (`cli._confirm_install` aborts first without `-y`): build an `InstallPlan` with `yes=False` for a temp repo with one staged change, call `engine.prompt_and_run_commit` under a non-interactive stdout, and assert the output contains the staged-not-committed line and the manual command and not the committed line. Prove (a) can fail by dropping the E-02 staging call and pasting the failure, then revert.
+- [x] E-05 Add `tests/test_install_report_truth.py` (mark `slow` like `tests/test_installer.py`, since it runs real installs) driving `aw install . --preset private-target -y --no-interactive` in a subprocess into a temp git repo (non-Python: committed `package.json` only; `AW_NO_REEXEC=1`, temp `HOME`, git identity in env): (a) after `-y`, `git status --porcelain` is empty and `git ls-files .aw/config` contains `project.json` but not `local.json`; (b) the captured output's run-scratch line says "is ignored" and agrees with `git check-ignore -q .aw/workflow-artifacts/README.md` (exit 0); (c) the `-y` output contains the committed line with the HEAD short sha and does not contain "STAGED but NOT committed"; (d) a second `-y` install leaves `git status --porcelain` empty and its output contains neither the staged line nor a false committed line when nothing changed; (e) the decline path, which a non-interactive CLI run cannot reach (`cli._confirm_install` aborts first without `-y`): build an `InstallPlan` with `yes=False` for a temp repo with one staged change, call `engine.prompt_and_run_commit` under a non-interactive stdout, and assert the output contains the staged-not-committed line and the manual command and not the committed line. Prove (a) can fail by dropping the E-02 staging call and pasting the failure, then revert.
   - Depends on: E-04
   - Expected outcome: the new tests pass; the mutation fails (a); no test reads production source.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -130,30 +130,107 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: PASTE the pre-edit fresh and upgrade `git status --short`, `git ls-files .aw/config`, `git check-ignore -v` line, and the log lines, with the HEAD sha.
   - Observed evidence:
-  - Result: pending
+    HEAD sha: 16537cc25032791b03544e09638862449919263c
+    Fresh install:
+    === FRESH INSTALL LOG LINES ===
+    Git: staging changes (no commit)
+    Gitignore (run scratch): .aw/workflow-artifacts/ is NOT ignored (run scratch carries local paths and session detail (D92); re-run `aw install` to add the framework-owned .aw/.gitignore rule)
+    Changes are STAGED but NOT committed. Review and commit, e.g.:
+    Changes committed successfully.
+    === FRESH STATUS ===
+    ?? .aw/config/
+    === FRESH LS-FILES .aw/config ===
+    (empty)
+    === FRESH CHECK-IGNORE README ===
+    .aw/.gitignore:78:/workflow-artifacts/	.aw/workflow-artifacts/README.md
+    Upgrade install:
+    === UPGRADE INSTALL LOG LINES ===
+    Git: staging changes (no commit)
+    Gitignore (run scratch): .aw/workflow-artifacts/ is ignored by .aw/.gitignore (correct; run scratch stays untracked, D92)
+    Changes are STAGED but NOT committed. Review and commit, e.g.:
+    === UPGRADE STATUS ===
+    (empty)
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: PASTE a post-edit fresh `-y` install's `git status --porcelain` (empty), `git ls-files .aw/config` (project.json only), `git status --short --ignored | grep '^!!'` (local.json and state still ignored), and the listing line for `project.json`; plus an upgrade after hand-deleting the `cutovers` key from the committed `project.json`, showing `git status --porcelain` empty afterwards and `git show --stat HEAD` including `project.json`.
   - Observed evidence:
-  - Result: pending
+    Fresh -y install:
+    git status --porcelain:
+    (empty)
+    git ls-files .aw/config:
+    .aw/config/project.json
+    git status --short --ignored | grep '^!!':
+    !! .aw/config/local.json
+    !! .aw/state/
+    Listing line:
+    [added    ] .aw/config/project.json
+    Upgrade after hand-deleting cutovers key:
+    git status --porcelain:
+    (empty)
+    git show --stat HEAD:
+     .aw/config/project.json | 12 +++++++++++-
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: PASTE the fresh install's run-scratch line and `git check-ignore -v .aw/workflow-artifacts/README.md`, agreeing.
   - Observed evidence:
-  - Result: pending
+    Run-scratch line:
+    Gitignore (run scratch): .aw/workflow-artifacts/ is ignored by .aw/.gitignore (correct; run scratch stays untracked, D92)
+    git check-ignore -v .aw/workflow-artifacts/README.md:
+    .aw/.gitignore:78:/workflow-artifacts/	.aw/workflow-artifacts/README.md
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: PASTE from a fresh `-y` log `grep -c "STAGED but NOT committed"` (0), the "Git:" line, and the committed line, plus `git log -1 --format=%h` matching its sha; and from a no-change upgrade log the same grep (0) and the absence of a committed line.
   - Observed evidence:
-  - Result: pending
+    Fresh -y log:
+    grep -c "STAGED but NOT committed": 0
+    "Git:" line:
+    Git: changes staged; commit offered below
+    Committed line:
+    Changes committed: e5ef189
+    git log -1 --format=%h:
+    e5ef189
+    No-change upgrade log:
+    grep -c "STAGED but NOT committed": 0
+    Committed line: (absent; 0 occurrences of "Changes committed:")
+  - Result: pass
 
-- [ ] V-05 validates E-05
+- [x] V-05 validates E-05
   - Required evidence: PASTE the narrowed run of the new test file, the mutation failure, and the bare-suite summary line against the baseline.
   - Observed evidence:
-  - Result: pending
+    Narrowed run:
+    ```
+    rootdir: <repo-root>
+    configfile: pyproject.toml
+    plugins: anyio-4.14.1, randomly-4.1.0, cov-7.1.0, xdist-3.8.0
+    12 workers [3 items]
+    ...                                                                      [100%]
+    ============================== 3 passed in 5.22s ===============================
+    ```
+    Mutation failure (dropping stage_tracked_policy_files):
+    ```
+    E           AssertionError: '?? .aw/config/' != ''
+    E           - ?? .aw/config/
+    E            : expected clean porcelain status, got:
+    E           ?? .aw/config/
+    FAILED tests/test_install_report_truth.py::TestInstallReportTruth::test_fresh_install_staging_advisories_and_closing_report
+    FAILED tests/test_install_report_truth.py::TestInstallReportTruth::test_second_install_nochange_leaves_clean_status_and_no_false_lines
+    ========================= 2 failed, 1 passed in 5.23s ==========================
+    ```
+    Bare-suite summary line:
+    ```
+    6787 passed, 2 skipped, 3 warnings in 167.53s (0:02:47)
+    ```
+    Baseline:
+    ```
+    6787 passed, 2 skipped, 3 warnings in 319.97s (0:05:19)
+    ```
+  - Result: pass
 
 ## Approval and execution gate
 

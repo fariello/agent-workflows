@@ -2385,6 +2385,92 @@ def _warn_ignored_shim(relative_posix: str) -> None:
     )
 
 
+def stage_tracked_policy_files(
+    repo_root: Path, use_git: bool, installed: list[str]
+) -> None:
+    """Stage wizard-written policy files whose class git policy is target-git (gzsfqn E-02).
+
+    Called inside install_into_repo after sync_cutovers_on_install, so aw install,
+    aw install all, and aw setup all get it from the one shared core: for each wizard-written
+    path (today .aw/config/project.json) whose class git policy in the stored project.json
+    is target-git and which `git status --porcelain -- <path>` reports as new or modified,
+    stage it through `_stage_installed_file` and append `<path> [install]` or
+    `<path> [overwrite]` to installed. Never stage a path whose class policy is ignored,
+    nor any path git check-ignore reports ignored.
+    """
+    if not use_git:
+        return
+
+    from agent_workflows.install_wizard import (
+        WIZARD_PATH_CLASSES,
+        WIZARD_WRITTEN_PATHS,
+    )
+    from agent_workflows.project_schema import GitPolicy
+
+    proj_json_path = repo_root / ".aw" / "config" / "project.json"
+    if not proj_json_path.is_file():
+        return
+
+    try:
+        with open(proj_json_path, "r", encoding="utf-8") as f:
+            proj_data = json.load(f)
+    except Exception:
+        return
+
+    if not isinstance(proj_data, dict):
+        return
+
+    git_policies = proj_data.get("git_policies", {})
+    if not isinstance(git_policies, dict):
+        return
+
+    for rel_path in WIZARD_WRITTEN_PATHS:
+        root_class = WIZARD_PATH_CLASSES.get(rel_path)
+        if not root_class:
+            continue
+        policy = git_policies.get(root_class)
+        if policy != GitPolicy.TARGET_GIT.value:
+            continue
+
+        file_path = repo_root / rel_path
+        if not file_path.is_file():
+            continue
+
+        # Check git check-ignore
+        try:
+            ignore_res = subprocess.run(
+                ["git", "-C", str(repo_root), "check-ignore", "-q", "--", rel_path],
+                capture_output=True,
+            )
+            if ignore_res.returncode == 0:
+                continue
+        except OSError:
+            continue
+
+        # Check git status --porcelain -- <path>
+        try:
+            status_res = subprocess.run(
+                ["git", "-C", str(repo_root), "status", "--porcelain", "--", rel_path],
+                capture_output=True,
+                text=True,
+            )
+            if status_res.returncode != 0 or not status_res.stdout.strip():
+                continue
+        except OSError:
+            continue
+
+        is_tracked = git_is_tracked(repo_root, rel_path)
+        tag = "overwrite" if is_tracked else "install"
+
+        _stage_installed_file(repo_root, rel_path)
+
+        installed_entry = f"{rel_path} [{tag}]"
+        if not any(
+            item.startswith(f"{rel_path} ") or item == rel_path for item in installed
+        ):
+            installed.append(installed_entry)
+
+
 def install_all(
     plan: InstallPlan,
     body_members: list[str],
@@ -4508,9 +4594,16 @@ def prompt_and_run_commit(
         ] + paths_list
         res = subprocess.run(cmd, cwd=str(plan.repo_root), shell=False)
         if res.returncode == 0:
-            print(term.colorize("Changes committed successfully.", "green"))
+            sha_res = subprocess.run(
+                ["git", "-C", str(plan.repo_root), "rev-parse", "--short", "HEAD"],
+                capture_output=True,
+                text=True,
+            )
+            short_sha = sha_res.stdout.strip()
+            print(term.colorize(f"Changes committed: {short_sha}", "green"))
         else:
             sys.stderr.write(term.colorize("Error: git commit failed.\n", "red"))
+            print("Changes are STAGED but NOT committed.")
     else:
         quoted_paths = []
         for p in paths_list:
@@ -4519,6 +4612,7 @@ def prompt_and_run_commit(
             else:
                 quoted_paths.append(p)
         print()
+        print("Changes are STAGED but NOT committed.")
         print("To commit these changes manually, run:")
         print(f'  git commit -m "sync agent-workflows" -- {" ".join(quoted_paths)}')
 
@@ -4592,7 +4686,7 @@ def print_summary(
     print(f"Repository root: {plan.repo_root}")
     print(f"Source: {plan.source_root}")
     print(
-        f"Git: {'staging changes (no commit)' if use_git else 'not a git repo; filesystem only'}"
+        f"Git: {'changes staged; commit offered below' if use_git else 'not a git repo; filesystem only'}"
     )
     print()
 
@@ -4643,8 +4737,6 @@ def print_summary(
         print(
             "Inbox drop zone: drop raw external material into .aw/inbox/ for 'aw adopt'."
         )
-        print("Changes are STAGED but NOT committed. Review and commit, e.g.:")
-        print('  git commit -m "agent-workflows: sync via installer"')
 
     print()
     print("Workflows available:")
@@ -7129,7 +7221,6 @@ def install_into_repo(
     agents_status = update_agents_pointer(
         plan, use_git, timestamp, target_layout=target_layout
     )
-    gitignore_status = check_gitignore(plan)
     backups_ignore_status = ensure_backups_gitignored(plan, use_git)
     untracked_ignore_status = ensure_untracked_gitignore(plan, use_git)
     # Canonical step order (D83): README-ensurers BEFORE create_setup_artifacts. This matches the
@@ -7162,6 +7253,8 @@ def install_into_repo(
         for rel in (AW_LAYOUT_JSON_PATH, AW_LAYOUT_SCHEMA_PATH)
     }
     layout_artifacts = emit_layout_artifacts(repo_root, dry_run=dry_run)
+    # gzsfqn E-03: compute gitignore advisory after all ignore files are written by create_setup_artifacts
+    gitignore_status = check_gitignore(plan)
 
     newly_created = [
         item.rsplit(" [", 1)[0] for item in installed if item.endswith(" [install]")
@@ -7215,6 +7308,8 @@ def install_into_repo(
         from agent_workflows import config as _config
 
         _config.sync_cutovers_on_install(plan.repo_root)
+        # gzsfqn E-02: stage wizard-written tracked policy files so commit captures them
+        stage_tracked_policy_files(plan.repo_root, use_git, installed)
         warn_tracking_and_scan(plan, use_git)
 
     return {

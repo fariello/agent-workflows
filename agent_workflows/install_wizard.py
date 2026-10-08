@@ -47,6 +47,17 @@ from agent_workflows.project_schema import (
 from agent_workflows.term import Term
 
 
+PROJECT_POLICY_RELPATH = ".aw/config/project.json"
+LOCAL_BINDING_RELPATH = ".aw/config/local.json"
+
+WIZARD_WRITTEN_PATHS = (PROJECT_POLICY_RELPATH, LOCAL_BINDING_RELPATH)
+
+WIZARD_PATH_CLASSES: Dict[str, str] = {
+    PROJECT_POLICY_RELPATH: RootClass.CONFIG_PROJECT.value,
+    LOCAL_BINDING_RELPATH: RootClass.CONFIG_LOCAL.value,
+}
+
+
 class PolicyError(Exception):
     """Base exception for policy errors."""
 
@@ -913,7 +924,9 @@ def persist_project_policy(
     p_repo = Path(repo_path)
     config_dir = p_repo / ".aw" / "config"
     if dry_run:
-        return policy.to_dict()
+        res = policy.to_dict()
+        res["written_paths"] = []
+        return res
 
     config_dir.mkdir(parents=True, exist_ok=True)
 
@@ -951,4 +964,6 @@ def persist_project_policy(
 
     _config.sync_cutovers_on_install(repo_path)
 
-    return policy.to_dict()
+    res = policy.to_dict()
+    res["written_paths"] = list(WIZARD_WRITTEN_PATHS)
+    return res
