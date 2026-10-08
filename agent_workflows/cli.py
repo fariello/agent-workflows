@@ -10737,7 +10737,9 @@ def _run_leaks_configure(args: argparse.Namespace, term: Term) -> int:
     return 0
 
 
-def _run_check_local_leaks(args: argparse.Namespace, term: Term) -> int:
+def _run_check_local_leaks(
+    args: argparse.Namespace, term: Term, context: Optional[Any] = None
+) -> int:
     """Detect local leaks (D92/D93). Delegates to the unified agent_workflows.leak_sanitizer
     engine (local_leaks re-exports it). With --configure, launches the config wizard instead."""
     if getattr(args, "configure", False):
@@ -10745,6 +10747,10 @@ def _run_check_local_leaks(args: argparse.Namespace, term: Term) -> int:
 
     from . import leak_sanitizer
 
+    # Context is threaded directly into leak_sanitizer.main rather than reserialized into argv
+    # (IPD wyy09f). Reserializing via a hand-maintained list dropped --json and --fields, and
+    # adding them to the list would crash against leak_sanitizer's inner parser which does not
+    # declare --json. The resolved OutputContext takes precedence while preserving argv fallback.
     passthrough = [getattr(args, "dir", None) or "."]
     if getattr(args, "history", False):
         passthrough.append("--history")
@@ -10764,7 +10770,7 @@ def _run_check_local_leaks(args: argparse.Namespace, term: Term) -> int:
         passthrough.append("--yes")
     if getattr(args, "dry_run", False):
         passthrough.append("--dry-run")
-    return leak_sanitizer.main(passthrough)
+    return leak_sanitizer.main(passthrough, context=context)
 
 
 def _run_context(
@@ -16899,7 +16905,7 @@ def _dispatch(argv: Optional[Sequence[str]]) -> int:
     if args.command == "archive":
         return _run_archive(args, term)
     if args.command in ("check-local-leaks", "sanitize"):
-        return _run_check_local_leaks(args, term)
+        return _run_check_local_leaks(args, term, context=context)
 
     if args.command == "ipd-executed-gate":
         from agent_workflows.hooks import executed_transition_gate as _gate
