@@ -46,11 +46,11 @@ Agent output: --agent
 2. Outcome banner: a glyph plus an uppercase STATUS word plus a one-line summary. The word is
    always present so meaning survives monochrome terminals and screen readers; color is only a
    redundant cue.
-3. Findings: grouped by issue, each with a bracketed severity label (`[ERROR]`, `[WARN ]`,
-   `[INFO ]`) and, where known, a concrete `Fix:` line.
+3. Findings: grouped by issue, each with a bracketed severity label (`[ERROR]`, `[WARNING]`,
+   `[INFO]`) and, where known, a concrete `Fix:` line.
 4. Changes: for mutations, a preview of what would change (or did change).
 5. Evidence: the receipts that back the outcome (what was checked, counts, verification state).
-6. Next: the single most useful follow-up command.
+6. Next: follow-up command recommendations, one line per distinct remediation.
 7. A one-line hint that machine output is available with `--agent`.
 
 ## Color and accessibility

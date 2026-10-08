@@ -120,15 +120,49 @@ class HumanRenderer(BaseRenderer):
                     groups[key][dir_str] = []
                 groups[key][dir_str].append((fname, extra, d.severity))
 
-            for (title, fix_action), dir_map in groups.items():
-                lines.append(f"  {term.color256('Issue: ' + title, 214, bold=True)}")
+            # Sort groups worst-severity first, then by title (E-04c)
+            def _sev_rank(sev: Optional[str]) -> int:
+                s = (sev or "").lower()
+                if s == "error":
+                    return 0
+                if s == "warning":
+                    return 1
+                if s == "info":
+                    return 2
+                return (
+                    0  # Fail safe: unrecognized or empty is treated as rank 0 (worst)
+                )
+
+            def _group_sort_key(item: tuple) -> tuple:
+                (g_title, _), dir_map = item
+                all_sevs = [sev for files in dir_map.values() for (_, _, sev) in files]
+                min_rank = min((_sev_rank(s) for s in all_sevs), default=0)
+                return (min_rank, g_title)
+
+            for (title, fix_action), dir_map in sorted(
+                groups.items(), key=_group_sort_key
+            ):
+                all_sevs = [sev for files in dir_map.values() for (_, _, sev) in files]
+                unique_sevs = sorted(
+                    set(all_sevs),
+                    key=lambda s: (_sev_rank(s), (s or "").lower()),
+                )
+                header_badges = " ".join(
+                    term.badge((s or "").upper(), s) for s in unique_sevs
+                )
+                header_line = f"  {term.color256('Issue: ' + title, 214, bold=True)}"
+                if header_badges:
+                    header_line += f" {header_badges}"
+                lines.append(header_line)
+
                 for dir_str, files in dir_map.items():
                     if dir_str and dir_str != ".":
                         lines.append(f"  - {term.format_path(dir_str)}")
                     for idx, (fname, extra, sev) in enumerate(files, 1):
-                        badge = term.badge(sev.upper(), sev)
+                        sev_str = sev or ""
+                        badge = term.badge(sev_str.upper(), sev)
                         if dir_str and dir_str != ".":
-                            item_line = f"    {idx}. {fname}"
+                            item_line = f"    {idx}. {fname} {badge}"
                         else:
                             item_line = f"  - {term.format_path(fname)} {badge}"
                         if extra:
@@ -176,7 +210,11 @@ class HumanRenderer(BaseRenderer):
         # 6. Next Actions
         if result.next_actions:
             lines.append("")
+            seen_commands: set = set()
             for act in result.next_actions:
+                if act.command in seen_commands:
+                    continue
+                seen_commands.add(act.command)
                 lines.append(term.format_next_action(act.command, act.description))
 
         # 7. Agent Output Hint

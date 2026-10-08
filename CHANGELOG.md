@@ -24,6 +24,7 @@ now under way. The direction of the 2.x line (in progress, not all shipped in th
 
 Major storage-layout boundary. The logical model (D126-D129) was superseded by the PHYSICAL `.aw/` hierarchy specified in `20260810-1447-01-physical-aw-hierarchy-placement-and-migration.spec.md` (D130, D134-D137), which the framework now implements and has migrated its own repository onto:
 
+- Fixed: HumanRenderer now renders severity badges on all check finding lines (including records-tree paths) and block headers, orders finding blocks worst-severity-first (failing safe on unrecognized tiers), and deduplicates Next action commands.
 - Fixed: aw specs set and aw set now refuse to mark a spec implemented unless a resolvable evidence citation is supplied, whichever spelling is used, and aw set now accepts --evidence so that citation can be given.
 - Added: documented CommandDeclaration.exit_contract as enumerating codes produced by a command's own return path while excluding signal-derived codes (130/143), pinned by a conformance gate on the universal 130 floor (D162).
 - Fixed: aw config get --help no longer claims a nonzero exit for an unset variable.

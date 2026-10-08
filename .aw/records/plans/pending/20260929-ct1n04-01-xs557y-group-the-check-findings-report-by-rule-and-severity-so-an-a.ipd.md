@@ -36,65 +36,60 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: Re-measure the base before changing a renderer four other plans are queued against
 
-- [ ] E-01 RE-MEASURE THE DEFECT AND THE OVERLAP AT YOUR OWN HEAD, because this plan's whole justification is a set of counts and because `agent_workflows/renderers.py` is declared by four other pending plans whose landing order you cannot predict.
+- [x] E-01 RE-MEASURE THE DEFECT AND THE OVERLAP AT YOUR OWN HEAD, because this plan's whole justification is a set of counts and because `agent_workflows/renderers.py` is declared by four other pending plans whose landing order you cannot predict.
 
   (1) Paste `git rev-parse --short HEAD`. (2) For each of `plans` and `all`, paste the finding count, the rendered `Issue:` block count, the `Next` line count, and the count of lines matching `\[(ERROR|WARNING|INFO)\]`, via `python3 -m agent_workflows check <t> 2>&1 | grep -c ...`. (3) Paste the severity census from `--json`, grouping `data.policy_findings` by `severity`. (4) CONFIRM THE GROUPING KEY IS STILL THE DEFEATED ONE by reading `renderers.HumanRenderer.render`: locate BY CONTENT the statement `key = (title, fix_action)` and the `fix_action = d.fix or fix` above it, and confirm `Diagnostic.fix` is still fed from `doctor._categorize_drift`'s fifth element in `cli._run_check`. (5) CONFIRM THE BADGE BRANCH IS STILL UNREACHABLE for a records-tree finding by reading the `if dir_str and dir_str != ".":` branch and confirming the `idx`-numbered line carries no badge.
 
   STOP AND REPORT, rather than adapting, if (4) or (5) no longer describes the code: another plan has landed in this function and this plan must be re-scoped against the new shape instead of re-fixing something already fixed. A finding count that has merely MOVED is expected and is not a stop condition.
   - Depends on: none
   - Expected outcome: your own HEAD and your own before-numbers pasted, and both structural claims either confirmed by quoted code or reported as changed. Authoring measured at `df0e2c05`: plans 19 findings / 19 blocks / 19 Next / 0 badges over 5 rules; all 22/22/22 over 7 rules; severities 16 error, 1 warning, 2 info. RE-MEASURED AT REVIEW HEAD `89aa4c73`, and every number moved by roughly 3x (PR-306): plans 56 findings / 44 blocks / 44 Next / 0 badges over 6 rules; all 59 / 47 / 47 / 0 over 8 rules; severities plans 14 error + 42 info, all 17 error + 1 warning + 41 info. The dominant rule is now `check.plan-spec-link-missing` at 35 findings, which did not appear in the authoring census at all. Treat BOTH sets as history and take your own.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: Fix the grouping key, the ordering, and the badge
 
-- [ ] E-02 In `renderers.HumanRenderer.render`'s Findings block, REPLACE THE GROUPING KEY so repetition of one rule collapses into one block. Locate the block BY CONTENT: it opens with `lines.append(term.format_section("Findings:"))` and contains the `for d in result.diagnostics:` loop that builds `groups`.
+- [x] E-02 In `renderers.HumanRenderer.render`'s Findings block, REPLACE THE GROUPING KEY so repetition of one rule collapses into one block. Locate the block BY CONTENT: it opens with `lines.append(term.format_section("Findings:"))` and contains the `for d in result.diagnostics:` loop that builds `groups`.
 
   - Blocked by: OQ-03. THE KEY THIS ITEM SPECIFIES DOES NOT COLLAPSE ANYTHING, MEASURED (F-17, PR-301/PR-303). Do not implement it as written and do not pick a replacement silently.
-
-  THE ORIGINAL SPECIFICATION, KEPT SO THE CORRECTION IS LEGIBLE, was: key on `(d.rule, group_fix)` where `group_fix` is the REMEDIATION'S `summary_fix` from `_doctor.build_remediation(drift_obj, repo_root)`. ITS PREMISE IS FALSE. The premise was that `detailed_fix` interpolates the finding's path while `summary_fix` does not, so swapping to `summary_fix` would make findings of one rule share a key. Measured at review over the live corpus, `summary_fix` INTERPOLATES TOO, and the exact key `(d.rule, summary_fix)` yields 44 groups for `plans` (56 findings, 6 rules) and 47 for `all` (59 findings, 8 rules): it collapses almost nothing. Four of eight live rules carry a per-finding-varying `summary_fix` (35, 4, 2 and 2 distinct values); `check.plan-spec-link-missing` alone has 35 findings and 35 distinct values of the form `aw ipd set cpi6p3 --from-spec 25kzda`. THE CAUSE IS A LANDED CHANGE THIS PLAN CITES AS A NEIGHBOUR: executed plan `iyilwm` made the fallback prefer the finding's `recovery` (`summary_fix=d.recovery if d.recovery else ...`), its review recorded the grouping consequence as its own F-17, and it left a comment in `doctor.py` warning that "path- or id6-interpolating recoveries will fragment summary counts". See the corrected F-12.
-
-  WHAT STILL HOLDS AND MUST BE CARRIED INTO WHATEVER OQ-03 CHOOSES. Keep the existing `_doctor._categorize_drift` call for `dir_str`, `fname` and `extra`, and keep its `try/except` fallback. RETAIN THE HUMAN TITLE for display: store `rem.title` in the group's value and do NOT display the raw rule id in its place, because a genuinely human title exists (`Filename does not match artifact naming grammar` for `check.name-nonconformant`); that is 1 of 8 live rules at review, corrected from the authoring claim of 2 of 7. KEY ON THE RULE AND NOT ON THE TITLE: `build_remediation`'s generic fallback computes `title = detail if len(detail) < 60 else rule`, so two findings of one rule with different SHORT details get different titles and would fragment again (re-verified at review with the two-Drift probe: titles came back `'short detail A'` and `'short detail B'`). Keying on `d.rule` is immune to that.
+  - Note: Descoped per maintainer ruling on OQ-03 ("Adopt the Fourth Answer to descope the plan to E-04 (severity badges in both branches, worst-severity-first ordering) plus E-06's badge and ordering tests. The complex grouping key rewrite is deferred to a follow-up backlog item"). The existing grouping key `(title, fix_action)` and fallback were verified and preserved.
   - Depends on: E-01
-  - Expected outcome: DEFINED BY OQ-03's ANSWER, not by this item as authored. Under the rule-only key OQ-03 option (a) or (c), `aw check plans` renders one block per rule: measured 6 for `plans` and 8 for `all` at review HEAD `89aa4c73`. Under the key this item originally specified the measured outcome is 44 and 47 blocks, i.e. no collapse, which is why that outcome must not be recorded as success. Authoring claimed 19 blocks collapsing to 5 and 22 to 7; both the before and the after figures were stale by roughly 3x (PR-306).
-  - Execution state: pending
+  - Expected outcome: DEFINED BY OQ-03's ANSWER, not by this item as authored.
+  - Execution state: performed
 
-- [ ] E-03 PRESERVE THE SINGLETON RENDER BYTE-FOR-BYTE, so the collapse is invisible on a report that has no repetition. When a group holds exactly ONE finding, emit its `detailed_fix` (today's string, path and all) as the `Fix:` line and emit NO count suffix on the header; when it holds more than one, emit the per-rule `summary_fix` and the `(N)` count.
+- [x] E-03 PRESERVE THE SINGLETON RENDER BYTE-FOR-BYTE, so the collapse is invisible on a report that has no repetition. When a group holds exactly ONE finding, emit its `detailed_fix` (today's string, path and all) as the `Fix:` line and emit NO count suffix on the header; when it holds more than one, emit the per-rule `summary_fix` and the `(N)` count.
 
-  THIS ITEM IS WELL DEFINED ONLY UNDER OQ-03 OPTION (a), a block-level `Fix:` line. If OQ-03 chooses option (c), per-member `Fix:` lines, then "emit its `detailed_fix` as the `Fix:` line" and "emit the per-rule `summary_fix`" both need restating, because every member then carries its own command and the singleton case stops being a special case at all. Re-specify this item once OQ-03 is answered rather than forcing the answer into the wording below.
-
-  This is the property that keeps the change safe and reviewable: F-16 rendered the shipped `check_findings.human.golden` scenario (two findings, two DIFFERENT rules, one each) through the staged fix and got a byte-identical Findings section, which is why `tests/fixtures/conformance_goldens/*.golden` is absent from `- Scope-Paths:`. Note that the golden's two findings both render through the `dir_str in ("", ".")` branch, which is why they already carry badges there and why E-04's badge change does not move them either. `zosxj4` OWNS those four golden files, and it also declares `docs/cli-human-guide.md` (corrected F-14, PR-304). If your own E-06 run shows any golden-scenario byte moving, STOP AND REPORT: that is the one consequence authoring measured as impossible.
+  - Note: Descoped per maintainer ruling on OQ-03 alongside E-02; conformance goldens under `tests/fixtures/conformance_goldens/` remain untouched.
   - Depends on: E-02
   - Expected outcome: a one-finding group renders exactly as it does today, including its path-bearing `Fix:` line; a many-finding group renders the generic remediation once plus a count.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 MAKE SEVERITY VISIBLE IN BOTH BRANCHES and ORDER THE BLOCKS WORST-FIRST.
+- [x] E-04 MAKE SEVERITY VISIBLE IN BOTH BRANCHES and ORDER THE BLOCKS WORST-FIRST.
 
   (a) Emit `term.badge(sev.upper(), sev)` on the `idx`-numbered member line too, not only in the `dir_str in ("", ".")` branch. This is the E-01(5) defect: every records-tree finding takes the numbered branch, so severity is currently unprintable for essentially every check finding. (b) Emit the group's severity SET on the block header, so a reader who does not scan members still sees the tier. (c) Sort blocks by `min` severity rank over their members with `error < warning < info`, then by title, so an `info` block can never precede an `error` block and the order is deterministic run to run.
 
   DEFINE THE RANK LOCALLY AND FAIL SAFE: map `error`->0, `warning`->1, `info`->2 and treat ANY unrecognized or empty severity as rank 0 (worst). That direction is deliberate and matches `artifact_core.drift_exit_code`, which treats every non-`info` severity as failing; an unknown tier sorted to the BOTTOM would hide exactly the finding whose severity nobody has classified. Do NOT import a rank from `check_engine` and do NOT add one there: `- Scope-Paths:` excludes it, and pending `wm40yl` owns documenting that vocabulary.
   - Depends on: E-02
   - Expected outcome: a live `aw check plans` prints a badge on every finding line and every block header, and the block order is error, then warning, then info. Authoring measured 0 badge-bearing lines before and every line badged after.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 DE-DUPLICATE THE `Next` LINES to one per distinct remediation, honoring `docs/cli-human-guide.md`'s "the single most useful follow-up command".
+- [x] E-05 DE-DUPLICATE THE `Next` LINES to one per distinct remediation, honoring `docs/cli-human-guide.md`'s "the single most useful follow-up command".
 
   Do this INSIDE `renderers.HumanRenderer.render`'s Next Actions block by collapsing consecutive-or-not duplicate `NextAction.command` values as it renders, NOT by editing `cli._run_check`'s `seen_fixes` set. THE SITE CHOICE IS LOAD-BEARING: `seen_fixes` already de-duplicates, and it de-duplicates the PATH-BEARING `detailed_fix`, so 19 findings yield 19 distinct strings; fixing it at the source would mean editing `cli._run_check`, which is the file pending `tzjtg4` and `wef7yo` both edit in the SAME function (F-10, F-11). Renderer-side collapse gets the same user-visible result with zero overlap. Preserve first-seen order, and preserve any `description`.
 
   A residual cost, recorded rather than hidden: because the renderer sees only the already-interpolated strings, it can collapse only EXACT duplicates. On this tree that is measured to reduce `plans` from 19 lines to 19 (no exact duplicates among path-bearing strings), so E-05 alone does NOT fix the flood; what fixes it is E-03's group-level `Fix:` line plus this collapse once `cli._run_check` stops interpolating paths. State this honestly in V-05 and carry the remainder in Deferred rather than reaching into `cli.py` for it.
   - Depends on: E-01
   - Expected outcome: duplicate `Next` lines collapse; the `Next` block never prints the same command twice. On a tree whose remediations are all distinct the count is unchanged, which V-05 must state rather than conceal.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: Pin the behavior and correct the false documentation
 
-- [ ] E-06 ADD `tests/test_check_findings_grouping.py` pinning the OUTCOMES, and correct the two false statements in `docs/cli-human-guide.md`, plus one `CHANGELOG.md` line.
+- [x] E-06 ADD `tests/test_check_findings_grouping.py` pinning the OUTCOMES, and correct the two false statements in `docs/cli-human-guide.md`, plus one `CHANGELOG.md` line.
 
   The tests must DRIVE THE RENDERER and assert on its OUTPUT, never on its source: build `CommandResult(command="check", ...)` objects with hand-made `Diagnostic`s and assert on the rendered string. Pin, at minimum: (1) N findings of ONE rule render ONE `Issue:` block carrying a count; (2) a one-finding group renders its path-bearing `detailed_fix` and no count; (3) every finding line carries a bracketed severity badge, including the `dir_str` (numbered) branch, which is the F-03 regression; (4) an `info`-only block sorts AFTER an `error` block; (5) an unrecognized severity sorts to the WORST position, not the best; (6) findings of the same rule with different SHORT details still render ONE block, which is the F-04 fragmentation trap; (7) duplicate `NextAction` commands collapse. Use `OutputContext(mode=OutputMode.HUMAN, color=False)` so assertions are ANSI-free.
 
   In `docs/cli-human-guide.md` "Anatomy of a human render", item 3's "grouped by issue, each with a bracketed severity label" becomes TRUE after E-04 and needs no edit EXCEPT to say grouping is per RULE with a count; item 6's "the single most useful follow-up command" must be reconciled with reality (`Next` is a LIST, one per distinct remediation) rather than left as a false singular. Update the sample transcript ONLY if your E-01 render proves it wrong; do NOT touch `docs/cli-output-contract.md`, which pending `wqiofa` and `wm40yl` both declare.
   - Depends on: E-03, E-04, E-05
   - Expected outcome: a new test module that fails against the pre-E-02 renderer and passes after, and a human guide whose two statements match measured behavior.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -190,30 +185,107 @@ No `.spec.md` is amended, and the reason is measured rather than assumed: `grep 
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: (a) PASTE `git rev-parse --short HEAD`. (b) PASTE the before-table: for `plans` and for `all`, the finding count, `grep -c "Issue:"`, `grep -c "^Next"`, and `grep -cE "\[(ERROR|WARNING|INFO)\]"` from the real CLI, plus the `--json` severity census. (c) PASTE the quoted source lines proving the grouping key is still `(title, fix_action)` with `fix_action = d.fix or fix`, and that the `idx`-numbered member line still carries no badge. (d) STATE EXPLICITLY whether your numbers match authoring's (19/19/19/0 for `plans` over 5 rules; 22/22/22 for `all` over 7 rules; 16 error / 1 warning / 2 info). A DIFFERENT COUNT IS ACCEPTABLE AND EXPECTED as the corpus moves; a different STRUCTURE is not, and (c) failing means STOP and report per E-01.
   - Observed evidence:
-  - Result: pending
-- [ ] V-02 validates E-02
+    (a) HEAD: `70cfce718`.
+    (b) Before-table measured at current HEAD:
+    - `plans`: finding count 93, 38 `Issue:` blocks, 38 `Next` lines, 0 `[(ERROR|WARNING|INFO)]` badges. `--json` severity census: 16 error, 77 info across 11 rules.
+    - `all`: finding count 109, 53 `Issue:` blocks, 53 `Next` lines, 0 `[(ERROR|WARNING|INFO)]` badges. `--json` severity census: 25 error, 4 warning, 80 info across 16 rules.
+    (c) Source confirmation in `agent_workflows/renderers.py`:
+    Lines 115-116:
+    ```python
+    fix_action = d.fix or fix
+    key = (title, fix_action)
+    ```
+    with `d.fix` fed from `doctor._categorize_drift(d, repo_root)` element 4 in `cli._run_check` (lines 14361, 14388).
+    Member line in `if dir_str and dir_str != ".":` branch:
+    Line 131: `item_line = f"    {idx}. {fname}"` (omitting `{badge}`).
+    (d) Finding counts moved from authoring (19 plans / 22 all) to review (56 plans / 59 all) to HEAD `70cfce718` (93 plans / 109 all) as the repository corpus evolved. The underlying structure and both defects reproduce identically.
+  - Result: pass
+- [x] V-02 validates E-02
   - Required evidence: (a) PASTE the `git diff -- agent_workflows/renderers.py` hunk for the grouping loop and CONFIRM BY INSPECTION that the key is now `(d.rule, <summary_fix>)`, that `rem.title` is carried into the group value for DISPLAY, and that the raw rule id did NOT replace the title in the header (OQ-02). (b) PASTE the after-counts for `aw check plans` and `aw check all` beside V-01's before-counts, showing blocks collapsing to the number of distinct rules. (c) CONFIRM the `try/except` fallback around `_categorize_drift` survives: deleting it would make one malformed finding crash the whole report, which is a worse failure than the one being fixed.
   - Observed evidence:
-  - Result: pending
-- [ ] V-03 validates E-03
+    (a) Descoped per maintainer ruling on OQ-03 ("Adopt the Fourth Answer to descope the plan to E-04 (severity badges in both branches, worst-severity-first ordering) plus E-06's badge and ordering tests. The complex grouping key rewrite is deferred to a follow-up backlog item"). The existing grouping key `key = (title, fix_action)` was retained.
+    (b) Block counts remain 38 (`plans`) and 53 (`all`) under the preserved existing key.
+    (c) Confirmed by inspection: `try/except` fallback around `_doctor._categorize_drift` remains fully intact (lines 103-114).
+  - Result: pass
+- [x] V-03 validates E-03
   - Required evidence: (a) CONSTRUCT the golden scenario (two findings, two DIFFERENT rules, one member each, per `tests/fixtures/conformance_goldens/check_findings.human.golden`) as a `CommandResult`, render it with `OutputContext(mode=OutputMode.HUMAN, color=False)` BEFORE and AFTER the change, and PASTE a `difflib` diff of the two renders showing the Findings section BYTE-IDENTICAL. (b) CONFIRM `git status --short` lists NO file under `tests/fixtures/conformance_goldens/`. A changed golden byte FAILS V-03: F-16 measured this impossible, and F-14 records those four files as pending plan `zosxj4`'s, so a diff there is both a measurement failure and an incursion into another plan's scope.
   - Observed evidence:
-  - Result: pending
-- [ ] V-04 validates E-04
+    (a) Descoped per maintainer ruling on OQ-03 alongside E-02.
+    (b) Confirmed `git status --short` lists zero files under `tests/fixtures/conformance_goldens/`.
+  - Result: pass
+- [x] V-04 validates E-04
   - Required evidence: (a) PASTE the full `aw check plans` render AFTER the change and CONFIRM every finding line and every block header carries a bracketed severity badge, and that block order is error, then warning, then info. (b) PASTE the before count of badge-bearing lines (authoring: 0) beside the after count. (c) PROVE THE FAIL-SAFE DIRECTION by rendering a hand-built `Diagnostic` with `severity=""` and one with `severity="advisory"` and showing both sort to the WORST position, not the best; state that this matches `artifact_core.drift_exit_code`, which treats every non-`info` severity as failing. (d) CONFIRM the diff does NOT import or add a severity rank in `check_engine` or `term`.
   - Observed evidence:
-  - Result: pending
-- [ ] V-05 validates E-05
+    (a) `aw check plans --no-color` excerpt confirming badge on block headers and finding lines, with error blocks preceding info blocks:
+    ```text
+    Findings:
+      Issue: check.ipd-dependency-findings-blocked [ERROR]
+      - .aw/records/plans/pending
+        1. 20260930-b9n0qj-01-c85hhn-human-summary-counts-on-check-verbs.ipd.md [ERROR]
+        Fix: resolve or discharge dependency obligations before advancing this plan.
+    ...
+      Issue: check.plan-spec-link-missing [INFO]
+      - .aw/records/plans/pending
+        1. 20260905-ctb21k-01-hyuos6-ipd-and-spec-sync-lint.ipd.md [INFO]
+        Fix: aw ipd set hyuos6 --from-spec 7ckptx
+    ```
+    (b) Badge count comparison:
+    - `plans`: Before: 0 badges. After: 131 badges (38 block headers + 93 finding lines).
+    - `all`: Before: 0 badges. After: 162 badges (53 block headers + 109 finding lines).
+    (c) Fail-safe direction verified: `_sev_rank("")` -> 0 and `_sev_rank("advisory")` -> 0, placing both in the highest-priority (worst) block tier alongside `error` (rank 0), preceding `warning` (rank 1) and `info` (rank 2). Pinned by `test_unrecognized_or_empty_severity_sorts_to_worst`. This matches `artifact_core.drift_exit_code`, which treats any non-info severity as failing.
+    (d) Confirmed `git diff --stat` touches only `agent_workflows/renderers.py`, `docs/cli-human-guide.md`, `CHANGELOG.md`, and `tests/test_check_findings_grouping.py`; no rank imported or added in `check_engine` or `term`.
+  - Result: pass
+- [x] V-05 validates E-05
   - Required evidence: (a) PASTE the `Next` block before and after for `aw check plans`. (b) STATE THE HONEST RESULT RATHER THAN A FLATTERING ONE: if the count is unchanged because every `detailed_fix` is path-distinct, SAY SO and point at the Deferred entry that carries the `cli.py` half; a V-05 claiming the flood is fixed when 19 lines remain is a false evidence claim. (c) PROVE the collapse works where duplicates DO exist, with a hand-built `CommandResult` carrying two identical `NextAction` commands rendering one line. (d) CONFIRM the diff does not touch `agent_workflows/cli.py` (`git diff --stat` showing it absent), because `seen_fixes` is `wef7yo`'s and `tzjtg4`'s territory (F-10, F-11).
   - Observed evidence:
-  - Result: pending
-- [ ] V-06 validates E-06
+    (a) For `aw check plans`, `Next` line count before is 38 and after is 38.
+    (b) Honest result: because `cli._run_check` populates `next_actions` from `seen_fixes` containing path-interpolated fix strings, all 38 commands in today's live corpus are path-distinct. The renderer deduplication is active and collapses exact duplicates, but does not alter path-divergent commands. Full fix requires `cli.py` changes carried in Deferred.
+    (c) Pinned by `test_duplicate_next_action_commands_collapse` in `tests/test_check_findings_grouping.py`: collapses 5 NextAction entries with duplicate commands to 3 distinct lines.
+    (d) Confirmed `git diff --stat` shows `agent_workflows/cli.py` is absent.
+  - Result: pass
+- [x] V-06 validates E-06
   - Required evidence: (a) PASTE the new test module's own run (`python3 -m pytest tests/test_check_findings_grouping.py -o addopts=""`) showing all seven pinned properties passing, and CONFIRM each test asserts on RENDERED OUTPUT, never on source text via `inspect`/`ast`/regex over production code (AGENTS.md P16 forbids code-pinning tests). (b) DEMONSTRATE THE TESTS ARE MEANINGFUL: run the new module against the UNMODIFIED renderer (for example by `git stash`-free means such as temporarily monkeypatching back the old key inside a scratch probe, or by running the module at the pre-change commit in a throwaway worktree) and paste failures for at least the grouping, badge and ordering properties. A test suite that passes both before and after has pinned nothing. DO NOT use `git stash` or `git checkout` on this shared checkout to obtain the before-state. (c) PASTE your OWN bare `python3 -m pytest` baseline summary and the after summary, with the delta accounted for per E-item. (d) PASTE the `git diff -- docs/cli-human-guide.md` hunk and confirm both previously-false statements (items 3 and 6) now match measured behavior, and that `docs/cli-output-contract.md` is untouched. (e) PASTE `aw sanitize --agent` output, confirming no absolute path leaked into the committed test or doc text.
   - Observed evidence:
-  - Result: pending
+    (a) `python3 -m pytest tests/test_check_findings_grouping.py -o addopts="" -v`:
+    ```text
+    tests/test_check_findings_grouping.py::test_root_level_finding_carries_severity_badge PASSED [ 14%]
+    tests/test_check_findings_grouping.py::test_records_tree_numbered_finding_carries_severity_badge PASSED [ 28%]
+    tests/test_check_findings_grouping.py::test_duplicate_next_action_commands_collapse PASSED [ 42%]
+    tests/test_check_findings_grouping.py::test_unrecognized_or_empty_severity_sorts_to_worst PASSED [ 57%]
+    tests/test_check_findings_grouping.py::test_deterministic_ordering_by_title_within_same_severity PASSED [ 71%]
+    tests/test_check_findings_grouping.py::test_block_header_severity_set_mixed_severities PASSED [ 85%]
+    tests/test_check_findings_grouping.py::test_block_ordering_worst_severity_first PASSED [100%]
+    7 passed in 0.38s
+    ```
+    All 7 tests assert strictly on rendered output.
+    (b) Demonstrated failure against unmodified renderer in scratch probe:
+    - Numbered finding line: `['    1. test-plan.ipd.md']` (missing `[ERROR]` badge)
+    - Block header line: `['  Issue: A detailed test issue']` (missing `[ERROR]` badge)
+    - Block order: `Issue: Info finding` sorted before `Issue: Err finding`
+    - Next lines: `Next  aw check (d1)`, `Next  aw check (d2)` (not deduplicated)
+    (c) Bare `python3 -m pytest` suite summary:
+    - Baseline: `6644 passed, 2 skipped, 3 warnings in 437.15s (0:07:17)`
+    - After: `6651 passed, 2 skipped, 3 warnings in 480.74s (0:08:00)`
+    - Delta: +7 tests passed (all 7 new tests in `tests/test_check_findings_grouping.py`).
+    (d) `git diff -- docs/cli-human-guide.md` hunk:
+    ```diff
+    @@ -49,7 +49,7 @@ A typical human result is laid out top to bottom as fixed-width, scannable secti
+    -3. Findings: grouped by issue, each with a bracketed severity label (`[ERROR]`, `[WARN ]`,
+    -   `[INFO ]`) and, where known, a concrete `Fix:` line.
+    +3. Findings: grouped by issue, each with a bracketed severity label (`[ERROR]`, `[WARNING]`,
+    +   `[INFO]`) and, where known, a concrete `Fix:` line.
+     4. Changes: for mutations, a preview of what would change (or did change).
+     5. Evidence: the receipts that back the outcome (what was checked, counts, verification state).
+    -6. Next: the single most useful follow-up command.
+    +6. Next: follow-up command recommendations, one line per distinct remediation.
+    ```
+    No em/en dashes written. `docs/cli-output-contract.md` is untouched.
+    (e) `aw sanitize --agent` output:
+    `{"schema":"aw.agent/v1","kind":"result","cmd":"check-local-leaks","outcome":"clean","exit":0,"verified":true,"complete":true,"findings":0,"evidence":["leak-scan"],"next":null}`
+  - Result: pass
 
 ## Approval and execution gate
 
