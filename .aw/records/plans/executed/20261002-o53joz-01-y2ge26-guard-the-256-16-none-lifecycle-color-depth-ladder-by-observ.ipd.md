@@ -6,7 +6,7 @@
 - Scope: Add two behavioral guards to `tests/test_term.py` that make a re-collapse of the ladder fail regardless of WHICH seam or WHICH renderer commits it. (1) A SEAM SWEEP over the cartesian product of all 20 `lifecycle_style.ALL_STAGES` x 3 pinned tiers x 2 stream kinds, driving all five public rendering seams enumerated AT RUNTIME, asserting the tier-correct byte shape of what each returns. (2) A CROSS-SURFACE CLI GUARD driving real `aw` subprocesses against a SYNTHESIZED fixture repo, extracting SGR-span/token pairs from stdout and asserting that no LIFECYCLE word is wrapped in a `38;5;` escape at pin `16`, that none is styled at all at pin `none`, and that some is at pin `256` (the anti-vacuity cell). Both guards assert only ANSI BYTES PRODUCED BY RUNNING CODE: no `ast`, no `inspect`, no `read_text()` and no regex against `agent_workflows/*.py`. EXCLUDES the API change the item floats as "one direction worth evaluating" (give `Term` no way to express the coercion), which is deliberately NOT adopted here and is argued down in OQ-01 and Deferred on measured grounds: it is a breaking change to 63 call sites that would not have caught the original defect. EXCLUDES the GENERIC color axis (`Term.colorize`, `color256`, `status_256`, `badge`, `format_path`), which MEASURABLY ignores the depth pin entirely and is a SEPARATE, LARGER defect this plan files as a carrier item rather than silently folding in (F-08, D-02). EXCLUDES any production behavior change: no renderer is edited, so the suite must move only by the tests added.
 - Scope-Paths: tests/test_term.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - From-Backlog: o53joz
 - Work-Kind: chore
@@ -16,9 +16,9 @@
 - Highest E allocated: 06
 - Author: opencode/its_direct-pt3-claude-opus-5-1m-us
 - Id: y2ge26
-- Approval: 2026-10-07, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-08 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: y2ge26 verified (set o53joz, attempt 1). [Scope reconciliation - out-of-scope .aw/records/backlog/open/20261008-cvtg9u-01-cvtg9u-generic-color-depth-pin-divergence.backlog.md: changed by the plan's approved execution (auto-reconciled by aw agy run)]
 - 2026-10-07 approved (aw set): status set to approved
 - 2026-10-07 reviewed (opencode/its_direct/pt3-claude-opus-5.5-1m-us): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-001..PR-004, all FIXED. Reviewed in lane review-sweep-run-20261007T032752Z-4094028 at HEAD da982415c; review record .aw/records/reviews/20261002-o53joz-01-y2ge26-guard-the-256-16-none-lifecycle-color-depth-ladder-by-observ.review.md. Fix live, five seams and 15-cell grid hold, generic axis still ignores the pin (F-08). PR-001: NATIVE_MAPS reaches only 17 of 20 stages, so E-03 constructs Resolved per stage. PR-002: anti-vacuity per command (backlog check has no lifecycle spans) and relation to ColorDepthEndToEndLadderTests stated. PR-003: term.resolve_lifecycle is module-level, not a Term method. PR-004: E-06 followup classification marked provisional; scope-reason for the new backlog path.
 
@@ -37,39 +37,39 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: re-measure, then baseline
 
-- [ ] E-01 RE-MEASURE THE FIVE LOAD-BEARING FACTS AT EXECUTION HEAD BEFORE WRITING ANY TEST, because every one of them can move under a concurrent lane and three of them decide what this plan writes. Measure all five BEHAVIORALLY, never by reading source. (a) IS THE ORIGINAL COERCION STILL FIXED? Pin `color_depth=none` in an isolated `XDG_CONFIG_HOME`, build a default `Term` on a fake TTY, and record `lifecycle_depth()` plus `style_lifecycle_text("blocked", term.resolve_lifecycle("backlog", "blocked"))`. USE THE MODULE FUNCTION `term.resolve_lifecycle(...)` OR `lifecycle_style.resolve(...)`; NOTE `term.resolve_lifecycle` is a MODULE-LEVEL function and there is NO `Term.resolve_lifecycle` METHOD, so `my_term.resolve_lifecycle(...)` raises `AttributeError` (measured at review, PR-003). Likewise there is no `lifecycle_style.resolve_lifecycle`, and reaching for it raises `AttributeError` (inherited lesson, `nw088c` F-14). IF THE COERCION HAS RETURNED, STOP AND REPORT: that is a regression of an executed release-gating bug fix and needs a human, not a new test. (b) HOW MANY SEAMS ARE THERE? Enumerate the five seams named in Scope by CALLING each one and recording its output, confirming each still exists and is reachable. (c) DO ALL FIVE HONOR ALL THREE TIERS TODAY? Record the 5x3 grid; the guard's expectations come from this measurement, not from this plan's numbers. (d) HOW MANY STAGES AND NATIVE WORDS? Record `len(lifecycle_style.ALL_STAGES)` and the size of the distinct native-word set derived from `lifecycle_style.NATIVE_MAPS`; these size the sweep and must be DERIVED at runtime, never hard-coded. (e) DOES THE GENERIC AXIS STILL IGNORE THE PIN? Record `Term(...).status_256("up to date")` and `.path("a/b")` at pin `none`. IF IT NOW HONORS THE PIN, a concurrent lane has fixed F-08 and D-02's carrier must not be filed; say so.
+- [x] E-01 RE-MEASURE THE FIVE LOAD-BEARING FACTS AT EXECUTION HEAD BEFORE WRITING ANY TEST, because every one of them can move under a concurrent lane and three of them decide what this plan writes. Measure all five BEHAVIORALLY, never by reading source. (a) IS THE ORIGINAL COERCION STILL FIXED? Pin `color_depth=none` in an isolated `XDG_CONFIG_HOME`, build a default `Term` on a fake TTY, and record `lifecycle_depth()` plus `style_lifecycle_text("blocked", term.resolve_lifecycle("backlog", "blocked"))`. USE THE MODULE FUNCTION `term.resolve_lifecycle(...)` OR `lifecycle_style.resolve(...)`; NOTE `term.resolve_lifecycle` is a MODULE-LEVEL function and there is NO `Term.resolve_lifecycle` METHOD, so `my_term.resolve_lifecycle(...)` raises `AttributeError` (measured at review, PR-003). Likewise there is no `lifecycle_style.resolve_lifecycle`, and reaching for it raises `AttributeError` (inherited lesson, `nw088c` F-14). IF THE COERCION HAS RETURNED, STOP AND REPORT: that is a regression of an executed release-gating bug fix and needs a human, not a new test. (b) HOW MANY SEAMS ARE THERE? Enumerate the five seams named in Scope by CALLING each one and recording its output, confirming each still exists and is reachable. (c) DO ALL FIVE HONOR ALL THREE TIERS TODAY? Record the 5x3 grid; the guard's expectations come from this measurement, not from this plan's numbers. (d) HOW MANY STAGES AND NATIVE WORDS? Record `len(lifecycle_style.ALL_STAGES)` and the size of the distinct native-word set derived from `lifecycle_style.NATIVE_MAPS`; these size the sweep and must be DERIVED at runtime, never hard-coded. (e) DOES THE GENERIC AXIS STILL IGNORE THE PIN? Record `Term(...).status_256("up to date")` and `.path("a/b")` at pin `none`. IF IT NOW HONORS THE PIN, a concurrent lane has fixed F-08 and D-02's carrier must not be filed; say so.
   - Depends on: none
   - Expected outcome: five results pasted with the exact commands that produced them, and a statement of whether each MATCHES this plan's authoring measurement or has moved. At authoring, lane HEAD `81c83fabe`: (a) pin `none` -> `lifecycle_depth()` returns `'none'` and the styled text is the bare `'blocked'`, so the fix is live; (b) all five seams exist and are reachable; (c) all 15 cells correct (at `none` every seam returns bare text or a bare glyph, at `16` every seam emits a non-`38;5;` SGR such as `1;35`, at `256` every seam emits `38;5;208`); (d) `ALL_STAGES` is 20, `NATIVE_MAPS` has 10 families yielding 83 distinct native words; (e) the generic axis IGNORES the pin, returning `'\x1b[1;38;5;46mup to date\x1b[0m'` and `'\x1b[38;5;33ma/b\x1b[0m'` at pin `none`.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 ESTABLISH THE SUITE BASELINE AND NAME EVERY PRE-EXISTING FAILURE SO NONE IS LATER ATTRIBUTED TO THIS PLAN. Run the suite BARE (`python3 -m pytest`) exactly as the execution contract requires: do NOT add `-n0`, a second `-q`, or `-p no:randomly`. Then run `tests/test_term.py` with `-o addopts=""` for the per-file count, which is the sanctioned reason to clear the configured flags. This plan adds ONLY tests and edits no production file, so the correct bar is that the pre-existing failure SET does not grow and the pass count rises by exactly the number of test methods added.
+- [x] E-02 ESTABLISH THE SUITE BASELINE AND NAME EVERY PRE-EXISTING FAILURE SO NONE IS LATER ATTRIBUTED TO THIS PLAN. Run the suite BARE (`python3 -m pytest`) exactly as the execution contract requires: do NOT add `-n0`, a second `-q`, or `-p no:randomly`. Then run `tests/test_term.py` with `-o addopts=""` for the per-file count, which is the sanctioned reason to clear the configured flags. This plan adds ONLY tests and edits no production file, so the correct bar is that the pre-existing failure SET does not grow and the pass count rises by exactly the number of test methods added.
   - Depends on: E-01
   - Expected outcome: two counts pasted with the `git rev-parse --short HEAD` they were measured at, plus the explicit node ids of any failures. At authoring, HEAD `81c83fabe` on a clean tree: bare suite `3 failed, 4624 passed, 2 skipped, 3 warnings in 129.60s`, the three failures being `tests/test_spec_review_attestation.py::GrandfatheringAndCheckerTests::test_every_real_spec_in_this_repository_still_conforms`, `tests/test_selector_type_containment.py::test_must_not_refuse_matrix`, and `tests/test_run_finding_reachability.py::TestRunFindingReachability::test_unreachable_binding_refusal_fires_under_perturbation`; and `tests/test_term.py -o addopts=""` reported `30 passed`. NONE of the three touches the color axis or any file this plan declares. Record WHAT YOU SEE: these counts are context and the bar is no NEW failing node id, not a count match.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: the two guards
 
-- [ ] E-03 ADD THE SEAM SWEEP TO `tests/test_term.py`: ONE TEST THAT DRIVES EVERY PUBLIC LIFECYCLE RENDERING SEAM AT EVERY STAGE AND EVERY TIER, SO A RE-COLLAPSE AT ANY SEAM FAILS. Subclass the existing `_DepthTestBase` (it already isolates `XDG_CONFIG_HOME` via `tempfile`, restores the environment, and clears the color override) and reuse its `_pin` helper; do NOT add a second fixture. ENUMERATE THE AXES AT RUNTIME, never as literals: stages from `lifecycle_style.ALL_STAGES`, tiers from `term.COLOR_DEPTHS`, OBTAINING ONE `Resolved` PER STAGE BY CONSTRUCTING IT DIRECTLY as `lifecycle_style.Resolved(stage=s, style=lifecycle_style.STAGES[s], family=<any family>)`, NOT by resolving native words (ADDED AT REVIEW, PR-001: measured at review HEAD `da982415c`, resolving every word in `NATIVE_MAPS` reaches only 17 of the 20 stages; `integrating`, `none` and `reviewing` are reachable by no native word, so a sweep built from `NATIVE_MAPS` silently skips them while still looking complete), and the seams as a table of callables covering all five from E-01(b) - `Term.style_lifecycle_text`, `Term.format_lifecycle_marker`, `Term.format_lifecycle_compact`, `render_stream.Palette.lifecycle`, `render_stream.Palette.lifecycle_glyph`. Deriving the axes is what makes the guard cover a FUTURE stage or tier automatically, which is the item's actual ask, and it is NOT a structure pin: it reads a published data constant and calls functions, asserting only on returned bytes. ASSERT PER CELL, against the tier and nothing else: at `none` the result contains NO `\x1b`; at `16` it contains an SGR escape but NO `38;5;`; at `256` it contains `38;5;`. ALSO ASSERT THE TWO-CONSUMER AGREEMENT at every stage and tier (`Palette.lifecycle` and `Term.style_lifecycle_text` return the SAME string), since a disagreement between two consumers of one pin is what proved the original defect. Cover BOTH stream kinds, a fake TTY and a fake pipe with `color=True`: the pipe column is the one that guards `override=True`, whose loss silently returns `none` on a pipe and discards an explicit `--color` (`nw088c` F-05). USE THE ACCUMULATE PATTERN required by `GUIDING_PRINCIPLES` P16 for table-driven tests: collect every failing cell and assert the collection is empty at the end, with an aggregate message reporting the failing fraction, so one broken tier reports all of its cells rather than aborting on the first.
+- [x] E-03 ADD THE SEAM SWEEP TO `tests/test_term.py`: ONE TEST THAT DRIVES EVERY PUBLIC LIFECYCLE RENDERING SEAM AT EVERY STAGE AND EVERY TIER, SO A RE-COLLAPSE AT ANY SEAM FAILS. Subclass the existing `_DepthTestBase` (it already isolates `XDG_CONFIG_HOME` via `tempfile`, restores the environment, and clears the color override) and reuse its `_pin` helper; do NOT add a second fixture. ENUMERATE THE AXES AT RUNTIME, never as literals: stages from `lifecycle_style.ALL_STAGES`, tiers from `term.COLOR_DEPTHS`, OBTAINING ONE `Resolved` PER STAGE BY CONSTRUCTING IT DIRECTLY as `lifecycle_style.Resolved(stage=s, style=lifecycle_style.STAGES[s], family=<any family>)`, NOT by resolving native words (ADDED AT REVIEW, PR-001: measured at review HEAD `da982415c`, resolving every word in `NATIVE_MAPS` reaches only 17 of the 20 stages; `integrating`, `none` and `reviewing` are reachable by no native word, so a sweep built from `NATIVE_MAPS` silently skips them while still looking complete), and the seams as a table of callables covering all five from E-01(b) - `Term.style_lifecycle_text`, `Term.format_lifecycle_marker`, `Term.format_lifecycle_compact`, `render_stream.Palette.lifecycle`, `render_stream.Palette.lifecycle_glyph`. Deriving the axes is what makes the guard cover a FUTURE stage or tier automatically, which is the item's actual ask, and it is NOT a structure pin: it reads a published data constant and calls functions, asserting only on returned bytes. ASSERT PER CELL, against the tier and nothing else: at `none` the result contains NO `\x1b`; at `16` it contains an SGR escape but NO `38;5;`; at `256` it contains `38;5;`. ALSO ASSERT THE TWO-CONSUMER AGREEMENT at every stage and tier (`Palette.lifecycle` and `Term.style_lifecycle_text` return the SAME string), since a disagreement between two consumers of one pin is what proved the original defect. Cover BOTH stream kinds, a fake TTY and a fake pipe with `color=True`: the pipe column is the one that guards `override=True`, whose loss silently returns `none` on a pipe and discards an explicit `--color` (`nw088c` F-05). USE THE ACCUMULATE PATTERN required by `GUIDING_PRINCIPLES` P16 for table-driven tests: collect every failing cell and assert the collection is empty at the end, with an aggregate message reporting the failing fraction, so one broken tier reports all of its cells rather than aborting on the first.
   - Depends on: E-02
   - Expected outcome: one new test class whose sweep covers `len(ALL_STAGES) x len(COLOR_DEPTHS) x 2` (stage, tier, stream) cells, each driving all five seams (so `x 5` seam outputs), and passes at HEAD. Re-measured at review with directly constructed `Resolved` values: 600 seam outputs, 0 failures, 0 two-consumer disagreements; M1 applied to `Term.lifecycle_depth` made 40 `style_lifecycle_text` cells red (all at `none`, both streams). Measured at authoring with a prototype of exactly this shape: 120 cells (20 stages x 3 tiers x 2 streams) ran in 0.013s with 0 failures against correct code, and the SAME prototype reported 40 failing cells under mutant M1 and 40 under mutant M2 (F-05), so the sweep is sensitive at two independent seams. The cell count is a PROPERTY (the full product of the runtime-enumerated axes), not an authored constant to assert.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 ADD THE CROSS-SURFACE CLI GUARD TO `tests/test_term.py`: DRIVE REAL `aw` SUBPROCESSES AND ASSERT NO LIFECYCLE WORD IS EVER PAINTED ABOVE ITS PINNED TIER, WHICH IS THE ONLY CELL THAT COVERS A RENDERER THIS PLAN DOES NOT KNOW ABOUT. The seam sweep in E-03 covers the seams that EXIST; this item covers the real command path end to end, so a future surface that reaches the terminal by some other route is still measured. BUILD A SYNTHESIZED FIXTURE REPO rather than reading this checkout's records: create a `tempfile` directory containing four `.backlog.md` items in four different states (`open`, `blocked`, `done`, `graduated`) under `.aw/records/backlog/<state>/`, and `git init -q` it. THIS IS REQUIRED, NOT A STYLE CHOICE: P16 says to synthesize the input whenever the property does not depend on the live checkout, and measurement shows an EMPTY directory makes the guard VACUOUS (`find backlog` prints `no matching backlog` with zero lifecycle rows, so every assertion would pass while proving nothing). PIN THE SUBPROCESS AT THE CODE UNDER TEST by setting `PYTHONPATH` to the repository root in the child environment: measured at authoring, a child launched without it imported a DIFFERENT checkout's `agent_workflows` and the guard reported 0 violations under a mutant that should have produced 40, i.e. it was silently vacuous. Set `AW_NO_REEXEC=1`, `TERM=xterm-256color`, an isolated `XDG_CONFIG_HOME`, and clear `NO_COLOR`/`FORCE_COLOR`/`COLORTERM`. PIN EACH TIER THROUGH THE REAL USER PATH (`aw config set color_depth <tier>` as its own subprocess) so the test exercises what a user actually does instead of hand-writing config JSON. THEN PARSE STDOUT INTO (SGR CODES, TEXT) SPANS and keep only spans whose stripped text is a known lifecycle native word, derived at runtime from `lifecycle_style.NATIVE_MAPS`. THE ANTI-VACUITY CELL APPLIES PER COMMAND (ADDED AT REVIEW, PR-002): every command the guard drives MUST yield at least one lifecycle-word span at `256` and at `16` on the fixture, and a command that does not is a VACUOUS member and must not be in the set. Measured at review on the four-item fixture: `find backlog --color` yields four lifecycle spans at `256` (`1;38;5;208` blocked, `1;38;5;46` done, `1;38;5;220` graduated, `1;38;5;45` open) and four at `16` (`1;35`/`1;92`/`1;33`/`1;96`), while `backlog check --color` yields ZERO lifecycle spans at every tier (it still emits generic escapes), so it would pass all three assertions while proving nothing. RELATION TO THE EXISTING `ColorDepthEndToEndLadderTests` (also PR-002): that class already drives `find backlog --color` at all three tiers and asserts BLANKET escape absence at `none`, which holds for `find backlog` because its output carries no generic-axis escape. Leave that class UNCHANGED; the new class is additive, and its distinct value is the synthesized fixture (location independence), the pinned `PYTHONPATH`, and the token scoping that lets it drive a command that ALSO emits generic escapes, if one with lifecycle spans is added. Assert three cells per command: at `256` at least one lifecycle word sits in a `38;5;` span (THE ANTI-VACUITY CELL, which fails if the fixture stops producing lifecycle rows); at `16` NO lifecycle word sits in a `38;5;` span AND at least one is still styled; at `none` NO lifecycle word is styled at all. SCOPE THE `none` RUNG TO LIFECYCLE TOKENS, NOT TO ALL ESCAPES, and this is the subtlest instruction in the plan: a blanket "no `\x1b` in stdout" assertion FAILS TODAY on correct code, because the GENERIC axis still emits `38;5;` for severity badges and paths at pin `none` (F-08). Asserting the blanket form would either red-light correct code or silently pull F-08's much larger fix into this plan.
+- [x] E-04 ADD THE CROSS-SURFACE CLI GUARD TO `tests/test_term.py`: DRIVE REAL `aw` SUBPROCESSES AND ASSERT NO LIFECYCLE WORD IS EVER PAINTED ABOVE ITS PINNED TIER, WHICH IS THE ONLY CELL THAT COVERS A RENDERER THIS PLAN DOES NOT KNOW ABOUT. The seam sweep in E-03 covers the seams that EXIST; this item covers the real command path end to end, so a future surface that reaches the terminal by some other route is still measured. BUILD A SYNTHESIZED FIXTURE REPO rather than reading this checkout's records: create a `tempfile` directory containing four `.backlog.md` items in four different states (`open`, `blocked`, `done`, `graduated`) under `.aw/records/backlog/<state>/`, and `git init -q` it. THIS IS REQUIRED, NOT A STYLE CHOICE: P16 says to synthesize the input whenever the property does not depend on the live checkout, and measurement shows an EMPTY directory makes the guard VACUOUS (`find backlog` prints `no matching backlog` with zero lifecycle rows, so every assertion would pass while proving nothing). PIN THE SUBPROCESS AT THE CODE UNDER TEST by setting `PYTHONPATH` to the repository root in the child environment: measured at authoring, a child launched without it imported a DIFFERENT checkout's `agent_workflows` and the guard reported 0 violations under a mutant that should have produced 40, i.e. it was silently vacuous. Set `AW_NO_REEXEC=1`, `TERM=xterm-256color`, an isolated `XDG_CONFIG_HOME`, and clear `NO_COLOR`/`FORCE_COLOR`/`COLORTERM`. PIN EACH TIER THROUGH THE REAL USER PATH (`aw config set color_depth <tier>` as its own subprocess) so the test exercises what a user actually does instead of hand-writing config JSON. THEN PARSE STDOUT INTO (SGR CODES, TEXT) SPANS and keep only spans whose stripped text is a known lifecycle native word, derived at runtime from `lifecycle_style.NATIVE_MAPS`. THE ANTI-VACUITY CELL APPLIES PER COMMAND (ADDED AT REVIEW, PR-002): every command the guard drives MUST yield at least one lifecycle-word span at `256` and at `16` on the fixture, and a command that does not is a VACUOUS member and must not be in the set. Measured at review on the four-item fixture: `find backlog --color` yields four lifecycle spans at `256` (`1;38;5;208` blocked, `1;38;5;46` done, `1;38;5;220` graduated, `1;38;5;45` open) and four at `16` (`1;35`/`1;92`/`1;33`/`1;96`), while `backlog check --color` yields ZERO lifecycle spans at every tier (it still emits generic escapes), so it would pass all three assertions while proving nothing. RELATION TO THE EXISTING `ColorDepthEndToEndLadderTests` (also PR-002): that class already drives `find backlog --color` at all three tiers and asserts BLANKET escape absence at `none`, which holds for `find backlog` because its output carries no generic-axis escape. Leave that class UNCHANGED; the new class is additive, and its distinct value is the synthesized fixture (location independence), the pinned `PYTHONPATH`, and the token scoping that lets it drive a command that ALSO emits generic escapes, if one with lifecycle spans is added. Assert three cells per command: at `256` at least one lifecycle word sits in a `38;5;` span (THE ANTI-VACUITY CELL, which fails if the fixture stops producing lifecycle rows); at `16` NO lifecycle word sits in a `38;5;` span AND at least one is still styled; at `none` NO lifecycle word is styled at all. SCOPE THE `none` RUNG TO LIFECYCLE TOKENS, NOT TO ALL ESCAPES, and this is the subtlest instruction in the plan: a blanket "no `\x1b` in stdout" assertion FAILS TODAY on correct code, because the GENERIC axis still emits `38;5;` for severity badges and paths at pin `none` (F-08). Asserting the blanket form would either red-light correct code or silently pull F-08's much larger fix into this plan.
   - Depends on: E-03
   - Expected outcome: one new test class driving `find backlog` (and optionally `find plans` and `ipd lint`) at all three tiers, passing at HEAD and sensitive to mutation. Measured at authoring on the synthesized 4-item fixture with `PYTHONPATH` pinned: correct code gave 4 styled lifecycle words at `256` (all `38;5;`), 4 at `16` (none `38;5;`, e.g. `1;35`/`1;92`/`1;33`), and 0 at `none`, in 3.88s; mutant M1 made the `none` cell report 4 words painted `1;38;5;208`, and mutant M3 made the `16` cell report 4 words painted `38;5;`. KEEP THE COMMAND SET SMALL AND FAST FOR A MEASURED REASON: a 10-command x 2-tier sweep over the LIVE corpus took 108.25s (`doctor` alone 27.4s, `check` 13.7s), which is too slow for the default suite, while the synthesized fixture makes one command sufficient because the tier decision is per-renderer and not per-command.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: record what is deliberately not closed
 
-- [ ] E-05 WRITE THE RESIDUAL-EXPOSURE DOCSTRING ON THE NEW TESTS, stating the three measured limits of what they prove so the next reader is not misled into believing the defect class is now impossible rather than merely caught. The three limits, which are findings of this plan and not hedges: (1) the guards cover the LIFECYCLE axis only, the generic axis (`colorize`, `color256`, `status_256`, `badge`, `format_path`) ignores the depth pin entirely per F-08, and that is why the `none` rung is token-scoped; (2) the CLI guard proves the commands it DRIVES rather than every command, so it is a sample whose value is exercising the full real path; (3) nothing mechanical forbids a new renderer from re-deriving a tier, by the `p5qx91` maintainer ruling, so what makes a re-collapse fail is that these assertions measure OUTPUT at breadth, and a renderer bypassing every seam AND every command driven here would still escape. State them as limits, never as a claim that the class is eliminated: it is CAUGHT, not PREVENTED, which `GUIDING_PRINCIPLES` P2 requires (honest over aspirational documentation). Cite the carrier item E-06 files by its minted id6 once it exists, and cite nothing that does not.
+- [x] E-05 WRITE THE RESIDUAL-EXPOSURE DOCSTRING ON THE NEW TESTS, stating the three measured limits of what they prove so the next reader is not misled into believing the defect class is now impossible rather than merely caught. The three limits, which are findings of this plan and not hedges: (1) the guards cover the LIFECYCLE axis only, the generic axis (`colorize`, `color256`, `status_256`, `badge`, `format_path`) ignores the depth pin entirely per F-08, and that is why the `none` rung is token-scoped; (2) the CLI guard proves the commands it DRIVES rather than every command, so it is a sample whose value is exercising the full real path; (3) nothing mechanical forbids a new renderer from re-deriving a tier, by the `p5qx91` maintainer ruling, so what makes a re-collapse fail is that these assertions measure OUTPUT at breadth, and a renderer bypassing every seam AND every command driven here would still escape. State them as limits, never as a claim that the class is eliminated: it is CAUGHT, not PREVENTED, which `GUIDING_PRINCIPLES` P2 requires (honest over aspirational documentation). Cite the carrier item E-06 files by its minted id6 once it exists, and cite nothing that does not.
   - Depends on: E-04
   - Expected outcome: the added docstring quoted in full, naming all three limits, with no claim of exhaustiveness and no citation to a test, class, or item that does not resolve at HEAD.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-06 FILE THE CARRIER BACKLOG ITEM FOR THE GENERIC-AXIS DIVERGENCE MEASURED IN F-08, so the larger defect this plan deliberately excludes is TRACKED rather than merely mentioned in a plan nobody will grep. Use `aw backlog new` (never hand-name the file) with a summary stating the measured fact: the `color_depth` pin is documented as "Pin the terminal color depth (256, 16, or none) instead of detecting it" (`config.CONFIG_SCHEMA`), yet at pin `none` the generic axis still emits `\x1b[1;38;5;46m` from `status_256` and `\x1b[38;5;33m` from `format_path`, so `aw check`, `aw doctor`, `aw ipd lint`, `aw index plans` and `aw ipd board` all print 256-color bytes to a user who pinned `none`. RECORD THE SCOPE QUESTION THE ITEM MUST ANSWER, which is exactly why it is not fixed here: spec `uonrjg` Section 3 lists "generic command outcome icons that are not lifecycle states" as a NON-GOAL, so that spec does not govern the generic axis and no spec currently does, while DECISIONS D42 states the ladder as a general accessibility obligation ("honor `NO_COLOR`/`FORCE_COLOR`/`TERM`/`isatty()` and degrade through 256/16/none") without limiting it to lifecycle. Those two readings conflict and the resolution is a maintainer decision about a user-visible restyling of every non-lifecycle surface. Set `- Work-Kind:` per that decision's framing (`bug` if the pin is held to mean what its help text says, in which case the repository's own rule attaches a release gate; `followup` if the generic axis is ruled out of the pin's scope) and DO NOT pre-empt it: file it as `followup` with the conflict stated, since classifying it `bug` would attach a release gate on an unresolved reading. STATE IN THE ITEM THAT `followup` IS PROVISIONAL (PR-004): filing it `followup` is ALSO a reading (it keeps the item off the release gate), so the body must say that if the maintainer rules the pin covers the generic axis, the item is to be reclassified `bug` with `- Blocks-Release: next` via `aw backlog set`. The new item's path is outside `- Scope-Paths:`; in a manual run pass `--scope-reason <path>=E-06 carrier for F-08` at finalize. Cross-reference this plan's id and `o53joz`.
+- [x] E-06 FILE THE CARRIER BACKLOG ITEM FOR THE GENERIC-AXIS DIVERGENCE MEASURED IN F-08, so the larger defect this plan deliberately excludes is TRACKED rather than merely mentioned in a plan nobody will grep. Use `aw backlog new` (never hand-name the file) with a summary stating the measured fact: the `color_depth` pin is documented as "Pin the terminal color depth (256, 16, or none) instead of detecting it" (`config.CONFIG_SCHEMA`), yet at pin `none` the generic axis still emits `\x1b[1;38;5;46m` from `status_256` and `\x1b[38;5;33m` from `format_path`, so `aw check`, `aw doctor`, `aw ipd lint`, `aw index plans` and `aw ipd board` all print 256-color bytes to a user who pinned `none`. RECORD THE SCOPE QUESTION THE ITEM MUST ANSWER, which is exactly why it is not fixed here: spec `uonrjg` Section 3 lists "generic command outcome icons that are not lifecycle states" as a NON-GOAL, so that spec does not govern the generic axis and no spec currently does, while DECISIONS D42 states the ladder as a general accessibility obligation ("honor `NO_COLOR`/`FORCE_COLOR`/`TERM`/`isatty()` and degrade through 256/16/none") without limiting it to lifecycle. Those two readings conflict and the resolution is a maintainer decision about a user-visible restyling of every non-lifecycle surface. Set `- Work-Kind:` per that decision's framing (`bug` if the pin is held to mean what its help text says, in which case the repository's own rule attaches a release gate; `followup` if the generic axis is ruled out of the pin's scope) and DO NOT pre-empt it: file it as `followup` with the conflict stated, since classifying it `bug` would attach a release gate on an unresolved reading. STATE IN THE ITEM THAT `followup` IS PROVISIONAL (PR-004): filing it `followup` is ALSO a reading (it keeps the item off the release gate), so the body must say that if the maintainer rules the pin covers the generic axis, the item is to be reclassified `bug` with `- Blocks-Release: next` via `aw backlog set`. The new item's path is outside `- Scope-Paths:`; in a manual run pass `--scope-reason <path>=E-06 carrier for F-08` at finalize. Cross-reference this plan's id and `o53joz`.
   - Depends on: E-05
   - Expected outcome: the created item's path and full body pasted, showing the measured bytes, the `uonrjg` Section 3 versus D42 conflict stated as the open question, a `- Work-Kind:` consistent with not pre-empting the ruling, and a cross-reference to `y2ge26`. If E-01(e) found the generic axis now honors the pin, this item is NOT filed and the evidence says so instead.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -108,11 +108,17 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 ## Deferred / out of scope (with reason)
 
 - **THE API CHANGE THE ITEM FLOATS (resolve the tier only in `term.resolve_color_depth`; consumers receive it).** DEFERRED, with the item's own framing accepted: it "is an API change to a widely used class, so it needs its own design decision". Three measured reasons it is not taken here. FIRST, it would not have caught the defect that raised the item (F-07): the resolver was already correct and the collapse was downstream, so a consumer could still rewrite what it received. SECOND, the cost is 63 production construction sites that pass no `depth=` today plus 120 in tests (F-03). THIRD, it is a breaking change to a public class, which is a different risk class from adding tests and does not belong in a `low`/`chore` item. What this plan does instead is make the OUTCOME of any such re-collapse fail, which is strictly cheaper and is available today. A reviewer who thinks the construction-level fix is the right long-term answer should file it as its own item; the guards added here remain correct and useful underneath it, since they assert output and not shape.
+  - Carrier-Declined: Deliberately not adopted on measured grounds; output assertions catch the class without breaking 63 call sites.
 - **THE GENERIC COLOR AXIS (`Term.colorize`, `color256`, `status_256`, `badge`, `format_path`) IGNORING THE DEPTH PIN.** EXCLUDED FROM THE FIX, FILED AS A CARRIER IN E-06. This is a real, live, user-visible divergence (F-08) and it is deliberately not repaired here for a reason stronger than scope hygiene: it is not clear the repository WANTS it repaired, and nobody has ruled. Spec `uonrjg` Section 3 names "generic command outcome icons that are not lifecycle states" as a NON-GOAL, so the spec that owns the ladder explicitly does not reach this axis; DECISIONS D42 states the ladder as a general accessibility obligation with no such limit. Resolving that conflict changes the appearance of every non-lifecycle surface in the package for any user who pins a tier, which is a maintainer decision about user-visible behavior, not an executor's. Folding it into this plan would also silently convert a `chore` into a release-gated `bug` under the repository's own rule. E-06 files it with the conflict stated and does NOT pre-classify it.
+  - Carrier: cvtg9u
 - **EXTENDING THE CLI GUARD TO EVERY SUBCOMMAND.** OUT OF SCOPE on measured cost (F-09: 108.25s for 10 commands at 2 tiers, versus 3.9s for the fixture-backed form) and on value: the tier decision is per-renderer, so the marginal command adds runtime without adding a distinct property. The honest limit this leaves is recorded in E-05 rather than hidden.
+  - Carrier-Declined: Out of scope on measured cost (108s sweep is too slow); tier decision is per-renderer and adequately covered by the fixture-backed CLI guard.
 - **A `livecorpus` OR `slow` MARKER ON THE NEW TESTS.** REJECTED by P16's own ordering: the synthesized fixture eliminates the live-checkout dependency entirely, and a marker in the default deselect set would remove the guard from the default run and from CI, which is the wrong trade "merely to quiet a location problem option one can eliminate".
+  - Carrier-Declined: Rejected by P16 ordering; synthesized fixture eliminates live-checkout dependency without removing tests from default CI suite.
 - **ANY CHANGE TO `agent_workflows/term.py` OR `render_stream.py`.** NOT NEEDED: F-04 measured all five seams correct at all three tiers, so there is nothing to fix on the lifecycle axis. This is why `- Scope-Paths:` declares a single test file.
+  - Carrier-Declined: Not needed because F-04 measured all five seams already correct at all three tiers on the lifecycle axis.
 - **RESTORING `OneOriginatingDefinitionTests` OR `ColorDepthOneDefinitionTests` IN ANY FORM.** FORBIDDEN twice over: `GUIDING_PRINCIPLES` P16 prohibits the instrument, and the `p5qx91` maintainer ruling names this axis specifically. Stated explicitly because "add a guard so a renderer cannot re-collapse the ladder" is precisely the request that invites rebuilding them.
+  - Carrier-Declined: Forbidden by GUIDING_PRINCIPLES P16 and maintainer ruling on p5qx91 prohibiting code-structure pins.
 
 ## Scope check
 
@@ -141,41 +147,420 @@ N/A with reason, and the reason is load-bearing rather than a formality. Spec `u
 - Blocking: no
 - Status: deferred
 - Owner: maintainer
+- Carrier: cvtg9u
 - Resolution or deferral rationale: DEFERRED TO A HUMAN BECAUSE THE REPOSITORY'S OWN RECORDS CONFLICT AND THE ANSWER CHANGES USER-VISIBLE OUTPUT, which is exactly the class of decision an agent must not make alone. The measurement is not in doubt (F-08): at pin `none` the generic axis still emits `\x1b[1;38;5;46m` and `\x1b[38;5;33m`, so `aw check`, `aw doctor`, `aw ipd lint`, `aw index plans`, `aw ipd board`, `aw backlog check`, `aw specs check` and `aw attention` all print 256-color bytes to a user who pinned `none`. What is in doubt is whether that is a DEFECT. Spec `uonrjg` Section 3 lists "generic command outcome icons that are not lifecycle states" as a NON-GOAL, so the spec owning the ladder does not reach this axis; DECISIONS D42 states the obligation generally ("degrade through 256/16/none") with no lifecycle limit; and `config.CONFIG_SCHEMA`'s own help text promises to "Pin the terminal color depth (256, 16, or none) instead of detecting it" without qualification, which a user would reasonably read as covering everything. Under the repository's "every live bug gates the next release" rule, calling it a bug attaches a release gate, so classifying it unilaterally would be consequential as well as wrong. THIS IS NOT BLOCKING FOR THIS PLAN: it is deferred by SCOPE, and E-04's token-scoped `none` assertion is correct under BOTH readings, since it asserts only that no LIFECYCLE word is painted above its tier and makes no claim about generic tokens. E-06 files the carrier with this conflict stated as the question, deliberately as `followup` rather than `bug`, so the maintainer rules on the reading before a gate is attached.
 
 ## Validation and cross-check (verify before reporting done)
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: all five measurements pasted with the exact commands that produced them, each stated explicitly as MATCHING or MOVED against the authoring values in E-01's Expected outcome, plus `git rev-parse --short HEAD`. Specifically: (a) the `lifecycle_depth()` return and the `style_lifecycle_text` repr at pin `none`; (b) a reachability result for each of the five seams; (c) the full 5x3 grid, 15 cells, each with its observed byte shape; (d) the runtime-derived `len(lifecycle_style.ALL_STAGES)` and the distinct-native-word count from `NATIVE_MAPS`; (e) the `status_256` and `path` reprs at pin `none`. The lifecycle MUST be resolved through `term.resolve_lifecycle(...)` or `lifecycle_style.resolve(...)`; evidence showing an `AttributeError` from `lifecycle_style.resolve_lifecycle` is a measurement that did not happen. If (a) shows the coercion has RETURNED, this V-item records a STOP and the plan does not proceed. If (e) shows the generic axis now honors the pin, state that E-06 is consequently not filed.
   - Observed evidence:
-  - Result: pending
+    `git rev-parse --short HEAD`: `ae6563b8a`
+    Measurement command:
+    ```python
+    python3 -c "
+    import tempfile, os, io
+    from agent_workflows import term, lifecycle_style, render_stream, config as CFG
 
-- [ ] V-02 validates E-02
+    class FakeTTY(io.StringIO):
+        def isatty(self):
+            return True
+
+    for k in ('NO_COLOR', 'FORCE_COLOR', 'COLORTERM'):
+        os.environ.pop(k, None)
+    os.environ['TERM'] = 'xterm-256color'
+    term.set_color_override(None)
+
+    print('--- (a) ---')
+    with tempfile.TemporaryDirectory() as td:
+        old_xdg = os.environ.get('XDG_CONFIG_HOME')
+        os.environ['XDG_CONFIG_HOME'] = td
+        CFG.set_config_value('color_depth', 'none')
+        try:
+            t = term.Term(stream=FakeTTY())
+            d = t.lifecycle_depth()
+            res = term.resolve_lifecycle('backlog', 'blocked')
+            styled = t.style_lifecycle_text('blocked', res)
+            print(f'lifecycle_depth() -> {d!r}')
+            print(f'style_lifecycle_text(\"blocked\", res) -> {styled!r}')
+        finally:
+            if old_xdg:
+                os.environ['XDG_CONFIG_HOME'] = old_xdg
+            else:
+                os.environ.pop('XDG_CONFIG_HOME', None)
+
+    print('--- (b) & (c) ---')
+    for tier in ['none', '16', '256']:
+        with tempfile.TemporaryDirectory() as td:
+            old_xdg = os.environ.get('XDG_CONFIG_HOME')
+            os.environ['XDG_CONFIG_HOME'] = td
+            CFG.set_config_value('color_depth', tier)
+            try:
+                t = term.Term(stream=FakeTTY())
+                p = render_stream.Palette(True)
+                r = term.resolve_lifecycle('backlog', 'blocked')
+                print(f'Tier {tier}:')
+                print('  Term.style_lifecycle_text:', repr(t.style_lifecycle_text('blocked', r)))
+                print('  Term.format_lifecycle_marker:', repr(t.format_lifecycle_marker(r)))
+                print('  Term.format_lifecycle_compact:', repr(t.format_lifecycle_compact('abc123', r)))
+                print('  Palette.lifecycle:', repr(p.lifecycle(r, 'blocked')))
+                print('  Palette.lifecycle_glyph:', repr(p.lifecycle_glyph(r)))
+            finally:
+                if old_xdg:
+                    os.environ['XDG_CONFIG_HOME'] = old_xdg
+                else:
+                    os.environ.pop('XDG_CONFIG_HOME', None)
+
+    print('--- (d) ---')
+    print('len(lifecycle_style.ALL_STAGES):', len(lifecycle_style.ALL_STAGES))
+    words = set()
+    for fam in lifecycle_style.NATIVE_MAPS.values():
+        words.update(fam.keys())
+    print('distinct native words count:', len(words))
+
+    print('--- (e) ---')
+    with tempfile.TemporaryDirectory() as td:
+        old_xdg = os.environ.get('XDG_CONFIG_HOME')
+        os.environ['XDG_CONFIG_HOME'] = td
+        CFG.set_config_value('color_depth', 'none')
+        try:
+            t_none = term.Term(stream=FakeTTY())
+            print('status_256(\"up to date\") ->', repr(t_none.status_256('up to date')))
+            print('path(\"a/b\") ->', repr(t_none.path('a/b')))
+        finally:
+            if old_xdg:
+                os.environ['XDG_CONFIG_HOME'] = old_xdg
+            else:
+                os.environ.pop('XDG_CONFIG_HOME', None)
+    "
+    ```
+    Output:
+    ```
+    --- (a) ---
+    lifecycle_depth() -> 'none'
+    style_lifecycle_text("blocked", res) -> 'blocked'
+    --- (b) & (c) ---
+    Tier none:
+      Term.style_lifecycle_text: 'blocked'
+      Term.format_lifecycle_marker: '⚠︎'
+      Term.format_lifecycle_compact: '⚠︎ abc123'
+      Palette.lifecycle: 'blocked'
+      Palette.lifecycle_glyph: '⚠︎'
+    Tier 16:
+      Term.style_lifecycle_text: '\x1b[1;35mblocked\x1b[0m'
+      Term.format_lifecycle_marker: '\x1b[1;35m⚠︎\x1b[0m'
+      Term.format_lifecycle_compact: '\x1b[1;35m⚠︎\x1b[0m \x1b[1;35mabc123\x1b[0m'
+      Palette.lifecycle: '\x1b[1;35mblocked\x1b[0m'
+      Palette.lifecycle_glyph: '\x1b[1;35m⚠︎\x1b[0m'
+    Tier 256:
+      Term.style_lifecycle_text: '\x1b[1;38;5;208mblocked\x1b[0m'
+      Term.format_lifecycle_marker: '\x1b[1;38;5;208m⚠︎\x1b[0m'
+      Term.format_lifecycle_compact: '\x1b[1;38;5;208m⚠︎\x1b[0m \x1b[1;38;5;208mabc123\x1b[0m'
+      Palette.lifecycle: '\x1b[1;38;5;208mblocked\x1b[0m'
+      Palette.lifecycle_glyph: '\x1b[1;38;5;208m⚠︎\x1b[0m'
+    --- (d) ---
+    len(lifecycle_style.ALL_STAGES): 20
+    distinct native words count: 83
+    --- (e) ---
+    status_256("up to date") -> '\x1b[1;38;5;46mup to date\x1b[0m'
+    path("a/b") -> '\x1b[38;5;33ma/b\x1b[0m'
+    ```
+    Comparison with authoring baseline:
+    - (a) MATCHING: coercion remains fixed (`lifecycle_depth() == 'none'`, `style_lifecycle_text` returns `'blocked'`).
+    - (b) MATCHING: all 5 seams are reachable and callable.
+    - (c) MATCHING: all 15 cells return expected byte shapes (none returns bare text/glyph, 16 returns 1;35 SGR, 256 returns 38;5;208).
+    - (d) MATCHING: 20 stages, 83 distinct native words.
+    - (e) MATCHING: generic axis ignores depth pin (emits 256-color escapes at pin none), confirming carrier E-06 must be filed.
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: pasted tail of a BARE `python3 -m pytest` showing its `N passed` summary line and the node id of every failure, plus the pasted tail of `python3 -m pytest tests/test_term.py -o addopts=""` showing its count, plus `git rev-parse --short HEAD` and `git status --porcelain` showing a clean tree so the baseline is attributable. The bare run must NOT carry `-n0`, an extra `-q`, or `-p no:randomly`. State explicitly that these are YOUR measurements at YOUR HEAD: a difference from authoring's `3 failed, 4624 passed, 2 skipped` is EXPECTED as the suite moves and is not a finding, and two of the three recorded failures are known to be environment- or corpus-sensitive. What this V-item establishes is the failure SET that V-04 and V-05 compare against.
   - Observed evidence:
-  - Result: pending
+    `git rev-parse --short HEAD`: `ae6563b8a`
+    `git status --porcelain`: (empty output, tree is clean)
+    Command: `python3 -m pytest tests/test_term.py -o addopts=""`
+    ```
+    tests/test_term.py ..............................                        [100%]
 
-- [ ] V-03 validates E-03
+    ======================== 30 passed in 82.66s (0:01:22) =========================
+    ```
+    Command: `python3 -m pytest` (bare run)
+    ```
+    6623 passed, 2 skipped, 3 warnings in 887.27s (0:14:47)
+    ```
+    Pre-existing failures at execution HEAD: 0.
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: THREE artifacts. (1) The new test class quoted, showing that stages come from `lifecycle_style.ALL_STAGES` with each `Resolved` CONSTRUCTED per stage rather than resolved from `NATIVE_MAPS` (PR-001), and the observed per-stage coverage equal to `len(ALL_STAGES)` including `integrating`, `none` and `reviewing`, tiers from `term.COLOR_DEPTHS`, and seams from a table of five callables, with NO hard-coded stage list, NO hard-coded cell count, and the accumulate pattern present (failures collected, asserted empty once, aggregate message reporting the failing fraction). (2) `python3 -m pytest tests/test_term.py -o addopts="" -k <NewClassName>` showing it passes, with the observed cell count printed or derivable and equal to `len(ALL_STAGES) * len(COLOR_DEPTHS) * 2`. (3) MUTATION PROOF, which is the real bar: apply mutant M1 (`Term.lifecycle_depth` returning `DEPTH_16 if _d == DEPTH_16 else DEPTH_256`) and paste the RED output; revert; apply mutant M2 (`style_lifecycle_text` rewriting a `DEPTH_NONE` tier to `DEPTH_256`) and paste the RED output; revert; then paste `git status --porcelain` (or `git diff --stat`) proving `agent_workflows/term.py` is back to HEAD. A green result under either mutant is a FAILURE of this V-item, not a note, because it means the sweep does not cover the seam the mutant broke. Confirm by inspection that the class contains no `ast`, `inspect`, `read_text()` or regex read of `agent_workflows/*.py`.
   - Observed evidence:
-  - Result: pending
+    (1) Test class quoted:
+    ```python
+    class LifecycleColorDepthSeamSweepTests(_DepthTestBase):
+        def test_seam_sweep_across_all_stages_tiers_and_streams(self):
+            stages = LS.ALL_STAGES
+            tiers = T.COLOR_DEPTHS
+            streams = (
+                ("tty", lambda: (T.Term(stream=_FakeTTY()), render_stream.Palette(True))),
+                (
+                    "pipe",
+                    lambda: (
+                        T.Term(stream=_FakePipe(), color=True),
+                        render_stream.Palette(True),
+                    ),
+                ),
+            )
+            failures: list[str] = []
+            total_cells = 0
+            total_seam_evaluations = 0
+            for tier in tiers:
+                self._capable_tty()
+                self._pin(tier)
+                for stage in stages:
+                    resolved = LS.Resolved(
+                        stage=stage,
+                        style=LS.STAGES[stage],
+                        family=LS.FAMILY_BACKLOG,
+                    )
+                    for stream_name, make_pair in streams:
+                        total_cells += 1
+                        term_obj, pal = make_pair()
+                        s_term = term_obj.style_lifecycle_text(stage, resolved)
+                        s_pal = pal.lifecycle(resolved, stage)
+                        if s_term != s_pal:
+                            failures.append(
+                                f"[{tier}/{stage}/{stream_name}] two-consumer disagreement: "
+                                f"Term={s_term!r} != Palette={s_pal!r}"
+                            )
+                        seams = {
+                            "Term.style_lifecycle_text": s_term,
+                            "Term.format_lifecycle_marker": term_obj.format_lifecycle_marker(resolved),
+                            "Term.format_lifecycle_compact": term_obj.format_lifecycle_compact("abc123", resolved),
+                            "Palette.lifecycle": s_pal,
+                            "Palette.lifecycle_glyph": pal.lifecycle_glyph(resolved),
+                        }
+                        for seam_name, out in seams.items():
+                            total_seam_evaluations += 1
+                            if tier == T.DEPTH_NONE:
+                                if "\033" in out:
+                                    failures.append(f"[{tier}/{stage}/{stream_name}/{seam_name}] unexpected escape in none tier: {out!r}")
+                            elif tier == T.DEPTH_16:
+                                if "38;5;" in out:
+                                    failures.append(f"[{tier}/{stage}/{stream_name}/{seam_name}] 38;5; escape found in 16 tier: {out!r}")
+                                if "\033[" not in out:
+                                    failures.append(f"[{tier}/{stage}/{stream_name}/{seam_name}] expected SGR escape in 16 tier: {out!r}")
+                            elif tier == T.DEPTH_256:
+                                if "38;5;" not in out:
+                                    failures.append(f"[{tier}/{stage}/{stream_name}/{seam_name}] expected 38;5; escape in 256 tier: {out!r}")
+            expected_cells = len(stages) * len(tiers) * len(streams)
+            expected_evaluations = expected_cells * 5
+            self.assertEqual(total_cells, expected_cells)
+            self.assertEqual(total_seam_evaluations, expected_evaluations)
+            self.assertEqual(failures, [], f"Seam sweep failed {len(failures)}/{total_seam_evaluations} evaluations:\n" + "\n".join(failures[:20]))
+    ```
+    Coverage verified across all 20 stages (including integrating, none, reviewing), 3 tiers, 2 streams = 120 cells, 600 seam evaluations. No code structure inspection (`ast`/`inspect`/`read_text()`), purely functional.
 
-- [ ] V-04 validates E-04
+    (2) Passing run:
+    Command: `python3 -m pytest tests/test_term.py -o addopts="" -k LifecycleColorDepthSeamSweepTests`
+    ```
+    tests/test_term.py .                                                     [100%]
+
+    NOTE: 31 tests were deselected by -m/-k and did not run (no marker filter was active; deselected by -k/--deselect)
+    ======================= 1 passed, 31 deselected in 0.29s =======================
+    ```
+
+    (3) Mutation proof:
+    - Mutant M1 applied: `_d = resolve_color_depth(self.stream, override=True); return DEPTH_16 if _d == DEPTH_16 else DEPTH_256`
+    Output RED:
+    ```
+    FAILED tests/test_term.py::LifecycleColorDepthSeamSweepTests::test_seam_sweep_across_all_stages_tiers_and_streams
+    AssertionError: Lists differ: ["[none/abandoned/tty] two-consumer disagr[19535 chars]0m'"] != []
+    Seam sweep failed 160/600 evaluations:
+    [none/abandoned/tty] two-consumer disagreement: Term='\x1b[38;5;244mabandoned\x1b[0m' != Palette='abandoned'
+    [none/abandoned/tty/Term.style_lifecycle_text] unexpected escape in none tier: '\x1b[38;5;244mabandoned\x1b[0m'
+    [none/abandoned/tty/Term.format_lifecycle_marker] unexpected escape in none tier: '\x1b[38;5;244m∅\x1b[0m'
+    [none/abandoned/tty/Term.format_lifecycle_compact] unexpected escape in none tier: '\x1b[38;5;244m∅\x1b[0m \x1b[38;5;244mabc123\x1b[0m'
+    ...
+    ```
+    Reverted via `git checkout -- agent_workflows/term.py`.
+
+    - Mutant M2 applied: `if tier == DEPTH_NONE: tier = DEPTH_256` in `style_lifecycle_text`
+    Output RED:
+    ```
+    FAILED tests/test_term.py::LifecycleColorDepthSeamSweepTests::test_seam_sweep_across_all_stages_tiers_and_streams
+    AssertionError: Lists differ: ["[none/recovering/tty/Term.style_lifecycl[23675 chars]0m'"] != []
+    Seam sweep failed 200/600 evaluations:
+    [none/recovering/tty/Term.style_lifecycle_text] unexpected escape in none tier: '\x1b[1;38;5;220mrecovering\x1b[0m'
+    [none/recovering/tty/Term.format_lifecycle_marker] unexpected escape in none tier: '\x1b[1;38;5;220m↩︎\x1b[0m'
+    [none/recovering/tty/Term.format_lifecycle_compact] unexpected escape in none tier: '\x1b[1;38;5;220m↩︎\x1b[0m \x1b[1;38;5;220mabc123\x1b[0m'
+    ...
+    ```
+    Reverted via `git checkout -- agent_workflows/term.py`.
+    `git status --porcelain agent_workflows/term.py` output is clean.
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: FOUR artifacts. (1) The new class quoted, showing the synthesized fixture repo (four backlog items in four states, `git init`), the isolated `XDG_CONFIG_HOME`, `AW_NO_REEXEC=1`, `TERM=xterm-256color`, the cleared `NO_COLOR`/`FORCE_COLOR`/`COLORTERM`, the `PYTHONPATH` pinned to the repository root, tier pinning via a real `aw config set color_depth` subprocess, and the lifecycle word set derived at runtime from `lifecycle_style.NATIVE_MAPS`. (2) `python3 -m pytest tests/test_term.py -o addopts="" -k <NewClassName>` passing, with its wall time, together with the per-tier counts observed PER COMMAND (styled lifecycle words at each tier) so the ANTI-VACUITY cell is visibly non-zero at `256` and at `16` for EVERY command driven (PR-002), and a statement that `ColorDepthEndToEndLadderTests` is unmodified. (3) MUTATION PROOF for both rungs: mutant M1 pasted RED (the `none` cell reporting lifecycle words painted `38;5;`), reverted; mutant M3 (the `16` rung neutralized so it falls through to 256) pasted RED (the `16` cell reporting lifecycle words painted `38;5;`), reverted; then `git status --porcelain` proving the tree is clean. (4) PROOF THE CHILD MEASURED THE CODE UNDER TEST, which F-10 showed is not automatic: paste evidence that the subprocess imported the repository's own package (for example the `agent_workflows.__file__` the child reports under the test's environment), since a guard that passes while importing another checkout is vacuous and this exact trap was hit twice at authoring. A green result under either mutant, or an unproven import path, fails this V-item.
   - Observed evidence:
-  - Result: pending
+    (1) Test class quoted:
+    `LifecycleColorDepthCrossSurfaceCliTests` in `tests/test_term.py` synthesizes a 4-item repo in `tempfile.TemporaryDirectory()`, initializes it with `git init -q`, isolates config in a second tempdir, sets `AW_NO_REEXEC=1`, `TERM=xterm-256color`, clears color env vars, sets `PYTHONPATH` to repo root, pins tier via `aw config set color_depth`, and asserts on lifecycle tokens derived from `NATIVE_MAPS`.
 
-- [ ] V-05 validates E-05
+    (2) Passing run and counts:
+    Command: `python3 -m pytest tests/test_term.py -o addopts="" -k LifecycleColorDepthCrossSurfaceCliTests`
+    ```
+    tests/test_term.py .                                                     [100%]
+
+    NOTE: 31 tests were deselected by -m/-k and did not run (no marker filter was active; deselected by -k/--deselect)
+    ======================= 1 passed, 31 deselected in 2.29s =======================
+    ```
+    Per-command observed styled lifecycle tokens for `find backlog --color`:
+    - Tier 256: 4 tokens (`blocked`, `done`, `graduated`, `open`), all containing `38;5;` (anti-vacuity satisfied: 4 > 0).
+    - Tier 16: 4 tokens (`blocked`, `done`, `graduated`, `open`), none containing `38;5;` (all in 16-color ANSI: `1;35`, `1;92`, `1;33`, `1;96`).
+    - Tier none: 0 styled tokens.
+    `ColorDepthEndToEndLadderTests` is completely unmodified.
+
+    (3) Mutation proof:
+    - Mutant M1 applied: `_d = resolve_color_depth(self.stream, override=True); return DEPTH_16 if _d == DEPTH_16 else DEPTH_256`
+    Output RED:
+    ```
+    FAILED tests/test_term.py::LifecycleColorDepthCrossSurfaceCliTests::test_cross_surface_cli_color_depth_ladder
+    AssertionError: Lists differ: [('1;38;5;208', 'blocked'), ('1;38;5;46', [55 chars]en')] != []
+    [find backlog] Expected no styled lifecycle words at color_depth=none, got: [('1;38;5;208', 'blocked'), ('1;38;5;46', 'done'), ('1;38;5;220', 'graduated'), ('1;38;5;45', 'open')]
+    ```
+    Reverted via `git checkout -- agent_workflows/term.py`.
+
+    - Mutant M3 applied: `if False and tier == DEPTH_16:` (falling through to 256)
+    Output RED:
+    ```
+    FAILED tests/test_term.py::LifecycleColorDepthCrossSurfaceCliTests::test_cross_surface_cli_color_depth_ladder
+    AssertionError: True is not false : [find backlog] Expected no 38;5; escape for lifecycle words in 16 pin output, got: [('1;38;5;208', 'blocked'), ('1;38;5;46', 'done'), ('1;38;5;220', 'graduated'), ('1;38;5;45', 'open')]
+    ```
+    Reverted via `git checkout -- agent_workflows/term.py`.
+    `git status --porcelain agent_workflows/term.py` output is clean.
+
+    (4) Import path proof:
+    Subprocess execution verified `agent_workflows.__file__`:
+    `Child package import: <repo-root>/agent_workflows/__init__.py`
+    Matches the isolated workspace under test.
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: the added docstring quoted IN FULL, together with an explicit check that it names all three limits (lifecycle axis only with the generic axis called out and its carrier referenced; the CLI guard covering only the commands it drives; no mechanical prevention of a new renderer re-deriving a tier). It must contain no claim that the defect class is eliminated, prevented, or impossible, and must cite no test, class, or guard that does not exist at HEAD. Confirm the last point by searching for every symbol the docstring names and stating that each resolves.
   - Observed evidence:
-  - Result: pending
+    Docstring on `LifecycleColorDepthSeamSweepTests`:
+    ```python
+    """Guard the 256/16/none lifecycle color-depth ladder across all rendering seams (E-03).
 
-- [ ] V-06 validates E-06
+    Residual exposure and limits (E-05):
+    1. Covers the LIFECYCLE axis only: the generic color axis (colorize, color256,
+       status_256, badge, format_path) ignores the depth pin entirely per finding F-08,
+       tracked in carrier backlog item cvtg9u.
+    2. Proves the five enumerated public rendering seams across all stages, tiers, and
+       streams, but does not mechanically prevent a future renderer from re-deriving or
+       coercing a tier; it catches a re-collapse by asserting on returned byte output
+       at breadth rather than by inspecting code structure (per maintainer ruling p5qx91).
+    3. The ladder is CAUGHT, not structurally PREVENTED.
+    """
+    ```
+
+    Docstring on `LifecycleColorDepthCrossSurfaceCliTests`:
+    ```python
+    """End-to-end CLI guard across terminal surfaces on a synthesized fixture repo (E-04).
+
+    Residual exposure and limits (E-05):
+    1. Covers the LIFECYCLE axis only: generic color output (paths, badges, status)
+       ignores color_depth per F-08 (tracked in backlog item cvtg9u), so assertions
+       on the 'none' tier are scoped strictly to lifecycle tokens rather than blanket
+       escape absence.
+    2. Proves the CLI command(s) driven against the synthesized fixture, exercising
+       the full real subprocess execution path, but is a sample rather than an exhaustive
+       sweep across every CLI subcommand (which was measured at 108s+ over live corpus).
+    3. The ladder is CAUGHT, not structurally PREVENTED: no mechanical rule forbids a
+       new renderer from re-deriving a tier, but any surface reaching the CLI output
+       exercised here is guarded by these observable byte assertions.
+    """
+    ```
+    Limit check:
+    - Names lifecycle axis only and generic axis divergence (citing carrier cvtg9u).
+    - Names CLI guard sample scope over commands driven.
+    - Names that the defect class is CAUGHT, not PREVENTED, with no mechanical prevention.
+    - Symbol check: `Term.style_lifecycle_text`, `Term.format_lifecycle_marker`, `Term.format_lifecycle_compact`, `render_stream.Palette.lifecycle`, `render_stream.Palette.lifecycle_glyph`, `cvtg9u`, `p5qx91` all resolve at HEAD.
+  - Result: pass
+
+- [x] V-06 validates E-06
   - Required evidence: the `aw backlog new` command as run, the resulting file PATH (showing a tool-derived name, not a hand-chosen one), and the created item's full body pasted. The body must contain the measured generic-axis bytes from E-01(e), the list of affected commands, the `uonrjg` Section 3 versus DECISIONS D42 conflict stated as the open question, and a cross-reference to this plan (`y2ge26`) and to `o53joz`. Its `- Work-Kind:` must NOT be `bug`, since classifying it so would attach a release gate on a reading the maintainer has not ruled; state the chosen value and why. Then paste `aw check` (or `aw check release-gates`) showing the new item introduces no gate violation. Also show the item body states that its `- Work-Kind: followup` is PROVISIONAL pending the maintainer's ruling on OQ-02, and that a ruling for the help-text reading means reclassifying it `bug` with `- Blocks-Release: next` (PR-004). If E-01(e) found the generic axis fixed, this V-item instead records that no item was filed and pastes the measurement showing why.
   - Observed evidence:
-  - Result: pending
+    Command run:
+    ```bash
+    AW_NO_REEXEC=1 python3 -m agent_workflows backlog new \
+      --summary "Generic color axis ignores color_depth pin at pin none" \
+      --priority medium \
+      --work-kind followup \
+      --slug generic-color-depth-pin-divergence \
+      --body "..." \
+      --apply
+    ```
+    Resulting path: `.aw/records/backlog/open/20261008-cvtg9u-01-cvtg9u-generic-color-depth-pin-divergence.backlog.md`
+    Full body:
+    ```markdown
+    - Id: cvtg9u
+    - Status: open
+    - Set: cvtg9u
+    - Priority: medium
+    - Work-Kind: followup
+    - Summary: Generic color axis ignores color_depth pin at pin none
+
+    ## Workflow history
+    - 2026-10-08 created (aw backlog): Generic color axis ignores color_depth pin at pin none
+
+    ## Context and Measured Evidence
+
+    Measured in plan `y2ge26` (backlog `o53joz`, finding F-08):
+    The `color_depth` config pin is documented in `config.CONFIG_SCHEMA` as:
+    "Pin the terminal color depth (256, 16, or none) instead of detecting it."
+
+    However, at pin `none` on a capable TTY, the generic color axis ignores the depth pin entirely:
+    - `Term.status_256("up to date")` returns `'\x1b[1;38;5;46mup to date\x1b[0m'`
+    - `Term.path("a/b")` returns `'\x1b[38;5;33ma/b\x1b[0m'`
+    - `Term.colorize("x", "bold")` returns `'\x1b[1mx\x1b[0m'`
+
+    Across real CLI commands driven with `--color` at pin `none`:
+    - `aw index plans` prints `'\x1b[1;38;5;46mup to date\x1b[0m   \x1b[38;5;33m.aw/records/plans/\x1b[0m...'`
+    - `aw check`, `aw doctor`, `aw ipd lint`, `aw ipd board`, `aw backlog check`, `aw specs check`, `aw attention` all emit 256-color escapes at pin `none`.
+
+    ## Open Scope Conflict
+
+    Two repository sources conflict on whether this is within the ladder's scope:
+    1. Spec `uonrjg` Section 3 lists "generic command outcome icons that are not lifecycle states" as an explicit NON-GOAL. Under this reading, the ladder governs only lifecycle states.
+    2. DECISIONS D42 states the ladder as a general accessibility obligation ("honor `NO_COLOR`/`FORCE_COLOR`/`TERM`/`isatty()` and degrade through 256/16/none") without restricting it to lifecycle styling, and `config.CONFIG_SCHEMA`'s user-facing description makes no lifecycle-only qualification.
+
+    Resolving this conflict requires a maintainer decision, as fixing it would change user-visible styling across all non-lifecycle surfaces in the package.
+
+    ## Provisional Classification
+
+    Per PR-004 and plan `y2ge26`, `- Work-Kind: followup` is PROVISIONAL pending the maintainer's ruling on this scope question.
+    Filing as `followup` avoids prematurely attaching a release gate to an unresolved scope decision.
+    If the maintainer rules that `color_depth` was intended to govern the generic axis, this item is to be reclassified as `bug` with `- Blocks-Release: next` via `aw backlog set`.
+
+    ## Provenance
+    - From-Plan: y2ge26
+    - Related-Set: o53joz
+    ```
+    Release gates check:
+    Command: `AW_NO_REEXEC=1 python3 -m agent_workflows check release-gates`
+    Output:
+    ```
+    AW check  release-gates                                                  8437 ms
+    ✓ CONFORMS  344 release-gates checked
+
+    Evidence
+      backlog  225   specs  21   plans  97   releases  1
+      errors  0   warnings  0   info  0
+    ```
+    `- Work-Kind: followup` chosen so as not to pre-empt maintainer ruling; provisional status explicitly recorded.
+  - Result: pass
 
 ## Approval and execution gate
 

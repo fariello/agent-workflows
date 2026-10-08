@@ -1,5 +1,5 @@
 - Id: o53joz
-- Status: graduated
+- Status: done
 - Graduated-To: o53joz
 - Set: o53joz
 - Priority: low
@@ -7,6 +7,7 @@
 - Summary: Add a mechanical guard so a future lifecycle renderer cannot silently re-collapse the 256/16/none color-depth ladder
 
 ## Workflow history
+- 2026-10-08 done (aw backlog): closed by aw agy run: IPD y2ge26 executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20261002-o53joz-01-y2ge26-guard-the-256-16-none-lifecycle-color-depth-ladder-by-observ.ipd.md); evidence .aw/records/plans/executed/20261002-o53joz-01-y2ge26-guard-the-256-16-none-lifecycle-color-depth-ladder-by-observ.ipd.md
 - 2026-10-02 graduated (aw backlog): graduated by run run-20261001T221834Z-1991716: y2ge26
 - 2026-09-30 created (aw backlog): Add a mechanical guard so a future lifecycle renderer cannot silently re-collapse the 256/16/none color-depth ladder
 
