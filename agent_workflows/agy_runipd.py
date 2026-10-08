@@ -16,7 +16,6 @@ import argparse
 import contextlib
 import json
 import os
-import re
 import shutil
 import subprocess
 import sys
@@ -786,8 +785,15 @@ from agent_workflows import agy_models
 # config file (~/.gemini/antigravity-cli/settings.json) or left to agy host default.
 DEFAULT_MODEL: str | None = agy_models.resolve_agy_config_model()
 DEFAULT_TIMEOUT = "240m"
-DEFAULT_STALL_TIMEOUT: float = 900.0
+# Default stall timeout read from `runner_shared` (kz4j7o / s2ewh8 E-04).
+DEFAULT_STALL_TIMEOUT = runner_shared.DEFAULT_STALL_TIMEOUT
+# kz4j7o / s2ewh8 E-05: Declined to share. Child-reaping timing is per-host policy rather than
+# invariant mechanism; each host is free to differ in agent termination grace. While the tuning
+# seam in `runner_shared.terminate_process` would technically survive shared initialization,
+# keeping separate literals preserves independent policy ownership without coupling the runners.
 _SIGINT_GRACE_SECONDS = 5.0
+# kz4j7o / s2ewh8 E-05: Declined to share. Per-host policy tuning seam for SIGTERM grace before SIGKILL;
+# see note on `_SIGINT_GRACE_SECONDS` above and `runner_shared.terminate_process`.
 _SIGTERM_GRACE_SECONDS = 2.0
 
 TERMINAL_STATES = runner_shared.TERMINAL_STATES
@@ -804,11 +810,9 @@ SUCCESS_STATES = runner_shared.SUCCESS_STATES
 EXECUTION_SUCCESS_STATES = runner_shared.EXECUTION_SUCCESS_STATES
 # laneorphan-01 (`zwnjp3`) E-10: how long an OPTIONAL lane prompt waits before falling through to the
 # automatic content-based decision. Deliberately short: an unattended run must never block on shutdown.
-LANE_PROMPT_TIMEOUT: float = 180.0
+# Read from `runner_shared` (kz4j7o / s2ewh8 E-04).
+LANE_PROMPT_TIMEOUT = runner_shared.LANE_PROMPT_TIMEOUT
 
-# Frontmatter and filename extraction regexes
-_ID_RE = re.compile(r"(?m)^-\s*Id:\s*([0-9a-z]{6})\s*$")
-_STATUS_RE = re.compile(r"(?m)^-\s*Status:\s*(\S+)\s*$")
 # `_PLAN_FILENAME_RE` is IMPORTED from `runner_shared` (rununify 06 `sy7uwh` E-03), not defined here.
 # It was BYTE-IDENTICAL to oc's copy and is closed over only by `parse_plan_file`, which moved to the
 # shared module, so it moved with it rather than being injected - the same rule `_SET_RE`/`_ORDER_RE`
@@ -820,9 +824,6 @@ _STATUS_RE = re.compile(r"(?m)^-\s*Status:\s*(\S+)\s*$")
 # dependency API objects below are IMPORTED (never re-declared), so the two drivers cannot drift apart
 # again. Re-adding a dependency regex here is a regression guarded by
 # tests/test_runner_item_dependencies.py.
-
-# Terminal output verbosity for the streamed child-agent turn.
-OUTPUT_MODES = ("clean", "quiet", "raw")
 
 # The ANSI SGR codes and the status->color map are IMPORTED from `render_stream` (see the
 # import block near the top of this module), not defined here. They used to be byte-identical
@@ -1472,6 +1473,10 @@ def driver_finalize(
 # E-10: set once a SECOND interrupt (or a forced kill path) is seen, after which the prompt is
 # skipped entirely and the automatic decision runs unattended. A prompt during a repeated interrupt
 # would be the worst case: the operator is already trying harder to stop the run.
+# kz4j7o / s2ewh8 E-05: Declined to share. `_LANE_PROMPT_DISABLED` is mutable per-process state
+# modified via `global`, so sharing would leak prompt suppression across host runners.
+# `runner_shared`'s module docstring explicitly prohibits module-level mutable state, and
+# `tests/test_forkresid_shared_shells.py::LanePromptSuppressionTests` pins per-host suppression.
 _LANE_PROMPT_DISABLED = False
 
 
@@ -1944,19 +1949,8 @@ def resolve_agy(explicit_path: str | None) -> str:
     )
 
 
-DEFAULT_RUNBOOK_TEXT = """# IPD Autonomous Execution Runbook
-
-This runbook guides autonomous non-interactive execution of approved Implementation
-Plan Documents (IPDs) in this repository.
-
-## Execution Directives
-1. Execute only the assigned IPD in this turn.
-2. Read the assigned IPD in full, its current orchestrator, repository guidelines, and tests.
-3. Make safe, verifiable forward progress. Do not weaken checks or fabricate evidence.
-4. Commit only files you changed, limited to the paths you name, through `aw commit <plan> -- <paths>` (or `aw commit --no-plan -m <msg> -- <paths>` when no plan governs the change).
-5. Never push to remote.
-6. Write valid outcome JSON before exiting.
-"""
+# Default runbook text read from `runner_shared` (kz4j7o / s2ewh8 E-04).
+DEFAULT_RUNBOOK_TEXT = runner_shared.DEFAULT_RUNBOOK_TEXT
 
 
 def assert_verification_flags_are_distinct(start_parser: Any) -> None:
@@ -2265,9 +2259,6 @@ def terminate_process(process: subprocess.Popen) -> None:
         sigint_grace=_SIGINT_GRACE_SECONDS,
         sigterm_grace=_SIGTERM_GRACE_SECONDS,
     )
-
-
-_close_process_streams = runner_shutdown._close_process_streams
 
 
 def _budget_breach_recorder(

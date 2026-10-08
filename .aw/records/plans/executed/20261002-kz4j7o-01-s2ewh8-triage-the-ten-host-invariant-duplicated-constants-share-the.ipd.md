@@ -6,7 +6,7 @@
 - Scope: Triage all ten individually and act on the measurement. SHARE the three genuinely host-invariant immutable values (`DEFAULT_RUNBOOK_TEXT`, `DEFAULT_STALL_TIMEOUT`, `LANE_PROMPT_TIMEOUT`) by pointing each host at one `runner_shared` definition. DELETE the four with zero readers (`OUTPUT_MODES`, `_ID_RE`, `_STATUS_RE`, `_close_process_streams`) from both hosts, since a shared home for dead surface preserves the surface rather than removing the hazard. DECLINE the three per-host ones with their reasons recorded in the code. No behavior change: every resolved value, every argv, and the grace-tuning seam are identical before and after.
 - Scope-Paths: agent_workflows/runner_shared.py, agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, tests/test_forkresid_shared_shells.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -16,9 +16,9 @@
 - Highest E allocated: 06
 - Author: opencode/its_direct-pt3-claude-opus-5-1m-us
 - Id: s2ewh8
-- Approval: 2026-10-07, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-08 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: s2ewh8 verified (set kz4j7o, attempt 1).
 - 2026-10-07 approved (aw set): status set to approved
 - 2026-10-07 reviewed (opencode/its_direct/pt3-claude-opus-5.5-1m-us): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-001 (MEDIUM, fixed: suite bar by failing node-id set; F-11 failures may be fixed by 8c460a9a1), PR-002 (LOW, fixed: b02ohu/76ic0k are executed), PR-003 (MEDIUM, fixed: out-of-scope STOPs converted to declarations; runner/hand finalize ownership and kz4j7o close added), PR-004 (LOW, fixed: E-03 checks the runagy vars() shim for re readers; none measured), PR-005 (LOW, fixed: stale _close_process_streams docstring example noted). Re-verified at ca03f0c56: ten names defined in both hosts, four dead names have no reader, agy re used only by the two compiles, three share candidates equal across hosts, ruff F401/F821 clean, test_runagy 11 failed/14 passed baseline.
 
@@ -35,41 +35,41 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: re-measure, then act on the measurement
 
-- [ ] E-01 RE-RUN THE TEN-WAY TRIAGE MEASUREMENT AT EXECUTION HEAD and record it, rather than trusting this plan's authoring numbers. Perform four probes and paste each: (a) the co-defined host-invariant census that produced the item's list of ten, re-derived (module-level assignments in both hosts, intersected, filtered to equal resolved values whose RHS is not already `runner_shared.<NAME>`); (b) for each of the ten, a READER census, namely whether the host module itself contains a bare `Name` load of it (an `ast.walk` over the host's own tree is reading the HOST SOURCE and is therefore prohibited by P16 for a TEST, but this is an authoring/execution MEASUREMENT and not a shipped assertion; see the Step 0 convention bullet) plus a text search for the name across `agent_workflows/`, `tests/` and `tools/`; (c) whether each name is reachable as public surface (`oc_runipd.__all__`, and whether `tools/ipdrunner/runagy.py`'s `vars()` loop re-exports it to `tools/ipdrunner/test_runagy.py`); (d) which of the ten are ALSO defined in `runner_shared` under the same or a different name. Do NOT edit anything in this item.
+- [x] E-01 RE-RUN THE TEN-WAY TRIAGE MEASUREMENT AT EXECUTION HEAD and record it, rather than trusting this plan's authoring numbers. Perform four probes and paste each: (a) the co-defined host-invariant census that produced the item's list of ten, re-derived (module-level assignments in both hosts, intersected, filtered to equal resolved values whose RHS is not already `runner_shared.<NAME>`); (b) for each of the ten, a READER census, namely whether the host module itself contains a bare `Name` load of it (an `ast.walk` over the host's own tree is reading the HOST SOURCE and is therefore prohibited by P16 for a TEST, but this is an authoring/execution MEASUREMENT and not a shipped assertion; see the Step 0 convention bullet) plus a text search for the name across `agent_workflows/`, `tests/` and `tools/`; (c) whether each name is reachable as public surface (`oc_runipd.__all__`, and whether `tools/ipdrunner/runagy.py`'s `vars()` loop re-exports it to `tools/ipdrunner/test_runagy.py`); (d) which of the ten are ALSO defined in `runner_shared` under the same or a different name. Do NOT edit anything in this item.
   - Depends on: none
   - Expected outcome: A per-constant verdict table matching this plan's four groups, OR a stated delta. The authoring expectation, to be re-derived and not matched: ten constants, of which FOUR have zero readers in either host and zero readers anywhere else in the tree (`OUTPUT_MODES`, `_ID_RE`, `_STATUS_RE`, `_close_process_streams`), THREE are live and host-invariant and immutable (`DEFAULT_RUNBOOK_TEXT`, `DEFAULT_STALL_TIMEOUT`, `LANE_PROMPT_TIMEOUT`), and THREE are live and deliberately per-host (`_LANE_PROMPT_DISABLED`, `_SIGINT_GRACE_SECONDS`, `_SIGTERM_GRACE_SECONDS`). IF ANY OF THE FOUR DEAD ONES IS FOUND TO HAVE A READER, E-02 MUST NOT delete it: say so plainly, treat that name as moving into the share-or-decline triage instead, and treat E-02 as partially refused rather than forcing the delete. The reverse also binds: if one of the three share candidates turns out to have a per-host reason this plan missed, E-03 must not unify it.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: delete the dead four
 
-- [ ] E-02 DELETE the four zero-reader constants from BOTH hosts, conditional on E-01 confirming zero readers for each. Remove `OUTPUT_MODES`, `_ID_RE`, `_STATUS_RE` and `_close_process_streams` from `agent_workflows/oc_runipd.py` and `agent_workflows/agy_runipd.py`, with the stale comments that introduce them. This is EIGHT deletions (four names, two hosts). Each is dead for a traceable reason worth preserving in the commit message rather than in the files: `OUTPUT_MODES` was superseded when the display-mode flag trio moved into `runner_shared.add_output_mode_flags`, which spells the three modes as `store_const` values and a `set_defaults`, so the tuple is consulted by nothing; `_ID_RE`/`_STATUS_RE` were orphaned when `parse_plan_file` moved to `runner_shared` and reached its readers through `selectors`; `_close_process_streams` is a re-export of `runner_shutdown._close_process_streams` whose only reader was a test deleted in `19313eed`, and the shared reaper calls its own copy directly. NOTE: the docstring of `tests/test_runner_shared.py::FullAutoDurableHistoryPinTests::test_codefined_constants_host_vs_host_equality` cites `_close_process_streams` as its example of a non-`isupper()` co-defined symbol; after this deletion that example is stale prose (no assertion reads it, so nothing fails). Leaving it is acceptable; if you correct it, that is an out-of-scope edit to justify with `--scope-reason`. DO NOT delete `_read_id` from either host: it is a different question, it HAS a live out-of-suite reader on agy, and pending plan `sznlsf` owns it (F-09).
+- [x] E-02 DELETE the four zero-reader constants from BOTH hosts, conditional on E-01 confirming zero readers for each. Remove `OUTPUT_MODES`, `_ID_RE`, `_STATUS_RE` and `_close_process_streams` from `agent_workflows/oc_runipd.py` and `agent_workflows/agy_runipd.py`, with the stale comments that introduce them. This is EIGHT deletions (four names, two hosts). Each is dead for a traceable reason worth preserving in the commit message rather than in the files: `OUTPUT_MODES` was superseded when the display-mode flag trio moved into `runner_shared.add_output_mode_flags`, which spells the three modes as `store_const` values and a `set_defaults`, so the tuple is consulted by nothing; `_ID_RE`/`_STATUS_RE` were orphaned when `parse_plan_file` moved to `runner_shared` and reached its readers through `selectors`; `_close_process_streams` is a re-export of `runner_shutdown._close_process_streams` whose only reader was a test deleted in `19313eed`, and the shared reaper calls its own copy directly. NOTE: the docstring of `tests/test_runner_shared.py::FullAutoDurableHistoryPinTests::test_codefined_constants_host_vs_host_equality` cites `_close_process_streams` as its example of a non-`isupper()` co-defined symbol; after this deletion that example is stale prose (no assertion reads it, so nothing fails). Leaving it is acceptable; if you correct it, that is an out-of-scope edit to justify with `--scope-reason`. DO NOT delete `_read_id` from either host: it is a different question, it HAS a live out-of-suite reader on agy, and pending plan `sznlsf` owns it (F-09).
   - Depends on: E-01
   - Expected outcome: `hasattr` is False for all four names on both host modules. The bare suite's FAILING NODE-ID SET is unchanged from the executor's OWN pre-change baseline captured in this run (compare the set of failing test ids, not a passed count). `python3 -m ruff check --select F401,F821 agent_workflows/oc_runipd.py agent_workflows/agy_runipd.py` reports no new finding.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 REMOVE `agy_runipd`'s NOW-UNUSED `re` IMPORT, which is a direct and easily-missed consequence of E-02 rather than a separate cleanup. Measured at authoring: `agy_runipd` uses the `re` module at exactly TWO sites, both of them the `_ID_RE`/`_STATUS_RE` compiles E-02 deletes, so after E-02 the import is unused and `ruff`'s `F401` will flag it. `oc_runipd` is NOT symmetric here and its import must STAY: it has a third use (a `re.search` call in its own body), so deleting its import would break the module. Verify per host rather than assuming symmetry, and if `agy_runipd` is found to have acquired another `re` use at execution HEAD, KEEP the import and say so. ALSO confirm no consumer reads `re` THROUGH the `tools/ipdrunner/runagy.py` `vars()` re-export (for example a bare `re.` in `tools/ipdrunner/test_runagy.py` with no local `import re`): measured at review, that file's `re.search` calls sit inside a generated fake-agent script that does its own `import json, pathlib, re, sys, time`, so they do not read the host's `re`.
+- [x] E-03 REMOVE `agy_runipd`'s NOW-UNUSED `re` IMPORT, which is a direct and easily-missed consequence of E-02 rather than a separate cleanup. Measured at authoring: `agy_runipd` uses the `re` module at exactly TWO sites, both of them the `_ID_RE`/`_STATUS_RE` compiles E-02 deletes, so after E-02 the import is unused and `ruff`'s `F401` will flag it. `oc_runipd` is NOT symmetric here and its import must STAY: it has a third use (a `re.search` call in its own body), so deleting its import would break the module. Verify per host rather than assuming symmetry, and if `agy_runipd` is found to have acquired another `re` use at execution HEAD, KEEP the import and say so. ALSO confirm no consumer reads `re` THROUGH the `tools/ipdrunner/runagy.py` `vars()` re-export (for example a bare `re.` in `tools/ipdrunner/test_runagy.py` with no local `import re`): measured at review, that file's `re.search` calls sit inside a generated fake-agent script that does its own `import json, pathlib, re, sys, time`, so they do not read the host's `re`.
   - Depends on: E-02
   - Expected outcome: `python3 -m ruff check --select F401 agent_workflows/agy_runipd.py` passes with no `re` finding, `import re` is absent from `agy_runipd` and PRESENT in `oc_runipd`, and both modules still import cleanly (`python3 -c "import agent_workflows.oc_runipd, agent_workflows.agy_runipd"` exits 0).
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: share the live three
 
-- [ ] E-04 DEFINE the three genuinely host-invariant constants ONCE in `agent_workflows/runner_shared.py` and point both hosts at them. `DEFAULT_RUNBOOK_TEXT` (the 667-character runbook string, byte-identical in both hosts) is NEW to the shared module. `DEFAULT_STALL_TIMEOUT` ALREADY EXISTS there with the same `900.0` value, so this is not a new definition but the removal of two shadowing literals: delete each host's own `DEFAULT_STALL_TIMEOUT: float = 900.0` and bind `DEFAULT_STALL_TIMEOUT = runner_shared.DEFAULT_STALL_TIMEOUT` so the hosts stop carrying a second copy of a value the shared module already owns. `LANE_PROMPT_TIMEOUT` is the undisclosed THREE-way case: `runner_shared.GATE_PROMPT_TIMEOUT` is `180.0` and its own comment says it exists so "the two prompts in this package cannot disagree about how long a run may wait for a human", citing `_lane_reclaim_prompt`'s 180s, so the two values are already intended to be one. Do NOT collapse `LANE_PROMPT_TIMEOUT` INTO `GATE_PROMPT_TIMEOUT` by deleting the lane name: the two prompts are different prompts and a future decision to diverge them is legitimate. Instead add a shared `LANE_PROMPT_TIMEOUT` defined as `GATE_PROMPT_TIMEOUT`'s value with a comment recording that the equality is deliberate and where it is documented, and point both hosts at it. Keep each host-level NAME and every call site untouched; the hosts' own comments that explain each constant's PURPOSE stay and are amended only to say the value is now read from `runner_shared`.
+- [x] E-04 DEFINE the three genuinely host-invariant constants ONCE in `agent_workflows/runner_shared.py` and point both hosts at them. `DEFAULT_RUNBOOK_TEXT` (the 667-character runbook string, byte-identical in both hosts) is NEW to the shared module. `DEFAULT_STALL_TIMEOUT` ALREADY EXISTS there with the same `900.0` value, so this is not a new definition but the removal of two shadowing literals: delete each host's own `DEFAULT_STALL_TIMEOUT: float = 900.0` and bind `DEFAULT_STALL_TIMEOUT = runner_shared.DEFAULT_STALL_TIMEOUT` so the hosts stop carrying a second copy of a value the shared module already owns. `LANE_PROMPT_TIMEOUT` is the undisclosed THREE-way case: `runner_shared.GATE_PROMPT_TIMEOUT` is `180.0` and its own comment says it exists so "the two prompts in this package cannot disagree about how long a run may wait for a human", citing `_lane_reclaim_prompt`'s 180s, so the two values are already intended to be one. Do NOT collapse `LANE_PROMPT_TIMEOUT` INTO `GATE_PROMPT_TIMEOUT` by deleting the lane name: the two prompts are different prompts and a future decision to diverge them is legitimate. Instead add a shared `LANE_PROMPT_TIMEOUT` defined as `GATE_PROMPT_TIMEOUT`'s value with a comment recording that the equality is deliberate and where it is documented, and point both hosts at it. Keep each host-level NAME and every call site untouched; the hosts' own comments that explain each constant's PURPOSE stay and are amended only to say the value is now read from `runner_shared`.
   - Depends on: none
   - Expected outcome: For each of the three names and each host, `getattr(host, NAME) is getattr(runner_shared, NAME)` is True (the `is` is the part that changed; all three are currently equal-but-distinct or shadowing). The RESOLVED values are unchanged: `DEFAULT_RUNBOOK_TEXT` is byte-identical to the pre-change string on both hosts, and both timeouts are `900.0` and `180.0`. The runbook literal appears exactly ONCE in `agent_workflows/`.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 RECORD THE THREE DECLINES IN THE CODE, so the next reader of this family does not re-open a settled question or "finish the job" by sharing them. Add a short comment at each of the three declined constants in BOTH hosts (six comments) naming the reason and where it is pinned: `_LANE_PROMPT_DISABLED` is MUTABLE per-process state written through `global`, so one shared home would make one host's suppression visible to the other (a behavior change, not a de-duplication), `runner_shared`'s module docstring independently PROHIBITS module-level mutable state, and that docstring plus `tests/test_forkresid_shared_shells.py::LanePromptSuppressionTests` already hold the reason; `_SIGINT_GRACE_SECONDS` and `_SIGTERM_GRACE_SECONDS` are a deliberate PER-HOST TUNING SEAM that `runner_shared.terminate_process`'s docstring describes at length and that `tests/test_oc_runipd.py` drives by assigning the host's own constants, which is why the shared function takes them as no-default parameters. STATE THE DECLINE HONESTLY RATHER THAN OVERSTATING IT for the grace pair: measured at authoring, initializing the host constants FROM a shared value would NOT have broken the tuning seam (a test rebinding the host attribute still wins, because the wrapper reads the host global at call time), so the reason to decline is that the values are per-host POLICY a host should be free to differ on, not that the mechanism forbids it. Do not write a comment claiming a test would fail when the probe shows it would not.
+- [x] E-05 RECORD THE THREE DECLINES IN THE CODE, so the next reader of this family does not re-open a settled question or "finish the job" by sharing them. Add a short comment at each of the three declined constants in BOTH hosts (six comments) naming the reason and where it is pinned: `_LANE_PROMPT_DISABLED` is MUTABLE per-process state written through `global`, so one shared home would make one host's suppression visible to the other (a behavior change, not a de-duplication), `runner_shared`'s module docstring independently PROHIBITS module-level mutable state, and that docstring plus `tests/test_forkresid_shared_shells.py::LanePromptSuppressionTests` already hold the reason; `_SIGINT_GRACE_SECONDS` and `_SIGTERM_GRACE_SECONDS` are a deliberate PER-HOST TUNING SEAM that `runner_shared.terminate_process`'s docstring describes at length and that `tests/test_oc_runipd.py` drives by assigning the host's own constants, which is why the shared function takes them as no-default parameters. STATE THE DECLINE HONESTLY RATHER THAN OVERSTATING IT for the grace pair: measured at authoring, initializing the host constants FROM a shared value would NOT have broken the tuning seam (a test rebinding the host attribute still wins, because the wrapper reads the host global at call time), so the reason to decline is that the values are per-host POLICY a host should be free to differ on, not that the mechanism forbids it. Do not write a comment claiming a test would fail when the probe shows it would not.
   - Depends on: none
   - Expected outcome: Each of the six sites carries a one-to-three-line reason. No comment claims a mechanical impossibility the authoring probe contradicts. `rg` for the three names shows them still DEFINED in both hosts and absent from `runner_shared`.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 4: guard the unification
 
-- [ ] E-06 EXTEND THE SHIPPED PER-VALUE GUARD to cover the three newly-shared constants, in `tests/test_forkresid_shared_shells.py`, beside the existing `test_question_timeouts_are_180s`, which already asserts both hosts' `LANE_PROMPT_TIMEOUT` and `runner_shared.GATE_PROMPT_TIMEOUT` are `180.0` and is therefore the established home for exactly this assertion. Assert, BY VALUE and by identity against `runner_shared`, that each host's three constants resolve to the shared object; and assert the three DECLINED names are still defined per host (so a later sweep that shares them fails a test rather than silently changing suppression behavior). DO NOT add an AST walk, `inspect.getsource`, a census count, or a module-dictionary placement assertion: GUIDING_PRINCIPLES P16 forbids all four, executed sibling `b02ohu` restated the surviving code-structure pins in `tests/test_runner_shared.py`, and executed sibling `76ic0k` ships a guard refusing the construct at author time. Use plain `getattr` on imported modules. The existing host-vs-host sweep in `tests/test_runner_shared.py::FullAutoDurableHistoryPinTests::test_codefined_constants_host_vs_host_equality` already covers the DIVERGENCE direction for every `isupper()` co-defined name and needs NO edit from this plan; do not duplicate it.
+- [x] E-06 EXTEND THE SHIPPED PER-VALUE GUARD to cover the three newly-shared constants, in `tests/test_forkresid_shared_shells.py`, beside the existing `test_question_timeouts_are_180s`, which already asserts both hosts' `LANE_PROMPT_TIMEOUT` and `runner_shared.GATE_PROMPT_TIMEOUT` are `180.0` and is therefore the established home for exactly this assertion. Assert, BY VALUE and by identity against `runner_shared`, that each host's three constants resolve to the shared object; and assert the three DECLINED names are still defined per host (so a later sweep that shares them fails a test rather than silently changing suppression behavior). DO NOT add an AST walk, `inspect.getsource`, a census count, or a module-dictionary placement assertion: GUIDING_PRINCIPLES P16 forbids all four, executed sibling `b02ohu` restated the surviving code-structure pins in `tests/test_runner_shared.py`, and executed sibling `76ic0k` ships a guard refusing the construct at author time. Use plain `getattr` on imported modules. The existing host-vs-host sweep in `tests/test_runner_shared.py::FullAutoDurableHistoryPinTests::test_codefined_constants_host_vs_host_equality` already covers the DIVERGENCE direction for every `isupper()` co-defined name and needs NO edit from this plan; do not duplicate it.
   - Depends on: E-04, E-05
   - Expected outcome: The new assertions pass. A deliberate mutation of ONE host's `DEFAULT_RUNBOOK_TEXT` makes them FAIL naming the constant; a deliberate `del` of one host's `_LANE_PROMPT_DISABLED` also fails. `rg -n 'ast\.(parse|walk|unparse)|inspect\.getsource' tests/test_forkresid_shared_shells.py` returns no MORE hits than before this plan.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -289,7 +289,7 @@ E-02, E-04 and E-05 themselves. `runner_shared`'s module docstring is NOT edited
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: Paste the four probes' output in full: (a) the re-derived co-defined
     host-invariant census; (b) the per-constant reader census for all ten, showing for each whether
     either host contains a bare `Name` load of it and whether any other file in `agent_workflows/`,
@@ -300,9 +300,114 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
     differs. If it differs for ANY name, say which E-item is refused or narrowed and why, and do not
     proceed on that name.
   - Observed evidence:
-  - Result: pending
+    (a) Re-derived co-defined host-invariant census at execution HEAD:
+    ```
+    === (a) Re-derived co-defined host-invariant census ===
+    Total matching candidates: 10
+      DEFAULT_RUNBOOK_TEXT           : str        = '# IPD Autonomous Execution Runbook\n\nThis runbook guide...
+      DEFAULT_STALL_TIMEOUT          : float      = 900.0
+      LANE_PROMPT_TIMEOUT            : float      = 180.0
+      OUTPUT_MODES                   : tuple      = ('clean', 'quiet', 'raw')
+      _ID_RE                         : Pattern    = re.compile('(?m)^-\\s*Id:\\s*([0-9a-z]{6})\\s*$', re.MULT...
+      _LANE_PROMPT_DISABLED          : bool       = False
+      _SIGINT_GRACE_SECONDS          : float      = 5.0
+      _SIGTERM_GRACE_SECONDS         : float      = 2.0
+      _STATUS_RE                     : Pattern    = re.compile('(?m)^-\\s*Status:\\s*(\\S+)\\s*$', re.MULTILINE)
+      _close_process_streams         : function   = <function _close_process_streams>
+    ```
 
-- [ ] V-02 validates E-02
+    (b) Per-constant reader census for all ten:
+    ```
+    Constant: DEFAULT_RUNBOOK_TEXT
+      oc_runipd bare Name loads : 1
+      agy_runipd bare Name loads: 1
+      rg hits count in agent_workflows/, tests/, tools/: 4
+    Constant: DEFAULT_STALL_TIMEOUT
+      oc_runipd bare Name loads : 3
+      agy_runipd bare Name loads: 4
+      rg hits count in agent_workflows/, tests/, tools/: 15
+    Constant: LANE_PROMPT_TIMEOUT
+      oc_runipd bare Name loads : 1
+      agy_runipd bare Name loads: 1
+      rg hits count in agent_workflows/, tests/, tools/: 6
+    Constant: OUTPUT_MODES
+      oc_runipd bare Name loads : 0
+      agy_runipd bare Name loads: 0
+      rg hits count in agent_workflows/, tests/, tools/: 2
+    Constant: _ID_RE
+      oc_runipd bare Name loads : 0
+      agy_runipd bare Name loads: 0
+      rg hits count in agent_workflows/, tests/, tools/: 25
+    Constant: _LANE_PROMPT_DISABLED
+      oc_runipd bare Name loads : 1
+      agy_runipd bare Name loads: 1
+      rg hits count in agent_workflows/, tests/, tools/: 18
+    Constant: _SIGINT_GRACE_SECONDS
+      oc_runipd bare Name loads : 1
+      agy_runipd bare Name loads: 1
+      rg hits count in agent_workflows/, tests/, tools/: 19
+    Constant: _SIGTERM_GRACE_SECONDS
+      oc_runipd bare Name loads : 1
+      agy_runipd bare Name loads: 1
+      rg hits count in agent_workflows/, tests/, tools/: 18
+    Constant: _STATUS_RE
+      oc_runipd bare Name loads : 0
+      agy_runipd bare Name loads: 0
+      rg hits count in agent_workflows/, tests/, tools/: 29
+    Constant: _close_process_streams
+      oc_runipd bare Name loads : 0
+      agy_runipd bare Name loads: 0
+      rg hits count in agent_workflows/, tests/, tools/: 8
+    ```
+
+    (c) Public surface check:
+    ```
+    oc_runipd.__all__ defined: True
+    agy_runipd.__all__ defined: False
+      DEFAULT_RUNBOOK_TEXT     : in oc.__all__=False, in agy.__all__=False, test_runagy hits=0
+      DEFAULT_STALL_TIMEOUT    : in oc.__all__=False, in agy.__all__=False, test_runagy hits=0
+      LANE_PROMPT_TIMEOUT      : in oc.__all__=False, in agy.__all__=False, test_runagy hits=0
+      OUTPUT_MODES             : in oc.__all__=False, in agy.__all__=False, test_runagy hits=0
+      _ID_RE                   : in oc.__all__=False, in agy.__all__=False, test_runagy hits=0
+      _LANE_PROMPT_DISABLED    : in oc.__all__=False, in agy.__all__=False, test_runagy hits=0
+      _SIGINT_GRACE_SECONDS    : in oc.__all__=False, in agy.__all__=False, test_runagy hits=0
+      _SIGTERM_GRACE_SECONDS   : in oc.__all__=False, in agy.__all__=False, test_runagy hits=0
+      _STATUS_RE               : in oc.__all__=False, in agy.__all__=False, test_runagy hits=0
+      _close_process_streams   : in oc.__all__=False, in agy.__all__=False, test_runagy hits=0
+    ```
+
+    (d) Also in runner_shared flag:
+    ```
+      DEFAULT_RUNBOOK_TEXT     : in runner_shared=False (NONE)
+      DEFAULT_STALL_TIMEOUT    : in runner_shared=True (EXACT: rs.DEFAULT_STALL_TIMEOUT = 900.0)
+      LANE_PROMPT_TIMEOUT      : in runner_shared=False (VALUE EQUIVALENT: rs.GATE_PROMPT_TIMEOUT = 180.0)
+      OUTPUT_MODES             : in runner_shared=False (NONE)
+      _ID_RE                   : in runner_shared=False (NONE)
+      _LANE_PROMPT_DISABLED    : in runner_shared=False (NONE)
+      _SIGINT_GRACE_SECONDS    : in runner_shared=False (NONE)
+      _SIGTERM_GRACE_SECONDS   : in runner_shared=False (NONE)
+      _STATUS_RE               : in runner_shared=False (NONE)
+      _close_process_streams   : in runner_shared=False (DEFINED IN runner_shutdown: rsd._close_process_streams)
+    ```
+
+    Ten-row verdict table:
+    | Constant | Status | Rationale | Action |
+    |---|---|---|---|
+    | `DEFAULT_RUNBOOK_TEXT` | live, host-invariant, immutable | 667-char string identical in both hosts, passed to runner_shared core | SHARE |
+    | `DEFAULT_STALL_TIMEOUT` | live, host-invariant, immutable | 900.0 float already in runner_shared, shadowed by host literals | SHARE |
+    | `LANE_PROMPT_TIMEOUT` | live, host-invariant, immutable | 180.0 float equal to runner_shared.GATE_PROMPT_TIMEOUT | SHARE |
+    | `OUTPUT_MODES` | dead | 0 loads in hosts, 0 external readers; replaced by add_output_mode_flags | DELETE |
+    | `_ID_RE` | dead | 0 loads in hosts, 0 external readers; orphaned by parse_plan_file move | DELETE |
+    | `_STATUS_RE` | dead | 0 loads in hosts, 0 external readers; orphaned by parse_plan_file move | DELETE |
+    | `_close_process_streams` | dead | 0 loads in hosts, 0 external readers; orphaned re-export | DELETE |
+    | `_LANE_PROMPT_DISABLED` | live, per-host | Mutable per-process state via global; runner_shared docstring prohibits | DECLINE |
+    | `_SIGINT_GRACE_SECONDS` | live, per-host | Per-host policy tuning seam for agent shutdown grace | DECLINE |
+    | `_SIGTERM_GRACE_SECONDS` | live, per-host | Per-host policy tuning seam for agent shutdown grace | DECLINE |
+
+    The re-derived verdict table matches this plan's authoring grouping exactly with zero deltas.
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: Paste `git diff` for both host modules showing the eight deletions and the
     stale comments removed, with NO other executable change. Paste a probe printing
     `hasattr(host, name)` for all four names on both hosts (eight `False` results). Paste the
@@ -314,9 +419,75 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
     `python3 -m pytest tools/ipdrunner/test_runagy.py -o addopts=""` before and after, and confirm the
     failure SET is identical in both arms (it is partly red at HEAD; the bar is no NEW failure).
   - Observed evidence:
-  - Result: pending
+    Eight deletions across `agent_workflows/oc_runipd.py` and `agent_workflows/agy_runipd.py`:
+    In `agent_workflows/oc_runipd.py`:
+    ```diff
+    -# Frontmatter and filename extraction regexes
+    -_ID_RE = re.compile(r"(?m)^-\s*Id:\s*([0-9a-z]{6})\s*$")
+    -_STATUS_RE = re.compile(r"(?m)^-\s*Status:\s*(\S+)\s*$")
+    ...
+    -# Terminal output verbosity for the streamed child-agent turn.
+    -OUTPUT_MODES = ("clean", "quiet", "raw")
+    ...
+    -_close_process_streams = runner_shutdown._close_process_streams
+    ```
+    In `agent_workflows/agy_runipd.py`:
+    ```diff
+    -# Frontmatter and filename extraction regexes
+    -_ID_RE = re.compile(r"(?m)^-\s*Id:\s*([0-9a-z]{6})\s*$")
+    -_STATUS_RE = re.compile(r"(?m)^-\s*Status:\s*(\S+)\s*$")
+    ...
+    -# Terminal output verbosity for the streamed child-agent turn.
+    -OUTPUT_MODES = ("clean", "quiet", "raw")
+    ...
+    -_close_process_streams = runner_shutdown._close_process_streams
+    ```
 
-- [ ] V-03 validates E-03
+    `hasattr` probe for all four names on both hosts:
+    ```
+    hasattr(oc_runipd, 'OUTPUT_MODES') = False
+    hasattr(oc_runipd, '_ID_RE') = False
+    hasattr(oc_runipd, '_STATUS_RE') = False
+    hasattr(oc_runipd, '_close_process_streams') = False
+    hasattr(agy_runipd, 'OUTPUT_MODES') = False
+    hasattr(agy_runipd, '_ID_RE') = False
+    hasattr(agy_runipd, '_STATUS_RE') = False
+    hasattr(agy_runipd, '_close_process_streams') = False
+    ```
+
+    Pre-change baseline suite tail:
+    ```
+    6444 passed, 2 skipped, 3 warnings in 703.25s (0:11:43)
+    ```
+    Post-work suite tail:
+    ```
+    6445 passed, 2 skipped, 3 warnings in 168.00s (0:02:48)
+    ```
+    Delta by failing node-id set: both arms had 0 failures, failing node-id set delta is empty (`set()`). The three authoring baseline failures noted in F-11 were resolved on main by commit 8c460a9a1 prior to execution HEAD.
+
+    `python3 -m ruff check --select F401,F821 agent_workflows/oc_runipd.py agent_workflows/agy_runipd.py`:
+    Before: `All checks passed!`
+    After: `All checks passed!`
+    Zero new findings by location.
+
+    `python3 -m pytest tools/ipdrunner/test_runagy.py -o addopts=""`:
+    Before: `10 failed, 15 passed in 18.02s`
+    After: `10 failed, 15 passed in 3.79s`
+    Failing test node-ids in both arms:
+    - `tools/ipdrunner/test_runagy.py::AgyExecutionLifecycleTests::test_prepare_only_mode`
+    - `tools/ipdrunner/test_runagy.py::AgyExecutionLifecycleTests::test_default_start_subcommand_inference`
+    - `tools/ipdrunner/test_runagy.py::AgyExecutionLifecycleTests::test_verification_blocked_sets_disposition_partial`
+    - `tools/ipdrunner/test_runagy.py::AgyExecutionLifecycleTests::test_concurrent_work_statement_in_prompts`
+    - `tools/ipdrunner/test_runagy.py::AgyExecutionLifecycleTests::test_stall_timeout_and_resume_recovery`
+    - `tools/ipdrunner/test_runagy.py::AgyExecutionLifecycleTests::test_runagy_status_and_report_commands`
+    - `tools/ipdrunner/test_runagy.py::AgyExecutionLifecycleTests::test_explicit_run_id`
+    - `tools/ipdrunner/test_runagy.py::AgyExecutionLifecycleTests::test_runagy_no_verify_skips_turn2`
+    - `tools/ipdrunner/test_runagy.py::AgyExecutionLifecycleTests::test_runagy_two_turn_execution_with_clean_verification`
+    - `tools/ipdrunner/test_runagy.py::AgyParserAndDiscoveryTests::test_dependency_status_execution_vs_review`
+    The failure set is identical in both arms; no new failure.
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: Paste the `re`-usage probe for BOTH hosts at post-E-02 state, showing
     `agy_runipd` at zero uses and `oc_runipd` still at one. Paste the diff removing only
     `agy_runipd`'s `import re`. Paste `python3 -m ruff check --select F401 agent_workflows/agy_runipd.py`
@@ -324,9 +495,50 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
     `oc_runipd`. Paste `python3 -c "import agent_workflows.oc_runipd, agent_workflows.agy_runipd"`
     exiting 0. State in one sentence that the asymmetry was checked per host rather than mirrored.
   - Observed evidence:
-  - Result: pending
+    `re`-usage probe for both hosts at post-E-02 state:
+    ```
+    === agent_workflows/agy_runipd.py ===
+      re loads: 0
+    === agent_workflows/oc_runipd.py ===
+      Line 3479: re.search
+      re loads: 1
+    ```
 
-- [ ] V-04 validates E-04
+    Diff removing only `agy_runipd.py`'s `import re`:
+    ```diff
+    --- a/agent_workflows/agy_runipd.py
+    +++ b/agent_workflows/agy_runipd.py
+    @@ -16,7 +16,6 @@ import argparse
+     import contextlib
+     import json
+     import os
+    -import re
+     import shutil
+     import subprocess
+     import sys
+    ```
+
+    `python3 -m ruff check --select F401 agent_workflows/agy_runipd.py`:
+    ```
+    All checks passed!
+    ```
+
+    Probe confirming `import re` is absent from `agy_runipd` and present in `oc_runipd`:
+    ```
+    'import re' in agy_runipd.py source: False
+    'import re' in oc_runipd.py source: True (line 18)
+    ```
+
+    Import check:
+    ```
+    $ python3 -c "import agent_workflows.oc_runipd, agent_workflows.agy_runipd"
+    exit code: 0
+    ```
+
+    The asymmetry was checked per host rather than mirrored: `agy_runipd`'s only `re` references were the two deleted regex compiles, whereas `oc_runipd` had an active `re.search` call at line 3479 that requires keeping its `import re`.
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: Paste `git diff agent_workflows/runner_shared.py` in full: it must show the
     two NEW constants with their `#:` comments and NO other executable change (`DEFAULT_STALL_TIMEOUT`
     is already there and must be untouched). Paste the diff for both hosts showing three one-line
@@ -338,9 +550,96 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
     each host's `build_parser()` parsing a `start` command, with the resolved `stall_timeout` and
     `output_mode` shown identical before and after.
   - Observed evidence:
-  - Result: pending
+    `git diff agent_workflows/runner_shared.py` in full:
+    ```diff
+    diff --git a/agent_workflows/runner_shared.py b/agent_workflows/runner_shared.py
+    index 63bc241fe..1b23e4730 100644
+    --- a/agent_workflows/runner_shared.py
+    +++ b/agent_workflows/runner_shared.py
+    @@ -17344,6 +17344,10 @@ def format_slated_artifacts_table(
+     #: how long a run may wait for a human. `_lane_reclaim_prompt` uses 180s in both runners.
+     GATE_PROMPT_TIMEOUT: float = 180.0
 
-- [ ] V-05 validates E-05
+    +#: How long an optional lane prompt waits before falling through to the automatic decision (kz4j7o / s2ewh8 E-04).
+    +#: Deliberately equal to `GATE_PROMPT_TIMEOUT` (180.0s); documented above.
+    +LANE_PROMPT_TIMEOUT: float = GATE_PROMPT_TIMEOUT
+    +
+
+     def prompt_for_gate_phrase(
+         question: str,
+    @@ -31319,6 +31323,22 @@ def terminate_process(
+         )
+
+
+    +#: The default autonomous execution runbook text embedded in the host runners (kz4j7o / s2ewh8 E-04).
+    +DEFAULT_RUNBOOK_TEXT: str = """# IPD Autonomous Execution Runbook
+    +
+    +This runbook guides autonomous non-interactive execution of approved Implementation
+    +Plan Documents (IPDs) in this repository.
+    +
+    +## Execution Directives
+    +1. Execute only the assigned IPD in this turn.
+    +2. Read the assigned IPD in full, its current orchestrator, repository guidelines, and tests.
+    +3. Make safe, verifiable forward progress. Do not weaken checks or fabricate evidence.
+    +4. Commit only files you changed, limited to the paths you name, through `aw commit <plan> -- <paths>` (or `aw commit --no-plan -m <msg> -- <paths>` when no plan governs the change).
+    +5. Never push to remote.
+    +6. Write valid outcome JSON before exiting.
+    +"""
+    +
+    +
+     DEFAULT_STALL_TIMEOUT: float = 900.0
+
+     # statusvocab (`cyamvi`) E-01: Canonical terminal status vocabulary (TWELVE tokens).
+    ```
+
+    Diff for both hosts showing three one-line references each:
+    In `agent_workflows/oc_runipd.py`:
+    ```python
+    LANE_PROMPT_TIMEOUT = runner_shared.LANE_PROMPT_TIMEOUT
+    DEFAULT_RUNBOOK_TEXT = runner_shared.DEFAULT_RUNBOOK_TEXT
+    DEFAULT_STALL_TIMEOUT = runner_shared.DEFAULT_STALL_TIMEOUT
+    ```
+    In `agent_workflows/agy_runipd.py`:
+    ```python
+    DEFAULT_STALL_TIMEOUT = runner_shared.DEFAULT_STALL_TIMEOUT
+    LANE_PROMPT_TIMEOUT = runner_shared.LANE_PROMPT_TIMEOUT
+    DEFAULT_RUNBOOK_TEXT = runner_shared.DEFAULT_RUNBOOK_TEXT
+    ```
+
+    Resolved value and identity probe:
+    ```
+    oc_runipd.DEFAULT_RUNBOOK_TEXT == rs.DEFAULT_RUNBOOK_TEXT: True, is: True (val: str)
+    oc_runipd.DEFAULT_STALL_TIMEOUT == rs.DEFAULT_STALL_TIMEOUT: True, is: True (val: float)
+    oc_runipd.LANE_PROMPT_TIMEOUT == rs.LANE_PROMPT_TIMEOUT: True, is: True (val: float)
+    agy_runipd.DEFAULT_RUNBOOK_TEXT == rs.DEFAULT_RUNBOOK_TEXT: True, is: True (val: str)
+    agy_runipd.DEFAULT_STALL_TIMEOUT == rs.DEFAULT_STALL_TIMEOUT: True, is: True (val: float)
+    agy_runipd.LANE_PROMPT_TIMEOUT == rs.LANE_PROMPT_TIMEOUT: True, is: True (val: float)
+    ```
+
+    Resolved values before and after:
+    ```
+    Pre-change oc length: 667, agy length: 667
+    Post-change oc length: 667, agy length: 667, rs length: 667
+    oc.DEFAULT_RUNBOOK_TEXT == pre_oc: True
+    agy.DEFAULT_RUNBOOK_TEXT == pre_agy: True
+    rs.DEFAULT_RUNBOOK_TEXT == pre_oc: True
+    Resolved timeouts: DEFAULT_STALL_TIMEOUT=900.0 (oc=900.0, agy=900.0), LANE_PROMPT_TIMEOUT=180.0 (oc=180.0, agy=180.0)
+    ```
+
+    Search showing runbook literal appears exactly ONCE in `agent_workflows/`:
+    ```
+    $ rg -c "This runbook guides autonomous non-interactive execution" agent_workflows/
+    agent_workflows/runner_shared.py:1
+    ```
+
+    Argv/options probe parsing `start --repo . v6zie5`:
+    ```
+    oc_runipd: stall_timeout = 900.0, output_mode = clean
+    agy_runipd: stall_timeout = 900.0, output_mode = clean
+    ```
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: Paste all six added comments verbatim. Confirm in one sentence per family that
     the stated reason matches the measured one: that `_LANE_PROMPT_DISABLED` is declined for mutable
     per-process state (citing `runner_shared`'s docstring prohibition and
@@ -349,9 +648,74 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
     state explicitly that it makes no such claim, since F-06 measured that claim to be false. Paste a
     probe showing all three names are still defined on BOTH hosts and absent from `runner_shared`.
   - Observed evidence:
-  - Result: pending
+    All six added comments verbatim:
 
-- [ ] V-06 validates E-06
+    1. `agent_workflows/oc_runipd.py` at `_LANE_PROMPT_DISABLED`:
+    ```python
+    # kz4j7o / s2ewh8 E-05: Declined to share. `_LANE_PROMPT_DISABLED` is mutable per-process state
+    # modified via `global`, so sharing would leak prompt suppression across host runners.
+    # `runner_shared`'s module docstring explicitly prohibits module-level mutable state, and
+    # `tests/test_forkresid_shared_shells.py::LanePromptSuppressionTests` pins per-host suppression.
+    _LANE_PROMPT_DISABLED = False
+    ```
+
+    2. `agent_workflows/agy_runipd.py` at `_LANE_PROMPT_DISABLED`:
+    ```python
+    # kz4j7o / s2ewh8 E-05: Declined to share. `_LANE_PROMPT_DISABLED` is mutable per-process state
+    # modified via `global`, so sharing would leak prompt suppression across host runners.
+    # `runner_shared`'s module docstring explicitly prohibits module-level mutable state, and
+    # `tests/test_forkresid_shared_shells.py::LanePromptSuppressionTests` pins per-host suppression.
+    _LANE_PROMPT_DISABLED = False
+    ```
+
+    3. `agent_workflows/oc_runipd.py` at `_SIGINT_GRACE_SECONDS`:
+    ```python
+    # kz4j7o / s2ewh8 E-05: Declined to share. Child-reaping timing is per-host policy rather than
+    # invariant mechanism; each host is free to differ in agent termination grace. While the tuning
+    # seam in `runner_shared.terminate_process` would technically survive shared initialization,
+    # keeping separate literals preserves independent policy ownership without coupling the runners.
+    _SIGINT_GRACE_SECONDS = 5.0
+    ```
+
+    4. `agent_workflows/agy_runipd.py` at `_SIGINT_GRACE_SECONDS`:
+    ```python
+    # kz4j7o / s2ewh8 E-05: Declined to share. Child-reaping timing is per-host policy rather than
+    # invariant mechanism; each host is free to differ in agent termination grace. While the tuning
+    # seam in `runner_shared.terminate_process` would technically survive shared initialization,
+    # keeping separate literals preserves independent policy ownership without coupling the runners.
+    _SIGINT_GRACE_SECONDS = 5.0
+    ```
+
+    5. `agent_workflows/oc_runipd.py` at `_SIGTERM_GRACE_SECONDS`:
+    ```python
+    # kz4j7o / s2ewh8 E-05: Declined to share. Per-host policy tuning seam for SIGTERM grace before SIGKILL;
+    # see note on `_SIGINT_GRACE_SECONDS` above and `runner_shared.terminate_process`.
+    _SIGTERM_GRACE_SECONDS = 2.0
+    ```
+
+    6. `agent_workflows/agy_runipd.py` at `_SIGTERM_GRACE_SECONDS`:
+    ```python
+    # kz4j7o / s2ewh8 E-05: Declined to share. Per-host policy tuning seam for SIGTERM grace before SIGKILL;
+    # see note on `_SIGINT_GRACE_SECONDS` above and `runner_shared.terminate_process`.
+    _SIGTERM_GRACE_SECONDS = 2.0
+    ```
+
+    Confirmation of stated vs measured reason:
+    `_LANE_PROMPT_DISABLED` is declined because it holds mutable per-process state modified through `global`, which violates `runner_shared`'s module docstring prohibition against module-level mutable state and is pinned by `LanePromptSuppressionTests`.
+    The grace pair is declined strictly as per-host policy for process termination rather than mechanical impossibility.
+    Quoting the grace pair comment text:
+    `"While the tuning seam in runner_shared.terminate_process would technically survive shared initialization, keeping separate literals preserves independent policy ownership without coupling the runners."`
+    This explicitly avoids any false claim that the tuning seam would fail or break tests under shared initialization.
+
+    Probe showing all three names defined on both hosts and absent from `runner_shared`:
+    ```
+    _LANE_PROMPT_DISABLED    : in oc=True, in agy=True, in rs=False
+    _SIGINT_GRACE_SECONDS    : in oc=True, in agy=True, in rs=False
+    _SIGTERM_GRACE_SECONDS   : in oc=True, in agy=True, in rs=False
+    ```
+  - Result: pass
+
+- [x] V-06 validates E-06
   - Required evidence: Paste the full committed source of the new assertions and paste them PASSING.
     Paste the FIRST deliberate failure: an in-memory mutation of ONE host's `DEFAULT_RUNBOOK_TEXT`,
     the test RED with the constant name visible, restored and green. Paste the SECOND, DISTINCT
@@ -364,7 +728,172 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
     Finally paste the targeted five-file run green, the full-suite post-work tail, and
     `python3 tools/runner_fork_scan.py` compared against a baseline re-derived in this run.
   - Observed evidence:
-  - Result: pending
+    Full committed source of new assertions in `tests/test_forkresid_shared_shells.py`:
+    ```python
+    def test_question_timeouts_are_180s(self) -> None:
+        """Question timeouts in both runners and gate prompts default to 180s."""
+        from agent_workflows import runner_shared
+
+        self.assertEqual(oc_runipd.LANE_PROMPT_TIMEOUT, 180.0)
+        self.assertEqual(agy_runipd.LANE_PROMPT_TIMEOUT, 180.0)
+        self.assertEqual(runner_shared.GATE_PROMPT_TIMEOUT, 180.0)
+        self.assertEqual(runner_shared.LANE_PROMPT_TIMEOUT, 180.0)
+        self.assertIs(oc_runipd.LANE_PROMPT_TIMEOUT, runner_shared.LANE_PROMPT_TIMEOUT)
+        self.assertIs(agy_runipd.LANE_PROMPT_TIMEOUT, runner_shared.LANE_PROMPT_TIMEOUT)
+    ...
+    def test_shared_and_declined_constants_guards(self) -> None:
+        """kz4j7o / s2ewh8 E-06: Shared constants resolve to runner_shared; declined stay per host."""
+        from agent_workflows import runner_shared
+
+        shared_constants = (
+            "DEFAULT_RUNBOOK_TEXT",
+            "DEFAULT_STALL_TIMEOUT",
+            "LANE_PROMPT_TIMEOUT",
+        )
+        for host in (oc_runipd, agy_runipd):
+            for name in shared_constants:
+                self.assertTrue(
+                    hasattr(host, name),
+                    f"{host.__name__} must define {name}",
+                )
+                host_val = getattr(host, name)
+                shared_val = getattr(runner_shared, name)
+                self.assertEqual(
+                    host_val,
+                    shared_val,
+                    f"{host.__name__}.{name} value does not match runner_shared.{name}",
+                )
+                self.assertIs(
+                    host_val,
+                    shared_val,
+                    f"{host.__name__}.{name} is not identical to runner_shared.{name}",
+                )
+
+        declined_constants = (
+            "_LANE_PROMPT_DISABLED",
+            "_SIGINT_GRACE_SECONDS",
+            "_SIGTERM_GRACE_SECONDS",
+        )
+        for host in (oc_runipd, agy_runipd):
+            for name in declined_constants:
+                self.assertTrue(
+                    hasattr(host, name),
+                    f"{host.__name__} must define declined constant {name}",
+                )
+                self.assertFalse(
+                    hasattr(runner_shared, name),
+                    f"runner_shared must not define declined constant {name}",
+                )
+    ```
+
+    Passing assertions:
+    ```
+    $ python3 -m pytest tests/test_forkresid_shared_shells.py -o addopts=""
+    ============================== 6 passed in 1.46s ===============================
+    ```
+
+    FIRST deliberate failure: in-memory mutation of `oc_runipd.DEFAULT_RUNBOOK_TEXT`:
+    ```
+    === DEMONSTRATION 1: Mutating oc_runipd.DEFAULT_RUNBOOK_TEXT in memory ===
+    test_shared_and_declined_constants_guards (tests.test_forkresid_shared_shells.LanePromptSuppressionTests.test_shared_and_declined_constants_guards)
+    kz4j7o / s2ewh8 E-06: Shared constants resolve to runner_shared; declined stay per host. ... FAIL
+
+    ======================================================================
+    FAIL: test_shared_and_declined_constants_guards (tests.test_forkresid_shared_shells.LanePromptSuppressionTests.test_shared_and_declined_constants_guards)
+    kz4j7o / s2ewh8 E-06: Shared constants resolve to runner_shared; declined stay per host.
+    ----------------------------------------------------------------------
+    Traceback (most recent call last):
+      File "tests/test_forkresid_shared_shells.py", line 242, in test_shared_and_declined_constants_guards
+        self.assertEqual(
+            host_val,
+            shared_val,
+            f"{host.__name__}.{name} value does not match runner_shared.{name}",
+        )
+    AssertionError: 'MUTATED_TEXT_FOR_FAILURE_DEMO' != '# IPD Autonomous Execution Runbook\n\nThi[634 chars]g.\n'
+    Diff is 727 characters long. Set self.maxDiff to None to see it. : agent_workflows.oc_runipd.DEFAULT_RUNBOOK_TEXT value does not match runner_shared.DEFAULT_RUNBOOK_TEXT
+
+    ----------------------------------------------------------------------
+    Ran 1 test in 0.005s
+
+    FAILED (failures=1)
+
+    === DEMONSTRATION 1 RESTORED: Green ===
+    test_shared_and_declined_constants_guards (tests.test_forkresid_shared_shells.LanePromptSuppressionTests.test_shared_and_declined_constants_guards)
+    kz4j7o / s2ewh8 E-06: Shared constants resolve to runner_shared; declined stay per host. ... ok
+
+    ----------------------------------------------------------------------
+    Ran 1 test in 0.000s
+
+    OK
+    ```
+
+    SECOND deliberate failure: in-memory deletion of `oc_runipd._LANE_PROMPT_DISABLED`:
+    ```
+    === DEMONSTRATION 2: Deleting oc_runipd._LANE_PROMPT_DISABLED in memory ===
+    test_shared_and_declined_constants_guards (tests.test_forkresid_shared_shells.LanePromptSuppressionTests.test_shared_and_declined_constants_guards)
+    kz4j7o / s2ewh8 E-06: Shared constants resolve to runner_shared; declined stay per host. ... FAIL
+
+    ======================================================================
+    FAIL: test_shared_and_declined_constants_guards (tests.test_forkresid_shared_shells.LanePromptSuppressionTests.test_shared_and_declined_constants_guards)
+    kz4j7o / s2ewh8 E-06: Shared constants resolve to runner_shared; declined stay per host.
+    ----------------------------------------------------------------------
+    Traceback (most recent call last):
+      File "tests/test_forkresid_shared_shells.py", line 260, in test_shared_and_declined_constants_guards
+        self.assertTrue(
+            hasattr(host, name),
+            f"{host.__name__} must define declined constant {name}",
+        )
+    AssertionError: False is not true : agent_workflows.oc_runipd must define declined constant _LANE_PROMPT_DISABLED
+
+    ----------------------------------------------------------------------
+    Ran 1 test in 0.001s
+
+    FAILED (failures=1)
+
+    === DEMONSTRATION 2 RESTORED: Green ===
+    test_shared_and_declined_constants_guards (tests.test_forkresid_shared_shells.LanePromptSuppressionTests.test_shared_and_declined_constants_guards)
+    kz4j7o / s2ewh8 E-06: Shared constants resolve to runner_shared; declined stay per host. ... ok
+
+    ----------------------------------------------------------------------
+    Ran 1 test in 0.004s
+
+    OK
+    ```
+
+    Neither demonstration edited a host file on disk; all mutations were performed purely in memory and restored.
+
+    Code structure pin search:
+    ```
+    $ rg -n 'ast\.(parse|walk|unparse)|inspect\.getsource' tests/test_forkresid_shared_shells.py
+    (0 hits, exit 1)
+    ```
+    The new assertions contribute zero hits to the search.
+    The new code reads no production `.py` source text and makes no census-count or module-placement assertion, by any mechanism, asserting only observable outcomes through `getattr` and `hasattr` on imported modules.
+
+    Targeted five-file run:
+    ```
+    ======================= 400 passed in 246.98s (0:04:06) ========================
+    ```
+
+    Full-suite post-work tail:
+    ```
+    6445 passed, 2 skipped, 3 warnings in 168.00s (0:02:48)
+    ```
+
+    Runner fork scan comparison:
+    ```
+    RUNNER FORK CENSUS
+      metric: identity: ast.unparse with docstrings stripped from every scope; a thin runner_shared delegation is NOT counted as a fork
+
+      co-defined in both runners : 56
+      sanctioned thin wrappers   : 49 (NOT forks)
+      REAL FORKS                 : 7
+        byte-identical           : 1
+        divergent                : 6
+      large functions still forked: 5 of 5 (build_parser, execute_item, initialize_run, main, run_queue)
+    ```
+    Output is identical to the baseline census captured at the beginning of the run.
+  - Result: pass
 
 ## Approval and execution gate
 

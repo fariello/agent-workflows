@@ -899,11 +899,9 @@ SUCCESS_STATES = runner_shared.SUCCESS_STATES
 EXECUTION_SUCCESS_STATES = runner_shared.EXECUTION_SUCCESS_STATES
 # laneorphan-01 (`zwnjp3`) E-10: how long an OPTIONAL lane prompt waits before falling through to the
 # automatic content-based decision. Deliberately short: an unattended run must never block on shutdown.
-LANE_PROMPT_TIMEOUT: float = 180.0
+# Read from `runner_shared` (kz4j7o / s2ewh8 E-04).
+LANE_PROMPT_TIMEOUT = runner_shared.LANE_PROMPT_TIMEOUT
 
-# Frontmatter and filename extraction regexes
-_ID_RE = re.compile(r"(?m)^-\s*Id:\s*([0-9a-z]{6})\s*$")
-_STATUS_RE = re.compile(r"(?m)^-\s*Status:\s*(\S+)\s*$")
 # `_KIND_RE` and `_PLAN_FILENAME_RE` are IMPORTED from `runner_shared` (rununify 06 `sy7uwh` E-03), not
 # defined here. They MOVED with `parse_plan_file`/`_read_kind`, which are the only things that close
 # over them: `_PLAN_FILENAME_RE` was byte-identical in both runners and `_KIND_RE` was oc-only, so
@@ -919,9 +917,6 @@ _STATUS_RE = re.compile(r"(?m)^-\s*Status:\s*(\S+)\s*$")
 # (see `_read_item_dependencies`). Spec 25kzda 2.10: "All surfaces call this evaluator; none
 # reimplement the rules." Re-adding a dependency regex here is a regression guarded by
 # tests/test_runner_item_dependencies.py.
-
-# Terminal output verbosity for the streamed child-agent turn.
-OUTPUT_MODES = ("clean", "quiet", "raw")
 
 
 # `StallTimeout` and `EmptyStatusSelection` are IMPORTED from `runner_shared` (rununify 03 `i3d6ml`
@@ -1386,6 +1381,10 @@ def collect_lane_earned_paths(repo: Path, handle: Any) -> list[str]:
 # E-10: set once a SECOND interrupt (or a forced kill path) is seen, after which the prompt is
 # skipped entirely and the automatic decision runs unattended. A prompt during a repeated interrupt
 # would be the worst case: the operator is already trying harder to stop the run.
+# kz4j7o / s2ewh8 E-05: Declined to share. `_LANE_PROMPT_DISABLED` is mutable per-process state
+# modified via `global`, so sharing would leak prompt suppression across host runners.
+# `runner_shared`'s module docstring explicitly prohibits module-level mutable state, and
+# `tests/test_forkresid_shared_shells.py::LanePromptSuppressionTests` pins per-host suppression.
 _LANE_PROMPT_DISABLED = False
 
 
@@ -1721,19 +1720,8 @@ def enforce_requested_action(
     )
 
 
-DEFAULT_RUNBOOK_TEXT = """# IPD Autonomous Execution Runbook
-
-This runbook guides autonomous non-interactive execution of approved Implementation
-Plan Documents (IPDs) in this repository.
-
-## Execution Directives
-1. Execute only the assigned IPD in this turn.
-2. Read the assigned IPD in full, its current orchestrator, repository guidelines, and tests.
-3. Make safe, verifiable forward progress. Do not weaken checks or fabricate evidence.
-4. Commit only files you changed, limited to the paths you name, through `aw commit <plan> -- <paths>` (or `aw commit --no-plan -m <msg> -- <paths>` when no plan governs the change).
-5. Never push to remote.
-6. Write valid outcome JSON before exiting.
-"""
+# Default runbook text read from `runner_shared` (kz4j7o / s2ewh8 E-04).
+DEFAULT_RUNBOOK_TEXT = runner_shared.DEFAULT_RUNBOOK_TEXT
 
 
 def resolve_launch_profile(args: argparse.Namespace) -> runner_profiles.ResolvedLaunch:
@@ -2275,9 +2263,16 @@ def build_verifier_prompt(
 # `attempt_log_path` is now defined ONCE in `runner_shared` and imported above (rununify 03 `i3d6ml`).
 
 
+# kz4j7o / s2ewh8 E-05: Declined to share. Child-reaping timing is per-host policy rather than
+# invariant mechanism; each host is free to differ in agent termination grace. While the tuning
+# seam in `runner_shared.terminate_process` would technically survive shared initialization,
+# keeping separate literals preserves independent policy ownership without coupling the runners.
 _SIGINT_GRACE_SECONDS = 5.0
+# kz4j7o / s2ewh8 E-05: Declined to share. Per-host policy tuning seam for SIGTERM grace before SIGKILL;
+# see note on `_SIGINT_GRACE_SECONDS` above and `runner_shared.terminate_process`.
 _SIGTERM_GRACE_SECONDS = 2.0
-DEFAULT_STALL_TIMEOUT: float = 900.0
+# Default stall timeout read from `runner_shared` (kz4j7o / s2ewh8 E-04).
+DEFAULT_STALL_TIMEOUT = runner_shared.DEFAULT_STALL_TIMEOUT
 
 
 def terminate_process(process: subprocess.Popen) -> None:
@@ -2299,9 +2294,6 @@ def terminate_process(process: subprocess.Popen) -> None:
         sigint_grace=_SIGINT_GRACE_SECONDS,
         sigterm_grace=_SIGTERM_GRACE_SECONDS,
     )
-
-
-_close_process_streams = runner_shutdown._close_process_streams
 
 
 def _apply_execution_profile(

@@ -187,6 +187,9 @@ class LanePromptSuppressionTests(unittest.TestCase):
         self.assertEqual(oc_runipd.LANE_PROMPT_TIMEOUT, 180.0)
         self.assertEqual(agy_runipd.LANE_PROMPT_TIMEOUT, 180.0)
         self.assertEqual(runner_shared.GATE_PROMPT_TIMEOUT, 180.0)
+        self.assertEqual(runner_shared.LANE_PROMPT_TIMEOUT, 180.0)
+        self.assertIs(oc_runipd.LANE_PROMPT_TIMEOUT, runner_shared.LANE_PROMPT_TIMEOUT)
+        self.assertIs(agy_runipd.LANE_PROMPT_TIMEOUT, runner_shared.LANE_PROMPT_TIMEOUT)
 
         # Verify prompt_for_gate_phrase timeout message
         stdin_tty = _TTYStub()
@@ -218,3 +221,47 @@ class LanePromptSuppressionTests(unittest.TestCase):
             )
             self.assertIsNone(res)
             self.assertIn("no answer in 180.0s", stderr_tty.buffer)
+
+    def test_shared_and_declined_constants_guards(self) -> None:
+        """kz4j7o / s2ewh8 E-06: Shared constants resolve to runner_shared; declined stay per host."""
+        from agent_workflows import runner_shared
+
+        shared_constants = (
+            "DEFAULT_RUNBOOK_TEXT",
+            "DEFAULT_STALL_TIMEOUT",
+            "LANE_PROMPT_TIMEOUT",
+        )
+        for host in (oc_runipd, agy_runipd):
+            for name in shared_constants:
+                self.assertTrue(
+                    hasattr(host, name),
+                    f"{host.__name__} must define {name}",
+                )
+                host_val = getattr(host, name)
+                shared_val = getattr(runner_shared, name)
+                self.assertEqual(
+                    host_val,
+                    shared_val,
+                    f"{host.__name__}.{name} value does not match runner_shared.{name}",
+                )
+                self.assertIs(
+                    host_val,
+                    shared_val,
+                    f"{host.__name__}.{name} is not identical to runner_shared.{name}",
+                )
+
+        declined_constants = (
+            "_LANE_PROMPT_DISABLED",
+            "_SIGINT_GRACE_SECONDS",
+            "_SIGTERM_GRACE_SECONDS",
+        )
+        for host in (oc_runipd, agy_runipd):
+            for name in declined_constants:
+                self.assertTrue(
+                    hasattr(host, name),
+                    f"{host.__name__} must define declined constant {name}",
+                )
+                self.assertFalse(
+                    hasattr(runner_shared, name),
+                    f"runner_shared must not define declined constant {name}",
+                )
