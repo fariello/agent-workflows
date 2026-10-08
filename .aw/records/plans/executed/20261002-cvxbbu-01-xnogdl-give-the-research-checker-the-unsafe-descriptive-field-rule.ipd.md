@@ -6,7 +6,7 @@
 - Scope: Judge the research tree's descriptive front-matter values with the shared `attention_contract.is_safe_descriptive` predicate under the already-catalogued `attention.unsafe-field` id, emitted from `research_index.check_drift` (NOT from `validate_frontmatter`, which would DROP the doc from the index); repair the three over-length committed summaries FIRST so the rule ships fail-closed with no grandfather tier. The id is already in `RULE_IDS` and already registered in `RULE_REGISTRY` at `error`, so this mints no policy.
 - Scope-Paths: agent_workflows/research_index.py, tests/test_research_unsafe_field.py, .aw/records/research/reference/202609/20260905-hostskill-04-6asl6q-host-skill-runtime-discovery-and-authoring.reconciliation.reconciliation-report.md, .aw/records/research/reference/202609/20260905-awmetastore-05-6mye7n-where-aw-metadata-should-live.reconciliation.reconciliation-report.md, .aw/records/research/archive/202609/20260905-awmetastore-06-g5f3zq-aw-artifact-metadata-storage-research-report.gemini31prodeepthink.research-report.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -17,9 +17,9 @@
 - Highest E allocated: 05
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: xnogdl
-- Approval: 2026-10-07, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-08 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: xnogdl verified (set cvxbbu, attempt 1).
 - 2026-10-07 approved (aw set): status set to approved
 - 2026-10-07 reviewed (opencode/its_direct/pt3-claude-opus-5.5-1m-us): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-001..PR-004, all FIXED. Reviewed in lane review-sweep-run-20261007T032752Z-4094028 at HEAD 250466250; review record .aw/records/reviews/20261002-cvxbbu-01-xnogdl-give-the-research-checker-the-unsafe-descriptive-field-rule.review.md. Census, registry, F-06 drop and F-07 gate re-measured and hold. PR-001: executed jnpl08 now reports the injected duplicate status via research.frontmatter-key-repeated, so E-05 LIMIT ONE asserts that and the unreported blocks-release residue. PR-002: LIMIT TWO no longer pins raw aw attention output, which reviewed plan qpw45x will change. PR-003: stale deftzy evidence path, CLI driver and baseline counts refreshed. PR-004: E-03 stop narrowed to the no-consumer case.
 
@@ -35,47 +35,47 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: repair the existing population FIRST
 
-- [ ] E-01 Shorten the `summary:` value of the three committed research docs that exceed `A.MAX_DESCRIPTIVE_LEN` (300), BEFORE any rule exists, so the tree is clean when the rule lands and the rule can ship fail-closed with no grandfather tier. The three, with lengths measured at authoring: `20260905-hostskill-04-6asl6q-...reconciliation-report.md` (395, `status: reference`), `20260905-awmetastore-05-6mye7n-...reconciliation-report.md` (351, `status: reference`), and `20260905-awmetastore-06-g5f3zq-...gemini31prodeepthink.research-report.md` (320, `status: archive`). Reduce each to at most 300 characters while preserving its meaning.
+- [x] E-01 Shorten the `summary:` value of the three committed research docs that exceed `A.MAX_DESCRIPTIVE_LEN` (300), BEFORE any rule exists, so the tree is clean when the rule lands and the rule can ship fail-closed with no grandfather tier. The three, with lengths measured at authoring: `20260905-hostskill-04-6asl6q-...reconciliation-report.md` (395, `status: reference`), `20260905-awmetastore-05-6mye7n-...reconciliation-report.md` (351, `status: reference`), and `20260905-awmetastore-06-g5f3zq-...gemini31prodeepthink.research-report.md` (320, `status: archive`). Reduce each to at most 300 characters while preserving its meaning.
   THIS ORDERING IS THE WHOLE REASON THIS IS ITEM ONE, AND THE REASON IS CI, NOT TIDINESS. The `attention.unsafe-field` id is ALREADY REGISTERED at `error` severity (F-04), and `artifact_core.drift_exit_code` exempts only `info`, so if the rule landed first, `aw research index --check` would gain three `error` findings on a clean checkout. Fixing first makes the rule's arrival a no-op on the tree, which is also the evidence V-01 demands. THE SIBLING'S SECOND REASON DOES NOT APPLY HERE and must not be copied: `ynhst5` E-01 also had a LIFECYCLE DEADLOCK argument, because `specs.run_set` re-runs `validate_spec` on prospective text and would refuse to transition an offending spec. No research verb re-validates on transition this way (`aw research promote`/`set-outcome`/`set-priority` edit front-matter lines directly), and this plan's rule lives in `check_drift` rather than in `validate_frontmatter`, so no research record is ever locked out of its own lifecycle by the new finding. Stating this difference matters because it is the only argument that would survive a decision to grandfather instead.
   EDIT THESE THREE FILES BY HAND, NOT THROUGH ANY `aw research` VERB. This is a text repair to one front-matter line, not a status transition or a regroup; `aw research set-outcome`/`promote` exist to move a record through its lifecycle, and pointing one at a conformance repair would rewrite state that is correct. `aw commit xnogdl -- <the three paths>` is still the commit route.
   DO NOT DELETE INFORMATION TO MEET THE BOUND, and do not touch the body. A `summary:` is a one-line abstract of a document whose body carries the detail, so compress the summary; all three currently pack multiple sentences into the field. Do NOT edit any other front-matter key, and specifically do NOT alter `status:`, `outcome:`, `consumed-by:` or the document body. One of the three (`g5f3zq`) sits under `archive/` and one (`6mye7n`) carries `outcome: adopted`; a records repair is not a promotion, a re-adoption, or an un-archiving.
   - Depends on: none
   - Expected outcome: all three `summary:` values are at most 300 characters and still describe the same document; a census over the whole research tree reports ZERO `summary:` values failing `A.is_safe_descriptive`, where it reported 3 before; and `aw research index --check` gains no new finding relative to its pre-repair baseline.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: emit the rule where it cannot destroy the index
 
-- [ ] E-02 In `research_index.check_drift`, judge each indexed entry's descriptive values with `A.is_safe_descriptive` and emit the EXISTING `attention.unsafe-field` rule id on failure, enriched through `_ce.enrich_drift` exactly as the four neighbouring research drift rules are. Judge `summary`, each `topic` TOKEN, and each `consumed-by` TOKEN. Add the `attention_contract` import to the module.
+- [x] E-02 In `research_index.check_drift`, judge each indexed entry's descriptive values with `A.is_safe_descriptive` and emit the EXISTING `attention.unsafe-field` rule id on failure, enriched through `_ce.enrich_drift` exactly as the four neighbouring research drift rules are. Judge `summary`, each `topic` TOKEN, and each `consumed-by` TOKEN. Add the `attention_contract` import to the module.
   EMIT FROM `check_drift`, NOT FROM `validate_frontmatter`, AND THIS IS THE LOAD-BEARING DESIGN DECISION OF THE PLAN. `research_index._doc_entry` treats a non-empty `validate_frontmatter` result as FATAL: it returns `(None, [Drift(rel, "frontmatter-invalid", ...)])`, so the document yields NO `DocEntry` and is DROPPED from the manifest. Driven on a fixture (F-06): adding an unsafe-summary error to `validate_frontmatter` took the indexed entry count from 1 to 0. On the real tree that would delete three records from `INDEX.json`/`INDEX.md` as the means of reporting that their summaries are too long, which is a worse outcome than the defect. `check_drift` runs AFTER `_scan_docs` and reports against entries that remain indexed, which is where the four existing content rules (`stale-state-to-promote`, `dangling-consumed-by`, `adopted-without-consumer`, `unrecognized-model`) all live for the same reason.
   USE THE CATALOGUED ID AND DO NOT MINT ONE. `attention.unsafe-field` is a member of the closed `attention_contract.RULE_IDS` catalog, is documented there as "control-char / over-length / newline / non-http issue url", and is ALREADY EMITTED for this violation class by `specs.validate_spec` and `releases.validate_release`. Note the deliberate asymmetry this accepts: the four existing research rules are BARE ids (`stale-state-to-promote`, not `research.stale-state`), while this one is namespaced, because it is a cross-tree id borrowed from the catalog rather than a research-local rule. That is correct and is NOT a reason to rename it to a bare `unsafe-field`; OQ-02 records the alternatives.
   ENRICH AT THE EMITTER. The module's own comment states why: "Severity is stamped at the emitter ... neither `run_index` nor `check_engine.check_content` enriches these findings, so an un-enriched `severity=""` would still fail the gate". Verified at authoring that an unenriched drift already exits 1 via `drift_exit_code`, so enrichment is about making the severity DECLARED rather than accidental, matching the three neighbours that call `_ce.enrich_drift`. Note `dangling-consumed-by` is emitted WITHOUT enrichment today; follow the enriched majority, and do not "fix" that one here.
   KEEP THE DETAIL VALUE-FREE. Name the FIELD and the failing PROPERTY, never the offending value: the detail lands in the `location<TAB>rule<TAB>detail` agent record and in human output, so echoing an ANSI-bearing value would push the exact payload this rule exists to flag into the surface it protects, and `A.escape_detail` escapes only tab, newline and backslash, NOT C0/C1 controls. For a length failure the detail MAY carry the measured length, which is a number and not attacker-controlled text. Follow the sibling's wording so a user meets one vocabulary across trees.
   - Depends on: E-01
   - Expected outcome: an indexed research doc whose `summary` is 301 characters, or contains a BEL, an ANSI ESC, or a C1 control, yields exactly one `attention.unsafe-field` drift from `check_drift` with `severity == "error"`; a 300-character summary yields none; an unsafe `topic` or `consumed-by` token yields one naming that field; the doc REMAINS in the returned entry list in every case; and the detail contains neither the offending value nor a raw control byte.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 Verify, and record as pasted evidence rather than as an assertion, that the new rule reaches its consumers and changes no exit code on the repaired tree. Make no code change in this item unless the verification exposes a gap. If the gap is that the rule reaches NONE of its intended consumers, STOP and report, because the emitter placement then needs re-deciding (the gate names this condition). Any narrower gap is to be FIXED and, if it touches a path outside `- Scope-Paths:`, JUSTIFIED at finalize with `--scope-reason` (REVISED AT REVIEW, PR-004: a stop over a scope question contradicts the scope-fence ruling).
+- [x] E-03 Verify, and record as pasted evidence rather than as an assertion, that the new rule reaches its consumers and changes no exit code on the repaired tree. Make no code change in this item unless the verification exposes a gap. If the gap is that the rule reaches NONE of its intended consumers, STOP and report, because the emitter placement then needs re-deciding (the gate names this condition). Any narrower gap is to be FIXED and, if it touches a path outside `- Scope-Paths:`, JUSTIFIED at finalize with `--scope-reason` (REVISED AT REVIEW, PR-004: a stop over a scope question contradicts the scope-fence ruling).
   CHECK ALL THREE CONSUMERS, because `check_drift` has more than one caller and they do not agree on what they run. (a) `aw research index --check` calls `check_drift` directly and is the surface where the rule actually gates. (b) `aw check research` reaches it through `check_engine.check_content`, whose `research` branch is gated `if dirs and include_retired`, so the DEFAULT invocation runs NO research content validator at all and the rule is invisible there until `--all` is passed. (c) `aw check all` fans out through the same branch. MEASURED AT AUTHORING on a fixture: `check_content(include_retired=False)` returned 0 drifts while `include_retired=True` returned the 2 `check.stale-index-missing` findings, proving the gate. THIS GATE IS PRE-EXISTING AND SYMMETRIC WITH `plans` (whose branch carries the identical `if dirs and include_retired`), so it is NOT this plan's defect and NOT this plan's to change; removing it would turn `aw check research` from a names/refs check into a full content check and alter the exit code of an unrelated command. Record it so no reviewer concludes from a clean default `aw check research` that the rule does not work.
   - Depends on: E-02
   - Expected outcome: the rule is demonstrated firing through `aw research index --check` (exit 1 on an unsafe fixture) and through `aw check research --all`, and demonstrated NOT firing on the repaired repository tree, with the pre-existing `include_retired` gate documented rather than altered.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: pin the coverage and the honest limits
 
-- [ ] E-04 Add `tests/test_research_unsafe_field.py` pinning the new coverage for every Section 8.8 shape a checker CAN see, driving `research_index.check_drift` against temporary fixture repositories: over-length, BEL, ANSI ESC and a C1 control on `summary`; an unsafe `topic` token; an unsafe `consumed-by` token; the exact 300/301 boundary; and each case asserting the `attention.unsafe-field` id and `severity == "error"`.
+- [x] E-04 Add `tests/test_research_unsafe_field.py` pinning the new coverage for every Section 8.8 shape a checker CAN see, driving `research_index.check_drift` against temporary fixture repositories: over-length, BEL, ANSI ESC and a C1 control on `summary`; an unsafe `topic` token; an unsafe `consumed-by` token; the exact 300/301 boundary; and each case asserting the `attention.unsafe-field` id and `severity == "error"`.
   PIN THE NON-DESTRUCTION PROPERTY, which is this plan's central design choice and the one a later refactor is most likely to undo: assert for each unsafe case that the document is STILL PRESENT in the entries `_scan_docs`/`check_drift` return, and that NO `frontmatter-invalid` drift is emitted for it. A test that only checks the finding fires would pass equally for the destructive `validate_frontmatter` placement that F-06 measured dropping the doc. Name F-06 in the test's comment.
   TEST OUTCOMES, NOT CODE STRUCTURE (AGENTS.md, GUIDING_PRINCIPLES P16). Every assertion must drive `check_drift`, `validate_frontmatter` or a CLI and assert on returned drift, entry lists, exit codes or emitted bytes. Do NOT assert on `inspect.getsource`, a call count, a symbol census, or the presence of any comment; the registry assertion must read `check_engine.rule_spec("attention.unsafe-field")` and compare `RuleSpec` fields rather than grepping the module text.
   - Depends on: E-03
   - Expected outcome: a new module whose over-length and control-character cases FAIL against pre-E-02 code (`check_drift` returns no `attention.unsafe-field` drift) and PASS after; whose non-destruction assertions pass after; and whose boundary case proves 300 accepted and 301 refused.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 In the same module, pin the two LIMITS and the non-regressions, because this is what keeps the record honest about what a checker cannot do.
+- [x] E-05 In the same module, pin the two LIMITS and the non-regressions, because this is what keeps the record honest about what a checker cannot do.
   LIMIT ONE, THE NEWLINE VECTOR, which the backlog item itself names and which THIS RULE cannot close. REVISED AT REVIEW (PR-001): executed plan `jnpl08` (`7d4bgs`) now emits `research.frontmatter-key-repeated` from `check_drift` for any key that appears twice, so the vector is PARTLY visible to a checker: an injected key that DUPLICATES a legitimate one (`status`) is reported, while an injected key the legitimate block does not carry (`blocks-release`) is reported by NOTHING. Measured at review HEAD `250466250` on the block below: `check_drift` rule set `['check.stale-index-missing', 'research.frontmatter-key-repeated']`, the document still indexed. So assert ALL of: NO `attention.unsafe-field` drift; exactly one `research.frontmatter-key-repeated` drift, naming `status`; and NO drift of any rule naming `blocks-release`, which is the residue no checker reaches. Assert that a front-matter block produced by newline injection (a `summary: legit` line followed by a smuggled `status: reference` and `blocks-release: next`) yields NO `attention.unsafe-field` drift, because `parse_frontmatter` splits the value into separate lines BEFORE any validation runs and hands the checker only the safe half. Driven at authoring (F-05): the checker sees `summary == 'legit'`, `is_safe_descriptive` is correctly True, `validate_frontmatter` is `[]`, AND the injected `status` WINS the reader's last-wins race so the record reports `status: reference`. Assert that last-wins override too, so the test records the severity rather than just the blind spot, and name `deftzy` as the write-path carrier in the comment. A reader must not be able to conclude from this module that the injection is closed.
   LIMIT TWO, THE RULE REPORTS AND DOES NOT SANITIZE. Assert the observable property that is stable whatever the renderers later do: running `check_drift` (and `aw research index --check`) on an unsafe fixture leaves the document's bytes UNCHANGED on disk and does not alter the value the index entry carries, so the rule makes the condition a named finding and repairs nothing. REVISED AT REVIEW (PR-002): do NOT assert that `aw attention` emits the bytes RAW. That is a known defect, and reviewed plan `llnvwj` (`qpw45x`, E-01 `neutralize_control_characters` applied to `detail_text`) is set to change it, so such an assertion would pin accidental behavior the project intends to replace and would go red the day that plan lands. Name `llnvwj` as the escaping carrier in the test comment instead.
   Non-regressions, each naming why it could plausibly break: (a) the three repaired records and the whole live research tree produce ZERO `attention.unsafe-field` findings, read from the repository rather than from hard-coded lengths; (b) the four existing research drift rules still fire on their own fixtures, since this item adds a loop over the same entries; (c) a doc with an empty `topic: []` and `consumed-by: []` yields nothing, since a per-token loop over an empty list must not fault; (d) `validate_frontmatter` is UNCHANGED, asserted by driving it directly with an unsafe summary and observing `[]`, which is the deliberate under-scope E-02 names and the thing that keeps the doc indexed.
   - Depends on: E-04
   - Expected outcome: both limit cases pass in the post-fix state, and the parts of them that do not concern `attention.unsafe-field` (the `frontmatter-key-repeated` finding, the unreported `blocks-release`, the unchanged bytes) pass in the pre-fix state too, documenting what is not closed; all four non-regression groups pass; and (d) asserts `validate_frontmatter` still returns `[]` for an unsafe summary, proving the emitter placement.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -190,33 +190,323 @@ THREE `.aw/records/research/` PATHS DO APPEAR IN `- Scope-Paths:`, and they are 
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste a `git diff` of the three research docs showing ONLY the `summary:` line changed in each, and paste the before and after character counts for all three (before: 395, 351, 320; after: each at most 300, with the actual numbers). Paste the full before and after text of each value so a reviewer can judge that meaning was preserved rather than truncated. Then paste the output of a census over the WHOLE research tree showing ZERO `summary:`/`topic`/`consumed-by` values failing `A.is_safe_descriptive`, where it previously reported 3. THIS MUST BE RUN BEFORE E-02 EXISTS: state explicitly that the rule was not yet in the tree when this evidence was captured, since E-01's whole purpose is to precede it. Also confirm from the diff that no `status:`, `outcome:` or `consumed-by:` line and no body text was touched in any of the three, and that the `archive/`-resident file was not moved.
   - Observed evidence:
-  - Result: pending
+    `git diff` of the three research documents:
+    ```diff
+    diff --git a/.aw/records/research/archive/202609/20260905-awmetastore-06-g5f3zq-aw-artifact-metadata-storage-research-report.gemini31prodeepthink.research-report.md b/.aw/records/research/archive/202609/20260905-awmetastore-06-g5f3zq-aw-artifact-metadata-storage-research-report.gemini31prodeepthink.research-report.md
+    index 60367a2ff..cce571d35 100644
+    --- a/.aw/records/research/archive/202609/20260905-awmetastore-06-g5f3zq-aw-artifact-metadata-storage-research-report.gemini31prodeepthink.research-report.md
+    +++ b/.aw/records/research/archive/202609/20260905-awmetastore-06-g5f3zq-aw-artifact-metadata-storage-research-report.gemini31prodeepthink.research-report.md
+    @@ -8,7 +8,7 @@ model: gemini31prodeepthink
+     kind: research-report
+     status: archive
+     outcome: rejected
+    -summary: Gemini 3.1 Pro Deep Think: a fifth answer to prompt 27rjro, DELIBERATELY EXCLUDED from reconciliation 6mye7n on the maintainer instruction because its own author note records that network restrictions prevented it reading the repository, so it reasoned from the prompt prose alone; adopted 2026-09-20 for provenance only
+    +summary: Gemini 3.1 Pro Deep Think: fifth answer to prompt 27rjro, excluded from reconciliation 6mye7n by maintainer instruction because network restrictions prevented repo access (reasoned from prompt prose alone); adopted 2026-09-20 for provenance only
+     consumed-by: []
+     ---
 
-- [ ] V-02 validates E-02
+    diff --git a/.aw/records/research/reference/202609/20260905-awmetastore-05-6mye7n-where-aw-metadata-should-live.reconciliation.reconciliation-report.md b/.aw/records/research/reference/202609/20260905-awmetastore-05-6mye7n-where-aw-metadata-should-live.reconciliation.reconciliation-report.md
+    index 46b666761..4ce90cc6f 100644
+    --- a/.aw/records/research/reference/202609/20260905-awmetastore-05-6mye7n-where-aw-metadata-should-live.reconciliation.reconciliation-report.md
+    +++ b/.aw/records/research/reference/202609/20260905-awmetastore-05-6mye7n-where-aw-metadata-should-live.reconciliation.reconciliation-report.md
+    @@ -8,7 +8,7 @@ model: reconciliation
+     kind: reconciliation-report
+     status: reference
+     outcome: adopted
+    -summary: Consolidated finding across GPT-5.6 Sol High, Sonnet 5 High, Gemini 3.1 Pro High and Gemini 3.8 Flash High: all four converge on inline front matter plus git-tracked per-artifact JSONL history keyed by id6, ordered by an explicit per-artifact seq rather than by date; the live-verified disagreements are the inline residue, IPD-S405, and write locking
+    +summary: Consolidated finding across GPT-5.6, Sonnet 5, Gemini 3.1 Pro and Gemini 3.8 Flash: all four converge on inline front matter plus git-tracked per-artifact JSONL history keyed by id6, ordered by explicit seq rather than date; live disagreements are inline residue, IPD-S405, and write locking
+     consumed-by: [ms06pi, tk1gqo]
+     ---
+
+    diff --git a/.aw/records/research/reference/202609/20260905-hostskill-04-6asl6q-host-skill-runtime-discovery-and-authoring.reconciliation.reconciliation-report.md b/.aw/records/research/reference/202609/20260905-hostskill-04-6asl6q-host-skill-runtime-discovery-and-authoring.reconciliation.reconciliation-report.md
+    index 769d77679..04af8e81b 100644
+    --- a/.aw/records/research/reference/202609/20260905-hostskill-04-6asl6q-host-skill-runtime-discovery-and-authoring.reconciliation.reconciliation-report.md
+    +++ b/.aw/records/research/reference/202609/20260905-hostskill-04-6asl6q-host-skill-runtime-discovery-and-authoring.reconciliation.reconciliation-report.md
+    @@ -8,7 +8,7 @@ model: reconciliation
+     kind: reconciliation-report
+     status: reference
+     outcome: none-yet
+    -summary: Consolidated finding across GPT-5.6 Sol High, Sonnet 5 High and Gemini 3.1 Pro Deep Think: .agents/skills is a real shipped discovery path in at least seven hosts and is NOT aspirational, the per-package verify_digest.py is called by nothing and should go, and the Antigravity directory name is UNRESOLVED (plural vs singular) pending an empirical test on opencode, codex, agy, claude and hermes
+    +summary: Consolidated finding across GPT-5.6, Sonnet 5, Gemini 3.1 Pro: .agents/skills is a shipped discovery path in >=7 hosts (not aspirational); per-package verify_digest.py is uncalled and should go; the Antigravity directory name is unresolved (plural vs singular) pending empirical host tests
+     consumed-by: []
+     ---
+    ```
+
+    Character counts and full text before and after:
+    1. `6asl6q`:
+       Before: 395 characters
+       `Consolidated finding across GPT-5.6 Sol High, Sonnet 5 High and Gemini 3.1 Pro Deep Think: .agents/skills is a real shipped discovery path in at least seven hosts and is NOT aspirational, the per-package verify_digest.py is called by nothing and should go, and the Antigravity directory name is UNRESOLVED (plural vs singular) pending an empirical test on opencode, codex, agy, claude and hermes`
+       After: 289 characters (<= 300)
+       `Consolidated finding across GPT-5.6, Sonnet 5, Gemini 3.1 Pro: .agents/skills is a shipped discovery path in >=7 hosts (not aspirational); per-package verify_digest.py is uncalled and should go; the Antigravity directory name is unresolved (plural vs singular) pending empirical host tests`
+
+    2. `6mye7n`:
+       Before: 351 characters
+       `Consolidated finding across GPT-5.6 Sol High, Sonnet 5 High, Gemini 3.1 Pro High and Gemini 3.8 Flash High: all four converge on inline front matter plus git-tracked per-artifact JSONL history keyed by id6, ordered by an explicit per-artifact seq rather than by date; the live-verified disagreements are the inline residue, IPD-S405, and write locking`
+       After: 291 characters (<= 300)
+       `Consolidated finding across GPT-5.6, Sonnet 5, Gemini 3.1 Pro and Gemini 3.8 Flash: all four converge on inline front matter plus git-tracked per-artifact JSONL history keyed by id6, ordered by explicit seq rather than date; live disagreements are inline residue, IPD-S405, and write locking`
+
+    3. `g5f3zq`:
+       Before: 320 characters
+       `Gemini 3.1 Pro Deep Think: a fifth answer to prompt 27rjro, DELIBERATELY EXCLUDED from reconciliation 6mye7n on the maintainer instruction because its own author note records that network restrictions prevented it reading the repository, so it reasoned from the prompt prose alone; adopted 2026-09-20 for provenance only`
+       After: 245 characters (<= 300)
+       `Gemini 3.1 Pro Deep Think: fifth answer to prompt 27rjro, excluded from reconciliation 6mye7n by maintainer instruction because network restrictions prevented repo access (reasoned from prompt prose alone); adopted 2026-09-20 for provenance only`
+
+    Census over whole research tree (run BEFORE E-02 existed; the rule was not yet in the tree when this was captured):
+    ```
+    Total docs censused: 129
+    Unsafe count: 0
+    ```
+    Confirmed from the diff: only the `summary:` line was modified in each file; no `status:`, `outcome:`, `consumed-by:` or document body line was touched in any of the three, and the `archive/`-resident file was not moved.
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: paste a Python session calling `research_index.check_drift` on fixture repositories and showing the returned drift for each: a 301-character `summary` yielding exactly one `attention.unsafe-field`; a `summary` containing BEL yielding the same; one containing an ANSI ESC yielding the same; one containing a C1 control yielding the same; a 300-character `summary` yielding none (the boundary); an unsafe `topic` token yielding one naming that field; an unsafe `consumed-by` token yielding one naming that field. For each drift paste `severity`, showing `error` from the emitter's own `enrich_drift` call rather than from a later consumer.
   THE NON-DESTRUCTION EVIDENCE IS MANDATORY AND ITS ABSENCE FAILS THIS ITEM, because it is the property that distinguishes the chosen emitter from the rejected one (F-06, OQ-03): for every unsafe case above, paste the entry list from the same scan showing the document is STILL INDEXED and that NO `frontmatter-invalid` drift was emitted for it. Also paste `R.validate_frontmatter(fm)` on the same unsafe fixture returning `[]`, proving the contract function was not changed. Finally paste each emitted DETAIL string showing it contains neither the offending value nor a raw control byte (a measured length is permitted per OQ-04), and paste the source showing `_ce.enrich_drift` is applied as the neighbouring rules do.
   - Observed evidence:
-  - Result: pending
+    Interactive Python session calling `research_index.check_drift` on fixture repositories:
+    ```
+    === Case: 301-char summary ===
+    Indexed entries count: 1 (id6=['tst001'])
+    Scan drift rules: []
+    validate_frontmatter: []
+    Drift count (attention.unsafe-field): 1
+      rule: attention.unsafe-field
+      severity: error
+      detail: Summary is over-length or has control chars/newlines
+      detail has raw control chars: False
 
-- [ ] V-03 validates E-03
+    === Case: BEL summary ===
+    Indexed entries count: 1 (id6=['tst001'])
+    Scan drift rules: []
+    validate_frontmatter: []
+    Drift count (attention.unsafe-field): 1
+      rule: attention.unsafe-field
+      severity: error
+      detail: Summary is over-length or has control chars/newlines
+      detail has raw control chars: False
+
+    === Case: ANSI ESC summary ===
+    Indexed entries count: 1 (id6=['tst001'])
+    Scan drift rules: []
+    validate_frontmatter: []
+    Drift count (attention.unsafe-field): 1
+      rule: attention.unsafe-field
+      severity: error
+      detail: Summary is over-length or has control chars/newlines
+      detail has raw control chars: False
+
+    === Case: C1 control summary ===
+    Indexed entries count: 1 (id6=['tst001'])
+    Scan drift rules: []
+    validate_frontmatter: []
+    Drift count (attention.unsafe-field): 1
+      rule: attention.unsafe-field
+      severity: error
+      detail: Summary is over-length or has control chars/newlines
+      detail has raw control chars: False
+
+    === Case: 300-char summary (boundary) ===
+    Indexed entries count: 1 (id6=['tst001'])
+    Scan drift rules: []
+    validate_frontmatter: []
+    Drift count (attention.unsafe-field): 0
+
+    === Case: unsafe topic token ===
+    Indexed entries count: 1 (id6=['tst001'])
+    Scan drift rules: []
+    validate_frontmatter: []
+    Drift count (attention.unsafe-field): 1
+      rule: attention.unsafe-field
+      severity: error
+      detail: Topic is over-length or has control chars/newlines
+      detail has raw control chars: False
+
+    === Case: unsafe consumed-by token ===
+    Indexed entries count: 1 (id6=['tst001'])
+    Scan drift rules: []
+    validate_frontmatter: []
+    Drift count (attention.unsafe-field): 1
+      rule: attention.unsafe-field
+      severity: error
+      detail: Consumed-by is over-length or has control chars/newlines
+      detail has raw control chars: False
+    ```
+
+    Non-destruction evidence: in every unsafe case above, `Indexed entries count: 1 (id6=['tst001'])`, `Scan drift rules: []` (no `frontmatter-invalid`), and `validate_frontmatter(fm)` returned `[]`.
+    Detail strings: value-free, containing neither the offending value nor raw control characters.
+    Emitter source showing `_ce.enrich_drift`:
+    ```python
+    for e in entries:
+        if not A.is_safe_descriptive(e.summary):
+            drift.append(
+                _ce.enrich_drift(
+                    Drift(
+                        e.path,
+                        "attention.unsafe-field",
+                        A.escape_detail(
+                            "Summary is over-length or has control chars/newlines"
+                        ),
+                    )
+                )
+            )
+        for t in e.topic:
+            if not A.is_safe_descriptive(str(t)):
+                drift.append(
+                    _ce.enrich_drift(
+                        Drift(
+                            e.path,
+                            "attention.unsafe-field",
+                            A.escape_detail(
+                                "Topic is over-length or has control chars/newlines"
+                            ),
+                        )
+                    )
+                )
+        for c in e.consumed_by:
+            if not A.is_safe_descriptive(str(c)):
+                drift.append(
+                    _ce.enrich_drift(
+                        Drift(
+                            e.path,
+                            "attention.unsafe-field",
+                            A.escape_detail(
+                                "Consumed-by is over-length or has control chars/newlines"
+                            ),
+                        )
+                    )
+                )
+    ```
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: paste, on an unsafe FIXTURE repo, `aw research index --check` exiting 1 with the `attention.unsafe-field` finding, and `aw check research --all --agent` reporting it. Then paste `aw check research --agent` (DEFAULT, no `--all`) on that same unsafe fixture showing the rule does NOT appear, together with a `check_content(repo, "research", include_retired=False)` versus `include_retired=True` comparison, so the pre-existing gate (F-07) is documented as measured behavior rather than asserted. State explicitly that the gate was NOT changed by this plan and that the `plans` branch carries the identical condition.
   Then paste, on the REPAIRED REPOSITORY tree, `aw research index --check`, `aw check research --agent`, `aw check research --all --agent` and `aw check all` with their EXIT CODES and their RULE SETS. THE BAR IS AN EXIT CODE AND A RULE SET, NOT A COUNT, compared against a PRE-CHANGE rule set you capture at the executing HEAD before E-02 (PR-003). For context only, the authoring F-08 baseline was `aw check research` exit 0 with one pre-existing `check.collisions-not-checked` advisory, `aw check research --all` exit 0 with 136 findings, and `aw research index --check` exit 1 with 135 findings across `dangling-citation` (78), `adopted-without-consumer` (35), `stale-state-to-promote` (19), `check.stale-index-missing` (2) and `frontmatter-invalid` (1). Re-derive every figure at execution and show the rule set is UNCHANGED and contains no `attention.unsafe-field`; do not report a differing total as a regression.
   - Observed evidence:
-  - Result: pending
+    On an unsafe fixture repository:
+    `aw research index --check --dir tmp/v03_fixture` exited 1:
+    ```
+    20261002-test-01-uns001-test.notes.md: attention.unsafe-field: Summary is over-length or has control chars/newlines
+    ```
+    `aw check research --all --agent --dir tmp/v03_fixture` exited 1:
+    ```json
+    {"schema":"aw.agent/v1","kind":"result","cmd":"check","outcome":"findings","exit":1,"verified":true,"complete":true,"target":"research","findings":2,"evidence":["inventory","rules"],"diagnostics":[{"location":"20261002-test-01-uns001-test.notes.md","rule":"attention.unsafe-field"},{"location":"<collisions>","rule":"check.collisions-not-checked"}],"next":"inspect 20261002-test-01-uns001-test.notes.md frontmatter and schema conformity."}
+    ```
+    `aw check research --agent --dir tmp/v03_fixture` (default, no `--all`) exited 0:
+    ```json
+    {"schema":"aw.agent/v1","kind":"result","cmd":"check","outcome":"conforms","exit":0,"verified":true,"complete":true,"target":"research","findings":1,"evidence":["inventory","rules"],"diagnostics":[{"location":"<collisions>","rule":"check.collisions-not-checked"}],"next":"aw research find"}
+    ```
+    `check_content` comparison proving the `include_retired` gate:
+    ```
+    check_content include_retired=False drift count: 0
+    check_content include_retired=True drift count: 1
+    check_content include_retired=True rules: ['attention.unsafe-field']
+    ```
+    The `include_retired` gate was NOT changed by this plan and the `plans` branch carries the identical condition.
 
-- [ ] V-04 validates E-04
+    On the REPAIRED REPOSITORY tree:
+    `aw research index --check`: exit code 1; rule set unchanged:
+    ```
+    Total drifts: 225
+      adopted-without-consumer: 35
+      check.stale-index-missing: 2
+      dangling-citation: 168
+      frontmatter-invalid: 1
+      stale-state-to-promote: 19
+    ```
+    `aw check research --agent`: exit code 0; rule set `['check.collisions-not-checked']`.
+    `aw check research --all --agent`: exit code 1; findings: 226; rule set: `['adopted-without-consumer', 'check.collisions-not-checked', 'check.stale-index-missing', 'dangling-citation', 'frontmatter-invalid', 'stale-state-to-promote']`; `attention.unsafe-field` present: False.
+    `aw check all`: exit code 1 (pre-existing repo status); research domain findings contain 0 `attention.unsafe-field`.
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: paste the full `python3 -m pytest tests/test_research_unsafe_field.py` output including the `N passed` line. Then paste the PRE-FIX run showing the over-length and control-character cases FAILING, with the assertion text showing `check_drift` returned no `attention.unsafe-field` drift. State how the pre-fix run was obtained (test module authored first, or a separate `git worktree` at HEAD) and confirm `git stash` was not used on a shared checkout. Paste the boundary assertions proving 300 accepted and 301 refused, and paste the registry assertion reading `check_engine.rule_spec("attention.unsafe-field")` and comparing `RuleSpec` fields rather than grepping module text.
   - Observed evidence:
-  - Result: pending
+    Pre-fix test run (obtained by authoring `tests/test_research_unsafe_field.py` first against unedited `research_index.py`, without using `git stash` on this shared checkout):
+    ```
+    FAILED tests/test_research_unsafe_field.py::TestResearchUnsafeField::test_summary_boundary_300_and_301
+    FAILED tests/test_research_unsafe_field.py::TestResearchUnsafeField::test_summary_unsafe_shapes
+    FAILED tests/test_research_unsafe_field.py::TestResearchUnsafeField::test_topic_token_unsafe_shape
+    FAILED tests/test_research_unsafe_field.py::TestResearchUnsafeField::test_consumed_by_token_unsafe_shape
+    4 failed, 7 passed in 16.47s
+    ```
+    Failure details from pre-fix run:
+    ```
+    AssertionError: 0 != 1 : 301-char summary must yield attention.unsafe-field
+    AssertionError: 0 != 1 : Summary over-length should yield exactly one attention.unsafe-field, got []
+    AssertionError: 0 != 1 (topic token)
+    AssertionError: 0 != 1 (consumed-by token)
+    ```
 
-- [ ] V-05 validates E-05
+    Post-fix test run:
+    ```
+    python3 -m pytest tests/test_research_unsafe_field.py
+    ...........                                                              [100%]
+    11 passed in 8.51s
+    ```
+
+    Boundary assertions from test:
+    ```python
+    # 300 characters is conforming
+    self._write_doc(id6="bnd300", summary="x" * 300)
+    self._regen()
+    drifts_300 = I.check_drift(self.root, self.rroot)
+    unsafe_300 = [d for d in drifts_300 if d.rule == "attention.unsafe-field"]
+    self.assertEqual(unsafe_300, [], "300-char summary must not yield attention.unsafe-field")
+
+    # 301 characters is refused
+    shutil.rmtree(self.rroot, ignore_errors=True)
+    self.rroot.mkdir(parents=True, exist_ok=True)
+    self._write_doc(id6="bnd301", summary="x" * 301)
+    self._regen()
+    drifts_301 = I.check_drift(self.root, self.rroot)
+    unsafe_301 = [d for d in drifts_301 if d.rule == "attention.unsafe-field"]
+    self.assertEqual(len(unsafe_301), 1, "301-char summary must yield attention.unsafe-field")
+    self.assertEqual(unsafe_301[0].severity, "error")
+    ```
+
+    Registry assertion:
+    ```python
+    spec = check_engine.rule_spec("attention.unsafe-field")
+    self.assertEqual(spec.severity, "error")
+    self.assertEqual(spec.assurance, check_engine.ASSURANCE_REPOSITORY)
+    self.assertEqual(spec.determinism, check_engine.DET_DETERMINISTIC)
+    self.assertEqual(spec.invariant, "")
+    self.assertIn("attention.unsafe-field", check_engine.RULE_REGISTRY)
+    ```
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: paste the two LIMIT tests passing after the fix, and the parts of them that do not concern `attention.unsafe-field` passing before it too, and STATE WHY: the NEWLINE case because `attention.unsafe-field` cannot see the injected half while `jnpl08`'s `research.frontmatter-key-repeated` catches only the duplicated `status` and nothing catches `blocks-release`; the no-sanitize case because this plan reports rather than repairs. For the newline case paste the returned drift list showing those three facts, and the measured last-wins override (the record resolving to `status: reference` and `blocks-release: next` while `summary` reads `legit` and `validate_frontmatter` returns `[]`). For the no-sanitize case paste the fixture's bytes (or a hash) before and after the `check_drift` run, identical, and confirm the test makes NO assertion that `aw attention` emits raw bytes (PR-002).
   Then paste the four non-regression groups: (a) zero `attention.unsafe-field` findings across the live repaired research tree, read from the repository rather than from hard-coded lengths; (b) the four existing research drift rules still firing on their own fixtures; (c) a doc with empty `topic: []`/`consumed-by: []` yielding nothing and not faulting; (d) `validate_frontmatter` returning `[]` for an unsafe summary. Finally paste the bare full-suite run with its `N passed` line.
   - Observed evidence:
-  - Result: pending
+    Two limit tests passing in `tests/test_research_unsafe_field.py`:
+    - LIMIT ONE: `test_limit_one_newline_injection_and_last_wins` passed both before and after the fix because `attention.unsafe-field` cannot see the injected newline, while `research.frontmatter-key-repeated` (from executed `jnpl08`) catches `status` and nothing catches `blocks-release`.
+      Measured:
+      `fm.get("summary") == "legit"`
+      `A.is_safe_descriptive(fm.get("summary")) is True`
+      `R.validate_frontmatter(fm) == []`
+      `fm.get("status") == "reference"` (last-wins override)
+      `fm.get("blocks-release") == "next"`
+      `check_drift` returns: `[Drift(location='20261002-test-01-nl0001-test-doc.notes.md', rule='research.frontmatter-key-repeated', detail="frontmatter key 'status' appears 2 times")]`
+      No `attention.unsafe-field` drift; no drift naming `blocks-release`.
+    - LIMIT TWO: `test_limit_two_no_sanitization_bytes_unchanged` passed:
+      `bytes_before == bytes_after` holds identically on disk, and index entry `summary` carries exact raw text. No assertion is made on `aw attention` emitting raw bytes.
+
+    Four non-regression groups:
+    (a) `test_non_regression_live_research_tree_clean`: 0 `attention.unsafe-field` findings across live research tree.
+    (b) `test_non_regression_existing_four_drift_rules`: `adopted-without-consumer`, `dangling-consumed-by`, and `unrecognized-model` all fire on their own fixtures.
+    (c) `test_non_regression_empty_lists_no_fault`: doc with `topic: []` and `consumed_by: []` yields no findings and does not fault.
+    (d) `test_non_regression_validate_frontmatter_unchanged`: `validate_frontmatter` with 301-character summary returns `[]`.
+
+    Bare full-suite run:
+    ```
+    python3 -m pytest
+    6589 passed, 2 skipped, 3 warnings in 525.31s (0:08:45)
+    ```
+  - Result: pass
 
 ## Approval and execution gate
 

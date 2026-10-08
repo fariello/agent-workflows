@@ -8,7 +8,7 @@ model: reconciliation
 kind: reconciliation-report
 status: reference
 outcome: none-yet
-summary: Consolidated finding across GPT-5.6 Sol High, Sonnet 5 High and Gemini 3.1 Pro Deep Think: .agents/skills is a real shipped discovery path in at least seven hosts and is NOT aspirational, the per-package verify_digest.py is called by nothing and should go, and the Antigravity directory name is UNRESOLVED (plural vs singular) pending an empirical test on opencode, codex, agy, claude and hermes
+summary: Consolidated finding across GPT-5.6, Sonnet 5, Gemini 3.1 Pro: .agents/skills is a shipped discovery path in >=7 hosts (not aspirational); per-package verify_digest.py is uncalled and should go; the Antigravity directory name is unresolved (plural vs singular) pending empirical host tests
 consumed-by: []
 ---
 

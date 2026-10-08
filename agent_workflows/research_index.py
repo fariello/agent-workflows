@@ -22,6 +22,7 @@ from pathlib import Path
 from typing import Dict, List, NamedTuple, Optional, Tuple
 
 from agent_workflows import artifact_core as _core
+from agent_workflows import attention_contract as A
 from agent_workflows import research_contract as R
 from agent_workflows import research_refs as RF
 
@@ -747,6 +748,49 @@ def check_drift(
                             e.path,
                             FRONTMATTER_KEY_REPEATED_RULE,
                             f"frontmatter key '{key}' appears {count} times",
+                        )
+                    )
+                )
+
+    # Unsafe descriptive fields (Section 8.8 / IPD xnogdl E-02).
+    # Emitted in check_drift ONLY (never in _doc_entry or validate_frontmatter),
+    # so offending docs remain indexed and are not dropped from INDEX (F-06).
+    for e in entries:
+        if not A.is_safe_descriptive(e.summary):
+            drift.append(
+                _ce.enrich_drift(
+                    Drift(
+                        e.path,
+                        "attention.unsafe-field",
+                        A.escape_detail(
+                            "Summary is over-length or has control chars/newlines"
+                        ),
+                    )
+                )
+            )
+        for t in e.topic:
+            if not A.is_safe_descriptive(str(t)):
+                drift.append(
+                    _ce.enrich_drift(
+                        Drift(
+                            e.path,
+                            "attention.unsafe-field",
+                            A.escape_detail(
+                                "Topic is over-length or has control chars/newlines"
+                            ),
+                        )
+                    )
+                )
+        for c in e.consumed_by:
+            if not A.is_safe_descriptive(str(c)):
+                drift.append(
+                    _ce.enrich_drift(
+                        Drift(
+                            e.path,
+                            "attention.unsafe-field",
+                            A.escape_detail(
+                                "Consumed-by is over-length or has control chars/newlines"
+                            ),
                         )
                     )
                 )
