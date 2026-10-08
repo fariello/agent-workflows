@@ -135,9 +135,20 @@ Refused moves:
 - `parked -> done` and `parked -> graduated`: parked items are deliberate set-asides and must be reopened to `open` before design handoff or completion, recording the activation in history.
 - `done -> blocked` and `done -> parked`: a completed item cannot be directly re-blocked or re-parked in place without reopening.
 
-### Reopen policy
+### Reopen policy and transition authority
 
 A `done` item may be reopened to `open` or `graduated` as a corrective move. This is deliberate policy rather than an oversight. Reopening to `open` is required by the release gate contract (reopening a closed bug re-defaults its release gate) and is pinned by tests in `tests/test_backlog_gate_follows_status.py`. Reopening to `graduated` supports situations where partial deliverables landed and active plan handoff continues.
+
+Backlog transitions carry no authority attestation requirement (such as `--by-human`). This is deliberate and measured rather than an omission: automation legitimately performs three of the five backlog target statuses (`->graduated`, `->open`, `->done`), so an attestation requirement would obstruct the runner's own prescribed path. The `--allow-terminal-reopen` flag is accepted on `aw backlog set` for CLI consistency but is inert for backlog items; terminal reopens require no override flag.
+
+The real controls on backlog transitions are:
+1. The release-gate close predicate on `->done` (`check_engine.evaluate_blocking_close`), which requires an executed carrier handoff, satisfied evidence citation, or explicit de-gating.
+2. The typed gate pair (`Gate-Kind` and `Gate-Ref`) required when transitioning into `blocked`.
+3. The enumerated `BACKLOG_TRANSITIONS` legality table described above.
+4. The dated workflow history record (which records the tool label and transition message; it does not record the mover's personal identity).
+
+For the full ruling, rationale, and limits, see DECISIONS.md entry D161.
+
 
 ## Promotion to a plan
 
