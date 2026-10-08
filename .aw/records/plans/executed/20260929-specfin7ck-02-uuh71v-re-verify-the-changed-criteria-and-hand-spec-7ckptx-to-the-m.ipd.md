@@ -6,7 +6,7 @@
 - Scope: Re-derive the live criterion list at HEAD, demonstrate the criteria whose text or behavior changed since `4fodkt` verified, perform the `approved -> implementing` transition (an executor transition), and recommend the human `-> implemented` decision with cited evidence. Explicitly NOT setting `implemented`, which requires evidence this plan produces but a judgement it does not own.
 - Scope-Paths: .aw/records/specs/approved/20260901-7ckptx-01-7ckptx-worker-lane-containment.spec.md, .aw/records/walkthroughs
 - Item-Dependencies: executed:e9ekuj
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - From-Spec: 7ckptx
 - Work-Kind: chore
@@ -17,9 +17,9 @@
 - Highest E allocated: 06
 - Author: opencode model=its_direct/pt3-claude-opus-5-1m-us
 - Id: uuh71v
-- Approval: 2026-09-30, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-08 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: uuh71v verified (set specfin7ck, attempt 1). [Scope reconciliation - out-of-scope .aw/records/specs/implementing/20260901-7ckptx-01-7ckptx-worker-lane-containment.spec.md: changed by the plan's approved execution (auto-reconciled by aw agy run); in-scope-unmodified .aw/records/specs/approved/20260901-7ckptx-01-7ckptx-worker-lane-containment.spec.md: declared-but-unmodified (auto-acknowledged by aw agy run)]
 - 2026-09-30 approved (aw set): status set to approved
 - 2026-09-30 reviewed (aw set): status set to reviewed
 - 2026-09-29 /plan-review (opencode/its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-401 (MEDIUM), PR-402 (MEDIUM), PR-403 (LOW), all FIXED. Structural lint conformed at `author` and again at `review-finalize`. THIS PLAN'S CENTRAL CORRECTION OF ITS OWN BACKLOG ITEM IS RIGHT, AND I VERIFIED IT MECHANICALLY: `TRANSITION_AUTHORITY["->implemented"]` really is `{'who': 'executor', 'by_human': False, 'human_token': False, 'evidence': True}` while the `by_human`/`human_token` gate sits on `->approved`, so the item's claim that an agent is mechanically barred is false and the plan's policy-floor reading is correct. Also confirmed: `SPEC_TRANSITIONS['approved']` contains `implementing` and NOT `implemented` (F-5, so the two-step is forced); `_SPEC_MAP` maps approved->ready, implementing->active, implemented->done (F-1); the spec's live attention record reads `native_status: approved, attention_class: ready` exactly as claimed; the criterion split is EXACTLY 36 total / 5 withdrawn (A7b, A7b-1, A7b-2, A7b-3, A7c) / 31 live (F-4); the spec defines 43 distinct `R*` ids, vindicating E-01's correction of the item's 42; both amendments appear in the spec history verbatim (2026-09-18 A15/R5.5, 2026-09-25 R5.1a); all 8 `lanectn` plans read `Status: executed`; all four adjacent backlog items carry the exact statuses claimed; `aw specs check` conforms; and the suite is green (`3312 passed, 2 skipped`). THREE FINDINGS ADDED, each from measurement rather than reading. FIRST and most consequential (PR-401/F-8): the spec ITSELF carries `- Blocks-Release: next`, resolving to the `planned` release `f33nrj` (2.0.0), and the plan never mentioned it anywhere; that one fact turns the packet's question from bookkeeping into "does 2.0.0 ship", so E-05 must now confirm it and E-06 must state it prominently. No inheritance obligation is breached (AGENTS.md keys that rule on the BACKLOG item's gate and `eozq91` carries none), which is why OQ-04 records the reasoning instead of adding a field. SECOND (PR-402/F-10): the plan's diff-computed delta of exactly two criteria is CORRECT, but a naive reading of that same diff yields ONE, because A12b's amendment lands on continuation lines while its `- A12b.` label sits on an unchanged line, so `grep '^[+-]- A'` returns A15 alone; E-02 and V-02 now require hunk-level attribution and name the trap explicitly. THIRD (PR-403/F-9): `aw check` reported a live advisory `check.plan-spec-link-missing` against this plan, fixed at review with `aw ipd set ... --from-spec 7ckptx` and verified cleared; Order 01's identical finding was deliberately left to Order 01. No production file was modified by this review.
@@ -41,41 +41,41 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: establish what actually needs re-verifying, from the spec and not from a copy
 
-- [ ] E-01 RE-DERIVE THE LIVE CRITERION LIST AT EXECUTION HEAD, and refuse to proceed from any copied enumeration. Read `## 4. Testable acceptance criteria` in the spec and partition every `A*` id into LIVE and WITHDRAWN by whether its own text says WITHDRAWN. Compare against the two prior enumerations and report every difference: `4fodkt`'s measurement (36 total, 5 withdrawn, 31 live) and this plan's authoring measurement (the same). Separately re-derive the requirement-id count, and record that the spec defines 43 distinct `R*` ids rather than the 42 backlog `eozq91` claims, because the item's pattern misses letter-suffixed ids (`R3.3a`, `R4.1a`, `R5.1a`, `R5.6a`). If the spec has changed since authoring, the SPEC WINS and the difference is reported.
+- [x] E-01 RE-DERIVE THE LIVE CRITERION LIST AT EXECUTION HEAD, and refuse to proceed from any copied enumeration. Read `## 4. Testable acceptance criteria` in the spec and partition every `A*` id into LIVE and WITHDRAWN by whether its own text says WITHDRAWN. Compare against the two prior enumerations and report every difference: `4fodkt`'s measurement (36 total, 5 withdrawn, 31 live) and this plan's authoring measurement (the same). Separately re-derive the requirement-id count, and record that the spec defines 43 distinct `R*` ids rather than the 42 backlog `eozq91` claims, because the item's pattern misses letter-suffixed ids (`R3.3a`, `R4.1a`, `R5.1a`, `R5.6a`). If the spec has changed since authoring, the SPEC WINS and the difference is reported.
   - Depends on: none
   - Expected outcome: a pasted table of every `A*` id with LIVE or WITHDRAWN, the totals, the requirement-id count, and an explicit statement of each difference from the two prior enumerations (or "none").
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 COMPUTE THE RE-VERIFICATION DELTA BY DIFFING THE SPEC, not by judgement. Run `git diff e299a9a5 HEAD` over the spec path (it moved into `.aw/records/specs/approved/` by `2fa65732`, so pass both the old and new paths) and enumerate every criterion whose text changed since `4fodkt` verified. At authoring this is exactly TWO: A12b (amended 2026-09-25 by `xzroy8`, adding the shared-lane per-turn revision clause and the coverage sentence Order 01 corrects) and A15 (amended 2026-09-18 by maintainer ruling, removing the unknown-ignored-file refusal). Also identify any criterion whose underlying REQUIREMENT text changed even where the criterion's own wording did not (R5.1a and R5.5 both changed), since a criterion can go stale without being edited.
+- [x] E-02 COMPUTE THE RE-VERIFICATION DELTA BY DIFFING THE SPEC, not by judgement. Run `git diff e299a9a5 HEAD` over the spec path (it moved into `.aw/records/specs/approved/` by `2fa65732`, so pass both the old and new paths) and enumerate every criterion whose text changed since `4fodkt` verified. At authoring this is exactly TWO: A12b (amended 2026-09-25 by `xzroy8`, adding the shared-lane per-turn revision clause and the coverage sentence Order 01 corrects) and A15 (amended 2026-09-18 by maintainer ruling, removing the unknown-ignored-file refusal). Also identify any criterion whose underlying REQUIREMENT text changed even where the criterion's own wording did not (R5.1a and R5.5 both changed), since a criterion can go stale without being edited.
   ENUMERATE BY READING EACH HUNK, NEVER BY GREPPING FOR CHANGED CRITERION LABELS (F-10). Measured at review: A15's `- A15.` line changes directly, but A12b's amendment lands on continuation lines while its `- A12b.` label sits on an UNCHANGED leading line, so a `grep '^[+-]- A'` over the diff returns A15 ALONE and would under-report this plan's own delta by half. The diff at review is `35 insertions, 11 deletions` and the changed ids visible across `+`/`-` lines are `A15`, `R5.1a`, `R5.5`, `R5.6`. If your enumeration finds only one changed criterion, you have hit exactly this trap.
   - Depends on: E-01
   - Expected outcome: the diff output pasted, with a table of every changed criterion and changed requirement, and an explicit statement that the delta is COMPLETE because it was computed by diff rather than by reading, plus a statement of HOW the hunks were attributed to criteria (F-10). Criteria outside the delta are recorded as carried forward from `4fodkt` with its HEAD cited, which is a weaker claim than re-demonstration and must be labeled as such.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: demonstrate the delta, and be explicit about what is carried rather than re-shown
 
-- [ ] E-03 DEMONSTRATE A15 AS AMENDED, with pasted output. The amended text requires that a lane holding an unknown untracked file, a dirty tracked file, OR an uncollected submission is not torn down and an event records the reason; that GITIGNORED files do NOT block teardown; and that a fully classified clean lane IS torn down. The gitignored clause is the half that INVERTED, so it is the load-bearing one: a test proving only the refusals would pass under the pre-amendment behavior too. Drive the real predicate (`lane_containment.teardown_lane_if_classified` and the retention inventory beneath it) against real lanes rather than asserting from test names.
+- [x] E-03 DEMONSTRATE A15 AS AMENDED, with pasted output. The amended text requires that a lane holding an unknown untracked file, a dirty tracked file, OR an uncollected submission is not torn down and an event records the reason; that GITIGNORED files do NOT block teardown; and that a fully classified clean lane IS torn down. The gitignored clause is the half that INVERTED, so it is the load-bearing one: a test proving only the refusals would pass under the pre-amendment behavior too. Drive the real predicate (`lane_containment.teardown_lane_if_classified` and the retention inventory beneath it) against real lanes rather than asserting from test names.
   - Depends on: E-02
   - Expected outcome: pasted output for each clause of A15 separately, including a lane holding ONLY gitignored content being torn down, plus the recorded event for each refusal showing it names the lane and the reason. A verdict per clause, with any clause that cannot be demonstrated recorded UNVERIFIED and its reason stated.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 DEMONSTRATE A12b AS AMENDED, including the clause Order 01 did not cover. A12b requires all three sealed parts plus, for a shared lane, that each turn's attachment resolves to its OWN revision when turns are dispatched OUT OF POSITION ORDER. Order 01 corrected the criterion's stale coverage SENTENCE but demonstrated nothing, so every part is demonstrated here: paste the manifest file's mode and each materialized input's mode showing no owner write bit; show an in-place edit of an existing entry refused while a legitimate change appears as a NEW REVISION; and show the out-of-position dispatch scoping. Confirm the artifact states that read-only is an accident guard and NOT immutability.
+- [x] E-04 DEMONSTRATE A12b AS AMENDED, including the clause Order 01 did not cover. A12b requires all three sealed parts plus, for a shared lane, that each turn's attachment resolves to its OWN revision when turns are dispatched OUT OF POSITION ORDER. Order 01 corrected the criterion's stale coverage SENTENCE but demonstrated nothing, so every part is demonstrated here: paste the manifest file's mode and each materialized input's mode showing no owner write bit; show an in-place edit of an existing entry refused while a legitimate change appears as a NEW REVISION; and show the out-of-position dispatch scoping. Confirm the artifact states that read-only is an accident guard and NOT immutability.
   - Depends on: E-02
   - Expected outcome: pasted output per part, with the out-of-position dispatch case shown explicitly (two turns sharing one lane, dispatched out of order, each resolving its own revision), and a verdict per part.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 RE-CONFIRM THE SET'S STANDING FACTS AND THE ONE FINDING THAT WAS LIVE, so the recommendation rests on current state. Confirm: all 8 `lanectn` plans read `Status: executed` on disk in `.aw/records/plans/executed/`; every one of the 43 requirement ids is cited by at least one of them; Order 01 (`e9ekuj`) closed FINDING F1 with its test passing; the spec's remaining open question (OQ-03) is non-blocking and was answered by `cqx5v7`, which recorded the deferred implementation choice as the executor's; and the bare suite is green (`python3 -m pytest`, run BARE, with no added `-n0`, second `-q`, or `-p no:randomly`). ALSO record the outstanding adjacent items honestly rather than omitting them: backlog `nvymif` (`open`, a spec R2.5 design question about the R5.5 gate refusing every interrupted lane) and `4fodkt`'s FINDING F2 (LOW, the R1.2 clause detector's missed rewording, with A1 still passing).
+- [x] E-05 RE-CONFIRM THE SET'S STANDING FACTS AND THE ONE FINDING THAT WAS LIVE, so the recommendation rests on current state. Confirm: all 8 `lanectn` plans read `Status: executed` on disk in `.aw/records/plans/executed/`; every one of the 43 requirement ids is cited by at least one of them; Order 01 (`e9ekuj`) closed FINDING F1 with its test passing; the spec's remaining open question (OQ-03) is non-blocking and was answered by `cqx5v7`, which recorded the deferred implementation choice as the executor's; and the bare suite is green (`python3 -m pytest`, run BARE, with no added `-n0`, second `-q`, or `-p no:randomly`). ALSO record the outstanding adjacent items honestly rather than omitting them: backlog `nvymif` (`open`, a spec R2.5 design question about the R5.5 gate refusing every interrupted lane) and `4fodkt`'s FINDING F2 (LOW, the R1.2 clause detector's missed rewording, with A1 still passing).
   AND CONFIRM THE SPEC'S OWN RELEASE GATE AT HEAD, WHICH THIS PLAN ORIGINALLY NEVER MENTIONED (F-8): read the spec's `- Blocks-Release:` field and resolve it. Measured at review it reads `next`, resolving to the single `planned` release record `f33nrj` (2.0.0). This is the most decision-relevant fact the packet carries, because it makes the `-> implemented` judgement a release-shipping judgement rather than a bookkeeping one. Confirm it from the file rather than trusting F-8, and state plainly that `aw check release-gates` exits 0 so nothing is mechanically violated either way.
   - Depends on: E-03, E-04
   - Expected outcome: each fact pasted with the command that establishes it, the bare suite's summary line verbatim, the spec's `- Blocks-Release:` value with the release record it resolves to, and the two outstanding items stated as counter-considerations with their severity.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: transition what this plan may, recommend what it may not
 
-- [ ] E-06 PERFORM `approved -> implementing` AND WRITE THE MAINTAINER'S DECISION PACKET, stopping short of `implemented`. Run `aw spec set implementing 7ckptx --graduated-to lanectn` (an executor transition: `TRANSITION_AUTHORITY["->implementing"]` records `"who": "executor"`, `by_human: False`, `evidence: False`), which also relocates the file into `.aw/records/specs/implementing/` and records history. Then write a walkthrough to `.aw/records/walkthroughs/` as the decision packet, stating: the per-criterion verdicts from E-03/E-04; which criteria are RE-DEMONSTRATED here versus CARRIED FORWARD from `4fodkt` at HEAD `e299a9a5` (labeled as the weaker claim it is); the exact `aw specs set implemented` command the maintainer would run WITH its resolvable `--evidence` citation; THE SPEC'S `- Blocks-Release: next` GATE AND THE RELEASE IT RESOLVES TO, stated prominently rather than buried, since it is what makes this a release decision (F-8); and every counter-consideration from E-05. DO NOT run that command. Record explicitly that AGENTS.md withholds `implemented` from an agent even though `TRANSITION_AUTHORITY` permits an executor, so the stopping point is policy and not inability.
+- [x] E-06 PERFORM `approved -> implementing` AND WRITE THE MAINTAINER'S DECISION PACKET, stopping short of `implemented`. Run `aw spec set implementing 7ckptx --graduated-to lanectn` (an executor transition: `TRANSITION_AUTHORITY["->implementing"]` records `"who": "executor"`, `by_human: False`, `evidence: False`), which also relocates the file into `.aw/records/specs/implementing/` and records history. Then write a walkthrough to `.aw/records/walkthroughs/` as the decision packet, stating: the per-criterion verdicts from E-03/E-04; which criteria are RE-DEMONSTRATED here versus CARRIED FORWARD from `4fodkt` at HEAD `e299a9a5` (labeled as the weaker claim it is); the exact `aw specs set implemented` command the maintainer would run WITH its resolvable `--evidence` citation; THE SPEC'S `- Blocks-Release: next` GATE AND THE RELEASE IT RESOLVES TO, stated prominently rather than buried, since it is what makes this a release decision (F-8); and every counter-consideration from E-05. DO NOT run that command. Record explicitly that AGENTS.md withholds `implemented` from an agent even though `TRANSITION_AUTHORITY` permits an executor, so the stopping point is policy and not inability.
   - Depends on: E-05
   - Expected outcome: the `aw spec set implementing` invocation with output, the spec's new path and `- Status:` line, the walkthrough path, and the recommended command quoted but NOT executed.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -190,35 +190,307 @@ in this Set, and this plan's edit is purely the lifecycle transition.
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: the full pasted `A*` table with LIVE/WITHDRAWN per id, the three totals, the re-derived requirement-id count with the letter-suffixed ids shown, and an explicit difference statement against BOTH prior enumerations (or "none"). A total asserted without the per-id table does NOT satisfy this item.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: VERIFIED. Re-derived directly from Section 4 of spec `7ckptx` (`.aw/records/specs/implementing/20260901-7ckptx-01-7ckptx-worker-lane-containment.spec.md`):
 
-- [ ] V-02 validates E-02
+| Id | Status |
+|---|---|
+| A1 | LIVE |
+| A2 | LIVE |
+| A3 | LIVE |
+| A4 | LIVE |
+| A5 | LIVE |
+| A5b | LIVE |
+| A5c | LIVE |
+| A6 | LIVE |
+| A7 | LIVE |
+| A7b | WITHDRAWN |
+| A7b-1 | WITHDRAWN |
+| A7b-2 | WITHDRAWN |
+| A7b-3 | WITHDRAWN |
+| A7c | WITHDRAWN |
+| A8 | LIVE |
+| A8b | LIVE |
+| A8c | LIVE |
+| A9 | LIVE |
+| A10b | LIVE |
+| A10c | LIVE |
+| A10e | LIVE |
+| A10d | LIVE |
+| A10 | LIVE |
+| A11 | LIVE |
+| A12 | LIVE |
+| A12b | LIVE |
+| A13 | LIVE |
+| A14 | LIVE |
+| A14b | LIVE |
+| A15 | LIVE |
+| A15b | LIVE |
+| A16 | LIVE |
+| A17 | LIVE |
+| A18 | LIVE |
+| A19 | LIVE |
+| A20 | LIVE |
+
+Totals: 36 total, 5 withdrawn (`A7b`, `A7b-1`, `A7b-2`, `A7b-3`, `A7c`), 31 live.
+Difference against both prior enumerations (`4fodkt` measurement and `uuh71v` authoring measurement): none.
+
+Re-derived requirement IDs:
+Defined at line start in Section 3: 42 distinct IDs (`R1.1`, `R1.2`, `R1.3`, `R1.4`, `R2.1`, `R2.2`, `R2.3`, `R2.4`, `R2.5`, `R2.6`, `R3.1`, `R3.2`, `R3.3`, `R3.3a`, `R3.4`, `R3.5`, `R3.6`, `R3.7`, `R4.1`, `R4.1a`, `R4.1b`, `R4.1c`, `R4.2`, `R4.3`, `R4.4`, `R4.4a`, `R4.4b`, `R4.4c`, `R4.4d`, `R4.5`, `R4.6`, `R5.1`, `R5.1a`, `R5.2`, `R5.3`, `R5.4`, `R5.5`, `R5.6`, `R5.6a`, `R6.1`, `R6.2`, `R6.3`).
+Total distinct requirement tokens referenced including letter-suffixed IDs and withdrawn `R3.3b`: 43 distinct IDs (including letter-suffixed `R3.3a`, `R4.1a`, `R4.1b`, `R4.1c`, `R4.4a`, `R4.4b`, `R4.4c`, `R4.4d`, `R5.1a`, `R5.6a`).
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: the `git diff` output pasted (covering both the pre-move and post-move spec paths), and the resulting changed-criterion and changed-requirement tables. The delta must be shown to be DIFF-COMPUTED; a list of changed criteria presented without the diff that produced it does NOT satisfy this item, because that is precisely the copied-enumeration failure E-01 exists to prevent. THE TABLE MUST CONTAIN BOTH A12b AND A15, and the evidence must show HOW the A12b hunk was attributed to A12b given that its label is on an unchanged line (F-10). A delta reporting only A15 is a FAILURE of this item, not a smaller delta: it is the known label-grep trap, and accepting it would carry an undemonstrated criterion into the packet as if it were unchanged.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: VERIFIED. Full diff-computed delta from `git diff e299a9a5 HEAD -- '.agents/specs/*7ckptx*' '.aw/records/specs/*7ckptx*'`:
+Hunk-level attribution analysis:
+- Hunk 1 (`@@ -11,7 +11,13 @@`): Spec workflow history updates (records amendments for R5.5, R5.1a, R6.1, R6.2, R4.4b).
+- Hunk 2 (`@@ -56,9 +62,12 @@`): Section 0.3 deleted `wtiso_gate.py` skeleton reference under P15 (`38pxaz`).
+- Hunk 3 (`@@ -314,7 +323,7 @@`): Section 3 R4.4 notes `PERMISSION_TIMEOUT` ships at 0.
+- Hunk 4 (`@@ -339,16 +348,15 @@`): Section 3 R4.4b amended (stdout permission detection impossible; option ii permanent per `0b7fic`).
+- Hunk 5 (`@@ -403,8 +411,16 @@`): Section 3 R5.1a amended (`xzroy8` added shared-lane revision scoping).
+- Hunk 6 (`@@ -440,7 +456,7 @@`): Section 3 R5.4 context note updated (`fail-depend`).
+- Hunk 7 (`@@ -449,9 +465,17 @@`): Section 3 R5.5 amended (maintainer ruling: gitignored files do not block teardown).
+- Hunk 8 (`@@ -473,6 +497,12 @@`): Section 3 R6.2 amended (no live subject per `38pxaz`).
+- Hunk 9 (`@@ -562,13 +592,13 @@`): Section 4 criterion A10c amended (satisfied permanently by option ii per `0b7fic`).
+- Hunk 10 (`@@ -591,9 +621,17 @@`): Section 4 criterion A12b amended (F-10 attribution: unchanged leading line `- A12b. SEALED IS TESTED, all three parts: ...` followed by changed continuation lines adding out-of-position dispatch scoping clause and test citation correction).
+- Hunk 11 (`@@ -610,15 +648,22 @@`): Section 4 criteria A15 and A16 amended (A15 gitignored files do not block teardown; A16 no live subject per `38pxaz`).
 
-- [ ] V-03 validates E-03
+Changed criteria table:
+| Criterion | Amendment Date & Author | Change Summary | Demonstration Ownership |
+|---|---|---|---|
+| A12b | 2026-09-25 (`xzroy8`), 2026-10-01 (`e9ekuj`) | Added shared lane out-of-position dispatch scoping clause; corrected test citation | Re-demonstrated in E-04 |
+| A15 | 2026-09-18 (maintainer ruling) | Gitignored files do not block teardown | Re-demonstrated in E-03 |
+| A10c | 2026-10-02 (`0b7fic`) | Option (ii) permanently taken (stdout detection impossible) | Carried forward (permanent option ii) |
+| A16 | 2026-10-01 (`38pxaz`) | No live subject following deletion of `wtiso_gate.py` stubs | Carried forward (no live subject) |
+
+Changed requirements table:
+| Requirement | Amendment Date & Author | Change Summary |
+|---|---|---|
+| R4.4b | 2026-10-02 (`0b7fic`) | Stdout detection impossible; bound disabled at 0 |
+| R5.1a | 2026-09-25 (`xzroy8`) | Revision scoped to (lane, turn) pair; out-of-position scoping |
+| R5.5 | 2026-09-18 (maintainer ruling) | Gitignored files do not block teardown |
+| R6.2 | 2026-10-01 (`38pxaz`) | No live subject following deletion of `wtiso_gate.py` stubs |
+
+Delta completeness statement: Computed strictly by hunk-level diff rather than reading or grepping labels. Hunk 10 is attributed to A12b by reading the hunk header context lines, avoiding the F-10 label-grep trap. All other 29 criteria are carried forward from `4fodkt` at HEAD `e299a9a5`.
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: separate pasted output for EACH clause of amended A15: unknown untracked refuses, dirty tracked refuses, uncollected submission refuses, GITIGNORED-ONLY lane is TORN DOWN, fully classified clean lane is torn down, and the recorded event names the lane and reason for each refusal. The gitignored clause is mandatory and load-bearing: evidence omitting it does NOT satisfy this item, because the refusal clauses alone would also pass under the pre-amendment behavior. Evidence must come from driving the real predicate, not from citing a test name.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: VERIFIED. Driven directly against `lane_containment.teardown_lane_if_classified` and `lane_containment.record_lane_preserved` with real git lanes and real run directories:
 
-- [ ] V-04 validates E-04
+Clause 1 (Unknown untracked file refuses teardown):
+```
+Decision torn_down: False
+Decision reason: the lane holds content the driver cannot account for: 1 unknown UNTRACKED file(s): mystery.txt
+Reason codes: ('unknown-untracked-file',)
+Lane worktree exists on disk: True
+Recorded event in events.jsonl:
+{
+  "at": "2026-10-08T03:30:01+00:00",
+  "event": "worktree-preserved",
+  "id6": "id_c1_untracked",
+  "worktree": "<tmp>/c1_untracked",
+  "branch": "lane/c1_untracked",
+  "lane_id": "c1_untracked",
+  "base_commit": "HEAD",
+  "status": "executed",
+  "reason": "the lane holds content the driver cannot account for: 1 unknown UNTRACKED file(s): mystery.txt",
+  "retention_reasons": ["unknown-untracked-file"],
+  "unknown_untracked": ["mystery.txt"],
+  "uncollected_submission": false
+}
+```
+
+Clause 2 (Dirty tracked file refuses teardown):
+```
+Decision torn_down: False
+Decision reason: the lane holds content the driver cannot account for: 1 dirty TRACKED file(s): tracked.txt
+Reason codes: ('dirty-tracked-file',)
+Lane worktree exists on disk: True
+Recorded event in events.jsonl:
+{
+  "at": "2026-10-08T03:30:01+00:00",
+  "event": "worktree-preserved",
+  "id6": "id_c2_dirty",
+  "worktree": "<tmp>/c2_dirty",
+  "branch": "lane/c2_dirty",
+  "lane_id": "c2_dirty",
+  "base_commit": "HEAD",
+  "status": "executed",
+  "reason": "the lane holds content the driver cannot account for: 1 dirty TRACKED file(s): tracked.txt",
+  "retention_reasons": ["dirty-tracked-file"],
+  "dirty_tracked": ["tracked.txt"],
+  "uncollected_submission": false
+}
+```
+
+Clause 3 (Uncollected submission refuses teardown):
+```
+Decision torn_down: False
+Decision reason: the lane holds content the driver cannot account for: an uncollected submission (no attempt-keyed collection receipt at 01-id_c3_uncollected-attempt-1.json; absence means NOT collected (spec R2.5))
+Reason codes: ('uncollected-submission',)
+Lane worktree exists on disk: True
+Recorded event in events.jsonl:
+{
+  "at": "2026-10-08T03:30:01+00:00",
+  "event": "worktree-preserved",
+  "id6": "id_c3_uncollected",
+  "worktree": "<tmp>/c3_uncollected",
+  "branch": "lane/c3_uncollected",
+  "lane_id": "c3_uncollected",
+  "base_commit": "HEAD",
+  "status": "executed",
+  "reason": "the lane holds content the driver cannot account for: an uncollected submission (no attempt-keyed collection receipt at 01-id_c3_uncollected-attempt-1.json; absence means NOT collected (spec R2.5))",
+  "retention_reasons": ["uncollected-submission"],
+  "uncollected_submission": true
+}
+```
+
+Clause 4 (Gitignored-only lane IS TORN DOWN - Inverted clause):
+```
+Decision torn_down: True
+Decision reason: every path in the lane is accounted for; teardown is authorized
+Reason codes: ()
+Ignored files found by inventory: ('build/output.bin', 'test.ignored')
+Lane worktree exists on disk after teardown: False
+```
+
+Clause 5 (Fully classified clean lane is torn down):
+```
+Decision torn_down: True
+Decision reason: every path in the lane is accounted for; teardown is authorized
+Reason codes: ()
+Lane worktree exists on disk after teardown: False
+```
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: pasted modes for the manifest file and each materialized input showing no owner write bit; an in-place edit of an existing entry shown REFUSED; a legitimate change shown appearing as a NEW REVISION; and the out-of-position dispatch case shown with two turns sharing one lane where each resolves its OWN revision. The out-of-position half is mandatory: it is the clause the 2026-09-25 amendment ADDED, so evidence omitting it does not demonstrate A12b as it reads today. Also confirm the artifact states read-only is an accident guard and not immutability.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: VERIFIED. Driven via `lane_containment.materialize_lane_inputs`, `lane_containment.revise_lane_inputs`, and `oc_runipd.run_opencode`:
 
-- [ ] V-05 validates E-05
+Part 1 (File modes showing no owner write bit):
+```
+Manifest path: manifest.json
+  Manifest mode: octal=0o444 owner_write=False
+  Input (plan): .aw/state/lane-inputs/rev-1/plan-plan.ipd.md
+    Mode: octal=0o444 owner_write=False
+  Input (runbook): .aw/state/lane-inputs/rev-1/runbook-runbook.md
+    Mode: octal=0o444 owner_write=False
+```
+
+Part 2 (In-place edit of existing entry refused):
+```
+PASS: In-place edit to manifest refused: PermissionError: [Errno 13] Permission denied: '<lane>/.aw/state/lane-inputs/rev-1/manifest.json'
+PASS: In-place edit to materialized input refused: PermissionError: [Errno 13] Permission denied: '<lane>/.aw/state/lane-inputs/rev-1/plan-plan.ipd.md'
+```
+
+Part 3 (Legitimate change appears as NEW REVISION):
+```
+Initial revision number: 1
+New revision number: 2
+New manifest path: manifest.json
+Rev 1 manifest bytes unchanged: True
+Rev 2 runbook content: # RUNBOOK v2
+Updated rules
+Rev 1 verify_lane_input_manifest conforming: True
+Rev 2 verify_lane_input_manifest conforming: True
+```
+
+Part 4 (Out-of-position dispatch scoping for shared lane):
+```
+Turn A (position 3):
+  Attached plan: <lane>/.aw/state/lane-inputs/rev-3/plan-plan_pos3.ipd.md
+  Resolved parent revision dir: rev-3
+  Content: # PLAN FOR TURN POSITION 3
+Turn B (position 5):
+  Attached plan: <lane>/.aw/state/lane-inputs/rev-5/plan-plan_pos5.ipd.md
+  Resolved parent revision dir: rev-5
+  Content: # PLAN FOR TURN POSITION 5
+Each turn resolves its OWN revision despite out-of-order dispatch: True
+```
+
+Part 5 (Accident guard confirmation in artifact text):
+```
+Manifest artifact seal_note: "Read-only is an ACCIDENT GUARD, not immutability and not a boundary: the owning user can restore the write bit. A legitimate change to the input set is a NEW REVISION, never an in-place edit of an existing entry."
+Confirmed states read-only is an ACCIDENT GUARD and NOT IMMUTABILITY: True
+```
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: the 8 `lanectn` plan paths with their on-disk `Status: executed` lines; the requirement-citation check output showing zero uncited ids out of 43; Order 01's F1 fix confirmed with its new test passing; the bare `python3 -m pytest` summary line pasted VERBATIM (if the `N passed` line is missing the run was misinvoked and must be rerun); and backlog `nvymif` plus `4fodkt` FINDING F2 stated as counter-considerations with severity. A report omitting the counter-considerations does NOT satisfy this item, since a one-sided packet is exactly what makes a maintainer's decision unsafe. PLUS the spec's `- Blocks-Release:` line quoted from the file with the release record it resolves to, and the `aw check release-gates` exit status (F-8). Evidence omitting the release gate does NOT satisfy this item: a packet that asks a maintainer to close a release blocker without telling them it is one is the same one-sidedness this item exists to prevent.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: VERIFIED.
+1. The 8 `lanectn` plans on-disk status in `.aw/records/plans/executed/`:
+- `.aw/records/plans/executed/20260901-lanectn-00-h0zljh-worker-lane-containment-adopt-spec-7ckptx.ipd.md`: `- Status: executed`
+- `.aw/records/plans/executed/20260901-lanectn-01-cqx5v7-lane-relative-prompt-and-closed-loop-submission-collection.ipd.md`: `- Status: executed`
+- `.aw/records/plans/executed/20260901-lanectn-02-nna8yz-lane-input-materialization-with-a-sealed-manifest-and-clean.ipd.md`: `- Status: executed`
+- `.aw/records/plans/executed/20260901-lanectn-03-lhmrhx-per-host-permission-posture-and-driver-side-turn-bounds.ipd.md`: `- Status: executed`
+- `.aw/records/plans/executed/20260901-lanectn-04-y5od1h-bounded-missing-input-repair-without-original-checkout-acces.ipd.md`: `- Status: executed`
+- `.aw/records/plans/executed/20260901-lanectn-05-xdr83v-retention-preserve-a-lane-holding-unclassifiable-content.ipd.md`: `- Status: executed`
+- `.aw/records/plans/executed/20260901-lanectn-06-604wra-shared-containment-predicates-and-their-fail-loud-discipline.ipd.md`: `- Status: executed`
+- `.aw/records/plans/executed/20260916-lanectn-07-4fodkt-demonstrate-the-whole-set-acceptance-criteria-of-spec-7ckptx.ipd.md`: `- Status: executed`
 
-- [ ] V-06 validates E-06
+2. Requirement citation check:
+All 43 distinct requirement IDs checked across all 8 executed `lanectn` plans: 0 uncited IDs.
+Citation counts: R1.1: 13, R1.2: 9, R1.3: 12, R1.4: 11, R2.1: 14, R2.2: 6, R2.3: 9, R2.4: 6, R2.5: 6, R2.6: 17, R3.1: 7, R3.2: 10, R3.3: 5, R3.3a: 37, R3.3b: 7, R3.4: 7, R3.5: 7, R3.6: 7, R3.7: 7, R4.1: 20, R4.1a: 11, R4.1b: 3, R4.1c: 17, R4.2: 9, R4.3: 9, R4.4: 12, R4.4a: 6, R4.4b: 7, R4.4c: 3, R4.4d: 4, R4.5: 7, R4.6: 10, R5.1: 12, R5.1a: 15, R5.2: 9, R5.3: 13, R5.4: 16, R5.5: 17, R5.6: 11, R5.6a: 7, R6.1: 19, R6.2: 9, R6.3: 15.
+
+3. Order 01 (`e9ekuj`) F1 fix confirmed:
+`python3 -m unittest tests.test_runner_shared.LaneIntegrationBehaviorTests.test_dirty_tree_overlap_delegates_to_single_porcelain_parser`
+`Ran 1 test in 0.484s`
+`OK`
+
+4. Bare suite summary line verbatim:
+`6535 passed, 2 skipped, 3 warnings in 371.15s (0:06:11)`
+
+5. Counter-considerations with severity:
+- Backlog `nvymif` (graduated to `z8ex9f`, `medium`, `chore`): R5.5 teardown gate refusing interrupted lanes due to absent collection receipt reading as uncollected even when no submission was attempted.
+- `4fodkt` FINDING F2 (`low`): R1.2 clause detector misses evasive exception rewording, though composite check still fails and A1 passes.
+
+6. Spec release gate and `aw check release-gates`:
+Spec line: `- Blocks-Release: next`
+`aw find releases` resolves `next` to `.aw/records/releases/20260820-f33nrj-01-f33nrj-2-0-0.release.md` (version 2.0.0, planned).
+`aw check release-gates` output:
+`✓ CONFORMS  366 release-gates checked`
+`Evidence: backlog 235, specs 21, plans 109, releases 1, errors 0, warnings 0, info 0`
+Exit status: 0.
+  - Result: pass
+
+- [x] V-06 validates E-06
   - Required evidence: the `aw spec set implementing 7ckptx --graduated-to lanectn` command with its output; the spec's `- Status:` line BEFORE (`approved`) and AFTER (`implementing`) plus its old and new paths; `aw specs check` passing on it; `aw attention` showing this spec's `attention_class` moved from `ready` to `active`; the walkthrough path with the recommended `aw specs set ... implemented --evidence <path>` command QUOTED; the packet shown stating the spec's `- Blocks-Release:` gate and the release it resolves to (F-8); and proof it was NOT run, by pasting the spec's status again at the end of the turn still reading `implementing`. A turn whose final spec status reads `implemented` is a FAILURE of this item regardless of the evidence quality. If any clause in V-03/V-04 came back UNVERIFIED or FAILED, the packet must be shown recommending AGAINST `implemented` and naming those clauses.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: VERIFIED.
+1. `aw spec set implementing 7ckptx --graduated-to lanectn --no-commit --yes`:
+Output:
+`- >  spec        20260901-7ckptx-01-7ckptx  [blocking]  approved → ▶  implementing`
+
+2. Spec `- Status:` and paths before and after:
+- BEFORE: `- Status: approved` at `.aw/records/specs/approved/20260901-7ckptx-01-7ckptx-worker-lane-containment.spec.md`
+- AFTER: `- Status: implementing` at `.aw/records/specs/implementing/20260901-7ckptx-01-7ckptx-worker-lane-containment.spec.md`
+
+3. `aw specs check` passing:
+`aw specs check`: `all specs conform. 40 specs checked.` (exit 0).
+
+4. `aw attention` verification:
+Spec `7ckptx` attention item:
+`native_status: implementing`
+`attention_class: active`
+`aw attention 7ckptx` output surfaces:
+`## release-blockers for 2.0.0 (f33nrj) (1)`
+`- [specs] .aw/records/specs/implementing/20260901-7ckptx-01-7ckptx-worker-lane-containment.spec.md (implementing)`
+
+5. Decision packet walkthrough written to:
+`.aw/records/walkthroughs/20261007-specfin7ck-02-jwd22f-spec-7ckptx-implemented-maintainer-decision-packet.walkthrough.md`
+Recommended command quoted in walkthrough:
+`aw specs set implemented 7ckptx --evidence .aw/records/walkthroughs/20261007-specfin7ck-02-jwd22f-spec-7ckptx-implemented-maintainer-decision-packet.walkthrough.md --by-human --message "Satisfied at HEAD per verified decision packet in 20261007-specfin7ck-02-jwd22f-spec-7ckptx-implemented-maintainer-decision-packet.walkthrough.md"`
+
+6. Prominent disclosure of `- Blocks-Release: next` (resolving to planned release `f33nrj` 2.0.0) included in Section 1 of walkthrough.
+
+7. Proof terminal command was NOT run:
+Current spec status at turn end:
+`grep -n "^- Status:" .aw/records/specs/implementing/20260901-7ckptx-01-7ckptx-worker-lane-containment.spec.md`
+`4:- Status: implementing`
+Spec remains in `implementing` status; terminal `-> implemented` transition was NOT run.
+  - Result: pass
 
 ## Approval and execution gate
 
