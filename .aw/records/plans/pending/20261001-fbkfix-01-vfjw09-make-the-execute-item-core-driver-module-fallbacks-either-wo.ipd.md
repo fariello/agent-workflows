@@ -35,34 +35,34 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: Establish the census before changing anything
 
-- [ ] E-01 Re-derive the COMPLETE census of `getattr(driver_module, ...)` rebindings in `runner_shared.execute_item_core` from the code, classifying each by (a) what its default is, (b) whether the shared definition can satisfy the call site, and (c) which shipped hosts define it. Do NOT work from this plan's F-01 table as input: regenerate it and report any divergence, because a divergence means the function changed under this plan and the per-symbol decisions in F-08 must be re-checked before being applied.
+- [x] E-01 Re-derive the COMPLETE census of `getattr(driver_module, ...)` rebindings in `runner_shared.execute_item_core` from the code, classifying each by (a) what its default is, (b) whether the shared definition can satisfy the call site, and (c) which shipped hosts define it. Do NOT work from this plan's F-01 table as input: regenerate it and report any divergence, because a divergence means the function changed under this plan and the per-symbol decisions in F-08 must be re-checked before being applied.
   - Depends on: none
   - Expected outcome: a regenerated table of all 25 rebindings with the five broken-fallback symbols identified (`route_recovery_turn`, `integrate_lane_branch`, `build_lane_outcome`, `git_head`, `git_status`), plus the three other classes F-01 names (self-sufficient shared default, `None` default, absent from `runner_shared`). State explicitly whether the count is still 25 and whether the broken set is still exactly those five. If `acquire_review_sweep_lane` still has a satisfied call site, say so: F-04 corrects the item on that point and the correction must be re-confirmed, not assumed.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: Fix the broken fallbacks per symbol
 
-- [ ] E-02 Apply the F-08 per-symbol decision to the FIVE broken fallbacks in `runner_shared.execute_item_core`, pre-binding a working default (option 1) for each by closing over injections already in that function's scope. Preserve the host-bound path exactly: the `getattr` must still prefer the host attribute, so both shipped hosts resolve to their own wrapper as they do today.
+- [x] E-02 Apply the F-08 per-symbol decision to the FIVE broken fallbacks in `runner_shared.execute_item_core`, pre-binding a working default (option 1) for each by closing over injections already in that function's scope. Preserve the host-bound path exactly: the `getattr` must still prefer the host attribute, so both shipped hosts resolve to their own wrapper as they do today.
   - Depends on: E-01
   - Expected outcome: the five defaults are callable at the shapes their call sites use. State for each symbol which injection the lambda supplies and where that injection comes from. Use `globals()["<name>"]` inside each lambda, exactly as the three working lambdas do, because the local name is being rebound by the very `getattr` the lambda is the default of, so a bare reference would recurse into the lambda itself. Confirm in the report that you relied on PYTHON'S LATE BINDING for the three defaults bound textually before `run_checked` (F-07): a closure resolves the variable at call time, so no reordering of the binding block is needed, and reordering it would be a gratuitous change to a 4000-line function.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 Make `integrate_lane_branch`'s `except TypeError` retry shim in `execute_item_core`'s `_publish` closure unnecessary, and remove it, since E-02 makes the first call shape succeed. This is the one broken fallback whose call site already compensates for the defect, and leaving a now-dead `except TypeError` behind would silently swallow a REAL `TypeError` from inside the merge body, which is strictly worse than no shim.
+- [x] E-03 Make `integrate_lane_branch`'s `except TypeError` retry shim in `execute_item_core`'s `_publish` closure unnecessary, and remove it, since E-02 makes the first call shape succeed. This is the one broken fallback whose call site already compensates for the defect, and leaving a now-dead `except TypeError` behind would silently swallow a REAL `TypeError` from inside the merge body, which is strictly worse than no shim.
   - Depends on: E-02
   - Expected outcome: `_publish` calls `integrate_lane_branch` once, with the 4-positional shape `(repo, _handle, _item["id6"], val_runner)` both host wrappers accept, and no `except TypeError` fallback remains. Confirm the removal does not change which arguments reach the shared body on either host: state which branch each shipped host actually took before the change, measured rather than reasoned. Review measured (HEAD `bc5b6b18e`) that BOTH `oc_runipd.integrate_lane_branch` and `agy_runipd.integrate_lane_branch` have the 4-positional signature `(repo, handle, id6, validation_runner)`, so both take the FIRST branch today and the `except TypeError` arm runs only for the broken shared default; the executor must re-confirm that by calling, not by reading the signature. AFTER E-02 the `_publish` call must stay the 4-positional shape (that is the shape the host wrappers accept and the shape the new pre-bound default must accept); do NOT change it to pass `host_label`/`run_checked`/`action_kind` keywords, which BOTH host wrappers would reject with `TypeError`.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: Guard the seam behaviorally
 
-- [ ] E-04 Add `tests/test_runner_fallback_bindings.py` driving a REAL turn through `execute_item_core` with a `driver_module` that defines NONE of the rebound names, asserting that the five fixed fallbacks no longer block: the turn gets PAST the `route_recovery_turn` and `git_head`/`git_status` call sites, and the attempt records an OBSERVED `starting_head` (a 40-hex commit of the temp repo) and `starting_status` (real `git status --porcelain` text) rather than an `<unobserved: ...>` error string. DO NOT ASSERT A TERMINAL ITEM STATUS: measured at review (HEAD `bc5b6b18e`), with the five fixes granted to an otherwise empty module the turn still RAISES `TypeError: 'NoneType' object is not callable` at the `integration = integration_is_earned(` call site (F-06's next wall), and the item persisted in `state.json` is left at status `running` with no attempt `disposition`, so 'reaches a terminal item status' is UNREACHABLE by this plan's own design and contradicts E-05. Drive the turn inside `pytest.raises(TypeError)` (that raise is E-05's limit pin), then read the attempt back from the run's `state.json` (or the in-memory `item`, which the harness mutates in place) and assert on `starting_head`/`starting_status` there. This is a behavioral outcome test, not a code-structure test: it must not read source text, count callers, or assert on symbol censuses (AGENTS execution contract; GUIDING_PRINCIPLES P16).
+- [x] E-04 Add `tests/test_runner_fallback_bindings.py` driving a REAL turn through `execute_item_core` with a `driver_module` that defines NONE of the rebound names, asserting that the five fixed fallbacks no longer block: the turn gets PAST the `route_recovery_turn` and `git_head`/`git_status` call sites, and the attempt records an OBSERVED `starting_head` (a 40-hex commit of the temp repo) and `starting_status` (real `git status --porcelain` text) rather than an `<unobserved: ...>` error string. DO NOT ASSERT A TERMINAL ITEM STATUS: measured at review (HEAD `bc5b6b18e`), with the five fixes granted to an otherwise empty module the turn still RAISES `TypeError: 'NoneType' object is not callable` at the `integration = integration_is_earned(` call site (F-06's next wall), and the item persisted in `state.json` is left at status `running` with no attempt `disposition`, so 'reaches a terminal item status' is UNREACHABLE by this plan's own design and contradicts E-05. Drive the turn inside `pytest.raises(TypeError)` (that raise is E-05's limit pin), then read the attempt back from the run's `state.json` (or the in-memory `item`, which the harness mutates in place) and assert on `starting_head`/`starting_status` there. This is a behavioral outcome test, not a code-structure test: it must not read source text, count callers, or assert on symbol censuses (AGENTS execution contract; GUIDING_PRINCIPLES P16).
   - Depends on: E-02
   - Expected outcome: a test that FAILS before E-02 with `TypeError: route_recovery_turn() missing 1 required keyword-only argument: 'save_state'` (the raise happens before any attempt is recorded, so the `starting_head` assertion cannot be reached) and PASSES after. Paste both. Reuse the existing full-turn harness rather than building a new one (F-09 names it), and state what you reused. NOTE: `_drive_execute_turn` hard-codes `driver_module=oc_runipd` in its call, so it cannot be reused verbatim; either add a `driver_module` parameter to a LOCAL copy in the new test file, or reuse its fixture helper `_setup_test_repo` and write the `execute_item_core` call in the new file. Do NOT edit `tests/test_attempt_model_identity.py`, which is outside `- Scope-Paths:`.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 Pin the REMAINING walls in the same test file, so the guard records honestly how far a descriptor-only host gets and no further. F-06 measured four additional `None`-defaulted bindings that are called UNGUARDED (`integration_is_earned` first), which this plan deliberately does not fix; assert the next failure is `TypeError: 'NoneType' object is not callable` raised from the `integration_is_earned` call (identify it by an OUTCOME, not by source: e.g. monkeypatch the empty module with a sentinel `integration_is_earned` that records it was called and returns the shared verdict, and assert the raise MOVES past it to the next wall, or assert the turn raises the exact message and that `integration_signal` was never recorded on the attempt; do NOT read the traceback's source line text, which is a source-text assertion under P16), so the day someone fixes it this guard fails loudly and the next integrator inherits a current map instead of rediscovering the sequence.
+- [x] E-05 Pin the REMAINING walls in the same test file, so the guard records honestly how far a descriptor-only host gets and no further. F-06 measured four additional `None`-defaulted bindings that are called UNGUARDED (`integration_is_earned` first), which this plan deliberately does not fix; assert the next failure is `TypeError: 'NoneType' object is not callable` raised from the `integration_is_earned` call (identify it by an OUTCOME, not by source: e.g. monkeypatch the empty module with a sentinel `integration_is_earned` that records it was called and returns the shared verdict, and assert the raise MOVES past it to the next wall, or assert the turn raises the exact message and that `integration_signal` was never recorded on the attempt; do NOT read the traceback's source line text, which is a source-text assertion under P16), so the day someone fixes it this guard fails loudly and the next integrator inherits a current map instead of rediscovering the sequence.
   - Depends on: E-04
   - Expected outcome: the test documents the measured boundary: the five fixed fallbacks no longer block, and the next blocker is the `None`-defaulted `integration_is_earned`. State explicitly that this is a LIMIT pin in the same spirit as `tests/test_hostdedup_third_host.py::test_pin_measured_turn_execution_limits`, and that fixing those four is out of scope per the Deferred section.
-  - Execution state: pending
+  - Execution state: performed
 
 Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids.
 
@@ -105,10 +105,15 @@ All findings measured 2026-10-01 at HEAD `7168b42b` in an isolated lane worktree
 ## Deferred / out of scope (with reason)
 
 - **The four `None`-defaulted bindings called unguarded (`integration_is_earned`, `driver_finalize`, `set_plan_approved`, `integrate_review_lane_branch`).** F-06 measured these as the NEXT wall, so they are the natural follow-on, and they are deliberately not fixed here. The reason is that they are a DIFFERENT defect with a different right answer: a `globals().get(...)` default that cannot satisfy its call site should become a working default, whereas a `None` default is arguably correct and the bug is the MISSING GUARD at the call site. Conflating them would mean choosing a fix for seven symbols on evidence gathered about five. They should be filed as a follow-up backlog item citing F-06; this plan does not file it, because the runner sets this item to `graduated` and filing a second item from within an authoring turn would create a carrier nobody reviewed.
+  - Carrier: 877qmy
 - **Making a descriptor-only host actually execute a turn.** Out of scope and not achievable by this plan: `tests/test_hostdedup_third_host.py::test_pin_measured_turn_execution_limits` pins four independent structural walls (forked `execute_item`/`run_queue`, no spawn seam, no argv contract, runner-internal label binding), and plan `hostdedup-03` (`xdvglg`) records that lifting the five large forked functions is explicitly out of that Set too. This plan removes one seam defect on the path, nothing more.
+  - Carrier-Declined: Out of scope per plan hostdedup-03 (xdvglg), which records that lifting the five large forked functions is explicitly out of that Set.
 - **`acquire_review_sweep_lane`.** Not a defect (F-04): its call site passes `save_state`, so its always-taken shared default already works. Changing it would be churn.
+  - Carrier-Declined: Not a defect; call site passes save_state and shared default is already satisfied.
 - **The 7 self-sufficient `globals().get(...)` defaults.** They work. Adding injection parameters would be cargo-culting the `run_checked` precedent against that precedent's own recorded caveat in plan `integpath-02` (`6sb3yu`) F-7.
+  - Carrier-Declined: Not a defect; shared definitions are self-sufficient and require no injection.
 - **Adding a `Blocks-Release:` gate.** The item carries none and is `Work-Kind: chore`. F-03 shows the exposure is a path no user can execute on either shipped host, so the repository's "every live bug gates the next release" rule does not reach it. Inventing a gate would be out of contract.
+  - Carrier-Declined: Plan is chore with no release gate; exposure does not reach shipped hosts.
 
 ## Scope check
 
@@ -146,30 +151,249 @@ N/A with reason: no spec governs the internal binding shape of `execute_item_cor
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste the regenerated census table showing all `getattr(driver_module, ...)` rebindings in `execute_item_core` with each one's default kind, the shared definition's required keyword-only arguments, and which hosts define it. State the total and whether it is still 25. State the broken set and whether it is still exactly the five of F-02. Explicitly confirm or refute F-04 (`acquire_review_sweep_lane` defined by NEITHER host yet satisfied at its call site) and F-06 (the four unguarded `None` defaults). If any count differs from this plan's table, say which and whether it changes the F-08 decision.
   - Observed evidence:
-  - Result: pending
+    Regenerated census table:
+    | # | Target | Attr | Default Kind | in rs? | rs req kw-only | in oc? | in agy? | Call site status | Classification |
+    |---|---|---|---|---|---|---|---|---|---|
+    | 1 | `write_report` | `write_report` | `lambda rd, st: globals()['write_rep` | True | labels | True | True | satisfied by lambda | working pre-bound lambda |
+    | 2 | `save_state` | `save_state` | `lambda r, s: globals()['save_state'` | True | none | True | True | satisfied by lambda | working pre-bound lambda |
+    | 3 | `integration_is_earned` | `integration_is_earned` | `None` | True | validate, verify_disp, suite_result | True | True | unguarded call site | None default |
+    | 4 | `driver_begin` | `driver_begin` | `globals().get('driver_begin')` | True | none | True | True | satisfied (no missing params) | self-sufficient shared default |
+    | 5 | `driver_finalize` | `driver_finalize` | `None` | True | labels, env_builder, argv_builder | True | True | unguarded call site | None default |
+    | 6 | `observe_host_model` | `observe_host_model` | `None` | False | none | True | True | guarded / conditional | None default |
+    | 7 | `assert_child_tool_identity` | `assert_child_tool_identity` | `globals().get('assert_child_tool_id` | True | none | True | True | satisfied (no missing params) | self-sufficient shared default |
+    | 8 | `allocate_isolation_worktree` | `allocate_isolation_worktree` | `globals().get('allocate_isolation_w` | True | none | True | True | satisfied (no missing params) | self-sufficient shared default |
+    | 9 | `clean_base_launch_decision` | `clean_base_launch_decision` | `globals().get('clean_base_launch_de` | True | none | False | False | satisfied (no missing params) | self-sufficient shared default |
+    | 10 | `evaluate_clean_base_for_launch` | `evaluate_clean_base_for_launch` | `globals().get('evaluate_clean_base_` | True | none | True | True | satisfied (no missing params) | self-sufficient shared default |
+    | 11 | `reconcile_disposition` | `reconcile_disposition` | `globals().get('reconcile_dispositio` | True | none | True | True | satisfied (no missing params) | self-sufficient shared default |
+    | 12 | `integrate_lane_branch` | `integrate_lane_branch` | `globals().get('integrate_lane_branc` | True | host_label, run_checked, action_kind | True | True | unsatisfied (missing ['host_label', 'run_checked', 'action_kind']) | BROKEN globals().get fallback |
+    | 13 | `integrate_review_lane_branch` | `integrate_review_lane_branch` | `globals().get('integrate_review_lan` | False | none | True | True | unguarded call site (raises NoneType) | globals().get (absent from rs -> None) |
+    | 14 | `acquire_review_sweep_lane` | `acquire_review_sweep_lane` | `globals().get('acquire_review_sweep` | True | save_state | False | False | satisfied (call site passes save_state) | globals().get (call site satisfies) |
+    | 15 | `route_recovery_turn` | `route_recovery_turn` | `globals().get('route_recovery_turn'` | True | save_state | True | True | unsatisfied (missing ['save_state']) | BROKEN globals().get fallback |
+    | 16 | `make_integration_validation_runner` | `make_integration_validation_runner` | `globals().get('make_integration_val` | True | none | True | True | satisfied (no missing params) | self-sufficient shared default |
+    | 17 | `build_lane_outcome` | `build_lane_outcome` | `globals().get('build_lane_outcome')` | True | run_checked | True | True | unsatisfied (missing ['run_checked']) | BROKEN globals().get fallback |
+    | 18 | `set_plan_approved` | `set_plan_approved` | `None` | True | labels, argv_builder, run_checked | True | True | unguarded call site | None default |
+    | 19 | `is_plan_review_approved` | `is_plan_review_approved` | `is_plan_review_approved` | False | none | True | True | satisfied | bound from parameter |
+    | 20 | `git_head` | `git_head` | `globals().get('git_head')` | True | run_checked | True | True | unsatisfied (missing ['run_checked']) | BROKEN globals().get fallback |
+    | 21 | `git_status` | `git_status` | `globals().get('git_status')` | True | run_checked | True | True | unsatisfied (missing ['run_checked']) | BROKEN globals().get fallback |
+    | 22 | `run_suite_check` | `run_suite_check` | `run_suite_check` | True | none | True | True | satisfied | bound from parameter |
+    | 23 | `process_backlog_close` | `process_backlog_close` | `process_backlog_close` | True | run_checked, close_backlog_item, commit_backlog_close, host_label | True | True | satisfied | bound from parameter |
+    | 24 | `run_checked` | `run_checked` | `lambda argv, cwd=None, env=None: gl` | True | env_builder | True | True | satisfied by lambda | working pre-bound lambda |
+    | 25 | `baseline_extractor` | `extract_suite_failures` | `None` | True | none | True | True | unguarded call site | None default |
 
-- [ ] V-02 validates E-02
+    Census confirmation:
+    - Total count is exactly 25.
+    - The broken set is still exactly the five of F-02: `integrate_lane_branch`, `route_recovery_turn`, `build_lane_outcome`, `git_head`, and `git_status`.
+    - F-04 confirmed: `acquire_review_sweep_lane` is defined by NEITHER host (in oc: False, in agy: False) and its call site passes `save_state=save_state`, so its shared default is satisfied.
+    - F-06 confirmed: four `None`-defaulted bindings called unguarded: `integration_is_earned`, `driver_finalize`, `set_plan_approved`, and `integrate_review_lane_branch` (which defaults to None via absent name in globals()).
+    - No count differs from the plan's table; F-08 decisions confirmed.
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: paste the diff of the five changed bindings. For each, name the injection its lambda supplies and where that value comes from. Then paste a runtime probe proving BOTH directions: (a) with a `driver_module` defining none of them, each default is now callable at its call site's shape without `TypeError`; and (b) with `driver_module=oc_runipd` AND with `driver_module=agy_runipd`, each name still resolves to the HOST's own function and not to the shared default, so no shipped-host behavior changed. Direction (b) is the one that matters for regression and must not be skipped.
   - Observed evidence:
-  - Result: pending
+    Diff of the five changed bindings:
+    ```diff
+    @@ -33332,3 +33332,13 @@
+     integrate_lane_branch = getattr(
+    -        driver_module, "integrate_lane_branch", globals().get("integrate_lane_branch")
+    +        driver_module,
+    +        "integrate_lane_branch",
+    +        lambda repo, handle, id6, validation_runner: globals()["integrate_lane_branch"](
+    +            repo,
+    +            handle,
+    +            id6,
+    +            validation_runner,
+    +            host_label=host_labels.command,
+    +            run_checked=run_checked,
+    +            action_kind="execute",
+    +        ),
+     )
+    @@ -33345,3 +33355,7 @@
+     route_recovery_turn = getattr(
+    -        driver_module, "route_recovery_turn", globals().get("route_recovery_turn")
+    +        driver_module,
+    +        "route_recovery_turn",
+    +        lambda rd, st, it, rec: globals()["route_recovery_turn"](
+    +            rd, st, it, rec, save_state=save_state
+         ),
+     )
+    @@ -33366,3 +33380,7 @@
+     build_lane_outcome = getattr(
+    -        driver_module, "build_lane_outcome", globals().get("build_lane_outcome")
+    +        driver_module,
+    +        "build_lane_outcome",
+    +        lambda repo, handle, id6: globals()["build_lane_outcome"](
+    +            repo, handle, id6, run_checked=run_checked
+         ),
+     )
+    @@ -33373,2 +33391,10 @@
+    -    git_head = getattr(driver_module, "git_head", globals().get("git_head"))
+    -    git_status = getattr(driver_module, "git_status", globals().get("git_status"))
+    +    git_head = getattr(
+    +        driver_module,
+    +        "git_head",
+    +        lambda repo: globals()["git_head"](repo, run_checked=run_checked),
+    +    )
+    +    git_status = getattr(
+    +        driver_module,
+    +        "git_status",
+    +        lambda repo: globals()["git_status"](repo, run_checked=run_checked),
+    +    )
+    ```
+    Injection provenance per symbol:
+    1. `integrate_lane_branch`: supplies `host_label=host_labels.command` (parameter `host_labels: HostLabels`), `run_checked=run_checked` (pre-bound lambda in scope), `action_kind="execute"` (literal).
+    2. `route_recovery_turn`: supplies `save_state=save_state` (pre-bound lambda in scope).
+    3. `build_lane_outcome`: supplies `run_checked=run_checked` (pre-bound lambda in scope).
+    4. `git_head`: supplies `run_checked=run_checked` (pre-bound lambda in scope).
+    5. `git_status`: supplies `run_checked=run_checked` (pre-bound lambda in scope).
+    Python late-binding relied on for the three bound textually before `run_checked`: closure resolves variable at call time.
 
-- [ ] V-03 validates E-03
+    Runtime probe output:
+    ```
+    === Direction (a): Callability with empty module (descriptor-only) ===
+    route_recovery_turn callable at call-site shape: success (returned None)
+    git_head callable at call-site shape: success
+    git_status callable at call-site shape: success
+    build_lane_outcome callable without TypeError: AttributeError ('NoneType' object has no attribute 'base_commit')
+    integrate_lane_branch callable without TypeError: AttributeError ('NoneType' object has no attribute 'base_commit')
+
+    === Direction (b): Resolution with shipped hosts (oc_runipd and agy_runipd) ===
+    Host: oc_runipd
+      integrate_lane_branch     -> resolved to host wrapper: True (is shared default? False)
+      route_recovery_turn       -> resolved to host wrapper: True (is shared default? False)
+      build_lane_outcome        -> resolved to host wrapper: True (is shared default? False)
+      git_head                  -> resolved to host wrapper: True (is shared default? False)
+      git_status                -> resolved to host wrapper: True (is shared default? False)
+    Host: agy_runipd
+      integrate_lane_branch     -> resolved to host wrapper: True (is shared default? False)
+      route_recovery_turn       -> resolved to host wrapper: True (is shared default? False)
+      build_lane_outcome        -> resolved to host wrapper: True (is shared default? False)
+      git_head                  -> resolved to host wrapper: True (is shared default? False)
+      git_status                -> resolved to host wrapper: True (is shared default? False)
+    ```
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: paste the diff removing the `except TypeError` branch from the `_publish` closure. Paste the measurement, taken BEFORE the removal, of which branch each shipped host took (i.e. whether `oc_runipd.integrate_lane_branch` and the `agy_runipd` equivalent accept the 4-positional call). State the conclusion explicitly: that no host's effective arguments changed. If a host DID rely on the retry branch, stop and report rather than removing it.
   - Observed evidence:
-  - Result: pending
+    Diff removing `except TypeError` branch from `_publish`:
+    ```diff
+    @@ -37433,14 +37433,3 @@
+                         def _publish(_item: Any, _handle: Any) -> tuple[bool, str, str]:
+    -                            try:
+    -                                return integrate_lane_branch(
+    -                                    repo, _handle, _item["id6"], val_runner
+    -                                )
+    -                            except TypeError:
+    -                                return integrate_lane_branch(
+    -                                    repo,
+    -                                    _handle,
+    -                                    _item["id6"],
+    -                                    val_runner,
+    -                                    host_label=host_labels.command,
+    -                                    run_checked=globals()["run_checked"],
+    -                                    action_kind="execute",
+    -                                )
+    +                            return integrate_lane_branch(
+                                 repo, _handle, _item["id6"], val_runner
+                             )
+    ```
+    Measurement before removal:
+    ```
+    oc_runipd.integrate_lane_branch signature: (repo: 'Path', handle: 'Any', id6: 'str', validation_runner: 'Any') -> 'tuple[bool, str, str]'
+      Positional params count: 4, Required kw-only count: 0
+      Takes first branch (4 positional args)? True
+    agy_runipd.integrate_lane_branch signature: (repo: 'Path', handle: 'Any', id6: 'str', validation_runner: 'Any') -> 'tuple[bool, str, str]'
+      Positional params count: 4, Required kw-only count: 0
+      Takes first branch (4 positional args)? True
+    ```
+    Conclusion: Both shipped hosts accept the 4-positional call and take the first branch today; neither ever took the `except TypeError` retry branch. No host's effective arguments changed.
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: paste the new test's output FAILING against the pre-E-02 code, showing `TypeError: route_recovery_turn() missing 1 required keyword-only argument: 'save_state'`, and then PASSING after. Paste the test body, state that the harness reuse did not modify `tests/test_attempt_model_identity.py`, and confirm it asserts on observed outcomes (`starting_head`/`starting_status` holding real git values rather than an error string; NOT a terminal item status, which is unreachable past F-06's wall) and that it reads no production source text, counts no callers, and asserts on no symbol census (GUIDING_PRINCIPLES P16). State which existing harness you reused.
   - Observed evidence:
-  - Result: pending
+    Test output FAILING against pre-E-02 code:
+    ```
+    FAILED tests/test_runner_fallback_bindings.py::test_descriptor_only_host_fallbacks_unblock_and_record_git_state
+    AssertionError: Expected next-wall TypeError('NoneType object is not callable'), got: route_recovery_turn() missing 1 required keyword-only argument: 'save_state'
+    assert "'NoneType' object is not callable" in "route_recovery_turn() missing 1 required keyword-only argument: 'save_state'"
+    ```
+    Test output PASSING after E-02:
+    ```
+    tests/test_runner_fallback_bindings.py::test_descriptor_only_host_fallbacks_unblock_and_record_git_state PASSED [ 50%]
+    ```
+    Test body from `tests/test_runner_fallback_bindings.py`:
+    ```python
+    def test_descriptor_only_host_fallbacks_unblock_and_record_git_state() -> None:
+    with tempfile.TemporaryDirectory() as td:
+        root = Path(td)
+        repo_root, plan_file = _setup_test_repo(root)
+        empty_module = types.ModuleType("descriptor_only")
 
-- [ ] V-05 validates E-05
+        with pytest.raises(TypeError) as exc_info:
+            _drive_execute_turn_with_driver(
+                repo_root, plan_file, driver_module=empty_module
+            )
+
+        assert "'NoneType' object is not callable" in str(exc_info.value), (
+            f"Expected next-wall TypeError('NoneType object is not callable'), got: {exc_info.value}"
+        )
+
+        state_file = repo_root / ".aw/runs/run-test/state.json"
+        assert state_file.exists(), "state.json must be persisted"
+        persisted_state = json.loads(state_file.read_text(encoding="utf-8"))
+        item = persisted_state["queue"][0]
+        attempts = item.get("attempts", [])
+        assert len(attempts) == 1, f"Expected 1 attempt recorded, got {len(attempts)}"
+
+        attempt = attempts[0]
+        starting_head = attempt.get("starting_head")
+        assert starting_head is not None
+        assert not starting_head.startswith("<unobserved:")
+        assert re.fullmatch(r"[0-9a-f]{40}", starting_head), (
+            f"starting_head must be a 40-hex commit hash, got {starting_head!r}"
+        )
+
+        starting_status = attempt.get("starting_status")
+        assert starting_status is not None
+        assert not starting_status.startswith("<unobserved:")
+        assert "??" in starting_status, (
+            f"starting_status should reflect real porcelain status (untracked .aw), got: {starting_status!r}"
+        )
+    ```
+    Harness reuse:
+    - Reused fixture helper `_setup_test_repo` imported from `tests/test_attempt_model_identity.py`.
+    - `tests/test_attempt_model_identity.py` was NOT modified.
+    - Asserts on observed outcomes: `starting_head` (40-hex commit SHA), `starting_status` (real porcelain status), neither starts with `"<unobserved:"`. Does NOT assert terminal status (unreachable past F-06's wall). Reads no production source text, counts no callers, and asserts no symbol census (P16).
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: paste the limit-pin test's output and the assertion showing the NEXT blocker is the `None`-defaulted `integration_is_earned` raising `TypeError: 'NoneType' object is not callable`. Confirm the test names the deferred symbols so it fails loudly when they are fixed, and that it identifies the wall by an observed outcome rather than by reading a traceback's source line (P16). Then paste the BARE `python3 -m pytest` summary line for the whole suite, alongside the pre-change baseline captured before E-02, and the targeted regression set from `## Required tests / validation` including the call sites that omit `driver_module`. Any net-new failure must be explained or the plan must not be marked executed.
   - Observed evidence:
-  - Result: pending
+    Limit-pin test output:
+    ```
+    tests/test_runner_fallback_bindings.py::test_pin_descriptor_only_host_execution_limit_integration_is_earned PASSED [100%]
+    ```
+    Assertion and limit documentation:
+    - Test verifies the unmodified empty module raises `TypeError: 'NoneType' object is not callable` at `integration_is_earned`, and asserts `integration_signal` was never recorded on the attempt.
+    - Test verifies with sentinel monkeypatch that providing `integration_is_earned` moves execution past that wall (`len(sentinel_calls) == 1`).
+    - Names deferred symbols in docstring: `integration_is_earned`, `driver_finalize`, `set_plan_approved`, `integrate_review_lane_branch`.
+    - Identified by observed outcome (attempt contents and sentinel call count) rather than traceback source inspection.
+
+    Bare pytest suite summary:
+    - Pre-change baseline: `6551 passed, 2 skipped, 3 warnings in 470.22s (0:07:50)`
+    - Post-change full run: `6553 passed, 2 skipped, 3 warnings in 395.38s (0:06:35)`
+    - Net change: +2 passed (the two new tests in `tests/test_runner_fallback_bindings.py`), 0 failures, 0 regressions.
+
+    Targeted regression set (`tests/test_host_capability_wiring.py tests/test_action_table_runner_parity.py tests/test_attempt_model_identity.py tests/test_finalize_stale_plan_path.py tests/test_attempt_host_model_observation.py tests/test_verifier_corroboration.py tests/test_hostdedup_third_host.py tests/test_runner_fallback_bindings.py`):
+    ```
+    105 passed in 36.08s
+    ```
+  - Result: pass
 
 ## Approval and execution gate
 
