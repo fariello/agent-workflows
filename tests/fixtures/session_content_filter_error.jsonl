@@ -1,0 +1,2 @@
+{"type": "step_finish", "reason": "content-filter"}
+{"type": "error", "error": {"name": "ContentFilterError", "data": {"message": "The response was blocked by the provider's content filter"}}}
