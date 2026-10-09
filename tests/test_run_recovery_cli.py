@@ -2855,6 +2855,57 @@ class TestLedgerResolutionAndWrongFormatVerdict(unittest.TestCase):
         self.assertEqual(run_cli.EXIT_INVALID_INVOCATION, rc)
         self.assertNotIn("corrupt", out.lower())
 
+    def test_run_engine_step_sequence_without_run_header_refuses_ledger_creation(
+        self,
+    ) -> None:
+        """Driving a legal step sequence without an initial 'run' record refuses with RL-E041.
+
+        Decision record utb2qr: driver runs do not write a ledger.jsonl, and no code
+        in the package creates a ledger without a 'kind': 'run' root record.
+        Constructing a RunLedgerStore over a fresh path and driving RunEngine's legal
+        release_step -> start_step -> record_step_attempt sequence raises SchemaInvalidRecordError
+        carrying finding RL-E041 and leaves no ledger.jsonl file on disk (only the lock file).
+        """
+        temp_dir = tempfile.TemporaryDirectory()
+        self.addCleanup(temp_dir.cleanup)
+        ledger_path = Path(temp_dir.name) / ledger_store.LEDGER_FILENAME
+        store = ledger_store.RunLedgerStore(ledger_path)
+        wf = {
+            "id": "wf",
+            "steps": [
+                {
+                    "id": "S-01",
+                    "action": "setup",
+                    "depends_on": [],
+                    "satisfies": ["R-01"],
+                }
+            ],
+            "requirements": [{"id": "R-01"}],
+        }
+        engine = run_engine.RunEngine(wf, store, run_id="run-abcdef1234")
+        step = engine.release_step("S-01")
+
+        with self.assertRaises(ledger_store.SchemaInvalidRecordError) as ctx:
+            engine.start_step(step.step_id)
+            engine.record_step_attempt(
+                step.step_id,
+                attempt_seq=1,
+                attempt_state="performed",
+                summary="test attempt",
+            )
+
+        findings = getattr(ctx.exception, "findings", ())
+        codes = {f.code for f in findings if hasattr(f, "code")}
+        self.assertIn(
+            "RL-E041",
+            codes,
+            f"Expected RL-E041 finding code in SchemaInvalidRecordError, got {findings}",
+        )
+        self.assertFalse(
+            ledger_path.exists(),
+            f"Expected {ledger_path} not to exist on disk after RL-E041 rejection",
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

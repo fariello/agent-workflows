@@ -8237,8 +8237,9 @@ def finalize_retry_remedy(
 # RATHER THAN A CONVENIENCE (plan `xipfy1` OQ-03, resolved 2026-09-10, option (b)). STATE IT PLAINLY,
 # because this is a SECOND implementation of retry semantics and this repository normally refuses one:
 #
-#   * `run_recovery.plan_retry` / `retry_budget_remaining` REMAIN THE INTENDED LONG-TERM HOME. They
-#     implement exactly these semantics, are tested, and are NOT reimplemented for fun.
+#   * The hash-chained ledger and `run_recovery` are scoped to the `aw run` execution path, and
+#     the driver's own implementation here is the intended one for driver runs (maintainer decision
+#     2026-10-08; decision record `utb2qr`).
 #   * They are UNREACHABLE from a driver run. Both take a `run_engine.RunEngine` first positional
 #     argument and immediately call `engine.reconstruct_state()`; `RunEngine` requires a
 #     `RunLedgerStore` over a hash-chained `ledger.jsonl`; and NO driver run writes one (no
@@ -8248,9 +8249,9 @@ def finalize_retry_remedy(
 #   * The state VOCABULARIES are disjoint too: `plan_retry` raises `NoRetryableStateError` for any
 #     step not in `run_state.STATE_FAILED`/`STATE_BLOCKED`, and a driver queue item never holds
 #     either value (it holds `failed-safely`/`partial`/`interrupted` and friends).
-#   * WHETHER A DRIVER RUN SHOULD WRITE A LEDGER IS STILL OPEN and is NOT decided here. Plan `i1hlgx`
-#     and executed `7wei1o` both name it explicitly as an out-of-scope design question. Nobody may
-#     cite this section as a decision to abandon the ledger design.
+#   * A driver run does not write a ledger. Driver runs use their own `state.json`/`events.jsonl`
+#     substrate as their record of execution. The ledger design is not abandoned, but remains
+#     dedicated to discrete `aw run` workflow execution (decision `utb2qr`).
 #
 # WHAT IS PRESERVED FROM THE HELPERS' SEMANTICS, since only the substrate changes (OQ-03's explicit
 # list, each mapped to the code that honors it):

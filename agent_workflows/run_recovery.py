@@ -1,5 +1,11 @@
 """Bounded retry/correction and resume/cancel/crash-recovery over the append-only run ledger.
 
+This module serves the `aw run`/`aw runs` ledger execution path, with live consumers in
+`run_cli._run_resume` and `run_cli._run_cancel`. Driver runs (`aw oc run` / `aw agy run`) do not emit a
+ledger and use their own retry substrate in `runner_shared.py` (maintainer decision `xipfy1` OQ-03).
+While `resume`, `cancel`, and `detect_unknown_outcomes` are reached in production by `run_cli`,
+the helper functions `plan_retry` and `retry_budget_remaining` have zero production callers today.
+
 awoptimize Order 07 (`7yqm1v`) E-01 (bounded retry + correction keyed by failure class) and
 E-02 (resume / cancel / crash recovery).
 
@@ -50,11 +56,12 @@ from agent_workflows import run_ledger_schema as schema
 
 # Spec 25kzda 5.5: default is 2; "`N` must be an integer from 0 through 10 inclusive."
 # This was 3, which contradicted the approved spec. Aligned to 2 on the maintainer's decision
-# (2026-08-31), taken while the value is still DORMANT: `plan_retry` / `retry_budget_remaining` have
-# ZERO production callers today. Commit 19313eed deleted their only test coverage on 2026-09-24,
-# which IPD e834yk restored in tests/test_run_recovery_cli.py. Doing it now is deliberate - once the
-# runner wires this layer up, the same edit becomes a real behavior change that alters how many paid
-# model turns every failed step buys.
+# (2026-08-31). This module serves the `aw run`/`aw runs` ledger path, where `run_cli._run_resume`
+# and `run_cli._run_cancel` are live consumers; driver runs use their own retry substrate in
+# `runner_shared.py` by the `xipfy1` OQ-03 maintainer decision. Within this module, `plan_retry` and
+# `retry_budget_remaining` have no production callers outside this file today, while `resume`, `cancel`,
+# and `detect_unknown_outcomes` are called by `run_cli`. Commit 19313eed deleted their only test
+# coverage on 2026-09-24, which IPD e834yk restored in tests/test_run_recovery_cli.py.
 #
 # WHY 2 IS THE RIGHT NUMBER, not merely the spec's: a retry here is a CORRECTION attempt, not a
 # network-flake retry, and `plan_retry`'s own contract is that "a retry cannot turn failure into

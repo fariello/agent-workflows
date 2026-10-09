@@ -6,6 +6,7 @@
 - Summary: Nothing in the package can create a run ledger: no writer of a kind='run' header record exists, so RunLedgerStore refuses every first append with RL-E041
 
 ## Workflow history
+- 2026-10-09 same-status (aw backlog): Scoped to aw run execution path per rdjka2 maintainer decision (option b); not a driver obligation
 - 2026-10-02 created (aw backlog): Filed while graduating backlog ye28s6 into plan rdjka2: this is the measured prerequisite for any ledger wiring, whichever way ye28s6's question is answered.
 
 MEASURED at 2026-10-02 (lane worktree ye28s6, HEAD fb75224d), both by static search and by driving the API live.
