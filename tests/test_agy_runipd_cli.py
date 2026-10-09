@@ -713,6 +713,7 @@ class AgyWorktreeIsolationTests(unittest.TestCase):
             plan = _init_repo_with_conforming_plan(repo, "agy001")
             run_dir = self._mk_run_dir(repo)
             state, item = self._state_and_item(repo, plan)
+            state["options"]["retry_budget"] = 0
 
             def failing_runner_factory(*a, **k):
                 return lambda _diff, _files: False
@@ -1074,6 +1075,7 @@ class AgyFailClosedIntegrationGuardTests(unittest.TestCase):
             plan = _init_repo_with_conforming_plan(repo, "agy001")
             run_dir = self._mk_run_dir(repo)
             state, item = self._state_and_item(repo, plan)
+            state["options"]["retry_budget"] = 0
 
             head_before = subprocess.run(
                 ["git", "rev-parse", "HEAD"], cwd=repo, text=True, capture_output=True

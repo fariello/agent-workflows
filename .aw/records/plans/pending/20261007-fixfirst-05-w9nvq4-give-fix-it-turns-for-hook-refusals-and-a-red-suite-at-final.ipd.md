@@ -4,7 +4,7 @@
 - Kind: child
 - Concern: Three refusals the agent can fix fail the item on the first occurrence. (1) A pre-commit hook refusing the finalize commit (`ipd_lifecycle._CommitRefused`, surfaced as `EXIT_CANNOT_RUN` with "lifecycle commit did not happen (git rc=1: the lifecycle commit was rejected in the coordinator worktree (hooks ran): ...)") matches neither arm of `runner_shared.finalize_refusal_is_retryable`, so it is preserved and reported. (2) A hook refusing an integration commit is either returned UNTAGGED as `INTEGRATION_REFUSAL_CONFLICT` (the records re-derive and history auto-resolve arms) or, for the main merge itself, MIS-TAGGED `INTEGRATION_CAUSE_GIT_CONFLICT` with the false verdict "BOTH SIDES CHANGED THE SAME REGION" (measured at review), and the merge-conflict send-back loop then re-publishes without ever asking the agent. (3) A red combined suite after merging the lane with current main (`INTEGRATION_CAUSE_GATE_COMBINED_RED`) is terminal on the first attempt (`terminal_refusal_verdict`). The maintainer reports hours lost to exactly these: "this hook is not happy; fix the underlying issue and we'll try again" almost always works.
 - Scope: Make each of the three a fix-it send-back under its own per-kind counter against the run's `--retry-budget`, carrying the hook's output or the newly failing tests (redacted) through Order 03's message, resuming the turn's session where one exists, and re-running the same gate afterwards. Tag a hook-refused integration commit with a new cause distinct from a git conflict, including the main-merge case. EXCLUDES transient integration refusals (already on the deferral ladder), conflict markers and lifecycle-duplicate placement (unchanged), a hook refusal diagnosed as a concurrent writer (`ipd_lifecycle.classify_commit_refusal`; unchanged), the pre-finalize gate-answer exchange and its `mine`/`needs-human`/`not-mine`/`fixed` vocabulary (unchanged), and any change to what the hooks check.
-- Scope-Paths: agent_workflows/runner_shared.py, tests/test_hook_and_suite_fix_it.py, tests/test_oc_runipd.py
+- Scope-Paths: agent_workflows/runner_shared.py, tests/test_hook_and_suite_fix_it.py, tests/test_oc_runipd.py, tests/test_agy_runipd_cli.py
 - Item-Dependencies: executed:mcbph5
 - Status: approved
 - Readiness: go-pending-approval
@@ -107,7 +107,7 @@ None. The concurrent-writer diagnosis and the pre-finalize gate-answer vocabular
 
 ## Scope check
 
-- Over-scope: none. `runner_shared.py` E-01 to E-04 and E-06; `tests/test_hook_and_suite_fix_it.py` and `tests/test_oc_runipd.py` E-05.
+- Over-scope: none. `runner_shared.py` E-01 to E-04 and E-06; `tests/test_hook_and_suite_fix_it.py`, `tests/test_oc_runipd.py`, and `tests/test_agy_runipd_cli.py` E-05.
 - Under-scope: a fix commit made after finalize is not re-reconciled by finalize; E-03 records and warns rather than re-running finalize, matching the shipped merge-conflict send-back.
 
 ## Required tests / validation
