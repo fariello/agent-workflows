@@ -1946,6 +1946,19 @@ def _build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Rewrite citing Scope-Paths in pending plans when relocating (default: off).",
     )
+    p_ipd_set.add_argument(
+        "--run-id",
+        dest="run_id",
+        default=None,
+        help="Forwarded to `aw ipd finalize` on a delegated plan->executed transition: run ID of the executing runner.",
+    )
+    p_ipd_set.add_argument(
+        "--take-over",
+        dest="take_over",
+        default=None,
+        metavar="REASON",
+        help="Override a live holder on this plan with a required non-empty reason, recorded in workflow history. This is an explicit recorded speed bump, not authorization.",
+    )
     _add_commit_flags(p_ipd_set)  # selfcommit jgcm68 E-01/E-05
 
     # ipddeps Order g69y23: `aw ipd dependencies set` writes the machine-readable, id6-grounded
@@ -2088,6 +2101,19 @@ def _build_parser() -> argparse.ArgumentParser:
     p_ipd_begin.add_argument(
         "--dir", default=None, help="Repo root (default: current directory)."
     )
+    p_ipd_begin.add_argument(
+        "--run-id",
+        dest="run_id",
+        default=None,
+        help="Run ID of the executing runner, granting the holder exception when this run holds the plan. Must be passed explicitly; never defaulted from the environment.",
+    )
+    p_ipd_begin.add_argument(
+        "--take-over",
+        dest="take_over",
+        default=None,
+        metavar="REASON",
+        help="Override a live holder on this plan with a required non-empty reason, recorded in workflow history. This is an explicit recorded speed bump, not authorization.",
+    )
 
     # ipdgates Order 04 (v7e88a): `aw ipd finalize` atomic terminal transaction.
     p_ipd_finalize = ipd_sub.add_parser(
@@ -2142,6 +2168,19 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     p_ipd_finalize.add_argument(
         "--dir", default=None, help="Repo root (default: current directory)."
+    )
+    p_ipd_finalize.add_argument(
+        "--run-id",
+        dest="run_id",
+        default=None,
+        help="Run ID of the executing runner, granting the holder exception when this run holds the plan. Must be passed explicitly; never defaulted from the environment.",
+    )
+    p_ipd_finalize.add_argument(
+        "--take-over",
+        dest="take_over",
+        default=None,
+        metavar="REASON",
+        help="Override a live holder on this plan with a required non-empty reason, recorded in workflow history. This is an explicit recorded speed bump, not authorization.",
     )
 
     # gradcover Order 03 (qs00nc E-03, spec 25kzda 2.5d): `aw ipd coverage` orchestrator review readiness.
@@ -4796,6 +4835,19 @@ def _build_parser() -> argparse.ArgumentParser:
         "--rewrite-citations",
         action="store_true",
         help="Rewrite citing Scope-Paths in pending plans when relocating (default: off).",
+    )
+    p_set.add_argument(
+        "--run-id",
+        dest="run_id",
+        default=None,
+        help="Forwarded to `aw ipd finalize` when a plan->executed transition delegates: run ID of the executing runner.",
+    )
+    p_set.add_argument(
+        "--take-over",
+        dest="take_over",
+        default=None,
+        metavar="REASON",
+        help="Override a live holder on this plan with a required non-empty reason, recorded in workflow history. This is an explicit recorded speed bump, not authorization.",
     )
     # selfcommit jgcm68 E-01: `aw set` (and every family routing through it) offers to commit its
     # own path-scoped metadata rewrite. The subcommand `set` parsers (ipd/spec/prompts/backlog) that

@@ -314,7 +314,11 @@ class TestReceiptLaneRecord(unittest.TestCase):
             rcpt_path = ipd_lifecycle.receipt_path_for(root, "pid005")
             rcpt_path.unlink(missing_ok=True)
             begin_res = ipd_lifecycle.begin(
-                root, plan_p, actor="test-runner", timestamp="2026-10-07T00:00:00Z"
+                root,
+                plan_p,
+                actor="test-runner",
+                timestamp="2026-10-07T00:00:00Z",
+                env={},
             )
             self.assertEqual(
                 begin_res.exit_code, ipd_lifecycle.EXIT_OK, begin_res.message

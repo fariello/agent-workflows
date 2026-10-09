@@ -763,7 +763,11 @@ class ConformingOrchestratorScaffoldTests(unittest.TestCase):
 
             # 1. begin on untyped orchestrator fails with IPD-S407 in findings
             res_untyped = LC.begin(
-                root, p_untyped, "tester model=m", timestamp="2026-10-01T00:00:00Z"
+                root,
+                p_untyped,
+                "tester model=m",
+                timestamp="2026-10-01T00:00:00Z",
+                env={},
             )
             self.assertEqual(res_untyped.exit_code, LC.EXIT_FINDINGS)
             s407_findings = [f for f in res_untyped.findings if "IPD-S407" in f]
@@ -771,7 +775,11 @@ class ConformingOrchestratorScaffoldTests(unittest.TestCase):
 
             # 2. begin on freshly scaffolded orchestrator does NOT produce IPD-S407
             res_fresh = LC.begin(
-                root, p_fresh, "tester model=m", timestamp="2026-10-01T00:00:00Z"
+                root,
+                p_fresh,
+                "tester model=m",
+                timestamp="2026-10-01T00:00:00Z",
+                env={},
             )
             s407_fresh = [f for f in res_fresh.findings if "IPD-S407" in f]
             self.assertEqual(len(s407_fresh), 0, res_fresh.findings)

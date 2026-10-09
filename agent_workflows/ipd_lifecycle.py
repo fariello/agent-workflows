@@ -28,11 +28,9 @@ or remove any bypass; it does not mutate the plan or any tracked file.
 from __future__ import annotations
 
 import hashlib
-import hmac
 import json
 import os
 import re
-import secrets
 import tempfile
 from functools import lru_cache
 from pathlib import Path
@@ -74,23 +72,24 @@ from agent_workflows.artifact_core import replacement_mode
 EXECUTION_ROLE_ENV = "AW_EXECUTION_ROLE"
 ROLE_WORKER = "worker"
 
-# The driver attestation token environment variable and per-run token filename.
-DRIVER_ATTEST_ENV = "AW_DRIVER_ATTEST"
-DRIVER_ATTEST_FILENAME = "driver-attest.token"
-
 LIFECYCLE_ROLE_ERROR = (
     "AW-LIFECYCLE-ROLE-001: the runner owns begin/finalize for managed lanes; a worker-role "
     "process must not run them"
 )
 
+ROLLUP_REFUSED_WORKER_ROLE = "worker-role"
+ROLLUP_REFUSED_PLAN_HELD = "plan-held-by-live-run"
 
-def runner_owns_lifecycle_notice(driver_owns_transition: bool) -> str:
+
+def runner_owns_lifecycle_notice(
+    driver_owns_transition: bool, run_id: Optional[str] = None
+) -> str:
     """The turn-start ADVERTISEMENT of the rule :data:`LIFECYCLE_ROLE_ERROR` enforces at turn end.
 
     roleadv-01 (`8b9ufm`) E-02/E-03, from backlog `fvl44r`. Returns the prompt block when the DRIVER
-    owns the lifecycle transition, and ``""`` when it does not. ONE definition, so every prompt
-    surface on every host renders byte-identical text and no host can drift from the other on an
-    AUTHORITY rule.
+    owns the lifecycle transition, and the delegated transition instructions when it does not (lifegate
+    e25iy9 E-10 / PR-104). ONE definition, so every prompt surface on every host renders byte-identical
+    text and no host can drift from the other on an AUTHORITY rule.
 
     WHY IT IS ADVERTISED AT ALL, since the rule was already enforced. `_refuse_worker_role_verb`
     states the rule correctly but only at the END of a turn, in the agent's face, after the work is
@@ -120,7 +119,15 @@ def runner_owns_lifecycle_notice(driver_owns_transition: bool) -> str:
     (`tests/test_reporting_contract.py::DriverPromptTests::test_prompts_are_pure_ascii`).
     """
     if not driver_owns_transition:
-        return ""
+        run_flag = f" --run-id {run_id}" if run_id else " --run-id <run-id>"
+        return (
+            "## Who performs the lifecycle transition\n"
+            "\n"
+            "This run delegates the lifecycle transition to you (--no-self-finalize). You must run\n"
+            "`aw ipd begin` and `aw ipd finalize` yourself.\n"
+            f"Because this run holds the plan in its queue, pass{run_flag} to both `aw ipd begin`\n"
+            "and `aw ipd finalize` to identify your execution with this run.\n"
+        )
     return (
         "## Who performs the lifecycle transition\n"
         "\n"
@@ -141,88 +148,60 @@ def worker_role_active(env: "Mapping[str, str]") -> bool:
     return str(env.get(EXECUTION_ROLE_ENV) or "").strip() == ROLE_WORKER
 
 
-def lane_worktree_active(repo_root: Path) -> bool:
-    """True iff ``repo_root`` is a managed lane worktree.
+def _extract_plan_id(plan_path: Path) -> Optional[str]:
+    """Extract the - Id: id6 from an IPD plan path, or fallback to filename parse."""
+    if plan_path.is_file():
+        try:
+            from agent_workflows import ipd_lint as _lint
 
-    Criteria:
-    * The resolved ``repo_root`` lies under ``checkout_control_root(repo_root) / "worktrees"``, OR
-    * The current branch (`git -C repo_root symbolic-ref --short -q HEAD`) starts with `aw/lane/`
-      (checked via `worktree_lease.lane_id_from_branch`).
-
-    Returns False on git failure or when not in a checkout.
-    """
-    from agent_workflows import worktree_lease as _wl
-
+            text = plan_path.read_text(encoding="utf-8")
+            doc = _lint.parse(text)
+            pid = (doc.meta_fields.get("Id") or "").strip()
+            if pid:
+                return pid
+        except Exception:
+            pass
     try:
-        resolved = Path(repo_root).resolve()
-        control_root = checkout_control_root(repo_root).resolve()
-        worktrees_dir = (control_root / "worktrees").resolve()
-        if resolved.is_relative_to(worktrees_dir) and resolved != worktrees_dir:
-            return True
-    except (OSError, ValueError):
+        from agent_workflows.runner_shared import _PLAN_FILENAME_RE
+
+        m = _PLAN_FILENAME_RE.match(plan_path.name)
+        if m:
+            return m.group(3)
+    except Exception:
         pass
-
-    try:
-        rc, out, _err = _git(repo_root, ["symbolic-ref", "--short", "-q", "HEAD"])
-        if rc == 0:
-            branch = (out or "").strip()
-            if _wl.lane_id_from_branch(branch) is not None:
-                return True
-    except (OSError, ValueError):
-        pass
-
-    return False
+    return None
 
 
-def mint_driver_attestation(run_dir: Path) -> str:
-    """Mint a per-run driver attestation token into ``run_dir / DRIVER_ATTEST_FILENAME``, owner-only.
+def _format_plan_holder_refusal(verb_label: str, plan_id: str, res: Any) -> str:
+    """Deterministic refusal message for a plan held by a live run or with undeterminable status."""
+    from agent_workflows import runner_shared as _rs
 
-    Returns the attestation string in ``<run-id>:<hex-token>`` format.
-    """
-    rd = Path(run_dir)
-    token = secrets.token_hex(32)
-    token_path = rd / DRIVER_ATTEST_FILENAME
-    # Owner-only on EVERY OS: mode 0600 on POSIX, a protected current-user-only DACL on Windows
-    # (where the 0o600 mode argument is ignored and the file would inherit its folder's ACL).
-    from agent_workflows import private_file
-
-    private_file.create_private_file(token_path, token.encode("utf-8"))
-    return f"{rd.name}:{token}"
-
-
-def verify_driver_attestation(
-    repo_root: Path, value: Optional[str]
-) -> Tuple[bool, str]:
-    """Verify a driver attestation for ``repo_root``.
-
-    Locates the token file via ``runner_shared.state_root(checkout_control_root(repo_root).parent)``,
-    refuses run-ids containing path separators or ``..``, and compares with ``hmac.compare_digest``.
-    """
-    if not value or not isinstance(value, str) or ":" not in value:
-        return (False, "missing or malformed driver attestation")
-    run_id, _, token = value.partition(":")
-    if not run_id or not token:
-        return (False, "missing or malformed driver attestation")
-    if "/" in run_id or "\\" in run_id or ".." in run_id:
-        return (False, f"invalid run-id in driver attestation ('{run_id}')")
-
-    try:
-        from agent_workflows import runner_shared as _rs
-
-        control_root = checkout_control_root(repo_root)
-        main_repo = control_root.parent
-        runs_root = _rs.state_root(main_repo)
-        token_path = runs_root / run_id / DRIVER_ATTEST_FILENAME
-        if not token_path.is_file():
-            return (False, f"driver attestation file not found for run '{run_id}'")
-        expected = token_path.read_text(encoding="utf-8").strip()
-        if not expected:
-            return (False, f"driver attestation file is empty for run '{run_id}'")
-        if hmac.compare_digest(token, expected):
-            return (True, "driver attestation verified")
-        return (False, "driver attestation token mismatch")
-    except Exception as e:
-        return (False, f"driver attestation verification failed: {e}")
+    if res.verdict == _rs.PLAN_HOLDER_HELD:
+        held_run = res.run_id or "unknown"
+        return (
+            f"refused: {verb_label}: plan '{plan_id}' is held by live run '{held_run}'. "
+            f"To proceed, either wait for run '{held_run}' to finish, stop it with "
+            f"'aw oc run stop {held_run}' or 'aw agy run stop {held_run}', "
+            f"or override with --take-over '<reason>'."
+        )
+    if res.verdict == _rs.PLAN_HOLDER_UNDETERMINABLE:
+        if res.reason_code == "foreign-machine":
+            foreign_host = res.host or "unknown"
+            held_run = res.run_id or "unknown"
+            return (
+                f"refused: {verb_label}: plan '{plan_id}' holder status is undeterminable because run '{held_run}' was created on foreign machine '{foreign_host}'. "
+                f"To proceed, either wait for run '{held_run}' on machine '{foreign_host}', stop it with "
+                f"'aw oc run stop {held_run}' or 'aw agy run stop {held_run}', "
+                f"or override with --take-over '<reason>'."
+            )
+        held_run_part = f" for run '{res.run_id}'" if res.run_id else ""
+        return (
+            f"refused: {verb_label}: plan '{plan_id}' holder status is undeterminable{held_run_part}: {res.reason}. "
+            f"To proceed, resolve the condition, stop any conflicting run with "
+            f"'aw oc run stop <run-id>' or 'aw agy run stop <run-id>', "
+            f"or override with --take-over '<reason>'."
+        )
+    return f"refused: {verb_label}: plan '{plan_id}' holder check failed: {res.reason}"
 
 
 def _refuse_worker_role_verb(verb: str) -> int:
@@ -1838,10 +1817,17 @@ def begin(
     *,
     timestamp: str,
     isolated_baseline: bool = False,
+    run_id: Optional[str] = None,
+    take_over: Optional[str] = None,
+    env: Optional[Mapping[str, str]] = None,
 ) -> BeginResult:
     """Run the fail-closed pre-execution gate and, on success, write the atomic begin receipt.
 
     Ordered fail-closed checks (each leaves NO valid receipt on failure):
+      0. worker-role check (wtiso-03 E-05 / lifegate e25iy9 E-02): a managed WORKER may not create
+         lifecycle authority. Checked FIRST, before any actor check, gate, or receipt write;
+      0b. plan-scoped holder check (lifegate e25iy9 E-03 / E-05 / E-07): refuses when another live
+         run holds this plan or holder status is undeterminable;
       1. ``--actor`` is present, non-empty, and passes ``attention_contract.actor_refusal`` (the
          same shape finalize enforces, so a turn is never spent on an unfinalizable actor);
       2. the plan file exists and parses to a valid ``- Id:`` id6;
@@ -1880,6 +1866,59 @@ def begin(
     from agent_workflows import ipd_schema as _schema
     from agent_workflows import run_freeze
     from agent_workflows.run_evidence import get_git_head
+
+    # wtiso-03 E-05 / lifegate e25iy9 E-02: a managed WORKER may not create lifecycle authority.
+    # Checked FIRST, before any actor check, gate, or receipt write, so a refused call has NO
+    # side effect.
+    if worker_role_active(os.environ if env is None else env):
+        return BeginResult(
+            EXIT_CANNOT_RUN,
+            None,
+            None,
+            f"{LIFECYCLE_ROLE_ERROR} (refused: pre-execution begin receipt). The runner performs "
+            "begin/finalize for this lane from the coordinator role; report your result instead "
+            "(write the outcome file the prompt names) and let the driver transition the plan.",
+            findings=(ROLLUP_REFUSED_WORKER_ROLE,),
+        )
+
+    # lifegate e25iy9 E-03 / E-05 / E-07: plan-scoped holder check. Sited immediately after the role gate.
+    # FENCE (e25iy9 E-05): The holder exception MUST come from the explicit `run_id` argument and
+    # MUST NEVER be defaulted from `AW_RUN_ID` or any other environment variable. Both hosts export
+    # `AW_RUN_ID` into the worker child environment for commit trailers; defaulting from the
+    # environment would silently grant the worker the exception that D2 denies it.
+    if take_over is not None and not take_over.strip():
+        return BeginResult(
+            EXIT_CANNOT_RUN,
+            None,
+            None,
+            "--take-over requires a non-empty reason.",
+        )
+
+    take_over_data: Optional[Dict[str, Any]] = None
+    plan_id_for_holder = _extract_plan_id(plan_path)
+    if plan_id_for_holder:
+        from agent_workflows import runner_shared as _rs
+
+        holder_res = _rs.plan_holder(
+            repo_root, plan_id_for_holder, exclude_run_id=run_id
+        )
+        if holder_res.verdict in (_rs.PLAN_HOLDER_HELD, _rs.PLAN_HOLDER_UNDETERMINABLE):
+            if take_over and take_over.strip():
+                take_over_data = {
+                    "reason": take_over.strip(),
+                    "overridden_run_id": holder_res.run_id,
+                    "host": holder_res.host,
+                }
+            else:
+                return BeginResult(
+                    EXIT_CANNOT_RUN,
+                    None,
+                    None,
+                    _format_plan_holder_refusal(
+                        "pre-execution begin receipt", plan_id_for_holder, holder_res
+                    ),
+                    findings=(ROLLUP_REFUSED_PLAN_HELD,),
+                )
 
     # 1. actor required (non-empty).
     if not actor or not actor.strip():
@@ -2030,6 +2069,8 @@ def begin(
             "advisories": [f"{a.code} {a.message}" for a in lint_res.advisories],
         },
     }
+    if take_over_data is not None:
+        receipt["take_over"] = take_over_data
 
     # Atomic write - an interrupted write leaves no valid receipt.
     _atomic_write_json(rcpt_path, receipt)
@@ -4203,6 +4244,10 @@ ROLLUP_SHARED_GATES: Tuple[str, ...] = (
     # inherited: `worker_role_active` is checked in the CLI wrappers `run_begin`/`run_finalize`, not
     # inside `finalize()`, so this path had to check it itself. See E-06.
     "worker-role-refusal",
+    # Live holder refusal (lifegate-02 `e25iy9` E-06). Checked inside all core transitions so
+    # a plan held by a live run refuses both rollup retirement and finalize unless passed the holder's
+    # run id or overridden with --take-over.
+    "plan-holder-refusal",
     # Non-empty actor and message (`finalize` :1730-1737): an unattributed terminal record is not a
     # record.
     "actor-and-message-required",
@@ -4286,7 +4331,7 @@ ROLLUP_REFUSED_NOT_ORCHESTRATOR = "not-an-orchestrator"
 ROLLUP_REFUSED_SET_INELIGIBLE = "set-ineligible"
 ROLLUP_REFUSED_ALREADY_TERMINAL = "already-terminal"
 ROLLUP_REFUSED_WORKER_ROLE = "worker-role"
-ROLLUP_REFUSED_NO_DRIVER_ATTESTATION = "no-driver-attestation"
+ROLLUP_REFUSED_PLAN_HELD = "plan-held-by-live-run"
 ROLLUP_REFUSED_UNOWNED_EDIT = "unowned-edit-to-plan"
 ROLLUP_REFUSED_NONCONFORMING_ROWS = "nonconforming-orchestrator-rows"
 
@@ -4416,7 +4461,7 @@ def retire_orchestrator(
     apply: bool = False,
     fault_injection: Optional[str] = None,
     env: Optional[Mapping[str, str]] = None,
-    driver_attestation: Optional[str] = None,
+    take_over: Optional[str] = None,
 ) -> FinalizeResult:
     """RETIRE an Order-0 orchestrator as a runner rollup step (spec `77tr3o` R-4/R-5/R-6).
 
@@ -4485,24 +4530,48 @@ def retire_orchestrator(
             (ROLLUP_REFUSED_WORKER_ROLE,),
         )
 
-    # --- GATE: driver attestation. Sited immediately after the role gate. Inside a lane worktree,
-    # the terminal transition requires a verified per-run driver attestation.
-    if lane_worktree_active(repo_root):
-        attest_val = driver_attestation
-        if attest_val is None:
-            attest_val = (os.environ if env is None else env).get(DRIVER_ATTEST_ENV)
-        ok, reason = verify_driver_attestation(repo_root, attest_val)
-        if not ok:
-            return FinalizeResult(
-                EXIT_CANNOT_RUN,
-                None,
-                f"{LIFECYCLE_ROLE_ERROR} (refused: orchestrator rollup retirement in lane '{repo_root}': {reason}). "
-                "Unsetting AW_EXECUTION_ROLE does NOT grant driver authority; running this yourself "
-                "consumes the driver's begin receipt and strands the lane. Write the outcome file named "
-                "in your turn prompt and stop.",
-                evidence,
-                (ROLLUP_REFUSED_NO_DRIVER_ATTESTATION,),
-            )
+    # PR-002: Reusing `run_id` for both the provenance record in `rollup_history_message` and the
+    # holder exception in `plan_holder(..., exclude_run_id=run_id)` is safe and deliberate here:
+    # `retire_orchestrator` is called solely by the runner coordinator during rollup for the active run,
+    # so the retiring runner is identically the holding run; the two meanings cannot diverge.
+    #
+    # FENCE (e25iy9 E-05): The holder exception MUST come from the explicit `run_id` argument and
+    # MUST NEVER be defaulted from `AW_RUN_ID` or any other environment variable. Both hosts export
+    # `AW_RUN_ID` into the worker child environment for commit trailers; defaulting from the
+    # environment would silently grant the worker the exception that D2 denies it.
+    if take_over is not None and not take_over.strip():
+        return FinalizeResult(
+            EXIT_CANNOT_RUN,
+            None,
+            "--take-over requires a non-empty reason.",
+            evidence,
+        )
+
+    take_over_data: Optional[Dict[str, Any]] = None
+    plan_id_for_holder = _extract_plan_id(plan_path)
+    if plan_id_for_holder:
+        from agent_workflows import runner_shared as _rs
+
+        holder_res = _rs.plan_holder(
+            repo_root, plan_id_for_holder, exclude_run_id=run_id
+        )
+        if holder_res.verdict in (_rs.PLAN_HOLDER_HELD, _rs.PLAN_HOLDER_UNDETERMINABLE):
+            if take_over and take_over.strip():
+                take_over_data = {
+                    "reason": take_over.strip(),
+                    "overridden_run_id": holder_res.run_id,
+                    "host": holder_res.host,
+                }
+            else:
+                return FinalizeResult(
+                    EXIT_CANNOT_RUN,
+                    None,
+                    _format_plan_holder_refusal(
+                        "orchestrator rollup retirement", plan_id_for_holder, holder_res
+                    ),
+                    evidence,
+                    (ROLLUP_REFUSED_PLAN_HELD,),
+                )
 
     # --- GATE: actor required (mirrors `finalize`). The message is DERIVED here rather than passed
     # in, because R-4 fixes what it must say; there is no caller-supplied wording to validate.
@@ -4643,6 +4712,9 @@ def retire_orchestrator(
         m.id6 for m in _rs.read_set_membership(repo_root, setid).children
     ]
     message = rollup_history_message(setid=setid, run_id=run_id, children=justifying)
+    if take_over_data is not None:
+        overridden_id = take_over_data["overridden_run_id"] or "<unknown>"
+        message = f"{message}; override: live holder run '{overridden_id}' overridden: {take_over_data['reason']}"
     evidence["history_message"] = message
     evidence["shared_gates"] = list(ROLLUP_SHARED_GATES)
     evidence["omitted_gates"] = dict(ROLLUP_OMITTED_GATES)
@@ -4705,7 +4777,8 @@ def finalize(
     plan_selector: Optional[str] = None,
     fault_injection: Optional[str] = None,
     env: Optional[Mapping[str, str]] = None,
-    driver_attestation: Optional[str] = None,
+    run_id: Optional[str] = None,
+    take_over: Optional[str] = None,
 ) -> FinalizeResult:
     """The atomic terminal transaction for one IPD (precheck + two-way reconciliation + transition).
 
@@ -4759,24 +4832,43 @@ def finalize(
             (ROLLUP_REFUSED_WORKER_ROLE,),
         )
 
-    # --- GATE: driver attestation. Sited immediately after the role gate. Inside a lane worktree,
-    # the terminal transition requires a verified per-run driver attestation.
-    if lane_worktree_active(repo_root):
-        attest_val = driver_attestation
-        if attest_val is None:
-            attest_val = (os.environ if env is None else env).get(DRIVER_ATTEST_ENV)
-        ok, reason = verify_driver_attestation(repo_root, attest_val)
-        if not ok:
-            return FinalizeResult(
-                EXIT_CANNOT_RUN,
-                None,
-                f"{LIFECYCLE_ROLE_ERROR} (refused: terminal finalize transaction in lane '{repo_root}': {reason}). "
-                "Unsetting AW_EXECUTION_ROLE does NOT grant driver authority; running this yourself "
-                "consumes the driver's begin receipt and strands the lane. Write the outcome file named "
-                "in your turn prompt and stop.",
-                evidence,
-                (ROLLUP_REFUSED_NO_DRIVER_ATTESTATION,),
-            )
+    # FENCE (e25iy9 E-05): The holder exception MUST come from the explicit `run_id` argument and
+    # MUST NEVER be defaulted from `AW_RUN_ID` or any other environment variable. Both hosts export
+    # `AW_RUN_ID` into the worker child environment for commit trailers; defaulting from the
+    # environment would silently grant the worker the exception that D2 denies it.
+    if take_over is not None and not take_over.strip():
+        return FinalizeResult(
+            EXIT_CANNOT_RUN,
+            None,
+            "--take-over requires a non-empty reason.",
+            evidence,
+        )
+
+    take_over_data: Optional[Dict[str, Any]] = None
+    plan_id_for_holder = _extract_plan_id(plan_path)
+    if plan_id_for_holder:
+        from agent_workflows import runner_shared as _rs
+
+        holder_res = _rs.plan_holder(
+            repo_root, plan_id_for_holder, exclude_run_id=run_id
+        )
+        if holder_res.verdict in (_rs.PLAN_HOLDER_HELD, _rs.PLAN_HOLDER_UNDETERMINABLE):
+            if take_over and take_over.strip():
+                take_over_data = {
+                    "reason": take_over.strip(),
+                    "overridden_run_id": holder_res.run_id,
+                    "host": holder_res.host,
+                }
+            else:
+                return FinalizeResult(
+                    EXIT_CANNOT_RUN,
+                    None,
+                    _format_plan_holder_refusal(
+                        "terminal finalize transaction", plan_id_for_holder, holder_res
+                    ),
+                    evidence,
+                    (ROLLUP_REFUSED_PLAN_HELD,),
+                )
 
     if not actor or not actor.strip():
         return FinalizeResult(
@@ -4799,6 +4891,9 @@ def finalize(
         return FinalizeResult(
             EXIT_CANNOT_RUN, None, "finalize requires a non-empty --message."
         )
+    if take_over_data is not None:
+        overridden_id = take_over_data["overridden_run_id"] or "<unknown>"
+        message = f"{message} (override: live holder run '{overridden_id}' overridden: {take_over_data['reason']})"
     if not plan_path.is_file():
         return FinalizeResult(
             EXIT_CANNOT_RUN, None, f"plan file not found: {plan_path}"
@@ -5634,6 +5729,8 @@ def run_begin(args) -> int:
         actor or "",
         timestamp=now,
         isolated_baseline=isolated_baseline,
+        run_id=getattr(args, "run_id", None),
+        take_over=getattr(args, "take_over", None),
     )
 
     if result.exit_code == EXIT_OK and result.receipt is not None:
@@ -5827,6 +5924,8 @@ def run_finalize(args) -> int:
         interactive=interactive,
         prompt=prompt,
         plan_selector=selector,
+        run_id=getattr(args, "run_id", None),
+        take_over=getattr(args, "take_over", None),
     )
 
     if result.exit_code == EXIT_OK:

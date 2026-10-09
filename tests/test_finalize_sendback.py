@@ -1310,7 +1310,7 @@ class FinalizeLockContentionTests(unittest.TestCase):
         events = []
         call_count = [0]
 
-        def fake_driver_finalize(repo, plan_path, id6, actor, msg, attestation=None):
+        def fake_driver_finalize(repo, plan_path, id6, actor, msg, run_id=None):
             call_count[0] += 1
             if call_count[0] == 1:
                 return 1, self.LOCK_BUSY_REFUSAL
@@ -1386,7 +1386,7 @@ class FinalizeLockContentionTests(unittest.TestCase):
         lane_repo = Path("/tmp/lane_worktree_123")
         called_repos = []
 
-        def fake_driver_finalize(repo, plan_path, id6, actor, msg, attestation=None):
+        def fake_driver_finalize(repo, plan_path, id6, actor, msg, run_id=None):
             called_repos.append(repo)
             return 1, self.LOCK_BUSY_REFUSAL
 

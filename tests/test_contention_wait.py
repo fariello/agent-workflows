@@ -241,7 +241,7 @@ class ContentionWaitCallSiteTests(unittest.TestCase):
 
                     finalize_calls = [0]
 
-                    def fake_driver_finalize(r, p, id6, actor, msg, attestation=None):
+                    def fake_driver_finalize(r, p, id6, actor, msg, run_id=None):
                         finalize_calls[0] += 1
                         ipd_lifecycle.acquire_finalize_lock(
                             r,

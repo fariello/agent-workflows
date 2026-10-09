@@ -28,6 +28,7 @@
   policy's INVENTORY without weakening or re-deciding R-5.
 
 ## Workflow history
+- 2026-10-09 note (aw specs): AMENDED 2026-10-09 by lifegate Order 02 (e25iy9): 3.2 corrected to note that the worker-role check is inside the core functions (ipd_lifecycle.begin/finalize/retire_orchestrator), and C-8 extended to name the held-by-a-live-run refusal as a second lifecycle invariant.
 - 2026-09-20 to-review (aw set): Authored by plan u06zo2 from backlog rxya25. Inventories 6 automated lifecycle-advance surfaces at HEAD 2c316ef0 with citations plus the exhaustiveness searches; classifies 10 candidate conditions as POLICY or INVARIANT; answers all five of the item's design questions, THREE from attested maintainer rulings (OQ-01 default permissive 2026-09-08, OQ-02 both directions 2026-09-08, OQ-04 distinguishability 2026-09-10) and TWO from the plan's reviewed recommendation and explicitly marked UNATTESTED in section 5.6 (OQ-03 pair key, OQ-05 retirement scope). Specifies one predicate with a three-way verdict whose single-authority requirement covers the transition CALL as well as the decision, extends auto-approved and TRANSITION_AUTHORITY by name, and authorizes no code change. NOT approved: approving it is the act that attests the two open answers and is the maintainer's --by-human.
 
 - 2026-09-20 created (aw specs): One configurable, argument-overridable policy deciding how far automation may advance an artifact along the lifecycle, consulted by a single shared predicate. Specification only; authorizes no code change.
@@ -134,8 +135,8 @@ is that landing.
 | Automated actor may perform it | YES. The driver calls it with `driver_actor(state)` (`runner_shared.py:14221`), e.g. `aw oc run model=<model>` |
 
 NOTE the `isolated` parameter selects WHICH baseline condition (6) measures, and does not skip it
-(`ipd_lifecycle.py:1244-1257`). A worker-role process is refused outright at the CLI wrapper
-(`ipd_lifecycle.run_begin`), which Section 4.2 classifies as an invariant.
+(`ipd_lifecycle.py:1244-1257`). A worker-role process is refused outright inside the core function
+(`ipd_lifecycle.begin`), which Section 4.2 classifies as an invariant.
 
 ### 3.3 `aw ipd finalize`: the terminal transition
 
@@ -278,7 +279,7 @@ A condition on the policy surface is, by construction, one a maintainer can turn
 | C-5 | Out-of-scope changed paths needing `--scope-reason` | `ipd_lifecycle.finalize` (`:3437-3460`), `_compute_scope_reconciliation` on the driver side (`oc_runipd.py:1355`) | INVARIANT that the DEMAND is made; POLICY whether an automated actor may ANSWER it | The demand for a reason is not negotiable: a silent out-of-scope edit is the thing the gate exists to surface. But TODAY the driver answers it programmatically and unattended, which is a real automation decision presently hardcoded. That half belongs on the policy surface |
 | C-6 | A `Blocks-Release` gate on the artifact | `check_engine.evaluate_blocking_close` (`:2539`), three surfaces | INVARIANT for `->done`; POLICY for the warned transitions | The `->done` branch fails closed and offers three explicit fixes, one of which (`--blocks-release -`) already de-gates deliberately. An override that let automation close a gated item WITHOUT one of the three fixes would make the release-blocker set unreliable, which is the one property the field exists to provide. The `->parked` and priority-demotion branches already only WARN, and whether they should refuse is a genuine policy question |
 | C-7 | Whether an automated actor may write a TERMINAL state at all | Nowhere as a single question; answered per site (3.3, 3.4, 3.6) | POLICY | This is the item's sharpest question and it is a policy one: automation writes terminal states today (3.6), a maintainer might reasonably forbid it, and both postures are coherent. Section 6.4 keeps the two transitions that must never be automated out of reach regardless |
-| C-8 | The worker/coordinator ROLE of the process | `ipd_lifecycle.worker_role_active` in `run_begin`/`run_finalize` and in `retire_orchestrator` (`ipd_lifecycle.py:3180-3186`) | INVARIANT | A worker-role process must not create lifecycle authority. This is a containment property (spec `7ckptx`), not a lifecycle-advance judgement, and a policy that could relax it would let a lane grant itself authority its container denies |
+| C-8 | The worker/coordinator ROLE and plan HOLDER status | `ipd_lifecycle.worker_role_active` and `runner_shared.plan_holder` in `begin`, `finalize`, and `retire_orchestrator` | INVARIANT | A worker-role process must not create lifecycle authority, and a plan held by a live run refuses lifecycle transitions for any other caller unless overridden with `--take-over`. These are containment and concurrency invariants (spec `7ckptx`), not lifecycle-advance judgements, and a policy that could relax them would let a lane grant itself authority its container denies or let two runs clobber each other's plans |
 | C-9 | The ACTOR being non-empty and parenthesis-free | `attention_contract.actor_refusal`, backstopped in `status_set.apply_status_change` (`:658-662`) | INVARIANT | An unattributed record is not a record. Nothing is gained by making this settable |
 | C-10 | Nested tool identity | `assert_child_tool_identity` (`oc_runipd.py:725`), run-fatal | INVARIANT | If the tooling performing a transition is not the tooling that gated it, every gate in this document is void. Explicitly run-fatal today rather than item-local, and that is correct |
 

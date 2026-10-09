@@ -2112,6 +2112,8 @@ def _delegate_plan_executed_to_finalize(
             scope_reasons=scope_reasons,
             scope_acks=scope_acks,
             plan_selector=selector,
+            run_id=getattr(args, "run_id", None),
+            take_over=getattr(args, "take_over", None),
         )
         if ctx.is_agent or ctx.is_json:
             status = {0: "clean", 1: "findings", 2: "cannot-run"}.get(

@@ -410,7 +410,6 @@ class LifecycleEndToEndTests(unittest.TestCase):
         run_id = "run-20260824T000000Z-123456"
         run_dir = self.root / ".aw" / "records" / "runs" / run_id
         run_dir.mkdir(parents=True, exist_ok=True)
-        self.attestation = LC.mint_driver_attestation(run_dir)
 
         self.parser = cli._build_parser()
 
@@ -459,7 +458,6 @@ class LifecycleEndToEndTests(unittest.TestCase):
             message="complete execution",
             apply=False,
             env={},
-            driver_attestation=self.attestation,
         )
         self.assertEqual(
             res_preview.exit_code,
@@ -475,7 +473,6 @@ class LifecycleEndToEndTests(unittest.TestCase):
             message="complete execution",
             apply=True,
             env={},
-            driver_attestation=self.attestation,
         )
         self.assertEqual(
             res_apply.exit_code,
@@ -519,7 +516,6 @@ class LifecycleEndToEndTests(unittest.TestCase):
             message="complete execution",
             apply=False,
             env={},
-            driver_attestation=self.attestation,
         )
         self.assertEqual(res_preview.exit_code, LC.EXIT_FINDINGS)
         self.assertTrue(

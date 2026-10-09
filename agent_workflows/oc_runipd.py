@@ -1195,7 +1195,12 @@ def driver_actor(state: dict[str, Any]) -> str:
 # an ISOLATED `aw agy run` turn asked `aw ipd begin` to gate on the MAIN tree while the turn would
 # execute in a LANE. Both hosts now reach this one launcher, so that asymmetry cannot recur.
 def driver_begin(
-    repo: Path, id6: str, actor: str, *, isolated: bool = False
+    repo: Path,
+    id6: str,
+    actor: str,
+    *,
+    isolated: bool = False,
+    run_id: str | None = None,
 ) -> tuple[int, str]:
     """Run the fail-closed `aw ipd begin <id6> --actor` gate before an execute turn.
 
@@ -1206,6 +1211,7 @@ def driver_begin(
         id6,
         actor,
         isolated=isolated,
+        run_id=run_id,
         env_builder=pinned_child_env,
         argv_builder=pinned_module_argv,
     )
@@ -1228,7 +1234,8 @@ def driver_finalize(
     id6: str,
     actor: str,
     message: str,
-    attestation: str | None = None,
+    *,
+    run_id: str | None = None,
 ) -> tuple[int, str]:
     """Run `aw ipd finalize <id6> --actor --message --apply` after a verified turn.
 
@@ -1246,7 +1253,7 @@ def driver_finalize(
         labels=runner_shared.OC_HOST_LABELS,
         env_builder=pinned_child_env,
         argv_builder=pinned_module_argv,
-        attestation=attestation,
+        run_id=run_id,
     )
 
 
@@ -2906,8 +2913,8 @@ def run_opencode(
     from agent_workflows import ipd_lifecycle
 
     child_env = pinned_child_env()
-    child_env.pop(ipd_lifecycle.DRIVER_ATTEST_ENV, None)
-    if work_dir:
+    self_finalize = options.get("self_finalize", True)
+    if work_dir and self_finalize:
         child_env[ipd_lifecycle.EXECUTION_ROLE_ENV] = ipd_lifecycle.ROLE_WORKER
     else:
         child_env.pop(ipd_lifecycle.EXECUTION_ROLE_ENV, None)

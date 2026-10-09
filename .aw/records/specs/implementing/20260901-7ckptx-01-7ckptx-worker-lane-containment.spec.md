@@ -12,6 +12,7 @@
 
 ## Workflow history
 
+- 2026-10-09 note (aw specs): AMENDED 2026-10-09 by lifegate Order 02 (e25iy9): R4.5 and A11 amended to restate that driver-owned lifecycle verbs refuse for a worker-labelled caller, and that for any other caller refusal is conditioned on a live run holding the plan, anywhere, not on location.
 - 2026-10-09 note (aw specs): Narrow R2.5: an item that recorded no attempt in a lane and has no submission under its lane submission root has nothing to collect in that lane (45z93e)
 - 2026-10-08 note (aw specs): AMENDED 2026-10-08 (nvymif-01 z8ex9f): R2.5 narrowed to distinguish provably-empty lanes from uncollected submissions; R5.5 updated to four conditions; R5.7 added to block teardown on unlanded lane commits; A21 added to pin the six-shape classification table.
 - 2026-10-08 implementing (aw set): status set to implementing
@@ -410,8 +411,9 @@ small in either direction. Uniform was chosen because a supervision rule that ap
 case leaves the rare case as the one nobody notices is unguarded.
 
 R4.5 An isolated turn's child environment MUST carry the execution-role selector that causes
-driver-owned lifecycle verbs to refuse inside a lane. Any artifact describing it MUST state that it is
-an environment selector and not a hardened boundary.
+driver-owned lifecycle verbs to refuse for a worker-labelled caller. For any other caller, refusal of
+driver-owned lifecycle verbs is conditioned on a live run holding the plan, anywhere, not on location. Any
+artifact describing it MUST state that it is an environment selector and not a hardened boundary.
 
 R4.6 R4.1 MUST NOT be delivered before R1.1. Denying access to paths the prompt still names would
 convert a currently-working run into a hard failure. MEASURED: on opencode 1.18.25 with `--auto` and no
@@ -641,8 +643,9 @@ re-flag it as a traceability gap.
   the disposition is the safe-failure value, the reason names which bound fired, and the termination is
   attributable to the shared reaper with no second reaper introduced (checked structurally, not by text
   grep, since a test file contains the symbols). (R4.4)
-- A11. An in-lane invocation of a driver-owned lifecycle verb refuses with the documented code and
-  performs NO state transition; the driver's own invocation still succeeds. (R4.5)
+- A11. An in-lane invocation of a driver-owned lifecycle verb by a worker-labelled caller refuses with the
+  documented code and performs NO state transition; for any other caller, refusal is conditioned on a
+  live run holding the plan; the driver's own invocation still succeeds. (R4.5)
 - A12. Materialize a lane: every manifest entry records a copy with a source digest; no listed path is a
   symlink; and each listed file's inode link count and identity establish it is NOT a hard link to a file
   outside the lane. (R5.1, R5.2)

@@ -2963,7 +2963,8 @@ class GateParityBetweenTheTwoPaths(unittest.TestCase):
     #: Every gate that MUST appear in `ROLLUP_SHARED_GATES`, with the `ipd_lifecycle` evidence for why
     #: it is a real gate on the main path. Written out here so this test is readable as the contract.
     _REQUIRED_SHARED = {
-        "worker-role-refusal": "run_begin/run_finalize check worker_role_active",
+        "worker-role-refusal": "begin, finalize, and retire_orchestrator check worker_role_active",
+        "plan-holder-refusal": "begin, finalize, and retire_orchestrator check plan_holder",
         "actor-and-message-required": "finalize refuses an empty actor/message",
         "early-crash-recovery": "finalize resumes/rolls back a prior journal first",
         "exclusive-finalize-lock": "acquire_finalize_lock, released in finally",

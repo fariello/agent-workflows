@@ -129,7 +129,6 @@ import contextlib
 import datetime as dt
 import functools
 import hashlib
-import inspect
 import json
 import os
 import re
@@ -426,39 +425,6 @@ def mint_run_dir(
         f"could not mint a free run directory under {root} after 99 attempts; something is "
         f"creating run directories faster than this process can name them"
     )
-
-
-_RUN_ATTESTATIONS: dict[str, str] = {}
-
-
-def get_run_attestation(run_dir: Path | str | None) -> str | None:
-    """Retrieve the in-memory driver attestation for a run directory, or load from token file if present."""
-    if run_dir is None:
-        return None
-    rd = Path(run_dir).resolve()
-    val = _RUN_ATTESTATIONS.get(str(rd))
-    if val is not None:
-        return val
-    from agent_workflows import ipd_lifecycle as _lifecycle
-
-    token_file = rd / _lifecycle.DRIVER_ATTEST_FILENAME
-    if token_file.is_file():
-        try:
-            token = token_file.read_text(encoding="utf-8").strip()
-            if token:
-                attestation = f"{rd.name}:{token}"
-                _RUN_ATTESTATIONS[str(rd)] = attestation
-                return attestation
-        except OSError:
-            pass
-    if rd.is_dir():
-        try:
-            attestation = _lifecycle.mint_driver_attestation(rd)
-            _RUN_ATTESTATIONS[str(rd)] = attestation
-            return attestation
-        except OSError:
-            pass
-    return None
 
 
 _HELD_RUN_LOCKS: dict[str, Any] = {}
@@ -21432,7 +21398,6 @@ def dispatch_orchestrator_item(
                     children=[m.id6 for m in read_set_membership(repo, setid).children],
                     eligibility=eligibility,
                     apply=True,
-                    driver_attestation=get_run_attestation(run_dir),
                 )
         if decision.outcome == ORCH_DISPATCH_RETIRE:
             if result is not None and result.exit_code == 0:
@@ -28247,6 +28212,7 @@ def driver_begin(
     isolated: bool = False,
     env_builder: Callable[[], Mapping[str, str]] | None = None,
     argv_builder: Callable[[Sequence[str]], list[str]] | None = None,
+    run_id: str | None = None,
 ) -> tuple[int, str]:
     """Run the fail-closed `aw ipd begin <id6> --actor` gate before an execute turn.
 
@@ -28285,6 +28251,8 @@ def driver_begin(
             str(repo),
         ]
     )
+    if run_id:
+        cmd.extend(["--run-id", run_id])
     result = subprocess.run(
         cmd,
         cwd=str(repo),
@@ -29960,7 +29928,8 @@ def build_verifier_prompt(
             diff_basis=diff_basis,
         )
     role_notice = ipd_lifecycle.runner_owns_lifecycle_notice(
-        bool(state.get("options", {}).get("self_finalize", True))
+        bool(state.get("options", {}).get("self_finalize", True)),
+        run_id=str(state.get("run_id") or "") or None,
     )
     role_block = f"{role_notice}\n" if role_notice else ""
     return f"""# Independent Rigorous Verification of Executed IPD
@@ -30357,7 +30326,8 @@ def build_prompt(
     # calling `driver_begin` (`state["options"]["self_finalize"]`, defaulting True), so the prompt can
     # never claim an ownership the run does not have.
     role_notice = ipd_lifecycle.runner_owns_lifecycle_notice(
-        bool(state.get("options", {}).get("self_finalize", True))
+        bool(state.get("options", {}).get("self_finalize", True)),
+        run_id=str(state.get("run_id") or "") or None,
     )
     role_block = f"\n{role_notice}" if role_notice else ""
     budget_notice = build_turn_budget_notice(state)
@@ -30952,11 +30922,6 @@ def initialize_run_core(
     (run_dir / "decisions-and-questions.md").write_text(
         f"# Decisions and Questions for {run_id}\n\n", encoding="utf-8"
     )
-
-    from agent_workflows import ipd_lifecycle as _lifecycle
-
-    attestation = _lifecycle.mint_driver_attestation(run_dir)
-    _RUN_ATTESTATIONS[str(run_dir.resolve())] = attestation
 
     if manifest_path is None:
         manifest_path = run_dir / "manifest.json"
@@ -31651,7 +31616,7 @@ def driver_finalize(
     labels: HostLabels,
     env_builder: Callable[[], Mapping[str, str]],
     argv_builder: Callable[[Sequence[str]], list[str]],
-    attestation: str | None = None,
+    run_id: str | None = None,
 ) -> tuple[int, str]:
     """Run `aw ipd finalize <id6> --actor --message --apply` after a verified turn.
 
@@ -31693,11 +31658,9 @@ def driver_finalize(
         cmd.extend(["--scope-reason", f"{path}={reason}"])
     for path, note in acks.items():
         cmd.extend(["--scope-ack", f"{path}={note}"])
+    if run_id:
+        cmd.extend(["--run-id", run_id])
     env = dict(env_builder())
-    if attestation:
-        from agent_workflows import ipd_lifecycle as _lifecycle
-
-        env[_lifecycle.DRIVER_ATTEST_ENV] = attestation
     result = subprocess.run(
         cmd,
         cwd=str(repo),
@@ -32136,12 +32099,6 @@ def locked_run(run_dir: Path):
         try:
             yield lock
         finally:
-            from agent_workflows import ipd_lifecycle as _lifecycle
-
-            token_path = run_dir / _lifecycle.DRIVER_ATTEST_FILENAME
-            with contextlib.suppress(OSError):
-                token_path.unlink(missing_ok=True)
-            _RUN_ATTESTATIONS.pop(str(run_dir.resolve()), None)
             report = runner_shutdown.clean_shutdown(
                 lock=lock, run_dir=run_dir, repo=repo
             )
@@ -34147,6 +34104,28 @@ def refreeze_stale_receipt_for_correction(
     return ok
 
 
+def _call_driver_begin(
+    driver_begin_fn: Any,
+    repo: Path,
+    id6: str,
+    actor: str,
+    *,
+    isolated: bool = False,
+    run_id: str | None = None,
+) -> tuple[int, str]:
+    try:
+        if isolated:
+            return driver_begin_fn(repo, id6, actor, isolated=True, run_id=run_id)
+        return driver_begin_fn(repo, id6, actor, run_id=run_id)
+    except TypeError:
+        if isolated:
+            try:
+                return driver_begin_fn(repo, id6, actor, isolated=True)
+            except TypeError:
+                return driver_begin_fn(repo, id6, actor)
+        return driver_begin_fn(repo, id6, actor)
+
+
 def _call_driver_finalize(
     driver_finalize_fn: Any,
     repo: Path,
@@ -34154,32 +34133,25 @@ def _call_driver_finalize(
     id6: str,
     actor: str,
     message: str,
-    attestation: str | None = None,
+    run_id: str | None = None,
 ) -> tuple[int, str]:
     try:
-        sig = inspect.signature(driver_finalize_fn)
-        has_kw = "attestation" in sig.parameters or any(
-            p.kind == inspect.Parameter.VAR_KEYWORD for p in sig.parameters.values()
-        )
-    except (ValueError, TypeError):
-        has_kw = True
-
-    if has_kw:
         return driver_finalize_fn(
             repo,
             plan_path,
             id6,
             actor,
             message,
-            attestation=attestation,
+            run_id=run_id,
         )
-    return driver_finalize_fn(
-        repo,
-        plan_path,
-        id6,
-        actor,
-        message,
-    )
+    except TypeError:
+        return driver_finalize_fn(
+            repo,
+            plan_path,
+            id6,
+            actor,
+            message,
+        )
 
 
 def finalize_with_contention_retry(
@@ -34190,7 +34162,7 @@ def finalize_with_contention_retry(
     actor: str,
     message: str,
     *,
-    attestation: str | None = None,
+    run_id: str | None = None,
     item: dict[str, Any],
     run_dir: Path,
     append_jsonl: Callable[..., Any],
@@ -34212,7 +34184,7 @@ def finalize_with_contention_retry(
         id6,
         actor,
         message,
-        attestation=attestation,
+        run_id=run_id,
     )
     if fin_rc == 0 or not finalize_refusal_is_lock_contention(fin_msg):
         return fin_rc, fin_msg
@@ -34239,7 +34211,7 @@ def finalize_with_contention_retry(
             id6,
             actor,
             message,
-            attestation=attestation,
+            run_id=run_id,
         )
         if fin_rc == 0 or not finalize_refusal_is_lock_contention(fin_msg):
             return fin_rc, fin_msg
@@ -35199,10 +35171,15 @@ def execute_item_core(
     if self_finalize and not is_review and not is_production:
         actor = driver_actor(state, labels=host_labels)
         assert_child_tool_identity(run_dir / "events.jsonl", cwd=repo)
-        if isolate:
-            begin_rc, begin_msg = driver_begin(repo, item["id6"], actor, isolated=True)
-        else:
-            begin_rc, begin_msg = driver_begin(repo, item["id6"], actor)
+        run_id_val = str(state.get("run_id") or "") or None
+        begin_rc, begin_msg = _call_driver_begin(
+            driver_begin,
+            repo,
+            item["id6"],
+            actor,
+            isolated=isolate,
+            run_id=run_id_val,
+        )
         if begin_rc != 0:
             attempt["ended_at"] = utc_now()
             attempt["begin_refused"] = begin_msg
@@ -38910,7 +38887,7 @@ def execute_item_core(
                         item["id6"],
                         actor,
                         fin_message,
-                        attestation=get_run_attestation(run_dir),
+                        run_id=str(state.get("run_id") or "") or None,
                         item=item,
                         run_dir=run_dir,
                         append_jsonl=append_jsonl,
@@ -39423,7 +39400,7 @@ def execute_item_core(
                         item["id6"],
                         actor,
                         fin_message,
-                        attestation=get_run_attestation(run_dir),
+                        run_id=str(state.get("run_id") or "") or None,
                         item=item,
                         run_dir=run_dir,
                         append_jsonl=append_jsonl,
