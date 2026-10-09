@@ -83,6 +83,12 @@ def _drive_execute_turn(
         "repo": str(root),
         "run_id": "run-test",
         "queue": [item],
+        "host_capabilities": {
+            "descriptor": {
+                "supports_fresh_verifier_session": True,
+                "supports_session_resume": True,
+            }
+        },
         "options": {
             "isolate_worktrees": False,
             "self_finalize": False,

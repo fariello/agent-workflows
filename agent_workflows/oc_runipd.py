@@ -1222,7 +1222,7 @@ def driver_begin(
 # PERMANENT finalize record, which is why the shared version takes no default for it.
 def _compute_scope_reconciliation(
     repo: Path, plan_path: Path
-) -> tuple[dict[str, str], dict[str, str]]:
+) -> runner_shared.ScopeReconciliation:
     return runner_shared.compute_scope_reconciliation(
         repo, plan_path, labels=runner_shared.OC_HOST_LABELS
     )

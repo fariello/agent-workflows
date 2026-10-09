@@ -304,9 +304,7 @@ class DriverConflictSendbackTests(unittest.TestCase):
         pending = repo / ".aw" / "records" / "plans" / "pending"
         pending.mkdir(parents=True, exist_ok=True)
         plan_text = _CONFORMING_PLAN.format(id6=id6)
-        plan_text = plan_text.replace(
-            "Scope-Paths: src/demo.txt", "Scope-Paths: clash.txt"
-        )
+        plan_text = plan_text.replace("Scope-Paths: src/", "Scope-Paths: clash.txt")
         plan = pending / f"20260828-demo-01-{id6}-demo.ipd.md"
         plan.write_text(plan_text, encoding="utf-8")
         subprocess.run(["git", "add", "-A"], cwd=repo, check=True)

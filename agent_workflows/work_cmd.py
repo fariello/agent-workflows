@@ -588,7 +588,9 @@ def run_commit(args: argparse.Namespace) -> int:
     Optionally carries run-ownership trailers (``AW-Run``/``AW-Item``); see :func:`_trailers_from_args`.
     """
     raw = list(getattr(args, "path_argv", None) or [])
-    dir_val, paths = _split_remainder(raw)
+    has_marker = "--" in raw
+    dir_val, remainder_post = _split_remainder(raw)
+    paths = remainder_post if has_marker else []
     if dir_val and not getattr(args, "dir", None):
         args.dir = dir_val
     # Recover the SELECTOR and `--no-plan` from the pre-`--` segment. Neither can be read off the
@@ -668,10 +670,53 @@ def run_commit(args: argparse.Namespace) -> int:
             print(f"error: {err}")
             return 2
     if not paths:
-        print(
-            "error: aw commit requires paths after `--` (e.g. `aw commit <ipd> -- file.py`)"
+        if no_plan or not selector:
+            print(
+                "error: aw commit requires paths after `--` (e.g. `aw commit <ipd> -- file.py`)"
+            )
+            return 2
+        if not parsed_scope_reasons:
+            print(
+                "error: aw commit requires paths after '--' (or --scope-reason <path>=<why> to record justifications)"
+            )
+            return 2
+        assert plan_path is not None
+        try:
+            plan_text = plan_path.read_text(encoding="utf-8")
+        except OSError as exc:
+            print(f"error: cannot read plan: {exc}")
+            return 2
+        plan_id = _plan_id6(plan_text) or plan_path.stem
+
+        _rc, _msg, evidence, _findings = _life.finalize_precheck(repo_root, plan_path)
+        scope_audit = evidence.get("scope_audit", {}) or {}
+        out_of_scope_paths = set(scope_audit.get("out_of_scope_paths", []) or [])
+        invalid = [
+            p
+            for p in sorted(parsed_scope_reasons.keys())
+            if p not in out_of_scope_paths
+        ]
+        if invalid:
+            bad_path = invalid[0]
+            print(
+                f"error: aw commit: path {bad_path!r} is not an out-of-scope changed path for plan {plan_id!r}"
+            )
+            return 2
+        ok, detail = _life.record_scope_reasons(
+            repo_root, plan_id, parsed_scope_reasons
         )
-        return 2
+        if not ok:
+            print(
+                f"error: aw commit: cannot record scope reasons for {plan_id}: {detail}"
+            )
+            return 2
+        summary = ", ".join(
+            f"{p} ({r})" for p, r in sorted(parsed_scope_reasons.items())
+        )
+        print(
+            f"aw commit: recorded {len(parsed_scope_reasons)} scope justification(s) for {plan_id}: {summary}"
+        )
+        return 0
 
     scope_paths: List[str] = []
     is_grandfathered = False

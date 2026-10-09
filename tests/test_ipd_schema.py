@@ -423,6 +423,12 @@ class MetadataFieldVocabularyTests(unittest.TestCase):
             False,
             "OPTIONAL coverage record field (spec 25kzda 2.5e, IPD 8mabmu E-03); records date and model of check",
         ),
+        (
+            "Scope-Exceeded",
+            "META_SCOPE_EXCEEDED",
+            False,
+            "OPTIONAL reconciled out-of-scope metadata field (IPD psgyzw E-03); records reconciled paths at finalize",
+        ),
     )
 
     def test_every_recognized_field_has_the_requiredness_the_schema_promises(self):

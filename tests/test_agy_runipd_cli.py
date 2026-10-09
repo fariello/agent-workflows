@@ -154,9 +154,10 @@ class AgySelfFinalizeTests(unittest.TestCase):
             subprocess.run(["git", "add", "src/demo.txt"], cwd=repo, check=True)
             subprocess.run(["git", "commit", "-qm", "demo"], cwd=repo, check=True)
 
-            reasons, acks = agy_runipd._compute_scope_reconciliation(repo, plan)
+            reasons, acks, unj = agy_runipd._compute_scope_reconciliation(repo, plan)
             self.assertEqual(reasons, {})
             self.assertEqual(acks, {})
+            self.assertEqual(unj, ())
 
             rc, msg = agy_runipd.driver_finalize(
                 repo, plan, "agy001", actor, "self-finalize demo verified"
@@ -909,6 +910,11 @@ class AgyFailClosedIntegrationGuardTests(unittest.TestCase):
                 ["git", "commit", "-qm", f"demo: rename {orig} -> {dest}"],
                 cwd=wt,
                 check=True,
+            )
+            from agent_workflows import ipd_lifecycle as _lc
+
+            _lc.record_scope_reasons(
+                wt, item["id6"], {dest: f"demo: rename {orig} -> {dest}"}
             )
             (repo / orig).write_text(dirty, encoding="utf-8")
             (

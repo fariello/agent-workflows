@@ -2072,6 +2072,16 @@ def begin(
     if take_over_data is not None:
         receipt["take_over"] = take_over_data
 
+    # E-07 (psgyzw): preserve existing scope justifications and audit across recovery begins.
+    existing_receipt = read_receipt(repo_root, plan_id)
+    if existing_receipt and isinstance(existing_receipt, dict):
+        if existing_receipt.get("scope_justifications") is not None:
+            receipt["scope_justifications"] = existing_receipt["scope_justifications"]
+        if existing_receipt.get("scope_justifications_audit") is not None:
+            receipt["scope_justifications_audit"] = existing_receipt[
+                "scope_justifications_audit"
+            ]
+
     # Atomic write - an interrupted write leaves no valid receipt.
     _atomic_write_json(rcpt_path, receipt)
 
@@ -3084,13 +3094,6 @@ def finalize_precheck(
         "disposition": lint_res.disposition,
         "diagnostics": [f"{d.code} {d.message}" for d in lint_res.diagnostics],
     }
-    if not lint_res.passing:
-        return (
-            EXIT_FINDINGS,
-            f"pre-transition gate did NOT conform ({lint_res.disposition}); plan left unmoved.",
-            evidence,
-            tuple(f"{d.code} {d.message}" for d in lint_res.diagnostics),
-        )
 
     # 3. scope comparison against the frozen base + literal Scope-Paths (OQ-01 path-overlap rule).
     plan_rel = _repo_relative(repo_root, plan_path)
@@ -3269,6 +3272,15 @@ def finalize_precheck(
         # three incidents this fixes were finalized by the RUNNER and not by hand.
         "widened_paths": list(widened_paths),
     }
+
+    if not lint_res.passing:
+        return (
+            EXIT_FINDINGS,
+            f"pre-transition gate did NOT conform ({lint_res.disposition}); plan left unmoved.",
+            evidence,
+            tuple(f"{d.code} {d.message}" for d in lint_res.diagnostics),
+        )
+
     # The precheck itself no longer REFUSES on out-of-scope paths; that decision now belongs to the
     # two-way reconciliation in `finalize` (Order 05), which legitimizes an out-of-scope edit with a
     # recorded reason and refuses only a MISSING reason. The precheck returns EXIT_OK with the
@@ -5062,6 +5074,39 @@ def finalize(
         release_finalize_lock(repo_root)
 
 
+def _format_scope_exceeded_value(reasons: Mapping[str, str]) -> str:
+    """Format the - Scope-Exceeded: field value from reconciled out-of-scope paths and reasons."""
+    entries = []
+    for p in sorted(reasons.keys()):
+        raw = str(reasons[p] or "")
+        clean = (
+            re.sub(r"[\r\n]+", " ", raw)
+            .replace(";", "")
+            .replace("(", "")
+            .replace(")", "")
+            .strip()
+        )
+        if len(clean) > 200:
+            clean = clean[:200] + "..."
+        entries.append(f"{p} ({clean})")
+    return "; ".join(entries)
+
+
+def _insert_scope_exceeded_metadata(text: str, reasons: Mapping[str, str]) -> str:
+    """Insert or update - Scope-Exceeded: in the plan front-matter metadata block."""
+    if not reasons:
+        return text
+    val = _format_scope_exceeded_value(reasons)
+    line = f"- Scope-Exceeded: {val}"
+    if re.search(r"(?m)^- Scope-Exceeded:.*$", text):
+        return re.sub(r"(?m)^- Scope-Exceeded:.*$", line, text)
+    if re.search(r"(?m)^- Scope-Paths:.*$", text):
+        return re.sub(r"(?m)^(- Scope-Paths:.*)$", rf"\1\n{line}", text, count=1)
+    if re.search(r"(?m)^- Status:.*$", text):
+        return re.sub(r"(?m)^(- Status:.*)$", rf"\1\n{line}", text, count=1)
+    return line + "\n" + text
+
+
 def _finalize_transaction(
     repo_root: Path,
     plan_path: Path,
@@ -5302,6 +5347,18 @@ def _finalize_transaction(
                 updated_text = _insert_rollup_checklist_statement(moved_text)
                 if updated_text != moved_text:
                     wt_dest.write_text(updated_text, encoding="utf-8")
+            scope_recon = evidence.get("scope_reconciliation", {}) or {}
+            recon_reasons = scope_recon.get("reasons", {}) or {}
+            widened_set = set(scope_recon.get("widened_paths", []) or [])
+            out_of_scope_reasons = {
+                p: r for p, r in recon_reasons.items() if p not in widened_set
+            }
+            if out_of_scope_reasons:
+                cur_text = wt_dest.read_text(encoding="utf-8")
+                wt_dest.write_text(
+                    _insert_scope_exceeded_metadata(cur_text, out_of_scope_reasons),
+                    encoding="utf-8",
+                )
             dest_rel = _repo_relative(coord.path, wt_dest)
             # Record the moved bytes so rollback can distinguish our write from a concurrent one, and
             # so the post-reconciliation checks read the same content the commit carries.

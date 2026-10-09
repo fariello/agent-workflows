@@ -8124,6 +8124,11 @@ RETRYABLE_FINALIZE_SUMMARY: str = "pre-transition gate did NOT conform"
 #: whose content digest changed since begin (and/or carries an answerable Scope-Paths reduction).
 RETRYABLE_STALE_RECEIPT_SUMMARY: str = "is STALE: the plan content changed since begin"
 
+#: The refusal SUMMARY that identifies an out-of-scope reconciliation refusal (IPD psgyzw).
+RETRYABLE_SCOPE_RECONCILIATION_SUMMARY: str = (
+    "finalize needs scope reconciliation answers (plan left unmoved)"
+)
+
 #: The stable refusal CODE recorded on a refused item, so the summary, `aw runs`, and any later reader
 #: key on one machine-readable token. Consumed through r2i1b1's `Refusal` record, NOT a second field.
 FINALIZE_REFUSAL_CODE: str = "finalize-refused"
@@ -8324,6 +8329,25 @@ def finalize_refusal_is_retryable(fin_msg: str) -> bool:
                 return False
         return True
 
+    # Arm 3: Scope reconciliation refusal (answerable: out-of-scope paths need --scope-reason)
+    if RETRYABLE_SCOPE_RECONCILIATION_SUMMARY in text:
+        finding_lines = [
+            line.strip()
+            for line in text.splitlines()
+            if line.strip() and RETRYABLE_SCOPE_RECONCILIATION_SUMMARY not in line
+        ]
+        if not finding_lines:
+            return False
+        for line in finding_lines:
+            cleaned = line
+            if cleaned.startswith("IPD-"):
+                parts = cleaned.split(None, 1)
+                if len(parts) > 1:
+                    cleaned = parts[1]
+            if not cleaned.startswith("out-of-scope path needs a --scope-reason:"):
+                return False
+        return True
+
     return False
 
 
@@ -8430,27 +8454,48 @@ def finalize_retry_decision(
             lock_contention=False,
         )
     if used >= budget:
-        return FinalizeRetryDecision(
-            retry=False,
-            exhausted=True,
-            reason=(
+        if RETRYABLE_SCOPE_RECONCILIATION_SUMMARY in fin_msg:
+            reason = (
+                f"the finalize gate refused due to unresolved out-of-scope paths and the run's "
+                f"correction budget is exhausted ({used} of {budget} retr"
+                f"{'y' if budget == 1 else 'ies'} spent), so the item is FAILED rather than "
+                f"reported complete"
+            )
+        else:
+            reason = (
                 f"the finalize gate refused this plan's pre-transition checkpoint and the run's "
                 f"correction budget is exhausted ({used} of {budget} retr"
                 f"{'y' if budget == 1 else 'ies'} spent), so the item is FAILED rather than "
                 f"reported complete"
-            ),
+            )
+        return FinalizeRetryDecision(
+            retry=False,
+            exhausted=True,
+            reason=reason,
             attempts=used,
             budget=budget,
             lock_contention=False,
         )
-    return FinalizeRetryDecision(
-        retry=True,
-        exhausted=False,
-        reason=(
+    if RETRYABLE_SCOPE_RECONCILIATION_SUMMARY in fin_msg:
+        reason = (
+            f"the finalize gate refused because out-of-scope paths need reconciliation reasons, "
+            f"so the item is being handed back to the agent; correction attempt {used + 1} of {budget}"
+        )
+    elif RETRYABLE_STALE_RECEIPT_SUMMARY in fin_msg:
+        reason = (
+            f"the finalize gate refused because the plan changed after begin (stale begin receipt), "
+            f"so the item is being handed back to the agent; correction attempt {used + 1} of {budget}"
+        )
+    else:
+        reason = (
             f"the finalize gate refused this plan's pre-transition checkpoint (incomplete `E-*`/"
             f"`V-*` bookkeeping), so the item is being handed back to the same agent with the gate's "
             f"findings; correction attempt {used + 1} of {budget}"
-        ),
+        )
+    return FinalizeRetryDecision(
+        retry=True,
+        exhausted=False,
+        reason=reason,
         attempts=used,
         budget=budget,
         lock_contention=False,
@@ -9312,6 +9357,63 @@ def build_correction_notice(item: Mapping[str, Any], recovery: bool) -> str:
     evidence = "\n".join(lines)
     return build_fix_it_notice(
         "Bounded correction",
+        evidence,
+        att_num,
+        budget,
+        recovery=recovery,
+        include_rule=False,
+    )
+
+
+def build_out_of_scope_notice(item: Mapping[str, Any], recovery: bool) -> str:
+    """Tell a correction turn what to do about out-of-scope paths, or "" when not relevant."""
+    if not recovery:
+        return ""
+    attempts = [a for a in (item.get("attempts") or []) if isinstance(a, Mapping)]
+    if not attempts:
+        return ""
+    refused = str(attempts[-1].get("finalize_refused") or "")
+    if RETRYABLE_SCOPE_RECONCILIATION_SUMMARY not in refused:
+        return ""
+    att_num = attempts[-1].get("attempt") or len(attempts)
+    budget = attempts[-1].get("budget") or (att_num + 1)
+    id6 = str(item.get("id6") or "<id6>")
+
+    prefix = "out-of-scope path needs a --scope-reason:"
+    paths: list[str] = []
+    for line in refused.splitlines():
+        if prefix in line:
+            paths.append(line.split(prefix, 1)[1].strip())
+
+    evidence_lines = [
+        "The execution modified path(s) outside this plan's declared Scope-Paths (Out-of-scope modification).",
+        "This is NOT a failure of your work. Decide, for each out-of-scope path:",
+        "",
+    ]
+    if paths:
+        for p in paths:
+            evidence_lines.append(
+                f"- {p}: revert it in your lane and commit the revert with `aw commit {id6} -- {p}`; "
+                f"or keep it and record why with `aw commit {id6} --scope-reason {p}=<why>` (E-06's recording-only form)"
+            )
+    else:
+        evidence_lines.append(
+            f"revert it in your lane and commit the revert with `aw commit {id6} -- <path>`; "
+            f"or keep it and record why with `aw commit {id6} --scope-reason <path>=<why>` (E-06's recording-only form)"
+        )
+    evidence_lines.extend(
+        [
+            "",
+            "  - REVERT the change if it was not needed or belonged to another task; or",
+            "  - JUSTIFY it if the approved work required it: record a reason using",
+            f"    `aw commit {id6} --scope-reason <path>=<why>` (recording-only, no paths needed after `--`).",
+            "",
+            "Do NOT run `aw ipd begin` or `aw ipd finalize` yourself. The runner finalizes afterwards.",
+        ]
+    )
+    evidence = "\n".join(evidence_lines)
+    return build_fix_it_notice(
+        "out-of-scope",
         evidence,
         att_num,
         budget,
@@ -29094,15 +29196,21 @@ def run_exit_code(queue: Sequence[Mapping[str, Any]], *, stopped: bool) -> int:
     ).exit_code
 
 
+class ScopeReconciliation(NamedTuple):
+    reasons: dict[str, str]
+    acks: dict[str, str]
+    unjustified_out_of_scope: tuple[str, ...]
+
+
 def compute_scope_reconciliation(
     repo: Path, plan_path: Path, *, labels: HostLabels
-) -> tuple[dict[str, str], dict[str, str]]:
+) -> ScopeReconciliation:
     """Compute the two-way scope reconciliation (Order 05) the driver will hand to finalize.
 
     Reuses the authoritative, read-only `ipd_lifecycle.finalize_precheck` (which validates the
     begin receipt and computes `evidence['scope_audit']` without mutating) rather than
-    re-implementing the diff. Returns ({out-of-scope path: reason}, {declared-but-unmodified
-    path: ack}). An empty pair means a clean delta (nothing to reconcile).
+    re-implementing the diff. Returns ScopeReconciliation(reasons, acks, unjustified_out_of_scope).
+    An empty tuple means a clean delta (nothing to reconcile).
 
     `labels.command` names the driver INSIDE A PLAN'S PERMANENT FINALIZE RECORD, which is why
     `HostLabels` carries no defaults: a blank host name here is a durable history defect, not a
@@ -29116,7 +29224,7 @@ def compute_scope_reconciliation(
     if exit_code != 0:
         # The precheck itself refused (bad/missing receipt, failing pre-transition lint). Return
         # empty maps; the finalize call below will surface the same refusal authoritatively.
-        return {}, {}
+        return ScopeReconciliation({}, {}, ())
     audit = evidence.get("scope_audit", {}) or {}
     out_of_scope = list(audit.get("out_of_scope_paths", []) or [])
     in_scope_unmodified = list(audit.get("in_scope_unmodified", []) or [])
@@ -29129,10 +29237,32 @@ def compute_scope_reconciliation(
     # this the lifecycle change converts a STALE refusal into a MISSING-REASON refusal and strands
     # exactly the same lanes.
     widened = list(audit.get("widened_paths", []) or [])
-    reasons = {
-        p: f"changed by the plan's approved execution (auto-reconciled by {labels.command})"
-        for p in out_of_scope
-    }
+
+    plan_id = str(evidence.get("plan_id") or "")
+    if not plan_id and plan_path.is_file():
+        try:
+            from agent_workflows import ipd_lint as _lint
+
+            plan_id = (
+                _lint.parse(plan_path.read_text(encoding="utf-8")).meta_fields.get("Id")
+                or ""
+            ).strip()
+        except Exception:
+            plan_id = ""
+
+    agent_reasons = ipd_lifecycle.read_scope_reasons(repo, plan_id) if plan_id else {}
+    reasons: dict[str, str] = {}
+    unjustified_out_of_scope: list[str] = []
+    widened_set = set(widened)
+
+    for p in out_of_scope:
+        if p in widened_set:
+            continue
+        if p in agent_reasons:
+            reasons[p] = agent_reasons[p]
+        else:
+            unjustified_out_of_scope.append(p)
+
     for p in widened:
         # ONE reason per path: a path that is BOTH widened and out-of-scope (the committed-cohesive
         # case) keeps the widening wording, which is the more accurate description of what happened.
@@ -29145,7 +29275,7 @@ def compute_scope_reconciliation(
         for p in in_scope_unmodified
         if p not in set(widened)
     }
-    return reasons, acks
+    return ScopeReconciliation(reasons, acks, tuple(unjustified_out_of_scope))
 
 
 # --------------------------------------------------------------------------------------
@@ -30345,6 +30475,7 @@ def build_prompt(
         build_correction_notice(item, recovery)
         + build_stale_receipt_notice(item, recovery)
         + build_verification_refusal_notice(item, recovery)
+        + build_out_of_scope_notice(item, recovery)
     )
     # fixfirst Order 03 (mcbph5) E-02: append FIX_IT_RULE_TEXT once to the concatenated notice block
     if raw_notices:
@@ -31632,7 +31763,12 @@ def driver_finalize(
     for the same reason `driver_begin`'s are (the pin helpers bind per host and this module may not
     import a runner).
     """
-    reasons, acks = compute_scope_reconciliation(repo, plan_path, labels=labels)
+    _recon = compute_scope_reconciliation(repo, plan_path, labels=labels)
+    if isinstance(_recon, tuple) and len(_recon) == 2:
+        reasons, acks = _recon
+        _unjustified = ()
+    else:
+        reasons, acks, _unjustified = _recon
     # lanetruth Order 01 (af7i6p): THE primary lane-shadowed site. `repo` here is the LANE
     # worktree (the caller passes `finalize_repo = Path(work_dir) if (work_dir and wt_handle)
     # else repo`), and `cwd=str(repo)` below keeps it that way DELIBERATELY, because finalize
@@ -34031,7 +34167,15 @@ def record_item_spec_edits(
     acks: Mapping[str, str] = {}
     refused = False
     try:
-        reasons, acks = reconcile(repo, plan_path)
+        ret = reconcile(repo, plan_path)
+        if isinstance(ret, tuple) and len(ret) == 3:
+            reasons_dict, acks, unj = ret
+            reasons = dict(reasons_dict)
+            for p in unj:
+                if p not in reasons:
+                    reasons[p] = "out-of-scope path (unjustified)"
+        else:
+            reasons, acks = ret
     except Exception:
         refused = True
     else:

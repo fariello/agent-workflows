@@ -3072,10 +3072,11 @@ class SelfFinalizeHelperTests(unittest.TestCase):
                 check=True,
             )
 
-            reasons, acks = driver._compute_scope_reconciliation(repo, plan)
+            reasons, acks, unj = driver._compute_scope_reconciliation(repo, plan)
             # src/ was modified and is in Scope-Paths; nothing out-of-scope, nothing unmodified.
             self.assertEqual(reasons, {})
             self.assertEqual(acks, {})
+            self.assertEqual(unj, ())
 
             rc, msg = driver.driver_finalize(
                 repo, plan, "slf001", actor, "self-finalize demo verified"
@@ -3087,8 +3088,11 @@ class SelfFinalizeHelperTests(unittest.TestCase):
             self.assertIn("- Status: executed", executed.read_text(encoding="utf-8"))
 
     def test_compute_scope_reconciliation_handles_out_of_scope_and_unmodified(self):
-        # A change OUTSIDE Scope-Paths yields a --scope-reason; a declared-but-untouched path yields
-        # a --scope-ack. Both are computed from the authoritative finalize_precheck audit.
+        # A change OUTSIDE Scope-Paths yields unjustified_out_of_scope; when justified by agent,
+        # it yields a --scope-reason. A declared-but-untouched path yields a --scope-ack.
+        # Both are computed from the authoritative finalize_precheck audit.
+        from agent_workflows import ipd_lifecycle as LC
+
         with tempfile.TemporaryDirectory() as temp:
             repo = Path(temp) / "repo"
             plan = _init_repo_with_conforming_plan(repo, "slf002")
@@ -3101,9 +3105,18 @@ class SelfFinalizeHelperTests(unittest.TestCase):
             subprocess.run(
                 ["git", "commit", "-qm", "out of scope change"], cwd=repo, check=True
             )
-            reasons, acks = driver._compute_scope_reconciliation(repo, plan)
-            self.assertIn("OTHER.txt", reasons)
+            reasons, acks, unj = driver._compute_scope_reconciliation(repo, plan)
+            self.assertNotIn("OTHER.txt", reasons)
+            self.assertIn("OTHER.txt", unj)
             self.assertIn("src/", acks)
+
+            # Once the agent records a scope reason into the receipt, it moves from unjustified
+            # to reasons.
+            LC.record_scope_reasons(repo, "slf002", {"OTHER.txt": "needed for demo"})
+            reasons2, acks2, unj2 = driver._compute_scope_reconciliation(repo, plan)
+            self.assertIn("OTHER.txt", reasons2)
+            self.assertEqual(reasons2["OTHER.txt"], "needed for demo")
+            self.assertNotIn("OTHER.txt", unj2)
 
 
 class SelfFinalizeWiringTests(unittest.TestCase):
@@ -4343,6 +4356,11 @@ class FailClosedIntegrationGuardTests(unittest.TestCase):
                 ["git", "commit", "-qm", f"demo: rename {orig} -> {dest}"],
                 cwd=wt,
                 check=True,
+            )
+            from agent_workflows import ipd_lifecycle as _lc
+
+            _lc.record_scope_reasons(
+                wt, item["id6"], {dest: f"demo: rename {orig} -> {dest}"}
             )
             (
                 run_dir / "outcomes" / f"{item['position']:02d}-{item['id6']}.json"
