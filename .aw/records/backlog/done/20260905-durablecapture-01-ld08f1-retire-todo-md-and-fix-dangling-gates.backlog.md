@@ -29,8 +29,8 @@ already lists TODO.md, but _classify_tree returns None for it ... which is exact
 invisible]". Known, documented, still shipped.
 
 DEFECT 2 - TWO DEFERRED SPECS GATE ON IT, AND THOSE GATES ARE DANGLING IN SUBSTANCE.
-  * `.aw/records/specs/20260725-0957-01-external-delivery-and-skills.spec.md:6` - `Gate-Ref: TODO.md`
-  * `.aw/records/specs/20260726-1239-01-clean-delta-and-tracking-modes.spec.md:6` - `Gate-Ref: TODO.md`
+  * `.aw/records/specs/deferred/20260725-0957-01-external-delivery-and-skills.spec.md:6` - `Gate-Ref: TODO.md`
+  * `.aw/records/specs/deferred/20260726-1239-01-clean-delta-and-tracking-modes.spec.md:6` - `Gate-Ref: TODO.md`
 
 Both are `Gate-Kind: artifact`, so they VALIDATE (the file exists) while resolving to a file whose
 items were migrated out from under them in August 2026. Both specs have been untouched since

@@ -85,7 +85,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   THE EXACT LINE: `docs/skill-selection.md:16` reads "`scripts/verify_digest.py`: a deterministic script that recomputes the parity digest." That sentence is doubly wrong after this change and was ALREADY wrong before it: the script never recomputed anything, it compared `argv[1]` to a constant (F-2). Remove the bullet and leave the two-file contract stated accurately.
   WHY IT IS IN SCOPE despite the original Scope-Paths omitting it: this doc is required to EXIST by `tests/test_docs.py:37`, it is the only prose statement of the package contract, and leaving it would mean shipping documentation contradicted by the code in the same commit.
   ALSO CHECK, and state N/A with the paths if clean: `agent_workflows/engine.py:18,21,2230` mention `scripts/` generically as part of the package shape. MEASURED IN REVIEW: these are module docstring and comment prose, not a contract, and `:2230` describes what the PRUNE SCAN may encounter (which must still tolerate a legacy `scripts/` path on an upgraded repo). Decide deliberately whether to touch them; if you do, do not narrow the prune-scan comment in a way that suggests `scripts/` can never appear.
-  DO NOT amend the spec `.aw/records/specs/20260725-0957-01-external-delivery-and-skills.spec.md`: MEASURED, it never enumerates the three files (it discusses `SKILL.md` discovery tiers and is `deferred`), so the plan's original "if it enumerates the three files" instruction resolves to N/A.
+  DO NOT amend the spec `.aw/records/specs/deferred/20260725-0957-01-external-delivery-and-skills.spec.md`: MEASURED, it never enumerates the three files (it discusses `SKILL.md` discovery tiers and is `deferred`), so the plan's original "if it enumerates the three files" instruction resolves to N/A.
   - Depends on: E-03
   - Expected outcome: `docs/skill-selection.md` states the real two-file contract with no `verify_digest.py` bullet; `tests/test_docs.py` still passes; the engine docstring/comment mentions explicitly decided (changed or left, with the reason); the spec confirmed N/A by measurement rather than by assumption.
   - Execution state: performed
@@ -161,7 +161,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 ## Spec / documentation sync
 
 - `docs/skill-selection.md:16` DOES document `scripts/verify_digest.py` as part of the package contract, and its description ("recomputes the parity digest") is false even today. Correcting it is E-06 and is IN SCOPE.
-- `.aw/records/specs/20260725-0957-01-external-delivery-and-skills.spec.md`: MEASURED N/A. It discusses `SKILL.md` discovery tiers and the probe protocol and never enumerates the three package files; it is also `deferred`. Do not edit it.
+- `.aw/records/specs/deferred/20260725-0957-01-external-delivery-and-skills.spec.md`: MEASURED N/A. It discusses `SKILL.md` discovery tiers and the probe protocol and never enumerates the three package files; it is also `deferred`. Do not edit it.
 - Checked and clean (state N/A with these paths in V-06): `README.md`, `ARCHITECTURE.md`, `CHANGELOG.md`, and every other file under `docs/`. The only remaining in-code mentions are prose in `agent_workflows/engine.py:18,21,2230`, decided in E-06.
 - Do NOT amend the spec's `.agents/skills` path language; that belongs to research `sx0cqv`.
 
@@ -489,7 +489,7 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
     `<name>/scripts/verify_digest.py` that prune is responsible for removing - the exact behavior
     V-05(a) measures. No executable statement in `engine.py` was touched.
     SPEC RECORDED N/A BY MEASUREMENT, not assumption:
-    `grep -n "verify_digest\|scripts/" .aw/records/specs/20260725-0957-01-external-delivery-and-skills.spec.md`
+    `grep -n "verify_digest\|scripts/" .aw/records/specs/deferred/20260725-0957-01-external-delivery-and-skills.spec.md`
     returns nothing - the spec never enumerates the three package files (it discusses `SKILL.md`
     discovery tiers and the probe protocol) and is itself `deferred`. NOT EDITED, as instructed.
     Also confirmed clean, per the plan's spec/doc-sync list: `README.md`, `ARCHITECTURE.md`,
