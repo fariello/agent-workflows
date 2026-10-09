@@ -281,7 +281,7 @@ Agents (GPT, Gemini, Opus, GLM, etc.) and CI runners must **consume structured r
 
 ### Mutation Preview Result (`exit: 0`)
 ```json
-{"schema":"aw.agent/v1","kind":"result","cmd":"rename plans","outcome":"preview","exit":0,"applied":false,"complete":false,"verified":true,"changes":[{"kind":"rename","path":"plans/old-slug.ipd.md"}],"target":"plans/6psux0","next":"aw rename plans 6psux0 --slug new-slug --apply"}
+{"schema":"aw.agent/v1","kind":"result","cmd":"rename plans","outcome":"preview","exit":0,"applied":false,"complete":true,"verified":true,"changes":[{"kind":"rename","path":"plans/old-slug.ipd.md"}],"target":"plans/6psux0","next":"aw rename plans 6psux0 --slug new-slug --apply"}
 ```
 
 ### Domain Findings Result (`exit: 1`)

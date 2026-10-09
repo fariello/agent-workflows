@@ -340,6 +340,7 @@ def _apply_renames(
     verb: str = "group",
     yes: bool = False,
     notes: Tuple[str, ...] = (),
+    emit_human: bool = True,
 ) -> Optional[MutationResult]:
     """Apply the file renames as tracked git moves plus the reference rewrites.
 
@@ -348,7 +349,8 @@ def _apply_renames(
 
     containment_err = _refuse_uncontained_destination(repo_root, plans)
     if containment_err:
-        print(f"error: {containment_err}")
+        if emit_human:
+            print(f"error: {containment_err}")
         return None
 
     renames = {
@@ -362,11 +364,13 @@ def _apply_renames(
     notes_list: List[str] = list(notes)
     if not apply:
         for w in warnings:
-            print(w)
+            if emit_human:
+                print(w)
             notes_list.append(w)
         targets: List[MutationTarget] = []
         for p in plans:
-            print(f"--- would rename {p.old_path} -> {p.new_path.name} ---")
+            if emit_human:
+                print(f"--- would rename {p.old_path} -> {p.new_path.name} ---")
             parsed, parse_err = R.parse_name(p.new_path.name)
             target_id6 = parsed.id6 if parsed else ""
             src_rel = p.old_path.relative_to(repo_root).as_posix()
@@ -382,13 +386,15 @@ def _apply_renames(
             )
             if parsed is None:
                 msg = f"warning: destination '{p.new_path.name}' is not a conformant research document: {parse_err}"
-                print(msg)
+                if emit_human:
+                    print(msg)
                 notes_list.append(msg)
             else:
                 updates = _planned_frontmatter_updates(parsed)
-                print(
-                    f"--- would set metadata {'/'.join(updates.keys())} in {p.old_path} ---"
-                )
+                if emit_human:
+                    print(
+                        f"--- would set metadata {'/'.join(updates.keys())} in {p.old_path} ---"
+                    )
                 targets.append(
                     MutationTarget(
                         old_path=dst_rel,
@@ -399,9 +405,10 @@ def _apply_renames(
                     )
                 )
         for e in ref_edits:
-            print(
-                f"--- would rewrite {e.hits}x '{e.old_name}' -> '{e.new_name}' in {e.file} ---"
-            )
+            if emit_human:
+                print(
+                    f"--- would rewrite {e.hits}x '{e.old_name}' -> '{e.new_name}' in {e.file} ---"
+                )
         preview_ref_edits = tuple(
             MutationRefEdit(
                 file=e.file.relative_to(repo_root).as_posix()
@@ -437,7 +444,8 @@ def _apply_renames(
         src_rel = p.old_path.relative_to(repo_root).as_posix()
         dst_rel = p.new_path.relative_to(repo_root).as_posix()
         _git_mv(repo_root, src_rel, dst_rel)
-        print(f"renamed {src_rel} -> {dst_rel}")
+        if emit_human:
+            print(f"renamed {src_rel} -> {dst_rel}")
         parsed, parse_err = R.parse_name(p.new_path.name)
         target_id6 = parsed.id6 if parsed else ""
         targets_applied.append(
@@ -451,7 +459,8 @@ def _apply_renames(
         )
         if parsed is None:
             msg = f"warning: destination '{p.new_path.name}' is not a conformant research document: {parse_err}"
-            print(msg)
+            if emit_human:
+                print(msg)
             notes_list.append(msg)
         else:
             updates = _planned_frontmatter_updates(parsed)
@@ -460,7 +469,8 @@ def _apply_renames(
                 new_text = _rcmd.update_frontmatter_fields(old_text, updates)
                 if new_text != old_text:
                     _atomic_write(p.new_path, new_text)
-                print(f"set metadata {'/'.join(updates.keys())} in {dst_rel}")
+                if emit_human:
+                    print(f"set metadata {'/'.join(updates.keys())} in {dst_rel}")
                 targets_applied.append(
                     MutationTarget(
                         old_path=dst_rel,
@@ -472,7 +482,8 @@ def _apply_renames(
                 )
             except Exception as e:
                 msg = f"warning: could not update frontmatter in '{dst_rel}': {e}"
-                print(msg)
+                if emit_human:
+                    print(msg)
                 notes_list.append(msg)
         # IPD 52zgqr: additive, failure-isolated rename ledger record (never breaks the rename).
         _rh.record_rename(
@@ -486,7 +497,8 @@ def _apply_renames(
         touched.append(src_rel)
         touched.append(dst_rel)
     for w in warnings:
-        print(w)
+        if emit_human:
+            print(w)
         notes_list.append(w)
     if ref_edits:
         unified_edits = [
@@ -500,14 +512,15 @@ def _apply_renames(
             for e in ref_edits
         ]
         filtered_unified = _refs.filter_test_edits_interactive(
-            repo_root, unified_edits, yes=yes
+            repo_root, unified_edits, yes=yes or not emit_human
         )
         kept = {(e.file, e.old, e.new) for e in filtered_unified}
         ref_edits = [e for e in ref_edits if (e.file, e.old_name, e.new_name) in kept]
     if ref_edits:
         apply_reference_rewrites(ref_edits)
         for e in ref_edits:
-            print(f"rewrote {e.hits}x '{e.old_name}' -> '{e.new_name}' in {e.file}")
+            if emit_human:
+                print(f"rewrote {e.hits}x '{e.old_name}' -> '{e.new_name}' in {e.file}")
             touched.append(_rel(e.file))
 
     diagnostics: List[MutationDiagnostic] = []
@@ -563,7 +576,11 @@ def _apply_renames(
     )
 
 
-def run_set_assign(args: argparse.Namespace) -> "MutationResult":
+def run_set_assign(
+    args: argparse.Namespace, emit_human: Optional[bool] = None
+) -> "MutationResult":
+    if emit_human is None:
+        emit_human = not (getattr(args, "agent", False) or getattr(args, "json", False))
     repo_root = _repo_root(args)
     research_root = R.resolve_research_root(repo_root)
     from datetime import date
@@ -571,7 +588,8 @@ def run_set_assign(args: argparse.Namespace) -> "MutationResult":
     ids = [i.strip() for i in (getattr(args, "ids", None) or []) if i.strip()]
     if not ids:
         msg = "error: at least one <id6> is required"
-        print(msg)
+        if emit_human:
+            print(msg)
         return MutationResult(
             2,
             diagnostics=(
@@ -594,7 +612,8 @@ def run_set_assign(args: argparse.Namespace) -> "MutationResult":
     )
     if _setid_err:
         msg = f"error: {_setid_err}"
-        print(msg)
+        if emit_human:
+            print(msg)
         return MutationResult(
             2,
             diagnostics=(
@@ -609,7 +628,8 @@ def run_set_assign(args: argparse.Namespace) -> "MutationResult":
     notes_from_run: List[str] = []
     if _setid_warn:
         msg = f"note: {_setid_warn}"
-        print(msg)
+        if emit_human:
+            print(msg)
         notes_from_run.append(msg)
     raw_date = getattr(args, "date", None)
     date_str = date.today().strftime("%Y%m%d") if raw_date is None else raw_date
@@ -624,7 +644,8 @@ def run_set_assign(args: argparse.Namespace) -> "MutationResult":
     )
     if err:
         msg = f"error: {err}"
-        print(msg)
+        if emit_human:
+            print(msg)
         return MutationResult(
             2,
             diagnostics=(
@@ -642,6 +663,7 @@ def run_set_assign(args: argparse.Namespace) -> "MutationResult":
         getattr(args, "apply", False),
         yes=bool(getattr(args, "yes", False)),
         notes=tuple(notes_from_run),
+        emit_human=emit_human,
     )
     if res is None:
         containment_err = _refuse_uncontained_destination(repo_root, plans or [])
@@ -660,7 +682,11 @@ def run_set_assign(args: argparse.Namespace) -> "MutationResult":
     return res
 
 
-def run_mv(args: argparse.Namespace) -> "MutationResult":
+def run_mv(
+    args: argparse.Namespace, emit_human: Optional[bool] = None
+) -> "MutationResult":
+    if emit_human is None:
+        emit_human = not (getattr(args, "agent", False) or getattr(args, "json", False))
     repo_root = _repo_root(args)
     research_root = R.resolve_research_root(repo_root)
     plan, err = plan_mv(
@@ -673,7 +699,8 @@ def run_mv(args: argparse.Namespace) -> "MutationResult":
     )
     if err:
         msg = f"error: {err}"
-        print(msg)
+        if emit_human:
+            print(msg)
         return MutationResult(
             2,
             diagnostics=(
@@ -691,6 +718,7 @@ def run_mv(args: argparse.Namespace) -> "MutationResult":
         getattr(args, "apply", False),
         verb="rename",
         yes=bool(getattr(args, "yes", False)),
+        emit_human=emit_human,
     )
     if res is None:
         containment_err = _refuse_uncontained_destination(
