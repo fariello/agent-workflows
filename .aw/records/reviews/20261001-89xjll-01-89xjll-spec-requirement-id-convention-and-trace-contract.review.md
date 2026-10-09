@@ -2,9 +2,9 @@
 
 - Subject-Id: 89xjll
 - Subject-Type: spec
-- Reviewed-At: 2026-10-02
+- Reviewed-At: 2026-10-08
 - Reviewer: opencode/its_direct/pt3-claude-opus-5.5-1m-us
-- Verdict: REVIEWED - OPEN QUESTIONS
+- Verdict: APPROVE WITH REVISIONS APPLIED
 
 ## Round 1
 
@@ -50,3 +50,45 @@ text; `vkub9o` Sections 3.2, 3.3, 5 and Q5. Census totals moved from 39 to 40 on
 OPEN because each needs a maintainer design choice; both are raised in the spec as blocking OQ-05 and OQ-04
 naming the finding ids. Not ready for human approval until OQ-04 and OQ-05 are ruled and a re-review round
 records them. This record GATES approval at the HIGH threshold by design.
+
+## Round 2
+
+Re-review requested 2026-10-08 after the maintainer resolved OQ-04..OQ-07 (/askme) and the spec body was
+amended to match (commit `1c4352876`). Interactive run: one new decision (OQ-08) was asked and answered.
+Structural preflight `aw specs check` CONFORMED before and after revisions. `aw ipd lint` was not invoked;
+no `- Readiness:` was written; status and history were left to `aw specs set` / `aw specs note`.
+
+RE-MEASURED: `production_checks._TERMINAL_DISPOSITIONS` (`agent_workflows/production_checks.py:29`) and
+`existing_handoff_plans` skip `executed`; the spec production block pools `existing_linked_plans` with
+`new_produced_plans` as `all_verified_plans` and passes it to `spec_plan_set`/`spec_plan_conformance`/
+`spec_plan_gate_carry` (`agent_workflows/runner_shared.py`, spec production block); a passing production
+runs `specs set --status implementing` (`runner_shared.commit_spec_transition_output`);
+`run_selection_policy._SPEC_ACTIONS` maps only `approved` to `ACTION_PLAN` and `implementing` to child
+dispatch (`agent_workflows/run_selection_policy.py:151-163`); `attention_contract` allows
+`implementing -> approved` and `->approved` requires the human attestation; the spec setter has two
+spellings (`agent_workflows/specs.py` fork and `status_set.run_set_command`); `[Deferred]` appears in no
+other spec; every R-* maps to an AC-* and every AC-* back to an R-*.
+
+### Findings
+
+| ID | Severity | Scope | Area | Evidence | Finding | Remediation Risk | Decision | Resolution |
+|----|----------|-------|------|----------|---------|------------------|----------|------------|
+| SR-002 | HIGH | UNDER-SCOPE | B, C, G | spec 6.2a, new 6.2b; OQ-05 resolved | The unknown-reference conjunct's attribution rule is now specified: only citations qualified with the producing spec's id6 count, in all three conjuncts, with the measured basis (160 unqualified non-declared tokens in 44 of 116 From-Spec plans). AC-5 covers the qualified-unknown failure and the unqualified-ignored case. | C:Low; U:Low; S:Low; F:Low; Overall:Low | FIXED | Maintainer ruling OQ-05 (B), applied in 6.2b, R-5, AC-4, AC-5. |
+| SR-003 | HIGH | IN-SCOPE | B, D | spec 3.1, 1b R-1; OQ-04 resolved | TRACE-mandatory forms are now decided: FORM A only, excluding `N`; FORM B/C are addressing handles never extracted. The spec's own 22 numbered headings no longer become requirements. AC-1 asserts FORM B, FORM C and `N` ids are not returned. | C:Low; U:Low; S:Low; F:Low; Overall:Low | FIXED | Maintainer ruling OQ-04 (A + N exclusion), applied in 3.1, R-1, AC-1; OQ-03 annotated as narrowed. |
+| SR-011 | MEDIUM | IN-SCOPE | A, G | `agent_workflows/production_checks.py:29` `_TERMINAL_DISPOSITIONS = frozenset(("executed", "superseded", "not-executed"))` | The amended 6.1 claimed `existing_handoff_plans` returns `executed` plans; it skips them. A pooled set built on it would drop an executed first-stage plan and make a later stage re-cover finished work. | C:Low; U:Low; S:Low; F:Low; Overall:Low | FIXED | 6.1 now states TRACE's pooled set is the runner's set PLUS executed linked plans; superseded/not-executed excluded; sibling checks unchanged. AC-4 asserts an executed linked plan contributes coverage. |
+| SR-012 | HIGH | UNDER-SCOPE | G | `runner_shared.commit_spec_transition_output`; `run_selection_policy._SPEC_ACTIONS`; spec 3.3 | Staged planning (OQ-07) had no way to start a second stage: a passing production moves the spec to `implementing`, and only `approved` specs get a plan-writing turn. | C:Low; U:Low; S:Low; F:Low; Overall:Low | FIXED | Asked the maintainer (OQ-08): stay `implementing`; target design is a runner plan-writing turn for an `implementing` spec with uncited non-deferred ids, delivered separately with a `25kzda` amendment (backlog `2wkzf7`); stopgap is a human-attested `implementing -> approved` step. Recorded in 3.3 and Section 7. |
+| SR-013 | MEDIUM | IN-SCOPE | C, G | spec 7 (rtvdak note); `rtvdak` `- Status: approved` | The implementing plan `rtvdak` is approved against the superseded contract (R-1..R-7, new-plans-only coverage, unqualified citations, no markers); R-9 also touches the spec status setter, likely outside its scope. | C:Low; U:Low; S:Low; F:Medium; Overall:Low | FIXED | Section 7 states `rtvdak` MUST be re-reviewed against this spec before it executes. Moving `rtvdak` back to `to-review` is a plan action outside this review's remit and is reported to the maintainer. |
+
+### Decisions
+
+| ID | Question | Chosen | Alternatives considered | Basis | Reversible |
+| --- | -------- | ------ | ----------------------- | ----- | ---------- |
+| D-4 | Should TRACE's pooled set include `executed` linked plans? | Yes; superseded and not-executed excluded. | Reuse `existing_handoff_plans` unchanged (drops executed), rejected: a later stage would have to re-cite finished work, defeating OQ-06. | `production_checks.py:29`; OQ-06 intent (pool all linked plans) | yes - nothing ships until `rtvdak` executes |
+
+### Verdict
+
+`APPROVE WITH REVISIONS APPLIED`. SR-002 and SR-003 are FIXED on the maintainer's rulings (OQ-05, OQ-04);
+three new findings (SR-011, SR-012, SR-013) were fixed in place, SR-012 after one interactive decision
+(OQ-08). No finding remains open at or above the gate threshold. Ready for the human approval gate.
+Before approval the maintainer should know: `rtvdak` must be re-reviewed before executing, and staging a
+spec relies on the step-back stopgap until backlog `2wkzf7` ships.
