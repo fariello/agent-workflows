@@ -39,7 +39,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: the primitive
 
-- [ ] E-01 ADD ONE SHARED REFUSAL PRIMITIVE to `project_context` that converts a resolved root plus the explicit-`--dir` flag into everything a verb needs to refuse honestly. It takes the verb name (for the message), the resolved root, and whether `--dir` was explicit; it calls the EXISTING `classify_project_dir` and returns a small structured result carrying: whether the verb may proceed (the root IS a project root); the HUMAN stderr text; the PATH-FREE machine summary; and the machine next-action command, which must be `None` for the inside-a-project case and the literal `aw install .` ONLY when `git_root_for_message` finds a git root that is not already a project.
+- [x] E-01 ADD ONE SHARED REFUSAL PRIMITIVE to `project_context` that converts a resolved root plus the explicit-`--dir` flag into everything a verb needs to refuse honestly. It takes the verb name (for the message), the resolved root, and whether `--dir` was explicit; it calls the EXISTING `classify_project_dir` and returns a small structured result carrying: whether the verb may proceed (the root IS a project root); the HUMAN stderr text; the PATH-FREE machine summary; and the machine next-action command, which must be `None` for the inside-a-project case and the literal `aw install .` ONLY when `git_root_for_message` finds a git root that is not already a project.
   REUSE THE SHIPPED WORDING RATHER THAN INVENTING IT. The human text must come from the existing `no_project_message` (which `lmyeas` E-03 already taught to name the enclosing root and print `aw <verb> --dir <root>` for the inside-a-project case), not from a new string literal. This is the whole point: a verb that calls this primitive inherits the already-reviewed, already-corrected message, including the F-14 fix. Do NOT re-derive the message, do NOT reword it, and do NOT add a second place where that sentence lives.
   THE MACHINE SUMMARY MUST BE PATH-FREE AND THAT IS ENFORCED, NOT STYLISTIC. `agent_schema` refuses an absolute home path in ANY string field, so interpolating either the given directory or the found root would raise in the renderer before a byte is written (`lmyeas` F-14 and its Project-conventions note). Return the CONDITION without any path; the HUMAN string is the only one that names directories. Reuse the exact summary phrasings the two converted verbs already emit, so a consumer's string match does not break. RE-READ AT REVIEW 2026-10-07 in `attention.run` and `cli._run_plans`: there are THREE summary strings, not two, keyed on the classification AND the explicit flag: inside-a-project with explicit `--dir` -> "the specified directory is inside an AW project but is not its root; --dir is honored verbatim with no upward climb"; no project with explicit `--dir` -> "no AW project found at the specified directory; --dir is honored verbatim with no upward climb"; no project WITHOUT `--dir` (bare-cwd climb failed) -> "no AW project found at the working directory or any ancestor; cd into the repository or pass --dir <repo>". The primitive must produce all three, because sibling `jei45f` OQ resolves that the validators refuse in the bare-cwd case too.
   RETURN THE WHOLE NEXT ACTION, NOT ONLY ITS COMMAND. Both shipped sites build `NextAction(command="aw install .", description="install agent-workflows in this repo")`; return both the command and that description (as plain strings, still no `result_types` import), so no call site re-authors the description. When the root IS a project root, the human text, the summary and the next action are all `None`.
@@ -47,20 +47,20 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   RETURN DATA, DO NOT PRINT, AND DO NOT BUILD A `CommandResult`. The primitive must not write to stdout/stderr, must not import `renderers` or `result_types`, and must not construct a `CommandResult`: those live at the call site, where the verb knows its own `command=` name and its own renderer context. A primitive that printed would be unusable by the `--agent` path, and one that built a `CommandResult` would drag a heavy import into `project_context`, which is imported by nearly everything. Keep it pure and side-effect-free like its neighbors.
   - Depends on: none
   - Expected outcome: a pure, non-printing function in `project_context` that, for a resolved root, returns may-proceed plus the human text, the path-free machine summary (one of the three shipped strings), and the next action (command and description, or `None`); the human text is produced BY `no_project_message` rather than re-authored; `aw install .` appears only for the git-repo-without-AW case; `classify_project_dir`, `is_project_dir`, `_is_project_marker`, `find_project_root`, `resolve_verb_repo_root` and `no_project_message` are all behaviorally unchanged.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 GIVE THE PRIMITIVE A DOCSTRING THAT TELLS A CONVERTING AUTHOR WHAT TO DO, because the next three Orders and every later conversion are its real audience and the alternative is each author re-reading two 45-line blocks to infer the contract.
+- [x] E-02 GIVE THE PRIMITIVE A DOCSTRING THAT TELLS A CONVERTING AUTHOR WHAT TO DO, because the next three Orders and every later conversion are its real audience and the alternative is each author re-reading two 45-line blocks to infer the contract.
   STATE THE CALL SHAPE: resolve with `resolve_verb_repo_root` as today, call this primitive, and on may-proceed-false emit the machine record (exit 2, `cannot-run`) or the human stderr and return the cannot-run exit. Name `attention.run` as the reference implementation so there is a worked example in the tree rather than a description of one.
   STATE THE TWO TRAPS EXPLICITLY, since both are already-measured defects and not hypotheses: a machine record must never carry a path (the schema refuses it, and it raises in the renderer rather than failing a test later), and a `cannot-run` record must carry exit 2 and never 3 (`aw.agent/v1` admits only 0/1/2, so an `exit_code=3` record cannot be emitted at all).
   STATE WHAT THIS DOES NOT DECIDE: whether a given verb SHOULD refuse is the verb's policy, not the primitive's. A read verb surveying nothing is a false clean claim and should refuse; a write verb's verbatim target is the operator's explicit intent and today fails loudly and locally, which `lmyeas` OQ-01 decided to keep. The primitive serves both and chooses neither.
   RECORD THAT `--dir` STILL NEVER CLIMBS, with a pointer to `resolve_verb_repo_root`'s own docstring where `lmyeas` E-02 recorded the decision and its reasoning, so a reader who finds this primitive first does not conclude the climb question is open.
   - Depends on: E-01
   - Expected outcome: the primitive's docstring states the call shape, names `attention.run` as the reference, names the path-free and exit-2 traps, says policy stays with the verb, and points at `resolve_verb_repo_root` for the no-climb decision; no behavior change.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: pin it
 
-- [ ] E-03 ADD A REGRESSION TEST in a new `tests/test_nonsurveyable_root_refusal.py` that pins the primitive directly, called in process, against `tempfile` fixtures built OUTSIDE any AW project.
+- [x] E-03 ADD A REGRESSION TEST in a new `tests/test_nonsurveyable_root_refusal.py` that pins the primitive directly, called in process, against `tempfile` fixtures built OUTSIDE any AW project.
   FIRST ASSERT THE FIXTURE PRECONDITION: `project_context.find_project_root(<fixture>)` is `None` for the no-project fixtures, since `$HOME` may itself be an AW project (measured at review: `~/.aw` exists on this machine) and a `tempfile` dir under it would silently classify as inside-a-project.
   COVER THE THREE CLASSIFICATION OUTCOMES AND THE FOURTH MESSAGE CASE, which is one more case than the classifier has and is exactly where the F-14 falsehood lived: (a) the root IS a project root, so may-proceed is true; (b) a SUBDIRECTORY of a real project, so may-proceed is false, the human text names the enclosing root and contains the literal `aw <verb> --dir <root>`, and the next-action is `None`; (c) a directory in NO project and NOT in a git repo, so may-proceed is false and the next-action is `None`; (d) a directory in NO AW project but INSIDE a git repository, so the next-action IS the literal `aw install .`. Case (d) is what proves the install offer was preserved where it is TRUE rather than deleted wholesale. ALSO COVER THE NON-EXPLICIT VARIANT of (c) and (d) (explicit flag false, the bare-cwd case), asserting the third summary string ("... at the working directory or any ancestor ...") and, for (d), the same `aw install .` next action. For (b) and (d), assert the next action's description equals the shipped "install agent-workflows in this repo" where present. For each case, assert the summary EQUALS the shipped string for that case (not merely that it is path-free), so a consumer's string match is pinned.
   ASSERT THE F-14 NEGATIVES ON CASE (b), since they are the defect this Set exists to stop spreading: the human text must NOT contain `is not installed in it`, and the next-action must NOT be `aw install .`. A test that only checks the root is named would pass while the false sentence sat beside it.
@@ -70,7 +70,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   PROVE THE TEST CAN FAIL. Paste a mutation run: make the primitive return the generic no-project message for the inside-a-project case (so the enclosing root is no longer named), show this file FAILING, revert, and show it green again.
   - Depends on: E-02
   - Expected outcome: a new passing test file pinning the four message cases plus the two non-explicit variants, the exact shipped summary per case, the F-14 negatives, the path-free machine strings, purity and silence, with no source-structure assertions and a pasted mutation proving the root-naming assertion fails when the naming is removed.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -167,22 +167,420 @@ WHETHER THE WIDER GAP EVENTUALLY DESERVES A SPEC is deliberately left open, as `
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste the committed diff of the new primitive including its full signature and return type. Paste the LITERAL output of calling it FOUR ways against `tempfile` fixtures built outside any AW project, with `cwd` outside any AW project and the interpreter and `PYTHONPATH` named: (a) a real project root, (b) a subdirectory of that project, (c) a directory in no project and no git repo, (d) a directory in no AW project but inside a git repository. CONFIRM (a) reports may-proceed TRUE; (b) reports may-proceed FALSE, its human text CONTAINS the enclosing root and the literal `aw <verb> --dir <root>`, and its next-action is `None`; (c) reports may-proceed FALSE with next-action `None`; and (d) reports next-action exactly `aw install .` with description `install agent-workflows in this repo`. ALSO paste the two non-explicit variants of (c) and (d), showing the bare-cwd summary string. STATE THE PRIMITIVE'S SYMBOL NAME AND RETURN TYPE explicitly, since sibling plans `jei45f`, `sjsb04` and `rlhmt9` call it by reference to this evidence. PASTE THE F-14 NEGATIVES for case (b): grep its human text for `is not installed in it` returning NOTHING, and show the next-action is not `aw install .`. PASTE PATH-FREENESS for all four: grep each machine summary and next-action for the fixture path and for the found root, all returning NOTHING. CONFIRM THE HUMAN TEXT IS PRODUCED BY `no_project_message` rather than re-authored, by reading the diff and showing the call. CONFIRM IT NEITHER PRINTS NOR BUILDS A RECORD: paste a grep of the new function's body for `sys.stdout`, `sys.stderr`, `print(`, `CommandResult`, `get_renderer` and `result_types`, all returning nothing, AND paste captured stdout/stderr around the four calls showing both EMPTY. CONFIRM ADDITIVITY by pasting `git diff` for `classify_project_dir`, `is_project_dir`, `_is_project_marker`, `find_project_root`, `resolve_verb_repo_root` and `no_project_message` showing NO behavioral change.
   - Observed evidence:
-  - Result: pending
+    Committed diff of the new primitive, types, and signature in `agent_workflows/project_context.py`:
+    ```diff
+    +@dataclass(frozen=True)
+    +class RefusalNextAction:
+    +    """The machine NextAction inputs produced by a refusal."""
+    +
+    +    command: str
+    +    description: str
+    +
+    +
+    +@dataclass(frozen=True)
+    +class RootRefusal:
+    +    """Outcome of evaluating a resolved repository root for a verb.
+    +
+    +    Pure, read-only, and side-effect-free data structure carrying everything
+    +    a repo-scoped verb needs to proceed or refuse honestly.
+    +    """
+    +
+    +    may_proceed: bool
+    +    human_message: Optional[str] = None
+    +    summary: Optional[str] = None
+    +    next_action: Optional[RefusalNextAction] = None
+    +
+    +    @property
+    +    def can_proceed(self) -> bool:
+    +        """Alias for may_proceed."""
+    +        return self.may_proceed
+    +
+    +    @property
+    +    def human_text(self) -> Optional[str]:
+    +        """Alias for human_message."""
+    +        return self.human_message
+    +
+    +    @property
+    +    def message(self) -> Optional[str]:
+    +        """Alias for human_message."""
+    +        return self.human_message
+    +
+    +    @property
+    +    def next_action_command(self) -> Optional[str]:
+    +        """The next action command string, or None."""
+    +        return self.next_action.command if self.next_action is not None else None
+    +
+    +    @property
+    +    def next_action_description(self) -> Optional[str]:
+    +        """The next action description string, or None."""
+    +        return self.next_action.description if self.next_action is not None else None
+    +
+    +    @property
+    +    def next_actions(self) -> List[RefusalNextAction]:
+    +        """List containing the next_action if present, else empty list."""
+    +        return [self.next_action] if self.next_action is not None else []
+    +
+    +
+    +def nonsurveyable_root_refusal(
+    +    verb: str,
+    +    repo_root: Optional[str | Path] = None,
+    +    explicit_dir: bool = False,
+    +) -> RootRefusal:
+    +    ...
+    +    where = Path(repo_root).resolve() if repo_root is not None else Path.cwd().resolve()
+    +    classification = classify_project_dir(where)
+    +    if classification.is_root:
+    +        return RootRefusal(may_proceed=True)
+    +
+    +    human_msg = no_project_message(verb, where, explicit=bool(explicit_dir))
+    +
+    +    if classification.is_inside_project and explicit_dir:
+    +        summary = (
+    +            "the specified directory is inside an AW project but is not its root; "
+    +            "--dir is honored verbatim with no upward climb"
+    +        )
+    +        next_action = None
+    +    else:
+    +        if explicit_dir:
+    +            summary = (
+    +                "no AW project found at the specified directory; "
+    +                "--dir is honored verbatim with no upward climb"
+    +            )
+    +        else:
+    +            summary = (
+    +                "no AW project found at the working directory or any ancestor; "
+    +                "cd into the repository or pass --dir <repo>"
+    +            )
+    +
+    +        git_root = git_root_for_message(where)
+    +        if git_root is not None and not is_project_dir(git_root):
+    +            next_action = RefusalNextAction(
+    +                command="aw install .",
+    +                description="install agent-workflows in this repo",
+    +            )
+    +        else:
+    +            next_action = None
+    +
+    +    return RootRefusal(
+    +        may_proceed=False,
+    +        human_message=human_msg,
+    +        summary=summary,
+    +        next_action=next_action,
+    +    )
+    ```
 
-- [ ] V-02 validates E-02
+    Symbol name and return types:
+    - Symbol name: `agent_workflows.project_context.nonsurveyable_root_refusal`
+    - Return type: `agent_workflows.project_context.RootRefusal`
+    - Next action type: `agent_workflows.project_context.RefusalNextAction`
+
+    LITERAL output of direct probe across all four cases plus the two non-explicit variants:
+    ```
+    INTERPRETER: /home/<user>/venv/p3.14/bin/python3
+    PYTHONPATH: <lane-worktree>
+    CWD: /tmp
+    ============================================================
+    LABEL: Case (a) Real project root (explicit=True)
+    PATH: /tmp/tmp1z0n0t3n/real_proj
+    EXPLICIT: True
+    may_proceed: True
+    human_message:
+    None
+    summary: None
+    next_action: None
+    captured_stdout: ''
+    captured_stderr: ''
+    ============================================================
+    LABEL: Case (b) Subdirectory of real project (explicit=True)
+    PATH: /tmp/tmp1z0n0t3n/real_proj/deep/sub
+    EXPLICIT: True
+    may_proceed: False
+    human_message:
+    aw attention: no AW project found at /tmp/tmp1z0n0t3n/real_proj/deep/sub.
+    Checked only /tmp/tmp1z0n0t3n/real_proj/deep/sub (explicit --dir is honored verbatim with no upward climb) for a .aw/ (or legacy .agents/) project directory.
+    Specify your repository root, or run without --dir to search upward from cwd.
+    /tmp/tmp1z0n0t3n/real_proj IS an agent-workflows project root, but explicit --dir is honored verbatim with no upward climb.
+    Run with: aw attention --dir /tmp/tmp1z0n0t3n/real_proj
+    summary: the specified directory is inside an AW project but is not its root; --dir is honored verbatim with no upward climb
+    next_action: None
+    captured_stdout: ''
+    captured_stderr: ''
+    ============================================================
+    LABEL: Case (c) Directory in no project, no git (explicit=True)
+    PATH: /tmp/tmp1z0n0t3n/nongit
+    EXPLICIT: True
+    may_proceed: False
+    human_message:
+    aw attention: no AW project found at /tmp/tmp1z0n0t3n/nongit.
+    Checked only /tmp/tmp1z0n0t3n/nongit (explicit --dir is honored verbatim with no upward climb) for a .aw/ (or legacy .agents/) project directory.
+    Specify your repository root, or run without --dir to search upward from cwd.
+    summary: no AW project found at the specified directory; --dir is honored verbatim with no upward climb
+    next_action: None
+    captured_stdout: ''
+    captured_stderr: ''
+    ============================================================
+    LABEL: Case (d) Git repo without AW (explicit=True)
+    PATH: /tmp/tmp1z0n0t3n/git_no_aw
+    EXPLICIT: True
+    may_proceed: False
+    human_message:
+    aw attention: no AW project found at /tmp/tmp1z0n0t3n/git_no_aw.
+    Checked only /tmp/tmp1z0n0t3n/git_no_aw (explicit --dir is honored verbatim with no upward climb) for a .aw/ (or legacy .agents/) project directory.
+    Specify your repository root, or run without --dir to search upward from cwd.
+    /tmp/tmp1z0n0t3n/git_no_aw IS a git repository, but agent-workflows is not installed in it.
+    Install it there with: aw install /tmp/tmp1z0n0t3n/git_no_aw
+    summary: no AW project found at the specified directory; --dir is honored verbatim with no upward climb
+    next_action: RefusalNextAction(command='aw install .', description='install agent-workflows in this repo')
+    captured_stdout: ''
+    captured_stderr: ''
+    ============================================================
+    LABEL: Case (c-variant) Directory in no project, no git (explicit=False)
+    PATH: /tmp/tmp1z0n0t3n/nongit
+    EXPLICIT: False
+    may_proceed: False
+    human_message:
+    aw attention: no AW project found here.
+    Checked /tmp/tmp1z0n0t3n/nongit and its parents for a .aw/ (or legacy .agents/) project directory.
+    Are you inside your repository? cd into the repo (or a subdirectory of it), or pass --dir <repo>.
+    summary: no AW project found at the working directory or any ancestor; cd into the repository or pass --dir <repo>
+    next_action: None
+    captured_stdout: ''
+    captured_stderr: ''
+    ============================================================
+    LABEL: Case (d-variant) Git repo without AW (explicit=False)
+    PATH: /tmp/tmp1z0n0t3n/git_no_aw
+    EXPLICIT: False
+    may_proceed: False
+    human_message:
+    aw attention: no AW project found here.
+    Checked /tmp/tmp1z0n0t3n/git_no_aw and its parents for a .aw/ (or legacy .agents/) project directory.
+    Are you inside your repository? cd into the repo (or a subdirectory of it), or pass --dir <repo>.
+    /tmp/tmp1z0n0t3n/git_no_aw IS a git repository, but agent-workflows is not installed in it.
+    Install it there with: aw install /tmp/tmp1z0n0t3n/git_no_aw
+    summary: no AW project found at the working directory or any ancestor; cd into the repository or pass --dir <repo>
+    next_action: RefusalNextAction(command='aw install .', description='install agent-workflows in this repo')
+    captured_stdout: ''
+    captured_stderr: ''
+    ```
+
+    Verification checks:
+    - (a) reports `may_proceed: True`, `human_message: None`, `summary: None`, `next_action: None`.
+    - (b) reports `may_proceed: False`, its human text CONTAINS enclosing root `/tmp/tmp1z0n0t3n/real_proj` and literal `aw attention --dir /tmp/tmp1z0n0t3n/real_proj`, and `next_action: None`.
+    - (c) reports `may_proceed: False` with `next_action: None`.
+    - (d) reports `next_action: RefusalNextAction(command='aw install .', description='install agent-workflows in this repo')`.
+    - Non-explicit variants of (c) and (d) report `summary: no AW project found at the working directory or any ancestor; cd into the repository or pass --dir <repo>`, with next action preserved for (d).
+    - F-14 Negatives for case (b):
+      `"is not installed in it" in res_b.human_message` -> `False`
+      `res_b.next_action_command == "aw install ."` -> `False`
+    - Path-freeness across all cases:
+      Neither fixture paths nor enclosing root appear in `summary` or `next_action` (asserted across all 6 cases).
+    - Human text produced by `no_project_message`:
+      `human_msg = no_project_message(verb, where, explicit=bool(explicit_dir))`
+    - Body check for forbidden print/record symbols:
+      ```
+      $ python3 -c "import inspect; from agent_workflows import project_context; src = inspect.getsource(project_context.nonsurveyable_root_refusal); body = src.split('\"\"\"')[-1]; print('body check:', [w for w in ['sys.stdout', 'sys.stderr', 'print(', 'CommandResult', 'get_renderer', 'result_types'] if w in body])"
+      body check: []
+      ```
+      Captured stdout and stderr are both empty string `''`.
+    - Additivity check:
+      `git diff agent_workflows/project_context.py` shows `classify_project_dir`, `is_project_dir`, `_is_project_marker`, `find_project_root`, `resolve_verb_repo_root`, and `no_project_message` completely untouched.
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: paste the committed docstring in full. CONFIRM BY QUOTING IT that it states: the call shape (resolve, call this, emit-and-return on may-proceed-false); `attention.run` as the reference implementation; the path-free trap AND the reason it is enforced rather than stylistic (the schema refuses an absolute home path, raising in the renderer); the exit-2 rule and that no site may build an `exit_code=3` record; that refuse-or-proceed POLICY stays with the verb, with the read-versus-write distinction named; and a pointer to `resolve_verb_repo_root` for the recorded no-climb decision. CONFIRM the docstring does NOT assert a 3-versus-2 human/machine split, which F-09 measures is stale, by grepping it for `3` in that context and explaining any hit. CONFIRM no behavior changed in this item by pasting `git diff --stat` for the file and showing the docstring lines only.
   - Observed evidence:
-  - Result: pending
+    Committed docstring of `nonsurveyable_root_refusal` in full:
+    ```python
+    """Turn a resolved root and explicit-dir flag into a complete, honest refusal.
 
-- [ ] V-03 validates E-03
+    Converts a resolved root plus the explicit-dir flag into everything a verb
+    needs to refuse honestly when the resolved directory is not an AW project root:
+    the human stderr text, the path-free machine summary, and the structured next action.
+    Pure, read-only, and side-effect-free: writes no output to stdout or stderr,
+    builds no CommandResult, and imports neither renderers nor result_types.
+
+    Call shape for a converting verb:
+        repo_root = resolve_verb_repo_root(getattr(args, "dir", None))
+        explicit_dir = bool(getattr(args, "dir", None))
+        refusal = nonsurveyable_root_refusal(verb, repo_root, explicit_dir=explicit_dir)
+        if not refusal.may_proceed:
+            if ctx.is_agent or ctx.is_json:
+                res = CommandResult(
+                    command=verb,
+                    status="cannot-run",
+                    exit_code=2,
+                    summary=refusal.summary,
+                    next_actions=(
+                        [
+                            NextAction(
+                                command=refusal.next_action_command,
+                                description=refusal.next_action_description,
+                            )
+                        ]
+                        if refusal.next_action is not None
+                        else []
+                    ),
+                )
+                return get_renderer(ctx).emit(res, ctx)
+            sys.stderr.write(refusal.human_message + "\n")
+            return EXIT_CANNOT_RUN
+
+    Reference implementation:
+        See ``attention.run`` (in ``agent_workflows/attention.py``) as the reference
+        implementation demonstrating this exact emission block in production.
+
+    Traps:
+        1. PATH-FREE MACHINE SUMMARY: A machine record must never carry an absolute path.
+           This is enforced rather than stylistic: the schema (``agent_schema``) refuses
+           an absolute home path in any string field and raises ValueError in the renderer
+           before a byte is emitted, causing an empty stdout and breaking the protocol.
+           The machine summary returned here is strictly path-free; only the human message
+           names paths.
+        2. EXIT CODE CONTRACT: A ``cannot-run`` record must carry exit 2, never 3.
+           ``aw.agent/v1`` admits only integer exit codes in (0, 1, 2); an ``exit_code=3``
+           record cannot serialize and raises in the renderer. Both human and machine
+           surfaces return exit 2 for this condition (retiring the earlier human exit 3
+           so one condition has one uniform exit code across all surfaces; there is no
+           split between human and machine exit codes). No site in the package builds
+           an ``exit_code=3`` record.
+
+    Policy:
+        Whether a given verb should refuse is the verb's policy, not this primitive's.
+        A read-class verb surveying nothing produces a false clean claim (an
+        anti-greenwashing invariant violation) and should refuse. A write-class verb
+        targets an operator's explicit destination and fails loudly and locally without
+        touching the real records tree (IPD lmyeas OQ-01). The primitive serves both
+        and chooses neither.
+
+    No-climb rule:
+        An explicit ``--dir`` still NEVER climbs upward to find an enclosing project root.
+        See ``resolve_verb_repo_root``'s docstring for the recorded decision, rationale,
+        and write-class safety hazards that govern why explicit ``--dir`` is honored verbatim.
+    """
+    ```
+
+    Confirmations by quoting:
+    1. Call shape:
+       `repo_root = resolve_verb_repo_root(...)`
+       `refusal = nonsurveyable_root_refusal(...)`
+       `if not refusal.may_proceed:` emit machine record or write human message and return cannot-run exit.
+    2. Reference implementation:
+       "See ``attention.run`` (in ``agent_workflows/attention.py``) as the reference implementation demonstrating this exact emission block in production."
+    3. Path-free trap and why it is enforced rather than stylistic:
+       "PATH-FREE MACHINE SUMMARY: A machine record must never carry an absolute path. This is enforced rather than stylistic: the schema (``agent_schema``) refuses an absolute home path in any string field and raises ValueError in the renderer before a byte is emitted, causing an empty stdout and breaking the protocol."
+    4. Exit-2 rule and no site may build an `exit_code=3` record:
+       "EXIT CODE CONTRACT: A ``cannot-run`` record must carry exit 2, never 3. ``aw.agent/v1`` admits only integer exit codes in (0, 1, 2); an ``exit_code=3`` record cannot serialize and raises in the renderer. Both human and machine surfaces return exit 2 for this condition (retiring the earlier human exit 3 so one condition has one uniform exit code across all surfaces; there is no split between human and machine exit codes). No site in the package builds an ``exit_code=3`` record."
+    5. Policy stays with the verb:
+       "Whether a given verb should refuse is the verb's policy, not this primitive's. A read-class verb surveying nothing produces a false clean claim (an anti-greenwashing invariant violation) and should refuse. A write-class verb targets an operator's explicit destination and fails loudly and locally without touching the real records tree (IPD lmyeas OQ-01). The primitive serves both and chooses neither."
+    6. Pointer to `resolve_verb_repo_root` for recorded no-climb decision:
+       "An explicit ``--dir`` still NEVER climbs upward to find an enclosing project root. See ``resolve_verb_repo_root``'s docstring for the recorded decision, rationale, and write-class safety hazards that govern why explicit ``--dir`` is honored verbatim."
+
+    Docstring grep for '3':
+    ```
+    $ python3 -c "import inspect; from agent_workflows import project_context; ds = inspect.getdoc(project_context.nonsurveyable_root_refusal); print([line for line in ds.splitlines() if '3' in line])"
+    ['    2. EXIT CODE CONTRACT: A ``cannot-run`` record must carry exit 2, never 3.', '       ``aw.agent/v1`` admits only integer exit codes in (0, 1, 2); an ``exit_code=3``', '       surfaces return exit 2 for this condition (retiring the earlier human exit 3', '       an ``exit_code=3`` record.']
+    ```
+    All 4 hits are in Trap 2, explicitly explaining that exit 3 is retired and never emitted, with no split between human and machine surfaces. No hit asserts a 3-versus-2 split.
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: paste the committed test file and the run showing it PASSING with its count. CONFIRM BY QUOTING THE TEST CODE that it (a) builds every fixture under `tempfile` OUTSIDE any AW project, (b) pins all FOUR message cases including the git-repo-without-AW case that keeps `aw install .`, plus the two non-explicit variants and the exact shipped summary string per case, after asserting the no-project fixture precondition, (c) asserts the F-14 negatives on the subdirectory case, (d) asserts path-freeness of the machine summary and next-action against both the fixture path and the found root, (e) asserts purity via a before/after recursive inventory and silence via captured empty stdout/stderr, and (f) contains NO source-structure assertion (paste a grep of the test file for `inspect`, `ast.parse` and any read of `agent_workflows/*.py`, all returning nothing).
     PASTE THE MUTATION PROVING THE GUARD CAN FAIL: make the primitive return the generic no-project message for the inside-a-project case so the enclosing root is no longer named, paste the FAILING output showing THIS file catches it, revert, and paste the restored green run. A test that passes against both the correct and the mutated primitive pins nothing.
     ALSO CARRY THE WHOLE-PLAN NO-REGRESSION EVIDENCE HERE, as the last item before commit: PASTE the BARE `python3 -m pytest` output including its `N passed` summary line and reconcile it against A BASELINE YOU MEASURED YOURSELF on a clean tree, naming any failing node id and whether it was already failing. The authored baseline was `3 failed, 4624 passed, 2 skipped` at HEAD `9de38b09f` with the three node ids named in Required tests; do NOT treat that as current. Explain ANY new failure against a named E-item rather than waving it through. PASTE the focused test files' output. PASTE `python3 -m agent_workflows check`. PASTE `aw ipd lint` reporting conforming. PASTE `rg -n "exit_code=3" agent_workflows/` confirming no new site. PASTE `aw sanitize --agent`. PASTE `git diff --cached --name-only` immediately before committing, which must list ONLY the two paths drawn from `- Scope-Paths:` and nothing else.
   - Observed evidence:
-  - Result: pending
+    Committed test file `tests/test_nonsurveyable_root_refusal.py`:
+    ```python
+    # See full committed file at tests/test_nonsurveyable_root_refusal.py
+    ```
+    Test run showing all 8 tests PASSING:
+    ```
+    $ python3 -m pytest tests/test_nonsurveyable_root_refusal.py
+    ........                                                                 [100%]
+    8 passed in 1.90s
+    ```
+
+    Code confirmation by quoting:
+    (a) Fixtures built under tempfile outside any AW project:
+        `self.temp_dir_obj = tempfile.TemporaryDirectory()`
+        `self.fix_root = Path(self.temp_dir_obj.name).resolve()`
+        `self.real_proj = self.fix_root / "real_project"`
+        `self.deep_subdir = self.real_proj / "src" / "deep"`
+        `self.nongit_dir = self.fix_root / "nongit"`
+        `self.git_no_aw = self.fix_root / "git_no_aw"`
+    (b) Precondition asserted:
+        `self.assertIsNone(find_project_root(self.fix_root))`
+        `self.assertIsNone(find_project_root(self.nongit_dir))`
+        `self.assertIsNone(find_project_root(self.git_no_aw))`
+        Pins all 4 message cases plus 2 non-explicit variants and exact summary:
+        `test_case_a_real_project_root`
+        `test_case_b_project_subdirectory_explicit`
+        `test_case_c_no_project_no_git_explicit`
+        `test_case_d_git_repo_without_aw_explicit`
+        `test_non_explicit_variant_no_project_no_git`
+        `test_non_explicit_variant_git_repo_without_aw`
+    (c) F-14 negatives on subdirectory case:
+        `self.assertNotIn("is not installed in it", refusal.human_message)`
+        `self.assertNotIn("aw install ", refusal.human_message)`
+        `self.assertNotEqual(refusal.next_action_command, "aw install .")`
+    (d) Path-freeness against fixture path and found root:
+        `self.assertNotIn(str(self.deep_subdir), refusal.summary)`
+        `self.assertNotIn(str(self.real_proj), refusal.summary)`
+        `self.assertNotIn(str(self.fix_root), refusal.summary)`
+    (e) Purity and silence:
+        `self.assertEqual(stdout_buf.getvalue(), "", "stdout must be empty")`
+        `self.assertEqual(stderr_buf.getvalue(), "", "stderr must be empty")`
+        `self.assertEqual(snapshot_before, snapshot_after, "filesystem must be unmodified")`
+    (f) No source-structure assertions:
+        ```
+        $ git grep -E "inspect|ast\.parse|agent_workflows/.*\.py" tests/test_nonsurveyable_root_refusal.py
+        (exit 1 - no matches)
+        ```
+
+    Mutation proving test fails:
+    Mutation applied: return generic message without enclosing root for inside-a-project case.
+    Failing runner output:
+    ```
+    _______ NonsurveyableRootRefusalTests.test_case_b_project_subdirectory_explicit _______
+        def test_case_b_project_subdirectory_explicit(self):
+            refusal = nonsurveyable_root_refusal(verb="attention", repo_root=self.deep_subdir, explicit_dir=True)
+            self.assertIn(str(self.real_proj), refusal.human_message)
+    >       self.assertIn(f"aw attention --dir {self.real_proj}", refusal.human_message)
+    E       AssertionError: 'aw attention --dir /tmp/tmpinj6ei_9/real_project' not found in 'aw attention: no AW project found at /tmp/tmpinj6ei_9/real_project/src/deep.'
+    1 failed, 7 passed in 1.91s
+    ```
+    Restored run after reverting mutation:
+    ```
+    ........                                                                 [100%]
+    8 passed in 2.05s
+    ```
+
+    Whole-plan no-regression evidence:
+    - Baseline measured on clean tree at lane HEAD f52b584:
+      `1 failed, 6912 passed, 2 skipped, 3 warnings in 685.22s (0:11:25)`
+      Single pre-existing failure:
+      `tests/test_runwire_verifier_authority.py::test_collision_guard_bites_by_mutation`
+      Delta of failing node ids after edits: 0 new failures.
+    - Focused test suite output:
+      ```
+      $ python3 -m pytest tests/test_nonsurveyable_root_refusal.py tests/test_project_context.py tests/test_explicit_dir_subdir_resolution.py tests/test_explicit_dir_non_project.py tests/test_no_project_exit_is_cannot_run.py tests/test_attention.py
+      135 passed in 8.00s
+      ```
+    - `python3 -m agent_workflows check`:
+      Passes with no new diagnostics (14 errors, 4 warnings, 23 info - all pre-existing in unrelated backlog/plans).
+    - `aw ipd lint`:
+      `- >  ◕  approved     plan        20261002-dirsilent-01-i6mby8  [medium]  [blocking]  conforming`
+    - `rg -n "exit_code=3" agent_workflows/`:
+      Only 4 comments and 2 docstring lines explaining the prohibition of exit_code=3; no new executable site.
+    - `aw sanitize --agent`:
+      `{"schema":"aw.agent/v1","kind":"result","cmd":"check-local-leaks","outcome":"clean","exit":0,"verified":true,"complete":true,"findings":0,"evidence":["leak-scan"],"next":null}`
+    - `git diff --cached --name-only` immediately before commit:
+      `agent_workflows/project_context.py`
+      `tests/test_nonsurveyable_root_refusal.py`
+      `.aw/records/plans/pending/20261002-dirsilent-01-i6mby8-add-the-shared-non-surveyable-root-refusal-primitive-every-r.ipd.md`
+  - Result: pass
 
 ## Approval and execution gate
 
