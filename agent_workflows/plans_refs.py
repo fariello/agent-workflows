@@ -330,6 +330,7 @@ def plan_set_assign(
     repo_root: Optional[Path] = None,
     force: bool = False,
     notes: Optional[List[str]] = None,
+    emit_human: bool = True,
 ) -> Tuple[Optional[List[RenamePlan]], Optional[str]]:
     """Plan a Set (re)assignment for the given plans; with ``rename`` also plan clustering renames.
 
@@ -395,7 +396,8 @@ def plan_set_assign(
         if order_err:
             if allow_invalid_order:
                 msg = f"note: plan '{id6}' ({src.name}): overridden rule: {order_err}"
-                print(msg)
+                if emit_human:
+                    print(msg)
                 if notes is not None:
                     notes.append(msg)
             else:
@@ -482,6 +484,7 @@ def apply_renames(
     verb: str = "group",
     yes: bool = False,
     notes: Tuple[str, ...] = (),
+    emit_human: bool = True,
 ) -> MutationResult:
     """Set metadata + (optional) clustering rename + citation rewrite. Preview when not apply.
     update_refs=False (from `--no-refs`, awcmdsurf Order 03) renames the file only, leaving citing
@@ -489,6 +492,9 @@ def apply_renames(
 
     Returns a ``MutationResult`` carrying the touched paths, targets, applied flag, ref_edits,
     and notes. Touched paths are empty on preview."""
+
+    if not emit_human:
+        yes = True
 
     name_map = {
         p.old_path.name: p.new_path.name for p in plans if p.old_path != p.new_path
@@ -506,8 +512,9 @@ def apply_renames(
             return path.as_posix()
 
     if not apply:
-        for w in warnings:
-            print(w)
+        if emit_human:
+            for w in warnings:
+                print(w)
         targets: List[MutationTarget] = []
         for i, p in enumerate(plans):
             if p.old_path == p.new_path:
@@ -515,9 +522,10 @@ def apply_renames(
                 # `--order` was omitted), not the loop index, or a dry run reports a renumber the
                 # apply no longer performs.
                 shown = p.order if p.order is not None else i
-                print(
-                    f"--- would set Set={_core.kebab(set_id)} Order={shown:02d} on {p.old_path.name} ---"
-                )
+                if emit_human:
+                    print(
+                        f"--- would set Set={_core.kebab(set_id)} Order={shown:02d} on {p.old_path.name} ---"
+                    )
                 targets.append(
                     MutationTarget(
                         old_path=_rel(p.old_path),
@@ -528,7 +536,10 @@ def apply_renames(
                     )
                 )
             else:
-                print(f"--- would rename {p.old_path.name} -> {p.new_path.name} ---")
+                if emit_human:
+                    print(
+                        f"--- would rename {p.old_path.name} -> {p.new_path.name} ---"
+                    )
                 targets.append(
                     MutationTarget(
                         old_path=_rel(p.old_path),
@@ -539,9 +550,10 @@ def apply_renames(
                     )
                 )
         for e in ref_edits:
-            print(
-                f"--- would rewrite {e.hits}x [{e.kind}] '{e.old}' -> '{e.new}' in {e.file} ---"
-            )
+            if emit_human:
+                print(
+                    f"--- would rewrite {e.hits}x [{e.kind}] '{e.old}' -> '{e.new}' in {e.file} ---"
+                )
         mutation_ref_edits = tuple(
             MutationRefEdit(
                 file=_rel(e.file) if isinstance(e.file, Path) else str(e.file),
@@ -585,7 +597,8 @@ def apply_renames(
             src_rel = p.old_path.relative_to(repo_root).as_posix()
             dst_rel = p.new_path.relative_to(repo_root).as_posix()
             _core.git_mv(repo_root, src_rel, dst_rel)
-            print(f"renamed {src_rel} -> {dst_rel}")
+            if emit_human:
+                print(f"renamed {src_rel} -> {dst_rel}")
             # IPD 52zgqr: additive, failure-isolated rename ledger record (never breaks the rename).
             _rh.record_rename(
                 repo_root,
@@ -619,14 +632,16 @@ def apply_renames(
                     detail=f"Set: {_core.kebab(set_id)}",
                 )
             )
-    for w in warnings:
-        print(w)
+    if emit_human:
+        for w in warnings:
+            print(w)
     if update_refs and ref_edits:
         ref_edits = _refs.filter_test_edits_interactive(repo_root, ref_edits, yes=yes)
     if update_refs and ref_edits:
         apply_reference_rewrites(ref_edits)
         for e in ref_edits:
-            print(f"rewrote {e.hits}x [{e.kind}] in {e.file}")
+            if emit_human:
+                print(f"rewrote {e.hits}x [{e.kind}] in {e.file}")
             touched.append(_rel(e.file))
     try:
         _idx.run_index(
@@ -690,12 +705,17 @@ def _dirs(args: argparse.Namespace) -> Tuple[Path, Path]:
     return repo_root, plans_dir
 
 
-def run_set_assign(args: argparse.Namespace) -> "MutationResult":
+def run_set_assign(
+    args: argparse.Namespace, *, emit_human: Optional[bool] = None
+) -> "MutationResult":
+    if emit_human is None:
+        emit_human = getattr(args, "emit_human", True)
     repo_root, plans_dir = _dirs(args)
     ids = [i.strip() for i in (getattr(args, "ids", None) or []) if i.strip()]
     if not ids:
         msg = "error: at least one <id6> is required"
-        print(msg)
+        if emit_human:
+            print(msg)
         return MutationResult(
             2,
             diagnostics=(
@@ -720,7 +740,8 @@ def run_set_assign(args: argparse.Namespace) -> "MutationResult":
     )
     if _setid_err:
         msg = f"error: {_setid_err}"
-        print(msg)
+        if emit_human:
+            print(msg)
         return MutationResult(
             2,
             diagnostics=(
@@ -735,7 +756,8 @@ def run_set_assign(args: argparse.Namespace) -> "MutationResult":
     collected_notes: List[str] = []
     if _setid_warn:
         msg = f"note: {_setid_warn}"
-        print(msg)
+        if emit_human:
+            print(msg)
         collected_notes.append(msg)
     # e3hzyc: pass the flag THROUGH, including its absence. Collapsing None to 0 here was the
     # defect: it renumbered every named plan from zero, so a bare `aw group plans <child> --set X`
@@ -752,10 +774,12 @@ def run_set_assign(args: argparse.Namespace) -> "MutationResult":
         repo_root=repo_root,
         force=bool(getattr(args, "force", False)),
         notes=collected_notes,
+        emit_human=emit_human,
     )
     if err:
         msg = f"error: {err}"
-        print(msg)
+        if emit_human:
+            print(msg)
         return MutationResult(
             2,
             diagnostics=(
@@ -777,10 +801,12 @@ def run_set_assign(args: argparse.Namespace) -> "MutationResult":
             update_refs=not getattr(args, "no_refs", False),
             yes=bool(getattr(args, "yes", False)),
             notes=tuple(collected_notes),
+            emit_human=emit_human,
         )
     except ValueError as e:
         msg = f"error: {e}"
-        print(msg)
+        if emit_human:
+            print(msg)
         return MutationResult(
             2,
             diagnostics=(
@@ -794,12 +820,17 @@ def run_set_assign(args: argparse.Namespace) -> "MutationResult":
         )
 
 
-def run_mv(args: argparse.Namespace) -> "MutationResult":
+def run_mv(
+    args: argparse.Namespace, *, emit_human: Optional[bool] = None
+) -> "MutationResult":
+    if emit_human is None:
+        emit_human = getattr(args, "emit_human", True)
     repo_root, plans_dir = _dirs(args)
     selector = getattr(args, "id", "") or getattr(args, "selector", "") or ""
     if not selector:
         msg = "error: at least one <id6>, <setid>, or <path> is required"
-        print(msg)
+        if emit_human:
+            print(msg)
         return MutationResult(
             2,
             diagnostics=(
@@ -818,7 +849,8 @@ def run_mv(args: argparse.Namespace) -> "MutationResult":
     )
     if amb_err:
         msg = f"error: {amb_err}"
-        print(msg)
+        if emit_human:
+            print(msg)
         return MutationResult(
             2,
             diagnostics=(
@@ -838,7 +870,8 @@ def run_mv(args: argparse.Namespace) -> "MutationResult":
             f"error: selector '{selector}' matched multiple files; rename targets one "
             f"(pass --force to rename the first, or use a unique id6):\n  {cand}"
         )
-        print(msg)
+        if emit_human:
+            print(msg)
         return MutationResult(
             2,
             diagnostics=(
@@ -853,7 +886,8 @@ def run_mv(args: argparse.Namespace) -> "MutationResult":
     src = paths[0].resolve()
     if not src.exists():
         msg = f"error: no plans artifact matched '{selector}'"
-        print(msg)
+        if emit_human:
+            print(msg)
         return MutationResult(
             2,
             diagnostics=(
@@ -870,7 +904,8 @@ def run_mv(args: argparse.Namespace) -> "MutationResult":
     id6 = _read_id(text)
     if not id6:
         msg = f"error: plan '{src.name}' declares no '- Id:'"
-        print(msg)
+        if emit_human:
+            print(msg)
         return MutationResult(
             2,
             diagnostics=(
@@ -899,7 +934,8 @@ def run_mv(args: argparse.Namespace) -> "MutationResult":
     grammar_err = _order_grammar_error(order)
     if grammar_err:
         msg = f"error: plan '{id6}' ({src.name}): {grammar_err}"
-        print(msg)
+        if emit_human:
+            print(msg)
         return MutationResult(
             2,
             diagnostics=(
@@ -921,11 +957,13 @@ def run_mv(args: argparse.Namespace) -> "MutationResult":
     if order_err:
         if allow_invalid_order:
             msg = f"note: plan '{id6}' ({src.name}): overridden rule: {order_err}"
-            print(msg)
+            if emit_human:
+                print(msg)
             collected_notes.append(msg)
         else:
             msg = f"error: plan '{id6}' ({src.name}): {order_err} (pass --allow-invalid-order to override)"
-            print(msg)
+            if emit_human:
+                print(msg)
             return MutationResult(
                 2,
                 diagnostics=(
@@ -961,10 +999,12 @@ def run_mv(args: argparse.Namespace) -> "MutationResult":
             verb="rename",
             yes=bool(getattr(args, "yes", False)),
             notes=tuple(collected_notes),
+            emit_human=emit_human,
         )
     except ValueError as e:
         msg = f"error: {e}"
-        print(msg)
+        if emit_human:
+            print(msg)
         return MutationResult(
             2,
             diagnostics=(

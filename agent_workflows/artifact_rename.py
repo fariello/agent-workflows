@@ -584,12 +584,14 @@ def _update_or_inject_set_metadata(
 
 
 def run_rename_generic(
-    args: argparse.Namespace, artifact_type: str
+    args: argparse.Namespace, artifact_type: str, *, emit_human: Optional[bool] = None
 ) -> "MutationResult":
     """Universal rename execution engine for an artifact type.
 
     selfcommit jgcm68 E-03: RETURNS a ``MutationResult`` (rc + touched/index paths); performs NO
     commit itself. The caller (``_run_noun_verb`` dispatch) places the self-commit offer ONCE."""
+    if emit_human is None:
+        emit_human = getattr(args, "emit_human", True)
     repo_root = _resolve_repo_root(args)
     selector = getattr(args, "id", None) or getattr(args, "selector", None)
     if isinstance(selector, list):
@@ -597,7 +599,8 @@ def run_rename_generic(
 
     if not selector:
         msg = "error: at least one <id6>, <setid>, or <path> is required"
-        print(msg)
+        if emit_human:
+            print(msg)
         return MutationResult(
             2,
             diagnostics=(
@@ -619,7 +622,8 @@ def run_rename_generic(
     )
     if amb_err:
         msg = f"error: {amb_err}"
-        print(msg)
+        if emit_human:
+            print(msg)
         return MutationResult(
             2,
             diagnostics=(
@@ -637,7 +641,8 @@ def run_rename_generic(
             f"error: selector '{selector}' matched multiple files; rename targets one "
             f"(pass --force to rename the first, or use a unique id6):\n  {cand}"
         )
-        print(msg)
+        if emit_human:
+            print(msg)
         return MutationResult(
             2,
             diagnostics=(
@@ -652,7 +657,8 @@ def run_rename_generic(
     src = paths[0].resolve()
     if not src.exists():
         msg = f"error: no {artifact_type} artifact matched '{selector}'"
-        print(msg)
+        if emit_human:
+            print(msg)
         return MutationResult(
             2,
             diagnostics=(
@@ -699,7 +705,8 @@ def run_rename_generic(
     )
     if err:
         msg = f"error: {err}"
-        print(msg)
+        if emit_human:
+            print(msg)
         return MutationResult(
             2,
             diagnostics=(
@@ -720,7 +727,8 @@ def run_rename_generic(
 
     if dst.resolve() != src.resolve() and dst.exists():
         msg = f"error: destination file already exists: {dst.name}"
-        print(msg)
+        if emit_human:
+            print(msg)
         return MutationResult(
             2,
             diagnostics=(
@@ -745,9 +753,10 @@ def run_rename_generic(
         unrewritable = find_unrewritable_path_citations(repo_root, src.name, src.parent)
 
     if not apply:
-        print(
-            f"--- would rename {src.relative_to(repo_root).as_posix()} -> {new_name} ---"
-        )
+        if emit_human:
+            print(
+                f"--- would rename {src.relative_to(repo_root).as_posix()} -> {new_name} ---"
+            )
         preview_notes: List[str] = []
         if to_id6 and inject_id6:
             # The MESSAGE names the real destination per type (IPD ubac5n E-04): a prompt's id6 goes
@@ -760,7 +769,8 @@ def run_rename_generic(
                 )
                 + " ---"
             )
-            print(msg)
+            if emit_human:
+                print(msg)
             preview_notes.append(msg)
         elif to_id6 and minted_id6:
             # Same per-type phrasing rule as the write message above: a prompt's existing id6 was
@@ -772,10 +782,12 @@ def run_rename_generic(
                 else f"'- Id: {minted_id6}'"
             )
             msg = f"--- reuses existing {existing_label} (no re-mint) ---"
-            print(msg)
+            if emit_human:
+                print(msg)
             preview_notes.append(msg)
         for w in warnings:
-            print(w)
+            if emit_human:
+                print(w)
             preview_notes.append(w)
         if update_refs:
             for e in ref_edits:
@@ -783,15 +795,17 @@ def run_rename_generic(
                     rel_f = e.file.relative_to(repo_root).as_posix()
                 except ValueError:
                     rel_f = str(e.file)
-                print(
-                    f"--- would rewrite {e.hits}x '{e.old}' -> '{e.new}' in {rel_f} ---"
-                )
+                if emit_human:
+                    print(
+                        f"--- would rewrite {e.hits}x '{e.old}' -> '{e.new}' in {rel_f} ---"
+                    )
         for rel_f, cited in unrewritable:
             msg = (
                 f"--- WARNING: full-path citation '{cited}' in {rel_f} names a different "
                 f"directory and cannot be auto-rewritten; fix it by hand ---"
             )
-            print(msg)
+            if emit_human:
+                print(msg)
             preview_notes.append(msg)
         preview_target_id6 = minted_id6 or _read_existing_id6(src, artifact_type) or ""
         if not preview_target_id6:
@@ -844,7 +858,8 @@ def run_rename_generic(
                 f"error: full-path citation '{cited}' in {rel_f} names a different directory "
                 f"than the file; cannot auto-rewrite. Fix it by hand, then retry."
             )
-            print(msg)
+            if emit_human:
+                print(msg)
             diags.append(
                 MutationDiagnostic(
                     location=rel_f,
@@ -861,7 +876,8 @@ def run_rename_generic(
         src_rel = src.relative_to(repo_root).as_posix()
         dst_rel = dst.relative_to(repo_root).as_posix()
         _core.git_mv(repo_root, src_rel, dst_rel)
-        print(f"renamed {src_rel} -> {dst_rel}")
+        if emit_human:
+            print(f"renamed {src_rel} -> {dst_rel}")
         # IPD 52zgqr: additive, failure-isolated rename ledger record (never breaks the rename).
         _rh.record_rename(
             repo_root,
@@ -893,16 +909,20 @@ def run_rename_generic(
             msg = _id6_write_message(
                 artifact_type, inject_id6, dst.name, preview=False, src=dst
             )
-            print(msg)
+            if emit_human:
+                print(msg)
             applied_notes.append(msg)
         touched.append(_rel_to_repo(dst, repo_root))
 
     for w in warnings:
-        print(w)
+        if emit_human:
+            print(w)
         applied_notes.append(w)
     if update_refs and ref_edits:
         ref_edits = _refs.filter_test_edits_interactive(
-            repo_root, ref_edits, yes=bool(getattr(args, "yes", False))
+            repo_root,
+            ref_edits,
+            yes=bool(getattr(args, "yes", False)) or not emit_human,
         )
     if update_refs and ref_edits:
         apply_reference_rewrites(ref_edits)
@@ -911,7 +931,8 @@ def run_rename_generic(
                 rel_f = e.file.relative_to(repo_root).as_posix()
             except ValueError:
                 rel_f = str(e.file)
-            print(f"rewrote {e.hits}x '{e.old}' -> '{e.new}' in {rel_f}")
+            if emit_human:
+                print(f"rewrote {e.hits}x '{e.old}' -> '{e.new}' in {rel_f}")
             touched.append(rel_f)
 
     # Auto-index if supported. NOTE: this block is UNREACHABLE dead code at present.
@@ -996,8 +1017,14 @@ def run_rename_generic(
     )
 
 
-def run_group_generic(args: argparse.Namespace, artifact_type: str) -> "MutationResult":
+def run_group_generic(
+    args: argparse.Namespace,
+    artifact_type: str,
+    emit_human: Optional[bool] = None,
+) -> "MutationResult":
     """Universal set assignment / group execution engine for an artifact type."""
+    if emit_human is None:
+        emit_human = not (getattr(args, "agent", False) or getattr(args, "json", False))
     repo_root = _resolve_repo_root(args)
     raw_selectors = (
         getattr(args, "ids", None)
@@ -1010,7 +1037,8 @@ def run_group_generic(args: argparse.Namespace, artifact_type: str) -> "Mutation
 
     if not selectors_list:
         msg = "error: at least one <id6>, <setid>, or <path> is required"
-        print(msg)
+        if emit_human:
+            print(msg)
         return MutationResult(
             2,
             diagnostics=(
@@ -1026,7 +1054,8 @@ def run_group_generic(args: argparse.Namespace, artifact_type: str) -> "Mutation
     new_set = getattr(args, "set", None)
     if not new_set or not new_set.strip():
         msg = "error: --set <set-id> is required"
-        print(msg)
+        if emit_human:
+            print(msg)
         return MutationResult(
             2,
             diagnostics=(
@@ -1051,7 +1080,8 @@ def run_group_generic(args: argparse.Namespace, artifact_type: str) -> "Mutation
     )
     if _setid_err:
         msg = f"error: {_setid_err}"
-        print(msg)
+        if emit_human:
+            print(msg)
         return MutationResult(
             2,
             diagnostics=(
@@ -1066,7 +1096,8 @@ def run_group_generic(args: argparse.Namespace, artifact_type: str) -> "Mutation
     group_notes: List[str] = []
     if _setid_warn:
         msg = f"note: {_setid_warn}"
-        print(msg)
+        if emit_human:
+            print(msg)
         group_notes.append(msg)
     start_order = getattr(args, "order", None)
     apply = bool(getattr(args, "apply", False))
@@ -1081,7 +1112,8 @@ def run_group_generic(args: argparse.Namespace, artifact_type: str) -> "Mutation
         src = find_target_record(repo_root, artifact_type, sel)
         if src is None or not src.exists():
             msg = f"error: no {artifact_type} artifact matched '{sel}'"
-            print(msg)
+            if emit_human:
+                print(msg)
             return MutationResult(
                 2,
                 diagnostics=(
@@ -1105,7 +1137,8 @@ def run_group_generic(args: argparse.Namespace, artifact_type: str) -> "Mutation
                 # dl86am D2: a name the verb cannot re-cluster is REFUSED, not silently kept. The old
                 # `new_name = src.name` reported a successful group whose `--rename` half did nothing.
                 msg = f"error: cannot --rename {src.name}: {err}"
-                print(msg)
+                if emit_human:
+                    print(msg)
                 return MutationResult(
                     2,
                     diagnostics=(
@@ -1124,7 +1157,8 @@ def run_group_generic(args: argparse.Namespace, artifact_type: str) -> "Mutation
 
         if dst.resolve() != src.resolve() and dst.exists():
             msg = f"error: destination file already exists: {dst.name}"
-            print(msg)
+            if emit_human:
+                print(msg)
             return MutationResult(
                 2,
                 diagnostics=(
@@ -1157,7 +1191,8 @@ def run_group_generic(args: argparse.Namespace, artifact_type: str) -> "Mutation
                 if m_id:
                     t_id6 = m_id.group("id6")
             if src.resolve() != dst.resolve():
-                print(f"--- would rename {src_rel} -> {dst.name} ---")
+                if emit_human:
+                    print(f"--- would rename {src_rel} -> {dst.name} ---")
                 preview_targets.append(
                     MutationTarget(
                         old_path=src_rel,
@@ -1167,7 +1202,8 @@ def run_group_generic(args: argparse.Namespace, artifact_type: str) -> "Mutation
                         detail=f"-> {dst.name}",
                     )
                 )
-            print(f"--- would set metadata Set: {set_k} in {src_rel} ---")
+            if emit_human:
+                print(f"--- would set metadata Set: {set_k} in {src_rel} ---")
             preview_targets.append(
                 MutationTarget(
                     old_path=src_rel,
@@ -1180,7 +1216,8 @@ def run_group_generic(args: argparse.Namespace, artifact_type: str) -> "Mutation
                 )
             )
         for w in all_warnings:
-            print(w)
+            if emit_human:
+                print(w)
             group_notes.append(w)
         if update_refs:
             for e in all_edits:
@@ -1188,9 +1225,10 @@ def run_group_generic(args: argparse.Namespace, artifact_type: str) -> "Mutation
                     rel_f = e.file.relative_to(repo_root).as_posix()
                 except ValueError:
                     rel_f = str(e.file)
-                print(
-                    f"--- would rewrite {e.hits}x '{e.old}' -> '{e.new}' in {rel_f} ---"
-                )
+                if emit_human:
+                    print(
+                        f"--- would rewrite {e.hits}x '{e.old}' -> '{e.new}' in {rel_f} ---"
+                    )
         mutation_edits = tuple(
             MutationRefEdit(
                 file=e.file.relative_to(repo_root).as_posix()
@@ -1226,7 +1264,8 @@ def run_group_generic(args: argparse.Namespace, artifact_type: str) -> "Mutation
             src_rel = src.relative_to(repo_root).as_posix()
             dst_rel = dst.relative_to(repo_root).as_posix()
             _core.git_mv(repo_root, src_rel, dst_rel)
-            print(f"renamed {src_rel} -> {dst_rel}")
+            if emit_human:
+                print(f"renamed {src_rel} -> {dst_rel}")
             # IPD 52zgqr: additive, failure-isolated rename ledger record.
             _rh.record_rename(
                 repo_root,
@@ -1249,7 +1288,8 @@ def run_group_generic(args: argparse.Namespace, artifact_type: str) -> "Mutation
             )
         _update_or_inject_set_metadata(dst, set_id=set_k, order=order_val)
         dst_rel = dst.relative_to(repo_root).as_posix()
-        print(f"set metadata Set: {set_k} in {dst_rel}")
+        if emit_human:
+            print(f"set metadata Set: {set_k} in {dst_rel}")
         touched.append(dst_rel)
         applied_targets.append(
             MutationTarget(
@@ -1262,11 +1302,14 @@ def run_group_generic(args: argparse.Namespace, artifact_type: str) -> "Mutation
         )
 
     for w in all_warnings:
-        print(w)
+        if emit_human:
+            print(w)
         group_notes.append(w)
     if update_refs and all_edits:
         all_edits = _refs.filter_test_edits_interactive(
-            repo_root, all_edits, yes=bool(getattr(args, "yes", False))
+            repo_root,
+            all_edits,
+            yes=bool(getattr(args, "yes", False)) or not emit_human,
         )
     if update_refs and all_edits:
         apply_reference_rewrites(all_edits)
@@ -1275,7 +1318,8 @@ def run_group_generic(args: argparse.Namespace, artifact_type: str) -> "Mutation
                 rel_f = e.file.relative_to(repo_root).as_posix()
             except ValueError:
                 rel_f = str(e.file)
-            print(f"rewrote {e.hits}x '{e.old}' -> '{e.new}' in {rel_f}")
+            if emit_human:
+                print(f"rewrote {e.hits}x '{e.old}' -> '{e.new}' in {rel_f}")
             touched.append(rel_f)
 
     # Auto-index if supported. NOTE: this block is UNREACHABLE dead code at present.
@@ -1339,57 +1383,85 @@ def run_group_generic(args: argparse.Namespace, artifact_type: str) -> "Mutation
     )
 
 
-def run_rename_backlog(args: argparse.Namespace) -> "MutationResult":
-    return run_rename_generic(args, "backlog")
+def run_rename_backlog(
+    args: argparse.Namespace, emit_human: Optional[bool] = None
+) -> "MutationResult":
+    return run_rename_generic(args, "backlog", emit_human=emit_human)
 
 
-def run_rename_specs(args: argparse.Namespace) -> "MutationResult":
-    return run_rename_generic(args, "specs")
+def run_rename_specs(
+    args: argparse.Namespace, emit_human: Optional[bool] = None
+) -> "MutationResult":
+    return run_rename_generic(args, "specs", emit_human=emit_human)
 
 
-def run_rename_prompts(args: argparse.Namespace) -> "MutationResult":
-    return run_rename_generic(args, "prompts")
+def run_rename_prompts(
+    args: argparse.Namespace, emit_human: Optional[bool] = None
+) -> "MutationResult":
+    return run_rename_generic(args, "prompts", emit_human=emit_human)
 
 
-def run_rename_walkthroughs(args: argparse.Namespace) -> "MutationResult":
-    return run_rename_generic(args, "walkthroughs")
+def run_rename_walkthroughs(
+    args: argparse.Namespace, emit_human: Optional[bool] = None
+) -> "MutationResult":
+    return run_rename_generic(args, "walkthroughs", emit_human=emit_human)
 
 
-def run_rename_roadmaps(args: argparse.Namespace) -> "MutationResult":
-    return run_rename_generic(args, "roadmaps")
+def run_rename_roadmaps(
+    args: argparse.Namespace, emit_human: Optional[bool] = None
+) -> "MutationResult":
+    return run_rename_generic(args, "roadmaps", emit_human=emit_human)
 
 
-def run_rename_releases(args: argparse.Namespace) -> "MutationResult":
-    return run_rename_generic(args, "releases")
+def run_rename_releases(
+    args: argparse.Namespace, emit_human: Optional[bool] = None
+) -> "MutationResult":
+    return run_rename_generic(args, "releases", emit_human=emit_human)
 
 
-def run_rename_other(args: argparse.Namespace) -> "MutationResult":
-    return run_rename_generic(args, "other")
+def run_rename_other(
+    args: argparse.Namespace, emit_human: Optional[bool] = None
+) -> "MutationResult":
+    return run_rename_generic(args, "other", emit_human=emit_human)
 
 
-def run_group_backlog(args: argparse.Namespace) -> "MutationResult":
-    return run_group_generic(args, "backlog")
+def run_group_backlog(
+    args: argparse.Namespace, emit_human: Optional[bool] = None
+) -> "MutationResult":
+    return run_group_generic(args, "backlog", emit_human=emit_human)
 
 
-def run_group_specs(args: argparse.Namespace) -> "MutationResult":
-    return run_group_generic(args, "specs")
+def run_group_specs(
+    args: argparse.Namespace, emit_human: Optional[bool] = None
+) -> "MutationResult":
+    return run_group_generic(args, "specs", emit_human=emit_human)
 
 
-def run_group_prompts(args: argparse.Namespace) -> "MutationResult":
-    return run_group_generic(args, "prompts")
+def run_group_prompts(
+    args: argparse.Namespace, emit_human: Optional[bool] = None
+) -> "MutationResult":
+    return run_group_generic(args, "prompts", emit_human=emit_human)
 
 
-def run_group_walkthroughs(args: argparse.Namespace) -> "MutationResult":
-    return run_group_generic(args, "walkthroughs")
+def run_group_walkthroughs(
+    args: argparse.Namespace, emit_human: Optional[bool] = None
+) -> "MutationResult":
+    return run_group_generic(args, "walkthroughs", emit_human=emit_human)
 
 
-def run_group_roadmaps(args: argparse.Namespace) -> "MutationResult":
-    return run_group_generic(args, "roadmaps")
+def run_group_roadmaps(
+    args: argparse.Namespace, emit_human: Optional[bool] = None
+) -> "MutationResult":
+    return run_group_generic(args, "roadmaps", emit_human=emit_human)
 
 
-def run_group_releases(args: argparse.Namespace) -> "MutationResult":
-    return run_group_generic(args, "releases")
+def run_group_releases(
+    args: argparse.Namespace, emit_human: Optional[bool] = None
+) -> "MutationResult":
+    return run_group_generic(args, "releases", emit_human=emit_human)
 
 
-def run_group_other(args: argparse.Namespace) -> "MutationResult":
-    return run_group_generic(args, "other")
+def run_group_other(
+    args: argparse.Namespace, emit_human: Optional[bool] = None
+) -> "MutationResult":
+    return run_group_generic(args, "other", emit_human=emit_human)

@@ -34,7 +34,18 @@ import re
 import sys
 from collections.abc import Iterable, Sequence
 from pathlib import Path
-from typing import Any, Dict, FrozenSet, List, NamedTuple, Optional, Set, Tuple, Union
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Dict,
+    FrozenSet,
+    List,
+    NamedTuple,
+    Optional,
+    Set,
+    Tuple,
+    Union,
+)
 
 from . import __version__, config, discovery, engine, versioning
 from . import lifecycle_style as _LS
@@ -43,6 +54,10 @@ from . import term as _term_mod
 from .project_schema import DeliveryMode, GitPolicy, Preset, RecordsBackend
 from .result_types import ConflictingFlagsError, OutputMode, select_output
 from .term import Term
+
+if TYPE_CHECKING:
+    from .artifact_rename import MutationResult
+    from .result_types import CommandResult
 
 # --------------------------------------------------------------------------------------
 # Process-wide presentation & command publication (s2yf26 E-03, E-04)
@@ -12626,26 +12641,37 @@ def _run_partition(
     return partition.run_partition(args, term, context=context)
 
 
-def _nv_resolve_types(args, term, verb):
-    """Resolve the verb's TYPE argument to a list of supported types, or None on error (after
-    emitting a fail). `all` expands to every type this verb has a backend for."""
+def _nv_resolve_types(
+    args: argparse.Namespace,
+    term: Term,
+    verb: str,
+    emit_human: bool = True,
+) -> Tuple[Optional[List[str]], Optional[str]]:
+    """Resolve the verb's TYPE argument to a list of supported types, or (None, err_msg) on error.
+    `all` expands to every type this verb has a backend for."""
     from agent_workflows import artifact_types as at
 
     try:
         norm = at.normalize_type(args.type)
     except ValueError as exc:
-        term.status("fail", str(exc))
-        return None
+        err_msg = str(exc)
+        if emit_human:
+            term.status("fail", err_msg)
+        return None, err_msg
     if norm == "all":
         types = [t for t in at.ARTIFACT_TYPES if at.backend_name(t, verb)]
         if not types:
-            term.status("fail", f"'{verb}' is not supported for any type yet.")
-            return None
-        return types
+            err_msg = f"'{verb}' is not supported for any type yet."
+            if emit_human:
+                term.status("fail", err_msg)
+            return None, err_msg
+        return types, None
     if at.backend_name(norm, verb) is None:
-        term.status("warn", f"'{verb}' is not supported for {norm}.")
-        return None
-    return [norm]
+        err_msg = f"'{verb}' is not supported for {norm}."
+        if emit_human:
+            term.status("warn", err_msg)
+        return None, err_msg
+    return [norm], None
 
 
 def _nv_backend_args(args, artifact_type):
@@ -12719,6 +12745,213 @@ def _highlight_filename_matches(
     return highlighted_fn
 
 
+def _reconstruct_apply_command(
+    command: str, args: Optional[argparse.Namespace] = None
+) -> str:
+    """Reconstruct an echo-safe --apply invocation from CLI argv or parsed arguments."""
+    import shlex
+    import sys
+
+    argv = list(sys.argv)
+    start_idx = -1
+    for idx, arg in enumerate(argv):
+        if arg in ("rename", "group", "research"):
+            start_idx = idx
+            break
+
+    if start_idx != -1:
+        tokens = []
+        i = start_idx
+        while i < len(argv):
+            tok = argv[i]
+            if tok in ("--json", "--agent", "--as-agent", "--apply"):
+                i += 1
+                continue
+            if tok in ("--dir", "-d"):
+                i += 2
+                continue
+            if tok.startswith(("--dir=", "-d=")):
+                i += 1
+                continue
+            tokens.append(tok)
+            i += 1
+        if "--apply" not in tokens:
+            tokens.append("--apply")
+        return "aw " + " ".join(shlex.quote(t) for t in tokens)
+
+    parts = ["aw"] + command.split()
+    if args is not None:
+        sel = (
+            getattr(args, "selector", None)
+            or getattr(args, "id", None)
+            or getattr(args, "ids", None)
+        )
+        if isinstance(sel, list):
+            parts.extend(str(s) for s in sel)
+        elif sel:
+            parts.append(str(sel))
+        slug = getattr(args, "slug", None)
+        if slug:
+            parts.extend(["--slug", str(slug)])
+        set_val = getattr(args, "set", None)
+        if set_val:
+            parts.extend(["--set", str(set_val)])
+    parts.append("--apply")
+    return " ".join(shlex.quote(p) for p in parts)
+
+
+def map_mutation_result_to_command_result(
+    mr: "MutationResult",
+    *,
+    command: str,
+    repo_root: Path,
+    args: Optional[argparse.Namespace] = None,
+    target_label: str = "",
+) -> "CommandResult":
+    """Map a backend MutationResult to a unified CommandResult for machine output.
+
+    Normalizes paths against repo_root, reconstructs echo-safe --apply next action
+    for previews, handles destination discoverability in target for single-target
+    renames (PR-201), filters noop targets, and sets applied explicitly.
+    """
+    from agent_workflows import agent_schema as _schema
+    from agent_workflows.result_types import (
+        Change,
+        CommandResult,
+        Diagnostic,
+        Evidence,
+        NextAction,
+    )
+
+    exit_code = mr.rc
+    if exit_code == 2:
+        status = "cannot-run"
+        verified = False
+        complete = False
+    elif exit_code == 1:
+        status = "findings"
+        verified = True
+        complete = True
+    else:
+        status = "clean" if mr.applied else "preview"
+        verified = True
+        complete = True
+
+    changes: List[Change] = []
+    for t in mr.targets:
+        if t.kind == "noop":
+            continue
+        changes.append(
+            Change(
+                path=_schema.normalize_repo_path(t.old_path, repo_root),
+                kind=t.kind,
+                detail=t.detail,
+                applied=mr.applied,
+            )
+        )
+    for e in mr.ref_edits:
+        if hasattr(e, "file"):
+            f_path = e.file
+            old_val = getattr(e, "old", "")
+            new_val = getattr(e, "new", "")
+            hits = getattr(e, "hits", 1)
+            detail = (
+                f"rewrite {hits}x '{old_val}' -> '{new_val}'"
+                if old_val and new_val
+                else f"rewrite {hits}x"
+            )
+        elif isinstance(e, (list, tuple)) and len(e) >= 2:
+            f_path = e[0]
+            detail = f"rewrite {e[1]}x"
+        else:
+            f_path = str(e)
+            detail = "rewrite 1x"
+        rel_f = (
+            f_path.relative_to(repo_root).as_posix()
+            if isinstance(f_path, Path)
+            else _schema.normalize_repo_path(str(f_path), repo_root)
+        )
+        changes.append(
+            Change(
+                path=rel_f,
+                kind="update",
+                detail=detail,
+                applied=mr.applied,
+            )
+        )
+
+    diagnostics: List[Diagnostic] = [
+        Diagnostic(
+            location=_schema.normalize_repo_path(d.location, repo_root),
+            rule=d.rule,
+            detail=d.detail,
+            severity=d.severity,
+        )
+        for d in mr.diagnostics
+    ]
+
+    # Destination discoverability (PR-201):
+    # For a single-target rename, target is set to the new repo-relative path.
+    # For multi-target or group invocations, target remains the type or target_label.
+    if (
+        target_label != "all"
+        and len(mr.targets) == 1
+        and mr.targets[0].kind == "rename"
+    ):
+        target = _schema.normalize_repo_path(mr.targets[0].new_path, repo_root)
+    else:
+        target = target_label or "all"
+
+    next_actions: List[NextAction] = []
+    if status == "preview":
+        next_cmd = _reconstruct_apply_command(command, args)
+        next_actions.append(NextAction(command=next_cmd, description="apply"))
+
+    evidence: List[Evidence] = []
+    if mr.notes:
+        evidence.append(
+            Evidence(
+                key="notes",
+                value=list(mr.notes),
+                status="clean",
+                detail="; ".join(mr.notes),
+            )
+        )
+
+    if exit_code == 0:
+        if not mr.applied:
+            summary = f"would {'rename' if 'rename' in command or 'mv' in command else 'group'} {len(mr.targets)} file(s)"
+        else:
+            summary = f"{'renamed' if 'rename' in command or 'mv' in command else 'grouped'} {len(mr.targets)} file(s)"
+    else:
+        if mr.diagnostics:
+            summary = mr.diagnostics[0].detail
+        else:
+            summary = f"command {command} failed with exit {exit_code}"
+
+    data: Dict[str, Any] = {
+        "target": target,
+    }
+    if mr.notes:
+        data["notes"] = list(mr.notes)
+
+    return CommandResult(
+        command=command,
+        status=status,
+        exit_code=exit_code,
+        summary=summary,
+        diagnostics=diagnostics,
+        changes=changes,
+        evidence=evidence,
+        next_actions=next_actions,
+        data=data,
+        verified=verified,
+        complete=complete,
+        applied=mr.applied,
+        target=target,
+    )
+
+
 def _run_noun_verb(
     args: argparse.Namespace,
     term: Term,
@@ -12741,35 +12974,89 @@ def _run_noun_verb(
             with _sel.search_limits(include_ignored=_inc, max_depth=_depth):
                 return _run_find(args, term, context=context)
         return _run_find(args, term, context=context)
-    types = _nv_resolve_types(args, term, verb)
+
+    from agent_workflows.project_context import resolve_verb_repo_root
+    from agent_workflows.renderers import get_renderer
+    from agent_workflows.result_types import (
+        CommandResult,
+        Diagnostic,
+        select_output,
+    )
+
+    ctx = context or select_output(args)
+    emit_human = ctx.is_human
+
+    types, err_msg = _nv_resolve_types(args, term, verb, emit_human=emit_human)
     if types is None:
+        if not emit_human:
+            repo_root = resolve_verb_repo_root(getattr(args, "dir", None))
+            diag = Diagnostic(
+                location=getattr(args, "type", "type") or "type",
+                rule="type-error",
+                detail=err_msg or f"cannot resolve type for {verb}",
+                severity="error",
+            )
+            cmd_res = CommandResult(
+                command=f"{verb} {getattr(args, 'type', '')}".strip(),
+                status="cannot-run",
+                exit_code=2,
+                summary=err_msg or f"cannot resolve type for {verb}",
+                diagnostics=[diag],
+                verified=False,
+                complete=False,
+                applied=False,
+                data={"target": getattr(args, "type", "")},
+            )
+            return get_renderer(ctx).emit(cmd_res, ctx)
         return 2
+
     from agent_workflows import artifact_types as at
-    from agent_workflows.plans_refs import MutationResult
+    from agent_workflows.plans_refs import (
+        MutationDiagnostic,
+        MutationResult,
+    )
 
     rc = 0
-    # selfcommit jgcm68 E-07: for group/rename, backends RETURN a MutationResult (the touched
-    # paths) and perform NO commit; we aggregate across the (possibly several) types and
-    # place the self-commit offer ONCE here at the dispatch site (PR-012: never inside a shared
-    # backend, so `aw group research` fires exactly once from here and NOT again in the backend).
-    # The backends still REGENERATE their INDEX.json/INDEX.md, but those manifests are generated
-    # output and are deliberately NOT part of this commit path-set (idxuntrack `4r0qp1` E-03).
+    results_by_type: list[tuple[str, Any]] = []
     touched_all: list[str] = []
     for t in types:
         fn = at.resolve_backend(t, verb)
         if fn is None:
-            term.status("warn", f"'{verb}' is not yet wired / not supported for {t}.")
+            if emit_human:
+                term.status(
+                    "warn", f"'{verb}' is not yet wired / not supported for {t}."
+                )
             rc = max(rc, 2)
+            results_by_type.append(
+                (
+                    t,
+                    MutationResult(
+                        2,
+                        diagnostics=(
+                            MutationDiagnostic(
+                                location=t,
+                                rule="not-supported",
+                                detail=f"'{verb}' is not yet wired / not supported for {t}.",
+                                severity="error",
+                            ),
+                        ),
+                    ),
+                )
+            )
             continue
-        result = fn(_nv_backend_args(args, t))
+        b_args = _nv_backend_args(args, t)
+        if verb in ("group", "rename"):
+            result = fn(b_args, emit_human=emit_human)
+        else:
+            result = fn(b_args)
+        results_by_type.append((t, result))
         if isinstance(result, MutationResult):
             rc = max(rc, result.rc)
             touched_all.extend(result.touched_paths)
         elif isinstance(result, int):
             rc = max(rc, result)
-    if verb in ("group", "rename") and touched_all:
-        from agent_workflows.project_context import resolve_verb_repo_root
 
+    if verb in ("group", "rename") and touched_all:
         repo_root = resolve_verb_repo_root(getattr(args, "dir", None))
         sel = _nv_offer_selector_label(args)
         _offer_records_commit(
@@ -12778,6 +13065,42 @@ def _run_noun_verb(
             paths=touched_all,
             message=f"refactor({','.join(types)}): {verb} {sel} and rewrite refs",
         )
+
+    if not emit_human and verb in ("group", "rename"):
+        agg_targets = []
+        agg_ref_edits = []
+        agg_diagnostics = []
+        agg_notes = []
+        any_applied = False
+        for t, res in results_by_type:
+            if isinstance(res, MutationResult):
+                agg_targets.extend(res.targets)
+                agg_ref_edits.extend(res.ref_edits)
+                agg_diagnostics.extend(res.diagnostics)
+                agg_notes.extend(res.notes)
+                if res.applied:
+                    any_applied = True
+        agg_mr = MutationResult(
+            rc=rc,
+            touched_paths=tuple(touched_all),
+            targets=tuple(agg_targets),
+            applied=any_applied,
+            ref_edits=tuple(agg_ref_edits),
+            diagnostics=tuple(agg_diagnostics),
+            notes=tuple(agg_notes),
+        )
+        repo_root = resolve_verb_repo_root(getattr(args, "dir", None))
+        target_label = getattr(args, "type", "")
+        cmd_name = f"{verb} {target_label}"
+        cmd_res = map_mutation_result_to_command_result(
+            agg_mr,
+            command=cmd_name,
+            repo_root=repo_root,
+            args=args,
+            target_label=target_label,
+        )
+        return get_renderer(ctx).emit(cmd_res, ctx)
+
     return rc
 
 
@@ -17323,15 +17646,20 @@ def _dispatch(argv: Optional[Sequence[str]]) -> int:
             # inside the shared research_refs backend), so `aw research set-assign`/`mv` fires
             # exactly once and does NOT double-fire with the `aw group/rename research` path (E-07),
             # which reaches the SAME backend from the noun-verb dispatch (PR-012).
+            emit_human = (
+                context.is_human
+                if context is not None
+                else not (getattr(args, "agent", False) or getattr(args, "json", False))
+            )
             if research_cmd == "set-assign":
-                mr = rr.run_set_assign(args)
+                mr = rr.run_set_assign(args, emit_human=emit_human)
                 _verb = "set-assign"
                 _sel = (
                     ",".join(str(i) for i in (getattr(args, "ids", None) or []))
                     or "records"
                 )
             else:
-                mr = rr.run_mv(args)
+                mr = rr.run_mv(args, emit_human=emit_human)
                 _verb = "mv"
                 _sel = str(getattr(args, "id", None) or "records")
             # The regenerated research INDEX.json/INDEX.md are deliberately absent from this
@@ -17344,6 +17672,18 @@ def _dispatch(argv: Optional[Sequence[str]]) -> int:
                     paths=list(mr.touched_paths),
                     message=f"refactor(research): {_verb} {_sel} and rewrite refs",
                 )
+            if not emit_human:
+                repo_root = resolve_verb_repo_root(getattr(args, "dir", None))
+                from agent_workflows.renderers import get_renderer
+
+                cmd_res = map_mutation_result_to_command_result(
+                    mr,
+                    command=f"research {_verb}",
+                    repo_root=repo_root,
+                    args=args,
+                    target_label="research",
+                )
+                return get_renderer(context).emit(cmd_res, context)
             return mr.rc
         if research_cmd == "check-refs":
             from agent_workflows import research_refs as rr
