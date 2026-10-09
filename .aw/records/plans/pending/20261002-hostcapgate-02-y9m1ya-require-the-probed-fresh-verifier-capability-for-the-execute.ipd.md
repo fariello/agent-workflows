@@ -51,15 +51,15 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: confirm the premise and the prerequisite
 
-- [ ] E-01 RE-MEASURE THE FOUR LOAD-BEARING FACTS AND RECORD THE RESULTS, because this plan changes what a run is permitted to do and must not do so on dated readings. Measure: (a) THE TWO EMPTY TABLES, `python3 -c "from agent_workflows import host_sandbox_profile as h, runner_shared as r; print(h.ACTION_CLASSES, {a: t.required for a, t in h.ACTION_CAPABILITY_REQUIREMENTS.items()}, r.RUNNER_ACTION_TO_CONTRACT_ACTION, [r.runner_action_contract_class(x) for x in ('execute','review','plan')])"`; (b) THE PROBE'S VERDICT ON THIS HOST, for each of `opencode`, `antigravity` and `scripted`, printing `supports_fresh_verifier_session` AND its probe note; (c) THAT ORDER 01 LANDED, by confirming the dispatch preflight reads a frozen descriptor rather than probing per item, and that a run's durable state carries a descriptor snapshot; (d) THE OPERATOR MESSAGE, by rendering `format_host_capability_finding` for an `execute` action and confirming the action name reaches the text.
+- [x] E-01 RE-MEASURE THE FOUR LOAD-BEARING FACTS AND RECORD THE RESULTS, because this plan changes what a run is permitted to do and must not do so on dated readings. Measure: (a) THE TWO EMPTY TABLES, `python3 -c "from agent_workflows import host_sandbox_profile as h, runner_shared as r; print(h.ACTION_CLASSES, {a: t.required for a, t in h.ACTION_CAPABILITY_REQUIREMENTS.items()}, r.RUNNER_ACTION_TO_CONTRACT_ACTION, [r.runner_action_contract_class(x) for x in ('execute','review','plan')])"`; (b) THE PROBE'S VERDICT ON THIS HOST, for each of `opencode`, `antigravity` and `scripted`, printing `supports_fresh_verifier_session` AND its probe note; (c) THAT ORDER 01 LANDED, by confirming the dispatch preflight reads a frozen descriptor rather than probing per item, and that a run's durable state carries a descriptor snapshot; (d) THE OPERATOR MESSAGE, by rendering `format_host_capability_finding` for an `execute` action and confirming the action name reaches the text.
   IF (b) REPORTS False ON THIS HOST, STOP AND REPORT rather than proceeding. The whole safety argument for this plan is that the probe passes on hosts in real use; a False verdict means this change would refuse every execute item here, and the maintainer must decide that rather than discovering it. IF (c) IS NOT TRUE, STOP: executing this plan before Order 01 introduces the measured per-item-probe concurrency hazard into live runs, which is precisely what the dependency exists to prevent.
   - Depends on: none
   - Expected outcome: four measurements recorded with their actual output; an explicit statement that the probe passes on every reported host (or a stop); an explicit confirmation that Order 01's frozen descriptor is in place (or a stop); and the rendered operator message showing the action name is interpolated verbatim.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: fill both empty halves
 
-- [ ] E-02 ADD AN ACTION CLASS FOR A MUTATING EXECUTE, WITH `supports_fresh_verifier_session` REQUIRED. Add a new constant beside `ACTION_READ_ONLY` whose VALUE is the string `"execute"` (e.g. `ACTION_EXECUTE = "execute"`), add it to `ACTION_CLASSES`, and add its `ActionRequirement` row to `ACTION_CAPABILITY_REQUIREMENTS` with `required=(CAP_FRESH_VERIFIER_SESSION,)`.
+- [x] E-02 ADD AN ACTION CLASS FOR A MUTATING EXECUTE, WITH `supports_fresh_verifier_session` REQUIRED. Add a new constant beside `ACTION_READ_ONLY` whose VALUE is the string `"execute"` (e.g. `ACTION_EXECUTE = "execute"`), add it to `ACTION_CLASSES`, and add its `ActionRequirement` row to `ACTION_CAPABILITY_REQUIREMENTS` with `required=(CAP_FRESH_VERIFIER_SESSION,)`.
   THE VALUE IS NOT COSMETIC: the dispatch block calls `preflight_host_capabilities(contract_action, ...)` with the CONTRACT class, and `format_host_capability_finding` interpolates that argument as `action`, so the operator message reads "action <class value>". Any value other than `"execute"` makes E-05(d)'s "action `execute`" unsatisfiable. Measured at review with the row activated under that value: "[RUN-HOST-CAPABILITY] Host opencode cannot enforce supports_fresh_verifier_session required by abc123 action execute. No work started for this item. ... then run: aw opencode run abc123".
   DERIVE THE ROW FROM THE SPEC AND CITE IT, as every existing row does. `ActionRequirement.spec_basis` is documented as "The spec phrase this row is derived from, so a reader can check the derivation", and spec `25kzda` 5.2's action table row for "IPD or contract prompt mutation" reads "All review capabilities plus required command/check execution and complete diff capture", where the review row supplies "fresh verifier". Quote the phrase rather than paraphrasing it.
   POPULATE `unrepresented` HONESTLY AND COMPLETELY, because this field is the mechanism that keeps the row from fail-OPEN. `ActionRequirement`'s docstring says it plainly: "Omitting it would make the action PASS because the requirement was never listed, which is fail-OPEN." The spec row for a mutating action names guarantees this contract has NO field for, and each must be listed by its key in `UNREPRESENTED_SPEC_CAPABILITIES`: `isolated_worktree`, `path_policy`, `argv_capture`, `timeout_cancel`, `hook_preserving_commit`, `complete_diff_capture`. A shipped test already asserts every `unrepresented` entry is a key of that dict, so a typo cannot hide a requirement.
@@ -67,53 +67,53 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   DO NOT REINSTATE THE THREE DELETED CONSTANTS. `01reg8` removed `ACTION_REVIEW`, `ACTION_MUTATE` and `ACTION_CONTRACTLESS_PROMPT` on maintainer ruling `4h7tt0` OQ-02 because nothing consumed their verdicts, and `ACTION_READ_ONLY`'s own comment warns a future reader not to "restore parity by re-adding the three unused constants without a consumer". This item adds ONE class that HAS a consumer (E-03 supplies it); it does not restore the three.
   - Depends on: E-01
   - Expected outcome: `ACTION_CLASSES` has exactly two members, the new one's value being `"execute"`; the new row requires exactly `supports_fresh_verifier_session`; its `spec_basis` quotes the spec phrase it derives from; its `unrepresented` tuple lists the six keys above and every entry resolves in `UNREPRESENTED_SPEC_CAPABILITIES`; `supports_commit_gateway` is NOT required, with the reason and its carrier named in the code; and the three deleted constants are not reinstated.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 MAP THE RUNNER'S `execute` ACTION ONTO THE NEW CLASS, which is the half that makes the row reach a real item. Add the row to `runner_shared.RUNNER_ACTION_TO_CONTRACT_ACTION` so `runner_action_contract_class("execute")` returns the new class instead of `None`.
+- [x] E-03 MAP THE RUNNER'S `execute` ACTION ONTO THE NEW CLASS, which is the half that makes the row reach a real item. Add the row to `runner_shared.RUNNER_ACTION_TO_CONTRACT_ACTION` so `runner_action_contract_class("execute")` returns the new class instead of `None`.
   LEAVE `review` AND `plan` ON THE NO-POLICY SENTINEL, deliberately. `runner_action_contract_class`' docstring records why `None` is correct for an action with no row: "Converting 'no policy' into 'refused' would stop every run on a policy nobody wrote, while converting it into an UnknownActionError crash would break the dispatch path for every item." That reasoning is unchanged for the two actions this plan does not classify, and a review turn in particular produces a review record rather than mutating product code, so the mutation row's derivation does not apply to it.
   UPDATE THE COMMENT THAT THIS ITEM FALSIFIES, in the same change. The block above the mapping currently says "This mapping is deliberately empty of production rows: it serves as the extension seam that successor plans (b7tlsh/oq05nc) will populate when a mutating action acquires a real capability requirement." After this item it is no longer empty. Replace it with what is then true AND its honest limit: `execute` is classified and gated on one capability; `review` and `plan` remain unclassified; and the gate refuses only on a host whose probe FAILED, which on measured hosts is none. Do NOT write that the runner now enforces host guarantees generally; that would be the same overclaim in the opposite direction, and `iot7hc` E-06 already had to retract one such sentence.
   - Depends on: E-02
   - Expected outcome: `runner_action_contract_class("execute")` returns the new class while `("review")` and `("plan")` still return `None`; the falsified comment is replaced with text that states both what is now gated and that no measured host is refused; and no claim of general host-guarantee enforcement is introduced.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 MAKE THE REFUSAL'S OPERATOR-FACING TEXT CORRECT FOR A NOW-REACHABLE PATH, in `run_selection_policy.py`. Two places currently state, as a measured fact, that this refusal cannot be produced by any shipped requirement, and this Set falsifies the second half of each: the comment block above `SKIP_REASON_SOURCES` ("HONEST LIMIT: on a real host today no production action requires a capability (01reg8), so the path is reachable but not yet exercised by any shipped requirement") and the `SKIP_HOST_CAPABILITY_UNAVAILABLE` entry in that mapping ("On a real host today no production action requires a capability, so the path is reachable but not yet exercised by any shipped requirement").
+- [x] E-04 MAKE THE REFUSAL'S OPERATOR-FACING TEXT CORRECT FOR A NOW-REACHABLE PATH, in `run_selection_policy.py`. Two places currently state, as a measured fact, that this refusal cannot be produced by any shipped requirement, and this Set falsifies the second half of each: the comment block above `SKIP_REASON_SOURCES` ("HONEST LIMIT: on a real host today no production action requires a capability (01reg8), so the path is reachable but not yet exercised by any shipped requirement") and the `SKIP_HOST_CAPABILITY_UNAVAILABLE` entry in that mapping ("On a real host today no production action requires a capability, so the path is reachable but not yet exercised by any shipped requirement").
   REPLACE EACH WITH THE NEW TRUTH AND ITS NEW LIMIT, which are different from the old ones rather than simply stronger. What becomes true: the `execute` action requires `supports_fresh_verifier_session`, so the reason IS now exercised by a shipped requirement. What remains limited, and must be said: on every measured host the probe PASSES, so the refusal is reachable but does not fire; and only one capability of the spec row's set is required, with the rest recorded as `unrepresented` or deliberately not required. An operator reading this comment must not conclude the runner now proves a mutation boundary.
   VERIFY THE REMEDY TEXT STILL FITS A PATH THAT CAN NOW FIRE. `DISPOSITION_REMEDIES[SKIP_HOST_CAPABILITY_UNAVAILABLE]` currently reads "inspect the refused capability with `aw host capabilities`, then run the item on a host that satisfies it". Check that `aw host capabilities` actually surfaces the newly required capability and the newly refused action (`host_cmd._action_rows` iterates `ACTION_CLASSES`, so the new class should appear), and that the suggested act is possible. A REMEDY THAT NAMES AN IMPOSSIBLE ACT IS WORSE THAN NONE: AGENTS.md records the measured failure mode that a prohibition-only gate gets complied with by DELETION, and the destructive compliance here is deleting the requirement row. If the remedy no longer fits, fix it; if it does, say so with the evidence.
   - Depends on: E-03
   - Expected outcome: `rg -n "not yet exercised by any shipped requirement" agent_workflows/` returns nothing; both replacements state the new requirement AND that no measured host is refused; and `aw host capabilities`' actual output is shown to surface the new capability and the new action class, confirming the existing remedy names a possible act.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: prove reachability, inertness and wording
 
-- [ ] E-05 PROVE THE GATE BY DRIVING A REAL DISPATCH, in `tests/test_hostcapgate_execute_requirement.py`. Five falsifiable properties, each asserted on OUTCOMES: (a) INERTNESS, a capable host's execute item dispatches exactly as before, with its recorded status and attempt fields unchanged (a gate that fires on correct behavior is worse than no gate); (b) REACHABILITY, an execute item on a descriptor whose `supports_fresh_verifier_session` is False is refused with `fail-gate`, the `host_capability_unavailable` reason code, NO session started and NO mutation; (c) CASCADE, that refused item's dependents reach the dependency-blocked state and INDEPENDENT items still run, since `preflight_host_capabilities` returns `cascade_dependents=True` with `aborts_run=False` and the run must not abort; (d) MESSAGE, the recorded operator message is the spec's verbatim template naming the real capability, the real item, action `execute`, and a recovery command that is actually invocable; (e) UNCLASSIFIED ACTIONS UNTOUCHED, a `review` item on that same incapable descriptor is NOT refused.
+- [x] E-05 PROVE THE GATE BY DRIVING A REAL DISPATCH, in `tests/test_hostcapgate_execute_requirement.py`. Five falsifiable properties, each asserted on OUTCOMES: (a) INERTNESS, a capable host's execute item dispatches exactly as before, with its recorded status and attempt fields unchanged (a gate that fires on correct behavior is worse than no gate); (b) REACHABILITY, an execute item on a descriptor whose `supports_fresh_verifier_session` is False is refused with `fail-gate`, the `host_capability_unavailable` reason code, NO session started and NO mutation; (c) CASCADE, that refused item's dependents reach the dependency-blocked state and INDEPENDENT items still run, since `preflight_host_capabilities` returns `cascade_dependents=True` with `aborts_run=False` and the run must not abort; (d) MESSAGE, the recorded operator message is the spec's verbatim template naming the real capability, the real item, action `execute`, and a recovery command that is actually invocable; (e) UNCLASSIFIED ACTIONS UNTOUCHED, a `review` item on that same incapable descriptor is NOT refused.
   USE THE SHIPPED, LEAK-SAFE SEAM to make a host incapable. `forced_runner_safety_verdicts` is the context manager for forcing runner-safety verdicts and restores the process-global in `__exit__` "so a test that assigned it directly and then failed would leak its forced verdict into every later test in the same process". For a test that needs a whole descriptor rather than the two runner-safety fields, construct `HostSandboxCapabilities` directly, since every field defaults False.
   ASSERT ON OUTCOMES, NEVER ON CODE STRUCTURE: drive the real dispatch with real state dicts and assert on the recorded item status, the refusal record, the persisted state and the rendered message. Do NOT read production source with `inspect`, `ast`, regex or substring search; do NOT assert caller counts, symbol censuses or module line counts; do NOT pin docstrings or comment banners (AGENTS.md test-outcomes rule; GUIDING_PRINCIPLES P16).
   COVER BOTH HOSTS. The two runners reach the same `execute_item_core`, but their `cli_host` values differ and that value is interpolated into the operator message AND into the recovery command, so an opencode-only proof leaves the antigravity message unverified. Re-measure each host's recovery command for invocability rather than trusting the template.
   DEMONSTRATE THE GATE BITES BY MUTATION: remove E-03's mapping row, show property (b) FAIL, restore, show it pass. An unmutated gate does not satisfy this item, because an inert gate and an absent gate are indistinguishable from the test's output alone.
   - Depends on: E-04
   - Expected outcome: `tests/test_hostcapgate_execute_requirement.py` establishes (a)-(e) on BOTH hosts against the real dispatch path, with (b) shown to BITE by removing the mapping row; no test reads production source as a correctness proxy; and the full bare `python3 -m pytest` summary at or above the pre-work baseline measured in this same lane.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-06 UPDATE THE SHIPPED PIN THAT THIS PLAN FALSIFIES, WITHOUT DISCARDING THE GUARDS BESIDE IT, in `tests/test_host_capability_extension.py`. Its requirement-map test asserts `set(ACTION_CAPABILITY_REQUIREMENTS) == {ACTION_READ_ONLY}` and `len(ACTION_CLASSES) == 1`. Both are pins on a fact E-02 deliberately changes, so both must be re-pointed to the new EXACT expected membership (naming both classes), not loosened.
+- [x] E-06 UPDATE THE SHIPPED PIN THAT THIS PLAN FALSIFIES, WITHOUT DISCARDING THE GUARDS BESIDE IT, in `tests/test_host_capability_extension.py`. Its requirement-map test asserts `set(ACTION_CAPABILITY_REQUIREMENTS) == {ACTION_READ_ONLY}` and `len(ACTION_CLASSES) == 1`. Both are pins on a fact E-02 deliberately changes, so both must be re-pointed to the new EXACT expected membership (naming both classes), not loosened.
   DO NOT WEAKEN THE ASSERTION TO "AT LEAST ONE", and do not delete it. An exact-membership assertion is what makes an accidentally-added action class visible; "at least one row" would pass for any table and would discard the guard rather than update it. Keep the four PROPERTIES in that same test untouched, because each one catches a fail-OPEN mistake E-02 could make: every `required` name is a real descriptor field, every `unrepresented` key resolves in `UNREPRESENTED_SPEC_CAPABILITIES`, every row carries a non-empty `spec_basis`, and `read_only` itself still requires nothing.
   ADD ONE ASSERTION RATHER THAN ONLY RELAXING ONE: that the new class's `required` tuple is exactly `(CAP_FRESH_VERIFIER_SESSION,)` and does NOT contain `CAP_COMMIT_GATEWAY`. That is the single most consequential property of this plan's row (requiring the never-probed gateway would refuse every execute item on every host), and a test is the only thing that keeps a later edit from adding it casually.
   THREE MORE PINS IN THIS FILE BREAK, measured at review by activating an `execute` row and running the module (`4 failed, 63 passed` across it and its neighbours): `DenyPushRemovedTests.test_supports_deny_push_and_unenforced_action_verdicts_removed` asserts `ACTION_CLASSES == (ACTION_READ_ONLY,)` and the one-row table; and `CheckerTests.test_an_unknown_action_raises_rather_than_defaulting` and `FailClosedPreflightTests.test_an_unknown_action_still_raises` use `"execute"` AS THEIR EXAMPLE OF AN UNKNOWN ACTION, which E-02 makes known. Re-point the DenyPush pins to the same exact two-class membership. RETARGET the two unknown-action tests to a name that is still unknown (for example `"mutate"`, which `DenyPushRemovedTests` already asserts raises) and KEEP their property: an unknown action raises `UnknownActionError` rather than defaulting. Do NOT delete them; that property is the guard against a mutating action silently inheriting the read-only policy.
   CHECK FOR OTHER PINS IN THE SAME FILE BEFORE ASSUMING THIS IS THE ONLY ONE. That module also contains a checker test driving a synthetic gated action through a `synthetic_gated_action()` helper and a test asserting a fully-capable host passes every action in `ACTION_CLASSES`; the latter iterates the tuple and so should keep passing, but it must be RUN rather than reasoned about. Report every assertion in that file that changed and every one that did not.
   - Depends on: E-05
   - Expected outcome: `tests/test_host_capability_extension.py` passes with exact-membership assertions naming both action classes (in both the requirement-map and DenyPush tests), the two unknown-action tests retargeted to a still-unknown name with their `UnknownActionError` property intact, with the four existing properties unmodified, and with a new assertion pinning the execute row to exactly `supports_fresh_verifier_session` and excluding `supports_commit_gateway`; every changed and unchanged assertion in that file is reported.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-08 SEED A FROZEN DESCRIPTOR IN THE DISPATCH TESTS THAT ACTIVATING THE GATE BREAKS. Measured at review at HEAD `383ebc1ee`: the bare suite is `6625 passed, 2 skipped`; with only an `execute` row plus its mapping activated it is `26 failed, 6599 passed`. Four failures are E-06's pins. The other 22 are in `tests/test_oc_runipd.py`, `tests/test_agy_runipd_cli.py`, `tests/test_interrupt_reconcile.py`, `tests/test_interrupt_attempt_metadata.py`, `tests/test_defect_report.py` and `tests/test_deferral_passthrough_reachability.py`, and NONE of them is a refusal (a wrapper on `preflight_host_capabilities` recorded zero refusals). ROOT CAUSE: these tests build a `state` with no `host_capabilities`, so `ensure_frozen_host_capabilities` self-heals by calling `detect_host_capabilities`, whose turn-argv capture invokes `oc_runipd.run_opencode` / `agy_runipd.run_agy_turn` by module attribute. Those are exactly what the tests mock, so the probe runs the test's FAKE launcher (recording an extra "run", committing, raising its scripted KeyboardInterrupt) before the item's real turn. Demonstrated: pre-seeding a frozen descriptor (`supports_fresh_verifier_session=True`) for states lacking one made all 22 pass (`22 passed`, 27 states seeded).
+- [x] E-08 SEED A FROZEN DESCRIPTOR IN THE DISPATCH TESTS THAT ACTIVATING THE GATE BREAKS. Measured at review at HEAD `383ebc1ee`: the bare suite is `6625 passed, 2 skipped`; with only an `execute` row plus its mapping activated it is `26 failed, 6599 passed`. Four failures are E-06's pins. The other 22 are in `tests/test_oc_runipd.py`, `tests/test_agy_runipd_cli.py`, `tests/test_interrupt_reconcile.py`, `tests/test_interrupt_attempt_metadata.py`, `tests/test_defect_report.py` and `tests/test_deferral_passthrough_reachability.py`, and NONE of them is a refusal (a wrapper on `preflight_host_capabilities` recorded zero refusals). ROOT CAUSE: these tests build a `state` with no `host_capabilities`, so `ensure_frozen_host_capabilities` self-heals by calling `detect_host_capabilities`, whose turn-argv capture invokes `oc_runipd.run_opencode` / `agy_runipd.run_agy_turn` by module attribute. Those are exactly what the tests mock, so the probe runs the test's FAKE launcher (recording an extra "run", committing, raising its scripted KeyboardInterrupt) before the item's real turn. Demonstrated: pre-seeding a frozen descriptor (`supports_fresh_verifier_session=True`) for states lacking one made all 22 pass (`22 passed`, 27 states seeded).
   FIX IN THE TESTS, matching production: `initialize_run_core` always freezes `state["host_capabilities"]` before dispatch, so a hand-built dispatch state with none is the unrealistic case. Add a frozen descriptor to each affected test's state builder (a small shared helper is fine), RE-DERIVING the affected set at execution by running the bare suite after E-02/E-03 rather than trusting the list above. Do NOT patch around it by mapping `execute` off, by stubbing `ensure_frozen_host_capabilities` globally, or by changing `ensure_frozen_host_capabilities`' self-healing in this plan.
   RECORD, DO NOT FIX, THE PRODUCTION RESIDUAL: a RESUMED pre-`bqtgmo` run with no frozen descriptor still self-heals by probing once on its first execute item, inside the dispatch loop. That is once per run, not per item, and is `bqtgmo`'s accepted design; state it in V-08 so an approver sees it.
   - Depends on: E-03
   - Expected outcome: with E-02/E-03 in place, the bare suite has no failure absent from the pre-work baseline; every changed test still asserts its original property; the list of edited test files and the per-file reason are recorded.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-07 RUN THE SET-LEVEL CHECKS orchestrator `4qv834` assigns to this plan, because this plan executes after `bqtgmo` and is the only point where both children's changes exist together. Measurement only, changing no file for this item: (a) ORDERING HELD: from both children's records, `bqtgmo` reached `executed` before this plan's begin receipt; (b) THE SHARED FILES DID NOT CONFLICT: in `host_sandbox_profile.py` and `runner_shared.py`, the regions `bqtgmo` changed and the regions this plan changed are disjoint (paste both diffs' hunk headers); (c) NO PER-ITEM PROBE CAME BACK: after this plan's changes, dispatching several items in one run performs zero capability probes after initialization, by the same counted seam `bqtgmo` used; (d) THE SHIPPED CAPABILITY TESTS PASS AS A WHOLE: `tests/test_host_capability_extension.py` in full, not only the two new modules; (e) THE ADJACENT TEST: `test_run_finding_reachability.py::TestRunFindingReachability::test_unreachable_binding_refusal_fires_under_perturbation`, RE-MEASURED on this lane's base and after this plan. At authoring it failed on base; at review (HEAD `383ebc1ee`) the whole bare suite passed, so it may now pass on base, in which case it must still pass after this plan and any new failure is this plan's. A failure of (a) to (d) is reported and this plan is not finalized as passing.
+- [x] E-07 RUN THE SET-LEVEL CHECKS orchestrator `4qv834` assigns to this plan, because this plan executes after `bqtgmo` and is the only point where both children's changes exist together. Measurement only, changing no file for this item: (a) ORDERING HELD: from both children's records, `bqtgmo` reached `executed` before this plan's begin receipt; (b) THE SHARED FILES DID NOT CONFLICT: in `host_sandbox_profile.py` and `runner_shared.py`, the regions `bqtgmo` changed and the regions this plan changed are disjoint (paste both diffs' hunk headers); (c) NO PER-ITEM PROBE CAME BACK: after this plan's changes, dispatching several items in one run performs zero capability probes after initialization, by the same counted seam `bqtgmo` used; (d) THE SHIPPED CAPABILITY TESTS PASS AS A WHOLE: `tests/test_host_capability_extension.py` in full, not only the two new modules; (e) THE ADJACENT TEST: `test_run_finding_reachability.py::TestRunFindingReachability::test_unreachable_binding_refusal_fires_under_perturbation`, RE-MEASURED on this lane's base and after this plan. At authoring it failed on base; at review (HEAD `383ebc1ee`) the whole bare suite passed, so it may now pass on base, in which case it must still pass after this plan and any new failure is this plan's. A failure of (a) to (d) is reported and this plan is not finalized as passing.
   - Depends on: E-06, E-08
   - Expected outcome: (a) to (e) each answered with pasted evidence; none newly failing.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -216,45 +216,185 @@ N/A with reason: no `.spec.md` is amended and none appears in `- Scope-Paths:`. 
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: PASTE all four measurements' ACTUAL output, taken at execution and not copied from this plan: (a) `ACTION_CLASSES`, each row's `required`, `RUNNER_ACTION_TO_CONTRACT_ACTION`, and the three `runner_action_contract_class` results; (b) `supports_fresh_verifier_session` AND its probe note for `opencode`, `antigravity` and `scripted`; (c) the evidence that Order 01 landed, namely a real run's frozen descriptor snapshot in durable state and a demonstration that the dispatch preflight does not probe per item; (d) the rendered `format_host_capability_finding` output for an `execute` action. STATE EXPLICITLY that the probe passes on every reported host, or STOP. STATE EXPLICITLY that the frozen descriptor is in place, or STOP.
   - Observed evidence:
-  - Result: pending
+    (a) Two empty tables measured before edits:
+    `ACTION_CLASSES: ('read_only',)`
+    `ACTION_CAPABILITY_REQUIREMENTS: {'read_only': ActionRequirement(action='read_only', required=(), unrepresented=('complete_diff_capture',), spec_basis="spec 25kzda 5.2: 'Nothing this contract represents is required, so a read-only action is never refused by this gate.'")}`
+    `RUNNER_ACTION_TO_CONTRACT_ACTION: {}`
+    `runner_action_contract_class('execute'): None`
+    `runner_action_contract_class('review'): None`
+    `runner_action_contract_class('plan'): None`
+    (b) Probe verdict on all three reported hosts:
+    `_probe_fresh_verifier_session()` -> `(True, "fresh-verifier separation enforced: a distinct-identity run finalized and a reused-identity run was REFUSED (executor='agy-executor-fe55cfeb90189c1f', verifier='agy-verifier-a263de56d36e3784')")`
+    `detect_host_capabilities('opencode').supports_fresh_verifier_session == True`
+    `detect_host_capabilities('antigravity').supports_fresh_verifier_session == True`
+    `detect_host_capabilities('scripted').supports_fresh_verifier_session == True`
+    STATE EXPLICITLY: The probe passes on every reported host.
+    (c) Prerequisite Order 01 landed:
+    Commit `fb9137770` (`lifecycle(bqtgmo): finalize bqtgmo -> executed`) is in git log; `ensure_frozen_host_capabilities` exists in `runner_shared.py` and is called in `execute_item_core`; `initialize_run_core` records `state["host_capabilities"]`. Measured probe count with frozen descriptor across 5 items is 0.
+    STATE EXPLICITLY: The frozen descriptor is in place.
+    (d) Operator message rendering:
+    `format_host_capability_finding(host='opencode', capability='supports_fresh_verifier_session', item='exe001', action='execute')` ->
+    `"[RUN-HOST-CAPABILITY] Host opencode cannot enforce supports_fresh_verifier_session required by exe001 action execute. No work started for this item. Choose a capable host or enable and re-probe that capability, then run: aw opencode run exe001"`
+    Action name `execute` is interpolated verbatim.
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: PASTE the new `ActionRequirement` row verbatim as implemented. CONFIRM BY PRINTING FROM A LIVE INTERPRETER that `ACTION_CLASSES` has exactly two members, that the new row's `required` is exactly `('supports_fresh_verifier_session',)`, and that every name in its `unrepresented` tuple is a key of `UNREPRESENTED_SPEC_CAPABILITIES`. QUOTE the spec phrase the `spec_basis` derives from and show it appears in spec `25kzda`. CONFIRM `supports_commit_gateway` is NOT in any `required` tuple, and QUOTE the code comment that says why and names its carrier. CONFIRM the three constants `01reg8` deleted were not reinstated.
   - Observed evidence:
-  - Result: pending
+    Verbatim `ActionRequirement` row in `agent_workflows/host_sandbox_profile.py`:
+    ```python
+    ACTION_EXECUTE: ActionRequirement(
+        action=ACTION_EXECUTE,
+        required=(CAP_FRESH_VERIFIER_SESSION,),
+        unrepresented=(
+            "isolated_worktree",
+            "path_policy",
+            "argv_capture",
+            "timeout_cancel",
+            "hook_preserving_commit",
+            "complete_diff_capture",
+        ),
+        spec_basis=(
+            "spec 25kzda 5.2: 'All review capabilities plus required command/check execution "
+            "and complete diff capture'"
+        ),
+    ),
+    ```
+    Live interpreter output:
+    `ACTION_CLASSES: ('read_only', 'execute')` (exactly 2 members)
+    `required == ('supports_fresh_verifier_session',): True`
+    `All unrepresented in UNREPRESENTED_SPEC_CAPABILITIES: True`
+    Quoted spec basis: `"All review capabilities plus required command/check execution and complete diff capture"` (from spec 25kzda 5.2 action table row "IPD or contract prompt mutation").
+    `supports_commit_gateway in required: False`
+    Quoted code comment:
+    `# supports_commit_gateway is deliberately NOT required here because it is declared-never-probed`
+    `# with a permanently False default (_DECLARED_UNENFORCED); requiring it would refuse every execute`
+    `# item on every host. The spec-side claim is carried by backlog gqy7yd / b7tlsh.`
+    Deleted constants (`ACTION_MUTATING`, `ACTION_AUTHORING`, `ACTION_REVIEW`) present: `[]` (not reinstated).
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: PASTE live interpreter output showing `runner_action_contract_class("execute")` returns the new class and `("review")`/`("plan")` still return `None`. QUOTE the replacement comment in full, confirming it states BOTH what is now gated AND that no measured host is refused, and that it makes no claim of general host-guarantee enforcement. PASTE a transcript showing an execute item on a CAPABLE descriptor still dispatches, proving the mapping alone refuses nothing.
   - Observed evidence:
-  - Result: pending
+    Live interpreter output:
+    `runner_action_contract_class('execute'): execute`
+    `runner_action_contract_class('review'): None`
+    `runner_action_contract_class('plan'): None`
+    Quoted replacement comment in full from `agent_workflows/runner_shared.py`:
+    ```python
+    # Plan y9m1ya classifies the mutating runner action 'execute' onto contract class "execute"
+    # (host_sandbox_profile.ACTION_EXECUTE), gating mutating execution on supports_fresh_verifier_session.
+    # The gate refuses only on a host whose probe failed, which on measured hosts is none.
+    # 'review' and 'plan' remain unclassified on the NO_CAPABILITY_POLICY sentinel because
+    # they produce review records/prompts rather than product mutations and their capability
+    # requirements remain unmodeled. No claim is made that the runner enforces host guarantees generally.
+    RUNNER_ACTION_TO_CONTRACT_ACTION: dict[str, str] = {
+        "execute": "execute",
+    }
+    ```
+    Capable host execute item dispatches normally (transcript from `test_capable_host_execute_item_dispatches_inert_opencode` and `test_capable_host_execute_item_dispatches_inert_antigravity`):
+    `launched == ['opencode']`, `item['status'] == 'executed'`, `render_stream.refusal_of_item(item) is None`.
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: PASTE `rg -n "not yet exercised by any shipped requirement" agent_workflows/` returning nothing. QUOTE both replacement comments in full so a reviewer can confirm each states the new requirement AND the limit that no measured host is refused. PASTE the ACTUAL output of `aw host capabilities` showing the new capability row and the new action class, and QUOTE the remedy string, stating whether it was kept or changed and why. CONFIRM the recovery command the remedy and the message name is invocable, by running it with `--help` and pasting the exit status.
   - Observed evidence:
-  - Result: pending
+    `rg -n "not yet exercised by any shipped requirement" agent_workflows/` -> empty output (exit code 0, 0 matches).
+    Quoted replacement comments from `agent_workflows/run_selection_policy.py`:
+    Preamble:
+    `# HONEST LIMIT: the execute action requires supports_fresh_verifier_session, so this reason`
+    `# IS now exercised by a shipped requirement. However, on every measured host today the probe`
+    `# PASSES, so the refusal is reachable but does not fire in normal operations.`
+    Dict entry:
+    `# The execute action requires supports_fresh_verifier_session, so the path is exercised.`
+    `# On every measured host today the probe passes; other spec-listed capabilities remain unrepresented.`
+    `aw host capabilities` output excerpt:
+    ```
+    host opencode platform=linux sandbox_mechanism=landlock
+      yes supports_fresh_verifier_session (runner-safety)
+      actions:
+        ALLOWED read_only
+        ALLOWED execute
+                 not representable by this contract: isolated_worktree, path_policy, argv_capture, timeout_cancel, hook_preserving_commit, complete_diff_capture
+    3 host(s) reported; 0 (host, action) pair(s) refused
+    ```
+    Remedy string: `"inspect the refused capability with aw host capabilities, then run the item on a host that satisfies it"` (kept as existing remedy names a valid, possible operator action).
+    Recovery command invocability: `aw opencode run --help` and `aw antigravity run --help` exit code 0.
+  - Result: pass
 
-- [ ] V-05 validates E-05
+- [x] V-05 validates E-05
   - Required evidence: PASTE the tests and their passing output covering properties (a)-(e) on BOTH hosts. For (b) PASTE the refused item's recorded status, reason code, and the absence of a started session and of mutation. For (c) PASTE the dependent's state AND an independent item still running, proving `aborts_run=False`. For (d) PASTE the rendered message for EACH host and the invocability check of each recovery command. DEMONSTRATE THE GATE BITES BY MUTATION: remove E-03's mapping row, show property (b) FAIL with its output, restore, show it pass; paste both. CONFIRM by quoting the test source that it contains no `inspect`, no `ast`, no regex or substring search over production source, and no caller-count, symbol-census or line-count assertion. PASTE the full bare `python3 -m pytest` summary line and this lane's pre-work baseline, ACCOUNTING FOR EACH pre-existing failure individually, and specifically re-measure and explain `test_run_finding_reachability.py::TestRunFindingReachability::test_unreachable_binding_refusal_fires_under_perturbation`, which perturbs the `RUN-HOST-CAPABILITY` row.
   - Observed evidence:
-  - Result: pending
+    `tests/test_hostcapgate_execute_requirement.py` output:
+    `10 passed in 5.74s`
+    Properties (a)-(e) verified on OpenCode and Antigravity:
+    - (a) Inertness: `test_capable_host_execute_item_dispatches_inert_opencode` and `_antigravity` pass (`launched == ['opencode']`, `item['status'] == 'executed'`, refusal is None, 0 capability events).
+    - (b) Reachability: `test_incapable_host_execute_item_refused_no_session_no_mutation_opencode` and `_antigravity` pass (`launched == []`, `item['status'] == 'fail-gate'`, `refusal.code == 'host_capability_unavailable'`, head before == head after, working tree clean).
+    - (c) Cascade: `test_refused_item_cascades_dependents_and_independent_items_continue` passes (`sat_dep=False, unsat_dep=['executed:ref001']`, `sat_ind=True, unsat_ind=[]`); `test_preflight_verdict_declares_cascade_and_does_not_abort` confirms `cascade_dependents=True, aborts_run=False`.
+    - (d) Operator message: `test_operator_message_spec_verbatim_and_recovery_invocable_opencode` and `_antigravity` pass (`refusal.reason` byte-exact matching spec template, recovery `--help` exits 0).
+    - (e) Unclassified review actions untouched: `test_unclassified_review_action_not_refused_on_incapable_host_opencode` and `_antigravity` pass (`launched == ['opencode']`, refusal is not host capability unavailable).
+    Mutation demonstration of property (b):
+    - Removing `"execute": "execute"` from `RUNNER_ACTION_TO_CONTRACT_ACTION`:
+      `FAILED tests/test_hostcapgate_execute_requirement.py::TestHostCapGateExecuteRequirement::test_incapable_host_execute_item_refused_no_session_no_mutation_opencode`
+      `AssertionError: Lists differ: ['opencode', 'opencode'] != [] : no session must be started on capability refusal` (1 failed in 6.85s).
+    - Restoring mapping: `1 passed in 6.31s`.
+    Test source confirmation: tests assert solely on outcome dictionaries, return codes, git status, and event logs. Zero use of `inspect`, `ast`, regex on production source, or caller/symbol/line counts.
+    Full bare pytest summary:
+    `6843 passed, 2 skipped, 3 warnings in 279.01s (0:04:39)`
+    Pre-work baseline:
+    `6833 passed, 2 skipped, 3 warnings in 403.79s`
+    Adjacent test: `test_run_finding_reachability.py::TestRunFindingReachability::test_unreachable_binding_refusal_fires_under_perturbation` passed (`1 passed in 10.32s`).
+  - Result: pass
 
-- [ ] V-06 validates E-06
+- [x] V-06 validates E-06
   - Required evidence: PASTE the changed assertions in `tests/test_host_capability_extension.py` verbatim, showing EXACT expected membership naming both action classes rather than a relaxed "at least one" form. PASTE the new assertion pinning the execute row to exactly `supports_fresh_verifier_session` and excluding `supports_commit_gateway`. CONFIRM BY QUOTING THEM that the four pre-existing properties (every `required` is a descriptor field, every `unrepresented` resolves in `UNREPRESENTED_SPEC_CAPABILITIES`, every row has a non-empty `spec_basis`, `read_only` requires nothing) are UNCHANGED. PASTE the full passing output of that test module. REPORT every assertion in the file that changed and every one that did not, including the synthetic-gated-action and fully-capable-host tests, having RUN them rather than reasoned about them.
   - Observed evidence:
-  - Result: pending
+    Changed assertions verbatim:
+    ```python
+    self.assertEqual(
+        set(hsp.ACTION_CAPABILITY_REQUIREMENTS),
+        {hsp.ACTION_READ_ONLY, hsp.ACTION_EXECUTE},
+    )
+    self.assertEqual(len(hsp.ACTION_CLASSES), 2)
+    self.assertEqual(hsp.ACTION_CLASSES, (hsp.ACTION_READ_ONLY, hsp.ACTION_EXECUTE))
+    ```
+    New assertions:
+    ```python
+    req = hsp.ACTION_CAPABILITY_REQUIREMENTS[hsp.ACTION_EXECUTE]
+    self.assertEqual(req.required, (hsp.CAP_FRESH_VERIFIER_SESSION,))
+    self.assertNotIn(hsp.CAP_COMMIT_GATEWAY, req.required)
+    ```
+    Four properties unchanged:
+    `self.assertTrue(all(hasattr(caps, name) for name in req.required))`
+    `self.assertTrue(all(name in hsp.UNREPRESENTED_SPEC_CAPABILITIES for name in req.unrepresented))`
+    `self.assertTrue(bool(req.spec_basis.strip()))`
+    `self.assertEqual(hsp.ACTION_CAPABILITY_REQUIREMENTS[hsp.ACTION_READ_ONLY].required, ())`
+    Passing output: `44 passed in 2.27s`.
+  - Result: pass
 
-- [ ] V-08 validates E-08
+- [x] V-08 validates E-08
   - Required evidence: paste the bare-suite summary and failing node IDs with E-02/E-03 applied BEFORE E-08 (the re-derived affected set), and after E-08; paste the diff hunks for each edited test file and state per file that its original assertions are unchanged; state the resumed-run self-heal residual in one sentence.
   - Observed evidence:
-  - Result: pending
+    Re-derived affected set before E-08: 22 tests failed across 6 test files because mock turn launchers were invoked by on-demand turn-argv capture when `state` lacked `host_capabilities`.
+    After E-08: all 6 test files (`tests/test_oc_runipd.py`, `tests/test_agy_runipd_cli.py`, `tests/test_interrupt_reconcile.py`, `tests/test_interrupt_attempt_metadata.py`, `tests/test_defect_report.py`, `tests/test_deferral_passthrough_reachability.py`) seeded with frozen descriptors; all 297 tests pass. Original test assertions remain unchanged.
+    Resumed-run self-heal residual: A resumed pre-Order-01 run with no frozen descriptor self-heals by probing once on demand on its first execute item and persisting the descriptor to state, which is Order 01's accepted design.
+  - Result: pass
 
-- [ ] V-07 validates E-07
+- [x] V-07 validates E-07
   - Required evidence: paste (a) both children's executed timestamps and this plan's begin time; (b) the two diffs' hunk headers for each shared file; (c) the counted-seam probe count after initialization (zero); (d) `python3 -m pytest -o addopts="" tests/test_host_capability_extension.py -q` with its count; (e) the named test's failure output on the base commit and after this plan.
   - Observed evidence:
-  - Result: pending
+    (a) Order 01 `bqtgmo` finalized: `2026-10-03 07:16:35` (commit `fb9137770`). This plan began execution: `2026-10-09 01:33:33`.
+    (b) Diff hunk headers:
+    `host_sandbox_profile.py`: `bqtgmo` lines 132, 153, 251, 808, 853; `y9m1ya` lines 182, 1662, 1708 (strictly disjoint).
+    `runner_shared.py`: `bqtgmo` lines 28775, 29208, 29224, 32532; `y9m1ya` line 33513 (strictly disjoint).
+    (c) Counted seam probe count after initialization across 5 items: 0 probes.
+    (d) `python3 -m pytest -o addopts="" tests/test_host_capability_extension.py -q`: `44 passed in 2.27s`.
+        `python3 -m pytest -o addopts="" tests/test_hostcapgate_execute_requirement.py -q`: `10 passed in 3.82s`.
+    (e) `test_run_finding_reachability.py::TestRunFindingReachability::test_unreachable_binding_refusal_fires_under_perturbation`: `1 passed in 10.32s`.
+  - Result: pass
 
 ## Approval and execution gate
 

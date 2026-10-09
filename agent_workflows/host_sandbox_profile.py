@@ -182,6 +182,7 @@ __all__ = [
     "probe_runner_safety_capabilities",
     "forced_runner_safety_verdicts",
     "ACTION_READ_ONLY",
+    "ACTION_EXECUTE",
     "ACTION_CLASSES",
     "ActionRequirement",
     "ACTION_CAPABILITY_REQUIREMENTS",
@@ -1662,8 +1663,9 @@ def run_discovery_then_execution(
 # 25kzda 5.2's action table is deliberately NOT narrowed, so a future reader must not
 # "restore parity" by re-adding the three unused constants without a consumer.
 ACTION_READ_ONLY = "read_only"  # read-only classification / skip / check
+ACTION_EXECUTE = "execute"  # mutating runner execute action (plan y9m1ya)
 
-ACTION_CLASSES: Tuple[str, ...] = (ACTION_READ_ONLY,)
+ACTION_CLASSES: Tuple[str, ...] = (ACTION_READ_ONLY, ACTION_EXECUTE)
 
 
 @dataclass(frozen=True)
@@ -1706,6 +1708,29 @@ ACTION_CAPABILITY_REQUIREMENTS: Dict[str, ActionRequirement] = {
             "spec 25kzda 5.2: 'Repository read and captured evidence only; no agent session "
             "for a skip'. Nothing this contract represents is required, so a read-only "
             "action is never refused by this gate."
+        ),
+    ),
+    # ACTION_EXECUTE: mutating execute action (plan y9m1ya).
+    # Spec 25kzda 5.2 requires a "fresh verifier" for review and mutating actions,
+    # and "All review capabilities plus required command/check execution and complete diff capture".
+    # Only `supports_fresh_verifier_session` is required because its probe is strict and passing.
+    # `supports_commit_gateway` is deliberately NOT required here because it is declared-never-probed
+    # with a permanently False default (_DECLARED_UNENFORCED); requiring it would refuse every execute
+    # item on every host. The spec-side claim is carried by backlog gqy7yd / b7tlsh.
+    ACTION_EXECUTE: ActionRequirement(
+        action=ACTION_EXECUTE,
+        required=(CAP_FRESH_VERIFIER_SESSION,),
+        unrepresented=(
+            "isolated_worktree",
+            "path_policy",
+            "argv_capture",
+            "timeout_cancel",
+            "hook_preserving_commit",
+            "complete_diff_capture",
+        ),
+        spec_basis=(
+            "spec 25kzda 5.2: 'All review capabilities plus required command/check execution "
+            "and complete diff capture'"
         ),
     ),
 }

@@ -33,6 +33,7 @@ from agent_workflows import host_sandbox_profile as hsp
 from agent_workflows.host_sandbox_profile import (
     ACTION_CAPABILITY_REQUIREMENTS,
     ACTION_CLASSES,
+    ACTION_EXECUTE,
     ACTION_READ_ONLY,
     CAP_COMMIT_GATEWAY,
     CAP_FRESH_VERIFIER_SESSION,
@@ -340,9 +341,10 @@ class RequirementMapTests(unittest.TestCase):
     def test_requirement_map_structure_and_coverage(self):
         self.assertEqual(
             set(ACTION_CAPABILITY_REQUIREMENTS),
-            {ACTION_READ_ONLY},
+            {ACTION_READ_ONLY, ACTION_EXECUTE},
         )
-        self.assertEqual(len(ACTION_CLASSES), 1)
+        self.assertEqual(set(ACTION_CLASSES), {ACTION_READ_ONLY, ACTION_EXECUTE})
+        self.assertEqual(len(ACTION_CLASSES), 2)
 
         caps = HostSandboxCapabilities()
         for action, req in ACTION_CAPABILITY_REQUIREMENTS.items():
@@ -355,6 +357,14 @@ class RequirementMapTests(unittest.TestCase):
                 self.assertTrue(hasattr(caps, name))
 
         self.assertEqual(ACTION_CAPABILITY_REQUIREMENTS[ACTION_READ_ONLY].required, ())
+        self.assertEqual(
+            ACTION_CAPABILITY_REQUIREMENTS[ACTION_EXECUTE].required,
+            (CAP_FRESH_VERIFIER_SESSION,),
+        )
+        self.assertNotIn(
+            CAP_COMMIT_GATEWAY,
+            ACTION_CAPABILITY_REQUIREMENTS[ACTION_EXECUTE].required,
+        )
 
 
 class CheckerTests(unittest.TestCase):
@@ -400,7 +410,7 @@ class CheckerTests(unittest.TestCase):
     def test_an_unknown_action_raises_rather_than_defaulting(self):
         """Defaulting would let a mutating action inherit the read-only policy."""
         with self.assertRaises(UnknownActionError):
-            check_action_capabilities("execute", _fully_capable(), host="opencode")
+            check_action_capabilities("mutate", _fully_capable(), host="opencode")
 
     def test_the_checker_runs_no_probe(self):
         """Pure over the descriptor it is given: a forced seam must not change its answer."""
@@ -518,7 +528,7 @@ class FailClosedPreflightTests(unittest.TestCase):
     def test_an_unknown_action_still_raises(self):
         with self.assertRaises(UnknownActionError):
             preflight_host_capabilities(
-                "execute", _fully_capable(), host="opencode", item="mjx7ne"
+                "mutate", _fully_capable(), host="opencode", item="mjx7ne"
             )
 
     def test_a_real_host_today_refuses_the_gated_action(self):
@@ -587,10 +597,10 @@ class InspectionVerbTests(unittest.TestCase):
         payload = json.loads(buf.getvalue())
         data = payload["data"]
         self.assertEqual(data["finding_code"], RUN_HOST_CAPABILITY)
-        self.assertEqual(len(data["action_classes"]), 1)
+        self.assertEqual(len(data["action_classes"]), 2)
         host = data["hosts"][0]
         self.assertEqual(host["host"], "opencode")
-        self.assertEqual(len(host["actions"]), 1)
+        self.assertEqual(len(host["actions"]), 2)
 
     def test_the_capability_rows_are_derived_by_introspection(self):
         """A field added to the contract must not be able to vanish from the report."""
@@ -665,9 +675,10 @@ class DenyPushRemovedTests(unittest.TestCase):
         )
         self.assertFalse(hasattr(hsp, "CAP_DENY_PUSH"))
         self.assertNotIn("CAP_DENY_PUSH", hsp.__all__)
-        self.assertEqual(hsp.ACTION_CLASSES, (hsp.ACTION_READ_ONLY,))
+        self.assertEqual(hsp.ACTION_CLASSES, (hsp.ACTION_READ_ONLY, hsp.ACTION_EXECUTE))
         self.assertEqual(
-            set(hsp.ACTION_CAPABILITY_REQUIREMENTS), {hsp.ACTION_READ_ONLY}
+            set(hsp.ACTION_CAPABILITY_REQUIREMENTS),
+            {hsp.ACTION_READ_ONLY, hsp.ACTION_EXECUTE},
         )
         caps = HostSandboxCapabilities(platform="linux")
         for action in ("review", "mutate", "contractless_prompt"):

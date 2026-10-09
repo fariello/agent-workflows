@@ -205,6 +205,13 @@ class HostBehavioralInterruptMetadataTests(unittest.TestCase):
             "queue": [item],
             "set_sessions": {},
             "session_id": None,
+            "host_capabilities": {
+                "host": "opencode" if driver_name == "oc" else "antigravity",
+                "observed_at": "2026-08-28T00:00:00+00:00",
+                "descriptor": {
+                    "supports_fresh_verifier_session": True,
+                },
+            },
             "options": options,
         }
         return state, item
