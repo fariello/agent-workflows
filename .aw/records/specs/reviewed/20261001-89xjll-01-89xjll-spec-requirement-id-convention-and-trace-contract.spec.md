@@ -10,6 +10,7 @@
 
 ## Workflow history
 
+- 2026-10-09 note (aw specs): /askme (opencode its_direct/pt3-claude-opus-5.5-1m-us): maintainer resolved blocking OQ-04 (FORM A only, N excluded) and OQ-05 (qualified citations only), plus follow-ons OQ-06 (pool all linked plans) and OQ-07 ([Deferred] marker on requirement and acceptance ids, blocking implemented). Body sections 3, 6, R-4..R-6, AC-4..AC-6 NOT yet amended to match; required before approval.
 - 2026-10-02 note (aw specs): /spec-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): REVIEWED - OPEN QUESTIONS; SR-001..SR-010 (SR-002, SR-003 OPEN, gate approval)
 - 2026-10-03 reviewed (aw set): REVIEWED - OPEN QUESTIONS; SR-001,SR-004..SR-010 FIXED; SR-002,SR-003 OPEN as blocking OQ-05,OQ-04
 
@@ -195,7 +196,7 @@ This explicit limit, once Order 02 (`rtvdak`) ships the check, replaces the proh
 
 ## 8. Open Questions (Recommendations for Spec Review)
 
-OQ-01 through OQ-03 were resolved on repository evidence by the author. These resolutions are agent recommendations awaiting human ratification via the human approval attestation (`aw spec set approved <id6> --by-human`), not maintainer determinations or approvals. OQ-04 and OQ-05 were raised at review and are OPEN and BLOCKING: each changes what the implementing plan must build, and neither is answered by the repository. Owner: maintainer. Each closes by a recorded decision in this section before approval.
+OQ-01 through OQ-03 were resolved on repository evidence by the author. These resolutions are agent recommendations awaiting human ratification via the human approval attestation (`aw spec set approved <id6> --by-human`), not maintainer determinations or approvals. OQ-04 and OQ-05 were raised at review as OPEN and BLOCKING; both were DECIDED BY THE MAINTAINER on 2026-10-08 (/askme), together with two follow-on decisions OQ-06 and OQ-07 raised while answering. The body of this spec (Sections 3, 6, R-4/R-5/R-6, AC-4..AC-6) has NOT yet been amended to match them and MUST be before approval.
 
 ### OQ-01: How is a "mandatory" spec requirement identified, given that no marker is in general use?
 
@@ -224,7 +225,7 @@ OQ-01 through OQ-03 were resolved on repository evidence by the author. These re
 - **Recommended Answer**: Option A (Admit FORM B and FORM C).
 - **Evidence & Rationale**: Two of the repository's foundational specifications (`25kzda` with 61 sections and `z7nbn1` with 30 dotted paragraph clauses) are structured around numbered sections and clauses without letter prefixes. Requiring letter-prefixed IDs would treat these key specifications as unaddressable or demand an invasive retrofit. Note (review): both are pre-cutover and grandfathered, so the evidence supports FORM B/C as ADDRESSING handles; whether they are TRACE-MANDATORY in a new spec is OQ-04.
 
-### OQ-04 (OPEN, BLOCKING, raised at review SR-003): Which admitted forms does TRACE treat as mandatory requirements?
+### OQ-04 (RESOLVED 2026-10-08 by the maintainer; was OPEN, BLOCKING, raised at review SR-003): Which admitted forms does TRACE treat as mandatory requirements?
 
 - **Why it blocks**: with OQ-01 A and OQ-03 A as written, a post-cutover spec's every `## <n>.` heading (including "Why this exists", "Open Questions", "Acceptance Criteria") is a mandatory requirement needing an `E-*` citation, `25kzda`-style `| A1:` revision-resolution rows anywhere in a spec are acceptance criteria needing a `V-*` citation, and `N` means "normative" in `2lcqno` but "non-goal" in `2vev8j`, so an `N`-prefixed non-goal would be mandatory. This spec itself would declare non-normative headings as requirements under the rule it defines. The implementing plan cannot resolve this without choosing a design.
 - **Options**:
@@ -232,8 +233,12 @@ OQ-01 through OQ-03 were resolved on repository evidence by the author. These re
   2. (B) All forms are extracted, but only inside sections whose heading names requirements (and acceptance ids only inside an acceptance-criteria section); requires a section-heading grammar.
   3. (C) As written: all forms everywhere, mandatory unless marked `[Should]`/`[Optional]`.
 - **Reviewer recommendation**: (A), plus excluding `N` from the TRACE-mandatory families because its corpus meaning is inconsistent. Not adopted unilaterally because it narrows OQ-03's recorded recommendation, which is the maintainer's to ratify.
+- Blocking: yes
+- Status: resolved
+- Owner: maintainer
+- Resolution or deferral rationale: DECIDED BY THE MAINTAINER, 2026-10-08, interactively via /askme: Option (A) plus the reviewer's `N` exclusion. Only FORM A letter-prefixed ids are TRACE-mandatory in post-cutover specs, from the admitted families EXCEPT `N`; acceptance ids are the `A`/`AC` namespace. FORM B (dotted paragraph numbers) and FORM C (numbered headings) remain valid ADDRESSING handles a plan may cite, but are never extracted for TRACE. Basis put to the maintainer, measured on this spec: it carries 22 numbered headings that Option (C) would make mandatory beside its 15 real ids (R-1..R-7, AC-1..AC-8), and `N` means normative in `2lcqno` but non-goal in `2vev8j`. This NARROWS OQ-03's recommendation (FORM B/C are admitted for addressing only). The maintainer asked, while answering, how the gate treats a partially planned spec and a spec planned across several plans or Sets; that produced two further decisions, recorded as OQ-06 and OQ-07.
 
-### OQ-05 (OPEN, BLOCKING, raised at review SR-002): How is a plan-side id attributed to the producing spec for the "no unknown references" conjunct?
+### OQ-05 (RESOLVED 2026-10-08 by the maintainer; was OPEN, BLOCKING, raised at review SR-002): How is a plan-side id attributed to the producing spec for the "no unknown references" conjunct?
 
 - **Why it blocks**: the adopted pass criterion requires it (Section 6.2a), but a produced plan legitimately mentions other specs' ids, so the attribution rule decides whether the conjunct is implementable without false refusals.
 - **Options**:
@@ -241,6 +246,24 @@ OQ-01 through OQ-03 were resolved on repository evidence by the author. These re
   2. (B) Only tokens explicitly qualified with the producing spec's id6 (for example "`89xjll` R-3") count; anything else is ignored. Precise, but adds an authoring burden and makes the forward conjuncts depend on the same qualification.
   3. (C) Defer the third conjunct to a carrier and state that TRACE implements two of three conjuncts, which makes `z7nbn1` 4.4 only partly discharged and requires amending the "adopt verbatim" decision (OQ-02).
 - **Reviewer recommendation**: (A).
+- Blocking: yes
+- Status: resolved
+- Owner: maintainer
+- Resolution or deferral rationale: DECIDED BY THE MAINTAINER, 2026-10-08, interactively via /askme: Option (B), QUALIFIED IDS ONLY. A token in a produced plan's `E-*`/`V-*` item counts as a citation of the producing spec only when it is qualified with that spec's id6 (for example "`89xjll` R-3"); every other id-shaped token is ignored by TRACE in BOTH directions, so the coverage conjuncts read the same qualified form. This overrides the reviewer's recommendation of (A). Measured basis put to the maintainer, over the 116 existing plans carrying `- From-Spec:`: 160 id-shaped tokens in `E-*`/`V-*` lines are not declared by the producing spec, across 44 plans (126 are the plan's OWN finding ids such as `F-03`, 18 are `GUIDING_PRINCIPLES` refs such as `P16`, 16 are other references); only 6 tokens are already written in the qualified form. Option (A) would refuse plans written in the prevailing style; (B) has no false refusals at the cost of an authoring convention. Consequence for the amendment: R-5/AC-5 and Section 6.1/6.2a must state the qualified-citation grammar, and plan authoring guidance (`/plan-review` and the spec-to-plan production prompt) must tell authors to qualify requirement citations.
+
+### OQ-06 (RESOLVED 2026-10-08 by the maintainer, raised at /askme): Which plans does TRACE pool when a spec is planned across more than one production?
+
+- Blocking: yes
+- Status: resolved
+- Owner: maintainer
+- Resolution or deferral rationale: DECIDED BY THE MAINTAINER, 2026-10-08, interactively via /askme: POOL ALL LINKED PLANS. Coverage is evaluated across every plan linked to the producing spec by `- From-Spec:` (the plans already linked before this production PLUS the plans newly produced), not across the newly produced plans alone. This AMENDS Section 6.1, which currently says TRACE inspects "the newly produced plans", and R-4 ("against the single producing spec and its newly produced plans"). Basis: the runner's spec production block already pools `existing_linked_plans` with `new_produced_plans` into `all_verified_plans` for its sibling checks (`runner_shared.py`, the spec production block), so this matches existing behavior. Context the maintainer was given: one production writing several plans or several Sets was already pooled and unaffected. The new-plans-only reading would make a second, staged production of the same spec fail.
+
+### OQ-07 (RESOLVED 2026-10-08 by the maintainer, raised at /askme): How does a deliberately partial (staged) plan set pass TRACE?
+
+- Blocking: yes
+- Status: resolved
+- Owner: maintainer
+- Resolution or deferral rationale: DECIDED BY THE MAINTAINER, 2026-10-08, interactively via /askme: POOL PLUS PER-SPEC DEFERRAL. A post-cutover spec may mark an individual requirement or acceptance id as deferred with a `[Deferred]` token at its declaration site (the same placement grammar as `[Should]`/`[Optional]` under OQ-01); a deferred id is excluded from the TRACE coverage set and LISTED in the verifier's result, so under-planning is visible, not silent. Why it was needed: pooling (OQ-06) alone does not let a FIRST runner production cover only part of a spec, because nothing earlier exists to pool. Rejected alternatives the maintainer saw: no staging (split the spec instead), and downgrading TRACE to a warning. TWO FOLLOW-ON DECISIONS, ALSO BY THE MAINTAINER ON 2026-10-08 via /askme: (1) A SPEC CARRYING ANY `[Deferred]` ID MAY NOT MOVE TO `implemented`: every marker must first be removed (and the id then planned) or the requirement deleted from the spec, so deferred work cannot be forgotten; chosen over 'allow but list the ids' and 'no rule'. (2) ACCEPTANCE IDS ARE DEFERRABLE WITH THE SAME MARKER AND THE SAME RULES (excluded from coverage, listed in the result, blocking `implemented`), because deferring a requirement while still requiring its acceptance criterion would force a validation step for work the staged plans do not contain; chosen over automatic skipping via the `Covers` column and requirements-only deferral. The amendment must also update Section 3, 6.1-6.3, R-4, R-6, and AC-4..AC-6 to match OQ-04, OQ-06 and this record.
 
 ## 9. Acceptance Criteria
 
