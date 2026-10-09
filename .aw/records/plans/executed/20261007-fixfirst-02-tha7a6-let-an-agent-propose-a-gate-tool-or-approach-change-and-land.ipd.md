@@ -6,7 +6,7 @@
 - Scope: Add a structured `proposal` field to the execute outcome file; have the runner validate it and file it as a tracked record (a pending plan for a small fix with no behavior change, a backlog item for everything else) on main through a coordinator worktree, independent of whether the lane merges; then stop that item as `needs-human` with dependents skipped and independent items continuing; and surface it in the run summary. EXCLUDES the fix-it message text (Order 03), every new retry class (Orders 04 to 07), and spec `6kwd2e`'s mid-run question pause.
 - Scope-Paths: agent_workflows/runner_shared.py, agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, agent_workflows/render_stream.py, tests/test_run_proposal_channel.py, CHANGELOG.md
 - Item-Dependencies: executed:tb6lw3
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: high
@@ -18,9 +18,9 @@
 - Highest E allocated: 06
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: tha7a6
-- Approval: 2026-10-09, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-09 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: tha7a6 verified (set fixfirst, attempt 1). [Scope reconciliation - out-of-scope .aw/records/backlog/open/20261009-0016hm-01-0016hm-test-collision-guard-bites-by-mutation-keyerror-on.backlog.md: changed by the plan's approved execution (auto-reconciled by aw agy run)]
 - 2026-10-09 approved (aw set): status set to approved
 - 2026-10-08 reviewed (aw set): plan-review round 1: APPROVE WITH REVISIONS APPLIED
 - 2026-10-08 /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-007. E-03 named a gate answer (`needs-human`) and a nonexistent status (`dependency-not-met`) as item statuses: now `fail-gate` + `awaiting-human-decision` refusal + `NEEDS_INPUT_KEY` (exit 3), dependents via `cascade_dependency_blocked`; E-02 now takes `integration_lock` (the cited performer does not); untrusted proposal text bounded, path-validated and front-matter-neutralized; scaffold/backlog arguments and draft placeholders specified; Blocks-Release inheritance corrected to the AGENTS.md rule; tests on both hosts; CHANGELOG split to E-06; gate contract added. Review record `.aw/records/reviews/20261007-fixfirst-02-tha7a6-let-an-agent-propose-a-gate-tool-or-approach-change-and-land.review.md`.
