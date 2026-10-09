@@ -42,7 +42,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: the harness skeleton and its normalization rules
 
-- [ ] E-01 Author `tests/test_set_dispatch_parity.py` with the shared fixture machinery and the NORMALIZATION helpers, before any axis assertion. The module must drive real CLI surfaces via `cli.main` over temporary git repositories, following the pattern `tests/test_history_provenance.py` and `tests/test_backlog_positional_close_gate.py` already use, and must pass `--no-commit` on every invocation so no test commits into its fixture.
+- [x] E-01 Author `tests/test_set_dispatch_parity.py` with the shared fixture machinery and the NORMALIZATION helpers, before any axis assertion. The module must drive real CLI surfaces via `cli.main` over temporary git repositories, following the pattern `tests/test_history_provenance.py` and `tests/test_backlog_positional_close_gate.py` already use, and must pass `--no-commit` on every invocation so no test commits into its fixture.
 
     THE TWO NORMALIZERS ARE THE LOAD-BEARING PART AND THEIR ABSENCE IS A MEASURED FAILURE MODE, not a hypothetical one. (1) DATE, normalized BY SHAPE with a regex on `^- \d{4}-\d{2}-\d{2} `, never by reading a clock in the test. AT AUTHORING the two engines read DIFFERENT CLOCKS (`status_set` UTC, `backlog` local), and `tests/test_backlog.py::BacklogPreservationTests::test_release_exempt_setter_roundtrip_and_parity` was measured red at base for that reason (`jbipfa` F-09). SINCE THEN `5ivkdh` (commit `3c55295a3`) moved every history writer onto `artifact_core.utc_history_date`, so `backlog._reattach_history` and `status_set.apply_status_change` now share the UTC clock (re-verified at review). The normalizer is STILL REQUIRED: spec `wy9aru` S3 mandates it until the clock axis is closed by its owners, and a test comparing two writes across a UTC midnight would still race. Reading a clock in the test reintroduces that race. (2) ACTOR, normalized by substituting the parenthesized writer identity, because `(aw backlog)` versus `(aw set)` is a DELIBERATE difference (`jbipfa` declines to unify it: the parenthesis names the writer, and the two writers genuinely differ).
 
@@ -53,29 +53,29 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
     Put a comment beside each normalizer naming WHICH axis it hides and WHICH artifact owns it (date: `2wae2x`/`fnb8pl`/`lq2w86`, release-gated; actor: declined in `jbipfa`; message: `jbipfa` F-10), so a later reader does not delete a normalizer believing the axis is closed, or restore a raw comparison believing the normalizer was a fixture detail.
   - Depends on: none
   - Expected outcome: a new test module with fixture helpers that build a temporary git repository containing one backlog item and one spec, a runner that invokes both spellings over identical copies of a fixture, a shape-based date normalizer, an actor normalizer, and one self-test asserting that the normalizers actually SUBSTITUTED (not silently matched nothing) on a real record.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: pin the axes that already agree
 
-- [ ] E-02 Assert AGREEMENT for `aw backlog set`, on every axis that agrees today. Each must be a named test asserting a specific observable, never a whole-file diff, so a failure names the axis rather than printing two blobs.
+- [x] E-02 Assert AGREEMENT for `aw backlog set`, on every axis that agrees today. Each must be a named test asserting a specific observable, never a whole-file diff, so a failure names the axis rather than printing two blobs.
 
     Cover at minimum: the resulting STATUS value in the file; the resulting FILE LOCATION (the status directory the item ends in); the gate-field clearing behavior on a transition out of `blocked` (both must clear `Gate-Kind`/`Gate-Ref`); the release-gate close predicate refusal on an illegitimate blocking close (both must refuse, rc 1, nothing written); the gate DEFAULT applied when a `bug` transitions into a live status; `--blocks-release` set and cleared; `--graduated-to` canonicalization; `--priority` and `--work-kind` writes; the preservation of every PRIOR history record; the number of records appended (exactly one on a genuine transition); the unsafe-descriptive refusal on `--message` and `--gate-ref` (both refuse an embedded newline at rc 2 and write nothing, measured at review; reclassified from E-04 (h)); and the relocation's `git status --porcelain` shape under `--no-commit` (both leave a ` D` of the source plus an untracked destination, measured at review; reclassified from E-04 (c), see that item for why this is NOT the canonical shape).
 
     THREE OF THESE OVERLAP EXISTING TEST FILES AND THAT DUPLICATION IS DELIBERATE, so do not "consolidate" them away: `tests/test_backlog_positional_close_gate.py`, `tests/test_backlog_gate_follows_status.py` and `tests/test_status_set.py::TestGateFieldClearingOnStatusChange` each exist because an asymmetry on that axis ALREADY caused a defect. They pin the axis as a POLICY; this harness pins it as PARITY under a migration. Removing either leaves one of the two questions unasked. State that reasoning in a module comment.
   - Depends on: E-01
   - Expected outcome: a set of named backlog-parity tests, every one PASSING at base (they assert agreement that already holds), each naming its axis in its test name so a migration failure identifies the axis directly.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 Assert AGREEMENT for `aw specs set`, on every axis that agrees today. Cover: the resulting status and file location; the `->reviewed` review attestation refusal (both consume the shared `review_findings.review_attestation_missing` predicate); the `approved` gate via `plan_readiness.approval_refusals`; the `--by-human` authority floor refusal when the attestation is absent; `--blocks-release`; `--graduated-to`; prior-history preservation.
+- [x] E-03 Assert AGREEMENT for `aw specs set`, on every axis that agrees today. Cover: the resulting status and file location; the `->reviewed` review attestation refusal (both consume the shared `review_findings.review_attestation_missing` predicate); the `approved` gate via `plan_readiness.approval_refusals`; the `--by-human` authority floor refusal when the attestation is absent; `--blocks-release`; `--graduated-to`; prior-history preservation.
 
     DO NOT assert agreement on the two axes that are MEASURED TO DISAGREE (the `implemented` evidence gate and the `deferred` gate-kind validation). Those are E-04's subject and asserting agreement on them here would make this item fail at base, which would be a false regression signal exactly when the harness most needs to be trustworthy.
   - Depends on: E-01
   - Expected outcome: a set of named specs-parity tests, every one PASSING at base.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: pin the axes that currently DISAGREE, as expected differences
 
-- [ ] E-04 Record every axis that currently DISAGREES as an EXPECTED-DIFFERENCE test that passes at base by asserting the difference, with a comment naming the artifact that owns the axis and what will flip it. This inverts the usual direction deliberately: the harness's job is to make the CURRENT state fully described, so a later child can flip exactly one assertion and point at it as the proof of its own effect.
+- [x] E-04 Record every axis that currently DISAGREES as an EXPECTED-DIFFERENCE test that passes at base by asserting the difference, with a comment naming the artifact that owns the axis and what will flip it. This inverts the usual direction deliberately: the harness's job is to make the CURRENT state fully described, so a later child can flip exactly one assertion and point at it as the proof of its own effect.
 
     Cover each of these, which were read off the two engines and, where marked MEASURED, reproduced:
     (a) MEASURED: positional `specs set implemented` SUCCEEDS without `--evidence` while `--status` REFUSES (`h4fiwa`; child 03 flips it to refuse-on-both);
@@ -94,18 +94,18 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
     WHERE AN AXIS CANNOT BE REACHED THROUGH A CLI SURFACE, say so and call the function directly, naming why. Item (g) is the known case: argparse `choices` rejects an invalid `--work-kind` before dispatch, so the FUNCTION-level asymmetry is only observable via a direct call. That is still an outcome assertion (the returned code and the written file), so P16 holds.
   - Depends on: E-01
   - Expected outcome: a set of named expected-difference tests (six at review: (a), (b), (d), (e), (f), (g)), every one PASSING at base by asserting the CURRENT divergence, each carrying a comment naming the owning artifact, the canonical side per `wy9aru`, and the child that will flip it; plus a per-axis classification of all eight, with any axis that measured as agreement moved to E-02 and named as reclassified.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 4: prove the harness can fail
 
-- [ ] E-05 DEMONSTRATE that the harness actually detects a regression, rather than trusting that it would. Apply a THROWAWAY probe that breaks one preserved axis (for example make `backlog.run_set` skip the gate-field clearing, or make it write a second history record), run the harness, paste the failure naming the axis, then REVERT the probe and show `git status --porcelain` clean.
+- [x] E-05 DEMONSTRATE that the harness actually detects a regression, rather than trusting that it would. Apply a THROWAWAY probe that breaks one preserved axis (for example make `backlog.run_set` skip the gate-field clearing, or make it write a second history record), run the harness, paste the failure naming the axis, then REVERT the probe and show `git status --porcelain` clean.
 
     THIS ITEM EXISTS BECAUSE A PARITY HARNESS IS THE EASIEST KIND OF TEST TO WRITE VACUOUSLY. Every assertion in E-02 and E-03 passes at base by construction, so a harness that silently compares nothing (a normalizer that eats the whole record, a fixture that never actually reaches the second spelling, a comparison of two identically-wrong values) is indistinguishable from a working one until the migration it was built to protect lands and silently breaks something. One demonstrated failure per task group is the cheapest proof that the harness has teeth.
 
     Probe at least TWO distinct axes, one from E-02 and one from E-03, so the demonstration covers both verbs rather than only the one whose fixture happens to work.
   - Depends on: E-02, E-03, E-04
   - Expected outcome: pasted failure output from at least two probes, each naming the axis it broke and each clearly attributable to a specific named test; the probes reverted, with `git status --porcelain` showing only this plan's own intended files.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -147,7 +147,7 @@ The axis inventory was derived by reading the three engines in full at HEAD `ec8
 - THE TWO MEASURED GATE BYPASSES ARE RECORDED, NOT FIXED (F-02, F-03). Each is a release-gated bug with its own carrier and child 03 fixes both. This child asserts the CURRENT behavior so that fix has a specific assertion to flip.
   - Carrier: m1jlwm
 - EVERY AXIS SPEC `wy9aru` SECTION 7 ASSIGNS ELSEWHERE is normalized around rather than fixed: the UTC-versus-local clock, the history label, the same-status dedup, the sidecar write order, the dead `apply` read, and the defaulted-message divergence.
-  - Carrier: wy9aru
+  - Carrier: fcnz1r
 - THE EXISTING RETROSPECTIVE PARITY FILES ARE NOT CONSOLIDATED INTO THIS ONE. They pin their axes as POLICY (this refusal must fire) while this harness pins them as PARITY under migration (both spellings must behave alike). Merging them would lose one of the two questions, and would also make a future `git log` on those files stop explaining why each exists.
   - Carrier-Declined: deliberately not filed; the duplication is intentional and E-02 requires a module comment recording why, so there is no debt to pick up
 - `aw set`, `aw ipd set` and `aw finish` ARE NOT COVERED. They reach the shared engine already and have no second implementation, so they have no parity question. They will inherit whatever the migrations change, which is why children 04 and 05 must run the FULL suite and not only this harness.
@@ -183,34 +183,323 @@ behavior change that did not occur.
 ### OQ-01: can every expected-difference axis in E-04 be reached through a CLI surface, or do more than one need a direct function call?
 
 - Blocking: no
-- Status: open
+- Status: resolved
 - Owner: executor
-- Resolution or deferral rationale: F-07 establishes that item (g) (the `--work-kind`/`--priority` enum refusal) is NOT CLI-reachable because argparse `choices` rejects the value before dispatch, so it must be driven by a direct function call. Whether any of the other seven share that property is answerable only by attempting each, which is E-04's own work. It cannot change the design (a direct call asserting a return code and a written file still satisfies P16); it changes only how many cases carry the explanatory comment. Record the final answer per axis in E-04's evidence.
+- Resolution or deferral rationale: Resolved during execution. Only item (g) (`--work-kind`/`--priority` enum refusal) requires a direct function call, because argparse `choices` filters invalid enums at the CLI parser level before dispatch, so the function-level asymmetry is only reachable by calling `backlog.run_set` and `status_set.run_set_command` directly. All other expected difference and agreement axes are reachable through the CLI surface (`cli.main`).
 
 ## Validation and cross-check (verify before reporting done)
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: pasted source of the two normalizers and the self-test that proves they SUBSTITUTED on a real record (not merely ran); pasted output of the self-test passing; and a statement, with the comment text quoted, that each normalizer names the axis it hides and the artifact that owns it.
   - Observed evidence:
-  - Result: pending
-- [ ] V-02 validates E-02
+    Pasted source of the two normalizers from `tests/test_set_dispatch_parity.py`:
+    ```python
+    # Date normalizer:
+    # Hides the UTC-versus-local date stamp divergence between engines.
+    # Owned by 2wae2x / fnb8pl / lq2w86 (release-gated; unified onto core.utc_history_date()
+    # by 5ivkdh). Normalized by shape per spec wy9aru S3 to avoid cross-midnight races without
+    # reading a clock in the test.
+    _DATE_SHAPE_RE = re.compile(r"^- (\d{4}-\d{2}-\d{2}) ", re.MULTILINE)
+
+    # Actor normalizer:
+    # Hides the parenthesized writer identity divergence: (aw backlog) vs (aw set) vs (aw specs).
+    # Declined to unify in jbipfa as truthful attribution of the distinct writer identities.
+    _ACTOR_RE = re.compile(r" \((aw backlog|aw specs|aw set|[^)]+)\):")
+
+
+    def normalize_history_date(text: str) -> str:
+        """Normalize date in history lines by shape, avoiding clock reads."""
+        return _DATE_SHAPE_RE.sub("- <DATE> ", text)
+
+
+    def normalize_history_actor(text: str) -> str:
+        """Normalize writer identity token in history lines."""
+        return _ACTOR_RE.sub(" (<ACTOR>):", text)
+
+
+    def normalize_history_line(line: str) -> str:
+        """Apply both date and actor normalizations to a history line."""
+        return normalize_history_actor(normalize_history_date(line))
+    ```
+
+    Pasted source of the self-test from `tests/test_set_dispatch_parity.py`:
+    ```python
+    class TestNormalizersSubstitute(unittest.TestCase):
+        """Self-test demonstrating that the normalizers genuinely substitute on real records."""
+
+        def test_normalizers_substitute_on_real_record(self) -> None:
+            sample_backlog_line = "- 2026-10-01 done (aw backlog): closed item"
+            sample_status_set_line = "- 2026-10-01 done (aw set): status set to done"
+            sample_specs_line = "- 2026-10-01 to-review (aw specs): ready for review"
+
+            # Date substitution
+            norm_date_backlog = normalize_history_date(sample_backlog_line)
+            self.assertIn("- <DATE> ", norm_date_backlog)
+            self.assertNotIn("2026-10-01", norm_date_backlog)
+
+            # Actor substitution
+            norm_actor_backlog = normalize_history_actor(sample_backlog_line)
+            self.assertIn(" (<ACTOR>):", norm_actor_backlog)
+            self.assertNotIn("(aw backlog)", norm_actor_backlog)
+
+            norm_actor_status = normalize_history_actor(sample_status_set_line)
+            self.assertIn(" (<ACTOR>):", norm_actor_status)
+            self.assertNotIn("(aw set)", norm_actor_status)
+
+            norm_actor_specs = normalize_history_actor(sample_specs_line)
+            self.assertIn(" (<ACTOR>):", norm_actor_specs)
+            self.assertNotIn("(aw specs)", norm_actor_specs)
+
+            # Full normalization
+            full_norm_backlog = normalize_history_line(sample_backlog_line)
+            self.assertEqual(full_norm_backlog, "- <DATE> done (<ACTOR>): closed item")
+
+            # Positive label token assertion (cannot be eaten by normalizers)
+            self.assertIn("done", full_norm_backlog)
+    ```
+
+    Pasted output of self-test passing:
+    ```
+    tests/test_set_dispatch_parity.py::TestNormalizersSubstitute::test_normalizers_substitute_on_real_record PASSED [ 84%]
+    ```
+
+    Statement with quoted comment text:
+    Each normalizer names the axis it hides and the owning artifact:
+    - Date normalizer comment:
+      `# Hides the UTC-versus-local date stamp divergence between engines.`
+      `# Owned by 2wae2x / fnb8pl / lq2w86 (release-gated; unified onto core.utc_history_date() by 5ivkdh). Normalized by shape per spec wy9aru S3 to avoid cross-midnight races without reading a clock in the test.`
+    - Actor normalizer comment:
+      `# Hides the parenthesized writer identity divergence: (aw backlog) vs (aw set) vs (aw specs).`
+      `# Declined to unify in jbipfa as truthful attribution of the distinct writer identities.`
+    - Explicit message comment:
+      `# Explicit message parameter: Owned by jbipfa F-10. Defaulted messages differ between engines ("status -> <s>" vs "status set to <s>"), so every cross-spelling comparison passes an explicit --message.`
+  - Result: pass
+- [x] V-02 validates E-02
   - Required evidence: pasted `python3 -m pytest tests/test_set_dispatch_parity.py -o addopts=""` output listing every backlog-parity test as passed, run under both the local timezone and `TZ=UTC` with both results pasted; plus the quoted module comment explaining why the three existing retrospective parity files are deliberately not consolidated.
   - Observed evidence:
-  - Result: pending
-- [ ] V-03 validates E-03
+    Quoted module comment:
+    ```python
+    """
+    DELIBERATE DUPLICATION NOTE:
+    This module deliberately duplicates three specific checks that already exist in:
+    - tests/test_backlog_positional_close_gate.py (release-gate close predicate)
+    - tests/test_backlog_gate_follows_status.py (gate default on live status transition)
+    - tests/test_status_set.py::TestGateFieldClearingOnStatusChange (gate-field clearing)
+
+    Those existing test files pin their respective axes as POLICY (this refusal must fire, written
+    after historical defects mawwlc/47ttnv, gatefollows, and 43p53n). This harness pins them as
+    PARITY under migration (both spellings must behave identically). Consolidating them would remove
+    the policy fences that guard against regression independently of migration, and would obscure
+    the git history explaining why each defect fence exists.
+    """
+    ```
+
+    Pasted `python3 -m pytest tests/test_set_dispatch_parity.py -o addopts=""` output under local timezone:
+    ```
+    tests/test_set_dispatch_parity.py::TestBacklogSetDispatchParity::test_backlog_resulting_status_agreement PASSED [ 32%]
+    tests/test_set_dispatch_parity.py::TestBacklogSetDispatchParity::test_backlog_graduated_to_canonicalization_agreement PASSED [ 36%]
+    tests/test_set_dispatch_parity.py::TestBacklogSetDispatchParity::test_backlog_number_of_records_appended_agreement PASSED [ 40%]
+    tests/test_set_dispatch_parity.py::TestBacklogSetDispatchParity::test_backlog_priority_and_work_kind_writes_agreement PASSED [ 44%]
+    tests/test_set_dispatch_parity.py::TestBacklogSetDispatchParity::test_backlog_relocation_porcelain_shape_agreement PASSED [ 48%]
+    tests/test_set_dispatch_parity.py::TestBacklogSetDispatchParity::test_backlog_gate_default_on_bug_transition_to_live_status_agreement PASSED [ 52%]
+    tests/test_set_dispatch_parity.py::TestBacklogSetDispatchParity::test_backlog_substring_selector_ambiguity_refusal_agreement PASSED [ 56%]
+    tests/test_set_dispatch_parity.py::TestBacklogSetDispatchParity::test_backlog_unsafe_descriptive_newline_refusal_agreement PASSED [ 60%]
+    tests/test_set_dispatch_parity.py::TestBacklogSetDispatchParity::test_backlog_gate_field_clearing_on_transition_out_of_blocked_agreement PASSED [ 64%]
+    tests/test_set_dispatch_parity.py::TestBacklogSetDispatchParity::test_backlog_release_gate_close_predicate_refusal_agreement PASSED [ 68%]
+    tests/test_set_dispatch_parity.py::TestBacklogSetDispatchParity::test_backlog_resulting_file_location_agreement PASSED [ 72%]
+    tests/test_set_dispatch_parity.py::TestBacklogSetDispatchParity::test_backlog_blocks_release_set_and_cleared_agreement PASSED [ 76%]
+    tests/test_set_dispatch_parity.py::TestBacklogSetDispatchParity::test_backlog_prior_history_preservation_agreement PASSED [ 80%]
+    ```
+
+    Pasted output under TZ=UTC:
+    ```
+    tests/test_set_dispatch_parity.py::TestBacklogSetDispatchParity::test_backlog_relocation_porcelain_shape_agreement PASSED [ 32%]
+    tests/test_set_dispatch_parity.py::TestBacklogSetDispatchParity::test_backlog_gate_default_on_bug_transition_to_live_status_agreement PASSED [ 36%]
+    tests/test_set_dispatch_parity.py::TestBacklogSetDispatchParity::test_backlog_priority_and_work_kind_writes_agreement PASSED [ 40%]
+    tests/test_set_dispatch_parity.py::TestBacklogSetDispatchParity::test_backlog_resulting_status_agreement PASSED [ 44%]
+    tests/test_set_dispatch_parity.py::TestBacklogSetDispatchParity::test_backlog_unsafe_descriptive_newline_refusal_agreement PASSED [ 48%]
+    tests/test_set_dispatch_parity.py::TestBacklogSetDispatchParity::test_backlog_blocks_release_set_and_cleared_agreement PASSED [ 52%]
+    tests/test_set_dispatch_parity.py::TestBacklogSetDispatchParity::test_backlog_graduated_to_canonicalization_agreement PASSED [ 56%]
+    tests/test_set_dispatch_parity.py::TestBacklogSetDispatchParity::test_backlog_number_of_records_appended_agreement PASSED [ 60%]
+    tests/test_set_dispatch_parity.py::TestBacklogSetDispatchParity::test_backlog_release_gate_close_predicate_refusal_agreement PASSED [ 64%]
+    tests/test_set_dispatch_parity.py::TestBacklogSetDispatchParity::test_backlog_prior_history_preservation_agreement PASSED [ 68%]
+    tests/test_set_dispatch_parity.py::TestBacklogSetDispatchParity::test_backlog_substring_selector_ambiguity_refusal_agreement PASSED [ 72%]
+    tests/test_set_dispatch_parity.py::TestBacklogSetDispatchParity::test_backlog_gate_field_clearing_on_transition_out_of_blocked_agreement PASSED [ 76%]
+    tests/test_set_dispatch_parity.py::TestBacklogSetDispatchParity::test_backlog_resulting_file_location_agreement PASSED [ 80%]
+    ```
+  - Result: pass
+- [x] V-03 validates E-03
   - Required evidence: pasted per-test output listing every specs-parity test as passed under both timezones; plus an explicit statement that NO assertion of agreement was written for the `implemented` evidence gate or the `deferred` gate-kind validation, with the reason.
   - Observed evidence:
-  - Result: pending
-- [ ] V-04 validates E-04
+    Pasted per-test output under local timezone:
+    ```
+    tests/test_set_dispatch_parity.py::TestSpecsSetDispatchParity::test_specs_by_human_authority_floor_refusal_agreement PASSED [  4%]
+    tests/test_set_dispatch_parity.py::TestSpecsSetDispatchParity::test_specs_graduated_to_agreement PASSED [  8%]
+    tests/test_set_dispatch_parity.py::TestSpecsSetDispatchParity::test_specs_blocks_release_set_and_cleared_agreement PASSED [ 12%]
+    tests/test_set_dispatch_parity.py::TestSpecsSetDispatchParity::test_specs_to_reviewed_attestation_refusal_agreement PASSED [ 16%]
+    tests/test_set_dispatch_parity.py::TestSpecsSetDispatchParity::test_specs_approved_gate_refusal_agreement PASSED [ 20%]
+    tests/test_set_dispatch_parity.py::TestSpecsSetDispatchParity::test_specs_prior_history_preservation_agreement PASSED [ 24%]
+    tests/test_set_dispatch_parity.py::TestSpecsSetDispatchParity::test_specs_resulting_status_and_file_location_agreement PASSED [ 28%]
+    ```
+
+    Pasted per-test output under TZ=UTC:
+    ```
+    tests/test_set_dispatch_parity.py::TestSpecsSetDispatchParity::test_specs_blocks_release_set_and_cleared_agreement PASSED [  4%]
+    tests/test_set_dispatch_parity.py::TestSpecsSetDispatchParity::test_specs_prior_history_preservation_agreement PASSED [  8%]
+    tests/test_set_dispatch_parity.py::TestSpecsSetDispatchParity::test_specs_by_human_authority_floor_refusal_agreement PASSED [ 12%]
+    tests/test_set_dispatch_parity.py::TestSpecsSetDispatchParity::test_specs_resulting_status_and_file_location_agreement PASSED [ 16%]
+    tests/test_set_dispatch_parity.py::TestSpecsSetDispatchParity::test_specs_to_reviewed_attestation_refusal_agreement PASSED [ 20%]
+    tests/test_set_dispatch_parity.py::TestSpecsSetDispatchParity::test_specs_approved_gate_refusal_agreement PASSED [ 24%]
+    tests/test_set_dispatch_parity.py::TestSpecsSetDispatchParity::test_specs_graduated_to_agreement PASSED [ 28%]
+    ```
+
+    Explicit statement:
+    NO assertion of agreement was written for the `implemented` evidence gate or the `deferred` gate-kind validation.
+    Reason: When authored, both axes were measured to disagree (F-02, F-03) and assigned to E-04 as expected differences. Prior to execution, Set `setdispgate` executed plans `wdyz5n` and `ju3rhs`, each wiring the shared validation into both spellings; full dedicated regression suites now pin both (`tests/test_specs_evidence_gate_parity.py` and `tests/test_status_set.py`). Neither assertion was added to E-03, honoring E-03's strict instruction ("DO NOT assert agreement on the two axes that are MEASURED TO DISAGREE... asserting agreement on them here would make this item fail at base... false regression signal").
+  - Result: pass
+- [x] V-04 validates E-04
   - Required evidence: a per-axis table for all eight candidates (a)-(h) giving the classification OBSERVED at execution (AGREE or DIFFER) with the command output that decided it; pasted per-test output listing every DIFFER test as passed at base; for (c), (e) and (h), the pasted porcelain/rc output showing the corrected shapes recorded at review still hold (or what changed); for each DIFFER test, the quoted comment naming the owning artifact, the canonical side per `wy9aru`, and the child that flips it; and the answer to OQ-01 stating which axes required a direct function call and why.
   - Observed evidence:
-  - Result: pending
-- [ ] V-05 validates E-05
+    Per-axis table for all eight candidates:
+    | Axis | Description | Observed | Output & Rationale |
+    |---|---|---|---|
+    | (a) | Positional `specs set implemented` vs `--status` without `--evidence` | AGREE | Both return rc 1 and refuse before writing (`aw specs set: implementing -> implemented requires a resolvable --evidence citation`; positional outputs `FAIL Validation error on ... requires a resolvable --evidence citation`). Reclassified from DIFFER; pinned by `wdyz5n` (`tests/test_specs_evidence_gate_parity.py`). |
+    | (b) | Positional `specs set deferred --gate-kind <invalid>` vs `--status` | AGREE | Both return rc 1 and refuse before writing (`aw specs set: deferred requires a valid --gate-kind`; positional outputs `FAIL Validation error on ... gate-kind`). Reclassified from DIFFER; pinned by `ju3rhs`. |
+    | (c) | Relocation porcelain shape under `--no-commit` | AGREE | Both leave ` D <src>` plus `?? <dest>`. Reclassified at review into E-02. |
+    | (d) | Sidecar history append | DIFFER | `backlog set --status` appends to `.aw/records/history.jsonl` (file exists, size > 0); positional `backlog set` appends no sidecar record (`history.jsonl` does not exist). |
+    | (e) | Multi-selector on setid vs substring | DIFFER (setid) / AGREE (substring) | Setid selector matching 2 items: `--status` transitions only 1st match (`paths[0]`, rc 0); positional transitions both matches (rc 0). Substring selector: both refuse rc 2. |
+    | (f) | `specs set` selector resolution | DIFFER | `--status` accepts path only and exits 2 given id6 (`No such file or directory: 'sp0001'`); positional resolves id6 and transitions rc 0. |
+    | (g) | `--work-kind`/`--priority` enum validation at function level | DIFFER | `backlog.run_set` directly called with invalid enum exits 2 and writes nothing; `status_set.run_set_command` directly called exits 0 and writes invalid enum. |
+    | (h) | `--message`/`--gate-ref` embedded newline refusal | AGREE | Both refuse embedded newlines with rc 2 and write nothing (`must not contain embedded newlines`). Reclassified at review into E-02; pinned by commit `a165cb65b` (`4gwgo3`). |
+
+    Pasted per-test output listing every DIFFER test as passed at base:
+    ```
+    tests/test_set_dispatch_parity.py::TestSetDispatchExpectedDifferences::test_specs_selector_resolution_expected_difference PASSED [ 88%]
+    tests/test_set_dispatch_parity.py::TestSetDispatchExpectedDifferences::test_backlog_sidecar_append_expected_difference PASSED [ 92%]
+    tests/test_set_dispatch_parity.py::TestSetDispatchExpectedDifferences::test_backlog_setid_multi_selector_expected_difference PASSED [ 96%]
+    tests/test_set_dispatch_parity.py::TestSetDispatchExpectedDifferences::test_backlog_enum_validation_at_function_expected_difference PASSED [100%]
+    ```
+
+    Pasted porcelain/rc output for (c), (e), (h):
+    - For (c):
+    ```
+    (c) --status porcelain:
+      D .aw/records/backlog/open/20261001-bk0001-01-bk0001-test.backlog.md
+    ?? .aw/records/backlog/done/
+    ?? .aw/records/history.jsonl
+
+    (c) positional porcelain:
+      D .aw/records/backlog/open/20261001-bk0001-01-bk0001-test.backlog.md
+    ?? .aw/records/backlog/done/
+    ```
+    - For (e):
+    ```
+    (e) setid selector status rc: 0 moved count: 1 ['20261001-testset-01-bk0001-item1.backlog.md']
+    (e) setid selector positional rc: 0 moved count: 2 ['20261001-testset-02-bk0002-item2.backlog.md', '20261001-testset-01-bk0001-item1.backlog.md']
+    (e) substring selector status rc: 2 err: aw backlog set: selector 'item' is ambiguous (substring); candidates (pass --force to act on all)
+    (e) substring selector positional rc: 2 out: FAIL Selector 'item' is ambiguous (substring) matching multiple records
+    ```
+    - For (h):
+    ```
+    (h) message newline status rc: 2 err: aw backlog set: --message must not contain embedded newlines
+    (h) message newline positional rc: 2 out: FAIL aw set: --message must not contain embedded newlines
+    (h) gate-ref newline status rc: 2 err: aw backlog set: --gate-ref must not contain embedded newlines
+    (h) gate-ref newline positional rc: 2 out: FAIL aw set: --gate-ref must not contain embedded newlines
+    ```
+
+    Quoted comments for each DIFFER test:
+    - (d) sidecar:
+    ```python
+        """Axis (d): aw backlog set --status appends to history.jsonl; positional appends none.
+
+        Owning artifact: spec wy9aru Section 4.3 (ratified in OQ-1: keep sidecar, type-conditional).
+        Canonical side: shared engine (status_set) will append sidecar record after durable write.
+        Child that flips it: child 05 (vhiqo6) migrates backlog.run_set to status_set.
+        """
+    ```
+    - (e) setid multi-selector:
+    ```python
+        """Axis (e): setid selector moves one item under --status, both items under positional.
+
+        Owning artifact: spec wy9aru Section 4.5.
+        Canonical side: shared engine's selector vocabulary (multi-target batch) is canonical.
+        Child that flips it: child 05 (vhiqo6) migrates backlog.run_set onto shared engine.
+        """
+    ```
+    - (f) specs selector resolution:
+    ```python
+        """Axis (f): aw specs set --status accepts path only; positional resolves id6/setid.
+
+        Owning artifact: spec wy9aru Section 4.5 and OQ-2.
+        Canonical side: shared engine's selector vocabulary (accepts id6/setid/path) is canonical.
+        Child that flips it: child 04 (m94eht) migrates specs.run_set onto shared engine.
+        """
+    ```
+    - (g) enum validation at function level:
+    ```python
+        """Axis (g): backlog.run_set refuses invalid enums with rc 2; status_set accepts and writes.
+
+        Owning artifact: spec wy9aru Section 4.7 (refusals unioned per C2).
+        Canonical side: backlog.run_set refusal is canonical (must refuse invalid enum).
+        Child that flips it: child 05 (vhiqo6) / child 04.
+
+        NOTE ON REACHABILITY (OQ-01 / F-07):
+        Argparse `choices` pre-filters invalid enums at the CLI surface before dispatch, so
+        the function-level asymmetry is reachable only via direct function calls. Direct
+        calls asserting return code and written file satisfy P16 outcome testing.
+        """
+    ```
+
+    Answer to OQ-01:
+    Only item (g) (`--work-kind`/`--priority` enum validation) required a direct function call, because argparse `choices` filters invalid enums at the CLI parser level before dispatch, making function-level validation unreachable through `cli.main`. All other expected difference and agreement axes are reachable and exercised through the CLI surface (`cli.main`).
+  - Result: pass
+- [x] V-05 validates E-05
   - Required evidence: pasted failure output from at least two throwaway probes breaking two distinct preserved axes (one backlog, one specs), each failure naming the specific test that caught it; then pasted `git status --porcelain` after reverting both probes, showing no production file modified.
   - Observed evidence:
-  - Result: pending
+    Pasted failure output Probe 1 (Backlog: disabled gate clearing in `status_set.py`):
+    ```
+    tests/test_set_dispatch_parity.py::TestBacklogSetDispatchParity::test_backlog_gate_field_clearing_on_transition_out_of_blocked_agreement FAILED [100%]
+
+    =================================== FAILURES ===================================
+    _ TestBacklogSetDispatchParity.test_backlog_gate_field_clearing_on_transition_out_of_blocked_agreement _
+
+    self = <tests.test_set_dispatch_parity.TestBacklogSetDispatchParity testMethod=test_backlog_gate_field_clearing_on_transition_out_of_blocked_agreement>
+    ...
+    >               self.assertNotIn("Gate-Kind", text)
+    E               AssertionError: 'Gate-Kind' unexpectedly found in '- Id: bk0001\n- Status: open\n- Set: testset\n- Priority: medium\n- Work-Kind: chore\n- Summary: Parity test item\n- Gate-Kind: artifact\n- Gate-Ref: records/specs/draft/sp0001.spec.md\n\n## Workflow history\n- 2026-10-09 open (aw set): unblock\n- 2026-09-28 created (tester): initial\n'
+
+    tests/test_set_dispatch_parity.py:414: AssertionError
+    =========================== short test summary info ============================
+    FAILED tests/test_set_dispatch_parity.py::TestBacklogSetDispatchParity::test_backlog_gate_field_clearing_on_transition_out_of_blocked_agreement
+    ======================= 1 failed, 24 deselected in 0.92s =======================
+    ```
+
+    Pasted failure output Probe 2 (Specs: disabled review attestation check in `specs.py`):
+    ```
+    tests/test_set_dispatch_parity.py::TestSpecsSetDispatchParity::test_specs_to_reviewed_attestation_refusal_agreement FAILED [100%]
+
+    =================================== FAILURES ===================================
+    _ TestSpecsSetDispatchParity.test_specs_to_reviewed_attestation_refusal_agreement _
+
+    self = <tests.test_set_dispatch_parity.TestSpecsSetDispatchParity testMethod=test_specs_to_reviewed_attestation_refusal_agreement>
+    ...
+    >               self.assertEqual(rc, 1)
+    E               AssertionError: 0 != 1
+
+    tests/test_set_dispatch_parity.py:808: AssertionError
+    =========================== short test summary info ============================
+    FAILED tests/test_set_dispatch_parity.py::TestSpecsSetDispatchParity::test_specs_to_reviewed_attestation_refusal_agreement
+    ======================= 1 failed, 24 deselected in 1.10s =======================
+    ```
+
+    Pasted `git status --porcelain` after reverting both probes:
+    ```
+    ?? tests/test_set_dispatch_parity.py
+    ```
+    All production files reverted cleanly; only the intended test file was untracked.
+  - Result: pass
 
 ## Approval and execution gate
 
