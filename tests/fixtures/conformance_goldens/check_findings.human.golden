@@ -2,13 +2,13 @@ AW check  plans
 ✗ FINDINGS  2 findings across 41 checked
 
 Findings:
-  Issue: Filename does not match artifact naming grammar
+  Issue: Filename does not match artifact naming grammar [ERROR]
   - a.md [ERROR]
-    Fix: run 'aw rename plans a.md' or rename to match 'YYYYMMDD-<setid>-NN-<id6>-<slug>.<type>.md'.
+    Fix: a.md does not carry a clustered identity prefix; run 'aw rename plans a.md --to-id6 --apply' or rename to match 'YYYYMMDD-<setid>-NN-<id6>-<slug>.<type>.md'.
 
-  Issue: One Set ID used with two different descriptives in one record type
+  Issue: One Set ID used with two different descriptives in one record type [ERROR]
   - b.md [ERROR]
-    Fix: another record of the SAME type uses this Set ID with a different descriptive; run 'aw group plans b.md --set <new-set-id>' to regroup this record, or align the two descriptives. Sharing a Set ID with a different record type is correct and is not reported.
+    Fix: another record of the SAME type uses this Set ID with a different descriptive; run 'aw group plans b.md --set <new-set-id> --rename --apply' to regroup this record, or align the two descriptives. Sharing a Set ID with a different record type is correct and is not reported.
 
 
 Evidence
