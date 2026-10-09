@@ -6,7 +6,7 @@
 - Scope: Orchestrate the three children that close backlog item `eeiytw`: carry the facts out of the backends (Order 01), emit the payload once at each dispatch site (Order 02), and silence the nested manifest-refresh line so stdout is strictly parseable (Order 03). This plan performs NO work of its own; every deliverable belongs to a child.
 - Scope-Paths: .aw/records/plans/pending/20261001-eeiytw-01-x7unul-carry-the-rename-and-group-facts-out-of-the-backends-in-a-ty.ipd.md, .aw/records/plans/pending/20261001-eeiytw-02-vfqjc0-emit-the-aw-agent-v1-payload-once-at-the-rename-and-group-di.ipd.md, .aw/records/plans/pending/20261001-eeiytw-03-gzb2rq-silence-the-nested-index-refresh-and-pin-the-machine-surface.ipd.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Coverage: pass
 - Coverage-Fingerprint: 5aa8e931bef7d7271a7e6fd1aae9ded0c6784b348b0704be92c24c4861a8a649
@@ -20,9 +20,9 @@
 - Highest E allocated: 03
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: z2l43n
-- Approval: 2026-10-08, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-09 executed (aw agy run model=Gemini-3.8-Flash-High): RETIRED as the orchestrator rollup step of a runner Set completion, not executed by an agent: every child of Set eeiytw reached executed, so the runner (run run-20261009T024714Z-1667714) retired this Order-0 plan as bookkeeping. Its own E-*/V-* items were NOT performed; the runner superseded them by enforcing the ordering, the isolation and the per-child merge gate. Justifying children: x7unul, vfqjc0, gzb2rq.
 - 2026-10-08 approved (aw set): status set to approved
 - 2026-10-07 reviewed (aw set): /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005. Reviewed at HEAD e643abfd5. Cross-IPD checks each name their real owning child V-item; 87m438 recorded as executed; index exclusion now cites open carrier 4izduy (4uw9gy is done); eeiytw open state noted; scope-fence wording added. Coverage repair 2 attempts, passing. Review record .aw/records/reviews/20261001-eeiytw-00-z2l43n-make-aw-rename-and-aw-group-honour-json-and-agent-across-eve.review.md.
 - 2026-10-07 coverage pass (aw oc run): fingerprint 5aa8e931bef7, model uri/its_direct/pt3-claude-opus-5.5-1m-us
@@ -40,6 +40,9 @@
 Make both verbs emit exactly one parseable `aw.agent/v1` record on stdout under `--json` and `--agent`, on every artifact type, on preview, apply and refusal, so that `json.loads(stdout)` succeeds where it raises today. The work is split across three children because it contains three different KINDS of change with three different reviewer questions: a wide mechanical plumbing change across four modules that must alter no output, a narrow behavioral change at two dispatch sites that defines a machine contract, and one deliberate human-output change. Landing them together would make each unreviewable, because a reviewer could not attribute a broken test to the right half. Backlog item `eeiytw` currently reads `- Status: open` (reopened by the 2026-10-06 coverage demotion; re-graduating it is a backlog-tier act outside this Set), and it is closed by the runner's normal backlog close when the last of the three children executes (every child carries `- From-Backlog: eeiytw`); neither this plan nor any child closes it by hand.
 
 ## Detailed Implementation Checklist (TODO)
+
+
+> Its own E-*/V-* items were NOT performed; the runner superseded them by enforcing the ordering, the isolation and the per-child merge gate.
 
 Execution-state rule: mark an `E-*` item complete only after performing the action. That mark is not validation. Right-sizing rule: each E-item must address one concern and be executable in one focused pass; split when an E-item names multiple distinct deliverables or independent test-surfaces. Accepted execution states: blocked, failed, pending, performed; terminal gate demands 'performed'.
 
