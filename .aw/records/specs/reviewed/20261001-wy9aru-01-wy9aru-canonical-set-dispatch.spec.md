@@ -1,7 +1,7 @@
 # Spec: Canonical status-setter dispatch: one engine per set verb
 
 - Date: 2026-10-01
-- Status: to-review
+- Status: reviewed
 - Id: wy9aru
 - Author: opencode/its_direct/pt3-claude-opus-5-1m-us
 - From-Backlog: fcnz1r
@@ -31,6 +31,9 @@
   Section 6 records.
 
 ## Workflow history
+- 2026-10-09 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; SR-001..SR-007 FIXED; OQ-1 (keep sidecar, type-conditional) and OQ-2 (widen selectors) resolved by the maintainer
+
+- 2026-10-09 note (aw specs): /spec-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; SR-001..SR-007 FIXED
 - 2026-10-01 to-review (aw set): Authored from backlog fcnz1r: rules the canonical side of each forked set-dispatch behavior so unification can proceed. Two previously-unknown gate bypasses on the positional specs path were MEASURED while authoring and filed as h4fiwa and fv4b6s; a dead prompts set verb was filed as 68sur3. OQ-1 (sidecar: type-conditional or dropped) is BLOCKING on a maintainer call.
 
 - 2026-10-01 created (aw specs): Decide which behaviors of the forked aw backlog set / aw specs set dispatch paths are canonical, so the two can be unified onto one engine without silently dropping a gate or a deliberate difference
@@ -58,10 +61,12 @@ The same shape has been found and fixed FIVE times, three of them release-blocki
    `aw specs set deferred` writes a `Gate-Kind` outside the vocabulary that the other spelling
    refuses.
 
+STATUS AT REVIEW (2026-10-08, re-measured by driving both spellings in a scratch repository): items 4 and 5 are now FIXED on both spellings, by plans `wdyz5n` and `ju3rhs` (Set `setdispgate`, both `executed`), each of which made the shared engine CONSUME the existing predicate. Both spellings of `specs set implemented` without `--evidence` now refuse with the file unchanged, and both spellings of `specs set deferred --gate-kind bogus-kind` refuse and write nothing. They remain in this list as instances of the class; they no longer motivate unification on their own.
+
 Every one of the first three was fixed by DUPLICATING the behavior into the second path. That is the
 correct minimal fix for a release-blocking bug under time pressure, and it is also precisely why the
 class keeps recurring: each fix leaves the fork intact and adds a sixth thing that must be remembered
-twice. Items 4 and 5 are the measurement that the duplication strategy has not converged.
+twice. Items 4 and 5 were the measurement that the duplication strategy had not converged; their fixes, like the first three, each added one more thing reached from two entry points.
 
 THE SPEC EXISTS BECAUSE UNIFICATION IS NOT A MECHANICAL REFACTOR. The two paths differ in ways that
 are each DELIBERATE and SEPARATELY PINNED BY TESTS: one stages a single `git mv` rename and the other
@@ -83,6 +88,7 @@ fixtures, with the fixture reset between spellings.
 | E-4 | `status_set.apply_status_change` stamps `datetime.datetime.now(datetime.timezone.utc).date()`; `backlog._reattach_history` stamps `datetime.date.today()`. | The two spellings record DIFFERENT DATES for one transition for part of every day. Already filed three times (`2wae2x`, `fnb8pl`, `lq2w86`), and `2vev8j` 4.4 already rules UTC correct, so unification inherits the answer. |
 | E-5 | `status_set._offer_self_commit` and `specs._offer_specs_set_commit` are near-identical: both `_git(reset --quiet HEAD --)` then `offer_commit(..., on_unrelated_staged="scope")`, both with the same `assume_yes` expression and the same `chore(specs): set status <s>` message shape. | Two functions, one contract. Deduplicating them is behavior-preserving and needs no ruling. |
 | E-6 | The `From-Backlog` gate-inheritance block exists twice, in `status_set.apply_status_change` and `specs.run_set`, and BOTH print the literal string `aw set: inherited - Blocks-Release: ...` even though one of them is `aw specs set`. | Same. The duplicated copy has already drifted in its user-visible output, which is the predicted failure mode of duplication, observed. |
+| E-1r | RE-MEASURED 2026-10-08 at review: E-1 and E-2 no longer reproduce (both spellings refuse, nothing written). E-3 no longer reproduces: `aw prompts set` is registered (plan `7z3ovv`, `68sur3` done). E-4's backlog side now stamps `core.utc_history_date()` (plan `5ivkdh`; `2wae2x`/`fnb8pl`/`lq2w86` done). E-5 and E-6 are DEDUPLICATED (plan `c6f6sj`, Set `setdisp` Order 01, executed): `specs.run_set` now calls `status_set.inherit_from_backlog_release_gate(..., verb_label="aw specs set")`. | The entry-point fork itself is UNCHANGED: `cli.main` still routes `aw backlog set` / `aw specs set` to `status_set.run_set_command` when `--status` is absent and to `backlog.run_set` / `specs.run_set` when present. The spec's thesis stands; its evidence rows E-1..E-6 are now history. |
 | E-7 | `tests/test_git_commit_helper.py::test_staged_rename_moves_and_duplicate_prevention` asserts the porcelain line `startswith("R")`, and its comment block records the measured 36-duplicate-id incident that motivated it. | The `git_mv` side of the relocation difference is NOT arbitrary; it is a pinned fix for a measured data-loss bug. Section 4.2 rules accordingly. |
 
 ## 3. Criteria
@@ -96,7 +102,7 @@ fixtures, with the fixture reset between spellings.
   named parameter of the one engine, never as a second code path. Section 4 names each.
 - C4 (MUST). Unification is behavior-preserving for every axis it does not explicitly rule on. An
   axis another live artifact owns is NORMALIZED AROUND, not fixed here (Section 7 lists them).
-- C5 (SHOULD). The flag surfaces converge: a flag the shared engine honors SHOULD be declared on every
+- C5 (SHOULD; no acceptance criterion by design, see 3c). The flag surfaces converge: a flag the shared engine honors SHOULD be declared on every
   verb that can reach it, so a documented flag is never silently inert.
 
 ## 3a. Non-goals
@@ -127,6 +133,14 @@ fixtures, with the fixture reset between spellings.
   `R` rename, so `test_staged_rename_moves_and_duplicate_prevention`'s property holds for both.
 - AC-6 | C4. The whole bare suite's failure SET is unchanged except for tests this spec's plans
   explicitly edit, each named in advance.
+- AC-7 | C3. A status transition on a `backlog` item and on a `spec`, through EITHER spelling, appends
+  exactly ONE record to `.aw/records/history.jsonl` (visible through `aw record-history <id6>`), and only
+  after the durable write succeeded; a transition on a plan through `aw ipd set` appends NONE (4.3,
+  OQ-1). `test_backlog_set_appends_sidecar_and_preserves_inline` passes unchanged.
+- AC-8 | C2. `aw specs set <selector> --status <s>` and `aw backlog set <selector> --status <s>` accept
+  an id6, a setid, a stem, a substring and a path; a selector matching several records is REFUSED with
+  nothing written unless `--force` is passed, on both spellings; `aw specs set <selector> --status
+  approved` without `--by-human` refuses on every match (4.5, OQ-2).
 
 ## 3c. Honest limits
 
@@ -194,10 +208,12 @@ reasons AGAINST that at length, on the ground that the sidecar is gitignored and
 plan history is already durably inline. Extending it would add a per-machine write for plans whose
 history is already clone-surviving, for no reader.
 
+RATIFIED BY THE MAINTAINER 2026-10-08 (OQ-1). The sidecar is KEPT, type-conditional, as ruled here.
+
 SO THE TYPE-CONDITIONALITY IS THE DELIBERATE DIFFERENCE C3 PRESERVES, and it becomes an explicit
 parameter of one engine rather than an accident of which module ran. The ORDERING half (append after,
 never before) is NOT this spec's to decide: `2vev8j` C5 and AC-7 already require it and plan `ulepef`
-already carries it; this spec adopts the ordering as settled and must land AFTER it.
+already carries it; this spec adopts the ordering as settled. (`ulepef` has since EXECUTED, so the ordering constraint is satisfied.)
 
 ### 4.4 `--gate-dir` survives as a parameter, not as a path
 
@@ -216,7 +232,7 @@ RULED: the flag spellings INHERIT the shared engine's selector vocabulary (id6, 
 substring, path) and its all-or-nothing multi-selector pre-flight. Today `specs.run_set` accepts a
 PATH ONLY, and `backlog.run_set` silently acts on `res.paths[0]` when a selector matches many.
 
-THIS IS A DELIBERATE WIDENING AND THE ONLY ONE THIS SPEC AUTHORIZES. It is justified because the
+THIS IS A DELIBERATE WIDENING AND THE ONLY ONE THIS SPEC AUTHORIZES. It applies to `aw specs set --status` as well as to `aw backlog set --status` (maintainer, 2026-10-08, OQ-2): measured at review, the positional spelling already refuses a selector matching several specs (`Selector ... is ambiguous ... pass --force to act on all`), and approval still requires `--by-human` on every spelling, so widening adds no ungated bulk path. It is justified because the
 alternative is worse in a specific way: `backlog.run_set`'s current behavior on an ambiguous selector
 is to act on ONE arbitrary match and say nothing, which is a silent wrong-target write. The shared
 engine refuses ambiguity unless `--force`. Replacing a silent partial action with a refusal is a
@@ -231,7 +247,7 @@ defaulted message, because plan `jbipfa` already owns the label parameter and ha
 
 CONSEQUENCE FOR SEQUENCING, stated here because it is the one place this spec constrains order:
 unification must land AFTER `jbipfa`, or it will conflict with a reviewed plan over the same function.
-See Section 6.
+See Section 6. (`jbipfa` has since EXECUTED.)
 
 ### 4.7 Validation that exists on only one side is UNIONED
 
@@ -240,8 +256,8 @@ because C2 is the criterion the five historical instances all violated:
 
 | Refusal | Lives today in | After |
 |---|---|---|
-| `implementing -> implemented` requires resolvable `--evidence` | `specs.run_set` only | both (`h4fiwa`) |
-| `deferred` requires a gate kind IN the vocabulary and a valid ref shape | `specs.run_set` only | both (`fv4b6s`) |
+| `implementing -> implemented` requires resolvable `--evidence` | both (fixed by `wdyz5n`) | both, reached through one engine (`h4fiwa`) |
+| `deferred` requires a gate kind IN the vocabulary and a valid ref shape | both (fixed by `ju3rhs`) | both, reached through one engine (`fv4b6s`) |
 | post-write `validate_spec` conformance refusal | `specs.run_set` only | both |
 | `--message` / `--gate-ref` unsafe-descriptive refusal | `backlog.run_set` only | both |
 | `--work-kind` / `--priority` enum refusal at the function | `backlog.run_set` only | both |
@@ -275,15 +291,17 @@ ORDER IS CONSTRAINED BY THREE LIVE ARTIFACTS, not by preference. Each is `review
 already and edits a function unification touches, so landing first costs nothing and landing second
 costs a conflict with work a human already reviewed.
 
-1. `jbipfa` (`reviewed`) gives `backlog._reattach_history` its label parameter. Unification's history
+STATUS AT REVIEW (2026-10-08): all three have EXECUTED, so the ordering constraint is met; it is kept below as the record of why the order was required.
+
+1. `jbipfa` (now `executed`) gives `backlog._reattach_history` its label parameter. Unification's history
    parity depends on the label agreeing, and `jbipfa` edits the same function. MUST land first.
-2. `ulepef` (`to-review`, `Blocks-Release: next`) moves the sidecar append after the durable write and
+2. `ulepef` (now `executed`) moves the sidecar append after the durable write and
    ALREADY carries the `2vev8j` amendment. 4.3 adopts its ordering as settled. MUST land first.
-3. `nvsz19` (`approved`, `Blocks-Release: next`) wires the plan transition table into
+3. `nvsz19` (now `executed`) wires the plan transition table into
    `status_set.validate_transition_allowed`, the exact function 4.7 unions refusals into. MUST land
    first.
 
-THEN, in order: the two behavior-preserving dedups (4.1's duplicated helpers, needing no ruling), the
+THEN, in order: the two behavior-preserving dedups (4.1's duplicated helpers, needing no ruling; DONE, plan `c6f6sj`), the
 differential harness (which must be GREEN on the already-agreed axes BEFORE anything moves, so a
 regression is attributable), then `specs`, then `backlog`.
 
@@ -294,6 +312,10 @@ site, in the style that spec already uses for its 2026-09-22 and 2026-09-28 amen
 `0151-01` names `specs.run_set` by symbol as the `--by-human` site; that attestation is already
 duplicated into `status_set`, so the contract is intact and only the cited location moves.
 
+## 6a. Graduated plans
+
+This spec graduated into plan Set `setdisp` (orchestrator `63zo2f`, `approved`), all of whose plans carry `- From-Spec: wy9aru`: Order 01 `c6f6sj` (dedups, `executed`), 02 `afdmn6` (differential harness), 03 `m1jlwm` (positional gate bypasses), 04 `m94eht` (specs adapter, `state:spec:approved:wy9aru` gated, E-03 waits on OQ-1), 05 `vhiqo6` (backlog adapter), 06 `7zb4ny` (Set audit). Direction: those plans depend on this spec; this spec does not depend on them. NOTE FROM REVIEW (2026-10-08): `h4fiwa`/`fv4b6s` were closed in the shared engine by Set `setdispgate` (`wdyz5n`, `ju3rhs`), and Order 03 `m1jlwm` was already re-reviewed on 2026-10-07 to CONFIRM those fixes rather than re-implement them, then add the both-spellings parity tests AC-2 requires.
+
 ## 7. Out of scope, and filed separately
 
 Each row is an axis the two paths differ on that this spec deliberately does NOT close, with the
@@ -301,15 +323,15 @@ artifact that owns it. Unification NORMALIZES AROUND each (C4, S3) rather than f
 
 | Axis | Owner | Why not here |
 |---|---|---|
-| UTC versus local clock | `2wae2x` / `fnb8pl` / `lq2w86` (all `open`, all release-gated) | A live release-blocking bug filed three times; `2vev8j` 4.4 already rules UTC correct. Absorbing it into a `chore` would silently swallow gated work. |
-| History label token | `jbipfa` (`reviewed`) | Owned by a reviewed plan over the same function. 4.6 defers. |
-| Same-status dedup asymmetry | `r74211` (`open`) | Decides whether a write HAPPENS, not what it says; different blast radius. |
-| Sidecar write ORDER | `ulepef` (`to-review`) | Already carries the `2vev8j` amendment. 4.3 adopts its ordering. |
-| Backlog transition table | `t1gbwg` (`open`) | A vocabulary DESIGN question; unification only reduces the enforcement sites from two to one. |
-| `--dry-run` dead `apply` read | `19lmbe` (`open`, release-gated) | The symptom is repaired; the dead read survives. Unification removes it as a side effect, so the item must be closed EXPLICITLY with evidence, never silently. |
-| Audit of items already closed through the ungated spelling | `mbjuv5` (`open`) | A report over history, not a code change. |
-| Hand-edited illegal transitions | `4ynlcg` (`open`) | The UNTOOLED path; unification is entirely about the tooled one. |
-| `aw prompts set` registered or removed | `68sur3` (`open`, filed here) | A scope decision (register versus delete), not a dispatch question. |
+| UTC versus local clock | `2wae2x` / `fnb8pl` / `lq2w86` (all `done` at review; fixed by `5ivkdh`) | Closed elsewhere; unification inherits the UTC writer and needs no date normalization for this axis once both paths share `core.utc_history_date()`. |
+| History label token | `jbipfa` (`executed`) | Owned by a reviewed plan over the same function. 4.6 defers. |
+| Same-status dedup asymmetry | `r74211` (`done`) | Decides whether a write HAPPENS, not what it says; different blast radius. |
+| Sidecar write ORDER | `ulepef` (`executed`) | Already carries the `2vev8j` amendment. 4.3 adopts its ordering. |
+| Backlog transition table | `t1gbwg` (`done`) | A vocabulary DESIGN question; unification only reduces the enforcement sites from two to one. |
+| `--dry-run` dead `apply` read | `19lmbe` (`done`) | The symptom is repaired; the dead read survives. Unification removes it as a side effect, so the item must be closed EXPLICITLY with evidence, never silently. |
+| Audit of items already closed through the ungated spelling | `mbjuv5` (`done`) | A report over history, not a code change. |
+| Hand-edited illegal transitions | `4ynlcg` (`done`, closed not-needed 2026-10-08) | The UNTOOLED path; unification is entirely about the tooled one. |
+| `aw prompts set` registered or removed | `68sur3` (`done`, registered by `7z3ovv`) | A scope decision (register versus delete), not a dispatch question. |
 | `production_checks.backlog_graduate_legitimacy` tautological clause | recorded in `jbipfa` F-07 | Needs a contract decision about what that check should test. |
 | Actor string, defaulted message | `jbipfa` Deferred (declined) | Declined there as truthful attribution; no carrier wanted. |
 
@@ -333,7 +355,9 @@ is better and the conditional disappears. This is a maintainer call about a ship
 implementation detail, which is why it blocks rather than being resolved by the author.
 
 - Blocking: yes
+- Status: resolved
 - Owner: maintainer
+- Resolution or deferral rationale: DECIDED BY THE MAINTAINER, 2026-10-08, interactively during /spec-review: KEEP THE SIDECAR, TYPE-CONDITIONAL (`backlog` and `specs` only), as 4.3 rules. The maintainer was told the sidecar is gitignored, does not survive a clone, held 341 lines in this checkout, is read by `aw record-history`, and duplicates what the inline `## Workflow history` already records durably; and that dropping it would delete a shipped verb and require amending `1525-02` R2. No `1525-02` requirement changes; only its writer SITE moves (Section 6). Unblocks plan `m94eht` (Set `setdisp` Order 04) E-03 on its "KEEP, TYPE-CONDITIONAL" branch.
 
 ### OQ-2 (NON-BLOCKING): should 4.5's selector widening apply to `aw specs set --status`?
 
@@ -349,4 +373,6 @@ spelling preserves exactly the kind of false expectation this spec exists to rem
 that reading unless the maintainer objects.
 
 - Blocking: no
+- Status: resolved
 - Owner: maintainer
+- Resolution or deferral rationale: DECIDED BY THE MAINTAINER, 2026-10-08, interactively during /spec-review: WIDEN, as recommended. Basis given: the positional spelling already accepts these selectors for specs; measured at review that a selector matching several specs is refused without `--force`; approval requires `--by-human` on every spelling. Recorded in 4.5.
