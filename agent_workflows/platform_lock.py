@@ -23,7 +23,7 @@ call would corrupt live state:
 SUCCESSFUL acquire truncates the file's existing content, and worse (b) a FAILED acquire
 truncates it too, destroying the record of the LIVE holder that just refused us, and (c) an
 acquire CREATES a lock file that was absent. All three are fatal for a probe: the drivers record
-``pid=<n> started=<t>`` inside ``driver.lock`` for diagnostics, ``agy_sessions`` probes lock files
+``pid=<n> host=<machine> started=<t>`` inside ``driver.lock`` for diagnostics, ``agy_sessions`` probes lock files
 owned by a foreign application entirely, and ``runner_shutdown.lock_is_free`` documents that it
 never creates the file so that probing cannot resurrect a lock that was just removed. So the
 probe uses the raw primitive behind ONE guarded import, right here, and reports UNDETERMINED where
@@ -100,6 +100,7 @@ __all__ = [
     "pid_alive",
     "read_lock_record",
     "read_lock_record_pid",
+    "read_lock_record_host",
 ]
 
 PathLike = Union[str, "os.PathLike[str]", Path]
@@ -230,6 +231,11 @@ def pid_alive(pid: int) -> Optional[bool]:
 #: :func:`read_lock_record`), so a Windows reader that sees ``id=<n>`` still recovers the pid.
 LOCK_RECORD_PID_RE = re.compile(r"(?<!\w)p?id=(\d+)")
 
+#: Matches a ``host=<machine>`` record. Note that ``host=`` is NOT the first field in the lock record
+#: (it follows ``pid=``), so Windows byte-0 truncation does not affect it. If a future change moves
+#: ``host=`` to the front of the record, this regex must gain the ``h?ost=`` tolerance at that time.
+LOCK_RECORD_HOST_RE = re.compile(r"(?<!\w)host=(\S+)")
+
 
 def read_lock_record(path: PathLike) -> Optional[str]:
     """The diagnostic text a holder recorded INSIDE its lock file, or ``None`` if unreadable.
@@ -273,6 +279,31 @@ def read_lock_record_pid(path: PathLike) -> Optional[int]:
         return int(match.group(1))
     except ValueError:
         return None
+
+
+def read_lock_record_host(path: PathLike) -> Optional[str]:
+    """The ``host=`` a holder recorded inside ``path``, or ``None``.
+
+    DIAGNOSTIC ONLY, never a liveness signal: this is a RECORDED CLAIM used to decide whether a
+    process probe is meaningful across machines (lifegate urv602, backlog dvonrn D3).
+
+    Returns ``None`` when the record carries no ``host=`` (an older legacy record falls through to
+    the same-machine rule), when the file is absent or unreadable, or when the field cannot be parsed.
+
+    Invariant: ``host=`` is not the first field in the lock record (it follows ``pid=``), so the
+    Windows byte-0 mandatory lock does not truncate the leading character of ``host=``. If a future
+    change moves ``host=`` to the front of the record, this reader must gain leading-byte tolerance
+    at that time.
+    """
+
+    text = read_lock_record(path)
+    if not text:
+        return None
+    match = LOCK_RECORD_HOST_RE.search(text)
+    if not match:
+        return None
+    val = match.group(1).strip()
+    return val or None
 
 
 def _probe_free_windows(msvcrt: Any, target: Path) -> Optional[bool]:

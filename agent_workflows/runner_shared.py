@@ -6776,6 +6776,257 @@ def wait_for_peer_prerequisites(
     )
 
 
+# lifegate urv602 (E-04, E-05): The three-valued plan-scoped holder predicate.
+PLAN_HOLDER_HELD = "held"
+PLAN_HOLDER_NOT_HELD = "not-held"
+PLAN_HOLDER_UNDETERMINABLE = "undeterminable"
+
+
+class PlanHolderResult(NamedTuple):
+    """Result of :func:`plan_holder` answering which live run holds a plan's id6 (lifegate urv602).
+
+    Fields:
+      - verdict: One of :data:`PLAN_HOLDER_HELD`, :data:`PLAN_HOLDER_NOT_HELD`,
+        or :data:`PLAN_HOLDER_UNDETERMINABLE`.
+      - run_id: The run id holding the plan, or None if not held / unknown.
+      - host: The machine hostname recorded in driver.lock, or None.
+      - status: The queue status that made the item held (from in-flight allowlist), or None.
+      - reason_code: Machine-readable reason code distinguishing causes.
+      - reason: Human-readable diagnostic explanation.
+    """
+
+    verdict: str
+    run_id: str | None
+    host: str | None
+    status: str | None
+    reason_code: str
+    reason: str
+
+
+def plan_holder(
+    repo: Path, id6: str, *, exclude_run_id: str | None = None
+) -> PlanHolderResult:
+    """Which live run, if any, holds this plan's id6? (lifegate urv602, backlog dvonrn D2/D3).
+
+    Returns a three-valued :class:`PlanHolderResult` with structured fields:
+      - HELD: A named live run has this id6 in its queue with an unfinished status.
+      - NOT HELD: No live run holds this plan.
+      - UNDETERMINABLE: Discovery failed, lock unreadable, foreign machine, unprobeable lock,
+        unverifiable process, unparseable pid, or unrecognized status. Fails closed.
+
+    Applies D3's liveness order and D2's conjunction (lock held AND process alive).
+    Uses an explicit in-flight allowlist (:data:`IN_FLIGHT_QUEUE_STATUSES`), NOT a
+    `TERMINAL_STATES` test (which measurably misreports `interrupted` items as absent, F-11).
+    """
+
+    import socket
+
+    from agent_workflows import platform_lock, run_viewer
+
+    # lifegate urv602 (E-05, F-12): Re-use runs_repo_root and run_viewer.discover_run_dirs, but DO NOT
+    # inherit peer_drivers' forgiving `except Exception: return []` failure shape.
+    # peer_drivers justified `return []` because "the caller never REFUSES on this query, so a failure
+    # costs a missing report line and never a run". Here, Order 02 REFUSES on our answer, so treating
+    # a discovery failure as empty ([] / NOT HELD) would silently bypass the lifecycle gate.
+    # An absent runs directory returns [] from discover_run_dirs without error (NOT HELD), but any
+    # discovery error (e.g. unreadable runs tree) MUST surface as UNDETERMINABLE.
+    try:
+        resolved_repo = runs_repo_root(Path(repo))
+        run_dirs = run_viewer.discover_run_dirs(resolved_repo)
+    except Exception as exc:
+        return PlanHolderResult(
+            verdict=PLAN_HOLDER_UNDETERMINABLE,
+            run_id=None,
+            host=None,
+            status=None,
+            reason_code="discovery-failed",
+            reason=f"Discovery of run directories in {repo} failed: {exc}",
+        )
+
+    this_host = socket.gethostname()
+
+    for run_dir in run_dirs:
+        run_id = run_dir.name
+        if exclude_run_id is not None and run_id == str(exclude_run_id):
+            continue
+
+        state_path = run_dir / "state.json"
+        try:
+            state_data = json.loads(state_path.read_text(encoding="utf-8"))
+        except (FileNotFoundError, OSError, json.JSONDecodeError) as exc:
+            # If state.json is absent or unreadable, check if driver.lock is held.
+            # If no lock is held, this run is dead/irrelevant.
+            # But if a lock IS held or unprobeable, fail closed (UNDETERMINABLE).
+            lock_path = run_dir / "driver.lock"
+            if lock_path.is_file():
+                holder_state = run_viewer.driver_holder_state(run_dir)
+                if holder_state != run_viewer.HOLDER_NONE:
+                    return PlanHolderResult(
+                        verdict=PLAN_HOLDER_UNDETERMINABLE,
+                        run_id=run_id,
+                        host=platform_lock.read_lock_record_host(lock_path),
+                        status=None,
+                        reason_code="unreadable-state",
+                        reason=f"Run {run_id} is active or unprobeable but its state.json is unreadable: {exc}",
+                    )
+            continue
+
+        queue = state_data.get("queue")
+        if not isinstance(queue, list):
+            continue
+
+        matching_entries = [
+            entry
+            for entry in queue
+            if isinstance(entry, Mapping) and entry.get("id6") == id6
+        ]
+        if not matching_entries:
+            continue
+
+        # If any entry is in-flight, inspect that one; otherwise take the latest entry
+        item = None
+        for entry in reversed(matching_entries):
+            st = str(entry.get("status", ""))
+            if st in IN_FLIGHT_QUEUE_STATUSES:
+                item = entry
+                break
+        if item is None:
+            item = matching_entries[-1]
+
+        item_status = item.get("status")
+        status_str = str(item_status) if item_status is not None else ""
+
+        # Genuinely finished status (executed or legacy alias): not in flight, not held.
+        if status_str in FINISHED_QUEUE_STATUSES:
+            continue
+
+        lock_path = run_dir / "driver.lock"
+
+        # D3 arm (1): The lock file is present but UNREADABLE (permissions or similar).
+        # Fails closed -> UNDETERMINABLE.
+        if lock_path.is_file():
+            is_unreadable = False
+            try:
+                if os.name != "nt":
+                    with open(lock_path, "rb") as _f:
+                        _f.read(1)
+            except PermissionError:
+                is_unreadable = True
+            except OSError:
+                is_unreadable = True
+
+            if is_unreadable:
+                return PlanHolderResult(
+                    verdict=PLAN_HOLDER_UNDETERMINABLE,
+                    run_id=run_id,
+                    host=None,
+                    status=status_str
+                    if status_str in IN_FLIGHT_QUEUE_STATUSES
+                    else None,
+                    reason_code="unreadable-lock",
+                    reason=f"driver.lock in {run_id} is present but unreadable",
+                )
+
+        # D3 arm (2): The record names a DIFFERENT machine.
+        # Fails closed -> UNDETERMINABLE, because this computer cannot probe that computer's processes.
+        # Reason string MUST name the run and the machine:
+        # "run <id> on machine <host> may still be working on this plan" (E-05).
+        recorded_host = (
+            platform_lock.read_lock_record_host(lock_path)
+            if lock_path.is_file()
+            else None
+        )
+        if recorded_host and recorded_host != this_host:
+            return PlanHolderResult(
+                verdict=PLAN_HOLDER_UNDETERMINABLE,
+                run_id=run_id,
+                host=recorded_host,
+                status=status_str if status_str in IN_FLIGHT_QUEUE_STATUSES else None,
+                reason_code="foreign-machine",
+                reason=f"run {run_id} on machine {recorded_host} may still be working on this plan",
+            )
+
+        # D3 arm (3): Same machine, OR a legacy record with no host=:
+        # Apply D2, requiring BOTH the lock held AND the recorded process existing.
+        holder_state = run_viewer.driver_holder_state(run_dir)
+        if holder_state == run_viewer.HOLDER_NONE:
+            # Lock is not held (process died and OS dropped flock, or lock removed).
+            continue
+        elif holder_state == run_viewer.HOLDER_UNKNOWN:
+            # Lock probe could not be answered. Fail closed.
+            return PlanHolderResult(
+                verdict=PLAN_HOLDER_UNDETERMINABLE,
+                run_id=run_id,
+                host=recorded_host,
+                status=status_str if status_str in IN_FLIGHT_QUEUE_STATUSES else None,
+                reason_code="unprobeable-lock",
+                reason=f"driver.lock for run {run_id} could not be probed",
+            )
+
+        # Lock IS held (HOLDER_LIVE). Now check the second conjunct: process existence.
+        # USE platform_lock.pid_alive FOR THE PROCESS CHECK AND NOTHING ELSE (PR-001).
+        recorded_pid = platform_lock.read_lock_record_pid(lock_path)
+        if recorded_pid is None:
+            # Missing or unparseable pid in a held lock record -> UNDETERMINABLE (E-05).
+            return PlanHolderResult(
+                verdict=PLAN_HOLDER_UNDETERMINABLE,
+                run_id=run_id,
+                host=recorded_host,
+                status=status_str if status_str in IN_FLIGHT_QUEUE_STATUSES else None,
+                reason_code="unparseable-pid",
+                reason=f"held lock for run {run_id} carries no parseable pid",
+            )
+
+        alive = platform_lock.pid_alive(recorded_pid)
+        if alive is None:
+            # pid_alive undeterminable (e.g. EPERM-like ambiguity) -> UNDETERMINABLE (E-05).
+            return PlanHolderResult(
+                verdict=PLAN_HOLDER_UNDETERMINABLE,
+                run_id=run_id,
+                host=recorded_host,
+                status=status_str if status_str in IN_FLIGHT_QUEUE_STATUSES else None,
+                reason_code="unverifiable-process",
+                reason=f"process {recorded_pid} for held lock in {run_id} could not be verified",
+            )
+        elif not alive:
+            # Lock was held but process is gone. Both required per D2.
+            continue
+
+        # Both lock held AND process alive! The run is provably LIVE.
+        # Now evaluate queue status:
+        if status_str in IN_FLIGHT_QUEUE_STATUSES:
+            # HELD!
+            return PlanHolderResult(
+                verdict=PLAN_HOLDER_HELD,
+                run_id=run_id,
+                host=recorded_host or this_host,
+                status=status_str,
+                reason_code="held",
+                reason=f"run {run_id} holds plan {id6} in queue with status {status_str}",
+            )
+        else:
+            # Not in IN_FLIGHT_QUEUE_STATUSES and not in FINISHED_QUEUE_STATUSES:
+            # An UNRECOGNIZED status token!
+            # Fails closed -> UNDETERMINABLE (E-04, PR-003).
+            return PlanHolderResult(
+                verdict=PLAN_HOLDER_UNDETERMINABLE,
+                run_id=run_id,
+                host=recorded_host or this_host,
+                status=status_str,
+                reason_code="unrecognized-status",
+                reason=f"run {run_id} holds plan {id6} with unrecognized queue status {status_str!r}",
+            )
+
+    return PlanHolderResult(
+        verdict=PLAN_HOLDER_NOT_HELD,
+        run_id=None,
+        host=None,
+        status=None,
+        reason_code="not-held",
+        reason=f"no live run holds plan {id6}",
+    )
+
+
 class IntegrationLockOutcome(NamedTuple):
     """What :func:`integration_lock` did: acquired, or waited out its bound and gave up.
 
@@ -20648,6 +20899,34 @@ def determine_action(
     )
 
 
+#: Statuses that mean "this queue item is currently in-flight or recoverable", so a live run holding
+#: it in its queue is actively working on the plan (lifegate urv602, backlog dvonrn D2/D3).
+#:
+#: Derived from the `# in-flight / recoverable` banner in `runner_shutdown.KNOWN_ITEM_STATUSES`:
+#: `queued`, `running`, `interrupted`, `integration-deferred`, `merge-retry`.
+#:
+#: WHY THIS IS AN ALLOWLIST AND NOT `status not in TERMINAL_STATES`:
+#: `interrupted` IS a member of `TERMINAL_STATES` (and `TERMINAL_STATES_CANONICAL`), so testing
+#: `status not in TERMINAL_STATES` measurably misreports an interrupted-and-resumable item as NOT HELD
+#: (F-11). An interrupted item is not finished: `interrupt_item` sets `item["recovery_next"] = True`,
+#: and `run_queue` calls `requeue_interrupted` unconditionally on every start and resume, flipping
+#: it back to `queued`. Reporting NOT HELD would let an operator transition the plan while the runner
+#: is about to resume it, causing the double-transition this gate exists to prevent.
+#:
+#: WHY OTHER RE-QUEUEABLE STATUSES ARE EXCLUDED:
+#: Every status in `runner_shutdown.KNOWN_ITEM_STATUSES` outside this allowlist is in `TERMINAL_STATES`.
+#: While `dependency-blocked`, `fail-*` and `merge-retry` siblings can be re-queued by an explicit
+#: operator act (`resume --retry-incomplete`), a bare resume does NOT re-queue them. An operator passing
+#: `--retry-incomplete` re-dispatches through `aw ipd begin`, which Order 02 gates. Including them in
+#: this allowlist would make a failed or blocked run permanently block its plan, which is unwanted.
+#:
+#: NOTE: This set answers a DIFFERENT question from `TERMINAL_STATES` (which keys dependency cascade
+#: and retirement behavior) and must not be merged with it.
+IN_FLIGHT_QUEUE_STATUSES: frozenset[str] = frozenset(
+    ("queued", "running", "interrupted", "integration-deferred", "merge-retry")
+)
+
+
 #: Statuses that mean "this plan still has work to do in this run", so its queue entry starts
 #: `queued` and the selection loop may dispatch it. Everything else is already TERMINAL on disk.
 NON_TERMINAL_QUEUE_STATUSES: frozenset[str] = frozenset(
@@ -31410,15 +31689,17 @@ def run_lock(run_dir: Path):
 
     The lock itself comes from ``platform_lock`` (one cross-platform implementation, IPD `y6mfgo`),
     which is exclusive and NON-BLOCKING, exactly as the raw ``LOCK_EX | LOCK_NB`` it replaced was. The
-    ``pid=`` record is written through a stream ``dup``ed from the LOCKED descriptor rather than through
-    a fresh ``open()``, so ``RunLockHandle``'s inode-identity check still compares against the inode
-    actually locked; closing that dup does not drop the lock, because an ``flock`` lives on the open
-    file description.
+    ``pid=<n> host=<machine> started=<t>`` record is written through a stream ``dup``ed from the LOCKED
+    descriptor rather than through a fresh ``open()``, so ``RunLockHandle``'s inode-identity check still
+    compares against the inode actually locked; closing that dup does not drop the lock, because an
+    ``flock`` lives on the open file description.
 
     SHARED SINCE hostdedup Order 01 (`li44r9`). Each host's copy previously carried a docstring saying
     it was "kept symmetric with" the other host by hand; symmetry maintained by hand across N hosts is
     exactly the property this Set exists to replace with symmetry by construction.
     """
+
+    import socket
 
     from agent_workflows import platform_lock, runner_shutdown
 
@@ -31435,7 +31716,14 @@ def run_lock(run_dir: Path):
         if handle is not None:
             handle.seek(0)
             handle.truncate()
-            handle.write(f"pid={os.getpid()} started={utc_now()}\n")
+            # lifegate urv602 (E-02): Record the machine (hostname) between pid and started.
+            # dvonrn D3 measures that liveness is the conjunction of the file lock AND process existence,
+            # but a PID probe is meaningless across machines on a shared checkout/drive. Storing the
+            # machine allows readers to detect foreign-machine runs and fail closed (UNDETERMINABLE)
+            # rather than falsely reporting a live foreign runner as dead.
+            handle.write(
+                f"pid={os.getpid()} host={socket.gethostname()} started={utc_now()}\n"
+            )
             handle.flush()
     except BaseException:
         with contextlib.suppress(Exception):
@@ -31810,6 +32098,12 @@ TERMINAL_STATUS_ALIASES: dict[str, str] = {
 # statusvocab (`cyamvi`) E-01: Union of canonical and legacy tokens so nothing that reads it narrows.
 TERMINAL_STATES: frozenset[str] = frozenset(
     TERMINAL_STATES_CANONICAL | set(TERMINAL_STATUS_ALIASES.keys())
+)
+
+#: Statuses that mean "this plan's work in this run is finished and terminal", so the run is no
+#: longer actively holding it (lifegate urv602).
+FINISHED_QUEUE_STATUSES: frozenset[str] = frozenset(
+    TERMINAL_STATES - IN_FLIGHT_QUEUE_STATUSES
 )
 
 
