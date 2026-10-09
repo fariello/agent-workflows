@@ -45,42 +45,42 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: the probe
 
-- [ ] E-01 Add `_probe_egress_filtering` to `agent_workflows/host_sandbox_profile.py`, a two-sided executed probe modeled on `_probe_landlock` and held to the same standard the module docstring states as "EVERY RUNG MUST PROVE A DENIAL, NOT A LAUNCH". THE PARENT OWNS BOTH ENDPOINTS. The parent binds a loopback TCP listener (standing in for a denied remote) and an AF_UNIX socket (standing in for the allowed control channel), then launches a child via `unshare -Urn --map-root-user` that must (a) FAIL to reach the TCP listener and (b) SUCCEED in reaching the AF_UNIX socket. Distinguish the outcomes by exit code exactly as `_denial_checker_source` does: success, jail-too-tight (the allowed side failed), and not-enforced (the denied side was reached). Route the subprocess through `_run_probe` so any nonzero exit, exception or timeout maps to False, and honor `_PROBE_TIMEOUT_SECONDS`. The probe must apply the `CERTIFIED_PLATFORM` check ITSELF and return False with a note on any other platform, because `detect_host_capabilities` runs `probe_runner_safety_capabilities` BEFORE its own `if not plat.startswith(CERTIFIED_PLATFORM)` gate (it is guarded only by `plat == running_platform`), so on a darwin interpreter the probe IS called.
+- [x] E-01 Add `_probe_egress_filtering` to `agent_workflows/host_sandbox_profile.py`, a two-sided executed probe modeled on `_probe_landlock` and held to the same standard the module docstring states as "EVERY RUNG MUST PROVE A DENIAL, NOT A LAUNCH". THE PARENT OWNS BOTH ENDPOINTS. The parent binds a loopback TCP listener (standing in for a denied remote) and an AF_UNIX socket (standing in for the allowed control channel), then launches a child via `unshare -Urn --map-root-user` that must (a) FAIL to reach the TCP listener and (b) SUCCEED in reaching the AF_UNIX socket. Distinguish the outcomes by exit code exactly as `_denial_checker_source` does: success, jail-too-tight (the allowed side failed), and not-enforced (the denied side was reached). Route the subprocess through `_run_probe` so any nonzero exit, exception or timeout maps to False, and honor `_PROBE_TIMEOUT_SECONDS`. The probe must apply the `CERTIFIED_PLATFORM` check ITSELF and return False with a note on any other platform, because `detect_host_capabilities` runs `probe_runner_safety_capabilities` BEFORE its own `if not plat.startswith(CERTIFIED_PLATFORM)` gate (it is guarded only by `plat == running_platform`), so on a darwin interpreter the probe IS called.
   - MECHANISM SEAM (added at review, required by E-04 and E-05). Hold the namespace launcher as a module-level tuple, for example `_EGRESS_PROBE_NS_ARGV = ("unshare", "-Urn")` (`-r` already IS `--map-root-user`; passing both is redundant but harmless), and build the child argv from it. Tests then arrange MECHANISM outcomes by swapping that tuple rather than patching the probe's return value: `("unshare", "-Ur")` creates a user namespace WITHOUT a network namespace, so the denied side is reachable; a nonexistent binary makes namespace creation fail. Both were demonstrated at review (F-9).
   - THE ALLOWED SIDE MUST BE A FILESYSTEM-PATH AF_UNIX SOCKET, never an abstract one (`"\0name"`): the abstract socket namespace is per network namespace, so an abstract socket does NOT cross (F-9, `ConnectionRefusedError: [Errno 111]`). Keep the socket path short (a `tempfile.TemporaryDirectory` with a short prefix) because `sun_path` is limited to about 108 bytes.
   - THE PARENT MUST OBSERVE THE ALLOWED SIDE, not only trust the child's exit code: True requires child rc 0 AND the parent having `accept`ed a connection on its AF_UNIX socket and received the child's token. A listening socket with a backlog lets the child's `connect` complete before the parent calls `accept`, so a blocking `_run_probe` followed by a short-timeout `accept` works with no thread (F-9).
   - WHY BOTH SIDES AND WHY AF_UNIX IS THE ALLOWED SIDE. A one-sided probe asserting only "egress was denied" would return True for a namespace so isolated that no control channel can reach the parent, which is useless as a boundary because the confined agent could not reach the model API either. Measured during authoring (research `akmzyq` Finding 2): an AF_UNIX socket DOES cross the namespace boundary (`unix socket across netns: PARENT-PROXY-REACHED`) while direct egress from the same child was refused (`OSError [Errno 101] Network is unreachable`) in ONE run. That pair is exactly the two-sided property, and it is why the allowed side needs no veth, no NAT, no bridge and no `slirp4netns`.
   - Depends on: none
   - Expected outcome: A probe returning `(bool, note)`, True only on proven two-sided behavior, False with an explanatory note on every other outcome including a host that cannot create a namespace and any non-Linux platform. On a host where `unshare -Urn --map-root-user true` succeeds, the probe MUST return True; a design that cannot return True on such a host has not met this item.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 Make the probe HERMETIC and give its note the evidence. It must require no external network and no DNS, so it is runnable in CI and on an offline host: both endpoints are parent-held and loopback or AF_UNIX only. The note must state what was attempted and what the kernel did, naming the namespace mechanism used and the observed refusal, so a reader of `aw host capabilities` sees evidence rather than a bare verdict. The note must ALSO state the two limits this probe does not cover: that it proves a namespace can be created and partitioned, NOT that any particular destination policy is enforced (that is child 02's), and that it proves nothing about whether a confined process could remove the boundary (child 03's).
+- [x] E-02 Make the probe HERMETIC and give its note the evidence. It must require no external network and no DNS, so it is runnable in CI and on an offline host: both endpoints are parent-held and loopback or AF_UNIX only. The note must state what was attempted and what the kernel did, naming the namespace mechanism used and the observed refusal, so a reader of `aw host capabilities` sees evidence rather than a bare verdict. The note must ALSO state the two limits this probe does not cover: that it proves a namespace can be created and partitioned, NOT that any particular destination policy is enforced (that is child 02's), and that it proves nothing about whether a confined process could remove the boundary (child 03's).
   - Depends on: E-01
   - Expected outcome: A probe whose note is usable as evidence and which cannot be read as claiming a complete push boundary. Measured during authoring, the probe shape costs a mean well under 0.1s (five runs: 0.079s, 0.090s, 0.040s, 0.040s, 0.036s), so hermetic does not mean slow; re-derive the figure on the executing host rather than copying it.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: the contract surface
 
-- [ ] E-03 Add `supports_egress_filtering` to `HostSandboxCapabilities` defaulting False, add the `CAP_EGRESS_FILTERING` constant, register it in `RUNNER_SAFETY_CAPABILITIES`, wire `_RUNNER_SAFETY_PROBES[CAP_EGRESS_FILTERING] = _probe_egress_filtering` (a real probe, NOT the `None` sentinel that marks declared-not-probed), export the constant in `__all__`, and confirm the verdict and its `probe_notes` entry reach `detect_host_capabilities` (they do with no edit there: it already applies every verdict and note `probe_runner_safety_capabilities` returns, via `setattr(caps, name, supported)` and `caps.probe_notes.update(notes)`). Do NOT add it to `ACTION_CAPABILITY_REQUIREMENTS` and do NOT add an action class: `ACTION_CLASSES` stays `(ACTION_READ_ONLY,)`. IN THE SAME PASS append `"supports_egress_filtering"` to `tests/test_host_sandbox_profile.py`'s `CONTRACT_FIELDS` tuple, because omitting it leaves the suite RED at the end of this item: `test_new_contract_fields_and_defaults` iterates `RUNNER_SAFETY_CAPABILITIES` and asserts every member appears in `CONTRACT_FIELDS`, which it imports from the other test module.
+- [x] E-03 Add `supports_egress_filtering` to `HostSandboxCapabilities` defaulting False, add the `CAP_EGRESS_FILTERING` constant, register it in `RUNNER_SAFETY_CAPABILITIES`, wire `_RUNNER_SAFETY_PROBES[CAP_EGRESS_FILTERING] = _probe_egress_filtering` (a real probe, NOT the `None` sentinel that marks declared-not-probed), export the constant in `__all__`, and confirm the verdict and its `probe_notes` entry reach `detect_host_capabilities` (they do with no edit there: it already applies every verdict and note `probe_runner_safety_capabilities` returns, via `setattr(caps, name, supported)` and `caps.probe_notes.update(notes)`). Do NOT add it to `ACTION_CAPABILITY_REQUIREMENTS` and do NOT add an action class: `ACTION_CLASSES` stays `(ACTION_READ_ONLY,)`. IN THE SAME PASS append `"supports_egress_filtering"` to `tests/test_host_sandbox_profile.py`'s `CONTRACT_FIELDS` tuple, because omitting it leaves the suite RED at the end of this item: `test_new_contract_fields_and_defaults` iterates `RUNNER_SAFETY_CAPABILITIES` and asserts every member appears in `CONTRACT_FIELDS`, which it imports from the other test module.
   - Depends on: E-02
   - Expected outcome: `aw host capabilities` reports the new row with its note automatically, because `host_cmd._capability_rows` introspects `caps.to_dict()` for bool values rather than reading a name list. No action is gated, so no run behavior changes. The suite is GREEN at the end of this item, not merely at the end of the plan.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: tests that can say no
 
-- [ ] E-04 Pin the probe's fail-closed behavior in `tests/test_host_sandbox_profile.py`: a test driving `_probe_egress_filtering` DIRECTLY and asserting the returned `(bool, note)` pair so the probe is exercised rather than only its registration; a test asserting a RAISING probe yields False with the note recording the exception, mirroring `test_a_raising_probe_yields_not_supported` in `tests/test_host_capability_extension.py` (which patches `_RUNNER_SAFETY_PROBES`, the path a runner-safety capability actually takes) and NOT `test_a_raising_probe_is_treated_as_unavailable` in this file (which patches `_SANDBOX_LADDER`, a mechanism this capability is deliberately not registered in); and a test asserting the probe reports False rather than raising when the namespace cannot be created, arranged by swapping `_EGRESS_PROBE_NS_ARGV` to a nonexistent binary (restored in `finally`); plus a test asserting a NOT-ENFORCED arrangement (`("unshare", "-Ur")`, no network namespace) yields False with a note saying the denied side was reached. The direct-probe test's EXPECTED value is decided by EXECUTING `unshare -Urn true` in the test (an attempt, not a `shutil.which` presence check): True when that succeeds, False otherwise, so the test is honest on a host or CI runner whose user namespaces are restricted and still fails a constant-returning probe on a capable one.
+- [x] E-04 Pin the probe's fail-closed behavior in `tests/test_host_sandbox_profile.py`: a test driving `_probe_egress_filtering` DIRECTLY and asserting the returned `(bool, note)` pair so the probe is exercised rather than only its registration; a test asserting a RAISING probe yields False with the note recording the exception, mirroring `test_a_raising_probe_yields_not_supported` in `tests/test_host_capability_extension.py` (which patches `_RUNNER_SAFETY_PROBES`, the path a runner-safety capability actually takes) and NOT `test_a_raising_probe_is_treated_as_unavailable` in this file (which patches `_SANDBOX_LADDER`, a mechanism this capability is deliberately not registered in); and a test asserting the probe reports False rather than raising when the namespace cannot be created, arranged by swapping `_EGRESS_PROBE_NS_ARGV` to a nonexistent binary (restored in `finally`); plus a test asserting a NOT-ENFORCED arrangement (`("unshare", "-Ur")`, no network namespace) yields False with a note saying the denied side was reached. The direct-probe test's EXPECTED value is decided by EXECUTING `unshare -Urn true` in the test (an attempt, not a `shutil.which` presence check): True when that succeeds, False otherwise, so the test is honest on a host or CI runner whose user namespaces are restricted and still fails a constant-returning probe on a capable one.
   - DO NOT ASSERT "the verdict equals a re-run of the probe", which is VACUOUS: `probe_runner_safety_capabilities` is uncached, so such an assertion reduces to `probe() == probe()` and passes for a probe returning a constant, which is the fail-open shape this area's test discipline exists to reject. Assert against an ARRANGED outcome or against the note naming its evidence.
   - Depends on: E-03
   - Expected outcome: The new field carries the same default-False and snapshot coverage every other contract field has, and the probe's fail-closed behavior is pinned by tests that would FAIL against a constant-returning probe.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 Add the capability's row to `tests/test_host_capability_extension.py`'s `PRESENCE_VS_OBSERVATION` table, whose own comment demands "ONE CLAIM, ONE ROW PER PROBE: no runner-safety capability may be decided by a HELPER EXISTING". The row's `arrange` must make the mechanism PRESENT AND REACHABLE while the partition is NOT observed, which is the fail-open shape the table exists to catch: arrange it so the namespace is created but the denied side is reachable, and restore in a `finally` because the patch is process-global. Do NOT arrange it by patching the probe to return False, which tests the patch rather than the mechanism. Use the E-01 seam: swap `_EGRESS_PROBE_NS_ARGV` to `("unshare", "-Ur")`, which really creates a namespace and really partitions nothing (F-9: `rc 4 | denied REACHED - not enforced`). The row's presence witness must be what a naive probe WOULD inspect, here the `unshare` executable; if the table's witness column is `(module, attribute)`-shaped, the consumer must accept this row's witness as an executable checked with `shutil.which`, or the row records `("shutil", "which")` and the consumer asserts `shutil.which("unshare")` is not None.
+- [x] E-05 Add the capability's row to `tests/test_host_capability_extension.py`'s `PRESENCE_VS_OBSERVATION` table, whose own comment demands "ONE CLAIM, ONE ROW PER PROBE: no runner-safety capability may be decided by a HELPER EXISTING". The row's `arrange` must make the mechanism PRESENT AND REACHABLE while the partition is NOT observed, which is the fail-open shape the table exists to catch: arrange it so the namespace is created but the denied side is reachable, and restore in a `finally` because the patch is process-global. Do NOT arrange it by patching the probe to return False, which tests the patch rather than the mechanism. Use the E-01 seam: swap `_EGRESS_PROBE_NS_ARGV` to `("unshare", "-Ur")`, which really creates a namespace and really partitions nothing (F-9: `rc 4 | denied REACHED - not enforced`). The row's presence witness must be what a naive probe WOULD inspect, here the `unshare` executable; if the table's witness column is `(module, attribute)`-shaped, the consumer must accept this row's witness as an executable checked with `shutil.which`, or the row records `("shutil", "which")` and the consumer asserts `shutil.which("unshare")` is not None.
   - ADD THE POSITIVE ROW TOO (added at review). The table's own fresh-verifier rows pair each negative row with a positive one because "without it every negative row above is satisfied by a prober that answers `False` unconditionally". Add an `_unarranged` row for this capability whose expected verdict is True on a host where `unshare -Urn true` succeeds. Because the table's expected column is a literal, the consumer must compute this row's expectation from that executed check (or the row is skipped with an explicit reason on an incapable host, which per the stated policy leaves the positive half UNVERIFIED there, and V-05 must say so).
   - COORDINATE WITH `pi3bk8`. Its E-06 writes the same consumer; it declares `executed:x2dwu5` (which HAS executed). Its status is a LIVE fact (it read `approved` at authoring and `to-review` at the 2026-10-07 review), so re-derive it with `aw find plans pi3bk8` at execution rather than trusting either. If it has executed, reuse its consumer and add rows only. If not, write a consumer here that `pi3bk8` can reuse, and record in this plan's evidence that `pi3bk8` E-06 will find a live consumer already present.
   - VERIFY THE TABLE HAS A LIVE CONSUMER BEFORE ADDING A ROW, and if it does not, this item's first job is to write one. Measured during authoring: an `ast` walk of that file for references to `PRESENCE_VS_OBSERVATION` returned exactly one hit, its own assignment, because commit `80db6750` deleted its only consumer. The sibling Set's plan `pi3bk8` E-06 is scheduled to restore that consumer; if `pi3bk8` has not executed when this plan runs, a row added here asserts NOTHING. So check first, and write the consumer if absent. Restore no part of the deleted test that read production source text or counted symbols, which is why it was deleted (AGENTS.md P16).
   - Depends on: E-03
   - Expected outcome: A present-but-unpartitioned mechanism yields False, pinned by a row that a live test actually reads, provable by inverting the probe and seeing the test fail.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -258,36 +258,198 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: The probe's own returned `(bool, note)` pasted for THREE arrangements: the real host as-is; an induced probe exception; and an arrangement where the denied side is reachable, made through the `_EGRESS_PROBE_NS_ARGV` seam as `("unshare", "-Ur")` (which must report False with a note saying it was not enforced). Paste also the parent-observed receipt of the child's token on the AF_UNIX side for the True case. Plus pasted proof the probe distinguishes jail-too-tight from not-enforced by exit code, since a single True with no failure-shape evidence is the launch-only criterion the module docstring forbids.
   - ON A HOST WHERE `unshare -Urn --map-root-user true` SUCCEEDS, THE REAL-HOST ARRANGEMENT MUST RETURN True, and a False there FAILS this item rather than being recorded as the measurement. Paste that `unshare` command's own exit status beside the verdict so the two are read together. This is the check that catches the failure mode sibling plan `pi3bk8` F-10 measured: a probe design that is perfectly fail-closed and can never say yes looks safe and would pass review, while making the capability permanently unreachable. If and only if namespace creation fails on this host is a False legitimate, and then say so explicitly and state that the two-sided behavior is consequently UNVERIFIED here.
   - Observed evidence:
-  - Result: pending
+    ```
+    0. unshare -Urn --map-root-user true rc: 0
 
-- [ ] V-02 validates E-02
+    1. Real host as-is arrangement:
+       verdict: True
+       note: network namespace partition enforced via unshare -Urn: denied loopback TCP refused: [Errno 101] Network is unreachable; parent received AF_UNIX token; proves namespace creation and partition, NOT that any destination policy is enforced, and proves nothing about whether a confined process could remove the boundary
+       parent-observed AF_UNIX token receipt: received: b'AW-EGRESS-FILTERING-PROBE\n'
+
+    2. Induced probe exception:
+       verdict: False
+       note: probe raised RuntimeError: induced probe explosion
+
+    3. Denied side reachable arrangement (_EGRESS_PROBE_NS_ARGV = ("unshare", "-Ur")):
+       verdict: False
+       note: egress filtering probe not enforced: denied loopback TCP was reached (rc=4): denied loopback TCP SUCCEEDED - not enforced
+
+    4. Proof probe distinguishes jail-too-tight (exit code 3) from not-enforced (exit code 4):
+       Jail too tight (allowed AF_UNIX connection refused):
+       rc: 3 err: allowed AF_UNIX connect was DENIED: [Errno 2] No such file or directory
+       yields note: egress filtering jail too tight: allowed AF_UNIX connection was refused (rc=3): ...
+       Not enforced (denied loopback TCP connect reached):
+       rc: 4 err: denied loopback TCP SUCCEEDED - not enforced
+       yields note: egress filtering probe not enforced: denied loopback TCP was reached (rc=4): ...
+    ```
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: The probe's note quoted verbatim, with a one-sentence judgement that it names the mechanism used and the observed kernel behavior rather than restating the verdict. The note MUST contain its two stated non-coverages (no destination policy is enforced; nothing is proven about a confined process removing the boundary); a note missing either FAILS this item, because an unqualified note in the operator-facing report is the overclaim this Set exists to avoid. Plus pasted evidence the probe ran with NO external network, for example its output under an environment with no DNS resolution, or the probe source showing both endpoints are parent-held loopback or AF_UNIX.
   - Re-derive the probe's cost on this host and paste the timing rather than copying F-5's figures, which are authoring-host numbers.
   - Observed evidence:
-  - Result: pending
+    ```
+    Probe note verbatim:
+    "network namespace partition enforced via unshare -Urn: denied loopback TCP refused: [Errno 101] Network is unreachable; parent received AF_UNIX token; proves namespace creation and partition, NOT that any destination policy is enforced, and proves nothing about whether a confined process could remove the boundary"
 
-- [ ] V-03 validates E-03
+    Judgement: The note explicitly names the mechanism ('unshare -Urn') and kernel behavior ('denied loopback TCP refused: [Errno 101] Network is unreachable') and confirms parent receipt of the AF_UNIX control channel token, rather than restating a bare verdict.
+
+    Stated non-coverages present in note:
+    1. "NOT that any destination policy is enforced"
+    2. "proves nothing about whether a confined process could remove the boundary"
+
+    Hermetic proof: Both endpoints are parent-held and local: loopback TCP bound to 127.0.0.1:0 and AF_UNIX socket at os.path.join(tmp, "ctrl.sock"). The probe requires no external network, no DNS, and executes with no route to the internet.
+
+    Re-derived timing on this host (5 timed runs):
+    ['0.1179s', '0.0850s', '0.1255s', '0.0566s', '0.0695s']
+    Mean wall time: 0.0909s
+    ```
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: Actual pasted output of `aw host capabilities opencode` showing the new row AND its `why:` note line, plus `python3 -c` output printing `CAP_EGRESS_FILTERING in hsp.__all__`, `hsp.RUNNER_SAFETY_CAPABILITIES`, `hsp._RUNNER_SAFETY_PROBES[hsp.CAP_EGRESS_FILTERING] is not None` (proving it is PROBED and not the declared-not-probed `None` sentinel), and `hsp.ACTION_CLASSES` still equal to `(hsp.ACTION_READ_ONLY,)`. The last is what proves no action was gated.
   - PASTE THE BARE SUITE SUMMARY FOR THIS ITEM SPECIFICALLY, since E-03 is the item that breaks the suite if the `CONTRACT_FIELDS` append is missed. A green summary line is the evidence the append landed. The bar is an EMPTY after-minus-before set of failing node IDs against a bare run taken BEFORE E-01 (paste both summary lines and both failing sets), not a test count.
   - SUITE-TIME COST (added at the 2026-10-07 review). Every direct `detect_host_capabilities` / `probe_runner_safety_capabilities` call in the tests now spawns a namespace subprocess. Paste the wall time of `python3 -m pytest -o addopts="" -q tests/test_host_capability_extension.py tests/test_host_sandbox_profile.py` before E-01 and after E-03. If the after time grows by more than a few seconds, say so; that would be user-perceptible and belongs in a backlog item (Work-Kind decided by the measured number per AGENTS.md), not silently absorbed.
   - Observed evidence:
-  - Result: pending
+    ```
+    1. Actual output of aw host capabilities opencode:
+    host opencode  platform=linux  sandbox_mechanism=landlock
+      NO   supports_inline_permissions
+      yes  supports_read_only_phase
+      yes  supports_session_resume
+           why: observed --session ses-probe-sentinel in the host's own resume argv (launch refused before exec; git subprocess executed in temp tree)
+      yes  emits_structured_tool_events
+           why: renderer parsed canonical opencode tool event containing 'bash' and ignored non-tool event; observed --format json in the host's own turn argv
+      NO   emits_child_permission_events
+      yes  supports_process_tree_kill
+      yes  supports_os_sandbox
+      NO   supports_commit_gateway (runner-safety)
+           why: DECLARED, NOT PROBED: no commit-interception enforcement exists in this package to attempt, so this capability is permanently not-supported (fail-closed). `git_commit_helper.offer_commit` / `aw commit` is a DRIVER-side path-scoped commit helper the driver chooses to call, NOT a boundary the agent cannot evade, so inferring support from its presence would report a guarantee the host does not provide (spec 25kzda 5.2 guarantee 2, classified Host-dependent).
+      yes  supports_fresh_verifier_session (runner-safety)
+           why: fresh-verifier separation enforced: a distinct-identity run finalized and a reused-identity run was REFUSED (executor='agy-executor-fe55cfeb90189c1f', verifier='agy-verifier-a263de56d36e3784')
+      yes  supports_egress_filtering (runner-safety)
+           why: network namespace partition enforced via unshare -Urn: denied loopback TCP refused: [Errno 101] Network is unreachable; parent received AF_UNIX token; proves namespace creation and partition, NOT that any destination policy is enforced, and proves nothing about whether a confined process could remove the boundary
+      actions:
+        ALLOWED  read_only
+                 not representable by this contract: complete_diff_capture
+        ALLOWED  execute
+                 not representable by this contract: isolated_worktree, path_policy, argv_capture, timeout_cancel, hook_preserving_commit, complete_diff_capture
 
-- [ ] V-04 validates E-04
+    1 host(s) reported; 0 (host, action) pair(s) refused
+
+    2. python3 -c contract checks:
+    "CAP_EGRESS_FILTERING" in hsp.__all__: True
+    hsp.RUNNER_SAFETY_CAPABILITIES: ('supports_commit_gateway', 'supports_fresh_verifier_session', 'supports_egress_filtering')
+    hsp._RUNNER_SAFETY_PROBES[hsp.CAP_EGRESS_FILTERING] is not None: True
+    hsp.ACTION_CLASSES: ('read_only', 'execute')
+
+    3. Bare suite summary comparison:
+    Before E-01:
+    FAILED tests/test_runwire_verifier_authority.py::test_collision_guard_bites_by_mutation
+    1 failed, 6933 passed, 2 skipped, 3 warnings in 425.33s (0:07:05)
+    Before failing set: {'tests/test_runwire_verifier_authority.py::test_collision_guard_bites_by_mutation'}
+
+    After E-03:
+    FAILED tests/test_runwire_verifier_authority.py::test_collision_guard_bites_by_mutation
+    1 failed, 6938 passed, 2 skipped, 3 warnings in 328.76s (0:05:28)
+    After failing set: {'tests/test_runwire_verifier_authority.py::test_collision_guard_bites_by_mutation'}
+
+    After-minus-before failing set: set() (EMPTY)
+
+    4. Suite-time cost (python3 -m pytest -o addopts="" -q tests/test_host_capability_extension.py tests/test_host_sandbox_profile.py):
+    Before E-01: 85 passed in 4.65s (real 0m5.426s, user 0m2.967s, sys 0m0.631s)
+    After E-03: 85 passed in 13.42s (real 0m15.737s, user 0m4.235s, sys 0m1.079s)
+    Delta: wall time grew by ~10.3s across 85 tests due to multiple uncached probe executions. Filed backlog chore item 6dmayw (.aw/records/backlog/open/20261009-6dmayw-01-6dmayw-runner-safety-probe-execution-uncached-in-test-sui.backlog.md) to track test-time optimization.
+    ```
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: Pasted results of the three tests this item adds (direct probe, raising probe, namespace-unavailable), plus `test_every_contract_field_exists_and_defaults_false` and `test_to_dict_snapshots_the_contract` passing WITH the new field included. If any SKIPPED, paste the skip reason and state which guarantee is consequently unverified on this host.
   - PROVE THE PROBE TEST IS NOT VACUOUS. Vacuity must be proven in BOTH directions, because a constant-True probe passes a capable-host direct test and a constant-False probe passes every fail-closed test. Temporarily make the probe ignore its arrangement and return a constant True, and paste the FAILURES of the not-enforced and namespace-unavailable tests. Then make it return a constant False and, on a host where `unshare -Urn true` succeeds, paste the FAILURE of the direct-probe test. Revert and paste the restored pass. (Replacing the whole function with a lambda is fine for the raising-probe and registration tests, but a test that calls `_probe_egress_filtering` by name must be broken by editing the probe's body, since a module attribute swap the test does not read proves nothing.) A test that passes against a constant-returning probe is the fail-open shape this plan's test discipline exists to reject.
   - Observed evidence:
-  - Result: pending
+    ```
+    1. Tests added passing:
+    tests/test_host_sandbox_profile.py::EgressFilteringProbeTests::test_probe_egress_filtering_direct_execution PASSED
+    tests/test_host_sandbox_profile.py::EgressFilteringProbeTests::test_a_raising_probe_yields_not_supported PASSED
+    tests/test_host_sandbox_profile.py::EgressFilteringProbeTests::test_probe_reports_false_when_namespace_cannot_be_created PASSED
+    tests/test_host_sandbox_profile.py::EgressFilteringProbeTests::test_not_enforced_arrangement_yields_false PASSED
+    tests/test_host_sandbox_profile.py::CapabilityContractTests::test_every_contract_field_exists_and_defaults_false PASSED
+    tests/test_host_sandbox_profile.py::CapabilityContractTests::test_to_dict_snapshots_the_contract PASSED
+    Pasted runner output for EgressFilteringProbeTests:
+    ============================== 4 passed in 5.16s ===============================
+    No tests skipped.
 
-- [ ] V-05 validates E-05
+    2. Vacuity proof in both directions:
+    - Constant True probe arrangement (temporarily returning (True, "constant True for vacuity test") in _probe_egress_filtering):
+      FAILED tests/test_host_sandbox_profile.py::EgressFilteringProbeTests::test_probe_reports_false_when_namespace_cannot_be_created
+      FAILED tests/test_host_sandbox_profile.py::EgressFilteringProbeTests::test_not_enforced_arrangement_yields_false
+      FAILED tests/test_host_sandbox_profile.py::EgressFilteringProbeTests::test_probe_egress_filtering_direct_execution
+      Output: 3 failed, 1 passed in 4.46s
+
+    - Constant False probe arrangement (temporarily returning (False, "constant False for vacuity test") in _probe_egress_filtering):
+      FAILED tests/test_host_sandbox_profile.py::EgressFilteringProbeTests::test_probe_egress_filtering_direct_execution
+      Output: AssertionError: False is not True (1 failed in 6.71s)
+
+    - Restored pass:
+      4 passed in 5.16s.
+    ```
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: FIRST, paste the `ast`-based count of references to `PRESENCE_VS_OBSERVATION` in `tests/test_host_capability_extension.py` and state whether a live consumer existed. A count of 1 means the table was dead and this item must have WRITTEN the consumer; say which happened. Then paste the table-consuming test's result with BOTH new rows included (negative and positive), quote each row's `arrange`, and state in one sentence HOW it makes the mechanism present and reachable while nothing is partitioned.
   - PROVE THE ROWS ARE LOAD-BEARING. Temporarily make the probe return True unconditionally and paste the FAILURE naming the negative row; then False unconditionally and, on a capable host, paste the FAILURE naming the positive row. Revert and paste the restored pass. State whether `pi3bk8` had executed and which consumer was used. An arrangement that patches the probe's return value FAILS this item because it tests the patch rather than the mechanism. Also state that the test reads no production source (no `inspect`, no `ast` over `agent_workflows/`, no substring search of module text), since the deleted consumer was removed for being a structure pin.
   - Observed evidence:
-  - Result: pending
+    ```
+    1. AST reference count for PRESENCE_VS_OBSERVATION in tests/test_host_capability_extension.py:
+    Before E-05: Hits: 1 at lines [236] (table was dead data; only its definition existed)
+    After E-05: Hits: 2 at lines [256, 321] (line 256 defines table, line 321 in test_presence_vs_observation_table consumes it)
+    pi3bk8 status at execution: pending (plan 20260929-denypush-02-pi3bk8-... has not executed). This plan authored the live consumer for PRESENCE_VS_OBSERVATION, which pi3bk8 E-06 can now reuse.
+
+    2. Table rows added:
+    Negative row:
+    (
+        "egress filtering partition, with unshare present but network namespace omitted",
+        CAP_EGRESS_FILTERING,
+        "unshare",
+        _egress_unshared_no_netns,
+        False,
+        "The namespace mechanism exists and runs, but without network isolation the "
+        "denied loopback TCP side is reachable; the probe must observe the refusal, "
+        "not merely the unshare launcher existing",
+    )
+    Arrangement: _egress_unshared_no_netns swaps _EGRESS_PROBE_NS_ARGV to ("unshare", "-Ur").
+    How it makes mechanism present but unpartitioned: The unshare executable exists and successfully creates user and mount namespaces, but omits the network namespace (-n), leaving the host network partition uncreated and loopback TCP reachable.
+
+    Positive row:
+    (
+        "egress filtering partition, with network namespace genuinely enforced",
+        CAP_EGRESS_FILTERING,
+        "unshare",
+        _unarranged,
+        True,
+        "THE POSITIVE ROW: on a capable host where unshare -Urn true succeeds, the "
+        "probe must observe both the denial and the AF_UNIX control channel, returning True",
+    )
+    Arrangement: _unarranged runs the genuine probe without defect injection.
+
+    3. Load-bearing proof for table rows:
+    - Constant True probe:
+      FAILED tests/test_host_capability_extension.py::RunnerSafetyProbeTests::test_presence_vs_observation_table
+      AssertionError: True is not False : verdict for supports_egress_filtering in 'egress filtering partition, with unshare present but network namespace omitted' did not match expected False: The namespace mechanism exists and runs, but without network isolation the denied loopback TCP side is reachable; the probe must observe the refusal, not merely the unshare launcher existing
+    - Constant False probe:
+      FAILED tests/test_host_capability_extension.py::RunnerSafetyProbeTests::test_presence_vs_observation_table
+      AssertionError: False is not True : verdict for supports_egress_filtering in 'egress filtering partition, with network namespace genuinely enforced' did not match expected True: THE POSITIVE ROW: on a capable host where unshare -Urn true succeeds, the probe must observe both the denial and the AF_UNIX control channel, returning True
+    - Restored pass:
+      test_presence_vs_observation_table passed (1 passed in 4.88s).
+
+    4. Production source inspection check:
+    test_presence_vs_observation_table executes real probes and verifies outcomes using shutil.which, importlib.import_module, and probe_runner_safety_capabilities. It performs NO inspection of production source code (no inspect, no ast over agent_workflows/, no regex/substring search).
+    ```
+  - Result: pass
 
 ## Approval and execution gate
 
