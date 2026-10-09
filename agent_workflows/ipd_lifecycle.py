@@ -467,6 +467,99 @@ def checkout_control_root(start: Path) -> Path:
     return base / ".aw"
 
 
+# ---- LIFECYCLE LANE NUDGE (lifegate m47znv E-02 / E-03, backlog dvonrn D1) -----------------------
+# When begin or finalize runs in the main checkout while a lane for that plan exists, print ONE advisory
+# line saying that finalizing there keeps main cleaner. It is advisory ONLY: it never changes an exit
+# code, never withholds a transition, never gates anything, and never asks a question.
+# Making it a refusal would reintroduce the location rule Order 02 deleted, in a politer costume.
+
+LIFECYCLE_LANE_NUDGE_PREFIX = "aw: a lane for this plan exists"
+
+
+def format_lane_nudge_advisory(lane_id: str) -> str:
+    """Format the advisory line recommending execution in the lane.
+
+    Backlog dvonrn D1 / lifegate m47znv E-03: This is D1's nudge, NEVER a refusal.
+    Making it a refusal would reintroduce the location rule Order 02 deleted,
+    in a politer costume.
+    """
+    return f"{LIFECYCLE_LANE_NUDGE_PREFIX} ({lane_id}); finalizing there keeps main cleaner"
+
+
+def is_main_checkout(repo_root: Path) -> bool:
+    """True iff repo_root resolves to the repository's main worktree.
+
+    lifegate m47znv E-03 / PR-203 / D-3.
+    Decided by a concrete test on repo_root (the --dir target), not on cwd.
+    Preferred: checkout_control_root(repo_root).parent equals git rev-parse --show-toplevel.
+    Any error or non-git directory returns False (F-8).
+    """
+    try:
+        root_path = Path(repo_root)
+        if not root_path.is_dir():
+            return False
+        main_root = checkout_control_root(root_path).parent.resolve()
+        rc, out, _err = _git(root_path, ["rev-parse", "--show-toplevel"])
+        if rc != 0:
+            return False
+        top_level = Path(out.strip()).resolve()
+        return top_level == main_root
+    except Exception:
+        return False
+
+
+def find_lane_candidate_for_plan(repo_root: Path, plan_id: str) -> Optional[str]:
+    """Find an unmerged lane candidate for plan_id, if one exists.
+
+    Backlog dvonrn D1 / lifegate m47znv E-02 (PR-202).
+    Reuses worktree_lease.enumerate_lane_candidates with receipt_base='HEAD'.
+    Filters out any candidate whose work has already landed (merged_into_target=True).
+    Fail-safe: returns None on any error and never raises (F-8).
+    Makes NO liveness claim and does not call Order 01's holder predicate (F-3).
+    """
+    if not plan_id:
+        return None
+    try:
+        from agent_workflows import worktree_lease as _wl
+
+        candidates = _wl.enumerate_lane_candidates(repo_root, plan_id, "HEAD")
+        for cand in candidates:
+            if not getattr(cand.state, "merged_into_target", False):
+                return cand.lane_id
+    except Exception:
+        return None
+    return None
+
+
+def maybe_emit_lane_nudge(
+    repo_root: Path,
+    plan_id: Optional[str],
+    *,
+    file: Any = None,
+) -> bool:
+    """Emit the advisory line on stderr if in main checkout and an unmerged lane exists.
+
+    Returns True if emitted, False otherwise. Total: never raises.
+    Backlog dvonrn D1 / lifegate m47znv E-03: Advisory ONLY, never changes exit codes,
+    never withholds transitions.
+    """
+    if not plan_id:
+        return False
+    try:
+        import sys
+
+        if not is_main_checkout(repo_root):
+            return False
+        lane_id = find_lane_candidate_for_plan(repo_root, plan_id)
+        if not lane_id:
+            return False
+        dest = file if file is not None else sys.stderr
+        print(format_lane_nudge_advisory(lane_id), file=dest)
+        return True
+    except Exception:
+        return False
+
+
 def _runtime_dir(repo_root: Path) -> Path:
     """``<checkout control root>/state/runtime`` - the finalize lock and transaction journals.
 
@@ -5780,6 +5873,11 @@ def run_begin(args) -> int:
         )
     plan_path = resolution.paths[0]
 
+    # lifegate m47znv E-03: emit the D1 advisory nudge when running in main while a lane exists.
+    # This is advisory ONLY, never a refusal, and never alters the exit code.
+    if not (ctx.is_agent or ctx.is_json):
+        maybe_emit_lane_nudge(repo_root, _extract_plan_id(plan_path))
+
     result = begin(
         repo_root,
         plan_path,
@@ -5949,6 +6047,11 @@ def run_finalize(args) -> int:
             f"selector {selector!r} is ambiguous ({resolution.kind}); matched: {cand}.",
         )
     plan_path = resolution.paths[0]
+
+    # lifegate m47znv E-03: emit the D1 advisory nudge when running in main while a lane exists.
+    # This is advisory ONLY, never a refusal, and never alters the exit code.
+    if not (ctx.is_agent or ctx.is_json):
+        maybe_emit_lane_nudge(repo_root, _extract_plan_id(plan_path))
 
     # Order 05: collect the non-interactive reconciliation answers from repeatable flags.
     scope_reasons = _parse_scope_reason_flags(getattr(args, "scope_reason", None))

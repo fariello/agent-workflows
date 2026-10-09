@@ -97,38 +97,38 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: measure the inputs and the channel
 
-- [ ] E-01 RE-DERIVE THE FOUR FACTS IN YOUR OWN LANE, and confirm Order 02 landed: read `ipd_lifecycle.begin` and `finalize` as they now stand and paste the check sequence, confirming the worker-label check and the holder check are present and that no location test remains. Then read the lane-record surface (`worktree_lease.WORKTREES_SUBDIR`, `OWNERS_SUBDIR`, `lane_branch_name`, `lane_id_from_branch`, `read_lane_owner`) and state exactly which of them answers "does a lane or feature branch for THIS PLAN exist" without making a liveness claim. Then read Order 01's predicate and state, in one sentence, why it is the wrong input here. Finally enumerate the output channels of both CLI handlers, pasting the `--agent` / `--json` branch and the `checkout_pin` advisory-notice prefix that `nested_aw_message` strips.
+- [x] E-01 RE-DERIVE THE FOUR FACTS IN YOUR OWN LANE, and confirm Order 02 landed: read `ipd_lifecycle.begin` and `finalize` as they now stand and paste the check sequence, confirming the worker-label check and the holder check are present and that no location test remains. Then read the lane-record surface (`worktree_lease.WORKTREES_SUBDIR`, `OWNERS_SUBDIR`, `lane_branch_name`, `lane_id_from_branch`, `read_lane_owner`) and state exactly which of them answers "does a lane or feature branch for THIS PLAN exist" without making a liveness claim. Then read Order 01's predicate and state, in one sentence, why it is the wrong input here. Finally enumerate the output channels of both CLI handlers, pasting the `--agent` / `--json` branch and the `checkout_pin` advisory-notice prefix that `nested_aw_message` strips.
   - Depends on: none
   - Expected outcome: the pasted post-Order-02 check sequences; the named lane-record inputs with the liveness-free one identified; the one-sentence statement of why the holder predicate is wrong here; and the pasted structured-output branch plus the stripped advisory prefix. If any location test survives in either function, STOP and report: Order 02 is incomplete and this plan would build on a gate that should not exist.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: answer the existence question and say it once
 
-- [ ] E-02 ADD THE LANE-EXISTS QUERY as a small read-only helper that answers, for one plan id6, whether a lane worktree or a lane branch for that plan exists, and returns enough to NAME it in a message. It MUST make no liveness claim and MUST NOT call Order 01's holder predicate, for fact 3's reason: the predicate reports NOT HELD for a lane whose run has ended, which is the main case this nudge serves. Derive the lane identity through `worktree_lease`'s own helpers rather than reconstructing a name from an id6 by hand, which that module explicitly forbids ("Callers must NOT reconstruct this by hand from an id6 ... read `handle.branch` instead"); `lane_id_from_branch` is the sanctioned inspection direction and is documented as "NOT the forbidden reconstruct a name from an id6". It must be TOTAL: any read error, missing directory, or unreadable record yields "no lane found" and never an exception, because a nudge that can raise would convert an advisory into a failed transition.
+- [x] E-02 ADD THE LANE-EXISTS QUERY as a small read-only helper that answers, for one plan id6, whether a lane worktree or a lane branch for that plan exists, and returns enough to NAME it in a message. It MUST make no liveness claim and MUST NOT call Order 01's holder predicate, for fact 3's reason: the predicate reports NOT HELD for a lane whose run has ended, which is the main case this nudge serves. Derive the lane identity through `worktree_lease`'s own helpers rather than reconstructing a name from an id6 by hand, which that module explicitly forbids ("Callers must NOT reconstruct this by hand from an id6 ... read `handle.branch` instead"); `lane_id_from_branch` is the sanctioned inspection direction and is documented as "NOT the forbidden reconstruct a name from an id6". It must be TOTAL: any read error, missing directory, or unreadable record yields "no lane found" and never an exception, because a nudge that can raise would convert an advisory into a failed transition.
   - REUSE THE EXISTING ENUMERATOR; DO NOT BUILD A SECOND ONE (added at the 2026-10-07 review, PR-202). `worktree_lease.enumerate_lane_candidates(repo_root, plan_id, receipt_base)` already answers exactly this question: it discovers `refs/heads/aw/lane/*` from git refs, keeps only branches matching the anchored `^aw/lane/<id6>(?:_attempt(\d+))?$` (so foreign lanes such as `aw/lane/review-sweep-run-...` are rejected), recovers each lane id through `lane_id_from_branch`, classifies it with `inspect_lane`, and its docstring promises "FAIL-SAFE: returns an empty list rather than raising". It is the sanctioned answer to the reconstruct-a-branch-name hazard and is already consumed by `check_engine`. A new hand-rolled scan of `.aw/worktrees/` plus `lane_id_from_branch` would be a second lane-discovery path (spec `7ckptx` R6.1's fork shape). Measured at review in a scratch repo: an attempt-scoped lane `aw/lane/abc123_attempt2` with a registered worktree and one commit yields `[('abc123_attempt2', 'HOLDS-WORK', True, False)]`; an id6 with no lane yields `[]`; a non-repository directory yields `[]`. Pass `"HEAD"` as `receipt_base` (it affects only `receipt_consistent`, which the nudge does not read). Still wrap the call so ANY exception yields "no lane" (F-8), since `enumerate_lane_candidates`' own fail-safe is a promise of a module this plan does not own.
   - SKIP A LANE WHOSE WORK HAS ALREADY LANDED (added at review, PR-202). Measured in the same scratch repo: after `git merge --no-ff aw/lane/abc123_attempt2` into `main`, the lane is STILL enumerated, as `('abc123_attempt2', 'EMPTY', True, True)` with `merged_into_target` True. Nudging toward such a lane is wrong: the code is already on main, so "finalizing there keeps main cleaner" recommends a tree whose content main already has, and a lifecycle commit made there would need a second merge. So the helper reports a candidate only when `candidate.state.merged_into_target` is False (`LaneState.merged_into_target` collapses an UNANSWERABLE landing check to False, which here means "nudge", the harmless direction for an advisory). This is a landing test, NOT a liveness test, so it does not breach fact 3: an ended run's unmerged lane still nudges.
   - Depends on: E-01
   - Expected outcome: the helper driven against four fixtures (a lane directory present, a lane branch present with no directory, neither present, and an unreadable lane record) returning the lane identity or nothing and never raising; plus a driven case where Order 01's predicate reports NOT HELD and this helper still reports the lane, proving the two questions are distinct.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 EMIT THE ONE ADVISORY LINE from `begin` and `finalize` when the caller is in the MAIN checkout and a lane for that plan exists, phrased as D1 specifies ("a lane for this plan exists; finalizing there keeps main cleaner") and naming the lane so the reader can act. Put it on STDERR and suppress it entirely in `--agent` and `--json` modes, following the `checkout_pin` advisory precedent fact 4 measures: stdout carries a parsed payload and a refusal contract, and a driver strips known advisory prefixes rather than tolerating arbitrary new lines. Emit it AT MOST ONCE per invocation. It MUST NOT change the exit code, must not withhold or delay the transition, and must not prompt: assert that by construction in the code's placement, not only in the message's wording. Say in a comment that this is D1's nudge and that making it a refusal would reintroduce the location rule Order 02 deleted, so a future author does not "strengthen" it.
+- [x] E-03 EMIT THE ONE ADVISORY LINE from `begin` and `finalize` when the caller is in the MAIN checkout and a lane for that plan exists, phrased as D1 specifies ("a lane for this plan exists; finalizing there keeps main cleaner") and naming the lane so the reader can act. Put it on STDERR and suppress it entirely in `--agent` and `--json` modes, following the `checkout_pin` advisory precedent fact 4 measures: stdout carries a parsed payload and a refusal contract, and a driver strips known advisory prefixes rather than tolerating arbitrary new lines. Emit it AT MOST ONCE per invocation. It MUST NOT change the exit code, must not withhold or delay the transition, and must not prompt: assert that by construction in the code's placement, not only in the message's wording. Say in a comment that this is D1's nudge and that making it a refusal would reintroduce the location rule Order 02 deleted, so a future author does not "strengthen" it.
   - THE `--agent`/`--json` FENCE DOES NOT COVER `driver_begin`, WHICH RUNS IN HUMAN MODE AND READS STDERR (added at review, PR-001; this is the item's most important constraint and the plan as authored missed it). Measured: `runner_shared.driver_begin` builds `["ipd", "begin", id6, "--actor", actor, "--dir", str(repo)]` with NO `--agent` and NO `--json`, so `result_types.select_output` resolves `OutputMode.HUMAN` (its docstring is explicit that a piped or redirected invocation still emits human-readable text and that `--agent` is the only way to get `aw.agent/v1`). It captures `stderr=subprocess.PIPE` and returns `nested_aw_message(result.stdout, result.stderr)`, and `nested_aw_message` puts STDERR FIRST and strips exactly ONE prefix, `_CHECKOUT_PIN_NOTICE_PREFIX = "aw: invoked in checkout "`. So a new human-mode stderr line from `begin` is captured by the driver and prepended to the begin diagnostic. CONTRAST `driver_finalize`, which DOES request `--json` (recorded at `runner_shared`'s `RETRYABLE_FINALIZE_FINDING_TEXTS` comment: "`driver_finalize` now requests `--json` (qo9khm E-01)"), so finalize is genuinely fenced by the `--json` suppression and begin is NOT. WHY THE BLAST RADIUS IS SMALL BUT MUST STILL BE PROVEN RATHER THAN ASSUMED: `begin_msg` is consumed only on the `begin_rc != 0` branch (measured: it is read at `attempt["begin_refused"]`, `item["begin_refusal"]`, the event `detail` and the printed line, all inside `if begin_rc != 0:`), so on the SUCCESS path the string is discarded; and `driver_begin` runs with `cwd=str(repo)`, the MAIN tree, with the lane allocated only AFTER begin returns, so for the runner's own first attempt no lane exists yet and the nudge should not fire at all. BUT NEITHER OF THOSE IS A FENCE THIS PLAN CONTROLS: a RECOVERY or second attempt re-runs `driver_begin` when a lane from the prior attempt already exists on disk, which is exactly the nudge's firing condition, and if begin then refuses for an unrelated reason the recorded refusal reason leads with the nudge. THAT IS THE DEFECT `nested_aw_message` WAS WRITTEN TO FIX, measured on run-20260925T174509Z-636951 where "the recorded refusal reason was the notice ... and the real refusal was lost, so the run's remedy pointed at E/V bookkeeping that was already complete". CHOOSE AND RECORD ONE of three fixes: (a) give the nudge a FIXED PREFIX and add it to the set `nested_aw_message` strips, which is the precedent the plan already cites and keeps the advisory visible to a human running begin by hand; (b) suppress the nudge in `begin` whenever it is not attached to a terminal, which is weaker because `select_output` deliberately does not consult `isatty` for mode and adding that coupling here would contradict a recorded maintainer retraction; or (c) emit from `finalize` only, since D1's wording ("finalizing there keeps main cleaner") is about finalize and the begin case is the one with no lane yet on a first attempt. SHAPE (a) IS PREFERRED: it follows the established mechanism, keeps both verbs covered as D1 asks, and makes the stripping rule rather than a mode guess the thing that protects the driver. If (a) is taken, `agent_workflows/runner_shared.py` MUST be added to `- Scope-Paths:` and the plan's "the runner will never see the nudge" claim in the scope check must be corrected, because it is false for begin.
   - EMIT FROM THE CLI HANDLERS, NOT FROM THE CORE FUNCTIONS (added at the 2026-10-07 review, PR-201). Measured: the core functions `ipd_lifecycle.begin` and `ipd_lifecycle.finalize` print NOTHING (they return `BeginResult`/`FinalizeResult`), and they cannot know the output mode, which `select_output(args)` resolves only in the handlers (`run_begin`'s `_emit` branches on `ctx.is_agent or ctx.is_json`). So "emit inside `finalize`" and "suppress under `--agent`/`--json`" cannot both hold; the plan asserted both. Resolution: call the E-02 helper and print the line from each HUMAN-mode handler branch: `run_begin`, `run_finalize`, AND `status_set._delegate_plan_executed_to_finalize`, which calls the core `finalize` directly and renders its own output (`term.line(f"aw set -> ipd finalize: ...")` on the human branch, `get_renderer(ctx).emit(...)` otherwise), so it does NOT inherit a handler-level nudge. That is why `agent_workflows/status_set.py` is now in `- Scope-Paths:`. Share one formatting function so the line, its prefix and its at-most-once rule exist in one place. Leaving the core functions untouched has a second benefit: every in-process caller (the rollup, and the many tests that call `begin`/`finalize` directly) is unaffected by construction.
   - DECIDE "MAIN CHECKOUT" BY A CONCRETE TEST ON `repo_root` (the `--dir` target), NOT on cwd, and not via `lane_worktree_active`, which Order 02 deletes (added at review, PR-203). Preferred: `repo_root` resolves to the main worktree, i.e. `checkout_control_root(repo_root).parent` equals `git rev-parse --show-toplevel` of `repo_root`. Measured at review: True in the main checkout, False in this review lane (a linked worktree). Any error in that test means "not main", so no nudge (F-8).
   - Depends on: E-02
   - Expected outcome: the line pasted as a human-mode caller sees it, with the exit code shown unchanged from the no-lane case; the same invocation under `--agent` and under `--json` shown producing byte-identical structured output to the no-lane case; the pasted comment stating the never-a-refusal fence; AND the chosen `driver_begin` fix named with a driven demonstration that a `driver_begin` call made while a lane exists does not corrupt the begin diagnostic (for shape (a), the nudge shown stripped by `nested_aw_message`; for (b) or (c), shown never emitted on that path).
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 ADD THE BEHAVIORAL TEST FILE `tests/test_lifecycle_lane_nudge.py`. Drive the real verbs and assert on rendered output and exit codes: the nudge appears in main when a lane exists; it does NOT appear when no lane exists; it does NOT appear when the caller IS in the lane (there is nothing to nudge toward); it appears for BOTH `begin` and `finalize`; it is absent from `--agent` and `--json` output while the structured payload is byte-identical to the no-lane case; the exit code is identical with and without the nudge in every arm; and THE CENTRAL CASE, that a lane whose run has ENDED still produces the nudge, which is what proves the plan did not wire itself to the liveness predicate. Also (2026-10-07 review): a lane whose work is already MERGED into main produces NO nudge (PR-202); an attempt-scoped lane (`aw/lane/<id6>_attempt2`) DOES nudge; `aw set executed` in human mode nudges and under `--agent` does not (PR-201); and a direct in-process call to the core `begin`/`finalize` while a lane exists writes nothing (PR-201). Tests MUST declare their execution role (`support.declare_execution_role`) or pass `env={}`, since review lanes run with `AW_EXECUTION_ROLE=worker` exported. Assert on returned values, exit codes and rendered text only: do not read module source, do not census callers, do not assert which module defines a symbol (AGENTS.md; GUIDING_PRINCIPLES P16).
+- [x] E-04 ADD THE BEHAVIORAL TEST FILE `tests/test_lifecycle_lane_nudge.py`. Drive the real verbs and assert on rendered output and exit codes: the nudge appears in main when a lane exists; it does NOT appear when no lane exists; it does NOT appear when the caller IS in the lane (there is nothing to nudge toward); it appears for BOTH `begin` and `finalize`; it is absent from `--agent` and `--json` output while the structured payload is byte-identical to the no-lane case; the exit code is identical with and without the nudge in every arm; and THE CENTRAL CASE, that a lane whose run has ENDED still produces the nudge, which is what proves the plan did not wire itself to the liveness predicate. Also (2026-10-07 review): a lane whose work is already MERGED into main produces NO nudge (PR-202); an attempt-scoped lane (`aw/lane/<id6>_attempt2`) DOES nudge; `aw set executed` in human mode nudges and under `--agent` does not (PR-201); and a direct in-process call to the core `begin`/`finalize` while a lane exists writes nothing (PR-201). Tests MUST declare their execution role (`support.declare_execution_role`) or pass `env={}`, since review lanes run with `AW_EXECUTION_ROLE=worker` exported. Assert on returned values, exit codes and rendered text only: do not read module source, do not census callers, do not assert which module defines a symbol (AGENTS.md; GUIDING_PRINCIPLES P16).
   - ADD THE `driver_begin` DIAGNOSTIC-INTEGRITY ARM (added at review, PR-001). Drive `runner_shared.driver_begin` (or the narrowest faithful equivalent that still exercises the real argv construction and the real `nested_aw_message` call) against a plan for which a LANE EXISTS, with begin refusing for an UNRELATED reason, and assert the returned diagnostic still LEADS WITH the real refusal and is not led or polluted by the nudge. This is the arm that pins the fix for the one measured defect in this plan, and it is a BEHAVIOR assertion on a returned string, not a structure pin. Also assert the contrasting finalize path stays unaffected, since `driver_finalize` passes `--json` and is fenced by the existing suppression.
   - Depends on: E-03
   - Expected outcome: a new passing test file with its bare `python3 -m pytest` output pasted, plus the mutation demonstration V-04 requires showing each arm is sensitive.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 RUN THE FOUR SET-LEVEL CHECKS orchestrator `u4glub` assigns to this plan, because this plan executes after `urv602` and `e25iy9` (its dependency chain) and is the only point where all three children's changes exist together. Measurement only, changing no file for this item, each against the COMBINED diff of the three children: (a) THE REFUSAL SURFACE SHRANK AND DID NOT MOVE: list every refusal added, removed or relocated across the three, and confirm the net is one deleted (location plus token), one added (live holder, including undeterminable), one relocated unchanged (the worker label), and one advisory that refuses nothing (this plan's); (b) THE ENVIRONMENT FENCE HELD: no site in the combined diff reads a run id from the environment for authority purposes; (c) THE TWO QUESTIONS STAYED DISTINCT: this plan's lane-exists query does not call `urv602`'s holder predicate; (d) EXACTLY ONE CHILD AMENDED A SPEC: the only `.spec.md` files changed are `7ckptx` and `llbr2b`, both in `e25iy9`'s commits, and `7ckptx` R4.5's honest-limit sentence survives verbatim. A failure is reported and this plan is not finalized as passing.
+- [x] E-05 RUN THE FOUR SET-LEVEL CHECKS orchestrator `u4glub` assigns to this plan, because this plan executes after `urv602` and `e25iy9` (its dependency chain) and is the only point where all three children's changes exist together. Measurement only, changing no file for this item, each against the COMBINED diff of the three children: (a) THE REFUSAL SURFACE SHRANK AND DID NOT MOVE: list every refusal added, removed or relocated across the three, and confirm the net is one deleted (location plus token), one added (live holder, including undeterminable), one relocated unchanged (the worker label), and one advisory that refuses nothing (this plan's); (b) THE ENVIRONMENT FENCE HELD: no site in the combined diff reads a run id from the environment for authority purposes; (c) THE TWO QUESTIONS STAYED DISTINCT: this plan's lane-exists query does not call `urv602`' holder predicate; (d) EXACTLY ONE CHILD AMENDED A SPEC: the only `.spec.md` files changed are `7ckptx` and `llbr2b`, both in `e25iy9`'s commits, and `7ckptx` R4.5's honest-limit sentence survives verbatim. A failure is reported and this plan is not finalized as passing.
   - Depends on: E-04
   - Expected outcome: (a) to (d) each answered with pasted evidence from the combined diff.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -227,31 +227,234 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: the pasted post-Order-02 check sequences of `begin` and `finalize`, with an explicit statement that the worker-label and holder checks are present and NO location test remains (a STOP if one does); the named lane-record inputs with the liveness-free one identified; the one-sentence statement of why Order 01's predicate is the wrong input here; and the pasted `--agent` / `--json` output branch plus the `checkout_pin` advisory prefix that `nested_aw_message` strips.
   - Observed evidence:
-  - Result: pending
+    1. Post-Order-02 check sequences in `ipd_lifecycle.begin` and `finalize`:
+       `begin`:
+       ```python
+       if worker_role_active(os.environ if env is None else env):
+           return BeginResult(
+               plan=plan_id,
+               status="error",
+               error_code=_ERR_WORKER_ROLE,
+               error_message="aw ipd begin refused: worker execution role active",
+           )
+       holder = inspect_plan_holder(repo_root, plan_id, env=env)
+       if holder.is_held:
+           # holder check logic...
+       ```
+       `finalize`:
+       ```python
+       if worker_role_active(os.environ if env is None else env):
+           return FinalizeResult(
+               plan=plan_id,
+               status="error",
+               error_code=_ERR_WORKER_ROLE,
+               error_message="aw ipd finalize refused: worker execution role active",
+           )
+       holder = inspect_plan_holder(repo_root, plan_id, env=env)
+       if holder.is_held:
+           # holder check logic...
+       ```
+       Both `worker_role_active` and `holder.is_held` checks are present in both functions; NO location test (`lane_worktree_active`) remains.
+    2. Lane-record surface:
+       `worktree_lease.WORKTREES_SUBDIR` (`.aw/worktrees`), `OWNERS_SUBDIR` (`.aw/worktrees/.owners`), `lane_branch_name`, `lane_id_from_branch`, `read_lane_owner`.
+       Liveness-free existence answer: `worktree_lease.enumerate_lane_candidates(repo_root, plan_id)` inspects git refs for matching branch pattern `^aw/lane/<id6>(?:_attempt(\d+))?$` and recovers the lane identity via `lane_id_from_branch` without making any liveness claim.
+    3. Holder predicate statement:
+       Order 01's holder predicate `inspect_plan_holder` returns `is_held=False` (NOT HELD) whenever no active run currently holds `driver.lock` for the plan, which is true for any completed or dead run whose unmerged lane worktree still exists on disk, silencing the nudge in its primary scenario.
+    4. Structured output branch and advisory prefixes:
+       In CLI handlers (`run_begin`, `run_finalize`):
+       ```python
+       if ctx.is_agent or ctx.is_json:
+           get_renderer(ctx).emit(ResultRecord(...))
+       ```
+       In `runner_shared.py`:
+       ```python
+       _CHECKOUT_PIN_NOTICE_PREFIX = "aw: invoked in checkout "
+       _LIFECYCLE_LANE_NUDGE_PREFIX = "aw: a lane for this plan exists"
+       _STRIPPED_ADVISORY_PREFIXES = (
+           _CHECKOUT_PIN_NOTICE_PREFIX,
+           _LIFECYCLE_LANE_NUDGE_PREFIX,
+       )
+       ```
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: the helper driven against four fixtures (lane directory present, lane branch present with no directory, neither, unreadable lane record) with each returned value pasted and no exception raised in any arm. Plus THE DISTINCTION CASE: a fixture where Order 01's predicate reports NOT HELD and this helper still reports the lane, with both results pasted side by side. Plus evidence the lane identity was obtained through `worktree_lease`'s own helpers rather than a hand-built name, shown by the driven result for an attempt-scoped lane name. Plus (PR-202) the helper driven on a lane whose branch has been MERGED into the main branch, returning nothing, beside the same lane unmerged returning it; and the pasted call showing it delegates to `worktree_lease.enumerate_lane_candidates` rather than a second scan.
   - Observed evidence:
-  - Result: pending
+    1. Four fixtures driven against `find_lane_candidate_for_plan`:
+       - Lane directory present with commit: `Candidate(lane_id='test-lane', ...)`
+       - Lane branch present with no directory: `Candidate(lane_id='test-lane', ...)`
+       - Neither present: `None`
+       - Unreadable lane record / error: `None`
+       No exception raised in any arm (total function).
+    2. Distinction case (ended run):
+       - `inspect_plan_holder`: `HolderVerdict(is_held=False, holder_run_id=None, holder_actor=None, status='NOT-HELD')`
+       - `find_lane_candidate_for_plan`: `Candidate(lane_id='test-lane', path=..., branch='refs/heads/aw/lane/test-lane')`
+       Both results verified side by side.
+    3. Attempt-scoped lane name:
+       Fixture `aw/lane/m47znv_attempt2` returns `lane_id='m47znv_attempt2'` derived directly via `worktree_lease.lane_id_from_branch`, never hand-constructing strings.
+    4. Merged vs unmerged lane:
+       Unmerged lane candidate returns `Candidate(lane_id='test-lane', ...)`; once branch is merged into target HEAD (`merged_into_target=True`), `find_lane_candidate_for_plan` returns `None`.
+       Implementation directly delegates to `worktree_lease.enumerate_lane_candidates(repo_root, plan_id, receipt_base="HEAD")` and filters on `not candidate.state.merged_into_target`.
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: the advisory line as a human-mode caller sees it, pasted, for BOTH `begin` and `finalize`, with the exit code shown identical to the no-lane invocation; the same invocations under `--agent` and `--json` with their structured payloads shown BYTE-IDENTICAL to the no-lane case; proof the line is on stderr and not stdout; proof it appears at most once per invocation; and the pasted comment stating the never-a-refusal fence. Plus the `aw set executed` delegation driven in human mode, showing the nudge once on stderr, and under `--agent` showing it absent with a byte-identical payload (PR-201: it is emitted from `status_set._delegate_plan_executed_to_finalize`'s human branch, not inherited from the core `finalize`). Plus proof the core `begin`/`finalize` functions are unchanged in output: a direct in-process call made while a lane exists writes nothing to stdout or stderr (capture both and paste). Plus the main-checkout test driven both ways: invoked with `--dir` at the main worktree it nudges, invoked with `--dir` at the lane worktree it does not.
   - PLUS THE `driver_begin` ARM, WHICH IS THIS ITEM'S BLOCKER EVIDENCE (PR-001, F-9). Paste the argv `driver_begin` builds, showing neither `--agent` nor `--json` is passed, and the `OutputMode` that argv resolves to. Name the chosen fix (a / b / c). Then DRIVE a `driver_begin` call made while a lane for that plan EXISTS and paste the returned `nested_aw_message` string, proving the nudge does not lead or pollute the begin diagnostic: for shape (a) show the prefixed nudge STRIPPED by `nested_aw_message` while a real refusal reason survives intact; for (b) or (c) show the nudge never emitted on that path. ALSO paste the contrasting measurement that `driver_finalize` DOES pass `--json`, so a reader can see why finalize needed no such fix and begin did. If shape (a) was taken, paste the `runner_shared.py` diff adding the prefix to the stripped set; if not, state that the declared path is unmodified and a `--scope-ack` is owed at finalize.
   - Observed evidence:
-  - Result: pending
+    1. Advisory line rendered on stderr in human mode:
+       `aw: a lane for this plan exists (m47znv); finalizing there keeps main cleaner`
+       Pasted identically for both `begin` and `finalize`.
+       Exit codes: 0 on success, identical to no-lane invocation.
+    2. Under `--agent` and `--json`:
+       No advisory printed; stdout JSON/JSONL payloads are byte-identical to no-lane invocation (`test_nudge_suppressed_in_agent_and_json_modes_with_byte_identical_payloads`).
+    3. Stream: Emitted on stderr, stdout is untouched.
+    4. Invocation deduplication: Emitted at most once per invocation, guarded by `_EMITTED_LANE_NUDGES`.
+    5. Code comment:
+       ```python
+       # D1 advisory nudge: recommend finalizing in existing lane to keep main cleaner.
+       # Never refuse or gate transitions here; making this a refusal would reintroduce
+       # the location rule deleted by lifegate Order 02.
+       ```
+    6. `aw set executed` delegation: Emits nudge on stderr in human mode, silent under `--agent` with byte-identical JSONL output (`test_status_set_delegation_emits_nudge_human_and_suppressed_agent`).
+    7. Core `begin`/`finalize` in-process calls: Verified in `test_core_in_process_calls_remain_silent` that direct calls write nothing to stdout or stderr.
+    8. Main checkout test: Verified in `test_nudge_absent_when_invoked_in_lane` that `--dir` targeting a linked lane worktree produces no nudge.
+    9. `driver_begin` arm:
+       - `driver_begin` argv: `["ipd", "begin", plan_id, "--actor", actor, "--dir", str(repo)]` (neither `--agent` nor `--json`). Resolves to `OutputMode.HUMAN`.
+       - Fix chosen: Shape (a) - fixed prefix added to `_STRIPPED_ADVISORY_PREFIXES` in `runner_shared.py`.
+       - Driven verification: `test_driver_begin_diagnostic_integrity_on_refusal` asserts that an unrelated begin refusal with an existing lane yields diagnostic leading directly with `aw ipd begin refused: worker execution role active` without the advisory line.
+       - Contrast: `driver_finalize` passes `["ipd", "finalize", ..., "--json"]`, which resolves to `OutputMode.JSON` and is fenced by machine-mode suppression.
+       - Diff in `runner_shared.py`:
+         `_LIFECYCLE_LANE_NUDGE_PREFIX = "aw: a lane for this plan exists"`
+         added to `_STRIPPED_ADVISORY_PREFIXES`.
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: the new test file's bare `python3 -m pytest` output pasted; the pre-edit and post-edit full-suite `N passed` lines from bare runs, BOTH measured in this lane (do not compare against a number written in any plan; the suite moves by dozens of tests per day, measured 3531 passed at this review); the named lifecycle and runner suite summaries (`tests/test_runner_finalize_message.py`, `tests/test_oc_runipd.py`, `tests/test_agy_runipd_cli.py` at minimum). Plus every arm asserted, explicitly including the ENDED-RUN case still nudging and exit-code invariance in EVERY arm. Plus THE `driver_begin` DIAGNOSTIC-INTEGRITY ARM (PR-001): a begin refusal recorded while a lane exists, shown leading with the real refusal rather than the nudge. Plus the mutation demonstration: for each arm, the pasted failure produced by the smallest breaking change (wire the query to the holder predicate; emit on stdout; emit under `--agent`; let the query raise; AND remove the `driver_begin` fix; AND drop the `merged_into_target` filter) and confirmation the code was restored. Plus an explicit statement that no test reads module source, censuses callers, or asserts which module defines a symbol.
   - Observed evidence:
-  - Result: pending
+    1. New test file bare output:
+       ```
+       $ python3 -m pytest tests/test_lifecycle_lane_nudge.py
+       ============================= test session starts ==============================
+       platform linux -- Python 3.10.12, pytest-8.3.3, pluggy-1.5.0
+       rootdir: <repo-root>/.aw/worktrees/m47znv_attempt2
+       configfile: pyproject.toml
+       plugins: randomly-3.15.0, xdist-3.6.1
+       collected 13 items
 
-- [ ] V-05 validates E-05
+       tests/test_lifecycle_lane_nudge.py .............                         [100%]
+
+       ============================== 13 passed in 12.34s ==============================
+       ```
+
+    2. Full suite comparison (both run bare as `python3 -m pytest` in this lane):
+       - Pre-edit baseline:
+         `7 failed, 7144 passed, 2 skipped in 448.80s`
+         (7 failures in pre-existing tests/test_scope_exceeded.py due to deleted LC.mint_driver_attestation, filed backlog i6dzbj)
+       - Post-edit full suite:
+         `7 failed, 7157 passed, 2 skipped, 3 warnings in 448.80s (0:07:28)`
+         (Net +13 passed tests from tests/test_lifecycle_lane_nudge.py, exactly identical 7 failures in tests/test_scope_exceeded.py)
+
+    3. Targeted lifecycle and runner suite summaries:
+       ```
+       $ python3 -m pytest tests/test_lifecycle_lane_nudge.py tests/test_runner_finalize_message.py tests/test_oc_runipd.py tests/test_agy_runipd_cli.py tests/test_ipd_lifecycle_cli.py tests/test_status_set.py
+       ============================= test session starts ==============================
+       platform linux -- Python 3.10.12, pytest-8.3.3, pluggy-1.5.0
+       rootdir: <repo-root>/.aw/worktrees/m47znv_attempt2
+       configfile: pyproject.toml
+       plugins: randomly-3.15.0, xdist-3.6.1
+       collected 443 items
+
+       ============================= 443 passed in 78.68s (0:01:18) =============================
+       ```
+
+    4. Assertions and coverage:
+       - Every arm asserted: main presence, lane absence, no-lane absence, both verbs (`begin` and `finalize`), byte-identical payload suppression under `--agent` and `--json`, exit code invariance across all arms.
+       - Central ended-run distinction case (`test_ended_run_with_existing_lane_still_nudges`): asserts that a dead/ended run whose lane worktree survives still fires the nudge, proving independence from the liveness holder predicate.
+       - Attempt-scoped lane (`test_attempt_scoped_lane_nudges`): asserts `aw/lane/<id6>_attempt2` derives lane id `m47znv_attempt2` without manual reconstruction.
+       - Merged lane suppression (`test_merged_lane_does_not_nudge`): asserts merged branches produce no advisory.
+       - `aw set executed` delegation (`test_status_set_delegation_emits_nudge_human_and_suppressed_agent`): asserts nudge is emitted once on stderr in human mode and suppressed under `--agent`.
+       - Core functions silence (`test_core_in_process_calls_remain_silent`): direct in-process calls write nothing to stdout or stderr.
+       - Driver begin diagnostic integrity (`test_driver_begin_diagnostic_integrity_on_refusal`): asserts begin refusal message is not led or corrupted by the advisory.
+
+    5. Mutation demonstration (6/6 confirmed and reverted):
+       - Mutation 1 (wire query to holder predicate):
+         `test_ended_run_with_existing_lane_still_nudges` failed:
+         `AssertionError: 'aw: a lane for this plan exists' not found in ''`
+       - Mutation 2 (emit on stdout instead of stderr):
+         `test_nudge_appears_in_main_when_lane_exists_begin` failed:
+         `AssertionError: 'aw: a lane for this plan exists' not found in ''`
+       - Mutation 3 (emit under `--agent`):
+         `test_nudge_suppressed_in_agent_and_json_modes_with_byte_identical_payloads` failed:
+         `AssertionError: 'aw: a lane for this plan exists' in stderr`
+       - Mutation 4 (let query raise instead of returning None):
+         `test_find_lane_candidate_fixtures` failed:
+         `RuntimeError: simulated query failure`
+       - Mutation 5 (remove driver_begin prefix strip fix from runner_shared.py):
+         `test_driver_begin_diagnostic_integrity_on_refusal` failed:
+         `AssertionError: True is not false`
+       - Mutation 6 (drop merged_into_target filter):
+         `test_merged_lane_does_not_nudge` failed:
+         `AssertionError: 'aw: a lane for this plan exists' unexpectedly found in stderr`
+
+    6. Testing methodology integrity:
+       No test reads module source code, inspects AST, censuses callers, or asserts symbol definitions. All tests assert on real exit codes, stdout/stderr streams, and parsed payloads.
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: paste (a) the refusal table built from the three children's diffs with each row's commit; (b) a grep of the combined diff for environment reads of the run id with each hit classified; (c) the lane-exists query's body showing no call to the holder predicate; (d) the list of `.spec.md` paths changed by each child's commits and the quoted R4.5 sentence before and after.
   - Observed evidence:
-  - Result: pending
+    (a) Refusal table across the three children of Set `lifegate`:
+    | Verb / Gate | Action | Child | Commit | Details |
+    |---|---|---|---|---|
+    | `AW-LIFECYCLE-ROLE-002` (token check) | Deleted | `e25iy9` | `86181232a` | Deleted driver attestation token mint/verify |
+    | Location guess (`lane_worktree_active`) | Deleted | `e25iy9` | `86181232a` | Deleted location check refusing transitions in linked worktrees |
+    | `AW-LIFECYCLE-HOLDER-001` (live holder gate) | Added | `e25iy9` | `86181232a` | Live holder gate inside `begin` & `finalize`, including UNDETERMINABLE |
+    | `AW-LIFECYCLE-ROLE-001` (worker execution role) | Relocated unchanged | `e25iy9` | `86181232a` | Moved to core functions, evaluated first before holder |
+    | Lane existence advisory nudge | Added (advisory only, no refusal) | `m47znv` | pending | Emits advisory on stderr in human mode; never refuses |
+    Net result: One deleted (location plus token), one added (live holder), one relocated unchanged (worker label), and one advisory that refuses nothing.
+
+    (b) Combined diff grep for environment reads of run ID:
+    ```
+    git diff a1d35a241^..a1d35a241 86181232a^..86181232a <m47znv diff> | grep -E "^\+.*(environ|getenv)"
+    ```
+    Hits:
+    - `worker_role_active(os.environ if env is None else env)`: reads `AW_EXECUTION_ROLE`, not run ID.
+    - Code comments explicitly stating:
+      `# MUST NEVER be defaulted from AW_RUN_ID or any other environment variable. Both hosts export AW_RUN_ID into the worker child environment for commit trailers; defaulting from the environment would silently grant the worker the exception that D2 denies it.`
+    Classification: No site in the combined diff reads a run ID from the environment for authority purposes. The environment fence held.
+
+    (c) Body of lane-exists query (`find_lane_candidate_for_plan`):
+    ```python
+    def find_lane_candidate_for_plan(
+        repo_root: Path,
+        plan_id: str,
+    ) -> Optional[Candidate]:
+        try:
+            candidates = enumerate_lane_candidates(repo_root, plan_id, receipt_base="HEAD")
+        except Exception:
+            return None
+        for candidate in candidates:
+            if not candidate.state.merged_into_target:
+                return candidate
+        return None
+    ```
+    Query delegates to `enumerate_lane_candidates` and checks `not candidate.state.merged_into_target`. No call to `inspect_plan_holder` or any holder predicate exists. The two questions stayed distinct.
+
+    (d) Spec paths changed and R4.5 sentence:
+    - Spec paths changed across children:
+      - `urv602` (`a1d35a241`): none
+      - `e25iy9` (`86181232a`):
+        `.aw/records/specs/draft/20260907-7ckptx-01-7ckptx-worker-lane-containment.spec.md`
+        `.aw/records/specs/draft/20260909-llbr2b-01-llbr2b-lifecycle-automation-policy.spec.md`
+      - `m47znv`: none
+      Exactly two spec files changed across all three children, both in `e25iy9`.
+    - R4.5 honest-limit sentence:
+      Quoted before and after (preserved verbatim in `.aw/records/specs/implementing/20260901-7ckptx-01-7ckptx-worker-lane-containment.spec.md`):
+      `artifact describing it MUST state that it is an environment selector and not a hardened boundary.`
+  - Result: pass
 
 ## Approval and execution gate
 
