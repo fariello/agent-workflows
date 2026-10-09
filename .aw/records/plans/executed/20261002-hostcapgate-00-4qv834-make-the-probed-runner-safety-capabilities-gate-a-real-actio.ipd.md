@@ -11,7 +11,7 @@
   EXCLUDES, AND THIS FENCE IS LOAD-BEARING. (1) NO REQUIREMENT ON `supports_commit_gateway`. It is DECLARED AND NEVER PROBED with a False default by deliberate decision, so requiring it would refuse EVERY execute item on EVERY host; its spec-side overclaim is separately owned. (2) NO REINSTATEMENT of the `ACTION_REVIEW`/`ACTION_MUTATE`/`ACTION_CONTRACTLESS_PROMPT` constants that `01reg8` deleted on maintainer ruling `4h7tt0` OQ-02. One new class WITH a consumer is not a restoration of three classes without one, and no child may be read as reversing that ruling. (3) NO NEW PROBE. Every capability this Set consumes is already probed or already declared. (4) NO SPEC AMENDMENT: spec `25kzda` 5.2 already requires a "fresh verifier" for a mutating action and already specifies the exact per-item fail-closed refusal, and `01reg8` OQ-03 deliberately left that action table un-narrowed so a future requirement would have somewhere to land. No `.spec.md` appears in any child's `- Scope-Paths:`. (5) NO CROSS-RUN DESCRIPTOR CACHE with TTL or expiry; that is `host_capability_registry`'s separate concern.
 - Scope-Paths: .aw/records/plans/pending/20261002-hostcapgate-00-4qv834-make-the-probed-runner-safety-capabilities-gate-a-real-actio.ipd.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Coverage: pass
 - Coverage-Fingerprint: 5ff93d22271e0e5e101885c36473411e032832962e8f4c8fb5efe944d6c3557e
@@ -24,9 +24,9 @@
 - Highest E allocated: 02
 - Author: opencode/its_direct/pt3-claude-opus-5-1m-us
 - Id: 4qv834
-- Approval: 2026-10-08, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-09 executed (aw agy run model=Gemini-3.8-Flash-High): RETIRED as the orchestrator rollup step of a runner Set completion, not executed by an agent: every child of Set hostcapgate reached executed, so the runner (run run-20261009T013333Z-334392) retired this Order-0 plan as bookkeeping. Its own E-*/V-* items were NOT performed; the runner superseded them by enforcing the ordering, the isolation and the per-child merge gate. Justifying children: bqtgmo, y9m1ya.
 - 2026-10-08 approved (aw set): status set to approved
 - 2026-10-07 /plan-review (opencode uri/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005
 - 2026-10-07 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-001..PR-005 FIXED; OQ-01 open non-blocking (maintainer)
@@ -51,6 +51,9 @@
 Make the strictly-probed fresh-verifier capability actually decide whether an execute item runs, after first removing the per-item probe and the process-global launch interception that would otherwise make that gate a concurrency hazard.
 
 ## Detailed Implementation Checklist (TODO)
+
+
+> Its own E-*/V-* items were NOT performed; the runner superseded them by enforcing the ordering, the isolation and the per-child merge gate.
 
 Execution-state rule: mark an `E-*` item complete only after performing the action. That mark is not validation. Right-sizing rule: each E-item must address one concern and be executable in one focused pass; split when an E-item names multiple distinct deliverables or independent test-surfaces. Accepted execution states: blocked, failed, pending, performed; terminal gate demands 'performed'.
 
