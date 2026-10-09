@@ -9,7 +9,7 @@
   OUT, each for a stated reason. BUILDING THE LEDGER WIRING, under either answer: F-06 and F-07 prove it needs at minimum a ledger-creation verb, a driver-side step model, and a resolution of spec `25kzda` Section 6.2's still-open "durable storage location for run ledgers", which is three reviewable plans and not an E-item here; if the decision is (a) the carrier `hegwri`, already filed at authoring, is what owns it, and this plan does not execute it. DELETING OR RETIRING `run_recovery`: it is live code with a live consumer (`run_cli._run_resume` and `_run_cancel` both reach it, measured F-09), so retirement is refused on evidence regardless of the answer, and plan `e834yk`'s OQ-01 reached the same conclusion. TOUCHING `run_engine.py`, `run_ledger_store.py` or `run_ledger_schema.py`: pending plan `hrdmfy` declares all three in its `- Scope-Paths:` and owns the `step_started` record kind; editing them here would take over its scope. THE DRIVER'S OWN RETRY IMPLEMENTATION: `xipfy1` OQ-03 is a resolved maintainer decision (option (b), 2026-09-10) and this plan does not revisit it. EDITING SPEC `25kzda`: see `## Spec / documentation sync` for why no amendment is required and why `6.2` is deliberately left standing.
 - Scope-Paths: agent_workflows/runner_shared.py, agent_workflows/run_recovery.py, tests/test_run_recovery_cli.py, .aw/records/research/, .aw/records/backlog/, docs/recovery.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: medium
@@ -19,9 +19,9 @@
 - Highest E allocated: 06
 - Author: opencode/its_direct/pt3-claude-opus-5-1m-us
 - Id: rdjka2
-- Approval: 2026-10-07, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-09 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: rdjka2 verified (set runledger, attempt 2).
 - 2026-10-08 note (opencode its_direct/pt3-claude-opus-5.5-1m-us): OQ-01 resolved by the maintainer interactively as OPTION (b); see OQ-01. Unblocks E-03..E-06 for the next execution.
 - 2026-10-07 approved (aw set): status set to approved
 - 2026-10-07 reviewed (opencode/its_direct/pt3-claude-opus-5.5-1m-us): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-201, PR-202, PR-203, PR-204, PR-205, PR-206, PR-207, PR-208. Reviewed at HEAD a80075f56. PR-202 (HIGH, fixed): E-06's 'leaves NO file on disk' is false on the unmodified tree (the store leaves ledger.jsonl.lock), the state was unspecified (succeeded raises IllegalTransitionError), and approved hrdmfy moves the RL-E041 raise to start_step; the test now asserts sequence-level RL-E041 plus absence of ledger.jsonl. PR-203: V-06 and Proposed change 6 still demanded carrier creation, contradicting E-06's reconciliation; rewritten. PR-201: research, backlog and docs/recovery.md paths added to Scope-Paths. PR-204: host_runner's capture_command call is valid; F-12 corrected. PR-207: zero-callers claim is true of plan_retry, so narrowed rather than reversed, with docs/recovery.md reconciled. PR-208: an unattended run marks E-03 to E-06 blocked and leaves OQ-01 open. OQ-01 stays open and non-blocking, answered by the maintainer at E-03. Review record .aw/records/reviews/20261002-runledger-01-rdjka2-decide-whether-a-driver-run-writes-a-hash-chained-ledger-and.review.md.
