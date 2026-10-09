@@ -644,5 +644,163 @@ class TestConsumerParityAndModelFreeLinters(unittest.TestCase):
                 self.assertTrue(len(findings) > 0)
 
 
+class TestOrchestratorReadinessRefusalStylingAndFormatting(unittest.TestCase):
+    """Pin items 1-4 of E-05 (plan juu1rj)."""
+
+    def test_render_human_target_status_approved(self):
+        f = readiness.Finding(
+            code=readiness.CODE_CHILD_STATUS,
+            subject="62pkkg",
+            detail="child 62pkkg has status 'draft' (must be to-review, reviewed, approved, auto-approved, or executed)",
+            remedy="bring the child to `to-review` with `aw ipd set to-review 62pkkg`",
+        )
+        r = readiness.ReviewReadiness(
+            applies=True,
+            ready=False,
+            findings=(f,),
+            id6="itamry",
+            setid="setfoo",
+        )
+        rendered = readiness.render_human(r, target_status="approved")
+        self.assertTrue(
+            rendered.startswith(
+                "Refusing to set approved for orchestrator itamry (set setfoo):"
+            )
+        )
+        self.assertIn("62pkkg", rendered)
+        self.assertIn(
+            "An orchestrator may not advance while a child in its Set is not ready",
+            rendered,
+        )
+
+    def test_render_human_byte_identical_default_and_to_review(self):
+        f = readiness.Finding(
+            code=readiness.CODE_CHILD_STATUS,
+            subject="62pkkg",
+            detail="child 62pkkg has status 'draft' (must be to-review, reviewed, approved, auto-approved, or executed)",
+            remedy="bring the child to `to-review` with `aw ipd set to-review 62pkkg`",
+        )
+        r = readiness.ReviewReadiness(
+            applies=True,
+            ready=False,
+            findings=(f,),
+            id6="itamry",
+            setid="setfoo",
+        )
+        default_out = readiness.render_human(r)
+        to_review_out = readiness.render_human(r, target_status="to-review")
+        self.assertEqual(default_out, to_review_out)
+        self.assertTrue(
+            default_out.startswith("Orchestrator itamry is not ready for review:")
+        )
+        expected_lines = [
+            "Orchestrator itamry is not ready for review:",
+            "  - [child-status-not-ready] 62pkkg: child 62pkkg has status 'draft' (must be to-review, reviewed, approved, auto-approved, or executed)",
+            "    Remedy: bring the child to `to-review` with `aw ipd set to-review 62pkkg`",
+        ]
+        self.assertEqual(default_out, "\n".join(expected_lines))
+
+    def test_child_lint_question_extraction_and_fallback(self):
+        with tempfile.TemporaryDirectory() as td:
+            repo = _init_repo(Path(td))
+            c_path = ".aw/records/plans/pending/20261004-tstset-01-chd001-test.ipd.md"
+            orch = _make_orchestrator(
+                repo,
+                id6="orc001",
+                setid="tstset",
+                child_rows=[("01", "chd001", c_path)],
+            )
+            child = _make_child(
+                repo, id6="chd001", setid="tstset", order=1, status="to-review"
+            )
+            child_text = child.read_text(encoding="utf-8")
+            child_text = child_text.replace(
+                "### OQ-01: a question\n\n- Blocking: no",
+                "### OQ-06: Which admitted forms does TRACE treat as mandatory?\n\n- Blocking: yes",
+            )
+            child.write_text(child_text, encoding="utf-8")
+
+            res = readiness.review_readiness(repo, orch, ask=False)
+            clf = [f for f in res.findings if f.code == readiness.CODE_CHILD_LINT]
+            self.assertEqual(len(clf), 1)
+            self.assertEqual(
+                clf[0].questions,
+                (("OQ-06", "Which admitted forms does TRACE treat as mandatory?"),),
+            )
+            rendered = readiness.render_human(res)
+            self.assertIn(
+                "OQ-06: Which admitted forms does TRACE treat as mandatory?", rendered
+            )
+
+            # Fallback when questions is empty
+            f_fallback = readiness.Finding(
+                code=readiness.CODE_CHILD_LINT,
+                subject="chd001",
+                detail="child chd001 fails author lint: IPD-Q501 unmatched",
+                remedy="fix the child's named lint finding",
+                questions=(),
+            )
+            r_fallback = readiness.ReviewReadiness(
+                applies=True,
+                ready=False,
+                findings=(f_fallback,),
+                id6="orc001",
+                setid="tstset",
+            )
+            rendered_fb = readiness.render_human(r_fallback)
+            self.assertIn(
+                "child chd001 fails author lint: IPD-Q501 unmatched", rendered_fb
+            )
+
+    def test_term_styling_lifecycle_and_plain_escapes(self):
+        from agent_workflows.term import Term, resolve_lifecycle
+
+        f = readiness.Finding(
+            code=readiness.CODE_CHILD_STATUS,
+            subject="62pkkg",
+            detail="child 62pkkg has status 'draft' (must be to-review, reviewed, approved, auto-approved, or executed)",
+            remedy="bring the child to `to-review` with `aw ipd set to-review 62pkkg`",
+        )
+        r = readiness.ReviewReadiness(
+            applies=True,
+            ready=False,
+            findings=(f,),
+            id6="itamry",
+            setid="setfoo",
+        )
+
+        # Plain text with term=None
+        plain_out = readiness.render_human(r, target_status="approved", term=None)
+        self.assertNotIn("\x1b", plain_out)
+
+        # Plain text with Term(color=False)
+        nocolor_term = Term(color=False)
+        nocolor_out = readiness.render_human(
+            r, target_status="approved", term=nocolor_term
+        )
+        self.assertNotIn("\x1b", nocolor_out)
+
+        # Styled with Term(color=True)
+        color_term = Term(color=True)
+        color_out = readiness.render_human(r, target_status="approved", term=color_term)
+        self.assertIn("\x1b", color_out)
+
+        # Target status styled via Term.style_lifecycle_text
+        expected_target_styled = color_term.style_lifecycle_text(
+            "approved", resolve_lifecycle("plans", "approved")
+        )
+        self.assertIn(expected_target_styled, color_out)
+
+        # Child id6 formatted via Term.format_lifecycle_compact
+        expected_child_compact = color_term.format_lifecycle_compact(
+            "62pkkg", resolve_lifecycle("plans", "draft"), word=True
+        )
+        self.assertIn(expected_child_compact, color_out)
+
+        # Setid styled with bold only
+        expected_setid = color_term.colorize("setfoo", "bold")
+        self.assertIn(expected_setid, color_out)
+
+
 if __name__ == "__main__":
     unittest.main()

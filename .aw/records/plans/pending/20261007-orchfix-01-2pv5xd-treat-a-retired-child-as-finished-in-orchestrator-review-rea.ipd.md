@@ -99,6 +99,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Carrier-Declined: no defect remains once a retired child no longer blocks readiness; the table edit is editorial.
 - Refusal message styling and target-aware wording.
   - Carrier: juu1rj
+  - Carrier-Evidence: .aw/records/plans/executed/20261007-setrefuse-01-juu1rj-clarify-and-style-status-refusal-messages-and-orchestrator-r.ipd.md
 
 ## Scope check
 

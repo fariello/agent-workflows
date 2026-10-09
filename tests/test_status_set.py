@@ -4514,5 +4514,282 @@ class TestScopePathCitationRewriteSetter(StatusSetTestBase):
         )
 
 
+class RefusalMessagePolishAndGateTests(StatusSetTestBase):
+    """Pin items 5-8 of E-05 (plan juu1rj)."""
+
+    def test_aw_ipd_set_approved_unready_orchestrator(self):
+        c_path = (
+            self.repo_root
+            / ".aw"
+            / "records"
+            / "plans"
+            / "pending"
+            / "20261004-tstset-01-chd001-test.ipd.md"
+        )
+        c_path.write_text(
+            """# IPD: Child chd001
+- Date: 2026-10-04
+- Kind: child
+- Id: chd001
+- Set: tstset
+- Order: 1
+- Status: draft
+- Priority: medium
+- Work-Kind: chore
+- Author: test
+- Highest E allocated: 01
+- Concern: test concern.
+- Scope: test scope.
+- Scope-Paths: none
+- Item-Dependencies: none
+
+## Workflow history
+- 2026-10-04 draft (test): created.
+
+## Goal
+Goal.
+
+## Detailed Implementation Checklist (TODO)
+- [ ] E-01 item
+  - Depends on: none
+  - Expected outcome: done
+  - Execution state: pending
+
+## Validation and cross-check (verify before reporting the Set complete)
+- [ ] V-01 validates E-01
+  - Required evidence: c.
+  - Observed evidence:
+  - Result: pending
+
+## Approval and execution gate
+- None.
+""",
+            encoding="utf-8",
+        )
+
+        o_path = (
+            self.repo_root
+            / ".aw"
+            / "records"
+            / "plans"
+            / "pending"
+            / "20261004-tstset-00-orc001-test.ipd.md"
+        )
+        o_path.write_text(
+            """# IPD: Orch orc001
+- Date: 2026-10-04
+- Kind: orchestrator
+- Id: orc001
+- Set: tstset
+- Order: 0
+- Status: to-review
+- Priority: medium
+- Work-Kind: chore
+- Author: test
+- Highest E allocated: 01
+- Concern: test concern.
+- Scope: test scope.
+- Scope-Paths: none
+- Item-Dependencies: none
+
+## Workflow history
+- 2026-10-04 to-review (test): created.
+
+## Goal
+Goal.
+
+## Detailed Implementation Checklist (TODO)
+- [ ] E-01 CONFIRM chd001 REACHED executed
+  - Depends on: none
+  - Expected outcome: done
+  - Execution state: pending
+
+## Child IPDs, sequence, and dependencies
+| Order | Id | Status | Plan | Depends on |
+|---|---|---|---|---|
+| 01 | chd001 | pending | .aw/records/plans/pending/20261004-tstset-01-chd001-test.ipd.md | none |
+
+## Validation and cross-check (verify before reporting the Set complete)
+- [ ] V-01 validates E-01
+  - Required evidence: c.
+  - Observed evidence:
+  - Result: pending
+
+## Approval and execution gate
+- None.
+""",
+            encoding="utf-8",
+        )
+
+        buf = io.StringIO()
+        with patch("sys.stdout", buf):
+            rc = cli.main(
+                [
+                    "ipd",
+                    "set",
+                    "approved",
+                    "orc001",
+                    "--yes",
+                    "--dir",
+                    str(self.repo_root),
+                ]
+            )
+        self.assertEqual(rc, 1)
+        human_out = buf.getvalue()
+        self.assertIn(
+            "Refusing to set approved for orchestrator orc001 (set tstset):", human_out
+        )
+        self.assertIn("chd001", human_out)
+
+        buf_agent = io.StringIO()
+        with patch("sys.stdout", buf_agent):
+            rc_agent = cli.main(
+                [
+                    "ipd",
+                    "set",
+                    "approved",
+                    "orc001",
+                    "--yes",
+                    "--agent",
+                    "--dir",
+                    str(self.repo_root),
+                ]
+            )
+        self.assertEqual(rc_agent, 1)
+        agent_raw = buf_agent.getvalue()
+        self.assertNotIn("\x1b", agent_raw)
+        data = json.loads(agent_raw)
+        self.assertEqual(data["data"]["target_status"], "approved")
+        self.assertIn("finding_codes", data["data"])
+        self.assertIn("findings", data["data"])
+        self.assertIn("summary", data)
+
+    def test_backward_demotion_without_message_human_output(self):
+        self.create_plan(
+            "20261004-tstset-01-dem001-test.ipd.md",
+            "dem001",
+            "tstset",
+            status="approved",
+        )
+        buf = io.StringIO()
+        with patch("sys.stdout", buf):
+            rc = cli.main(
+                [
+                    "ipd",
+                    "set",
+                    "to-review",
+                    "dem001",
+                    "--yes",
+                    "--dir",
+                    str(self.repo_root),
+                ]
+            )
+        self.assertEqual(rc, 2)
+        out = buf.getvalue()
+        self.assertIn("dem001: approved -> to-review", out)
+        self.assertIn("aw ipd set to-review dem001 --message", out)
+
+    def test_single_plan_approval_refusal_blocking_question_formatting(self):
+        plan = self.create_conforming_plan(
+            "20261004-tstset-01-sp0001-test.ipd.md",
+            "sp0001",
+            "tstset",
+            status="to-review",
+        )
+        text = plan.read_text(encoding="utf-8")
+        text += (
+            "\n## Open questions\n\n"
+            "### OQ-01: What should the default timeout be?\n\n"
+            "- Blocking: yes\n- Status: open\n- Owner: test\n"
+            "- Resolution or deferral rationale: pending\n"
+        )
+        plan.write_text(text, encoding="utf-8")
+
+        buf = io.StringIO()
+        with patch("sys.stdout", buf):
+            rc = cli.main(
+                [
+                    "ipd",
+                    "set",
+                    "approved",
+                    "sp0001",
+                    "--yes",
+                    "--dir",
+                    str(self.repo_root),
+                ]
+            )
+        self.assertEqual(rc, 1)
+        out = buf.getvalue()
+        self.assertNotIn("..", out)
+        self.assertIn("refusing to set approved for plan sp0001:", out)
+        self.assertIn("OQ-01: What should the default timeout be?", out)
+        self.assertIn("  - an unresolved BLOCKING open question remains", out)
+
+    def test_terminal_reopen_and_priority_backstop_multiline_output(self):
+        # 1. Terminal reopen
+        self.create_plan(
+            "20261004-tstset-01-ex0001-test.ipd.md",
+            "ex0001",
+            "tstset",
+            status="executed",
+            disposition="executed",
+        )
+        buf_reopen = io.StringIO()
+        with patch("sys.stdout", buf_reopen):
+            rc_reopen = cli.main(
+                [
+                    "ipd",
+                    "set",
+                    "to-review",
+                    "ex0001",
+                    "--yes",
+                    "--dir",
+                    str(self.repo_root),
+                ]
+            )
+        self.assertEqual(rc_reopen, 2)
+        out_reopen = buf_reopen.getvalue()
+        self.assertIn("ex0001: executed -> to-review", out_reopen)
+        self.assertIn("aw ipd scaffold", out_reopen)
+        self.assertIn("--allow-terminal-reopen", out_reopen)
+
+        # 2. Priority / work-kind backstop
+        plan_prio = self.create_conforming_plan(
+            "20261004-tstset-02-pr0002-test.ipd.md",
+            "pr0002",
+            "tstset",
+            status="to-review",
+        )
+        text_prio = plan_prio.read_text(encoding="utf-8")
+        text_prio = text_prio.replace(
+            "- Priority: medium", "- Priority: unresolved"
+        ).replace("- Work-Kind: chore", "- Work-Kind: unresolved")
+        plan_prio.write_text(text_prio, encoding="utf-8")
+
+        buf_prio = io.StringIO()
+        with patch("sys.stdout", buf_prio):
+            rc_prio = cli.main(
+                [
+                    "ipd",
+                    "set",
+                    "approved",
+                    "pr0002",
+                    "--yes",
+                    "--allow-open-questions",
+                    "--dir",
+                    str(self.repo_root),
+                ]
+            )
+        self.assertEqual(rc_prio, 1)
+        out_prio = buf_prio.getvalue()
+        self.assertIn("refusing to set approved for plan pr0002:", out_prio)
+        self.assertIn(
+            "  - Priority is still the 'unresolved' scaffold sentinel", out_prio
+        )
+        self.assertIn(
+            "  - Work-Kind is still the 'unresolved' scaffold sentinel", out_prio
+        )
+
+
 if __name__ == "__main__":
     unittest.main()

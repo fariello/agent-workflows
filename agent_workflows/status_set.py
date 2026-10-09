@@ -867,15 +867,12 @@ def validate_transition_allowed(
             allow_open_questions=bool(getattr(args, "allow_open_questions", False)),
         )
         if refusals:
-            return (
-                False,
-                "refusing to set {0} for {1} {2}: ".format(
-                    norm_status,
-                    "plan" if rec.record_type == "plans" else "spec",
-                    rec.id6 or rec.path.name,
-                )
-                + "; ".join(refusals),
-            )
+            lines = [
+                f"refusing to set {norm_status} for {'plan' if rec.record_type == 'plans' else 'spec'} {rec.id6 or rec.path.name}:"
+            ]
+            for r in refusals:
+                lines.append(f"  - {r}")
+            return False, "\n".join(lines)
 
     # planprio lkexaw E-11: THE PRIORITY / WORK-KIND BACKSTOP. Both are decided where the work is first
     # recorded (the backlog item, or `aw ipd scaffold`, which refuses without them) and the lint gate
@@ -891,14 +888,15 @@ def validate_transition_allowed(
             work_kind=getattr(args, "work_kind", None),
         )
         if _undecided:
-            return (
-                False,
-                f"refusing to set {norm_status} for plan {rec.id6 or rec.path.name}: "
-                + "; ".join(_undecided)
-                + ". These are decided when the work is first recorded (the backlog item, or "
-                "`aw ipd scaffold`); set them with `aw ipd set <status> <id6> --priority ... "
-                "--work-kind ...`",
+            target_id = rec.id6 or rec.path.name
+            lines = [f"refusing to set {norm_status} for plan {target_id}:"]
+            for prob in _undecided:
+                lines.append(f"  - {prob}")
+            lines.append(
+                f"These are decided when the work is first recorded (the backlog item, or `aw ipd scaffold`); "
+                f"set them with `aw ipd set {norm_status} {target_id} --priority ... --work-kind ...`."
             )
+            return False, "\n".join(lines)
 
     if rec.record_type == "backlog":
         from agent_workflows import attention_contract as _ac
@@ -2525,9 +2523,10 @@ def run_set_command(
                     ],
                 )
                 return get_renderer(ctx).emit(res, ctx)
+            sep = " " if err_msg and err_msg.rstrip().endswith(".") else ". "
             term.status(
                 "fail",
-                f"Validation error on {rec.path.name}: {err_msg}. Refusing before making changes.",
+                f"Validation error on {rec.path.name}: {err_msg}{sep}Refusing before making changes.",
             )
             return 1
 
@@ -2874,7 +2873,25 @@ def run_set_command(
                 complete=False,
             )
             return get_renderer(ctx).emit(res, ctx)
-        term.status("fail", f"{_summary}\nRefusing; nothing was written:\n{_listing}")
+        _human_reopened_lines = [
+            f"  - {rec.id6 or rec.path.name}: {rec.status or '-'} -> {_norm_for_plans}"
+            for rec in _reopened
+        ]
+        _retry_reopen_cmd = _retry_command(
+            args,
+            raw_args,
+            scoped_type=scoped_type,
+            extra=["--allow-terminal-reopen", "--yes"],
+        )
+        _human_summary = (
+            f"Refusing to move {len(_reopened)} plan(s) out of a terminal disposition to '{_norm_for_plans}'.\n"
+            + "\n".join(_human_reopened_lines)
+            + "\nA terminal plan is a historical record; AGENTS.md directs a corrective IPD for a post-execution gap, not an in-place edit.\n"
+            "Remedies:\n"
+            "  - Write a corrective IPD instead: aw ipd scaffold --title <corrective plan title>\n"
+            f"  - Override to reopen anyway (recorded in history): {_retry_reopen_cmd}"
+        )
+        term.status("fail", _human_summary)
         return 2
 
     # E-05: Require an explicit --message for every backward plan transition.
@@ -2923,9 +2940,21 @@ def run_set_command(
                 complete=False,
             )
             return get_renderer(ctx).emit(res, ctx)
+        _retry_cmd = _retry_command(
+            args,
+            raw_args,
+            scoped_type=scoped_type,
+            extra=['--message "<reason>"'],
+        )
+        _demoted_lines = [
+            f"  - {r.id6 or r.path.name}: {c} -> {t}"
+            for r, c, t in _backward_plan_moves
+        ]
         term.status(
             "fail",
-            f"{_err_summary} explaining why the plan was demoted; refusing before making changes.",
+            f"{_err_summary} explaining why the plan was demoted; refusing before making changes:\n"
+            + "\n".join(_demoted_lines)
+            + f"\nRetry with:\n  {_retry_cmd}",
         )
         return 2
 
@@ -2992,6 +3021,9 @@ def run_set_command(
                 _unready_results.append(r_res)
 
         if _unready_results:
+            norm_plans_target = (
+                normalize_target_status(target_status, "plans").strip().lower()
+            )
             cmd_str = "ipd set" if scoped_type_canonical == "plans" else "set"
             if ctx.is_agent or ctx.is_json:
                 findings_payload = [
@@ -3000,6 +3032,7 @@ def run_set_command(
                         "subject": f.subject,
                         "detail": f.detail,
                         "remedy": f.remedy,
+                        "questions": [list(q) for q in getattr(f, "questions", ())],
                     }
                     for r in _unready_results
                     for f in r.findings
@@ -3025,6 +3058,7 @@ def run_set_command(
                         if len(_unready_results) == 1
                         else ",".join(r.setid for r in _unready_results),
                         "ready": False,
+                        "target_status": norm_plans_target,
                         "finding_codes": [f["code"] for f in findings_payload],
                         "findings": findings_payload,
                     },
@@ -3038,7 +3072,11 @@ def run_set_command(
                 return 1
 
             for r in _unready_results:
-                term.line(_orch_readiness.render_human(r))
+                term.line(
+                    _orch_readiness.render_human(
+                        r, target_status=norm_plans_target, term=term
+                    )
+                )
             return 1
 
     # E-02: Sort writes so children are applied first, orchestrators last.
