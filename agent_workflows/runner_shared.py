@@ -2863,8 +2863,9 @@ def reclaim_lanes_on_interrupt(
     *,
     interactive: bool = True,
     reason: str = "interrupt",
-    lane_prompt: Callable[[dict[str, Any], str], str | None],
-    disable_prompt: Callable[[], None],
+    mode: str = "interrupt",
+    lane_prompt: Callable[[dict[str, Any], str], str | None] | None = None,
+    disable_prompt: Callable[[], None] | None = None,
 ) -> list[dict[str, Any]]:
     """THE lane-reclamation decision. Idempotent; safe to call twice; separately callable.
 
@@ -2925,7 +2926,7 @@ def reclaim_lanes_on_interrupt(
     ]
     if not lanes:
         return []
-    if not interactive:
+    if not interactive and disable_prompt is not None:
         disable_prompt()
     pal = Palette(should_color(sys.stderr))
     for lane in lanes:
@@ -2952,7 +2953,11 @@ def reclaim_lanes_on_interrupt(
         # laneorph `65cuw0` E-03: THE RECOVERED CASE IS DECIDED FIRST, before `holds_work` below can
         # bail out. See this function's docstring for why the order is the load-bearing half.
         if lane_is_recovered_and_reclaimable(lane):
-            choice = lane_prompt(lane, "discard") if interactive else None
+            choice = (
+                lane_prompt(lane, "discard")
+                if (interactive and lane_prompt is not None)
+                else None
+            )
             if choice == "keep":
                 lane["action"] = "kept-by-operator"
                 continue
@@ -2971,7 +2976,11 @@ def reclaim_lanes_on_interrupt(
                     run_dir / "events.jsonl",
                     {
                         "at": utc_now(),
-                        "event": "lane-reclaimed-on-interrupt",
+                        "event": (
+                            "lane-reclaimed-at-run-end"
+                            if mode == "run-end"
+                            else "lane-reclaimed-on-interrupt"
+                        ),
                         "id6": lane["id6"],
                         "branch": lane["branch"],
                         "worktree": lane["worktree"],
@@ -2990,7 +2999,11 @@ def reclaim_lanes_on_interrupt(
             lane["retention_reason_codes"] = list(decision.reason_codes)
             event = {
                 "at": utc_now(),
-                "event": "lane-preserved-on-interrupt",
+                "event": (
+                    "lane-preserved-at-run-end"
+                    if mode == "run-end"
+                    else "lane-preserved-on-interrupt"
+                ),
                 "id6": lane["id6"],
                 "branch": lane["branch"],
                 "worktree": lane["worktree"],
@@ -3012,7 +3025,38 @@ def reclaim_lanes_on_interrupt(
                 )
             continue
         if lane["holds_work"]:
-            choice = lane_prompt(lane, "keep and snapshot") if interactive else None
+            if mode == "run-end":
+                # lanegc (45z93e) E-02: at normal run end, NEVER snapshot dirty work on a preserved lane.
+                lane["action"] = "preserved"
+                lane["retention_reason"] = "holds-unmerged-work"
+                lane["retention_reason_codes"] = ["holds-unmerged-work"]
+                event = {
+                    "at": utc_now(),
+                    "event": "lane-preserved-at-run-end",
+                    "id6": lane["id6"],
+                    "branch": lane["branch"],
+                    "worktree": lane["worktree"],
+                    "commits_ahead": lane["commits_ahead"],
+                    "dirty": lane["dirty"],
+                    "reason": reason,
+                    "retention_reason": "holds-unmerged-work",
+                    "retention_reasons": ["holds-unmerged-work"],
+                }
+                append_jsonl(run_dir / "events.jsonl", event)
+                item_for_lane = interrupt_lane_item_record(state, lane)
+                if item_for_lane is not None:
+                    lane_containment.record_preserved_lane_state(
+                        item=item_for_lane,
+                        handle=handle,
+                        reason="holds-unmerged-work",
+                        reason_codes=["holds-unmerged-work"],
+                    )
+                continue
+            choice = (
+                lane_prompt(lane, "keep and snapshot")
+                if (interactive and lane_prompt is not None)
+                else None
+            )
             snapshot = None
             if lane["dirty"]:
                 try:
@@ -3090,9 +3134,59 @@ def reclaim_lanes_on_interrupt(
         if not lane["reclaimable"]:
             lane["action"] = "left-alone"
             continue
-        choice = lane_prompt(lane, "discard") if interactive else None
+        choice = (
+            lane_prompt(lane, "discard")
+            if (interactive and lane_prompt is not None)
+            else None
+        )
         if choice == "keep":
             lane["action"] = "kept-by-operator"
+            continue
+        if mode == "run-end":
+            # lanegc (45z93e) E-02: at normal run end, EVERY removal (including empty / clean-stale)
+            # must go through the R5.5 inventory gate.
+            item_for_lane = interrupt_lane_item_record(state, lane)
+            decision = reclaim_lane_through_gate(
+                repo, handle, run_dir=run_dir, item=item_for_lane
+            )
+            if decision.torn_down:
+                lane["action"] = "reclaimed"
+                append_jsonl(
+                    run_dir / "events.jsonl",
+                    {
+                        "at": utc_now(),
+                        "event": "lane-reclaimed-at-run-end",
+                        "id6": lane["id6"],
+                        "branch": lane["branch"],
+                        "state": lane["state"],
+                        "reason": reason,
+                    },
+                )
+                continue
+            lane["action"] = "preserved"
+            lane["retention_reason"] = decision.reason
+            lane["retention_reason_codes"] = list(decision.reason_codes)
+            event = {
+                "at": utc_now(),
+                "event": "lane-preserved-at-run-end",
+                "id6": lane["id6"],
+                "branch": lane["branch"],
+                "worktree": lane["worktree"],
+                "commits_ahead": lane["commits_ahead"],
+                "dirty": lane["dirty"],
+                "reason": reason,
+                "retention_reason": decision.reason,
+                "retention_reasons": list(decision.reason_codes),
+            }
+            event.update(decision.inventory.as_dict())
+            append_jsonl(run_dir / "events.jsonl", event)
+            if item_for_lane is not None:
+                lane_containment.record_preserved_lane_state(
+                    item=item_for_lane,
+                    handle=handle,
+                    reason=decision.reason,
+                    reason_codes=decision.reason_codes,
+                )
             continue
         try:
             worktree_lease.teardown_worktree(repo, handle, force=True)
@@ -3121,7 +3215,36 @@ def reclaim_lanes_on_interrupt(
                     "detail": str(exc),
                 },
             )
+    if mode == "run-end" and lanes:
+        removed = sum(1 for lane in lanes if lane.get("action") == "reclaimed")
+        kept = sum(1 for lane in lanes if lane.get("action") != "reclaimed")
+        state["lanes_summary"] = (
+            f"lanes: {removed} removed, {kept} kept (aw lanes list)"
+        )
     return lanes
+
+
+def reclaim_run_lanes(
+    repo: Path,
+    run_dir: Path,
+    state: dict[str, Any],
+    *,
+    interactive: bool = False,
+    reason: str = "run-end",
+) -> list[dict[str, Any]]:
+    """Reclaim lanes allocated to this run at run end (lanegc 45z93e E-02).
+
+    Runs the existing reclaim decision in run-end mode: no snapshot on dirty lanes, every removal
+    goes through the R5.5 inventory gate, and emits lane-reclaimed-at-run-end events.
+    """
+    return reclaim_lanes_on_interrupt(
+        repo,
+        run_dir,
+        state,
+        interactive=interactive,
+        reason=reason,
+        mode="run-end",
+    )
 
 
 def review_sweep_lane_handle(state: dict[str, Any]) -> Any | None:

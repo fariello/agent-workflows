@@ -3853,6 +3853,44 @@ def teardown_lane_if_classified(
     return LaneTeardownDecision(torn_down=True, inventory=inventory)
 
 
+def item_recorded_attempt_in_lane(item: Mapping[str, Any], handle: Any) -> bool:
+    """True if any attempt in `item` names `handle`'s lane id, worktree path, or branch (E-01)."""
+    lane_id = getattr(handle, "lane_id", None)
+    lane_path = str(getattr(handle, "path", ""))
+    lane_branch = getattr(handle, "branch", None)
+    for attempt in item.get("attempts") or []:
+        if not isinstance(attempt, Mapping):
+            continue
+        w_id = attempt.get("worktree_lane_id")
+        w_path = attempt.get("worktree")
+        w_branch = attempt.get("worktree_branch")
+        if lane_id and w_id == lane_id:
+            return True
+        if lane_path and w_path:
+            if str(w_path) == lane_path:
+                return True
+            try:
+                if Path(w_path).resolve() == Path(lane_path).resolve():
+                    return True
+            except Exception:
+                pass
+        if lane_branch and w_branch == lane_branch:
+            return True
+    return False
+
+
+def _lane_submission_root_is_empty(sub_root: Path | None) -> bool:
+    """True if `sub_root` does not exist or contains no regular files (E-01)."""
+    if sub_root is None or not sub_root.exists():
+        return True
+    if not sub_root.is_dir():
+        return False
+    for _root, _dirs, filenames in os.walk(sub_root):
+        if filenames:
+            return False
+    return True
+
+
 def teardown_review_sweep_lane(
     *,
     repo: Path,
@@ -3908,11 +3946,41 @@ def teardown_review_sweep_lane(
 
     # PROBE FIRST, DESTROY LAST. Every item's inventory must classify before anything is removed, so a
     # lane is never half-torn-down because item 3 turned out to hold something.
+    lane_path = Path(getattr(handle, "path", ""))
     worst: LaneInventory | None = None
     accounted: set[str] = set()
+    participating_items: list[dict[str, Any]] = []
     for item in items:
+        recorded_attempt = item_recorded_attempt_in_lane(item, handle)
+        sub_root = (
+            lane_submission_root(lane_path, run_dir.name, item, 1)
+            if run_dir and lane_path
+            else None
+        )
+        if not recorded_attempt:
+            if _lane_submission_root_is_empty(sub_root):
+                # Exempt (spec 7ckptx R2.5 amended): recorded no attempt in the sweep lane
+                # and has no submission under its lane submission root -> nothing to collect.
+                continue
+            # Zero-attempt item with files under submission root: fail closed.
+            probe = inventory_lane(
+                lane_root=lane_path,
+                run_dir=run_dir,
+                item=item,
+                git_runner=git_runner,
+                branch=getattr(handle, "branch", None),
+            )
+            if not probe.uncollected_submission:
+                probe = probe._replace(
+                    uncollected_submission=True,
+                    submission_detail=(
+                        f"zero-attempt item {item.get('id6')} has uncollected files under submission root"
+                    ),
+                )
+            return LaneTeardownDecision(torn_down=False, inventory=probe)
+
         probe = inventory_lane(
-            lane_root=getattr(handle, "path", ""),
+            lane_root=lane_path,
             run_dir=run_dir,
             item=item,
             git_runner=git_runner,
@@ -3924,16 +3992,23 @@ def teardown_review_sweep_lane(
             return LaneTeardownDecision(torn_down=False, inventory=probe)
         accounted.update(probe.discardable)
         worst = probe if worst is None else worst
+        participating_items.append(item)
 
     # NOW the union: a path one item's receipt accounts for is accounted for, full stop. The final
     # verdict is computed from the LAST probe's unknown set minus everything any item explained.
+    final_item = participating_items[-1] if participating_items else items[-1]
     final = inventory_lane(
-        lane_root=getattr(handle, "path", ""),
+        lane_root=lane_path,
         run_dir=run_dir,
-        item=items[-1],
+        item=final_item,
         git_runner=git_runner,
         branch=getattr(handle, "branch", None),
     )
+    if not participating_items:
+        final = final._replace(
+            uncollected_submission=False,
+            submission_detail="all items had zero attempts in lane with no submissions",
+        )
     remaining_untracked = tuple(
         p for p in final.unknown_untracked if p not in accounted
     )
