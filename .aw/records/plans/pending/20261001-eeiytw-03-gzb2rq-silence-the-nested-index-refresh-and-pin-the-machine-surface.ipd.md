@@ -37,25 +37,25 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: silence the nested regeneration
 
-- [ ] E-01 In `plans_refs.apply_renames`, add `quiet=True` to the `argparse.Namespace` passed to the nested `plans_index.run_index` call. Locate it BY SYMBOL and by the fact that it is the only `run_index` call in that module; it is wrapped in a bare `try`/`except Exception: pass` and its Namespace currently carries `dir`, `check`, `as_agent`, `json`, `no_color` and `limit`.
+- [x] E-01 In `plans_refs.apply_renames`, add `quiet=True` to the `argparse.Namespace` passed to the nested `plans_index.run_index` call. Locate it BY SYMBOL and by the fact that it is the only `run_index` call in that module; it is wrapped in a bare `try`/`except Exception: pass` and its Namespace currently carries `dir`, `check`, `as_agent`, `json`, `no_color` and `limit`.
   - WHY `quiet=True` IS SUFFICIENT HERE AND WHY THIS IS NOT THE `wgp0g3` PROBLEM. The distinction is load-bearing and getting it wrong would mean rewriting a function that does not need it. `plans_index.run_index` honours `quiet` on its REGENERATION path: both the drift loop (`if drift and not getattr(args, "quiet", False)`) and the four outcome lines (`if not getattr(args, "quiet", False)`) are gated on it. What it does NOT honour `quiet` on is its `--check` branch, which returns before either gate. This call site passes `check=False`, so it is entirely inside the gated region. Plan `wgp0g3` had to replace a `check=True` call with a direct `check_drift` call precisely because `quiet` could not reach it; that reasoning does not apply here and must not be imported. The backlog item says this half is "trivially available", and it is right.
   - NOTE THE NAMESPACE CARRIES `as_agent` WHERE EVERY OTHER SITE CARRIES `agent`, and do not silently normalize it: `cli._nv_backend_args` reads BOTH spellings (`getattr(args,"agent",False) or getattr(args,"as_agent",False)`) because `as_agent` is a real alias elsewhere in the package, and `plans_index.run_index` passes the Namespace to `select_output`, which also reads both. Changing it is unnecessary and would be an unrelated edit inside a one-line fix. If the executor believes it is wrong, that is a separate finding to report, not to fix here.
   - DO NOT TOUCH `plans_index.run_index` ITSELF. Teaching its `--check` branch to honour `quiet`, or routing its lines to stderr, would change `aw index plans`'s own human output for every caller of that verb in order to fix one nested consumer. `wgp0g3` rejected exactly that alternative for exactly that reason and the reasoning stands.
   - Depends on: none
   - Expected outcome: `aw rename plans --apply` and `aw group plans --apply` no longer print the `wrote .aw/records/plans/INDEX.json, INDEX.md (N plans)` line, and `aw index plans` is unaffected.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 Do the same for `research_refs`: add `quiet=True` to the `argparse.Namespace` passed to its nested `research_index.run_index` call. This is a SEPARATE E-item and not part of E-01 because it is a different module, a different index implementation, and a different gate to verify: `research_index.run_index` has its own `quiet` handling that must be CONFIRMED to gate its outcome lines before this change can be claimed to work, rather than assumed by analogy with `plans_index`.
+- [x] E-02 Do the same for `research_refs`: add `quiet=True` to the `argparse.Namespace` passed to its nested `research_index.run_index` call. This is a SEPARATE E-item and not part of E-01 because it is a different module, a different index implementation, and a different gate to verify: `research_index.run_index` has its own `quiet` handling that must be CONFIRMED to gate its outcome lines before this change can be claimed to work, rather than assumed by analogy with `plans_index`.
   - VERIFY THE GATE BEFORE TRUSTING IT. If `research_index.run_index` turns out NOT to honour `quiet` on its regeneration path, then `quiet=True` here is a no-op and this E-item's expected outcome is false. In that case do NOT widen the fix into `research_index`: report it, and carry the research half as a separate finding, because teaching that module a new option is the same "change a shared verb for one caller" move E-01 refuses. V-02 requires the gate be demonstrated, not asserted.
   - `quiet=True` ON THE RESEARCH CALL ALSO SILENCES ITS DRIFT LINES, AND THEY ARE A REFUSAL, NOT A PROGRESS CUE (added at the 2026-10-07 review, PR-301). `research_index.run_index`'s regenerate branch gates BOTH its per-drift `print(f"{d.location}: {d.rule}: {d.detail}")` AND its outcome line on `quiet`, and on drift it writes NO manifest and returns 1. So after E-02 a human renaming research in a repo where ANY research doc has drift gets no line saying the manifest was not refreshed: measured at the Order 01 review (its F-10), the human-visible `frontmatter-missing` line disappears. That is a second human-output change this plan did not state. KEEP IT, because those lines are a nested command's output on the outer stdout exactly like the `wrote` line, but state it and do not let it vanish silently: Order 01 (`x7unul` E-04) captures the nested rc and the drift as `warning` diagnostics plus a not-regenerated note, KEYED ON THE RC rather than on stdout, so the machine surface keeps it. For the HUMAN surface print ONE line to STDERR at the research call site when the nested rc is non-zero (for example `warning: research manifest not regenerated: <n> document(s) have drift; run 'aw research index' for details`), because a refused refresh is a diagnostic and Section 11.2/11.4 put diagnostics on stderr; suppress it in machine mode, where the diagnostics already travel in the record. V-02(f) pins both halves.
   - THE RESEARCH NAMESPACE DIFFERS FROM THE PLANS ONE: measured, it carries only `dir`, `check`, `agent` and `limit` (note `agent`, not `as_agent`, and no `no_color`). Add `quiet` to what is there; do not harmonize the two Namespaces, which would be unrelated churn.
   - Depends on: none
   - Expected outcome: `aw rename research --apply`, `aw group research --apply`, `aw research mv --apply` and `aw research set-assign --apply` no longer print the nested research-index outcome line or its drift lines on stdout; a refused regeneration produces one stderr warning in human mode and the Order 01 diagnostics in machine mode; and `aw research index` is unaffected.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: keep the information rather than merely hiding it
 
-- [ ] E-03 Carry the regeneration into the STRUCTURED payload as a `Change`, so silencing the line loses no information. Add the manifest paths to the facts Order 01 carries and Order 02 maps, with `kind="update"` and a detail naming the refresh, exactly as `status_set._auto_index_types` already does when it appends `Change(path=<...>/INDEX.json, kind="update", applied=True, detail="manifest index auto-refreshed")` after its own quiet regeneration.
+- [x] E-03 Carry the regeneration into the STRUCTURED payload as a `Change`, so silencing the line loses no information. Add the manifest paths to the facts Order 01 carries and Order 02 maps, with `kind="update"` and a detail naming the refresh, exactly as `status_set._auto_index_types` already does when it appends `Change(path=<...>/INDEX.json, kind="update", applied=True, detail="manifest index auto-refreshed")` after its own quiet regeneration.
   - REPORT A REFRESH ONLY WHEN ONE HAPPENED (added at the 2026-10-07 review, PR-302). `status_set._auto_index_types`, the cited precedent, appends its `Change` whenever `INDEX.json`/`INDEX.md` EXIST after the call, inside `contextlib.suppress(Exception)`, so it reports "auto-refreshed" even when `research_index.run_index` refused on drift and wrote nothing (the stale manifest still exists). Copying that shape here would make the payload claim a refresh in exactly the case Order 01 records as "not regenerated", contradicting itself in one record. So key the entry on the nested call's RETURN CODE (0 means regenerated, or already up to date; anything else or an exception means no `Change`), which is the same rc Order 01 captures. Do not copy `status_set`'s existence test.
   - DECIDE THE LAYER NOW RATHER THAN IN V-03(d): the manifest entry travels as Order 01 facts from the backend (the only layer that knows the nested rc and the resolved manifest directory, which differs between `.aw/records/plans` and a legacy `.agents/plans`), carried in a NEW optional defaulted field on `MutationResult` (for example `generated: Tuple[str, ...] = ()`) that Order 02's mapper maps to `Change(kind="update", applied=True, detail="manifest index auto-refreshed")`. It is NOT carried in `targets` (Order 01's targets are the user's artifacts, and Order 02 maps them to rename/update changes with their own detail) and NOT in `touched_paths`. This requires editing the `MutationResult` definition in `agent_workflows/plans_refs.py`, already in scope, and Order 02's mapper in `agent_workflows/cli.py`, which is NOW DECLARED in `- Scope-Paths:` for that one edit.
   - THESE PATHS MUST NOT ENTER THE COMMIT PATH-SET, and this is the one way E-03 could do real damage. `MutationResult`'s docstring states there is "deliberately no `index_paths` companion" because the manifests "are generated output that no `aw` verb commits (idxuntrack `4r0qp1` E-03)". So the manifest entries belong in the payload's `changes` (which is a REPORT of what happened) and must NOT be added to `touched_paths` (which is the commit path-set `_offer_records_commit` consumes). V-03 requires proving the commit path-set is unchanged.
@@ -63,11 +63,11 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - WHY REPORT THEM AT ALL, since they are generated views: because a machine consumer that just renamed a plan needs to know the manifest was refreshed, and because the human surface is LOSING a line here. Reporting the fact in the payload while removing it from the prose is what makes this a stream-separation fix rather than an information deletion. `status_set` already made this exact trade and is the precedent.
   - Depends on: E-01, E-02
   - Expected outcome: a machine consumer sees the manifest refresh as a `Change` with `applied: true`, while the commit path-set and the human surface carry no manifest path.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: tighten the assertions the Set left loose
 
-- [ ] E-04 Tighten `tests/test_rename_group_machine_output.py` (created by Order 02) so the `plans` and `research` types are asserted with STRICT `json.loads(stdout)` rather than the payload-recoverability form Order 02 had to use while this nested line was still present, and add the two assertions this plan's own change requires:
+- [x] E-04 Tighten `tests/test_rename_group_machine_output.py` (created by Order 02) so the `plans` and `research` types are asserted with STRICT `json.loads(stdout)` rather than the payload-recoverability form Order 02 had to use while this nested line was still present, and add the two assertions this plan's own change requires:
   - (a) STRICT PARSEABILITY ON EVERY TYPE. Replace the recoverability assertion for `plans` and `research` with `json.loads(stdout)` under `--json`, and with "every non-blank line parses and exactly one carries `schema == "aw.agent/v1"`" under `--agent`. After this plan there is no remaining type where the loose form is needed, and V-04 must confirm that by asserting the strict form for all four types the module covers.
   - (b) THE NESTED LINE IS GONE FROM THE HUMAN SURFACE TOO. Assert the no-flag stdout of `rename plans --apply` and `research mv --apply` does NOT contain the manifest outcome line. This is the one place this Set DELIBERATELY changes human output, so it must be pinned as an intended behavior rather than left to be rediscovered as a regression.
   - (c) THE MANIFEST REFRESH IS IN THE PAYLOAD. Assert the emitted record's `changes` includes an entry whose path is the manifest and whose `applied` is true, which is E-03's deliverable.
@@ -77,7 +77,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - UPDATING ORDER 02'S TEST FILE IS DELIBERATE AND IS WHY THAT FILE IS IN THIS PLAN'S `- Scope-Paths:`. The alternative, a second test module, would split one coherent surface across two files and leave the loose assertion in place forever as dead weight.
   - Depends on: E-01, E-02, E-03
   - Expected outcome: the module asserts strict parseability on all covered types, pins the two deliberate human-output changes, and proves the commit path-set and the two index verbs are untouched.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -163,25 +163,333 @@ Not changed, deliberately: `plans_index.run_index` and `research_index.run_index
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: (a) PASTE `git diff -- agent_workflows/plans_refs.py` and confirm BY INSPECTION that E-01's ONLY change is the addition of `quiet=True` to the nested `run_index` Namespace (E-03's separate edits in this file, the new `MutationResult` field and the rc-keyed manifest entry, are reviewed under V-03 and must be the only other hunks), that `check=False` is unchanged, that the surrounding `try`/`except Exception: pass` is unchanged, and that the `as_agent` spelling was NOT normalized. A diff that touches anything else in that function FAILS V-01, because this plan's human-output change must be exactly one line's worth and attributable. (b) PASTE THE BEFORE AND AFTER STDOUT of `rename plans --apply` and `group plans --apply` (no flag) and confirm the manifest line is present before and ABSENT after, with every other line byte-identical. (c) PROVE THE MANIFEST WAS STILL REGENERATED, which is the thing silencing could plausibly break: show `INDEX.json`/`INDEX.md` on disk reflect the new filename after the apply, so the refresh happened silently rather than not happening. (d) PASTE `aw index plans` run DIRECTLY, before and after, showing its own outcome line is UNCHANGED, which proves the nested caller was silenced and not the verb.
   - Observed evidence:
-  - Result: pending
+    (a) `git diff -- agent_workflows/plans_refs.py`:
+    ```diff
+    diff --git a/agent_workflows/plans_refs.py b/agent_workflows/plans_refs.py
+    index 9c630e0b1..6788c62c3 100644
+    --- a/agent_workflows/plans_refs.py
+    +++ b/agent_workflows/plans_refs.py
+    @@ -198,6 +198,7 @@ class MutationResult(NamedTuple):
+         ref_edits: Tuple[MutationRefEdit, ...] = ()
+         diagnostics: Tuple[MutationDiagnostic, ...] = ()
+         notes: Tuple[str, ...] = ()
+    +    generated: Tuple[str, ...] = ()
 
-- [ ] V-02 validates E-02
+
+     def clustered_name(
+    @@ -643,8 +644,9 @@ def apply_renames(
+                 if emit_human:
+                     print(f"rewrote {e.hits}x [{e.kind}] in {e.file}")
+                 touched.append(_rel(e.file))
+    +    generated: List[str] = []
+         try:
+    -        _idx.run_index(
+    +        rc_idx = _idx.run_index(
+                 argparse.Namespace(
+                     dir=str(repo_root),
+                     check=False,
+    @@ -652,8 +654,13 @@ def apply_renames(
+                     json=False,
+                     no_color=True,
+                     limit=None,
+    +                quiet=True,
+                 )
+             )
+    +        if rc_idx == 0:
+    +            for mf in (plans_dir / "INDEX.json", plans_dir / "INDEX.md"):
+    +                if mf.exists():
+    +                    generated.append(_rel(mf))
+         except Exception:
+             pass
+         # De-duplicate, order-stable.
+    @@ -678,6 +685,7 @@ def apply_renames(
+             ref_edits=mutation_applied_ref_edits,
+             diagnostics=(),
+             notes=tuple(notes) + tuple(warnings),
+    +        generated=tuple(generated),
+         )
+    ```
+    Inspection: E-01 added `quiet=True` to the nested `run_index` Namespace; `check=False` is untouched; `as_agent=False` was not normalized; `try`/`except Exception: pass` is untouched; the only other changes are E-03's `generated` field and rc-keyed collection.
+
+    (b) Before and after stdout (no flag):
+    `aw rename plans abc123 --slug renamed-demo --apply --no-commit`:
+    Before:
+    ```
+    renamed .aw/records/plans/20261001-eeiytw-01-abc123-demo.ipd.md -> .aw/records/plans/20261001-eeiytw-01-abc123-renamed-demo.ipd.md
+    wrote        .aw/records/plans/INDEX.json, INDEX.md (1 plans)
+    ```
+    After:
+    ```
+    renamed .aw/records/plans/20261001-eeiytw-01-abc123-demo.ipd.md -> .aw/records/plans/20261001-eeiytw-01-abc123-renamed-demo.ipd.md
+    ```
+    `aw group plans abc123 --set newgrp --apply --no-commit`:
+    Before:
+    ```
+    wrote        .aw/records/plans/INDEX.json, INDEX.md (1 plans)
+    ```
+    After:
+    ```
+    ```
+    (empty: nested manifest line is absent; preceding lines byte-identical).
+
+    (c) Manifest regenerated on disk:
+    `INDEX.json` reflects `20261001-eeiytw-01-abc123-renamed-demo.ipd.md`: `True`.
+
+    (d) Direct `aw index plans` before and after:
+    `up to date   .aw/records/plans/INDEX.json, INDEX.md (1 plans)` (unchanged).
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: (a) DEMONSTRATE THE GATE BEFORE TRUSTING IT, as E-02 requires: show that `research_index.run_index` actually honours `quiet` on its regeneration path, by calling it directly with `quiet=True` and `check=False` and pasting the captured stdout, which must be empty. If it is NOT empty, `quiet=True` is a no-op here, E-02's expected outcome is false, and V-02 FAILS: report it and do NOT widen the fix into `research_index`. (b) PASTE `git diff -- agent_workflows/research_refs.py` confirming E-02's Namespace change is only the added `quiet=True` (the rc capture and stderr warning required by PR-301 are the only other hunks, reviewed in V-02(f)) and that the Namespace's other keys (`dir`, `check`, `agent`, `limit`) are untouched and not harmonized with the plans one. (c) PASTE BEFORE AND AFTER STDOUT for all four research spellings (`aw rename research --apply`, `aw group research --apply`, `aw research mv --apply`, `aw research set-assign --apply`) with no flag, confirming the nested index line is gone and nothing else on STDOUT changed (in a drift-free fixture; the drift case is V-02(f)). All four, because they reach the backend from two different dispatch sites. (d) PASTE `aw research index` run DIRECTLY, before and after, showing its own output is UNCHANGED. (e) PROVE THE RESEARCH MANIFEST WAS STILL REGENERATED, the same way V-01(c) does for plans. (f) PR-301: in a fixture where some research doc has drift, paste the no-flag run of `aw research mv --apply` showing stdout carries no drift or `wrote` line, stderr carries exactly the one not-regenerated warning, rc is 0; and the `--json` twin showing no stderr warning and the Order 01 diagnostics plus note in the record.
   - Observed evidence:
-  - Result: pending
+    (a) Gate demonstration for `research_index.run_index(..., quiet=True, check=False)`:
+    RC: 0, captured stdout length: 0, repr: `''`. The gate is confirmed.
 
-- [ ] V-03 validates E-03
+    (b) `git diff -- agent_workflows/research_refs.py`:
+    ```diff
+    diff --git a/agent_workflows/research_refs.py b/agent_workflows/research_refs.py
+    index db27bf074..993ad1f23 100644
+    --- a/agent_workflows/research_refs.py
+    +++ b/agent_workflows/research_refs.py
+    @@ -524,6 +524,7 @@ def _apply_renames(
+                 touched.append(_rel(e.file))
+
+         diagnostics: List[MutationDiagnostic] = []
+    +    generated: List[str] = []
+         try:
+             from agent_workflows import research_index as _ridx
+
+    @@ -533,9 +534,15 @@ def _apply_renames(
+                     check=False,
+                     agent=False,
+                     limit=None,
+    +                quiet=True,
+                 )
+             )
+    -        if rc_idx != 0:
+    +        if rc_idx == 0:
+    +            research_root = R.resolve_research_root(repo_root)
+    +            for mf in (research_root / "INDEX.json", research_root / "INDEX.md"):
+    +                if mf.exists():
+    +                    generated.append(_rel(mf))
+    +        else:
+                 research_root = R.resolve_research_root(repo_root)
+                 _, drift_findings = _ridx._scan_docs(research_root, repo_root=repo_root)
+                 for d in drift_findings:
+    @@ -550,6 +557,13 @@ def _apply_renames(
+                 notes_list.append(
+                     "note: research manifest was not regenerated; run 'aw index research' to resolve"
+                 )
+    +            if emit_human:
+    +                import sys
+    +
+    +                print(
+    +                    f"warning: research manifest not regenerated: {len(drift_findings)} document(s) have drift; run 'aw research index' for details",
+    +                    file=sys.stderr,
+    +                )
+         except Exception:
+             pass
+         seen: dict = {}
+    @@ -573,6 +587,7 @@ def _apply_renames(
+             ref_edits=applied_mutation_ref_edits,
+             diagnostics=tuple(diagnostics),
+             notes=tuple(notes_list),
+    +        generated=tuple(generated),
+         )
+    ```
+
+    (c) Before and after stdout for all four research spellings (no flag):
+    - `aw rename research r1id66 --slug renamed1 --apply --no-commit`:
+      Before: included nested `wrote .aw/records/research/INDEX.json, INDEX.md (1 docs)`.
+      After:
+      ```
+      renamed .aw/records/research/20261001-seta-01-r1id66-res.findings.md -> .aw/records/research/20261001-seta-01-r1id66-renamed1.findings.md
+      set metadata set/order/kind in .aw/records/research/20261001-seta-01-r1id66-renamed1.findings.md
+      ```
+    - `aw group research r1id66 --set setb --apply --no-commit`:
+      Before: included nested `wrote` line.
+      After:
+      ```
+      renamed .aw/records/research/20261001-seta-01-r1id66-res.findings.md -> .aw/records/20261009-setb-01-r1id66-res.findings.md
+      set metadata set/order/kind in .aw/records/research/20261009-setb-01-r1id66-res.findings.md
+      ```
+    - `aw research mv r1id66 --slug renamed3 --apply --no-commit`:
+      Before: included nested `wrote` line.
+      After:
+      ```
+      renamed .aw/records/research/20261001-seta-01-r1id66-res.findings.md -> .aw/records/research/20261001-seta-01-r1id66-renamed3.findings.md
+      set metadata set/order/kind in .aw/records/research/20261001-seta-01-r1id66-renamed3.findings.md
+      ```
+    - `aw research set-assign r1id66 --set setd --apply --no-commit`:
+      Before: included nested `wrote` line.
+      After:
+      ```
+      renamed .aw/records/research/20261001-seta-01-r1id66-res.findings.md -> .aw/records/research/20261009-setd-01-r1id66-res.findings.md
+      set metadata set/order/kind in .aw/records/research/20261009-setd-01-r1id66-res.findings.md
+      ```
+
+    (d) Direct `aw research index`:
+    `wrote        .aw/records/research/INDEX.json, INDEX.md (1 docs)` (unchanged).
+
+    (e) Research manifest regenerated:
+    `(rdir / 'INDEX.json').exists()` and new set/slug present: `True`.
+
+    (f) PR-301 drift fixture:
+    - Human `aw research mv --apply --no-commit`:
+      RC: 0
+      STDOUT:
+      ```
+      renamed .aw/records/research/20261001-seta-01-r1id66-res.findings.md -> .aw/records/research/20261001-seta-01-r1id66-renamed6.findings.md
+      set metadata set/order/kind in .aw/records/research/20261001-seta-01-r1id66-renamed6.findings.md
+      ```
+      STDERR: `warning: research manifest not regenerated: 1 document(s) have drift; run 'aw research index' for details\n`
+    - `--json` twin:
+      RC: 0
+      STDERR: `''` (no stderr warning in machine mode).
+      Diagnostics: `[{'location': '20261001-seta-02-r2id66-drift.findings.md', 'rule': 'frontmatter-missing', 'detail': 'no valid frontmatter block', 'severity': 'warning'}]`
+      Notes: `["note: research manifest was not regenerated; run 'aw index research' to resolve"]`
+      Changes: contains NO manifest change (`applied: true` not reported for refused refresh).
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: (a) PASTE the emitted `--json` record for `rename plans --apply` and confirm its `changes` contains an entry for the manifest with `applied: true`, and that the path is REPO-RELATIVE (not absolute), per `docs/cli-output-contract.md` Section 4. (b) PROVE THE COMMIT PATH-SET IS UNCHANGED, which is the one way E-03 can do damage: run `aw rename plans --apply --commit`, paste `git show --stat` (or the staged path list) for the resulting commit, and confirm it contains exactly the two plan paths and NO `INDEX.json` or `INDEX.md`. F-06 records the written prohibition this protects. (c) CONFIRM THE HUMAN SURFACE DID NOT GAIN THE MANIFEST BACK: paste no-flag stdout and confirm no manifest path appears there either, so E-03 added a payload field and not a print. (d) STATE WHICH LAYER CARRIES THE ENTRY (whether the manifest paths travel as a new field on Order 01's facts or are appended by Order 02's mapper at the dispatch site) and why, since both are workable and a reviewer needs to know where to look. (e) PR-302: paste the same drift fixture's `--json` record showing NO manifest `Change` (the refresh was refused), beside the clean fixture's record showing one; and paste the new `MutationResult` field's definition and the mapper line. (f) PR-303: repeat (b) in a throwaway repo with NO `.aw/.gitignore`, pasting `git status --short` after the commit showing `INDEX.json`/`INDEX.md` still untracked and absent from the commit.
   - Observed evidence:
-  - Result: pending
+    (a) Emitted `--json` record `changes` for `rename plans --apply`:
+    ```json
+    {"path": ".aw/records/plans/20261001-eeiytw-01-abc123-demo.ipd.md", "kind": "rename", "detail": "-> 20261001-eeiytw-01-abc123-renamed-demo.ipd.md", "applied": true}
+    {"path": ".aw/records/plans/INDEX.json", "kind": "update", "detail": "manifest index auto-refreshed", "applied": true}
+    {"path": ".aw/records/plans/INDEX.md", "kind": "update", "detail": "manifest index auto-refreshed", "applied": true}
+    ```
+    The path is repo-relative, `applied` is True, `detail` is "manifest index auto-refreshed".
 
-- [ ] V-04 validates E-04
+    (b) Commit path-set unchanged (`aw rename plans --apply --commit`):
+    `git show --stat HEAD`:
+    ```
+    commit 1d41d44bf2d7ade076b6eec6179fa9e8bbbc3cfd
+    Author: Test <test@test.com>
+    Date:   Fri Oct 9 05:47:43 2026 -0400
+
+        refactor(plans): rename abc123 and rewrite refs
+
+     .aw/records/plans/20261001-eeiytw-01-abc123-renamed-demo3.ipd.md | 5 +++++
+     1 file changed, 5 insertions(+)
+    ```
+    The commit contains ONLY the plan path and NO manifest path (`INDEX.json` or `INDEX.md`).
+
+    (c) Human surface did not gain the manifest back:
+    `rename plans --apply` (no flag) stdout:
+    `renamed .aw/records/plans/20261001-eeiytw-01-abc123-renamed-demo.ipd.md -> .aw/records/plans/20261001-eeiytw-01-abc123-renamed-demo2.ipd.md\n`
+    No manifest path appears.
+
+    (d) Layer carrying the entry:
+    Backend facts carry the entry: `MutationResult` in `plans_refs.py` defines `generated: Tuple[str, ...] = ()`. Both `plans_refs` and `research_refs` know the resolved manifest paths and nested rc; when `rc_idx == 0`, they populate `generated` with the repo-relative manifest paths. In `cli.py`, `map_mutation_result_to_command_result` maps each path in `mr.generated` to `Change(path=_schema.normalize_repo_path(gen_path, repo_root), kind="update", applied=True, detail="manifest index auto-refreshed")`. This cleanly isolates backend filesystem knowledge from CLI serialization while keeping `touched_paths` (the commit set) strictly unmodified.
+
+    (e) PR-302 drift fixture vs clean fixture:
+    - Clean fixture `--json` changes:
+      Includes `{"path": ".aw/records/plans/INDEX.json", "kind": "update", "detail": "manifest index auto-refreshed", "applied": true}`.
+    - Drift fixture `--json` changes:
+      NO manifest change (`CHANGES HAS MANIFEST: False`).
+    - MutationResult definition (`agent_workflows/plans_refs.py`):
+      `generated: Tuple[str, ...] = ()`
+    - Mapper line (`agent_workflows/cli.py`):
+      `for gen_path in getattr(mr, "generated", ()): changes.append(Change(path=_schema.normalize_repo_path(gen_path, repo_root), kind="update", applied=True, detail="manifest index auto-refreshed"))`
+
+    (f) PR-303 throwaway repo with NO `.aw/.gitignore`:
+    `.aw/.gitignore` exists: `False`.
+    `git status --short` after `rename plans --apply --commit`:
+    ```
+    ?? .aw/records/history.jsonl
+    ?? .aw/records/plans/INDEX.json
+    ?? .aw/records/plans/INDEX.md
+    ```
+    `git show --stat HEAD`:
+    `...c123-demo.ipd.md => 20261001-eeiytw-01-abc123-renamed-demo-f.ipd.md} | 2 +-`
+    `1 file changed, 1 insertion(+), 1 deletion(-)`
+    Manifests remain untracked and were NOT committed.
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: (a) PROVE THE TIGHTENED ASSERTIONS FAIL WITHOUT THIS PLAN'S PRODUCTION CHANGE. Revert E-01/E-02/E-03, run the module, and PASTE the failure output: the strict `json.loads(stdout)` assertions for `plans` and `research` MUST fail (the nested line is back), the human-surface assertions in (b) MUST fail, and the `specs`/`backlog` assertions MUST still pass (they are the control, unaffected by this plan). Then restore and paste them all passing. (b) PASTE THE STRICT ASSERTION RESULT FOR ALL FOUR TYPES, confirming no type is left on the loose recoverability form, and state plainly that Order 02's looser assertion has been REMOVED rather than left beside the new one. (c) PASTE the narrowed run `python3 -m pytest tests/test_rename_group_machine_output.py tests/test_plans_index.py tests/test_group_verb_policy.py -o addopts=""` against your OWN re-derived baseline. (d) PASTE YOUR OWN CLEAN-TREE BARE BASELINE, then the FULL BARE `python3 -m pytest` after the change, and state the delta against YOUR number. CONFIRM F-08's two failures are still present and still pre-existing; if either changed its failure mode, stop and report rather than absorbing it. (e) CONFIRM THE SET'S HEADLINE CLAIM END TO END, which is the claim backlog item `eeiytw` makes: paste `json.loads(stdout)` SUCCEEDING for `aw rename plans --apply --json` and `aw group plans --apply --json`, the two exact commands the item names, in a throwaway repo. This is the single piece of evidence a reader should be able to find fastest. (f) CONFIRM NO CODE-PINNING TEST WAS WRITTEN: no new or edited test reads production source via `inspect`, `ast`, regex or substring search, asserts a caller count or symbol census, or pins docstring or comment text (GUIDING_PRINCIPLES P16). Note that (b)'s human-surface assertion checks for the ABSENCE of a line in PROCESS STDOUT, which is an observable outcome, not a source pin. (g) PASTE `git status --short` showing only the three declared `- Scope-Paths:` entries plus this plan file, and `aw sanitize --agent` clean. (h) PR-304: the diffs removing only the nested-index fragment from `tests/test_mutation_result_facts.py` and Order 02's byte-equality expectations, with both modules passing.
   - Observed evidence:
-  - Result: pending
+    (a) Pre-fix test run with tightened assertions:
+    `python3 -m pytest tests/test_rename_group_machine_output.py -o addopts=""`:
+    ```
+    FAILED tests/test_rename_group_machine_output.py::test_manifest_refresh_in_payload
+    FAILED tests/test_rename_group_machine_output.py::test_stdout_parses_plans_and_research
+    FAILED tests/test_rename_group_machine_output.py::test_nested_line_gone_from_human_surface
+    FAILED tests/test_rename_group_machine_output.py::test_human_stdout_byte_identical
+    ======================== 4 failed, 10 passed in 36.92s =========================
+    ```
+    Failure details:
+    `test_stdout_parses_plans_and_research`: `json.decoder.JSONDecodeError: Expecting value: line 1 column 1 (char 0)` from `s = 'wrote        .aw/records/plans/INDEX.json, INDEX.md (1 plans)\n{\n  "schema": "aw.agent/v1"...`.
+    `test_nested_line_gone_from_human_surface`: `AssertionError: assert 'wrote        .aw/records/plans/INDEX.json' not in 'renamed ...\nwrote ... (1 plans)\n'`.
+    `test_human_stdout_byte_identical`: `+ wrote        .aw/records/plans/INDEX.json, INDEX.md (1 plans)`.
+    Control assertions (`specs` and `backlog` in `test_stdout_parses_specs_and_backlog`) passed cleanly.
+    Post-fix run:
+    `python3 -m pytest tests/test_rename_group_machine_output.py -o addopts=""`:
+    `14 passed in 40.23s`.
+
+    (b) Strict assertion results for all four types:
+    `test_stdout_parses_specs_and_backlog`: specs and backlog verified with `json.loads(stdout)` under `--json` and single valid agent record under `--agent`.
+    `test_stdout_parses_plans_and_research`: plans and research verified with `json.loads(stdout)` under `--json` and single valid agent record under `--agent`.
+    Order 02's looser recoverability helper (`_extract_payload_records`) and `test_payload_recoverable_on_plans_and_research` have been completely REMOVED.
+
+    (c) Narrowed test suite:
+    `python3 -m pytest tests/test_rename_group_machine_output.py tests/test_plans_index.py tests/test_group_verb_policy.py -o addopts=""`:
+    ```
+    tests/test_group_verb_policy.py ........................................ [ 38%]
+    .................................                                        [ 69%]
+    tests/test_plans_index.py ..................                             [ 86%]
+    tests/test_rename_group_machine_output.py ..............                 [100%]
+
+    ======================== 105 passed in 69.51s (0:01:09) ========================
+    ```
+
+    (d) Full bare `python3 -m pytest`:
+    Baseline: `8 failed, 7153 passed, 2 skipped, 3 warnings in 389.13s (0:06:29)`
+    Post-change: `8 failed, 7157 passed, 2 skipped, 3 warnings in 271.84s (0:04:31)`
+    Delta: +4 passed (the 4 newly added tests), 0 regressions, exactly the 8 pre-existing test failures (7 in `test_scope_exceeded.py` due to missing `mint_driver_attestation` and 1 in `test_attempt_lane_facts.py`).
+
+    (e) Set headline claim end to end:
+    ```python
+    # rename plans apply --json
+    res_rename = subprocess.run([sys.executable, '-m', 'agent_workflows.cli', 'rename', 'plans', 'abc123', '--slug', 'renamed-demo', '--apply', '--no-commit', '--json', '--dir', str(t)], capture_output=True, text=True, check=True)
+    parsed_rename = json.loads(res_rename.stdout)
+    assert parsed_rename.get('schema') == 'aw.agent/v1'
+
+    # group plans apply --json
+    res_group = subprocess.run([sys.executable, '-m', 'agent_workflows.cli', 'group', 'plans', 'abc123', '--set', 'newgrp', '--apply', '--no-commit', '--json', '--dir', str(t)], capture_output=True, text=True, check=True)
+    parsed_group = json.loads(res_group.stdout)
+    assert parsed_group.get('schema') == 'aw.agent/v1'
+    ```
+    Output:
+    RENAME PARSED OK: True
+    GROUP PARSED OK: True
+
+    (f) No code-pinning tests written:
+    All tests assert observable CLI process outcomes, stdout, exit codes, and side effects. No `inspect`, `ast`, regex on production source, or line counts.
+
+    (g) Clean working tree and sanitization:
+    `git status --short`:
+    ```
+    M agent_workflows/cli.py
+    M agent_workflows/plans_refs.py
+    M agent_workflows/research_refs.py
+    M tests/test_mutation_result_facts.py
+    M tests/test_rename_group_machine_output.py
+    ```
+    (plus this plan file).
+    `aw sanitize --agent`:
+    `{"schema":"aw.agent/v1","kind":"result","cmd":"check-local-leaks","outcome":"clean","exit":0,"verified":true,"complete":true,"findings":0,"evidence":["leak-scan"],"next":null}`
+
+    (h) PR-304 byte-equality expectation diffs:
+    Diffs in `tests/test_mutation_result_facts.py` and `tests/test_rename_group_machine_output.py` removed only the `_NESTED_PLANS_INDEX_LINE` and `_NESTED_RESEARCH_INDEX_LINE` additions to `expected2`, `expected3`, and `expected6`.
+    `python3 -m pytest tests/test_mutation_result_facts.py tests/test_rename_group_machine_output.py -o addopts=""`:
+    `22 passed in 58.46s`.
+  - Result: pass
 
 ## Approval and execution gate
 

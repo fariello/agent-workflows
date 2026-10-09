@@ -11,7 +11,6 @@ import json
 import subprocess
 import sys
 from pathlib import Path
-from typing import Any, Dict, List
 
 import pytest
 
@@ -28,22 +27,6 @@ def temp_repo(tmp_path: Path) -> Path:
         ["git", "config", "user.email", "test@example.com"], cwd=tmp_path, check=True
     )
     return tmp_path
-
-
-def _extract_payload_records(stdout: str) -> List[Dict[str, Any]]:
-    """Recover aw.agent/v1 records from stdout lines."""
-    records = []
-    for line in stdout.splitlines():
-        line = line.strip()
-        if not line or not line.startswith("{"):
-            continue
-        try:
-            parsed = json.loads(line)
-            if isinstance(parsed, dict) and parsed.get("schema") == "aw.agent/v1":
-                records.append(parsed)
-        except Exception:
-            continue
-    return records
 
 
 # --------------------------------------------------------------------------------------
@@ -166,12 +149,8 @@ def test_stdout_parses_specs_and_backlog(temp_repo: Path):
     agent_schema.assert_valid_agent_record(rec)
 
 
-def test_payload_recoverable_on_plans_and_research(temp_repo: Path):
-    """Plans and research paths carry a nested index refresh line until Order 03 (gzb2rq).
-
-    Per the sequencing note in IPD vfqjc0 Deferred section, assert payload recoverability
-    (extracting exactly one aw.agent/v1 record from stdout) before Order 03 silences the nested line.
-    """
+def test_stdout_parses_plans_and_research(temp_repo: Path):
+    """Plans and research paths must parse strictly with json.loads and valid agent lines."""
     pdir = temp_repo / ".aw/records/plans"
     pdir.mkdir(parents=True, exist_ok=True)
     pf = pdir / "20261001-eeiytw-01-abc123-demo.ipd.md"
@@ -198,8 +177,31 @@ consumed-by: []
     subprocess.run(["git", "add", "."], cwd=temp_repo, check=True)
     subprocess.run(["git", "commit", "-m", "init", "-q"], cwd=temp_repo, check=True)
 
-    # plans rename preview --agent
-    res = subprocess.run(
+    # 1. plans rename preview --json
+    res1 = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "agent_workflows.cli",
+            "rename",
+            "plans",
+            "abc123",
+            "--slug",
+            "renamed-demo",
+            "--json",
+            "--dir",
+            str(temp_repo),
+        ],
+        capture_output=True,
+        text=True,
+    )
+    assert res1.returncode == 0
+    data1 = json.loads(res1.stdout)
+    assert data1["schema"] == "aw.agent/v1"
+    assert data1["status"] == "preview"
+
+    # 2. plans rename preview --agent
+    res2 = subprocess.run(
         [
             sys.executable,
             "-m",
@@ -216,14 +218,68 @@ consumed-by: []
         capture_output=True,
         text=True,
     )
-    assert res.returncode == 0
-    records = _extract_payload_records(res.stdout)
-    assert len(records) == 1
-    assert records[0]["schema"] == "aw.agent/v1"
-    agent_schema.assert_valid_agent_record(records[0])
+    assert res2.returncode == 0
+    non_blank2 = [ln.strip() for ln in res2.stdout.splitlines() if ln.strip()]
+    parsed2 = [json.loads(ln) for ln in non_blank2]
+    records2 = [
+        p for p in parsed2 if isinstance(p, dict) and p.get("schema") == "aw.agent/v1"
+    ]
+    assert len(records2) == 1
+    assert len(non_blank2) == 1
+    agent_schema.assert_valid_agent_record(records2[0])
 
-    # research mv preview --agent
-    res = subprocess.run(
+    # 3. plans rename apply --json
+    res3 = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "agent_workflows.cli",
+            "rename",
+            "plans",
+            "abc123",
+            "--slug",
+            "renamed-demo",
+            "--apply",
+            "--no-commit",
+            "--json",
+            "--dir",
+            str(temp_repo),
+        ],
+        capture_output=True,
+        text=True,
+    )
+    assert res3.returncode == 0
+    data3 = json.loads(res3.stdout)
+    assert data3["schema"] == "aw.agent/v1"
+    assert data3["status"] == "clean"
+
+    # 4. plans group apply --json
+    res4 = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "agent_workflows.cli",
+            "group",
+            "plans",
+            "abc123",
+            "--set",
+            "newset",
+            "--apply",
+            "--no-commit",
+            "--json",
+            "--dir",
+            str(temp_repo),
+        ],
+        capture_output=True,
+        text=True,
+    )
+    assert res4.returncode == 0
+    data4 = json.loads(res4.stdout)
+    assert data4["schema"] == "aw.agent/v1"
+    assert data4["status"] == "clean"
+
+    # 5. research mv preview --agent
+    res5 = subprocess.run(
         [
             sys.executable,
             "-m",
@@ -240,11 +296,40 @@ consumed-by: []
         capture_output=True,
         text=True,
     )
-    assert res.returncode == 0
-    records = _extract_payload_records(res.stdout)
-    assert len(records) == 1
-    assert records[0]["schema"] == "aw.agent/v1"
-    agent_schema.assert_valid_agent_record(records[0])
+    assert res5.returncode == 0
+    non_blank5 = [ln.strip() for ln in res5.stdout.splitlines() if ln.strip()]
+    parsed5 = [json.loads(ln) for ln in non_blank5]
+    records5 = [
+        p for p in parsed5 if isinstance(p, dict) and p.get("schema") == "aw.agent/v1"
+    ]
+    assert len(records5) == 1
+    assert len(non_blank5) == 1
+    agent_schema.assert_valid_agent_record(records5[0])
+
+    # 6. research mv apply --json
+    res6 = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "agent_workflows.cli",
+            "research",
+            "mv",
+            "r1id66",
+            "--slug",
+            "renamed-res",
+            "--apply",
+            "--no-commit",
+            "--json",
+            "--dir",
+            str(temp_repo),
+        ],
+        capture_output=True,
+        text=True,
+    )
+    assert res6.returncode == 0
+    data6 = json.loads(res6.stdout)
+    assert data6["schema"] == "aw.agent/v1"
+    assert data6["status"] == "clean"
 
 
 # --------------------------------------------------------------------------------------
@@ -548,9 +633,14 @@ def test_all_expansion_single_record(temp_repo: Path):
     )
     # The process exits 2 because 8 types matched nothing
     assert res.returncode == 2
-    records = _extract_payload_records(res.stdout)
+    non_blank = [ln.strip() for ln in res.stdout.splitlines() if ln.strip()]
+    parsed = [json.loads(ln) for ln in non_blank]
+    records = [
+        p for p in parsed if isinstance(p, dict) and p.get("schema") == "aw.agent/v1"
+    ]
     # MUST emit exactly ONE record, NOT nine
     assert len(records) == 1
+    assert len(non_blank) == 1
     rec = records[0]
     assert rec["cmd"] == "rename all"
     assert rec["exit"] == 2
@@ -639,10 +729,7 @@ consumed-by: []
         str(temp_repo),
     ]
     p2 = subprocess.run(cmd2, capture_output=True, text=True, check=True)
-    expected2 = (
-        "renamed .aw/records/plans/20261001-eeiytw-01-abc123-demo.ipd.md -> .aw/records/plans/20261001-eeiytw-01-abc123-renamed-demo.ipd.md\n"
-        + _NESTED_PLANS_INDEX_LINE
-    )
+    expected2 = "renamed .aw/records/plans/20261001-eeiytw-01-abc123-demo.ipd.md -> .aw/records/plans/20261001-eeiytw-01-abc123-renamed-demo.ipd.md\n"
     assert p2.stdout == expected2
 
     # 3. group plans apply
@@ -661,7 +748,7 @@ consumed-by: []
         str(temp_repo),
     ]
     p3 = subprocess.run(cmd3, capture_output=True, text=True, check=True)
-    expected3 = _NESTED_PLANS_INDEX_LINE
+    expected3 = ""
     assert p3.stdout == expected3
 
     # 4. rename specs apply
@@ -725,7 +812,6 @@ consumed-by: []
     expected6 = (
         "renamed .aw/records/research/20261001-seta-01-r1id66-res.findings.md -> .aw/records/research/20261001-seta-01-r1id66-renamed-res.findings.md\n"
         "set metadata set/order/kind in .aw/records/research/20261001-seta-01-r1id66-renamed-res.findings.md\n"
-        + _NESTED_RESEARCH_INDEX_LINE
     )
     assert p6.stdout == expected6
 
@@ -763,3 +849,230 @@ def test_no_absolute_path_leaks(temp_repo: Path):
     assert res.returncode == 0
     # The absolute path of temp_repo must NOT appear anywhere in the output
     assert str(temp_repo) not in res.stdout
+
+
+# --------------------------------------------------------------------------------------
+# (i) gzb2rq additions: nested line absence, manifest refresh in payload, commit path-set,
+# and direct index verbs unaffected
+# --------------------------------------------------------------------------------------
+
+
+def test_nested_line_gone_from_human_surface(temp_repo: Path):
+    pdir = temp_repo / ".aw/records/plans"
+    pdir.mkdir(parents=True, exist_ok=True)
+    pf = pdir / "20261001-eeiytw-01-abc123-demo.ipd.md"
+    pf.write_text("# Plan\n\n- Id: abc123\n- Set: eeiytw\n- Order: 01\n")
+
+    rdir = temp_repo / ".aw/records/research"
+    rdir.mkdir(parents=True, exist_ok=True)
+    rf = rdir / "20261001-seta-01-r1id66-res.findings.md"
+    rf.write_text("""---
+id: r1id66
+created: 20261001
+set: seta
+order: 01
+topic: [test]
+model: reconciliation
+kind: findings
+status: active
+outcome: adopted
+summary: test
+consumed-by: []
+---
+# Res
+""")
+    subprocess.run(["git", "add", "."], cwd=temp_repo, check=True)
+    subprocess.run(["git", "commit", "-m", "init", "-q"], cwd=temp_repo, check=True)
+
+    # rename plans apply (no flag)
+    res_plans = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "agent_workflows.cli",
+            "rename",
+            "plans",
+            "abc123",
+            "--slug",
+            "renamed-demo",
+            "--apply",
+            "--no-commit",
+            "--dir",
+            str(temp_repo),
+        ],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    assert "wrote        .aw/records/plans/INDEX.json" not in res_plans.stdout
+    assert "INDEX.json, INDEX.md" not in res_plans.stdout
+
+    # research mv apply (no flag)
+    res_rsch = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "agent_workflows.cli",
+            "research",
+            "mv",
+            "r1id66",
+            "--slug",
+            "renamed-res",
+            "--apply",
+            "--no-commit",
+            "--dir",
+            str(temp_repo),
+        ],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    assert "wrote        .aw/records/research/INDEX.json" not in res_rsch.stdout
+    assert "INDEX.json, INDEX.md" not in res_rsch.stdout
+
+
+def test_manifest_refresh_in_payload(temp_repo: Path):
+    pdir = temp_repo / ".aw/records/plans"
+    pdir.mkdir(parents=True, exist_ok=True)
+    pf = pdir / "20261001-eeiytw-01-abc123-demo.ipd.md"
+    pf.write_text("# Plan\n\n- Id: abc123\n- Set: eeiytw\n- Order: 01\n")
+
+    subprocess.run(["git", "add", "."], cwd=temp_repo, check=True)
+    subprocess.run(["git", "commit", "-m", "init", "-q"], cwd=temp_repo, check=True)
+
+    res = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "agent_workflows.cli",
+            "rename",
+            "plans",
+            "abc123",
+            "--slug",
+            "renamed-demo",
+            "--apply",
+            "--no-commit",
+            "--json",
+            "--dir",
+            str(temp_repo),
+        ],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    data = json.loads(res.stdout)
+    manifest_changes = [
+        c for c in data.get("changes", []) if "INDEX.json" in c.get("path", "")
+    ]
+    assert len(manifest_changes) == 1
+    mc = manifest_changes[0]
+    assert mc["applied"] is True
+    assert mc["kind"] == "update"
+    assert mc["detail"] == "manifest index auto-refreshed"
+    assert mc["path"] == ".aw/records/plans/INDEX.json"
+
+
+def test_commit_path_set_unchanged_plans(temp_repo: Path):
+    pdir = temp_repo / ".aw/records/plans"
+    pdir.mkdir(parents=True, exist_ok=True)
+    pf = pdir / "20261001-eeiytw-01-abc123-demo.ipd.md"
+    pf.write_text("# Plan\n\n- Id: abc123\n- Set: eeiytw\n- Order: 01\n")
+
+    subprocess.run(["git", "add", "."], cwd=temp_repo, check=True)
+    subprocess.run(["git", "commit", "-m", "init", "-q"], cwd=temp_repo, check=True)
+
+    subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "agent_workflows.cli",
+            "rename",
+            "plans",
+            "abc123",
+            "--slug",
+            "renamed-demo",
+            "--apply",
+            "--commit",
+            "--dir",
+            str(temp_repo),
+        ],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    show_res = subprocess.run(
+        ["git", "diff-tree", "--no-commit-id", "--name-only", "-r", "HEAD"],
+        cwd=temp_repo,
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    committed_files = sorted(show_res.stdout.splitlines())
+    expected_files = sorted(
+        [
+            ".aw/records/plans/20261001-eeiytw-01-abc123-demo.ipd.md",
+            ".aw/records/plans/20261001-eeiytw-01-abc123-renamed-demo.ipd.md",
+        ]
+    )
+    assert committed_files == expected_files
+    assert not any("INDEX" in f for f in committed_files)
+
+
+def test_index_verbs_unaffected(temp_repo: Path):
+    pdir = temp_repo / ".aw/records/plans"
+    pdir.mkdir(parents=True, exist_ok=True)
+    pf = pdir / "20261001-eeiytw-01-abc123-demo.ipd.md"
+    pf.write_text("# Plan\n\n- Id: abc123\n- Set: eeiytw\n- Order: 01\n")
+
+    rdir = temp_repo / ".aw/records/research"
+    rdir.mkdir(parents=True, exist_ok=True)
+    rf = rdir / "20261001-seta-01-r1id66-res.findings.md"
+    rf.write_text("""---
+id: r1id66
+created: 20261001
+set: seta
+order: 01
+topic: [test]
+model: reconciliation
+kind: findings
+status: active
+outcome: adopted
+summary: test
+consumed-by: []
+---
+# Res
+""")
+    subprocess.run(["git", "add", "."], cwd=temp_repo, check=True)
+    subprocess.run(["git", "commit", "-m", "init", "-q"], cwd=temp_repo, check=True)
+
+    res_p = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "agent_workflows.cli",
+            "index",
+            "plans",
+            "--dir",
+            str(temp_repo),
+        ],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    assert "INDEX.json, INDEX.md" in res_p.stdout
+
+    res_r = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "agent_workflows.cli",
+            "research",
+            "index",
+            "--dir",
+            str(temp_repo),
+        ],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    assert "INDEX.json, INDEX.md" in res_r.stdout

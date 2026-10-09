@@ -415,10 +415,7 @@ consumed-by: []
         str(temp_repo),
     ]
     p2 = subprocess.run(cmd2, capture_output=True, text=True, check=True)
-    expected2 = (
-        "renamed .aw/records/plans/20261001-eeiytw-01-abc123-demo.ipd.md -> .aw/records/plans/20261001-eeiytw-01-abc123-renamed-demo.ipd.md\n"
-        + _NESTED_PLANS_INDEX_LINE
-    )
+    expected2 = "renamed .aw/records/plans/20261001-eeiytw-01-abc123-demo.ipd.md -> .aw/records/plans/20261001-eeiytw-01-abc123-renamed-demo.ipd.md\n"
     assert p2.stdout == expected2
 
     # 3. group plans apply
@@ -437,7 +434,7 @@ consumed-by: []
         str(temp_repo),
     ]
     p3 = subprocess.run(cmd3, capture_output=True, text=True, check=True)
-    expected3 = _NESTED_PLANS_INDEX_LINE
+    expected3 = ""
     assert p3.stdout == expected3
 
     # 4. rename specs apply
@@ -501,7 +498,6 @@ consumed-by: []
     expected6 = (
         "renamed .aw/records/research/20261001-seta-01-r1id66-res.findings.md -> .aw/records/research/20261001-seta-01-r1id66-renamed-res.findings.md\n"
         "set metadata set/order/kind in .aw/records/research/20261001-seta-01-r1id66-renamed-res.findings.md\n"
-        + _NESTED_RESEARCH_INDEX_LINE
     )
     assert p6.stdout == expected6
 

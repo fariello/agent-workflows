@@ -198,6 +198,7 @@ class MutationResult(NamedTuple):
     ref_edits: Tuple[MutationRefEdit, ...] = ()
     diagnostics: Tuple[MutationDiagnostic, ...] = ()
     notes: Tuple[str, ...] = ()
+    generated: Tuple[str, ...] = ()
 
 
 def clustered_name(
@@ -643,8 +644,9 @@ def apply_renames(
             if emit_human:
                 print(f"rewrote {e.hits}x [{e.kind}] in {e.file}")
             touched.append(_rel(e.file))
+    generated: List[str] = []
     try:
-        _idx.run_index(
+        rc_idx = _idx.run_index(
             argparse.Namespace(
                 dir=str(repo_root),
                 check=False,
@@ -652,8 +654,13 @@ def apply_renames(
                 json=False,
                 no_color=True,
                 limit=None,
+                quiet=True,
             )
         )
+        if rc_idx == 0:
+            for mf in (plans_dir / "INDEX.json", plans_dir / "INDEX.md"):
+                if mf.exists():
+                    generated.append(_rel(mf))
     except Exception:
         pass
     # De-duplicate, order-stable.
@@ -678,6 +685,7 @@ def apply_renames(
         ref_edits=mutation_applied_ref_edits,
         diagnostics=(),
         notes=tuple(notes) + tuple(warnings),
+        generated=tuple(generated),
     )
 
 

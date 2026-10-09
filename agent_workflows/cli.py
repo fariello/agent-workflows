@@ -12884,6 +12884,15 @@ def map_mutation_result_to_command_result(
                 applied=mr.applied,
             )
         )
+    for gen_path in getattr(mr, "generated", ()):
+        changes.append(
+            Change(
+                path=_schema.normalize_repo_path(gen_path, repo_root),
+                kind="update",
+                applied=True,
+                detail="manifest index auto-refreshed",
+            )
+        )
 
     diagnostics: List[Diagnostic] = [
         Diagnostic(
@@ -13076,6 +13085,7 @@ def _run_noun_verb(
         agg_ref_edits = []
         agg_diagnostics = []
         agg_notes = []
+        agg_generated = []
         any_applied = False
         for t, res in results_by_type:
             if isinstance(res, MutationResult):
@@ -13083,6 +13093,8 @@ def _run_noun_verb(
                 agg_ref_edits.extend(res.ref_edits)
                 agg_diagnostics.extend(res.diagnostics)
                 agg_notes.extend(res.notes)
+                if hasattr(res, "generated"):
+                    agg_generated.extend(res.generated)
                 if res.applied:
                     any_applied = True
         agg_mr = MutationResult(
@@ -13093,6 +13105,7 @@ def _run_noun_verb(
             ref_edits=tuple(agg_ref_edits),
             diagnostics=tuple(agg_diagnostics),
             notes=tuple(agg_notes),
+            generated=tuple(agg_generated),
         )
         repo_root = resolve_verb_repo_root(getattr(args, "dir", None))
         target_label = getattr(args, "type", "")
