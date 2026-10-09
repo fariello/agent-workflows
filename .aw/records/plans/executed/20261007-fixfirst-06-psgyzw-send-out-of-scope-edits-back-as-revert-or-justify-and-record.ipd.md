@@ -6,7 +6,7 @@
 - Scope: Stop auto-writing out-of-scope reasons; send an unjustified out-of-scope delta back to the agent as a fix-it turn ("revert X, or justify it"); give the agent a way to justify a path it ALREADY committed (today's `aw commit --scope-reason` refuses a path with no new staged change) and keep recorded reasons across the recovery turn's re-`begin` (today `begin` overwrites the receipt and drops them); record every kept out-of-scope path and its reason in a new recognized plan field `- Scope-Exceeded:` written by finalize; amend the IPD structure spec to recognize the field. KEEP the additive-widening reasons and the declared-but-unmodified acks as they are (both describe declared paths, not out-of-scope edits). EXCLUDES review-turn out-of-scope warnings, any absolute ban on editing gate code (Order 03's message carries the judgement rule), and a corpus report over `Scope-Exceeded` values.
 - Scope-Paths: agent_workflows/runner_shared.py, agent_workflows/ipd_lifecycle.py, agent_workflows/ipd_schema.py, agent_workflows/work_cmd.py, agent_workflows/cli.py, tests/test_scope_exceeded.py, tests/test_oc_runipd.py, tests/test_finalize_sendback.py, .aw/records/specs/implemented/20260802-1904-01-ipd-structure-and-linting.spec.md
 - Item-Dependencies: executed:mcbph5
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: high
@@ -18,9 +18,9 @@
 - Highest E allocated: 07
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: psgyzw
-- Approval: 2026-10-09, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-09 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: psgyzw verified (set fixfirst, attempt 2). [Scope reconciliation - out-of-scope agent_workflows/agy_runipd.py: changed by the plan's approved execution (auto-reconciled by aw agy run); out-of-scope agent_workflows/oc_runipd.py: changed by the plan's approved execution (auto-reconciled by aw agy run); out-of-scope tests/test_agy_runipd_cli.py: changed by the plan's approved execution (auto-reconciled by aw agy run); out-of-scope tests/test_finalize_stale_plan_path.py: changed by the plan's approved execution (auto-reconciled by aw agy run); out-of-scope tests/test_ipd_schema.py: changed by the plan's approved execution (auto-reconciled by aw agy run); out-of-scope tests/test_merge_conflict_sendback.py: changed by the plan's approved execution (auto-reconciled by aw agy run); out-of-scope tests/test_runwire_verifier_authority.py: changed by the plan's approved execution (auto-reconciled by aw agy run)]
 - 2026-10-09 note (psgyzw): implemented E-01..E-07 and validated V-01..V-07 pass
 - 2026-10-09 approved (aw set): status set to approved
 - 2026-10-08 reviewed (aw set): plan-review round 1: APPROVE WITH REVISIONS APPLIED
