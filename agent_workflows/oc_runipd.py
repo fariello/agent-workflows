@@ -638,6 +638,19 @@ from agent_workflows.runner_shared import (
 from agent_workflows.runner_shared import (
     DriverError as DriverError,
 )
+
+# fixfirst-02 (tha7a6) E-03: Proposal channel re-exports
+from agent_workflows.runner_shared import (
+    PROPOSAL_KEY as PROPOSAL_KEY,
+    PROPOSAL_KINDS as PROPOSAL_KINDS,
+    PROPOSAL_SIZES as PROPOSAL_SIZES,
+    PROPOSAL_VERDICTS as PROPOSAL_VERDICTS,
+    ProposalVerdict as ProposalVerdict,
+    validate_proposal as validate_proposal,
+    sanitize_front_matter_text as sanitize_front_matter_text,
+    perform_coordinator_proposal_file as perform_coordinator_proposal_file,
+    proposal_schema_literal as proposal_schema_literal,
+)
 from agent_workflows.runner_shared import (
     _ORDER_RE as _ORDER_RE,
 )

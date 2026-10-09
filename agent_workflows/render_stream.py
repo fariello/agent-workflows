@@ -3889,6 +3889,26 @@ def render_run_summary_table(
             # PRESENTATION differs, so nothing here can disagree with the durable record about whether
             # the item was refused.
             diag_lines.insert(0, f"    → decision needed: {refusal.remedy}")
+            prop = it.get("proposal_record")
+            if isinstance(prop, Mapping):
+                rec_path = prop.get("record_path") or prop.get("path") or ""
+                rec_id6 = prop.get("record_id6") or prop.get("id6") or ""
+                blocked = prop.get("blocked_by") or ""
+                view_cmd = prop.get("view_cmd")
+                if not view_cmd:
+                    view_cmd = (
+                        f"aw show {rec_id6}"
+                        if (rec_id6 and prop.get("filed", True))
+                        else f"cat {rec_path}"
+                    )
+                if view_cmd:
+                    diag_lines.insert(0, f"    view: {view_cmd}")
+                if blocked:
+                    diag_lines.insert(0, f"    blocked by: {blocked}")
+                if rec_path and rec_id6:
+                    diag_lines.insert(0, f"    proposal: {rec_path} ({rec_id6})")
+                elif rec_path:
+                    diag_lines.insert(0, f"    proposal: {rec_path}")
             if it.get("host_error"):
                 h_err = it["host_error"]
                 h_name = h_err.get("name", "error")
