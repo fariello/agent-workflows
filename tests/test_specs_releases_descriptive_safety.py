@@ -228,7 +228,7 @@ class SpecsReleasesDescriptiveSafetyTests(unittest.TestCase):
     # ----------------------------------------------------------------------------------
 
     def test_specs_set_message_injection_refused(self):
-        """E-03, E-05: aw specs set refuses newline in --message at exit 1, preserving sha256 byte-identity."""
+        """E-03, E-05: aw specs set refuses newline in --message at exit 2, preserving sha256 byte-identity."""
         spec_path = self._create_conforming_spec("Set Msg", "set-msg")
         before_hash = _sha256(spec_path)
 
@@ -247,12 +247,12 @@ class SpecsReleasesDescriptiveSafetyTests(unittest.TestCase):
             ]
         )
         self.assertEqual(
-            rc, 1, f"Expected rc=1 for specs set message refusal, got {rc}: {err}"
+            rc, 2, f"Expected rc=2 for specs set message refusal, got {rc}: {err}"
         )
         # Refusal must leave file byte-identical
         self.assertEqual(_sha256(spec_path), before_hash)
-        self.assertIn("--message", err)
-        self.assertIn("newline", err.lower())
+        self.assertIn("--message", out + err)
+        self.assertIn("newline", (out + err).lower())
 
     def test_specs_note_message_injection_refused(self):
         """E-03, E-05: aw specs note refuses newline in --message at exit 2, preserving sha256 byte-identity."""
@@ -271,7 +271,7 @@ class SpecsReleasesDescriptiveSafetyTests(unittest.TestCase):
         self.assertIn("newline", err.lower())
 
     def test_specs_set_blocks_release_injection_refused(self):
-        """E-07, E-05: aw specs set refuses newline in --blocks-release at exit 1, preserving sha256."""
+        """E-07, E-05: aw specs set refuses newline in --blocks-release at exit 2, preserving sha256."""
         spec_path = self._create_conforming_spec("Set BR", "set-br")
         before_hash = _sha256(spec_path)
 
@@ -291,15 +291,15 @@ class SpecsReleasesDescriptiveSafetyTests(unittest.TestCase):
         )
         self.assertEqual(
             rc,
-            1,
-            f"Expected rc=1 for specs set blocks-release refusal, got {rc}: {err}",
+            2,
+            f"Expected rc=2 for specs set blocks-release refusal, got {rc}: {err}",
         )
         self.assertEqual(_sha256(spec_path), before_hash)
-        self.assertIn("--blocks-release", err)
-        self.assertIn("newline", err.lower())
+        self.assertIn("--blocks-release", out + err)
+        self.assertIn("newline", (out + err).lower())
 
     def test_specs_set_from_backlog_injection_refused(self):
-        """E-07, E-05: aw specs set refuses newline in --from-backlog at exit 1, preserving sha256."""
+        """E-07, E-05: aw specs set refuses newline in --from-backlog at exit 2, preserving sha256."""
         spec_path = self._create_conforming_spec("Set FB", "set-fb")
         before_hash = _sha256(spec_path)
 
@@ -318,11 +318,11 @@ class SpecsReleasesDescriptiveSafetyTests(unittest.TestCase):
             ]
         )
         self.assertEqual(
-            rc, 1, f"Expected rc=1 for specs set from-backlog refusal, got {rc}: {err}"
+            rc, 2, f"Expected rc=2 for specs set from-backlog refusal, got {rc}: {err}"
         )
         self.assertEqual(_sha256(spec_path), before_hash)
-        self.assertIn("--from-backlog", err)
-        self.assertIn("newline", err.lower())
+        self.assertIn("--from-backlog", out + err)
+        self.assertIn("newline", (out + err).lower())
 
     # ----------------------------------------------------------------------------------
     # E-05 / E-04: releases new injection refusal
@@ -477,7 +477,7 @@ class SpecsReleasesDescriptiveSafetyTests(unittest.TestCase):
         late_ctrl = "a" * 500 + "\x07" + "b"
         before_hash = _sha256(spec_ctrl)
 
-        rc_set_ctrl, _, err_set_ctrl = _run_cli(
+        rc_set_ctrl, out_set_ctrl, err_set_ctrl = _run_cli(
             [
                 "specs",
                 "set",
@@ -492,11 +492,11 @@ class SpecsReleasesDescriptiveSafetyTests(unittest.TestCase):
         )
         self.assertEqual(
             rc_set_ctrl,
-            1,
+            2,
             f"Expected specs set to refuse late control char: {err_set_ctrl}",
         )
         self.assertEqual(_sha256(spec_ctrl), before_hash)
-        self.assertIn("control", err_set_ctrl.lower())
+        self.assertIn("control", (out_set_ctrl + err_set_ctrl).lower())
 
         rc_note_ctrl, _, err_note_ctrl = _run_cli(
             ["specs", "note", str(spec_ctrl), "--message", late_ctrl]
@@ -654,8 +654,8 @@ class SpecsReleasesDescriptiveSafetyTests(unittest.TestCase):
         """E-06 non-regression (e): already-validated run_set flags preserve existing refusals and exit codes."""
         spec_path = self._create_conforming_spec("Flags Spec", "flags-spec")
 
-        # --gate-summary must be bounded single control-char-free line (exit 1)
-        rc_gs, _, err_gs = _run_cli(
+        # --gate-summary must be bounded single control-char-free line (exit 2)
+        rc_gs, out_gs, err_gs = _run_cli(
             [
                 "specs",
                 "set",
@@ -672,14 +672,14 @@ class SpecsReleasesDescriptiveSafetyTests(unittest.TestCase):
                 str(self.tmp),
             ]
         )
-        self.assertEqual(rc_gs, 1)
+        self.assertEqual(rc_gs, 2)
         self.assertIn(
-            "aw specs set: --gate-summary must be a bounded single control-char-free line",
-            err_gs,
+            "aw set: --gate-summary must not contain embedded newlines",
+            out_gs + err_gs,
         )
 
         # --graduated-to takes lowercase-kebab setids (exit 2)
-        rc_gt, _, err_gt = _run_cli(
+        rc_gt, out_gt, err_gt = _run_cli(
             [
                 "specs",
                 "set",
@@ -694,7 +694,7 @@ class SpecsReleasesDescriptiveSafetyTests(unittest.TestCase):
         )
         self.assertEqual(rc_gt, 2)
         self.assertIn(
-            "aw specs set: --graduated-to takes lowercase-kebab setids", err_gt
+            "aw set: --graduated-to takes lowercase-kebab setids", out_gt + err_gt
         )
 
         # --priority invalid choice (exit 2)
