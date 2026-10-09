@@ -49,7 +49,8 @@ instead of matching prose in the history line. It is OPTIONAL, and ABSENT MEANS 
 downstream consumers evaluate readiness using a three-way rule: a valid attested field decides; a
 corrupt (out-of-vocab) value refuses outright with no fallback; and an absent field falls back to
 history prose, clearing the plan only if the newest history record is a genuine review record with an
-approving verdict. `Readiness` states what the
+approving verdict, which is why IPD-M113 now refuses the absence at `reviewed` upstream of that fallback.
+`Readiness` states what the
 REVIEW concluded; `Status` states where the plan is in the lifecycle. They are independent, and
 `Readiness: go-pending-approval` is never by itself permission to execute. The field is written by
 `/plan-review` and is absent exactly when no review has recorded a verdict, so a plan at `draft` or
@@ -58,7 +59,7 @@ decided in backlog `0z1b2s`. A hand-written value asserts a review that never ra
 `AGENTS.md` "NEVER WRITE ANOTHER ROLE'S ATTESTATION FIELD" prohibition and repeating the 2026-09-06
 incident behind it. Because absence already falls back to an unforgeable review record and corrupt
 values refuse outright, uniformity would buy nothing
-and cost the field its meaning; both `IPD-M107` and `aw ipd recheck-readiness` enforce this
+and cost the field its meaning; IPD-M107, IPD-M113, and `aw ipd recheck-readiness` enforce this
 mechanically. Absence means no verdict was recorded rather than no review was attempted:
 `/plan-review`'s R6 orchestrator-exhaustion path deliberately leaves the field absent after a review
 has run and honestly declined to conclude (leaving the plan at `Status: to-review`). A plan in the

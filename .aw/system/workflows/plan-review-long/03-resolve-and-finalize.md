@@ -181,7 +181,7 @@ Map it from the readiness vocabulary in Section 4:
 | GO - PENDING HUMAN APPROVAL | `go-pending-approval` |
 | NO-GO | `no-go` |
 
-THE HISTORY-LINE PROSE IS NOT THE PRIMARY MACHINE SIGNAL. Downstream automation evaluates readiness using a three-way rule: a valid attested field decides; a corrupt field refuses outright with no fallback; and an absent field falls back to history prose, clearing the plan only if the newest history entry is a genuine review record with an approving verdict. Omitting the field leaves a clean plan that should have read `go-pending-approval` dependent on prose fallback instead of machine-attested clearance. Write exactly one of the three values, lowercase, with no extra words.
+THE HISTORY-LINE PROSE IS NOT THE PRIMARY MACHINE SIGNAL. Downstream automation evaluates readiness using a three-way rule: a valid attested field decides; a corrupt field refuses outright with no fallback; and an absent field falls back to history prose, clearing the plan only if the newest history entry is a genuine review record with an approving verdict, which is why IPD-M113 now refuses the absence at `reviewed` upstream of that fallback. Omitting the field leaves a clean plan that should have read `go-pending-approval` dependent on prose fallback instead of machine-attested clearance. Write exactly one of the three values, lowercase, with no extra words.
 
 **Exception for exhausted orchestrator repair loop (`IPD-S407` / `IPD-S408` / R6):** If an orchestrator's
 checklist repair loop or coverage repair loop exhausts its budget of 2 attempts unresolved, leave `- Readiness:` ABSENT
