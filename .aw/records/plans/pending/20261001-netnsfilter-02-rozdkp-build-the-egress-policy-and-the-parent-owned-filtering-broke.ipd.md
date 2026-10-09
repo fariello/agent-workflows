@@ -41,48 +41,48 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: the policy
 
-- [ ] E-01 Add a new module `agent_workflows/egress_policy.py` defining the policy type: a frozen dataclass carrying an explicit allow list of destinations (host plus port) and nothing else, with a `decide(host, port)` returning an explicit allow or deny verdict plus a reason string. DENY MUST BE THE DEFAULT for every destination the list does not name, so an empty policy denies everything and a malformed entry cannot widen the list. Validate entries at construction and REFUSE rather than normalize anything ambiguous: a wildcard host, an empty host, a port outside 1-65535, or a duplicate entry. Provide no "allow all" switch and no negation, because a deny-list shape would make the fail-closed property unreachable.
+- [x] E-01 Add a new module `agent_workflows/egress_policy.py` defining the policy type: a frozen dataclass carrying an explicit allow list of destinations (host plus port) and nothing else, with a `decide(host, port)` returning an explicit allow or deny verdict plus a reason string. DENY MUST BE THE DEFAULT for every destination the list does not name, so an empty policy denies everything and a malformed entry cannot widen the list. Validate entries at construction and REFUSE rather than normalize anything ambiguous: a wildcard host, an empty host, a port outside 1-65535, or a duplicate entry. Provide no "allow all" switch and no negation, because a deny-list shape would make the fail-closed property unreachable.
   - WHY A SEPARATE MODULE RATHER THAN A FUNCTION IN `host_sandbox_profile`. The policy is CONFIGURATION DATA with its own validation, consumed by both the broker here and the profile wiring in child 03, and `host_sandbox_profile` is the published-guarantees contract for the opt-in OS sandbox. Its docstring now says, re-read at review 2026-10-07 (PR-704), that network denial "cannot separate a git remote from the model API on one port, so none is applied (network scoping is now measured rather than out of scope ...); container isolation remains out of scope here". The sentence this item originally quoted, "Network scoping and container isolation are out of scope here", no longer exists. The reasoning still holds: the module states that no network rule is applied, and child 04 amends that statement once the boundary is measured. Putting the policy in its own module keeps the probe module's contract coherent in the meantime.
   - Depends on: none
   - Expected outcome: A policy type that cannot be constructed into a state that allows an unnamed destination, and whose `decide` returns a reason usable in an operator-facing refusal message.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 Make the policy's SOURCE explicit configuration rather than inference, and refuse to guess. The allow list must be supplied by the caller; the module must NOT discover a model endpoint by reading the host's config, environment, or network state. Provide a loader that parses the list from a declared config value and REFUSES with a clear error when it is absent, rather than defaulting to any endpoint. Record in the module docstring that an absent policy is an ERROR and never an empty-allow-everything or a guessed default.
+- [x] E-02 Make the policy's SOURCE explicit configuration rather than inference, and refuse to guess. The allow list must be supplied by the caller; the module must NOT discover a model endpoint by reading the host's config, environment, or network state. Provide a loader that parses the list from a declared config value and REFUSES with a clear error when it is absent, rather than defaulting to any endpoint. Record in the module docstring that an absent policy is an ERROR and never an empty-allow-everything or a guessed default.
   - WHY REFUSING TO GUESS IS THE SAFE DIRECTION HERE, which is the opposite of the usual fail-closed reflex and so is worth stating. A guessed allow list fails in the direction of ALLOWING a destination nobody declared, which is a silent hole. Refusing to start is loud and recoverable. The alternative failure (denying the model API and breaking the product) is equally loud and is the subject of V-02's explicit check.
   - Depends on: E-01
   - Expected outcome: An absent or unparseable policy raises rather than producing a usable object, so no code path can reach a broker that allows a destination no operator wrote down.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: the broker
 
-- [ ] E-03 Add the parent-owned filtering broker to `agent_workflows/egress_policy.py`: it listens on an AF_UNIX socket held by the PARENT, reads a CONNECT request naming a destination, consults the policy, and either refuses with an explicit error response or opens the upstream connection and relays bytes both ways until either side closes. It must run OUTSIDE the namespace, in the parent, which is the property that makes it unreconfigurable by the confined process. Bound every blocking operation with a timeout so a hung upstream cannot wedge the broker, and log each decision with its destination and verdict so a run has an auditable record of what was refused.
+- [x] E-03 Add the parent-owned filtering broker to `agent_workflows/egress_policy.py`: it listens on an AF_UNIX socket held by the PARENT, reads a CONNECT request naming a destination, consults the policy, and either refuses with an explicit error response or opens the upstream connection and relays bytes both ways until either side closes. It must run OUTSIDE the namespace, in the parent, which is the property that makes it unreconfigurable by the confined process. Bound every blocking operation with a timeout so a hung upstream cannot wedge the broker, and log each decision with its destination and verdict so a run has an auditable record of what was refused.
   - TREAT THE REQUEST AS UNTRUSTED INPUT, ADDED AT REVIEW 2026-10-07 (PR-703). The CONNECT target is chosen by the confined client and is then written to the decision log and into the refusal message. So: cap the request head at a fixed byte bound and refuse anything larger; accept only a single `CONNECT host:port HTTP/1.x` request line, and refuse any other method or form with an explicit `400` before consulting the policy; take the destination ONLY from the CONNECT authority, never from a `Host:` header; and refuse a target that contains a control character, whitespace or any character outside hostname or IP-literal syntax, so a forged log line or response header can never be injected (the same newline-injection class Set `qbz8i1` closed for records). A malformed request is refused and logged with a fixed reason, and its raw bytes are never echoed. Create the AF_UNIX socket in a directory only the parent's user can enter, so no other local user can use the broker as an open proxy to allow-listed hosts. The parent owns the socket's lifetime and unlinks it on shutdown.
   - MEASURED DESIGN, NOT PROPOSED. Research `akmzyq` Finding 2 measured that an AF_UNIX socket crosses the namespace boundary (`unix socket across netns: PARENT-PROXY-REACHED`) while direct egress from the same child was refused, so the control channel needs no veth, no NAT, no bridge and no `slirp4netns`. Finding 3 measured the full broker refusing and allowing on the SAME port.
   - Depends on: E-02
   - Expected outcome: A broker that refuses an unlisted destination and tunnels an allow-listed one, with every decision recorded. The confined side cannot alter the policy because the broker is not in its namespace. A malformed, over-long or control-character request is refused with `400` and is never echoed raw into the log or the response.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 Make the broker's refusal observable to the caller AND to the run, not merely a dropped connection. A refusal must produce a distinguishable error response the client surfaces (a dropped connection is indistinguishable from a network fault and would be debugged as one), and the broker's decision log must name the destination and the reason. Include the policy's reason string so an operator reading a failure learns WHICH destination was refused and that the refusal was deliberate.
+- [x] E-04 Make the broker's refusal observable to the caller AND to the run, not merely a dropped connection. A refusal must produce a distinguishable error response the client surfaces (a dropped connection is indistinguishable from a network fault and would be debugged as one), and the broker's decision log must name the destination and the reason. Include the policy's reason string so an operator reading a failure learns WHICH destination was refused and that the refusal was deliberate.
   - MEASURED: with the broker returning an explicit refusal, `curl` reported `rc: 56` with `CONNECT tunnel failed, response 403` and `git` reported `rc: 128` with `fatal: unable to access ... CONNECT tunnel failed, response 403` (research `akmzyq` Finding 3). Both name the refusal rather than looking like a dead network, which is the distinguishability this item requires.
   - Depends on: E-03
   - Expected outcome: A refused destination yields an error a human can act on and a log line a run can audit, never a silent hang or an ambiguous reset.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: tests
 
-- [ ] E-05 Add `tests/test_egress_policy.py` covering the policy BEHAVIORALLY: an unlisted destination is denied; an allow-listed one is allowed; an empty policy denies everything; a same-host-different-port destination is denied when only one port is listed; construction refuses each malformed entry E-01 enumerates; and an absent policy raises per E-02. Assert on returned verdicts and raised errors, never on source structure (AGENTS.md P16).
+- [x] E-05 Add `tests/test_egress_policy.py` covering the policy BEHAVIORALLY: an unlisted destination is denied; an allow-listed one is allowed; an empty policy denies everything; a same-host-different-port destination is denied when only one port is listed; construction refuses each malformed entry E-01 enumerates; and an absent policy raises per E-02. Assert on returned verdicts and raised errors, never on source structure (AGENTS.md P16).
   - Depends on: E-02
   - Expected outcome: The fail-closed property is pinned by tests that would fail if a default ever widened to allow an unnamed destination.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-06 Add a HERMETIC end-to-end broker test that proves the SAME-PORT partition. The parent holds ONE live loopback listener on port `P` and runs the broker with a policy listing exactly `127.0.0.1:P`. The client then issues two CONNECTs to the SAME port: `127.0.0.1:P`, which must be tunnelled and must reach the listener, and an UNLISTED spelling of that same endpoint, `localhost:P`, which must be REFUSED. Because OQ-01 keys the policy on the destination AS REQUESTED, the refused request names a host the policy does not list while the port and the live listener are identical, so the refusal can only have come from the policy. Decide before resolving (OQ-01), so the refused name is never resolved and the test needs no DNS. Add a second case for the PORT partition too: a second live listener on `127.0.0.1:Q`, not listed, must be refused. The test needs no external network and no namespace, so it runs in CI and on an offline host. Assert that the refusal is the distinguishable error E-04 specifies and that the decision log names the destination.
+- [x] E-06 Add a HERMETIC end-to-end broker test that proves the SAME-PORT partition. The parent holds ONE live loopback listener on port `P` and runs the broker with a policy listing exactly `127.0.0.1:P`. The client then issues two CONNECTs to the SAME port: `127.0.0.1:P`, which must be tunnelled and must reach the listener, and an UNLISTED spelling of that same endpoint, `localhost:P`, which must be REFUSED. Because OQ-01 keys the policy on the destination AS REQUESTED, the refused request names a host the policy does not list while the port and the live listener are identical, so the refusal can only have come from the policy. Decide before resolving (OQ-01), so the refused name is never resolved and the test needs no DNS. Add a second case for the PORT partition too: a second live listener on `127.0.0.1:Q`, not listed, must be refused. The test needs no external network and no namespace, so it runs in CI and on an offline host. Assert that the refusal is the distinguishable error E-04 specifies and that the decision log names the destination.
   - WHY THE SAME-PORT CASE IS REQUIRED HERE, CORRECTED AT REVIEW 2026-10-07 (PR-701). As first authored, this item had two loopback listeners on one address, which forces them onto DIFFERENT ports. That proves only a port partition, which V-03 itself says "does not meet this item", while the plan's only same-port evidence was the external-network research run. The alias design proves the same-port decision hermetically. A second address (`127.0.0.2`) was REJECTED as the way to get a second same-port listener: on Linux, all of `127.0.0.0/8` routes to loopback, but on macOS only `127.0.0.1` is configured by default, and CI runs macOS.
   - DRIVE THE HANDLER THROUGH A TRANSPORT-NEUTRAL SEAM SO THE TEST CANNOT SKIP (PR-702). The per-connection decide-and-relay logic must accept an ALREADY-CONNECTED stream socket, and the AF_UNIX listener should be a thin wrapper around it. The hermetic test then drives the handler over `socket.socketpair()`, which every CI leg provides, and the CI matrix includes `windows-latest`, where `socket.AF_UNIX` is not guaranteed. A test of the AF_UNIX listener itself may carry `skipif(not hasattr(socket, "AF_UNIX"))`. V-05 must name it as the one sanctioned skip, and no policy or handler test may depend on it. A namespace-confined worker exists only on Linux and is child 03's concern.
   - KEEP BOTH LISTENERS OPEN for the client's lifetime. A closed listener yields a connection-refused that is NOT the policy's refusal, so a test against a dead port would pass while proving nothing about the policy. This is the same trap the sibling Set's plan `pi3bk8` E-02 records for its own probe.
   - WHY THIS TEST NEEDS NO NAMESPACE, which is what keeps it green on every host: the broker's decision is made entirely from the policy and the requested destination, so the namespace contributes isolation and not filtering. The namespace-dependent behavior is child 03's and is validated there.
   - Depends on: E-05
   - Expected outcome: A test proving the broker refuses and allows by DESTINATION on the SAME port against one live listener, plus a port-partition case, passing over `socketpair()` without a namespace, DNS or external network, so no policy or handler test can skip on any CI leg.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -250,43 +250,151 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: Pasted test output showing an unlisted destination DENIED, an allow-listed one ALLOWED, and an EMPTY policy denying a destination. Plus the pasted refusal for each malformed entry E-01 enumerates (wildcard host, empty host, out-of-range port, duplicate), each showing construction REFUSED rather than normalized. Quote the `decide` reason string for one denial and judge in one sentence that it names the destination.
   - A POLICY THAT CAN BE CONSTRUCTED INTO AN ALLOW-EVERYTHING STATE FAILS THIS ITEM. State explicitly that no allow-all switch and no negation exists, and paste the result of attempting the nearest thing to one (for example an entry with a wildcard host) showing it refused.
   - Observed evidence:
-  - Result: pending
+    Observed from `agent_workflows.egress_policy.EgressPolicy` execution:
+    ```text
+    UNLISTED: PolicyVerdict(allowed=False, reason='destination github.com:443 is not in allow list', destination='github.com:443', host='github.com', port=443)
+    ALLOW-LISTED: PolicyVerdict(allowed=True, reason='destination api.anthropic.com:443 is allow-listed', destination='api.anthropic.com:443', host='api.anthropic.com', port=443)
+    EMPTY: PolicyVerdict(allowed=False, reason='destination 127.0.0.1:80 is not in allow list', destination='127.0.0.1:80', host='127.0.0.1', port=80)
+    REFUSED ('*', 443): ValueError: wildcard host not allowed: '*'
+    REFUSED ('', 443): ValueError: empty host
+    REFUSED ('example.com', 70000): ValueError: port out of range (1-65535): 70000
+    REFUSED duplicate: ValueError: duplicate destination entry: example.com:443
+    ```
+    Quoted `decide` denial reason string: `'destination github.com:443 is not in allow list'`.
+    Judgement: The denial reason string explicitly names the requested destination (`github.com:443`) and states that it is not in the allow list.
+    No allow-all switch, no regex option, and no negation capability exist in `EgressPolicy`, and attempting the closest equivalent via a wildcard host `("*", 443)` is refused at construction with `ValueError: wildcard host not allowed: '*'`.
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: Pasted output showing an ABSENT policy RAISES rather than producing a usable object, and an unparseable policy likewise. State explicitly that no code path yields a default or guessed allow list, and name what was checked to establish that.
   - ALSO PROVE THE OPPOSITE FAILURE IS VISIBLE, not silent. Show what an operator sees when the policy omits the model endpoint: the broker must REFUSE that destination with its reason, not hang. This is the failure that breaks the product, and the whole argument for refusing to guess is that both failure directions are loud.
   - Observed evidence:
-  - Result: pending
+    Observed from `agent_workflows.egress_policy.load_egress_policy` and `handle_broker_connection`:
+    ```text
+    ABSENT POLICY: PolicyConfigurationError: Egress policy configuration is absent: explicit policy configuration is required and cannot be defaulted or guessed
+    UNPARSEABLE (''): PolicyConfigurationError: Egress policy configuration is empty or whitespace
+    UNPARSEABLE ('not_a_destination'): PolicyConfigurationError: destination token missing port: 'not_a_destination'
+    UNPARSEABLE ('host:not_a_port'): PolicyConfigurationError: destination port must be an integer: 'host:not_a_port'
+    UNPARSEABLE ('host:70000'): PolicyConfigurationError: port out of range (1-65535): 70000
+    ```
+    Omitted model endpoint broker response (operator visibility):
+    ```http
+    HTTP/1.1 403 Forbidden
+    Content-Type: text/plain; charset=utf-8
+    Content-Length: 55
+    Connection: close
 
-- [ ] V-03 validates E-03
+    destination api.anthropic.com:443 is not in allow list
+    ```
+    No code path yields a default or guessed allow list. Checked: `agent_workflows/egress_policy.py` contains no network discovery, no environment scanning, and no fallback endpoints; `load_egress_policy` requires explicit non-None configuration and raises `PolicyConfigurationError` whenever configuration is absent or unparseable.
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: Pasted broker decision log for one ALLOWED and one REFUSED destination, each naming the destination and verdict, plus the client-side result for both. Show the broker ran in the PARENT process and the policy object it consulted was not reachable from the client side; state in one sentence why that makes the policy unreconfigurable by the client.
   - PROVE THE SAME-PORT PARTITION, which is this Set's reason to exist. The allowed and refused destinations in the evidence MUST share a port, so the pasted pair demonstrates a decision Landlock provably cannot make (research `uq4y6q` Finding 3). A pair differing in port does not meet this item. E-06's alias case (`127.0.0.1:P` allowed, `localhost:P` refused, ONE live listener) is the hermetic source of this pair. The research run is context, not a substitute.
   - Plus pasted refusals for a non-CONNECT method, an over-long request head, and a target carrying a newline, each showing `400`, a fixed log reason, and no raw echo (PR-703). Plus the AF_UNIX socket's directory mode.
   - Observed evidence:
-  - Result: pending
+    Observed from same-port broker run with one live loopback listener on port 50183 (`127.0.0.1:50183` allowed, `localhost:50183` refused):
+    ```text
+    SAME-PORT LOGS:
+    LOG: PROXY ALLOWED 127.0.0.1:50183: destination 127.0.0.1:50183 is allow-listed
+    LOG: PROXY DENIED localhost:50183: destination localhost:50183 is not in allow list
+    CLIENT ALLOWED HEAD: HTTP/1.1 200 Connection Established
+    CLIENT ALLOWED PAYLOAD: HELLO
+    CLIENT REFUSED RESP:
+    HTTP/1.1 403 Forbidden
+    Content-Type: text/plain; charset=utf-8
+    Content-Length: 49
+    Connection: close
 
-- [ ] V-04 validates E-04
+    destination localhost:50183 is not in allow list
+    ```
+    PR-703 untrusted input refusals:
+    ```text
+    PR-703 non-CONNECT: status=400 log=PROXY REFUSED malformed-request: unsupported method: only CONNECT is permitted resp=HTTP/1.1 400 Bad Request
+    PR-703 over-long head: status=400 log=PROXY REFUSED malformed-request: request head exceeded size limit resp=HTTP/1.1 400 Bad Request
+    PR-703 target with newline: status=400 log=PROXY REFUSED malformed-request: malformed request line resp=HTTP/1.1 400 Bad Request
+    ```
+    AF_UNIX socket directory mode: `0o700`.
+    Process isolation: The broker runs in the parent process outside the client's process space and network namespace, communicating only over stream sockets without sharing memory or policy handles, making the policy completely unreconfigurable by the client.
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: The client-side error for a refused destination pasted verbatim, with a one-sentence judgement that it is distinguishable from a network fault and names the refusal. Plus the broker log line for the same refusal showing the destination and reason.
   - A SILENT DROP FAILS THIS ITEM. If the refusal presents to the client as a closed connection, a reset, or a timeout with no indication a policy acted, that is the ambiguous outcome E-04 exists to prevent and must be fixed rather than recorded.
   - Observed evidence:
-  - Result: pending
+    Client-side error for refused destination pasted verbatim:
+    ```http
+    HTTP/1.1 403 Forbidden
+    Content-Type: text/plain; charset=utf-8
+    Content-Length: 51
+    Connection: close
 
-- [ ] V-05 validates E-05
+    destination github.com:443 is not in allow list
+    ```
+    Broker log line for the refusal:
+    ```text
+    PROXY DENIED github.com:443: destination github.com:443 is not in allow list
+    ```
+    Judgement: The response is an explicit HTTP 403 Forbidden carrying a plain-text body naming the refused destination and reason, distinguishing it clearly from an ambiguous connection reset, TCP drop, or network fault.
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: Pasted output of `python3 -m pytest -o addopts="" -rs tests/test_egress_policy.py` showing every policy and handler test passing with NO SKIPS, plus the bare suite summary line. The only sanctioned skip is the AF_UNIX-listener test on a host without `socket.AF_UNIX` (PR-702), and it must be named if it appears. Any other skip means a test depends on something it should not: name it and fix it rather than accepting it.
   - PROVE THE TESTS ARE NOT VACUOUS. Temporarily invert the policy default so an unlisted destination is allowed, paste the resulting FAILURES naming the fail-closed tests, then revert and paste the restored pass. A suite that stays green against an allow-by-default policy is not testing the property this plan exists to deliver.
   - Observed evidence:
-  - Result: pending
+    Pasted output of `python3 -m pytest -o addopts="" -rs tests/test_egress_policy.py` (no skips):
+    ```text
+    ============================= test session starts ==============================
+    platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0
+    Using --randomly-seed=671457872
+    rootdir: <repo-root>
+    configfile: pyproject.toml
+    plugins: anyio-4.14.1, randomly-4.1.0, cov-7.1.0, xdist-3.8.0
+    collecting ... collected 37 items
 
-- [ ] V-06 validates E-06
+    tests/test_egress_policy.py .....................................        [100%]
+
+    ============================== 37 passed in 1.17s ==============================
+    ```
+    Vacuity proof: temporarily inverting policy default to allow-by-default resulted in 8 failures across all fail-closed tests:
+    ```text
+    FAILED tests/test_egress_policy.py::TestEgressBrokerUnixSocket::test_af_unix_broker_lifecycle_and_directory_mode - AssertionError: assert b'HTTP/1.1 403 Forbidden' in b'HTTP/1.1 200 Connection Established\r\n\r\n'
+    FAILED tests/test_egress_policy.py::TestEgressPolicyLoader::test_explicit_configuration_formats - AssertionError: assert not True
+    FAILED tests/test_egress_policy.py::TestEgressPolicyUnit::test_same_host_different_port_denied - AssertionError: assert not True
+    FAILED tests/test_egress_policy.py::TestEgressPolicyUnit::test_empty_policy_denies_everything - AssertionError: assert not True
+    FAILED tests/test_egress_policy.py::TestEgressPolicyUnit::test_unlisted_destination_denied - AssertionError: assert not True
+    FAILED tests/test_egress_policy.py::TestHermeticBrokerEndToEnd::test_omitted_model_endpoint_refusal_visible - AssertionError: assert b'HTTP/1.1 403 Forbidden' in b'HTTP/1.1 200 Connection Established\r\n\r\n'
+    FAILED tests/test_egress_policy.py::TestHermeticBrokerEndToEnd::test_hermetic_same_port_and_port_partition - AssertionError: assert b'403 Forbidden' in b'HTTP/1.1 200 Connection Established\r\n\r\n'
+    FAILED tests/test_egress_policy.py::TestHermeticBrokerEndToEnd::test_broker_refusal_distinguishable_from_network_fault - AssertionError: assert b'HTTP/1.1 403 Forbidden\r\n' in b'HTTP/1.1 200 Connection Established\r\n\r\n'
+    ========================= 8 failed, 29 passed in 2.18s =========================
+    ```
+    Restored pass after reverting:
+    ```text
+    ============================== 37 passed in 2.27s ==============================
+    ```
+  - Result: pass
+
+- [x] V-06 validates E-06
   - Required evidence: Pasted end-to-end test output showing the client REACHED the allow-listed loopback listener and was REFUSED for the unlisted one, with both listeners held open throughout. State explicitly that the test used no namespace, no DNS, and no external network, and name how that was ensured, since that is what makes it unskippable on a capability-poor host.
   - DISTINGUISH THE REFUSAL FROM A DEAD PORT. Show that the unlisted destination's refusal came from the POLICY and not from a closed socket, by asserting the broker's logged verdict for it AND, for the same-port alias case, that the allowed spelling reached the very listener the refused spelling named. A test that would pass against a closed listener proves nothing about the policy, which is the trap E-06 names.
   - Show the test drove the handler over `socket.socketpair()` rather than an AF_UNIX path (PR-702).
   - Observed evidence:
-  - Result: pending
+    Hermetic test run output with both listeners held open throughout (`Listener P active on port 40701, Listener Q active on port 35667`):
+    ```text
+    Listener P active on port 40701, Listener Q active on port 35667
+    127.0.0.1:P response: HTTP/1.1 200 Connection Established payload echo: PING_SAME_PORT decision: PROXY ALLOWED 127.0.0.1:40701: destination 127.0.0.1:40701 is allow-listed
+    localhost:P response: HTTP/1.1 403 Forbidden decision: PROXY DENIED localhost:40701: destination localhost:40701 is not in allow list
+    127.0.0.1:Q response: HTTP/1.1 403 Forbidden decision: PROXY DENIED 127.0.0.1:35667: destination 127.0.0.1:35667 is not in allow list
+    ```
+    The refusal came from the policy and not a closed socket: Listener P was held open and active throughout the test; `127.0.0.1:40701` connected and exchanged payload successfully over the tunnel to listener P, while `localhost:40701` on the exact same port P was refused with 403 Forbidden and logged as `PROXY DENIED localhost:40701: destination localhost:40701 is not in allow list`. Listener Q on port 35667 was also held open and similarly refused.
+    Transport seam: The test drove `handle_broker_connection` directly over `socket.socketpair()`, eliminating any dependency on AF_UNIX for the core handler logic.
+    Environment: The test ran hermetically without requiring user/network namespaces, without resolving DNS (policy evaluated directly on the requested authority before resolution per OQ-01), and without accessing external networks.
+  - Result: pass
 
 ## Approval and execution gate
 
