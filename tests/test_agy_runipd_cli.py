@@ -287,6 +287,7 @@ class AgySelfFinalizeTests(unittest.TestCase):
                         ),
                         encoding="utf-8",
                     )
+                    return 0, "s_verify", str(run_dir / "l"), ["agy"]
                 return 0, "s", str(run_dir / "l"), ["agy"]
 
             with (
@@ -354,6 +355,7 @@ class AgySelfFinalizeTests(unittest.TestCase):
                         ),
                         encoding="utf-8",
                     )
+                    return 0, "s_verify", str(run_dir / "l"), ["agy"]
                 return 0, "s", str(run_dir / "l"), ["agy"]
 
             with (
