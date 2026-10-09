@@ -1453,426 +1453,63 @@ def run_new(args) -> int:
     return 0
 
 
-def run_set(args) -> int:
-    from agent_workflows.project_context import (
-        is_project_dir,
-        resolve_verb_repo_root,
-    )
+def run_set(args, term=None) -> int:
+    """Transition a backlog item's status (+ typed gates) and append history.
+
+    Thin adapter delegating to status_set.run_set_command with scoped_type="backlog"
+    (Set setdisp Order 05, IPD vhiqo6; governed by spec wy9aru Section 4.1).
+    """
+    from agent_workflows import status_set as _status_set
+
+    # 1. Normalize target status and selector tokens
+    status = getattr(args, "status", None)
+    raw_args = getattr(args, "args", None)
+    path = getattr(args, "path", None)
+
+    if raw_args:
+        selectors = [str(x) for x in raw_args]
+    elif path:
+        selectors = [str(path)]
+    else:
+        selectors = []
+
+    if status is not None:
+        cmd_args = [status] + selectors
+    else:
+        cmd_args = list(selectors)
+
+    # 2. Derive repo_root if not provided
+    from agent_workflows.project_context import resolve_verb_repo_root
 
     repo_root = resolve_verb_repo_root(getattr(args, "dir", None))
+
+    # 3. Set default actor and verb label if not specified
+    if getattr(args, "actor", None) is None:
+        setattr(args, "actor", "aw backlog")
+    if getattr(args, "_verb_label", None) is None:
+        setattr(args, "_verb_label", "aw backlog set")
+
+    # 4. Extract gate-dir and lane-carrier parameters if provided
     gate_dir_arg = getattr(args, "gate_dir", None)
+    gate_root = None
     if gate_dir_arg is not None:
         gate_root = resolve_verb_repo_root(gate_dir_arg)
-        if not is_project_dir(gate_root):
-            sys.stderr.write(
-                f"aw backlog set: --gate-dir '{gate_dir_arg}' is not an agent-workflows project root\n"
-            )
-            return 2
-    else:
-        gate_root = repo_root
+    elif getattr(args, "gate_root", None) is not None:
+        gate_root = getattr(args, "gate_root", None)
 
     lane_carrier_ref = getattr(args, "lane_carrier_ref", None)
     lane_carrier_path = getattr(args, "lane_carrier_path", None)
-    if lane_carrier_ref is not None and lane_carrier_path is None:
-        sys.stderr.write(
-            "aw backlog set: --lane-carrier-ref requires --lane-carrier-path\n"
-        )
-        return 2
-    if lane_carrier_path is not None and lane_carrier_ref is None:
-        sys.stderr.write(
-            "aw backlog set: --lane-carrier-path requires --lane-carrier-ref\n"
-        )
-        return 2
 
-    target = getattr(args, "path", None)
-    new_status = getattr(args, "status", None)
-    if not target or new_status not in STATUSES:
-        sys.stderr.write(
-            f"aw backlog set: --status must be one of {sorted(STATUSES)} and a path is required\n"
-        )
-        return 2
-    # bklgkind b5sfwm E-03: validate the two CLASSIFICATION flags BEFORE resolving or writing
-    # anything. Argparse `choices` already covers the CLI route, but this function is called directly
-    # by tests and by other code, and the shared line writers deliberately do NOT enforce the enum
-    # ("the ENUM check ... is enforced by `aw check` / validate_spec, not here"). Refusing here with
-    # the same exit-2 shape `run_new` uses keeps a direct caller from producing an item that
-    # `validate_item` rejects. NOTE `-` IS NOT ACCEPTED (OQ-02): both fields are REQUIRED on a backlog
-    # item, so clearing one manufactures a `backlog.kind-invalid`/`backlog.priority-invalid` item.
-    set_work_kind = getattr(args, "work_kind", None)
-    set_priority = getattr(args, "priority", None)
-    if set_work_kind is not None and set_work_kind not in KINDS:
-        sys.stderr.write(
-            f"aw backlog set: --work-kind must be one of {sorted(KINDS)}\n"
-        )
-        return 2
-    if set_priority is not None and set_priority not in PRIORITIES:
-        sys.stderr.write(
-            f"aw backlog set: --priority must be one of {sorted(PRIORITIES)}\n"
-        )
-        return 2
-    set_rel_exempt_kind = getattr(args, "release_exempt_kind", None)
-    set_rel_exempt_ref = getattr(args, "release_exempt_ref", None)
-    _exempt_err = validate_release_exempt_flags(
-        "aw backlog set", set_rel_exempt_kind, set_rel_exempt_ref
-    )
-    if _exempt_err:
-        sys.stderr.write(f"{_exempt_err}\n")
-        return 2
-    # setidhard bwgyum E-04: validate the FORWARD graduation link's value HERE, before anything is
-    # resolved or written, in the same exit-2 shape the two flags above use. A setter that accepts a
-    # typo writes a link `aw check` then reports as malformed, turning one clear refusal into a
-    # confusing finding. The shape authority is the shared `plans.is_set_id_valid` (reached through
-    # `releases.canonicalize_graduated_to`), never a second setid pattern. `-` clears, matching every
-    # sibling link primitive.
-    from agent_workflows import releases as _releases_gt_flag
-
-    set_graduated_to, _gt_err = _releases_gt_flag.canonicalize_graduated_to(
-        getattr(args, "graduated_to", None)
-    )
-    if _gt_err:
-        sys.stderr.write(f"aw backlog set: {_gt_err}\n")
-        return 2
-
-    set_message = getattr(args, "message", None)
-    if set_message is not None:
-        _msg_err = _refuse_unsafe_descriptive(
-            "aw backlog set", "--message", set_message, bound_length=False
-        )
-        if _msg_err:
-            sys.stderr.write(f"{_msg_err}\n")
-            return 2
-
-    set_gate_ref = getattr(args, "gate_ref", None)
-    if set_gate_ref is not None:
-        _gr_err = _refuse_unsafe_descriptive(
-            "aw backlog set", "--gate-ref", set_gate_ref, bound_length=True
-        )
-        if _gr_err:
-            sys.stderr.write(f"{_gr_err}\n")
-            return 2
-
-    # IPD laykok E-03: close the path-only outlier - resolve via the ONE unified resolver so
-    # `aw backlog set` now accepts an id6/setid/status/stem/substring, not just a literal path.
-    from agent_workflows import selectors as _sel
-
-    res = _sel.resolve(repo_root, "backlog", target)
-    if res.rejected_kind is not None:
-        sys.stderr.write(
-            f"aw backlog set: this verb does not accept a {res.rejected_kind} selector: {target}\n"
-        )
-        return 2
-    if not res.paths:
-        sys.stderr.write(f"aw backlog set: no such item: {target}\n")
-        return 2
-    if len(res.paths) > 1:
-        # Kind-aware ambiguity (E-07): a setid legitimately selects the whole Set; a unique-id
-        # collision or a substring multi-match refuses with the candidate list unless --force.
-        if res.kind == _sel.MATCH_SETID or (
-            res.kind == _sel.MATCH_SUBSTRING and getattr(args, "force", False)
-        ):
-            pass  # act on all matches
-        else:
-            cand = "\n  ".join(str(p) for p in res.paths)
-            overridable = (
-                " (pass --force to act on all)"
-                if res.kind == _sel.MATCH_SUBSTRING
-                else ""
-            )
-            sys.stderr.write(
-                f"aw backlog set: selector '{target}' is ambiguous ({res.kind}); "
-                f"candidates{overridable}:\n  {cand}\n"
-            )
-            return 2
-    # backlog set operates on a single item; when a setid/forced-substring yields many, act on the
-    # first deterministically (backlog items are not grouped like plans, so multi is rare).
-    src = res.paths[0]
-    text = src.read_text(encoding="utf-8")
-    item = parse_item(text)
-
-    # cc2m29 E-05: Consult shared transition predicate before modifying item, before dry-run,
-    # and before any gate-default or metadata write. Case-fold the prior status (PR-003) so an
-    # uppercase source token (- Status: DONE) does not bypass the gate. Skip self-edge.
-    # Refuse with exit code 1 (domain finding), matching specs.run_set and status_set.
-    raw_prior = item.status or ""
-    prior_status = raw_prior.strip().lower()
-    norm_new_status = new_status.strip().lower()
-    if prior_status and prior_status != norm_new_status:
-        from agent_workflows import attention_contract as _ac
-
-        if not _ac.backlog_transition_allowed(prior_status, norm_new_status):
-            sys.stderr.write(
-                f"aw backlog set: illegal transition {prior_status} -> {new_status}\n"
-            )
-            return 1
-
-    item.status = new_status
-    if new_status == "blocked":
-        gk = getattr(args, "gate_kind", None)
-        gr = getattr(args, "gate_ref", None)
-        gs = getattr(args, "gate_summary", None)
-        has_gate_flags = (gk is not None) or (gr is not None) or (gs is not None)
-        is_transition_in = prior_status != "blocked"
-        if is_transition_in or has_gate_flags:
-            gate_err = A.validate_gate_flags("aw backlog set", gk, gr, gs)
-            if gate_err:
-                sys.stderr.write(f"{gate_err}\n")
-                return 2
-            item.gate_kind, item.gate_ref = gk, gr
-    else:
-        item.gate_kind = item.gate_ref = None
-
-    # Rewrite metadata bullets in place; move file to the new status dir; append history.
-    body = _strip_metadata_and_history(text)
-    rendered = _render_item(item, body, source_text=text)
-    # append a transition history record (in addition to the created line _render_item emits,
-    # preserve prior history by re-emitting it):
-    prior_status = parse_item(text).status
-    label = new_status if prior_status != new_status else "same-status"
-
-    # histdedup evbx9s E-02/E-04 / backlog r74211: consult the shared predicate for same-status writes,
-    # making this the third consumer of status_set.same_status_message_is_duplicate.
-    # Four binding details:
-    # (1) Date: same clock _reattach_history stamps with (core.utc_history_date() per 5ivkdh / 2vev8j 4.4).
-    # (2) Message: resolved message including the status -> <status> fallback, matching what would be written.
-    # (3) Status token: label ('same-status'), matching the record token.
-    # (4) Suppress only the record; metadata rewrite, gate fields, and moves continue untouched.
-    # PR-001 / E-04: fail safe against the bounding disagreement (F-03) where _history_section_lines
-    # sees indented lines while _prior_history_records requires column zero. Suppress only when
-    # prior records exist, preventing an empty history block. One suppress decision drives both
-    # the inline record (write_record) and the advisory sidecar below.
-    is_dup = False
-    if label == "same-status":
-        from agent_workflows.status_set import same_status_message_is_duplicate
-
-        today = core.utc_history_date()
-        resolved_msg = (
-            getattr(args, "message", "") or f"status -> {new_status}"
-        ).strip()
-        is_dup = same_status_message_is_duplicate(
-            text, status=label, date=today, message=resolved_msg
-        )
-    suppress = is_dup and bool(_prior_history_records(text))
-
-    rendered = _reattach_history(
-        text,
-        rendered,
-        f"{new_status}",
-        getattr(args, "message", "") or "",
-        label=label,
-        write_record=not suppress,
-    )
-
-    # awrelease Order 02 / rendrop 2yqt0a E-02: set/clear the Blocks-Release gate field when requested
-    # (a release id6, 'next', or '-' to clear). Absent the flag, an existing value is preserved in
-    # place by _render_item.
-    br = getattr(args, "blocks_release", None)
-    if br is not None:
-        from agent_workflows import releases as _releases
-
-        rendered = _releases.set_blocks_release_line(rendered, br)
-
-    # setidhard bwgyum / rendrop 2yqt0a E-02: apply explicit --graduated-to when given. Absent the
-    # flag, an existing value is preserved in place by _render_item.
-    if set_graduated_to is not None:
-        from agent_workflows import releases as _releases_gt
-
-        rendered = _releases_gt.set_graduated_to_line(rendered, set_graduated_to)
-
-    if set_rel_exempt_kind is not None or set_rel_exempt_ref is not None:
-        if set_rel_exempt_kind == "-":
-            rendered = set_release_exempt_kind_line(rendered, "-")
-            rendered = set_release_exempt_ref_line(rendered, "-")
-        else:
-            if set_rel_exempt_ref is not None:
-                rendered = set_release_exempt_ref_line(rendered, set_rel_exempt_ref)
-            if set_rel_exempt_kind is not None:
-                rendered = set_release_exempt_kind_line(rendered, set_rel_exempt_kind)
-
-    # bklgkind b5sfwm E-03/E-04: apply the two CLASSIFICATION fields. APPLIED AFTER THE RENDER,
-    # THROUGH THE SHARED LINE WRITERS, exactly as `--blocks-release` above is, so `_render_item` stays
-    # untouched and BOTH spellings of this verb funnel through ONE write mechanism: the positional
-    # spelling reaches the same `releases.set_work_kind_line` / `set_priority_line` primitives via
-    # `status_set.apply_status_change`. Writing to the parsed item before the render would fork the
-    # mechanism and make the two spellings' output impossible to compare byte for byte.
-    #
-    # These writes are HOISTED OUT OF EVERY STATUS BRANCH and keyed only on flag presence, which IS
-    # the "persists on a no-op transition" mechanism: a pure reclassification restates the item's
-    # current status, changes no directory, and still rewrites the metadata line. The values were
-    # validated at the top of this function, because these writers deliberately do not.
-    #
-    # THE ORDER OF THESE TWO WRITES IS DELIBERATE AND MATCHES `apply_status_change` (Priority first,
-    # then Work-Kind). Both writers INSERT directly after `- Status:`, so whichever runs LAST ends up
-    # the higher line; writing them in the other order would leave the two spellings of this one verb
-    # emitting the same fields in a different order, which V-03 compares.
-    if set_work_kind is not None or set_priority is not None:
-        from agent_workflows import releases as _releases
-
-        if set_priority is not None:
-            rendered = _releases.set_priority_line(rendered, set_priority)
-        if set_work_kind is not None:
-            rendered = _releases.set_work_kind_line(rendered, set_work_kind)
-
-    # nobugship di08i9 E-02 / gatefollows vsgd48 E-01: DEFAULT THE GATE ON RECLASSIFICATION AND ON
-    # STATUS TRANSITIONS INTO A LIVE STATUS. The gate follows a work kind becoming `bug` AND follows
-    # an ungated `bug` item transitioning into a live status (open, graduated, blocked). This is the
-    # `--status` spelling of `aw backlog set`; the POSITIONAL spelling routes through
-    # `status_set.apply_status_change`, which carries the SAME broadened call to the SAME shared predicate.
-    # Both are required: `aw backlog set` forks on whether `--status` was passed, so a default wired into
-    # one path would fire for one spelling and not the other.
-    #
-    # DOWNSTREAM WORKFLOW CONSEQUENCE (DISCLOSED, OQ-02): Gating an item at `graduated` changes what
-    # a LATER close does. An ungated bug taken open -> graduated -> done closed silently before;
-    # with the gate present at `graduated`, a later `set done` REFUSES with rc=1 under the shipped
-    # close-legitimacy gate (evaluate_blocking_close below), demanding a handoff (--from-backlog),
-    # evidence (--evidence), or an explicit de-gate (--blocks-release -). That refusal is intended
-    # policy (AGENTS.md release-gates rule), but makes a previously-silent close interactive.
-    #
-    # DO NOT REMOVE A GATE WHEN A WORK KIND CHANGES AWAY FROM `bug`: a gate may have been set
-    # deliberately for another reason, and silently clearing it would lose a decision. Hence the
-    # predicate is consulted only for the kind the item is BECOMING, it never clears, and it declines
-    # when the item already carries a gate (`existing_blocks_release`). Do not alter `decide_gate_default`
-    # itself: its condition 3 already declines `done` and `parked`, so the broadened guard needs no
-    # status allowlist of its own.
-    if br is None:
-        _rendered_item = parse_item(rendered)
-        _is_exempt = bool(
-            _rendered_item.release_exempt_kind
-            and _rendered_item.release_exempt_ref
-            and _rendered_item.release_exempt_kind != "-"
-            and _rendered_item.release_exempt_ref != "-"
-        )
-        gate_default, gate_default_notice = decide_gate_default(
-            repo_root,
-            kind=set_work_kind or item.kind,
-            status=new_status,
-            explicit_blocks_release=None,
-            existing_blocks_release=item.blocks_release,
-            is_exempt=_is_exempt,
-        )
-        if gate_default is not None:
-            from agent_workflows import releases as _releases
-
-            rendered = _releases.set_blocks_release_line(rendered, gate_default)
-        if gate_default_notice:
-            sys.stdout.write(f"aw backlog set: {gate_default_notice}\n")
-
-    # bklggrad orb9zb E-04 / gatedir 9vglxd E-04: release-gate close-legitimacy gate. `rendered` now
-    # reflects the POST-mutation item (including any same-call `--blocks-release -` de-gate), so a
-    # `done` + `--blocks-release -` in ONE call is honored via the DE-GATED path. The predicate is
-    # the SINGLE shared authority (check_engine.evaluate_blocking_close) evaluated against `gate_root`
-    # (defaulting to `repo_root`, but split when explicit `--gate-dir` is passed).
-    # On an illegitimate blocking close we REFUSE and write nothing; blocking `-> parked` and
-    # priority-demote-of-a-blocker WARN but proceed.
-    from agent_workflows import check_engine as _ce
-
-    verdict = _ce.evaluate_blocking_close(
-        gate_root,
-        src,
-        new_status,
-        evidence=getattr(args, "evidence", None),
-        item_text=rendered,
-        prior_priority=parse_item(text).priority,
+    return _status_set.run_set_command(
+        cmd_args,
+        scoped_type="backlog",
+        repo_root=repo_root,
+        args=args,
+        term=term,
+        gate_root=gate_root,
         lane_carrier_ref=lane_carrier_ref,
         lane_carrier_path=lane_carrier_path,
     )
-    if not verdict.legitimate and verdict.severity == "error":
-        sys.stderr.write(f"aw backlog set: refused: {verdict.reason}.\n")
-        for fix in verdict.fixes:
-            sys.stderr.write(f"  - {fix}\n")
-        return 1
-    if verdict.severity == "warn":
-        sys.stderr.write(f"aw backlog set: warning: {verdict.reason}.\n")
-
-    # gradcover sbiv1j E-02: refuse aw backlog set graduated when handoff is not ready.
-    # Evaluated against repo_root (where lane plans exist), NOT gate_root.
-    if norm_new_status == "graduated" and prior_status != "graduated":
-        item_id = item.id or core.extract_id6(src.name) or src.stem
-        handoff_res = _ce.evaluate_handoff_ready(repo_root, "backlog", item_id)
-        if not handoff_res.ready:
-            sys.stderr.write(
-                f"aw backlog set: refused: handoff for backlog {item_id} is not ready.\n"
-            )
-            for f in handoff_res.findings:
-                subj = f" [{f.plan_id6}]" if f.plan_id6 else ""
-                sys.stderr.write(f"  - [{f.code}]{subj} {f.detail}\n")
-                if f.remedy:
-                    sys.stderr.write(f"    Remedy: {f.remedy}\n")
-            return 1
-
-    # gateatrest f7igdu E-03: write the cited evidence durably on an evidence-satisfied close.
-    # Keyed on verdict.path == "SATISFIED", never on args.evidence presence alone.
-    if verdict.legitimate and verdict.path == "SATISFIED":
-        accepted_evidence = (
-            getattr(args, "evidence", None) or parse_item(rendered).close_evidence
-        )
-        if accepted_evidence:
-            rendered = set_close_evidence_line(
-                rendered, accepted_evidence, repo_root=gate_root
-            )
-
-    dest_dir = _resolve_backlog_root(repo_root) / _rp.target_subdir(  # type: ignore[operator]  # checker-limitation: target_subdir returns str for backlog
-        "backlog", new_status
-    )
-    dest = dest_dir / src.name
-    if getattr(args, "dry_run", False) or not getattr(args, "apply", True):
-        sys.stdout.write(f"--- would move {src} -> {dest} (status {new_status}) ---\n")
-        return 0
-    dest_dir.mkdir(parents=True, exist_ok=True)
-    core.atomic_write(dest, rendered)
-    moving = dest.resolve() != src.resolve()
-    if moving:
-        src.unlink()
-    # Append this transition to the GLOBAL sidecar as well (awhistory Order 02). The inline block now
-    # keeps the FULL history (plan `vhbvwz` E-08 stopped slimming it), so this is an additional
-    # machine-local activity-log entry rather than the only durable copy.
-    #
-    # plan `vhbvwz` E-04: a failure here is REPORTED, never swallowed, and it can never affect the
-    # inline record, which `_reattach_history` has already assembled into `rendered` above and which
-    # was written by the `atomic_write` above.
-    # Spec `2vev8j` C5 first clause: the sidecar may never precede the durable write it describes,
-    # because an event for a transition that did not happen is worse than a missing event. The
-    # sidecar remains a machine-local activity log (OQ-01) and must never gate a durable write; see
-    # `record_history.append_advisory`.
-    # histdedup evbx9s E-03/E-04: skip sidecar appending on suppressed duplicate same-status writes,
-    # following the specs.run_set precedent so the advisory log does not record phantom transitions.
-    if item.id and not suppress:
-        from agent_workflows import record_history as _rh
-
-        _rh.append_advisory(
-            repo_root,
-            id6=item.id,
-            tree="backlog",
-            workflow="aw backlog set",
-            actor="aw backlog",
-            message=(getattr(args, "message", "") or f"status -> {new_status}").strip(),
-            artifact=src.name,
-        )
-    if (
-        moving
-        and getattr(args, "rewrite_citations", False)
-        and not getattr(args, "dry_run", False)
-    ):
-        try:
-            old_rel = src.resolve().relative_to(repo_root.resolve()).as_posix()
-        except ValueError:
-            old_rel = src.as_posix()
-        try:
-            new_rel = dest.resolve().relative_to(repo_root.resolve()).as_posix()
-        except ValueError:
-            new_rel = dest.as_posix()
-
-        from agent_workflows import artifact_refs as _refs
-
-        _refs.post_relocation_citation_rewrite(
-            repo_root,
-            old_rel,
-            new_rel,
-            is_agent_or_json=bool(
-                getattr(args, "agent", False) or getattr(args, "json", False)
-            ),
-        )
-    sys.stdout.write(f"aw backlog set: {src.name} -> {new_status}\n")
-    return 0
 
 
 def run_note(args) -> int:

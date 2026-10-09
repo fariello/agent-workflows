@@ -17795,7 +17795,7 @@ def _dispatch(argv: Optional[Sequence[str]]) -> int:
                     if getattr(args, "args", None)
                     else getattr(args, "path", None)
                 )
-                return backlog_mod.run_set(args)
+                return backlog_mod.run_set(args, term=term)
         if backlog_cmd == "note":
             return backlog_mod.run_note(args)
         if backlog_cmd == "check":

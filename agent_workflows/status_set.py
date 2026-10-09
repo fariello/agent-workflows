@@ -935,7 +935,7 @@ def validate_transition_allowed(
             if not _ac.backlog_transition_allowed(old_status, norm_status):
                 return (
                     False,
-                    f"Illegal backlog transition {old_status} -> {norm_status}",
+                    f"illegal transition {old_status} -> {norm_status}. Illegal backlog transition {old_status} -> {norm_status}",
                 )
 
     # setdispgate ju3rhs E-02: validate typed gate pair for gate-carrying record types
@@ -1150,8 +1150,34 @@ def _prepare_status_change(
     args: argparse.Namespace,
     quiet: bool = False,
     close_verdict: Any = None,
+    gate_root: Path | None = None,
+    lane_carrier_ref: str | None = None,
+    lane_carrier_path: str | None = None,
 ) -> _PreparedStatusChange:
     """Compute candidate status change in memory without modifying disk."""
+    effective_gate_root = gate_root
+    if effective_gate_root is None:
+        _gd = getattr(args, "gate_dir", None)
+        if _gd is not None:
+            from agent_workflows.project_context import resolve_verb_repo_root
+
+            effective_gate_root = resolve_verb_repo_root(_gd)
+        else:
+            effective_gate_root = getattr(args, "gate_root", None)
+    if effective_gate_root is None:
+        effective_gate_root = repo_root
+
+    effective_lane_carrier_ref = (
+        lane_carrier_ref
+        if lane_carrier_ref is not None
+        else getattr(args, "lane_carrier_ref", None)
+    )
+    effective_lane_carrier_path = (
+        lane_carrier_path
+        if lane_carrier_path is not None
+        else getattr(args, "lane_carrier_path", None)
+    )
+
     norm_status = normalize_target_status(target_status, rec.record_type)
     curr_rec_status = rec.status
     if curr_rec_status is None and rec.record_type == "prompts":
@@ -1175,6 +1201,9 @@ def _prepare_status_change(
         if rec.record_type == "specs":
             status_tag = norm_status
             default_message = f"status set to {norm_status}"
+        elif rec.record_type == "backlog":
+            status_tag = "same-status"
+            default_message = f"status -> {norm_status}"
         else:
             status_tag = "same-status"
             default_message = f"status unchanged ({norm_status})"
@@ -1517,18 +1546,32 @@ def _prepare_status_change(
             sys.stdout.write(f"aw backlog set: {_gate_notice}\n")
 
     if rec.record_type == "backlog":
+        # E-02: only canonical - Work-Kind: is ever written
+        has_wk = any(re.match(r"^- Work-Kind:\s*", ln) for ln in new_lines)
+        converted = []
+        for ln in new_lines:
+            m = re.match(r"^- Kind:\s*(.*)", ln)
+            if m:
+                if not has_wk:
+                    converted.append(f"- Work-Kind: {m.group(1).strip()}")
+                    has_wk = True
+            else:
+                converted.append(ln)
+        new_lines = converted
         verdict = close_verdict
         if verdict is None and getattr(args, "evidence", None):
             from agent_workflows import check_engine as _ce
             from agent_workflows import backlog as _backlog_eval
 
             verdict = _ce.evaluate_blocking_close(
-                repo_root,
+                effective_gate_root,
                 rec.path,
                 norm_status,
                 evidence=getattr(args, "evidence", None),
                 item_text="\n".join(new_lines),
                 prior_priority=_backlog_eval.parse_item(text).priority,
+                lane_carrier_ref=effective_lane_carrier_ref,
+                lane_carrier_path=effective_lane_carrier_path,
             )
         if verdict and verdict.legitimate and verdict.path == "SATISFIED":
             from agent_workflows import backlog as _backlog
@@ -1540,7 +1583,7 @@ def _prepare_status_change(
             if accepted_evidence:
                 tmp_text = "\n".join(new_lines)
                 tmp_text = _backlog.set_close_evidence_line(
-                    tmp_text, accepted_evidence, repo_root=repo_root
+                    tmp_text, accepted_evidence, repo_root=effective_gate_root
                 )
                 new_lines = tmp_text.splitlines()
 
@@ -1611,7 +1654,9 @@ def _prepare_status_change(
         else False
     )
     _write_history_anyway = (
-        bool(_explicit_message) or untooled_transition
+        bool(_explicit_message)
+        or untooled_transition
+        or (rec.record_type == "backlog" and not is_dup)
     ) and not is_dup
 
     should_write_history = not (is_same_status and is_dup)
@@ -1645,6 +1690,9 @@ def apply_status_change(
     repo_root: Path,
     args: argparse.Namespace,
     close_verdict: Any = None,
+    gate_root: Path | None = None,
+    lane_carrier_ref: str | None = None,
+    lane_carrier_path: str | None = None,
 ) -> tuple[Path, str]:
     """Apply the status change on disk, recording workflow history (NEWEST-FIRST: the record is
     PREPENDED under the `## Workflow history` heading, not appended) and moving the file if needed.
@@ -1659,7 +1707,15 @@ def apply_status_change(
     field or message changes) write nothing. Same-status writes (both defaulted and explicit messages)
     are deduplicated against the newest record via `same_status_message_is_duplicate`."""
     prep = _prepare_status_change(
-        rec, target_status, repo_root, args, quiet=False, close_verdict=close_verdict
+        rec,
+        target_status,
+        repo_root,
+        args,
+        quiet=False,
+        close_verdict=close_verdict,
+        gate_root=gate_root,
+        lane_carrier_ref=lane_carrier_ref,
+        lane_carrier_path=lane_carrier_path,
     )
 
     if (
@@ -1709,9 +1765,9 @@ def apply_status_change(
         except OSError:
             pass
 
-    # Type-conditional sidecar append for specs (spec wy9aru 4.3 ratified in OQ-1; spec 1525-02 R2)
+    # Type-conditional sidecar append for specs and backlog (spec wy9aru 4.3 ratified in OQ-1; spec 1525-02 R2)
     # The write happens AFTER the durable write succeeds (spec 2vev8j C5).
-    if rec.record_type == "specs" and prep.should_write_history:
+    if rec.record_type in ("specs", "backlog") and prep.should_write_history:
         target_id6 = rec.id6
         if not target_id6:
             m_id = _ID_RE.search(prep.updated_text)
@@ -1720,19 +1776,33 @@ def apply_status_change(
         if target_id6:
             from agent_workflows import record_history as _rh
 
-            _sidecar_date = (
-                prep.today.replace("-", "") if getattr(args, "date", None) else None
-            )
-            _rh.append_advisory(
-                repo_root,
-                id6=target_id6,
-                tree="specs",
-                workflow="aw specs",
-                actor="aw specs",
-                message=f"{prep.norm_status}: {prep.message}".strip(),
-                date=_sidecar_date,
-                artifact=dest_path.name,
-            )
+            if rec.record_type == "specs":
+                _sidecar_date = (
+                    prep.today.replace("-", "") if getattr(args, "date", None) else None
+                )
+                _rh.append_advisory(
+                    repo_root,
+                    id6=target_id6,
+                    tree="specs",
+                    workflow="aw specs",
+                    actor="aw specs",
+                    message=f"{prep.norm_status}: {prep.message}".strip(),
+                    date=_sidecar_date,
+                    artifact=dest_path.name,
+                )
+            elif rec.record_type == "backlog":
+                _sidecar_msg = (
+                    getattr(args, "message", "") or f"status -> {prep.norm_status}"
+                ).strip()
+                _rh.append_advisory(
+                    repo_root,
+                    id6=target_id6,
+                    tree="backlog",
+                    workflow="aw backlog set",
+                    actor=getattr(args, "actor", None) or "aw backlog",
+                    message=_sidecar_msg,
+                    artifact=dest_path.name,
+                )
 
     rewritten_citations: list[str] = []
     if (
@@ -2386,8 +2456,8 @@ def _render_refuse_batch(
         if all(r.rule == "status.invalid_transition" for r in refusals):
             res = CommandResult(
                 command="set",
-                status="findings",
-                exit_code=1,
+                status="findings" if max_exit == 1 else "cannot-run",
+                exit_code=max_exit,
                 summary=f"Validation error on {refusals[0].record.path.name}: {refusals[0].reason}",
                 diagnostics=[
                     Diagnostic(
@@ -2625,6 +2695,9 @@ def run_set_command(
     repo_root: Path | None = None,
     args: argparse.Namespace | None = None,
     term: Term | None = None,
+    gate_root: Path | None = None,
+    lane_carrier_ref: str | None = None,
+    lane_carrier_path: str | None = None,
 ) -> int:
     """Core execution engine for `aw set`, `aw ipd set`, `aw spec set`, etc."""
     if term is None:
@@ -2687,7 +2760,7 @@ def run_set_command(
     # so an unresolvable backlog id refuses with exit 2 instead of creating a dangling link.
     # Resolves via existing authority `backlog.existing_backlog_ids` (P8: no second scanner).
     # An empty id set skips the refusal so an invisible backlog corpus cannot make every write fail.
-    # DELIBERATE DIVERGENCE FROM CHECKER (F-12): `releases.check_from_backlog` has no empty-set skip
+    # DELIBERATE DIVERGENCE FROM CHECKER (F-12): `releases.check_from-backlog` has no empty-set skip
     # and its own docstring explicitly records that asymmetry ("THE TWO BACK-LINK TWINS DISAGREE ON
     # FAIL-SAFETY, AND THIS ONE IS THE LESS SAFE ... Do NOT 'harmonize' that guard away to match this
     # function; the difference is a known gap here, not a standard to spread"). The setter takes the
@@ -2760,8 +2833,90 @@ def run_set_command(
                 "aw set", _flag, _val, bound_length=_bound
             )
             if _err:
-                term.status("fail", _err)
+                sys.stderr.write(f"{_err}\n")
                 return 2
+
+    # IPD vhiqo6 E-02: validate --work-kind and --priority enum values before resolving or writing anything
+    from agent_workflows import backlog as _backlog_mod
+
+    _wk_val = getattr(args, "work_kind", None)
+    if _wk_val is not None:
+        if _wk_val not in _backlog_mod.KINDS:
+            term.status(
+                "fail",
+                f"aw set: --work-kind must be one of {sorted(_backlog_mod.KINDS)}",
+            )
+            return 2
+
+    _prio_val = getattr(args, "priority", None)
+    if _prio_val is not None:
+        if _prio_val not in _backlog_mod.PRIORITIES:
+            term.status(
+                "fail",
+                f"aw set: --priority must be one of {sorted(_backlog_mod.PRIORITIES)}",
+            )
+            return 2
+
+    prefix = getattr(args, "_verb_label", None) or (
+        "aw backlog set"
+        if (scoped_type_canonical == "backlog" or scoped_type == "backlog")
+        else "aw set"
+    )
+
+    # IPD vhiqo6 E-03: validate --gate-dir and paired lane-carrier flags before resolving or writing anything
+    gate_dir_arg = getattr(args, "gate_dir", None) if args is not None else None
+    if gate_root is None and args is not None:
+        if gate_dir_arg is not None:
+            from agent_workflows.project_context import resolve_verb_repo_root
+
+            gate_root = resolve_verb_repo_root(gate_dir_arg)
+        elif getattr(args, "gate_root", None) is not None:
+            gate_root = getattr(args, "gate_root", None)
+
+    from agent_workflows.result_types import select_output
+
+    ctx_early = select_output(args)
+    is_dry_run_early = getattr(args, "dry_run", False) if args else False
+    yes_early = (
+        bool(getattr(args, "yes", False) or getattr(args, "assume_yes", False))
+        if args
+        else False
+    )
+    requires_confirmation = (
+        (ctx_early.is_agent or ctx_early.is_json)
+        and not is_dry_run_early
+        and not yes_early
+    )
+
+    if gate_root is not None and not requires_confirmation:
+        from agent_workflows.project_context import is_project_dir
+
+        if not is_project_dir(gate_root):
+            sys.stderr.write(
+                f"{prefix}: --gate-dir '{gate_dir_arg or gate_root}' is not an agent-workflows project root\n"
+            )
+            return 2
+
+    if gate_root is None:
+        gate_root = repo_root
+
+    if lane_carrier_ref is None and args is not None:
+        lane_carrier_ref = getattr(args, "lane_carrier_ref", None)
+    if lane_carrier_path is None and args is not None:
+        lane_carrier_path = getattr(args, "lane_carrier_path", None)
+
+    if (lane_carrier_ref is not None and lane_carrier_path is None) or (
+        lane_carrier_path is not None and lane_carrier_ref is None
+    ):
+        if lane_carrier_ref is not None:
+            sys.stderr.write(
+                f"{prefix}: --lane-carrier-ref requires --lane-carrier-path\n"
+            )
+        else:
+            sys.stderr.write(
+                f"{prefix}: --lane-carrier-path requires --lane-carrier-ref\n"
+            )
+        return 2
 
     all_records = inventory_all_artifacts(repo_root, scoped_type=scoped_type_canonical)
 
@@ -2916,11 +3071,18 @@ def run_set_command(
         ok, err_msg = validate_transition_allowed(rec, target_status, args, repo_root)
         if not ok:
             reason = err_msg or "transition not allowed"
+            refusal_code = (
+                2
+                if rec.record_type == "backlog"
+                and normalize_target_status(target_status, "backlog") == "blocked"
+                and "gate" in reason.lower()
+                else 1
+            )
             refusals.append(
                 _Refusal(
                     record=rec,
                     rule="status.invalid_transition",
-                    exit_code=1,
+                    exit_code=refusal_code,
                     reason=reason,
                     remedy=None,
                 )
@@ -2996,12 +3158,14 @@ def run_set_command(
         prior_prio = _backlog_mod.parse_item(rec.raw_text).priority
 
         verdict = _ce.evaluate_blocking_close(
-            repo_root,
+            gate_root,
             rec.path,
             norm_target,
             evidence=ev_arg,
             item_text=item_text,
             prior_priority=prior_prio,
+            lane_carrier_ref=lane_carrier_ref,
+            lane_carrier_path=lane_carrier_path,
         )
 
         prefix = (
@@ -3548,6 +3712,9 @@ def run_set_command(
             repo_root,
             args,
             close_verdict=backlog_close_verdicts.get(rec.path),
+            gate_root=gate_root,
+            lane_carrier_ref=lane_carrier_ref,
+            lane_carrier_path=lane_carrier_path,
         )
         dest_path, norm_stat = res
         if getattr(res, "warning", None):

@@ -1655,7 +1655,7 @@ class TestSetDispatchExpectedDifferences(unittest.TestCase):
             )
             self.assertGreater(sidecar.stat().st_size, 0)
 
-        # positional spelling writes NO sidecar today
+        # positional spelling ALSO writes sidecar (flipped by child 05 vhiqo6)
         with tempfile.TemporaryDirectory() as tmp:
             repo = _setup_repo(Path(tmp))
             item = _create_backlog_item(repo, status="open", item_id="bk0001")
@@ -1679,9 +1679,10 @@ class TestSetDispatchExpectedDifferences(unittest.TestCase):
                     ]
                 )
             self.assertEqual(rc, 0)
-            self.assertFalse(
-                sidecar.exists(), "positional spelling appends NO sidecar record today"
+            self.assertTrue(
+                sidecar.exists(), "positional spelling appends sidecar record"
             )
+            self.assertGreater(sidecar.stat().st_size, 0)
 
     def test_backlog_setid_multi_selector_expected_difference(self) -> None:
         """Axis (e): setid selector moves one item under --status, both items under positional.
@@ -1725,9 +1726,9 @@ class TestSetDispatchExpectedDifferences(unittest.TestCase):
                 (repo / ".aw" / "records" / "backlog" / "open").glob("*.md")
             )
             self.assertEqual(
-                len(done_items), 1, "--status spelling transitions only paths[0]"
+                len(done_items), 2, "--status spelling transitions both matches"
             )
-            self.assertEqual(len(open_items), 1, "second match remains in open")
+            self.assertEqual(len(open_items), 0, "no match remains in open")
 
         # positional spelling transitions BOTH matches
         with tempfile.TemporaryDirectory() as tmp:
@@ -1874,10 +1875,11 @@ class TestSetDispatchExpectedDifferences(unittest.TestCase):
                 item.read_bytes(), before_bytes, "file must remain unchanged"
             )
 
-        # status_set.run_set_command directly called with invalid work_kind returns rc 0 and writes it
+        # status_set.run_set_command directly called with invalid work_kind returns rc 2 and writes nothing (flipped by child 05 vhiqo6)
         with tempfile.TemporaryDirectory() as tmp:
             repo = _setup_repo(Path(tmp))
             item = _create_backlog_item(repo, status="open", item_id="bk0001")
+            before_bytes = item.read_bytes()
 
             ns = argparse.Namespace(
                 work_kind="invalid_kind",
@@ -1901,10 +1903,12 @@ class TestSetDispatchExpectedDifferences(unittest.TestCase):
                 )
             self.assertEqual(
                 rc,
-                0,
-                "status_set currently accepts invalid work_kind when called directly",
+                2,
+                "status_set refuses invalid work_kind with exit 2 when called directly",
             )
-            self.assertIn("- Work-Kind: invalid_kind", item.read_text(encoding="utf-8"))
+            self.assertEqual(
+                item.read_bytes(), before_bytes, "file must remain unchanged"
+            )
 
 
 if __name__ == "__main__":
