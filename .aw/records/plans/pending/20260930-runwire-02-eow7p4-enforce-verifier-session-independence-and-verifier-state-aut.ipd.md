@@ -128,6 +128,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Carrier-Declined: A DELIBERATE DESIGN CHOICE, not a deferral: `fzxfph` measured that `run_viewer` renders any token outside its known set as a bare `-`, so adding one would make this change LESS visible, not more. The distinction rides on the `Refusal` record instead, which already reaches the run summary and `aw runs`' `Issue` column. There is nothing left undone for a carrier to own.
 - THE `correction_required -> runnable` REQUEUE (`1bfppy` OQ-01), and anything requiring `run_recovery` or a ledger (parent `i18yaz` OQ-01).
   - Carrier: ye28s6
+  - Carrier-Evidence: .aw/records/backlog/done/20260930-runwire-01-ye28s6-decide-whether-a-driver-run-writes-a-ledger.backlog.md
 - HARMONIZING `ipd_lifecycle.ROLE_WORKER` (measured absent from `verify_roles.ROLE_CONTRACTS`) with the role contracts. They guard different things: which PROCESS may run `aw ipd begin`/`finalize`, versus which ROLE may author which record.
   - Carrier-Declined: The disjointness is measured but is NOT established as a defect, so a carrier would hand on a conclusion this plan did not reach. Each mechanism is internally coherent and they answer different questions; whether one shared vocabulary would be an improvement or would conflate two distinct guards was not measured here. Recorded as an observation for a future reader rather than as work, because an item naming an unproven defect costs the next reader a triage pass.
 
