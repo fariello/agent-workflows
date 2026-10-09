@@ -6,7 +6,7 @@
 - Scope: IN: author one differential harness that drives BOTH spellings of `aw backlog set` and BOTH spellings of `aw specs set` over identical fixtures and asserts agreement on every axis spec `wy9aru` Section 4 rules canonical AND that already agrees today, with the axes `wy9aru` Section 7 assigns elsewhere normalized by SHAPE; record the axes that currently DISAGREE as explicit, individually justified expected-difference assertions, so each later child can flip exactly one of them and show the flip. OUT, each with a reason recorded under "Deferred": any production code change whatsoever (this child is tests only); any dispatch move (children 04, 05); the two gate bypasses (child 03); fixing any axis `wy9aru` Section 7 assigns elsewhere.
 - Scope-Paths: tests/test_set_dispatch_parity.py
 - Item-Dependencies: executed:c6f6sj
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - From-Spec: wy9aru
 - Work-Kind: chore
@@ -17,9 +17,9 @@
 - Highest E allocated: 05
 - Author: opencode/its_direct/pt3-claude-opus-5-1m-us
 - Id: afdmn6
-- Approval: 2026-10-08, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-09 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: afdmn6 verified (set setdisp, attempt 1).
 - 2026-10-08 approved (aw set): status set to approved
 - 2026-10-07 /plan-review (opencode uri/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005, PR-006, PR-007
 - 2026-10-07 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-001..PR-007 FIXED
