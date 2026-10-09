@@ -22443,6 +22443,65 @@ def defect_report_schema_literal() -> str:
     )
 
 
+#: The proposal field's key inside the agent-written outcome JSON (fixfirst-02 tha7a6).
+PROPOSAL_KEY: str = "proposal"
+
+PROPOSAL_KIND_GATE_CHANGE: str = "gate-change"
+PROPOSAL_KIND_TOOL_DEFECT: str = "tool-defect"
+PROPOSAL_KIND_DIFFERENT_APPROACH: str = "different-approach"
+PROPOSAL_KINDS: tuple[str, ...] = (
+    PROPOSAL_KIND_GATE_CHANGE,
+    PROPOSAL_KIND_TOOL_DEFECT,
+    PROPOSAL_KIND_DIFFERENT_APPROACH,
+)
+
+PROPOSAL_SIZE_SMALL: str = "small"
+PROPOSAL_SIZE_MATERIAL: str = "material"
+PROPOSAL_SIZES: tuple[str, ...] = (
+    PROPOSAL_SIZE_SMALL,
+    PROPOSAL_SIZE_MATERIAL,
+)
+
+PROPOSAL_VERDICT_VALID: str = "valid"
+PROPOSAL_VERDICT_ABSENT: str = "absent"
+PROPOSAL_VERDICT_MALFORMED: str = "malformed"
+PROPOSAL_VERDICTS: tuple[str, ...] = (
+    PROPOSAL_VERDICT_VALID,
+    PROPOSAL_VERDICT_ABSENT,
+    PROPOSAL_VERDICT_MALFORMED,
+)
+
+PROPOSAL_REQUIRED_KEYS: tuple[str, ...] = (
+    "kind",
+    "blocked_by",
+    "why",
+    "proposed_change",
+    "paths",
+    "size",
+)
+
+PROPOSAL_BLOCKED_BY_MAX_LENGTH: int = 500
+PROPOSAL_WHY_MAX_LENGTH: int = 2000
+PROPOSAL_PROPOSED_CHANGE_MAX_LENGTH: int = 2000
+PROPOSAL_PATH_MAX_LENGTH: int = 500
+
+
+def proposal_schema_literal() -> str:
+    """The proposal field as it appears inside the execute prompt's outcome-JSON literal."""
+    return (
+        f'  "{PROPOSAL_KEY}": {{\n'
+        f'    "kind": "gate-change|tool-defect|different-approach",\n'
+        f'    "blocked_by": "what refused or failed, verbatim",\n'
+        f'    "why": "why the cause cannot be fixed within scope",\n'
+        f'    "proposed_change": "what should change",\n'
+        f'    "paths": [\n'
+        f'      "repo/relative/path"\n'
+        f"    ],\n"
+        f'    "size": "small|material"\n'
+        f"  }},"
+    )
+
+
 def defect_report_prompt_block() -> str:
     """The demand itself: state findings AFFIRMATIVELY AND NEGATIVELY, and file a carrier.
 
@@ -22762,6 +22821,216 @@ def validate_defect_report(outcome: Any) -> DefectReportVerdict:
         coerced=bool(coercions),
         coercions=tuple(coercions),
         violation="",
+    )
+
+
+_PROPOSAL_BULLET_RE: re.Pattern[str] = re.compile(
+    r"^(-\s*[A-Za-z0-9_-]+:.*)$", re.MULTILINE
+)
+
+
+def sanitize_front_matter_text(text: str) -> str:
+    """Neutralize lines that would parse as front-matter bullets.
+
+    Any line starting with `- ` followed by `<Key>:` (e.g. `- Status:`,
+    `- Readiness:`, `- Id:`, `- Blocks-Release:`) is indented by two spaces
+    so it cannot be parsed as a top-level front-matter field when appended to a record.
+    """
+    if not text:
+        return text
+    return _PROPOSAL_BULLET_RE.sub(r"  \1", text)
+
+
+class ProposalVerdict(NamedTuple):
+    """The validator's structured answer for an outcome's proposal field.
+
+    NEVER raises (see :func:`validate_proposal`).
+
+    Fields:
+      * `verdict`: one of :data:`PROPOSAL_VERDICTS` (valid, absent, malformed).
+      * `proposal`: the raw proposal object if present and dict-shaped, else None.
+      * `sanitized_proposal`: normalized and front-matter-sanitized dict when valid, else None.
+      * `violations`: tuple of diagnostic strings naming missing or malformed keys/values.
+    """
+
+    verdict: str
+    proposal: dict[str, Any] | None
+    sanitized_proposal: dict[str, Any] | None
+    violations: tuple[str, ...]
+
+    @property
+    def is_valid(self) -> bool:
+        """True only when the proposal is present, conforming, bounded, and sanitized."""
+        return self.verdict == PROPOSAL_VERDICT_VALID
+
+    @property
+    def is_absent(self) -> bool:
+        """True when no proposal was submitted."""
+        return self.verdict == PROPOSAL_VERDICT_ABSENT
+
+    @property
+    def is_malformed(self) -> bool:
+        """True when a proposal was attempted but missed schema, bounds, or path rules."""
+        return self.verdict == PROPOSAL_VERDICT_MALFORMED
+
+
+def validate_proposal(outcome: Any) -> ProposalVerdict:
+    """Validate the proposal field tolerantly and NEVER raise.
+
+    Accepts either the whole outcome dict or the proposal object itself.
+    Returns :class:`ProposalVerdict`.
+    """
+    raw: Any = None
+    if isinstance(outcome, Mapping):
+        if PROPOSAL_KEY in outcome:
+            raw = outcome.get(PROPOSAL_KEY)
+            if raw is None:
+                return ProposalVerdict(
+                    verdict=PROPOSAL_VERDICT_ABSENT,
+                    proposal=None,
+                    sanitized_proposal=None,
+                    violations=(),
+                )
+        elif any(k in outcome for k in PROPOSAL_REQUIRED_KEYS):
+            raw = outcome
+        else:
+            return ProposalVerdict(
+                verdict=PROPOSAL_VERDICT_ABSENT,
+                proposal=None,
+                sanitized_proposal=None,
+                violations=(),
+            )
+    elif outcome is None:
+        return ProposalVerdict(
+            verdict=PROPOSAL_VERDICT_ABSENT,
+            proposal=None,
+            sanitized_proposal=None,
+            violations=(),
+        )
+    else:
+        return ProposalVerdict(
+            verdict=PROPOSAL_VERDICT_MALFORMED,
+            proposal=None,
+            sanitized_proposal=None,
+            violations=(
+                f"proposal must be a dict/object, got {type(outcome).__name__}",
+            ),
+        )
+
+    if not isinstance(raw, Mapping):
+        return ProposalVerdict(
+            verdict=PROPOSAL_VERDICT_MALFORMED,
+            proposal=None,
+            sanitized_proposal=None,
+            violations=(f"proposal must be a dict/object, got {type(raw).__name__}",),
+        )
+
+    raw_dict = dict(raw)
+    violations: list[str] = []
+
+    # Check required keys
+    missing = [k for k in PROPOSAL_REQUIRED_KEYS if k not in raw_dict]
+    if missing:
+        violations.append(f"proposal missing required keys: {', '.join(missing)}")
+
+    # Kind check
+    kind = raw_dict.get("kind")
+    if kind not in PROPOSAL_KINDS:
+        violations.append(
+            f"proposal kind {kind!r} invalid; must be one of {PROPOSAL_KINDS}"
+        )
+
+    # Size check
+    size = raw_dict.get("size")
+    if size not in PROPOSAL_SIZES:
+        violations.append(
+            f"proposal size {size!r} invalid; must be one of {PROPOSAL_SIZES}"
+        )
+
+    # String keys checks & bounds
+    blocked_by = raw_dict.get("blocked_by")
+    if not isinstance(blocked_by, str):
+        violations.append("proposal blocked_by must be a string")
+    elif len(blocked_by) > PROPOSAL_BLOCKED_BY_MAX_LENGTH:
+        violations.append(
+            f"proposal blocked_by exceeds {PROPOSAL_BLOCKED_BY_MAX_LENGTH} characters ({len(blocked_by)})"
+        )
+    elif not blocked_by.strip():
+        violations.append("proposal blocked_by must not be empty")
+
+    why = raw_dict.get("why")
+    if not isinstance(why, str):
+        violations.append("proposal why must be a string")
+    elif len(why) > PROPOSAL_WHY_MAX_LENGTH:
+        violations.append(
+            f"proposal why exceeds {PROPOSAL_WHY_MAX_LENGTH} characters ({len(why)})"
+        )
+    elif not why.strip():
+        violations.append("proposal why must not be empty")
+
+    proposed_change = raw_dict.get("proposed_change")
+    if not isinstance(proposed_change, str):
+        violations.append("proposal proposed_change must be a string")
+    elif len(proposed_change) > PROPOSAL_PROPOSED_CHANGE_MAX_LENGTH:
+        violations.append(
+            f"proposal proposed_change exceeds {PROPOSAL_PROPOSED_CHANGE_MAX_LENGTH} characters ({len(proposed_change)})"
+        )
+    elif not proposed_change.strip():
+        violations.append("proposal proposed_change must not be empty")
+
+    # Paths check
+    paths = raw_dict.get("paths")
+    if not isinstance(paths, (list, tuple)):
+        violations.append("proposal paths must be a list of repo-relative paths")
+    else:
+        for idx, p in enumerate(paths):
+            if not isinstance(p, str):
+                violations.append(
+                    f"proposal path at index {idx} must be a string, got {type(p).__name__}"
+                )
+                continue
+            p_strip = p.strip()
+            if not p_strip:
+                violations.append(f"proposal path at index {idx} must not be empty")
+                continue
+            if p_strip.startswith("/") or p_strip.startswith("\\"):
+                violations.append(
+                    f"proposal path {p!r} must be repo-relative with no leading slash"
+                )
+            if any(glob_char in p_strip for glob_char in ("*", "?", "[", "]")):
+                violations.append(
+                    f"proposal path {p!r} must not contain glob characters"
+                )
+            parts = p_strip.replace("\\", "/").split("/")
+            if any(part == ".." for part in parts):
+                violations.append(f"proposal path {p!r} must not contain '..' segments")
+            if len(p_strip) > PROPOSAL_PATH_MAX_LENGTH:
+                violations.append(
+                    f"proposal path {p!r} exceeds {PROPOSAL_PATH_MAX_LENGTH} characters"
+                )
+
+    if violations:
+        return ProposalVerdict(
+            verdict=PROPOSAL_VERDICT_MALFORMED,
+            proposal=raw_dict,
+            sanitized_proposal=None,
+            violations=tuple(violations),
+        )
+
+    sanitized = {
+        "kind": str(kind),
+        "blocked_by": sanitize_front_matter_text(str(blocked_by).strip()),
+        "why": sanitize_front_matter_text(str(why).strip()),
+        "proposed_change": sanitize_front_matter_text(str(proposed_change).strip()),
+        "paths": [str(p).strip() for p in paths],
+        "size": str(size),
+    }
+
+    return ProposalVerdict(
+        verdict=PROPOSAL_VERDICT_VALID,
+        proposal=raw_dict,
+        sanitized_proposal=sanitized,
+        violations=(),
     )
 
 
@@ -30101,6 +30370,7 @@ Before exiting, write valid JSON to {outcome} with at least:
   "deferred_question_ids": [],
   "incomplete_requirements": [],
 {defect_report_schema_literal()}
+{proposal_schema_literal()}
   "partial_work_location": null,
   "recommended_next_action": "...",
   "pushed": false
@@ -35452,6 +35722,170 @@ def execute_item_core(
         )
 
         verify_disp = None
+
+        # fixfirst-02 (tha7a6) E-03: Proposal channel check
+        if not is_review and not is_production:
+            proposal_verdict = validate_proposal(outcome)
+            if proposal_verdict.is_valid:
+                proposal_data = (
+                    proposal_verdict.sanitized_proposal or outcome[PROPOSAL_KEY]
+                )
+                filing_res = perform_coordinator_proposal_file(
+                    run_dir=run_dir,
+                    state=state,
+                    item=item,
+                    proposal=proposal_data,
+                    host_labels=host_labels,
+                    run_checked=run_checked,
+                )
+                prop_rec = {
+                    "filed": filing_res.filed,
+                    "record_id6": filing_res.record_id6,
+                    "record_path": filing_res.record_path,
+                    "size": filing_res.size,
+                    "kind": filing_res.kind,
+                    "blocked_by": filing_res.blocked_by,
+                    "commit": filing_res.commit,
+                    "view_cmd": (
+                        f"aw show {filing_res.record_id6}"
+                        if (filing_res.filed and filing_res.record_id6)
+                        else f"cat {filing_res.record_path}"
+                    ),
+                }
+                item["proposal_record"] = prop_rec
+                attempt["proposal_record"] = prop_rec
+
+                append_jsonl(
+                    run_dir / "events.jsonl",
+                    {
+                        "at": utc_now(),
+                        "event": (
+                            "agent-proposal-filed"
+                            if filing_res.filed
+                            else "agent-proposal-refused"
+                        ),
+                        "id6": item["id6"],
+                        "attempt": attempt_no,
+                        "record_id6": filing_res.record_id6,
+                        "record_path": filing_res.record_path,
+                        "filed": filing_res.filed,
+                        "size": filing_res.size,
+                        "kind": filing_res.kind,
+                    },
+                )
+
+                disposition = "fail-gate"
+                attempt["disposition"] = "fail-gate"
+                item["status"] = "fail-gate"
+                item[NEEDS_INPUT_KEY] = True
+                attempt[NEEDS_INPUT_KEY] = True
+
+                if filing_res.filed:
+                    p_reason = (
+                        f"the agent proposed a {filing_res.size} {filing_res.kind} change: "
+                        f"{filing_res.blocked_by}"
+                    )
+                    p_remedy = (
+                        f"inspect proposal {filing_res.record_id6} at {filing_res.record_path} "
+                        f"and decide whether to approve or proceed"
+                    )
+                else:
+                    p_reason = (
+                        f"the agent proposed a {filing_res.size} {filing_res.kind} change "
+                        f"but coordinator filing refused: {filing_res.fallback_reason or filing_res.blocked_by}"
+                    )
+                    p_remedy = (
+                        f"inspect unfiled proposal copy at {filing_res.record_path} "
+                        f"and decide whether to adopt it"
+                    )
+                record_refusal(
+                    item,
+                    code=GATE_ANSWER_NEEDS_HUMAN_CODE,
+                    reason=p_reason,
+                    remedy=p_remedy,
+                )
+
+                if wt_handle is not None:
+                    lane_containment.record_lane_preserved(
+                        run_dir=run_dir,
+                        item=item,
+                        handle=wt_handle,
+                        reason="the item proposed a change and stopped awaiting human decision; lane preserved",
+                        reason_codes=("agent-proposal-needs-human",),
+                    )
+
+                defect_verdict = validate_defect_report(outcome)
+                defect_rec = defect_report_record(
+                    defect_verdict,
+                    reasked=False,
+                    reask_reason="proposal filed; stopping awaiting human decision",
+                )
+                attempt["defect_report"] = defect_rec
+                item["defect_report"] = defect_rec
+
+                if filing_res.filed:
+                    print(
+                        pal(
+                            f"  • IPD {item['id6']} proposed {filing_res.size} {filing_res.kind} change: "
+                            f"{filing_res.record_path} ({filing_res.record_id6}); stops awaiting human decision",
+                            "cyan",
+                        )
+                    )
+                else:
+                    print(
+                        pal(
+                            f"  ! IPD {item['id6']} proposed change but coordinator filing refused "
+                            f"({filing_res.fallback_reason}); copy saved to {filing_res.record_path}",
+                            "yellow",
+                        ),
+                        file=sys.stderr,
+                    )
+                item["status"] = disposition
+                save_state(run_dir, state)
+
+                reached_success = False
+                finish_resolved = resolve_item_lifecycle(disposition)
+                finish = (
+                    pal.lifecycle_glyph(finish_resolved, width=2)
+                    + pal(f"IPD {seq:02d}/{total} {item['id6']}", "bold")
+                    + pal(f" ({action})", "dim")
+                    + " -> "
+                    + pal.lifecycle(finish_resolved, disposition)
+                    + pal(f"  (exit {exit_code})", "dim")
+                )
+                print(finish)
+                print()
+                append_jsonl(
+                    run_dir / "events.jsonl",
+                    {
+                        "at": utc_now(),
+                        "event": "ipd-finished",
+                        "id6": item["id6"],
+                        "action": action,
+                        "attempt": attempt_no,
+                        "exit_code": exit_code,
+                        "status": disposition,
+                        "session_id": session_id,
+                        "verification_status": verify_disp,
+                    },
+                )
+                return
+            elif (
+                outcome
+                and isinstance(outcome, Mapping)
+                and outcome.get(PROPOSAL_KEY) is not None
+            ):
+                attempt["proposal_malformed"] = list(proposal_verdict.violations)
+                append_jsonl(
+                    run_dir / "events.jsonl",
+                    {
+                        "at": utc_now(),
+                        "event": "agent-proposal-malformed",
+                        "id6": item["id6"],
+                        "attempt": attempt_no,
+                        "violations": list(proposal_verdict.violations),
+                    },
+                )
         opts = state.get("options", {})
         validate = opts.get("validate", False)
         if "validate" not in opts:
@@ -39949,6 +40383,379 @@ def perform_coordinator_backlog_close(
                 "detail": record["reason"],
             },
         )
+
+
+class ProposalFilingResult(NamedTuple):
+    """Result of filing an agent proposal in a coordinator worktree (fixfirst-02 tha7a6)."""
+
+    filed: bool
+    record_id6: str
+    record_path: str
+    size: str
+    kind: str
+    blocked_by: str
+    commit: str | None = None
+    landing_status: str | None = None
+    reason: str | None = None
+
+
+def perform_coordinator_proposal_file(
+    run_dir: Path,
+    state: Mapping[str, Any],
+    item: Mapping[str, Any],
+    proposal: Mapping[str, Any],
+    *,
+    timeout: float | None = None,
+    max_raced_attempts: int = 5,
+    rebuild_on_race: bool = True,
+    sleep: Callable[[float], None] | None = None,
+    now: Callable[[], float] | None = None,
+    run_checked: Callable[..., str] | None = None,
+    host_labels: HostLabels | None = None,
+) -> ProposalFilingResult:
+    """File a valid agent proposal as ONE tracked record on main via coordinator worktree.
+
+    fixfirst-02 (tha7a6) E-02.
+    """
+    repo = Path(state["repo"])
+    run_id = str(state.get("run_id") or "")
+    item_id6 = str(item.get("id6") or "unknown")
+    lane_branch = str(item.get("lane_branch") or f"aw/lane/{item_id6}")
+
+    size = str(proposal.get("size") or "material")
+    kind = str(proposal.get("kind") or "gate-change")
+    blocked_by = sanitize_front_matter_text(str(proposal.get("blocked_by") or ""))
+    why = sanitize_front_matter_text(str(proposal.get("why") or ""))
+    proposed_change = sanitize_front_matter_text(
+        str(proposal.get("proposed_change") or "")
+    )
+    paths = list(proposal.get("paths") or [])
+
+    from agent_workflows import (
+        commit_lock,
+        git_commit_helper as _gch,
+        ipd_lifecycle,
+        selectors as _sel,
+    )
+    from agent_workflows.backlog import parse_item
+
+    # 1. Inherit priority, work_kind, blocks_release from the proposing item
+    item_priority = "medium"
+    item_work_kind = "bug"
+    item_blocks_release: str | None = None
+
+    item_plan_file = item.get("configured_file")
+    if item_plan_file:
+        try:
+            p_path = resolve_plan_path(repo, str(item_plan_file), item_id6)
+            if p_path and p_path.is_file():
+                raw_txt = p_path.read_text(encoding="utf-8")
+                m_prio = re.search(r"(?m)^-\s*Priority:\s*(\S+)", raw_txt)
+                if m_prio:
+                    item_priority = m_prio.group(1).strip()
+                m_kind = re.search(r"(?m)^-\s*Work-Kind:\s*(\S+)", raw_txt)
+                if m_kind:
+                    item_work_kind = m_kind.group(1).strip()
+                item_blocks_release = _sel.read_front_matter_blocks_release(raw_txt)
+        except Exception:
+            pass
+
+    if item_priority not in ("high", "medium", "low"):
+        item_priority = str(item.get("priority") or "medium")
+    if item_work_kind not in ("bug", "feature", "chore", "security", "followup"):
+        item_work_kind = str(item.get("work_kind") or item.get("kind") or "bug")
+
+    gate_to_pass: str | None = None
+    if item_blocks_release and item_blocks_release != "-":
+        gate_to_pass = item_blocks_release
+    elif item_work_kind == "bug":
+        gate_to_pass = "next"
+
+    from agent_workflows import releases as _releases
+
+    if gate_to_pass and gate_to_pass != "-":
+        if _releases.resolve_release(repo, gate_to_pass) is None:
+            if gate_to_pass == "next":
+                gate_to_pass = None
+
+    # Build the proposal body text
+    paths_str = "\n".join(f"- {p}" for p in paths) if paths else "- None declared"
+    body_text = f"""## Agent Proposal from {item_id6}
+
+- Run-Id: {run_id or 'unspecified'}
+- Proposing-Item: {item_id6}
+- Lane-Branch: {lane_branch}
+- Blocked-By: {blocked_by}
+- Kind: {kind}
+- Size: {size}
+
+### Why
+{why}
+
+### Proposed Change
+{proposed_change}
+
+### Affected Paths
+{paths_str}
+"""
+
+    def _write_fallback_record(reason: str) -> ProposalFilingResult:
+        proposals_dir = run_dir / "proposals"
+        proposals_dir.mkdir(parents=True, exist_ok=True)
+        ext = "ipd.md" if size == "small" else "backlog.md"
+        pos = item.get("position", 1)
+        fallback_file = proposals_dir / f"{pos:02d}-{item_id6}-proposal.{ext}"
+        clean_summary = re.sub(r"[\r\n]+", " ", proposed_change).strip()[:60]
+        if size == "small":
+            setid = f"prop-{item_id6}"
+            fallback_content = f"""# IPD: Proposal from {item_id6}: {clean_summary}
+
+- Kind: child
+- Status: draft
+- Work-Kind: {item_work_kind}
+- Priority: {item_priority}
+"""
+            if gate_to_pass:
+                fallback_content += f"- Blocks-Release: {gate_to_pass}\n"
+            fallback_content += f"""- Set: {setid}
+- Order: 1
+- Id: {item_id6}
+
+{body_text}
+"""
+        else:
+            fallback_content = f"""- Id: {item_id6}
+- Status: open
+"""
+            if gate_to_pass:
+                fallback_content += f"- Blocks-Release: {gate_to_pass}\n"
+            fallback_content += f"""- Set: {item_id6}
+- Priority: {item_priority}
+- Work-Kind: {item_work_kind}
+- Summary: Proposal from {item_id6}: {clean_summary}
+
+## Workflow history
+- {dt.date.today().strftime('%Y-%m-%d')} created (proposal fallback): Proposal from {item_id6}
+
+{body_text}
+"""
+        fallback_file.write_text(fallback_content, encoding="utf-8")
+        rel_path = str(fallback_file)
+        try:
+            rel_path = str(fallback_file.relative_to(repo)).replace("\\", "/")
+        except ValueError:
+            pass
+        return ProposalFilingResult(
+            filed=False,
+            record_id6=item_id6,
+            record_path=rel_path,
+            size=size,
+            kind=kind,
+            blocked_by=blocked_by,
+            reason=reason,
+        )
+
+    # 2. Acquire integration lock
+    with integration_lock(
+        repo,
+        holder_label=integration_lock_holder_label(state),
+        timeout=timeout,
+        progress=integration_lock_progress_reporter(),
+        sleep=sleep,
+        now=now,
+    ) as lock_outcome:
+        if not lock_outcome.acquired:
+            return _write_fallback_record(
+                f"repository integration lock timed out waiting for {lock_outcome.holder}: {lock_outcome.detail}"
+            )
+
+        cur_base = _resolved_main_tip(repo, run_checked=run_checked)
+        raced_attempts = 0
+        last_landing: Any = None
+
+        while raced_attempts < max_raced_attempts:
+            raced_attempts += 1
+            with commit_lock.coordinator_worktree(
+                repo, label=f"proposal-{item_id6}", base=cur_base
+            ) as coord:
+                record_id6: str = ""
+                new_record_rel: str = ""
+                clean_summary = re.sub(r"[\r\n]+", " ", proposed_change).strip()[:60]
+
+                if size == "small":
+                    setid = f"prop-{item_id6}"
+                    title = f"Proposal from {item_id6}: {clean_summary}"
+                    effective_labels = host_labels or (
+                        AGY_HOST_LABELS
+                        if "agy"
+                        in str(state.get("options", {}).get("driver", "")).lower()
+                        else OC_HOST_LABELS
+                    )
+                    actor = driver_actor(dict(state), labels=effective_labels)
+                    scaffold_cmd = pinned_module_argv(
+                        [
+                            "ipd",
+                            "scaffold",
+                            "--kind",
+                            "child",
+                            "--set",
+                            setid,
+                            "--order",
+                            "1",
+                            "--title",
+                            title,
+                            "--priority",
+                            item_priority,
+                            "--work-kind",
+                            item_work_kind,
+                            "--author",
+                            actor,
+                            "--apply",
+                        ]
+                    )
+                    res = subprocess.run(
+                        scaffold_cmd,
+                        cwd=coord.path,
+                        capture_output=True,
+                        text=True,
+                    )
+                    if res.returncode != 0:
+                        return _write_fallback_record(
+                            f"aw ipd scaffold failed ({res.returncode}): {res.stderr.strip() or res.stdout.strip()}"
+                        )
+                    plans_dir = coord.path / ".aw" / "records" / "plans" / "pending"
+                    if not plans_dir.exists():
+                        plans_dir = coord.path / ".agents" / "plans" / "pending"
+                    matching = list(plans_dir.glob(f"*-{setid}-01-*.ipd.md"))
+                    if not matching:
+                        return _write_fallback_record(
+                            f"aw ipd scaffold created no matching plan under {plans_dir}"
+                        )
+                    created_plan = matching[0]
+                    plan_content = created_plan.read_text(encoding="utf-8")
+                    record_id6 = _sel.read_front_matter_id(plan_content) or item_id6
+
+                    if gate_to_pass and "- Blocks-Release:" not in plan_content:
+                        m_pos = re.search(r"(?m)^- Priority:.*\n", plan_content)
+                        if m_pos:
+                            idx = m_pos.end()
+                            plan_content = (
+                                plan_content[:idx]
+                                + f"- Blocks-Release: {gate_to_pass}\n"
+                                + plan_content[idx:]
+                            )
+
+                    plan_content = plan_content.rstrip() + "\n\n" + body_text
+                    created_plan.write_text(plan_content, encoding="utf-8")
+                    new_record_rel = str(created_plan.relative_to(coord.path)).replace(
+                        "\\", "/"
+                    )
+                    commit_msg = (
+                        f"Scaffold draft plan for agent proposal from {item_id6}"
+                    )
+
+                else:
+                    summary = f"Proposal from {item_id6}: {clean_summary}"
+                    backlog_args = [
+                        "backlog",
+                        "new",
+                        "--summary",
+                        summary,
+                        "--priority",
+                        item_priority,
+                        "--work-kind",
+                        item_work_kind,
+                        "--body",
+                        body_text,
+                        "--apply",
+                    ]
+                    if gate_to_pass:
+                        backlog_args.extend(["--blocks-release", gate_to_pass])
+                    res = subprocess.run(
+                        pinned_module_argv(backlog_args),
+                        cwd=coord.path,
+                        capture_output=True,
+                        text=True,
+                    )
+                    if res.returncode != 0:
+                        return _write_fallback_record(
+                            f"aw backlog new failed ({res.returncode}): {res.stderr.strip() or res.stdout.strip()}"
+                        )
+                    backlog_dir = coord.path / ".aw" / "records" / "backlog" / "open"
+                    if not backlog_dir.exists():
+                        backlog_dir = coord.path / ".agents" / "backlog" / "open"
+                    bl_files = sorted(
+                        backlog_dir.glob("*.backlog.md"),
+                        key=lambda f: f.stat().st_mtime,
+                        reverse=True,
+                    )
+                    if not bl_files:
+                        return _write_fallback_record(
+                            f"aw backlog new created no file under {backlog_dir}"
+                        )
+                    created_backlog = bl_files[0]
+                    bl_parsed = parse_item(created_backlog.read_text(encoding="utf-8"))
+                    record_id6 = bl_parsed.id or item_id6
+                    new_record_rel = str(
+                        created_backlog.relative_to(coord.path)
+                    ).replace("\\", "/")
+                    commit_msg = f"File backlog item for agent proposal from {item_id6}"
+
+                try:
+                    commit_outcome = _gch.offer_commit(
+                        coord.path,
+                        [new_record_rel],
+                        message=commit_msg,
+                        assume_yes=True,
+                        interactive=False,
+                        trailers=_gch.run_item_trailers(run_id, item_id6),
+                    )
+                    commit_sha = getattr(commit_outcome, "commit", None)
+                except Exception as exc:
+                    return _write_fallback_record(
+                        f"commit in coordinator worktree raised {type(exc).__name__}: {exc}"
+                    )
+
+                if not commit_sha:
+                    return _write_fallback_record(
+                        "commit in coordinator worktree was rejected (hooks ran)"
+                    )
+
+                landing = ipd_lifecycle.land_worktree_commit(
+                    repo, commit_sha, expected_base=cur_base
+                )
+                last_landing = landing
+
+                if landing.status == ipd_lifecycle.RECONCILED_OK:
+                    return ProposalFilingResult(
+                        filed=True,
+                        record_id6=record_id6,
+                        record_path=new_record_rel,
+                        size=size,
+                        kind=kind,
+                        blocked_by=blocked_by,
+                        commit=commit_sha,
+                        landing_status=landing.status,
+                    )
+                elif landing.status == ipd_lifecycle.RECONCILED_RACED:
+                    if rebuild_on_race and raced_attempts < max_raced_attempts:
+                        cur_base = _resolved_main_tip(repo, run_checked=run_checked)
+                        continue
+                    else:
+                        return _write_fallback_record(
+                            f"fast-forward landing raced and exhausted {raced_attempts} attempts: {landing.detail}"
+                        )
+                elif landing.status == ipd_lifecycle.RECONCILED_REFUSED:
+                    return _write_fallback_record(
+                        f"fast-forward landing refused: {landing.detail}"
+                    )
+                else:
+                    return _write_fallback_record(
+                        f"fast-forward landing returned unexpected status: {landing.status}"
+                    )
+
+        detail_msg = last_landing.detail if last_landing else "raced attempts exhausted"
+        return _write_fallback_record(f"raced attempts exhausted: {detail_msg}")
 
 
 def enforce_dependency_preflight(
