@@ -56,6 +56,7 @@ CONTRACT_FIELDS = (
     # default-False or snapshot guarantee while the suite stays green.
     "supports_commit_gateway",
     "supports_fresh_verifier_session",
+    "supports_egress_filtering",
 )
 
 
@@ -1204,6 +1205,70 @@ class StructuredToolEventsProbeTests(unittest.TestCase):
                     self.assertIn("emits_structured_tool_events", caps.probe_notes)
         caps_scr = detect_host_capabilities("scripted", "darwin")
         self.assertFalse(caps_scr.emits_structured_tool_events)
+
+
+class EgressFilteringProbeTests(unittest.TestCase):
+    """E-04: pin fail-closed behavior of the egress filtering probe."""
+
+    def test_probe_egress_filtering_direct_execution(self):
+        """Exercise _probe_egress_filtering directly; expected value decided by unshare -Urn true."""
+        proc = subprocess.run(["unshare", "-Urn", "true"], capture_output=True)
+        expected = proc.returncode == 0
+        ok, note = hsp._probe_egress_filtering()
+        self.assertIs(ok, expected)
+        if expected:
+            self.assertIn("network namespace partition enforced", note)
+            self.assertIn("refused", note)
+            self.assertIn("parent received AF_UNIX token", note)
+            self.assertIn("NOT that any destination policy is enforced", note)
+            self.assertIn(
+                "proves nothing about whether a confined process could remove the boundary",
+                note,
+            )
+        else:
+            self.assertIn("egress filtering probe", note)
+
+    def test_a_raising_probe_yields_not_supported(self):
+        """Mirrors test_a_raising_probe_yields_not_supported by patching _RUNNER_SAFETY_PROBES."""
+        saved = dict(hsp._RUNNER_SAFETY_PROBES)
+
+        def boom():
+            raise RuntimeError("egress probe exploded")
+
+        hsp._RUNNER_SAFETY_PROBES[hsp.CAP_EGRESS_FILTERING] = boom
+        try:
+            verdicts, notes = hsp.probe_runner_safety_capabilities()
+        finally:
+            hsp._RUNNER_SAFETY_PROBES.clear()
+            hsp._RUNNER_SAFETY_PROBES.update(saved)
+        self.assertFalse(verdicts[hsp.CAP_EGRESS_FILTERING])
+        self.assertIn(
+            "probe raised RuntimeError: egress probe exploded",
+            notes[hsp.CAP_EGRESS_FILTERING],
+        )
+
+    def test_probe_reports_false_when_namespace_cannot_be_created(self):
+        """Swapping _EGRESS_PROBE_NS_ARGV to a nonexistent binary reports False rather than raising."""
+        saved = hsp._EGRESS_PROBE_NS_ARGV
+        hsp._EGRESS_PROBE_NS_ARGV = ("nonexistent-binary-probe-test",)
+        try:
+            ok, note = hsp._probe_egress_filtering()
+        finally:
+            hsp._EGRESS_PROBE_NS_ARGV = saved
+        self.assertFalse(ok)
+        self.assertIn("not installed", note)
+
+    def test_not_enforced_arrangement_yields_false(self):
+        """Swapping _EGRESS_PROBE_NS_ARGV to ('unshare', '-Ur') makes denied TCP reachable and yields False."""
+        saved = hsp._EGRESS_PROBE_NS_ARGV
+        hsp._EGRESS_PROBE_NS_ARGV = ("unshare", "-Ur")
+        try:
+            ok, note = hsp._probe_egress_filtering()
+        finally:
+            hsp._EGRESS_PROBE_NS_ARGV = saved
+        self.assertFalse(ok)
+        self.assertIn("not enforced", note)
+        self.assertIn("denied loopback TCP was reached", note)
 
 
 if __name__ == "__main__":

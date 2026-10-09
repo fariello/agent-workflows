@@ -154,6 +154,7 @@ from __future__ import annotations
 
 import os
 import shutil
+import socket
 import subprocess
 import sys
 import tempfile
@@ -177,6 +178,7 @@ __all__ = [
     # mjx7ne: the runner-safety capabilities, their probes, and the action preflight.
     "CAP_COMMIT_GATEWAY",
     "CAP_FRESH_VERIFIER_SESSION",
+    "CAP_EGRESS_FILTERING",
     "RUNNER_SAFETY_CAPABILITIES",
     "UNREPRESENTED_SPEC_CAPABILITIES",
     "probe_runner_safety_capabilities",
@@ -246,6 +248,7 @@ class HostSandboxCapabilities:
     # `probe_notes`; see `_declared_unenforced` for why a presence-based probe is forbidden.
     supports_commit_gateway: bool = False
     supports_fresh_verifier_session: bool = False
+    supports_egress_filtering: bool = False
 
     platform: str = ""
     # Which rung of the ladder was PROVEN by an executed probe: "landlock" | "bwrap" |
@@ -538,10 +541,12 @@ def _probe_userns() -> Tuple[bool, str]:
 # forgotten by the other.
 CAP_COMMIT_GATEWAY = "supports_commit_gateway"
 CAP_FRESH_VERIFIER_SESSION = "supports_fresh_verifier_session"
+CAP_EGRESS_FILTERING = "supports_egress_filtering"
 
 RUNNER_SAFETY_CAPABILITIES: Tuple[str, ...] = (
     CAP_COMMIT_GATEWAY,
     CAP_FRESH_VERIFIER_SESSION,
+    CAP_EGRESS_FILTERING,
 )
 
 # Capabilities spec 25kzda 5.2 requires that THIS contract cannot yet represent at all.
@@ -672,12 +677,149 @@ def _probe_fresh_verifier_session() -> Tuple[bool, str]:
         return False, f"fresh-verifier probe failed: {type(exc).__name__}: {exc}"
 
 
+# E-01 mechanism seam: launcher argv for network namespace probe.
+# Swapped in tests to arrange mechanism failure (nonexistent binary) or not-enforced (no -n).
+_EGRESS_PROBE_NS_ARGV: Tuple[str, ...] = ("unshare", "-Urn")
+_EGRESS_PROBE_TOKEN: bytes = b"AW-EGRESS-FILTERING-PROBE\n"
+
+
+def _probe_egress_filtering() -> Tuple[bool, str]:
+    """Prove the host can create a network namespace with two-sided isolation.
+
+    The parent holds both endpoints:
+      * a loopback TCP listener (standing in for a denied remote)
+      * a filesystem-path AF_UNIX socket (standing in for the allowed control channel)
+
+    The probe launches a child in a new network namespace via `_EGRESS_PROBE_NS_ARGV`.
+    The child must (a) succeed in connecting to the AF_UNIX socket and sending a token,
+    and (b) fail to connect to the loopback TCP listener.
+    """
+    if not sys.platform.startswith(CERTIFIED_PLATFORM):
+        return (
+            False,
+            f"egress filtering probe is certified on {CERTIFIED_PLATFORM} only (running on {sys.platform})",
+        )
+
+    if not _EGRESS_PROBE_NS_ARGV or not shutil.which(_EGRESS_PROBE_NS_ARGV[0]):
+        binary = _EGRESS_PROBE_NS_ARGV[0] if _EGRESS_PROBE_NS_ARGV else "<empty>"
+        return False, f"egress filtering launcher {binary!r} not installed"
+
+    with tempfile.TemporaryDirectory(prefix="aw-ns-probe-") as tmp:
+        # 1. Loopback TCP listener (denied side)
+        tcp_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        try:
+            tcp_sock.bind(("127.0.0.1", 0))
+            tcp_port = tcp_sock.getsockname()[1]
+            tcp_sock.listen(5)
+        except OSError as exc:
+            tcp_sock.close()
+            return False, f"egress filtering probe could not bind TCP listener: {exc}"
+
+        # 2. AF_UNIX listener (allowed side) - filesystem path, never abstract
+        sock_path = os.path.join(tmp, "ctrl.sock")
+        unix_sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        try:
+            unix_sock.bind(sock_path)
+            unix_sock.listen(5)
+            unix_sock.settimeout(2.0)
+        except OSError as exc:
+            tcp_sock.close()
+            unix_sock.close()
+            return (
+                False,
+                f"egress filtering probe could not bind AF_UNIX listener: {exc}",
+            )
+
+        child_code = textwrap.dedent(
+            f"""\
+            import socket, sys
+            allowed_path = sys.argv[1]
+            denied_port = int(sys.argv[2])
+            token = {_EGRESS_PROBE_TOKEN!r}
+            try:
+                s_unix = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+                s_unix.settimeout(1.0)
+                s_unix.connect(allowed_path)
+                s_unix.sendall(token)
+                s_unix.close()
+            except OSError as exc:
+                sys.stderr.write("allowed AF_UNIX connect was DENIED: %s\\n" % exc)
+                raise SystemExit(3)
+
+            try:
+                s_tcp = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                s_tcp.settimeout(0.5)
+                s_tcp.connect(("127.0.0.1", denied_port))
+                s_tcp.close()
+            except OSError as exc:
+                sys.stdout.write("denied loopback TCP refused: %s\\n" % exc)
+                raise SystemExit(0)
+
+            sys.stderr.write("denied loopback TCP SUCCEEDED - not enforced\\n")
+            raise SystemExit(4)
+            """
+        )
+        try:
+            argv = [
+                *_EGRESS_PROBE_NS_ARGV,
+                sys.executable,
+                "-c",
+                child_code,
+                sock_path,
+                str(tcp_port),
+            ]
+            rc, err = _run_probe(argv)
+
+            if rc == 4:
+                return (
+                    False,
+                    f"egress filtering probe not enforced: denied loopback TCP was reached (rc=4): {err}",
+                )
+            if rc == 3:
+                return (
+                    False,
+                    f"egress filtering jail too tight: allowed AF_UNIX connection was refused (rc=3): {err}",
+                )
+            if rc != 0:
+                return False, f"egress filtering probe failed (rc={rc}): {err}"
+
+            try:
+                conn, _ = unix_sock.accept()
+                try:
+                    received = conn.recv(len(_EGRESS_PROBE_TOKEN))
+                finally:
+                    conn.close()
+            except (OSError, socket.timeout) as exc:
+                return (
+                    False,
+                    f"egress filtering probe failed: parent did not receive child token on AF_UNIX socket: {exc}",
+                )
+
+            if received != _EGRESS_PROBE_TOKEN:
+                return (
+                    False,
+                    f"egress filtering probe failed: unexpected token on AF_UNIX socket: {received!r}",
+                )
+
+            mech_str = " ".join(_EGRESS_PROBE_NS_ARGV)
+            return (
+                True,
+                f"network namespace partition enforced via {mech_str}: {err}; parent received AF_UNIX token; "
+                f"proves namespace creation and partition, NOT that any destination policy is enforced, "
+                f"and proves nothing about whether a confined process could remove the boundary",
+            )
+        finally:
+            tcp_sock.close()
+            unix_sock.close()
+
+
 # The runner-safety ladder: one entry per capability, `None` where the capability is
 # DECLARED AND NOT PROBED (see `_DECLARED_UNENFORCED`). Kept as data so a new capability
 # cannot be added to the dataclass and silently skipped by the prober.
 _RUNNER_SAFETY_PROBES: Dict[str, Optional[Callable[[], Tuple[bool, str]]]] = {
     CAP_COMMIT_GATEWAY: None,
     CAP_FRESH_VERIFIER_SESSION: _probe_fresh_verifier_session,
+    CAP_EGRESS_FILTERING: _probe_egress_filtering,
 }
 
 #: E-03 test seam: forced runner-safety verdicts, `{capability: (supported, note)}`.
