@@ -6,7 +6,7 @@
 - Scope: Make the read/write policy EXPRESSIBLE and then apply it to the remaining read-class callers. IN: splitting the three MEASURED mixed helpers (`releases._release_repo_root`, `research_refs._repo_root`, `research_archive._roots`) into a read-class and a write-class entry point; adding Order 01's refusal to the READ verbs those helpers serve; refactoring `attention.run` and `cli._run_plans` onto Order 01's primitive to retire the two hand-rolled copies; a fresh census recorded in the plan rather than in code; and a regression test pinning each converted read verb's refusal and each write verb's unchanged behavior. OUT: adding a refusal to ANY write-class verb (`lmyeas` OQ-01 decided against it and F-05 re-measures why); making anything climb from an explicit `--dir`; changing `resolve_verb_repo_root`'s body; changing what any converted verb reads or reports for a surveyable root; the two validators (Order 02) and the six bypass sites (Order 03); and splitting a helper this plan measures as single-class, which would be churn with no policy to express.
 - Scope-Paths: agent_workflows/releases.py, agent_workflows/research_refs.py, agent_workflows/research_archive.py, agent_workflows/attention.py, agent_workflows/cli.py, tests/test_read_class_callers_refuse.py, tests/test_agent_field_projection.py
 - Item-Dependencies: executed:i6mby8, executed:jei45f, executed:sjsb04, executed:pua92o
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -17,9 +17,9 @@
 - Highest E allocated: 05
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: rlhmt9
-- Approval: 2026-10-08, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-09 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: rlhmt9 verified (set dirsilent, attempt 2).
 - 2026-10-08 approved (aw set): status set to approved
 - 2026-10-07 reviewed (aw set): /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005, PR-006. Projection-test fixture repair scoped (F-10); seeded nonzero read controls and complete install recipe (F-09); check-miscategorized refusal human-only; guard keys on resolved root; added executed:pua92o dependency (F-11); pre-edit captures for E-04.
 - 2026-10-07 to-review (aw set): returned to review: each Set-level check the coverage probe quoted now names its owning child; coverage pass recorded
