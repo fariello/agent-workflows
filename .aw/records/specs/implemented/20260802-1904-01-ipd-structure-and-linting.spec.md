@@ -149,6 +149,8 @@ Optional field (all IPDs): `Highest E allocated` (the allocation watermark, Sect
 
 Recognized-but-optional fields (all IPDs): `Scope-Paths` (Section 4.5), `Priority`, and `Work-Kind` are recognized fields that are NOT in the always-required set; their requirement is CONDITIONAL at the ready-to-execute lint gate (Section 9.2), not at the always-on `author` metadata check. The reserved sentinel `grandfathered` provides audit-tracked exemption for pre-cutoff records.
 
+Optional post-execution field: `Scope-Exceeded` (amended 2026-10-09, plan `psgyzw`, Set `fixfirst`, Order 06). Recorded automatically by `aw ipd finalize` when out-of-scope changed paths are reconciled with scope reasons. Syntax: `- Scope-Exceeded: <path> (<reason>); ...`. Multiple entries are separated by semicolons. Validated as a recognized metadata field (`META_RECOGNIZED`).
+
 Conditional fields:
 
 - `Set` and `Order` are REQUIRED together when the IPD belongs to an ordered Set and MUST both be absent otherwise; one present without the other is an error.
@@ -831,6 +833,7 @@ After the IPD-system Set lands:
 
 ## Workflow history
 
+- 2026-10-09 note (aw specs): Section 4.4 amended (fixfirst psgyzw E-04): document optional post-execution field - Scope-Exceeded: with syntax `<path> (<reason>); ...`, recorded on finalize when out-of-scope changed paths are reconciled.
 - 2026-10-07 note (aw specs): Section 4.4 and Section 10 amended (rdyreq fhinri E-08): record IPD-M113 requiring non-empty - Readiness: at reviewed and ready-to-execute status (approved, auto-approved) at every checkpoint
 - 2026-10-07 note (aw specs): Section 5.4 amended (ezv744 5q9a6a E-02): record the runtime-demonstration reachability property of Required evidence: beside durability, specifying acceptable discharges, UNDER-SCOPE consequence, review enforcement, and Section 9.2 disambiguation
 - 2026-10-06 note (aw specs): AMENDED 2026-10-04 (plan hm1h3l, Set gradcover): Section 10 gains rule 19 (IPD-S408, orchestrator review readiness per 25kzda 2.5d, reading the coverage record stored in the plan, model-free) and rule 20 (IPD-M112, a coverage record must be complete and attested by a history line) and a paragraph stating it does not alter pre-transition Kind-parity.

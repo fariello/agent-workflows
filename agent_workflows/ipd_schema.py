@@ -346,6 +346,7 @@ META_COVERAGE = "Coverage"
 META_COVERAGE_FINGERPRINT = "Coverage-Fingerprint"
 META_COVERAGE_CHECKED = "Coverage-Checked"
 COVERAGE_VALUES: FrozenSet[str] = frozenset(("pass", "fail"))
+META_SCOPE_EXCEEDED = "Scope-Exceeded"
 
 # The full set of recognized field names (unknown fields are errors for new IPDs).
 META_RECOGNIZED: FrozenSet[str] = frozenset(
@@ -367,6 +368,7 @@ META_RECOGNIZED: FrozenSet[str] = frozenset(
         META_COVERAGE,
         META_COVERAGE_FINGERPRINT,
         META_COVERAGE_CHECKED,
+        META_SCOPE_EXCEEDED,
     )
 )
 

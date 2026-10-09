@@ -58,7 +58,7 @@ STALE_RECEIPT_REFUSAL = (
     "re-run `aw ipd begin`.\n  plan content digest no longer matches the receipt"
 )
 SCOPE_REFUSAL = (
-    "refused: scope reconciliation is unresolved; plan left unmoved.\n"
+    "refused: finalize needs scope reconciliation answers (plan left unmoved).\n"
     "  out-of-scope path needs a --scope-reason: agent_workflows/cli.py"
 )
 REDUCTION_REFUSAL_SINGULAR = (
@@ -246,9 +246,9 @@ class TheRetryTriggerIsAPositiveAllowlist(unittest.TestCase):
         )
         self.assertTrue(runner_shared.finalize_refusal_is_retryable(no_scope_delta))
 
-    def test_a_scope_reconciliation_refusal_is_NOT_retryable(self):
-        """spec 5.5's FIRST never-retry entry, out-of-scope mutation."""
-        self.assertFalse(runner_shared.finalize_refusal_is_retryable(SCOPE_REFUSAL))
+    def test_a_scope_reconciliation_refusal_is_retryable(self):
+        """IPD psgyzw: out-of-scope mutation is sent back as retryable."""
+        self.assertTrue(runner_shared.finalize_refusal_is_retryable(SCOPE_REFUSAL))
 
     def test_a_MIXED_message_is_NOT_retryable(self):
         """EVERY finding must be allowlisted, else a never-retry class rides along with a safe one."""
@@ -414,9 +414,9 @@ class TheRetryTriggerIsAPositiveAllowlist(unittest.TestCase):
             )
 
             # Fail-closed assertions in the same test:
-            self.assertFalse(
+            self.assertTrue(
                 runner_shared.finalize_refusal_is_retryable(SCOPE_REFUSAL),
-                "out-of-scope refusal must remain terminal",
+                "out-of-scope refusal is retryable",
             )
             self.assertFalse(
                 runner_shared.finalize_refusal_is_retryable(MISSING_RECEIPT_REFUSAL),
@@ -769,7 +769,7 @@ class TheBudgetIsSpentOncePerRedispatch(unittest.TestCase):
     def test_a_non_retryable_refusal_is_neither_retried_nor_failed(self):
         item = _item()
         decision = runner_shared.finalize_retry_decision(
-            item, _state([item], retry_budget=2), SCOPE_REFUSAL
+            item, _state([item], retry_budget=2), MISSING_RECEIPT_REFUSAL
         )
         self.assertFalse(decision.retry)
         self.assertFalse(decision.exhausted)
@@ -828,6 +828,14 @@ class TheRefusalArmPerformsTheSendBack(unittest.TestCase):
         self.assertEqual(1, item[runner_shared.FINALIZE_RETRY_COUNT_KEY])
         self.assertTrue(events[0]["retry_scheduled"])
 
+    def test_a_scope_reconciliation_refusal_requeues_the_item_in_recovery_mode(self):
+        disposition, item, events = self._run(SCOPE_REFUSAL, budget=2)
+        self.assertEqual("queued", disposition)
+        self.assertEqual("queued", item["status"])
+        self.assertTrue(item["recovery_next"])
+        self.assertEqual(1, item[runner_shared.FINALIZE_RETRY_COUNT_KEY])
+        self.assertTrue(events[0]["retry_scheduled"])
+
     def test_the_gate_findings_are_PRESERVED_for_the_next_turn(self):
         _disposition, item, _events = self._run(MEASURED_REFUSAL)
         self.assertEqual(MEASURED_REFUSAL, item["finalize_refusal"])
@@ -871,7 +879,7 @@ class TheRefusalArmPerformsTheSendBack(unittest.TestCase):
         self.assertEqual(runner_shared.FINALIZE_RETRY_EXHAUSTED_STATUS, disposition)
 
     def test_a_never_retry_class_falls_through_UNCHANGED(self):
-        disposition, item, events = self._run(SCOPE_REFUSAL, budget=2)
+        disposition, item, events = self._run(MISSING_RECEIPT_REFUSAL, budget=2)
         self.assertEqual("substantially-complete", disposition)
         self.assertEqual("substantially-complete", item["status"])
         self.assertNotIn("recovery_next", item)

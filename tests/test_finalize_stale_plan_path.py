@@ -504,11 +504,12 @@ class TestFinalizeStalePlanPath(unittest.TestCase):
             self.assertEqual(evidence, {})
             self.assertEqual(findings, ())
 
-            reasons, acks = runner_shared.compute_scope_reconciliation(
+            reasons, acks, unj = runner_shared.compute_scope_reconciliation(
                 tpath, nonexistent, labels=runner_shared.OC_HOST_LABELS
             )
             self.assertEqual(reasons, {})
             self.assertEqual(acks, {})
+            self.assertEqual(unj, ())
 
             item = {"id6": "ghost1", "setid": "rfhiu2"}
             rec = runner_shared.record_item_spec_edits(

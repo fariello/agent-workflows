@@ -2249,7 +2249,8 @@ def _build_parser() -> argparse.ArgumentParser:
         help=(
             "Commit ONLY a plan's in-scope paths via the shared path-scoped helper: "
             "'aw commit <ipd> -- <paths>', or 'aw commit --no-plan -m <msg> -- <paths>' "
-            "for a commit no plan governs."
+            "for a commit no plan governs, or 'aw commit <ipd> --scope-reason <path>=<why>' "
+            "to record scope justifications without committing."
         ),
         description=(
             "Compute a plan's allowed scope from its Scope-Paths, refuse when the staged index holds "
@@ -2257,8 +2258,10 @@ def _build_parser() -> argparse.ArgumentParser:
             "in-scope paths by reusing the path-scoped git_commit_helper (never git add -A/-a, never "
             "--no-verify, never push). `--no-plan` commits paths NO plan governs (a backlog item, a "
             "spec edit, a typo fix): it skips only the two plan-derived checks, names them in its "
-            "output, still routes through the same shared helper, and REQUIRES -m. Exit 0 committed, "
-            "1 refused/nothing, 2 usage."
+            "output, still routes through the same shared helper, and REQUIRES -m. "
+            "Pass 'aw commit <plan> --scope-reason <path>=<why>' without paths to record scope "
+            "justifications into the begin receipt for already-committed paths without staging or committing. "
+            "Exit 0 committed, 1 refused/nothing, 2 usage."
         ),
     )
     # NO `plan` POSITIONAL IS DECLARED, and that is the fix rather than an omission. A required (or
@@ -2297,7 +2300,9 @@ def _build_parser() -> argparse.ArgumentParser:
         default=None,
         metavar="PATH=WHY",
         help="Record a reason for an out-of-scope changed path (repeatable). Justifies the change "
-        "at the commit gate and records it in the begin receipt for finalize to consume.",
+        "at the commit gate and records it in the begin receipt for finalize to consume. "
+        "When passed without paths after '--', records justifications for already-committed paths "
+        "into the begin receipt without committing.",
     )
     # dest is `path_argv` (NOT `command`); it captures the WHOLE tail including the optional plan
     # selector, which `work_cmd.run_commit` splits on the `--` marker.
