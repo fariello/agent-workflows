@@ -256,6 +256,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 - THE STRUCTURAL MATRIX GATE, the exemption-registry cleanup, and the `agent_workflows/command_surface.py`
   comment reconciliation. Sibling child, and this plan's declared dependency (F-09).
   - Carrier: dq9bj9
+  - Carrier-Evidence: .aw/records/plans/executed/20261001-h0tiaw-01-dq9bj9-revive-the-dormant-conformance-matrix-as-a-live-structural-g.ipd.md
 - THE PER-LEAF LIVE SCENARIO GRID (`--help`, usage error, `--no-color`, ANSI per leaf) and the LIVE-leaf
   fact-parity gate. The first costs minutes and could only land `slow`, hence CI-advisory; the second is
   vacuous on all 16 curated leaves. E-05 attributes the remaining gaps in `CONTRIBUTING.md` to this carrier
