@@ -161,8 +161,12 @@ class SectionExtractorTests(unittest.TestCase):
             self.assertIn("## Sets", msg)
 
             # Contrast: unbounded slice absorbs the new section and grows
-            unbounded_orig = out[out.index("## Sets") :]
-            unbounded_appended = appended[appended.index("## Sets") :]
+            unbounded_orig = out[
+                out.index("## Sets") :
+            ]  # aw-unbounded-ok: control test proving raw slice absorbs appended section
+            unbounded_appended = appended[
+                appended.index("## Sets") :
+            ]  # aw-unbounded-ok: control test proving raw slice absorbs appended section
             self.assertGreater(len(unbounded_appended), len(unbounded_orig))
 
     def test_section_lines_agreement_and_refusal(self):
@@ -227,7 +231,11 @@ class SectionExtractorTests(unittest.TestCase):
             text = moved.read_text(encoding="utf-8")
 
             # The buggy unbounded slice reads across sections to EOF
-            after = text.split("## Workflow history", 1)[1]
+            after = text.split(
+                "## Workflow history", 1
+            )[
+                1
+            ]  # aw-unbounded-ok: control test proving raw split absorbs appended section
             unbounded = [ln for ln in after.split("\n") if ln.startswith("- ")]
             self.assertEqual(len(unbounded), 4)
 

@@ -159,13 +159,9 @@ class TestPlanReviewFeasibilityRule(unittest.TestCase):
         """
         # 1. Single-file rubric: check section G (Plan executability)
         single_content = PLAN_REVIEW_FILE.read_text(encoding="utf-8")
-        single_start = single_content.find("### G. Plan executability")
-        self.assertNotEqual(
-            single_start,
-            -1,
-            f"Missing heading '### G. Plan executability' in {PLAN_REVIEW_FILE}",
+        single_section = support.section(
+            single_content, "### G. Plan executability", "## "
         )
-        single_section = single_content[single_start:]
         for phrase in NO_ERROR_ADDED_ANCHOR_PHRASES:
             self.assertIn(
                 phrase,
@@ -175,13 +171,7 @@ class TestPlanReviewFeasibilityRule(unittest.TestCase):
 
         # 2. Long-form rubric: check section A (Plan completeness)
         long_content = REVIEW_RUBRIC_FILE.read_text(encoding="utf-8")
-        long_start = long_content.find("## A. Plan completeness")
-        self.assertNotEqual(
-            long_start,
-            -1,
-            f"Missing heading '## A. Plan completeness' in {REVIEW_RUBRIC_FILE}",
-        )
-        long_section = long_content[long_start:]
+        long_section = support.section(long_content, "## A. Plan completeness", "## ")
         for phrase in NO_ERROR_ADDED_ANCHOR_PHRASES:
             self.assertIn(
                 phrase,

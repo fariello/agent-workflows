@@ -19,6 +19,8 @@ from __future__ import annotations
 from pathlib import Path
 import unittest
 
+from tests import support
+
 REPO_ROOT = Path(__file__).resolve().parent.parent
 WORKFLOWS_DIR = REPO_ROOT / ".aw" / "system" / "workflows"
 PLAN_REVIEW_FILE = WORKFLOWS_DIR / "plan-review" / "plan-review.md"
@@ -76,32 +78,12 @@ class TestVItemEvidenceDurability(unittest.TestCase):
     def test_single_file_plan_review_evidence_durability(self) -> None:
         """Assert single-file plan-review.md narrows the exemption and requires behaviour plus mechanism."""
         content = PLAN_REVIEW_FILE.read_text(encoding="utf-8")
-
-        start_heading = "### G. Plan executability"
-        start_idx = content.find(start_heading)
-        self.assertNotEqual(
-            start_idx,
-            -1,
-            f"Missing heading '{start_heading}' in {PLAN_REVIEW_REL}",
-        )
-
-        section_g = content[start_idx:]
+        section_g = support.section(content, "### G. Plan executability", "## ")
 
         # Locate the re-derivation convention bullet
         bullet_prefix = "- **Live-artifact success criteria vs. stable code facts (re-derivation convention):**"
-        bullet_idx = section_g.find(bullet_prefix)
-        self.assertNotEqual(
-            bullet_idx,
-            -1,
-            f"Missing bullet '{bullet_prefix}' in {PLAN_REVIEW_REL}",
-        )
-
-        # Slice the bullet text up to the next bullet item
-        next_bullet_idx = section_g.find("\n- **", bullet_idx + len(bullet_prefix))
-        bullet_text = (
-            section_g[bullet_idx:next_bullet_idx]
-            if next_bullet_idx != -1
-            else section_g[bullet_idx:]
+        bullet_text = support.section(
+            section_g, bullet_prefix, "\n- **", anchored=False
         )
 
         # 1. Assert semantic anchors are present
@@ -134,31 +116,12 @@ class TestVItemEvidenceDurability(unittest.TestCase):
     def test_long_form_plan_review_evidence_durability_parity(self) -> None:
         """Assert review-rubric.md carries the parity pointer without duplicating the paragraph."""
         content = REVIEW_RUBRIC_FILE.read_text(encoding="utf-8")
-
-        start_heading = "## A. Plan completeness"
-        start_idx = content.find(start_heading)
-        self.assertNotEqual(
-            start_idx,
-            -1,
-            f"Missing heading '{start_heading}' in {REVIEW_RUBRIC_REL}",
-        )
-
-        section_a = content[start_idx:]
+        section_a = support.section(content, "## A. Plan completeness", "## ")
 
         # Locate the pointer bullet
         bullet_prefix = "- **Live-artifact success criteria vs. stable code facts (re-derivation convention):**"
-        bullet_idx = section_a.find(bullet_prefix)
-        self.assertNotEqual(
-            bullet_idx,
-            -1,
-            f"Missing pointer bullet '{bullet_prefix}' in {REVIEW_RUBRIC_REL}",
-        )
-
-        next_bullet_idx = section_a.find("\n- **", bullet_idx + len(bullet_prefix))
-        bullet_text = (
-            section_a[bullet_idx:next_bullet_idx]
-            if next_bullet_idx != -1
-            else section_a[bullet_idx:]
+        bullet_text = support.section(
+            section_a, bullet_prefix, "\n- **", anchored=False
         )
 
         # Assert pointer trio and summary anchors are present in the long-form bullet
