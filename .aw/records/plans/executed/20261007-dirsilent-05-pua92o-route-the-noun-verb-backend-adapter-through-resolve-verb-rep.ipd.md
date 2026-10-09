@@ -6,7 +6,7 @@
 - Scope: Make the adapter stop inventing an explicit `--dir`. IN: change `cli._nv_backend_args` so that when the operator gave no `--dir`, the namespace it builds carries `dir=None` (OQ-01), so each backend's own `resolve_verb_repo_root(getattr(args, "dir", None))` call climbs; and add a subprocess regression test pinning the bare-cwd climb for the read-class `index <type> --check` path and the write-class `group`/`rename`/`archive` preview paths. OUT: adding a refusal to any verb (the read-class backends `plans_index.run_index`/`research_index.run_index` are reached through helpers `rlhmt9` F-02 measured as single-class WRITE, and refusals on write verbs are excluded Set-wide by `lmyeas` OQ-01); making an explicit `--dir` climb; changing `resolve_verb_repo_root`'s body or docstring; touching the six `sjsb04` sites; touching any backend module.
 - Scope-Paths: agent_workflows/cli.py, tests/test_nv_backend_args_climb.py
 - Item-Dependencies: executed:sjsb04
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -17,9 +17,9 @@
 - Highest E allocated: 02
 - Author: opencode uri/its_direct/pt3-claude-opus-5.5-1m-us
 - Id: pua92o
-- Approval: 2026-10-09, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-09 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: pua92o verified (set dirsilent, attempt 1).
 - 2026-10-09 approved (aw set): status set to approved
 - 2026-10-08 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-001..PR-004 FIXED
 - 2026-10-08 /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001 (HIGH, fixed: OQ-01 reversed to dir=None, demonstrated), PR-002 (MEDIUM, fixed: preview no-write proof covers gitignored INDEX and archive), PR-003 (LOW, fixed: no-project control), PR-004 (LOW, fixed: commit-root agreement and $HOME property stated). Record: `.aw/records/reviews/20261007-dirsilent-05-pua92o-route-the-noun-verb-backend-adapter-through-resolve-verb-rep.review.md`.
