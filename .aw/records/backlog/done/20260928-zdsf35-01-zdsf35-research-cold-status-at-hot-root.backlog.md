@@ -1,5 +1,5 @@
 - Id: zdsf35
-- Status: graduated
+- Status: done
 - Graduated-To: zdsf35
 - Set: zdsf35
 - Priority: low
@@ -7,6 +7,7 @@
 - Summary: 35 research docs carry a cold status (reference/archive) while sitting at the hot root, so the physical tier contradicts the frontmatter status
 
 ## Workflow history
+- 2026-10-09 done (aw backlog): closed by aw agy run: IPD ucwlwt executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20260930-zdsf35-02-ucwlwt-detect-a-research-doc-whose-status-tier-contradicts-its-on-d.ipd.md); evidence .aw/records/plans/executed/20260930-zdsf35-02-ucwlwt-detect-a-research-doc-whose-status-tier-contradicts-its-on-d.ipd.md
 - 2026-09-30 set (aw backlog): graduated by run run-20260930T053053Z-3200037: mg8bag, ucwlwt
 - 2026-09-28 created (aw backlog): 35 research docs carry a cold status (reference/archive) while sitting at the hot root, so the physical tier contradicts the frontmatter status
 
