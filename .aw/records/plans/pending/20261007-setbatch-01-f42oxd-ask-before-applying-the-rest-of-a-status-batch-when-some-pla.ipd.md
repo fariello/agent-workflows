@@ -98,6 +98,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 - Clearer refusal wording and styling.
   - Carrier: juu1rj
+  - Carrier-Evidence: .aw/records/plans/executed/20261007-setrefuse-01-juu1rj-clarify-and-style-status-refusal-messages-and-orchestrator-r.ipd.md
 - Declaring `--skip-refused` in `command_surface` `legacy_flags` (spec `wy9aru` C5 is SHOULD and that spec is `to-review`); existing parity tests check declared is a subset of accepted, so leaving it undeclared breaks nothing.
   - Carrier: wy9aru
 
