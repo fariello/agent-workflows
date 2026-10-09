@@ -3287,6 +3287,7 @@ class SelfFinalizeWiringTests(unittest.TestCase):
                         ),
                         encoding="utf-8",
                     )
+                    return 0, "ses1_verify", str(run_dir / "log"), ["oc"]
                 return 0, "ses1", str(run_dir / "log"), ["oc"]
 
             with (
@@ -3399,6 +3400,7 @@ class SelfFinalizeWiringTests(unittest.TestCase):
                         ),
                         encoding="utf-8",
                     )
+                    return 0, "ses1_verify", str(run_dir / "log"), ["oc"]
                 return 0, "ses1", str(run_dir / "log"), ["oc"]
 
             with (

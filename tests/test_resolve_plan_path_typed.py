@@ -445,6 +445,8 @@ class DispatchRefusalTests(unittest.TestCase):
                     ),
                     encoding="utf-8",
                 )
+                if kwargs.get("fresh_session") or kwargs.get("log_suffix") == "verify":
+                    return 0, "ses_verify", str(rdir / "log"), ["oc"]
                 return 0, "ses", str(rdir / "log"), ["oc"]
 
             with (

@@ -23530,6 +23530,44 @@ def verifier_evidence_refusal_text(v_data: Any) -> tuple[str, str, str]:
     )
 
 
+#: Refusal code recorded when a verifier turn reuses the execute turn's session identity.
+VERIFY_REFUSAL_CODE_SESSION_COLLISION: str = "verifier-session-collision"
+
+
+def verifier_session_collision_refusal_text(
+    code: str, *, session_id: str = ""
+) -> tuple[str, str]:
+    """Return (reason, remedy) for a session identity collision.
+
+    runwire (`eow7p4`) E-02: Follows verify_absence_text shape, raising on an
+    unknown code rather than defaulting. Names the collision in the reason and the
+    preserved lane and constructive act in the remedy, so the operator does not
+    discard work already done.
+    """
+    if code != VERIFY_REFUSAL_CODE_SESSION_COLLISION:
+        raise ValueError(f"Unknown session collision refusal code: {code!r}")
+    shown = session_id if session_id else "(unspecified)"
+    reason = (
+        f"the verifier turn reused the execution turn's session identity ({shown!r}): "
+        "verification was not independent, so this turn is recorded NOT VERIFIED and was not integrated"
+    )
+    remedy = (
+        "re-run verification for this item with an independent verifier session (ensure fresh_session=True "
+        "or omit --session). The lane is PRESERVED and nothing was merged, so do NOT re-run the plan from "
+        "scratch - that would discard work already done"
+    )
+    return reason, remedy
+
+
+def verifier_session_collision_text(session_id: str = "") -> tuple[str, str, str]:
+    """Return (code, reason, remedy) when a verifier turn reuses the execute session identity."""
+    code = VERIFY_REFUSAL_CODE_SESSION_COLLISION
+    reason, remedy = verifier_session_collision_refusal_text(
+        code, session_id=session_id
+    )
+    return code, reason, remedy
+
+
 def format_verifier_evidence_section(state: dict[str, Any], run_dir: Path) -> list[str]:
     """Render the `## Verification evidence` section for `execution-report.md`.
 
@@ -31862,6 +31900,85 @@ def find_runtime_reachability_path(source: str, target: str) -> list[str] | None
 _find_runtime_reachability_path = find_runtime_reachability_path
 
 
+def check_verifier_state_authority(
+    current_status: str,
+    verdict_state: str,
+    role: str = "verifier",
+) -> dict[str, Any]:
+    """Check whether the acting role holds authority for the edge it exercises.
+
+    runwire (`eow7p4`) E-03: Consumes Order 01's map_driver_status_to_run_state,
+    find_runtime_reachability_path to 'verifying', and run_state.validate_transition.
+    Report-only: records the check result and never raises or refuses.
+    """
+    try:
+        from agent_workflows import run_state as _rs
+
+        translated_source = map_driver_status_to_run_state(current_status)
+        if translated_source is None:
+            return {
+                "ok": False,
+                "authorized": False,
+                "source_status": current_status,
+                "source_position": None,
+                "runtime_path": None,
+                "reason": f"unmapped driver status {current_status!r}",
+                "findings": ["ST-UNMAPPED-SOURCE"],
+            }
+
+        runtime_path = find_runtime_reachability_path(translated_source, "verifying")
+        if runtime_path is None:
+            return {
+                "ok": False,
+                "authorized": False,
+                "source_status": current_status,
+                "source_position": translated_source,
+                "runtime_path": None,
+                "reason": f"no runtime reachability path from {translated_source!r} to 'verifying'",
+                "findings": ["ST-NO-RUNTIME-PATH"],
+            }
+
+        if verdict_state in _rs.ALL_STATES:
+            target_pos = verdict_state
+        else:
+            target_pos = map_driver_status_to_run_state(verdict_state)
+
+        if target_pos is None:
+            return {
+                "ok": False,
+                "authorized": False,
+                "source_status": current_status,
+                "source_position": translated_source,
+                "runtime_path": runtime_path,
+                "target_status": verdict_state,
+                "target_position": None,
+                "reason": f"no run_state edge for target {verdict_state!r}",
+                "findings": ["ST-NO-RUN-STATE-TARGET"],
+            }
+
+        res = _rs.validate_transition("verifying", target_pos, actor=role)
+        return {
+            "ok": res.ok,
+            "authorized": res.ok,
+            "source_status": current_status,
+            "source_position": translated_source,
+            "runtime_path": runtime_path,
+            "verifier_source": "verifying",
+            "target_status": verdict_state,
+            "target_position": target_pos,
+            "actor": role,
+            "edge": f"verifying -> {target_pos}",
+            "findings": [f.code for f in res.findings] if res.findings else [],
+        }
+    except Exception as exc:  # pragma: no cover - defensive
+        return {
+            "ok": False,
+            "authorized": False,
+            "error": str(exc),
+            "findings": ["ST-CHECK-ERROR"],
+        }
+
+
 def _check_queue_item_run_state(item: dict[str, Any]) -> None:
     """Check a single queue item's status against run_state positions.
 
@@ -34102,6 +34219,7 @@ def execute_item_core(
         "prompt": str(prompt_path),
         "prompt_sha256": sha256_file(prompt_path),
         "session_id": None,
+        "verify_session_id": None,
         "log": str(attempt_log_path(run_dir, item, attempt_no)),
         "recovery": recovery,
         "action": action,
@@ -35099,13 +35217,43 @@ def execute_item_core(
                     )
                     v_outcome_file.unlink(missing_ok=True)
                     try:
-                        v_rc, _v_session, _v_log, _v_argv = spawn_verifier(
+                        v_rc, v_session, _v_log, _v_argv = spawn_verifier(
                             v_prompt_file,
                             current_plan_path,
                             work_dir,
                             tracker,
                             attempt_no,
                         )
+                        # runwire (`eow7p4`) E-01: capture and persist the verifier session id
+                        # on the attempt record rather than discarding it. An absent id is recorded
+                        # as absent (None) and is not conflated with equality.
+                        if v_session:
+                            attempt["verify_session_id"] = v_session
+
+                        # runwire (`eow7p4`) E-02: refuse a session collision where the verifier turn
+                        # reuses the execution turn's session identity. Consume the shipped predicate
+                        # agy_verifier.assert_distinct_sessions lazily in-function.
+                        v_session_collision = False
+                        if v_session and attempt.get("session_id"):
+                            try:
+                                from agent_workflows.agy_verifier import (
+                                    SessionIdentity,
+                                    SessionIdentityCollisionError,
+                                    assert_distinct_sessions,
+                                )
+
+                                assert_distinct_sessions(
+                                    SessionIdentity(
+                                        session_id=str(attempt["session_id"]),
+                                        role="executor",
+                                    ),
+                                    SessionIdentity(
+                                        session_id=str(v_session), role="verifier"
+                                    ),
+                                )
+                            except SessionIdentityCollisionError:
+                                v_session_collision = True
+
                         # attmodel czut8j E-03: record the verifier launch model on the attempt
                         # when a verifier turn actually ran. Not simply options["verify_model"]
                         # read at the consumer, because a resume can reach an attempt whose
@@ -35166,6 +35314,17 @@ def execute_item_core(
                             )
                             attempt["verify_verdict_state"] = v_map.state
                             attempt["verify_verdict_recognized"] = v_map.recognized
+
+                            # runwire (`eow7p4`) E-03: check the verifier's state authority before
+                            # its verdict downgrades an item, consuming verify_roles.ROLE_CONTRACTS
+                            # and run_state's table. Report-only: records the check result and refuses nothing.
+                            auth_check = check_verifier_state_authority(
+                                item.get("status", "running"),
+                                v_map.state,
+                                role="verifier",
+                            )
+                            attempt["verify_authority_check"] = auth_check
+                            item["verify_authority_check"] = auth_check
 
                             # runverdict-05 (`bxx9af`) E-04: require real test evidence before verify_disp can be 'verified'
                             v_has_evidence = False
@@ -35236,7 +35395,32 @@ def execute_item_core(
                             item["corroboration_reason"] = v_corr_reason
                             item["corroboration_counts"] = v_corr_counts
 
-                            if (
+                            if v_session_collision:
+                                # runwire (`eow7p4`) E-02: a session collision makes the verification
+                                # NOT VERIFIED. Recorded through record_refusal with code distinct from
+                                # both declined and unreadable, naming the preserved lane in the remedy.
+                                verify_disp = VERIFY_DISP_UNVERIFIED
+                                disposition = "fail-verify"
+                                v_code, v_reason, v_remedy = (
+                                    verifier_session_collision_text(str(v_session))
+                                )
+                                record_refusal(
+                                    item, code=v_code, reason=v_reason, remedy=v_remedy
+                                )
+                                attempt[VERIFICATION_REFUSED_KEY] = {
+                                    "code": v_code,
+                                    "reason": v_reason,
+                                    "remedy": v_remedy,
+                                    "verify_disp": verify_disp,
+                                }
+                                print(
+                                    pal(f"  ! IPD {item['id6']} {v_reason}", "yellow"),
+                                    file=sys.stderr,
+                                )
+                                print(
+                                    pal(f"    -> {v_remedy}", "yellow"), file=sys.stderr
+                                )
+                            elif (
                                 verify_disp == VERIFY_DISP_VERIFIED
                                 and not v_has_evidence
                             ):
@@ -35295,60 +35479,85 @@ def execute_item_core(
                                     VERIFY_ABSENCE_VERDICT_UNREADABLE
                                 )
                         else:
-                            # runverdict-06 (`fzxfph`) E-02: FACT 2, AND IT IS A RECORDED HARD FAILURE.
-                            #
-                            # THE VERIFIER RAN AND WROTE NOTHING. This arm previously recorded the same
-                            # bare `unverified` as an unreadable verdict and as a killed turn, so three
-                            # facts with three different remedies read as one benign caveat. Spec `25kzda`
-                            # §4.2's `RUN-FRESH-VERIFIER` row already calls this case a FAILURE ("<item>
-                            # has no valid independent verification attempt"), so recording it as one
-                            # implements the spec rather than amending it.
-                            #
-                            # "HARD FAILURE" MEANS RECORDED AND REPORTED AS SUCH, NOT A NEW REFUSAL, and
-                            # that boundary is what keeps this change small. `integration_is_earned`
-                            # ALREADY refuses integration for any non-`verified` token when validation is
-                            # ON, and `self_finalize` is gated on that earned verdict, so this turn
-                            # already does not auto-merge and its lane is already preserved. Adding a
-                            # second refusal on top would be redundant and could strand work the existing
-                            # gate handles. KNOW THE LIMIT OF THAT GUARANTEE rather than overclaiming it:
-                            # the validation-OFF branch of that predicate never reads `verify_disp` at all,
-                            # so with a passing driver-run suite an item still integrates on the
-                            # `driver-run-suite` signal; oc defaults `--validate` OFF while agy defaults
-                            # its verifier ON, so the guarantee holds on agy's default and on oc only
-                            # under `--validate`.
-                            #
-                            # `verify_disp` KEEPS ITS EXISTING TOKEN DELIBERATELY. A novel value would
-                            # render as a bare `-` in `aw runs` (`run_viewer` matches `verified` ->`yes`,
-                            # `(unverified, verify-failed, failed)` -> `no`, everything else -> `-`),
-                            # which is precisely how "no verification ran" already renders and is the
-                            # opposite of this change's purpose; `run_viewer.py` is not in this plan's
-                            # scope. So the DISTINCTION rides on the refusal record and the
-                            # `verify_absence` field, both of which already render.
-                            v_reason, v_remedy = verify_absence_text(
-                                VERIFY_ABSENCE_NO_OUTCOME_FILE
-                            )
-                            v_code = VERIFY_ABSENCE_NO_OUTCOME_FILE
-                            record_refusal(
-                                item,
-                                code=v_code,
-                                reason=v_reason,
-                                remedy=v_remedy,
-                            )
-                            attempt["verify_absence"] = v_code
-                            item["verify_absence"] = v_code
-                            verify_disp = VERIFY_DISP_UNVERIFIED
-                            disposition = "fail-verify"
-                            attempt[VERIFICATION_REFUSED_KEY] = {
-                                "code": v_code,
-                                "reason": v_reason,
-                                "remedy": v_remedy,
-                                "verify_disp": verify_disp,
-                            }
-                            print(
-                                pal(f"  ! IPD {item['id6']} {v_reason}", "yellow"),
-                                file=sys.stderr,
-                            )
-                            print(pal(f"    -> {v_remedy}", "yellow"), file=sys.stderr)
+                            if v_session_collision:
+                                verify_disp = VERIFY_DISP_UNVERIFIED
+                                disposition = "fail-verify"
+                                v_code, v_reason, v_remedy = (
+                                    verifier_session_collision_text(str(v_session))
+                                )
+                                record_refusal(
+                                    item, code=v_code, reason=v_reason, remedy=v_remedy
+                                )
+                                attempt[VERIFICATION_REFUSED_KEY] = {
+                                    "code": v_code,
+                                    "reason": v_reason,
+                                    "remedy": v_remedy,
+                                    "verify_disp": verify_disp,
+                                }
+                                print(
+                                    pal(f"  ! IPD {item['id6']} {v_reason}", "yellow"),
+                                    file=sys.stderr,
+                                )
+                                print(
+                                    pal(f"    -> {v_remedy}", "yellow"), file=sys.stderr
+                                )
+                            else:
+                                # runverdict-06 (`fzxfph`) E-02: FACT 2, AND IT IS A RECORDED HARD FAILURE.
+                                #
+                                # THE VERIFIER RAN AND WROTE NOTHING. This arm previously recorded the same
+                                # bare `unverified` as an unreadable verdict and as a killed turn, so three
+                                # facts with three different remedies read as one benign caveat. Spec `25kzda`
+                                # §4.2's `RUN-FRESH-VERIFIER` row already calls this case a FAILURE ("<item>
+                                # has no valid independent verification attempt"), so recording it as one
+                                # implements the spec rather than amending it.
+                                #
+                                # "HARD FAILURE" MEANS RECORDED AND REPORTED AS SUCH, NOT A NEW REFUSAL, and
+                                # that boundary is what keeps this change small. `integration_is_earned`
+                                # ALREADY refuses integration for any non-`verified` token when validation is
+                                # ON, and `self_finalize` is gated on that earned verdict, so this turn
+                                # already does not auto-merge and its lane is already preserved. Adding a
+                                # second refusal on top would be redundant and could strand work the existing
+                                # gate handles. KNOW THE LIMIT OF THAT GUARANTEE rather than overclaiming it:
+                                # the validation-OFF branch of that predicate never reads `verify_disp` at all,
+                                # so with a passing driver-run suite an item still integrates on the
+                                # `driver-run-suite` signal; oc defaults `--validate` OFF while agy defaults
+                                # its verifier ON, so the guarantee holds on agy's default and on oc only
+                                # under `--validate`.
+                                #
+                                # `verify_disp` KEEPS ITS EXISTING TOKEN DELIBERATELY. A novel value would
+                                # render as a bare `-` in `aw runs` (`run_viewer` matches `verified` ->`yes`,
+                                # `(unverified, verify-failed, failed)` -> `no`, everything else -> `-`),
+                                # which is precisely how "no verification ran" already renders and is the
+                                # opposite of this change's purpose; `run_viewer.py` is not in this plan's
+                                # scope. So the DISTINCTION rides on the refusal record and the
+                                # `verify_absence` field, both of which already render.
+                                v_reason, v_remedy = verify_absence_text(
+                                    VERIFY_ABSENCE_NO_OUTCOME_FILE
+                                )
+                                v_code = VERIFY_ABSENCE_NO_OUTCOME_FILE
+                                record_refusal(
+                                    item,
+                                    code=v_code,
+                                    reason=v_reason,
+                                    remedy=v_remedy,
+                                )
+                                attempt["verify_absence"] = v_code
+                                item["verify_absence"] = v_code
+                                verify_disp = VERIFY_DISP_UNVERIFIED
+                                disposition = "fail-verify"
+                                attempt[VERIFICATION_REFUSED_KEY] = {
+                                    "code": v_code,
+                                    "reason": v_reason,
+                                    "remedy": v_remedy,
+                                    "verify_disp": verify_disp,
+                                }
+                                print(
+                                    pal(f"  ! IPD {item['id6']} {v_reason}", "yellow"),
+                                    file=sys.stderr,
+                                )
+                                print(
+                                    pal(f"    -> {v_remedy}", "yellow"), file=sys.stderr
+                                )
                     except runner_stop.StopNowForce as stop:
                         now = utc_now()
                         attempt["interrupted_at"] = now
@@ -36839,9 +37048,10 @@ def execute_item_core(
                                 wt_handle,
                                 state=state,
                                 holder_label=integration_lock_holder_label(state),
-                                integrate=lambda _item,
-                                _handle: integrate_review_lane_branch(
-                                    repo, _handle, _item["id6"]
+                                integrate=lambda _item, _handle: (
+                                    integrate_review_lane_branch(
+                                        repo, _handle, _item["id6"]
+                                    )
                                 ),
                                 progress=integration_lock_progress_reporter(),
                                 run_checked=run_checked,
@@ -37587,9 +37797,10 @@ def execute_item_core(
                                         holder_label=integration_lock_holder_label(
                                             state
                                         ),
-                                        integrate=lambda _item,
-                                        _handle: integrate_review_lane_branch(
-                                            repo, _handle, _item["id6"]
+                                        integrate=lambda _item, _handle: (
+                                            integrate_review_lane_branch(
+                                                repo, _handle, _item["id6"]
+                                            )
                                         ),
                                         progress=integration_lock_progress_reporter(),
                                         run_checked=run_checked,
@@ -39316,7 +39527,9 @@ def perform_coordinator_backlog_close(
     wait_res = contention_wait.wait_until(
         _try_raced_close,
         what=f"coordinator backlog close landing for {item.get('from_backlog')}",
-        holder=lambda: f"new tip {_run_git(repo, ['rev-parse', '--short', 'HEAD'])[1].strip()}",
+        holder=lambda: (
+            f"new tip {_run_git(repo, ['rev-parse', '--short', 'HEAD'])[1].strip()}"
+        ),
         timeout=contention_wait.TIMEOUT_SECONDS,
         poll=contention_wait.POLL_SECONDS,
         report_every=contention_wait.REPORT_SECONDS,
