@@ -5,8 +5,9 @@
 - Concern: `aw backlog set` is the original subject of backlog `fcnz1r` and the harder of the two migrations. `backlog.run_set` re-implements transition validation, the metadata write (via a full `_strip_metadata_and_history` plus `_render_item` round trip rather than the shared engine's line-by-line rewrite), relocation (via `atomic_write` plus `unlink`, which git sees as a delete plus an untracked file where the shared engine stages a single `git mv` rename), history assembly, and the sidecar append. It carries `--gate-dir`, which `runner_shared.close_backlog_item` depends on and which exists on no other verb. It also still contains a dead read of a nonexistent `apply` flag in its dry-run guard. Three release-blocking defects (`43p53n`, `mawwlc`, and the gate default) were each fixed by duplicating behavior into this function, and two more bypasses were measured on its sibling path while authoring this Set, so this is the function whose removal from the dispatch fork actually closes the recurring class.
 - Scope: IN: reduce `backlog.run_set` to an argument-normalizing adapter delegating to `status_set.run_set_command`, preserving its name and callable signature and keeping `--gate-dir` and the lane-carrier override working as engine parameters and the `(aw backlog)` actor preserved; adopt the shared engine's `git mv` relocation per spec `wy9aru` 4.2; adopt the shared engine's selector semantics per 4.5 (a setid acts on every match; an ambiguous substring refuses); carry the backlog-only validations the engine still lacks (`--work-kind`/`--priority` enum, `--gate-dir`, the lane-carrier pair) into the shared engine per 4.7, confirming those `4gwgo3` already carried; verify `runner_shared.close_backlog_item` still works. OUT, each with a reason recorded under "Deferred": the specs path (child 04, which must land first); every axis `wy9aru` Section 7 assigns elsewhere, each with its own carrier; closing any of the carriers whose defects this migration incidentally removes, except where the plan's own evidence proves the fix complete.
 - Scope-Paths: agent_workflows/backlog.py, agent_workflows/status_set.py, agent_workflows/cli.py, tests/test_backlog_set_adapter.py, CHANGELOG.md
+- Scope-Exceeded: .aw/records/backlog/open/20261009-r73v9i-01-r73v9i-status-set-self-commit-reset-unstages-git-mv-reloc.backlog.md (E-06 filed backlog item for AC-5 relocation finding per plan Scope check note); tests/test_set_dispatch_parity.py (E-05 flipped assertions in differential harness child 02 authored per plan Scope check note); tests/test_status_set_descriptive_safety.py (E-07 updated refusal message prefix to unified aw set: per plan Scope check note)
 - Item-Dependencies: executed:m94eht
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: medium
@@ -17,9 +18,9 @@
 - Highest E allocated: 07
 - Author: opencode/its_direct/pt3-claude-opus-5-1m-us
 - Id: vhiqo6
-- Approval: 2026-10-08, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-09 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: vhiqo6 verified (set setdisp, attempt 1). [Scope reconciliation - out-of-scope .aw/records/backlog/open/20261009-r73v9i-01-r73v9i-status-set-self-commit-reset-unstages-git-mv-reloc.backlog.md: E-06 filed backlog item for AC-5 relocation finding per plan Scope check note; out-of-scope tests/test_set_dispatch_parity.py: E-05 flipped assertions in differential harness child 02 authored per plan Scope check note; out-of-scope tests/test_status_set_descriptive_safety.py: E-07 updated refusal message prefix to unified aw set: per plan Scope check note]
 - 2026-10-08 approved (aw set): status set to approved
 - 2026-10-07 reviewed (aw set): /plan-review (opencode/uri/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-006 fixed
 - 2026-10-07 /plan-review (opencode/uri/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005, PR-006 (all fixed; record `.aw/records/reviews/20261001-setdisp-05-vhiqo6-make-aw-backlog-set-status-a-thin-adapter-delegating-to-the.review.md`). Execution remains gated on `m94eht` executing, which is gated on `wy9aru` OQ-1 (BLOCKING, maintainer).
