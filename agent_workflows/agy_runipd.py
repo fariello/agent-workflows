@@ -1516,6 +1516,7 @@ def reclaim_lanes_on_interrupt(
     *,
     interactive: bool = True,
     reason: str = "interrupt",
+    mode: str = "interrupt",
 ) -> list[dict[str, Any]]:
     """THE lane-reclamation decision, ONE implementation in `runner_shared` (`gqo6if` E-03).
 
@@ -1537,8 +1538,27 @@ def reclaim_lanes_on_interrupt(
         state,
         interactive=interactive,
         reason=reason,
+        mode=mode,
         lane_prompt=_lane_reclaim_prompt,
         disable_prompt=disable_lane_prompt,
+    )
+
+
+def reclaim_run_lanes(
+    repo: Path,
+    run_dir: Path,
+    state: dict[str, Any],
+    *,
+    interactive: bool = False,
+    reason: str = "run-end",
+) -> list[dict[str, Any]]:
+    """Reclaim lanes allocated to this run at run end (lanegc 45z93e E-02)."""
+    return runner_shared.reclaim_run_lanes(
+        repo,
+        run_dir,
+        state,
+        interactive=interactive,
+        reason=reason,
     )
 
 
@@ -3526,6 +3546,10 @@ def run_queue(
             Path(state["repo"]), run_dir, state, save_state=save_state
         )
         state = load_state(run_dir)
+    with contextlib.suppress(Exception):
+        runner_shared.reclaim_run_lanes(Path(state["repo"]), run_dir, state)
+        save_state(run_dir, state)
+        state = load_state(run_dir)
     write_report(run_dir, state)
     pal = Palette(should_color(sys.stdout), use_unicode=should_unicode(sys.stdout))
     exit_reason = None
@@ -3584,6 +3608,8 @@ def run_queue(
         in_queue_id6s=in_queue_id6s,
     ):
         print(_summary_line)
+    if state.get("lanes_summary"):
+        print(state["lanes_summary"])
     hint = render_continuation_hint(state, run_dir)
     print(hint)
     state["_summary_table_printed"] = True

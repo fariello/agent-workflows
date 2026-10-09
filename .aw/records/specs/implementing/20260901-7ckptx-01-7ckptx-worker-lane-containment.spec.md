@@ -12,6 +12,7 @@
 
 ## Workflow history
 
+- 2026-10-09 note (aw specs): Narrow R2.5: an item that recorded no attempt in a lane and has no submission under its lane submission root has nothing to collect in that lane (45z93e)
 - 2026-10-08 note (aw specs): AMENDED 2026-10-08 (nvymif-01 z8ex9f): R2.5 narrowed to distinguish provably-empty lanes from uncollected submissions; R5.5 updated to four conditions; R5.7 added to block teardown on unlanded lane commits; A21 added to pin the six-shape classification table.
 - 2026-10-08 implementing (aw set): status set to implementing
 
@@ -189,6 +190,7 @@ holds any file for the run; for a lane whose submission tree provably holds NO f
 nothing outstanding to collect. The asymmetry is normative: the probe may only answer "provably nothing",
 never "probably nothing", so an unreadable or unresolvable submission root or enumeration failure MUST be
 treated as an uncollected submission (failing toward preservation), exactly as an unreadable inventory is.
+AMENDED 2026-10-09 by lanegc Order 01 (`45z93e`): an item that recorded no attempt in a lane and has no submission under its lane submission root has nothing to collect in that lane.
 
 R2.6 THE SHARED-CODE HOME MUST BE DECLARED. Added 2026-09-01 after `/aw plan-review` observed that
 requiring host-neutral code while every plan's scope fence named only the two driver modules told an

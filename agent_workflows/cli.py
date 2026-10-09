@@ -6389,6 +6389,47 @@ def _build_parser() -> argparse.ArgumentParser:
         "--apply", action="store_true", help="Write the file (default is preview only)."
     )
 
+    p_lanes = sub.add_parser(
+        "lanes",
+        parents=[common],
+        help="Manage worker and review sweep lanes (list, prune).",
+        formatter_class=_AlphaHelpFormatter,
+        epilog=(
+            "EXAMPLES\n"
+            "  aw lanes list                # list all lanes with owner and status\n"
+            "  aw lanes prune               # dry run prune of merged lanes\n"
+            "  aw lanes prune --apply       # remove lanes whose work is on main\n"
+            "\n"
+            "SAFETY & DEFAULTS\n"
+            "  Prune is dry-run by default; --apply removes only merged clean lanes.\n"
+            "  Lanes holding unmerged work or uncommitted files are never removed.\n"
+            "\n"
+            "OUTPUT & EXITS\n"
+            "  Exit codes: 0 clean, 1 gate refusal, 2 cannot-run/usage error.\n"
+            "  Agent mode: --agent emits aw.agent/v1 JSONL.\n"
+        ),
+        description="Inspect and prune worker and review sweep lanes.",
+    )
+    lanes_sub = p_lanes.add_subparsers(dest="lanes_command")
+    lanes_sub.add_parser(
+        "list",
+        parents=[common],
+        help="List all worker and review sweep lanes with owner, live status, and verdict.",
+        description="List all worker and review sweep lanes with owner, live status, and verdict.",
+    )
+    p_lanes_prune = lanes_sub.add_parser(
+        "prune",
+        parents=[common],
+        help="Prune lanes that have landed on main (dry-run by default; --apply to remove).",
+        description="Prune lanes that have landed on main (dry-run by default; --apply to remove).",
+    )
+    p_lanes_prune.add_argument(
+        "--apply",
+        action="store_true",
+        default=False,
+        help="Apply removal of removable lanes through the R5.5 gate.",
+    )
+
     p_specs = sub.add_parser(
         "specs",
         aliases=["spec"],
@@ -17198,6 +17239,15 @@ def _dispatch(argv: Optional[Sequence[str]]) -> int:
         # Bare `aw releases` (and explicit `list`) both list: OQ-01 resolved to list, matching
         # `aw backlog`-family conventions, so the family help is NOT shown for a bare invocation.
         return releases_mod.run_list(args)
+    if args.command == "lanes":
+        from agent_workflows import lanes_cli
+
+        lanes_cmd = getattr(args, "lanes_command", None)
+        if lanes_cmd == "list":
+            return lanes_cli.run_list(args)
+        if lanes_cmd == "prune":
+            return lanes_cli.run_prune(args)
+        return _show_family_help(parser, "lanes", "aw lanes list", term, context)
     if args.command in ("specs", "spec"):
         specs_cmd = getattr(args, "specs_command", None) or getattr(
             args, "spec_command", None

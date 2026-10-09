@@ -2423,6 +2423,26 @@ COMMAND_INVENTORY: Tuple[CommandDeclaration, ...] = (
         mutation_gate="none",
         empty_error_renderer="renderer_boundary",
         legacy_flags=(),
+    ),
+    # lanegc Order 01 (45z93e) E-03, E-04, E-05: worker and review sweep lane inspection and pruning.
+    CommandDeclaration(
+        command="lanes list",
+        command_class="read",
+        human_recipe="table",
+        agent_record_kind="result",
+        mutation_gate="none",
+        empty_error_renderer="shared_empty_result",
+        legacy_flags=(),
+        exit_contract=(0, 1, 2),
+    ),
+    CommandDeclaration(
+        command="lanes prune",
+        command_class="mutation",
+        human_recipe="table",
+        agent_record_kind="result",
+        mutation_gate="dry_run_default",
+        empty_error_renderer="shared_empty_result",
+        legacy_flags=(),
         exit_contract=(0, 1, 2),
     ),
 )
