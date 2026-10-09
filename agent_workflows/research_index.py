@@ -571,6 +571,7 @@ DANGLING_CONSUMED_RULE = "dangling-consumed-by"
 ADOPTED_NO_CONSUMER_RULE = "adopted-without-consumer"
 UNRECOGNIZED_MODEL_RULE = "unrecognized-model"
 FRONTMATTER_KEY_REPEATED_RULE = "research.frontmatter-key-repeated"
+STATUS_TIER_MISMATCH_RULE = "status-tier-mismatch"
 
 
 def check_drift(
@@ -794,6 +795,50 @@ def check_drift(
                         )
                     )
                 )
+
+    # Status-versus-tier drift rule (Set zdsf35 / IPD ucwlwt E-02).
+    # Emitted in check_drift ONLY (never in _doc_entry or _scan_docs), so the regenerate branch
+    # of run_index is not blocked by tier drift.
+    for e in entries:
+        st_res = R.normalize_status(e.status or "")
+        st = st_res.value
+        # F-10: Seven indexed hot-root docs carry status: '' (.research-prompt.md) and normalize
+        # to value=None. Missing status is owned by _doc_entry frontmatter classes, not tier drift.
+        if st is None:
+            continue
+
+        parts = e.path.split("/")
+        first_comp = parts[0] if len(parts) > 1 else ""
+
+        # Tier classification:
+        # If no directory component, doc sits at the HOT ROOT.
+        # If first component is REFERENCE_DIR or ARCHIVE_DIR, doc sits in that COLD tier.
+        # If first component is an unrecognized non-cold directory (e.g. plan-review), stay silent (F-06).
+        if len(parts) == 1:
+            if st in R.SHARDED_STATUSES:
+                drift.append(
+                    _ce.enrich_drift(
+                        Drift(
+                            e.path,
+                            STATUS_TIER_MISMATCH_RULE,
+                            f"status '{e.status}' requires sharded tier '{st}' but doc sits at hot root; promote with 'aw research promote'",
+                        ),
+                        recovery=f"aw research promote {e.id6} --to {st}",
+                    )
+                )
+        elif first_comp in (R.REFERENCE_DIR, R.ARCHIVE_DIR):
+            if st in R.HOT_STATUSES:
+                drift.append(
+                    _ce.enrich_drift(
+                        Drift(
+                            e.path,
+                            STATUS_TIER_MISMATCH_RULE,
+                            f"status '{e.status}' requires hot root tier but doc sits in '{first_comp}'; promote with 'aw research promote'",
+                        ),
+                        recovery=f"aw research promote {e.id6} --to {st}",
+                    )
+                )
+
     return drift
 
 

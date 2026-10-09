@@ -39,44 +39,44 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: confirm the premise still holds
 
-- [ ] E-01 RE-VERIFY AT EXECUTION HEAD that (a) no existing rule detects a tier mismatch and (b) `mg8bag` has actually made the corpus consistent, before adding a rule whose whole value depends on both. For (a), enumerate the rule ids `research_index.check_drift` can emit and confirm none reads a document's directory; the authoring enumeration, RE-VERIFIED AT REVIEW and to be re-derived again at execution, is `check.stale-index-missing`, `check.stale-index-stale`, `dangling-citation`, `stale-state-to-promote`, `dangling-consumed-by`, `adopted-without-consumer`, `unrecognized-model`, plus the name/frontmatter classes from `_scan_docs` and `_doc_entry` (review additionally confirmed by measurement that `check_drift`'s body contains ZERO references to `REFERENCE_DIR`, `ARCHIVE_DIR`, `.parts` or a `/` split, which is the direct form of the not-directory-aware claim). For (b), re-run `mg8bag`'s census: count docs with a cold normalized status at the research root, and docs with a hot normalized status inside a `reference/` or `archive/` subtree. BOTH MUST BE ZERO. If the first is nonzero, STOP: the dependency edge was satisfied but the corpus was not, and shipping the rule now reports findings on real documents. Record both numbers.
+- [x] E-01 RE-VERIFY AT EXECUTION HEAD that (a) no existing rule detects a tier mismatch and (b) `mg8bag` has actually made the corpus consistent, before adding a rule whose whole value depends on both. For (a), enumerate the rule ids `research_index.check_drift` can emit and confirm none reads a document's directory; the authoring enumeration, RE-VERIFIED AT REVIEW and to be re-derived again at execution, is `check.stale-index-missing`, `check.stale-index-stale`, `dangling-citation`, `stale-state-to-promote`, `dangling-consumed-by`, `adopted-without-consumer`, `unrecognized-model`, plus the name/frontmatter classes from `_scan_docs` and `_doc_entry` (review additionally confirmed by measurement that `check_drift`'s body contains ZERO references to `REFERENCE_DIR`, `ARCHIVE_DIR`, `.parts` or a `/` split, which is the direct form of the not-directory-aware claim). For (b), re-run `mg8bag`'s census: count docs with a cold normalized status at the research root, and docs with a hot normalized status inside a `reference/` or `archive/` subtree. BOTH MUST BE ZERO. If the first is nonzero, STOP: the dependency edge was satisfied but the corpus was not, and shipping the rule now reports findings on real documents. Record both numbers.
 
   WRITE THE CENSUS WITH `.value` AND SANITY-CHECK IT AGAINST A KNOWN-NONZERO BASELINE (F-09). `normalize_status` returns a `VocabResult`, so a membership test against the result object is silently False for every doc and the census reads 0 when it should read 35. Review hit exactly that while re-deriving this measurement. THE CONSEQUENCE HERE IS WORSE THAN IN E-02, because a zero from a broken census SATISFIES this item's gate and lets the plan proceed on a false premise: the STOP condition cannot fire. So before trusting a zero, run the SAME census at a commit where `mg8bag` has NOT yet executed (or on a fixture reproducing one stranded doc) and confirm it reports NONZERO there. A census that cannot produce a nonzero has not been validated. Review measured 35 cold-at-root and 0 hot-in-cold at review HEAD, with `mg8bag` still pending, so until that sibling executes the correct answer to (b) is `35`, and `35` is the STOP, not a defect in the probe.
   - Depends on: none
   - Expected outcome: the enumerated existing rule ids with a statement that none is directory-aware, plus both census numbers recorded as actually measured and the probe shown capable of returning nonzero, with a STOP recorded rather than a workaround if either is nonzero.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: the rule
 
-- [ ] E-02 ADD the status-versus-tier drift rule to `research_index.check_drift`, reusing the existing vocabulary rather than re-listing it. For each scanned entry, derive the on-disk tier from the FIRST path component of `DocEntry.path` (which `_doc_entry` already sets to the posix path relative to the research root): a path with no directory component is the HOT ROOT, and a first component equal to `research_contract.REFERENCE_DIR` or `ARCHIVE_DIR` is that COLD tier. Normalize the document's status through `research_contract.normalize_status`, so a legacy `intake` doc reads as `todo`. Emit ONE finding per offending doc, in the two directions the item names: a doc whose normalized status is in `SHARDED_STATUSES` while it sits at the hot root, and a doc whose normalized status is in `HOT_STATUSES` while it sits inside a cold tier. Use a single rule id (so one grep finds both) and put the direction in the detail text, naming the status, the actual tier, and the expected one. Follow the module's established emission shape: place the new block inside `check_drift` ONLY (never in `_doc_entry` or `_scan_docs`), which is the convention the `unrecognized-model` block states explicitly so the regenerate branch of `run_index` is not blocked by it. Do NOT compute the shard MONTH here: month placement is `mg8bag`'s measured-clean direction and a separate concern; this rule judges TIER only.
+- [x] E-02 ADD the status-versus-tier drift rule to `research_index.check_drift`, reusing the existing vocabulary rather than re-listing it. For each scanned entry, derive the on-disk tier from the FIRST path component of `DocEntry.path` (which `_doc_entry` already sets to the posix path relative to the research root): a path with no directory component is the HOT ROOT, and a first component equal to `research_contract.REFERENCE_DIR` or `ARCHIVE_DIR` is that COLD tier. Normalize the document's status through `research_contract.normalize_status`, so a legacy `intake` doc reads as `todo`. Emit ONE finding per offending doc, in the two directions the item names: a doc whose normalized status is in `SHARDED_STATUSES` while it sits at the hot root, and a doc whose normalized status is in `HOT_STATUSES` while it sits inside a cold tier. Use a single rule id (so one grep finds both) and put the direction in the detail text, naming the status, the actual tier, and the expected one. Follow the module's established emission shape: place the new block inside `check_drift` ONLY (never in `_doc_entry` or `_scan_docs`), which is the convention the `unrecognized-model` block states explicitly so the regenerate branch of `run_index` is not blocked by it. Do NOT compute the shard MONTH here: month placement is `mg8bag`'s measured-clean direction and a separate concern; this rule judges TIER only.
 
   `normalize_status` RETURNS A `VocabResult`, NOT A STRING. COMPARE `.value`, NEVER THE RESULT OBJECT (F-09, measured at review and the single most likely way to write this rule so it reports ZERO findings and looks correct). Its signature is `normalize_status(token: str) -> VocabResult`, and the module's own docstring states the required idiom: read sites "call `normalize_status(raw).value` BEFORE any map/compare/band selection". A membership test against the raw result (`normalize_status(e.status) in R.SHARDED_STATUSES`) is silently FALSE for every document, because a `VocabResult` is never a member of a `frozenset` of strings. Review wrote exactly that bug while re-deriving the census and measured 0 stranded docs where there are 35; nothing raised and nothing warned. So the rule MUST compare `normalize_status(e.status or "").value`, and E-04's negative case is not sufficient protection against this (a rule that never fires passes the negative case).
 
   A DOC WHOSE STATUS DOES NOT NORMALIZE MUST BE SKIPPED, NOT FLAGGED (F-10). `normalize_status` returns `VocabResult(ok=False, value=None, ...)` for an unrecognized token, and `.value` is then `None`. Measured at review: SEVEN indexed docs at the hot root carry an EMPTY `status` (`''`) and normalize to `value=None`; every one is a `.research-prompt.md`. `None` is in neither `SHARDED_STATUSES` nor `HOT_STATUSES`, so a correct `.value` comparison already skips them, but write the skip EXPLICITLY (`if st is None: continue`) with a comment naming the seven, so the behavior is intentional rather than incidental and a later refactor cannot turn it into a crash or a false flag. This rule's concern is tier-versus-status disagreement; a MISSING status is a different defect that `_doc_entry`'s own frontmatter classes own, and claiming it here would make one finding ambiguous between two causes.
   - Depends on: E-01
   - Expected outcome: a new drift rule emitting at most one finding per doc for either direction, reusing `SHARDED_STATUSES`/`HOT_STATUSES`/`REFERENCE_DIR`/`ARCHIVE_DIR`/`normalize_status` with no duplicated status literals, comparing `.value` rather than the `VocabResult`, explicitly skipping a doc whose status does not normalize, and emitted only from `check_drift`.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 REGISTER the new rule id in `check_engine.RULE_REGISTRY` at `warning` severity, with a comment stating WHY that tier was chosen and what registration buys. The reasoning to record: `artifact_core.drift_exit_code` exempts ONLY `info`, so `warning` fails the gate (which the item wants: it asks for a drift rule, not a nudge), while `error` would overstate a defect the item itself argues is a chore because readers key on status and no answer is wrong. The nearest precedent is `check.stale-index-stale`, also `warning`, also a real-but-non-answer-corrupting inconsistency. Note in the comment that an UNREGISTERED id falls through to `_DEFAULT_RULESPEC` at `error`, so registration here is a deliberate downgrade and not bookkeeping. Register whatever id-forms the emission path needs so the severity actually attaches (check whether the finding must be passed through `check_engine.enrich_drift` to carry its severity, as the `stale-index` and `unrecognized-model` blocks do, and do so if required).
+- [x] E-03 REGISTER the new rule id in `check_engine.RULE_REGISTRY` at `warning` severity, with a comment stating WHY that tier was chosen and what registration buys. The reasoning to record: `artifact_core.drift_exit_code` exempts ONLY `info`, so `warning` fails the gate (which the item wants: it asks for a drift rule, not a nudge), while `error` would overstate a defect the item itself argues is a chore because readers key on status and no answer is wrong. The nearest precedent is `check.stale-index-stale`, also `warning`, also a real-but-non-answer-corrupting inconsistency. Note in the comment that an UNREGISTERED id falls through to `_DEFAULT_RULESPEC` at `error`, so registration here is a deliberate downgrade and not bookkeeping. Register whatever id-forms the emission path needs so the severity actually attaches (check whether the finding must be passed through `check_engine.enrich_drift` to carry its severity, as the `stale-index` and `unrecognized-model` blocks do, and do so if required).
   - Depends on: E-02
   - Expected outcome: the rule id registered at `warning` with the rationale recorded, severity demonstrably attached to an emitted finding, and the fall-through-to-`error` consequence named in the comment.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: prove it, both directions
 
-- [ ] E-04 ADD fixture-driven tests to `tests/test_research_index.py` asserting the rule's BEHAVIOR, in the style the existing `check_drift` tests already use (a throwaway repo, a written doc, `check_drift`, assertions on rule id and severity; `test_stale_index_detected` is the exact model, confirmed at review: it calls `I.check_drift(self.root, self.rroot)`, filters by rule, asserts the severity list, and asserts `_core.drift_exit_code(drift) == 1`). Cover SIX cases: (1) a cold-status doc at the hot root is flagged; (2) a hot-status doc inside a `reference/` shard is flagged; (3) the same inside an `archive/` shard is flagged; (4) a correctly-placed doc of each tier produces NO finding of this rule (the negative case, which is what proves the rule is not just always-on); (5) a legacy `intake`-status doc inside a cold shard is flagged, proving normalization is applied rather than a raw string compared; and (6) ADDED AT REVIEW, a doc whose status is EMPTY or unrecognized produces NO finding of this rule, which pins the F-10 skip as intentional and distinguishes it from the frontmatter classes `_doc_entry` owns.
+- [x] E-04 ADD fixture-driven tests to `tests/test_research_index.py` asserting the rule's BEHAVIOR, in the style the existing `check_drift` tests already use (a throwaway repo, a written doc, `check_drift`, assertions on rule id and severity; `test_stale_index_detected` is the exact model, confirmed at review: it calls `I.check_drift(self.root, self.rroot)`, filters by rule, asserts the severity list, and asserts `_core.drift_exit_code(drift) == 1`). Cover SIX cases: (1) a cold-status doc at the hot root is flagged; (2) a hot-status doc inside a `reference/` shard is flagged; (3) the same inside an `archive/` shard is flagged; (4) a correctly-placed doc of each tier produces NO finding of this rule (the negative case, which is what proves the rule is not just always-on); (5) a legacy `intake`-status doc inside a cold shard is flagged, proving normalization is applied rather than a raw string compared; and (6) ADDED AT REVIEW, a doc whose status is EMPTY or unrecognized produces NO finding of this rule, which pins the F-10 skip as intentional and distinguishes it from the frontmatter classes `_doc_entry` owns.
 
   CASE (1) IS THE ONE THAT CATCHES THE `.value` TRAP, AND IT MUST BE WRITTEN TO FAIL IF THE RULE NEVER FIRES. F-09's mistake makes the rule report nothing at all, which passes cases (4) and (6) and would pass an aggregate "no unexpected findings" assertion; only a POSITIVE case can catch it. So each of (1), (2), (3) and (5) must assert a finding is PRESENT with an exact expected count for its fixture (one finding, not "at least zero"), and the module's new tests must not be satisfiable by a rule that is wired but inert. Case (5) is a second independent guard on the same trap, since a raw-string comparison also fails to flag `intake`.
 
   Assert the emitted SEVERITY is `warning` and that `artifact_core.drift_exit_code` returns 1 for a flagged fixture, mirroring `test_stale_index_detected`. Assert on the finding's rule id, severity, location and exit-code effect; do NOT assert on the exact wording of the detail string, and do NOT read production source with `inspect`/`ast`/regex or assert on symbol censuses or line counts.
   - Depends on: E-03
   - Expected outcome: six passing behavioral tests covering both directions, both cold tiers, the clean negative case, status normalization, and the unnormalizable-status skip, each positive case asserting an exact finding count so an inert rule fails, asserting rule id, severity and exit-code effect through real `check_drift` calls.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 DOCUMENT the new rule in `.aw/records/research/README.md` where that file already lists what `--check` fails on. The existing sentence enumerates "missing/invalid frontmatter, name vs frontmatter mismatch, a stale generated view, or a dangling citation"; extend it to include a status-versus-tier mismatch, in the file's own voice and without em or en dashes (this is user-facing prose). Keep it to the enumeration: the README already states the invariant itself one section earlier ("Hot states (`todo`/`active`) stay flat at this directory's root ... Cold states live in monthly `YYYYMM` shards"), so restating the rule would duplicate it. Name the remedy verb (`aw research promote`) so a reader who hits the finding knows the fix.
+- [x] E-05 DOCUMENT the new rule in `.aw/records/research/README.md` where that file already lists what `--check` fails on. The existing sentence enumerates "missing/invalid frontmatter, name vs frontmatter mismatch, a stale generated view, or a dangling citation"; extend it to include a status-versus-tier mismatch, in the file's own voice and without em or en dashes (this is user-facing prose). Keep it to the enumeration: the README already states the invariant itself one section earlier ("Hot states (`todo`/`active`) stay flat at this directory's root ... Cold states live in monthly `YYYYMM` shards"), so restating the rule would duplicate it. Name the remedy verb (`aw research promote`) so a reader who hits the finding knows the fix.
   - Depends on: E-04
   - Expected outcome: the README's `--check` enumeration includes the tier mismatch and names `aw research promote` as the remedy, with the invariant NOT restated and no em or en dash introduced.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -159,30 +159,196 @@ NO SPEC AMENDMENT IS REQUIRED, and the reason is specific rather than an absence
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: the enumerated rule ids `check_drift` can emit, with an explicit statement that none derives a tier from a document's path (review's direct form of this is a count of `REFERENCE_DIR`, `ARCHIVE_DIR`, `.parts` and `/`-split occurrences in `check_drift`'s body, all zero), plus both census numbers (cold-status-at-root, hot-status-in-cold-shard) pasted as measured. BOTH must be zero before proceeding; if either is not, paste the STOP and the investigation rather than a workaround. PASTE THE CENSUS CODE ITSELF, showing it reads `normalize_status(...).value` and not the `VocabResult` (F-09), AND paste the probe returning NONZERO on a known-stranded input (a fixture, or the corpus before `mg8bag` executes, where review measured 35). A zero that has not been shown capable of being nonzero is not evidence; it is the exact failure mode that would let this item's STOP silently pass.
   - Observed evidence:
-  - Result: pending
+    1. Pre-existing rule IDs `check_drift` could emit prior to this change: `dangling-citation`, `stale-state-to-promote`, `dangling-consumed-by`, `adopted-without-consumer`, `unrecognized-model`, `research.frontmatter-key-repeated`, `check.stale-index-missing`, `check.stale-index-stale`.
+    2. Measured counts in `check_drift` body: `REFERENCE_DIR: 0`, `ARCHIVE_DIR: 0`, `.parts: 0`, `split('/'): 0`. None derived a tier from a document's path.
+    3. Census probe code reading `normalize_status(...).value` (F-09):
+       ```python
+       from pathlib import Path
+       from agent_workflows.research_contract import ARCHIVE_DIR, HOT_STATUSES, REFERENCE_DIR, SHARDED_STATUSES, normalize_status
+       from agent_workflows.research_index import _scan_docs
 
-- [ ] V-02 validates E-02
+       entries, _ = _scan_docs(Path('.aw/records/research').resolve())
+       cold_at_root = []
+       hot_in_cold = []
+       for e in entries:
+           rel = e.path.replace('\\', '/')
+           parts = rel.split('/')
+           first = parts[0] if len(parts) > 1 else ''
+           st = normalize_status(e.status).value
+           if not first:
+               if st in SHARDED_STATUSES:
+                   cold_at_root.append((e.path, e.status, st))
+           elif first in (REFERENCE_DIR, ARCHIVE_DIR):
+               if st in HOT_STATUSES:
+                   hot_in_cold.append((e.path, e.status, st))
+       ```
+    4. Probe validation on fixture:
+       - With `.value`: returns 1 on synthetic fixture with stranded doc at root.
+       - Without `.value` (`normalize_status(e.status) in SHARDED_STATUSES`): returns 0 on same fixture, confirming F-09 trap.
+    5. Census counts on real corpus at execution HEAD:
+       - `cold_at_root`: 0
+       - `hot_in_cold`: 0
+       (Note: Stranded doc `620gq2` that stopped attempt 1 was promoted to `reference/202610/` on main in commit `edaffea86`, unblocking this plan; both counts are now 0.)
+    6. Both counts are 0, probe capability verified on nonzero fixture, premise holds.
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: the diff of the new `check_drift` block, plus a demonstration on a THROWAWAY fixture (not the real corpus) that both directions produce exactly one finding each, with the detail text naming the status, the actual tier and the expected one. Confirm the status vocabulary is referenced through `research_contract` symbols with no new hardcoded status or directory literal (paste the relevant diff lines). QUOTE THE TWO LINES F-09 AND F-10 GOVERN: the comparison must read `normalize_status(...).value` (not the bare result), and there must be an explicit skip for a `None` value with its comment. Confirm the emission is inside `check_drift` only by showing `aw research index` still REGENERATES the manifest on a fixture containing a tier-mismatched doc.
   - Observed evidence:
-  - Result: pending
+    1. Diff of `check_drift` in `agent_workflows/research_index.py`:
+       ```diff
+       +    # Status-versus-tier drift rule (Set zdsf35 / IPD ucwlwt E-02).
+       +    # Emitted in check_drift ONLY (never in _doc_entry or _scan_docs), so the regenerate branch
+       +    # of run_index is not blocked by tier drift.
+       +    for e in entries:
+       +        st_res = R.normalize_status(e.status or "")
+       +        st = st_res.value
+       +        # F-10: Seven indexed hot-root docs carry status: '' (.research-prompt.md) and normalize
+       +        # to value=None. Missing status is owned by _doc_entry frontmatter classes, not tier drift.
+       +        if st is None:
+       +            continue
+       +
+       +        parts = e.path.split("/")
+       +        first_comp = parts[0] if len(parts) > 1 else ""
+       +
+       +        if len(parts) == 1:
+       +            if st in R.SHARDED_STATUSES:
+       +                drift.append(
+       +                    _ce.enrich_drift(
+       +                        Drift(
+       +                            e.path,
+       +                            STATUS_TIER_MISMATCH_RULE,
+       +                            f"status '{e.status}' requires sharded tier '{st}' but doc sits at hot root; promote with 'aw research promote'",
+       +                        ),
+       +                        recovery=f"aw research promote {e.id6} --to {st}",
+       +                    )
+       +                )
+       +        elif first_comp in (R.REFERENCE_DIR, R.ARCHIVE_DIR):
+       +            if st in R.HOT_STATUSES:
+       +                drift.append(
+       +                    _ce.enrich_drift(
+       +                        Drift(
+       +                            e.path,
+       +                            STATUS_TIER_MISMATCH_RULE,
+       +                            f"status '{e.status}' requires hot root tier but doc sits in '{first_comp}'; promote with 'aw research promote'",
+       +                        ),
+       +                        recovery=f"aw research promote {e.id6} --to {st}",
+       +                    )
+       +                )
+       ```
+    2. Quoted lines for F-09 and F-10:
+       - F-09: `st = st_res.value`
+       - F-10:
+         ```python
+         # F-10: Seven indexed hot-root docs carry status: '' (.research-prompt.md) and normalize
+         # to value=None. Missing status is owned by _doc_entry frontmatter classes, not tier drift.
+         if st is None:
+             continue
+         ```
+    3. Status vocabulary symbols referenced without hardcoded status or tier literals:
+       `R.SHARDED_STATUSES`, `R.HOT_STATUSES`, `R.REFERENCE_DIR`, `R.ARCHIVE_DIR`.
+    4. Demonstrated on throwaway fixtures:
+       - Cold at root: `status 'reference' requires sharded tier 'reference' but doc sits at hot root; promote with 'aw research promote'`
+       - Hot in reference: `status 'active' requires hot root tier but doc sits in 'reference'; promote with 'aw research promote'`
+    5. Manifest regeneration verified unblocked in `test_manifest_regeneration_not_blocked_by_tier_mismatch`.
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: the `RULE_REGISTRY` diff showing `warning` plus the recorded rationale, AND proof the severity actually attaches to an emitted finding (paste the finding's `severity` field from a fixture run, not the registry entry alone, since the module's own comment warns an un-enriched finding carries `severity=""`). Also show `artifact_core.drift_exit_code` returns 1 for that fixture.
   - Observed evidence:
-  - Result: pending
+    1. Diff of `agent_workflows/check_engine.py`:
+       ```diff
+       +    # zdsf35 Order 02 (ucwlwt) E-03: status-versus-tier mismatch in research docs.
+       +    # Registered at `warning` severity because artifact_core.drift_exit_code exempts ONLY `info`,
+       +    # so `warning` fails the gate as required for a drift rule, while `error` would overstate a
+       +    # defect that is a chore (readers key on frontmatter status and no answer is wrong).
+       +    # The nearest precedent is check.stale-index-stale, also `warning`, also a real-but-non-answer-corrupting
+       +    # inconsistency. An unregistered id falls through to `_DEFAULT_RULESPEC` at `error`, so
+       +    # registration here is a deliberate downgrade and not bookkeeping.
+       +    # Invariant is `""`: no catalog invariant in spec pqsx96 covers research layout tiering.
+       +    "status-tier-mismatch": RuleSpec(
+       +        "warning", ASSURANCE_REPOSITORY, DET_DETERMINISTIC, ""
+       +    ),
+       ```
+    2. Severity attached: verified in `StatusTierMismatchTests.test_case_1_cold_status_at_hot_root_flagged` where `finding.severity` is `'warning'`.
+    3. Drift exit code: verified `artifact_core.drift_exit_code(drift)` returns `1`.
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: the actual output of the new tests run by name, showing all SIX cases and showing the EXACT finding count asserted by each positive case (a case that merely asserts presence does not satisfy this item, per F-09). Plus the bare `python3 -m pytest` summary line pasted verbatim, compared BY FAILURE SET against an empty set rather than against a pass-count constant (review measured `3902 passed, 2 skipped`, zero failures). AND the per-rule corpus comparison: `aw research index --check` findings grouped by rule BEFORE and AFTER this change, showing ZERO findings for the new rule id on the real corpus and UNCHANGED counts for every pre-existing rule. TAKE BOTH SIDES OF THAT COMPARISON IN THIS EXECUTION and do not compare against any count written in this plan: every pre-existing count moved between authoring and review (F-02). State that the overall exit code remains 1 both times because of pre-existing findings, so a reader does not read the failing gate as a regression. Confirm no new test reads production source with `inspect`/`ast`/regex and that none asserts on symbol censuses, caller counts, or line counts.
   - Observed evidence:
-  - Result: pending
+    1. Output of new tests run by name:
+       ```
+       test_case_1_cold_status_at_hot_root_flagged (tests.test_research_index.StatusTierMismatchTests.test_case_1_cold_status_at_hot_root_flagged) ... ok
+       test_case_2_hot_status_in_reference_shard_flagged (tests.test_research_index.StatusTierMismatchTests.test_case_2_hot_status_in_reference_shard_flagged) ... ok
+       test_case_3_hot_status_in_archive_shard_flagged (tests.test_research_index.StatusTierMismatchTests.test_case_3_hot_status_in_archive_shard_flagged) ... ok
+       test_case_4_correctly_placed_docs_produce_no_finding (tests.test_research_index.StatusTierMismatchTests.test_case_4_correctly_placed_docs_produce_no_finding) ... ok
+       test_case_5_legacy_intake_status_in_cold_shard_flagged (tests.test_research_index.StatusTierMismatchTests.test_case_5_legacy_intake_status_in_cold_shard_flagged) ... ok
+       test_case_6_empty_or_unrecognized_status_produces_no_finding (tests.test_research_index.StatusTierMismatchTests.test_case_6_empty_or_unrecognized_status_produces_no_finding) ... ok
+       test_manifest_regeneration_not_blocked_by_tier_mismatch (tests.test_research_index.StatusTierMismatchTests.test_manifest_regeneration_not_blocked_by_tier_mismatch) ... ok
 
-- [ ] V-05 validates E-05
+       ----------------------------------------------------------------------
+       Ran 7 tests in 0.160s
+
+       OK
+       ```
+    2. Exact finding counts asserted by each positive case:
+       - `test_case_1_cold_status_at_hot_root_flagged`: `len(mismatches) == 1`
+       - `test_case_2_hot_status_in_reference_shard_flagged`: `len(mismatches) == 1`
+       - `test_case_3_hot_status_in_archive_shard_flagged`: `len(mismatches) == 1`
+       - `test_case_4_correctly_placed_docs_produce_no_finding`: `len(mismatches) == 0`
+       - `test_case_5_legacy_intake_status_in_cold_shard_flagged`: `len(mismatches) == 1`
+       - `test_case_6_empty_or_unrecognized_status_produces_no_finding`: `len(mismatches) == 0`
+       - `test_manifest_regeneration_not_blocked_by_tier_mismatch`: `len(scan_drift) == 0`
+    3. Per-rule corpus comparison:
+       - Findings before this change:
+         - `adopted-without-consumer`: 35
+         - `check.stale-index-missing`: 2
+         - `dangling-citation`: 226
+         - `frontmatter-invalid`: 1
+         - `stale-state-to-promote`: 21
+         - `status-tier-mismatch`: 0
+         - Total: 285 findings, exit code 1
+       - Findings after this change:
+         - `adopted-without-consumer`: 35
+         - `check.stale-index-missing`: 2
+         - `dangling-citation`: 226
+         - `frontmatter-invalid`: 1
+         - `stale-state-to-promote`: 21
+         - `status-tier-mismatch`: 0
+         - Total: 285 findings, exit code 1
+       Pre-existing counts are completely unchanged. ZERO findings for `status-tier-mismatch` on the real corpus. Overall exit code remains 1 both times because of pre-existing findings.
+    4. Code structure check:
+       Confirmed no new test reads production source with `inspect`/`ast`/regex, and none asserts on symbol censuses, caller counts, or line counts. All tests exercise behavioral outcomes.
+    5. Bare `python3 -m pytest` summary line:
+       `6814 passed, 2 skipped, 3 warnings in 220.95s (0:03:40)`
+       Failure set is empty (0 failures).
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: the README diff, with a check that the enumeration now includes the tier mismatch and names `aw research promote`, that the invariant sentence one section earlier is UNCHANGED (no duplication), and that no em or en dash was introduced (paste a grep for both characters over the changed lines returning empty).
   - Observed evidence:
-  - Result: pending
+    1. README diff:
+       ```diff
+       @@ -88,8 +88,9 @@ now one local file shared across every branch.
+        The hot window shows the most-recent N sets (default N = 40, override with `aw research index
+        --limit N`). `aw research index --check` fails on drift (missing/invalid frontmatter, repeated
+        frontmatter keys (`research.frontmatter-key-repeated`), name vs frontmatter mismatch, a stale
+       -generated view, or a dangling citation) and is wireable into a pre-commit or CI gate. `aw research
+       -find --id|--set|--topic|--status` answers queries over the manifest without reading the corpus.
+       +generated view, a dangling citation, or a status-versus-tier mismatch; remediate with `aw research
+       +promote`) and is wireable into a pre-commit or CI gate. `aw research find --id|--set|--topic|--status`
+       +answers queries over the manifest without reading the corpus.
+       ```
+    2. Check invariant sentence:
+       "Hot states (`todo`/`active`) stay flat at this directory's root ... Cold states live in monthly `YYYYMM` shards" remains intact and not duplicated.
+    3. Em and en dash verification:
+       Command: `git diff .aw/records/research/README.md | grep -E '[—–]'`
+       Output: empty (0 matches).
+  - Result: pass
 
 ## Approval and execution gate
 
