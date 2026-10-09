@@ -6,7 +6,7 @@
 - Scope: IN: restore the seven renderer-level gates as a DEFAULT-COLLECTED module over the same four reviewed `CommandResult` fixtures, recovered from `git show 19313eed7^:tests/test_cli_quality_gates.py` rather than rewritten; give all twelve `.golden` files a reader; resolve the drifted `check_findings.human.golden` by regenerating it with the full diff quoted as evidence; and reconcile `CONTRIBUTING.md` step 6 against the enforced set this Set actually lands, promise by promise. OUT: the structural matrix gate, the exemption-registry cleanup and the `command_surface.py` comment reconciliation (sibling `dq9bj9`); the expensive live scenario sweep and the vacuous human-banner parity gate over live leaves (carrier `2wowfy`); any change to `agent_workflows/renderers.py`, `agent_workflows/result_types.py`, `agent_workflows/agent_schema.py` or `agent_workflows/term.py`, since every gate here measures GREEN against today's code and a production edit would mean the gate was authored to its own convenience.
 - Scope-Paths: tests/test_cli_quality_gates.py, tests/fixtures/conformance_goldens/check_findings.human.golden, CONTRIBUTING.md
 - Item-Dependencies: executed:dq9bj9
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -16,9 +16,9 @@
 - Highest E allocated: 06
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: 9i2hge
-- Approval: 2026-10-08, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-09 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: 9i2hge verified (set h0tiaw, attempt 1).
 - 2026-10-08 approved (aw set): status set to approved
 - 2026-10-07 reviewed (aw set): /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004. Reviewed at HEAD 8fecdffcb. Recovered module re-run in-process with the update variable unset: 14 tests, exactly 1 failure (check_findings human golden), confirming E-01's prediction. E-06(c) reconciled with dq9bj9 F-08 (a third undeclared-leaf assertion is allowed if labelled a precondition); E-06(b) gains the internally-used category dq9bj9 E-03 keeps; E-06(a) scoped to tests/; gate gains honesty, scope-fence and finalize-ownership wording. Review record .aw/records/reviews/20261001-h0tiaw-02-9i2hge-restore-the-renderer-level-output-quality-gates-so-the-four.review.md.
 - 2026-10-07 to-review (aw set): returned to review: Set-level checks now owned by 9i2hge E-06 (runs last) and the children's own V-items; coverage pass recorded
