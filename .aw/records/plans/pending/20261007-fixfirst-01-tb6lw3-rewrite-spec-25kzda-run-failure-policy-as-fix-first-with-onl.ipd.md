@@ -6,7 +6,7 @@
 - Scope: Amend spec `25kzda` Sections 4.1, 4.2 (action and message cells), 5.5 and 5.7 to a fix-first policy, reconcile every other sentence of the spec that names the old six-class abort set, and update the `run_evidence` finding-code transcription the spec pins (`run_evidence.ABORT_CLASSES`, every affected `RunFindingCode` `action`/`abort`/`abort_classes`/`message` field, and the validator wording that says "six") so the byte-equality tests stay green. EXCLUDES all runner behavior changes (Orders 02 to 07), and EXCLUDES changing the retry budget's bound, default or precedence.
 - Scope-Paths: .aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md, agent_workflows/run_evidence.py, tests/test_run_finding_abort_partition.py, tests/test_run_finding_spec_transcription.py, tests/test_host_capability_extension.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: high
@@ -18,8 +18,10 @@
 - Highest E allocated: 07
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: tb6lw3
+- Approval: 2026-10-09, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-09 approved (aw set): status set to approved
 - 2026-10-09 readiness re-check (agent (aw ipd recheck-readiness)): `- Readiness:` CHANGED `no-go` -> `go-pending-approval`. THIS IS A RE-CHECK, NOT A REVIEW: no finding was re-derived and no plan content was re-critiqued. The three `no-go` conditions were RECOMPUTED with the shipped predicates and each was found clear: unresolved-blocking-question -> clear (no unresolved BLOCKING open question; `has_unresolved_blocking_question` -> False (a NON-blocking open question is deliberately not counted, per the maintainer's 2026-09-10 ruling on qhy3i3 OQ-01)); unresolved-gating-finding -> clear (no unresolved gating finding; `review_findings.subject_gating_blocks` -> empty (an ABSENT review artifact is silent by that predicate's documented contract)); negative-review-verdict -> clear (the newest review record's verdict is not negative; `newest_verdict` -> neutral). RE-CHECKED REVIEW: the review of 2026-10-08, findings OQ-02. Recomputed at HEAD `1a6164cce`. HUMAN APPROVAL IS STILL REQUIRED AND WAS NOT GIVEN: `go-pending-approval` means the plan awaits sign-off, and nothing here approves it or clears it to execute. Only a review may set `go`.
 - 2026-10-08 reviewed (aw set): plan-review round 1: REVIEWED - OPEN QUESTIONS (OQ-02 blocking)
 - 2026-10-08 /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): REVIEWED - OPEN QUESTIONS; PR-001..PR-010. Nine fixed in place: 4.2 action/message cells and `abort_classes` now covered (new E-06; without it the shipped table fails `validate_finding_table` RC-ABORT-CLASS), the rest of the spec swept for the six-class set (new E-07), group (b) completed (changed frozen requirements with the 5.5a carve-out, unknown commit outcome), 4.1 containment/reclassification rerouted, Scope-Paths corrected (+`tests/test_host_capability_extension.py`, -`tests/test_retry_class_mapping.py`), partition tests retargeted, V-items strengthened, execution contract added. PR-003 OPEN as blocking OQ-02: shipped code aborts a run on a nested-tool identity mismatch (`ToolIdentityError`), which the 'only a corrupt ledger aborts' ruling does not address. Review record `.aw/records/reviews/20261007-fixfirst-01-tb6lw3-rewrite-spec-25kzda-run-failure-policy-as-fix-first-with-onl.review.md`.

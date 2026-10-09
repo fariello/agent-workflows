@@ -13,7 +13,7 @@
   EXCLUDES: requiring `supports_commit_gateway` anywhere (it is permanently False by deliberate decision, so requiring it would refuse every execute item on every host); reinstating the `ACTION_REVIEW`/`ACTION_MUTATE`/`ACTION_CONTRACTLESS_PROMPT` constants that `01reg8` deleted on maintainer ruling `4h7tt0` OQ-02 (a new class for execute is not a restoration of those three, and this plan must not be read as reversing that ruling); building any probe; changing the descriptor plumbing (Order 01 owns it); and amending spec `25kzda` 5.2's action table, which is deliberately NOT narrowed and which this plan moves toward rather than changes.
 - Scope-Paths: agent_workflows/host_sandbox_profile.py, agent_workflows/runner_shared.py, agent_workflows/run_selection_policy.py, tests/test_host_capability_extension.py, tests/test_hostcapgate_execute_requirement.py, tests/test_oc_runipd.py, tests/test_agy_runipd_cli.py, tests/test_interrupt_reconcile.py, tests/test_interrupt_attempt_metadata.py, tests/test_defect_report.py, tests/test_deferral_passthrough_reachability.py
 - Item-Dependencies: executed:bqtgmo
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: medium
@@ -23,8 +23,10 @@
 - Highest E allocated: 08
 - Author: opencode/its_direct/pt3-claude-opus-5-1m-us
 - Id: y9m1ya
+- Approval: 2026-10-09, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-09 approved (aw set): status set to approved
 - 2026-10-08 reviewed (aw set): plan-review round 1: APPROVE WITH REVISIONS APPLIED
 - 2026-10-08 /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-006. Measured at HEAD `383ebc1ee` by activating the planned row: bare suite `6625 passed` -> `26 failed, 6599 passed`; 22 failures outside Scope-Paths come from the self-healing probe running mocked launchers (new E-08/V-08, six test files declared; seeding a frozen descriptor demonstrated `22 passed`); four pins in `test_host_capability_extension.py` E-06 did not name (two use `execute` as their UNKNOWN action); class value fixed to `"execute"` because the message renders the contract class; E-07(e)/F-15 baseline re-derived (suite now fully green); gate gained scope fence and conditional finalize. All premise facts re-verified (empty tables, probe True on all three hosts, frozen descriptor in place, darwin descriptor refuses). Review record `.aw/records/reviews/20261002-hostcapgate-02-y9m1ya-require-the-probed-fresh-verifier-capability-for-the-execute.review.md`.
 - 2026-10-07 to-review (aw set): returned to review: cross-child checks owned by y9m1ya E-07 (runs last); coverage pass recorded

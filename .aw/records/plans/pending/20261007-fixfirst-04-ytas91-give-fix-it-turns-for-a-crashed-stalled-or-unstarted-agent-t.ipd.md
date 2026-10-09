@@ -6,7 +6,7 @@
 - Scope: Make a nonzero exit / missing outcome file, a stall or turn-limit expiry, and a spawn failure each reach a fix-it turn under the existing per-kind budget, with Order 03's message naming what happened; key the decision on a recorded failure-kind marker rather than on the disposition token; record the session id even on a stall; for the fix-it re-dispatch, run in the FAILED attempt's own lane and resume that attempt's session when one exists; retire `p47qfu` as superseded. EXCLUDES hook and suite refusals (Order 05), scope (Order 06), detection (Order 07), changing the budget, changing `finalize_retry_decision`, changing the silent-turn and zero-work verdicts themselves (`turn_attempted_nothing`, `handle_zero_work_retry`), and changing the first-dispatch fresh-session rule (`lanesess` `xd9sll`).
 - Scope-Paths: agent_workflows/runner_shared.py, agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, agent_workflows/lane_containment.py, tests/test_turn_fix_it.py, tests/test_retry_class_mapping.py, tests/test_silent_turn_observability.py, .aw/records/plans/pending/20261002-vmrhj0-01-p47qfu-make-the-turn-retry-allowlist-key-on-what-happened-not-on-wh.ipd.md, .aw/records/plans/superseded/20261002-vmrhj0-01-p47qfu-make-the-turn-retry-allowlist-key-on-what-happened-not-on-wh.ipd.md
 - Item-Dependencies: executed:mcbph5
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: high
@@ -18,8 +18,10 @@
 - Highest E allocated: 07
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: ytas91
+- Approval: 2026-10-09, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-09 approved (aw set): status set to approved
 - 2026-10-08 reviewed (aw set): plan-review round 1: APPROVE WITH REVISIONS APPLIED
 - 2026-10-08 /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-010. Measured through the real oc `execute_item` with a scripted host: nonzero exit with no outcome and no work ends `fail-verify` via the silent-turn gate (not rung 5's `fail-gate`), so E-01 now marks at that gate too; a crash that left a commit ends rung-5 `fail-gate`; `StallTimeout` returns before the retry site and before `session_id` is recorded, so E-01/E-07 route it to the retry site and record the id; a missing binary raises `FileNotFoundError` out of `execute_item` leaving the item `running`, so E-02 catches it at the spawn site; a re-dispatch allocates an attempt-scoped NEW lane when the prior one holds work (`wir001_attempt2`), so resuming the old session there would be the cross-tree hazard `xd9sll` exists for: E-05 now re-enters the failed lane (new E-07 for the stall half). The turn-limit bound is recorded only on `item["turn_bound_expiry"]`, not on the attempt. `tests/test_silent_turn_observability.py` pins `fail-verify` on the default budget and is now in scope. The turn-retry counter's interaction with `handle_zero_work_retry` and the verification send-back is stated. Gate contract added. Review record `.aw/records/reviews/20261007-fixfirst-04-ytas91-give-fix-it-turns-for-a-crashed-stalled-or-unstarted-agent-t.review.md`.
 - 2026-10-07 to-review (aw set): authored review-ready from backlog coivul (maintainer rulings 2026-10-07)

@@ -6,7 +6,7 @@
 - Scope: (1) Count an item that started no turn (`fail-depend`, `not-run`, skipped before dispatch) as having nothing to collect in the review-sweep teardown; (2) at the END of every run, on both hosts, run the existing reclaim decision over this run's lanes (not only on interrupt); (3) add `aw lanes` with `list` (read-only table of every lane: owner, live or not, commits not on main, uncommitted files, verdict) and `prune` (dry run by default; `--apply` removes every lane that is reclaimable and not owned by a live process, through the existing R5.5 inventory gate); (4) report broken lane branches without touching them. EXCLUDES removing any lane with unmerged commits or uncommitted files, ever; author worktrees outside `aw/lane/*`; and the pre-existing interrupt path's behavior.
 - Scope-Paths: agent_workflows/lane_containment.py, agent_workflows/runner_shared.py, agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, agent_workflows/lanes_cli.py, agent_workflows/cli.py, agent_workflows/command_surface.py, tests/test_lanes_prune.py, CHANGELOG.md, .aw/records/specs/implementing/20260901-7ckptx-01-7ckptx-worker-lane-containment.spec.md
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Work-Kind: bug
 - Priority: medium
 - Blocks-Release: next
@@ -15,9 +15,11 @@
 - Highest E allocated: 07
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: 45z93e
+- Approval: 2026-10-09, recorded via aw ipd set: status set to approved
 - Readiness: go-pending-approval
 
 ## Workflow history
+- 2026-10-09 approved (aw set): status set to approved
 - 2026-10-08 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; see /plan-review record
 - 2026-10-08 /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001 (HIGH, fixed: run-end reuse of the interrupt reclaimer would snapshot preserved lanes and force-remove empty lanes around the R5.5 gate), PR-002 (HIGH, fixed: prune had no run/item context so the gate refuses every lane; new E-07 resolver), PR-003..PR-009 fixed. Record: .aw/records/reviews/20261007-lanegc-01-45z93e-remove-a-lane-once-its-work-is-on-main-at-run-end-and-on-dem.review.md Round 1.
 - 2026-10-07 to-review (aw set): authored review-ready at the maintainer's request 2026-10-07

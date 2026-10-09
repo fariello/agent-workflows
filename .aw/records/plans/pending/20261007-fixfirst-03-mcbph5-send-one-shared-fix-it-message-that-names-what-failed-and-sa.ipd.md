@@ -6,7 +6,7 @@
 - Scope: Add one message builder, `build_fix_it_notice`, that every fix-it turn uses: what failed (kind, verbatim evidence, attempt n of N), what to do (fix the cause), the gate-and-tool rule, and how to propose (Order 02's `proposal` field). Route the existing notices through it so their specific evidence is kept and the rule text is stated once. Add the same rule, once, to the execute prompt. EXCLUDES new retry classes (Orders 04 to 07) and the proposal mechanism itself (Order 02).
 - Scope-Paths: agent_workflows/runner_shared.py, tests/test_fix_it_notice.py
 - Item-Dependencies: executed:tha7a6
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: high
@@ -18,8 +18,10 @@
 - Highest E allocated: 05
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: mcbph5
+- Approval: 2026-10-09, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-09 approved (aw set): status set to approved
 - 2026-10-08 reviewed (aw set): plan-review round 1: APPROVE WITH REVISIONS APPLIED
 - 2026-10-08 /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-006. The three notices are concatenated into one prompt, so the rule is now deduplicated per prompt (`include_rule=False` plus one append at the `build_prompt` assembly site); E-03 handles body-vs-notice duplication and aligns `DEFAULT_RUNBOOK_TEXT`; new E-05/V-05 routes the production, review-orchestrator and merge-conflict (`merge_conflict_question`) correction texts, since the merge send-back is not a notice function; redaction, bound constant, `recovery=False` contract and test-pinned phrases made explicit; tests widened; gate contract added. Review record `.aw/records/reviews/20261007-fixfirst-03-mcbph5-send-one-shared-fix-it-message-that-names-what-failed-and-sa.review.md`.
 - 2026-10-07 to-review (aw set): authored review-ready from backlog coivul (maintainer rulings 2026-10-07)

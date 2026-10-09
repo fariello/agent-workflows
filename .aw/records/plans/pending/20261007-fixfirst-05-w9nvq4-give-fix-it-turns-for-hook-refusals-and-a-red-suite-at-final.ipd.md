@@ -6,7 +6,7 @@
 - Scope: Make each of the three a fix-it send-back under its own per-kind counter against the run's `--retry-budget`, carrying the hook's output or the newly failing tests (redacted) through Order 03's message, resuming the turn's session where one exists, and re-running the same gate afterwards. Tag a hook-refused integration commit with a new cause distinct from a git conflict, including the main-merge case. EXCLUDES transient integration refusals (already on the deferral ladder), conflict markers and lifecycle-duplicate placement (unchanged), a hook refusal diagnosed as a concurrent writer (`ipd_lifecycle.classify_commit_refusal`; unchanged), the pre-finalize gate-answer exchange and its `mine`/`needs-human`/`not-mine`/`fixed` vocabulary (unchanged), and any change to what the hooks check.
 - Scope-Paths: agent_workflows/runner_shared.py, tests/test_hook_and_suite_fix_it.py, tests/test_oc_runipd.py
 - Item-Dependencies: executed:mcbph5
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: high
@@ -18,8 +18,10 @@
 - Highest E allocated: 06
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: w9nvq4
+- Approval: 2026-10-09, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-09 approved (aw set): status set to approved
 - 2026-10-08 reviewed (aw set): plan-review round 1: APPROVE WITH REVISIONS APPLIED
 - 2026-10-08 /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-010. Measured on scratch repos: the finalize hook refusal already carries the hook output (rc 2, plan left in pending, receipt kept, `finalize_refusal_is_retryable` False), so E-01 needs no `ipd_lifecycle` change and that path left Scope-Paths; a `pre-merge-commit` refusal of the main merge leaves MERGE_HEAD with no unmerged paths and is mis-tagged `git-merge-conflict` today, so E-02 now discriminates it structurally and E-06 gives it its own send-back (the conflict loop would re-publish without asking). E-03's premise was wrong: the gate-answer ask runs BEFORE finalize on the lane's own suite, not at the post-merge combined-red refusal, and `mine` is documented as "not being fixed now", so E-03 now sends combined-red back directly with the gate's `new_ids` and leaves the ask unchanged. Per-kind counters named; the exhausted reason names the kind; concurrent-writer diagnosis excluded; hook output must not reach the unredacted `record_refusal`; two shipped `tests/test_oc_runipd.py` combined-red tests would break and are now in scope; post-finalize fix commits recorded with an out-of-scope warning; `terminal_refusal_verdict` wording for combined-red updated. Gate contract added. Review record `.aw/records/reviews/20261007-fixfirst-05-w9nvq4-give-fix-it-turns-for-hook-refusals-and-a-red-suite-at-final.review.md`.
 - 2026-10-07 to-review (aw set): authored review-ready from backlog coivul (maintainer rulings 2026-10-07)

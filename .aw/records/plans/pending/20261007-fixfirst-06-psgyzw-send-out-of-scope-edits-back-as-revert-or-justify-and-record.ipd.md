@@ -6,7 +6,7 @@
 - Scope: Stop auto-writing out-of-scope reasons; send an unjustified out-of-scope delta back to the agent as a fix-it turn ("revert X, or justify it"); give the agent a way to justify a path it ALREADY committed (today's `aw commit --scope-reason` refuses a path with no new staged change) and keep recorded reasons across the recovery turn's re-`begin` (today `begin` overwrites the receipt and drops them); record every kept out-of-scope path and its reason in a new recognized plan field `- Scope-Exceeded:` written by finalize; amend the IPD structure spec to recognize the field. KEEP the additive-widening reasons and the declared-but-unmodified acks as they are (both describe declared paths, not out-of-scope edits). EXCLUDES review-turn out-of-scope warnings, any absolute ban on editing gate code (Order 03's message carries the judgement rule), and a corpus report over `Scope-Exceeded` values.
 - Scope-Paths: agent_workflows/runner_shared.py, agent_workflows/ipd_lifecycle.py, agent_workflows/ipd_schema.py, agent_workflows/work_cmd.py, agent_workflows/cli.py, tests/test_scope_exceeded.py, tests/test_oc_runipd.py, tests/test_finalize_sendback.py, .aw/records/specs/implemented/20260802-1904-01-ipd-structure-and-linting.spec.md
 - Item-Dependencies: executed:mcbph5
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: high
@@ -18,8 +18,10 @@
 - Highest E allocated: 07
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: psgyzw
+- Approval: 2026-10-09, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-09 approved (aw set): status set to approved
 - 2026-10-08 reviewed (aw set): plan-review round 1: APPROVE WITH REVISIONS APPLIED
 - 2026-10-08 /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-009. Demonstrated on a scratch repo that the plan's own remedy could not work: `aw commit --scope-reason P=WHY -- P` on an already-committed out-of-scope path exits 1 "nothing to commit" and records no reason, and the recovery turn's re-`begin` overwrites the receipt and drops recorded reasons, so the fix-it loop could never converge (new E-06, E-07; E-02 reworded). The refusal's real summary is "finalize needs scope reconciliation answers", not the `SCOPE_REFUSAL` fixture text, and `tests/test_finalize_sendback.py` pins it NOT retryable, so that test is now in scope with its update named. A reason with an embedded newline reaches the history note verbatim, so E-03 now requires single-line sanitization before writing metadata. `aw ipd lint` today refuses the field (`IPD-M103`, measured), so V-03 needs E-03's schema entry. `aw find plans <text>` does not search metadata (measured), so E-05's "locate by field" demand is replaced. Spec-edit visibility (`record_item_spec_edits` reads the same reasons map) kept intact. Existing `test_compute_scope_reconciliation_handles_out_of_scope_and_unmodified` added to scope. Gate contract added. Review record `.aw/records/reviews/20261007-fixfirst-06-psgyzw-send-out-of-scope-edits-back-as-revert-or-justify-and-record.review.md`.
 - 2026-10-07 to-review (aw set): authored review-ready from backlog coivul (maintainer rulings 2026-10-07)
