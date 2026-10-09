@@ -6,7 +6,7 @@
 - Scope: Orchestrate four children that together make the plans tree's mutating verbs accept the same selectors every reader already accepts, while making a resolved path type-safe for every mutating verb first. This plan holds ORCHESTRATION ONLY: every deliverable belongs to a child (`eby93o` the containment guard, `87m438` the plans `rename`/`group` routing, `1x4tdo` the `archive plans` matcher and its exit status, `3qxuw1` the derived rename hint), and this file contributes no code, no test, and no record of its own. EXCLUDES, in every child without exception: changing `selectors.resolve`'s read-side precedence, merging the plans rename engine into the generic one, and deciding which records tree owns a `.roadmap.md`.
 - Scope-Paths: .aw/records/plans/pending/20260929-awrenamesel-00-95jk4s-make-every-mutating-artifact-verb-accept-the-one-universal-s.ipd.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Coverage: pass
 - Coverage-Fingerprint: 623227788c9b49ed14d5eaf7a232b772c0ec1d1edc26f1b14d6241ae4cf0381c
@@ -20,9 +20,9 @@
 - Highest E allocated: 04
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: 95jk4s
-- Approval: 2026-09-30, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-09 executed (aw agy run model=Gemini-3.8-Flash-High): RETIRED as the orchestrator rollup step of a runner Set completion, not executed by an agent: every child of Set awrenamesel reached executed, so the runner (run run-20261007T182049Z-1725924) retired this Order-0 plan as bookkeeping. Its own E-*/V-* items were NOT performed; the runner superseded them by enforcing the ordering, the isolation and the per-child merge gate. Justifying children: eby93o, 87m438, 1x4tdo, 3qxuw1, aqyh40.
 - 2026-10-06 coverage pass (aw oc run): fingerprint 623227788c9b, model uri/its_direct/pt3-claude-opus-5.5-1m-us
 - 2026-09-30 approved (aw set): status set to approved
 - 2026-09-29 reviewed (opencode/its_direct-pt3-claude-opus-5-1m-us): plan-review: APPROVE WITH REVISIONS APPLIED; PR-501 (MEDIUM), PR-502 (MEDIUM), PR-503 (MEDIUM), PR-504 (LOW), all FIXED. All ten findings reproduced; IPD-S407 conforms with no repair loop. Cross-plan findings fixed in owning child eby93o.
@@ -35,6 +35,9 @@
 Make a selector that resolves for a reader resolve identically for a mutating verb, without letting the widened vocabulary reach outside the type the operator named.
 
 ## Detailed Implementation Checklist (TODO)
+
+
+> Its own E-*/V-* items were NOT performed; the runner superseded them by enforcing the ordering, the isolation and the per-child merge gate.
 
 Execution-state rule: mark an `E-*` item complete only after performing the action. That mark is not validation. Right-sizing rule: each E-item must address one concern and be executable in one focused pass; split when an E-item names multiple distinct deliverables or independent test-surfaces.
 
