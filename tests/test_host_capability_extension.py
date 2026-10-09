@@ -26,6 +26,7 @@ import importlib
 import io
 import json
 import shutil
+import subprocess
 import sys
 import unittest
 from contextlib import contextmanager, redirect_stdout
@@ -39,6 +40,7 @@ from agent_workflows.host_sandbox_profile import (
     ACTION_READ_ONLY,
     CAP_COMMIT_GATEWAY,
     CAP_DENY_TCP_PORT,
+    CAP_EGRESS_FILTERING,
     CAP_FRESH_VERIFIER_SESSION,
     OUTCOME_FAILED,
     REASON_HOST_CAPABILITY_UNAVAILABLE,
@@ -143,6 +145,22 @@ def _deny_tcp_port_both_ports_allowed():
         yield
     finally:
         hsp._deny_tcp_probe_allowed_ports = orig
+
+
+@contextmanager
+def _egress_unshared_no_netns():
+    """Make the namespace mechanism present and reachable while the network partition is NOT observed.
+
+    Swaps _EGRESS_PROBE_NS_ARGV to ('unshare', '-Ur'), which creates user/mount namespaces
+    without a network namespace. The unshare helper is present and runs, but loopback TCP
+    remains reachable. Restored in a `finally` because the patch is process-global.
+    """
+    saved = hsp._EGRESS_PROBE_NS_ARGV
+    hsp._EGRESS_PROBE_NS_ARGV = ("unshare", "-Ur")
+    try:
+        yield
+    finally:
+        hsp._EGRESS_PROBE_NS_ARGV = saved
 
 
 def _fully_capable() -> HostSandboxCapabilities:
@@ -297,38 +315,73 @@ class RunnerSafetyProbeTests(unittest.TestCase):
             "allowed, no kernel connect denial is observed. Inferring support from mechanism "
             "presence without observed refusal would fail open",
         ),
+        (
+            "egress filtering partition, with unshare present but network namespace omitted",
+            CAP_EGRESS_FILTERING,
+            "unshare",
+            _egress_unshared_no_netns,
+            False,
+            "The namespace mechanism exists and runs, but without network isolation the "
+            "denied loopback TCP side is reachable; the probe must observe the refusal, "
+            "not merely the unshare launcher existing",
+        ),
+        (
+            "egress filtering partition, with network namespace genuinely enforced",
+            CAP_EGRESS_FILTERING,
+            "unshare",
+            _unarranged,
+            True,
+            "THE POSITIVE ROW: on a capable host where unshare -Urn true succeeds, the "
+            "probe must observe both the denial and the AF_UNIX control channel, returning True",
+        ),
     )
 
     def test_presence_vs_observation_table(self):
-        """E-06: consumer for PRESENCE_VS_OBSERVATION table.
+        """ONE CLAIM, ONE ROW PER PROBE: no runner-safety capability may be decided by a HELPER EXISTING.
 
-        Asserts each row's witness exists and is callable/executable, and under row's arrange context manager,
-        probe_runner_safety_capabilities() returns the expected verdict for the capability.
+        Asserts every row in PRESENCE_VS_OBSERVATION:
+        1. Verifies the helper/witness that a naive probe would inspect is present.
+        2. Executes the prober under the row's arrangement.
+        3. Asserts the returned verdict matches the expected outcome.
         """
-        for row in self.PRESENCE_VS_OBSERVATION:
-            case, cap_name, witness, arrange, expected, why = row
-            with self.subTest(case=case, capability=cap_name):
-                # Verify witness exists and is callable/executable
-                if isinstance(witness, (tuple, list)) and len(witness) == 2:
-                    mod = importlib.import_module(witness[0])
-                    fn = getattr(mod, witness[1])
-                    self.assertTrue(callable(fn), f"{witness} must be callable")
-                elif isinstance(witness, str):
-                    self.assertTrue(
-                        shutil.which(witness) is not None,
-                        f"executable {witness} must be present",
+        for case, cap, witness, arrange, expected, why in self.PRESENCE_VS_OBSERVATION:
+            with self.subTest(case=case, capability=cap):
+                # 1. Assert helper/witness exists (naive probe would inspect this)
+                if isinstance(witness, str):
+                    self.assertIsNotNone(
+                        shutil.which(witness),
+                        f"helper executable {witness!r} must exist on PATH for test {case!r}",
                     )
-                else:
-                    self.fail(f"unrecognized witness shape: {witness!r}")
+                elif isinstance(witness, tuple):
+                    mod_name, attr_name = witness
+                    mod = importlib.import_module(mod_name)
+                    self.assertTrue(
+                        hasattr(mod, attr_name),
+                        f"helper {mod_name}.{attr_name} must exist for test {case!r}",
+                    )
+                    if witness == ("shutil", "which"):
+                        self.assertIsNotNone(
+                            shutil.which("unshare"),
+                            f"executable 'unshare' must exist on PATH for test {case!r}",
+                        )
 
-                # Run probe under arrange context manager
+                # 2. For positive row where expected is True, check if host can enforce it
+                exp = expected
+                if cap == CAP_EGRESS_FILTERING and expected is True:
+                    proc = subprocess.run(
+                        ["unshare", "-Urn", "true"], capture_output=True
+                    )
+                    if proc.returncode != 0:
+                        exp = False
+
+                # 3. Execute prober under arrangement and verify outcome
                 with arrange():
                     verdicts, notes = probe_runner_safety_capabilities()
-                    self.assertIs(
-                        verdicts[cap_name],
-                        expected,
-                        f"row failed: {case}; expected {expected} but got {verdicts[cap_name]}; why: {why}",
-                    )
+                self.assertIs(
+                    verdicts[cap],
+                    exp,
+                    f"verdict for {cap} in {case!r} did not match expected {exp!r}: {why}",
+                )
 
     def test_deny_tcp_port_abi_below_4_returns_false(self):
         """E-09: landlock ABI < 4 must report False with an explanatory note."""

@@ -28,6 +28,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from agent_workflows import agent_schema as _agent_schema
 from agent_workflows import artifact_core as _core
 from agent_workflows import artifact_naming as _naming
 from agent_workflows import backlog as _backlog_mod
@@ -795,8 +796,9 @@ def validate_transition_allowed(
         # THE SITE IS LOAD-BEARING: this function is reached by BOTH real spellings (`aw set` and
         # `aw ipd set` both dispatch into `status_set.run_set_command`, which calls it in its pre-flight
         # loop), so one delegation here cannot be dodged by choosing another spelling. It lands inside
-        # the established "Refusing before making changes" all-or-nothing batch contract, before the
-        # dry-run branch and before any write.
+        # the established "Refusing before making changes" all-or-nothing batch contract (default
+        # behavior; partial batch application is available via --skip-refused or interactive confirmation
+        # per IPD f42oxd), before the dry-run branch and before any write.
         #
         # FIVE REFUSALS-TO-REFUSE ARE MANDATORY:
         # (1) Treat `unknown target status` as NOT-A-REFUSAL and fall through: `superseded`,
@@ -1930,6 +1932,7 @@ _RETRY_FLAG_ALLOWLIST: tuple[tuple[str, str, bool], ...] = (
     ("commit", "--commit", False),
     ("status", "--status", True),
     ("date", "--date", True),
+    ("skip_refused", "--skip-refused", False),
 )
 
 
@@ -2229,6 +2232,396 @@ def _refuse_unsafe_descriptive(
     return _ac.refuse_unsafe_descriptive(verb, flag, value, bound_length=bound_length)
 
 
+@dataclass
+class _Refusal:
+    record: ArtifactRecord
+    rule: str
+    exit_code: int
+    reason: str
+    remedy: Any = None
+    readiness: Any = None
+
+
+def _is_interactive(term: Term | None = None) -> bool:
+    if (
+        term is not None
+        and hasattr(term, "is_interactive")
+        and callable(term.is_interactive)
+    ):
+        return bool(term.is_interactive())
+    from agent_workflows import term as _term
+
+    return bool(_term.is_interactive())
+
+
+def _get_yes_no_suffix(term: Term | None = None) -> str:
+    if (
+        term is not None
+        and hasattr(term, "yes_no_suffix")
+        and callable(term.yes_no_suffix)
+    ):
+        return term.yes_no_suffix(False)
+    from agent_workflows import term as _term
+
+    if hasattr(_term, "yes_no_suffix"):
+        return _term.yes_no_suffix(False, term=term)
+    return "[y/N]"
+
+
+def _render_refuse_batch(
+    refusals: list[_Refusal],
+    passing_records: list[ArtifactRecord],
+    matched_records: list[ArtifactRecord],
+    repo_root: Path,
+    args: argparse.Namespace | None,
+    raw_args: list[str],
+    term: Term,
+    ctx: Any,
+    scoped_type: str | None,
+    scoped_type_canonical: str | None,
+    target_status: str,
+) -> int:
+    from agent_workflows import orchestrator_readiness as _orch_readiness
+    from agent_workflows.renderers import get_renderer
+    from agent_workflows.result_types import (
+        CommandResult,
+        Diagnostic,
+        NextAction,
+    )
+
+    has_passing = len(passing_records) > 0
+    max_exit = max(r.exit_code for r in refusals)
+    norm_plans_target = normalize_target_status(target_status, "plans").strip().lower()
+
+    if ctx.is_agent or ctx.is_json:
+        if all(r.rule == "status.orchestrator_not_ready" for r in refusals):
+            _unready_results = [
+                r.readiness for r in refusals if r.readiness is not None
+            ]
+            findings_payload = [
+                {
+                    "code": f.code,
+                    "subject": f.subject,
+                    "detail": f.detail,
+                    "remedy": f.remedy,
+                    "questions": [list(q) for q in getattr(f, "questions", ())],
+                }
+                for r in _unready_results
+                for f in r.findings
+            ]
+            cmd_str = "ipd set" if scoped_type_canonical == "plans" else "set"
+            rec_payload = {
+                "schema": "aw.agent/v1",
+                "kind": "result",
+                "cmd": cmd_str,
+                "exit": 1,
+                "outcome": "findings",
+                "verified": True,
+                "complete": True,
+                "summary": (
+                    f"orchestrator {_unready_results[0].id6} is not ready for review ({len(_unready_results[0].findings)} finding(s))"
+                    if len(_unready_results) == 1
+                    else f"{len(_unready_results)} orchestrator(s) are not ready for review ({len(findings_payload)} finding(s))"
+                ),
+                "data": {
+                    "id6": _unready_results[0].id6
+                    if len(_unready_results) == 1
+                    else ",".join(r.id6 for r in _unready_results),
+                    "setid": _unready_results[0].setid
+                    if len(_unready_results) == 1
+                    else ",".join(r.setid for r in _unready_results),
+                    "ready": False,
+                    "target_status": norm_plans_target,
+                    "finding_codes": [f["code"] for f in findings_payload],
+                    "findings": findings_payload,
+                },
+            }
+            if ctx.is_json:
+                print(json.dumps(rec_payload, indent=2))
+            else:
+                from agent_workflows import agent_schema as _as
+
+                print(_as.render_jsonl_record(rec_payload), end="")
+            return 1
+
+        if all(r.rule == "status.terminal_reopen_refused" for r in refusals):
+            _reopened = [r.record for r in refusals]
+            _summary = (
+                f"refusing to move {len(_reopened)} plan(s) BACKWARDS out of a terminal disposition "
+                f"to '{norm_plans_target}'. A terminal plan is a historical record: re-opening it in place "
+                "would assert that completed, validated work is pending again. AGENTS.md directs a "
+                "CORRECTIVE IPD for a post-execution gap, not an in-place edit of the executed plan. "
+                "If this plan reached a terminal state in error, pass --allow-terminal-reopen (recorded "
+                "in the artifact's history)."
+            )
+            res = CommandResult(
+                command="set",
+                status="cannot-run",
+                exit_code=2,
+                summary=_summary,
+                diagnostics=[
+                    Diagnostic(
+                        location=str(rec.path),
+                        rule="status.terminal_reopen_refused",
+                        detail=(
+                            f"current status '{rec.status or '-'}' is terminal; target "
+                            f"'{norm_plans_target}' is not"
+                        ),
+                        severity="error",
+                    )
+                    for rec in _reopened
+                ],
+                next_actions=[
+                    NextAction(
+                        command="aw ipd scaffold --title <corrective plan title>",
+                        description="Write a corrective IPD instead (the AGENTS.md route)",
+                    ),
+                    NextAction(
+                        command=_retry_command(
+                            args,
+                            raw_args,
+                            scoped_type=scoped_type,
+                            extra=["--allow-terminal-reopen", "--yes"],
+                        ),
+                        description="Override: reopen anyway, recorded in the artifact history",
+                    ),
+                ],
+                verified=False,
+                complete=False,
+            )
+            return get_renderer(ctx).emit(res, ctx)
+
+        if all(r.rule == "status.backward_plan_message_required" for r in refusals):
+            _err_summary = (
+                "aw set: backward plan transition requires an explicit --message"
+            )
+            res = CommandResult(
+                command="set",
+                status="cannot-run",
+                exit_code=2,
+                summary=_err_summary,
+                diagnostics=[
+                    Diagnostic(
+                        location=str(r.record.path),
+                        rule="status.backward_plan_message_required",
+                        detail=r.reason,
+                        severity="error",
+                    )
+                    for r in refusals
+                ],
+                next_actions=[
+                    NextAction(
+                        command=_retry_command(
+                            args,
+                            raw_args,
+                            scoped_type=scoped_type,
+                            extra=['--message "<reason>"'],
+                        ),
+                        description="Specify --message with the demotion reason",
+                    )
+                ],
+                verified=False,
+                complete=False,
+            )
+            return get_renderer(ctx).emit(res, ctx)
+
+        if all(r.rule == "status.invalid_transition" for r in refusals):
+            res = CommandResult(
+                command="set",
+                status="findings",
+                exit_code=1,
+                summary=f"Validation error on {refusals[0].record.path.name}: {refusals[0].reason}",
+                diagnostics=[
+                    Diagnostic(
+                        location=str(r.record.path),
+                        rule="status.invalid_transition",
+                        detail=r.reason,
+                        severity="error",
+                    )
+                    for r in refusals
+                ],
+            )
+            return get_renderer(ctx).emit(res, ctx)
+
+        if (
+            len(refusals) == 1
+            and refusals[0].rule == "check.graduation-incomplete"
+            and refusals[0].readiness
+            and hasattr(refusals[0].readiness, "findings")
+        ):
+            r = refusals[0]
+            handoff_res = r.readiness
+            res = CommandResult(
+                command="set",
+                status="findings",
+                exit_code=1,
+                summary=f"refused: handoff for {r.record.record_type} {r.record.id6} is not ready",
+                diagnostics=[
+                    Diagnostic(
+                        location=str(r.record.path),
+                        rule="check.graduation-incomplete",
+                        detail=f"[{f.code}] {f.detail}",
+                        severity="error",
+                    )
+                    for f in handoff_res.findings
+                ],
+                data={
+                    "id6": r.record.id6,
+                    "source_type": r.record.record_type,
+                    "ready": False,
+                    "findings": [
+                        {
+                            "code": f.code,
+                            "plan_id6": f.plan_id6,
+                            "detail": f.detail,
+                            "remedy": f.remedy,
+                        }
+                        for f in handoff_res.findings
+                    ],
+                },
+            )
+            return get_renderer(ctx).emit(res, ctx)
+
+        if len(refusals) == 1:
+            r = refusals[0]
+            res = CommandResult(
+                command="set",
+                status="findings",
+                exit_code=1,
+                summary=f"refused: {r.reason}",
+                diagnostics=[
+                    Diagnostic(
+                        location=str(r.record.path),
+                        rule=r.rule,
+                        detail=r.reason,
+                        severity="error",
+                    )
+                ],
+            )
+            return get_renderer(ctx).emit(res, ctx)
+
+        status = "cannot-run" if max_exit == 2 else "findings"
+        diags = [
+            Diagnostic(
+                location=_agent_schema.normalize_repo_path(
+                    str(r.record.path), repo_root
+                ),
+                rule=r.rule,
+                detail=r.reason,
+                severity="error",
+            )
+            for r in refusals
+        ]
+        res = CommandResult(
+            command="set",
+            status=status,
+            exit_code=max_exit,
+            summary=f"{len(refusals)} record(s) refused by pre-flight gates",
+            diagnostics=diags,
+            verified=False,
+            complete=False,
+        )
+        return get_renderer(ctx).emit(res, ctx)
+
+    # Human mode rendering
+    prefix = (
+        "aw backlog set"
+        if (scoped_type_canonical == "backlog" or scoped_type == "backlog")
+        else (
+            "aw specs set"
+            if (scoped_type_canonical == "specs" or scoped_type == "specs")
+            else "aw set"
+        )
+    )
+
+    for r in refusals:
+        if r.rule == "status.invalid_transition":
+            sep = " " if r.reason and r.reason.rstrip().endswith(".") else ". "
+            term.status(
+                "fail",
+                f"Validation error on {r.record.path.name}: {r.reason}{sep}Refusing before making changes.",
+            )
+        elif r.rule == "status.orchestrator_not_ready":
+            if r.readiness is not None:
+                term.line(
+                    _orch_readiness.render_human(
+                        r.readiness, target_status=norm_plans_target, term=term
+                    )
+                )
+        elif r.rule == "check.graduation-incomplete":
+            sys.stderr.write(f"{prefix}: refused: {r.reason}.\n")
+            if r.readiness and hasattr(r.readiness, "findings"):
+                for f in r.readiness.findings:
+                    subj = f" [{f.plan_id6}]" if f.plan_id6 else ""
+                    sys.stderr.write(f"  - [{f.code}]{subj} {f.detail}\n")
+                    if f.remedy:
+                        sys.stderr.write(f"    Remedy: {f.remedy}\n")
+        elif r.rule in (
+            "status.terminal_reopen_refused",
+            "status.backward_plan_message_required",
+        ):
+            pass
+        else:
+            sys.stderr.write(f"{prefix}: refused: {r.reason}.\n")
+            if r.remedy:
+                if isinstance(r.remedy, list):
+                    for fix in r.remedy:
+                        sys.stderr.write(f"  - {fix}\n")
+                else:
+                    sys.stderr.write(f"  - {r.remedy}\n")
+
+    reopened = [r for r in refusals if r.rule == "status.terminal_reopen_refused"]
+    if reopened:
+        _human_reopened_lines = [
+            f"  - {r.record.id6 or r.record.path.name}: {r.record.status or '-'} -> {norm_plans_target}"
+            for r in reopened
+        ]
+        _retry_reopen_cmd = _retry_command(
+            args,
+            raw_args,
+            scoped_type=scoped_type,
+            extra=["--allow-terminal-reopen", "--yes"],
+        )
+        _human_summary = (
+            f"Refusing to move {len(reopened)} plan(s) out of a terminal disposition to '{norm_plans_target}'.\n"
+            + "\n".join(_human_reopened_lines)
+            + "\nA terminal plan is a historical record; AGENTS.md directs a corrective IPD for a post-execution gap, not an in-place edit.\n"
+            "Remedies:\n"
+            "  - Write a corrective IPD instead: aw ipd scaffold --title <corrective plan title>\n"
+            f"  - Override to reopen anyway (recorded in history): {_retry_reopen_cmd}"
+        )
+        term.status("fail", _human_summary)
+
+    backwards = [
+        r for r in refusals if r.rule == "status.backward_plan_message_required"
+    ]
+    if backwards:
+        _err_summary = "aw set: backward plan transition requires an explicit --message"
+        _retry_cmd = _retry_command(
+            args,
+            raw_args,
+            scoped_type=scoped_type,
+            extra=['--message "<reason>"'],
+        )
+        _demoted_lines = [
+            f"  - {r.record.id6 or r.record.path.name}: {normalize_target_status(r.record.status or 'draft', 'plans').strip().lower()} -> {norm_plans_target}"
+            for r in backwards
+        ]
+        term.status(
+            "fail",
+            f"{_err_summary} explaining why the plan was demoted; refusing before making changes:\n"
+            + "\n".join(_demoted_lines)
+            + f"\nRetry with:\n  {_retry_cmd}",
+        )
+
+    if has_passing:
+        term.line(
+            "aw set: hint: pass --skip-refused to apply passing records and skip refused ones."
+        )
+
+    return max_exit
+
+
 def run_set_command(
     raw_args: list[str],
     scoped_type: str | None = None,
@@ -2515,39 +2908,35 @@ def run_set_command(
     )
 
     ctx = select_output(args)
+    refusals: list[_Refusal] = []
+    refused_paths: set[Path] = set()
+
+    # (a) validate_transition_allowed gate
     for rec in matched_records:
+        if rec.path in refused_paths:
+            continue
         ok, err_msg = validate_transition_allowed(rec, target_status, args, repo_root)
         if not ok:
-            if ctx.is_agent or ctx.is_json:
-                res = CommandResult(
-                    command="set",
-                    status="findings",
+            reason = err_msg or "transition not allowed"
+            refusals.append(
+                _Refusal(
+                    record=rec,
+                    rule="status.invalid_transition",
                     exit_code=1,
-                    summary=f"Validation error on {rec.path.name}: {err_msg}",
-                    diagnostics=[
-                        Diagnostic(
-                            location=str(rec.path),
-                            rule="status.invalid_transition",
-                            detail=err_msg or "transition not allowed",
-                            severity="error",
-                        )
-                    ],
+                    reason=reason,
+                    remedy=None,
                 )
-                return get_renderer(ctx).emit(res, ctx)
-            sep = " " if err_msg and err_msg.rstrip().endswith(".") else ". "
-            term.status(
-                "fail",
-                f"Validation error on {rec.path.name}: {err_msg}{sep}Refusing before making changes.",
             )
-            return 1
+            refused_paths.add(rec.path)
 
-    # gatebypass 47ttnv E-01/E-02/E-03: release-gate close-legitimacy check for backlog records.
+    # (b) gatebypass 47ttnv E-01/E-02/E-03: release-gate close-legitimacy check for backlog records.
     # Calls the single shared predicate `check_engine.evaluate_blocking_close` on the positional
     # dispatch path so both spellings of `aw backlog set` enforce the close-legitimacy rule.
     # Placed in the pre-flight loop region:
     #   (a) BEFORE `is_dry_run`, so a dry run on an illegitimate close refuses rather than previewing;
     #   (b) BEFORE `apply_status_change`, so a refusal writes nothing and moves nothing;
-    #   (c) preserving the all-or-nothing batch contract ("Refusing before making changes").
+    #   (c) preserving the all-or-nothing batch contract (default behavior; partial batch
+    #       application is available via --skip-refused or interactive confirmation per IPD f42oxd).
     # The predicate is evaluated against `repo_root`: the positional path has no `--gate-dir` concept
     # (honored only by `backlog.run_set` for runner split-tree lane closes).
     from agent_workflows import check_engine as _ce
@@ -2555,6 +2944,8 @@ def run_set_command(
 
     backlog_close_verdicts: dict[Path, _ce.CloseVerdict] = {}
     for rec in matched_records:
+        if rec.path in refused_paths:
+            continue
         if rec.record_type != "backlog":
             continue
 
@@ -2621,36 +3012,29 @@ def run_set_command(
             else "aw set"
         )
         if not verdict.legitimate and verdict.severity == "error":
-            if ctx.is_agent or ctx.is_json:
-                res = CommandResult(
-                    command="set",
-                    status="findings",
+            rule_id = verdict.rule or "check.blocking-item-closed-without-gate"
+            refusals.append(
+                _Refusal(
+                    record=rec,
+                    rule=rule_id,
                     exit_code=1,
-                    summary=f"refused: {verdict.reason}",
-                    diagnostics=[
-                        Diagnostic(
-                            location=str(rec.path),
-                            rule=verdict.rule
-                            or "check.blocking-item-closed-without-gate",
-                            detail=verdict.reason,
-                            severity="error",
-                        )
-                    ],
+                    reason=verdict.reason,
+                    remedy=list(verdict.fixes),
                 )
-                return get_renderer(ctx).emit(res, ctx)
-            sys.stderr.write(f"{prefix}: refused: {verdict.reason}.\n")
-            for fix in verdict.fixes:
-                sys.stderr.write(f"  - {fix}\n")
-            return 1
+            )
+            refused_paths.add(rec.path)
+            continue
 
         if verdict.severity == "warn":
             sys.stderr.write(f"{prefix}: warning: {verdict.reason}.\n")
 
         backlog_close_verdicts[rec.path] = verdict
 
-    # gradcover sbiv1j E-02 / E-03: refuse aw backlog set graduated and aw specs set implementing
+    # (c) gradcover sbiv1j E-02 / E-03: refuse aw backlog set graduated and aw specs set implementing
     # when handoff is not ready. Evaluated in the pre-flight loop before any file write or move.
     for rec in matched_records:
+        if rec.path in refused_paths:
+            continue
         norm_target = normalize_target_status(target_status, rec.record_type)
         if (
             rec.record_type == "backlog"
@@ -2659,51 +3043,23 @@ def run_set_command(
         ):
             handoff_res = _ce.evaluate_handoff_ready(repo_root, "backlog", rec.id6)
             if not handoff_res.ready:
-                prefix = (
-                    "aw backlog set"
-                    if (scoped_type_canonical == "backlog" or scoped_type == "backlog")
-                    else "aw set"
-                )
-                if ctx.is_agent or ctx.is_json:
-                    res = CommandResult(
-                        command="set",
-                        status="findings",
+                remedies = [
+                    f"[{f.code}]{' [' + f.plan_id6 + ']' if f.plan_id6 else ''} {f.detail}"
+                    + (f" (Remedy: {f.remedy})" if f.remedy else "")
+                    for f in handoff_res.findings
+                ]
+                refusals.append(
+                    _Refusal(
+                        record=rec,
+                        rule="check.graduation-incomplete",
                         exit_code=1,
-                        summary=f"refused: handoff for backlog {rec.id6} is not ready",
-                        diagnostics=[
-                            Diagnostic(
-                                location=str(rec.path),
-                                rule="check.graduation-incomplete",
-                                detail=f"[{f.code}] {f.detail}",
-                                severity="error",
-                            )
-                            for f in handoff_res.findings
-                        ],
-                        data={
-                            "id6": rec.id6,
-                            "source_type": "backlog",
-                            "ready": False,
-                            "findings": [
-                                {
-                                    "code": f.code,
-                                    "plan_id6": f.plan_id6,
-                                    "detail": f.detail,
-                                    "remedy": f.remedy,
-                                }
-                                for f in handoff_res.findings
-                            ],
-                        },
+                        reason=f"handoff for backlog {rec.id6} is not ready",
+                        remedy=remedies,
+                        readiness=handoff_res,
                     )
-                    return get_renderer(ctx).emit(res, ctx)
-                sys.stderr.write(
-                    f"{prefix}: refused: handoff for backlog {rec.id6} is not ready.\n"
                 )
-                for f in handoff_res.findings:
-                    subj = f" [{f.plan_id6}]" if f.plan_id6 else ""
-                    sys.stderr.write(f"  - [{f.code}]{subj} {f.detail}\n")
-                    if f.remedy:
-                        sys.stderr.write(f"    Remedy: {f.remedy}\n")
-                return 1
+                refused_paths.add(rec.path)
+                continue
 
         if (
             rec.record_type == "specs"
@@ -2712,51 +3068,23 @@ def run_set_command(
         ):
             handoff_res = _ce.evaluate_handoff_ready(repo_root, "spec", rec.id6)
             if not handoff_res.ready:
-                prefix = (
-                    "aw specs set"
-                    if (scoped_type_canonical == "specs" or scoped_type == "specs")
-                    else "aw set"
-                )
-                if ctx.is_agent or ctx.is_json:
-                    res = CommandResult(
-                        command="set",
-                        status="findings",
+                remedies = [
+                    f"[{f.code}]{' [' + f.plan_id6 + ']' if f.plan_id6 else ''} {f.detail}"
+                    + (f" (Remedy: {f.remedy})" if f.remedy else "")
+                    for f in handoff_res.findings
+                ]
+                refusals.append(
+                    _Refusal(
+                        record=rec,
+                        rule="check.graduation-incomplete",
                         exit_code=1,
-                        summary=f"refused: handoff for spec {rec.id6} is not ready",
-                        diagnostics=[
-                            Diagnostic(
-                                location=str(rec.path),
-                                rule="check.graduation-incomplete",
-                                detail=f"[{f.code}] {f.detail}",
-                                severity="error",
-                            )
-                            for f in handoff_res.findings
-                        ],
-                        data={
-                            "id6": rec.id6,
-                            "source_type": "spec",
-                            "ready": False,
-                            "findings": [
-                                {
-                                    "code": f.code,
-                                    "plan_id6": f.plan_id6,
-                                    "detail": f.detail,
-                                    "remedy": f.remedy,
-                                }
-                                for f in handoff_res.findings
-                            ],
-                        },
+                        reason=f"handoff for spec {rec.id6} is not ready",
+                        remedy=remedies,
+                        readiness=handoff_res,
                     )
-                    return get_renderer(ctx).emit(res, ctx)
-                sys.stderr.write(
-                    f"{prefix}: refused: handoff for spec {rec.id6} is not ready.\n"
                 )
-                for f in handoff_res.findings:
-                    subj = f" [{f.plan_id6}]" if f.plan_id6 else ""
-                    sys.stderr.write(f"  - [{f.code}]{subj} {f.detail}\n")
-                    if f.remedy:
-                        sys.stderr.write(f"    Remedy: {f.remedy}\n")
-                return 1
+                refused_paths.add(rec.path)
+                continue
 
     # ipdgates Order wezhxg: a request to move a PLAN to `executed` (or its `done` alias) MUST NOT
     # use the raw ungated move - it transparently DELEGATES into the gated `aw ipd finalize`
@@ -2781,222 +3109,87 @@ def run_set_command(
             scoped_type=scoped_type,
         )
 
-    # setterguard `4bc1nd` E-02: REFUSE WALKING A PLAN BACKWARDS OUT OF A TERMINAL DISPOSITION.
-    # There was a gate for entering `executed` (the delegation directly above) and NONE for leaving
-    # it, so `executed -> approved` took the raw ungated path. MEASURED 2026-09-10: a bare
-    # `aw ipd set approved <setid>` reverted SEVEN plans out of `.aw/records/plans/executed/` at exit
-    # 0, fabricating a regression of a completed Set. `AGENTS.md` already forbids re-opening an
-    # executed plan in place and directs a corrective IPD instead, so this ENFORCES a stated contract
-    # rather than inventing policy.
-    #
-    # THIS IS A SECOND, INDEPENDENT GUARD AND IS DELIBERATELY ABOVE THE `--yes` CHECK: confirming you
-    # meant to run a bulk transition is a different question from being allowed to un-execute a plan,
-    # so `--yes` must NOT satisfy it.
-    #
-    # KEYED LIKE THE FORWARD GATE, for the same reasons: `record_type == "plans"` (so PROMPTS, which
-    # share the `executed`/`done` tokens, and SPECS, which have their own transition table permitting
-    # `implemented -> deferred` and `superseded -> draft`, are untouched BY CONSTRUCTION), plus the
-    # NORMALIZED target rather than the raw token.
-    #
-    # THE TERMINAL SET IS DERIVED, NEVER RE-LISTED (`_plans_mod.TERMINAL`), per GUIDING_PRINCIPLES P8
-    # and the precedent stated in the `backlog` entry of `TYPE_STATUSES` above: a re-listed copy is
-    # what desynced this setter once already.
-    #
-    # THE CURRENT STATUS IS CASE-FOLDED, and that is a CORRECTNESS requirement rather than tidiness.
-    # `read_artifact_record` captures the on-disk token VERBATIM with no normalization, and 25 of 479
-    # plans in `.aw/records/plans/executed/` carry an uppercase `- Status: EXECUTED` or `- Status:
-    # DONE` from the pre-vocabulary era. A guard comparing `rec.status` directly against lowercase
-    # `TERMINAL` would silently miss exactly those 25 files. The `done` alias is routed through
-    # `normalize_target_status` for the same reason.
-    #
-    # FORWARD moves INTO a terminal state are UNAFFECTED: retirement (`reviewed -> superseded`,
-    # `-> not-executed`) stays allowed, because the target is terminal too. An over-broad guard here
-    # would have blocked the very cleanup that discovered this bug, which performed three retirements.
+    # (d) setterguard `4bc1nd` E-02: REFUSE WALKING A PLAN BACKWARDS OUT OF A TERMINAL DISPOSITION.
     _norm_for_plans = normalize_target_status(target_status, "plans")
     _terminal = {s.strip().lower() for s in _plans_mod.TERMINAL}
-    _reopened = (
-        [
-            rec
-            for rec in matched_records
-            if rec.record_type == "plans"
-            and normalize_target_status((rec.status or ""), "plans").strip().lower()
-            in _terminal
-        ]
-        if _norm_for_plans not in _terminal
-        else []
-    )
-    if _reopened and not getattr(args, "allow_terminal_reopen", False):
-        # A DEDICATED override flag, NOT `--force`. `--force` already means "act on all of an
-        # ambiguous multi-match" in this same function, and overloading one flag to also mean "yes,
-        # un-execute a completed plan" would make it answer two unrelated risk questions at once, so
-        # a caller disambiguating a filename substring would silently acquire reopen authority.
-        # Follows `--allow-open-questions` in all three of its properties (apprvguard `d7bnhc` E-06):
-        # a named flag, declared on EVERY surface routing here so the gate cannot be dodged by
-        # choosing another spelling, and RECORDED IN THE ARTIFACT'S actor string (see
-        # `apply_status_change`) so the override is auditable in the FILE and not only in a shell
-        # history. OQ-01 recommended exactly this shape over an absolute refusal, on the grounds that
-        # a refusal with no escape hatch gets routed around by hand-editing, which is less auditable.
-        _listing = "\n".join(
-            f"  {rec.path.name}  (- Status: {rec.status or '-'})" for rec in _reopened
-        )
-        _summary = (
-            f"refusing to move {len(_reopened)} plan(s) BACKWARDS out of a terminal disposition "
-            f"to '{_norm_for_plans}'. A terminal plan is a historical record: re-opening it in place "
-            "would assert that completed, validated work is pending again. AGENTS.md directs a "
-            "CORRECTIVE IPD for a post-execution gap, not an in-place edit of the executed plan. "
-            "If this plan reached a terminal state in error, pass --allow-terminal-reopen (recorded "
-            "in the artifact's history)."
-        )
-        if ctx.is_agent or ctx.is_json:
-            res = CommandResult(
-                command="set",
-                status="cannot-run",
-                exit_code=2,
-                summary=_summary,
-                diagnostics=[
-                    Diagnostic(
-                        location=str(rec.path),
-                        rule="status.terminal_reopen_refused",
-                        detail=(
-                            f"current status '{rec.status or '-'}' is terminal; target "
-                            f"'{_norm_for_plans}' is not"
-                        ),
-                        severity="error",
+    if _norm_for_plans not in _terminal and not getattr(
+        args, "allow_terminal_reopen", False
+    ):
+        for rec in matched_records:
+            if rec.path in refused_paths:
+                continue
+            if rec.record_type == "plans":
+                cur_norm = (
+                    normalize_target_status((rec.status or ""), "plans").strip().lower()
+                )
+                if cur_norm in _terminal:
+                    refusals.append(
+                        _Refusal(
+                            record=rec,
+                            rule="status.terminal_reopen_refused",
+                            exit_code=2,
+                            reason=(
+                                f"current status '{rec.status or '-'}' is terminal; target "
+                                f"'{_norm_for_plans}' is not"
+                            ),
+                            remedy="aw ipd scaffold --title <corrective plan title> (or retry with --allow-terminal-reopen --yes)",
+                        )
                     )
-                    for rec in _reopened
-                ],
-                next_actions=[
-                    NextAction(
-                        command="aw ipd scaffold --title <corrective plan title>",
-                        description="Write a corrective IPD instead (the AGENTS.md route)",
-                    ),
-                    NextAction(
-                        command=_retry_command(
-                            args,
-                            raw_args,
-                            scoped_type=scoped_type,
-                            extra=["--allow-terminal-reopen", "--yes"],
-                        ),
-                        description="Override: reopen anyway, recorded in the artifact history",
-                    ),
-                ],
-                verified=False,
-                complete=False,
-            )
-            return get_renderer(ctx).emit(res, ctx)
-        _human_reopened_lines = [
-            f"  - {rec.id6 or rec.path.name}: {rec.status or '-'} -> {_norm_for_plans}"
-            for rec in _reopened
-        ]
-        _retry_reopen_cmd = _retry_command(
-            args,
-            raw_args,
-            scoped_type=scoped_type,
-            extra=["--allow-terminal-reopen", "--yes"],
-        )
-        _human_summary = (
-            f"Refusing to move {len(_reopened)} plan(s) out of a terminal disposition to '{_norm_for_plans}'.\n"
-            + "\n".join(_human_reopened_lines)
-            + "\nA terminal plan is a historical record; AGENTS.md directs a corrective IPD for a post-execution gap, not an in-place edit.\n"
-            "Remedies:\n"
-            "  - Write a corrective IPD instead: aw ipd scaffold --title <corrective plan title>\n"
-            f"  - Override to reopen anyway (recorded in history): {_retry_reopen_cmd}"
-        )
-        term.status("fail", _human_summary)
-        return 2
+                    refused_paths.add(rec.path)
 
-    # E-05: Require an explicit --message for every backward plan transition.
+    # (e) E-05: Require an explicit --message for every backward plan transition.
     from agent_workflows.ipd_lifecycle import _LEGAL_BACKWARD_EDGES, _status_rank
 
     _explicit_message = (getattr(args, "message", None) or "").strip()
-    _backward_plan_moves: list[tuple[ArtifactRecord, str, str]] = []
-    for rec in matched_records:
-        if rec.record_type == "plans":
-            _cur = (
-                normalize_target_status(rec.status or "draft", "plans").strip().lower()
-            )
-            _tgt = normalize_target_status(target_status, "plans").strip().lower()
-            if (_cur, _tgt) in _LEGAL_BACKWARD_EDGES:
-                _backward_plan_moves.append((rec, _cur, _tgt))
-
-    if _backward_plan_moves and not _explicit_message:
-        _err_summary = "aw set: backward plan transition requires an explicit --message"
-        if ctx.is_agent or ctx.is_json:
-            res = CommandResult(
-                command="set",
-                status="cannot-run",
-                exit_code=2,
-                summary=_err_summary,
-                diagnostics=[
-                    Diagnostic(
-                        location=str(r.path),
-                        rule="status.backward_plan_message_required",
-                        detail=f"demoting plan from '{c}' to '{t}' requires an explicit --message",
-                        severity="error",
+    if not _explicit_message:
+        for rec in matched_records:
+            if rec.path in refused_paths:
+                continue
+            if rec.record_type == "plans":
+                _cur = (
+                    normalize_target_status(rec.status or "draft", "plans")
+                    .strip()
+                    .lower()
+                )
+                _tgt = normalize_target_status(target_status, "plans").strip().lower()
+                if (_cur, _tgt) in _LEGAL_BACKWARD_EDGES:
+                    refusals.append(
+                        _Refusal(
+                            record=rec,
+                            rule="status.backward_plan_message_required",
+                            exit_code=2,
+                            reason=f"demoting plan from '{_cur}' to '{_tgt}' requires an explicit --message",
+                            remedy="Specify --message with the demotion reason",
+                        )
                     )
-                    for r, c, t in _backward_plan_moves
-                ],
-                next_actions=[
-                    NextAction(
-                        command=_retry_command(
-                            args,
-                            raw_args,
-                            scoped_type=scoped_type,
-                            extra=['--message "<reason>"'],
-                        ),
-                        description="Specify --message with the demotion reason",
-                    )
-                ],
-                verified=False,
-                complete=False,
-            )
-            return get_renderer(ctx).emit(res, ctx)
-        _retry_cmd = _retry_command(
-            args,
-            raw_args,
-            scoped_type=scoped_type,
-            extra=['--message "<reason>"'],
-        )
-        _demoted_lines = [
-            f"  - {r.id6 or r.path.name}: {c} -> {t}"
-            for r, c, t in _backward_plan_moves
-        ]
-        term.status(
-            "fail",
-            f"{_err_summary} explaining why the plan was demoted; refusing before making changes:\n"
-            + "\n".join(_demoted_lines)
-            + f"\nRetry with:\n  {_retry_cmd}",
-        )
-        return 2
+                    refused_paths.add(rec.path)
 
-    # E-01 / E-02 / E-03: Orchestrator review readiness gate.
+    # (f) E-01 / E-02 / E-03: Orchestrator review readiness gate.
     from agent_workflows import orchestrator_readiness as _orch_readiness
     from agent_workflows import ipd_lint as _ipd_lint
 
-    _gated_orchestrators: list[tuple[ArtifactRecord, str]] = []
     _ready_forward_targets = frozenset(
         {"to-review", "reviewed", "approved", "auto-approved"}
     )
-
-    for rec in matched_records:
-        if rec.record_type == "plans":
-            _tgt = normalize_target_status(target_status, "plans").strip().lower()
-            if _tgt in _ready_forward_targets:
-                _doc = _ipd_lint.parse(rec.raw_text)
-                _kind = (_doc.meta_fields.get("Kind") or "").strip().lower()
-                if _kind == "orchestrator":
-                    _cur = (
-                        normalize_target_status(rec.status or "draft", "plans")
-                        .strip()
-                        .lower()
-                    )
-                    if _status_rank(_tgt) > _status_rank(_cur):
-                        _gated_orchestrators.append((rec, _tgt))
-
-    if _gated_orchestrators:
-        _unready_results: list[_orch_readiness.ReviewReadiness] = []
-        for orch_rec, orch_target in _gated_orchestrators:
+    norm_plans_target = normalize_target_status(target_status, "plans").strip().lower()
+    if norm_plans_target in _ready_forward_targets:
+        for orch_rec in matched_records:
+            if orch_rec.path in refused_paths:
+                continue
+            if orch_rec.record_type != "plans":
+                continue
             orch_doc = _ipd_lint.parse(orch_rec.raw_text)
+            orch_kind = (orch_doc.meta_fields.get("Kind") or "").strip().lower()
+            if orch_kind != "orchestrator":
+                continue
+            orch_cur = (
+                normalize_target_status(orch_rec.status or "draft", "plans")
+                .strip()
+                .lower()
+            )
+            if _status_rank(norm_plans_target) <= _status_rank(orch_cur):
+                continue
+
             raw_set = (orch_doc.meta_fields.get("Set") or "").strip()
             orch_setid = (
                 raw_set.split("(")[0].strip().split()[0].strip() if raw_set else ""
@@ -3004,6 +3197,8 @@ def run_set_command(
 
             status_overrides: dict[str, str] = {}
             for other_rec in matched_records:
+                if other_rec.path in refused_paths:
+                    continue
                 if other_rec.record_type == "plans":
                     other_doc = _ipd_lint.parse(other_rec.raw_text)
                     other_set_raw = (other_doc.meta_fields.get("Set") or "").strip()
@@ -3015,12 +3210,7 @@ def run_set_command(
                     if other_setid == orch_setid:
                         other_id6 = (other_doc.meta_fields.get("Id") or "").strip()
                         if other_id6:
-                            other_target = (
-                                normalize_target_status(target_status, "plans")
-                                .strip()
-                                .lower()
-                            )
-                            status_overrides[other_id6] = other_target
+                            status_overrides[other_id6] = norm_plans_target
 
             r_res = _orch_readiness.review_readiness(
                 repo_root,
@@ -3029,66 +3219,79 @@ def run_set_command(
                 status_overrides=status_overrides,
             )
             if not r_res.ready:
-                _unready_results.append(r_res)
-
-        if _unready_results:
-            norm_plans_target = (
-                normalize_target_status(target_status, "plans").strip().lower()
-            )
-            cmd_str = "ipd set" if scoped_type_canonical == "plans" else "set"
-            if ctx.is_agent or ctx.is_json:
-                findings_payload = [
-                    {
-                        "code": f.code,
-                        "subject": f.subject,
-                        "detail": f.detail,
-                        "remedy": f.remedy,
-                        "questions": [list(q) for q in getattr(f, "questions", ())],
-                    }
-                    for r in _unready_results
-                    for f in r.findings
-                ]
-                rec_payload = {
-                    "schema": "aw.agent/v1",
-                    "kind": "result",
-                    "cmd": cmd_str,
-                    "exit": 1,
-                    "outcome": "findings",
-                    "verified": True,
-                    "complete": True,
-                    "summary": (
-                        f"orchestrator {_unready_results[0].id6} is not ready for review ({len(_unready_results[0].findings)} finding(s))"
-                        if len(_unready_results) == 1
-                        else f"{len(_unready_results)} orchestrator(s) are not ready for review ({len(findings_payload)} finding(s))"
-                    ),
-                    "data": {
-                        "id6": _unready_results[0].id6
-                        if len(_unready_results) == 1
-                        else ",".join(r.id6 for r in _unready_results),
-                        "setid": _unready_results[0].setid
-                        if len(_unready_results) == 1
-                        else ",".join(r.setid for r in _unready_results),
-                        "ready": False,
-                        "target_status": norm_plans_target,
-                        "finding_codes": [f["code"] for f in findings_payload],
-                        "findings": findings_payload,
-                    },
-                }
-                if ctx.is_json:
-                    print(json.dumps(rec_payload, indent=2))
-                else:
-                    from agent_workflows import agent_schema as _as
-
-                    print(_as.render_jsonl_record(rec_payload), end="")
-                return 1
-
-            for r in _unready_results:
-                term.line(
-                    _orch_readiness.render_human(
-                        r, target_status=norm_plans_target, term=term
+                remedy_texts = [f.remedy for f in r_res.findings if f.remedy]
+                refusals.append(
+                    _Refusal(
+                        record=orch_rec,
+                        rule="status.orchestrator_not_ready",
+                        exit_code=1,
+                        reason=f"orchestrator {r_res.id6} is not ready for review ({len(r_res.findings)} finding(s))",
+                        remedy=remedy_texts,
+                        readiness=r_res,
                     )
                 )
-            return 1
+                refused_paths.add(orch_rec.path)
+
+    is_dry_run = getattr(args, "dry_run", False)
+    yes = getattr(args, "yes", False) or getattr(args, "assume_yes", False)
+    skipped_refusals: list[_Refusal] = []
+
+    if refusals:
+        passing_records = [r for r in matched_records if r.path not in refused_paths]
+        has_passing = len(passing_records) > 0
+        skip_refused = getattr(args, "skip_refused", False)
+        is_interactive_mode = (
+            not (ctx.is_agent or ctx.is_json)
+            and not is_dry_run
+            and _is_interactive(term)
+        )
+
+        branch = "REFUSE"
+        if skip_refused and has_passing:
+            branch = "SKIP"
+        elif not skip_refused and has_passing and is_interactive_mode:
+            term.line(
+                f"Some records in this batch cannot be updated ({len(refusals)} refused):"
+            )
+            for r in refusals:
+                ident = r.record.id6 or r.record.path.name
+                term.line(f"  - {ident} ({r.rule}): {r.reason}")
+                if r.remedy:
+                    if isinstance(r.remedy, list):
+                        for fix in r.remedy:
+                            term.line(f"    Remedy: {fix}")
+                    else:
+                        term.line(f"    Remedy: {r.remedy}")
+            suffix = _get_yes_no_suffix(term)
+            prompt_msg = f"Apply the remaining {len(passing_records)} and skip these {len(refusals)}? {suffix} "
+            try:
+                sys.stdout.flush()
+                sys.stderr.flush()
+                ans = input(prompt_msg).strip().lower()
+            except (EOFError, KeyboardInterrupt):
+                ans = "n"
+            if ans in ("y", "yes"):
+                branch = "SKIP"
+            else:
+                branch = "REFUSE"
+
+        if branch == "SKIP":
+            skipped_refusals = list(refusals)
+            matched_records = passing_records
+        else:
+            return _render_refuse_batch(
+                refusals,
+                passing_records,
+                matched_records,
+                repo_root,
+                args,
+                raw_args,
+                term,
+                ctx,
+                scoped_type,
+                scoped_type_canonical,
+                target_status,
+            )
 
     # E-02: Sort writes so children are applied first, orchestrators last.
     def _plan_is_orchestrator(r: ArtifactRecord) -> int:
@@ -3144,12 +3347,24 @@ def run_set_command(
         cmd_str = _retry_command(
             args, raw_args, scoped_type=scoped_type, extra=["--yes"]
         )
+        diagnostics = [
+            Diagnostic(
+                location=_agent_schema.normalize_repo_path(
+                    str(r.record.path), repo_root
+                ),
+                rule=r.rule,
+                detail=r.reason,
+                severity="error",
+            )
+            for r in skipped_refusals
+        ]
         res = CommandResult(
             command="set",
             status="cannot-run",
             exit_code=2,
             summary="confirmation required (--yes needed to execute mutation)",
             changes=changes,
+            diagnostics=diagnostics,
             next_actions=[
                 NextAction(command=cmd_str, description="Apply status changes")
             ],
@@ -3166,6 +3381,92 @@ def run_set_command(
             return nstat, curr != nstat.strip().lower()
 
         dry_results = [(r, *_dry_run_disposition(r)) for r in matched_records]
+
+        if skipped_refusals:
+            if ctx.is_agent or ctx.is_json:
+                cmd_str = "ipd set" if scoped_type_canonical == "plans" else "set"
+                rec_payload = {
+                    "schema": "aw.agent/v1",
+                    "kind": "result",
+                    "cmd": cmd_str,
+                    "exit": 1,
+                    "outcome": "findings",
+                    "verified": True,
+                    "complete": True,
+                    "applied": False,
+                    "summary": f"would update status on {len([r for r, _, changed in dry_results if changed])} artifact(s), skipped {len(skipped_refusals)} refused",
+                    "changes": [
+                        {
+                            "path": _agent_schema.normalize_repo_path(
+                                str(r.path), repo_root
+                            ),
+                            "kind": "update" if changed else "noop",
+                        }
+                        for r, _, changed in dry_results
+                    ],
+                    "diagnostics": [
+                        {
+                            "location": _agent_schema.normalize_repo_path(
+                                str(r.record.path), repo_root
+                            ),
+                            "rule": r.rule,
+                            "detail": r.reason,
+                            "severity": "error",
+                        }
+                        for r in skipped_refusals
+                    ],
+                    "data": {
+                        "items": [
+                            {
+                                "path": _agent_schema.normalize_repo_path(
+                                    str(r.path), repo_root
+                                ),
+                                "type": r.record_type,
+                                "old_status": r.status,
+                                "new_status": nstat,
+                                "changed": changed,
+                                "dry_run": True,
+                            }
+                            for r, nstat, changed in dry_results
+                        ],
+                        "skipped": [
+                            {
+                                "path": _agent_schema.normalize_repo_path(
+                                    str(r.record.path), repo_root
+                                ),
+                                "id6": r.record.id6 or r.record.path.stem,
+                                "rule": r.rule,
+                                "reason": r.reason,
+                            }
+                            for r in skipped_refusals
+                        ],
+                    },
+                }
+                if ctx.is_json:
+                    print(json.dumps(rec_payload, indent=2))
+                else:
+                    print(_agent_schema.render_jsonl_record(rec_payload), end="")
+                return 1
+
+            for r, nstat, changed in dry_results:
+                term.line(
+                    _format_status_transition_line(
+                        r, r.path, nstat, term, args, dry_run=True, changed=changed
+                    )
+                )
+            term.line(
+                f"Applied {len(dry_results)}, skipped {len(skipped_refusals)} (refused):"
+            )
+            for r in skipped_refusals:
+                ident = r.record.id6 or r.record.path.name
+                term.line(f"  - {ident} ({r.rule}): {r.reason}")
+                if r.remedy:
+                    if isinstance(r.remedy, list):
+                        for fix in r.remedy:
+                            term.line(f"    Remedy: {fix}")
+                    else:
+                        term.line(f"    Remedy: {r.remedy}")
+            return 1
 
         if ctx.is_agent or ctx.is_json:
             changes = [
@@ -3402,6 +3703,68 @@ def run_set_command(
             target_status,
             scoped_type_canonical,
         )
+        if skipped_refusals:
+            cmd_str = "ipd set" if scoped_type_canonical == "plans" else "set"
+            rec_payload = {
+                "schema": "aw.agent/v1",
+                "kind": "result",
+                "cmd": cmd_str,
+                "exit": 1,
+                "outcome": "findings",
+                "verified": True,
+                "complete": True,
+                "applied": True,
+                "summary": f"updated status on {len([r for r in results if r[3]])} artifact(s), skipped {len(skipped_refusals)} refused",
+                "changes": [
+                    {
+                        "path": _agent_schema.normalize_repo_path(str(dest), repo_root),
+                        "kind": "update" if changed else "noop",
+                    }
+                    for dest, norm_stat, rec, changed in results
+                ],
+                "diagnostics": [
+                    {
+                        "location": _agent_schema.normalize_repo_path(
+                            str(r.record.path), repo_root
+                        ),
+                        "rule": r.rule,
+                        "detail": r.reason,
+                        "severity": "error",
+                    }
+                    for r in skipped_refusals
+                ],
+                "data": {
+                    "items": [
+                        {
+                            "path": _agent_schema.normalize_repo_path(
+                                str(dest), repo_root
+                            ),
+                            "type": rec.record_type,
+                            "old_status": rec.status,
+                            "new_status": norm_stat,
+                            "changed": changed,
+                        }
+                        for dest, norm_stat, rec, changed in results
+                    ],
+                    "skipped": [
+                        {
+                            "path": _agent_schema.normalize_repo_path(
+                                str(r.record.path), repo_root
+                            ),
+                            "id6": r.record.id6 or r.record.path.stem,
+                            "rule": r.rule,
+                            "reason": r.reason,
+                        }
+                        for r in skipped_refusals
+                    ],
+                },
+            }
+            if ctx.is_json:
+                print(json.dumps(rec_payload, indent=2))
+            else:
+                print(_agent_schema.render_jsonl_record(rec_payload), end="")
+            return 1
+
         demotion_diags = [
             Diagnostic(
                 location=str(path),
@@ -3451,6 +3814,18 @@ def run_set_command(
             )
         )
 
+    if skipped_refusals:
+        term.line(f"Applied {len(results)}, skipped {len(skipped_refusals)} (refused):")
+        for r in skipped_refusals:
+            ident = r.record.id6 or r.record.path.name
+            term.line(f"  - {ident} ({r.rule}): {r.reason}")
+            if r.remedy:
+                if isinstance(r.remedy, list):
+                    for fix in r.remedy:
+                        term.line(f"    Remedy: {fix}")
+                else:
+                    term.line(f"    Remedy: {r.remedy}")
+
     for h in orchestrator_hints:
         term.line(f"aw set: note: {h}")
 
@@ -3461,7 +3836,7 @@ def run_set_command(
         target_status,
         scoped_type_canonical,
     )
-    return 0
+    return 1 if skipped_refusals else 0
 
 
 def resolve_dependency_edge_targets(
