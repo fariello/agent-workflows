@@ -56,6 +56,7 @@ CONTRACT_FIELDS = (
     # default-False or snapshot guarantee while the suite stays green.
     "supports_commit_gateway",
     "supports_fresh_verifier_session",
+    "supports_deny_tcp_port",
 )
 
 
@@ -1204,6 +1205,40 @@ class StructuredToolEventsProbeTests(unittest.TestCase):
                     self.assertIn("emits_structured_tool_events", caps.probe_notes)
         caps_scr = detect_host_capabilities("scripted", "darwin")
         self.assertFalse(caps_scr.emits_structured_tool_events)
+
+
+class DenyTcpPortProbeTests(unittest.TestCase):
+    """E-05: pin supports_deny_tcp_port fail-closed behavior."""
+
+    def test_deny_tcp_port_raising_probe_yields_not_supported(self):
+        saved = dict(hsp._RUNNER_SAFETY_PROBES)
+
+        def boom():
+            raise RuntimeError("probe exploded")
+
+        hsp._RUNNER_SAFETY_PROBES[hsp.CAP_DENY_TCP_PORT] = boom
+        try:
+            verdicts, notes = hsp.probe_runner_safety_capabilities()
+        finally:
+            hsp._RUNNER_SAFETY_PROBES.clear()
+            hsp._RUNNER_SAFETY_PROBES.update(saved)
+        self.assertFalse(verdicts[hsp.CAP_DENY_TCP_PORT])
+        self.assertIn("probe raised RuntimeError", notes[hsp.CAP_DENY_TCP_PORT])
+
+    def test_probe_deny_tcp_port_directly(self):
+        ok, note = hsp._probe_deny_tcp_port()
+        abi = hsp._landlock_abi()
+        if not sys.platform.startswith("linux"):
+            self.assertFalse(ok)
+            self.assertIn("not the certified platform", note)
+        elif abi < 4:
+            self.assertFalse(ok)
+            self.assertIn("require ABI >= 4", note)
+        else:
+            self.assertTrue(ok)
+            self.assertIn("outbound TCP connect denial proven", note)
+            self.assertIn("LANDLOCK_ACCESS_NET_CONNECT_TCP", note)
+            self.assertIn("per-port only", note)
 
 
 if __name__ == "__main__":

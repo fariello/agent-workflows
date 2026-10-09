@@ -22,8 +22,10 @@ from __future__ import annotations
 
 import argparse
 import dataclasses
+import importlib
 import io
 import json
+import shutil
 import sys
 import unittest
 from contextlib import contextmanager, redirect_stdout
@@ -36,6 +38,7 @@ from agent_workflows.host_sandbox_profile import (
     ACTION_EXECUTE,
     ACTION_READ_ONLY,
     CAP_COMMIT_GATEWAY,
+    CAP_DENY_TCP_PORT,
     CAP_FRESH_VERIFIER_SESSION,
     OUTCOME_FAILED,
     REASON_HOST_CAPABILITY_UNAVAILABLE,
@@ -125,6 +128,21 @@ def _fresh_verifier_never_refuses():
         yield
     finally:
         agy.run_fresh_verifier = real  # type: ignore[assignment]
+
+
+@contextmanager
+def _deny_tcp_port_both_ports_allowed():
+    """Arrange for landlock ruleset to allow BOTH ports so denial is not observed (E-08).
+
+    The jail mechanism is present and reachable, but because the unallowed port is also
+    allowed by the ruleset, no connect denial is observed.
+    """
+    orig = hsp._deny_tcp_probe_allowed_ports
+    hsp._deny_tcp_probe_allowed_ports = lambda ok, bad: (ok, bad)
+    try:
+        yield
+    finally:
+        hsp._deny_tcp_probe_allowed_ports = orig
 
 
 def _fully_capable() -> HostSandboxCapabilities:
@@ -269,7 +287,60 @@ class RunnerSafetyProbeTests(unittest.TestCase):
             "which would gate every capable host out of every action class. Same probe, same "
             "helper, same process - ONLY the observed refusal differs",
         ),
+        (
+            "deny-tcp-port, with landlock present but the denied port ALSO allowed in ruleset",
+            CAP_DENY_TCP_PORT,
+            ("agent_workflows.host_sandbox_profile", "_probe_deny_tcp_port"),
+            _deny_tcp_port_both_ports_allowed,
+            False,
+            "The jail mechanism is present and ruleset is applied, but because both ports are "
+            "allowed, no kernel connect denial is observed. Inferring support from mechanism "
+            "presence without observed refusal would fail open",
+        ),
     )
+
+    def test_presence_vs_observation_table(self):
+        """E-06: consumer for PRESENCE_VS_OBSERVATION table.
+
+        Asserts each row's witness exists and is callable/executable, and under row's arrange context manager,
+        probe_runner_safety_capabilities() returns the expected verdict for the capability.
+        """
+        for row in self.PRESENCE_VS_OBSERVATION:
+            case, cap_name, witness, arrange, expected, why = row
+            with self.subTest(case=case, capability=cap_name):
+                # Verify witness exists and is callable/executable
+                if isinstance(witness, (tuple, list)) and len(witness) == 2:
+                    mod = importlib.import_module(witness[0])
+                    fn = getattr(mod, witness[1])
+                    self.assertTrue(callable(fn), f"{witness} must be callable")
+                elif isinstance(witness, str):
+                    self.assertTrue(
+                        shutil.which(witness) is not None,
+                        f"executable {witness} must be present",
+                    )
+                else:
+                    self.fail(f"unrecognized witness shape: {witness!r}")
+
+                # Run probe under arrange context manager
+                with arrange():
+                    verdicts, notes = probe_runner_safety_capabilities()
+                    self.assertIs(
+                        verdicts[cap_name],
+                        expected,
+                        f"row failed: {case}; expected {expected} but got {verdicts[cap_name]}; why: {why}",
+                    )
+
+    def test_deny_tcp_port_abi_below_4_returns_false(self):
+        """E-09: landlock ABI < 4 must report False with an explanatory note."""
+        orig_abi = hsp._landlock_abi
+        hsp._landlock_abi = lambda: 3
+        try:
+            ok, note = hsp._probe_deny_tcp_port()
+        finally:
+            hsp._landlock_abi = orig_abi
+        self.assertFalse(ok)
+        self.assertIn("require ABI >= 4", note)
+        self.assertIn("ABI 3", note)
 
     def test_detect_host_capabilities_records_the_probe_notes(self):
         caps = detect_host_capabilities("opencode")
@@ -666,7 +737,12 @@ class CommandDeclarationTests(unittest.TestCase):
 
 
 class DenyPushRemovedTests(unittest.TestCase):
-    """01reg8 E-02: verify supports_deny_push and the three unenforced action verdicts are gone."""
+    """01reg8 E-02 / pi3bk8 E-07: verify supports_deny_push and unenforced action verdicts remain gone.
+
+    Plan pi3bk8 added the narrower capability supports_deny_tcp_port because Landlock proves TCP port
+    denial and cannot prove remote push denial. This guard verifies that supports_deny_push and
+    CAP_DENY_PUSH remain absent and were not reintroduced or worked around.
+    """
 
     def test_supports_deny_push_and_unenforced_action_verdicts_removed(self):
         self.assertNotIn(
