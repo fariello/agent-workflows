@@ -6,7 +6,7 @@
 - Scope: Orchestrate three children that together close the descriptive-value write paths (`uz05bl`), the filename derivation (`ribg85`), and the checker coverage (`ynhst5`) for the `specs` and `releases` trees. This plan holds ORCHESTRATION ONLY: every deliverable belongs to a child, and this file contributes no code, no test and no records repair of its own. EXCLUDES, in every child without exception: minting a new rule id, changing `attention_contract.is_safe_descriptive` or `MAX_DESCRIPTIVE_LEN`, changing the on-disk record grammar, guarding the shared positional `aw <tree> set` setter, and bounding a history-record message on LENGTH.
 - Scope-Paths: .aw/records/plans/pending/20260929-qbz8i1-00-xhr0dj-refuse-an-unsafe-descriptive-value-at-spec-and-release-creat.ipd.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Coverage: pass
 - Coverage-Fingerprint: 87f85a3fe477e202d958f343bd304b715ffe81f2a1e2b4617294f8d21c53e6c1
@@ -20,9 +20,9 @@
 - Highest E allocated: 03
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: xhr0dj
-- Approval: 2026-10-08, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-09 executed (aw agy run model=Gemini-3.8-Flash-High): RETIRED as the orchestrator rollup step of a runner Set completion, not executed by an agent: every child of Set qbz8i1 reached executed, so the runner (run run-20261009T024714Z-1667714) retired this Order-0 plan as bookkeeping. Its own E-*/V-* items were NOT performed; the runner superseded them by enforcing the ordering, the isolation and the per-child merge gate. Justifying children: uz05bl, ribg85, ynhst5.
 - 2026-10-08 approved (aw set): status set to approved
 - 2026-10-07 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-601 (MEDIUM, fixed), PR-602 (LOW, fixed), PR-603 (LOW, fixed), PR-604 (LOW, fixed). All three children re-verified executed with the evidence V-01..V-03 demand present; the four vectors were re-driven and all refused on the current tree; bare suite 5233 passed, 2 skipped; aw check specs/releases conforms. PR-601: the 'aw check all CLEAN' bar was unsatisfiable (exit 1 on unrelated findings), restated as no attention.unsafe-field finding and no worse than baseline. Coverage loop: 2 attempts, rows 3 -> 3. Record: .aw/records/reviews/20260929-qbz8i1-00-xhr0dj-refuse-an-unsafe-descriptive-value-at-spec-and-release-creat.review.md.
 - 2026-10-07 coverage pass (aw oc run): fingerprint 87f85a3fe477, model uri/its_direct/pt3-claude-opus-5.5-1m-us
@@ -42,6 +42,9 @@
 Make a spec or release record impossible to create carrying metadata its author never wrote, whether the vector is an injected front-matter bullet, a forged approval, a fabricated date, or a path that escapes the records tree; and make the residue a checker can see into a named finding.
 
 ## Detailed Implementation Checklist (TODO)
+
+
+> Its own E-*/V-* items were NOT performed; the runner superseded them by enforcing the ordering, the isolation and the per-child merge gate.
 
 Execution-state rule: mark an `E-*` item complete only after performing the action. That mark is not validation. Right-sizing rule: each E-item must address one concern and be executable in one focused pass; split when an E-item names multiple distinct deliverables or independent test-surfaces.
 
