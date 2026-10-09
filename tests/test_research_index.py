@@ -197,7 +197,7 @@ class CheckDriftTests(unittest.TestCase):
             order=0,
             id6="aaaaaa",
             slug="a",
-            status="reference",
+            status="todo",
             created="20260701",
         )
 
@@ -1274,6 +1274,150 @@ class RepeatedFrontmatterKeyTests(unittest.TestCase):
         # 3. default aw check research: passes (exit 0), content validator gated by include_retired
         rc_def = cli.main(["check", "research", "--dir", str(self.root)])
         self.assertEqual(rc_def, 0)
+
+
+class StatusTierMismatchTests(unittest.TestCase):
+    """Set zdsf35 / IPD ucwlwt E-04: status-versus-tier drift rule tests."""
+
+    def setUp(self):
+        self.root = Path(tempfile.mkdtemp())
+        self.rroot = self.root / R.RESEARCH_ROOT
+        self.rroot.mkdir(parents=True, exist_ok=True)
+
+    def _write_doc(
+        self,
+        *,
+        id6: str,
+        status: str,
+        tier: str = "root",
+        shard_month: str = "202607",
+        created: str = "20260701",
+        kind: str = "notes",
+    ) -> Path:
+        name = R.format_name(
+            R.ResearchName(
+                date=created,
+                set_id="testset",
+                order="00",
+                id6=id6,
+                slug="testdoc",
+                model=None,
+                kind=kind,
+            )
+        )
+        content = C.build_frontmatter(
+            id6=id6,
+            created=created,
+            set_id="testset",
+            order="00",
+            topic=["test"],
+            model=None,
+            kind=kind,
+            status=status,
+            outcome="none-yet",
+            summary=f"summary {id6}",
+        )
+        if tier == "root":
+            target_dir = self.rroot
+        else:
+            target_dir = self.rroot / tier / shard_month
+        target_dir.mkdir(parents=True, exist_ok=True)
+        doc_path = target_dir / name
+        doc_path.write_text(content, encoding="utf-8")
+        return doc_path
+
+    def _regen(self):
+        entries, _ = I._scan_docs(self.rroot)
+        (self.rroot / I.INDEX_JSON).write_text(
+            I.build_index_json(entries), encoding="utf-8"
+        )
+        (self.rroot / I.INDEX_MD).write_text(
+            I.build_index_md(entries), encoding="utf-8"
+        )
+
+    def test_case_1_cold_status_at_hot_root_flagged(self):
+        # Case 1: cold-status doc at hot root is flagged (catches F-09 .value trap).
+        doc = self._write_doc(id6="stm001", status="reference", tier="root")
+        self._regen()
+        drift = I.check_drift(self.root, self.rroot)
+        mismatches = [d for d in drift if d.rule == I.STATUS_TIER_MISMATCH_RULE]
+        self.assertEqual(len(mismatches), 1)
+        finding = mismatches[0]
+        self.assertEqual(finding.rule, I.STATUS_TIER_MISMATCH_RULE)
+        self.assertEqual(finding.severity, "warning")
+        self.assertEqual(finding.location, doc.relative_to(self.rroot).as_posix())
+        self.assertEqual(_core.drift_exit_code(drift), 1)
+
+    def test_case_2_hot_status_in_reference_shard_flagged(self):
+        # Case 2: hot-status doc inside a reference/ shard is flagged.
+        doc = self._write_doc(id6="stm002", status="active", tier="reference")
+        self._regen()
+        drift = I.check_drift(self.root, self.rroot)
+        mismatches = [d for d in drift if d.rule == I.STATUS_TIER_MISMATCH_RULE]
+        self.assertEqual(len(mismatches), 1)
+        finding = mismatches[0]
+        self.assertEqual(finding.rule, I.STATUS_TIER_MISMATCH_RULE)
+        self.assertEqual(finding.severity, "warning")
+        self.assertEqual(finding.location, doc.relative_to(self.rroot).as_posix())
+        self.assertEqual(_core.drift_exit_code(drift), 1)
+
+    def test_case_3_hot_status_in_archive_shard_flagged(self):
+        # Case 3: hot-status doc inside an archive/ shard is flagged.
+        doc = self._write_doc(id6="stm003", status="todo", tier="archive")
+        self._regen()
+        drift = I.check_drift(self.root, self.rroot)
+        mismatches = [d for d in drift if d.rule == I.STATUS_TIER_MISMATCH_RULE]
+        self.assertEqual(len(mismatches), 1)
+        finding = mismatches[0]
+        self.assertEqual(finding.rule, I.STATUS_TIER_MISMATCH_RULE)
+        self.assertEqual(finding.severity, "warning")
+        self.assertEqual(finding.location, doc.relative_to(self.rroot).as_posix())
+        self.assertEqual(_core.drift_exit_code(drift), 1)
+
+    def test_case_4_correctly_placed_docs_produce_no_finding(self):
+        # Case 4: correctly-placed doc of each tier produces NO finding of this rule.
+        self._write_doc(id6="stm004", status="active", tier="root")
+        self._write_doc(id6="stm005", status="reference", tier="reference")
+        self._write_doc(id6="stm006", status="archive", tier="archive")
+        self._regen()
+        drift = I.check_drift(self.root, self.rroot)
+        mismatches = [d for d in drift if d.rule == I.STATUS_TIER_MISMATCH_RULE]
+        self.assertEqual(len(mismatches), 0)
+        self.assertEqual(_core.drift_exit_code(drift), 0)
+
+    def test_case_5_legacy_intake_status_in_cold_shard_flagged(self):
+        # Case 5: legacy intake-status doc inside cold shard is flagged (proves normalization).
+        doc = self._write_doc(id6="stm007", status="intake", tier="reference")
+        self._regen()
+        drift = I.check_drift(self.root, self.rroot)
+        mismatches = [d for d in drift if d.rule == I.STATUS_TIER_MISMATCH_RULE]
+        self.assertEqual(len(mismatches), 1)
+        finding = mismatches[0]
+        self.assertEqual(finding.rule, I.STATUS_TIER_MISMATCH_RULE)
+        self.assertEqual(finding.severity, "warning")
+        self.assertEqual(finding.location, doc.relative_to(self.rroot).as_posix())
+        self.assertEqual(_core.drift_exit_code(drift), 1)
+
+    def test_case_6_empty_or_unrecognized_status_produces_no_finding(self):
+        # Case 6: doc whose status is EMPTY or unrecognized produces NO finding (pins F-10 skip).
+        # Doc 1: empty status (e.g. .research-prompt.md)
+        self._write_doc(id6="stm008", status="", tier="root")
+        # Doc 2: unrecognized status token
+        self._write_doc(id6="stm009", status="unrecognized-custom", tier="root")
+        self._regen()
+        drift = I.check_drift(self.root, self.rroot)
+        mismatches = [d for d in drift if d.rule == I.STATUS_TIER_MISMATCH_RULE]
+        self.assertEqual(len(mismatches), 0)
+
+    def test_manifest_regeneration_not_blocked_by_tier_mismatch(self):
+        # V-02: emission is in check_drift ONLY, so _scan_docs drift is clean and
+        # manifest regeneration succeeds on a tier-mismatched doc.
+        self._write_doc(id6="stm010", status="reference", tier="root")
+        entries, scan_drift = I._scan_docs(self.rroot)
+        self.assertEqual(scan_drift, [])
+        self._regen()
+        self.assertTrue((self.rroot / I.INDEX_JSON).is_file())
+        self.assertTrue((self.rroot / I.INDEX_MD).is_file())
 
 
 if __name__ == "__main__":

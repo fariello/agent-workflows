@@ -46,7 +46,7 @@ def _seed_research_doc(
     topic: list[str] | None = None,
     model: str = "",
     kind: str = "notes",
-    status: str = "todo",
+    status: str = "reference",
     outcome: str = "none-yet",
     summary: str = "A demo doc",
     consumed_by: list[str] | None = None,

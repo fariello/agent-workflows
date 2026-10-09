@@ -101,7 +101,7 @@ class DriftRuleRegistrationTests(unittest.TestCase):
                 topic=["test"],
                 model=None,
                 kind="research-report",
-                status="reference",
+                status="todo",
                 outcome="adopted",
                 summary="summary adopt1",
             )

@@ -978,6 +978,26 @@ RULE_REGISTRY: Dict[str, RuleSpec] = {
     "stale-state-to-promote": RuleSpec(
         "info", ASSURANCE_REPOSITORY, DET_DETERMINISTIC, ""
     ),
+    # zdsf35 Order 02 (ucwlwt) E-03: status-versus-tier mismatch in research docs.
+    # Registered at `warning` severity because artifact_core.drift_exit_code exempts ONLY `info`,
+    # so `warning` fails the gate as required for a drift rule, while `error` would overstate a
+    # defect that is a chore (readers key on frontmatter status and no answer is wrong).
+    # The nearest precedent is check.stale-index-stale, also `warning`, also a real-but-non-answer-corrupting
+    # inconsistency. An unregistered id falls through to `_DEFAULT_RULESPEC` at `error`, so
+    # registration here is a deliberate downgrade and not bookkeeping.
+    # Invariant is `""`: no catalog invariant in spec pqsx96 covers research layout tiering.
+    "status-tier-mismatch": RuleSpec(
+        "warning", ASSURANCE_REPOSITORY, DET_DETERMINISTIC, ""
+    ),
+    "check.status-tier-mismatch": RuleSpec(
+        "warning", ASSURANCE_REPOSITORY, DET_DETERMINISTIC, ""
+    ),
+    "check.research-status-tier-mismatch": RuleSpec(
+        "warning", ASSURANCE_REPOSITORY, DET_DETERMINISTIC, ""
+    ),
+    "status-versus-tier": RuleSpec(
+        "warning", ASSURANCE_REPOSITORY, DET_DETERMINISTIC, ""
+    ),
     # IPD 7ohskw (backlog 9rl7cm) E-04: three backlog item validation rules.
     # Registered `error` because each is a contract violation of the backlog item format published in
     # .aw/records/backlog/README.md. `error` is not a free choice dressed as one:

@@ -88,8 +88,9 @@ now one local file shared across every branch.
 The hot window shows the most-recent N sets (default N = 40, override with `aw research index
 --limit N`). `aw research index --check` fails on drift (missing/invalid frontmatter, repeated
 frontmatter keys (`research.frontmatter-key-repeated`), name vs frontmatter mismatch, a stale
-generated view, or a dangling citation) and is wireable into a pre-commit or CI gate. `aw research
-find --id|--set|--topic|--status` answers queries over the manifest without reading the corpus.
+generated view, a dangling citation, or a status-versus-tier mismatch; remediate with `aw research
+promote`) and is wireable into a pre-commit or CI gate. `aw research find --id|--set|--topic|--status`
+answers queries over the manifest without reading the corpus.
 
 ## External artifacts
 
