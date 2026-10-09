@@ -1146,11 +1146,10 @@ COMMAND_INVENTORY: Tuple[CommandDeclaration, ...] = (
     # (b) 1 IS ABSENT DELIBERATELY: `_run_next` never returns `EXIT_INCOMPLETE`, and adding it would
     # oblige a `domain_failure` conformance scenario in `tests/conformance_matrix.required_scenarios`,
     # which keys precisely on `1 in decl.exit_contract` for a `read` class, for an outcome this verb
-    # does not produce. `conformance_matrix` is currently a dead surface with no live importer (F-05),
-    # so the obligation is currently latent rather than enforced, and 1 is still omitted on correctness
-    # grounds rather than because nothing would catch it. The contract is not capped at (0, 1, 2)
-    # because `run_cli._emit_error` machine payloads are deliberately not `aw.agent/v1` records and
-    # `run_cli` imports `agent_schema` zero times.
+    # does not produce. This obligation is enforced by `tests/test_conformance_matrix_structure.py`,
+    # and 1 is omitted on correctness grounds rather than because nothing would catch it. The contract
+    # is not capped at (0, 1, 2) because `run_cli._emit_error` machine payloads are deliberately not
+    # `aw.agent/v1` records and `run_cli` imports `agent_schema` zero times.
     CommandDeclaration(
         command="runs next",
         command_class="read",

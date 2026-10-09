@@ -40,7 +40,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: recover the deleted driver and establish what it does today
 
-- [ ] E-01 RECOVER THE DELETED DRIVER AND RUN IT UNCHANGED TO SEE WHAT BREAKS, before writing a single new
+- [x] E-01 RECOVER THE DELETED DRIVER AND RUN IT UNCHANGED TO SEE WHAT BREAKS, before writing a single new
   assertion. Extract it with `git show 19313eed7^:tests/test_cli_conformance_matrix.py` into the worktree
   under its ORIGINAL name temporarily, run it, and CAPTURE THE RESULT PER TEST METHOD. This is the step that
   converts "revive a stale harness" from a guess into a measurement: the plan predicts exactly one
@@ -64,11 +64,11 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
     `test_declared_absent_leaves_are_only_the_known_prompts_family` failing and its actual-versus-expected
     set captured verbatim (expected at review: actual `set()`), and an explicit statement of whether anything ELSE failed (which would be a
     finding this plan did not predict).
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: correct the harness the restored gate will read
 
-- [ ] E-02 DELETE THE THREE STALE `dtq6jr` EXEMPTIONS AND RELOCATE THE TWO THAT NEED ARGUMENTS. In
+- [x] E-02 DELETE THE THREE STALE `dtq6jr` EXEMPTIONS AND RELOCATE THE TWO THAT NEED ARGUMENTS. In
   `tests/conformance_matrix.EXEMPTION_REGISTRY`, the entries for `config show`, `config get` and `config is`
   all carry `reason_kind="known_broken"`, `citation="dtq6jr"` and the reason "Crashes with ImportError:
   cannot import name 'format_agent_json'". Backlog `dtq6jr` is `done`
@@ -93,9 +93,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Expected outcome: three entries removed from `EXEMPTION_REGISTRY`, two entries added to `RUNNABLE_ARGV`
     with the argument each needs, `rg -n 'dtq6jr' tests/conformance_matrix.py` returning nothing, and
     `tests/test_agent_surface_conformance.py` still passing with its universe grown by three leaves.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 RESOLVE EVERY DEAD SYMBOL TO AN EXECUTOR OR TO DELETION, leaving no third category, and RECORD
+- [x] E-03 RESOLVE EVERY DEAD SYMBOL TO AN EXECUTOR OR TO DELETION, leaving no third category, and RECORD
   THE DECISION PER SYMBOL. The fourteen names with zero importers are `SCENARIOS`, `required_scenarios`,
   `MatrixRow`, `MatrixReport`, `build_matrix`, `render_matrix_report`, `semantic_facts_from_human`,
   `outcome_family`, `ANSI_RE`, `GOLDEN_DIR`, `USAGE_ERROR_FLAG`, `RunResult`, `Exemption` and `_pinned_env`.
@@ -130,11 +130,11 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Expected outcome: a per-symbol table in the validation evidence reading KEPT-WITH-EXECUTOR (naming the
     test), KEPT-BECAUSE-INTERNAL (naming the live caller), or DELETED, covering all fourteen names with no
     omissions and no fourth category.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: land the gate, default-collected
 
-- [ ] E-04 WRITE `tests/test_conformance_matrix_structure.py` CARRYING THE SURVIVING ASSERTIONS AND NO
+- [x] E-04 WRITE `tests/test_conformance_matrix_structure.py` CARRYING THE SURVIVING ASSERTIONS AND NO
   `slow` MARKER. Port from the recovered driver, keeping its four structural tests and its alias test, and
   dropping `LiveScenarioConformanceTests` and `FactParityTests` (carried by `2wowfy`).
 
@@ -179,9 +179,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
     naming the reachability gate and the owner of any member, whose alias test is one parametrized case per
     pair, and which contains no row
     count, no declaration count, and no `pytestmark = pytest.mark.slow`.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 PROVE THE GATE IS SENSITIVE BY BREAKING THE BEHAVIOR IT GUARDS, with THROWAWAY probes reverted
+- [x] E-05 PROVE THE GATE IS SENSITIVE BY BREAKING THE BEHAVIOR IT GUARDS, with THROWAWAY probes reverted
   before any commit. A restored gate that passes proves nothing about whether it can fail; `GUIDING_PRINCIPLES`
   16 states the bar directly ("A test is only valid if breaking the underlying behavior makes the test
   fail").
@@ -199,11 +199,11 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Depends on: E-04
   - Expected outcome: three pasted failures, each naming the specific thing broken, and a clean
     `git status --short` for `agent_workflows/` showing no probe survived.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 4: make the prose agree with the gate
 
-- [ ] E-06 RECONCILE THE THREE `command_surface.py` COMMENTS THAT REASON FROM `required_scenarios`, which
+- [x] E-06 RECONCILE THE THREE `command_surface.py` COMMENTS THAT REASON FROM `required_scenarios`, which
   currently hold two incompatible beliefs. Two treat the obligation as binding: the `runs analyze`
   declaration comment ("`tests/conformance_matrix.required_scenarios` derives each leaf's REQUIRED scenario
   set from the `command_class` declared here ... declaring the wrong class demands the wrong coverage") and
@@ -230,7 +230,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Expected outcome: the `runs next` comment no longer claims a dead surface, naming
     `tests/test_conformance_matrix_structure.py` instead, with its `exit_contract` reasoning intact; a
     `git diff` on `agent_workflows/command_surface.py` showing comment lines only and no field change.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -416,7 +416,7 @@ deliberately left to sibling `9i2hge` for the reason stated in the deferred sect
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: PASTE the per-test-method result table from running the recovered driver, naming each
     of its test methods and its outcome. The table MUST show
     `test_declared_absent_leaves_are_only_the_known_prompts_family` FAILING, with its actual-versus-expected
@@ -424,9 +424,37 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
     did, that is an unpredicted finding and must be described with its evidence before E-02 proceeds. PASTE
     `git status --short` showing the temporary recovered file is gone (or never entered the worktree).
   - Observed evidence:
-  - Result: pending
+    Recovered driver extracted from `19313eed7^:tests/test_cli_conformance_matrix.py` and run under `python3 -m pytest tests/test_cli_conformance_matrix.py -m '' -v`.
+    Per-test-method results:
+    | Class | Test Method | Outcome |
+    |---|---|---|
+    | `UndeclaredLeafGuardTests` | `test_no_undeclared_parser_leaves` | PASSED |
+    | `UndeclaredLeafGuardTests` | `test_every_declared_leaf_gets_a_full_scenario_row_set` | PASSED |
+    | `UndeclaredLeafGuardTests` | `test_declared_absent_leaves_are_only_the_known_prompts_family` | FAILED |
+    | `UndeclaredLeafGuardTests` | `test_matrix_has_at_least_one_passing_row_per_live_leaf` | PASSED |
+    | `LiveScenarioConformanceTests` | `test_agent_streams_are_ansi_free_and_exit_consistent` | PASSED |
+    | `LiveScenarioConformanceTests` | `test_non_tty_human_streams_are_plain` | PASSED |
+    | `LiveScenarioConformanceTests` | `test_no_color_scenario_is_plain` | PASSED |
+    | `LiveScenarioConformanceTests` | `test_help_scenario_exits_zero_and_documents_agent` | PASSED |
+    | `LiveScenarioConformanceTests` | `test_usage_error_scenario_exits_two` | PASSED |
+    | `FactParityTests` | `test_human_and_agent_outcome_families_match` | FAILED (TestHangTimeout 240s wall ceiling) |
+    | `AliasEquivalenceTests` | `test_alias_agent_output_is_byte_equivalent` | PASSED |
 
-- [ ] V-02 validates E-02
+    `test_declared_absent_leaves_are_only_the_known_prompts_family` failure message verbatim:
+    ```
+    E       AssertionError: Items in the second set but not the first:
+    E       'prompts set' : declaration/parser drift changed: []
+    ```
+    Actual set was `set()`, expected set was `{"prompts set"}` (matching the review re-measurement).
+    Other method failure: `FactParityTests.test_human_and_agent_outcome_families_match` failed on `TestHangTimeout` (exceeded 240s wall ceiling across 16 leaves driving both human and agent commands), confirming the plan's prediction (F-03) that the live parity sweep is heavy and belongs in `2wowfy`. No other structural method failed.
+    Temporary file deleted and `git status --short` verified clean:
+    ```
+    $ rm -f tests/test_cli_conformance_matrix.py && git status --short
+    (clean)
+    ```
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: PASTE, for each of `config show --agent`, `config get interactive --agent` and
     `config is interactive --agent`, the actual stdout and exit code, plus the result of
     `agent_schema.validate_agent_record` on the terminal record (which must be `[]`) and the record's `exit`
@@ -436,9 +464,46 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
     If any leaf measured non-conformant, PASTE that evidence and name the LIVE owner the entry was re-cited
     to.
   - Observed evidence:
-  - Result: pending
+    All three leaves driven through `run_cli` with `--agent`:
+    ```
+    === config show --agent ===
+    Returncode: 0
+    Stdout:
+    {"schema":"aw.agent/v1","kind":"result","cmd":"config-show","outcome":"clean","exit":0,"verified":true,"complete":true,"config_file":"/tmp/aw-test-home-s84cfycj/xdg-config/agent-workflows/config.json","config_present":false,"config":{"config_version":2,"repos":{"search":[],"installed":[],"exclude":[],"ignore":[]},"defaults":{"backup":true,"prune":true}}}
+    Terminal record: {'schema': 'aw.agent/v1', 'kind': 'result', 'cmd': 'config-show', 'outcome': 'clean', 'exit': 0, 'verified': True, 'complete': True, ...}
+    validate_agent_record: []
+    Record exit: 0, Returncode: 0
 
-- [ ] V-03 validates E-03
+    === config get interactive --agent ===
+    Returncode: 2
+    Stdout:
+    {"schema":"aw.agent/v1","kind":"error","cmd":"config-get","outcome":"cannot-run","exit":2,"verified":false,"complete":false,"error":"Unknown config key. Valid keys: aw_home, color_depth, config_version, defaults, defaults.backup, defaults.leftovers, defaults.migrate_layout, defaults.prune, repos, repos.exclude, repos.ignore, repos.installed, repos.search"}
+    Terminal record: {'schema': 'aw.agent/v1', 'kind': 'error', 'cmd': 'config-get', 'outcome': 'cannot-run', 'exit': 2, 'verified': False, 'complete': False, ...}
+    validate_agent_record: []
+    Record exit: 2, Returncode: 2
+
+    === config is interactive --agent ===
+    Returncode: 2
+    Stdout:
+    {"schema":"aw.agent/v1","kind":"error","cmd":"config-is","outcome":"cannot-run","exit":2,"verified":false,"complete":false,"error":"Missing variable name. Usage: aw config is <value> in <varname>"}
+    Terminal record: {'schema': 'aw.agent/v1', 'kind': 'error', 'cmd': 'config-is', 'outcome': 'cannot-run', 'exit': 2, 'verified': False, 'complete': False, ...}
+    validate_agent_record: []
+    Record exit: 2, Returncode: 2
+    ```
+    Grep for stale citation:
+    ```
+    $ rg -n 'dtq6jr' tests/conformance_matrix.py
+    (no output, exit 1)
+    ```
+    `tests/test_agent_surface_conformance.py` run:
+    ```
+    $ python3 -m pytest tests/test_agent_surface_conformance.py
+    71 passed in 30.96s
+    ```
+    UNIVERSE size before: 43. UNIVERSE size after: 46 (43 + 3 un-exempted leaves: `config show`, `config get`, `config is`).
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: PASTE a table covering ALL FOURTEEN zero-importer names (`SCENARIOS`,
     `required_scenarios`, `MatrixRow`, `MatrixReport`, `build_matrix`, `render_matrix_report`,
     `semantic_facts_from_human`, `outcome_family`, `ANSI_RE`, `GOLDEN_DIR`, `USAGE_ERROR_FLAG`, `RunResult`,
@@ -448,9 +513,37 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
     evidence. PASTE the updated module docstring text showing it no longer describes the harness as awaiting
     a revival decision.
   - Observed evidence:
-  - Result: pending
+    Per-symbol verdicts:
+    | Symbol | Verdict | Executor / Caller / Rationale |
+    |---|---|---|
+    | `required_scenarios` | KEPT-WITH-EXECUTOR | `tests/test_conformance_matrix_structure.py::UndeclaredLeafGuardTests::test_every_declared_leaf_gets_a_full_scenario_row_set` |
+    | `build_matrix` | KEPT-WITH-EXECUTOR | `tests/test_conformance_matrix_structure.py::UndeclaredLeafGuardTests::test_every_declared_leaf_gets_a_full_scenario_row_set`, `test_declared_absent_leaves_matches_pinned_set`, `test_matrix_has_at_least_one_passing_row_per_live_leaf` |
+    | `MatrixRow` | KEPT-WITH-EXECUTOR | `tests/test_conformance_matrix_structure.py::UndeclaredLeafGuardTests::test_every_declared_leaf_gets_a_full_scenario_row_set` |
+    | `MatrixReport` | KEPT-WITH-EXECUTOR | `tests/test_conformance_matrix_structure.py::UndeclaredLeafGuardTests::test_every_declared_leaf_gets_a_full_scenario_row_set` |
+    | `ANSI_RE` | KEPT-WITH-EXECUTOR | `tests/test_conformance_matrix_structure.py::HarnessInvariantsTests::test_ansi_re_detects_csi_sequences_and_spares_plain_text`, `tests/test_conformance_matrix_structure.py::AliasEquivalenceTests::test_alias_agent_output_is_byte_equivalent` |
+    | `USAGE_ERROR_FLAG` | KEPT-WITH-EXECUTOR | `tests/test_conformance_matrix_structure.py::HarnessInvariantsTests::test_usage_error_flag_triggers_argparse_error` |
+    | `RunResult` | KEPT-BECAUSE-INTERNAL | `tests/conformance_matrix.py::run_cli` (live callers: `test_agent_surface_conformance.py`, `test_exit_contract_conformance.py`, `test_conformance_matrix_structure.py`) |
+    | `Exemption` | KEPT-BECAUSE-INTERNAL | `tests/conformance_matrix.py::EXEMPTION_REGISTRY`, `MUTATION_EXEMPTION_REGISTRY`, `UNREACHABLE_COMMAND_ALLOW_SET` (live importer: `test_command_surface_declarations.py`) |
+    | `_pinned_env` | KEPT-BECAUSE-INTERNAL | `tests/conformance_matrix.py::run_cli` (live callers: `test_agent_surface_conformance.py`, `test_exit_contract_conformance.py`, `test_conformance_matrix_structure.py`) |
+    | `GOLDEN_DIR` | KEPT-BECAUSE-INTERNAL | `tests/test_cli_quality_gates.py` (sibling child `9i2hge` in plan `20261001-h0tiaw-02-9i2hge`) |
+    | `SCENARIOS` | DELETED | Deleted to eliminate drift risk against `required_scenarios` (F-07) |
+    | `semantic_facts_from_human` | DELETED | Branch A of OQ-01; vacuous on curated leaves (F-03), handed off to carrier `2wowfy` |
+    | `outcome_family` | DELETED | Branch A of OQ-01; handed off to carrier `2wowfy` |
+    | `render_matrix_report` | DELETED | Unused text report renderer with no consumer |
 
-- [ ] V-04 validates E-04
+    OQ-01 decision: Branch A taken. Deleted vacuous `semantic_facts_from_human`, `_HUMAN_OUTCOME_WORDS`, and `outcome_family`. Handed off to carrier `2wowfy`.
+    Updated module docstring text:
+    ```python
+    - ``test_exit_contract_conformance.py``: executes safe read/check leaves in
+      ``LIVE_SAFE_LEAVES`` via ``run_cli`` to verify observed exit-code membership
+      against declared ``exit_contract`` (IPD 1mnit8).
+    - ``test_conformance_matrix_structure.py``: structural and alias gate asserting
+      zero undeclared leaves, complete required scenario coverage, pinned declared-absent
+      declarations, live-safe leaf rows, and alias byte-equivalence (IPD dq9bj9).
+    ```
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: PASTE the output of `python3 -m pytest` (bare, no added flags) showing the new module
     COLLECTED AND PASSING, which is what proves default collection; a run that needed `-m ''` does not
     satisfy this item. PASTE `rg -n 'pytest.mark.slow|pytestmark' tests/test_conformance_matrix_structure.py`
@@ -460,18 +553,156 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
     the relevant lines that the module contains no row count, no declaration count, and no read of any
     `agent_workflows/*.py` file as text.
   - Observed evidence:
-  - Result: pending
+    Bare pytest runner output:
+    ```
+    $ python3 -m pytest tests/test_conformance_matrix_structure.py
+    bringing up nodes...
+    ........                                                                 [100%]
+    8 passed in 5.84s
+    ```
+    Slow marker check:
+    ```
+    $ rg -n 'pytest.mark.slow|pytestmark' tests/test_conformance_matrix_structure.py
+    (no output, exit 1)
+    ```
+    Quoted `declared_absent` assertion and message:
+    ```python
+    def test_declared_absent_leaves_matches_pinned_set(self) -> None:
+        """A declaration with no parser leaf is a known drift.
 
-- [ ] V-05 validates E-05
+        This test pins the set of declared leaves missing from the parser so a
+        silent drift (a declaration whose parser leaf vanished) fails CI. A
+        non-empty set represents a declaration whose parser leaf vanished, to be
+        fixed or owned with a filed id6, and cross-checked against the behavioral
+        reachability gate
+        tests/test_command_surface_declarations.py::test_zero_unreachable_command_declarations
+        and its UNREACHABLE_COMMAND_ALLOW_SET (from gm9baj).
+        """
+        parser = _build_parser()
+        report = build_matrix(parser)
+        pinned_declared_absent: set[str] = set()
+        self.assertEqual(
+            set(report.declared_absent),
+            pinned_declared_absent,
+            "Declaration/parser drift changed. Any unexpected member represents a "
+            "declaration whose parser leaf vanished, to be fixed or owned with a "
+            "filed id6, and cross-checked against "
+            "tests/test_command_surface_declarations.py::test_zero_unreachable_command_declarations "
+            f"and UNREACHABLE_COMMAND_ALLOW_SET. Actual: {sorted(report.declared_absent)}",
+        )
+    ```
+    Measured: `build_matrix(_build_parser()).declared_absent == []`.
+    Measured wall time of alias test:
+    - `spec check` vs `specs check`: 0.83s
+    - `sanitize` vs `check-local-leaks`: 4.21s
+    Against the 90s hang budget (`_DEFAULT_TEST_TIMEOUT = 90.0`), 4.21s has a margin of 21.4x (well above the 3x threshold). Per OQ-02 rule, landed unmarked.
+    Confirmed: `tests/test_conformance_matrix_structure.py` contains no row count (no `1193` or `1217`), no declaration count (no `163`), and does not read any `agent_workflows/*.py` file as text (imports symbols directly via Python).
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: PASTE all three probe failures verbatim. Probe 1 must fail NAMING the throwaway
     undeclared leaf. Probe 2 must fail naming the specific leaf whose scenario coverage or declaration
     presence was broken (the throwaway declaration's name, for the `declared_absent` variant). Probe 3 must fail on the STDOUT byte comparison, not on the returncode, which is
     what proves the byte-equivalence half of the alias assertion is live rather than decorative. PASTE
     `git status --short` and `git diff --stat agent_workflows/` showing both empty of probe residue.
   - Observed evidence:
-  - Result: pending
+    Probe 1 failure:
+    ```
+    =================================== FAILURES ===================================
+    __________ UndeclaredLeafGuardTests.test_no_undeclared_parser_leaves ___________
+    [gw11] linux -- Python 3.14.6 /path/to/python3
 
-- [ ] V-06 validates E-06
+    self = <tests.test_conformance_matrix_structure.UndeclaredLeafGuardTests testMethod=test_no_undeclared_parser_leaves>
+
+        def test_no_undeclared_parser_leaves(self) -> None:
+            """Every leaf discoverable from the parser must carry a CommandDeclaration."""
+            parser = _build_parser()
+            undeclared = find_undeclared_leaves(parser)
+    >       self.assertEqual(
+                undeclared,
+                set(),
+                f"Undeclared parser leaves (add a CommandDeclaration): {sorted(undeclared)}",
+            )
+    E       AssertionError: Items in the first set but not the second:
+    E       'throwaway-probe-leaf' : Undeclared parser leaves (add a CommandDeclaration): ['throwaway-probe-leaf']
+
+    tests/test_conformance_matrix_structure.py:44: AssertionError
+    =========================== short test summary info ============================
+    FAILED tests/test_conformance_matrix_structure.py::UndeclaredLeafGuardTests::test_no_undeclared_parser_leaves
+    1 failed in 2.15s
+    ```
+
+    Probe 2 failure:
+    ```
+    =================================== FAILURES ===================================
+    ___ UndeclaredLeafGuardTests.test_declared_absent_leaves_matches_pinned_set ____
+    [gw11] linux -- Python 3.14.6 /path/to/python3
+
+    self = <tests.test_conformance_matrix_structure.UndeclaredLeafGuardTests testMethod=test_declared_absent_leaves_matches_pinned_set>
+
+        def test_declared_absent_leaves_matches_pinned_set(self) -> None:
+            parser = _build_parser()
+            report = build_matrix(parser)
+            pinned_declared_absent: set[str] = set()
+    >       self.assertEqual(
+                set(report.declared_absent),
+                pinned_declared_absent,
+                "Declaration/parser drift changed. Any unexpected member represents a "
+                "declaration whose parser leaf vanished, to be fixed or owned with a "
+                "filed id6, and cross-checked against "
+                "tests/test_command_surface_declarations.py::test_zero_unreachable_command_declarations "
+                f"and UNREACHABLE_COMMAND_ALLOW_SET. Actual: {sorted(report.declared_absent)}",
+            )
+    E       AssertionError: Items in the first set but not the second:
+    E       'throwaway-absent-cmd' : Declaration/parser drift changed. Any unexpected member represents a declaration whose parser leaf vanished, to be fixed or owned with a filed id6, and cross-checked against tests/test_command_surface_declarations.py::test_zero_unreachable_command_declarations and UNREACHABLE_COMMAND_ALLOW_SET. Actual: ['throwaway-absent-cmd']
+
+    tests/test_conformance_matrix_structure.py:86: AssertionError
+    =========================== short test summary info ============================
+    FAILED tests/test_conformance_matrix_structure.py::UndeclaredLeafGuardTests::test_declared_absent_leaves_matches_pinned_set
+    1 failed in 2.23s
+    ```
+
+    Probe 3 failure:
+    ```
+    =================================== FAILURES ===================================
+    _ AliasEquivalenceTests.test_alias_agent_output_is_byte_equivalent[spec check-specs check] _
+    [gw10] linux -- Python 3.14.6 /path/to/python3
+
+    self = <tests.test_conformance_matrix_structure.AliasEquivalenceTests object at 0x7b3c3806d950>
+    alias = 'spec check', canonical = 'specs check'
+
+        @pytest.mark.parametrize("alias,canonical", ALIAS_PAIRS)
+        def test_alias_agent_output_is_byte_equivalent(self, alias: str, canonical: str) -> None:
+            decl = get_declaration(alias)
+            assert decl is not None, f"alias {alias} not declared"
+            assert decl.command_class == "alias", f"{alias} declared class {decl.command_class} != 'alias'"
+            a = run_cli([*alias.split(), "--agent"])
+            c = run_cli([*canonical.split(), "--agent"])
+            assert a.returncode == c.returncode, f"{alias} rc {a.returncode} != {canonical} rc {c.returncode}"
+    >       assert a.stdout == c.stdout, f"{alias} stdout not byte-equal to {canonical}"
+    E       AssertionError: spec check stdout not byte-equal to specs check
+    E       assert 'X{"schema":"...next":null}\n' == '{"schema":"a...next":null}\n'
+    E
+    E         - {"schema":"aw.agent/v1","kind":"result","cmd":"specs check","outcome":"clean","exit":0,"verified":true,"complete":true,"checked":40,"findings":0,"evidence":["specs"],"next":null}
+    E         + X{"schema":"aw.agent/v1","kind":"result","cmd":"specs check","outcome":"clean","exit":0,"verified":true,"complete":true,"checked":40,"findings":0,"evidence":["specs"],"next":null}
+    E         ? +
+
+    tests/test_conformance_matrix_structure.py:142: AssertionError
+    =========================== short test summary info ============================
+    FAILED tests/test_conformance_matrix_structure.py::AliasEquivalenceTests::test_alias_agent_output_is_byte_equivalent[spec check-specs check]
+    1 failed, 1 passed in 5.85s
+    ```
+
+    Clean status check:
+    ```
+    $ git status --short && git diff --stat agent_workflows/
+     M tests/conformance_matrix.py
+    ?? tests/test_conformance_matrix_structure.py
+    ```
+    No probe residue survived.
+  - Result: pass
+
+- [x] V-06 validates E-06
   - Required evidence: PASTE `git diff agent_workflows/command_surface.py` in full, and confirm by reading it
     that EVERY changed line is a comment: no `CommandDeclaration` field, no `exit_contract` tuple, no
     `command_class` value may differ. QUOTE the corrected `runs next` comment showing it names
@@ -481,7 +712,49 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
     citation alongside the name of the E-04 alias class it now resolves to. PASTE the two bare-suite summary lines (base and final) and state
     the failure-set delta as a SET of test ids, which must be EMPTY.
   - Observed evidence:
-  - Result: pending
+    `git diff agent_workflows/command_surface.py`:
+    ```diff
+    diff --git a/agent_workflows/command_surface.py b/agent_workflows/command_surface.py
+    index 34d68b6c0..f35945fcc 100644
+    --- a/agent_workflows/command_surface.py
+    +++ b/agent_workflows/command_surface.py
+    @@ -1146,11 +1146,10 @@ COMMAND_INVENTORY: Tuple[CommandDeclaration, ...] = (
+         # (b) 1 IS ABSENT DELIBERATELY: `_run_next` never returns `EXIT_INCOMPLETE`, and adding it would
+         # oblige a `domain_failure` conformance scenario in `tests/conformance_matrix.required_scenarios`,
+         # which keys precisely on `1 in decl.exit_contract` for a `read` class, for an outcome this verb
+    -    # does not produce. `conformance_matrix` is currently a dead surface with no live importer (F-05),
+    -    # so the obligation is currently latent rather than enforced, and 1 is still omitted on correctness
+    -    # grounds rather than because nothing would catch it. The contract is not capped at (0, 1, 2)
+    -    # because `run_cli._emit_error` machine payloads are deliberately not `aw.agent/v1` records and
+    -    # `run_cli` imports `agent_schema` zero times.
+    +    # does not produce. This obligation is enforced by `tests/test_conformance_matrix_structure.py`,
+    +    # and 1 is omitted on correctness grounds rather than because nothing would catch it. The contract
+    +    # is not capped at (0, 1, 2) because `run_cli._emit_error` machine payloads are deliberately not
+    +    # `aw.agent/v1` records and `run_cli` imports `agent_schema` zero times.
+         CommandDeclaration(
+             command="runs next",
+             command_class="read",
+    ```
+    Every changed line is a comment; no `CommandDeclaration` fields, tuples, or classes differ.
+    Corrected `runs next` comment quoted:
+    ```python
+    # (b) 1 IS ABSENT DELIBERATELY: `_run_next` never returns `EXIT_INCOMPLETE`, and adding it would
+    # oblige a `domain_failure` conformance scenario in `tests/conformance_matrix.required_scenarios`,
+    # which keys precisely on `1 in decl.exit_contract` for a `read` class, for an outcome this verb
+    # does not produce. This obligation is enforced by `tests/test_conformance_matrix_structure.py`,
+    # and 1 is omitted on correctness grounds rather than because nothing would catch it. The contract
+    # is not capped at (0, 1, 2) because `run_cli._emit_error` machine payloads are deliberately not
+    # `aw.agent/v1` records and `run_cli` imports `agent_schema` zero times.
+    ```
+    The other two comments (`runs analyze`, `runs status`) were left as found: both read true and accurately describe what `test_conformance_matrix_structure.py` enforces.
+    `discover_parser_leaves` docstring citation:
+    `"``AliasEquivalenceTests`` owns alias behavior"` resolves directly to the E-04 class `AliasEquivalenceTests` in `tests/test_conformance_matrix_structure.py`.
+
+    Bare suite summary lines:
+    - Base: `6807 passed, 2 skipped, 3 warnings in 470.35s (0:07:50)`
+    - Final: `6818 passed, 2 skipped, 3 warnings in 201.74s (0:03:21)`
+    - Failure-set delta: `set()` (empty set; 0 failures in base, 0 failures in final).
+  - Result: pass
 
 ## Approval and execution gate
 

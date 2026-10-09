@@ -8,10 +8,9 @@ Stdlib only (Python 3.9+). This module is the shared harness consumed by:
 - ``test_exit_contract_conformance.py``: executes safe read/check leaves in
   ``LIVE_SAFE_LEAVES`` via ``run_cli`` to verify observed exit-code membership
   against declared ``exit_contract`` (IPD 1mnit8).
-
-Former drivers (``test_cli_conformance_matrix.py`` and ``test_cli_quality_gates.py``)
-were removed by test-trimming commit 19313eed7; deciding whether to revive the remainder
-of the harness is tracked by open backlog item h0tiaw.
+- ``test_conformance_matrix_structure.py``: structural and alias gate asserting
+  zero undeclared leaves, complete required scenario coverage, pinned declared-absent
+  declarations, live-safe leaf rows, and alias byte-equivalence (IPD dq9bj9).
 
 Design notes
 ------------
@@ -58,23 +57,6 @@ ANSI_RE = re.compile(r"\x1b\[[0-9;]*[A-Za-z]")
 
 
 # --------------------------------------------------------------------------------------------------
-# Scenario vocabulary
-# --------------------------------------------------------------------------------------------------
-
-# The nine canonical output scenarios of the plan's matrix (Detailed checklist E-01):
-#   TTY, non-TTY, agent, JSON, no-color, help, usage-error, domain-failure,
-#   and success/preview where applicable.
-SCENARIOS: Tuple[str, ...] = (
-    "tty",  # human, color forced on
-    "non_tty",  # human, piped (auto plain)
-    "agent",  # --agent aw.agent/v1
-    "json",  # --json structured
-    "no_color",  # human, NO_COLOR
-    "help",  # --help
-    "usage_error",  # invalid flag -> exit 2
-    "domain_failure",  # exit 1 findings (check/read classes that can find)
-    "success_preview",  # exit 0 clean / preview (mutation/preview classes)
-)
 
 
 def required_scenarios(decl: CommandDeclaration) -> Tuple[str, ...]:
@@ -148,6 +130,8 @@ RUNNABLE_ARGV: Dict[str, List[str]] = {
     "partition": ["-t", "plans", "-s", "approved"],
     "graduation": ["25kzda"],
     "record-history": ["f36de0"],
+    "config get": ["interactive"],
+    "config is": ["interactive"],
 }
 
 # --------------------------------------------------------------------------------------------------
@@ -214,22 +198,6 @@ EXEMPTION_REGISTRY: Dict[str, Exemption] = {
             "Rebuilds or checks indexes, outputting raw tab-separated lines or index notices "
             "rather than an envelope."
         ),
-    ),
-    # known_broken (3):
-    "config show": Exemption(
-        reason_kind="known_broken",
-        citation="dtq6jr",
-        reason="Crashes with ImportError: cannot import name 'format_agent_json'. Owned by open backlog item dtq6jr.",
-    ),
-    "config get": Exemption(
-        reason_kind="known_broken",
-        citation="dtq6jr",
-        reason="Crashes with ImportError: cannot import name 'format_agent_json'. Owned by open backlog item dtq6jr.",
-    ),
-    "config is": Exemption(
-        reason_kind="known_broken",
-        citation="dtq6jr",
-        reason="Crashes with ImportError: cannot import name 'format_agent_json'. Owned by open backlog item dtq6jr.",
     ),
     # not_runnable (16):
     "ipd begin": Exemption(
@@ -902,67 +870,6 @@ def semantic_facts_from_agent(stdout: str) -> Dict[str, object]:
     return facts
 
 
-_HUMAN_OUTCOME_WORDS = {
-    "conforms": "clean",
-    "clean": "clean",
-    "ok": "clean",
-    "findings": "findings",
-    "fail": "fail",
-    "failed": "fail",
-    "error": "error",
-    "preview": "preview",
-    "stale": "stale",
-}
-
-
-def semantic_facts_from_human(stdout: str) -> Dict[str, object]:
-    """Extract the outcome family from the standard ``HumanRenderer`` outcome banner.
-
-    The standard render is::
-
-        AW <command>  <target>
-        <glyph> <STATUS>  <message>
-        ...
-
-    i.e. the outcome banner is the SECOND non-empty line and its leading token(s)
-    are a glyph plus an UPPERCASE status word. We only trust that specific shape.
-    Table / board / detail / rich renders (``list-repos``, ``attention``, ``doctor``)
-    do NOT emit this banner - a per-row STATUS column word (e.g. 'STALE  /path')
-    must NOT be mistaken for the outcome - so we return ``None`` and callers fall
-    back to exit-code parity.
-    """
-    plain = ANSI_RE.sub("", stdout)
-    nonempty = [ln for ln in plain.splitlines() if ln.strip()]
-    if len(nonempty) < 2:
-        return {"outcome_family": None}
-    title = nonempty[0].strip()
-    banner = nonempty[1].strip()
-    # The banner only exists under a standard 'AW <command>' title line.
-    if not title.startswith("AW "):
-        return {"outcome_family": None}
-    toks = banner.split()
-    outcome: Optional[str] = None
-    # STATUS is the first-or-second token (an optional leading glyph precedes it),
-    # emitted uppercase, followed by the summary message.
-    for tok in toks[:2]:
-        raw = tok.strip()
-        if raw != raw.upper():
-            continue
-        key = raw.lower()
-        if key in _HUMAN_OUTCOME_WORDS:
-            outcome = _HUMAN_OUTCOME_WORDS[key]
-            break
-    return {"outcome_family": outcome}
-
-
-def outcome_family(agent_outcome: object) -> Optional[str]:
-    """Map an agent outcome to the coarse human family for parity comparison."""
-    if agent_outcome is None:
-        return None
-    key = str(agent_outcome)
-    return _HUMAN_OUTCOME_WORDS.get(key, key)
-
-
 # --------------------------------------------------------------------------------------------------
 # Matrix generation
 # --------------------------------------------------------------------------------------------------
@@ -1012,7 +919,7 @@ def build_matrix(parser) -> MatrixReport:
             # Declared but no longer in the parser: not a coverage row (kept out of
             # the live matrix; unreachable declarations are gated behaviorally by
             # test_command_surface_declarations.test_zero_unreachable_command_declarations,
-            # while declared_absent is reported on MatrixReport but no longer asserted over).
+            # while declared_absent is asserted by test_conformance_matrix_structure).
             report.declared_absent.append(decl.command)
             continue
         is_live = decl.command in LIVE_SAFE_LEAVES
@@ -1027,13 +934,3 @@ def build_matrix(parser) -> MatrixReport:
                 )
             )
     return report
-
-
-def render_matrix_report(report: MatrixReport) -> str:
-    """Render a stable text matrix report (one row per passing scenario)."""
-    lines = ["command | class | scenario | covered_by"]
-    for r in sorted(report.rows, key=lambda x: (x.command, x.scenario)):
-        lines.append(f"{r.command} | {r.command_class} | {r.scenario} | {r.covered_by}")
-    lines.append(f"# undeclared: {len(report.undeclared)}")
-    lines.append(f"# rows: {len(report.rows)}")
-    return "\n".join(lines) + "\n"
