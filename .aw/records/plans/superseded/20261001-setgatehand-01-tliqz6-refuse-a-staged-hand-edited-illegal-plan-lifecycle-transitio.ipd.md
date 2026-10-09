@@ -6,7 +6,7 @@
 - Scope: Add one commit-scoped rule to `check_engine` that validates a STAGED plan status delta against `ipd_lifecycle.validate_transition`, compose it into the commit-invariant aggregator, surface it on `aw check`/`aw doctor`, and pin it by outcome. No new hook id, no new CLI verb, no change to the setter, no change to any existing rule.
 - Scope-Paths: agent_workflows/check_engine.py, agent_workflows/doctor.py, tests/test_staged_illegal_transition_gate.py, tests/test_check_engine_release_gate.py
 - Item-Dependencies: none
-- Status: approved
+- Status: superseded
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: medium
@@ -16,9 +16,9 @@
 - Highest E allocated: 06
 - Author: opencode model=uri/its_direct/pt3-claude-opus-5-1m-us
 - Id: tliqz6
-- Approval: 2026-10-01, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-09 superseded (aw set): RETIRED 2026-10-08: premise invalidated. Spec ipd-spec Section 2 (amended by hm1h3l, 16c699d7b) and 26m1nb (328ed3f8e) made every backward move between non-terminal plan statuses legal; measured 2026-10-08, validate_transition refuses NO pair among draft/to-review/reviewed/approved/auto-approved, so the gate this plan specifies would refuse nothing and its E-05 case (a) cannot pass. The remaining refused classes (terminal source, -> executed, add-case) are already owned by the terminal-reopen guard and executed-transition gate. Maintainer decision 2026-10-08: retire with no replacement. Superseded by hm1h3l / 26m1nb.
 - 2026-10-01 approved (aw set): status set to approved
 - 2026-10-01 reviewed (aw set): /plan-review complete: APPROVE WITH REVISIONS APPLIED; PR-001 (HIGH), PR-002 (MEDIUM), PR-003 (LOW), all FIXED. Findings and three decision rows in .aw/records/reviews/20261001-setgatehand-01-tliqz6-refuse-a-staged-hand-edited-illegal-plan-lifecycle-transitio.review.md.
 

@@ -1,5 +1,5 @@
 - Id: 4ynlcg
-- Status: graduated
+- Status: done
 - Graduated-To: setgatehand
 - Set: setgatehand
 - Priority: medium
@@ -7,6 +7,7 @@
 - Summary: Extend the untooled-transition pre-commit gate to catch a hand-edited illegal plan lifecycle transition
 
 ## Workflow history
+- 2026-10-09 done (aw set): Closed as not needed (maintainer decision 2026-10-08): its carrier tliqz6 was retired to superseded because hm1h3l/26m1nb made every non-terminal backward transition legal, so no non-terminal edge is illegal any more and the gate would refuse nothing. The remaining refused classes are already owned by existing gates. No replacement.
 - 2026-10-01 set (aw backlog): graduated by run run-20260930T053059Z-3200713: tliqz6
 - 2026-09-29 created (aw backlog): Extend the untooled-transition pre-commit gate to catch a hand-edited illegal plan lifecycle transition
 
