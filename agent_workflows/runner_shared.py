@@ -5208,6 +5208,8 @@ INTEGRATION_CAUSE_KEY = "cause"
 INTEGRATION_CAUSE_GATE_CONFLICT_MARKERS = "gate-conflict-markers"
 INTEGRATION_CAUSE_GATE_COMBINED_RED = "gate-combined-red"
 INTEGRATION_CAUSE_GIT_CONFLICT = "git-merge-conflict"
+#: fixfirst Order 05 (`w9nvq4`) E-02: a git hook refused an integration commit.
+INTEGRATION_CAUSE_HOOK_REFUSED = "hook-refused"
 #: lifecycledup Order 02 (`46u3tu`) E-02: refuse a merge that would leave an artifact identity at
 #: more than one lifecycle location. Produced by integrate_lane_branch's pre-merge placement arm.
 INTEGRATION_CAUSE_LIFECYCLE_DUPLICATE = "lifecycle-duplicate-placement"
@@ -7852,6 +7854,25 @@ def integrate_lane_branch(
         # Capture the conflicted paths BEFORE aborting - the abort clears the index state they live in.
         conflicted = conflicted_paths(repo)
 
+        # fixfirst Order 05 (`w9nvq4`) E-02: Site (c): an owned merge with no unmerged paths is a hook refusal
+        # (e.g. pre-merge-commit). Abort the merge and tag with INTEGRATION_CAUSE_HOOK_REFUSED.
+        if not conflicted:
+            _run_git(repo, ["merge", "--abort"])
+            hook_msg = (err2 or out2 or "").strip() or "no message"
+            msg = (
+                "integration commit was refused by a git hook (pre-merge-commit), "
+                f"so the merge was aborted and main is untouched: {hook_msg}"
+            )
+            redacted_msg = _redact_absolute_paths(msg)
+            return (
+                False,
+                tag_integration_cause(
+                    INTEGRATION_CAUSE_HOOK_REFUSED,
+                    redacted_msg,
+                ),
+                INTEGRATION_REFUSAL_CONFLICT,
+            )
+
         # laneraceplan-01 (`kl18sz`) E-01..E-04: THE ONE CONFLICT CLASS THAT IS RE-DERIVED RATHER THAN
         # REFUSED, and it is reached ONLY through a positive proof plus an all-or-nothing gate.
         #
@@ -7908,13 +7929,20 @@ def integrate_lane_branch(
                 # `record_refusal` - a writer that does NOT redact. Tagging them would push unredacted
                 # hook output into the product's most-copied surface to gain a label nothing reads.
                 _run_git(repo, ["merge", "--abort"])
-                return (
-                    False,
+                msg = (
                     "records-only re-derivation was applied but its commit was REFUSED, so the merge "
                     "was aborted and main is untouched: "
                     + ((err3 or out3 or "").strip() or "no message")
                     + "; "
-                    + format_records_only_conflict_refusal_reason(verdicts),
+                    + format_records_only_conflict_refusal_reason(verdicts)
+                )
+                redacted_msg = _redact_absolute_paths(msg)
+                return (
+                    False,
+                    tag_integration_cause(
+                        INTEGRATION_CAUSE_HOOK_REFUSED,
+                        redacted_msg,
+                    ),
                     INTEGRATION_REFUSAL_CONFLICT,
                 )
             _run_git(repo, ["merge", "--abort"])
@@ -7952,11 +7980,18 @@ def integrate_lane_branch(
             # The commit was refused (a hook, most likely): restore the conflicted state for the
             # ordinary refusal below by aborting, exactly as if this step had not run.
             _run_git(repo, ["merge", "--abort"])
-            return (
-                False,
+            msg = (
                 "history-only conflict was resolved but its commit was REFUSED, so the merge was "
                 "aborted and main is untouched: "
-                + ((err4 or out4 or "").strip() or "no message"),
+                + ((err4 or out4 or "").strip() or "no message")
+            )
+            redacted_msg = _redact_absolute_paths(msg)
+            return (
+                False,
+                tag_integration_cause(
+                    INTEGRATION_CAUSE_HOOK_REFUSED,
+                    redacted_msg,
+                ),
                 INTEGRATION_REFUSAL_CONFLICT,
             )
 
@@ -8129,6 +8164,12 @@ RETRYABLE_SCOPE_RECONCILIATION_SUMMARY: str = (
     "finalize needs scope reconciliation answers (plan left unmoved)"
 )
 
+#: fixfirst Order 05 (`w9nvq4`) E-01: The refusal text identifying a hook-refused finalize commit.
+RETRYABLE_HOOK_FINALIZE_SUMMARY: str = "lifecycle commit did not happen"
+RETRYABLE_HOOK_FINALIZE_HOOKS_RAN: str = (
+    "the lifecycle commit was rejected in the coordinator worktree (hooks ran)"
+)
+
 #: The stable refusal CODE recorded on a refused item, so the summary, `aw runs`, and any later reader
 #: key on one machine-readable token. Consumed through r2i1b1's `Refusal` record, NOT a second field.
 FINALIZE_REFUSAL_CODE: str = "finalize-refused"
@@ -8161,6 +8202,10 @@ def finalize_unresolvable_text(plan_path: Path, exc: DriverError) -> tuple[str, 
 #: with a refusal (an interrupt, a `--retry-incomplete` requeue), and spending correction budget on
 #: those would be a different policy than the one spec 5.5 describes.
 FINALIZE_RETRY_COUNT_KEY: str = "finalize_retry_attempts"
+#: fixfirst Order 05 (`w9nvq4`) E-04: per-kind retry counters against frozen_retry_budget.
+HOOK_FINALIZE_RETRY_COUNT_KEY: str = "hook_finalize_retry_attempts"
+HOOK_INTEGRATION_RETRY_COUNT_KEY: str = "hook_integration_retry_attempts"
+COMBINED_RED_RETRY_COUNT_KEY: str = "combined_red_retry_attempts"
 
 #: The terminal status an item reaches when its retry budget is EXHAUSTED. Spec 4.6's action is
 #: `RETRY, then FAIL ITEM`, and the FAIL half is what makes the loop safe: without it an exhausted
@@ -8348,13 +8393,30 @@ def finalize_refusal_is_retryable(fin_msg: str) -> bool:
                 return False
         return True
 
+    # fixfirst Order 05 (`w9nvq4`) E-01: Arm 4: Hook-refused finalize commit (pre-commit in coordinator worktree)
+    if finalize_refusal_is_hook_refusal(text):
+        return True
+
     return False
 
 
-def finalize_retry_attempts(item: Mapping[str, Any]) -> int:
+def finalize_refusal_is_hook_refusal(fin_msg: str) -> bool:
+    """Is this finalize refusal due to a git hook rejecting the lifecycle commit (w9nvq4 E-01)?"""
+    text = (fin_msg or "").strip()
+    return (
+        bool(text)
+        and RETRYABLE_HOOK_FINALIZE_SUMMARY in text
+        and RETRYABLE_HOOK_FINALIZE_HOOKS_RAN in text
+        and "DIAGNOSIS:" not in text
+    )
+
+
+def finalize_retry_attempts(
+    item: Mapping[str, Any], count_key: str = FINALIZE_RETRY_COUNT_KEY
+) -> int:
     """How many send-back retries this item has already consumed. Never negative."""
 
-    raw = item.get(FINALIZE_RETRY_COUNT_KEY)
+    raw = item.get(count_key)
     if isinstance(raw, bool) or not isinstance(raw, int):
         return 0
     return max(0, raw)
@@ -8433,7 +8495,12 @@ def finalize_retry_decision(
     is what makes it safe to leave the orchestrator's injected success bar alone.
     """
 
-    used = finalize_retry_attempts(item)
+    count_key = (
+        HOOK_FINALIZE_RETRY_COUNT_KEY
+        if finalize_refusal_is_hook_refusal(fin_msg)
+        else FINALIZE_RETRY_COUNT_KEY
+    )
+    used = finalize_retry_attempts(item, count_key=count_key)
     budget = frozen_retry_budget(state)
     if finalize_refusal_is_lock_contention(fin_msg):
         return FinalizeRetryDecision(
@@ -8454,7 +8521,13 @@ def finalize_retry_decision(
             lock_contention=False,
         )
     if used >= budget:
-        if RETRYABLE_SCOPE_RECONCILIATION_SUMMARY in fin_msg:
+        if finalize_refusal_is_hook_refusal(fin_msg):
+            reason = (
+                f"a git hook refused the finalize commit and the run's correction budget is exhausted "
+                f"({used} of {budget} retr{'y' if budget == 1 else 'ies'} spent), so the item is FAILED "
+                f"rather than reported complete"
+            )
+        elif RETRYABLE_SCOPE_RECONCILIATION_SUMMARY in fin_msg:
             reason = (
                 f"the finalize gate refused due to unresolved out-of-scope paths and the run's "
                 f"correction budget is exhausted ({used} of {budget} retr"
@@ -8476,7 +8549,12 @@ def finalize_retry_decision(
             budget=budget,
             lock_contention=False,
         )
-    if RETRYABLE_SCOPE_RECONCILIATION_SUMMARY in fin_msg:
+    if finalize_refusal_is_hook_refusal(fin_msg):
+        reason = (
+            f"a git hook refused the finalize commit, so the item is being handed back to the "
+            f"same agent with the hook's output; correction attempt {used + 1} of {budget}"
+        )
+    elif RETRYABLE_SCOPE_RECONCILIATION_SUMMARY in fin_msg:
         reason = (
             f"the finalize gate refused because out-of-scope paths need reconciliation reasons, "
             f"so the item is being handed back to the agent; correction attempt {used + 1} of {budget}"
@@ -8544,7 +8622,12 @@ def handle_finalize_refusal(
     if decision.retry:
         # SPEND ONE BUDGET UNIT AND HAND IT BACK. The counter is incremented BEFORE the state is
         # saved, so a crash between here and the next dispatch cannot yield a free retry.
-        item[FINALIZE_RETRY_COUNT_KEY] = decision.attempts + 1
+        count_key = (
+            HOOK_FINALIZE_RETRY_COUNT_KEY
+            if finalize_refusal_is_hook_refusal(fin_msg)
+            else FINALIZE_RETRY_COUNT_KEY
+        )
+        item[count_key] = decision.attempts + 1
         # `queued` + `recovery_next` is the ESTABLISHED re-dispatch pattern (`requeue_interrupted`),
         # consumed by both hosts' `run_queue`. `recovery=True` is what makes the recovery prompt
         # interpolate `Prior attempt:`, which already carries `finalize_refused`, so the agent receives
@@ -9370,13 +9453,31 @@ def build_out_of_scope_notice(item: Mapping[str, Any], recovery: bool) -> str:
     if not recovery:
         return ""
     attempts = [a for a in (item.get("attempts") or []) if isinstance(a, Mapping)]
-    if not attempts:
-        return ""
-    refused = str(attempts[-1].get("finalize_refused") or "")
+    target_attempt: Mapping[str, Any] | None = None
+    for a in reversed(attempts):
+        if a.get("finalize_refused"):
+            target_attempt = a
+            break
+    refused = ""
+    if target_attempt is not None:
+        refused = str(target_attempt.get("finalize_refused") or "")
+    elif item.get("finalize_refusal"):
+        refused = str(item.get("finalize_refusal") or "")
+
     if RETRYABLE_SCOPE_RECONCILIATION_SUMMARY not in refused:
         return ""
-    att_num = attempts[-1].get("attempt") or len(attempts)
-    budget = attempts[-1].get("budget") or (att_num + 1)
+    att_num = 1
+    budget = 2
+    if target_attempt is not None:
+        att_num = int(
+            target_attempt.get("attempt")
+            or target_attempt.get("number")
+            or len(attempts)
+        )
+        budget = int(target_attempt.get("budget") or (att_num + 1))
+    elif attempts:
+        att_num = len(attempts)
+        budget = att_num + 1
     id6 = str(item.get("id6") or "<id6>")
 
     prefix = "out-of-scope path needs a --scope-reason:"
@@ -9414,6 +9515,72 @@ def build_out_of_scope_notice(item: Mapping[str, Any], recovery: bool) -> str:
     evidence = "\n".join(evidence_lines)
     return build_fix_it_notice(
         "out-of-scope",
+        evidence,
+        att_num,
+        budget,
+        recovery=recovery,
+        include_rule=False,
+    )
+
+
+def extract_hook_finalize_output(refused: str) -> str:
+    """Extract hook output from a hook-refused finalize message (w9nvq4 E-01)."""
+    marker = RETRYABLE_HOOK_FINALIZE_HOOKS_RAN + ": "
+    if marker in refused:
+        hook_text = refused.split(marker, 1)[1]
+        for suffix in (
+            "); rolled back to pre-finalize state.",
+            "; rolled back to pre-finalize state.",
+            "); rolled back to pre-finalize state",
+            ")",
+        ):
+            if hook_text.endswith(suffix):
+                hook_text = hook_text[: -len(suffix)]
+                break
+        return hook_text.strip()
+    return refused.strip()
+
+
+def build_hook_finalize_notice(item: Mapping[str, Any], recovery: bool) -> str:
+    """Render the pending hook-refused finalize notice into the next turn's prompt, or "" when none (w9nvq4 E-01)."""
+    if not recovery:
+        return ""
+    attempts = [a for a in (item.get("attempts") or []) if isinstance(a, Mapping)]
+    target_attempt: Mapping[str, Any] | None = None
+    for a in reversed(attempts):
+        if a.get("finalize_refused"):
+            target_attempt = a
+            break
+    refused = ""
+    if target_attempt is not None:
+        refused = str(target_attempt.get("finalize_refused") or "")
+    elif item.get("finalize_refusal"):
+        refused = str(item.get("finalize_refusal") or "")
+
+    if not finalize_refusal_is_hook_refusal(refused):
+        return ""
+    att_num = 1
+    budget = 2
+    if target_attempt is not None:
+        att_num = int(
+            target_attempt.get("attempt")
+            or target_attempt.get("number")
+            or len(attempts)
+        )
+        budget = int(target_attempt.get("budget") or (att_num + 1))
+    elif attempts:
+        att_num = len(attempts)
+        budget = att_num + 1
+
+    hook_out = extract_hook_finalize_output(refused)
+    instruction = (
+        "the hook ran on your plan file and the lifecycle commit; "
+        "a hook that rewrote a file did so in a discarded worktree, "
+        "so apply the same fix to your lane and commit it with `aw commit`"
+    )
+    evidence = f"{hook_out}\n\n{instruction}" if hook_out else instruction
+    return build_fix_it_notice(
+        "hook-refusal-finalize",
         evidence,
         att_num,
         budget,
@@ -10639,10 +10806,16 @@ def terminal_refusal_verdict(integ_kind: str, cause: str) -> str:
             "merge and repetition cannot clear it. See the recorded integration_ladder.cause"
         ),
         INTEGRATION_CAUSE_GATE_COMBINED_RED: (
-            f"integration refusal kind {integ_kind!r} is terminal on its first attempt: the post-merge "
+            f"integration refusal kind {integ_kind!r}: the run's fix-it budget was spent: the post-merge "
             "revalidation MEASURED the merged tree and it was RED, so it asserts a real failure of the "
             "work and repetition alone cannot clear it. See the recorded integration_ladder.cause and "
             "integration_deferral for the gate's own finding"
+        ),
+        INTEGRATION_CAUSE_HOOK_REFUSED: (
+            f"integration refusal kind {integ_kind!r}: a git hook refused the integration commit, "
+            "so the merge was aborted and main is UNTOUCHED. THIS IS NOT A CONTENT CONFLICT between "
+            "branches: the lane was verified and its work is preserved on its branch. See the "
+            "recorded integration_ladder.cause and the refusal's own hook output to resolve it"
         ),
         INTEGRATION_CAUSE_LIFECYCLE_DUPLICATE: (
             f"integration refusal kind {integ_kind!r} is terminal on its first attempt: the merge "
@@ -30432,7 +30605,19 @@ def build_prompt(
     run_dir_label = paths.prompt_run_dir_label
     plan_line = paths.prompt_plan
     mode = "RECOVERY/CONTINUATION" if recovery else "NORMAL EXECUTION"
-    prior = item.get("attempts", [])[-1] if recovery and item.get("attempts") else None
+    prior = None
+    if recovery and item.get("attempts"):
+        for a in reversed(item["attempts"]):
+            if isinstance(a, Mapping) and (
+                "disposition" in a
+                or "finalize_refused" in a
+                or "turn_correction" in a
+                or a.get("stopped")
+            ):
+                prior = a
+                break
+        if prior is None and item["attempts"]:
+            prior = item["attempts"][-1]
     # A prior-attempt record carries `prompt`, `log`, and `worktree` as ABSOLUTE driver-side paths, so
     # dumping it whole re-introduced out-of-lane paths on every RECOVERY turn through a route the
     # path projection does not touch. Non-isolated turns still get the full record (R1.3).
@@ -30476,6 +30661,7 @@ def build_prompt(
         + build_stale_receipt_notice(item, recovery)
         + build_verification_refusal_notice(item, recovery)
         + build_out_of_scope_notice(item, recovery)
+        + build_hook_finalize_notice(item, recovery)
     )
     # fixfirst Order 03 (mcbph5) E-02: append FIX_IT_RULE_TEXT once to the concatenated notice block
     if raw_notices:
@@ -39292,6 +39478,354 @@ def execute_item_core(
                                     },
                                 )
 
+                        # fixfirst Order 05 (`w9nvq4`) E-06: send integration hook refusal back to the agent in its lane
+                        hook_integ_records: list[dict[str, Any]] = list(
+                            attempt.get("hook_refusal_sendback") or []
+                        )
+                        hook_integ_budget = frozen_retry_budget(state)
+                        while (
+                            not integrated
+                            and wt_handle is not None
+                            and integ_kind == INTEGRATION_REFUSAL_CONFLICT
+                            and read_integration_cause(integ_reason)[0]
+                            == INTEGRATION_CAUSE_HOOK_REFUSED
+                            and attempt.get("session_id")
+                            and int(item.get(HOOK_INTEGRATION_RETRY_COUNT_KEY, 0) or 0)
+                            < hook_integ_budget
+                        ):
+                            current_hook_count = int(
+                                item.get(HOOK_INTEGRATION_RETRY_COUNT_KEY, 0) or 0
+                            )
+                            item[HOOK_INTEGRATION_RETRY_COUNT_KEY] = (
+                                current_hook_count + 1
+                            )
+                            save_state(run_dir, state)
+
+                            append_jsonl(
+                                run_dir / "events.jsonl",
+                                {
+                                    "at": utc_now(),
+                                    "event": "integration-hook-refusal-sent-back",
+                                    "id6": item["id6"],
+                                    "attempt": attempt_no,
+                                    "retry_attempt": item[
+                                        HOOK_INTEGRATION_RETRY_COUNT_KEY
+                                    ],
+                                    "retry_budget": hook_integ_budget,
+                                    "reason": integ_reason,
+                                },
+                            )
+
+                            _, _, op_reason = read_integration_cause(integ_reason)
+                            hook_prompt_text = build_fix_it_notice(
+                                "hook-refusal-integration",
+                                op_reason,
+                                attempt_no,
+                                hook_integ_budget,
+                                recovery=True,
+                            )
+                            hook_session = attempt.get("session_id")
+                            interrupted = False
+                            try:
+                                if host_labels == OC_HOST_LABELS:
+                                    resume_via_launcher(
+                                        raw_launcher,
+                                        (
+                                            state,
+                                            run_dir,
+                                            item,
+                                            plan_path,
+                                            write_prompt(
+                                                run_dir,
+                                                item,
+                                                hook_prompt_text,
+                                                attempt_no,
+                                                suffix="hook-refusal",
+                                            ),
+                                            attempt_no,
+                                        ),
+                                        {
+                                            "log_suffix": "hook-refusal",
+                                            "label_suffix": "hook-refusal",
+                                            "tracker": tracker,
+                                            "work_dir": work_dir,
+                                            "resume_session": hook_session,
+                                        },
+                                    )
+                                else:
+                                    resume_via_launcher(
+                                        raw_launcher,
+                                        (
+                                            state,
+                                            run_dir,
+                                            item,
+                                            write_prompt(
+                                                run_dir,
+                                                item,
+                                                hook_prompt_text,
+                                                attempt_no,
+                                                suffix="hook-refusal",
+                                            ),
+                                            attempt_no,
+                                        ),
+                                        {
+                                            "session_id": hook_session,
+                                            "use_continue": False,
+                                            "log_suffix": "hook-refusal",
+                                            "label_suffix": "hook-refusal",
+                                            "work_dir": work_dir,
+                                            "tracker": tracker,
+                                        },
+                                    )
+                            except (KeyboardInterrupt, StallTimeout):
+                                interrupted = True
+
+                            if work_dir:
+                                with contextlib.suppress(OSError):
+                                    lane_containment.collect_lane_submissions(
+                                        run_dir=run_dir,
+                                        item=item,
+                                        run_id=state["run_id"],
+                                        lane_root=Path(work_dir),
+                                        plan_path=plan_path,
+                                        attempt=attempt_no,
+                                    )
+
+                            sendback_entry = {
+                                "attempt": attempt_no,
+                                "retry_attempt": item[HOOK_INTEGRATION_RETRY_COUNT_KEY],
+                                "reason": op_reason,
+                            }
+                            hook_integ_records.append(sendback_entry)
+                            attempt["hook_refusal_sendback"] = hook_integ_records
+                            save_state(run_dir, state)
+
+                            if interrupted:
+                                break
+
+                            integrated, integ_reason, integ_kind = (
+                                integrate_under_repository_lock(
+                                    repo,
+                                    item,
+                                    wt_handle,
+                                    state=state,
+                                    holder_label=integration_lock_holder_label(state),
+                                    integrate=_publish,
+                                    progress=integration_lock_progress_reporter(),
+                                    run_checked=globals()["run_checked"],
+                                )
+                            )
+
+                        # fixfirst Order 05 (`w9nvq4`) E-03: send combined-red refusal back to the agent in its lane
+                        combined_red_records: list[dict[str, Any]] = list(
+                            attempt.get("combined_red_sendback") or []
+                        )
+                        combined_red_budget = frozen_retry_budget(state)
+                        while (
+                            not integrated
+                            and wt_handle is not None
+                            and integ_kind == INTEGRATION_REFUSAL_CONFLICT
+                            and read_integration_cause(integ_reason)[0]
+                            == INTEGRATION_CAUSE_GATE_COMBINED_RED
+                            and not revalidation_was_unmeasured(item)
+                            and attempt.get("session_id")
+                            and int(item.get(COMBINED_RED_RETRY_COUNT_KEY, 0) or 0)
+                            < combined_red_budget
+                        ):
+                            current_red_count = int(
+                                item.get(COMBINED_RED_RETRY_COUNT_KEY, 0) or 0
+                            )
+                            item[COMBINED_RED_RETRY_COUNT_KEY] = current_red_count + 1
+                            save_state(run_dir, state)
+
+                            append_jsonl(
+                                run_dir / "events.jsonl",
+                                {
+                                    "at": utc_now(),
+                                    "event": "combined-red-sent-back",
+                                    "id6": item["id6"],
+                                    "attempt": attempt_no,
+                                    "retry_attempt": item[COMBINED_RED_RETRY_COUNT_KEY],
+                                    "retry_budget": combined_red_budget,
+                                },
+                            )
+
+                            pre_rev = item.get(REVALIDATION_CACHE_KEY) or {}
+                            base_comp = pre_rev.get("baseline_comparison") or {}
+                            new_ids = base_comp.get("new_ids")
+                            failures = (
+                                new_ids if new_ids else (pre_rev.get("failures") or [])
+                            )
+                            fail_lines = (
+                                "\n".join(f"- {f}" for f in failures)
+                                if failures
+                                else "no test ids recorded"
+                            )
+                            merged_files = (
+                                pre_rev.get("merged_files")
+                                or pre_rev.get("files")
+                                or []
+                            )
+                            file_lines = (
+                                "\n".join(f"- {p}" for p in merged_files)
+                                if merged_files
+                                else ""
+                            )
+                            ev_parts = [
+                                "Post-merge revalidation measured the merged tree and the validation suite was RED.",
+                                "Failing test(s):",
+                                fail_lines,
+                            ]
+                            if file_lines:
+                                ev_parts.extend(["", "Merged files:", file_lines])
+                            red_prompt_text = build_fix_it_notice(
+                                "combined-red",
+                                "\n".join(ev_parts),
+                                attempt_no,
+                                combined_red_budget,
+                                recovery=True,
+                            )
+                            red_session = attempt.get("session_id")
+                            interrupted = False
+                            pre_turn_head = git_head(wt_handle.path)
+                            try:
+                                if host_labels == OC_HOST_LABELS:
+                                    resume_via_launcher(
+                                        raw_launcher,
+                                        (
+                                            state,
+                                            run_dir,
+                                            item,
+                                            plan_path,
+                                            write_prompt(
+                                                run_dir,
+                                                item,
+                                                red_prompt_text,
+                                                attempt_no,
+                                                suffix="combined-red",
+                                            ),
+                                            attempt_no,
+                                        ),
+                                        {
+                                            "log_suffix": "combined-red",
+                                            "label_suffix": "combined-red",
+                                            "tracker": tracker,
+                                            "work_dir": work_dir,
+                                            "resume_session": red_session,
+                                        },
+                                    )
+                                else:
+                                    resume_via_launcher(
+                                        raw_launcher,
+                                        (
+                                            state,
+                                            run_dir,
+                                            item,
+                                            write_prompt(
+                                                run_dir,
+                                                item,
+                                                red_prompt_text,
+                                                attempt_no,
+                                                suffix="combined-red",
+                                            ),
+                                            attempt_no,
+                                        ),
+                                        {
+                                            "session_id": red_session,
+                                            "use_continue": False,
+                                            "log_suffix": "combined-red",
+                                            "label_suffix": "combined-red",
+                                            "work_dir": work_dir,
+                                            "tracker": tracker,
+                                        },
+                                    )
+                            except (KeyboardInterrupt, StallTimeout):
+                                interrupted = True
+
+                            if work_dir:
+                                with contextlib.suppress(OSError):
+                                    lane_containment.collect_lane_submissions(
+                                        run_dir=run_dir,
+                                        item=item,
+                                        run_id=state["run_id"],
+                                        lane_root=Path(work_dir),
+                                        plan_path=plan_path,
+                                        attempt=attempt_no,
+                                    )
+
+                            post_turn_head = git_head(wt_handle.path)
+                            changed_paths: list[str] = []
+                            undeclared_paths: list[str] = []
+                            if (
+                                pre_turn_head
+                                and post_turn_head
+                                and pre_turn_head != post_turn_head
+                            ):
+                                rc_diff, out_diff, _ = _run_git(
+                                    wt_handle.path,
+                                    [
+                                        "diff",
+                                        "--name-only",
+                                        pre_turn_head,
+                                        post_turn_head,
+                                    ],
+                                )
+                                if rc_diff == 0:
+                                    changed_paths = [
+                                        line.strip()
+                                        for line in out_diff.splitlines()
+                                        if line.strip()
+                                    ]
+                                try:
+                                    from agent_workflows.ipd_lifecycle import (
+                                        _frozen_scope_paths,
+                                        _scope_match,
+                                    )
+
+                                    plan_txt = plan_path.read_text(encoding="utf-8")
+                                    scope_pats = _frozen_scope_paths(plan_txt)
+                                    for p in changed_paths:
+                                        if not any(
+                                            _scope_match(p, pat) for pat in scope_pats
+                                        ):
+                                            undeclared_paths.append(p)
+                                except Exception:
+                                    pass
+
+                            sendback_entry = {
+                                "attempt": attempt_no,
+                                "retry_attempt": item[COMBINED_RED_RETRY_COUNT_KEY],
+                                "changed_paths": changed_paths,
+                            }
+                            if undeclared_paths:
+                                warn_line = (
+                                    f"warning: fix commit modified path(s) outside declared Scope-Paths: "
+                                    f"{', '.join(undeclared_paths)}"
+                                )
+                                sendback_entry["warning"] = warn_line
+                                print(
+                                    pal(f"  ! {warn_line}", "yellow"), file=sys.stderr
+                                )
+                            combined_red_records.append(sendback_entry)
+                            attempt["combined_red_sendback"] = combined_red_records
+                            save_state(run_dir, state)
+
+                            if interrupted:
+                                break
+
+                            integrated, integ_reason, integ_kind = (
+                                integrate_under_repository_lock(
+                                    repo,
+                                    item,
+                                    wt_handle,
+                                    state=state,
+                                    holder_label=integration_lock_holder_label(state),
+                                    integrate=_publish,
+                                    progress=integration_lock_progress_reporter(),
+                                    run_checked=globals()["run_checked"],
+                                )
+                            )
+
                         # Ensure lane is integrable by existing human path on terminal arm
                         if not integrated and wt_handle is not None:
                             if merge_in_progress(wt_handle.path):
@@ -39327,13 +39861,40 @@ def execute_item_core(
                                             repo, wt_handle, item["id6"]
                                         ).changed_files
                                     )
+                            cause, _, _ = read_integration_cause(integ_reason)
+                            budget = frozen_retry_budget(state)
+                            if cause == INTEGRATION_CAUSE_HOOK_REFUSED:
+                                used = int(
+                                    item.get(HOOK_INTEGRATION_RETRY_COUNT_KEY, 0) or 0
+                                )
+                                _, _, op_msg = read_integration_cause(integ_reason)
+                                recorded_reason = tag_integration_cause(
+                                    cause,
+                                    f"a git hook refused the integration commit and the run's correction "
+                                    f"budget is exhausted ({used} of {budget} retr"
+                                    f"{'y' if budget == 1 else 'ies'} spent): {op_msg}",
+                                )
+                            elif cause == INTEGRATION_CAUSE_GATE_COMBINED_RED:
+                                used = int(
+                                    item.get(COMBINED_RED_RETRY_COUNT_KEY, 0) or 0
+                                )
+                                _, _, op_msg = read_integration_cause(integ_reason)
+                                recorded_reason = tag_integration_cause(
+                                    cause,
+                                    f"the post-merge revalidation measured the merged tree and it was RED "
+                                    f"and the run's correction budget is exhausted ({used} of {budget} retr"
+                                    f"{'y' if budget == 1 else 'ies'} spent): {op_msg}",
+                                )
+                            else:
+                                recorded_reason = integ_reason
+
                             decision = record_integration_refusal(
                                 run_dir=run_dir,
                                 state=state,
                                 item=item,
                                 attempt=attempt,
                                 integ_kind=integ_kind,
-                                integ_reason=integ_reason,
+                                integ_reason=recorded_reason,
                                 branch=wt_handle.branch if wt_handle else None,
                                 save_state=save_state,
                                 append_jsonl=append_jsonl,
@@ -39342,7 +39903,7 @@ def execute_item_core(
                             render_record_integration_refusal(
                                 item,
                                 code=fail_status,
-                                reason=integ_reason,
+                                reason=read_integration_cause(recorded_reason)[2],
                                 branch=wt_handle.branch if wt_handle else None,
                             )
                             lane_branch = wt_handle.branch if wt_handle else "(none)"
