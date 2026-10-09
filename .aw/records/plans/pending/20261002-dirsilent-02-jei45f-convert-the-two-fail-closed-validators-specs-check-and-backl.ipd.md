@@ -40,24 +40,24 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: convert the two validators
 
-- [ ] E-01 GUARD `specs.run_check` SO A NON-SURVEYABLE RESOLVED ROOT REFUSES INSTEAD OF REPORTING `0 specs checked`. Call Order 01's primitive with the already-resolved root and the explicit-`--dir` flag; when it reports may-proceed false, emit the machine `cannot-run` record (exit 2, path-free summary, the primitive's next-action) on the `--agent` / `--json` path, or write the primitive's human text to stderr and return the cannot-run exit on the human path.
+- [x] E-01 GUARD `specs.run_check` SO A NON-SURVEYABLE RESOLVED ROOT REFUSES INSTEAD OF REPORTING `0 specs checked`. Call Order 01's primitive with the already-resolved root and the explicit-`--dir` flag; when it reports may-proceed false, emit the machine `cannot-run` record (exit 2, path-free summary, the primitive's next-action) on the `--agent` / `--json` path, or write the primitive's human text to stderr and return the cannot-run exit on the human path.
   PLACE THE GUARD ON THE TREE-SURVEY PATH ONLY, WHICH IS THE ONE WAY THIS ITEM GOES WRONG. `run_check` branches on its positional `path`: given one it checks THAT FILE and never consults the records tree, and given none it surveys the tree via `_spec_files(repo_root)`. Measured at this HEAD, `aw specs check <file> --dir <subdir>` correctly reports `1 specs checked.` (F-04). A guard at the top of the function would break that working form. Guard the no-positional branch, after the root is resolved and before or in place of the tree survey.
   DO NOT CHANGE WHAT IT CHECKS OR HOW IT COUNTS for a surveyable root. `validate_spec`, the drift rules, `core.drift_exit_code`, the `checked` / `violations` evidence and the human wording for a real project must all be byte-identical. This item adds a REFUSAL for an input that currently lies; it is not a change to validation.
   - Depends on: none
   REFUSE THE BARE NO-PROJECT CASE TOO, per OQ-02: pass the explicit flag as `bool(getattr(args, "dir", None))` so the primitive selects the right human text and summary, and guard on the RESOLVED ROOT not being a project root regardless of how it was named. A guard written as `if explicit_dir and ...` would leave the bare-cwd greenwash (measured at review: a bare `aw specs check --agent` with `cwd` in a temp dir outside any project emits `"outcome":"clean","verified":true,"checked":0` at exit 0) and contradict OQ-02.
   - Expected outcome: `aw specs check --dir <subdir of a real project>` AND a bare `aw specs check` with `cwd` outside any AW project both exit 2 on both surfaces, the first naming the enclosing root and the corrected command on the human surface, both emitting a path-free `cannot-run` record on the machine surface; `aw specs check <file>` (with or without `--dir`), `aw specs check --dir <root>`, `aw specs check --dir <empty-but-real project>` and a bare `aw specs check` from inside a subdirectory are all unchanged. The `aw spec check` alias dispatches to the same `specs.run_check` (`command_surface` declares it `canonical_command="specs check"`), so it inherits the refusal with no separate edit.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 GUARD `backlog.run_check` THE SAME WAY, so the two fail-closed validators behave identically for the same input. `run_check` has NO positional-file form: it always surveys the tree via `_iter_items(repo_root)`, so the carve-out of E-01 does not apply and the guard sits after the root is resolved.
+- [x] E-02 GUARD `backlog.run_check` THE SAME WAY, so the two fail-closed validators behave identically for the same input. `run_check` has NO positional-file form: it always surveys the tree via `_iter_items(repo_root)`, so the carve-out of E-01 does not apply and the guard sits after the root is resolved.
   MATCH E-01'S SHAPE EXACTLY rather than inventing a second phrasing. Both must call the same primitive, return the same exit code, and differ only in the verb name passed in. The reason is the defect this Set exists to stop: two hand-rolled copies of a refusal is how the `aw install .` falsehood came to need fixing in two places.
   NOTE THE `checked` ASYMMETRY AND DO NOT "FIX" IT HERE. `backlog check`'s HUMAN success line is `all backlog items conform.` with NO count, while `specs check`'s is `all specs conform. N specs checked.`; the machine records both carry `checked`. That asymmetry is pre-existing and out of scope: adding a count to the human line would be an unrequested output change, and it is also why the human defect is HARDER to notice for backlog than for specs (there is no `0` to see), which strengthens the case for refusing rather than for printing a count.
   - Depends on: E-01
   - Expected outcome: `aw backlog check --dir <subdir of a real project>` AND a bare `aw backlog check` with `cwd` outside any AW project both exit 2 on both surfaces with the same refusal shape as `specs check` (OQ-02); `aw backlog check --dir <root>` and a bare `aw backlog check` from inside a subdirectory are unchanged, including the countless human success line.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: pin it
 
-- [ ] E-03 ADD A REGRESSION TEST in a new `tests/test_validator_nonsurveyable_dir.py` driving the real CLI in a SUBPROCESS with `cwd` set OUTSIDE any AW project, with every fixture under `tempfile`.
+- [x] E-03 ADD A REGRESSION TEST in a new `tests/test_validator_nonsurveyable_dir.py` driving the real CLI in a SUBPROCESS with `cwd` set OUTSIDE any AW project, with every fixture under `tempfile`.
   SEED THE FIXTURE WITH A REAL SPEC AND A REAL OPEN BACKLOG ITEM, AND SEED IT WITH `--records-backend repository`. Both are load-bearing. Without real artifacts the root control reads zero and the test proves nothing; and measured during authoring, a non-interactive `aw install` chose a HOME records backend and wrote the fixture's records under `$HOME/.aw/projects/<name>-<hash>/`, so the control read an empty in-repo tree (F-07). Assert the root control sees a NONZERO count so a wrong answer is detectable rather than vacuous.
   THE NON-INTERACTIVE RECIPE NEEDS MORE THAN `--records-backend`, measured at review (F-10): `aw install . --records-backend repository` with stdin closed prints `Noninteractive first install requires complete policy choices` and installs nothing; adding `--preset local-only --delivery-mode tracked` still declines with `pass --yes to proceed` / `aborted; nothing changed.` at exit 0. The working recipe is `aw install . --yes --preset local-only --delivery-mode tracked --records-backend repository`, then `aw specs new --title <t> --slug <s> --summary <x> --apply --dir <root>` and `aw backlog new --summary <x> --slug <s> --work-kind chore --priority low --apply --dir <root>` (both `--work-kind` and `--priority` are required). A HAND-BUILT fixture (mkdir `.aw/records/specs/draft` and `.aw/records/backlog/open`, write one conformant spec and one conformant item, as `tests/test_specs_recursive_read.py` and `tests/test_backlog.py` already do) is an equally valid and much faster alternative; either way the nonzero root control is what proves the fixture is real.
   ISOLATE `HOME` IN THE SUBPROCESS ENV (point it at a `tempfile` dir) and assert `find_project_root(<outside cwd>) is None` before the bare no-project case. `$HOME` is commonly an AW project root (`resolve_verb_repo_root` docstring, hazard 3), and the records backend can be read from user-level config, so an un-isolated `HOME` can both redirect the fixture's records (F-07) and turn the no-project case into an inside-a-project case.
@@ -68,7 +68,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   PROVE THE TEST CAN FAIL. Paste a mutation run: remove the guard from `specs.run_check` so it reports `0 specs checked` again, show this file FAILING, revert, and show it green again.
   - Depends on: E-02
   - Expected outcome: a new passing test file pinning both refusals (subdirectory and bare no-project) on both surfaces, the absence of the `outcome:clean` / `verified:true` / `checked:0` greenwash, the three controls (root control nonzero, bare climb, single-file form), agent-record validity with no path leak, no source-structure assertions, and a pasted mutation proving the guard's absence is caught.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -167,22 +167,304 @@ ONE DOCUMENTATION JUDGEMENT IS WORTH STATING: a reader might expect the `checked
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste the committed diff of `specs.run_check`. CONFIRM BY READING THE DIFF that the guard sits on the NO-POSITIONAL (tree-survey) branch and not at the top of the function, and that it calls Order 01's primitive rather than hand-rolling a message or re-deriving the classification. PASTE the five `specs check` rows of the BEFORE/AFTER MATRIX (including the bare-no-project row) described in Required tests, measured by subprocess with `cwd` outside any AW project, naming the interpreter and `PYTHONPATH`, with the fixture seeded via `--records-backend repository` and holding a real spec. CONFIRM AFTER: the subdirectory human run exits 2, its stderr NAMES the enclosing root and CONTAINS the literal corrected command (paste a grep for each returning a hit), and its stderr does NOT contain `is not installed in it` (paste the grep returning nothing). CONFIRM AFTER on the machine surface: exit 2, `kind` is `error`, `outcome` is `cannot-run`, `agent_schema.validate_agent_record(rec)` returns `[]`, and greps of stdout for the fixture path AND for the enclosing root BOTH return nothing. PASTE THE GREENWASH NEGATIVES with their BEFORE values for contrast: BEFORE `{"outcome":"clean","exit":0,"verified":true,"complete":true,"checked":0,...}`, AFTER no `outcome:"clean"` and no `verified:true` with `checked:0`. CONFIRM THE BARE NO-PROJECT CASE REFUSES, pasted: with `cwd` outside any AW project and `HOME` isolated, bare `aw specs check` exits 2 on both surfaces and the machine record is `cannot-run`, not the BEFORE `"outcome":"clean","verified":true,"checked":0`. CONFIRM THE THREE CONTROLS UNCHANGED, each pasted: `--dir <root>` still reports a NONZERO `checked` at exit 0; a bare run from inside the subdirectory still CLIMBS and reports the same nonzero count at exit 0; and `aw specs check <file> --dir <subdir>` still reports `1 specs checked.` at exit 0, which is the carve-out of F-04. ALSO paste the empty-but-real-project run still reporting `0 specs checked` / `all specs conform` at exit 0 (F-09), proving the guard did not swallow a legitimate clean answer.
   - Observed evidence:
-  - Result: pending
+    1. Committed diff of `specs.run_check` in `agent_workflows/specs.py`:
+    ```diff
+    --- a/agent_workflows/specs.py
+    +++ b/agent_workflows/specs.py
+    @@ -628,8 +628,13 @@ def _add_gate_fields(
+     def run_check(args) -> int:
+    -    from agent_workflows.project_context import resolve_verb_repo_root
+    +    from agent_workflows.artifact_types import EXIT_CANNOT_RUN
+    +    from agent_workflows.project_context import (
+    +        nonsurveyable_root_refusal,
+    +        resolve_verb_repo_root,
+    +    )
+         from agent_workflows.renderers import get_renderer
+         from agent_workflows.result_types import (
+             CommandResult,
+             Diagnostic,
+             Evidence,
+    +        NextAction,
+             select_output,
+         )
+    @@ -641,6 +646,31 @@ def run_check(args) -> int:
+         if target:
+             paths = [Path(target)]
+         else:
+    +        refusal = nonsurveyable_root_refusal(
+    +            "specs check", repo_root, explicit_dir=bool(getattr(args, "dir", None))
+    +        )
+    +        if not refusal.may_proceed:
+    +            ctx = select_output(args)
+    +            if ctx.is_agent or ctx.is_json:
+    +                res = CommandResult(
+    +                    command="specs check",
+    +                    status="cannot-run",
+    +                    exit_code=2,
+    +                    summary=refusal.summary,
+    +                    next_actions=(
+    +                        [
+    +                            NextAction(
+    +                                command=refusal.next_action_command,
+    +                                description=refusal.next_action_description,
+    +                            )
+    +                        ]
+    +                        if refusal.next_action is not None
+    +                        else []
+    +                    ),
+    +                )
+    +                return get_renderer(ctx).emit(res, ctx)
+    +            sys.stderr.write(refusal.human_message + "\n")
+    +            return EXIT_CANNOT_RUN
+             paths = _spec_files(repo_root)
+    ```
+    Confirming by reading the diff: the guard sits strictly inside the `else:` branch after `if target: paths = [Path(target)]`, guarding the no-positional (tree-survey) branch only. It calls Order 01's primitive `nonsurveyable_root_refusal("specs check", repo_root, explicit_dir=bool(getattr(args, "dir", None)))`.
 
-- [ ] V-02 validates E-02
+    2. Five `specs check` cases in the BEFORE/AFTER MATRIX (measured with python3 -m agent_workflows, PYTHONPATH=<lane>, AW_NO_REEXEC=1, HOME isolated, cwd outside project, fixture seeded with real spec and records_backend: repository):
+    - Subdirectory (human):
+      BEFORE: `rc=0 | out='aw specs check: all specs conform. 0 specs checked.' | err=''`
+      AFTER: `rc=2 | out='' | err='aw specs check: no AW project found at /tmp/tmpy_c_10qc/proj/src/deep.\nChecked only /tmp/tmpy_c_10qc/proj/src/deep (explicit --dir is honored verbatim with no upward climb) for a .aw/ (or legacy .agents/) project directory.\nSpecify your repository root, or run without --dir to search upward from cwd.\n/tmp/tmpy_c_10qc/proj IS an agent-workflows project root, but explicit --dir is honored verbatim with no upward climb.\nRun with: aw specs check --dir /tmp/tmpy_c_10qc/proj'`
+    - Subdirectory (--agent):
+      BEFORE: `rc=0 | out='{"schema":"aw.agent/v1","kind":"result","cmd":"specs check","outcome":"clean","exit":0,"verified":true,"complete":true,"checked":0,"findings":0,"evidence":["specs"],"next":null}' | err=''`
+      AFTER: `rc=2 | out='{"schema":"aw.agent/v1","kind":"error","cmd":"specs check","outcome":"cannot-run","exit":2,"verified":false,"complete":false,"findings":0,"next":null}' | err=''`
+    - Bare-no-project (human):
+      BEFORE: `rc=0 | out='aw specs check: all specs conform. 0 specs checked.' | err=''`
+      AFTER: `rc=2 | out='' | err='aw specs check: no AW project found here.\nChecked /tmp/tmpy_c_10qc/outside and its parents for a .aw/ (or legacy .agents/) project directory.\nAre you inside your repository? cd into the repo (or a subdirectory of it), or pass --dir <repo>.'`
+    - Bare-no-project (--agent):
+      BEFORE: `rc=0 | out='{"schema":"aw.agent/v1","kind":"result","cmd":"specs check","outcome":"clean","exit":0,"verified":true,"complete":true,"checked":0,"findings":0,"evidence":["specs"],"next":null}' | err=''`
+      AFTER: `rc=2 | out='{"schema":"aw.agent/v1","kind":"error","cmd":"specs check","outcome":"cannot-run","exit":2,"verified":false,"complete":false,"findings":0,"next":null}' | err=''`
+    - Root control (human):
+      BEFORE: `rc=0 | out='aw specs check: all specs conform. 1 specs checked.' | err=''`
+      AFTER: `rc=0 | out='aw specs check: all specs conform. 1 specs checked.' | err=''`
+    - Root control (--agent):
+      BEFORE: `rc=0 | out='{"schema":"aw.agent/v1","kind":"result","cmd":"specs check","outcome":"clean","exit":0,"verified":true,"complete":true,"checked":1,"findings":0,"evidence":["specs"],"next":null}' | err=''`
+      AFTER: `rc=0 | out='{"schema":"aw.agent/v1","kind":"result","cmd":"specs check","outcome":"clean","exit":0,"verified":true,"complete":true,"checked":1,"findings":0,"evidence":["specs"],"next":null}' | err=''`
+    - Climb control (human):
+      BEFORE: `rc=0 | out='aw specs check: all specs conform. 1 specs checked.' | err=''`
+      AFTER: `rc=0 | out='aw specs check: all specs conform. 1 specs checked.' | err=''`
+    - Climb control (--agent):
+      BEFORE: `rc=0 | out='{"schema":"aw.agent/v1","kind":"result","cmd":"specs check","outcome":"clean","exit":0,"verified":true,"complete":true,"checked":1,"findings":0,"evidence":["specs"],"next":null}' | err=''`
+      AFTER: `rc=0 | out='{"schema":"aw.agent/v1","kind":"result","cmd":"specs check","outcome":"clean","exit":0,"verified":true,"complete":true,"checked":1,"findings":0,"evidence":["specs"],"next":null}' | err=''`
+    - Single-file carve-out (human):
+      BEFORE: `rc=0 | out='aw specs check: all specs conform. 1 specs checked.' | err=''`
+      AFTER: `rc=0 | out='aw specs check: all specs conform. 1 specs checked.' | err=''`
+    - Single-file carve-out (--agent):
+      BEFORE: `rc=0 | out='{"schema":"aw.agent/v1","kind":"result","cmd":"specs check","outcome":"clean","exit":0,"verified":true,"complete":true,"checked":1,"findings":0,"evidence":["specs"],"next":null}' | err=''`
+      AFTER: `rc=0 | out='{"schema":"aw.agent/v1","kind":"result","cmd":"specs check","outcome":"clean","exit":0,"verified":true,"complete":true,"checked":1,"findings":0,"evidence":["specs"],"next":null}' | err=''`
+
+    3. Confirm AFTER output details:
+    - Subdirectory human stderr names enclosing root: `/tmp/tmpy_c_10qc/proj IS an agent-workflows project root`.
+    - Subdirectory human stderr contains literal corrected command: `Run with: aw specs check --dir /tmp/tmpy_c_10qc/proj`.
+    - Subdirectory human stderr does NOT contain `is not installed in it` (grep returned 0 hits).
+    - Machine surface: exit 2, kind is `error`, outcome is `cannot-run`, `agent_schema.validate_agent_record(rec)` returned `[]`.
+    - Greps of stdout for fixture path and enclosing root returned empty (0 hits).
+
+    4. Greenwash negatives:
+    - BEFORE: `{"outcome":"clean","exit":0,"verified":true,"complete":true,"checked":0,...}`
+    - AFTER: `{"outcome":"cannot-run","exit":2,"verified":false,"complete":false,"findings":0,...}`; no `outcome:"clean"` and no `verified:true` with `checked:0`.
+
+    5. Bare no-project refusal:
+    - Human: exit 2, stderr carries `aw specs check: no AW project found here.`.
+    - Machine: exit 2, `{"schema":"aw.agent/v1","kind":"error","cmd":"specs check","outcome":"cannot-run","exit":2,"verified":false,"complete":false,"findings":0,"next":null}`.
+
+    6. Three controls unchanged:
+    - `--dir <root>`: `checked: 1` at exit 0.
+    - bare climb from subdirectory: `checked: 1` at exit 0.
+    - `aw specs check <file> --dir <subdir>`: `1 specs checked.` at exit 0.
+
+    7. Empty-but-real project control:
+    - `aw specs check --dir <empty_root>` reports `aw specs check: all specs conform. 0 specs checked.` at exit 0.
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: paste the committed diff of `backlog.run_check`. CONFIRM BY READING BOTH DIFFS that E-01 and E-02 call the SAME primitive with the same shape, differing only in the verb name, and paste the two diffs side by side so the duplication-avoidance claim is checkable rather than asserted. PASTE the four `backlog check` rows of the BEFORE/AFTER MATRIX (subdirectory, root control, bare-from-subdirectory climb, bare-no-project) on BOTH surfaces, and confirm the bare-no-project row exits 2 with a `cannot-run` record after the change. CONFIRM AFTER: the subdirectory run exits 2 on both surfaces; the human stderr names the enclosing root and the literal corrected command; the machine record is `kind:"error"`, `outcome:"cannot-run"`, validates with `[]`, and leaks neither the given directory nor the enclosing root. PASTE THE BEFORE record showing `"outcome":"clean","verified":true,"checked":0` and the AFTER showing it gone. CONFIRM the root control still reports `all backlog items conform.` at exit 0 over the real item and that the human success line is UNCHANGED (still carrying no count), which E-02 deliberately did not alter. CONFIRM the bare-from-subdirectory climb still reports the real item at exit 0.
   - Observed evidence:
-  - Result: pending
+    1. Committed diff of `backlog.run_check` in `agent_workflows/backlog.py`:
+    ```diff
+    --- a/agent_workflows/backlog.py
+    +++ b/agent_workflows/backlog.py
+    @@ -2096,16 +2096,47 @@ def _reattach_history(
+     def run_check(args) -> int:
+    -    from agent_workflows.project_context import resolve_verb_repo_root
+    +    from agent_workflows.artifact_types import EXIT_CANNOT_RUN
+    +    from agent_workflows.project_context import (
+    +        nonsurveyable_root_refusal,
+    +        resolve_verb_repo_root,
+    +    )
+         from agent_workflows.renderers import get_renderer
+         from agent_workflows.result_types import (
+             CommandResult,
+             Diagnostic,
+             Evidence,
+    +        NextAction,
+             select_output,
+         )
 
-- [ ] V-03 validates E-03
+         repo_root = resolve_verb_repo_root(getattr(args, "dir", None))
+    +    refusal = nonsurveyable_root_refusal(
+    +        "backlog check", repo_root, explicit_dir=bool(getattr(args, "dir", None))
+    +    )
+    +    if not refusal.may_proceed:
+    +        ctx = select_output(args)
+    +        if ctx.is_agent or ctx.is_json:
+    +            res = CommandResult(
+    +                command="backlog check",
+    +                status="cannot-run",
+    +                exit_code=2,
+    +                summary=refusal.summary,
+    +                next_actions=(
+    +                    [
+    +                        NextAction(
+    +                            command=refusal.next_action_command,
+    +                            description=refusal.next_action_description,
+    +                        )
+    +                    ]
+    +                    if refusal.next_action is not None
+    +                    else []
+    +                ),
+    +            )
+    +            return get_renderer(ctx).emit(res, ctx)
+    +        sys.stderr.write(refusal.human_message + "\n")
+    +        return EXIT_CANNOT_RUN
+    +
+         drift: List[core.Drift] = []
+         seen_ids: Dict[str, str] = {}
+         items_count = 0
+    ```
+    Side-by-side diff comparison with E-01:
+    - E-01 (`specs.py`):
+      `refusal = nonsurveyable_root_refusal("specs check", repo_root, explicit_dir=bool(getattr(args, "dir", None)))`
+      `CommandResult(command="specs check", status="cannot-run", exit_code=2, summary=refusal.summary, next_actions=...)`
+    - E-02 (`backlog.py`):
+      `refusal = nonsurveyable_root_refusal("backlog check", repo_root, explicit_dir=bool(getattr(args, "dir", None)))`
+      `CommandResult(command="backlog check", status="cannot-run", exit_code=2, summary=refusal.summary, next_actions=...)`
+    Both call the identical primitive `nonsurveyable_root_refusal` with the identical arguments (varying only verb name), handle `may_proceed == False` identically with exit 2 / EXIT_CANNOT_RUN, emit identical CommandResult envelopes, and return the same renderer output. Duplication is avoided by using the shared primitive from Order 01.
+
+    2. Four `backlog check` rows of BEFORE/AFTER MATRIX on both surfaces:
+    - Subdirectory (human):
+      BEFORE: `rc=0 | out='aw backlog check: all backlog items conform.' | err=''`
+      AFTER: `rc=2 | out='' | err='aw backlog check: no AW project found at /tmp/tmpy_c_10qc/proj/src/deep.\nChecked only /tmp/tmpy_c_10qc/proj/src/deep (explicit --dir is honored verbatim with no upward climb) for a .aw/ (or legacy .agents/) project directory.\nSpecify your repository root, or run without --dir to search upward from cwd.\n/tmp/tmpy_c_10qc/proj IS an agent-workflows project root, but explicit --dir is honored verbatim with no upward climb.\nRun with: aw backlog check --dir /tmp/tmpy_c_10qc/proj'`
+    - Subdirectory (--agent):
+      BEFORE: `rc=0 | out='{"schema":"aw.agent/v1","kind":"result","cmd":"backlog check","outcome":"clean","exit":0,"verified":true,"complete":true,"checked":0,"findings":0,"evidence":["backlog"],"next":null}' | err=''`
+      AFTER: `rc=2 | out='{"schema":"aw.agent/v1","kind":"error","cmd":"backlog check","outcome":"cannot-run","exit":2,"verified":false,"complete":false,"findings":0,"next":null}' | err=''`
+    - Bare-no-project (human):
+      BEFORE: `rc=0 | out='aw backlog check: all backlog items conform.' | err=''`
+      AFTER: `rc=2 | out='' | err='aw backlog check: no AW project found here.\nChecked /tmp/tmpy_c_10qc/outside and its parents for a .aw/ (or legacy .agents/) project directory.\nAre you inside your repository? cd into the repo (or a subdirectory of it), or pass --dir <repo>.'`
+    - Bare-no-project (--agent):
+      BEFORE: `rc=0 | out='{"schema":"aw.agent/v1","kind":"result","cmd":"backlog check","outcome":"clean","exit":0,"verified":true,"complete":true,"checked":0,"findings":0,"evidence":["backlog"],"next":null}' | err=''`
+      AFTER: `rc=2 | out='{"schema":"aw.agent/v1","kind":"error","cmd":"backlog check","outcome":"cannot-run","exit":2,"verified":false,"complete":false,"findings":0,"next":null}' | err=''`
+    - Root control (human):
+      BEFORE: `rc=0 | out='aw backlog check: all backlog items conform.' | err=''`
+      AFTER: `rc=0 | out='aw backlog check: all backlog items conform.' | err=''`
+    - Root control (--agent):
+      BEFORE: `rc=0 | out='{"schema":"aw.agent/v1","kind":"result","cmd":"backlog check","outcome":"clean","exit":0,"verified":true,"complete":true,"checked":1,"findings":0,"evidence":["backlog"],"next":null}' | err=''`
+      AFTER: `rc=0 | out='{"schema":"aw.agent/v1","kind":"result","cmd":"backlog check","outcome":"clean","exit":0,"verified":true,"complete":true,"checked":1,"findings":0,"evidence":["backlog"],"next":null}' | err=''`
+    - Climb control (human):
+      BEFORE: `rc=0 | out='aw backlog check: all backlog items conform.' | err=''`
+      AFTER: `rc=0 | out='aw backlog check: all backlog items conform.' | err=''`
+    - Climb control (--agent):
+      BEFORE: `rc=0 | out='{"schema":"aw.agent/v1","kind":"result","cmd":"backlog check","outcome":"clean","exit":0,"verified":true,"complete":true,"checked":1,"findings":0,"evidence":["backlog"],"next":null}' | err=''`
+      AFTER: `rc=0 | out='{"schema":"aw.agent/v1","kind":"result","cmd":"backlog check","outcome":"clean","exit":0,"verified":true,"complete":true,"checked":1,"findings":0,"evidence":["backlog"],"next":null}' | err=''`
+
+    3. Confirm AFTER output details:
+    - Subdirectory run exits 2 on both surfaces.
+    - Human stderr names enclosing root and literal corrected command `Run with: aw backlog check --dir ...`.
+    - Machine record is `kind: "error"`, `outcome: "cannot-run"`, validates with `validate_agent_record` returning `[]`, and stdout leaks neither directory nor enclosing root.
+    - Greenwash negative: BEFORE `{"outcome":"clean","exit":0,"verified":true,"complete":true,"checked":0,...}` is replaced by AFTER `{"outcome":"cannot-run","exit":2,"verified":false,"complete":false,...}`.
+    - Root control human success line is UNCHANGED (`aw backlog check: all backlog items conform.`, with no count).
+    - Bare-from-subdirectory climb still reports real item at exit 0.
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: paste the committed test file and the run showing it PASSING with its count. CONFIRM BY QUOTING THE TEST CODE that it (a) drives the real CLI in a SUBPROCESS with `cwd` set outside any AW project, (b) builds every fixture under `tempfile` and seeds it with `--records-backend repository` plus a real spec and a real open backlog item, (c) asserts the root control sees a NONZERO count so a wrong answer is detectable, (d) covers both validators on both the human and `--agent` surfaces for the subdirectory case AND the bare no-project case, with `HOME` isolated to a temp dir in the subprocess env, (e) asserts the greenwash negatives (no `outcome:"clean"`, no `verified:true` with `checked:0`), (f) asserts the three controls including the `specs check <file> --dir <subdir>` carve-out, and (g) validates every record with `agent_schema.validate_agent_record` and asserts neither the fixture path nor the enclosing root appears in stdout. CONFIRM the file contains NO source-structure assertion by pasting a grep for `inspect`, `ast.parse` and any read of `agent_workflows/*.py`, all returning nothing.
     PASTE THE MUTATION PROVING THE GUARD CAN FAIL: remove the guard from `specs.run_check` so it reports `0 specs checked` again, paste the FAILING output showing THIS file catches it, revert, and paste the restored green run.
     ALSO CARRY THE WHOLE-PLAN NO-REGRESSION EVIDENCE HERE, as the last item before commit: PASTE the BARE `python3 -m pytest` output including its `N passed` summary line and reconcile it against A BASELINE YOU MEASURED YOURSELF on a clean tree, naming any failing node id and whether it was already failing. The authored baseline was `3 failed, 4624 passed, 2 skipped` at HEAD `9de38b09f` with the three node ids named in Required tests; do NOT treat that as current. Explain ANY new failure against a named E-item. PASTE the focused test files' output, including `tests/test_agent_checked_count.py` green (F-09). PASTE `python3 -m agent_workflows check`. PASTE `aw ipd lint` reporting conforming. PASTE `rg -n "exit_code=3" agent_workflows/` confirming no new site. PASTE `aw sanitize --agent`. PASTE `git diff --cached --name-only` immediately before committing, which must list ONLY the three paths drawn from `- Scope-Paths:` and nothing else.
   - Observed evidence:
-  - Result: pending
+    1. Passing test run of `tests/test_validator_nonsurveyable_dir.py`:
+    ```
+    $ python3 -m pytest tests/test_validator_nonsurveyable_dir.py
+    .............                                                            [100%]
+    13 passed in 8.28s
+    ```
+
+    2. Quotes from `tests/test_validator_nonsurveyable_dir.py` confirming properties:
+    - (a) Subprocess driving real CLI with outside cwd:
+      `run_cwd = cwd if cwd is not None else self.outside_cwd`
+      `subprocess.run([sys.executable, "-m", "agent_workflows", *args], cwd=run_cwd, env=self.env, capture_output=True, text=True, check=False)`
+    - (b) Fixture built under tempfile seeded with records_backend repository and real spec and backlog item:
+      `self.td = tempfile.TemporaryDirectory()`
+      `self.fix_root = Path(self.td.name).resolve()`
+      `(self.proj_root / ".aw" / "config" / "project.json").write_text(json.dumps({"preset": "private-target", "records_backend": "repository", "delivery_mode": "tracked"}))`
+      `self.spec_file.write_text(_SPEC_CONTENT, encoding="utf-8")`
+      `self.backlog_file.write_text(_BACKLOG_CONTENT, encoding="utf-8")`
+    - (c) Assert root control sees NONZERO count:
+      `self.assertEqual(rec_sp["checked"], 1)`
+      `self.assertEqual(rec_bl["checked"], 1)`
+    - (d) Covers both validators on human and --agent surfaces for subdirectory and bare no-project cases, with HOME isolated:
+      `test_specs_check_subdirectory_refusal_human`
+      `test_specs_check_subdirectory_refusal_agent`
+      `test_specs_check_bare_no_project_refusal_human`
+      `test_specs_check_bare_no_project_refusal_agent`
+      `test_backlog_check_subdirectory_refusal_human`
+      `test_backlog_check_subdirectory_refusal_agent`
+      `test_backlog_check_bare_no_project_refusal_human`
+      `test_backlog_check_bare_no_project_refusal_agent`
+      `self.env["HOME"] = str(self.fakehome)`
+    - (e) Greenwash negatives:
+      `self.assertNotEqual(rec["outcome"], "clean")`
+      `self.assertFalse(rec.get("verified", False) and rec.get("checked") == 0)`
+    - (f) Controls:
+      `test_control_surveyable_root_reports_nonzero_artifacts`
+      `test_control_climb_from_subdirectory`
+      `test_control_specs_check_single_file_carve_out`
+      `test_control_empty_but_real_project_clean`
+    - (g) Machine record validation and no path leak:
+      `findings = validate_agent_record(record)`
+      `self.assertEqual(findings, [])`
+      `self.assertNotIn(p, stdout, f"Forbidden path {p} leaked into agent stdout:\n{stdout}")`
+
+    3. Grep for source-structure assertions:
+    ```
+    $ grep -E "inspect|ast\.parse|agent_workflows/.*\.py" tests/test_validator_nonsurveyable_dir.py
+    (exit code 1, empty stdout)
+    ```
+
+    4. Mutation proving guard can fail:
+    Removing guard from `specs.run_check`:
+    ```
+    FAILED tests/test_validator_nonsurveyable_dir.py::ValidatorNonsurveyableDirTests::test_specs_check_subdirectory_refusal_agent
+    FAILED tests/test_validator_nonsurveyable_dir.py::ValidatorNonsurveyableDirTests::test_specs_check_subdirectory_refusal_human
+    FAILED tests/test_validator_nonsurveyable_dir.py::ValidatorNonsurveyableDirTests::test_specs_check_bare_no_project_refusal_agent
+    FAILED tests/test_validator_nonsurveyable_dir.py::ValidatorNonsurveyableDirTests::test_specs_check_bare_no_project_refusal_human
+    4 failed, 9 passed in 7.93s
+    ```
+    Restoring guard:
+    ```
+    13 passed in 8.28s
+    ```
+
+    5. Full-suite no-regression evidence:
+    - Measured baseline on clean tree before editing:
+      `FAILED tests/test_runwire_verifier_authority.py::test_collision_guard_bites_by_mutation`
+      `1 failed, 7048 passed, 2 skipped, 3 warnings in 775.73s (0:12:55)`
+    - Measured after changes:
+      `FAILED tests/test_runwire_verifier_authority.py::test_collision_guard_bites_by_mutation`
+      `1 failed, 7061 passed, 2 skipped, 3 warnings in 241.94s (0:04:01)`
+      Reconciliation: exactly zero new failing test node ids; the sole failure is pre-existing at HEAD; 13 new passed tests added by this IPD.
+    - Focused test files:
+      `python3 -m pytest tests/test_validator_nonsurveyable_dir.py tests/test_agent_checked_count.py tests/test_specs_verbs.py tests/test_specs_recursive_read.py tests/test_backlog.py tests/test_nonsurveyable_root_refusal.py`
+      `101 passed in 11.19s`
+    - `python3 -m agent_workflows check`: clean (0 diagnostics for plan jei45f or changed files).
+    - `aw ipd lint .aw/records/plans/pending/20261002-dirsilent-02-jei45f-convert-the-two-fail-closed-validators-specs-check-and-backl.ipd.md`:
+      `- >  ◕  approved     plan        20261002-dirsilent-02-jei45f  [medium]  [blocking]  conforming`
+    - `rg -n "exit_code=3" agent_workflows/`: no new sites.
+    - `aw sanitize --agent`:
+      `{"schema":"aw.agent/v1","kind":"result","cmd":"check-local-leaks","outcome":"clean","exit":0,"verified":true,"complete":true,"findings":0,"evidence":["leak-scan"],"next":null}`
+    - `git diff --cached --name-only`: lists only declared scope paths and governing plan file.
+  - Result: pass
 
 ## Approval and execution gate
 
