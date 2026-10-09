@@ -626,12 +626,17 @@ def _add_gate_fields(
 
 
 def run_check(args) -> int:
-    from agent_workflows.project_context import resolve_verb_repo_root
+    from agent_workflows.artifact_types import EXIT_CANNOT_RUN
+    from agent_workflows.project_context import (
+        nonsurveyable_root_refusal,
+        resolve_verb_repo_root,
+    )
     from agent_workflows.renderers import get_renderer
     from agent_workflows.result_types import (
         CommandResult,
         Diagnostic,
         Evidence,
+        NextAction,
         select_output,
     )
 
@@ -641,6 +646,31 @@ def run_check(args) -> int:
     if target:
         paths = [Path(target)]
     else:
+        refusal = nonsurveyable_root_refusal(
+            "specs check", repo_root, explicit_dir=bool(getattr(args, "dir", None))
+        )
+        if not refusal.may_proceed:
+            ctx = select_output(args)
+            if ctx.is_agent or ctx.is_json:
+                res = CommandResult(
+                    command="specs check",
+                    status="cannot-run",
+                    exit_code=2,
+                    summary=refusal.summary,
+                    next_actions=(
+                        [
+                            NextAction(
+                                command=refusal.next_action_command,
+                                description=refusal.next_action_description,
+                            )
+                        ]
+                        if refusal.next_action is not None
+                        else []
+                    ),
+                )
+                return get_renderer(ctx).emit(res, ctx)
+            sys.stderr.write(refusal.human_message + "\n")
+            return EXIT_CANNOT_RUN
         paths = _spec_files(repo_root)
     drift: List[core.Drift] = []
     for p in paths:
