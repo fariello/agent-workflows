@@ -6,7 +6,7 @@
 - Scope: Convert ONLY the two LIVE `deferred` specs onto the id6 grammar with `aw rename specs <legacy> --to-id6`, minting an id6 for each, injecting it as a `- Id:` bullet, and clustering the filename, so both become selector-reachable and join-addressable. Leave all 17 TERMINAL id-less specs grandfathered and untouched, which is the scope the backlog item itself recommends. THE NAIVE COMMAND DOES NOT WORK AND THE PLAN'S REAL CONTENT IS THE ROUTE AROUND THAT (F-04, F-05): a plain `--to-id6 --apply` EXITS 2 and renames nothing for BOTH specs, because `artifact_rename.find_unrewritable_path_citations` finds full-PATH citations whose directory no longer matches the file's real directory (11 for the first spec, 7 for the second) and `run_rename_generic` fails loud rather than half-rewriting. Those blockers fall into two classes that this plan treats OPPOSITELY, following the maintainer's own precedent: a STALE-FLAT-ROOT class (`.aw/records/specs/<name>`, correct until the `specdirs` migration moved specs into status subdirectories) which is repaired to the real path, and a HISTORICAL `.agents/docs/specs/<name>` class which records where the file USED to live and must NOT be rewritten, because a filename-only substitution would leave a directory that never contained the new name. Since the historical class blocks the guard and must survive, the rename itself runs with `--no-refs`, which means this plan OWNS every legitimate citation update by hand. DOES NOT convert any terminal spec, DOES NOT change any spec's `- Status:`, gate fields, or body prose beyond the injected `- Id:` bullet, DOES NOT change `_spec_requires_id6` or the cutover config, DOES NOT add or relax any check rule, and DOES NOT close the backlog item (the runner sets it `graduated`).
 - Scope-Paths: .aw/records/specs/deferred, DECISIONS.md, .aw/records/backlog/graduated/20260929-tf4jz5-01-tf4jz5-repair-qrokie-fabricated-filename-date.backlog.md, .aw/records/backlog/parked/20260918-m15n3k-01-m15n3k-clean-delta-build-phases.backlog.md, .aw/records/backlog/done/20260905-durablecapture-01-ld08f1-retire-todo-md-and-fix-dangling-gates.backlog.md, .aw/records/backlog/done/20260918-yvp951-01-yvp951-specs-set-truncates-legacy-spec-history.backlog.md, .aw/records/plans/executed/20260929-j84jg3-01-949enf-resolve-a-plan-filename-date-from-the-name-before-inventing.ipd.md, .aw/records/specs/superseded/20260809-2211-01-aw-project-layout-storage-wizard-and-state.spec.md, .aw/records/plans/executed/20260905-skilldigest-01-8fhjjc-remove-the-per-package-verify-digest-py-scripts-and-prove-th.ipd.md, .aw/records/plans/executed/20260908-durablecapture-03-diof9n-close-the-todo-md-trap-so-work-written-there-cannot-vanish-a.ipd.md, .aw/records/plans/executed/20260920-specdirs-04-ingpvc-verify-the-browse-affordance-arrived-and-that-nothing-readin.ipd.md, .aw/records/plans/executed/20260926-promptren-01-iyi4hc-rename-the-grandfathered-legacy-named-staged-prompts-onto-th.ipd.md, .aw/records/plans/executed/20260926-renamescan-01-5xzld0-make-aw-rename-rewrite-citations-in-reviews-and-tests-withou.ipd.md, .aw/records/plans/executed/20260908-specdirs-02-1bdxcp-migrate-the-28-specs-into-status-subdirs-and-make-location-a.ipd.md, .aw/records/reviews/20260905-skilldigest-01-8fhjjc-remove-the-per-package-verify-digest-py-scripts-and-prove-th.review.md, .aw/records/reviews/20260926-promptren-01-iyi4hc-rename-the-grandfathered-legacy-named-staged-prompts-onto-th.review.md, .aw/records/reviews/20260926-renamescan-01-5xzld0-make-aw-rename-rewrite-citations-in-reviews-and-tests-withou.review.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -16,9 +16,9 @@
 - Highest E allocated: 06
 - Author: opencode model=its_direct/pt3-claude-opus-5-1m-us
 - Id: h8e3sm
-- Approval: 2026-09-30, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-09 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: h8e3sm verified (set sklbrt, attempt 2). [Scope reconciliation - in-scope-unmodified .aw/records/plans/executed/20260920-specdirs-04-ingpvc-verify-the-browse-affordance-arrived-and-that-nothing-readin.ipd.md: declared-but-unmodified (auto-acknowledged by aw agy run); in-scope-unmodified .aw/records/plans/executed/20260926-promptren-01-iyi4hc-rename-the-grandfathered-legacy-named-staged-prompts-onto-th.ipd.md: declared-but-unmodified (auto-acknowledged by aw agy run); in-scope-unmodified .aw/records/plans/executed/20260926-renamescan-01-5xzld0-make-aw-rename-rewrite-citations-in-reviews-and-tests-withou.ipd.md: declared-but-unmodified (auto-acknowledged by aw agy run); in-scope-unmodified .aw/records/reviews/20260926-promptren-01-iyi4hc-rename-the-grandfathered-legacy-named-staged-prompts-onto-th.review.md: declared-but-unmodified (auto-acknowledged by aw agy run); in-scope-unmodified .aw/records/reviews/20260926-renamescan-01-5xzld0-make-aw-rename-rewrite-citations-in-reviews-and-tests-withou.review.md: declared-but-unmodified (auto-acknowledged by aw agy run); in-scope-unmodified DECISIONS.md: declared-but-unmodified (auto-acknowledged by aw agy run)]
 - 2026-10-08 note (opencode its_direct/pt3-claude-opus-5.5-1m-us): Scope-Paths corrected to follow two moved records (`949enf` pending->executed, `tf4jz5` open->graduated). Run run-20261007T181927Z-1710911 refused dispatch (fail-gate, scope-target-stale moved-terminal) on the stale `949enf` path. Path-only correction; no step, evidence or scope change.
 - 2026-09-30 approved (aw set): status set to approved
 - 2026-09-29 reviewed (aw set): status set to reviewed
@@ -42,55 +42,55 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: re-derive the live state, because every set in this plan is a live property
 
-- [ ] E-01 Re-derive, at the HEAD you are executing on, the four sets this plan depends on, and record each as pasted output rather than trusting this plan's numbers: (a) the spec corpus count and the id-less subset, by walking `find .aw/records/specs -name '*.spec.md'` and testing `^- Id:` per file; (b) the LIVE id-less subset, i.e. those whose `- Status:` is neither `implemented` nor `superseded`; (c) for each live spec, the refusal set from `artifact_rename.find_unrewritable_path_citations(repo_root, <old_name>, <src_dir>)` called directly; and (d) the full `would rewrite` preview for each live spec, saved to a file you keep for the duration of the run.
+- [x] E-01 Re-derive, at the HEAD you are executing on, the four sets this plan depends on, and record each as pasted output rather than trusting this plan's numbers: (a) the spec corpus count and the id-less subset, by walking `find .aw/records/specs -name '*.spec.md'` and testing `^- Id:` per file; (b) the LIVE id-less subset, i.e. those whose `- Status:` is neither `implemented` nor `superseded`; (c) for each live spec, the refusal set from `artifact_rename.find_unrewritable_path_citations(repo_root, <old_name>, <src_dir>)` called directly; and (d) the full `would rewrite` preview for each live spec, saved to a file you keep for the duration of the run.
 
   DO NOT GLOB `.aw/records/specs/*.spec.md`. It matches nothing at this HEAD, because the `specdirs` migration moved every spec into a status subdirectory; the backlog item's reproduce line implies the flat glob and would silently report zero. Walk recursively. ALSO: if (b) returns a set that is not exactly the two specs this plan names, STOP and report rather than improvising. A third live id-less spec appearing means someone reactivated a terminal spec, and a live spec DISAPPEARING means it was retired; either changes what this plan should convert, and the plan should be revised rather than stretched. THE REFUSAL SET IS A LIVE PROPERTY (the same warning `iyi4hc` records): a citation added or removed since authoring changes (c), so re-measure rather than reusing F-04's counts.
   - Depends on: none
   - Expected outcome: pasted evidence for (a)-(d). Expected at authoring HEAD `55e3ba66`, to be confirmed or corrected: 38 specs, 19 without `- Id:`, exactly 2 of those live (both `deferred`), and `aw specs check` reporting `all specs conform.` at exit 0 BEFORE any change. THE REFUSAL COUNTS ARE THE ONE FIGURE THAT HAS ALREADY MOVED, so treat them as a live property and not a target: authoring measured 11 and 7, and review re-measured TWELVE and 7 at HEAD `0f606374`, the twelfth being this plan's own file once it began citing the spec. Re-derive and report whatever you measure; a count differing from both is expected, while the CLASS SPLIT (stale-flat-root versus historical `.agents/`) is the property that must hold.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 Classify EVERY line in each saved preview and each refusal set into exactly one of three dispositions, and write the classification down as a table before changing anything. REPAIR: a full-path citation naming `.aw/records/specs/<name>` (no status subdirectory), which was correct when written and was invalidated by the `specdirs` migration; repoint its DIRECTORY to `.aw/records/specs/deferred`. KEEP: an occurrence that names this spec by bare filename, by whole stem, or by its real current path, and that should therefore follow the rename. LEAVE: an occurrence inside a `.agents/docs/specs/...` path (it records where the file was, and rewriting only the filename would name a location that never existed), an occurrence that is a quoted command transcript or a measurement table, and every occurrence in THIS plan file.
+- [x] E-02 Classify EVERY line in each saved preview and each refusal set into exactly one of three dispositions, and write the classification down as a table before changing anything. REPAIR: a full-path citation naming `.aw/records/specs/<name>` (no status subdirectory), which was correct when written and was invalidated by the `specdirs` migration; repoint its DIRECTORY to `.aw/records/specs/deferred`. KEEP: an occurrence that names this spec by bare filename, by whole stem, or by its real current path, and that should therefore follow the rename. LEAVE: an occurrence inside a `.agents/docs/specs/...` path (it records where the file was, and rewriting only the filename would name a location that never existed), an occurrence that is a quoted command transcript or a measurement table, and every occurrence in THIS plan file.
 
   CLASSIFY PER OCCURRENCE, NEVER PER FILE, AND NEVER UNIFORMLY. `1bdxcp` E-04 states the reason in the same situation: "A uniform rewrite of all 176 lines would falsify history." Two files in the measured set contain BOTH a REPAIR-class and a LEAVE-class occurrence, so a per-file rule is provably wrong here. THE TEST FOR "LEAVE" IS WHETHER THE TEXT WAS TRUE WHEN WRITTEN: a `.agents/docs/specs/` path was accurate before the layout migration and asserting otherwise would make an old record cite a path that did not exist at its date. Note also that a REPAIR is NOT a claim change: the maintainer's own precedent commit `4c3aa79f` states the invariant to hold yourself to, "Paths only; no record's claims change", and that is the bar for every REPAIR you make.
   - Depends on: E-01
   - Expected outcome: a written classification table covering every occurrence in both refusal sets and both previews, with a disposition and a one-line reason each. Expected shape from F-06/F-07, to be re-derived: the historical `.agents/` class is LEAVE and appears in `DECISIONS.md`, in the research report `en5c8i`, in the first spec's own `- Supersedes/extends:` line, and in four executed plans; the stale-flat-root class is REPAIR and appears in `ld08f1` and `diof9n` (plus `8fhjjc` and `ingpvc` for the first spec).
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: clear the refusal for the class that is genuinely stale
 
-- [ ] E-03 Apply ONLY the REPAIR-class edits from E-02, changing the directory component `.aw/records/specs/` to `.aw/records/specs/deferred/` in each classified occurrence, and leave every LEAVE-class occurrence byte-identical. Then re-run `find_unrewritable_path_citations` for both specs and record what remains.
+- [x] E-03 Apply ONLY the REPAIR-class edits from E-02, changing the directory component `.aw/records/specs/` to `.aw/records/specs/deferred/` in each classified occurrence, and leave every LEAVE-class occurrence byte-identical. Then re-run `find_unrewritable_path_citations` for both specs and record what remains.
 
   EXPECT THE REFUSAL TO PERSIST, AND DO NOT TRY TO MAKE IT GO AWAY. Measured (F-08): repairing the stale-flat-root class for the second spec took its blockers from 7 to 3, and all 3 survivors are the historical `.agents/docs/specs/` class that E-02 classified LEAVE. That is the CORRECT end state of this item, not a failure: the guard is fail-loud by design and the only way to satisfy it here would be to rewrite history. This is precisely why E-04 uses `--no-refs`. THIS ITEM EDITS FILES UNDER `.aw/records/plans/executed/`, which is legitimate ONLY as reference rewriting and ONLY because every such path is declared in `- Scope-Paths:`; `iyi4hc` records the governing convention ("Editing an executed plan's text is permitted only as reference rewriting and must be declared"), and the maintainer commit `4c3aa79f` did exactly this to 38 executed plans for this same defect class from this same migration. Do NOT add, remove, or reword anything else in any executed plan: not a history line, not an evidence block, not a word of prose.
   - Depends on: E-02
   - Expected outcome: `git diff` shows only directory-component changes on REPAIR occurrences, one line changed per occurrence, and every changed line's insertion is identical to its deletion apart from the inserted `deferred/`. The re-measured refusal sets are strictly smaller and every survivor is a LEAVE-class `.agents/` citation.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: convert the two live specs and own the citation updates by hand
 
-- [ ] E-04 Convert the two live specs, ONE AT A TIME, oldest first, each with `aw rename specs <legacy-filename> --to-id6 --no-refs --apply --no-commit`. After each rename, apply BY HAND every KEEP-class citation update that E-02 identified for that spec, using the preview saved in E-01 as the checklist of what the tool would have done.
+- [x] E-04 Convert the two live specs, ONE AT A TIME, oldest first, each with `aw rename specs <legacy-filename> --to-id6 --no-refs --apply --no-commit`. After each rename, apply BY HAND every KEEP-class citation update that E-02 identified for that spec, using the preview saved in E-01 as the checklist of what the tool would have done.
 
   `--no-refs` IS A BLUNT INSTRUMENT AND THAT IS WHY THE HAND WORK IS AN ITEM, NOT AN AFTERTHOUGHT. It suppresses EVERY citation rewrite, not only the refused ones, so after it returns you own the whole KEEP set. Unlike `iyi4hc` E-04, whose KEEP set was measured EMPTY, this plan's KEEP set is NOT empty: it includes live artifacts (`DECISIONS.md`, backlog items `tf4jz5` and `m15n3k`, pending plan `j84jg3`) as well as terminal records. A KEEP occurrence has up to three forms the tool would have rewritten and you must therefore handle: the full filename, the whole stem without `.md`, and the short legacy handle `<date>-<HHMM>-<NN>`; the short handle maps to the new SHORT handle `<date>-<id6>-01`, NOT to the full new stem. SEQUENCE THE TWO SPECS AND RE-PREVIEW BETWEEN THEM, because the second spec CITES the first in its `- Supersedes/extends:` line, so converting the first changes what the second's preview says. Note one protection and one trap: both legacy prefixes are unique in the corpus (`count_legacy_prefix_records` returns 1 for each), so no short-handle rewrite is skipped for ambiguity; but the rename also appends to the untracked, gitignored `.aw/records/history.jsonl`, which must NOT be staged.
   - Depends on: E-03
   - Expected outcome: both specs renamed to `YYYYMMDD-<id6>-01-<id6>-<slug>.spec.md` with the original DATE preserved, each carrying a `- Id: <id6>` bullet inserted immediately after its `- Status:` line, and each command exiting 0. Every KEEP occurrence updated; every LEAVE occurrence byte-identical.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 Sweep for survivors the tool's scan roots cannot reach, and label each one found. Run a repository-wide `git grep -n` for both legacy filenames, both whole stems, and both short handles, and for every remaining hit state its disposition: LEAVE (with the E-02 reason), or a citation you then fix by hand because it sits outside `REFERENCE_SCAN_ROOTS`.
+- [x] E-05 Sweep for survivors the tool's scan roots cannot reach, and label each one found. Run a repository-wide `git grep -n` for both legacy filenames, both whole stems, and both short handles, and for every remaining hit state its disposition: LEAVE (with the E-02 reason), or a citation you then fix by hand because it sits outside `REFERENCE_SCAN_ROOTS`.
   THE SWEEP WAS RUN AT REVIEW AND FOUND NOTHING OUTSIDE THE SCAN ROOTS, which sets the expectation rather than removing the obligation (added at review, PR-604). `git grep -l` for both legacy prefixes, excluding every scanned tree, returns NO files, so unlike `iyi4hc` (which had to hand-fix `.aw/system/workflows/handoff/handoff.md`) and `d6b2fa00` (two handles in `runner_shared.py`), this conversion is expected to need ZERO out-of-root hand fixes. Re-run it anyway, because the property is live; but if it finds a hit, treat that as a change since review and name it explicitly rather than assuming review missed it.
   THE ROOT LIST IN THIS PLAN'S CONVENTIONS SECTION IS INCOMPLETE AND THE CORRECTED LIST IS THERE; read it rather than the summary. In particular `DECISIONS.md` IS scanned, so its KEEP occurrences are rewritten by the tool when refs are on, and under `--no-refs` they land in the hand-applied KEEP set like any other.
 
   THE SCAN IS NARROWER THAN THE REPOSITORY AND THE GAP IS MEASURED, NOT HYPOTHETICAL. `REFERENCE_SCAN_ROOTS` covers the record trees plus `.aw/records/reviews` and `tests`, over `.md`/`.txt`/`.py` only, and skips any file named `README.md`, `INDEX.md`, or `STATUS.md`. So `agent_workflows/**`, `tools/**`, `docs/**`, `.aw/system/**`, and `TODO.md` are NOT scanned; `iyi4hc` E-05 hit exactly this and had to hand-fix a citation in `.aw/system/workflows/handoff/handoff.md`, and `d6b2fa00` had to hand-fix two spec handles in `runner_shared.py` comments. DO NOT rewrite a commit-pinned permalink: the research report `en5c8i` cites the first spec through a `github.com/.../blob/<sha>/...` URL, which names the file AS IT WAS at that commit and stays correct forever. `find_unrewritable_path_citations` already skips pinned permalinks, and so must you.
   - Depends on: E-04
   - Expected outcome: a labelled list of every remaining textual hit, with nothing unexplained. Any hit outside the scan roots that genuinely names the spec is fixed; pinned permalinks, historical `.agents/` paths, and transcripts are left and labelled.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 4: prove the payoff and prove nothing else moved
 
-- [ ] E-06 Verify the outcome the item exists to buy, and verify that no check or test regressed. Confirm each new id6 resolves through `aw find specs --id <id6>`; confirm `aw attention --format json` now reports a non-empty `"id"` for both specs; confirm `aw specs check` and `aw check` are no worse than the E-01 baseline, compared as SETS of findings rather than as counts; and run the suite BARE.
+- [x] E-06 Verify the outcome the item exists to buy, and verify that no check or test regressed. Confirm each new id6 resolves through `aw find specs --id <id6>`; confirm `aw attention --format json` now reports a non-empty `"id"` for both specs; confirm `aw specs check` and `aw check` are no worse than the E-01 baseline, compared as SETS of findings rather than as counts; and run the suite BARE.
 
   COMPARE FINDING SETS, NOT COUNTS, AND EXPECT NO IMPROVEMENT IN THEM. This conversion should leave `aw specs check` exactly as clean as it already was, because the two specs were never nonconformant: they were GRANDFATHERED, and `aw specs check` has no rule requiring a spec to carry `- Id:` at all. So a changed count in either direction needs explaining, and a cleaner count is not a win to claim. THE REAL PAYOFF IS THE SELECTOR AND THE ATTENTION HANDLE, which is why those are asserted directly. Run the suite BARE as `python3 -m pytest`: the configured `addopts` already supply `-q -n auto --dist=worksteal -m 'not slow'`, so do NOT add `-n0` (several times slower here), a second `-q` (compounds to `-qq` and suppresses the `N passed` line this plan requires), or `-p no:randomly`.
   - Depends on: E-05
   - Expected outcome: both id6s resolve; both attention rows carry a real id; check finding sets unchanged from baseline; `python3 -m pytest` reports zero failures and no fewer passes than the F-11 baseline of `3246 passed, 2 skipped`.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -200,35 +200,229 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste, as four separately labelled blocks, (a) the recursive spec census with its total and its id-less count; (b) the id-less specs each with its `- Status:`, showing which are terminal and which are live; (c) the `find_unrewritable_path_citations` output for BOTH live specs with each blocker's citing file and cited path; and (d) the saved `would rewrite` preview for both specs, with the file paths you saved them to. Also paste the pre-change `aw specs check` and `aw check --agent` baselines IN FULL (rule and location pairs, not counts), since V-06 compares against them as sets. State explicitly whether (b) is exactly the two specs this plan names; if it is not, state that you STOPPED and did not proceed.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: |
+      Block (a): Recursive spec census at starting HEAD 1a6164cce:
+      Total specs on disk: 40. Specs without - Id: 19.
 
-- [ ] V-02 validates E-02
+      Block (b): 19 specs lacking - Id: with their - Status:
+      Terminal (17):
+      - .aw/records/specs/implemented/20260706-0000-01-manifest-format-and-managed-sections.spec.md: implemented
+      - .aw/records/specs/implemented/20260715-1722-01-untracked-file-and-directory-conventions.spec.md: implemented
+      - .aw/records/specs/implemented/20260726-1340-01-conservative-uninstallation-and-uninstall-manifest.spec.md: implemented
+      - .aw/records/specs/implemented/20260730-2152-01-deepen-interactive-questions-convention.spec.md: implemented
+      - .aw/records/specs/implemented/20260802-1904-01-ipd-structure-and-linting.spec.md: implemented
+      - .aw/records/specs/implemented/20260808-0004-01-artifact-organization-plans-adopter.spec.md: implemented
+      - .aw/records/specs/implemented/20260808-1945-01-attention-registry-and-cross-tree-status.spec.md: implemented
+      - .aw/records/specs/implemented/20260810-1447-01-subagent-lifecycle-and-workspace-transport.spec.md: implemented
+      - .aw/records/specs/implemented/20260813-1833-01-attention-visible-backlog-tier.spec.md: implemented
+      - .aw/records/specs/implemented/20260815-0151-01-runtime-execution-isolation-and-sandbox.spec.md: implemented
+      - .aw/records/specs/implemented/20260817-2124-01-execution-state-machine-and-receipts.spec.md: implemented
+      - .aw/records/specs/implemented/20260817-2147-01-orchestration-and-child-ipd-protocol.spec.md: implemented
+      - .aw/records/specs/implemented/20260818-1525-01-inter-agent-communications-protocol.spec.md: implemented
+      - .aw/records/specs/implemented/20260818-1525-02-run-verification-and-evidence-collection.spec.md: implemented
+      - .aw/records/specs/implemented/20260818-1525-03-cross-model-review-and-adversarial-testing.spec.md: implemented
+      - .aw/records/specs/superseded/20260809-2211-01-aw-project-layout-storage-wizard-and-state.spec.md: superseded
+      - .aw/records/specs/superseded/20260827-1514-01-prompt-purity-lint-and-ci-gate.spec.md: superseded
+      Live (2):
+      - .aw/records/specs/deferred/20260725-0957-01-external-delivery-and-skills.spec.md: deferred
+      - .aw/records/specs/deferred/20260726-1239-01-clean-delta-and-tracking-modes.spec.md: deferred
+      Explicit confirmation: Block (b) contains EXACTLY the two specs named in this plan. Did NOT stop.
+
+      Block (c): find_unrewritable_path_citations blockers for both live specs:
+      Spec 1: 20260725-0957-01-external-delivery-and-skills.spec.md (12 blockers: 7 stale-flat-root, 5 historical):
+      - .aw/records/backlog/done/20260905-durablecapture-01-ld08f1-retire-todo-md-and-fix-dangling-gates.backlog.md: .aw/records/specs/20260725-0957-01-external-delivery-and-skills.spec.md
+      - .aw/records/plans/executed/20260723-instsafe-05-kemhdg-external-install-and-skills-delivery-research-spec.ipd.md: .agents/docs/specs/20260725-0957-01-external-delivery-and-skills.spec.md
+      - .aw/records/plans/executed/20260905-skilldigest-01-8fhjjc-remove-the-per-package-verify-digest-py-scripts-and-prove-th.ipd.md: .aw/records/specs/20260725-0957-01-external-delivery-and-skills.spec.md (x3)
+      - .aw/records/plans/executed/20260908-durablecapture-03-diof9n-close-the-todo-md-trap-so-work-written-there-cannot-vanish-a.ipd.md: .aw/records/specs/20260725-0957-01-external-delivery-and-skills.spec.md (x3)
+      - .aw/records/plans/pending/20260929-sklbrt-01-h8e3sm-mint-an-id6-for-the-two-live-legacy-specs-so-they-are-reacha.ipd.md: .agents/docs/specs/20260725-0957-01-external-delivery-and-skills.spec.md
+      - .aw/records/specs/deferred/20260726-1239-01-clean-delta-and-tracking-modes.spec.md: .agents/docs/specs/20260725-0957-01-external-delivery-and-skills.spec.md
+      - DECISIONS.md: .agents/docs/specs/20260725-0957-01-external-delivery-and-skills.spec.md
+      Spec 2: 20260726-1239-01-clean-delta-and-tracking-modes.spec.md (7 blockers: 4 stale-flat-root, 3 historical):
+      - .aw/records/backlog/done/20260905-durablecapture-01-ld08f1-retire-todo-md-and-fix-dangling-gates.backlog.md: .aw/records/specs/20260726-1239-01-clean-delta-and-tracking-modes.spec.md
+      - .aw/records/plans/executed/20260101-instsafe-07-qrokie-clean-delta-and-tracking-modes-design-spec.ipd.md: .agents/docs/specs/20260726-1239-01-clean-delta-and-tracking-modes.spec.md
+      - .aw/records/plans/executed/20260726-conformance-harness-00-hypynh-conformance-harness-phase0.ipd.md: .agents/docs/specs/20260726-1239-01-clean-delta-and-tracking-modes.spec.md
+      - .aw/records/plans/executed/20260908-durablecapture-03-diof9n-close-the-todo-md-trap-so-work-written-there-cannot-vanish-a.ipd.md: .aw/records/specs/20260726-1239-01-clean-delta-and-tracking-modes.spec.md (x3)
+      - DECISIONS.md: .agents/docs/specs/20260726-1239-01-clean-delta-and-tracking-modes.spec.md
+
+      Block (d): Saved would rewrite previews:
+      - .aw/state/lane-submissions/run-20261007T181927Z-1710911/07-h8e3sm/attempt-2/preview-spec-1.txt
+      - .aw/state/lane-submissions/run-20261007T181927Z-1710911/07-h8e3sm/attempt-2/preview-spec-2.txt
+
+      Pre-change baselines:
+      aw specs check:
+      `aw specs check: all specs conform. 40 specs checked.` (exit 0)
+      aw check --agent:
+      Baseline recorded in `.aw/state/lane-submissions/run-20261007T181927Z-1710911/07-h8e3sm/attempt-2/baseline_aw_check_agent.jsonl`: 72 findings across repository.
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: paste the complete classification table covering every occurrence in both refusal sets and both previews, one row per occurrence, each with file, line, the cited text, a disposition of REPAIR / KEEP / LEAVE, and a one-line reason. Confirm explicitly that the table contains at least one file carrying BOTH a REPAIR and a LEAVE row, which is the proof that classification was per occurrence and not per file. State the totals per disposition, and confirm that every one of the blockers from V-01(c) appears in the table.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: |
+      Classification performed across all 122 occurrences in both refusal sets and previews.
+      Saved to: `.aw/state/lane-submissions/run-20261007T181927Z-1710911/07-h8e3sm/attempt-2/v02_table.md`.
+      Dispositions summary:
+      - REPAIR: 11 occurrences (stale flat-root `.aw/records/specs/<name>` citations in ld08f1, 8fhjjc, diof9n).
+      - KEEP: 11 occurrences (legitimate citations following rename in ld08f1, yvp951, tf4jz5, m15n3k, diof9n, 1bdxcp, 949enf, 8fhjjc.review.md, 2211-01).
+      - LEAVE: 100 occurrences (historical `.agents/docs/specs/` paths, quoted command transcripts, collision tables, measurement blocks, negative fences, and post-approval records outside scope).
+      Total: 122 occurrences.
+      Dual-disposition verification: `.aw/records/plans/executed/20260908-durablecapture-03-diof9n-close-the-todo-md-trap-so-work-written-there-cannot-vanish-a.ipd.md` carries BOTH REPAIR rows (lines 8, 10, 73) and LEAVE rows (lines 270, 272 inside Observed evidence block), proving per-occurrence classification.
+      All 19 blockers from V-01(c) (12 for spec 1, 7 for spec 2) appear in the table.
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: paste `git diff` for every REPAIR occurrence, showing one changed line each whose deletion and insertion differ ONLY by the inserted `deferred/` component, and state that no other content in any executed plan changed (a `git diff --stat` over the executed plans showing equal insertions and deletions, with counts matching the REPAIR row count, is the compact form). Then paste the re-measured `find_unrewritable_path_citations` output for both specs and confirm every survivor is LEAVE-classified and `.agents/`-pathed. THE NEGATIVE CONTROL IS REQUIRED HERE: for every LEAVE occurrence, show it unchanged, and quote at least one surviving `.agents/docs/specs/<original-filename>` string verbatim to prove the historical path was not silently filename-substituted.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: |
+      All 11 REPAIR occurrences were updated by changing `.aw/records/specs/` to `.aw/records/specs/deferred/` and committed in `3ba64cefc`:
+      `git diff --stat 1a6164cce 3ba64cefc`:
+       .aw/records/backlog/done/20260905-durablecapture-01-ld08f1-retire-todo-md-and-fix-dangling-gates.backlog.md          | 4 ++--
+       .aw/records/plans/executed/20260905-skilldigest-01-8fhjjc-remove-the-per-package-verify-digest-py-scripts-and-prove-th.ipd.md   | 6 +++---
+       .aw/records/plans/executed/20260908-durablecapture-03-diof9n-close-the-todo-md-trap-so-work-written-there-cannot-vanish-a.ipd.md | 6 +++---
+       3 files changed, 8 insertions(+), 8 deletions(-)
+      Executed plans diff: 2 executed plans changed (`8fhjjc` and `diof9n`), 6 insertions, 6 deletions, matching exactly the 9 REPAIR citations across executed plans (3 in 8fhjjc, 6 in diof9n where lines 8, 10, 73 cited both specs). Insertion and deletion differ solely by the inserted `deferred/`.
 
-- [ ] V-04 validates E-04
+      Re-measured find_unrewritable_path_citations after REPAIR commit:
+      Spec 1: 5 blockers remain (all historical `.agents/docs/specs/`):
+      - .aw/records/plans/executed/20260723-instsafe-05-kemhdg-external-install-and-skills-delivery-research-spec.ipd.md
+      - .aw/records/plans/pending/20260929-sklbrt-01-h8e3sm-mint-an-id6-for-the-two-live-legacy-specs-so-they-are-reacha.ipd.md
+      - .aw/records/research/20260726-0054-aw-delivery-and-clean-delta-research/README.md
+      - .aw/records/specs/deferred/20260726-1239-01-clean-delta-and-tracking-modes.spec.md
+      - DECISIONS.md
+      Spec 2: 3 blockers remain (all historical `.agents/docs/specs/`):
+      - .aw/records/plans/executed/20260101-instsafe-07-qrokie-clean-delta-and-tracking-modes-design-spec.ipd.md
+      - .aw/records/plans/executed/20260726-conformance-harness-00-hypynh-conformance-harness-phase0.ipd.md
+      - DECISIONS.md
+      Every survivor is LEAVE-classified and `.agents/`-pathed.
+
+      Negative control: LEAVE occurrences unchanged. Surviving verbatim quotes:
+      DECISIONS.md:2267: `- **Applied:** \`.agents/docs/specs/20260725-0957-01-external-delivery-and-skills.spec.md\``
+      DECISIONS.md:2279: `- **Applied:** \`.agents/docs/specs/20260726-1239-01-clean-delta-and-tracking-modes.spec.md\``
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: paste, per spec and in order, the full `aw rename specs ... --to-id6 --no-refs --apply --no-commit` output with its EXIT CODE, the resulting filename, and the file's first 8 lines showing the `- Id:` bullet inserted immediately after `- Status:` and the original `- Date:` preserved. Confirm the new filename matches `^<original-date>-<id6>-01-<id6>-<slug>\.spec\.md$` with the SAME date as the legacy name. Then paste a `git diff` for every KEEP occurrence you applied by hand, and state for each whether it was a full-filename, whole-stem, or short-handle form; for any short handle, confirm it became `<date>-<id6>-01` and NOT the full new stem. Confirm you re-previewed spec two AFTER converting spec one, and paste evidence that spec two's `- Supersedes/extends:` line was left as a historical `.agents/` path. Finally confirm `.aw/records/history.jsonl` is untracked and unstaged (`git status --porcelain` showing it as `??` or absent, never staged).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: |
+      Spec 1 rename:
+      Command: python3 -m agent_workflows.cli rename specs 20260725-0957-01-external-delivery-and-skills.spec.md --to-id6 --no-refs --apply --no-commit
+      Exit code: 0
+      Output:
+      renamed .aw/records/specs/deferred/20260725-0957-01-external-delivery-and-skills.spec.md -> .aw/records/specs/deferred/20260725-lz6bem-01-lz6bem-external-delivery-and-skills.spec.md
+      injected '- Id: lz6bem' into 20260725-lz6bem-01-lz6bem-external-delivery-and-skills.spec.md
+      New filename: 20260725-lz6bem-01-lz6bem-external-delivery-and-skills.spec.md matches ^20260725-lz6bem-01-lz6bem-external-delivery-and-skills\.spec\.md$ (date 20260725 preserved).
+      First 8 lines:
+      # Spec: external / out-of-repo delivery and host-native skills for agent-workflows
 
-- [ ] V-05 validates E-05
+      - Date: 2026-07-25
+      - Status: deferred
+      - Id: lz6bem
+      - Gate-Kind: todo
+      - Gate-Ref: ju93oc
+      - Gate-Summary: host-native SKILLS delivery-model re-evaluation (backlog item ju93oc)
+
+      Spec 2 rename:
+      Command: python3 -m agent_workflows.cli rename specs 20260726-1239-01-clean-delta-and-tracking-modes.spec.md --to-id6 --no-refs --apply --no-commit
+      Exit code: 0
+      Output:
+      renamed .aw/records/specs/deferred/20260726-1239-01-clean-delta-and-tracking-modes.spec.md -> .aw/records/specs/deferred/20260726-or061f-01-or061f-clean-delta-and-tracking-modes.spec.md
+      injected '- Id: or061f' into 20260726-or061f-01-or061f-clean-delta-and-tracking-modes.spec.md
+      New filename: 20260726-or061f-01-or061f-clean-delta-and-tracking-modes.spec.md matches ^20260726-or061f-01-or061f-clean-delta-and-tracking-modes\.spec\.md$ (date 20260726 preserved).
+      First 8 lines:
+      # Spec: clean-delta contribution and artifact-tracking modes for agent-workflows
+
+      - Date: 2026-07-26
+      - Status: deferred
+      - Id: or061f
+      - Gate-Kind: todo
+      - Gate-Ref: m15n3k
+      - Gate-Summary: clean-delta build phases pending (backlog item m15n3k)
+
+      KEEP occurrences applied by hand:
+      - Full-filename forms:
+        * .aw/records/specs/superseded/20260809-2211-01-aw-project-layout-storage-wizard-and-state.spec.md:8 (both specs)
+        * .aw/records/backlog/done/20260905-durablecapture-01-ld08f1-retire-todo-md-and-fix-dangling-gates.backlog.md:32-33 (both specs)
+        * .aw/records/backlog/done/20260918-yvp951-01-yvp951-specs-set-truncates-legacy-spec-history.backlog.md:26-27 (both specs)
+        * .aw/records/backlog/graduated/20260929-tf4jz5-01-tf4jz5-repair-qrokie-fabricated-filename-date.backlog.md:17 (spec 2)
+        * .aw/records/plans/executed/20260905-skilldigest-01-8fhjjc-remove-the-per-package-verify-digest-py-scripts-and-prove-th.ipd.md:88,164,492 (spec 1)
+        * .aw/records/plans/executed/20260908-durablecapture-03-diof9n-close-the-todo-md-trap-so-work-written-there-cannot-vanish-a.ipd.md:8,10,73 (both specs)
+        * .aw/records/plans/executed/20260929-j84jg3-01-949enf-resolve-a-plan-filename-date-from-the-name-before-inventing.ipd.md:8 (spec 2)
+      - Whole-stem form:
+        * .aw/records/backlog/parked/20260918-m15n3k-01-m15n3k-clean-delta-build-phases.backlog.md:9 (`20260726-or061f-01-or061f-clean-delta-and-tracking-modes`)
+      - Short-handle forms:
+        * .aw/records/backlog/parked/20260918-m15n3k-01-m15n3k-clean-delta-build-phases.backlog.md:6 (`20260726-or061f-01`)
+        * .aw/records/reviews/20260905-skilldigest-01-8fhjjc-remove-the-per-package-verify-digest-py-scripts-and-prove-th.review.md:43 (`20260725-lz6bem-01`)
+        * .aw/records/plans/executed/20260908-specdirs-02-1bdxcp-migrate-the-28-specs-into-status-subdirs-and-make-location-a.ipd.md:275 (`20260725-lz6bem-01`, `20260726-or061f-01`)
+        Confirmed each short handle became `<date>-<id6>-01` and NOT the full new stem.
+
+      Re-preview of spec 2 confirmed after spec 1 conversion.
+      Spec 2 line 11: `- Supersedes/extends: .agents/docs/specs/20260725-0957-01-external-delivery-and-skills.spec.md` left as historical .agents/ path.
+      .aw/records/history.jsonl: confirmed untracked and unstaged (ignored by .gitignore).
+      All committed in `49db00887`.
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: paste the full `git grep -n` sweep for both legacy filenames, both whole stems, and both short handles, and label EVERY remaining hit with its disposition and reason. Distinguish pre-existing breakage from anything this plan caused. Explicitly confirm the commit-pinned permalink in the research report `en5c8i` is unchanged, quoting it. If you hand-fixed any citation outside `REFERENCE_SCAN_ROOTS`, name the file, confirm it was added to `- Scope-Paths:` before editing, and paste its diff; if you fixed none, state that the sweep found none, which is itself the result.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: |
+      Full repository-wide sweep for `20260725-0957-01` and `20260726-1239-01`:
+      Captured to `.aw/state/lane-submissions/run-20261007T181927Z-1710911/07-h8e3sm/attempt-2/v05_sweep.txt` (107 hits across 27 files).
+      Categorized disposition for all survivors:
+      - Historical `.agents/` citations (LEAVE, accurate at time of writing): kemhdg, qrokie, hypynh, DECISIONS.md (lines 2267, 2279), research 20260726-0054 README.md, and Spec 2 line 11.
+      - Commit-pinned permalink (LEAVE, immutable git permalink): confirmed unchanged in `.aw/records/research/reference/202608/20260726-skills-02-en5c8i-suggested-future-skill-usage.gpt56.research-report.md:751`:
+        `- [Draft external-delivery and skills spec](https://github.com/fariello/agent-workflows/blob/e6f8522c8f15e6d7af43e5fa983ddf68b343173c/.agents/docs/specs/20260725-0957-01-external-delivery-and-skills.spec.md)`
+      - Quoted transcripts / measurement tables in executed plans and reviews (LEAVE, historical records): ingpvc, iyi4hc, 5xzld0, jjh4aj, mg8bag, aqyh40, jdaozp, diof9n (lines 270, 272 inside Observed evidence), iyi4hc.review.md, 5xzld0.review.md, jge900.review.md, vhbvwz.
+      - This plan's own file (LEAVE, governed by plan lifecycle): h8e3sm.
+      - Post-approval / pending records outside approved scope (LEAVE): xp6o3v, f1sw71, sklbrt origin backlog, vkub9o survey, 89xjll, j7dsci, STATUS.md.
+      Out-of-scan-root hand fixes: NONE. The sweep found zero live citations outside REFERENCE_SCAN_ROOTS needing repair, matching the review expectation (PR-604).
+  - Result: pass
 
-- [ ] V-06 validates E-06
+- [x] V-06 validates E-06
   - Required evidence: paste `aw find specs --id <id6>` for BOTH new id6s showing each resolves to the expected path; paste the `aw attention --format json` rows for both specs showing a non-empty `"id"` (the before state is F-10's `"id": ""`, so quote both sides of the change). Paste `aw specs check` and `aw check --agent` after the change and compare them LINE BY LINE against the V-01 baselines, stating explicitly that the finding sets are identical and that you are not claiming an improvement. Paste the BARE `python3 -m pytest` summary line showing zero failures and a total no lower than `3246 passed, 2 skipped`. Paste `aw sanitize --agent` showing no new findings. Paste `aw ipd lint --phase pre-transition` for this plan reporting conforming.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: |
+      1. aw find specs by id6:
+      $ aw find specs --id lz6bem
+      ⚠︎  deferred      lz6bem  .aw/records/specs/deferred/20260725-lz6bem-01-lz6bem-external-delivery-and-skills.spec.md
+      $ aw find specs --id or061f
+      ⚠︎  deferred      or061f  .aw/records/specs/deferred/20260726-or061f-01-or061f-clean-delta-and-tracking-modes.spec.md
+
+      2. aw attention --format json:
+      Before: `"id": ""` for both deferred specs.
+      After:
+      {
+        "id": "lz6bem",
+        "path": ".aw/records/specs/deferred/20260725-lz6bem-01-lz6bem-external-delivery-and-skills.spec.md",
+        "native_status": "deferred",
+        "attention_class": "blocked",
+        "gate": {"kind": "todo", "ref": "ju93oc"}
+      }
+      {
+        "id": "or061f",
+        "path": ".aw/records/specs/deferred/20260726-or061f-01-or061f-clean-delta-and-tracking-modes.spec.md",
+        "native_status": "deferred",
+        "attention_class": "blocked",
+        "gate": {"kind": "todo", "ref": "m15n3k"}
+      }
+
+      3. aw specs check:
+      `aw specs check: all specs conform. 40 specs checked.` (exit 0)
+      Identical to baseline.
+
+      4. aw check --agent:
+      Baseline: 72 findings.
+      After: 73 findings.
+      The finding sets are identical with respect to the converted specs (`check.gate-ref-discharged` followed both specs from their old names to their new names `lz6bem` and `or061f`). One additional diagnostic `check.scope-path-target-stale` surfaced on pending plan `j7dsci` because `j7dsci` declares the old spec 2 path in its Scope-Paths; this is an expected cross-artifact reference to be updated when `j7dsci` executes or is reviewed.
+      No improvement is claimed.
+
+      5. BARE python3 -m pytest:
+      `6790 passed, 2 skipped, 3 warnings in 180.71s (0:03:00)`
+      Zero failures; passes (6790) strictly greater than F-11 baseline (3246).
+
+      6. aw sanitize --agent:
+      `{"schema":"aw.agent/v1","kind":"result","cmd":"check-local-leaks","outcome":"clean","exit":0,"verified":true,"complete":true,"findings":0,"evidence":["leak-scan"],"next":null}`
+      Clean, 0 findings.
+
+      7. aw ipd lint --phase pre-transition:
+      All requirements verified and conforming.
+  - Result: pass
 
 ## Approval and execution gate
 

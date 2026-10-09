@@ -2,6 +2,7 @@
 
 - Date: 2026-07-26
 - Status: deferred
+- Id: or061f
 - Gate-Kind: todo
 - Gate-Ref: m15n3k
 - Gate-Summary: clean-delta build phases pending (backlog item m15n3k)

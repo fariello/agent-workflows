@@ -5,7 +5,7 @@
 - Author: Codex (GPT-5, high reasoning)
 - Origin: maintainer design discussion on 2026-08-09
 - Extends: D107, D109, D113, D117 through D125
-- Related specifications: `20260725-0957-01-external-delivery-and-skills.spec.md`, `20260726-1239-01-clean-delta-and-tracking-modes.spec.md`, `20260802-1904-01-ipd-structure-and-linting.spec.md`, `20260808-0004-01-artifact-organization-plans-adopter.spec.md`, `20260808-1945-01-attention-registry-and-cross-tree-status.spec.md`
+- Related specifications: `20260725-lz6bem-01-lz6bem-external-delivery-and-skills.spec.md`, `20260726-or061f-01-or061f-clean-delta-and-tracking-modes.spec.md`, `20260802-1904-01-ipd-structure-and-linting.spec.md`, `20260808-0004-01-artifact-organization-plans-adopter.spec.md`, `20260808-1945-01-attention-registry-and-cross-tree-status.spec.md`
 - Implementation Set: `.agents/plans/pending/20260809-awlayout-00-az9912-aw-project-layout-orchestrator.md` and Orders 01 through 11
 
 This specification defines a coherent project namespace, external-by-default records storage, an interactive and accessible install/update wizard, a user-level `AW_HOME`, repository identity and routing, and a per-project AW operational-action model. It is the normative design source for the implementation Set. It does not change current behavior.
