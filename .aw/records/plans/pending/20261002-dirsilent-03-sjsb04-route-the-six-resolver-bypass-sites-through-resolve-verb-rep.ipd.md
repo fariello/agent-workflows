@@ -121,6 +121,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 - THE TWO FAIL-CLOSED VALIDATORS `specs.run_check` AND `backlog.run_check`, which the item names as the highest-value conversions. They are resolver CALLERS with a silent fallback, not bypass sites, so they need no resolution change at all and only a guard. Different mechanism, different remedy, separate reviewable unit.
   - Carrier: jei45f
+  - Carrier-Evidence: .aw/records/plans/executed/20261002-dirsilent-02-jei45f-convert-the-two-fail-closed-validators-specs-check-and-backl.ipd.md
 - THE SHARED READ/WRITE HELPER SPLIT and the remaining ~30 resolver callers (`releases._release_repo_root`, `research_archive._roots`, `research_refs._repo_root`, `plans_index._dirs`, `prompts_index._dirs`, `research_index._roots` and the rest). None of them is a bypass site; they already climb correctly when invoked bare, which is exactly why they are a different problem.
   - Carrier: rlhmt9
 - MAKING `aw doctor` REFUSE a non-surveyable root at exit 2. Deliberately NOT done, with the reason in F-06: `doctor` is the health diagnostic and already names the not-installed condition rather than claiming health, so refusing would delete the diagnostic an operator ran it to get. NO CARRIER: no defect is asserted once its resolution is fixed, so filing one would be an unmeasured claim.
