@@ -182,6 +182,8 @@ def detect_artifact_type(path: Path, repo_root: Path) -> str | None:
             return "plans"
         if "- Kind: child" in text or "- Kind: orchestrator" in text:
             return "plans"
+        if text.startswith("# Spec:") or "\n# Spec:" in text:
+            return "specs"
     except OSError:
         pass
 
@@ -204,7 +206,9 @@ def detect_artifact_type(path: Path, repo_root: Path) -> str | None:
     return None
 
 
-def read_artifact_record(path: Path, repo_root: Path) -> ArtifactRecord | None:
+def read_artifact_record(
+    path: Path, repo_root: Path, default_type: str | None = None
+) -> ArtifactRecord | None:
     """Read and parse an artifact record from disk."""
     if not path.is_file():
         return None
@@ -214,6 +218,8 @@ def read_artifact_record(path: Path, repo_root: Path) -> ArtifactRecord | None:
         return None
 
     rtype = detect_artifact_type(path, repo_root)
+    if not rtype and default_type:
+        rtype = default_type
     if not rtype:
         return None
 
@@ -407,7 +413,11 @@ def match_selector(
         seen.add(key)
         rec = by_path.get(key)
         if rec is None:
-            rec = read_artifact_record(matched_paths[key], repo_root)
+            rec = read_artifact_record(
+                matched_paths[key],
+                repo_root,
+                default_type=canonical_type(scoped_type) or scoped_type,
+            )
         if rec:
             out.append(rec)
     return out
@@ -734,6 +744,11 @@ def validate_transition_allowed(
         from agent_workflows import attention_contract as ac
 
         old_status = rec.status
+        if old_status is None:
+            return (
+                False,
+                "spec has no `- Status:` bullet to transition; add one via migration first",
+            )
         if old_status and old_status != norm_status:
             if not ac.transition_allowed(old_status, norm_status):
                 return False, f"Illegal spec transition {old_status} -> {norm_status}"
@@ -754,7 +769,7 @@ def validate_transition_allowed(
                 if not getattr(args, "by_human", False):
                     return (
                         False,
-                        f"Transition {old_status} -> {norm_status} requires --by-human attestation",
+                        f"{old_status} -> {norm_status} is a human-only transition; pass --by-human to attest (and record) that a human approved it. Use --message to say who/how.",
                     )
             # revsweep 5slbpi E-04: the `->reviewed` ATTESTATION, on THIS surface too. The positional
             # `aw specs set reviewed <selector>` spelling routes HERE while the `--status` spelling
@@ -768,10 +783,7 @@ def validate_transition_allowed(
 
                 reason = _specs._review_attestation_refusal(rec.path, rec.raw_text)
                 if reason is not None:
-                    # `validate_transition_allowed` returns a one-line reason; the shared message is
-                    # multi-line for the CLI, so it is flattened here rather than forked into a second
-                    # wording that could drift from the other surface's.
-                    return False, " ".join(reason.split())
+                    return False, reason
             # gateparity wdyz5n E-01: the `->implemented` EVIDENCE GATE, on THIS surface too. The
             # positional `aw specs set implemented <selector>` spelling and the untyped `aw set`
             # surfaces route HERE while the `--status` spelling routes to `specs.run_set`. Both call
@@ -1053,6 +1065,7 @@ def inherit_from_backlog_release_gate(
     from_backlog: str | None,
     blocks_release: str | None,
     verb_label: str = "aw set",
+    quiet: bool = False,
 ) -> str:
     """Inherit the backlog item's release gate at graduation if artifact has no gate.
 
@@ -1082,10 +1095,11 @@ def inherit_from_backlog_release_gate(
         return text
     prefix = verb_label if verb_label.endswith(":") else f"{verb_label}:"
     updated_text = _releases.set_blocks_release_line(text, item_gate)
-    sys.stdout.write(
-        f"{prefix} inherited - Blocks-Release: {item_gate} from backlog item "
-        f"{from_backlog} (graduation handoff: the gate travels with the work)\n"
-    )
+    if not quiet:
+        sys.stdout.write(
+            f"{prefix} inherited - Blocks-Release: {item_gate} from backlog item "
+            f"{from_backlog} (graduation handoff: the gate travels with the work)\n"
+        )
     return updated_text
 
 
@@ -1113,25 +1127,31 @@ def _prepend_workflow_history_entry(
     return lines
 
 
-def apply_status_change(
+@dataclass
+class _PreparedStatusChange:
+    rec: ArtifactRecord
+    dest_path: Path
+    norm_status: str
+    updated_text: str
+    today: str
+    actor: str
+    message: str
+    content_changed: bool
+    path_changed: bool
+    write_history_anyway: bool
+    should_write_history: bool
+    demotion_warning: str | None = None
+
+
+def _prepare_status_change(
     rec: ArtifactRecord,
     target_status: str,
     repo_root: Path,
     args: argparse.Namespace,
+    quiet: bool = False,
     close_verdict: Any = None,
-) -> tuple[Path, str]:
-    """Apply the status change on disk, recording workflow history (NEWEST-FIRST: the record is
-    PREPENDED under the `## Workflow history` heading, not appended) and moving the file if needed.
-
-    For a genuine status transition (old != target), the status token is the target status and the
-    default message is `status set to <status>`. For an untooled status change on a plan (old ==
-    target on disk, but HEAD status differs), the change is treated as a genuine transition from
-    HEAD: the status token is the target status and the default message is `status set to <status>`,
-    while preserving duplicate suppression. For a true same-status write (old == target and HEAD
-    matches), the history record is tagged with `same-status` so verdict readers do not mistake it
-    for a review record, and its default message is `status unchanged (<status>)`. Pure no-ops (no
-    field or message changes) write nothing. Same-status writes (both defaulted and explicit messages)
-    are deduplicated against the newest record via `same_status_message_is_duplicate`."""
+) -> _PreparedStatusChange:
+    """Compute candidate status change in memory without modifying disk."""
     norm_status = normalize_target_status(target_status, rec.record_type)
     curr_rec_status = rec.status
     if curr_rec_status is None and rec.record_type == "prompts":
@@ -1144,12 +1164,20 @@ def apply_status_change(
         .lower()
     )
     is_same_status = old_status == norm_status.strip().lower()
-    today = _core.utc_history_date()
+    # E-02: Carry --date override into shared engine, type-scoped to specs, preserving UTC default
+    if rec.record_type == "specs" and getattr(args, "date", None):
+        today = str(args.date)
+    else:
+        today = _core.utc_history_date()
 
     untooled_transition = False
     if is_same_status:
-        status_tag = "same-status"
-        default_message = f"status unchanged ({norm_status})"
+        if rec.record_type == "specs":
+            status_tag = norm_status
+            default_message = f"status set to {norm_status}"
+        else:
+            status_tag = "same-status"
+            default_message = f"status unchanged ({norm_status})"
         if rec.record_type == "plans":
             try:
                 from agent_workflows import check_engine as _ce
@@ -1196,12 +1224,6 @@ def apply_status_change(
     else:
         message = getattr(args, "message", None) or default_message
     actor = getattr(args, "actor", None) or "aw set"
-    # THE BACKSTOP for the actor-shape gate (plan fn2l1u E-07). `validate_transition_allowed` refuses
-    # this in the CLI pre-flight with a clean one-line message; this raise catches a DIRECT caller of
-    # this function that never ran that pre-flight. It is checked BEFORE the `--by-human` /
-    # `--allow-open-questions` suffixes are folded in and before any file is touched, so a refused
-    # call writes nothing. See `attention_contract.actor_refusal` for why the parenthesis refusal
-    # remains correct even though the readers now tolerate that shape.
     from agent_workflows import attention_contract as _ac
 
     _actor_problem = _ac.actor_refusal(actor)
@@ -1209,21 +1231,11 @@ def apply_status_change(
         raise ValueError(_actor_problem)
     if getattr(args, "by_human", False):
         actor = f"{actor}, --by-human"
-    # apprvguard d7bnhc E-06: an OVERRIDDEN approval must be auditable in the ARTIFACT, not only in
-    # someone's shell history. Folded into the actor string, following the `--by-human` precedent
-    # directly above, so it is machine-greppable rather than buried in free-text prose. Recorded only
-    # where it could have had an effect (a plan reaching a ready-to-execute status), so an
-    # inconsequential flag on an unrelated transition does not litter history with a false claim.
     if getattr(args, "allow_open_questions", False) and (
         (rec.record_type == "plans" and norm_status in _ipd_schema.READY_TO_EXECUTE)
         or (rec.record_type == "specs" and norm_status == "approved")
     ):
         actor = f"{actor}, --allow-open-questions"
-    # setterguard `4bc1nd` E-02: the terminal-reopen OVERRIDE must be auditable in the ARTIFACT, not
-    # only in someone's shell history - the same reasoning as `--allow-open-questions` directly above,
-    # and the property OQ-01's review note required of this flag. Recorded ONLY where it could have
-    # had an effect (a PLAN actually leaving a terminal status for a nonterminal one), so the flag
-    # never litters history with a false claim on a transition it did not unlock.
     if getattr(args, "allow_terminal_reopen", False) and rec.record_type == "plans":
         _terminal_statuses = {s.strip().lower() for s in _plans_mod.TERMINAL}
         _was_terminal = (
@@ -1270,7 +1282,11 @@ def apply_status_change(
         else:
             message = f"{default_message} (override: {_sentinel_override})"
 
-    text = rec.path.read_text(encoding="utf-8")
+    text = (
+        rec.path.read_text(encoding="utf-8")
+        if rec.path.is_file()
+        else (rec.raw_text or "")
+    )
     lines = text.splitlines()
     if rec.record_type == "prompts":
         from agent_workflows import prompts as _prompts
@@ -1279,14 +1295,13 @@ def apply_status_change(
             updated_text = _prompts.update_metadata_status(text, norm_status)
             new_lines = updated_text.splitlines()
         else:
-            # Commentless prompt (OQ-02): adopt refusal-to-mint posture; status lives in directory only.
             new_lines = list(lines)
-            sys.stdout.write(
-                f"aw set: note: prompt {rec.id6 or rec.path.name} has no metadata comment; "
-                f"status lives in directory only\n"
-            )
+            if not quiet:
+                sys.stdout.write(
+                    f"aw set: note: prompt {rec.id6 or rec.path.name} has no metadata comment; "
+                    f"status lives in directory only\n"
+                )
     else:
-        # Update or insert - Status: <norm_status> in frontmatter only
         status_updated = False
         new_lines = []
         in_frontmatter = True
@@ -1316,7 +1331,6 @@ def apply_status_change(
 
         if not status_updated:
             if is_fenced_yaml:
-                # insert status: before closing ---
                 res_lines = []
                 inserted = False
                 for line in new_lines:
@@ -1337,13 +1351,6 @@ def apply_status_change(
                     res_lines.insert(0, f"- Status: {norm_status}")
                 new_lines = res_lines
 
-    # Gate fields: clear them on any transition OUT of the gate-carrying status. This is
-    # record-type-agnostic in the SAME way the Blocks-Release write below is (bug 61qk4a): the guard
-    # used to read `rec.record_type == "specs"`, so `aw backlog set open <id6>` moved a blocked item
-    # to open while LEAVING its Gate-Kind/Gate-Ref behind. `aw backlog check` then reported
-    # `backlog.gate-unexpected`, and the only way out was the hand-edit the house rules forbid
-    # (bug 43p53n). `backlog.run_set` already cleared correctly, but the positional
-    # `aw backlog set <status> <selector>` form routes here instead, so that fix was unreachable.
     gate_status = _GATE_STATUS_BY_TYPE.get(rec.record_type)
     if gate_status is not None:
         if norm_status != gate_status:
@@ -1378,12 +1385,6 @@ def apply_status_change(
                 for gl in reversed(gate_lines):
                     new_lines.insert(insert_pos, gl)
 
-    # Blocks-Release write (IPD efnn74, root-cause of bug 61qk4a): this mutation is
-    # record-type-agnostic and MUST apply to plans and backlog too, not only specs, so it is
-    # hoisted OUT of the specs-only guard above. The specs-only Gate-Kind/Gate-Ref/Gate-Summary
-    # handling stays inside that guard; only this shared write is lifted. All setter surfaces funnel
-    # through the single shared `releases.set_blocks_release_line` primitive (no duplicate write
-    # path). The join/split idempotency is preserved so trailing metadata structure is unchanged.
     br = getattr(args, "blocks_release", None)
     if br is not None:
         from agent_workflows import releases as _releases
@@ -1392,7 +1393,6 @@ def apply_status_change(
         tmp_text = _releases.set_blocks_release_line(tmp_text, br)
         new_lines = tmp_text.splitlines()
 
-    # relexempt ghna7l E-05: release exemption write, beside Blocks-Release above.
     rel_exempt_kind = getattr(args, "release_exempt_kind", None)
     rel_exempt_ref = getattr(args, "release_exempt_ref", None)
     if rel_exempt_kind is not None or rel_exempt_ref is not None:
@@ -1413,21 +1413,9 @@ def apply_status_change(
                 )
         new_lines = tmp_text.splitlines()
 
-    # From-Backlog write (bklggrad ku93tn): the same hoisted, status-branch-independent shape as the
-    # Blocks-Release write above, so `aw ipd set --from-backlog <id6|->` persists even on a no-op
-    # (same-status) transition. Funnels through the single shared `releases.set_from_backlog_line`
-    # primitive (no duplicate write path).
     fb = getattr(args, "from_backlog", None)
     if fb is not None:
         if fb != "-":
-            # IPD izh17y E-03: validation backstop in apply_status_change preventing unresolvable
-            # dangling links even via direct calls. Resolves via `backlog.existing_backlog_ids` (P8).
-            # An empty id set skips the refusal so an invisible backlog corpus cannot make every write fail.
-            # DELIBERATE DIVERGENCE FROM CHECKER (F-12): `releases.check_from_backlog` has no empty-set skip
-            # and its own docstring explicitly records that asymmetry ("THE TWO BACK-LINK TWINS DISAGREE ON
-            # FAIL-SAFETY, AND THIS ONE IS THE LESS SAFE ... Do NOT 'harmonize' that guard away to match this
-            # function; the difference is a known gap here, not a standard to spread"). The setter takes the
-            # safe posture rather than copying the checker's less-safe posture.
             from agent_workflows import backlog as _backlog
 
             known_backlog = _backlog.existing_backlog_ids(repo_root)
@@ -1441,29 +1429,20 @@ def apply_status_change(
         tmp_text = _releases.set_from_backlog_line(tmp_text, fb)
         new_lines = tmp_text.splitlines()
 
-        # nobugship di08i9 E-03 / c6f6sj E-02: INHERIT THE ITEM'S RELEASE GATE AT GRADUATION.
-        # Collapsed to shared inherit_from_backlog_release_gate.
         tmp_text = "\n".join(new_lines)
         tmp_text = inherit_from_backlog_release_gate(
             tmp_text,
             repo_root,
             fb,
             getattr(args, "blocks_release", None),
-            verb_label="aw set",
+            verb_label=getattr(args, "_verb_label", None) or "aw set",
+            quiet=quiet,
         )
         new_lines = tmp_text.splitlines()
 
-    # From-Spec write (IPD 0ykozn E-02): the same hoisted, status-branch-independent shape as the
-    # Blocks-Release and From-Backlog writes above, so `aw ipd set --from-spec <id6|->` persists even
-    # on a no-op (same-status) transition. Funnels through the single shared
-    # `releases.set_from_spec_line` primitive (no duplicate write path).
     fs = getattr(args, "from_spec", None)
     if fs is not None:
         if fs != "-":
-            # IPD 0ykozn E-02 / review finding PR-504: validation backstop in apply_status_change.
-            # Deliberately STRICTER than its twin (--from-backlog writes unchecked), preventing
-            # unresolvable dangling links from being written even via direct calls.
-            # An empty union skips the refusal so an invisible spec corpus cannot make every write fail.
             from agent_workflows import check_engine as _ce
 
             known = _ce.known_spec_ids(repo_root)
@@ -1477,12 +1456,6 @@ def apply_status_change(
         tmp_text = _releases.set_from_spec_line(tmp_text, fs)
         new_lines = tmp_text.splitlines()
 
-    # Item-Dependencies write (ipddeps g69y23): the SAME hoisted, status-branch-independent shape as
-    # the Blocks-Release / From-Backlog writes above, so `aw ipd dependencies set` persists even on a
-    # no-op (same-status) transition. Funnels through the single shared
-    # `releases.set_item_dependencies_line` primitive (spec-2.7 position, no duplicate write path).
-    # The value is already canonicalized + validated by the `dependencies set` handler before it
-    # reaches here; `-`/None clears.
     idep = getattr(args, "item_dependencies", None)
     if idep is not None:
         from agent_workflows import releases as _releases
@@ -1491,11 +1464,6 @@ def apply_status_change(
         tmp_text = _releases.set_item_dependencies_line(tmp_text, idep)
         new_lines = tmp_text.splitlines()
 
-    # Priority write (xprio 1b45el): the SAME hoisted, status-branch-independent shape so
-    # `aw ipd set --priority <low|medium|high|->` (and, once children 02/03 land, spec/research
-    # setters) persists even on a no-op (same-status) transition. Funnels through the single shared
-    # `releases.set_priority_line` primitive (no duplicate write path). `-`/None clears. The ENUM
-    # value is validated by `aw check`, not here.
     prio = getattr(args, "priority", None)
     if prio is not None:
         from agent_workflows import releases as _releases
@@ -1504,11 +1472,6 @@ def apply_status_change(
         tmp_text = _releases.set_priority_line(tmp_text, prio)
         new_lines = tmp_text.splitlines()
 
-    # Work-Kind write (wkindname ng2blv): the SAME hoisted, status-branch-independent shape as the
-    # Priority write above, so `aw ipd set --work-kind <bug|feature|chore|security|followup|->`
-    # persists even on a no-op (same-status) transition. Funnels through the single shared
-    # `releases.set_work_kind_line` primitive (no duplicate write path). `-`/None clears. The ENUM
-    # value is validated by `aw check` (check.work-kind-invalid), not here.
     work_kind = getattr(args, "work_kind", None)
     if work_kind is not None:
         from agent_workflows import releases as _releases
@@ -1517,21 +1480,6 @@ def apply_status_change(
         tmp_text = _releases.set_work_kind_line(tmp_text, work_kind)
         new_lines = tmp_text.splitlines()
 
-    # Graduated-To write (setidhard bwgyum E-04): the FIFTH hoisted, status-branch-independent
-    # field-write on this path, in the SAME shape as the four above (Blocks-Release, From-Backlog,
-    # Item-Dependencies, Priority/Work-Kind), funnelling through the single shared
-    # `releases.set_graduated_to_line` primitive so there is no duplicate write path. `-`/None clears.
-    #
-    # WHY HERE RATHER THAN IN `backlog.run_set` (plan OQ-03, and the one place the plan's original
-    # design was wrong). This function is record-type-AGNOSTIC and is the shared handler for
-    # `aw backlog set`, `aw specs set`, `aw ipd set` and the bare `aw set`, so ONE write here serves the
-    # BACKLOG source, the SPEC source and the plan side at once. Spec 4w7d6s G3 puts the field on specs
-    # as well as items, and that half is therefore the same lines of code rather than a second
-    # implementation. A flag bolted onto `backlog.run_set` would serve one spelling of one verb.
-    #
-    # THE VALUE IS VALIDATED BEFORE IT REACHES HERE, at each setter surface, through the shared
-    # `releases.canonicalize_graduated_to` (which judges the token shape with the existing
-    # `plans.is_set_id_valid`), so this call site stays a pure write exactly like its four neighbours.
     graduated_to = getattr(args, "graduated_to", None)
     if graduated_to is not None:
         from agent_workflows import releases as _releases
@@ -1540,25 +1488,6 @@ def apply_status_change(
         tmp_text = _releases.set_graduated_to_line(tmp_text, graduated_to)
         new_lines = tmp_text.splitlines()
 
-    # nobugship di08i9 E-02 / gatefollows vsgd48 E-02: THE POSITIONAL SPELLING'S DEFAULT (ON
-    # RECLASSIFICATION AND ON STATUS TRANSITIONS INTO A LIVE STATUS). When an item's Work-Kind
-    # BECOMES `bug`, OR when an existing `bug` item transitions into a live status, and it carries no
-    # gate, the release gate is defaulted here too, through the SAME shared
-    # `backlog.decide_gate_default` predicate `backlog.run_new` and `backlog.run_set` call, and
-    # written through the SAME shared `releases.set_blocks_release_line` primitive as every other gate
-    # write on this path.
-    #
-    # BOTH DISPATCH PATHS ARE REQUIRED AND THAT IS WHY THIS EXISTS. `aw backlog set` forks on whether
-    # `--status` was PASSED (cli.py): the positional spelling routes HERE, and the `--status` spelling
-    # routes to `backlog.run_set`. A default wired into one only would fire for one spelling of one
-    # verb and not the other, which is worse than not shipping it because it teaches a false
-    # expectation. The shared predicate is what keeps the two from drifting.
-    #
-    # SCOPED TO BACKLOG RECORDS DELIBERATELY. This function is shared by plans and specs, whose
-    # `- Work-Kind:` is a recognized-but-optional descriptive field rather than the REQUIRED
-    # classification a backlog item carries, and whose gate arrives by graduation (E-03's
-    # `--from-backlog` inheritance), not by reclassification. Defaulting a gate onto a plan because
-    # someone labelled it `bug` would invent a release obligation from a descriptive edit.
     if rec.record_type == "backlog" and getattr(args, "blocks_release", None) is None:
         from agent_workflows import backlog as _backlog
         from agent_workflows import releases as _releases
@@ -1584,12 +1513,9 @@ def apply_status_change(
         if _gate_default is not None:
             tmp_text = _releases.set_blocks_release_line(_current_text, _gate_default)
             new_lines = tmp_text.splitlines()
-        if _gate_notice:
+        if _gate_notice and not quiet:
             sys.stdout.write(f"aw backlog set: {_gate_notice}\n")
 
-    # Close-Evidence write (gh409m byzkr7 E-03/E-04): write the cited evidence durably on an
-    # evidence-satisfied close for backlog records. Scoped to rec.record_type == "backlog".
-    # Keyed on verdict.legitimate and verdict.path == "SATISFIED", never on args.evidence alone.
     if rec.record_type == "backlog":
         verdict = close_verdict
         if verdict is None and getattr(args, "evidence", None):
@@ -1635,11 +1561,6 @@ def apply_status_change(
             if not re.match(r"^- Readiness:\s*", line_item)
         ]
 
-    # The IPD schema REQUIRES an `- Approval:` field exactly when Status is `approved`
-    # (ipd_schema.APPROVAL_STATUSES; enforced as IPD-M104). `auto-approved` is a
-    # sibling tier that records an automated clear and must NOT carry it. So when a
-    # plan transitions to `approved` and has no Approval field yet, write a
-    # conformant one here, so the setter never produces a plan that fails lint.
     if rec.record_type == "plans" and norm_status == "approved":
         has_approval = any(
             re.match(r"^- Approval:\s*", line_item) for line_item in new_lines
@@ -1651,8 +1572,6 @@ def apply_status_change(
                 else "recorded via aw ipd set"
             )
             approval_line = f"- Approval: {today}, {attn}: {message}"
-            # Insert as the last front-matter bullet: after `- Id:` if present, else
-            # after `- Status:`, else before the first `## ` heading.
             insert_idx = None
             for i, line_item in enumerate(new_lines):
                 if line_item.startswith("## "):
@@ -1674,7 +1593,6 @@ def apply_status_change(
                     insert_idx = len(new_lines)
             new_lines.insert(insert_idx, approval_line)
 
-    # Determine destination path using the shared record placement library (Set specdirs, IPD r9uvwc)
     from agent_workflows import record_placement as _placement
 
     dest_path = _placement.resolve_transition_path(
@@ -1684,25 +1602,6 @@ def apply_status_change(
     content_changed = new_lines != lines
     path_changed = dest_path.resolve() != rec.path.resolve()
 
-    # WRITE A DELIBERATE `--message` EVEN WHEN NOTHING ELSE MOVED (plan `vhbvwz` E-01, bug `x6tk1u`).
-    #
-    # THE BUG THIS FIXES: this early return used to be unconditional, and it sits BEFORE the history
-    # write below, so `aw set <the-status-it-already-has> <artifact> --message "<reasoning>"` discarded
-    # the message and exited 0. Measured on this repository: roughly 2000 characters of recorded
-    # reasoning were swallowed, noticed only because `git status` showed no modification. Nothing else
-    # records it either - this module writes NOTHING to the history sidecar - so the note was simply
-    # gone.
-    #
-    # THE SHAPE IS THE ESTABLISHED ONE. Four field writes above (`Blocks-Release`, `From-Backlog`,
-    # `Item-Dependencies`, `Priority`) were each hoisted out of the status-change branch for exactly
-    # this reason: the field must be written even when the status does not move. The FROM-BACKLOG
-    # PRECEDENT is the closest, since it was hoisted specifically so `aw ipd set --from-backlog`
-    # persists "even on a no-op (same-status) transition"; this is the same correction applied to the
-    # history record.
-    #
-    # PRESENCE ALONE IS NOT THE DISCRIMINATOR, and the dedup half is not optional: see
-    # `same_status_message_is_duplicate` for the measured three-identical-records run and for the two
-    # runner call sites that would otherwise append a duplicate on every re-run.
     _explicit_message = (getattr(args, "message", None) or "").strip()
     is_dup = (
         same_status_message_is_duplicate(
@@ -1715,20 +1614,6 @@ def apply_status_change(
         bool(_explicit_message) or untooled_transition
     ) and not is_dup
 
-    if not content_changed and not path_changed and not _write_history_anyway:
-        return StatusChangeResult(rec.path, norm_status, [], warning=_demotion_warning)
-
-    # Write the Workflow history record. NEWEST-FIRST, NOT appended: the `insert(i + 1, ...)` below
-    # PREPENDS the new record directly under the `## Workflow history` heading, so the FIRST record
-    # in the section is the most recent one. This is the CONTRACT (fullauto 97df1z E-07 corrected the
-    # comment, which used to say "Append", and the matching sentence in
-    # `.aw/records/plans/README.md`); the writer's behavior is deliberately unchanged, because
-    # reordering every existing plan's history would be a destructive rewrite. Any reader wanting
-    # "the latest entry" must take the FIRST record of the BOUNDED section - use the shared
-    # `plan_readiness.extract_newest_history_entry`, and do not hand-roll another parser.
-    #
-    # A same-status write is tagged `same-status` and is deduplicated so successive metadata-only
-    # writes on the same day do not accumulate duplicate records (plan `1i300e` E-02, E-03).
     should_write_history = not (is_same_status and is_dup)
     if should_write_history:
         hist_entry = f"- {today} {status_tag} ({actor}): {message}"
@@ -1738,37 +1623,83 @@ def apply_status_change(
 
     updated_text = "\n".join(new_lines).rstrip() + "\n"
 
-    dest_path.parent.mkdir(parents=True, exist_ok=True)
+    return _PreparedStatusChange(
+        rec=rec,
+        dest_path=dest_path,
+        norm_status=norm_status,
+        updated_text=updated_text,
+        today=today,
+        actor=actor,
+        message=message,
+        content_changed=content_changed,
+        path_changed=path_changed,
+        write_history_anyway=_write_history_anyway,
+        should_write_history=should_write_history,
+        demotion_warning=_demotion_warning,
+    )
 
-    # RELOCATE WITH `git mv`, NOT write-then-unlink.
-    #
-    # THE BUG THIS FIXES, measured 2026-09-13 on run `run-20260913T031350Z-1732436`: this function
-    # used to `atomic_write` the destination and then `unlink` the source, which git sees as TWO
-    # unrelated facts (an untracked file appeared; a tracked file vanished) that a caller then has to
-    # find and stage together. `oc_runipd.commit_backlog_close` does exactly that pairing and it
-    # committed only the ADD (commit `52837644` contains `A done/...` and no `D graduated/...`),
-    # leaving the deletion uncommitted in the main tree. The spec-R5.4 clean-base guard then
-    # correctly refused every following unattended isolated turn, so ONE unstaged deletion the tooling
-    # itself left behind blocked 27 of that run's 42 items.
-    #
-    # `git mv` makes the relocation a SINGLE staged rename, so there are no halves to pair up and no
-    # half to lose. This is also the pattern already used by every other relocating surface in the
-    # package (`artifact_rename`, `plans_archive`, `plans_refs`, `research_refs`, `research_archive`,
-    # `engine`); this function was the lone exception, which is why the class of bug reached only here.
-    #
-    # ORDER IS LOAD-BEARING: move FIRST, then write the updated content at the destination. Writing
-    # first would leave an untracked file at `dest_path`, which makes `git mv` refuse (destination
-    # exists), and the fallback would then hide the failure. `git_mv` already falls back to a plain
-    # filesystem move when the source is untracked, so a not-yet-tracked artifact still relocates.
-    moving = dest_path.resolve() != rec.path.resolve()
-    if moving and rec.path.exists():
-        _core.git_mv(
-            repo_root,
-            str(rec.path.relative_to(repo_root)),
-            str(dest_path.relative_to(repo_root)),
+
+def apply_status_change(
+    rec: ArtifactRecord,
+    target_status: str,
+    repo_root: Path,
+    args: argparse.Namespace,
+    close_verdict: Any = None,
+) -> tuple[Path, str]:
+    """Apply the status change on disk, recording workflow history (NEWEST-FIRST: the record is
+    PREPENDED under the `## Workflow history` heading, not appended) and moving the file if needed.
+
+    For a genuine status transition (old != target), the status token is the target status and the
+    default message is `status set to <status>`. For an untooled status change on a plan (old ==
+    target on disk, but HEAD status differs), the change is treated as a genuine transition from
+    HEAD: the status token is the target status and the default message is `status set to <status>`,
+    while preserving duplicate suppression. For a true same-status write (old == target and HEAD
+    matches), the history record is tagged with `same-status` so verdict readers do not mistake it
+    for a review record, and its default message is `status unchanged (<status>)`. Pure no-ops (no
+    field or message changes) write nothing. Same-status writes (both defaulted and explicit messages)
+    are deduplicated against the newest record via `same_status_message_is_duplicate`."""
+    prep = _prepare_status_change(
+        rec, target_status, repo_root, args, quiet=False, close_verdict=close_verdict
+    )
+
+    if (
+        not prep.content_changed
+        and not prep.path_changed
+        and not prep.write_history_anyway
+    ):
+        return StatusChangeResult(
+            rec.path, prep.norm_status, [], warning=prep.demotion_warning
         )
 
-    _core.atomic_write(dest_path, updated_text)
+    # Fail-closed backstop for specs conformance (E-01)
+    if rec.record_type == "specs":
+        from agent_workflows import specs as _specs_mod
+
+        residual = _specs_mod.validate_spec(prep.dest_path, prep.updated_text)
+        if residual:
+            raise ValueError(
+                f"the resulting spec would not conform; refused (file unchanged): "
+                f"{residual[0].rule}: {residual[0].detail}"
+            )
+
+    dest_path = prep.dest_path
+    dest_path.parent.mkdir(parents=True, exist_ok=True)
+
+    moving = dest_path.resolve() != rec.path.resolve()
+    if moving and rec.path.exists():
+        try:
+            rel_src = str(rec.path.relative_to(repo_root))
+            rel_dst = str(dest_path.relative_to(repo_root))
+        except ValueError:
+            rel_src = str(rec.path)
+            rel_dst = str(dest_path)
+        _core.git_mv(
+            repo_root,
+            rel_src,
+            rel_dst,
+        )
+
+    _core.atomic_write(dest_path, prep.updated_text)
 
     # Belt and braces: if the source somehow survived the move (a fallback that copied rather than
     # moved), drop it, because a surviving source is the very dirty-path residue described above.
@@ -1777,6 +1708,31 @@ def apply_status_change(
             rec.path.unlink()
         except OSError:
             pass
+
+    # Type-conditional sidecar append for specs (spec wy9aru 4.3 ratified in OQ-1; spec 1525-02 R2)
+    # The write happens AFTER the durable write succeeds (spec 2vev8j C5).
+    if rec.record_type == "specs" and prep.should_write_history:
+        target_id6 = rec.id6
+        if not target_id6:
+            m_id = _ID_RE.search(prep.updated_text)
+            if m_id:
+                target_id6 = m_id.group(1)
+        if target_id6:
+            from agent_workflows import record_history as _rh
+
+            _sidecar_date = (
+                prep.today.replace("-", "") if getattr(args, "date", None) else None
+            )
+            _rh.append_advisory(
+                repo_root,
+                id6=target_id6,
+                tree="specs",
+                workflow="aw specs",
+                actor="aw specs",
+                message=f"{prep.norm_status}: {prep.message}".strip(),
+                date=_sidecar_date,
+                artifact=dest_path.name,
+            )
 
     rewritten_citations: list[str] = []
     if (
@@ -1813,7 +1769,7 @@ def apply_status_change(
         )
 
     return StatusChangeResult(
-        dest_path, norm_status, rewritten_citations, warning=_demotion_warning
+        dest_path, prep.norm_status, rewritten_citations, warning=prep.demotion_warning
     )
 
 
@@ -2484,6 +2440,26 @@ def _render_refuse_batch(
             )
             return get_renderer(ctx).emit(res, ctx)
 
+        if len(refusals) == 1 and refusals[0].rule == "spec.conformance":
+            r = refusals[0]
+            diags = [
+                Diagnostic(
+                    location=str(r.record.path),
+                    rule=r.rule,
+                    detail=fix,
+                    severity="error",
+                )
+                for fix in (r.remedy if isinstance(r.remedy, list) else [r.reason])
+            ]
+            res = CommandResult(
+                command="set",
+                status="findings",
+                exit_code=1,
+                summary=f"refused: {r.reason}",
+                diagnostics=diags,
+            )
+            return get_renderer(ctx).emit(res, ctx)
+
         if len(refusals) == 1:
             r = refusals[0]
             res = CommandResult(
@@ -2526,7 +2502,7 @@ def _render_refuse_batch(
         return get_renderer(ctx).emit(res, ctx)
 
     # Human mode rendering
-    prefix = (
+    prefix = getattr(args, "_verb_label", None) or (
         "aw backlog set"
         if (scoped_type_canonical == "backlog" or scoped_type == "backlog")
         else (
@@ -2538,11 +2514,22 @@ def _render_refuse_batch(
 
     for r in refusals:
         if r.rule == "status.invalid_transition":
-            sep = " " if r.reason and r.reason.rstrip().endswith(".") else ". "
-            term.status(
-                "fail",
-                f"Validation error on {r.record.path.name}: {r.reason}{sep}Refusing before making changes.",
-            )
+            if (
+                scoped_type_canonical == "specs"
+                or scoped_type == "specs"
+                or (r.record and r.record.record_type == "specs")
+            ):
+                msg = r.reason or ""
+                if msg.startswith(f"{prefix}:") or msg.startswith("aw specs set:"):
+                    sys.stderr.write(f"{msg.rstrip()}\n")
+                else:
+                    sys.stderr.write(f"{prefix}: {msg.rstrip()}\n")
+            else:
+                sep = " " if r.reason and r.reason.rstrip().endswith(".") else ". "
+                term.status(
+                    "fail",
+                    f"Validation error on {r.record.path.name}: {r.reason}{sep}Refusing before making changes.",
+                )
         elif r.rule == "status.orchestrator_not_ready":
             if r.readiness is not None:
                 term.line(
@@ -2558,6 +2545,14 @@ def _render_refuse_batch(
                     sys.stderr.write(f"  - [{f.code}]{subj} {f.detail}\n")
                     if f.remedy:
                         sys.stderr.write(f"    Remedy: {f.remedy}\n")
+        elif r.rule == "spec.conformance":
+            sys.stderr.write(f"{prefix}: {r.reason}:\n")
+            if r.remedy:
+                if isinstance(r.remedy, list):
+                    for fix in r.remedy:
+                        sys.stderr.write(f"  {fix}\n")
+                else:
+                    sys.stderr.write(f"  {r.remedy}\n")
         elif r.rule in (
             "status.terminal_reopen_refused",
             "status.backward_plan_message_required",
@@ -2669,6 +2664,8 @@ def run_set_command(
         )
         return 2
 
+    scoped_type_canonical = canonical_type(scoped_type)
+
     # setidhard bwgyum E-04: validate + canonicalize `--graduated-to` ONCE, here, BEFORE any artifact
     # is resolved or written, so a malformed setid refuses with exit 2 instead of being persisted and
     # then reported by `aw check`. Canonicalizing at the entry (rather than per record inside
@@ -2756,6 +2753,7 @@ def run_set_command(
         (getattr(args, "gate_summary", None), "--gate-summary", True),
         (getattr(args, "blocks_release", None), "--blocks-release", True),
         (getattr(args, "gate_kind", None), "--gate-kind", True),
+        (getattr(args, "from_backlog", None), "--from-backlog", True),
     ]:
         if _val is not None:
             _err = _refuse_unsafe_descriptive(
@@ -2764,8 +2762,6 @@ def run_set_command(
             if _err:
                 term.status("fail", _err)
                 return 2
-
-    scoped_type_canonical = canonical_type(scoped_type)
 
     all_records = inventory_all_artifacts(repo_root, scoped_type=scoped_type_canonical)
 
@@ -3233,6 +3229,30 @@ def run_set_command(
                     )
                 )
                 refused_paths.add(orch_rec.path)
+
+    # (g) E-01: validate_spec conformance refusal for specs records (type-scoped).
+    # Validate the complete rendered result in memory before touching any file.
+    for rec in matched_records:
+        if rec.path in refused_paths:
+            continue
+        if rec.record_type != "specs":
+            continue
+        from agent_workflows import specs as _specs_mod
+
+        prep = _prepare_status_change(rec, target_status, repo_root, args, quiet=True)
+        residual = _specs_mod.validate_spec(prep.dest_path, prep.updated_text)
+        if residual:
+            findings = [f"{d.rule}: {d.detail}" for d in residual]
+            refusals.append(
+                _Refusal(
+                    record=rec,
+                    rule="spec.conformance",
+                    exit_code=1,
+                    reason="the resulting spec would not conform; refused (file unchanged)",
+                    remedy=findings,
+                )
+            )
+            refused_paths.add(rec.path)
 
     is_dry_run = getattr(args, "dry_run", False)
     yes = getattr(args, "yes", False) or getattr(args, "assume_yes", False)

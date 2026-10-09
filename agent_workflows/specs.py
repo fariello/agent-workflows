@@ -205,7 +205,7 @@ SPEC_MULTI_VALUED_KEYS: frozenset[str] = frozenset(
 
 def _repo_root_of(spec_path: Path) -> Path:
     """Walk up from a spec file to the repo root (a dir containing `.aw` or `.agents` or `.git`),
-    falling back to cwd. Used to locate the global history sidecar."""
+    falling back to spec_path parent. Used to locate the repo root and global history sidecar."""
     p = spec_path.resolve()
     for anc in [p] + list(p.parents):
         if (
@@ -214,7 +214,7 @@ def _repo_root_of(spec_path: Path) -> Path:
             or (anc / ".git").exists()
         ):
             return anc
-    return Path.cwd()
+    return p.parent if p.is_file() else p
 
 
 def _sidecar_append(repo_root, text: str, message: str) -> None:
@@ -746,359 +746,53 @@ def run_check(args) -> int:
     return exit_code
 
 
-def run_set(args) -> int:
-    path = Path(args.path)
-    try:
-        text = path.read_text(encoding="utf-8")
-    except OSError as exc:
-        sys.stderr.write(f"aw specs set: cannot read {path}: {exc}\n")
-        return 2
-    lines = _lines(text)
-    old = _read_status(lines)
-    new = args.status
-    if new not in A.SPEC_STATUSES:
-        sys.stderr.write(
-            f"aw specs set: {new!r} is not a spec status {sorted(A.SPEC_STATUSES)}\n"
-        )
-        return 1
-    if old is None:
-        # allow initializing a status on a spec that lacks one only to a non-authority-gated state
-        sys.stderr.write(
-            "aw specs set: spec has no `- Status:` bullet to transition; add one via migration first\n"
-        )
-        return 1
-    if old != new and not A.transition_allowed(old, new):
-        sys.stderr.write(f"aw specs set: illegal transition {old} -> {new}\n")
-        return 1
+def run_set(args, term=None) -> int:
+    """Transition a spec's status (+ typed gates) and append history.
 
-    # authority floor
-    auth = A.TRANSITION_AUTHORITY.get(f"->{new}", {})
-    if auth.get("by_human") or auth.get("human_token"):
-        if not getattr(args, "by_human", False):
-            from agent_workflows import term as _term
+    Thin adapter delegating to status_set.run_set_command with scoped_type="specs"
+    (Set setdisp Order 04, IPD m94eht; governed by spec wy9aru Section 4.1).
+    """
+    from agent_workflows import status_set as _status_set
 
-            is_interactive = (
-                _term.stdin_is_interactive()
-                and not getattr(args, "agent", False)
-                and not getattr(args, "as_agent", False)
-                and not getattr(args, "json", False)
-            )
-            if is_interactive:
-                setattr(args, "by_human", True)
-            if not getattr(args, "by_human", False):
-                sys.stderr.write(
-                    f"aw specs set: {old} -> {new} is a human-only transition; pass --by-human to attest "
-                    "(and record) that a human approved it. Use --message to say who/how.\n"
-                )
-                return 1
-    if auth.get("evidence"):
-        ev = getattr(args, "evidence", None)
-        if not ev or not _evidence_resolvable(path, ev):
-            sys.stderr.write(
-                "aw specs set: implementing -> implemented requires a resolvable --evidence citation "
-                "(an existing .aw/records/plans/executed/ IPD path); refused.\n"
-            )
-            return 1
-    # revsweep 5slbpi E-04: the `->reviewed` ATTESTATION. Enforced through the ONE shared predicate
-    # (`review_findings.review_attestation_missing`), never a second copy, because this function is a
-    # FORK of `status_set`'s path reached by the `--status` spelling: a gate in only one of them is
-    # bypassed by choosing the other. See the same reasoning at `status_set.py:532-538`.
-    #
-    # Guarded by `old != new` so a NO-OP re-set of an already-`reviewed` spec is not retroactively
-    # refused; the authority table governs TRANSITIONS, and `old == new` is not one.
-    if auth.get("review_record") and old != new:
-        reason = _review_attestation_refusal(path, text)
-        if reason is not None:
-            sys.stderr.write(reason)
-            return 1
+    # 1. Normalize target status and selector tokens
+    status = getattr(args, "status", None)
+    raw_args = getattr(args, "args", None)
+    path = getattr(args, "path", None)
 
-    # apprvguard Order 01 (d7bnhc) E-07: THE SECOND APPROVAL SURFACE. This function is a FORK of
-    # `status_set`'s approval path, reached by the `aw specs set <path> --status approved` spelling
-    # while the positional `aw specs set approved <selector>` spelling routes to
-    # `status_set.run_set_command` (the dual dispatch is documented at the bottom of this module). A
-    # gate installed in only one of them is bypassed by choosing the other spelling, so the SAME
-    # shared predicate is consumed here rather than a second copy of the logic.
-    #
-    # Today the VERDICT half is inert for specs and that is deliberate, not an oversight (OQ-02,
-    # resolved by the maintainer). ITS REASON WAS RE-GROUNDED BY revsweep `eyh1fu`, which made the
-    # review record artifact-neutral (`- Subject-Id:` plus `- Subject-Type: <ipd|spec>`), so the
-    # original reason - that review artifacts were KEYED BY `Plan-Id` and therefore could not describe
-    # a spec at all - no longer holds. The half is still inert for a DIFFERENT and still-true reason:
-    # nothing PRODUCES a spec review yet. There is no spec-review workflow (`5slbpi` owns it), and no
-    # spec in this repository records a verdict in prose either (measured). So the record can now
-    # DESCRIBE a spec review while no spec review exists to read.
-    # The call is written to consume the whole predicate anyway, so the verdict half ACTIVATES BY
-    # ITSELF once a spec review is actually filed - the alternative, a specs-only
-    # open-question check, would have to be found and rewired by whoever adds that producer.
-    if new == "approved":
-        from agent_workflows import plan_readiness as _readiness
-
-        refusals = _readiness.approval_refusals(
-            _repo_root_of(path),
-            path,
-            text,
-            allow_open_questions=bool(getattr(args, "allow_open_questions", False)),
-        )
-        if refusals:
-            sys.stderr.write(
-                "aw specs set: refusing to approve {0} (file unchanged):\n".format(path)
-            )
-            for reason in refusals:
-                sys.stderr.write(f"  {reason}\n")
-            return 1
-
-    # gradcover sbiv1j E-03: refuse aw specs set implementing when handoff is not ready.
-    if new == "implementing" and old == "approved":
-        from agent_workflows import check_engine as _ce
-
-        m_id = _SPEC_ID_RE.search(text)
-        spec_id6 = m_id.group(1) if m_id else core.extract_id6(path.name) or path.name
-        handoff_res = _ce.evaluate_handoff_ready(_repo_root_of(path), "spec", spec_id6)
-        if not handoff_res.ready:
-            sys.stderr.write(
-                f"aw specs set: refused: handoff for spec {spec_id6} is not ready.\n"
-            )
-            for f in handoff_res.findings:
-                subj = f" [{f.plan_id6}]" if f.plan_id6 else ""
-                sys.stderr.write(f"  - [{f.code}]{subj} {f.detail}\n")
-                if f.remedy:
-                    sys.stderr.write(f"    Remedy: {f.remedy}\n")
-            return 1
-
-    # gate handling
-    out = lines
-    if new == "deferred":
-        gk = getattr(args, "gate_kind", None)
-        gr = getattr(args, "gate_ref", None)
-        gs = getattr(args, "gate_summary", None)
-        if (
-            not gk
-            or not gr
-            or gk not in A.GATE_KINDS
-            or not A.validate_gate_ref(gk, gr)
-        ):
-            sys.stderr.write(
-                "aw specs set: deferred requires a valid --gate-kind and --gate-ref\n"
-            )
-            return 1
-        if gs is not None and not A.is_safe_descriptive(gs):
-            sys.stderr.write(
-                "aw specs set: --gate-summary must be a bounded single control-char-free line\n"
-            )
-            return 1
-        out = _remove_gate_fields(out)
-        out = _add_gate_fields(out, gk, gr, gs)
+    if raw_args:
+        selectors = [str(x) for x in raw_args]
+    elif path:
+        selectors = [str(path)]
     else:
-        out = _remove_gate_fields(out)  # gate fields forbidden on a non-deferred status
+        selectors = []
 
-    out = _set_status(out, new)
-    date = getattr(args, "date", None) or core.utc_history_date()
-    msg = args.message
-    if msg is not None:
-        # E-03 (IPD uz05bl): Line-integrity guard for --message
-        _msg_err = _refuse_unsafe_descriptive(
-            "aw specs set", "--message", msg, bound_length=False
-        )
-        if _msg_err:
-            sys.stderr.write(f"{_msg_err}\n")
-            return 1
-    from agent_workflows.status_set import same_status_message_is_duplicate
+    if status is not None:
+        cmd_args = [status] + selectors
+    else:
+        cmd_args = list(selectors)
 
-    sidecar_msg = None
-    if not same_status_message_is_duplicate(text, status=new, date=date, message=msg):
-        sidecar_msg = f"{new}: {msg}"
-        # apprvguard d7bnhc E-06/E-07: the same auditable override record as `status_set` writes, in this
-        # module's own actor-parenthesis shape, so an overridden approval is visible in the ARTIFACT on
-        # both approval surfaces rather than only in a shell history. Recorded only on `approved`, the one
-        # transition where the flag could have had an effect.
-        _attestations = []
-        if getattr(args, "by_human", False):
-            _attestations.append("--by-human")
-        if getattr(args, "allow_open_questions", False) and new == "approved":
-            _attestations.append("--allow-open-questions")
-        actor = (
-            "(aw specs, " + ", ".join(_attestations) + ")"
-            if _attestations
-            else "(aw specs)"
-        )
-        out = _append_history(out, f"- {date} {new} {actor}: {msg}")
+    # 2. Derive repo_root if not provided
+    repo_dir = getattr(args, "dir", None)
+    if repo_dir:
+        repo_root = Path(repo_dir)
+    elif selectors:
+        repo_root = _repo_root_of(Path(selectors[0]))
+    else:
+        repo_root = Path.cwd()
 
-    new_text = "\n".join(out)
-    # awrelease Order 02: set/clear the Blocks-Release gate field when requested.
-    br = getattr(args, "blocks_release", None)
-    if br is not None:
-        # E-07 (IPD uz05bl): Refuse unsafe descriptive value for --blocks-release
-        _br_err = _refuse_unsafe_descriptive(
-            "aw specs set", "--blocks-release", br, bound_length=True
-        )
-        if _br_err:
-            sys.stderr.write(f"{_br_err}\n")
-            return 1
-        from agent_workflows import releases as _releases
+    # 3. Set default actor and verb label if not specified (E-07 c)
+    if getattr(args, "actor", None) is None:
+        setattr(args, "actor", "aw specs")
+    if getattr(args, "_verb_label", None) is None:
+        setattr(args, "_verb_label", "aw specs set")
 
-        new_text = _releases.set_blocks_release_line(new_text, br)
-    # xprio Order rp859c: set/clear the optional `- Priority:` bullet when requested, via the shared
-    # idempotent `releases.set_priority_line` writer (no forked write path). `-`/None clears. The enum
-    # value is enforced by the validate_spec pass below (so `--priority bogus` is refused here).
-    prio = getattr(args, "priority", None)
-    if prio is not None:
-        from agent_workflows import releases as _releases
-
-        new_text = _releases.set_priority_line(new_text, prio)
-    # wkindname Order ng2blv: set/clear the optional `- Work-Kind:` bullet when requested, via the
-    # shared idempotent `releases.set_work_kind_line` writer (no forked write path). `-`/None clears.
-    # The enum value is enforced by the validate_spec pass below (so `--work-kind bogus` is refused
-    # here, byte-identically to `--priority bogus`).
-    work_kind = getattr(args, "work_kind", None)
-    if work_kind is not None:
-        from agent_workflows import releases as _releases
-
-        new_text = _releases.set_work_kind_line(new_text, work_kind)
-    # setidhard bwgyum E-04: set/clear the optional multi-valued `- Graduated-To:` bullet (the FORWARD
-    # graduation link naming the plan Set or Sets this spec became; spec 4w7d6s G3 puts the field on
-    # specs as well as backlog items). Via the shared idempotent `releases.set_graduated_to_line`
-    # writer, exactly as the three fields above are, so there is no forked write path. `-`/None clears.
-    #
-    # THE `--status` SPELLING ROUTES HERE, NOT THROUGH `status_set`, which is why this call exists at
-    # all: the bare `aw specs set <status> <selector>` form reaches the shared hoisted write in
-    # `status_set.apply_status_change`, so without this the field would be writable by one spelling of
-    # one verb and not the other. The token shape is validated by the SHARED
-    # `releases.canonicalize_graduated_to` (which judges it with the existing `plans.is_set_id_valid`),
-    # refusing a typo here rather than writing a link `aw check` then reports as malformed.
-    graduated_to_arg = getattr(args, "graduated_to", None)
-    if graduated_to_arg is not None:
-        from agent_workflows import releases as _releases
-
-        _gt_canonical, _gt_err = _releases.canonicalize_graduated_to(graduated_to_arg)
-        if _gt_err:
-            sys.stderr.write(f"aw specs set: {_gt_err}\n")
-            return 2
-        new_text = _releases.set_graduated_to_line(new_text, _gt_canonical)
-    # uruqaz E-02/E-03: write From-Backlog and inherit the item's release gate on the `--status` path,
-    # matching the bare spelling handled by `status_set.py`.
-    from_backlog_arg = getattr(args, "from_backlog", None)
-    if from_backlog_arg is not None:
-        # E-07 (IPD uz05bl): Refuse unsafe descriptive value for --from-backlog
-        _fb_err = _refuse_unsafe_descriptive(
-            "aw specs set", "--from-backlog", from_backlog_arg, bound_length=True
-        )
-        if _fb_err:
-            sys.stderr.write(f"{_fb_err}\n")
-            return 1
-        if from_backlog_arg != "-":
-            # IPD izh17y E-04: refuse unresolvable --from-backlog on the forked `aw specs set --status`
-            # path before mutating new_text. Resolves via `backlog.existing_backlog_ids` using
-            # `_repo_root_of(path)` (F-15: reach repo root identically to the gate inheritance below).
-            # An empty id set skips the refusal so an invisible backlog corpus cannot make every write fail.
-            # DELIBERATE DIVERGENCE FROM CHECKER (F-12): `releases.check_from_backlog` has no empty-set skip
-            # and its own docstring explicitly records that asymmetry ("THE TWO BACK-LINK TWINS DISAGREE ON
-            # FAIL-SAFETY, AND THIS ONE IS THE LESS SAFE ... Do NOT 'harmonize' that guard away to match this
-            # function; the difference is a known gap here, not a standard to spread"). The setter takes the
-            # safe posture rather than copying the checker's less-safe posture.
-            from agent_workflows import backlog as _backlog
-
-            known_backlog = _backlog.existing_backlog_ids(_repo_root_of(path))
-            if known_backlog and from_backlog_arg not in known_backlog:
-                sys.stderr.write(
-                    f"aw specs set: unresolvable backlog id '{from_backlog_arg}' (does not resolve to an existing backlog item)\n"
-                )
-                return 2
-
-        from agent_workflows import releases as _releases
-
-        new_text = _releases.set_from_backlog_line(new_text, from_backlog_arg)
-        from agent_workflows.status_set import inherit_from_backlog_release_gate
-
-        new_text = inherit_from_backlog_release_gate(
-            new_text,
-            _repo_root_of(path),
-            from_backlog_arg,
-            getattr(args, "blocks_release", None),
-            verb_label="aw specs set",
-        )
-    # validate the complete result in memory; refuse (byte-identical) if it would not conform
-    residual = validate_spec(path, new_text)
-    if residual:
-        sys.stderr.write(
-            "aw specs set: the resulting spec would not conform; refused (file unchanged):\n"
-        )
-        for d in residual:
-            sys.stderr.write(f"  {d.rule}: {d.detail}\n")
-        return 1
-    from agent_workflows import record_placement as _placement
-
-    repo_root = _repo_root_of(path)
-    dest_path = _placement.resolve_transition_path(
-        "specs", path, new, repo_root=repo_root
+    return _status_set.run_set_command(
+        cmd_args,
+        scoped_type="specs",
+        repo_root=repo_root,
+        args=args,
+        term=term,
     )
-
-    try:
-        src_rel = path.resolve().relative_to(repo_root.resolve()).as_posix()
-    except ValueError:
-        src_rel = path.as_posix()
-
-    try:
-        dest_rel = dest_path.resolve().relative_to(repo_root.resolve()).as_posix()
-    except ValueError:
-        dest_rel = dest_path.as_posix()
-
-    moving = dest_path.resolve() != path.resolve()
-    if getattr(args, "dry_run", False):
-        if moving:
-            sys.stdout.write(
-                f"--- would move {path} -> {dest_path} (status {new}) ---\n"
-            )
-        else:
-            sys.stdout.write(f"--- would set {path} (status {new}) ---\n")
-        return 0
-
-    if moving:
-        dest_path.parent.mkdir(parents=True, exist_ok=True)
-        if path.exists():
-            core.git_mv(
-                repo_root,
-                src_rel,
-                dest_rel,
-            )
-        core.atomic_write(dest_path, new_text)
-        rewritten_citations: list[str] = []
-        if getattr(args, "rewrite_citations", False) and not getattr(
-            args, "dry_run", False
-        ):
-            from agent_workflows import artifact_refs as _refs
-
-            rewritten_citations = _refs.post_relocation_citation_rewrite(
-                repo_root,
-                src_rel,
-                dest_rel,
-                is_agent_or_json=bool(
-                    getattr(args, "agent", False) or getattr(args, "json", False)
-                ),
-            )
-        sys.stdout.write(f"aw specs set: {dest_path} -> {new}\n")
-    else:
-        core.atomic_write(path, new_text)
-        sys.stdout.write(f"aw specs set: {path} -> {new}\n")
-
-    # Spec `2vev8j` C5 first clause: the sidecar may never precede the durable write it describes,
-    # because an event for a transition that did not happen is worse than a missing event. The sidecar
-    # remains a machine-local activity log (OQ-01) and may never gate a durable write; see
-    # `record_history.append_advisory`.
-    if sidecar_msg is not None:
-        _sidecar_append(repo_root, new_text, sidecar_msg)
-
-    # selfcommit jgcm68 E-06: the `aw specs set --status <X> <path>` form routes HERE (not through
-    # status_set), so the offer must fire EXACTLY ONCE here for this form - the no-`--status` form
-    # is covered by status_set (E-05), so the two forms never double-offer or miss.
-    touched_paths = [src_rel, dest_rel] if moving else [src_rel]
-    if moving and rewritten_citations:
-        for rp in rewritten_citations:
-            if rp not in touched_paths:
-                touched_paths.append(rp)
-    from agent_workflows.status_set import _offer_self_commit
-
-    _offer_self_commit(args, repo_root, touched_paths, new, "specs")
-    return 0
 
 
 def run_migrate(args) -> int:

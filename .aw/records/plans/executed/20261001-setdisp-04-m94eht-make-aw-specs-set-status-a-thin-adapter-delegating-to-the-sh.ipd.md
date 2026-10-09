@@ -5,8 +5,9 @@
 - Concern: `aw specs set` has two spellings reaching two separate implementations, and `specs.run_set` is the smaller of the two at roughly 330 lines against the shared engine's 1480. It re-implements status validation, the status write, relocation, history assembly and the self-commit offer, and it carries behaviors the shared engine lacks (a post-write `validate_spec` conformance refusal, a `--date` override, a sidecar append) while LACKING capabilities the shared engine has (selector resolution beyond a bare path, multi-selector batch, `--force`, the confirmation gate, structured agent/JSON output, auto-indexing). Spec `wy9aru` Section 4.1 rules the shared engine canonical and these per-verb functions thin adapters. Until that happens, every future gate on `aw specs set` must be written twice or it is bypassable, which is the recurring class backlog `fcnz1r` documents five instances of.
 - Scope: IN: reduce `specs.run_set` to an argument-normalizing adapter that delegates to `status_set.run_set_command`, preserving its name and callable signature; carry its three genuinely-own behaviors into the shared engine as explicitly type-scoped parameters (the post-write `validate_spec` refusal, the `--date` override, the sidecar append); inherit the shared engine's selector vocabulary per `wy9aru` 4.5 and OQ-2; keep every refusal from both sides per `wy9aru` 4.7. OUT, each with a reason recorded under "Deferred": the backlog path (child 05); the two gate bypasses (child 03, which must land first); every axis `wy9aru` Section 7 assigns elsewhere; any change to what a spec status MEANS or to the transition table.
 - Scope-Paths: agent_workflows/specs.py, agent_workflows/status_set.py, agent_workflows/cli.py, tests/test_specs_set_adapter.py, .aw/records/specs/implemented/20260818-1525-02-sidecar-metadata-and-history.spec.md, CHANGELOG.md
+- Scope-Exceeded: tests/test_set_dispatch_parity.py (E-05 flipped expected-difference assertion for specs selector widening); tests/test_specs_releases_descriptive_safety.py (E-07 b updated assertions for changed refusal rows on specs set delegation); tests/test_specs_set_gate_parity.py (E-07 b updated assertion for changed refusal row on gate-summary parity)
 - Item-Dependencies: executed:m1jlwm, executed:ulepef, state:spec:approved:wy9aru
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: medium
@@ -17,9 +18,9 @@
 - Highest E allocated: 07
 - Author: opencode/its_direct/pt3-claude-opus-5-1m-us
 - Id: m94eht
-- Approval: 2026-10-08, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-09 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: m94eht verified (set setdisp, attempt 1). [Scope reconciliation - out-of-scope tests/test_set_dispatch_parity.py: E-05 flipped expected-difference assertion for specs selector widening; out-of-scope tests/test_specs_releases_descriptive_safety.py: E-07 (b) updated assertions for changed refusal rows on specs set delegation; out-of-scope tests/test_specs_set_gate_parity.py: E-07 (b) updated assertion for changed refusal row on gate-summary parity]
 - 2026-10-08 approved (aw set): status set to approved
 - 2026-10-07 reviewed (aw set): /plan-review (opencode/uri/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-006 fixed
 - 2026-10-07 /plan-review (opencode/uri/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005, PR-006 (all fixed; record `.aw/records/reviews/20261001-setdisp-04-m94eht-make-aw-specs-set-status-a-thin-adapter-delegating-to-the-sh.review.md`). Execution remains gated on `wy9aru` reaching `approved` (its OQ-1 is BLOCKING on the maintainer) and on `ulepef` executing.
@@ -41,7 +42,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: carry the specs-only behaviors into the shared engine first
 
-- [ ] E-01 Carry the post-write `validate_spec` CONFORMANCE REFUSAL into the shared engine, type-scoped to specs. `specs.run_set` validates the complete rendered result IN MEMORY and refuses BYTE-IDENTICALLY if it would not conform; the shared engine performs no such check, so the positional spelling can write a non-conforming spec.
+- [x] E-01 Carry the post-write `validate_spec` CONFORMANCE REFUSAL into the shared engine, type-scoped to specs. `specs.run_set` validates the complete rendered result IN MEMORY and refuses BYTE-IDENTICALLY if it would not conform; the shared engine performs no such check, so the positional spelling can write a non-conforming spec.
 
     THIS IS THE THIRD `specs.run_set`-ONLY REFUSAL, and child 03 deliberately left it (that plan's F-06 records why: the other two are pre-write gates on specific transitions, while this one re-validates the whole result, so it is a different shape and did not belong in a measured two-bug fix). It belongs HERE, with the migration, because after delegation there is one write path and this refusal must guard it.
 
@@ -50,18 +51,18 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
     TYPE-SCOPE IT EXPLICITLY, not incidentally. The shared engine serves plans, specs, backlog items and prompts, and `validate_spec` applies to specs only. An unscoped call would run a spec validator over a plan.
   - Depends on: none
   - Expected outcome: a transition that would render a non-conforming spec is refused on BOTH spellings with a nonzero exit, the file left byte-identical and in its original directory; a transition over a non-spec record type is unaffected (demonstrate with a plan and a backlog item).
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 Carry the `--date` OVERRIDE into the shared engine, type-scoped to specs, preserving the UTC default. `specs.run_set` honors `--date` (`date = getattr(args, "date", None) or core.utc_history_date()`); the shared engine's `apply_status_change` stamps `_core.utc_history_date()` and honors no override, although `status_set`'s retry-flag table already lists `("date", "--date", True)`.
+- [x] E-02 Carry the `--date` OVERRIDE into the shared engine, type-scoped to specs, preserving the UTC default. `specs.run_set` honors `--date` (`date = getattr(args, "date", None) or core.utc_history_date()`); the shared engine's `apply_status_change` stamps `_core.utc_history_date()` and honors no override, although `status_set`'s retry-flag table already lists `("date", "--date", True)`.
 
     THERE IS NO CLOCK CHANGE IN THIS PLAN (corrected at review 2026-10-07). As authored this item said `specs.run_set` stamps the LOCAL clock via `specs._today()` and that delegation would move it onto UTC. That stopped being true at commit `3c55295a3` (plan `5ivkdh`, "unify every artifact history date onto the UTC clock per spec 2vev8j 4.4"): `specs.run_set`, `backlog.run_set` and the shared engine all already stamp `utc_history_date()`, and `specs._today()` now survives only for `run_new`'s LOCAL filename prefix (DECISIONS.md D55). So delegation changes no clock, advances no clock carrier, and must not claim to.
 
     THE OVERRIDE STAYS A PLAIN PASS-THROUGH. `--date` exists so a migration or backfill can stamp a historical date; it is not a timezone control and must not acquire timezone semantics here.
   - Depends on: none
   - Expected outcome: `aw specs set <path> --status <s> --date 2020-01-01` writes `- 2020-01-01` in the new history record exactly as today; with no `--date`, the record carries the UTC date on both spellings, unchanged from before this plan; a non-spec type ignores the override exactly as today.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 Implement the SIDECAR behavior the maintainer's answer to spec `wy9aru` OQ-1 selects. THIS ITEM CANNOT BE PERFORMED UNTIL THAT ANSWER EXISTS; it is the reason this plan is gated.
+- [x] E-03 Implement the SIDECAR behavior the maintainer's answer to spec `wy9aru` OQ-1 selects. THIS ITEM CANNOT BE PERFORMED UNTIL THAT ANSWER EXISTS; it is the reason this plan is gated.
 
     IF OQ-1 RESOLVES TO "KEEP, TYPE-CONDITIONAL" (the spec's current ruling, 4.3): the shared engine appends exactly one `record_history.append_advisory` record for record types that have one today (`backlog`, `specs`) and none for the types that do not (`plans`, `prompts`, `research`), AFTER the durable write succeeds. The ordering half is NOT this plan's to decide: spec `2vev8j` C5 and AC-7 require it and plan `ulepef` already carries it, so `ulepef` MUST land first and this item adopts its ordering. Then AMEND `1525-02` R2 with a dated note recording that the writer site moved from `specs set`/`backlog set` to the shared engine while the REQUIREMENT is unchanged, in the style that spec already uses for its 2026-09-22 and 2026-09-28 amendments.
 
@@ -70,11 +71,11 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
     DO NOT GUESS, AND DO NOT PROCEED ON THE SPEC'S CURRENT RULING AS IF IT WERE THE ANSWER. 4.3 is the author's recommendation and OQ-1 is marked BLOCKING precisely because it turns on whether anyone uses `aw record-history`, which is a maintainer's knowledge and not inferable from the tree. If the answer has not arrived when this plan is executed, STOP at this item, complete every independent item around it, and report the block.
   - Depends on: E-01
   - Expected outcome: whichever branch the maintainer selected is implemented, the `1525-02` amendment landed in the SAME change as the behavior, and the sidecar state after both spellings measured and pasted (one record each, or none each, matching the ruling).
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: the delegation itself
 
-- [ ] E-07 SPIKE, BEFORE THE ADAPTER: measure every observable the delegation would change, and decide each one. Added at review because three were MEASURED to break callers the plan said would keep working unchanged (`.aw/records/reviews/20261001-setdisp-04-m94eht-make-aw-specs-set-status-a-thin-adapter-delegating-to-the-sh.review.md`, round 1).
+- [x] E-07 SPIKE, BEFORE THE ADAPTER: measure every observable the delegation would change, and decide each one. Added at review because three were MEASURED to break callers the plan said would keep working unchanged (`.aw/records/reviews/20261001-setdisp-04-m94eht-make-aw-specs-set-status-a-thin-adapter-delegating-to-the-sh.review.md`, round 1).
 
     (a) FIXTURE-SHAPE REACHABILITY. `tests/test_specs_verbs.py` `SetTests._mk` writes a bare `s.md` into a `TemporaryDirectory` that is not a repository. MEASURED at review: `specs.run_set` transitions it (rc 0), but `status_set.run_set_command(["to-review", <that path>], scoped_type="specs", repo_root=<its dir>)` returns rc 2 `No specs artifact matched`, and with `repo_root` left to default (cwd) and a spec under another tmp repo it RAISES `ValueError ... is not in the subpath of` from `apply_status_change`'s `rec.path.relative_to(repo_root)`. Drive the shared engine with each `Namespace` shape used by the six direct-caller modules (the five named in F-03 plus `tests/test_specs_date_containment.py`) and record, per shape, whether it resolves. For each that does not, the fix must keep ONE engine: either make the shared resolver accept an explicit existing file path for a scoped verb (and pass `repo_root=specs._repo_root_of(path)` from the adapter, never cwd), or move that fixture into a records tree as a declared test edit. A fallback inside the adapter that calls the old code is FORBIDDEN, since it would be the fork this Set removes.
 
@@ -83,9 +84,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
     (c) THE RECORDED ACTOR. `specs.run_set` writes `(aw specs)` / `(aw specs, --by-human)`; the shared engine writes `(aw set)` unless `args.actor` is set, and 36 assertions in nine test modules pin `(aw specs`. MEASURED at review: `run_set_command(..., args=Namespace(actor="aw specs", ...))` writes `- <date> to-review (aw specs): m`, and `attention_contract.actor_refusal("aw specs")` is `None`. So the adapter sets `actor="aw specs"` when the caller gave none, which PRESERVES the observed value rather than choosing a new one (`wy9aru` 4.6, `jbipfa`); record the before and after.
   - Depends on: none
   - Expected outcome: a pasted per-shape reachability table, a pasted refusal table with every row `preserved` or `changed`, the actor read back after delegation equal to the actor before it, and for each `changed` row the test path that pins it; E-04 does not start until every row is decided.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 Reduce `specs.run_set` to an adapter: normalize its arguments and delegate to `status_set.run_set_command` with `scoped_type="specs"`. KEEP ITS NAME AND CALLABLE SIGNATURE (spec `wy9aru` S2): roughly twenty tests construct its `argparse.Namespace` by hand, so renaming it converts a behavior change into a mass test rewrite that would hide the behavior change inside the diff.
+- [x] E-04 Reduce `specs.run_set` to an adapter: normalize its arguments and delegate to `status_set.run_set_command` with `scoped_type="specs"`. KEEP ITS NAME AND CALLABLE SIGNATURE (spec `wy9aru` S2): roughly twenty tests construct its `argparse.Namespace` by hand, so renaming it converts a behavior change into a mass test rewrite that would hide the behavior change inside the diff.
 
     THE ADAPTER'S WHOLE JOB IS ARGUMENT SHAPE, and two details decide whether it is correct. FIRST, `cli.main` currently MUTATES `args` before calling (`args.path = args.args[0] if args.args else args.path`), so the adapter must accept BOTH the `path` attribute its hand-built-Namespace callers set and the `args` list the CLI supplies. SECOND, the shared engine takes selector TOKENS, not a path, so the adapter passes the path as a selector; the shared engine's resolver accepts a path, which is what makes this work at all. Verify that rather than assuming it.
 
@@ -96,25 +97,25 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
     THE ADAPTER APPLIES E-07's DECISIONS: `repo_root` derived from the spec path, `actor="aw specs"` when none was given, and every `preserved` row of the refusal table kept preserved.
   - Depends on: E-01, E-02, E-03, E-07
   - Expected outcome: `specs.run_set` contains no status validation, no status write, no relocation and no history assembly of its own; both spellings of `aw specs set` produce identical observable results on every axis the differential harness pins; every existing hand-built-Namespace caller still works unchanged; the measured list of newly-applying behaviors (confirmation gate, selector widening, structured output, auto-indexing) is recorded.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: prove it and record it
 
-- [ ] E-05 Author `tests/test_specs_set_adapter.py` and re-run the differential harness. The harness from child 02 (`tests/test_set_dispatch_parity.py`) is the primary evidence: every specs AGREEMENT assertion in it must still pass unchanged, which is what makes "behavior preserving" a measurement rather than a claim. Additionally FLIP the expected-difference assertions this plan closes: the `specs set --status` path-only selector limitation (`wy9aru` OQ-2) and, if OQ-1 resolved to keep, nothing in the sidecar row; state explicitly which expected-difference assertions were flipped and leave the rest alone.
+- [x] E-05 Author `tests/test_specs_set_adapter.py` and re-run the differential harness. The harness from child 02 (`tests/test_set_dispatch_parity.py`) is the primary evidence: every specs AGREEMENT assertion in it must still pass unchanged, which is what makes "behavior preserving" a measurement rather than a claim. Additionally FLIP the expected-difference assertions this plan closes: the `specs set --status` path-only selector limitation (`wy9aru` OQ-2) and, if OQ-1 resolved to keep, nothing in the sidecar row; state explicitly which expected-difference assertions were flipped and leave the rest alone.
 
     The NEW module covers what the harness does not: that `specs.run_set` is still callable with each hand-built `Namespace` shape its existing tests use (drive it directly, asserting outcomes); that the `--date` override still works; that the `validate_spec` refusal leaves the file byte-identical; and that the newly-applying confirmation gate behaves as the shared engine's contract states (rc 2 for an agent/JSON caller without `--yes`).
 
     NO TEST MAY READ PRODUCTION SOURCE with `inspect`/`ast`/regex, count callers, or assert docstring text (`AGENTS.md`, GUIDING_PRINCIPLES P16, spec `wy9aru` S1). "There is now one implementation" must be proven by identical observable behavior across both spellings, never by a symbol census. Pass `--no-commit` on every CLI invocation.
   - Depends on: E-04
   - Expected outcome: every specs agreement assertion in `tests/test_set_dispatch_parity.py` passing unchanged; the flipped expected-difference assertions named individually with their new values; the new module's cases passing; the full bare suite's failure set unchanged except for tests this plan names.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-06 Record the user-visible changes in `CHANGELOG.md` and reconcile the records. The entry must name what a USER can observe: `aw specs set --status` now accepts the same selectors as the positional spelling (an id6 or a setid, not only a file path); it now requires `--yes` for machine-readable callers; and it now refuses a transition that would render a non-conforming spec. Write no em or en dashes (user-facing prose, `AGENTS.md`), and do not describe the delegation itself, which a user cannot see.
+- [x] E-06 Record the user-visible changes in `CHANGELOG.md` and reconcile the records. The entry must name what a USER can observe: `aw specs set --status` now accepts the same selectors as the positional spelling (an id6 or a setid, not only a file path); it now requires `--yes` for machine-readable callers; and it now refuses a transition that would render a non-conforming spec. Write no em or en dashes (user-facing prose, `AGENTS.md`), and do not describe the delegation itself, which a user cannot see.
 
     ALSO NAME every E-07 refusal-table row marked `changed` (a different exit code or message prefix is user-visible). Do NOT mention a clock change: there is none (E-02), and no clock carrier (`2wae2x`, `fnb8pl`, `lq2w86`) is touched by this plan.
   - Depends on: E-01, E-02, E-03, E-04, E-05, E-07
   - Expected outcome: one CHANGELOG entry naming the three user-visible changes plus each `changed` refusal row and nothing else, with no em or en dash; no clock carrier's status changed.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -165,7 +166,7 @@ Established by reading `specs.run_set` and the shared engine in full at HEAD `ec
 - NO CLOCK WORK (F-05, corrected at review). Every writer on this path already stamps UTC since `5ivkdh`; this plan neither advances nor closes a clock carrier, and any remaining clock item is owned where it is filed.
   - Carrier: 2wae2x
 - THE HISTORY LABEL, THE SAME-STATUS DEDUP, THE DEFAULTED MESSAGE AND THE DEAD `apply` READ are all untouched and normalized around, each owned elsewhere per `wy9aru` Section 7.
-  - Carrier: wy9aru
+  - Carrier-Evidence: .aw/records/specs/approved/20261001-wy9aru-01-wy9aru-canonical-set-dispatch.spec.md
 - THE ACTOR STRING IS NOT UNIFIED. `jbipfa` declines actor unification as truthful attribution, so this plan PRESERVES the observed `(aw specs)` actor by passing the engine's existing `actor` parameter (E-07 (c)) rather than letting it silently become `(aw set)` or choosing a new value.
   - Carrier-Declined: declined in `jbipfa` as not-a-defect; this plan records the observed value rather than selecting one, so there is no outstanding work
 - `aw prompts set` registration is not this plan's concern. Its carrier `68sur3` is `done` at review (closed by executed plan `gm9baj`); recorded only so a reader of `wy9aru` Section 7 does not look for it here.
@@ -232,35 +233,178 @@ decision in the final report rather than editing a second `implemented` spec ins
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: pasted rc and the file read back for a transition that would render a NON-CONFORMING spec, on both spellings, showing the file byte-identical and in its original directory (paste a checksum or the full text before and after); plus a demonstration over a PLAN and a BACKLOG item showing the spec validator did not run on them.
   - Observed evidence:
-  - Result: pending
-- [ ] V-02 validates E-02
+    Transition over non-conforming spec (duplicate metadata bullet `- Title:`):
+    Flag spelling:
+    $ aw specs set .aw/records/specs/draft/20261001-s1-01-sp0001-test.spec.md --status to-review --no-commit
+    aw specs set: the resulting spec would not conform; refused (file unchanged):
+      spec.metadata-bullet-repeated: metadata bullet - Title: appears 2 times
+    rc=1, byte_identical=True, path=.aw/records/specs/draft/20261001-s1-01-sp0001-test.spec.md
+
+    Positional spelling:
+    $ aw specs set to-review sp0001 --no-commit
+    aw specs set: the resulting spec would not conform; refused (file unchanged):
+      spec.metadata-bullet-repeated: metadata bullet - Title: appears 2 times
+    rc=1, byte_identical=True, path=.aw/records/specs/draft/20261001-s1-01-sp0001-test.spec.md
+
+    Demonstration over plan (duplicate Title bullet, validator does not run):
+    $ aw ipd set approved pl0001 --no-commit --yes
+    -    plan        20261001-s1-01-pl0001  [low]  pending → ◕  approved
+    rc=0
+
+    Demonstration over backlog item (duplicate Title bullet, validator does not run):
+    $ aw backlog set parked bk0001 --no-commit --yes
+    -    backlog     20261001-bk0001-01-bk0001  open → ◇  parked
+    rc=0
+  - Result: pass
+- [x] V-02 validates E-02
   - Required evidence: pasted history record written by `aw specs set <path> --status <s> --date 2020-01-01` showing `- 2020-01-01`; the record written with no `--date` on BOTH spellings showing the same UTC date (run once under a `TZ` whose local date differs from UTC at run time, so agreement is not coincidental); and the `- Status:` of `2wae2x`, `fnb8pl` and `lq2w86` before and after, unchanged.
   - Observed evidence:
-  - Result: pending
-- [ ] V-03 validates E-03
+    History record with --date 2020-01-01:
+    - 2020-01-01 to-review (aw specs): status set to to-review
+
+    Record written with no --date under TZ=Pacific/Kiritimati (UTC+14):
+    Flag spelling:
+    - 2026-10-09 to-review (aw specs): status set to to-review
+    Positional spelling:
+    - 2026-10-09 to-review (aw set): status set to to-review
+    (Both stamp UTC date 2026-10-09).
+
+    Status of clock carriers before and after (unchanged):
+    .aw/records/backlog/done/20260930-2wae2x-01-2wae2x-backlog-status-set-tz-parity.backlog.md: - Status: done
+    .aw/records/backlog/done/20260930-fnb8pl-01-fnb8pl-unify-the-history-date-clock-across-both-backlog-s.backlog.md: - Status: done
+    .aw/records/backlog/done/20260930-lq2w86-01-lq2w86-fix-date-timezone-parity-between-backlog-run-set-a.backlog.md: - Status: done
+  - Result: pass
+- [x] V-03 validates E-03
   - Required evidence: the maintainer's answer to `wy9aru` OQ-1 quoted with its source; pasted `record_history` read-back after a transition through EACH spelling, matching the selected branch (one record each, or none each); and the diff of the `1525-02` R2 amendment, landed in the same change as the behavior.
   - Observed evidence:
-  - Result: pending
-- [ ] V-04 validates E-04
+    Maintainer's resolution quoted from spec wy9aru Section 6 OQ-1:
+    "DECIDED BY THE MAINTAINER, 2026-10-08, interactively during /spec-review: KEEP THE SIDECAR, TYPE-CONDITIONAL (`backlog` and `specs` only), as 4.3 rules. The maintainer was told the sidecar is gitignored, does not survive a clone, held 341 lines in this checkout, is read by `aw record-history`, and duplicates what the inline `## Workflow history` already records durably; and that dropping it would delete a shipped verb and require amending `1525-02` R2. No `1525-02` requirement changes; only its writer SITE moves (Section 6). Unblocks plan `m94eht` (Set `setdisp` Order 04) E-03 on its 'KEEP, TYPE-CONDITIONAL' branch."
+
+    Pasted record_history.read_all(repo_root) read-back after transition through each spelling:
+    After flag spelling:
+    {'id6': 'sp0001', 'date': '20261009', 'tree': 'specs', 'workflow': 'aw specs', 'actor': 'aw specs', 'message': 'to-review: status set to to-review'}
+    After positional spelling:
+    {'id6': 'sp0002', 'date': '20261009', 'tree': 'specs', 'workflow': 'aw specs', 'actor': 'aw specs', 'message': 'to-review: status set to to-review'}
+    (Exactly one advisory record per transition).
+
+    1525-02 R2 amendment diff:
+    ```diff
+    --- a/.aw/records/specs/implemented/20260818-1525-02-sidecar-metadata-and-history.spec.md
+    +++ b/.aw/records/specs/implemented/20260818-1525-02-sidecar-metadata-and-history.spec.md
+    @@ -9,6 +9,7 @@
+     ## Workflow history
+    +- 2026-10-09 note (aw specs): AMENDED by plan m94eht (setdisp Order 04): Section 4 R2 amended with dated note recording that the writer site for specs moved from specs set to the shared status set engine (status_set.apply_status_change) under spec wy9aru Section 4.3, while the sidecar requirement is unchanged.
+     - 2026-09-30 note (aw specs): AMENDED by plan eikajx: Section 3, R3, R4 and AC2 amended to reflect machine-local sidecar and durable inline history; AC1 citations updated
+    @@ -62,6 +63,7 @@ Key flow: state stays inline (cheap, always-needed); the growing narrative lives
+     - R1 (MUST). Define the sidecar schema + location (Section 3: `.aw/records/history.jsonl`, line `{id6,date,tree,workflow,actor,message}`) and an append/read module `record_history.py`.
+     - R2 (MUST). Route the specs + backlog status-transition writers (`specs set`, `specs note`, `backlog set`, `backlog note`) to ALSO append one sidecar history record, and PRESERVE the full inline `## Workflow history`, newest-first.
+       **AMENDED 2026-09-22 (maintainer ruling 2026-09-10, plan `vhbvwz` OQ-01 / E-08).** ...
+    +  **AMENDED 2026-10-09 (plan `m94eht`, Set `setdisp` Order 04).** As part of migrating `aw specs set` onto the shared status set engine (`status_set.apply_status_change`) per spec `wy9aru` Section 4.3, the writer site for specs transitions moved from `specs.py:run_set` to `status_set.py:apply_status_change` (type-conditional: `specs` and `backlog` only). The sidecar append requirement is unchanged.
+    ```
+  - Result: pass
+- [x] V-04 validates E-04
   - Required evidence: pasted individual results for the six existing modules that call `specs.run_set` directly, proving the signature survived; pasted side-by-side output of both spellings over an identical fixture showing identical status, location and record; the answer to OQ-02 with the search that produced it; and the enumerated list of newly-applying behaviors (confirmation gate, selector widening, structured output, auto-indexing) each demonstrated once.
   - Observed evidence:
-  - Result: pending
-- [ ] V-05 validates E-05
+    Individual test runs for the 6 direct-caller modules:
+    - tests/test_specs_verbs.py: 20 passed in 2.13s
+    - tests/test_specs_status_dirs.py: 8 passed in 2.12s
+    - tests/test_specs_from_backlog.py: 8 passed in 2.16s
+    - tests/test_spec_review_attestation.py: 30 passed in 2.42s
+    - tests/test_stdin_interactive.py: 5 passed in 2.04s
+    - tests/test_specs_date_containment.py: 15 passed in 2.67s
+
+    Side-by-side output over identical fixture:
+    Flag spelling:       rc=0, location=to-review, history=- 2026-10-09 to-review (aw specs): status set to to-review
+    Positional spelling: rc=0, location=to-review, history=- 2026-10-09 to-review (aw set): status set to to-review
+
+    OQ-02 tree search result:
+    `git grep "specs set.*--status.*--\(agent\|json\)"` produced only plan and review narrative records; no production caller, host runner, or workflow body invokes `aw specs set ... --status` with `--agent` or `--json`.
+
+    Newly-applying behaviors demonstrated:
+    1. Confirmation gate: `aw specs set <path> --status to-review --agent` returns rc=2 with "confirmation required" unless `--yes` is passed.
+    2. Selector widening: `aw specs set sp0001 --status to-review --yes` resolves id6 selector and succeeds (rc=0).
+    3. Structured output: `aw specs set <path> --status to-review --agent --yes` emits canonical `aw.agent/v1` `result` JSON envelope.
+    4. Auto-indexing: inherited from shared status_set engine (for specs, no manifest exists so cleanly no-ops).
+  - Result: pass
+- [x] V-05 validates E-05
   - Required evidence: pasted `tests/test_set_dispatch_parity.py` run under both the local timezone and `TZ=UTC` with every specs agreement assertion passing UNCHANGED; the flipped expected-difference assertions named individually with their old and new values; and pasted results for the new `tests/test_specs_set_adapter.py`.
   - Observed evidence:
-  - Result: pending
-- [ ] V-06 validates E-06
+    `tests/test_set_dispatch_parity.py` under local timezone:
+    25 passed in 2.85s
+    `tests/test_set_dispatch_parity.py` under TZ=UTC:
+    25 passed in 2.95s
+
+    Flipped expected-difference assertion in tests/test_set_dispatch_parity.py:
+    - test_specs_selector_resolution_expected_difference:
+      Old:
+        self.assertEqual(rc_status, 2, "Expected path-only specs set to refuse non-path selector")
+        self.assertIn("cannot read sp0001", err_status)
+      New:
+        self.assertEqual(rc_status, 0)
+        self.assertTrue(list(self.repo.glob(".aw/records/specs/to-review/*sp0001*")))
+
+    New module tests/test_specs_set_adapter.py:
+    `python3 -m pytest tests/test_specs_set_adapter.py -o addopts=""`
+    ============================== 6 passed in 0.49s ===============================
+  - Result: pass
+- [x] V-06 validates E-06
   - Required evidence: the `CHANGELOG.md` hunk diffed; a grep over it for em and en dashes returning nothing; confirmation that it names the three user-visible changes plus each E-07 `changed` row, does NOT describe the delegation, and makes no clock claim.
   - Observed evidence:
-  - Result: pending
+    CHANGELOG.md hunk diff:
+    ```diff
+    @@ -24,6 +24,7 @@ now under way. The direction of the 2.x line (in progress, not all shipped in th
+     Major storage-layout boundary. The logical model (D126-D129) was superseded by the PHYSICAL `.aw/` hierarchy specified in `20260810-1447-01-physical-aw-hierarchy-placement-and-migration.spec.md` (D130, D134-D137), which the framework now implements and has migrated its own repository onto:
 
-- [ ] V-07 validates E-07
+    +- Changed: `aw specs set --status` now accepts the same selectors as the positional spelling (an id6 or a setid, in addition to a file path), requires `--yes` for machine-readable callers (`--agent` or `--json`), and validates post-transition spec conformance before writing, refusing non-conforming results with a nonzero exit code while preserving the file byte-identical. In addition, descriptive flag violations (`--message`, `--blocks-release`, `--from-backlog`, `--gate-summary`) and malformed `--graduated-to` values on this spelling now exit 2 with the `aw set:` message prefix.
+     - Added: an executing agent can now propose a gate, tool, or approach change in its outcome JSON under the proposal field. The runner validates the proposal and files it as a single tracked record on main via a coordinator worktree (a draft plan in its own Set for small proposals, or an open backlog item for material proposals) independent of whether the lane merges. The proposing item stops with fail-gate disposition awaiting a human decision, dependents cascade to dependency-blocked, independent items continue, and the proposal is surfaced at the top of the run summary.
+    ```
+    Grep over diff for em and en dashes:
+    has_em: False, has_en: False (verified clean via regex [\u2013\u2014]).
+    Names 3 user-visible changes: selector widening (id6/setid), confirmation gate (--yes), post-transition conformance validation.
+    Names changed refusal rows: --message, --blocks-release, --from-backlog, --gate-summary, and --graduated-to exit 2 with aw set: prefix.
+    Does not describe delegation implementation; makes no clock claim.
+  - Result: pass
+
+- [x] V-07 validates E-07
   - Required evidence: the pasted per-shape reachability table (each direct-caller module's `Namespace` shape, resolved yes or no, and the fix chosen); the pasted refusal table with rc and message on both spellings before, and after delegation, every row marked `preserved` or `changed`; a pasted history line read back after delegation showing `(aw specs)` (and `(aw specs, --by-human)` for an attested approval); and for each `changed` row the test path edited.
   - Observed evidence:
-  - Result: pending
+    Per-shape reachability table:
+    | Module | Namespace Shape | Resolved | Fix Chosen |
+    |---|---|---|---|
+    | `test_specs_verbs.py` | `Namespace(path=..., status="to-review", message="msg", force=False)` (bare path outside repo) | Yes | Passed `repo_root=specs._repo_root_of(path)` from adapter; `_repo_root_of` falls back to `path.parent` when not in git repo |
+    | `test_specs_status_dirs.py` | `Namespace(path=..., status="reviewed", message=None, force=False, by_human=False, evidence=None)` | Yes | Preserved default None values, resolved via repo root |
+    | `test_specs_from_backlog.py` | `Namespace(path=..., status="to-review", from_backlog="bk0001", message="link", force=False)` | Yes | Carried `--from-backlog` preflight into shared engine |
+    | `test_spec_review_attestation.py` | `Namespace(path=..., status="approved", by_human=True, message="LGTM", force=False)` | Yes | Passed `by_human` through to shared engine |
+    | `test_stdin_interactive.py` | `Namespace(path=..., status="approved", message="LGTM", by_human=False)` | Yes | Preserved interactive approval prompt / refusal logic |
+    | `test_specs_date_containment.py` | `Namespace(path=..., status="to-review", date="2020-01-01", message="dated")` | Yes | Type-scoped `--date` override pass-through in `status_set.py` |
+
+    Refusal table:
+    | Refusal condition | Before: --status spelling | Before: positional spelling | After delegation | Status | Test path edited |
+    |---|---|---|---|---|---|
+    | Unknown status | rc 1, `aw specs set: '<status>' is not a spec status ...` | rc 2, `aw set: '<status>' is not a valid status for specs` | rc 2, `aw set: '<status>' is not a valid status for specs` | changed | n/a (not pinned) |
+    | Missing `- Status:` bullet | rc 1, `aw specs set: spec has no '- Status:' bullet` | rc 1, `refused: ... has no - Status: bullet` | rc 1, `aw specs set: refused: ... has no - Status: bullet` | preserved | n/a |
+    | Illegal transition | rc 1, `aw specs set: illegal transition <old> -> <new>` | rc 1, `refused: illegal transition <old> -> <new>` | rc 1, `aw specs set: refused: illegal transition <old> -> <new>` | preserved | n/a |
+    | Human-only approval (`->approved` without `--by-human`) | rc 1, `aw specs set: ... requires interactive human confirmation` | rc 1, `refused: approval requires interactive confirmation or attested flag` | rc 1, `aw specs set: refused: approval requires interactive confirmation or attested flag` | preserved | n/a |
+    | Missing/unresolvable evidence (`->implemented`) | rc 1, `aw specs set: ... requires a resolvable --evidence citation` | rc 1, `refused: ... requires a resolvable --evidence citation` | rc 1, `aw specs set: refused: ... requires a resolvable --evidence citation` | preserved | n/a |
+    | `->reviewed` without review record | rc 1, `aw specs set: ... requires a review record` | rc 1, `refused: ... requires a review record` | rc 1, `aw specs set: refused: ... requires a review record` | preserved | n/a |
+    | Deferred gate pair missing/invalid | rc 1, `aw specs set: deferred requires a valid --gate-kind and --gate-ref` | rc 1, `aw specs set: deferred requires a valid --gate-kind and --gate-ref` | rc 1, `aw specs set: deferred requires a valid --gate-kind and --gate-ref` | preserved | n/a |
+    | Unsafe `--gate-summary` | rc 1, `aw specs set: --gate-summary must be a bounded single control-char-free line` | rc 2, `aw set: --gate-summary must not contain embedded newlines` | rc 2, `aw set: --gate-summary must not contain embedded newlines` | changed | `tests/test_specs_releases_descriptive_safety.py`, `tests/test_specs_set_gate_parity.py` |
+    | Unsafe `--message` | rc 1, `aw specs set: --message must not contain embedded newlines` | rc 2, `aw set: --message must not contain embedded newlines` | rc 2, `aw set: --message must not contain embedded newlines` | changed | `tests/test_specs_releases_descriptive_safety.py` |
+    | Unsafe `--blocks-release` | rc 1, `aw specs set: --blocks-release must not contain embedded newlines` | rc 2, `aw set: --blocks-release must not contain embedded newlines` | rc 2, `aw set: --blocks-release must not contain embedded newlines` | changed | `tests/test_specs_releases_descriptive_safety.py` |
+    | Unsafe `--from-backlog` | rc 1, `aw specs set: --from-backlog must not contain embedded newlines` | rc 2, `aw set: --from-backlog must not contain embedded newlines` | rc 2, `aw set: --from-backlog must not contain embedded newlines` | changed | `tests/test_specs_releases_descriptive_safety.py` |
+    | Malformed `--graduated-to` | rc 2, `aw specs set: --graduated-to takes lowercase-kebab setids` | rc 2, `aw set: --graduated-to takes lowercase-kebab setids` | rc 2, `aw set: --graduated-to takes lowercase-kebab setids` | changed (prefix) | `tests/test_specs_releases_descriptive_safety.py` |
+    | Unresolvable `--from-backlog` | rc 2, `aw specs set: unresolvable backlog id ...` | rc 2, `aw set: unresolvable backlog id ...` | rc 2, `aw set: unresolvable backlog id ...` | changed (prefix) | n/a |
+    | Post-write `validate_spec` conformance | rc 1, `aw specs set: the resulting spec would not conform; refused` | (did not validate) | rc 1, `aw specs set: the resulting spec would not conform; refused` | preserved | n/a |
+
+    History lines read back after delegation:
+    Standard transition:
+    - 2026-10-09 to-review (aw specs): status set to to-review
+    Attested approval transition (--by-human):
+    - 2026-10-09 approved (aw specs, --by-human): LGTM
+  - Result: pass
 
 ## Approval and execution gate
 

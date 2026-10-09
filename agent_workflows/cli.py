@@ -17849,7 +17849,7 @@ def _dispatch(argv: Optional[Sequence[str]]) -> int:
                     if getattr(args, "args", None)
                     else getattr(args, "path", None)
                 )
-                return sp.run_set(args)
+                return sp.run_set(args, term=term)
         if specs_cmd == "note":
             from agent_workflows import specs as sp
 

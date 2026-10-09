@@ -166,6 +166,7 @@ Established by reading `backlog.run_set` and the shared engine in full at HEAD `
 
 - THE SPECS PATH IS NOT MIGRATED HERE. Spec `wy9aru` S4 requires the migration to be incremental and per-verb, each with its harness green before the next starts, and child 04 does specs first because it is the simpler path (no `--gate-dir`, no `_render_item` round trip, no relocation divergence). This plan depends on it having executed.
   - Carrier: m94eht
+  - Carrier-Evidence: .aw/records/plans/executed/20261001-setdisp-04-m94eht-make-aw-specs-set-status-a-thin-adapter-delegating-to-the-sh.ipd.md
 - THE CLOCK CARRIERS ARE NOT THIS PLAN'S (F-03, corrected at review). The `run_set` history clock was fixed by `5ivkdh` before this plan; `2wae2x` is left for the maintainer to close with that plan's citation.
   - Carrier: 2wae2x
 - THE SAME-STATUS DEDUP AND THE HISTORY LABEL were already unified by histdedup and `jbipfa`; `r74211` is `done`. Nothing remains here.

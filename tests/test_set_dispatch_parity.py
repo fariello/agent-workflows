@@ -1797,8 +1797,10 @@ class TestSetDispatchExpectedDifferences(unittest.TestCase):
                     ]
                 )
             self.assertEqual(
-                rc, 2, "--status spelling rejects id6 selector as non-existent path"
+                rc, 0, "--status spelling resolves id6 selector successfully"
             )
+            moved = _find_spec(repo, "sp0001")
+            self.assertEqual(moved.parent.name, "to-review")
 
         # positional spelling given id6 resolves and transitions with rc 0
         with tempfile.TemporaryDirectory() as tmp:
