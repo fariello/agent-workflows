@@ -52,3 +52,11 @@ retired child row REMOVED ready= False [('coverage-record-absent', 'orc001', ...
 | D-4 | What does "matching terminal directory" mean? | The `/<status>/` segment. | Any `TERMINAL_DIRECTORY_SEGMENTS` member. REJECTED: admits `reusable/`. | `run_selection_policy.TERMINAL_DIRECTORY_SEGMENTS` | yes |
 
 No decision is `Reversible: no`. PR-001 is left OPEN at HIGH and is escalated in the plan as OQ-02 with `- Blocking: yes` and `- Finding: PR-001`.
+
+## Round 2
+
+### Findings
+
+| ID | Severity | Scope | Area | Evidence | Finding | Remediation Risk | Decision | Resolution |
+| --- | -------- | ----- | ---- | -------- | ------- | ---------------- | -------- | ---------- |
+| PR-001 | high | IN-SCOPE | Rubric B/D; spec `25kzda` 2.5b/2.5e coverage gate | `runner_shared.PROBE_PROMPT_TEMPLATE` ("WORK ASSIGNED TO A NAMED CHILD IS COVERED ... a child listed in the `### Child IPDs table` section ... is COVERED"); probe payload keys `child_table_rows`, `e_items`, `prose_sections` carry no child status; plan OQ-01 | OQ-01 claimed work assigned only to a retired child "already reads as uncovered". False: the probe counts any listed child as covering, and retirement changes neither its input nor the fingerprint. So E-01 accepting a retired row in place leaves a pre-retirement `- Coverage: pass` current, and the orchestrator becomes approvable and runner-retirable with that child's work never performed. | C:Medium; U:Low; S:Medium-High; F:Medium-High; Overall:Medium-High | fixed | STALE ESCALATION CLOSED 2026-10-09 by agent (aw ipd recheck-readiness). The question this finding was escalated as (OQ-02) is `- Status: resolved`, so the finding it gated on has been answered and the record is caught up. NO FINDING WAS RE-DERIVED and no plan content was re-critiqued: the match was made on the question's declared `- Finding: PR-001` back-reference, not on a judgement about what the question was about. Previous decision: open. |

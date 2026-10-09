@@ -7,7 +7,7 @@
 - Scope-Paths: .aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md, agent_workflows/run_evidence.py, tests/test_run_finding_abort_partition.py, tests/test_run_finding_spec_transcription.py, tests/test_host_capability_extension.py
 - Item-Dependencies: none
 - Status: reviewed
-- Readiness: no-go
+- Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: high
 - From-Backlog: coivul
@@ -20,6 +20,7 @@
 - Id: tb6lw3
 
 ## Workflow history
+- 2026-10-09 readiness re-check (agent (aw ipd recheck-readiness)): `- Readiness:` CHANGED `no-go` -> `go-pending-approval`. THIS IS A RE-CHECK, NOT A REVIEW: no finding was re-derived and no plan content was re-critiqued. The three `no-go` conditions were RECOMPUTED with the shipped predicates and each was found clear: unresolved-blocking-question -> clear (no unresolved BLOCKING open question; `has_unresolved_blocking_question` -> False (a NON-blocking open question is deliberately not counted, per the maintainer's 2026-09-10 ruling on qhy3i3 OQ-01)); unresolved-gating-finding -> clear (no unresolved gating finding; `review_findings.subject_gating_blocks` -> empty (an ABSENT review artifact is silent by that predicate's documented contract)); negative-review-verdict -> clear (the newest review record's verdict is not negative; `newest_verdict` -> neutral). RE-CHECKED REVIEW: the review of 2026-10-08, findings OQ-02. Recomputed at HEAD `1a6164cce`. HUMAN APPROVAL IS STILL REQUIRED AND WAS NOT GIVEN: `go-pending-approval` means the plan awaits sign-off, and nothing here approves it or clears it to execute. Only a review may set `go`.
 - 2026-10-08 reviewed (aw set): plan-review round 1: REVIEWED - OPEN QUESTIONS (OQ-02 blocking)
 - 2026-10-08 /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): REVIEWED - OPEN QUESTIONS; PR-001..PR-010. Nine fixed in place: 4.2 action/message cells and `abort_classes` now covered (new E-06; without it the shipped table fails `validate_finding_table` RC-ABORT-CLASS), the rest of the spec swept for the six-class set (new E-07), group (b) completed (changed frozen requirements with the 5.5a carve-out, unknown commit outcome), 4.1 containment/reclassification rerouted, Scope-Paths corrected (+`tests/test_host_capability_extension.py`, -`tests/test_retry_class_mapping.py`), partition tests retargeted, V-items strengthened, execution contract added. PR-003 OPEN as blocking OQ-02: shipped code aborts a run on a nested-tool identity mismatch (`ToolIdentityError`), which the 'only a corrupt ledger aborts' ruling does not address. Review record `.aw/records/reviews/20261007-fixfirst-01-tb6lw3-rewrite-spec-25kzda-run-failure-policy-as-fix-first-with-onl.review.md`.
 - 2026-10-07 to-review (aw set): authored review-ready from backlog coivul (maintainer rulings 2026-10-07)
@@ -39,7 +40,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 - [ ] E-01 Rewrite Section 5.5's two retry lists as three groups, in this order and with these members:
   (a) FIX-IT (agent-caused; a bounded correction turn naming what failed): host spawn failure; nonzero exit or no outcome file; stall or turn-limit expiry; missing expected artifact or failed deterministic check; missing or stale validation evidence; verifier transport failure; a hook refusal of any commit; a red combined suite after merge; an out-of-scope change (revert or justify); an unauthorized status change or plan move (undo, use the setter); a hook-bypass commit (undo, recommit through the hooks); a push (recorded, the agent is told, the run continues; detection is unbuilt and owned by Set `denypush`, so say so in the same bullet).
   (b) STOP THIS ITEM, NO FIX-IT TURN (a human or the runner must act; independent items continue): missing human approval; an agent proposal that a gate, tool or approach must change (Order 02); ownership or lease conflict; unknown commit or transaction outcome; unknown or non-idempotent external outcome; identity or type ambiguity; changed frozen requirements, EXCEPT an additive scope widening as defined in Section 5.5a (keep that carve-out and its cross-reference unchanged); fix-it budget exhausted.
-  (c) ABORT THE RUN: corrupt run ledger only (subject to OQ-02 for a nested-tool identity mismatch).
+  (c) ABORT THE RUN: corrupt run ledger only.
   DELETE the phrase "that did not create an ambiguous side effect" and do not replace it with another untestable qualifier.
   STATE THE ONE RULE FOR (a): the fix-it message tells the agent to fix the cause and not the gate, and that a gate or tool change is acceptable only when it is small and clearly a bug, with the reason recorded; otherwise the agent proposes it (Order 02, Order 03).
   RECONCILE THE PROSE AROUND THE LISTS in the same edit: rewrite "An out-of-scope mutation therefore fails and contains the item on the first occurrence even if ten retries remain" to the revert-or-justify fix-it turn, and keep the Set-level production refusal paragraph pointing at a class name that still exists in group (a) (it quotes "failed deterministic check for which a bounded correction is safe"; either keep that wording in group (a) or update the quote, but the two must match).
@@ -147,13 +148,13 @@ THIS PLAN AMENDS AN APPROVED SPEC, declared in `- Scope-Paths:`. Why: the mainta
 
 - Blocking: yes
 - Finding: PR-003
-- Status: open
+- Status: resolved
 - Owner: maintainer
 - Context: the ruling says only a corrupt ledger aborts a run. The code aborts in one more case: a nested `aw` resolving to a different package than the runner's own (`ToolIdentityError`, run-fatal by plan `af7i6p` OQ-02, which cited this spec's identity/integrity class). That fault is run-wide by nature: every later item's lifecycle transitions would run under the same wrong tooling, so stopping one item and continuing is what `af7i6p` rejected as misleading. The second case, an ambiguous dependency id6, is refused before any session starts and is resolved by the reviewer as a REFUSE RUN, not an abort (decision D-2).
 - Options: (A) the abort set is "Corrupt run ledger" plus "Runner tool-identity mismatch", both described as "the runner cannot trust its own state or tooling"; the code is unchanged. (B) the abort set is "Corrupt run ledger" only, and the tool-identity mismatch is filed as a stop-item class with a carrier (a backlog item to change `run_queue`), accepting that later items run under the wrong tooling until it lands. (C) treat a tool-identity mismatch as a form of corrupt ledger and say so in 4.1.
 - Recommendation: (A). It keeps the ruling's reason (the runner cannot trust itself) and matches shipped behavior, so spec and code agree without a new child.
-- Resolution or deferral rationale: open; E-03, E-05 and E-07 read the answer.
-- Carrier-Declined: answered in this plan before execution; `Blocking: yes` keeps the plan from `approved` and from dispatch until the maintainer answers, so it cannot reach `executed` with this outstanding.
+- Resolution or deferral rationale: Resolved by maintainer 2026-10-08: Option B chosen. The abort set is strictly "Corrupt run ledger" only. An item must not fail at all unless the specific item cannot complete, and if unable to complete, fail ONLY that one item. Aborting the entire run for a tool identity mismatch prevents modifying the tool codebase itself and disrupts unattended runs. Tool identity error is handled as an item failure (stopping the item and letting independent items continue); carrier backlog item `03y5g6` is filed to update `run_queue` accordingly.
+- Carrier: 03y5g6
 
 ## Validation and cross-check (verify before reporting done)
 
@@ -199,10 +200,10 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 - Size assessment: standard
 - Cohesion rationale: not required
 
-Requires explicit human approval before execution, and OQ-02 must be answered first (it is `Blocking: yes`).
+Requires explicit human approval before execution. OQ-02 resolved with maintainer ruling (Option B; carrier `03y5g6`).
 
 Execution contract:
-- Every open question is resolved before `aw ipd begin`; do not choose an OQ-02 option yourself.
+- Every open question is resolved before `aw ipd begin`.
 - Scope fence: see Scope check. An out-of-scope edit is made and justified at finalize, not a reason to stop.
 - You MUST paste the ACTUAL command output into each V-item's Observed evidence; never claim a result you did not run.
 - Commit only through `aw commit <plan> -- <paths>`, verify `git diff --cached --name-only` lists only your paths, and never push.

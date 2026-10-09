@@ -6,7 +6,7 @@
 - Scope: Give the retry predicate a PRODUCER-DERIVED signal so a host failure is retryable under either spelling while every gate refusal stays refused, and pin the canonicalization hazard with a test. EXCLUDES widening the retryable CLASS SET (no new spec 5.5 class becomes retryable), EXCLUDES changing `TERMINAL_STATES`/`KNOWN_ITEM_STATUSES` membership, and EXCLUDES touching `finalize_retry_decision`.
 - Scope-Paths: agent_workflows/runner_shared.py, tests/test_retry_class_mapping.py, .aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md
 - Item-Dependencies: none
-- Status: reviewed
+- Status: superseded
 - Readiness: no-go
 - From-Spec: 25kzda
 - Work-Kind: chore
@@ -19,6 +19,7 @@
 - Id: p47qfu
 
 ## Workflow history
+- 2026-10-09 superseded (aw set): superseded by ytas91 (fixfirst-04): marks failures where the run learns them
 - 2026-10-07 reviewed (aw set): status transition for the /plan-review record below
 - 2026-10-07 /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): REJECT - NEEDS REPLAN; PR-001 (BLOCKER, replan: the F-03 marker producers never reach `turn_failure_is_retryable`, see F-12), PR-002 (HIGH, open: rung-5 side-effect discrimination is a maintainer decision, OQ-02), PR-003 (LOW, fixed: V-02 cross-reference). Review record `.aw/records/reviews/20261002-vmrhj0-01-p47qfu-make-the-turn-retry-allowlist-key-on-what-happened-not-on-wh.review.md`.
 - 2026-10-02 same-status (aw set): link the spec this plan amends (check.plan-spec-link-missing)
