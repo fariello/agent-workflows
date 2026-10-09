@@ -234,6 +234,9 @@ class AttemptLaneFactsTests(unittest.TestCase):
             plan = _init_oc_plan(repo, "wir001")
             run_dir = self._mk_run_dir(repo)
             state, item = self._oc_state_and_item(repo, plan)
+            # The forced red merge gate is retryable since w9nvq4; this case pins the FIRST attempt's
+            # lane facts, so spend no fix-it turn (same treatment w9nvq4 gave its two siblings).
+            state["options"]["retry_budget"] = 0
             fake_agent = self._fake_oc_agent_commits_in_worktree(run_dir)
             main_head_before = subprocess.run(
                 ["git", "rev-parse", "HEAD"],
