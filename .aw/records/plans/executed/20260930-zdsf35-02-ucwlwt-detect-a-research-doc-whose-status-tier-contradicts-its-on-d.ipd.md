@@ -6,7 +6,7 @@
 - Scope: Add ONE status-versus-tier drift rule to `research_index.check_drift` (so it surfaces through both `aw research index --check` and `aw check research`), register its severity, and cover both directions with fixture-driven tests. No corpus move (that is `mg8bag`), no new verb, no change to any existing rule.
 - Scope-Paths: agent_workflows/research_index.py, agent_workflows/check_engine.py, tests/test_research_index.py, .aw/records/research/README.md
 - Item-Dependencies: executed:mg8bag
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -16,9 +16,9 @@
 - Highest E allocated: 05
 - Author: opencode Opus 5, its_direct/pt3-claude-opus-5-1m-us
 - Id: ucwlwt
-- Approval: 2026-10-01, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-09 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: ucwlwt verified (set zdsf35, attempt 2). [Scope reconciliation - out-of-scope tests/test_drift_rule_registration.py: changed by the plan's approved execution (auto-reconciled by aw agy run); out-of-scope tests/test_research_rename_frontmatter.py: changed by the plan's approved execution (auto-reconciled by aw agy run)]
 - 2026-10-01 approved (aw set): status set to approved
 
 - 2026-10-01 reviewed (opencode its_direct/pt3-claude-opus-5-1m-us): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-1001 (HIGH), PR-1002 (HIGH), PR-1003 (MEDIUM), PR-1004 (MEDIUM), PR-1005 (MEDIUM), PR-1006 (LOW), PR-1007 (LOW) all FIXED; zero deferred, zero open. Structural lint `conforming` at `--phase author` and `--phase review-finalize` with NO advisories at either checkpoint. This plan's own first `- Kind:` bullet reads `child`, so the `IPD-S407` orchestrator row check does not apply. No production file, test, document or spec was modified by this review.
