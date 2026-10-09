@@ -120,6 +120,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Carrier-Declined: no defect; coherent follow-on work whose value depends on this Set landing first
 - A COMPLETENESS CLAIM ABOUT THE BYPASS CENSUS. Order 03's six sites come from a STRING match on one exact expression, so a differently-spelled bypass would not appear. The Set fixes what it measured and says so. CORRECTED AT REVIEW (PR-001): this row previously named `rlhmt9` as carrier, but `rlhmt9` contains no bypass audit, and a seventh, differently-spelled site WAS found: `cli._nv_backend_args` sets `sub.dir = getattr(args, "dir", None) or os.getcwd()`, which hands the cwd to every noun-verb backend as an EXPLICIT `--dir`, so a bare `aw index|group|rename|archive <type>` from a subdirectory does not climb. Now owned by Order 05 `pua92o` (OQ-03). Any further differently-spelled site remains unmeasured.
   - Carrier: pua92o
+  - Carrier-Evidence: .aw/records/plans/executed/20261007-dirsilent-05-pua92o-route-the-noun-verb-backend-adapter-through-resolve-verb-rep.ipd.md
 - THE PRE-EXISTING SUITE FAILURES at authoring HEAD (`test_every_real_spec_in_this_repository_still_conforms`, `test_unreachable_binding_refusal_fires_under_perturbation`, `test_must_not_refuse_matrix`). Unrelated to this concern; recorded as the baseline each child reconciles against.
   - Carrier-Declined: pre-existing before any edit in this Set; the bar is the delta of failing node ids
 
