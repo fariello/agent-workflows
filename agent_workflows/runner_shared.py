@@ -218,6 +218,8 @@ from agent_workflows.render_stream import (
     format_spec_impact_announcement,
     # strandexit (`entv1d`) E-02: predicate answering whether an item's work failed to land.
     work_did_not_land,
+    # ckxypc E-02: host error helpers
+    scan_last_host_error,
 )
 
 # ---- module constants the moved bodies close over ------------------------------------------------
@@ -24300,6 +24302,12 @@ def build_review_orchestrator_correction_prompt(
     return "\n".join(lines)
 
 
+class ReviewOrchestratorResult(NamedTuple):
+    disposition: str
+    evaluated: bool
+    refused: bool
+
+
 def handle_review_orchestrator_readiness(
     *,
     tree: Path,
@@ -24318,13 +24326,13 @@ def handle_review_orchestrator_readiness(
     exit_code: int,
     save_state: Callable[[Path, Any], Any],
     append_jsonl: Callable[..., Any],
-) -> str:
-    """Handle post-review orchestrator readiness verification and bounded corrections (IPD nnsa2o E-03)."""
+) -> ReviewOrchestratorResult:
+    """Handle post-review orchestrator readiness verification and bounded corrections (IPD nnsa2o E-03, ckxypc E-01)."""
     if exit_code != 0:
-        return disposition
+        return ReviewOrchestratorResult(disposition, evaluated=False, refused=False)
 
     if queue_entry_type(item) != "ipd":
-        return disposition
+        return ReviewOrchestratorResult(disposition, evaluated=False, refused=False)
 
     from agent_workflows import ipd_lint as _lint
     from agent_workflows import orchestrator_readiness as _orch_readiness
@@ -24349,16 +24357,16 @@ def handle_review_orchestrator_readiness(
             except Exception:
                 pass
     if plan_file is None or not plan_file.is_file():
-        return disposition
+        return ReviewOrchestratorResult(disposition, evaluated=False, refused=False)
 
     try:
         doc = _lint.parse(plan_file.read_text(encoding="utf-8"))
     except Exception:
-        return disposition
+        return ReviewOrchestratorResult(disposition, evaluated=False, refused=False)
 
     kind = (doc.meta_fields.get("Kind") or "").strip()
     if kind != "orchestrator":
-        return disposition
+        return ReviewOrchestratorResult(disposition, evaluated=False, refused=False)
 
     host_name = "agy" if "agy" in getattr(host_labels, "id", "") else "oc"
     pal = Palette(should_color(sys.stderr))
@@ -24383,7 +24391,7 @@ def handle_review_orchestrator_readiness(
             "auto-approved",
             "executed",
         ):
-            return "reviewed"
+            return ReviewOrchestratorResult("reviewed", evaluated=True, refused=False)
 
         # Check retry decision
         used_turns = review_orchestrator_retry_attempts(item)
@@ -24466,7 +24474,7 @@ def handle_review_orchestrator_readiness(
 
         if not rev_dec.retry:
             # On exhaustion or budget 0
-            return "fail-gate"
+            return ReviewOrchestratorResult("fail-gate", evaluated=True, refused=True)
 
         # Remand!
         item[REVIEW_ORCHESTRATOR_RETRY_COUNT_KEY] = rev_dec.attempts + 1
@@ -29138,6 +29146,24 @@ def write_report(
     from agent_workflows import lane_containment
 
     lines.extend(lane_containment.format_preserved_lanes(state))
+
+    # ckxypc E-03: render host errors beside preserved lanes in execution-report.md
+    host_error_items = [
+        q_item
+        for q_item in state.get("queue", [])
+        if isinstance(q_item, Mapping) and q_item.get("host_error")
+    ]
+    if host_error_items:
+        lines.extend(["", "## Host errors", ""])
+        for h_item in host_error_items:
+            h_err = h_item["host_error"]
+            h_name = h_err.get("name", "error")
+            h_msg = h_err.get("message", "")
+            lines.append(
+                f"- `{h_item.get('id6')}`: host {h_name}: {h_msg}"
+                if h_msg
+                else f"- `{h_item.get('id6')}`: host {h_name}"
+            )
     # runverdict-05 (`bxx9af`) E-06: render verified items' test evidence and corrections in execution-report.md
     lines.extend(format_verifier_evidence_section(state, run_dir))
     lines.extend(
@@ -35036,6 +35062,17 @@ def execute_item_core(
                 "argv": argv,
             }
         )
+        # ckxypc E-02: capture host error from session log
+        host_err_scanned = scan_last_host_error(attempt.get("log"))
+        if host_err_scanned is not None:
+            attempt["host_error"] = {
+                "name": host_err_scanned[0],
+                "message": host_err_scanned[1],
+            }
+            item["host_error"] = {
+                "name": host_err_scanned[0],
+                "message": host_err_scanned[1],
+            }
         if work_dir and not is_review:
             _record_lane_ending_facts(
                 attempt,
@@ -36382,7 +36419,7 @@ def execute_item_core(
                     )
                 save_state(run_dir, state)
 
-            review_orch_disp = handle_review_orchestrator_readiness(
+            review_orch_res = handle_review_orchestrator_readiness(
                 tree=Path(wt_handle.path),
                 item=item,
                 attempt=attempt,
@@ -36400,7 +36437,7 @@ def execute_item_core(
                 save_state=save_state,
                 append_jsonl=append_jsonl,
             )
-            if review_orch_disp == "fail-gate":
+            if review_orch_res.refused:
                 disposition = "fail-gate"
                 attempt["disposition"] = "fail-gate"
                 item["status"] = "fail-gate"
@@ -36409,7 +36446,35 @@ def execute_item_core(
                     item=item,
                     handle=wt_handle,
                     reason="review orchestrator readiness failed; lane preserved for inspection",
-                    reason_codes=("review-orchestrator-failed",),
+                    reason_codes=(
+                        lane_containment.RETENTION_REVIEW_ORCHESTRATOR_FAILED,
+                    ),
+                )
+                save_state(run_dir, state)
+            elif disposition == "fail-gate":
+                # Preserved lane with actual cause (ckxypc E-01)
+                host_err_val = attempt.get("host_error")
+                if host_err_val:
+                    h_name = host_err_val.get("name", "error")
+                    h_msg = host_err_val.get("message", "")
+                    pres_reason = (
+                        f"review turn failed: host {h_name}: {h_msg}"
+                        if h_msg
+                        else f"review turn failed: host {h_name}"
+                    )
+                    pres_codes = (lane_containment.RETENTION_REVIEW_HOST_ERROR,)
+                elif exit_code != 0:
+                    pres_reason = f"review turn exited {exit_code} with no outcome file"
+                    pres_codes = (lane_containment.RETENTION_REVIEW_TURN_EXITED,)
+                else:
+                    pres_reason = f"review turn ended {disposition}"
+                    pres_codes = (lane_containment.RETENTION_REVIEW_TURN_FAILED,)
+                lane_containment.record_lane_preserved(
+                    run_dir=run_dir,
+                    item=item,
+                    handle=wt_handle,
+                    reason=pres_reason,
+                    reason_codes=pres_codes,
                 )
                 save_state(run_dir, state)
             else:
@@ -36570,7 +36635,7 @@ def execute_item_core(
                 item["review_integrated"] = True
             save_state(run_dir, state)
 
-            review_orch_disp = handle_review_orchestrator_readiness(
+            review_orch_res = handle_review_orchestrator_readiness(
                 tree=repo,
                 item=item,
                 attempt=attempt,
@@ -36588,7 +36653,7 @@ def execute_item_core(
                 save_state=save_state,
                 append_jsonl=append_jsonl,
             )
-            if review_orch_disp == "fail-gate":
+            if review_orch_res.refused:
                 disposition = "fail-gate"
                 attempt["disposition"] = "fail-gate"
                 item["status"] = "fail-gate"

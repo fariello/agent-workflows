@@ -776,6 +776,71 @@ def strip_system_protocol_prefix(text: str) -> str:
     return s.strip()
 
 
+def host_error_of_event(event: Any) -> tuple[str, str] | None:
+    """Extract host error (name, message) from an OpenCode or Antigravity session event.
+
+    Pure helper shared between render_event and session log scanners (IPD ckxypc E-02).
+    Returns (name, message) bounded to one line (name <= 80 chars, message <= 300 chars),
+    or None if the event is not an error/failed-result event.
+    """
+    if not isinstance(event, dict):
+        return None
+    etype = event.get("type")
+    if etype == "error":
+        err = event.get("error")
+        err = err if isinstance(err, dict) else {}
+        name = str(err.get("name") or "error")
+        data = err.get("data")
+        message = ""
+        if isinstance(data, dict):
+            message = str(data.get("message") or "")
+        elif isinstance(data, str):
+            message = data
+        if not message:
+            message = str(err.get("message") or "")
+        return _one_line(name, 80), _one_line(message, 300)
+    event_type = event.get("event")
+    if event_type == "result":
+        res = event.get("result")
+        res = res if isinstance(res, dict) else {}
+        status = str(res.get("status", "UNKNOWN"))
+        if status != "SUCCESS":
+            err = res.get("error")
+            err_str = str(err) if err is not None else ""
+            return _one_line(status, 80), _one_line(err_str, 300)
+    return None
+
+
+def scan_last_host_error(log_path: Path | str | None) -> tuple[str, str] | None:
+    """Scan a session log for the LAST host error event and return (name, message) or None.
+
+    Pure, safe scanner (IPD ckxypc E-02). An unreadable or missing log yields nothing
+    and never raises.
+    """
+    if not log_path:
+        return None
+    p = Path(log_path)
+    if not p.is_file():
+        return None
+    last_err: tuple[str, str] | None = None
+    try:
+        with p.open("r", encoding="utf-8", errors="replace") as f:
+            for line in f:
+                line = line.strip()
+                if not line or not (line.startswith("{") and line.endswith("}")):
+                    continue
+                try:
+                    ev = json.loads(line)
+                except Exception:
+                    continue
+                err = host_error_of_event(ev)
+                if err is not None:
+                    last_err = err
+    except Exception:
+        return None
+    return last_err
+
+
 def render_event(  # type: ignore[return]  # checker-limitation: intentional fallthrough returns None for unrendered events (PR-006)
     raw_line: str,
     pal: Palette,
@@ -827,20 +892,13 @@ def render_event(  # type: ignore[return]  # checker-limitation: intentional fal
         # out."}}}`) rendered as `None` and the operator saw nothing at all. It is rendered at
         # EVERY verbosity level, deliberately and without a tier check: an error is the one event
         # class that must never be filtered by a display preference.
-        err = event.get("error")
-        err = err if isinstance(err, dict) else {}
-        name = str(err.get("name") or "error")
-        data = err.get("data")
-        message = ""
-        if isinstance(data, dict):
-            message = str(data.get("message") or "")
-        elif isinstance(data, str):
-            message = data
-        if not message:
-            message = str(err.get("message") or "")
+        # Factored via host_error_of_event (ckxypc E-02).
+        host_err = host_error_of_event(event)
+        name, message = host_err if host_err is not None else ("error", "")
         body = f"{name}: {message}" if message else name
         prefix = format_event_prefix("diag", pal, use_unicode, style="red")
         return prefix + pal(_one_line(body, 300), "red")
+
     if etype == "tool_use":
         state = part.get("state") or {}
         tool = part.get("tool") or "tool"
@@ -3831,6 +3889,12 @@ def render_run_summary_table(
             # PRESENTATION differs, so nothing here can disagree with the durable record about whether
             # the item was refused.
             diag_lines.insert(0, f"    → decision needed: {refusal.remedy}")
+            if it.get("host_error"):
+                h_err = it["host_error"]
+                h_name = h_err.get("name", "error")
+                h_msg = h_err.get("message", "")
+                h_body = f"{h_name}: {h_msg}" if h_msg else str(h_name)
+                diag_lines.insert(0, f"    host error: {h_body}")
             diag_lines.insert(
                 0,
                 f"  • {id6}: AWAITING HUMAN DECISION ({st}) - {refusal.reason}",
@@ -3839,6 +3903,12 @@ def render_run_summary_table(
             # The remedy is on its own line so it survives the `head`/`tail` pipelines agents use, and
             # so a long reason cannot push it off the reader's screen.
             diag_lines.append(f"  • {id6}: {st} ({refusal.reason})")
+            if it.get("host_error"):
+                h_err = it["host_error"]
+                h_name = h_err.get("name", "error")
+                h_msg = h_err.get("message", "")
+                h_body = f"{h_name}: {h_msg}" if h_msg else str(h_name)
+                diag_lines.append(f"    host error: {h_body}")
             diag_lines.append(f"    → remedy: {refusal.remedy}")
         elif st in ("fail-depend", "dependency-blocked"):
             reasons = it.get("unsatisfied_dependency_reasons") or {}
@@ -3860,6 +3930,12 @@ def render_run_summary_table(
                 else "unmet dependencies"
             )
             diag_lines.append(f"  • {id6}: {st} ({dep_msg})")
+            if it.get("host_error"):
+                h_err = it["host_error"]
+                h_name = h_err.get("name", "error")
+                h_msg = h_err.get("message", "")
+                h_body = f"{h_name}: {h_msg}" if h_msg else str(h_name)
+                diag_lines.append(f"    host error: {h_body}")
         elif (
             st_canon in ("fail-gate", "fail-merge")
             or st
@@ -3872,6 +3948,12 @@ def render_run_summary_table(
             )
         ) and it.get("driver_error"):
             diag_lines.append(f"  • {id6}: {st} ({it['driver_error']})")
+            if it.get("host_error"):
+                h_err = it["host_error"]
+                h_name = h_err.get("name", "error")
+                h_msg = h_err.get("message", "")
+                h_body = f"{h_name}: {h_msg}" if h_msg else str(h_name)
+                diag_lines.append(f"    host error: {h_body}")
         elif (
             st_canon == "fail-merge"
             or st
@@ -3889,8 +3971,27 @@ def render_run_summary_table(
             # F-4's repair, legacy-record arm: these two statuses render their reason instead of
             # nothing even when no `Refusal` was recorded (a pre-r2i1b1 run directory).
             diag_lines.append(f"  • {id6}: {st} ({it['integration_deferral']})")
+            if it.get("host_error"):
+                h_err = it["host_error"]
+                h_name = h_err.get("name", "error")
+                h_msg = h_err.get("message", "")
+                h_body = f"{h_name}: {h_msg}" if h_msg else str(h_name)
+                diag_lines.append(f"    host error: {h_body}")
         elif st == "interrupted" and _interrupt_reason_of(it):
             diag_lines.append(f"  • {id6}: interrupted ({_interrupt_reason_of(it)})")
+            if it.get("host_error"):
+                h_err = it["host_error"]
+                h_name = h_err.get("name", "error")
+                h_msg = h_err.get("message", "")
+                h_body = f"{h_name}: {h_msg}" if h_msg else str(h_name)
+                diag_lines.append(f"    host error: {h_body}")
+        elif it.get("host_error"):
+            # ckxypc E-03: own bullet when the item has none
+            h_err = it["host_error"]
+            h_name = h_err.get("name", "error")
+            h_msg = h_err.get("message", "")
+            h_body = f"{h_name}: {h_msg}" if h_msg else str(h_name)
+            diag_lines.append(f"  • {id6}: {st} (host {h_body})")
 
     dr_refusal = state.get("driver_restart_refusal")
     if isinstance(dr_refusal, dict):

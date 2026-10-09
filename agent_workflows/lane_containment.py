@@ -3287,6 +3287,17 @@ RETENTION_INVENTORY_FAILED = "inventory-failed"
 #: commits have not reached the integration target or when the landing question is unanswerable.
 RETENTION_UNLANDED_LANE_COMMITS = "unlanded-lane-commits"
 
+#: Added 2026-10-07 by ckxypc E-01: review turn failure retention codes.
+RETENTION_REVIEW_ORCHESTRATOR_FAILED = "review-orchestrator-failed"
+RETENTION_REVIEW_HOST_ERROR = "review-host-error"
+RETENTION_REVIEW_TURN_EXITED = "review-turn-exited"
+RETENTION_REVIEW_TURN_FAILED = "review-turn-failed"
+
+REVIEW_ORCHESTRATOR_FAILED = RETENTION_REVIEW_ORCHESTRATOR_FAILED
+REVIEW_HOST_ERROR = RETENTION_REVIEW_HOST_ERROR
+REVIEW_TURN_EXITED = RETENTION_REVIEW_TURN_EXITED
+REVIEW_TURN_FAILED = RETENTION_REVIEW_TURN_FAILED
+
 #: RETIRED AS A REFUSAL REASON by the 2026-09-18 amendment to spec R5.5 (`laneign` `5w8g8j`), and kept
 #: DEFINED rather than deleted for two reasons: historical run records already carry the literal in
 #: their `retention_reasons`, so a reader decoding them needs the name to stay meaningful, and removing
