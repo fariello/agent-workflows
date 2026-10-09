@@ -8,6 +8,7 @@
 - Summary: backlog.py stamps history with the LOCAL date while status_set.py stamps the UTC date, so between local midnight and UTC midnight the two setter spellings write different dates and their parity test fails
 
 ## Workflow history
+- 2026-10-09 note (aw backlog): The test_release_exempt_setter_roundtrip_and_parity symptom no longer reproduces: commit da04c5cf0 masked the date in that test, and commit 3c55295a3 (plan 5ivkdh) removed that mask, so the test now compares dates literally and passes because the clock is fixed; see the driven reproduction across both aw backlog set spellings under a skewed timezone (Pacific/Honolulu) as the authoritative check. On tl8qmc: the item stays graduated to live carrier dmrbqa, which owns the residual local-clock record_history.append/append_rename sites deferred by 5ivkdh.
 - 2026-10-07 done (aw backlog): closed by aw agy run: IPD dmrbqa executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20261002-tl8qmc-01-dmrbqa-put-the-gitignored-history-sidecar-on-the-utc-clock-so-one-e.ipd.md); evidence .aw/records/plans/executed/20261002-tl8qmc-01-dmrbqa-put-the-gitignored-history-sidecar-on-the-utc-clock-so-one-e.ipd.md
 - 2026-10-02 graduated (aw backlog): graduated by run run-20261001T221834Z-1991716: dmrbqa
 - 2026-09-30 created (aw backlog): Measured 2026-09-30 20:06 EDT / 2026-10-01 00:06 UTC while authoring plan fqcax0: tests/test_backlog.py::BacklogPreservationTests::test_release_exempt_setter_roundtrip_and_parity fails deterministically inside the local/UTC date gap.
