@@ -1,5 +1,5 @@
 - Id: sklbrt
-- Status: graduated
+- Status: done
 - Graduated-To: sklbrt
 - Set: sklbrt
 - Priority: low
@@ -7,6 +7,7 @@
 - Summary: 19 of 36 specs carry no - Id: bullet, so they are unreachable by id6 selector and cannot be the target of any id6-keyed join
 
 ## Workflow history
+- 2026-10-09 done (aw backlog): closed by aw agy run: IPD h8e3sm executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20260929-sklbrt-01-h8e3sm-mint-an-id6-for-the-two-live-legacy-specs-so-they-are-reacha.ipd.md); evidence .aw/records/plans/executed/20260929-sklbrt-01-h8e3sm-mint-an-id6-for-the-two-live-legacy-specs-so-they-are-reacha.ipd.md
 - 2026-09-29 set (aw backlog): graduated by run run-20260928T235941Z-1396311: h8e3sm
 - 2026-09-20 created (aw backlog): 19 of 36 specs carry no - Id: bullet, so they are unreachable by id6 selector and cannot be the target of any id6-keyed join
 
