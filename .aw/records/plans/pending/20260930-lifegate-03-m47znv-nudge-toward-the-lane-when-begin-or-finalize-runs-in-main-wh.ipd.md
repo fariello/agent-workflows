@@ -172,6 +172,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Carrier-Declined: Nothing is owed because the maintainer decided this in D1. Filing an item would assert the repository intends to make the preference enforceable, which is the opposite of the decision and of P15's guidance to key checks on the real condition.
 - THE HOLDER CHECK, THE TOKEN DELETION, THE `--take-over` OVERRIDE AND THE SPEC AMENDMENTS. All Order 02's, and this plan depends on that plan being executed.
   - Carrier: e25iy9
+  - Carrier-Evidence: .aw/records/plans/executed/20260930-lifegate-02-e25iy9-delete-the-driver-token-and-the-location-guess-and-check-the.ipd.md
 - THE `driver.lock` MACHINE FIELD AND THE LIVENESS PREDICATE. Order 01's, and deliberately not consumed here (F-3).
   - Carrier: urv602
   - Carrier-Evidence: .aw/records/plans/executed/20260930-lifegate-01-urv602-record-the-machine-in-driver-lock-and-add-the-plan-scoped-li.ipd.md
