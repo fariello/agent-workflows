@@ -6,7 +6,7 @@
 - Scope: Route all six bypass sites through `resolve_verb_repo_root` so a bare invocation CLIMBS like its siblings, and refuse a non-surveyable root on the survey-class verbs using Order 01's primitive. IN: replacing the six hand-rolled resolutions with the resolver; adding the refusal to `cli._run_check`, `cli._run_find`, `cli._run_search`, `cli._run_record_history` and `cli._run_graduation`; fixing `doctor.run`'s resolution so it stops reporting an installed project as not-installed; and a regression test pinning the bare-cwd climb, the explicit-`--dir` refusal, and the controls for all six. OUT: changing `resolve_verb_repo_root` itself (body or docstring); making anything climb from an EXPLICIT `--dir`; changing what any of the six verbs CHECKS, FINDS or REPORTS for a correctly resolved root; `doctor`'s probe set or its 0/1 exit convention; the two fail-closed validators (Order 02); the shared read/write helper split and the remaining resolver callers (Order 04); and refactoring `attention.run` or `cli._run_plans` (Order 04).
 - Scope-Paths: agent_workflows/cli.py, agent_workflows/doctor.py, tests/test_resolver_bypass_sites_climb.py, tests/test_fields_flag_reach.py, tests/test_verbose_flag_reach.py, tests/test_agent_surface_conformance.py
 - Item-Dependencies: executed:i6mby8
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -17,9 +17,9 @@
 - Highest E allocated: 04
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: sjsb04
-- Approval: 2026-10-08, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-09 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: sjsb04 verified (set dirsilent, attempt 1). [Scope reconciliation - out-of-scope tests/test_cli_find.py: changed by the plan's approved execution (auto-reconciled by aw agy run)]
 - 2026-10-08 approved (aw set): status set to approved
 - 2026-10-07 reviewed (aw set): /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004. Three greenwash-dependent test fixtures scoped for fixture-only repair (F-10); doctor climb bounded at the git root so it never diagnoses HOME (F-11); complete install recipe; baseline wording.
 - 2026-10-07 to-review (aw set): returned to review: each Set-level check the coverage probe quoted now names its owning child; coverage pass recorded
