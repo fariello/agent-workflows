@@ -1936,6 +1936,12 @@ def _build_parser() -> argparse.ArgumentParser:
         "--yes", "-y", action="store_true", help="Confirm mutation without prompting."
     )
     p_ipd_set.add_argument(
+        "--skip-refused",
+        dest="skip_refused",
+        action="store_true",
+        help="Apply the records that pass and skip refused ones (each is listed); exit 1 if any were skipped.",
+    )
+    p_ipd_set.add_argument(
         "--rewrite-citations",
         action="store_true",
         help="Rewrite citing Scope-Paths in pending plans when relocating (default: off).",
@@ -4781,6 +4787,12 @@ def _build_parser() -> argparse.ArgumentParser:
         "--yes", "-y", action="store_true", help="Confirm execution without prompt."
     )
     p_set.add_argument(
+        "--skip-refused",
+        dest="skip_refused",
+        action="store_true",
+        help="Apply the records that pass and skip refused ones (each is listed); exit 1 if any were skipped.",
+    )
+    p_set.add_argument(
         "--rewrite-citations",
         action="store_true",
         help="Rewrite citing Scope-Paths in pending plans when relocating (default: off).",
@@ -6246,6 +6258,12 @@ def _build_parser() -> argparse.ArgumentParser:
         "--yes", "-y", action="store_true", help="Confirm mutation without prompting."
     )
     p_backlog_set.add_argument(
+        "--skip-refused",
+        dest="skip_refused",
+        action="store_true",
+        help="Apply the records that pass and skip refused ones (each is listed); exit 1 if any were skipped. Inert on the --status spelling.",
+    )
+    p_backlog_set.add_argument(
         "--rewrite-citations",
         action="store_true",
         help="Rewrite citing Scope-Paths in pending plans when relocating (default: off).",
@@ -6615,6 +6633,12 @@ def _build_parser() -> argparse.ArgumentParser:
         "--yes", "-y", action="store_true", help="Confirm mutation without prompting."
     )
     p_specs_set.add_argument(
+        "--skip-refused",
+        dest="skip_refused",
+        action="store_true",
+        help="Apply the records that pass and skip refused ones (each is listed); exit 1 if any were skipped. Inert on the --status spelling.",
+    )
+    p_specs_set.add_argument(
         "--rewrite-citations",
         action="store_true",
         help="Rewrite citing Scope-Paths in pending plans when relocating (default: off).",
@@ -6797,6 +6821,12 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     p_prompts_set.add_argument(
         "--yes", "-y", action="store_true", help="Confirm mutation without prompting."
+    )
+    p_prompts_set.add_argument(
+        "--skip-refused",
+        dest="skip_refused",
+        action="store_true",
+        help="Apply the records that pass and skip refused ones (each is listed); exit 1 if any were skipped.",
     )
     p_prompts_set.add_argument(
         "--rewrite-citations",
