@@ -1,7 +1,7 @@
 # Spec: Spec Requirement ID Convention and the SPEC-PLAN-TRACE Contract
 
 - Date: 2026-10-01
-- Status: reviewed
+- Status: approved
 - Id: 89xjll
 - Author: opencode / antigravity (IPD jjh4aj)
 - From-Backlog: vy20et
@@ -9,6 +9,7 @@
 - Scope: Requirement-ID convention for new specs, acceptance-criterion namespace, declaration-site rule, retrofit policy via stamped cutover, and SPEC-PLAN-TRACE verification contract (scope pooled over linked plans, qualified-citation grammar, severity, grandfathering behavior, `[Deferred]` marker and its `implemented` gate, and citation-not-implementation limit).
 
 ## Workflow history
+- 2026-10-09 approved (aw set, --by-human): status set to approved
 
 - 2026-10-09 note (aw specs): /spec-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; round 2: SR-002, SR-003 FIXED on maintainer rulings OQ-05/OQ-04; SR-011, SR-012 (OQ-08 asked and resolved), SR-013 FIXED
 - 2026-10-09 note (aw specs): amendment (opencode its_direct/pt3-claude-opus-5.5-1m-us): body rewritten to match maintainer decisions OQ-04..OQ-07 (1a, 1b R-1/R-4..R-6 revised + R-8/R-9 added, 3.1, new 3.3 markers, 6.1 pooled scope, 6.2/6.2a, new 6.2b qualified citations, 6.3 partial pass, new 6.5 deferred blocks implemented, 7 rtvdak re-review note, 9 AC-1/AC-4/AC-5 revised + AC-9/AC-10 added). Addresses SR-002/SR-003; needs /spec-review to close them.
