@@ -3131,6 +3131,13 @@ class SelfFinalizeWiringTests(unittest.TestCase):
             "queue": [item],
             "set_sessions": {},
             "session_id": None,
+            "host_capabilities": {
+                "host": "opencode",
+                "observed_at": "2026-08-28T00:00:00+00:00",
+                "descriptor": {
+                    "supports_fresh_verifier_session": True,
+                },
+            },
             "options": {
                 "opencode": "/bin/true",
                 "model": "opus",
@@ -3496,6 +3503,13 @@ class SpecEditReportBehavioralTests(unittest.TestCase):
             "queue": [item],
             "set_sessions": {},
             "session_id": None,
+            "host_capabilities": {
+                "host": "opencode",
+                "observed_at": "2026-08-28T00:00:00+00:00",
+                "descriptor": {
+                    "supports_fresh_verifier_session": True,
+                },
+            },
             "options": {
                 "opencode": "/bin/true",
                 "model": "opus",
@@ -6892,6 +6906,13 @@ class VerifierGateAndRunnerBugTests(unittest.TestCase):
                 "queue": [item],
                 "set_sessions": {},
                 "session_id": None,
+                "host_capabilities": {
+                    "host": "opencode",
+                    "observed_at": "2026-08-28T00:00:00+00:00",
+                    "descriptor": {
+                        "supports_fresh_verifier_session": True,
+                    },
+                },
                 "options": {
                     "opencode": "/bin/true",
                     "model": "opus",
@@ -6993,6 +7014,13 @@ class VerifierGateAndRunnerBugTests(unittest.TestCase):
                 "queue": [item],
                 "set_sessions": {},
                 "session_id": None,
+                "host_capabilities": {
+                    "host": "opencode",
+                    "observed_at": "2026-08-28T00:00:00+00:00",
+                    "descriptor": {
+                        "supports_fresh_verifier_session": True,
+                    },
+                },
                 "options": {
                     "opencode": "/bin/true",
                     "model": "opus",

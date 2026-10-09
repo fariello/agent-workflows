@@ -640,6 +640,13 @@ class RescoreAfterAReaskTests(unittest.TestCase):
             "queue": [item],
             "set_sessions": {},
             "session_id": None,
+            "host_capabilities": {
+                "host": "opencode",
+                "observed_at": "2026-08-28T00:00:00+00:00",
+                "descriptor": {
+                    "supports_fresh_verifier_session": True,
+                },
+            },
             "selectors": ["reask"],
             "options": {
                 "opencode": "/bin/false",

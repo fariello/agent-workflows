@@ -33636,11 +33636,15 @@ def integrate_retired_lane(
 # 2. Spec message corruption: format_host_capability_finding interpolates the action name
 #    verbatim, so mapping execute -> read_only would render "action read_only" into the
 #    spec's byte-exact operator message for an execute item.
-#
-# This mapping is deliberately empty of production rows: it serves as the extension seam
-# that successor plans (b7tlsh/oq05nc) will populate when a mutating action acquires a real
-# capability requirement.
-RUNNER_ACTION_TO_CONTRACT_ACTION: dict[str, str] = {}
+# Plan y9m1ya classifies the mutating runner action 'execute' onto contract class "execute"
+# (host_sandbox_profile.ACTION_EXECUTE), gating mutating execution on supports_fresh_verifier_session.
+# The gate refuses only on a host whose probe failed, which on measured hosts is none.
+# 'review' and 'plan' remain unclassified on the NO_CAPABILITY_POLICY sentinel because
+# they produce review records/prompts rather than product mutations and their capability
+# requirements remain unmodeled. No claim is made that the runner enforces host guarantees generally.
+RUNNER_ACTION_TO_CONTRACT_ACTION: dict[str, str] = {
+    "execute": "execute",
+}
 
 NO_CAPABILITY_POLICY: None = None
 
