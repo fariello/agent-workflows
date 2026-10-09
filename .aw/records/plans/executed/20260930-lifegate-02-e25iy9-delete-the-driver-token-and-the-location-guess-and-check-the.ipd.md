@@ -6,7 +6,7 @@
 - Scope: Replace the location-plus-token gate with the one plan-scoped live-holder check Order 01 built, and move both that check and the existing worker-label check INSIDE the three core functions so no caller can route around them. Delete `mint_driver_attestation`, `verify_driver_attestation`, `DRIVER_ATTEST_ENV`, `DRIVER_ATTEST_FILENAME`, `lane_worktree_active`, `runner_shared.get_run_attestation`, the token minting and unlinking in the run lifecycle, the `driver_attestation` and `attestation` parameters threaded through both hosts, and the child-env scrubbing that exists only to withhold the token. Add the deliberate `--take-over '<reason>'` override that records its reason in the plan's history. Amend spec `7ckptx` (R4.5, A11) and spec `llbr2b` (3.2, C-8), which describe the refusal this plan changes. EXCLUDES the worker-label check's own semantics, which D1 keeps verbatim. EXCLUDES the lane nudge, which is Order 03. EXCLUDES the opt-in OS sandbox, which D7 keeps as optional isolation.
 - Scope-Paths: agent_workflows/ipd_lifecycle.py, agent_workflows/runner_shared.py, agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, agent_workflows/cli.py, agent_workflows/status_set.py, tests/test_driver_attestation_gate.py, tests/test_lifecycle_holder_gate.py, tests/test_contention_wait.py, tests/test_finalize_sendback.py, tests/test_orchestrator_retirement.py, tests/test_commit_scope_reason.py, tests/test_ipd_authoring.py, tests/test_receipt_lane_record.py, .aw/records/specs/implementing/20260901-7ckptx-01-7ckptx-worker-lane-containment.spec.md, .aw/records/specs/to-review/20260920-llbr2b-01-llbr2b-lifecycle-automation-policy.spec.md, CHANGELOG.md
 - Item-Dependencies: executed:urv602
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: high
@@ -17,9 +17,9 @@
 - Highest E allocated: 10
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: e25iy9
-- Approval: 2026-10-08, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-09 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: e25iy9 verified (set lifegate, attempt 3).
 - 2026-10-08 approved (aw set): status set to approved
 - 2026-10-07 reviewed (opencode uri/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-101..PR-106 fixed
 - 2026-10-07 to-review (aw set): returned to review: four cross-child checks owned by m47znv E-05 (runs last); coverage pass recorded; open questions non-blocking
