@@ -36,36 +36,36 @@ Retiring a child plan never strands its orchestrator: the orchestrator stays app
 
 Execution-state rule: mark an `E-*` item complete only after performing the action. That mark is not validation. Right-sizing rule: each E-item must address one concern and be executable in one focused pass; split when an E-item names multiple distinct deliverables or independent test-surfaces. Accepted execution states: blocked, failed, pending, performed; terminal gate demands 'performed'.
 
-### Task group 1: readiness
+#### Task group 1: readiness
 
-- [ ] E-01 In `agent_workflows/orchestrator_readiness.review_readiness`, do not accept a retired child row in place; route any child whose status is in `ipd_schema.TERMINAL` (excluding `executed`) or any child in a terminal directory to the `child-terminal-status` finding and remedy defined in E-02.
+- [x] E-01 In `agent_workflows/orchestrator_readiness.review_readiness`, do not accept a retired child row in place; route any child whose status is in `ipd_schema.TERMINAL` (excluding `executed`) or any child in a terminal directory to the `child-terminal-status` finding and remedy defined in E-02.
   - Depends on: none
   - Expected outcome: an orchestrator whose child table includes a retired child (`superseded` or `not-executed`) is not ready, emitting `child-terminal-status`; once the retired child row is removed or reassigned and coverage re-verified, the orchestrator is ready.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 Give a child in a terminal status its own finding code and remedy, and surface retired children as an informational note. (1) Add a new stable code, for example `CODE_CHILD_TERMINAL = "child-terminal-status"`, used whenever a child's status is in `ipd_schema.TERMINAL` but E-01 does not accept it, with its OWN `REMEDIES` entry. A distinct code is required, not a per-finding remedy string, because `runner_shared`'s continue-handoff builder re-reads the remedy BY CODE (`remedy = _orch_readiness.REMEDIES.get(rf.code, rf.remedy)`), so a context-specific `remedy=` on a `CODE_CHILD_STATUS` finding would be overwritten there with the to-review advice (F-07). The remedy text, per spec `r07vma` R7, states the invariant, forbids deleting the checklist, and names the legitimate edits: remove or reassign the retired child's row in the orchestrator's `## Child IPDs` table, assign any work it owned to another child by id6 or add a child for it, then run `aw ipd coverage <id6>`; for a terminal status in the wrong directory, re-run `aw ipd set <status> <child-id6>` so the file lands in its terminal directory. `REMEDY_CHILD_STATUS` keeps its current text for non-terminal statuses, which is correct for them and is pinned by `test_condition_2_child_status_draft`. (2) When at least one child is accepted as retired (only under OQ-02 option A), carry an informational note naming each such child on a new DEFAULTED trailing field of `ReviewReadiness` (for example `notes: tuple[str, ...] = ()`), rendered by `render_human` after the findings and by `render_agent` in its `data`, and never counted as a finding, so it never blocks. A trailing defaulted NamedTuple field is compatible with every existing constructor call; no caller unpacks the tuple positionally (checked at review). Plan `juu1rj` (approved) also edits `render_human`; add the note lines without changing its header or signature, so the two plans compose in either order.
+- [x] E-02 Give a child in a terminal status its own finding code and remedy, and surface retired children as an informational note. (1) Add a new stable code, for example `CODE_CHILD_TERMINAL = "child-terminal-status"`, used whenever a child's status is in `ipd_schema.TERMINAL` but E-01 does not accept it, with its OWN `REMEDIES` entry. A distinct code is required, not a per-finding remedy string, because `runner_shared`'s continue-handoff builder re-reads the remedy BY CODE (`remedy = _orch_readiness.REMEDIES.get(rf.code, rf.remedy)`), so a context-specific `remedy=` on a `CODE_CHILD_STATUS` finding would be overwritten there with the to-review advice (F-07). The remedy text, per spec `r07vma` R7, states the invariant, forbids deleting the checklist, and names the legitimate edits: remove or reassign the retired child's row in the orchestrator's `## Child IPDs` table, assign any work it owned to another child by id6 or add a child for it, then run `aw ipd coverage <id6>`; for a terminal status in the wrong directory, re-run `aw ipd set <status> <child-id6>` so the file lands in its terminal directory. `REMEDY_CHILD_STATUS` keeps its current text for non-terminal statuses, which is correct for them and is pinned by `test_condition_2_child_status_draft`. (2) When at least one child is accepted as retired (only under OQ-02 option A), carry an informational note naming each such child on a new DEFAULTED trailing field of `ReviewReadiness` (for example `notes: tuple[str, ...] = ()`), rendered by `render_human` after the findings and by `render_agent` in its `data`, and never counted as a finding, so it never blocks. A trailing defaulted NamedTuple field is compatible with every existing constructor call; no caller unpacks the tuple positionally (checked at review). Plan `juu1rj` (approved) also edits `render_human`; add the note lines without changing its header or signature, so the two plans compose in either order.
   - Depends on: E-01
   - Expected outcome: a terminal-status child that is not accepted yields `child-terminal-status` with the new remedy on the human surface, in the agent record and in the runner continue-handoff text; a draft child still yields `child-status-not-ready` with the unchanged remedy; under option A the accepted case carries the note.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: retirement updates the orchestrator
 
-- [ ] E-03 In `agent_workflows/status_set.run_set_command`, after `apply_status_change` has moved a plan to `superseded` or `not-executed`, find its Set's orchestrator with `runner_shared.read_set_membership` and, when the retired plan is a NON-orchestrator member of that Set (decide by membership and `SetMember.is_orchestrator`, not by `- Kind: child`, because legacy children carry no `Kind:` bullet), prepend `- <date> same-status (aw set): child <id6> retired <status>: <message>` under the orchestrator's `## Workflow history`. There is no reusable history-append function today: the insertion is inline in `apply_status_change` ("`new_lines.insert(i + 1, hist_entry)`"), so extract it into one private helper that both call, rather than writing a second copy. Add the orchestrator's path to `touched_paths` so `_offer_self_commit` commits both files together, and add it to the agent-mode `changes`. Emit the hint (orchestrator id6, and that its child table may need an edit, quoting the E-02 remedy) as a `term` line in human mode and as a `NextAction` in the agent/JSON `CommandResult`, never as a bare `print`, so `--agent` stdout stays one record. SKIP the write, and say so in the hint, when: the Set has no orchestrator; the orchestrator is itself terminal; the orchestrator is itself in this command's `matched_records` (a whole-Set retirement); or the orchestrator file has uncommitted changes in the worktree or index (`git status --porcelain -- <path>` non-empty), because committing it would sweep a co-worker's in-progress edits into this commit (AGENTS.md shared-checkout rule). Retiring two children of one Set in one command writes one line per child. The line is not a review record (`plan_readiness.is_review_history_entry` is False for a `same-status` middle) and history is outside the coverage fingerprint, so it changes no verdict and forces no re-probe.
+- [x] E-03 In `agent_workflows/status_set.run_set_command`, after `apply_status_change` has moved a plan to `superseded` or `not-executed`, find its Set's orchestrator with `runner_shared.read_set_membership` and, when the retired plan is a NON-orchestrator member of that Set (decide by membership and `SetMember.is_orchestrator`, not by `- Kind: child`, because legacy children carry no `Kind:` bullet), prepend `- <date> same-status (aw set): child <id6> retired <status>: <message>` under the orchestrator's `## Workflow history`. There is no reusable history-append function today: the insertion is inline in `apply_status_change` ("`new_lines.insert(i + 1, hist_entry)`"), so extract it into one private helper that both call, rather than writing a second copy. Add the orchestrator's path to `touched_paths` so `_offer_self_commit` commits both files together, and add it to the agent-mode `changes`. Emit the hint (orchestrator id6, and that its child table may need an edit, quoting the E-02 remedy) as a `term` line in human mode and as a `NextAction` in the agent/JSON `CommandResult`, never as a bare `print`, so `--agent` stdout stays one record. SKIP the write, and say so in the hint, when: the Set has no orchestrator; the orchestrator is itself terminal; the orchestrator is itself in this command's `matched_records` (a whole-Set retirement); or the orchestrator file has uncommitted changes in the worktree or index (`git status --porcelain -- <path>` non-empty), because committing it would sweep a co-worker's in-progress edits into this commit (AGENTS.md shared-checkout rule). Retiring two children of one Set in one command writes one line per child. The line is not a review record (`plan_readiness.is_review_history_entry` is False for a `same-status` middle) and history is outside the coverage fingerprint, so it changes no verdict and forces no re-probe.
   - Depends on: none
   - Expected outcome: retiring a child in a scratch repo leaves one new history line on its orchestrator, both files in one commit under `--commit`, and the hint on stdout (human) or in `next_actions` (agent); retiring a plan with no Set, or one whose orchestrator is dirty, changes the orchestrator not at all and the dirty case says why.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: spec and tests
 
-- [ ] E-04 Amend spec `25kzda` Section 2.5d to match the OQ-02 answer and record it with `aw specs note`; the spec stays `approved`. Under option A: condition 2 reads that a child carrying `executed`, `superseded` or `not-executed` in its matching terminal directory is ready without being linted, AND Section 2.5e states how a retired row reaches the coverage input. Under option B: condition 2 keeps its status list and gains one sentence that a retired child's row is not ready and is resolved by editing the orchestrator's table. Either way the EVERY REFUSAL paragraph names the new `child-terminal-status` code.
+- [x] E-04 Amend spec `25kzda` Section 2.5d to match the OQ-02 answer and record it with `aw specs note`; the spec stays `approved`. Under option A: condition 2 reads that a child carrying `executed`, `superseded` or `not-executed` in its matching terminal directory is ready without being linted, AND Section 2.5e states how a retired row reaches the coverage input. Under option B: condition 2 keeps its status list and gains one sentence that a retired child's row is not ready and is resolved by editing the orchestrator's table. Either way the EVERY REFUSAL paragraph names the new `child-terminal-status` code.
   - Depends on: E-01, E-02
   - Expected outcome: Section 2.5d (and 2.5e under option A) describe exactly what the code does; `aw specs check` conforms.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 Add `tests/test_orchestrator_child_retired.py` and extend `tests/test_orchestrator_readiness.py` driving the real functions and `aw ipd set` in a scratch repo: retired child accepted; retired status in the wrong directory refused; the note and corrected remedy; retirement appends the orchestrator history line and commits both files; the dirty-orchestrator, whole-Set and no-Set skips; the agent-mode hint as a `next_action`; the runner continue-handoff text carrying the new remedy; then, under option A, `aw ipd set approved <orchestrator>` succeeds after `aw ipd coverage` refreshes the record and refuses while the pre-retirement record is still current (under option B, it succeeds after the row is removed). Every test drives real functions or the CLI and asserts on outputs, exit codes and files; no source introspection (AGENTS.md P16).
+- [x] E-05 Add `tests/test_orchestrator_child_retired.py` and extend `tests/test_orchestrator_readiness.py` driving the real functions and `aw ipd set` in a scratch repo: retired child accepted; retired status in the wrong directory refused; the note and corrected remedy; retirement appends the orchestrator history line and commits both files; the dirty-orchestrator, whole-Set and no-Set skips; the agent-mode hint as a `next_action`; the runner continue-handoff text carrying the new remedy; then, under option A, `aw ipd set approved <orchestrator>` succeeds after `aw ipd coverage` refreshes the record and refuses while the pre-retirement record is still current (under option B, it succeeds after the row is removed). Every test drives real functions or the CLI and asserts on outputs, exit codes and files; no source introspection (AGENTS.md P16).
   - Depends on: E-02, E-03, E-04
   - Expected outcome: both modules pass, and the bare suite adds no failure relative to the lane baseline.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -81,7 +81,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 | F-02 | The runner already treats every terminal status as finishing a child. | `runner_shared` set-retirement predicate docstring: "Every child `Status:` that ENDS its participation in a Set ... DERIVED from `ipd_schema.TERMINAL`"; `RETIRED_PLAN_STATUSES = frozenset({"superseded", "not-executed"})`. |
 | F-03 | Spec 2.5d condition 2 lists only `executed` as the terminal ready status. | Spec `25kzda` Section 2.5d, condition 2. |
 | F-04 | Retiring a child writes nothing to its orchestrator. | `status_set.run_set_command` moves and edits only the matched records. |
-| F-05 | (review) The coverage probe counts a child listed in the table as COVERING the work assigned to it, whatever that child's status. | `runner_shared.PROBE_PROMPT_TEMPLATE`: "WORK ASSIGNED TO A NAMED CHILD IS COVERED ... a child listed in the `### Child IPDs table` section ... is COVERED and must not be quoted". The probe input is `child_table_rows` plus E-item text plus prose (`runner_shared` payload keys `child_table_rows`, `e_items`, `prose_sections`) and carries no child status, so retiring a child changes neither the input nor the fingerprint, and a `- Coverage: pass` recorded before retirement stays current. |
+| F-05 | (review) The coverage probe counts a child listed in the table as COVERING the work assigned to it, whatever that child's status. | `runner_shared.PROBE_PROMPT_TEMPLATE`: "WORK ASSIGNED TO A NAMED CHILD IS COVERED ... a child listed in the `### Child IPDs table` section ... is COVERED and must not be quoted". The probe input is `child_table_rows` plus E-item text plus prose (`runner_shared` payload keys `child_table_rows`, `e_items`, `prose_sections`) and carries no child status, so retiring a child changes neither the probe input nor the fingerprint, and a `- Coverage: pass` recorded before retirement stays current. |
 | F-06 | (review) Removing the retired child's row already clears condition 2 today. | Scratch-repo run of `review_readiness` (helpers from `tests/test_orchestrator_readiness.py`): with the row, `[('child-status-not-ready', 'chd002', "child chd002 has status 'not-executed' ..."), ('coverage-record-absent', ...)]`; with the row removed, only `coverage-record-absent`. |
 | F-07 | (review) The runner re-derives a finding's remedy from its code. | `runner_shared` continue-handoff: `remedy = _orch_readiness.REMEDIES.get(rf.code, rf.remedy)`, so only a distinct code can carry a distinct remedy to that surface. |
 
@@ -137,30 +137,193 @@ THIS PLAN AMENDS spec `25kzda` Section 2.5d condition 2, declared in `- Scope-Pa
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste a `python3 -c` (or scratch-script) session printing `review_readiness(...).ready` and each finding's `(code, subject)` for: the accepted case under the chosen OQ-02 option (under A, both before and after `aw ipd coverage` refreshes the record); `not-executed` under `pending/`; and `superseded` under `not-executed/`.
   - Observed evidence:
-  - Result: pending
+    ```
+    1. Option B with retired child in table:
+       ready: False
+       findings: [('child-terminal-status', 'chd001')]
+    2. Option B after retired child removed and coverage refreshed:
+       ready: True
+       findings: []
+    3. not-executed under pending/:
+       ready: False
+       findings: [('child-terminal-status', 'chd003')]
+    4. superseded under not-executed/:
+       ready: False
+       findings: [('child-terminal-status', 'chd004')]
+    ```
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: paste `render_human` and `render_agent` output for a terminal-status child that is not accepted, showing `child-terminal-status` and the new remedy; the remedy as it appears in the runner continue-handoff text built from the same finding; a draft child still showing `child-status-not-ready` with the unchanged remedy; and, under option A, the rendered note.
   - Observed evidence:
-  - Result: pending
+    ```
+    === 1. render_human for terminal-status child ===
+    Refusing to set approved for orchestrator orc001 (set tstset):
+      An orchestrator may not advance while a child in its Set is not ready (chd001).
+      - [child-terminal-status] chd001: child chd001 has status 'not-executed' (terminal or retired child may not remain in '## Child IPDs' table)
+        Remedy: remove or reassign the retired child's row in the orchestrator's ## Child IPDs table, assign any work it owned to another child by id6 or add a child for it, then run `aw ipd coverage <id6>`; for a terminal status in the wrong directory, re-run `aw ipd set <status> <child-id6>` so the file lands in its terminal directory; do not delete the checklist
 
-- [ ] V-03 validates E-03
+    === 2. render_agent for terminal-status child ===
+    {
+      "schema": "aw.agent/v1",
+      "kind": "result",
+      "cmd": "ipd coverage",
+      "exit": 1,
+      "outcome": "findings",
+      "verified": true,
+      "complete": true,
+      "summary": "orchestrator orc001 is not ready for review (1 finding(s))",
+      "data": {
+        "id6": "orc001",
+        "setid": "tstset",
+        "ready": false,
+        "cached": false,
+        "calls": 0,
+        "written": false,
+        "committed": false,
+        "write_detail": "",
+        "notes": [],
+        "finding_codes": [
+          "child-terminal-status"
+        ],
+        "findings": [
+          {
+            "code": "child-terminal-status",
+            "subject": "chd001",
+            "detail": "child chd001 has status 'not-executed' (terminal or retired child may not remain in '## Child IPDs' table)",
+            "remedy": "remove or reassign the retired child's row in the orchestrator's ## Child IPDs table, assign any work it owned to another child by id6 or add a child for it, then run `aw ipd coverage <id6>`; for a terminal status in the wrong directory, re-run `aw ipd set <status> <child-id6>` so the file lands in its terminal directory; do not delete the checklist"
+          }
+        ]
+      }
+    }
+
+    === 3. runner continue-handoff prompt ===
+    # Correction Turn: Orchestrator Review for orc001
+
+    This is bounded correction turn 1 of 3.
+    The review turn ended with the orchestrator not ready for review.
+
+    ## Invariants and Rules
+
+    - Every whole-Set obligation must name the child that performs it (author a new child plan and table row for work no child performs, and never delete the checklist).
+    - Edit only plans in this Set.
+
+    ## Findings
+
+    - **Finding Subject**: `chd001`
+      - **Finding Code**: `child-terminal-status`
+      - **Quoted Passage / Detail**: child chd001 has status 'not-executed' (terminal or retired child may not remain in '## Child IPDs' table)
+      - **Remedy**: remove or reassign the retired child's row in the orchestrator's ## Child IPDs table, assign any work it owned to another child by id6 or add a child for it, then run `aw ipd coverage orc001`; for a terminal status in the wrong directory, re-run `aw ipd set <status> chd001` so the file lands in its terminal directory; do not delete the checklist
+
+    === 4. draft child render_human ===
+    Refusing to set approved for orchestrator orc001 (set tstset):
+      An orchestrator may not advance while a child in its Set is not ready (chd002).
+      - [child-status-not-ready] chd002: child chd002 has status 'draft' (must be to-review, reviewed, approved, auto-approved, or executed)
+        Remedy: bring the child to `to-review` with `aw ipd set to-review <child-id6>`
+    ```
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: in a scratch repo, paste the orchestrator's new history line, `git show --stat HEAD` listing both files after `aw ipd set not-executed <child> --commit`, and the human hint line; the `--agent --yes` record showing the hint in `next_actions` and stdout parsing as one JSON record; and the three skip cases (no Set, dirty orchestrator, whole-Set retirement) each leaving the orchestrator byte-unchanged, with `git diff` empty for it and the hint saying why.
   - Observed evidence:
-  - Result: pending
+    ```
+    === 1. Human mode with --commit ===
+    STDOUT:
+    -    plan        20261004-tstset-01-chd001  [medium]  to-review → ∅  not-executed
+    aw set: note: orchestrator orc001 child table may need an edit: remove or reassign the retired child's row in the orchestrator's ## Child IPDs table, assign any work it owned to another child by id6 or add a child for it, then run `aw ipd coverage <id6>`; for a terminal status in the wrong directory, re-run `aw ipd set <status> <child-id6>` so the file lands in its terminal directory; do not delete the checklist
+    Committed 3 path(s): 68e5b0638390fd1d93e91f483828893e7059aff0:
+    .aw/records/plans/not-executed/20261004-tstset-01-chd001-test.ipd.md
+    .aw/records/plans/pending/20261004-tstset-00-orc001-test.ipd.md
+    .aw/records/plans/pending/20261004-tstset-01-chd001-test.ipd.md
 
-- [ ] V-04 validates E-04
+    Orchestrator new history lines:
+    ['- 2026-10-09 same-status (aw set): child chd001 retired not-executed: status set to not-executed']
+
+    git show --stat HEAD:
+    commit 68e5b0638390fd1d93e91f483828893e7059aff0
+    Author: Test User <test@example.com>
+    Date:   Thu Oct 8 23:24:13 2026 -0400
+
+        chore(plans): set status not-executed
+
+     .../{pending => not-executed}/20261004-tstset-01-chd001-test.ipd.md    | 3 ++-
+     .aw/records/plans/pending/20261004-tstset-00-orc001-test.ipd.md        | 1 +
+     2 files changed, 3 insertions(+), 1 deletion(-)
+
+    === 2. Agent mode with --agent --yes ===
+    {"schema":"aw.agent/v1","kind":"result","cmd":"set","outcome":"clean","exit":0,"verified":true,"complete":true,"findings":0,"changes":[{"kind":"update","path":".aw/records/plans/not-executed/20261004-tstset-01-chd001-test.ipd.md"},{"kind":"update","path":".aw/records/plans/pending/20261004-tstset-00-orc001-test.ipd.md"},{"kind":"update","path":".aw/records/plans/INDEX.json"},{"kind":"update","path":".aw/records/plans/INDEX.md"}],"next":"aw ipd coverage orc001"}
+
+    === 3. Skip cases ===
+    Dirty skip:
+    Hint: ['aw set: note: skipping orchestrator update: orchestrator orc001 has uncommitted changes']
+    Orchestrator byte-unchanged: True
+    Whole-set skip:
+    Child retirement in orchestrator history: False
+    No Set skip:
+    Hint: ['aw set: note: skipping orchestrator update: plan pl0099 has no Set']
+    ```
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: paste the spec diff (Section 2.5d, and 2.5e under option A), the new workflow-history line written by `aw specs note`, and the `aw specs check` output.
   - Observed evidence:
-  - Result: pending
+    ```diff
+    diff --git a/.aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md b/.aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md
+    index d37697c41..e094f676c 100644
+    --- a/.aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md
+    +++ b/.aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md
+    @@ -477,7 +477,7 @@ A run whose queue declares edits to `.spec.md` files must pause for explicit ack
+     An orchestrator plan (`- Kind: orchestrator`) is READY FOR REVIEW only when ALL of these hold, evaluated by ONE shared function (one implementation, several consumers, the pattern of spec `r07vma` R3):
 
-- [ ] V-05 validates E-05
+     1. every row of its `## Child IPDs` table names a child plan that exists in the plans tree (an unresolvable or open-ended row such as `03+` is not ready, as in spec `77tr3o` OQ-2);
+    -2. every such child carries `- Status:` `to-review`, `reviewed`, `approved`, `auto-approved` or `executed`; a child that is NOT in a terminal directory also passes `aw ipd lint` at the `author` checkpoint (a child under `executed/` with `- Status: executed` is ready without being linted, because the linter reports every terminal-directory plan as `legacy/not evaluated`, which is not a passing disposition);
+    +2. every such child carries `- Status:` `to-review`, `reviewed`, `approved`, `auto-approved` or `executed`; a child that is NOT in a terminal directory also passes `aw ipd lint` at the `author` checkpoint (a child under `executed/` with `- Status: executed` is ready without being linted, because the linter reports every terminal-directory plan as `legacy/not evaluated`, which is not a passing disposition). A row naming a retired child (`superseded` or `not-executed`) is not ready and is resolved by editing the orchestrator's child table (removing or reassigning the row, reassigning any work it owned, and re-running `aw ipd coverage <id6>`);
+     3. its checklist rows conform to spec `r07vma` R1a (`IPD-S407`);
+     4. the plan carries a coverage record (Section 2.5e) whose verdict is `pass` and whose fingerprint matches the plan's CURRENT text.
+
+    @@ -487,7 +487,7 @@ CONSUMERS. The function is called by: `aw ipd set` for a target of `to-review`,
+
+     UNAVAILABILITY. When condition 4 cannot be established because the probe could not be asked, the status-change, production, post-review and retirement-time consumers (the retirement-time re-check, which decides on condition 4 only) REFUSE and leave the plan or its source where it is, naming the command to retry (`aw ipd coverage <id6>`). A refused retirement leaves the orchestrator in `pending/` and is not a failure of the run, exactly as the other retirement refusals of spec `77tr3o` are. This differs deliberately from the run-start gate, which warns and proceeds: at each of these points refusing costs a later retry and nothing else, whereas proceeding would record a readiness claim nobody established.
+
+    -EVERY REFUSAL names the failing condition, the child id6 or quoted passage it concerns, and the exact command or edit that fixes it, on the human surface and as an `aw.agent/v1` record. The remedy text follows spec `r07vma` R7: it states the invariant, forbids satisfying it by deleting the checklist, and names the legitimate remedies (add a child that owns the work and a row for it, or assign the work in prose to an existing child by id6, or remove it if it is redundant).
+    +EVERY REFUSAL names the failing condition (such as `child-terminal-status` when a retired child remains in the child table), the child id6 or quoted passage it concerns, and the exact command or edit that fixes it, on the human surface and as an `aw.agent/v1` record. The remedy text follows spec `r07vma` R7: it states the invariant, forbids satisfying it by deleting the checklist, and names the legitimate remedies (add a child that owns the work and a row for it, or assign the work in prose to an existing child by id6, or remove it if it is redundant; for a retired child, update the child table, reassign work, and refresh coverage).
+
+     ### 2.5e Where the coverage answer is recorded
+
+    @@ -1715,6 +1715,7 @@ This example demonstrates the revised guarantees: `all` is safely bounded; depen
+
+     ## Workflow history
+
+    +- 2026-10-09 note (aw specs): amend Section 2.5d condition 2 to declare child-terminal-status for retired children remaining in child table per plan 2pv5xd (OQ-02 option B)
+    ```
+    `aw specs check`:
+    ```
+    aw specs check: all specs conform. 40 specs checked.
+    ```
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: paste `python3 -m pytest -o addopts="" tests/test_orchestrator_readiness.py tests/test_orchestrator_child_retired.py tests/test_orchestrator_retirement.py` with per-test counts, the bare `python3 -m pytest` summary line, and the before and after failing node-id sets showing nothing new.
   - Observed evidence:
-  - Result: pending
+    ```
+    Scoped test suite:
+    $ python3 -m pytest -o addopts="" tests/test_orchestrator_readiness.py tests/test_orchestrator_child_retired.py tests/test_orchestrator_retirement.py
+    tests/test_orchestrator_readiness.py: 24 passed
+    tests/test_orchestrator_child_retired.py: 8 passed
+    tests/test_orchestrator_retirement.py: 44 passed
+    ============================= 76 passed in 15.13s ==============================
+
+    Bare pytest summary line:
+    6842 passed, 2 skipped, 3 warnings in 282.32s (0:04:42)
+
+    Before failing node ids: set()
+    After failing node ids: set()
+    After-minus-before: set() (clean)
+    ```
+  - Result: pass
 
 ## Approval and execution gate
 

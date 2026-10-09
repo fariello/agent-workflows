@@ -280,6 +280,40 @@ class TestOrchestratorReadinessConditions(unittest.TestCase):
             self.assertTrue(res.ready, [f.detail for f in res.findings])
             self.assertEqual(res.findings, ())
 
+    def test_condition_2_child_status_terminal(self):
+        with tempfile.TemporaryDirectory() as td:
+            repo = _init_repo(Path(td))
+            orch = _make_orchestrator(
+                repo,
+                child_rows=[
+                    (
+                        "01",
+                        "chd001",
+                        ".aw/records/plans/not-executed/20261004-tstset-01-chd001-test.ipd.md",
+                    )
+                ],
+            )
+            ne_dir = repo / ".aw" / "records" / "plans" / "not-executed"
+            ne_dir.mkdir(parents=True, exist_ok=True)
+            p = ne_dir / "20261004-tstset-01-chd001-test.ipd.md"
+            p.write_text(
+                _conforming_child()
+                .replace("- Set: x", "- Set: tstset")
+                .replace("- Order: 1", "- Order: 01")
+                .replace("- Id: abc123", "- Id: chd001")
+                .replace("- Status: to-review", "- Status: not-executed"),
+                encoding="utf-8",
+            )
+            coverage_record.write(orch, "pass", model="fixture", tool="test")
+            res = readiness.review_readiness(repo, orch, ask=False)
+            self.assertFalse(res.ready)
+            codes = [f.code for f in res.findings]
+            self.assertIn(readiness.CODE_CHILD_TERMINAL, codes)
+            f = next(f for f in res.findings if f.code == readiness.CODE_CHILD_TERMINAL)
+            self.assertEqual(f.remedy, readiness.REMEDY_CHILD_TERMINAL)
+            self.assertEqual(f.subject, "chd001")
+            self.assertIn("not-executed", f.detail)
+
     def test_condition_3_checklist_row_nonconforming(self):
         with tempfile.TemporaryDirectory() as td:
             repo = _init_repo(Path(td))

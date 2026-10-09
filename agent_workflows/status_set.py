@@ -22,6 +22,7 @@ import contextlib
 import json
 import re
 import shlex
+import subprocess
 import sys
 from dataclasses import dataclass
 from pathlib import Path
@@ -1086,6 +1087,30 @@ def inherit_from_backlog_release_gate(
     return updated_text
 
 
+def _prepend_workflow_history_entry(
+    lines: list[str],
+    hist_entry: str,
+    *,
+    is_prompt: bool = False,
+) -> list[str]:
+    """Prepend a history record under the `## Workflow history` heading (newest-first)."""
+    for i, line in enumerate(lines):
+        if _HISTORY_HDR_RE.match(line):
+            lines.insert(i + 1, hist_entry)
+            return lines
+
+    insert_idx = len(lines)
+    if not is_prompt:
+        for i, line in enumerate(lines):
+            if line.startswith("## "):
+                insert_idx = i
+                break
+    lines.insert(insert_idx, "")
+    lines.insert(insert_idx, hist_entry)
+    lines.insert(insert_idx, "## Workflow history")
+    return lines
+
+
 def apply_status_change(
     rec: ArtifactRecord,
     target_status: str,
@@ -1705,23 +1730,9 @@ def apply_status_change(
     should_write_history = not (is_same_status and is_dup)
     if should_write_history:
         hist_entry = f"- {today} {status_tag} ({actor}): {message}"
-        has_hist_section = False
-        for i, line in enumerate(new_lines):
-            if _HISTORY_HDR_RE.match(line):
-                has_hist_section = True
-                new_lines.insert(i + 1, hist_entry)
-                break
-
-        if not has_hist_section:
-            insert_idx = len(new_lines)
-            if rec.record_type != "prompts":
-                for i, line in enumerate(new_lines):
-                    if line.startswith("## "):
-                        insert_idx = i
-                        break
-            new_lines.insert(insert_idx, "")
-            new_lines.insert(insert_idx, hist_entry)
-            new_lines.insert(insert_idx, "## Workflow history")
+        new_lines = _prepend_workflow_history_entry(
+            new_lines, hist_entry, is_prompt=(rec.record_type == "prompts")
+        )
 
     updated_text = "\n".join(new_lines).rstrip() + "\n"
 
@@ -3242,6 +3253,122 @@ def run_set_command(
                 if rp not in touched_paths:
                     touched_paths.append(rp)
 
+    # E-03: When a child plan is retired (superseded or not-executed),
+    # update its Set's orchestrator workflow history if applicable.
+    from agent_workflows import orchestrator_readiness as _orch_readiness
+    from agent_workflows import run_selection_policy as _rsp
+    from agent_workflows import runner_shared as _rs
+
+    orchestrator_updates: list[tuple[Path, str, str, str]] = []
+    orchestrator_hints: list[str] = []
+    orchestrator_next_actions: list[NextAction] = []
+    command_modified_orch_paths: set[Path] = set()
+
+    for dest_path, norm_stat, rec, changed in results:
+        if (
+            rec.record_type != "plans"
+            or norm_stat not in ("superseded", "not-executed")
+            or not changed
+        ):
+            continue
+        if not rec.set_id:
+            hint = f"skipping orchestrator update: plan {rec.id6 or rec.path.name} has no Set"
+            orchestrator_hints.append(hint)
+            orchestrator_next_actions.append(NextAction(command="", description=hint))
+            continue
+
+        active_membership = _rs.read_set_membership(repo_root, rec.set_id)
+        orch = active_membership.orchestrator
+        if orch is None:
+            hint = (
+                f"skipping orchestrator update: Set '{rec.set_id}' has no orchestrator"
+            )
+            orchestrator_hints.append(hint)
+            orchestrator_next_actions.append(NextAction(command="", description=hint))
+            continue
+
+        # If the retired plan is itself the orchestrator, no child retirement history is prepended.
+        if orch.id6 == rec.id6 or orch.path.resolve() == dest_path.resolve():
+            continue
+
+        # Check skip condition: orchestrator is itself terminal
+        _terminal_statuses = {s.strip().lower() for s in _plans_mod.TERMINAL}
+        orch_status = (
+            normalize_target_status((orch.status or ""), "plans").strip().lower()
+        )
+        if orch_status in _terminal_statuses or _rsp.is_in_terminal_directory(
+            orch.path
+        ):
+            skip_reason = f"orchestrator {orch.id6} is terminal ({orch.status})"
+            hint = f"skipping orchestrator update: {skip_reason}"
+            orchestrator_hints.append(hint)
+            orchestrator_next_actions.append(NextAction(command="", description=hint))
+            continue
+
+        # Check skip condition: orchestrator is in this command's matched_records
+        if any(m.path.resolve() == orch.path.resolve() for m in matched_records):
+            skip_reason = (
+                f"orchestrator {orch.id6} is also being retired in this command"
+            )
+            hint = f"skipping orchestrator update: {skip_reason}"
+            orchestrator_hints.append(hint)
+            orchestrator_next_actions.append(NextAction(command="", description=hint))
+            continue
+
+        # Check skip condition: orchestrator file has uncommitted changes in worktree or index
+        if orch.path.resolve() not in command_modified_orch_paths:
+            proc = subprocess.run(
+                ["git", "status", "--porcelain", "--", str(orch.path)],
+                cwd=repo_root,
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            if proc.stdout.strip():
+                skip_reason = f"orchestrator {orch.id6} has uncommitted changes"
+                hint = f"skipping orchestrator update: {skip_reason}"
+                orchestrator_hints.append(hint)
+                try:
+                    rel = (
+                        orch.path.resolve().relative_to(repo_root.resolve()).as_posix()
+                    )
+                except ValueError:
+                    rel = orch.path.as_posix()
+                orchestrator_next_actions.append(
+                    NextAction(command=f"git status -- {rel}", description=hint)
+                )
+                continue
+
+        # Update the orchestrator
+        actor = getattr(args, "actor", None) or "aw set"
+        msg = getattr(args, "message", None) or f"status set to {norm_stat}"
+        today = _core.utc_history_date()
+        hist_entry = f"- {today} same-status ({actor}): child {rec.id6 or rec.path.name} retired {norm_stat}: {msg}"
+
+        orch_text = orch.path.read_text(encoding="utf-8")
+        orch_lines = orch_text.splitlines()
+        new_orch_lines = _prepend_workflow_history_entry(orch_lines, hist_entry)
+        orch.path.write_text(
+            "\n".join(new_orch_lines).rstrip() + "\n", encoding="utf-8"
+        )
+        command_modified_orch_paths.add(orch.path.resolve())
+
+        try:
+            orch_rel = orch.path.resolve().relative_to(repo_root.resolve()).as_posix()
+        except ValueError:
+            orch_rel = orch.path.as_posix()
+        if orch_rel not in touched_paths:
+            touched_paths.append(orch_rel)
+
+        orchestrator_updates.append(
+            (orch.path, orch.id6, rec.id6 or rec.path.name, norm_stat)
+        )
+        hint = f"orchestrator {orch.id6} child table may need an edit: {_orch_readiness.REMEDY_CHILD_TERMINAL}"
+        orchestrator_hints.append(hint)
+        orchestrator_next_actions.append(
+            NextAction(command=f"aw ipd coverage {orch.id6}", description=hint)
+        )
+
     if ctx.is_agent or ctx.is_json:
         changes = [
             Change(
@@ -3256,6 +3383,15 @@ def run_set_command(
             )
             for dest, norm_stat, rec, changed in results
         ]
+        for orch_path, _orch_id6, child_id6, child_norm_stat in orchestrator_updates:
+            changes.append(
+                Change(
+                    path=str(orch_path),
+                    kind="update",
+                    applied=True,
+                    detail=f"workflow history: child {child_id6} retired {child_norm_stat}",
+                )
+            )
         if hasattr(args, "_citation_changes") and args._citation_changes:
             changes.extend(args._citation_changes)
         _auto_index_types(touched_types, repo_root, changes=changes)
@@ -3297,6 +3433,7 @@ def run_set_command(
             changes=changes,
             diagnostics=demotion_diags,
             data=res_data,
+            next_actions=orchestrator_next_actions,
             verified=True,
             complete=True,
         )
@@ -3313,6 +3450,9 @@ def run_set_command(
                 rec, dest, norm_stat, term, args, dry_run=False, changed=changed
             )
         )
+
+    for h in orchestrator_hints:
+        term.line(f"aw set: note: {h}")
 
     _offer_self_commit(
         args,

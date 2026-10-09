@@ -26,6 +26,7 @@ CODE_TABLE_UNUSABLE = "child-table-unusable"
 CODE_CHILD_UNAUTHORED = "child-unauthored"
 CODE_CHILD_OPEN_ENDED = "child-open-ended"
 CODE_CHILD_STATUS = "child-status-not-ready"
+CODE_CHILD_TERMINAL = "child-terminal-status"
 CODE_CHILD_LINT = "child-lint-failing"
 CODE_ROW_NONCONFORMING = "orchestrator-row-nonconforming"
 CODE_COVERAGE_ABSENT = "coverage-record-absent"
@@ -61,6 +62,13 @@ REMEDY_TABLE_UNUSABLE = (
 REMEDY_CHILD_STATUS = (
     "bring the child to `to-review` with `aw ipd set to-review <child-id6>`"
 )
+REMEDY_CHILD_TERMINAL = (
+    "remove or reassign the retired child's row in the orchestrator's "
+    "## Child IPDs table, assign any work it owned to another child by id6 or "
+    "add a child for it, then run `aw ipd coverage <id6>`; for a terminal status "
+    "in the wrong directory, re-run `aw ipd set <status> <child-id6>` so the file "
+    "lands in its terminal directory; do not delete the checklist"
+)
 REMEDY_CHILD_LINT = "fix the child's named lint finding"
 REMEDY_ROW_NONCONFORMING = (
     "move the step to a child with dependencies that put it in the right order, "
@@ -81,6 +89,7 @@ REMEDIES: dict[str, str] = {
     CODE_CHILD_UNAUTHORED: REMEDY_CHILD_UNAUTHORED,
     CODE_CHILD_OPEN_ENDED: REMEDY_CHILD_OPEN_ENDED,
     CODE_CHILD_STATUS: REMEDY_CHILD_STATUS,
+    CODE_CHILD_TERMINAL: REMEDY_CHILD_TERMINAL,
     CODE_CHILD_LINT: REMEDY_CHILD_LINT,
     CODE_ROW_NONCONFORMING: REMEDY_ROW_NONCONFORMING,
     CODE_COVERAGE_ABSENT: REMEDY_COVERAGE_RECORD,
@@ -120,6 +129,7 @@ class ReviewReadiness(NamedTuple):
     written: bool = False
     committed: bool = False
     write_detail: str = ""
+    notes: tuple[str, ...] = ()
 
 
 _BATCH_META_RE = re.compile(r"^- (Id|Set|Order|Kind|Status):\s*([^\n]+)", re.MULTILINE)
@@ -311,10 +321,25 @@ def review_readiness(
                     else child.status
                 )
                 in_terminal = _rsp.is_in_terminal_directory(child.path)
-                if child_status == "executed" and in_terminal:
+                is_executed_dir = (
+                    child.path.parent.name == "executed"
+                    or "/executed/" in child.path.as_posix()
+                )
+                if child_status == "executed" and in_terminal and is_executed_dir:
                     # A child under executed/ with Status: executed is ready without being linted
                     continue
-                if child_status not in _READY_CHILD_STATUSES:
+                from agent_workflows import ipd_schema as _ipd_schema
+
+                if child_status in _ipd_schema.TERMINAL or in_terminal:
+                    findings.append(
+                        Finding(
+                            code=CODE_CHILD_TERMINAL,
+                            subject=child.id6,
+                            detail=f"child {child.id6} has status {child_status!r} (terminal or retired child may not remain in '## Child IPDs' table)",
+                            remedy=REMEDY_CHILD_TERMINAL,
+                        )
+                    )
+                elif child_status not in _READY_CHILD_STATUSES:
                     findings.append(
                         Finding(
                             code=CODE_CHILD_STATUS,
@@ -565,7 +590,7 @@ def render_human(
 
     child_status_map: dict[str, str] = {}
     for f in result.findings:
-        if f.code == CODE_CHILD_STATUS:
+        if f.code in (CODE_CHILD_STATUS, CODE_CHILD_TERMINAL):
             m = re.search(r"has status '([^']+)'", f.detail)
             if m:
                 child_status_map[f.subject] = m.group(1)
@@ -589,6 +614,7 @@ def render_human(
                 if f.code
                 in (
                     CODE_CHILD_STATUS,
+                    CODE_CHILD_TERMINAL,
                     CODE_CHILD_LINT,
                     CODE_CHILD_UNAUTHORED,
                     CODE_CHILD_OPEN_ENDED,
@@ -618,7 +644,11 @@ def render_human(
 
     for f in result.findings:
         subj = f.subject
-        if use_color and f.code == CODE_CHILD_STATUS and subj in child_status_map:
+        if (
+            use_color
+            and f.code in (CODE_CHILD_STATUS, CODE_CHILD_TERMINAL)
+            and subj in child_status_map
+        ):
             st = child_status_map[subj]
             res = _term_mod.resolve_lifecycle("plans", st)
             subj = term.format_lifecycle_compact(subj, res, word=True)
@@ -632,6 +662,11 @@ def render_human(
         else:
             lines.append(f"  - [{f.code}] {subj}: {f.detail}")
         lines.append(f"    {remedy_hdr} {f.remedy}")
+
+    if result.notes:
+        for n in result.notes:
+            note_hdr = term.colorize("Note:", "bold") if use_color else "Note:"
+            lines.append(f"  - {note_hdr} {n}")
     return "\n".join(lines)
 
 
@@ -664,6 +699,7 @@ def render_agent(
             "written": result.written,
             "committed": result.committed,
             "write_detail": result.write_detail,
+            "notes": list(result.notes),
             "finding_codes": [f.code for f in result.findings],
             "findings": [
                 {
