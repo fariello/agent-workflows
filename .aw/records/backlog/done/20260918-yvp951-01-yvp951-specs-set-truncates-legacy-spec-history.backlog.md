@@ -23,8 +23,8 @@ specs on two counts at once:
 So for a legacy spec the truncation deletes the only TRACKED copy of its history, with no warning.
 
 Measured in IPD `diof9n` (E-03): repointing the gates of
-`20260725-0957-01-external-delivery-and-skills.spec.md` and
-`20260726-1239-01-clean-delta-and-tracking-modes.spec.md` with `aw specs set` silently dropped each
+`20260725-lz6bem-01-lz6bem-external-delivery-and-skills.spec.md` and
+`20260726-or061f-01-or061f-clean-delta-and-tracking-modes.spec.md` with `aw specs set` silently dropped each
 spec's `2026-08-08 migrated (aw specs)` record. Both were restored by hand in that plan, so no
 history is currently lost; the DEFECT remains and affects every legacy spec any `aw specs set`
 touches.

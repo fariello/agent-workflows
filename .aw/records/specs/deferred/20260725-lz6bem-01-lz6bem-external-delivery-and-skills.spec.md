@@ -2,6 +2,7 @@
 
 - Date: 2026-07-25
 - Status: deferred
+- Id: lz6bem
 - Gate-Kind: todo
 - Gate-Ref: ju93oc
 - Gate-Summary: host-native SKILLS delivery-model re-evaluation (backlog item ju93oc)
