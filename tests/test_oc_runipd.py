@@ -3970,6 +3970,7 @@ class WorktreeIsolationTests(unittest.TestCase):
             plan = _init_repo_with_conforming_plan(repo, "wir001")
             run_dir = self._mk_run_dir(repo)
             state, item = self._state_and_item(repo, plan)
+            state["options"]["retry_budget"] = 0
 
             # Force the gate's full revalidation to fail -> INTEGRATION_FAILED_COMBINED_RED.
             def failing_runner_factory(*a, **k):
@@ -4479,6 +4480,7 @@ class FailClosedIntegrationGuardTests(unittest.TestCase):
             plan = _init_repo_with_conforming_plan(repo, "wir001")
             run_dir = self._mk_run_dir(repo)
             state, item = self._state_and_item(repo, plan)
+            state["options"]["retry_budget"] = 0
 
             main_head_before = subprocess.run(
                 ["git", "rev-parse", "HEAD"], cwd=repo, text=True, capture_output=True
