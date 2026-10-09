@@ -1,5 +1,5 @@
 - Id: hf5cc4
-- Status: graduated
+- Status: done
 - Blocks-Release: next
 - Graduated-To: setrefuse
 - Set: setrefuse
@@ -8,6 +8,7 @@
 - Summary: Clarify and style status refusal messages and orchestrator readiness gates
 
 ## Workflow history
+- 2026-10-09 done (aw backlog): closed by aw agy run: IPD juu1rj executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20261007-setrefuse-01-juu1rj-clarify-and-style-status-refusal-messages-and-orchestrator-r.ipd.md); evidence .aw/records/plans/executed/20261007-setrefuse-01-juu1rj-clarify-and-style-status-refusal-messages-and-orchestrator-r.ipd.md
 - 2026-10-07 graduated (aw set): status set to graduated
 - 2026-10-07 created (aw backlog): Clarify and style status refusal messages and orchestrator readiness gates
 
