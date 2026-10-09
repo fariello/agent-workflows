@@ -6,7 +6,7 @@
 - Scope: Orchestrate the two children that close the measured remainder of item `mflqqf`: Order 01 restores the security-hardening boundary coverage, fixes the loopback fail-open, covers the module's single production integration point, and corrects the document that overclaims; Order 02 adds only the packaging properties the already-restored wheel guard does not reach. This plan itself touches no product file and performs no work of its own beyond confirming its children and the cross-child properties stated below. Out of scope for the whole Set: wiring any boundary checker into `aw check` or a hook, the `RedactionPolicy` case-sensitivity defect (recorded by Order 01, lives in another module), restoring the deleted benchmark arms, and re-asserting the two packaging properties `tests/test_packaging.py` already covers.
 - Scope-Paths: .aw/records/plans/pending/20261002-mflqqf-00-u57rfv-restore-the-security-hardening-and-packaging-boundary-covera.ipd.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Coverage: pass
 - Coverage-Fingerprint: dfe4410d16c2d74d826e0745a1d60db25ee7db7620ce8da425c15d19c50f6914
@@ -19,9 +19,9 @@
 - Highest E allocated: 02
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: u57rfv
-- Approval: 2026-10-08, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-09 executed (aw agy run model=Gemini-3.8-Flash-High): RETIRED as the orchestrator rollup step of a runner Set completion, not executed by an agent: every child of Set mflqqf reached executed, so the runner (run run-20261009T030837Z-2088618) retired this Order-0 plan as bookkeeping. Its own E-*/V-* items were NOT performed; the runner superseded them by enforcing the ordering, the isolation and the per-child merge gate. Justifying children: gqyold, d0lg63.
 - 2026-10-08 approved (aw set): status set to approved
 - 2026-10-07 reviewed (aw set): /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004. Reviewed at HEAD 5ce4a3f2e. d0lg63 evidence range corrected to V-01..V-06; single-child criteria owners narrowed; mflqqf's actual open state recorded and the gate aligned with OQ-02; stale child-approval sentence restated. Coverage repair 2 attempts, passing. Review record .aw/records/reviews/20261002-mflqqf-00-u57rfv-restore-the-security-hardening-and-packaging-boundary-covera.review.md.
 - 2026-10-07 coverage pass (aw oc run): fingerprint dfe4410d16c2, model uri/its_direct/pt3-claude-opus-5.5-1m-us
@@ -47,6 +47,9 @@
 Address the measured remainder of backlog item `mflqqf` (the item closes through the runner's normal backlog close once both carriers are executed, never by hand from this plan): give the seven security boundary checkers and the packaging distribution contract real test callers again, and fix the one live fail-open that probing the uncovered security surface exposed.
 
 ## Detailed Implementation Checklist (TODO)
+
+
+> Its own E-*/V-* items were NOT performed; the runner superseded them by enforcing the ordering, the isolation and the per-child merge gate.
 
 Execution-state rule: mark an `E-*` item complete only after performing the action. That mark is not validation. Right-sizing rule: each E-item must address one concern and be executable in one focused pass; split when an E-item names multiple distinct deliverables or independent test-surfaces. Accepted execution states: blocked, failed, pending, performed; terminal gate demands 'performed'.
 

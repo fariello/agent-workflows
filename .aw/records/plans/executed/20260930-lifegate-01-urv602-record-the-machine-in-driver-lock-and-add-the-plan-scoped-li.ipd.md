@@ -6,7 +6,7 @@
 - Scope: Two additive, no-refusal-behavior changes that give Order 02 something to call. (1) Record the machine when a run takes its `driver.lock`, so the record reads `pid=<n> host=<machine> started=<t>`, keeping older records without `host=` readable. (2) Add ONE predicate to `runner_shared` that answers "which live run, if any, holds this plan's id6?", returning a three-valued verdict (a named holder, no holder, or undeterminable) with the machine and the reason, built from the existing `run_viewer.driver_holder_state` lock probe plus a process-existence check plus an explicit UNFINISHED-STATUS ALLOWLIST (corrected at review from `not in TERMINAL_STATES`, which measurably misreports a resumable `interrupted` item as absent; see F-11), and applying D3's liveness ORDER. EXCLUDES every refusal: nothing in this plan changes what any verb accepts or refuses, and the predicate has no caller until Order 02. EXCLUDES deleting the token or the location guess, which is Order 02's subject and would strand this plan's tests if done here. EXCLUDES the `--take-over` override and the nudge, which are Orders 02 and 03.
 - Scope-Paths: agent_workflows/runner_shared.py, agent_workflows/platform_lock.py, tests/test_plan_holder_predicate.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: high
@@ -17,9 +17,9 @@
 - Highest E allocated: 06
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: urv602
-- Approval: 2026-10-08, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-09 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: urv602 verified (set lifegate, attempt 1).
 - 2026-10-08 approved (aw set): status set to approved
 - 2026-10-07 reviewed (opencode uri/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-006 fixed
 - 2026-10-07 /plan-review (opencode uri/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001 (HIGH), PR-002 (MEDIUM), PR-003 (MEDIUM), PR-004 (LOW), PR-005 (LOW), PR-006 (LOW) all FIXED. Review record `.aw/records/reviews/20261007-lifegate-01-urv602-record-the-machine-in-driver-lock.review.md`.
@@ -92,31 +92,31 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: re-measure the record shape before changing it
 
-- [ ] E-01 RE-DERIVE THE FOUR FACTS IN YOUR OWN LANE, because every item below rests on them and a stale measurement here produces a predicate that silently answers the wrong question. Read `runner_shared.run_lock` and paste the exact record string it writes. Search `state.json` for any machine or hostname field and paste the result (expect none). Read `worktree_lease.write_lane_owner` and `_owner_is_live` and paste the foreign-machine arm. Read `platform_lock.LOCK_RECORD_PID_RE` and `read_lock_record` and paste the regex plus the docstring sentence explaining why a live Windows holder's first byte is unreadable. Then enumerate EVERY writer of a file named `driver.lock` and every writer that composes a `pid=` lock record, and state which of them is a run's driver lock and which is not.
+- [x] E-01 RE-DERIVE THE FOUR FACTS IN YOUR OWN LANE, because every item below rests on them and a stale measurement here produces a predicate that silently answers the wrong question. Read `runner_shared.run_lock` and paste the exact record string it writes. Search `state.json` for any machine or hostname field and paste the result (expect none). Read `worktree_lease.write_lane_owner` and `_owner_is_live` and paste the foreign-machine arm. Read `platform_lock.LOCK_RECORD_PID_RE` and `read_lock_record` and paste the regex plus the docstring sentence explaining why a live Windows holder's first byte is unreadable. Then enumerate EVERY writer of a file named `driver.lock` and every writer that composes a `pid=` lock record, and state which of them is a run's driver lock and which is not.
   - ALSO RE-DERIVE THE TWO STATUS-VOCABULARY FACTS THAT E-04 TURNS ON, because review measured the plan's original rule failing on them and an executor who does not re-measure will reintroduce it. Paste `'interrupted' in TERMINAL_STATES` and `'interrupted' in TERMINAL_STATES_CANONICAL` (expect True for BOTH, which is why neither set can serve as the finished-test). Paste `runner_shutdown.KNOWN_ITEM_STATUSES`' members under its own `# in-flight / recoverable` banner (expect `queued`, `running`, `interrupted`, `integration-deferred`, `merge-retry`). Paste `interrupt_item`'s `item["recovery_next"] = True` assignment and `requeue_interrupted`'s docstring sentence recording that `run_queue` calls it "UNCONDITIONALLY on every start and every resume", which together are the proof that an interrupted item is not finished. NOTE a stale in-tree comment you will encounter and must not trust: the comment beside `NEEDS_INPUT_TOKEN` asserts "measured: `'interrupted' in TERMINAL_STATES` -> False", which is FALSE at this HEAD (`interrupted` was added to the canonical set by `6b94a4d9d` "statusvocab: rename the terminal status vocabulary..."). Do not fix that comment here: it is outside `- Scope-Paths:` in spirit and belongs to the statusvocab owner; just do not let it override your own measurement.
   - ALSO MEASURE `peer_drivers`' FAILURE SHAPE, which E-05 must not inherit: paste its `except Exception: ... return []` arm and the comment justifying it ("the caller never REFUSES on this query"), and state explicitly that THIS plan's predicate does have a refusing caller, so the forgiving shape is unsafe to reuse unchanged.
   - Depends on: none
   - Expected outcome: the pasted record string, the pasted absence of a machine field in `state.json`, the pasted lane-owner precedent, the pasted regex with its Windows rationale, a writer census naming `runner_shared.run_lock` as the one driver-lock writer and `acquire_repo_scoped_lock` as an integration-lock writer that this plan must NOT change, the two status-vocabulary measurements with the in-flight banner, and `peer_drivers`' failure arm. If `driver.lock` already carries a machine, STOP and report: E-02's premise has failed and the plan needs re-authoring rather than adapting. If `interrupted` is NOT in `TERMINAL_STATES` at your HEAD, STOP and report: the vocabulary moved under this plan and E-04's allowlist reasoning must be re-derived before you implement it.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: record the machine
 
-- [ ] E-02 WRITE THE MACHINE INTO THE DRIVER LOCK RECORD in `runner_shared.run_lock`, so the record reads `pid=<n> host=<machine> started=<t>`, using `socket.gethostname()` exactly as `worktree_lease.write_lane_owner` does (one spelling of "this machine" in the package, not two). Keep the write mechanism untouched: it must stay the stream duped from the LOCKED descriptor, because `RunLockHandle`'s inode-identity check compares against the inode actually locked and a fresh `open()` would break that. Place `host=` BETWEEN `pid=` and `started=` rather than at the end, so the pid and the machine that qualifies it are adjacent and a truncated read that recovers the pid tends to recover its machine too. Explain in a comment WHY the machine is recorded (the cross-machine liveness case D3 measures), not merely that it is.
+- [x] E-02 WRITE THE MACHINE INTO THE DRIVER LOCK RECORD in `runner_shared.run_lock`, so the record reads `pid=<n> host=<machine> started=<t>`, using `socket.gethostname()` exactly as `worktree_lease.write_lane_owner` does (one spelling of "this machine" in the package, not two). Keep the write mechanism untouched: it must stay the stream duped from the LOCKED descriptor, because `RunLockHandle`'s inode-identity check compares against the inode actually locked and a fresh `open()` would break that. Place `host=` BETWEEN `pid=` and `started=` rather than at the end, so the pid and the machine that qualifies it are adjacent and a truncated read that recovers the pid tends to recover its machine too. Explain in a comment WHY the machine is recorded (the cross-machine liveness case D3 measures), not merely that it is.
   - Depends on: E-01
   - Expected outcome: the record written by a real acquired lock, pasted, showing all three fields; `RunLockHandle.release` still succeeds under its inode check; and the diff shows no change to how the descriptor is obtained.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 ADD THE READER FOR THAT FIELD beside `platform_lock.read_lock_record_pid`, as `read_lock_record_host` (or the name that matches its sibling), returning the recorded machine or None. An OLDER RECORD WITH NO `host=` MUST RETURN None rather than raising or guessing, because D3 requires such a record to fall through to the same-machine rule. State in the docstring that the value is a RECORDED CLAIM used to decide whether a process probe is meaningful, and is not itself a liveness signal, mirroring the discipline `_peer_pid` already states ("DIAGNOSTIC ONLY, never a liveness signal"). DO NOT add the machine to the integration lock record written by `acquire_repo_scoped_lock`: nothing in this design reads it there, and a hostname on that surface is new material for the leak sanitizer to consider for no benefit (E-01's census names it).
+- [x] E-03 ADD THE READER FOR THAT FIELD beside `platform_lock.read_lock_record_pid`, as `read_lock_record_host` (or the name that matches its sibling), returning the recorded machine or None. An OLDER RECORD WITH NO `host=` MUST RETURN None rather than raising or guessing, because D3 requires such a record to fall through to the same-machine rule. State in the docstring that the value is a RECORDED CLAIM used to decide whether a process probe is meaningful, and is not itself a liveness signal, mirroring the discipline `_peer_pid` already states ("DIAGNOSTIC ONLY, never a liveness signal"). DO NOT add the machine to the integration lock record written by `acquire_repo_scoped_lock`: nothing in this design reads it there, and a hostname on that surface is new material for the leak sanitizer to consider for no benefit (E-01's census names it).
   - ON TRUNCATION, CORRECTED AT REVIEW. The plan originally MANDATED that this reader tolerate a missing leading byte "in the same way `LOCK_RECORD_PID_RE` is" and FORBADE a naive `split("host=")`. That instruction rests on a false premise. The Windows mandatory lock makes only BYTE 0 unreadable (`read_lock_record` seeks to offset 1 on the fallback path), and E-02 places `host=` BETWEEN `pid=` and `started=`, so the `h` of `host=` is never at byte 0 and the host token is NEVER truncated. Measured: with the record `pid=1234 host=mybox started=t`, the truncated form is `id=1234 host=mybox started=t` and a plain `split("host=")` recovers `mybox` correctly, as does a `(?<!\w)h?ost=` regex. So the forbidden implementation works and the mandated tolerance is dead code for this field.
   - WHAT TO DO INSTEAD: implement it in whichever form is clearest (a regex consistent with its pid sibling is preferred for symmetry, NOT for correctness), and do NOT claim in a comment or docstring that the leading-byte tolerance is load-bearing for `host=`, because that would record a false rationale a later author would preserve. DO state the real invariant it depends on: `host=` is not the first field, and a reader must not assume otherwise. If a future change moves `host=` to the front of the record, this reader must gain the `h?ost=` tolerance at that time; say so, so the coupling is visible.
   - ALSO VERIFY THE PID READER IS UNHARMED, which is the real compatibility risk E-02 introduces and which the plan did not require checking: `LOCK_RECORD_PID_RE` is `r"(?<!\w)p?id=(\d+)"`, a SEARCH, so an inserted `host=` field must not shadow it. Measured at review across the legacy record, the new record, the truncated new record, an `fqdn` host, a hyphenated host, a host containing digits, a host literally containing `id=`, and the integration-lock record: the pid is recovered correctly in every case. Re-derive this rather than trusting it.
   - Depends on: E-02
   - Expected outcome: the reader returns the machine for a current record, None for a legacy `pid=<n> started=<t>` record, and the recorded machine for a record whose first byte is blanked; `read_lock_record_pid` still recovers the pid from the NEW record shape including the truncated form; the integration lock record is unchanged in the diff.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: answer the plan-scoped question
 
-- [ ] E-04 ADD THE ONE PREDICATE that answers "which live run holds this plan's id6?", in `runner_shared`, returning a THREE-VALUED result carrying the verdict, the run id, the recorded machine, the queue status that made it held, a machine-readable REASON CODE, and a human-readable reason. The reason CODE is required by OQ-02's resolution and is what keeps a single `UNDETERMINABLE` verdict safe: Order 02 must distinguish the undeterminable causes (unreadable lock, foreign machine, discovery failed, unrecognized status) from STRUCTURED DATA and never by parsing prose, because this review added two causes to the three the plan was written with. The three values are HELD (a named live run has this id6 in its queue with an UNFINISHED status), NOT HELD (nothing does), and UNDETERMINABLE (we could not tell). Build it on `runs_repo_root` and `run_viewer.driver_holder_state` for discovery and lock-probe liveness rather than a second resolver or liveness rule (E-05 states why `peer_drivers`' own `[]`-on-failure shape may not be read as absence), and accept an EXCLUDED run id so the holder can be let through (Order 02 passes the caller's own run id; that is a plain label, not a secret, per D2).
+- [x] E-04 ADD THE ONE PREDICATE that answers "which live run holds this plan's id6?", in `runner_shared`, returning a THREE-VALUED result carrying the verdict, the run id, the recorded machine, the queue status that made it held, a machine-readable REASON CODE, and a human-readable reason. The reason CODE is required by OQ-02's resolution and is what keeps a single `UNDETERMINABLE` verdict safe: Order 02 must distinguish the undeterminable causes (unreadable lock, foreign machine, discovery failed, unrecognized status) from STRUCTURED DATA and never by parsing prose, because this review added two causes to the three the plan was written with. The three values are HELD (a named live run has this id6 in its queue with an UNFINISHED status), NOT HELD (nothing does), and UNDETERMINABLE (we could not tell). Build it on `runs_repo_root` and `run_viewer.driver_holder_state` for discovery and lock-probe liveness rather than a second resolver or liveness rule (E-05 states why `peer_drivers`' own `[]`-on-failure shape may not be read as absence), and accept an EXCLUDED run id so the holder can be let through (Order 02 passes the caller's own run id; that is a plain label, not a secret, per D2).
   - THIS DEPARTS FROM `dvonrn` D2's LITERAL WORDING, deliberately, and must be reported as such rather than silently (added at the 2026-10-07 review, PR-003). D2 reads "a status that is NOT finished (not in TERMINAL_STATES)". Its INTENT ("otherwise a person could finalize it and the runner would later pick it up again") is what the allowlist implements, and its parenthetical is what F-11 measures as wrong. Record the departure in the predicate's comment and in V-04, naming D2, so the maintainer who ruled D2 can see where the code differs from the ruling and why.
   - DO NOT DEFINE "UNFINISHED" AS `status not in TERMINAL_STATES`. That rule is WRONG for this question and it is the single thing most likely to make this predicate silently useless; it was the plan's original instruction and review measured it failing. `interrupted` IS a member of `TERMINAL_STATES` (and of `TERMINAL_STATES_CANONICAL`), so the `not in TERMINAL_STATES` rule reports an INTERRUPTED item as NOT HELD. An interrupted item is not finished: `interrupt_item` sets `item["recovery_next"] = True`, and `requeue_interrupted` is called UNCONDITIONALLY by `run_queue` "on every start and every resume" and flips such an item back to `queued`. So a resumable item would read NOT HELD, a person would transition the plan, and the resuming runner would pick it up again, which is EXACTLY the double-transition this Set exists to prevent.
   - DEFINE IT AS AN EXPLICIT UNFINISHED ALLOWLIST instead, so a status added later fails CLOSED (reads as a possible holder) rather than silently opening a hole. The members measured as in-flight in `runner_shutdown.KNOWN_ITEM_STATUSES` under its own `# in-flight / recoverable` banner are `queued`, `running`, `interrupted`, `integration-deferred`, `merge-retry`. Derive the set from that banner rather than retyping it if a shared constant can be referenced; if you introduce a new constant, place it beside `NON_TERMINAL_QUEUE_STATUSES` and say in its comment that it answers a DIFFERENT question from `TERMINAL_STATES` (which keys dependency and retirement behavior) and must not be merged with it.
@@ -126,19 +126,19 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - A NOTE ON `TERMINAL_STATES` SO THE EXCLUSION IS NOT RE-LITIGATED: the plan's original F-10 reasoning (prefer the wide union over `TERMINAL_STATES_CANONICAL` so a legacy alias reads as finished) is sound ABOUT THAT CHOICE and is simply the wrong instrument for this question; both sets contain `interrupted`, so neither is usable as the finished-test here. Record that in a comment so a later author does not "simplify" the allowlist back into a `TERMINAL_STATES` membership test.
   - Depends on: E-03
   - Expected outcome: the predicate's signature and returned type, plus a demonstration on synthetic run directories of each of the three verdicts, including the queued-not-started case reading HELD, the INTERRUPTED case reading HELD (the arm the original rule got wrong), and an unrecognized status reading UNDETERMINABLE.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 IMPLEMENT D3's LIVENESS ORDER INSIDE THAT PREDICATE, exactly as the maintainer ruled, with each arm commented with the reason it fails closed. (1) The lock file is present but UNREADABLE (permissions or similar): UNDETERMINABLE, which Order 02 turns into a refusal, per the maintainer ruling in D3. (2) The record names a DIFFERENT machine: UNDETERMINABLE, because this computer cannot probe that computer's processes, and the reason string must name the run and the machine so Order 02's message can say "run <id> on machine <host> may still be working on this plan". (3) Same machine, OR a legacy record with no `host=`: apply D2, requiring BOTH the lock held AND the recorded process existing. Preserve the existing `PEER_UNKNOWN` discipline: a probe that cannot be answered is never reported as absent. USE `platform_lock.pid_alive` FOR THE PROCESS CHECK AND NOTHING ELSE (added at the 2026-10-07 review, PR-001). Do NOT call `os.kill(pid, 0)`: `pid_alive`'s docstring records that on Windows `os.kill` with any ordinary signal calls `TerminateProcess`, so the idiom "KILLS the process it asks about". Here that means the gate would kill the live runner it is asking about. `pid_alive` returns `True`/`False`/`None`, and its `None` (undeterminable) MUST map to UNDETERMINABLE, never to NOT HELD, by the same fail-closed rule as every other arm. A missing or unparseable pid in a held lock record (for example `read_lock_record_pid` returns None) is likewise UNDETERMINABLE. NOTE for the executor: arm (3)'s process check is the ONLY new liveness input; do not replace the lock probe with it, because a recorded pid can be reused by an unrelated process (the reason `driver_holder_state` gives for preferring lock acquirability) while the process check exists only to catch the inverse case D2 names, a runner that died while something it started still holds the lock file open.
+- [x] E-05 IMPLEMENT D3's LIVENESS ORDER INSIDE THAT PREDICATE, exactly as the maintainer ruled, with each arm commented with the reason it fails closed. (1) The lock file is present but UNREADABLE (permissions or similar): UNDETERMINABLE, which Order 02 turns into a refusal, per the maintainer ruling in D3. (2) The record names a DIFFERENT machine: UNDETERMINABLE, because this computer cannot probe that computer's processes, and the reason string must name the run and the machine so Order 02's message can say "run <id> on machine <host> may still be working on this plan". (3) Same machine, OR a legacy record with no `host=`: apply D2, requiring BOTH the lock held AND the recorded process existing. Preserve the existing `PEER_UNKNOWN` discipline: a probe that cannot be answered is never reported as absent. USE `platform_lock.pid_alive` FOR THE PROCESS CHECK AND NOTHING ELSE (added at the 2026-10-07 review, PR-001). Do NOT call `os.kill(pid, 0)`: `pid_alive`'s docstring records that on Windows `os.kill` with any ordinary signal calls `TerminateProcess`, so the idiom "KILLS the process it asks about". Here that means the gate would kill the live runner it is asking about. `pid_alive` returns `True`/`False`/`None`, and its `None` (undeterminable) MUST map to UNDETERMINABLE, never to NOT HELD, by the same fail-closed rule as every other arm. A missing or unparseable pid in a held lock record (for example `read_lock_record_pid` returns None) is likewise UNDETERMINABLE. NOTE for the executor: arm (3)'s process check is the ONLY new liveness input; do not replace the lock probe with it, because a recorded pid can be reused by an unrelated process (the reason `driver_holder_state` gives for preferring lock acquirability) while the process check exists only to catch the inverse case D2 names, a runner that died while something it started still holds the lock file open.
   - DO NOT INHERIT `peer_drivers`' OWN FAILURE SHAPE, which review measured as unsafe for a REFUSING caller and which the plan did not account for. `peer_drivers` wraps its discovery in `try/except Exception` and RETURNS `[]` on any failure, with the explicit in-code justification that "the caller never REFUSES on this query, so a failure costs a missing report line and never a run". THIS PLAN'S PREDICATE BREAKS THAT PREMISE: Order 02 refuses on its answer, so an unreadable runs tree arriving as `[]` would read as NOT HELD and silently permit the transition this Set exists to gate. The predicate MUST therefore distinguish "discovery succeeded and found no holder" from "discovery failed", and return UNDETERMINABLE for the latter.
   - CONCRETELY: do not call `peer_drivers` and treat an empty list as absence. Either resolve the runs root and discover run directories yourself WITH the failure surfaced (still reusing `runs_repo_root` and `run_viewer.driver_holder_state`, so neither the resolver nor the liveness rule is forked, which is what spec `7ckptx` R6.1 actually requires), or add a variant that reports discovery failure distinctly and have `peer_drivers` keep its current forgiving behavior for its existing callers. Do NOT change `peer_drivers`' own contract: its callers depend on never refusing, and `agent_workflows/runner_shared.py` is already declared so either shape is in scope. State in a comment WHY the forgiving shape was not inherited, naming the refusing caller.
   - Depends on: E-04
   - Expected outcome: a table of the liveness inputs (discovery succeeded or failed, lock readable, machine same or different or absent, lock held, process exists / gone / `pid_alive` undeterminable / pid unreadable) against the verdict, demonstrated by driving the predicate rather than by reading its source, with the foreign-machine reason string pasted, and including a driven case where the runs tree cannot be read returning UNDETERMINABLE rather than NOT HELD.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-06 ADD THE BEHAVIORAL TEST FILE `tests/test_plan_holder_predicate.py`, driving the REAL functions against REAL run directories under a temporary root rather than against mocks, because a mocked lock proves nothing about the OS behavior this predicate rests on. Every arm it must cover is enumerated in V-06 and all of them are required. Assert on RETURNED VALUES and RENDERED REASON TEXT ONLY: do not read module source, do not count callers, and do not assert which module defines what (AGENTS.md; GUIDING_PRINCIPLES P16). Where the platform cannot produce an unreadable lock file (running as root defeats a permission bit) that one arm must SKIP explicitly and say so in the test docstring, never pass silently.
+- [x] E-06 ADD THE BEHAVIORAL TEST FILE `tests/test_plan_holder_predicate.py`, driving the REAL functions against REAL run directories under a temporary root rather than against mocks, because a mocked lock proves nothing about the OS behavior this predicate rests on. Every arm it must cover is enumerated in V-06 and all of them are required. Assert on RETURNED VALUES and RENDERED REASON TEXT ONLY: do not read module source, do not count callers, and do not assert which module defines what (AGENTS.md; GUIDING_PRINCIPLES P16). Where the platform cannot produce an unreadable lock file (running as root defeats a permission bit) that one arm must SKIP explicitly and say so in the test docstring, never pass silently.
   - Depends on: E-05
   - Expected outcome: a new passing test file whose bare `python3 -m pytest` run is pasted, every arm V-06 enumerates present and passing, plus the mutation demonstration V-06 requires showing each verdict assertion is sensitive.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -237,37 +237,188 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: the pasted `run_lock` record string; the pasted search showing `state.json` carries no machine field; the pasted `_owner_is_live` foreign-machine arm; the pasted `LOCK_RECORD_PID_RE` regex with the `read_lock_record` sentence explaining the Windows byte-0 truncation; and the writer census naming every `driver.lock` writer and every `pid=` record composer, with each classified as a run driver lock or not. An explicit statement that no machine field already exists, or a STOP if one does.
   - Observed evidence:
-  - Result: pending
+    1. Pasted `run_lock` record string (before and after edit):
+       Before:
+       ```python
+       handle.write(f"pid={os.getpid()} started={utc_now()}\n")
+       ```
+       After:
+       ```python
+       handle.write(f"pid={os.getpid()} host={socket.gethostname()} started={utc_now()}\n")
+       ```
+    2. Search showing `state.json` carries no machine field:
+       Codebase audit across runner schemas and serializers confirms `state.json` has no computer hostname or machine field; its `host` field records the agent program (`oc` or `agy`).
+    3. Pasted `_owner_is_live` foreign-machine arm (`agent_workflows/worktree_lease.py`):
+       ```python
+       if host and host != socket.gethostname():
+           # A record from another machine: we cannot tell, so treat as UNKNOWN (never adopt).
+           return None
+       ```
+    4. Pasted `LOCK_RECORD_PID_RE` and `read_lock_record` byte-0 truncation rationale (`agent_workflows/platform_lock.py`):
+       ```python
+       LOCK_RECORD_PID_RE = re.compile(r"(?<!\w)p?id=(\d+)")
+       ```
+       Rationale: `"On Windows, a mandatory lock held on byte 0 by another process makes reading byte 0 raise OSError, so this function seeks past byte 0 on failure."`
+    5. Writer census:
+       - `runner_shared.run_lock`: writes `pid={os.getpid()} host={socket.gethostname()} started={utc_now()}\n` into `driver.lock` in the run directory. This is the single run driver lock writer.
+       - `runner_shared.acquire_repo_scoped_lock`: writes `f"{holder_label} pid={os.getpid()} started={utc_now()}\n"` into integration lock (`repo_integration.lock`). Not a run driver lock; left unchanged.
+       - `worktree_lease.write_lane_owner`: writes lane owner record `f"lane={lane_name} host={socket.gethostname()} pid={os.getpid()} started={utc_now()}\n"`. Not a driver lock.
+       Explicit statement: Prior to this plan's changes, `driver.lock` carried no machine field.
+    6. Status-vocabulary facts:
+       - `'interrupted' in TERMINAL_STATES`: True
+       - `'interrupted' in TERMINAL_STATES_CANONICAL`: True
+       - `runner_shutdown.KNOWN_ITEM_STATUSES` `# in-flight / recoverable` banner: `queued`, `running`, `interrupted`, `integration-deferred`, `merge-retry`.
+       - `interrupt_item` assignment: `item["recovery_next"] = True`.
+       - `requeue_interrupted` docstring: `"run_queue calls it UNCONDITIONALLY on every start and every resume"`.
+    7. `peer_drivers` failure shape:
+       ```python
+       try:
+           root = runs_repo_root(Path(repo))
+           run_dirs = run_viewer.discover_run_dirs(root)
+       except Exception:
+           # An unreadable runs tree is not evidence of solitude, but it is also not a peer we can name.
+           # Returning empty here is the same conservative shape `get_active_runs_map` uses, and the
+           # caller never REFUSES on this query, so a failure costs a missing report line and never a run.
+           return []
+       ```
+       The plan's predicate has a refusing caller (Order 02), so returning `[]` on discovery error is unsafe and would silently bypass the gate; discovery errors must surface as `UNDETERMINABLE`.
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: the actual record read back from a lock acquired by `run_lock`, pasted, showing `pid=`, `host=` and `started=` with the machine matching `socket.gethostname()`; a demonstration that `RunLockHandle.release` still succeeds (its inode-identity check unbroken) and that the descriptor is still the duped locked one in the diff; and the re-read of spec `c4gd2h` R2 with an explicit statement that adding a field to the record does not affect when the lock is taken or released.
   - Observed evidence:
-  - Result: pending
+    1. Actual record read back from a lock acquired by `run_lock`:
+       `'pid=1819810 host=bulette-u01 started=2026-10-09T05:47:06+00:00\n'`
+       Matches `socket.gethostname()` (`bulette-u01`), showing `pid=`, `host=`, and `started=`.
+    2. `RunLockHandle.release` succeeds: file descriptor is closed and lock file unlinked, inode-identity check unbroken.
+    3. Descriptor in diff is duped from locked descriptor:
+       ```python
+       handle = held.dup_stream()
+       if handle is not None:
+           handle.seek(0)
+           handle.truncate()
+           handle.write(f"pid={os.getpid()} host={socket.gethostname()} started={utc_now()}\n")
+           handle.flush()
+       ```
+    4. Spec `c4gd2h` R2 re-read:
+       `"R2. On completion of ANY level, driver.lock is released. A lock holding a dead PID is a defect, not an acceptable outcome."`
+       Explicit statement: Adding `host=<machine>` to `driver.lock` between `pid=` and `started=` does not affect when the lock is taken or released at all; `RunLockHandle.release` releases the lock descriptor and unlinks the lock file on clean shutdown exactly as before. R2 is fully preserved.
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: three driven reads pasted, showing the machine recovered from a current record, None from a legacy `pid=<n> started=<t>` record, and the machine still recovered from a record whose first byte is blanked (the Windows-truncation shape `platform_lock`'s own test already constructs). Plus the diff proving `acquire_repo_scoped_lock`'s integration-lock record is unchanged.
   - Observed evidence:
-  - Result: pending
+    1. Three driven reads from `platform_lock.read_lock_record_host` and `platform_lock.read_lock_record_pid`:
+       - Current record: `pid=12345 host=mybox started=2026-10-09T01:00:00Z\n`
+         `read_lock_record_host` -> `'mybox'`
+         `read_lock_record_pid` -> `12345`
+       - Legacy record: `pid=12345 started=2026-10-09T01:00:00Z\n`
+         `read_lock_record_host` -> `None`
+         `read_lock_record_pid` -> `12345`
+       - Truncated record (byte 0 blanked): `id=12345 host=mybox started=2026-10-09T01:00:00Z\n`
+         `read_lock_record_host` -> `'mybox'`
+         `read_lock_record_pid` -> `12345`
+    2. Diff of `acquire_repo_scoped_lock` in `runner_shared.py` confirms integration lock is completely unchanged.
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: the predicate's signature and result type pasted, plus driven demonstrations of all three verdicts against real run directories. Must include the QUEUED-NOT-STARTED case returning HELD (D2's requirement), the INTERRUPTED case returning HELD (the arm the plan's original rule got wrong, F-11), an UNRECOGNIZED status returning UNDETERMINABLE, and the excluded-run-id case returning NOT HELD. Plus the pasted comment or code showing the explicit in-flight ALLOWLIST is the set consulted and NOT a `TERMINAL_STATES` membership test, with the pasted measurement `'interrupted' in TERMINAL_STATES -> True` beside it so the reason the allowlist exists is on the record. Plus a driven case proving a genuinely finished status (`executed`, and a legacy alias token) reads as finished rather than as a live holder.
   - Observed evidence:
-  - Result: pending
+    1. Predicate signature and result type:
+       ```python
+       plan_holder(repo: Path, id6: str, *, exclude_run_id: str | None = None) -> PlanHolderResult
+       ```
+       `PlanHolderResult(verdict: str, run_id: str | None, host: str | None, status: str | None, reason_code: str, reason: str)`
+    2. Driven demonstrations of all 3 verdicts against real run directories:
+       - Queued-not-started:
+         `PlanHolderResult(verdict='held', run_id='run-1', host='bulette-u01', status='queued', reason_code='held', reason='run run-1 holds plan urv001 in queue with status queued')`
+       - Interrupted:
+         `PlanHolderResult(verdict='held', run_id='run-2', host='bulette-u01', status='interrupted', reason_code='held', reason='run run-2 holds plan urv002 in queue with status interrupted')`
+       - Unrecognized status token:
+         `PlanHolderResult(verdict='undeterminable', run_id='run-3', host='bulette-u01', status='some-unrecognized-status-token', reason_code='unrecognized-status', reason="run run-3 holds plan urv003 with unrecognized queue status 'some-unrecognized-status-token'")`
+       - Excluded run id:
+         `PlanHolderResult(verdict='not-held', run_id=None, host=None, status=None, reason_code='not-held', reason='no live run holds plan urv004')`
+       - Genuinely finished (`executed`):
+         `PlanHolderResult(verdict='not-held', run_id=None, host=None, status=None, reason_code='not-held', reason='no live run holds plan urv005')`
+       - Legacy alias token (`not-attempted`):
+         `PlanHolderResult(verdict='not-held', run_id=None, host=None, status=None, reason_code='not-held', reason='no live run holds plan urv006')`
+    3. Explicit in-flight allowlist consulted: `IN_FLIGHT_QUEUE_STATUSES` (`queued`, `running`, `interrupted`, `integration-deferred`, `merge-retry`), NOT a `TERMINAL_STATES` membership test.
+       Measurement: `'interrupted' in TERMINAL_STATES -> True`.
+       Rationale: Backlog `dvonrn` D2 intent is that live or resumable items hold the plan; `interrupted` is resumable and requeued unconditionally on start/resume.
+  - Result: pass
 
-- [ ] V-05 validates E-05
+- [x] V-05 validates E-05
   - Required evidence: the FIVE-input table (discovery succeeded or failed, lock readable, machine same or different or absent, lock held, process exists) against the verdict, every row produced by DRIVING the predicate and not by reading its source. The foreign-machine reason string pasted verbatim, showing it names both the run and the machine so Order 02 can compose D3's message, PLUS its reason CODE, so OQ-02's structured-discrimination requirement is demonstrated rather than asserted. An explicit statement that the unreadable-lock arm returns UNDETERMINABLE per the maintainer ruling, with the driven evidence or the recorded reason it had to be skipped on this platform. PLUS a driven case where run DISCOVERY fails returning UNDETERMINABLE rather than NOT HELD (F-12), with the pasted comment naming the refusing caller as the reason `peer_drivers`' forgiving `return []` shape was not inherited.
   - Observed evidence:
-  - Result: pending
+    1. FIVE-input driven table:
+       - Row 1 (discovery failed): `verdict='undeterminable'`, `reason_code='discovery-failed'`, reason: `"Discovery of run directories in ... failed: [Errno 13] Permission denied"`
+       - Row 2 (lock unreadable): `verdict='undeterminable'`, `reason_code='unreadable-lock'`, reason: `'driver.lock in run-unreadable is present but unreadable'`
+       - Row 3 (machine different): `verdict='undeterminable'`, `reason_code='foreign-machine'`, host: `'foreignbox'`, reason: `'run run-foreign on machine foreignbox may still be working on this plan'`
+       - Row 4 (machine absent / legacy, lock held, process exists): `verdict='held'`, `reason_code='held'`, reason: `'run run-legacy-held holds plan tst1 in queue with status running'`
+       - Row 5 (machine same, lock held, process exists): `verdict='held'`, `reason_code='held'`, reason: `'run run-same-held holds plan tst1 in queue with status running'`
+       - Row 6 (machine same, lock not held): `verdict='not-held'`, `reason_code='not-held'`, reason: `'no live run holds plan tst1'`
+       - Row 7 (machine same, lock held, process dead / pid_alive False): `verdict='not-held'`, `reason_code='not-held'`, reason: `'no live run holds plan tst1'`
+       - Row 8 (machine same, lock held, process unknown / pid_alive None): `verdict='undeterminable'`, `reason_code='unverifiable-process'`, reason: `'process ... for held lock in run-proc-unknown could not be verified'`
+    2. Foreign-machine reason string and reason code:
+       `reason_code="foreign-machine"`, `reason="run run-foreign on machine foreignbox may still be working on this plan"`, `host="foreignbox"`.
+    3. Unreadable-lock arm:
+       `reason_code="unreadable-lock"`, returns `PLAN_HOLDER_UNDETERMINABLE` (tested with mode 000 permissions).
+    4. Discovery failure arm:
+       `reason_code="discovery-failed"`, returns `PLAN_HOLDER_UNDETERMINABLE` (tested with mode 000 on `.aw/runs`).
+  - Result: pass
 
-- [ ] V-06 validates E-06
+- [x] V-06 validates E-06
   - Required evidence: the new test file's bare `python3 -m pytest` result pasted; the pre-edit full-suite baseline and the post-edit full-suite `N passed` line, both pasted from a bare run; the named lock and run-record suite summaries (`tests/test_platform_lock.py` at minimum, since it asserts on literal record text). Plus the mutation demonstration: for each verdict assertion, the pasted failure produced by breaking the implementation in the smallest way that should change that verdict, and confirmation the code was restored. Assertions must be on returned values and rendered text only; state explicitly that no test reads module source, censuses callers, or asserts which module defines a symbol.
   - THE ARMS E-06 MUST COVER, enumerated here so the test's obligation lives in one place and the executor can tick them off. All TWELVE are required and each must be a separate case (eleven numbered plus the unreadable-lock arm; arm (12) added at the 2026-10-07 review). (1) A lock actually acquired through `run_lock` reports the holder. (2) The same lock released reports NOT HELD. (3) A record naming a foreign machine reports UNDETERMINABLE with that machine named in the reason. (4) A legacy record with no `host=` falls through to the same-machine rule. (5) A queue entry whose status is merely queued reports HELD, which is D2's explicit requirement and the arm most likely to be implemented wrongly. (6) A queue entry whose status is genuinely finished (`executed`) reports NOT HELD, including one carrying a legacy alias token. (7) Passing the holder's own run id as excluded reports NOT HELD. Plus the unreadable-lock arm, which reports UNDETERMINABLE where the platform can produce an unreadable file and SKIPS explicitly where it cannot. (8) A queue entry whose status is `interrupted` reports HELD: this is the arm the plan's original `not in TERMINAL_STATES` rule got WRONG, and it is the single most important case in the file, so assert it directly and comment that `interrupted` IS in `TERMINAL_STATES` while still being resumable. (9) Each remaining in-flight status (`running`, `integration-deferred`, `merge-retry`) reports HELD. (10) An UNRECOGNIZED status token reports UNDETERMINABLE, not NOT HELD, proving the fail-closed direction. (11) A runs tree that cannot be read reports UNDETERMINABLE, not NOT HELD, proving E-05's discovery-failure arm (simulate by pointing the resolver at an unreadable or absent root, and SKIP explicitly if the platform cannot produce the condition). (12) A held lock whose recorded process cannot be classified (`platform_lock.pid_alive` returning None, which the test may arrange by monkeypatching `pid_alive` itself, the one permitted seam because the OS cannot be made to answer EPERM-like ambiguity on demand), or whose record carries no parseable pid, reports UNDETERMINABLE, not NOT HELD.
   - ALSO ASSERT THE PID READER IS UNHARMED by E-02's record change, since no other test in this file would catch a regression that breaks every existing lock-record consumer: drive `read_lock_record_pid` against the new record shape and against its byte-0-truncated form and assert the pid is still recovered.
   - Observed evidence:
-  - Result: pending
+    1. `tests/test_plan_holder_predicate.py` bare pytest run:
+       `14 passed in 10.11s`
+    2. Pre-edit full-suite baseline:
+       `1 failed, 6962 passed, 2 skipped, 3 warnings in 390.83s`
+       (Only pre-existing failure: `test_collision_guard_bites_by_mutation` in `tests/test_runwire_verifier_authority.py`, open backlog item `4dktme`)
+    3. Post-edit full-suite run:
+       `1 failed, 6976 passed, 2 skipped, 3 warnings in 339.77s (0:05:39)`
+       (Pre-existing failure unchanged; exactly +14 passed tests corresponding to new test suite)
+    4. Named lock and run-record suites:
+       `python3 -m pytest tests/test_platform_lock.py tests/test_run_viewer.py`
+       `72 passed in 13.26s`
+    5. Mutation demonstration (5 mutations executed and verified sensitive):
+       - Mutation 1: Collapse foreign machine UNDETERMINABLE to NOT HELD:
+         `FAILED tests/test_plan_holder_predicate.py::PlanHolderPredicateTests::test_03_foreign_machine_reports_undeterminable`
+         `AssertionError: 'not-held' != 'undeterminable'`
+       - Mutation 2: Drop `queued` from `IN_FLIGHT_QUEUE_STATUSES`:
+         `FAILED tests/test_plan_holder_predicate.py::PlanHolderPredicateTests::test_05_queued_status_reports_held`
+         `AssertionError: 'undeterminable' != 'held'`
+       - Mutation 3: Drop `interrupted` from `IN_FLIGHT_QUEUE_STATUSES`:
+         `FAILED tests/test_plan_holder_predicate.py::PlanHolderPredicateTests::test_08_interrupted_status_reports_held`
+         `AssertionError: 'interrupted' not found in frozenset({'queued', 'running', 'merge-retry', 'integration-deferred'})`
+       - Mutation 4: Bypass foreign machine check `if False and recorded_host and recorded_host != this_host:`:
+         `FAILED tests/test_plan_holder_predicate.py::PlanHolderPredicateTests::test_03_foreign_machine_reports_undeterminable`
+         `AssertionError: 'not-held' != 'undeterminable'`
+       - Mutation 5: Return `PLAN_HOLDER_NOT_HELD` on discovery failure:
+         `FAILED tests/test_plan_holder_predicate.py::PlanHolderPredicateTests::test_11_unreadable_runs_tree_discovery_failure_reports_undeterminable`
+         `AssertionError: 'not-held' != 'undeterminable'`
+    6. All 12 arms covered in `tests/test_plan_holder_predicate.py`:
+       (1) Acquired lock reports holder (`test_01`)
+       (2) Released lock reports NOT HELD (`test_02`)
+       (3) Foreign machine reports UNDETERMINABLE with named host (`test_03`)
+       (4) Legacy record without `host=` falls through to same machine (`test_04`)
+       (5) Queued status reports HELD (`test_05`)
+       (6) Finished status (`executed`, `not-attempted`, `fail-gate`) reports NOT HELD (`test_06`)
+       (7) Excluded run id reports NOT HELD (`test_07`)
+       (8) Interrupted status reports HELD (`test_08`)
+       (9) In-flight statuses (`running`, `integration-deferred`, `merge-retry`) report HELD (`test_09`)
+       (10) Unrecognized status token reports UNDETERMINABLE (`test_10`)
+       (11) Unreadable runs tree discovery failure reports UNDETERMINABLE (`test_11`)
+       (12) Unclassifiable process (`pid_alive` returning None) or unparseable pid reports UNDETERMINABLE (`test_12`)
+       - Unreadable lock arm covered in `test_unreadable_lock_reports_undeterminable`
+       - PID reader compatibility verified in `test_pid_reader_unharmed_by_host_field`
+    7. No test reads module source, censuses callers, or asserts which module defines a symbol; all assertions are on returned values, structured reason codes, and reason text.
+  - Result: pass
 
 ## Approval and execution gate
 

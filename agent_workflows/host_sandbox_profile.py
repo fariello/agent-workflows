@@ -107,7 +107,7 @@ RUNNER-SAFETY CAPABILITIES AND THE ACTION PREFLIGHT (mjx7ne, spec 25kzda 5.2)
 
 The contract above answers what the host can do to CONFINE a worker. It said nothing about
 the runner-safety guarantees a lifecycle ACTION depends on, and nothing compared what an
-action NEEDS against what a host PROVED. Two fields and a preflight close that:
+action NEEDS against what a host PROVED. Runner-safety fields and a preflight close that:
 
   * `supports_fresh_verifier_session` - PROBED by attempt. The probe runs the real
     fresh-verifier contract twice and requires BOTH that distinct identities finalize AND
@@ -131,6 +131,13 @@ action NEEDS against what a host PROVED. Two fields and a preflight close that:
     a canonical structured tool event in that host's wire schema (producing a rendered line
     containing the tool name while ignoring a well-formed non-tool event).
     Platform-independent.
+  * `supports_deny_tcp_port` - PROBED by attempt and two-sided (pi3bk8). The probe
+    constructs a Landlock ruleset handling outbound connect-TCP with only an allowed
+    loopback port permitted, requires the connect to that port to succeed, and requires
+    a connect to an unallowed port to be refused by the kernel with EACCES (errno 13).
+    LIMIT: port-granularity only with no destination address filtering, so it cannot
+    separate git remote push from model API traffic on TCP 443, and it gates no action
+    today.
 
   LAUNCH INTERCEPTION CONCURRENCY (bqtgmo E-02): During turn argv capture, `subprocess.Popen`
   is transiently substituted process-wide. A concurrent launch on another thread is delegated
@@ -154,6 +161,7 @@ from __future__ import annotations
 
 import os
 import shutil
+import socket
 import subprocess
 import sys
 import tempfile
@@ -177,6 +185,8 @@ __all__ = [
     # mjx7ne: the runner-safety capabilities, their probes, and the action preflight.
     "CAP_COMMIT_GATEWAY",
     "CAP_FRESH_VERIFIER_SESSION",
+    "CAP_DENY_TCP_PORT",
+    "CAP_EGRESS_FILTERING",
     "RUNNER_SAFETY_CAPABILITIES",
     "UNREPRESENTED_SPEC_CAPABILITIES",
     "probe_runner_safety_capabilities",
@@ -246,6 +256,8 @@ class HostSandboxCapabilities:
     # `probe_notes`; see `_declared_unenforced` for why a presence-based probe is forbidden.
     supports_commit_gateway: bool = False
     supports_fresh_verifier_session: bool = False
+    supports_deny_tcp_port: bool = False
+    supports_egress_filtering: bool = False
 
     platform: str = ""
     # Which rung of the ladder was PROVEN by an executed probe: "landlock" | "bwrap" |
@@ -304,6 +316,7 @@ def landlock_bootstrap_source(
     readonly: Sequence[str],
     argv: Sequence[str],
     cwd: Optional[str] = None,
+    allowed_tcp_ports: Optional[Iterable[int]] = None,
 ) -> str:
     """Python source for the in-process Landlock bootstrap that then `execv`s `argv`.
 
@@ -314,7 +327,91 @@ def landlock_bootstrap_source(
 
     Paths that do not exist are skipped rather than fatal: a rule needs an existing inode,
     and a missing path is already inaccessible (fail-closed).
+
+    When `allowed_tcp_ports` is provided, the ruleset handles `LANDLOCK_ACCESS_NET_CONNECT_TCP`
+    at Landlock ABI >= 4 and allows only the specified TCP ports.
     """
+    if allowed_tcp_ports is None:
+        return textwrap.dedent(
+            """\
+            import ctypes, os, struct, sys
+
+            LL_CREATE, LL_ADD_RULE, LL_RESTRICT = 444, 445, 446
+            FILE_MASK = {file_mask}
+            RO = {ro}
+
+            libc = ctypes.CDLL("libc.so.6", use_errno=True)
+
+            def _abi():
+                return libc.syscall(LL_CREATE, None, ctypes.c_size_t(0), ctypes.c_uint32(1))
+
+            abi = _abi()
+            if abi < 1:
+                sys.stderr.write("landlock unavailable: abi=%r\\n" % (abi,))
+                raise SystemExit(125)
+
+            if abi >= 3:
+                ALL = (1 << 15) - 1
+            elif abi == 2:
+                ALL = (1 << 14) - 1
+            else:
+                ALL = (1 << 13) - 1
+
+            attr = struct.pack("=QQ", ALL, 0)
+            buf = ctypes.create_string_buffer(attr, len(attr))
+            fd = libc.syscall(LL_CREATE, ctypes.byref(buf), ctypes.c_size_t(len(attr)), ctypes.c_uint32(0))
+            if fd < 0:
+                sys.stderr.write("landlock_create_ruleset failed errno=%d\\n" % ctypes.get_errno())
+                raise SystemExit(125)
+
+            def add(path, rights):
+                if not os.path.exists(path):
+                    return
+                if not os.path.isdir(path):
+                    rights &= FILE_MASK
+                if not rights:
+                    return
+                pfd = os.open(path, os.O_PATH | os.O_CLOEXEC)
+                try:
+                    rule = struct.pack("=Qi", rights, pfd)
+                    rb = ctypes.create_string_buffer(rule, len(rule))
+                    if libc.syscall(LL_ADD_RULE, ctypes.c_int(fd), ctypes.c_uint32(1),
+                                    ctypes.byref(rb), ctypes.c_uint32(0)) != 0:
+                        sys.stderr.write("landlock add_rule failed for %s errno=%d\\n"
+                                         % (path, ctypes.get_errno()))
+                        raise SystemExit(125)
+                finally:
+                    os.close(pfd)
+
+            for p in {readonly!r}:
+                add(p, RO)
+            for p in {writable!r}:
+                add(p, ALL)
+
+            PR_SET_NO_NEW_PRIVS = 38
+            if libc.prctl(PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0) != 0:
+                sys.stderr.write("prctl(NO_NEW_PRIVS) failed\\n")
+                raise SystemExit(125)
+            if libc.syscall(LL_RESTRICT, ctypes.c_int(fd), ctypes.c_uint32(0)) != 0:
+                sys.stderr.write("landlock_restrict_self failed errno=%d\\n" % ctypes.get_errno())
+                raise SystemExit(125)
+
+            cwd = {cwd!r}
+            if cwd:
+                os.chdir(cwd)
+            argv = {argv!r}
+            os.execvp(argv[0], argv)
+            """
+        ).format(
+            file_mask=_LL_FILE_MASK,
+            ro=_LL_READONLY,
+            readonly=list(readonly),
+            writable=list(writable),
+            argv=list(argv),
+            cwd=cwd,
+        )
+
+    ports = list(allowed_tcp_ports)
     return textwrap.dedent(
         """\
         import ctypes, os, struct, sys
@@ -340,12 +437,27 @@ def landlock_bootstrap_source(
         else:
             ALL = (1 << 13) - 1
 
-        attr = struct.pack("=QQ", ALL, 0)
+        if abi >= 4:
+            NET = 1 << 1
+        else:
+            NET = 0
+
+        attr = struct.pack("=QQ", ALL, NET)
         buf = ctypes.create_string_buffer(attr, len(attr))
         fd = libc.syscall(LL_CREATE, ctypes.byref(buf), ctypes.c_size_t(len(attr)), ctypes.c_uint32(0))
         if fd < 0:
             sys.stderr.write("landlock_create_ruleset failed errno=%d\\n" % ctypes.get_errno())
             raise SystemExit(125)
+
+        if abi >= 4:
+            for port in {ports!r}:
+                rule = struct.pack("=QQ", 1 << 1, port)
+                rb = ctypes.create_string_buffer(rule, len(rule))
+                if libc.syscall(LL_ADD_RULE, ctypes.c_int(fd), ctypes.c_uint32(2),
+                                ctypes.byref(rb), ctypes.c_uint32(0)) != 0:
+                    sys.stderr.write("landlock add_rule net_port failed for port %d errno=%d\\n"
+                                     % (port, ctypes.get_errno()))
+                    raise SystemExit(125)
 
         def add(path, rights):
             if not os.path.exists(path):
@@ -392,6 +504,7 @@ def landlock_bootstrap_source(
         writable=list(writable),
         argv=list(argv),
         cwd=cwd,
+        ports=ports,
     )
 
 
@@ -538,10 +651,14 @@ def _probe_userns() -> Tuple[bool, str]:
 # forgotten by the other.
 CAP_COMMIT_GATEWAY = "supports_commit_gateway"
 CAP_FRESH_VERIFIER_SESSION = "supports_fresh_verifier_session"
+CAP_DENY_TCP_PORT = "supports_deny_tcp_port"
+CAP_EGRESS_FILTERING = "supports_egress_filtering"
 
 RUNNER_SAFETY_CAPABILITIES: Tuple[str, ...] = (
     CAP_COMMIT_GATEWAY,
     CAP_FRESH_VERIFIER_SESSION,
+    CAP_DENY_TCP_PORT,
+    CAP_EGRESS_FILTERING,
 )
 
 # Capabilities spec 25kzda 5.2 requires that THIS contract cannot yet represent at all.
@@ -672,12 +789,303 @@ def _probe_fresh_verifier_session() -> Tuple[bool, str]:
         return False, f"fresh-verifier probe failed: {type(exc).__name__}: {exc}"
 
 
+def _landlock_abi() -> int:
+    """Read the running kernel's Landlock ABI version via syscall 444 (E-02 seam)."""
+    if not sys.platform.startswith("linux"):
+        return -1
+    try:
+        import ctypes
+
+        libc = ctypes.CDLL("libc.so.6", use_errno=True)
+        return int(libc.syscall(444, None, ctypes.c_size_t(0), ctypes.c_uint32(1)))
+    except Exception:
+        return -1
+
+
+def _deny_tcp_probe_allowed_ports(allowed: int, denied: int) -> Tuple[int, ...]:
+    """Test seam (E-02/E-08): build the port sequence passed to the bootstrap ruleset.
+
+    In production this returns `(allowed,)` so only the allowed port is permitted.
+    E-08 patches this hook to return `(allowed, denied)` to arrange the unenforced condition.
+    """
+    return (allowed,)
+
+
+def _deny_tcp_checker_source(allowed_port: int, denied_port: int) -> str:
+    """Checker that connects to allowed_port (must succeed) and denied_port (must refuse with EACCES)."""
+    return textwrap.dedent(
+        f"""\
+        import errno, socket, sys
+        ok_port = {allowed_port!r}
+        bad_port = {denied_port!r}
+
+        # 1. Connect to allowed port: must succeed.
+        try:
+            s_ok = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            s_ok.connect(("127.0.0.1", ok_port))
+            s_ok.close()
+        except OSError as exc:
+            sys.stderr.write("allowed connect was DENIED: %s\\n" % exc)
+            raise SystemExit(3)
+
+        # 2. Connect to denied port: must be refused with EACCES (errno 13 / PermissionError).
+        try:
+            s_bad = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            s_bad.connect(("127.0.0.1", bad_port))
+            s_bad.close()
+        except PermissionError as exc:
+            sys.stderr.write("denied connect refused: %s\\n" % exc)
+            raise SystemExit(0)
+        except OSError as exc:
+            if exc.errno == errno.EACCES:
+                sys.stderr.write("denied connect refused: %s\\n" % exc)
+                raise SystemExit(0)
+            sys.stderr.write("denied connect failed with unexpected errno: %s\\n" % exc)
+            raise SystemExit(5)
+
+        sys.stderr.write("denied connect SUCCEEDED - not enforced\\n")
+        raise SystemExit(4)
+        """
+    )
+
+
+def _probe_deny_tcp_port() -> Tuple[bool, str]:
+    """ATTEMPT a Landlock TCP port denial jail and prove two-sided enforcement (pi3bk8 E-02).
+
+    Parent binds two loopback listeners on ephemeral ports (allowed and denied).
+    The child bootstrap configures Landlock with allowed_tcp_ports containing only the
+    allowed port (via `_deny_tcp_probe_allowed_ports`), restricts itself, and execs the checker.
+    The checker verifies:
+      (a) connect to allowed port succeeds;
+      (b) connect to unallowed port is refused by kernel with EACCES (errno 13 / PermissionError).
+    Parent holds both listener sockets open for the lifetime of the probe.
+    """
+    if not sys.platform.startswith(CERTIFIED_PLATFORM):
+        return (
+            False,
+            f"{sys.platform} is not the certified platform ({CERTIFIED_PLATFORM!r}); "
+            "cannot probe deny_tcp_port",
+        )
+
+    import socket
+
+    s_allowed = None
+    s_denied = None
+    try:
+        abi = _landlock_abi()
+        if abi < 4:
+            return (
+                False,
+                f"landlock network rules require ABI >= 4; kernel reported ABI {abi}",
+            )
+
+        s_allowed = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        s_allowed.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        s_allowed.bind(("127.0.0.1", 0))
+        s_allowed.listen(1)
+        allowed_port = s_allowed.getsockname()[1]
+
+        s_denied = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        s_denied.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        s_denied.bind(("127.0.0.1", 0))
+        s_denied.listen(1)
+        denied_port = s_denied.getsockname()[1]
+
+        allowed_ports = _deny_tcp_probe_allowed_ports(allowed_port, denied_port)
+
+        with tempfile.TemporaryDirectory(prefix="aw-deny-tcp-probe-") as tmp:
+            checker = _deny_tcp_checker_source(allowed_port, denied_port)
+            script = Path(tmp) / "check.py"
+            script.write_text(checker, encoding="utf-8")
+            boot = Path(tmp) / "boot.py"
+            boot.write_text(
+                landlock_bootstrap_source(
+                    writable=[tmp],
+                    readonly=_default_toolchain_roots() + [tmp],
+                    argv=[sys.executable, str(script)],
+                    allowed_tcp_ports=allowed_ports,
+                ),
+                encoding="utf-8",
+            )
+            rc, err = _run_probe([sys.executable, str(boot)])
+            if rc == 0:
+                return (
+                    True,
+                    "outbound TCP connect denial proven by executed two-sided probe "
+                    "(LANDLOCK_ACCESS_NET_CONNECT_TCP); limit: per-port only with no destination "
+                    "address filtering, so port 443 git remote push cannot be distinguished from "
+                    "model API traffic",
+                )
+            if rc == 3:
+                return (
+                    False,
+                    f"landlock network jail too restrictive: allowed connect was denied (rc={rc}): {err[:300]}",
+                )
+            if rc == 4:
+                return (
+                    False,
+                    f"landlock network jail did not enforce: denied connect succeeded (rc={rc}): {err[:300]}",
+                )
+            return False, f"landlock deny_tcp_port probe failed rc={rc}: {err[:300]}"
+    except Exception as exc:
+        return False, f"deny_tcp_port probe failed: {type(exc).__name__}: {exc}"
+    finally:
+        if s_allowed is not None:
+            try:
+                s_allowed.close()
+            except Exception:
+                pass
+        if s_denied is not None:
+            try:
+                s_denied.close()
+            except Exception:
+                pass
+
+
+# E-01 mechanism seam: launcher argv for network namespace probe.
+# Swapped in tests to arrange mechanism failure (nonexistent binary) or not-enforced (no -n).
+_EGRESS_PROBE_NS_ARGV: Tuple[str, ...] = ("unshare", "-Urn")
+_EGRESS_PROBE_TOKEN: bytes = b"AW-EGRESS-FILTERING-PROBE\n"
+
+
+def _probe_egress_filtering() -> Tuple[bool, str]:
+    """Prove the host can create a network namespace with two-sided isolation.
+
+    The parent holds both endpoints:
+      * a loopback TCP listener (standing in for a denied remote)
+      * a filesystem-path AF_UNIX socket (standing in for the allowed control channel)
+
+    The probe launches a child in a new network namespace via `_EGRESS_PROBE_NS_ARGV`.
+    The child must (a) succeed in connecting to the AF_UNIX socket and sending a token,
+    and (b) fail to connect to the loopback TCP listener.
+    """
+    if not sys.platform.startswith(CERTIFIED_PLATFORM):
+        return (
+            False,
+            f"egress filtering probe is certified on {CERTIFIED_PLATFORM} only (running on {sys.platform})",
+        )
+
+    if not _EGRESS_PROBE_NS_ARGV or not shutil.which(_EGRESS_PROBE_NS_ARGV[0]):
+        binary = _EGRESS_PROBE_NS_ARGV[0] if _EGRESS_PROBE_NS_ARGV else "<empty>"
+        return False, f"egress filtering launcher {binary!r} not installed"
+
+    with tempfile.TemporaryDirectory(prefix="aw-ns-probe-") as tmp:
+        # 1. Loopback TCP listener (denied side)
+        tcp_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        try:
+            tcp_sock.bind(("127.0.0.1", 0))
+            tcp_port = tcp_sock.getsockname()[1]
+            tcp_sock.listen(5)
+        except OSError as exc:
+            tcp_sock.close()
+            return False, f"egress filtering probe could not bind TCP listener: {exc}"
+
+        # 2. AF_UNIX listener (allowed side) - filesystem path, never abstract
+        sock_path = os.path.join(tmp, "ctrl.sock")
+        unix_sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        try:
+            unix_sock.bind(sock_path)
+            unix_sock.listen(5)
+            unix_sock.settimeout(2.0)
+        except OSError as exc:
+            tcp_sock.close()
+            unix_sock.close()
+            return (
+                False,
+                f"egress filtering probe could not bind AF_UNIX listener: {exc}",
+            )
+
+        child_code = textwrap.dedent(
+            f"""\
+            import socket, sys
+            allowed_path = sys.argv[1]
+            denied_port = int(sys.argv[2])
+            token = {_EGRESS_PROBE_TOKEN!r}
+            try:
+                s_unix = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+                s_unix.settimeout(1.0)
+                s_unix.connect(allowed_path)
+                s_unix.sendall(token)
+                s_unix.close()
+            except OSError as exc:
+                sys.stderr.write("allowed AF_UNIX connect was DENIED: %s\\n" % exc)
+                raise SystemExit(3)
+
+            try:
+                s_tcp = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                s_tcp.settimeout(0.5)
+                s_tcp.connect(("127.0.0.1", denied_port))
+                s_tcp.close()
+            except OSError as exc:
+                sys.stdout.write("denied loopback TCP refused: %s\\n" % exc)
+                raise SystemExit(0)
+
+            sys.stderr.write("denied loopback TCP SUCCEEDED - not enforced\\n")
+            raise SystemExit(4)
+            """
+        )
+        try:
+            argv = [
+                *_EGRESS_PROBE_NS_ARGV,
+                sys.executable,
+                "-c",
+                child_code,
+                sock_path,
+                str(tcp_port),
+            ]
+            rc, err = _run_probe(argv)
+
+            if rc == 4:
+                return (
+                    False,
+                    f"egress filtering probe not enforced: denied loopback TCP was reached (rc=4): {err}",
+                )
+            if rc == 3:
+                return (
+                    False,
+                    f"egress filtering jail too tight: allowed AF_UNIX connection was refused (rc=3): {err}",
+                )
+            if rc != 0:
+                return False, f"egress filtering probe failed (rc={rc}): {err}"
+
+            try:
+                conn, _ = unix_sock.accept()
+                try:
+                    received = conn.recv(len(_EGRESS_PROBE_TOKEN))
+                finally:
+                    conn.close()
+            except (OSError, socket.timeout) as exc:
+                return (
+                    False,
+                    f"egress filtering probe failed: parent did not receive child token on AF_UNIX socket: {exc}",
+                )
+
+            if received != _EGRESS_PROBE_TOKEN:
+                return (
+                    False,
+                    f"egress filtering probe failed: unexpected token on AF_UNIX socket: {received!r}",
+                )
+
+            mech_str = " ".join(_EGRESS_PROBE_NS_ARGV)
+            return (
+                True,
+                f"network namespace partition enforced via {mech_str}: {err}; parent received AF_UNIX token; "
+                f"proves namespace creation and partition, NOT that any destination policy is enforced, "
+                f"and proves nothing about whether a confined process could remove the boundary",
+            )
+        finally:
+            tcp_sock.close()
+            unix_sock.close()
+
+
 # The runner-safety ladder: one entry per capability, `None` where the capability is
 # DECLARED AND NOT PROBED (see `_DECLARED_UNENFORCED`). Kept as data so a new capability
 # cannot be added to the dataclass and silently skipped by the prober.
 _RUNNER_SAFETY_PROBES: Dict[str, Optional[Callable[[], Tuple[bool, str]]]] = {
     CAP_COMMIT_GATEWAY: None,
     CAP_FRESH_VERIFIER_SESSION: _probe_fresh_verifier_session,
+    CAP_DENY_TCP_PORT: _probe_deny_tcp_port,
+    CAP_EGRESS_FILTERING: _probe_egress_filtering,
 }
 
 #: E-03 test seam: forced runner-safety verdicts, `{capability: (supported, note)}`.
