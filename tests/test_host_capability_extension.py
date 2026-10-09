@@ -848,8 +848,8 @@ class GuaranteeRowEnforcementStatusTests(unittest.TestCase):
 
     The tests pin the measurements stated in spec 25kzda 5.2 guarantee rows 1 and 3:
     Leg A (row 1): no shipped finding code names Section 4.1's 'Push attempt' abort class,
-    and 'RUN-NO-PUSH' is absent from RUN_FINDING_CODES_BY_CODE, while 'Push attempt' is
-    deliberately retained in ABORT_CLASSES.
+    and 'RUN-NO-PUSH' is absent from RUN_FINDING_CODES_BY_CODE, and 'Push attempt' is
+    absent from ABORT_CLASSES under the fix-first policy.
     Leg B (row 3): 'hook_preserving_commit' is recorded in UNREPRESENTED_SPEC_CAPABILITIES,
     is not in HostSandboxCapabilities fields under either spelling, and is not a member of
     RUNNER_SAFETY_CAPABILITIES.
@@ -878,8 +878,8 @@ class GuaranteeRowEnforcementStatusTests(unittest.TestCase):
         # RUN-NO-PUSH is absent from RUN_FINDING_CODES_BY_CODE
         self.assertNotIn("RUN-NO-PUSH", run_evidence.RUN_FINDING_CODES_BY_CODE)
 
-        # 'Push attempt' is intentionally retained in ABORT_CLASSES
-        self.assertIn("Push attempt", run_evidence.ABORT_CLASSES)
+        # 'Push attempt' is absent from ABORT_CLASSES under fix-first policy
+        self.assertNotIn("Push attempt", run_evidence.ABORT_CLASSES)
 
     def test_row_3_hook_preserving_commit_enforcement_status(self):
         # Leg B: 'hook_preserving_commit' is a key of UNREPRESENTED_SPEC_CAPABILITIES
