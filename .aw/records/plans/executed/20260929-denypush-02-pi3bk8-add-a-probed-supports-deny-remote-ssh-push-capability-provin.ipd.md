@@ -6,7 +6,7 @@
 - Scope: Add ONE new capability to `HostSandboxCapabilities`, `supports_deny_tcp_port`, decided by an EXECUTED two-sided Landlock network probe, reported through the existing `aw host capabilities` surface, and extend `landlock_bootstrap_source` to carry network rules. The capability gates NO action and reintroduces NO finding code. It must NOT be named `supports_deny_push`, because it does not prove push denial.
 - Scope-Paths: agent_workflows/host_sandbox_profile.py, tests/test_host_sandbox_profile.py, tests/test_host_capability_extension.py, .aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md, CHANGELOG.md
 - Item-Dependencies: executed:x2dwu5
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - From-Spec: 25kzda
 - Work-Kind: feature
@@ -17,9 +17,9 @@
 - Highest E allocated: 09
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: pi3bk8
-- Approval: 2026-10-08, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-09 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: pi3bk8 verified (set denypush, attempt 1). [Scope reconciliation - out-of-scope .aw/records/backlog/open/20261009-qkzet8-01-qkzet8-test-collision-guard-bites-by-mutation-fails-under.backlog.md: changed by the plan's approved execution (auto-reconciled by aw agy run)]
 - 2026-10-08 approved (aw set): status set to approved
 - 2026-10-07 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-901..PR-906 FIXED (round 2)
 - 2026-10-07 /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-901 (HIGH, fixed: E-02 required the denied connect fail with EPERM, but Landlock returns EACCES/errno 13, measured; a literal EPERM check makes the probe never True), PR-902 (MEDIUM, fixed: E-08/E-09 said 'through the seam' but no ABI or allowed-port seam existed; forced_runner_safety_verdicts would make E-09 vacuous; E-02 now specifies both, E-08 arrangement measured reachable), PR-903 (MEDIUM, fixed: E-06 must coordinate the shared PRESENCE_VS_OBSERVATION consumer with nxh5s4), PR-904 (LOW, fixed: F-12/OQ-02 call-frequency stale, runners freeze the descriptor per run), PR-905 (LOW, fixed: gate surfaces l4vw9o OQ-01 ship-at-all at the point of approval), PR-906 (LOW, fixed: gate claimed oq05nc is graduated; it is open; close ownership named). Host Landlock ABI 4. Lint clean at author and review-finalize. Record: `.aw/records/reviews/20260930-denypush-02-pi3bk8-add-a-probed-supports-deny-remote-ssh-push-capability-provin.review.md` Round 2.
