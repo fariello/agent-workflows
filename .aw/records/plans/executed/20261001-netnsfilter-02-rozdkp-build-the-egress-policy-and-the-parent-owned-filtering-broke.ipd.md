@@ -6,7 +6,7 @@
 - Scope: Add the egress POLICY type (a declared allow list of destinations, validated and fail-closed) and the parent-owned filtering BROKER that enforces it by refusing an unlisted destination and tunnelling an allowed one. Both are standalone and unit-testable here; wiring them to a real worker is child 03. The broker runs in the PARENT, outside the namespace, which is what makes it something the confined process cannot reconfigure.
 - Scope-Paths: agent_workflows/egress_policy.py, agent_workflows/host_sandbox_profile.py, tests/test_egress_policy.py
 - Item-Dependencies: executed:nxh5s4
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - From-Backlog: sv9ce4
 - From-Spec: 25kzda
@@ -17,9 +17,9 @@
 - Highest E allocated: 06
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: rozdkp
-- Approval: 2026-10-08, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-09 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: rozdkp verified (set netnsfilter, attempt 1). [Scope reconciliation - in-scope-unmodified agent_workflows/host_sandbox_profile.py: declared-but-unmodified (auto-acknowledged by aw agy run)]
 - 2026-10-08 approved (aw set): status set to approved
 - 2026-10-07 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-701 (HIGH, fixed), PR-702 (MEDIUM, fixed), PR-703 (MEDIUM, fixed), PR-704 (LOW, fixed), PR-705 (LOW, fixed). Design sound and research citations verified. PR-701: E-06's two-listener test could only prove a PORT partition, so the same-port destination partition had no hermetic test; it is now an alias pair (127.0.0.1:P allowed, localhost:P refused, one live listener). PR-702: socketpair seam so Windows CI cannot skip. PR-703: CONNECT input bounds, no raw echo, parent-only socket dir. PR-704: re-quoted the reworded host_sandbox_profile docstring; child wn956n still quotes the old sentence. Record: .aw/records/reviews/20261001-netnsfilter-02-rozdkp-build-the-egress-policy-and-the-parent-owned-filtering-broke.review.md.
 - 2026-10-07 to-review (aw set): returned to review: Set-level validation sweep owned by wn956n E-05/V-05; coverage pass recorded; open questions are non-blocking
