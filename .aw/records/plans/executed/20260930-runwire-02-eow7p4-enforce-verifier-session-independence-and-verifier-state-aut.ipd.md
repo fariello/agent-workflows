@@ -11,7 +11,7 @@
   EXCLUDES: changing the verifier PROMPT or its verdict schema; changing `map_verdict` or the verdict table (`1bfppy`'s, and it is correct); adding a `verify_disp` token (measured to render as a bare `-` in `run_viewer`); the `correction_required -> runnable` requeue; wiring `run_recovery` or a ledger; and adding an `ACTION_CAPABILITY_REQUIREMENTS` row (see OQ-02 - that is a capability-policy change with its own refusal surface).
 - Scope-Paths: agent_workflows/runner_shared.py, tests/test_runwire_verifier_authority.py, tests/test_oc_runipd.py, tests/test_agy_runipd_cli.py, tests/test_resolve_plan_path_typed.py, tests/test_scope_path_target_stale.py
 - Item-Dependencies: executed:32jpl1
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: medium
@@ -21,9 +21,9 @@
 - Highest E allocated: 05
 - Author: opencode/its_direct/pt3-claude-opus-5-1m-us
 - Id: eow7p4
-- Approval: 2026-10-08, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-09 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: eow7p4 verified (set runwire, attempt 1). [Scope reconciliation - widened-scope tests/test_agy_runipd_cli.py: declared in Scope-Paths during execution because the approved work required it (additive widening, auto-reconciled by aw agy run); widened-scope tests/test_oc_runipd.py: declared in Scope-Paths during execution because the approved work required it (additive widening, auto-reconciled by aw agy run); widened-scope tests/test_resolve_plan_path_typed.py: declared in Scope-Paths during execution because the approved work required it (additive widening, auto-reconciled by aw agy run); widened-scope tests/test_scope_path_target_stale.py: declared in Scope-Paths during execution because the approved work required it (additive widening, auto-reconciled by aw agy run)]
 - 2026-10-08 approved (aw set): status set to approved
 - 2026-10-07 /plan-review (opencode uri/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005
 - 2026-10-07 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-001..PR-005 FIXED
