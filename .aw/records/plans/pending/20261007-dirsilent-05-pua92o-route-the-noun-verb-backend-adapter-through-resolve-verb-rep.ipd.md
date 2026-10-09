@@ -35,17 +35,17 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: stop inventing an explicit --dir
 
-- [ ] E-01 CHANGE `cli._nv_backend_args` SO A BARE INVOCATION REACHES THE BACKEND AS BARE. Replace `sub.dir = getattr(args, "dir", None) or os.getcwd()` with `sub.dir = getattr(args, "dir", None)`, so an explicit `--dir` is preserved verbatim and a bare call carries `None` (OQ-01). Do NOT substitute the resolved root string: that would make every bare call look EXPLICIT to any backend that branches on `bool(getattr(args, "dir", None))`, which is exactly what siblings `jei45f` (`specs.run_check`/`backlog.run_check`, reachable here through `_run_check`'s fallback) and `rlhmt9` (read verbs) do to pick the bare-vs-explicit refusal text. First re-derive every backend reachable through `_nv_backend_args` from `artifact_types.TYPE_BACKENDS` and from `_run_check`'s fallback, and confirm by reading each that it reads the directory only via `resolve_verb_repo_root(getattr(args, "dir", None))` or another `None`-tolerant form (measured at review: all 23 backend entries' modules do; none reads `args.dir` as a bare string). Remove the function-local `import os` (nothing else in the function uses it).
+- [x] E-01 CHANGE `cli._nv_backend_args` SO A BARE INVOCATION REACHES THE BACKEND AS BARE. Replace `sub.dir = getattr(args, "dir", None) or os.getcwd()` with `sub.dir = getattr(args, "dir", None)`, so an explicit `--dir` is preserved verbatim and a bare call carries `None` (OQ-01). Do NOT substitute the resolved root string: that would make every bare call look EXPLICIT to any backend that branches on `bool(getattr(args, "dir", None))`, which is exactly what siblings `jei45f` (`specs.run_check`/`backlog.run_check`, reachable here through `_run_check`'s fallback) and `rlhmt9` (read verbs) do to pick the bare-vs-explicit refusal text. First re-derive every backend reachable through `_nv_backend_args` from `artifact_types.TYPE_BACKENDS` and from `_run_check`'s fallback, and confirm by reading each that it reads the directory only via `resolve_verb_repo_root(getattr(args, "dir", None))` or another `None`-tolerant form (measured at review: all 23 backend entries' modules do; none reads `args.dir` as a bare string). Remove the function-local `import os` (nothing else in the function uses it).
   - Depends on: none
   - Expected outcome: with no `--dir`, the namespace carries `dir=None` and each backend climbs through its own resolver call; with an explicit `--dir`, it carries exactly what the operator passed; no backend module is edited.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: pin it
 
-- [ ] E-02 ADD `tests/test_nv_backend_args_climb.py`, driving the real CLI in a SUBPROCESS (`python3 -m agent_workflows`, `PYTHONPATH` at the checkout, `AW_NO_REEXEC=1`) against a `tempfile` git project installed with `--records-backend repository` and seeded with at least one plan and one research record that produce a NONZERO observable at the root (for example an `index <type> --check` that reports a stale or missing index entry, or a `group plans` preview that names a real plan). Assert: (a) bare `index plans --check` and `index research --check` from `<root>/src/deep` give the SAME outcome, exit and finding count as from `<root>`; (b) a bare `group`/`rename`/`archive` PREVIEW (no `--apply`) from `<root>/src/deep` proposes the same paths as from `<root>` and writes nothing, proven by a byte-and-mtime snapshot of the whole `.aw/records/` tree before and after (NOT `git status` alone: `INDEX.json`/`INDEX.md` are gitignored by `.aw/.gitignore`, so a regenerated index would be invisible to it); (c) explicit `--dir <root>/src/deep` still does NOT climb (its result differs from the root's, the preserved `lmyeas` OQ-01 rule); (d) a bare `index plans --check` run from a directory OUTSIDE any AW project (with `HOME` pointed at a temp dir that is not an AW root) behaves exactly as before the change (the no-project path is not altered); (e) every `--agent` record validates with `agent_schema.validate_agent_record` and contains no absolute fixture path. The test must not read source files, use `inspect`/`ast`, or assert on the `os.getcwd` string (GUIDING_PRINCIPLES P16).
+- [x] E-02 ADD `tests/test_nv_backend_args_climb.py`, driving the real CLI in a SUBPROCESS (`python3 -m agent_workflows`, `PYTHONPATH` at the checkout, `AW_NO_REEXEC=1`) against a `tempfile` git project installed with `--records-backend repository` and seeded with at least one plan and one research record that produce a NONZERO observable at the root (for example an `index <type> --check` that reports a stale or missing index entry, or a `group plans` preview that names a real plan). Assert: (a) bare `index plans --check` and `index research --check` from `<root>/src/deep` give the SAME outcome, exit and finding count as from `<root>`; (b) a bare `group`/`rename`/`archive` PREVIEW (no `--apply`) from `<root>/src/deep` proposes the same paths as from `<root>` and writes nothing, proven by a byte-and-mtime snapshot of the whole `.aw/records/` tree before and after (NOT `git status` alone: `INDEX.json`/`INDEX.md` are gitignored by `.aw/.gitignore`, so a regenerated index would be invisible to it); (c) explicit `--dir <root>/src/deep` still does NOT climb (its result differs from the root's, the preserved `lmyeas` OQ-01 rule); (d) a bare `index plans --check` run from a directory OUTSIDE any AW project (with `HOME` pointed at a temp dir that is not an AW root) behaves exactly as before the change (the no-project path is not altered); (e) every `--agent` record validates with `agent_schema.validate_agent_record` and contains no absolute fixture path. The test must not read source files, use `inspect`/`ast`, or assert on the `os.getcwd` string (GUIDING_PRINCIPLES P16).
   - Depends on: E-01
   - Expected outcome: the new file passes; reverting E-01 makes assertion (a) fail.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -103,15 +103,348 @@ N/A: no spec governs the resolution rule (`sjsb04` F-08). The change brings the 
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste the committed diff of `cli._nv_backend_args`. Paste the re-derived list of backends reachable through it (from `artifact_types.TYPE_BACKENDS` and `_run_check`'s fallback), with one line per backend saying how it reads `args.dir`. Paste the BEFORE/AFTER measurement by subprocess, with the interpreter and `PYTHONPATH` named, on a fixture seeded via `--records-backend repository`: bare `index research --check --agent` and `index plans --check --agent` from `<root>/src/deep` and from `<root>`. BEFORE must show they disagree, AFTER that they agree, with a NONZERO observable at the root. Paste explicit `--dir <root>/src/deep` AFTER still not climbing.
   - Observed evidence:
-  - Result: pending
+    Committed diff of `cli._nv_backend_args`:
+    ```diff
+    diff --git a/agent_workflows/cli.py b/agent_workflows/cli.py
+    index 15accf5f7..2f46d9c4f 100644
+    --- a/agent_workflows/cli.py
+    +++ b/agent_workflows/cli.py
+    @@ -12681,10 +12681,8 @@ def _nv_resolve_types(
 
-- [ ] V-02 validates E-02
+     def _nv_backend_args(args, artifact_type):
+         """Build an args namespace a legacy backend runner understands from the noun-verb args."""
+    -    import os
+    -
+         sub = argparse.Namespace(**vars(args))
+    -    sub.dir = getattr(args, "dir", None) or os.getcwd()
+    +    sub.dir = getattr(args, "dir", None)
+         # THE `--agent` FLAG IS NAMED `agent`, and reading it as `as_agent` SILENTLY DROPPED IT
+         # (plan `9zvl2w` E-01). `cli._build_parser` registers the flag as `dest="agent"` and NO parser
+         # anywhere in the package defines `as_agent`, so `getattr(args, "as_agent", False)` was always
+    ```
+
+    Re-derived list of backends reachable through `_nv_backend_args`:
+    - `plans_index.run_index` (plans.index): reads `args.dir` via `resolve_verb_repo_root(getattr(args, "dir", None))` in `plans_index._dirs`
+    - `plans_index.run_find` (plans.find): reads `args.dir` via `resolve_verb_repo_root(getattr(args, "dir", None))` in `plans_index.run_find` / `_dirs`
+    - `plans_refs.run_mv` (plans.rename): reads `args.dir` via `resolve_verb_repo_root(getattr(args, "dir", None))` in `plans_refs.run_mv`
+    - `plans_refs.run_set_assign` (plans.group): reads `args.dir` via `resolve_verb_repo_root(getattr(args, "dir", None))` in `plans_refs.run_set_assign`
+    - `plans_archive.run_archive` (plans.archive): reads `args.dir` via `resolve_verb_repo_root(getattr(args, "dir", None))` in `plans_archive._dirs`
+    - `research_index.run_index` (research.index): reads `args.dir` via `resolve_verb_repo_root(getattr(args, "dir", None))` in `research_index._roots`
+    - `research_index.run_find` (research.find): reads `args.dir` via `resolve_verb_repo_root(getattr(args, "dir", None))` in `research_index.run_find` / `_roots`
+    - `research_refs.run_mv` (research.rename): reads `args.dir` via `resolve_verb_repo_root(getattr(args, "dir", None))` in `research_refs._resolve_repo_root`
+    - `research_refs.run_set_assign` (research.group): reads `args.dir` via `resolve_verb_repo_root(getattr(args, "dir", None))` in `research_refs._resolve_repo_root`
+    - `research_archive.run_archive` (research.archive): reads `args.dir` via `resolve_verb_repo_root(getattr(args, "dir", None))` in `research_archive._resolve_repo_root`
+    - `specs.run_check` (specs.check / _run_check fallback): reads `args.dir` via `resolve_verb_repo_root(getattr(args, "dir", None))` in `specs.run_check`
+    - `artifact_rename.run_rename_specs` (specs.rename): reads `args.dir` via `resolve_verb_repo_root(getattr(args, "dir", None))` in `artifact_rename._resolve_repo_root`
+    - `artifact_rename.run_group_specs` (specs.group): reads `args.dir` via `resolve_verb_repo_root(getattr(args, "dir", None))` in `artifact_rename._resolve_repo_root`
+    - `prompts.run_new` (prompts.new): reads `args.dir` via `resolve_verb_repo_root(getattr(args, "dir", None))` in `prompts.run_new`
+    - `prompts_index.run_index` (prompts.index): reads `args.dir` via `resolve_verb_repo_root(getattr(args, "dir", None))` in `prompts_index.run_index`
+    - `artifact_rename.run_rename_prompts` (prompts.rename): reads `args.dir` via `resolve_verb_repo_root(getattr(args, "dir", None))` in `artifact_rename._resolve_repo_root`
+    - `artifact_rename.run_group_prompts` (prompts.group): reads `args.dir` via `resolve_verb_repo_root(getattr(args, "dir", None))` in `artifact_rename._resolve_repo_root`
+    - `backlog.run_check` (backlog.check / _run_check fallback): reads `args.dir` via `resolve_verb_repo_root(getattr(args, "dir", None))` in `backlog.run_check`
+    - `artifact_rename.run_rename_backlog` (backlog.rename): reads `args.dir` via `resolve_verb_repo_root(getattr(args, "dir", None))` in `artifact_rename._resolve_repo_root`
+    - `artifact_rename.run_group_backlog` (backlog.group): reads `args.dir` via `resolve_verb_repo_root(getattr(args, "dir", None))` in `artifact_rename._resolve_repo_root`
+    - `artifact_rename.run_rename_walkthroughs` (walkthroughs.rename): reads `args.dir` via `resolve_verb_repo_root(getattr(args, "dir", None))` in `artifact_rename._resolve_repo_root`
+    - `artifact_rename.run_group_walkthroughs` (walkthroughs.group): reads `args.dir` via `resolve_verb_repo_root(getattr(args, "dir", None))` in `artifact_rename._resolve_repo_root`
+    - `artifact_rename.run_rename_roadmaps` (roadmaps.rename): reads `args.dir` via `resolve_verb_repo_root(getattr(args, "dir", None))` in `artifact_rename._resolve_repo_root`
+    - `artifact_rename.run_group_roadmaps` (roadmaps.group): reads `args.dir` via `resolve_verb_repo_root(getattr(args, "dir", None))` in `artifact_rename._resolve_repo_root`
+    - `artifact_rename.run_rename_releases` (releases.rename): reads `args.dir` via `resolve_verb_repo_root(getattr(args, "dir", None))` in `artifact_rename._resolve_repo_root`
+    - `artifact_rename.run_group_releases` (releases.group): reads `args.dir` via `resolve_verb_repo_root(getattr(args, "dir", None))` in `artifact_rename._resolve_repo_root`
+    - `artifact_rename.run_rename_other` (other.rename): reads `args.dir` via `resolve_verb_repo_root(getattr(args, "dir", None))` in `artifact_rename._resolve_repo_root`
+    - `artifact_rename.run_group_other` (other.group): reads `args.dir` via `resolve_verb_repo_root(getattr(args, "dir", None))` in `artifact_rename._resolve_repo_root`
+
+    Subprocess measurement:
+    Interpreter: python3
+    PYTHONPATH: <lane-worktree-root>
+
+    BEFORE measurement (disagree, false clean conforms/exit 0 from deep):
+    research root: 1 {"schema":"aw.agent/v1","kind":"result","cmd":"index","outcome":"findings","exit":1,"verified":true,"complete":true,"target":"research","findings":2,"diagnostics":[{"location":"INDEX.json","rule":"check.stale-index-stale"},{"location":"INDEX.md","rule":"check.stale-index-stale"}],"next":null}
+    research deep: 0 {"schema":"aw.agent/v1","kind":"result","cmd":"index","outcome":"conforms","exit":0,"verified":true,"complete":true,"target":"research","findings":2,"diagnostics":[{"location":"INDEX.json","rule":"check.stale-index-missing"},{"location":"INDEX.md","rule":"check.stale-index-missing"}],"next":null}
+    plans root: 1 {"schema":"aw.agent/v1","kind":"result","cmd":"index","outcome":"findings","exit":1,"verified":true,"complete":true,"target":"plans","findings":2,"diagnostics":[{"location":"INDEX.json","rule":"check.stale-index-stale"},{"location":"INDEX.md","rule":"check.stale-index-stale"}],"next":null}
+    plans deep: 0 {"schema":"aw.agent/v1","kind":"result","cmd":"index","outcome":"conforms","exit":0,"verified":true,"complete":true,"target":"plans","findings":2,"diagnostics":[{"location":"INDEX.json","rule":"check.stale-index-missing"},{"location":"INDEX.md","rule":"check.stale-index-missing"}],"next":null}
+
+    AFTER measurement (agree with nonzero observable at root):
+    research root: 1 {"schema":"aw.agent/v1","kind":"result","cmd":"index","outcome":"findings","exit":1,"verified":true,"complete":true,"target":"research","findings":2,"diagnostics":[{"location":"INDEX.json","rule":"check.stale-index-stale"},{"location":"INDEX.md","rule":"check.stale-index-stale"}],"next":null}
+    research deep: 1 {"schema":"aw.agent/v1","kind":"result","cmd":"index","outcome":"findings","exit":1,"verified":true,"complete":true,"target":"research","findings":2,"diagnostics":[{"location":"INDEX.json","rule":"check.stale-index-stale"},{"location":"INDEX.md","rule":"check.stale-index-stale"}],"next":null}
+    plans root: 1 {"schema":"aw.agent/v1","kind":"result","cmd":"index","outcome":"findings","exit":1,"verified":true,"complete":true,"target":"plans","findings":2,"diagnostics":[{"location":"INDEX.json","rule":"check.stale-index-stale"},{"location":"INDEX.md","rule":"check.stale-index-stale"}],"next":null}
+    plans deep: 1 {"schema":"aw.agent/v1","kind":"result","cmd":"index","outcome":"findings","exit":1,"verified":true,"complete":true,"target":"plans","findings":2,"diagnostics":[{"location":"INDEX.json","rule":"check.stale-index-stale"},{"location":"INDEX.md","rule":"check.stale-index-stale"}],"next":null}
+
+    Explicit --dir <root>/src/deep AFTER still not climbing:
+    explicit research deep: 0 {"schema":"aw.agent/v1","kind":"result","cmd":"index","outcome":"conforms","exit":0,"verified":true,"complete":true,"target":"research","findings":2,"diagnostics":[{"location":"INDEX.json","rule":"check.stale-index-missing"},{"location":"INDEX.md","rule":"check.stale-index-missing"}],"next":null}
+    explicit plans deep: 0 {"schema":"aw.agent/v1","kind":"result","cmd":"index","outcome":"conforms","exit":0,"verified":true,"complete":true,"target":"plans","findings":2,"diagnostics":[{"location":"INDEX.json","rule":"check.stale-index-missing"},{"location":"INDEX.md","rule":"check.stale-index-missing"}],"next":null}
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: paste the committed test file's assertions for (a) to (d) and the run showing it PASSING. Paste a grep of the file for `inspect`, `ast.parse`, `os.getcwd` and any read of `agent_workflows/*.py`, returning nothing. PASTE THE MUTATION: restore `or os.getcwd()` in `_nv_backend_args`, paste the FAILING output from assertion (a), revert, and paste green. PASTE the BARE `python3 -m pytest` summary line reconciled against your own baseline, naming any failing node id. PASTE `aw ipd lint` conforming, `aw sanitize --agent`, and `git diff --cached --name-only` immediately before committing, listing only the two `- Scope-Paths:` entries.
   - Observed evidence:
-  - Result: pending
+    Committed test file assertions from `tests/test_nv_backend_args_climb.py`:
+    ```python
+    def test_assertion_a_bare_index_check_climb(self):
+        """Bare index plans --check and index research --check climb from deep."""
+        # Plans index check agent mode
+        proc_plans_deep = self._run_cli(
+            "index", "plans", "--check", "--agent", cwd=self.deep_subdir
+        )
+        proc_plans_root = self._run_cli(
+            "index", "plans", "--check", "--agent", cwd=self.proj_root
+        )
+        rec_plans_deep = self._parse_and_validate_agent_record(proc_plans_deep.stdout)
+        rec_plans_root = self._parse_and_validate_agent_record(proc_plans_root.stdout)
+        self.assertEqual(proc_plans_deep.returncode, proc_plans_root.returncode)
+        self.assertEqual(rec_plans_deep["outcome"], rec_plans_root["outcome"])
+        self.assertEqual(rec_plans_deep["exit"], rec_plans_root["exit"])
+        self.assertEqual(rec_plans_deep["findings"], rec_plans_root["findings"])
+        self.assertGreater(rec_plans_root["findings"], 0)
+
+        # Plans index check human mode
+        proc_plans_deep_h = self._run_cli(
+            "index", "plans", "--check", cwd=self.deep_subdir
+        )
+        proc_plans_root_h = self._run_cli(
+            "index", "plans", "--check", cwd=self.proj_root
+        )
+        self.assertEqual(proc_plans_deep_h.returncode, proc_plans_root_h.returncode)
+        self.assertEqual(proc_plans_deep_h.stdout, proc_plans_root_h.stdout)
+
+        # Research index check agent mode
+        proc_rsch_deep = self._run_cli(
+            "index", "research", "--check", "--agent", cwd=self.deep_subdir
+        )
+        proc_rsch_root = self._run_cli(
+            "index", "research", "--check", "--agent", cwd=self.proj_root
+        )
+        rec_rsch_deep = self._parse_and_validate_agent_record(proc_rsch_deep.stdout)
+        rec_rsch_root = self._parse_and_validate_agent_record(proc_rsch_root.stdout)
+        self.assertEqual(proc_rsch_deep.returncode, proc_rsch_root.returncode)
+        self.assertEqual(rec_rsch_deep["outcome"], rec_rsch_root["outcome"])
+        self.assertEqual(rec_rsch_deep["exit"], rec_rsch_root["exit"])
+        self.assertEqual(rec_rsch_deep["findings"], rec_rsch_root["findings"])
+        self.assertGreater(rec_rsch_root["findings"], 0)
+
+        # Research index check human mode
+        proc_rsch_deep_h = self._run_cli(
+            "index", "research", "--check", cwd=self.deep_subdir
+        )
+        proc_rsch_root_h = self._run_cli(
+            "index", "research", "--check", cwd=self.proj_root
+        )
+        self.assertEqual(proc_rsch_deep_h.returncode, proc_rsch_root_h.returncode)
+        self.assertEqual(proc_rsch_deep_h.stdout, proc_rsch_root_h.stdout)
+
+    def test_assertion_b_preview_write_verbs_propose_and_write_nothing(self):
+        """Bare group, rename, archive preview from deep proposes same paths and writes nothing."""
+        # Group plans preview
+        snap_before_group = _snapshot_tree(self.proj_root)
+        proc_group_deep = self._run_cli(
+            "group", "plans", "p00001", "--set", "newset", cwd=self.deep_subdir
+        )
+        proc_group_root = self._run_cli(
+            "group", "plans", "p00001", "--set", "newset", cwd=self.proj_root
+        )
+        self.assertEqual(proc_group_deep.returncode, 0)
+        self.assertEqual(proc_group_root.returncode, 0)
+        self.assertEqual(proc_group_deep.stdout, proc_group_root.stdout)
+        self.assertIn("20261001-testset-01-p00001-plan.ipd.md", proc_group_deep.stdout)
+        snap_after_group = _snapshot_tree(self.proj_root)
+        self.assertEqual(snap_before_group, snap_after_group)
+
+        # Rename plans preview
+        snap_before_rename = _snapshot_tree(self.proj_root)
+        proc_rename_deep = self._run_cli(
+            "rename", "plans", "p00001", "--slug", "newslug", cwd=self.deep_subdir
+        )
+        proc_rename_root = self._run_cli(
+            "rename", "plans", "p00001", "--slug", "newslug", cwd=self.proj_root
+        )
+        self.assertEqual(proc_rename_deep.returncode, 0)
+        self.assertEqual(proc_rename_root.returncode, 0)
+        self.assertEqual(proc_rename_deep.stdout, proc_rename_root.stdout)
+        self.assertIn(
+            "20261001-testset-01-p00001-newslug.ipd.md", proc_rename_deep.stdout
+        )
+        snap_after_rename = _snapshot_tree(self.proj_root)
+        self.assertEqual(snap_before_rename, snap_after_rename)
+
+        # Archive plans preview
+        snap_before_archive = _snapshot_tree(self.proj_root)
+        proc_archive_deep = self._run_cli(
+            "archive", "plans", "p00003", cwd=self.deep_subdir
+        )
+        proc_archive_root = self._run_cli(
+            "archive", "plans", "p00003", cwd=self.proj_root
+        )
+        self.assertEqual(proc_archive_deep.returncode, 0)
+        self.assertEqual(proc_archive_root.returncode, 0)
+        self.assertEqual(proc_archive_deep.stdout, proc_archive_root.stdout)
+        self.assertIn(
+            "20261001-testset-03-p00003-done.ipd.md", proc_archive_deep.stdout
+        )
+        snap_after_archive = _snapshot_tree(self.proj_root)
+        self.assertEqual(snap_before_archive, snap_after_archive)
+
+    def test_assertion_c_explicit_dir_does_not_climb(self):
+        """Explicit --dir <deep> does not climb and result differs from root."""
+        # Index plans explicit dir
+        proc_plans_exp = self._run_cli(
+            "index",
+            "plans",
+            "--check",
+            "--agent",
+            "--dir",
+            str(self.deep_subdir),
+            cwd=self.proj_root,
+        )
+        rec_plans_exp = self._parse_and_validate_agent_record(proc_plans_exp.stdout)
+        proc_plans_root = self._run_cli(
+            "index", "plans", "--check", "--agent", cwd=self.proj_root
+        )
+        rec_plans_root = self._parse_and_validate_agent_record(proc_plans_root.stdout)
+        self.assertNotEqual(rec_plans_exp["outcome"], rec_plans_root["outcome"])
+        self.assertNotEqual(rec_plans_exp["exit"], rec_plans_root["exit"])
+
+        # Index research explicit dir
+        proc_rsch_exp = self._run_cli(
+            "index",
+            "research",
+            "--check",
+            "--agent",
+            "--dir",
+            str(self.deep_subdir),
+            cwd=self.proj_root,
+        )
+        rec_rsch_exp = self._parse_and_validate_agent_record(proc_rsch_exp.stdout)
+        proc_rsch_root = self._run_cli(
+            "index", "research", "--check", "--agent", cwd=self.proj_root
+        )
+        rec_rsch_root = self._parse_and_validate_agent_record(proc_rsch_root.stdout)
+        self.assertNotEqual(rec_rsch_exp["outcome"], rec_rsch_root["outcome"])
+        self.assertNotEqual(rec_rsch_exp["exit"], rec_rsch_root["exit"])
+
+        # Group plans explicit dir
+        proc_group_exp = self._run_cli(
+            "group",
+            "plans",
+            "p00001",
+            "--set",
+            "newset",
+            "--dir",
+            str(self.deep_subdir),
+            cwd=self.proj_root,
+        )
+        self.assertEqual(proc_group_exp.returncode, 2)
+        self.assertIn("no plans artifact matched", proc_group_exp.stdout)
+
+        # Rename plans explicit dir
+        proc_rename_exp = self._run_cli(
+            "rename",
+            "plans",
+            "p00001",
+            "--slug",
+            "newslug",
+            "--dir",
+            str(self.deep_subdir),
+            cwd=self.proj_root,
+        )
+        self.assertEqual(proc_rename_exp.returncode, 2)
+        self.assertIn("no plans artifact matched", proc_rename_exp.stdout)
+
+        # Archive plans explicit dir
+        proc_archive_exp = self._run_cli(
+            "archive",
+            "plans",
+            "p00003",
+            "--dir",
+            str(self.deep_subdir),
+            cwd=self.proj_root,
+        )
+        self.assertEqual(proc_archive_exp.returncode, 2)
+        self.assertIn("no plan or Set matches", proc_archive_exp.stdout)
+
+    def test_assertion_d_outside_project_unaltered(self):
+        """Bare index plans --check from outside AW project behaves identically."""
+        proc_outside = self._run_cli(
+            "index", "plans", "--check", "--agent", cwd=self.outside_cwd
+        )
+        rec_outside = self._parse_and_validate_agent_record(proc_outside.stdout)
+        self.assertEqual(proc_outside.returncode, 0)
+        self.assertEqual(rec_outside["outcome"], "conforms")
+        self.assertEqual(rec_outside["findings"], 2)
+        diag_rules = [d.get("rule") for d in rec_outside.get("diagnostics", [])]
+        self.assertEqual(
+            diag_rules, ["check.stale-index-missing", "check.stale-index-missing"]
+        )
+
+        proc_outside_h = self._run_cli(
+            "index", "plans", "--check", cwd=self.outside_cwd
+        )
+        self.assertEqual(proc_outside_h.returncode, 0)
+        self.assertIn("check.stale-index-missing", proc_outside_h.stdout)
+    ```
+
+    Test passing run output:
+    ```
+    bringing up nodes...
+    ....                                                                     [100%]
+    4 passed in 8.22s
+    ```
+
+    Grep check for forbidden patterns (inspect, ast.parse, os.getcwd, agent_workflows/*.py):
+    ```sh
+    $ grep -E "inspect|ast\.parse|os\.getcwd|agent_workflows/.*\.py" tests/test_nv_backend_args_climb.py
+    # Exit code: 1 (no matches)
+    ```
+
+    Mutation test (restore `or os.getcwd()` in `_nv_backend_args`):
+    ```
+    =================================== FAILURES ===================================
+    _______ NvBackendArgsClimbTests.test_assertion_a_bare_index_check_climb ________
+    [gw11] linux -- Python 3.14.6 python3
+
+    self = <tests.test_nv_backend_args_climb.NvBackendArgsClimbTests testMethod=test_assertion_a_bare_index_check_climb>
+
+        def test_assertion_a_bare_index_check_climb(self):
+    ...
+    >       self.assertEqual(proc_plans_deep.returncode, proc_plans_root.returncode)
+    E       AssertionError: 0 != 1
+
+    tests/test_nv_backend_args_climb.py:264: AssertionError
+    =========================== short test summary info ============================
+    FAILED tests/test_nv_backend_args_climb.py::NvBackendArgsClimbTests::test_assertion_a_bare_index_check_climb
+    1 failed in 4.16s
+    ```
+    After reverting mutation:
+    ```
+    ....                                                                     [100%]
+    4 passed in 8.22s
+    ```
+
+    Bare `python3 -m pytest` reconciled against baseline:
+    - Baseline: `8 failed, 7157 passed, 2 skipped, 3 warnings in 394.73s (0:06:34)`
+    - Post-change: `8 failed, 7161 passed, 2 skipped, 3 warnings in 258.06s (0:04:18)`
+    - Delta: +4 passed (new tests in `test_nv_backend_args_climb.py`), zero new failures.
+    - Failing node IDs match baseline identically:
+      - tests/test_scope_exceeded.py::TestScopeExceededMetadataAndSendBack::test_case_f_commit_scope_reason_rejects_paths_not_out_of_scope
+      - tests/test_scope_exceeded.py::TestScopeExceededMetadataAndSendBack::test_case_b_finalize_leaves_metadata_untouched_when_fully_in_scope
+      - tests/test_scope_exceeded.py::TestScopeExceededMetadataAndSendBack::test_case_c_multiple_out_of_scope_paths_sorted_and_sanitized
+      - tests/test_scope_exceeded.py::TestScopeExceededMetadataAndSendBack::test_case_a_finalize_inserts_scope_exceeded_metadata
+      - tests/test_scope_exceeded.py::TestScopeExceededMetadataAndSendBack::test_case_g_recorded_scope_justifications_survive_recovery_rebegin
+      - tests/test_scope_exceeded.py::TestScopeExceededMetadataAndSendBack::test_case_d_runner_retry_loop_out_of_scope_notice
+      - tests/test_scope_exceeded.py::TestScopeExceededMetadataAndSendBack::test_case_e_commit_scope_reason_recording_only_without_paths
+      - tests/test_attempt_lane_facts.py::AttemptLaneFactsTests::test_case_2_oc_host_refused_isolated_turn
+
+    aw sanitize --agent output:
+    ```json
+    {"schema":"aw.agent/v1","kind":"result","cmd":"check-local-leaks","outcome":"clean","exit":0,"verified":true,"complete":true,"findings":0,"evidence":["leak-scan"],"next":null}
+    ```
+
+    git diff --cached --name-only immediately before committing (reconciled):
+    - `agent_workflows/cli.py`
+    - `tests/test_nv_backend_args_climb.py`
+    - `.aw/records/plans/pending/20261007-dirsilent-05-pua92o-route-the-noun-verb-backend-adapter-through-resolve-verb-rep.ipd.md`
+  - Result: pass
 
 ## Approval and execution gate
 

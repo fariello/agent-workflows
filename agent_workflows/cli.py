@@ -12681,10 +12681,8 @@ def _nv_resolve_types(
 
 def _nv_backend_args(args, artifact_type):
     """Build an args namespace a legacy backend runner understands from the noun-verb args."""
-    import os
-
     sub = argparse.Namespace(**vars(args))
-    sub.dir = getattr(args, "dir", None) or os.getcwd()
+    sub.dir = getattr(args, "dir", None)
     # THE `--agent` FLAG IS NAMED `agent`, and reading it as `as_agent` SILENTLY DROPPED IT
     # (plan `9zvl2w` E-01). `cli._build_parser` registers the flag as `dest="agent"` and NO parser
     # anywhere in the package defines `as_agent`, so `getattr(args, "as_agent", False)` was always
