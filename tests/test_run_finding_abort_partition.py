@@ -146,12 +146,14 @@ class TestRunFindingAbortPartition(unittest.TestCase):
         )
         self.assertEqual(base_result.findings, ())
 
-        # Perturbation: alter RUN-FROZEN-IDENTITY abort from conditional to always
-        target_code = "RUN-FROZEN-IDENTITY"
+        # Perturbation: alter RUN-LEDGER-INTEGRITY abort from always to never
+        target_code = "RUN-LEDGER-INTEGRITY"
         target_row = evidence.RUN_FINDING_CODES_BY_CODE[target_code]
-        self.assertEqual(target_row.abort, evidence.ABORT_CONDITIONAL)
+        self.assertEqual(target_row.abort, evidence.ABORT_ALWAYS)
 
-        perturbed_row = target_row._replace(abort=evidence.ABORT_ALWAYS)
+        perturbed_row = target_row._replace(
+            abort=evidence.ABORT_NEVER, abort_classes=()
+        )
         perturbed_table = tuple(
             perturbed_row if r.code == target_code else r
             for r in evidence.RUN_FINDING_CODES
@@ -170,8 +172,8 @@ class TestRunFindingAbortPartition(unittest.TestCase):
             finding = derivation_findings[0]
             self.assertEqual(finding.where, target_code)
             self.assertIn(target_code, finding.message)
+            self.assertIn(evidence.ABORT_NEVER, finding.message)
             self.assertIn(evidence.ABORT_ALWAYS, finding.message)
-            self.assertIn(evidence.ABORT_CONDITIONAL, finding.message)
 
     # ---- Task group 2: spec-anchored coverage (E-05) ---------------------------------------------
 
@@ -208,9 +210,9 @@ class TestRunFindingAbortPartition(unittest.TestCase):
 
     def test_spec_comparison_catches_adversarial_co_moved_drift(self) -> None:
         """Adversarial case from F6: co-moved drift passes E-02's gate but fails spec anchor (E-05)."""
-        target_code = "RUN-CROSS-TREE"
+        target_code = "RUN-LEDGER-INTEGRITY"
         orig_row = evidence.RUN_FINDING_CODES_BY_CODE[target_code]
-        self.assertEqual(orig_row.abort, evidence.ABORT_CONDITIONAL)
+        self.assertEqual(orig_row.abort, evidence.ABORT_ALWAYS)
 
         # Adversarially perturb action and abort together so module self-consistency passes:
         perturbed_row = orig_row._replace(

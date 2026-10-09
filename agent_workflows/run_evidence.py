@@ -1294,10 +1294,10 @@ class RunFindingCode(NamedTuple):
 
 # ---- abort semantics (spec 25kzda 4.1) -----------------------------------------------------------
 #
-# THE ACTION IS AS LOAD-BEARING AS THE MESSAGE. Spec 4.1 enumerates SIX abort classes and closes
-# with "No other finding may abort the whole queue". So transcribing a message while inventing its
-# action would silently license aborting a whole queue on an item-local fault - and item-local
-# failure is exactly what lets independent items keep running. Each row's abort tri-state is
+# THE ACTION IS AS LOAD-BEARING AS THE MESSAGE. Spec 4.1 enumerates the single abort class (Corrupt
+# run ledger) and closes with "No other finding may abort the whole queue". So transcribing a message
+# while inventing its action would silently license aborting a whole queue on an item-local fault - and
+# item-local failure is exactly what lets independent items keep running. Each row's abort tri-state is
 # mechanically derived from its verbatim action text via :func:`derive_abort_from_action`
 # (segments containing "ABORT RUN": unqualified "ABORT RUN" is always, qualified is conditional,
 # absent is never) and gated at runtime by :func:`validate_finding_table` (code RC-ABORT-DERIVATION),
@@ -1308,21 +1308,16 @@ class RunFindingCode(NamedTuple):
 # `RUN-NO-PUSH` was retired (it was already wrong, presumably from an earlier edit), and retiring that
 # code then took conditional from 6 to 5. A third drift occurred in commit 544ba188 when
 # `RUN-STRUCTURE-PREFLIGHT` moved to never alongside its action text, leaving the comment's tally stale
-# until plan xjmjq4 replaced the hand count with mechanical derivation.
+# until plan xjmjq4 replaced the hand count with mechanical derivation. Under the fix-first policy
+# (plan tb6lw3), only `RUN-LEDGER-INTEGRITY` aborts the run (`ABORT_ALWAYS`), while all other codes
+# fail or retry at item level (`ABORT_NEVER`).
 
 ABORT_ALWAYS = "always"
 ABORT_CONDITIONAL = "conditional"
 ABORT_NEVER = "never"
 
 #: Spec 4.1's EXHAUSTIVE abort-class set, verbatim. Nothing outside this set may abort the queue.
-ABORT_CLASSES: Tuple[str, ...] = (
-    "Corrupt run ledger",
-    "Ownership or lease conflict",
-    "Unknown or non-idempotent external outcome",
-    "Push attempt",
-    "Hook-bypass attempt",
-    "Identity or type ambiguity",
-)
+ABORT_CLASSES: Tuple[str, ...] = ("Corrupt run ledger",)
 
 
 def derive_abort_from_action(action: str) -> str:
@@ -1422,12 +1417,9 @@ RUN_FINDING_CODES: Tuple[RunFindingCode, ...] = (
             "[RUN-FROZEN-IDENTITY] <item> changed outside its recorded step. Contain the item "
             "and inspect identity/ownership with: aw runs show <run-id>"
         ),
-        action=(
-            "FAIL ITEM after containment; ABORT RUN only for identity/type ambiguity or "
-            "ownership conflict"
-        ),
-        abort=ABORT_CONDITIONAL,
-        abort_classes=("Identity or type ambiguity", "Ownership or lease conflict"),
+        action="FAIL ITEM after containment",
+        abort=ABORT_NEVER,
+        abort_classes=(),
         binding=BOUND,
         predicates=(
             "run_freeze.freeze_requirements",
@@ -1471,9 +1463,9 @@ RUN_FINDING_CODES: Tuple[RunFindingCode, ...] = (
             "[RUN-BASELINE-OWNERSHIP] <paths> already contain unowned changes or an active "
             "lease. Resolve the owner or wait, then: aw <host> run resume <run-id>"
         ),
-        action="ABORT RUN",
-        abort=ABORT_ALWAYS,
-        abort_classes=("Ownership or lease conflict",),
+        action="FAIL ITEM; cascade dependents; continue independent items",
+        abort=ABORT_NEVER,
+        abort_classes=(),
         binding=BOUND,
         predicates=(
             "worktree_lease.LeaseTable.claim",
@@ -1547,8 +1539,8 @@ RUN_FINDING_CODES: Tuple[RunFindingCode, ...] = (
             "evidence, then retry with: aw <host> run resume <run-id>"
         ),
         action=(
-            "RETRY for spawn/nonzero failures; FAIL ITEM for timeout, cancellation, or exhausted "
-            "budget"
+            "RETRY for spawn, nonzero, timeout, or stall failures; FAIL ITEM for cancellation or "
+            "exhausted budget"
         ),
         abort=ABORT_NEVER,
         abort_classes=(),
@@ -1594,12 +1586,12 @@ RUN_FINDING_CODES: Tuple[RunFindingCode, ...] = (
             "paths are excluded"
         ),
         message=(
-            "[RUN-SCOPE-DELTA] <item> changed out-of-scope paths: <paths>. The changes were "
-            "quarantined and restored to baseline. Revise and re-review the scope, then start: "
-            "aw <host> run <selector>"
+            "[RUN-SCOPE-DELTA] <item> changed out-of-scope paths: <paths>. Revert the changes or "
+            "record a justification widening scope, then run: aw <host> run resume <run-id>"
         ),
         action=(
-            "FAIL ITEM after containment; cascade dependents; continue independent items"
+            "RETRY (revert or justify), then FAIL ITEM after containment; cascade dependents; "
+            "continue independent items"
         ),
         abort=ABORT_NEVER,
         abort_classes=(),
@@ -1626,11 +1618,9 @@ RUN_FINDING_CODES: Tuple[RunFindingCode, ...] = (
             "<item>: <detail>. The item was quarantined. Correct its work in a new attempt with: "
             "aw <host> run <selector>"
         ),
-        action=(
-            "FAIL ITEM after containment; ABORT RUN only if ownership/parentage is ambiguous"
-        ),
-        abort=ABORT_CONDITIONAL,
-        abort_classes=("Ownership or lease conflict",),
+        action="FAIL ITEM after containment",
+        abort=ABORT_NEVER,
+        abort_classes=(),
         binding=UNBOUND_BY_DEPENDENCY,
         predicates=(),
         waiting_on=(
@@ -1650,12 +1640,12 @@ RUN_FINDING_CODES: Tuple[RunFindingCode, ...] = (
         ),
         message=(
             "[RUN-COMMIT-GATEWAY] <item> lacks a valid path-scoped, hook-respecting commit "
-            "receipt. The item was quarantined. Retry through a capable host with: aw <host> run "
-            "<selector>"
+            "receipt: <detail>. Undo any bypass commit and recommit through the hooks, then: aw "
+            "<host> run resume <run-id>"
         ),
-        action="FAIL ITEM after containment; ABORT RUN for a hook-bypass attempt",
-        abort=ABORT_CONDITIONAL,
-        abort_classes=("Hook-bypass attempt",),
+        action="RETRY (undo and recommit through the hooks), then FAIL ITEM after containment",
+        abort=ABORT_NEVER,
+        abort_classes=(),
         binding=UNBOUND_BY_DEPENDENCY,
         predicates=(),
         waiting_on=(
@@ -1717,11 +1707,9 @@ RUN_FINDING_CODES: Tuple[RunFindingCode, ...] = (
             "[RUN-CROSS-TREE] Repository invariant <finding-code> failed after <item>: <detail>. "
             "Contain the item, repair it, run aw check all, then: aw <host> run resume <run-id>"
         ),
-        action=(
-            "FAIL ITEM; ABORT RUN only for identity/type ambiguity or ownership conflict"
-        ),
-        abort=ABORT_CONDITIONAL,
-        abort_classes=("Identity or type ambiguity", "Ownership or lease conflict"),
+        action="FAIL ITEM",
+        abort=ABORT_NEVER,
+        abort_classes=(),
         binding=BOUND,
         predicates=(
             "check_engine.check_types",
@@ -2094,7 +2082,7 @@ def _validate_finding_row(
             _fail(
                 "RC-ABORT-CLASS",
                 where,
-                f"{cls!r} is not one of spec 4.1's six abort classes",
+                f"{cls!r} is not one of spec 4.1's abort classes",
                 "spec 4.1's abort-class set is exhaustive",
             )
     if row.abort == ABORT_NEVER and row.abort_classes:
@@ -2109,7 +2097,7 @@ def _validate_finding_row(
             "RC-ABORT-CLASS",
             where,
             "an aborting code names no spec 4.1 abort class",
-            "an abort must cite one of the six enumerated classes",
+            "an abort must cite an enumerated abort class",
         )
     if not row.message.startswith("[" + row.code + "]"):
         _fail(
@@ -2136,7 +2124,7 @@ def validate_finding_table() -> EvidenceValidationResult:
         unbound rows carry none and name what they wait on;
       * every ``abort`` is a known tri-state, every ``abort`` tri-state agrees with the
         mechanical derivation from its ``action`` string (:func:`derive_abort_from_action`),
-        every ``abort_classes`` entry is one of spec 4.1's SIX classes (4.1 is exhaustive), an
+        every ``abort_classes`` entry is one of spec 4.1's abort classes (4.1 is exhaustive), an
         aborting row names at least one class, and a never-aborting row names none;
       * every message begins with its own ``[CODE]`` prefix and ends in a recovery command
         (spec 4.1: "Every recovery message ends with a command").
@@ -2327,7 +2315,7 @@ def validate_ipd_exec_finding_table() -> EvidenceValidationResult:
       * every ``binding`` is a known state, and BOUND rows carry at least one predicate while
         unbound rows carry none and name what they wait on;
       * every ``abort`` is a known tri-state, every ``abort_classes`` entry is one of spec 4.1's
-        SIX classes, an aborting row names at least one class, and a never-aborting row names none;
+        enumerated abort classes, an aborting row names at least one class, and a never-aborting row names none;
       * every message begins with its own ``[CODE]`` prefix and contains a recovery command
         (spec 4.1: "Every recovery message ends with a command").
     """
@@ -2391,7 +2379,7 @@ def validate_ipd_exec_finding_table() -> EvidenceValidationResult:
 # WHICH EXIT TABLE. Spec 5.6's RUN table (0/1/2/3/4/130), NOT `run_cli.py`'s constants. This package
 # ships TWO exit tables that DISAGREE at the same numbers: `run_cli.EXIT_BLOCKED` is 3 and
 # `run_cli.EXIT_INVALID_EVIDENCE` is 4, whereas spec 5.6's 3 is "human input required" and its 4 is
-# the six run-wide classes. `run_cli`'s table governs the READ-ONLY inspection commands
+# the run-wide classes. `run_cli`'s table governs the READ-ONLY inspection commands
 # (`aw runs show|evidence|verify-ledger`); this predicate implements the RUN aggregate. Reconciling
 # the two tables at the documentation boundary is owned by plan u28vqb (which scoped the three-state
 # claim and documented both tables rather than renumbering them); naming the one in force is the
@@ -2445,7 +2433,7 @@ AGGREGATE_ITEM_FAILURE = "item_failure"
 AGGREGATE_INVALID_INVOCATION = "invalid_invocation"
 #: Human input or explicit acknowledgement is required (spec 5.6 exit 3).
 AGGREGATE_NEEDS_INPUT = "needs_input"
-#: One of spec 4.1's six enumerated run-wide classes (spec 5.6 exit 4).
+#: One of spec 4.1's enumerated run-wide classes (spec 5.6 exit 4).
 AGGREGATE_RUN_WIDE = "run_wide"
 #: User interruption (spec 5.6 exit 130).
 AGGREGATE_INTERRUPTED = "interrupted"
@@ -2775,7 +2763,7 @@ def aggregate_run_exit(
             # Spec 4.1's set is EXHAUSTIVE, so an unknown class is still run-wide (never silently
             # downgraded) but is reported as unrecognized rather than laundered into a known one.
             reasons.append(
-                f"run-wide abort class {run_wide_abort_class!r} is not one of spec 4.1's six "
+                f"run-wide abort class {run_wide_abort_class!r} is not one of spec 4.1's "
                 "enumerated classes"
             )
     if any(result.item.needs_input for result in item_results):
