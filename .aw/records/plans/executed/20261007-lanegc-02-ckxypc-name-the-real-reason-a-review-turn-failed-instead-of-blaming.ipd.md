@@ -6,7 +6,7 @@
 - Scope: (1) Make the orchestrator-readiness branch fire only when `handle_review_orchestrator_readiness` itself refused (the item is an orchestrator, the turn exited 0, and its readiness check failed), and give every other failed review the preserved-lane reason of its actual cause; (2) read the host session stream's final error event (opencode `{"type":"error", ...}`, agy equivalent) and record it on the attempt as `host_error` with name and message; (3) show `host_error` in the run summary row and the execution report. EXCLUDES retrying the turn (that is `fixfirst` Order 04 `ytas91`), and EXCLUDES changing any disposition.
 - Scope-Paths: agent_workflows/runner_shared.py, agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, agent_workflows/render_stream.py, tests/test_review_failure_reason.py, agent_workflows/lane_containment.py, tests/fixtures/session_content_filter_error.jsonl
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Work-Kind: bug
 - Priority: medium
 - Blocks-Release: next
@@ -15,10 +15,10 @@
 - Highest E allocated: 04
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: ckxypc
-- Approval: 2026-10-09, recorded via aw ipd set: status set to approved
 - Readiness: go-pending-approval
 
 ## Workflow history
+- 2026-10-09 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: ckxypc verified (set lanegc, attempt 1). [Scope reconciliation - in-scope-unmodified agent_workflows/agy_runipd.py: declared-but-unmodified (auto-acknowledged by aw agy run); in-scope-unmodified agent_workflows/oc_runipd.py: declared-but-unmodified (auto-acknowledged by aw agy run)]
 - 2026-10-09 approved (aw set): status set to approved
 - 2026-10-08 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; see /plan-review record
 - 2026-10-08 /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001 (HIGH, fixed: E-02 forked the error-event parser render_stream.render_event already owns), PR-002..PR-007 fixed. Record: .aw/records/reviews/20261007-lanegc-02-ckxypc-name-the-real-reason-a-review-turn-failed-instead-of-blaming.review.md Round 1.
