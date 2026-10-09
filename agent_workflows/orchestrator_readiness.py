@@ -104,6 +104,7 @@ class Finding(NamedTuple):
     subject: str
     detail: str
     remedy: str
+    questions: tuple[tuple[str, str], ...] = ()
 
 
 class ReviewReadiness(NamedTuple):
@@ -332,12 +333,44 @@ def review_readiness(
                             diag_summary = "; ".join(
                                 f"{d.code} {d.message}" for d in child_lint.diagnostics
                             )
+                            questions_list: list[tuple[str, str]] = []
+                            has_c_oq = any(
+                                d.code == _ipd_lint.C_OQ for d in child_lint.diagnostics
+                            )
+                            if has_c_oq:
+                                oq_headings: dict[str, str] = {}
+                                try:
+                                    child_text = child.path.read_text(
+                                        encoding="utf-8", errors="replace"
+                                    )
+                                    from agent_workflows import (
+                                        ipd_schema as _ipd_schema,
+                                    )
+
+                                    for c_line in child_text.splitlines():
+                                        m_oq = _ipd_schema.OQ_HEADING_RE.match(
+                                            c_line.rstrip()
+                                        )
+                                        if m_oq:
+                                            oq_headings[m_oq.group(1)] = m_oq.group(
+                                                2
+                                            ).strip()
+                                except OSError:
+                                    pass
+                                for d in child_lint.diagnostics:
+                                    if d.code == _ipd_lint.C_OQ:
+                                        oq_id = d.message.split(":", 1)[0].strip()
+                                        if oq_id in oq_headings:
+                                            pair = (oq_id, oq_headings[oq_id])
+                                            if pair not in questions_list:
+                                                questions_list.append(pair)
                             findings.append(
                                 Finding(
                                     code=CODE_CHILD_LINT,
                                     subject=child.id6,
                                     detail=f"child {child.id6} fails author lint: {diag_summary}",
                                     remedy=REMEDY_CHILD_LINT,
+                                    questions=tuple(questions_list),
                                 )
                             )
 
@@ -513,7 +546,12 @@ def review_readiness(
     )
 
 
-def render_human(result: ReviewReadiness) -> str:
+def render_human(
+    result: ReviewReadiness,
+    *,
+    target_status: str | None = None,
+    term: Any = None,
+) -> str:
     """Render a human-readable summary of review readiness."""
     if not result.applies:
         return (
@@ -521,10 +559,79 @@ def render_human(result: ReviewReadiness) -> str:
         )
     if result.ready:
         return f"Orchestrator {result.id6} is ready for review."
-    lines = [f"Orchestrator {result.id6} is not ready for review:"]
+
+    use_color = bool(term is not None and getattr(term, "color", False))
+    from agent_workflows import term as _term_mod
+
+    child_status_map: dict[str, str] = {}
     for f in result.findings:
-        lines.append(f"  - [{f.code}] {f.subject}: {f.detail}")
-        lines.append(f"    Remedy: {f.remedy}")
+        if f.code == CODE_CHILD_STATUS:
+            m = re.search(r"has status '([^']+)'", f.detail)
+            if m:
+                child_status_map[f.subject] = m.group(1)
+
+    norm_target = (target_status or "").strip().lower()
+    if norm_target in ("reviewed", "approved", "auto-approved"):
+        target_disp = norm_target
+        if use_color:
+            target_resolved = _term_mod.resolve_lifecycle("plans", norm_target)
+            target_disp = term.style_lifecycle_text(norm_target, target_resolved)
+
+        setid_disp = term.colorize(result.setid, "bold") if use_color else result.setid
+        lines = [
+            f"Refusing to set {target_disp} for orchestrator {result.id6} (set {setid_disp}):"
+        ]
+
+        child_subjects = list(
+            dict.fromkeys(
+                f.subject
+                for f in result.findings
+                if f.code
+                in (
+                    CODE_CHILD_STATUS,
+                    CODE_CHILD_LINT,
+                    CODE_CHILD_UNAUTHORED,
+                    CODE_CHILD_OPEN_ENDED,
+                )
+            )
+        )
+        if child_subjects:
+            formatted_children: list[str] = []
+            for cs in child_subjects:
+                if use_color and cs in child_status_map:
+                    st = child_status_map[cs]
+                    res = _term_mod.resolve_lifecycle("plans", st)
+                    formatted_children.append(
+                        term.format_lifecycle_compact(cs, res, word=True)
+                    )
+                else:
+                    formatted_children.append(cs)
+            lines.append(
+                f"  An orchestrator may not advance while a child in its Set is not ready ({', '.join(formatted_children)})."
+            )
+        else:
+            lines.append(
+                "  An orchestrator may not advance while its requirements are not ready."
+            )
+    else:
+        lines = [f"Orchestrator {result.id6} is not ready for review:"]
+
+    for f in result.findings:
+        subj = f.subject
+        if use_color and f.code == CODE_CHILD_STATUS and subj in child_status_map:
+            st = child_status_map[subj]
+            res = _term_mod.resolve_lifecycle("plans", st)
+            subj = term.format_lifecycle_compact(subj, res, word=True)
+
+        remedy_hdr = term.colorize("Remedy:", "bold") if use_color else "Remedy:"
+
+        if f.questions:
+            lines.append(f"  - [{f.code}] {subj}: child {f.subject} fails author lint:")
+            for q_id, q_title in f.questions:
+                lines.append(f"    - {q_id}: {q_title}")
+        else:
+            lines.append(f"  - [{f.code}] {subj}: {f.detail}")
+        lines.append(f"    {remedy_hdr} {f.remedy}")
     return "\n".join(lines)
 
 

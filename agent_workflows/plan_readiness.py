@@ -740,13 +740,13 @@ def approval_refusals(
     return refusals
 
 
-def _blocking_question_ids(text: str) -> str:
-    """The ``OQ-NN`` ids of every unresolved blocking question, comma-joined, for a refusal message.
+def _blocking_question_ids(text: str, *, with_heading: bool = True) -> str:
+    """The ``OQ-NN`` ids (and headings) of every unresolved blocking question, comma-joined.
 
     A refusal that does not name its cause is the failure mode this whole area exists to remove, so
-    the message quotes the ids rather than saying "a blocking question".
+    the message quotes the ids and heading text rather than saying "a blocking question".
     """
-    ids: List[str] = []
+    items: List[str] = []
     for block in _open_question_blocks(text):
         heading = _OQ_HEADING_RE.match(block[0].rstrip())
         if not heading:
@@ -755,8 +755,11 @@ def _blocking_question_ids(text: str) -> str:
         if has_unresolved_blocking_question(
             "## " + _schema.H_OPEN_QUESTIONS + "\n" + single + "\n"
         ):
-            ids.append(heading.group(1))
-    return ", ".join(ids)
+            if with_heading:
+                items.append(f"{heading.group(1)}: {heading.group(2).strip()}")
+            else:
+                items.append(heading.group(1))
+    return ", ".join(items)
 
 
 def _one_line(text: str, limit: int = 220) -> str:
