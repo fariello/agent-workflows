@@ -6,7 +6,7 @@
 - Scope: Coordinate two children: Order 01 authors the convention, retrofit policy and TRACE contract as a spec and hands it to human review; Order 02 builds the parser, the `spec_plan_trace` verifier, its production wiring and its tests, gated on that spec being approved. This orchestrator performs no product change of its own and writes no spec, no parser and no test.
 - Scope-Paths: .aw/records/plans/pending/20260930-reqids-00-9wzlou-decide-and-build-the-spec-requirement-id-convention-that-spe.ipd.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Coverage: pass
 - Coverage-Fingerprint: f0e42dcb1b73ed37bb184c345294973a4e94a1b21c11e57a90ba0972106c2b62
@@ -20,9 +20,9 @@
 - Highest E allocated: 02
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: 9wzlou
-- Approval: 2026-10-08, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-09 executed (aw agy run model=Gemini-3.8-Flash-High): RETIRED as the orchestrator rollup step of a runner Set completion, not executed by an agent: every child of Set reqids reached executed, so the runner (run run-20261009T024714Z-1667714) retired this Order-0 plan as bookkeeping. Its own E-*/V-* items were NOT performed; the runner superseded them by enforcing the ordering, the isolation and the per-child merge gate. Justifying children: jjh4aj, rtvdak.
 - 2026-10-08 approved (aw set): status set to approved
 - 2026-10-07 /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-201 (MEDIUM, fixed: gate paragraph still claimed no edge can express the approval), PR-202 (MEDIUM, fixed: E-01/V-01 pinned the spec's live status at to-review, unsatisfiable once 89xjll moved), PR-203 (LOW, fixed: child table path to executed/), PR-204 (LOW, fixed: backlog close actors named), PR-205 (LOW, fixed: 89xjll's blocking OQ-04/OQ-05 surfaced). Lint clean at author and review-finalize; S407 no violation; coverage re-probed ready. Record: `.aw/records/reviews/20260930-reqids-00-9wzlou-decide-and-build-the-spec-requirement-id-convention-that-spe.review.md` Round 2.
 - 2026-10-07 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-201..PR-205 FIXED (round 2)
@@ -49,6 +49,9 @@ built against it. The Set's success condition is that TRACE enforces, that `z7nb
 discharged, and that the check is described honestly as proving citation rather than implementation.
 
 ## Detailed Implementation Checklist (TODO)
+
+
+> Its own E-*/V-* items were NOT performed; the runner superseded them by enforcing the ordering, the isolation and the per-child merge gate.
 
 Execution-state rule: mark an `E-*` item complete only after performing the action. That mark is not validation. Right-sizing rule: each E-item must address one concern and be executable in one focused pass; split when an E-item names multiple distinct deliverables or independent test-surfaces.
 
