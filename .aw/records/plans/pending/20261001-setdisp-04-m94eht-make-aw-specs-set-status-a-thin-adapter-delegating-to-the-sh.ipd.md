@@ -159,6 +159,7 @@ Established by reading `specs.run_set` and the shared engine in full at HEAD `ec
   - Carrier: vhiqo6
 - THE TWO MEASURED GATE BYPASSES ARE NOT FIXED HERE. They are release-gated bugs that must ship without waiting on `wy9aru` OQ-1, which is why child 03 fixes them across the existing fork and this plan depends on it having executed.
   - Carrier: m1jlwm
+  - Carrier-Evidence: .aw/records/plans/executed/20261001-setdisp-03-m1jlwm-close-the-two-measured-positional-specs-set-gate-bypasses-by.ipd.md
 - THIS PLAN'S OWN `state:spec:approved:wy9aru` EDGE TURNED THE SUITE RED AT AUTHORING TIME (F-09); at review the test passes with the edge present and `pyhq6s` is `graduated`. Do NOT delete or weaken the edge in any case: it is the only thing preventing this plan from executing before a maintainer answers a BLOCKING spec question.
   - Carrier: pyhq6s
 - NO CLOCK WORK (F-05, corrected at review). Every writer on this path already stamps UTC since `5ivkdh`; this plan neither advances nor closes a clock carrier, and any remaining clock item is owned where it is filed.

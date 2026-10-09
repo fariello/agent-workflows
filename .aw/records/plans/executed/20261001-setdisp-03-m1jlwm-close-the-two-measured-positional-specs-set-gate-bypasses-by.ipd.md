@@ -6,7 +6,7 @@
 - Scope: IN: make both refusals fire on BOTH spellings by having the shared engine consume the SAME predicates `specs.run_set` already consumes, never a second copy; author outcome tests pinning each refusal on both spellings; close the two carriers with cited evidence. OUT, each with a reason recorded under "Deferred": moving either spelling's dispatch route (children 04, 05, gated on spec `wy9aru` OQ-1); the third `specs.run_set`-only refusal (the post-write `validate_spec` conformance check), which is a different shape and is carried by child 04; every axis `wy9aru` Section 7 assigns elsewhere.
 - Scope-Paths: agent_workflows/status_set.py, agent_workflows/specs.py, tests/test_specs_set_gate_parity.py, CHANGELOG.md
 - Item-Dependencies: executed:afdmn6
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - From-Spec: wy9aru
 - Work-Kind: bug
@@ -18,9 +18,9 @@
 - Highest E allocated: 05
 - Author: opencode/its_direct/pt3-claude-opus-5-1m-us
 - Id: m1jlwm
-- Approval: 2026-10-08, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-09 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: m1jlwm verified (set setdisp, attempt 1). [Scope reconciliation - in-scope-unmodified CHANGELOG.md: declared-but-unmodified (auto-acknowledged by aw agy run); in-scope-unmodified agent_workflows/specs.py: declared-but-unmodified (auto-acknowledged by aw agy run); in-scope-unmodified agent_workflows/status_set.py: declared-but-unmodified (auto-acknowledged by aw agy run)]
 - 2026-10-08 approved (aw set): status set to approved
 - 2026-10-07 /plan-review (opencode uri/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005 (all fixed; F-02 already closed by `ju3rhs` so E-02 is confirm-only; carriers close via HANDOFF; record `.aw/records/reviews/20261007-setdisp-03-m1jlwm-close-the-two-measured-positional-specs-set-gate-bypasses-by.review.md`)
 - 2026-10-07 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-001..PR-005 fixed
@@ -45,7 +45,7 @@ RE-MEASURED AT REVIEW 2026-10-07 (scratch repo, lane package pinned with `PYTHON
 
 ### Task group 1: the evidence gate
 
-- [ ] E-01 FIRST, CHECK WHETHER `wdyz5n` IS IN `.aw/records/plans/executed/`. IF IT IS, perform no production edit for this item: re-measure the positional and `--status` spellings (the three cases in the expected outcome) and record that `wdyz5n` installed the refusal; this item is then `performed` as a confirmation. IF IT IS NOT, implement as follows, and note in the evidence that `wdyz5n` must then consume this branch (and that the untyped `aw set implemented <id6>` surface stays unsatisfiable until `wdyz5n` E-02 registers `--evidence` on `aw set`, which is not this plan's scope). Make the `implementing -> implemented` evidence requirement fire on the POSITIONAL spelling, by having `status_set.validate_transition_allowed` consume the same authority-table condition and the same resolvability predicate that `specs.run_set` already consumes. `specs.run_set` reads `auth.get("evidence")` and then requires `_evidence_resolvable(path, ev)`; `status_set.validate_transition_allowed` consults the same authority table for other conditions but has NO evidence branch at all.
+- [x] E-01 FIRST, CHECK WHETHER `wdyz5n` IS IN `.aw/records/plans/executed/`. IF IT IS, perform no production edit for this item: re-measure the positional and `--status` spellings (the three cases in the expected outcome) and record that `wdyz5n` installed the refusal; this item is then `performed` as a confirmation. IF IT IS NOT, implement as follows, and note in the evidence that `wdyz5n` must then consume this branch (and that the untyped `aw set implemented <id6>` surface stays unsatisfiable until `wdyz5n` E-02 registers `--evidence` on `aw set`, which is not this plan's scope). Make the `implementing -> implemented` evidence requirement fire on the POSITIONAL spelling, by having `status_set.validate_transition_allowed` consume the same authority-table condition and the same resolvability predicate that `specs.run_set` already consumes. `specs.run_set` reads `auth.get("evidence")` and then requires `_evidence_resolvable(path, ev)`; `status_set.validate_transition_allowed` consults the same authority table for other conditions but has NO evidence branch at all.
 
     CONSUME THE EXISTING PREDICATE; DO NOT WRITE A SECOND ONE. This is the whole point of the Set: the three prior instances of this class were each fixed by duplicating the behavior, and that is why a fourth and fifth exist. `specs._evidence_resolvable` is the predicate; make it reachable (it is module-private today) and call it. The precedent is exact and is documented in `specs.run_set`'s own comments: the `->reviewed` attestation and the `approved` gate are BOTH reached from both spellings by consuming one shared predicate, each with a comment stating that "a gate installed in only one of them is bypassed by choosing the other spelling".
 
@@ -54,11 +54,11 @@ RE-MEASURED AT REVIEW 2026-10-07 (scratch repo, lane package pinned with `PYTHON
     NOTE THE STALE PATH IN THAT MESSAGE AND DO NOT PROPAGATE IT BLINDLY: it names `.agents/plans/executed/`, the pre-`.aw/` layout. Check what `_evidence_resolvable` actually accepts before copying the wording; if the predicate accepts `.aw/records/plans/executed/` while the message names the old path, the message is a second, smaller defect. Fix the wording only if the predicate's behavior proves it wrong, state which, and do not change the predicate's acceptance set here (that would be a contract change needing its own review).
   - Depends on: none
   - Expected outcome: `aw specs set implemented <id6>` with no `--evidence` exits 1 and leaves the spec in `implementing/` byte-identical; with an `--evidence` citation that does not resolve, exits 1 and writes nothing; with a resolvable citation, exits 0 and relocates the file; `aw specs set <path> --status implemented` behaves identically in all three cases; and the evidence states which plan (`wdyz5n` or this one) installed the refusal, with exactly one implementation of it.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: the deferred gate validation
 
-- [ ] E-02 CONFIRM, DO NOT RE-IMPLEMENT: executed plan `ju3rhs` already installed this refusal in the shared engine (`status_set.validate_transition_allowed` calls `attention_contract.validate_gate_flags`, which checks kind membership, `validate_gate_ref` and a safe `--gate-summary`) and already extended it to `backlog` (OQ-02, resolved). Perform NO production edit for this item. Re-measure the four cases in the expected outcome on both spellings and record the result; if any case does NOT refuse, that is a regression of `ju3rhs` to report with its evidence and fix here by consuming `validate_gate_flags`, never by a second copy. The original authoring text follows for context. Make the `deferred` gate-pair VALIDATION fire on the POSITIONAL spelling. `specs.run_set` refuses unless the kind is in `attention_contract.GATE_KINDS` AND `attention_contract.validate_gate_ref(gk, gr)` passes, and separately refuses an unsafe `--gate-summary`. The shared engine's gate handling clears and writes the gate fields via its status-to-gate map but validates NEITHER the kind nor the ref shape.
+- [x] E-02 CONFIRM, DO NOT RE-IMPLEMENT: executed plan `ju3rhs` already installed this refusal in the shared engine (`status_set.validate_transition_allowed` calls `attention_contract.validate_gate_flags`, which checks kind membership, `validate_gate_ref` and a safe `--gate-summary`) and already extended it to `backlog` (OQ-02, resolved). Perform NO production edit for this item. Re-measure the four cases in the expected outcome on both spellings and record the result; if any case does NOT refuse, that is a regression of `ju3rhs` to report with its evidence and fix here by consuming `validate_gate_flags`, never by a second copy. The original authoring text follows for context. Make the `deferred` gate-pair VALIDATION fire on the POSITIONAL spelling. `specs.run_set` refuses unless the kind is in `attention_contract.GATE_KINDS` AND `attention_contract.validate_gate_ref(gk, gr)` passes, and separately refuses an unsafe `--gate-summary`. The shared engine's gate handling clears and writes the gate fields via its status-to-gate map but validates NEITHER the kind nor the ref shape.
 
     VALIDATE IN THE SHARED ENGINE, not in a per-verb wrapper, because the engine is what WRITES the fields. A wrapper that validates before delegating leaves the engine still capable of writing an invalid gate for any future caller, which is the same unreachable-fix shape as `43p53n`.
 
@@ -67,11 +67,11 @@ RE-MEASURED AT REVIEW 2026-10-07 (scratch repo, lane package pinned with `PYTHON
     THE UNSAFE-`--gate-summary` REFUSAL IS PART OF THE SAME GATE and must come with it, since the shared engine writes `Gate-Summary` while `backlog.run_set` does not handle that field at all.
   - Depends on: none
   - Expected outcome: `aw specs set deferred <id6> --gate-kind bogus-kind --gate-ref x` exits 1, the spec does not move, and no `Gate-Kind`/`Gate-Ref` line is written; the same call with a VALID kind and ref exits 0, relocates the spec, and writes both fields; an unsafe `--gate-summary` is refused on both spellings; and no production line changed for this item (the `ju3rhs` refusal consumed as is). `backlog` already validates (OQ-02).
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: pin both refusals on both spellings
 
-- [ ] E-03 Author `tests/test_specs_set_gate_parity.py` pinning BOTH refusals on BOTH spellings. Every test drives a CLI surface via `cli.main` and asserts on the exit code, the file's LOCATION, and the file's CONTENT; none may read production source with `inspect`/`ast`/regex, count callers, or assert docstring text (`AGENTS.md`, GUIDING_PRINCIPLES P16, spec `wy9aru` S1). Pass `--no-commit` on every invocation.
+- [x] E-03 Author `tests/test_specs_set_gate_parity.py` pinning BOTH refusals on BOTH spellings. Every test drives a CLI surface via `cli.main` and asserts on the exit code, the file's LOCATION, and the file's CONTENT; none may read production source with `inspect`/`ast`/regex, count callers, or assert docstring text (`AGENTS.md`, GUIDING_PRINCIPLES P16, spec `wy9aru` S1). Pass `--no-commit` on every invocation.
 
     For the EVIDENCE gate, cover on each spelling: (a) no `--evidence` refuses, rc 1, file unchanged AND still in `implementing/`; (b) an unresolvable `--evidence` refuses identically; (c) a RESOLVABLE `--evidence` succeeds and relocates. Case (c) is not optional: without it, a "fix" that refuses unconditionally would pass (a) and (b) while breaking the verb entirely, and that is the single likeliest way to get this wrong.
 
@@ -80,25 +80,25 @@ RE-MEASURED AT REVIEW 2026-10-07 (scratch repo, lane package pinned with `PYTHON
     ASSERT THE ABSENCE OF THE WRITE, NOT ONLY THE EXIT CODE. The measured defect in `fv4b6s` is that a file ON DISK ends up carrying `- Gate-Kind: bogus-kind`; a test that checks only `rc == 1` would pass against a half-fix that refuses after writing. Read the file back and assert the gate lines are absent and the status directory is unchanged.
   - Depends on: E-01, E-02
   - Expected outcome: a new module whose evidence cases (a)-(c), and whichever deferred cases (d)-(g) are not already covered by `tests/test_gate_pair_validation_parity.py`, pass on BOTH spellings, with every refusal case asserting the file's content and location as well as the exit code. Base-commit sensitivity: if this plan implemented E-01, cases (a) and (b) demonstrably FAIL on the base commit for the positional spelling, with the output pasted; if `wdyz5n` implemented it, demonstrate sensitivity instead by temporarily reverting that refusal in a throwaway edit (reverted before commit, `git status` clean afterwards) and pasting the failure. Case (d) is NOT demanded to fail on base, because `ju3rhs` already closed it at the base this plan executes on.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 Confirm the existing specs coverage still passes and that no test PINNED the bypass as correct behavior. Run `tests/test_specs_verbs.py`, `tests/test_specs_status_dirs.py`, `tests/test_specs_from_backlog.py`, `tests/test_spec_review_attestation.py` and `tests/test_status_set.py` individually and paste each result.
+- [x] E-04 Confirm the existing specs coverage still passes and that no test PINNED the bypass as correct behavior. Run `tests/test_specs_verbs.py`, `tests/test_specs_status_dirs.py`, `tests/test_specs_from_backlog.py`, `tests/test_spec_review_attestation.py` and `tests/test_status_set.py` individually and paste each result.
 
     THE SPECIFIC RISK THIS ITEM EXISTS TO CATCH: a test that drives the positional spelling to reach `implemented` as a FIXTURE STEP, rather than as the behavior under test. Such a test passes today because the gate does not fire, and E-01 breaks it. That is NOT a regression, and the correct repair is to give the fixture a resolvable `--evidence` citation (or to construct the `implemented` state directly), never to weaken the gate. If one is found, repair it that way and say so explicitly in the evidence; a fixture that needs a gate disabled is telling you the fixture is wrong, not the gate.
   - Depends on: E-01, E-02
   - Expected outcome: each named module's result pasted; any test broken by the newly-firing gates identified by name, repaired by supplying legitimate evidence or constructing the state directly, with the repair described and justified; no gate weakened to make a test pass.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 4: close the carriers and record the fix
 
-- [ ] E-05 CORRECTED AT REVIEW: BOTH CARRIERS ARE `graduated` TO OTHER PLANS (`h4fiwa` to `wdyz5n`, `fv4b6s` to `ju3rhs`), which carry their `From-Backlog` gates, so the HANDOFF route closes them when those plans execute, and THIS PLAN DOES NOT CLOSE EITHER unless the corresponding carrier plan was retired to `superseded/` without executing (in which case use the SATISFIED route below, citing this plan's executed path). Record each item's `- Status:` read back and which route applies. Likewise add a `CHANGELOG.md` entry ONLY for a refusal no existing entry describes: `ju3rhs` already wrote the gate-kind entry ("`aw specs set`, `aw backlog set`, and `aw set` now refuse a Gate-Kind outside the documented vocabulary"), and `wdyz5n` declares `CHANGELOG.md` for the evidence refusal; if both entries exist, add none and say so. The original authoring text follows, and applies only in the superseded-carrier case. Both `h4fiwa` and `fv4b6s` carry `- Blocks-Release: next`, so closing them is GATED: `aw backlog set done <item>` fails closed unless the gate is provably preserved or released. Use the SATISFIED route, citing this plan's executed path: `aw backlog set done h4fiwa --evidence <this plan's executed path>` and the same for `fv4b6s`. Do NOT clear the gate with `--blocks-release -` (that releases a gate the fix actually satisfied, discarding the record that the release was blocked for a real reason), and do NOT hand-edit either item.
+- [x] E-05 CORRECTED AT REVIEW: BOTH CARRIERS ARE `graduated` TO OTHER PLANS (`h4fiwa` to `wdyz5n`, `fv4b6s` to `ju3rhs`), which carry their `From-Backlog` gates, so the HANDOFF route closes them when those plans execute, and THIS PLAN DOES NOT CLOSE EITHER unless the corresponding carrier plan was retired to `superseded/` without executing (in which case use the SATISFIED route below, citing this plan's executed path). Record each item's `- Status:` read back and which route applies. Likewise add a `CHANGELOG.md` entry ONLY for a refusal no existing entry describes: `ju3rhs` already wrote the gate-kind entry ("`aw specs set`, `aw backlog set`, and `aw set` now refuse a Gate-Kind outside the documented vocabulary"), and `wdyz5n` declares `CHANGELOG.md` for the evidence refusal; if both entries exist, add none and say so. The original authoring text follows, and applies only in the superseded-carrier case. Both `h4fiwa` and `fv4b6s` carry `- Blocks-Release: next`, so closing them is GATED: `aw backlog set done <item>` fails closed unless the gate is provably preserved or released. Use the SATISFIED route, citing this plan's executed path: `aw backlog set done h4fiwa --evidence <this plan's executed path>` and the same for `fv4b6s`. Do NOT clear the gate with `--blocks-release -` (that releases a gate the fix actually satisfied, discarding the record that the release was blocked for a real reason), and do NOT hand-edit either item.
 
     THE ORDER MATTERS AND IT IS NOT NEGOTIABLE: the evidence citation must resolve, so this item runs only after the plan has moved to `.aw/records/plans/executed/`. If the transition has not happened yet, the close will refuse, which is correct behavior and not an obstacle to work around.
 
     The `CHANGELOG.md` entry describes the USER-VISIBLE effect of both fixes in the file's established voice: `aw specs set` now refuses to mark a spec implemented without a resolvable evidence citation, and refuses an invalid gate kind, whichever spelling is used. Name no private predicate, and write no em or en dashes (user-facing prose, `AGENTS.md`). This IS a behavior change a user can hit (a command that used to succeed now refuses), so it must be in the changelog; that is the difference between this child and child 01.
   - Depends on: E-01, E-02, E-03, E-04
   - Expected outcome: each carrier's status and route recorded (HANDOFF via its executed carrier plan, or SATISFIED via this plan only if that carrier plan was superseded), never closed by clearing the gate; at most one new CHANGELOG entry, only for a refusal no existing entry describes, containing no em or en dash.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -141,7 +141,7 @@ Rows marked MEASURED were reproduced by driving the real surfaces in scratch git
 - THE STALE `.agents/plans/executed/` PATH IN THE REFUSAL MESSAGE IS FIXED ONLY IF MEASUREMENT PROVES IT WRONG (F-03), and the predicate's ACCEPTANCE SET is not changed either way. Widening or narrowing what counts as resolvable evidence is a contract change about what satisfies a policy gate, and it deserves its own review rather than riding along inside a bypass fix.
   - Carrier-Declined: deliberately not filed in advance, because F-03 may prove the message correct; E-01 requires stating the measured answer, and filing a carrier then is cheap and better informed than filing one now for a defect that may not exist
 - EVERY AXIS SPEC `wy9aru` SECTION 7 ASSIGNS ELSEWHERE is untouched: the clock, the history label, the dedup asymmetry, the sidecar order, the dead `apply` read, the defaulted message.
-  - Carrier: wy9aru
+  - Carrier: 63zo2f
 - A BACKLOG GATE-VALIDATION HOLE, IF ONE EXISTS, IS FILED RATHER THAN FIXED. E-02 requires measuring whether `backlog.run_set` validates its own gate pair. If it does not, that is a third bug this plan has not measured and must not smuggle into a fix whose scope was reviewed around two.
   - Carrier-Declined: conditional on a measurement E-02 performs; the item requires filing a carrier at that moment if the hole is real, which is the honest sequence rather than pre-filing a speculative item
 
@@ -194,26 +194,136 @@ reverse. `CHANGELOG.md` records the user-visible refusals (E-05).
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: pasted rc and stderr for `aw specs set implemented <id6>` with (a) no `--evidence`, (b) an unresolvable `--evidence`, (c) a resolvable `--evidence`, each with the spec's path read back afterwards proving it did or did not move; the same three for the `--status` spelling; and the answer to OQ-01 with the predicate call that produced it.
   - Observed evidence:
-  - Result: pending
-- [ ] V-02 validates E-02
+    Confirmed `wdyz5n` was executed into `.aw/records/plans/executed/20261002-setdispgate-01-wdyz5n-run-the-shared-evidence-predicate-on-the-positional-aw-specs.ipd.md` (commit 09fb25248fa98b53c4f05829f3546481f7831fd3) and installed the evidence check into `status_set.validate_transition_allowed` (lines 775-791) consuming `specs._evidence_resolvable`.
+
+    Re-measurement across scratch fixtures:
+    Positional spelling (`aw specs set implemented <id6>`):
+    (a) no --evidence: rc=1, stdout: `FAIL     Validation error on 20261002-test-01-sp0001-spec.spec.md: implementing -> implemented requires a resolvable --evidence citation (an existing .aw/records/plans/executed/ IPD path). Refusing before making changes.`, stderr: ``, location on disk: `.aw/records/specs/implementing/20261002-test-01-sp0001-spec.spec.md` (did not move).
+    (b) unresolvable --evidence: rc=1, stdout: `FAIL     Validation error on 20261002-test-01-sp0002-spec.spec.md: implementing -> implemented requires a resolvable --evidence citation (an existing .aw/records/plans/executed/ IPD path). Refusing before making changes.`, stderr: ``, location on disk: `.aw/records/specs/implementing/20261002-test-01-sp0002-spec.spec.md` (did not move).
+    (c) resolvable --evidence: rc=0, stdout: `-    spec        20261002-test-01-sp0003  implementing → ✓  implemented`, stderr: ``, location on disk: `.aw/records/specs/implemented/20261002-test-01-sp0003-spec.spec.md` (relocated to implemented).
+
+    Flag spelling (`aw specs set <path> --status implemented`):
+    (a) no --evidence: rc=1, stdout: ``, stderr: `aw specs set: implementing -> implemented requires a resolvable --evidence citation (an existing .aw/records/plans/executed/ IPD path); refused.`, location on disk: `.aw/records/specs/implementing/20261002-test-01-sp0004-spec.spec.md` (did not move).
+    (b) unresolvable --evidence: rc=1, stdout: ``, stderr: `aw specs set: implementing -> implemented requires a resolvable --evidence citation (an existing .aw/records/plans/executed/ IPD path); refused.`, location on disk: `.aw/records/specs/implementing/20261002-test-01-sp0005-spec.spec.md` (did not move).
+    (c) resolvable --evidence: rc=0, stdout: `aw specs set: .../.aw/records/specs/implemented/20261002-test-01-sp0006-spec.spec.md -> implemented`, stderr: ``, location on disk: `.aw/records/specs/implemented/20261002-test-01-sp0006-spec.spec.md` (relocated to implemented).
+
+    OQ-01 resolved: `specs._evidence_resolvable` accepts `.aw/records/plans/executed/`, confirmed by direct call:
+    `python3 -c "from pathlib import Path; from agent_workflows import specs; p = Path('.aw/records/specs/implemented/20260810-1447-01-physical-aw-hierarchy-placement-and-migration.spec.md'); ev = '.aw/records/plans/executed/20261002-setdispgate-01-wdyz5n-run-the-shared-evidence-predicate-on-the-positional-aw-specs.ipd.md'; print('Resolves:', specs._evidence_resolvable(p, ev))"` produced:
+    `Resolves: True`.
+    The refusal message wording in both `specs.py` and `status_set.py` specifies `(an existing .aw/records/plans/executed/ IPD path)`.
+  - Result: pass
+- [x] V-02 validates E-02
   - Required evidence: pasted rc and stderr for `aw specs set deferred <id6>` with an out-of-vocabulary `--gate-kind`, with a malformed `--gate-ref`, with an unsafe `--gate-summary`, and with a valid pair; for each refusal, the file read back showing NO `Gate-Kind`/`Gate-Ref` line and an unchanged status directory; the same set for the `--status` spelling; and a statement that no production line changed for E-02 (`git diff` of the plan's commits showing no gate-validation hunk), or, if a case failed, the regression evidence and the consume-only fix.
   - Observed evidence:
-  - Result: pending
-- [ ] V-03 validates E-03
+    Confirmed `ju3rhs` was executed into `.aw/records/plans/executed/20261002-setdispgate-02-ju3rhs-validate-the-typed-gate-pair-in-the-shared-engine-so-both-aw.ipd.md` and installed gate-pair validation in `status_set.validate_transition_allowed` (lines 931-946) calling `attention_contract.validate_gate_flags`.
+
+    Re-measurement across scratch fixtures:
+    Positional spelling (`aw specs set deferred <id6>`):
+    (1) out-of-vocab kind: rc=1, stdout: `FAIL     Validation error on 20261002-test-01-sp0011-spec.spec.md: aw set: --gate-kind must be one of ['artifact', 'date', 'decision', 'external', 'issue', 'todo']. Refusing before making changes.`, stderr: ``, location: `approved`, Gate-Kind in file: False.
+    (2) malformed ref: rc=1, stdout: `FAIL     Validation error on 20261002-test-01-sp0012-spec.spec.md: aw set: --gate-ref is invalid for kind 'date': 'not-a-date'. Refusing before making changes.`, stderr: ``, location: `approved`, Gate-Ref in file: False.
+    (3) unsafe gate summary: rc=2, stdout: `FAIL     aw set: --gate-summary must not contain embedded newlines`, stderr: ``, location: `approved`, Gate-Summary in file: False.
+    (4) valid pair: rc=0, stdout: `-    spec        20261002-test-01-sp0014  approved → ⚠︎  deferred`, stderr: ``, location: `deferred`, `- Gate-Kind: date` and `- Gate-Ref: 2026-10-02` written.
+
+    Flag spelling (`aw specs set <path> --status deferred`):
+    (1) out-of-vocab kind: rc=1, stdout: ``, stderr: `aw specs set: deferred requires a valid --gate-kind and --gate-ref`, location: `approved`, Gate-Kind in file: False.
+    (2) malformed ref: rc=1, stdout: ``, stderr: `aw specs set: deferred requires a valid --gate-kind and --gate-ref`, location: `approved`, Gate-Ref in file: False.
+    (3) unsafe gate summary: rc=1, stdout: ``, stderr: `aw specs set: --gate-summary must be a bounded single control-char-free line`, location: `approved`, Gate-Summary in file: False.
+    (4) valid pair: rc=0, stdout: `aw specs set: .../.aw/records/specs/deferred/20261002-test-01-sp0018-spec.spec.md -> deferred`, stderr: ``, location: `deferred`, `- Gate-Kind: date` and `- Gate-Ref: 2026-10-02` written.
+
+    No production line changed for E-02: `git diff` shows no edits to gate-pair validation in `agent_workflows/status_set.py` or `agent_workflows/specs.py`; `ju3rhs`'s shared-engine implementation is consumed as-is.
+  - Result: pass
+- [x] V-03 validates E-03
   - Required evidence: pasted `python3 -m pytest tests/test_specs_set_gate_parity.py -o addopts=""` output naming all cases as passed; plus, per E-03, either the base-commit run showing (a) and (b) FAILING for the positional spelling, or the throwaway-revert failure if `wdyz5n` installed the refusal; and the per-case table stating which of (d)-(g) were added here and which are covered by a named test in `tests/test_gate_pair_validation_parity.py`.
   - Observed evidence:
-  - Result: pending
-- [ ] V-04 validates E-04
+    Authored `tests/test_specs_set_gate_parity.py` pinning both evidence gate and deferred gate validation across both spellings.
+    Execution output with `-v -o addopts=""`:
+    ```
+    tests/test_specs_set_gate_parity.py::TestSpecsSetGateParity::test_evidence_case_c_resolvable_evidence_succeeds_positional PASSED [ 12%]
+    tests/test_specs_set_gate_parity.py::TestSpecsSetGateParity::test_evidence_case_b_unresolvable_evidence_refuses_positional PASSED [ 25%]
+    tests/test_specs_set_gate_parity.py::TestSpecsSetGateParity::test_evidence_case_a_no_evidence_refuses_flag PASSED [ 37%]
+    tests/test_specs_set_gate_parity.py::TestSpecsSetGateParity::test_deferred_case_g_unsafe_gate_summary_refuses_flag PASSED [ 50%]
+    tests/test_specs_set_gate_parity.py::TestSpecsSetGateParity::test_deferred_case_g_unsafe_gate_summary_refuses_positional PASSED [ 62%]
+    tests/test_specs_set_gate_parity.py::TestSpecsSetGateParity::test_evidence_case_a_no_evidence_refuses_positional PASSED [ 75%]
+    tests/test_specs_set_gate_parity.py::TestSpecsSetGateParity::test_evidence_case_c_resolvable_evidence_succeeds_flag PASSED [ 87%]
+    tests/test_specs_set_gate_parity.py::TestSpecsSetGateParity::test_evidence_case_b_unresolvable_evidence_refuses_flag PASSED [100%]
+    8 passed in 2.87s
+    ```
+
+    Throwaway-revert sensitivity check (`wdyz5n` installed the refusal):
+    Temporarily commenting out lines 781-790 in `agent_workflows/status_set.py` caused cases (a) and (b) for positional spelling to demonstrably fail when running `python3 -m pytest tests/test_specs_set_gate_parity.py -o addopts=""`:
+    ```
+    FAILED tests/test_specs_set_gate_parity.py::TestSpecsSetGateParity::test_evidence_case_b_unresolvable_evidence_refuses_positional
+    AssertionError: 0 != 1 : Expected rc 1, got 0. stdout: -    spec        20261002-setbeta-01-sp0002  implementing → ✓  implemented
+    FAILED tests/test_specs_set_gate_parity.py::TestSpecsSetGateParity::test_evidence_case_a_no_evidence_refuses_positional
+    AssertionError: 0 != 1 : Expected rc 1, got 0. stdout: -    spec        20261002-setbeta-01-sp0001  implementing → ✓  implemented
+    2 failed, 6 passed in 1.94s
+    ```
+    The temporary edit was cleanly restored with `git checkout agent_workflows/status_set.py`.
+
+    Deferred cases audit table against `tests/test_gate_pair_validation_parity.py` (ju3rhs):
+    | Case | Description | Coverage Source / Cited Test |
+    |---|---|---|
+    | (d) | out-of-vocab `--gate-kind` refuses | Covered in `tests/test_gate_pair_validation_parity.py`: `test_surface_1_specs_set_flag_deferred` (lines 220-243) and `test_surface_2_specs_set_positional_deferred` (lines 342-364). |
+    | (e) | malformed `--gate-ref` for valid kind refuses | Covered in `tests/test_gate_pair_validation_parity.py`: `test_surface_1_specs_set_flag_deferred` (lines 245-266) and `test_surface_2_specs_set_positional_deferred` (lines 366-388). |
+    | (f) | valid pair succeeds and writes both fields | Covered in `tests/test_gate_pair_validation_parity.py`: `test_surface_1_specs_set_flag_deferred` (lines 310-332) and `test_surface_2_specs_set_positional_deferred` (lines 431-452). |
+    | (g) | unsafe `--gate-summary` refuses | Added in `tests/test_specs_set_gate_parity.py`: `test_deferred_case_g_unsafe_gate_summary_refuses_positional` and `test_deferred_case_g_unsafe_gate_summary_refuses_flag`. |
+  - Result: pass
+- [x] V-04 validates E-04
   - Required evidence: pasted individual results for `tests/test_specs_verbs.py`, `tests/test_specs_status_dirs.py`, `tests/test_specs_from_backlog.py`, `tests/test_spec_review_attestation.py` and `tests/test_status_set.py`; plus, for any test the newly-firing gate broke, its name, the repair, and an explicit statement that the repair supplied legitimate evidence or constructed the state directly and did NOT weaken the gate.
   - Observed evidence:
-  - Result: pending
-- [ ] V-05 validates E-05
+    Ran all five existing specs-related test modules individually:
+    1. `python3 -m pytest tests/test_specs_verbs.py`:
+       `20 passed in 4.04s`
+    2. `python3 -m pytest tests/test_specs_status_dirs.py`:
+       `8 passed in 4.57s`
+    3. `python3 -m pytest tests/test_specs_from_backlog.py`:
+       `8 passed in 4.31s`
+    4. `python3 -m pytest tests/test_spec_review_attestation.py`:
+       `30 passed in 4.80s`
+    5. `python3 -m pytest tests/test_status_set.py`:
+       `110 passed in 13.72s`
+
+    No tests were broken by the newly firing gates; no fixtures pinned the bypass as correct behavior. No repairs to existing test files were needed and no gates were weakened.
+  - Result: pass
+- [x] V-05 validates E-05
   - Required evidence: both items' `- Status:` and `- Blocks-Release:` lines read back, with the location of each carrier plan (`wdyz5n`, `ju3rhs`) and the route that applies; pasted `aw backlog set done ... --evidence` output ONLY for an item whose carrier plan was superseded; pasted `aw check release-gates` result; the existing CHANGELOG entries quoted, plus any new hunk diffed with a grep for em and en dashes returning nothing.
   - Observed evidence:
-  - Result: pending
+    Readback of carrier backlog items:
+    - `h4fiwa` (`.aw/records/backlog/done/20261001-setdispgate-01-h4fiwa-positional-specs-implemented-skips-evidence-gate.backlog.md`):
+      `- Status: done`
+      `- Blocks-Release: next`
+      Location of carrier plan: `.aw/records/plans/executed/20261002-setdispgate-01-wdyz5n-run-the-shared-evidence-predicate-on-the-positional-aw-specs.ipd.md`.
+      Applicable route: HANDOFF route via executed carrier plan `wdyz5n` (closed by `aw agy run`).
+    - `fv4b6s` (`.aw/records/backlog/graduated/20261001-setdispgate-01-fv4b6s-positional-specs-deferred-skips-gate-validation.backlog.md`):
+      `- Status: graduated`
+      `- Blocks-Release: next`
+      Location of carrier plan: `.aw/records/plans/executed/20261002-setdispgate-02-ju3rhs-validate-the-typed-gate-pair-in-the-shared-engine-so-both-aw.ipd.md`.
+      Applicable route: HANDOFF route via executed carrier plan `ju3rhs`.
+    Neither carrier plan was superseded, so neither item is closed via SATISFIED by this plan.
+
+    Release-gates check: `AW_NO_REEXEC=1 aw check release-gates`:
+    ```
+    AW check  release-gates                                                  5876 ms
+    ✓ CONFORMS  257 release-gates checked
+
+    Evidence
+      backlog  207   specs  21   plans  28   releases  1
+      errors  0   warnings  0   info  0
+
+    Next  aw releases list
+    Agent output: --agent
+    ```
+
+    CHANGELOG entries: both refusals are already documented in `CHANGELOG.md`:
+    - Gate-Kind refusal (from `ju3rhs`):
+      `- Fixed: aw specs set, aw backlog set, and aw set now refuse a Gate-Kind outside the documented vocabulary (artifact, date, decision, external, issue, todo) or a Gate-Ref that does not match its kind, whichever spelling is used, instead of writing an invalid gate record that the checker later reports.`
+    - Evidence citation refusal (from `wdyz5n`):
+      `- Fixed: aw specs set and aw set now refuse to mark a spec implemented unless a resolvable evidence citation is supplied, whichever spelling is used, and aw set now accepts --evidence so that citation can be given.`
+    Because both refusals are already documented, no new entry was needed in `CHANGELOG.md`, and no em or en dash was added.
+  - Result: pass
 
 ## Approval and execution gate
 
