@@ -5,8 +5,9 @@
 - Concern: `aw backlog set` is the original subject of backlog `fcnz1r` and the harder of the two migrations. `backlog.run_set` re-implements transition validation, the metadata write (via a full `_strip_metadata_and_history` plus `_render_item` round trip rather than the shared engine's line-by-line rewrite), relocation (via `atomic_write` plus `unlink`, which git sees as a delete plus an untracked file where the shared engine stages a single `git mv` rename), history assembly, and the sidecar append. It carries `--gate-dir`, which `runner_shared.close_backlog_item` depends on and which exists on no other verb. It also still contains a dead read of a nonexistent `apply` flag in its dry-run guard. Three release-blocking defects (`43p53n`, `mawwlc`, and the gate default) were each fixed by duplicating behavior into this function, and two more bypasses were measured on its sibling path while authoring this Set, so this is the function whose removal from the dispatch fork actually closes the recurring class.
 - Scope: IN: reduce `backlog.run_set` to an argument-normalizing adapter delegating to `status_set.run_set_command`, preserving its name and callable signature and keeping `--gate-dir` and the lane-carrier override working as engine parameters and the `(aw backlog)` actor preserved; adopt the shared engine's `git mv` relocation per spec `wy9aru` 4.2; adopt the shared engine's selector semantics per 4.5 (a setid acts on every match; an ambiguous substring refuses); carry the backlog-only validations the engine still lacks (`--work-kind`/`--priority` enum, `--gate-dir`, the lane-carrier pair) into the shared engine per 4.7, confirming those `4gwgo3` already carried; verify `runner_shared.close_backlog_item` still works. OUT, each with a reason recorded under "Deferred": the specs path (child 04, which must land first); every axis `wy9aru` Section 7 assigns elsewhere, each with its own carrier; closing any of the carriers whose defects this migration incidentally removes, except where the plan's own evidence proves the fix complete.
 - Scope-Paths: agent_workflows/backlog.py, agent_workflows/status_set.py, agent_workflows/cli.py, tests/test_backlog_set_adapter.py, CHANGELOG.md
+- Scope-Exceeded: .aw/records/backlog/open/20261009-r73v9i-01-r73v9i-status-set-self-commit-reset-unstages-git-mv-reloc.backlog.md (E-06 filed backlog item for AC-5 relocation finding per plan Scope check note); tests/test_set_dispatch_parity.py (E-05 flipped assertions in differential harness child 02 authored per plan Scope check note); tests/test_status_set_descriptive_safety.py (E-07 updated refusal message prefix to unified aw set: per plan Scope check note)
 - Item-Dependencies: executed:m94eht
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: medium
@@ -17,9 +18,9 @@
 - Highest E allocated: 07
 - Author: opencode/its_direct/pt3-claude-opus-5-1m-us
 - Id: vhiqo6
-- Approval: 2026-10-08, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-09 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: vhiqo6 verified (set setdisp, attempt 1). [Scope reconciliation - out-of-scope .aw/records/backlog/open/20261009-r73v9i-01-r73v9i-status-set-self-commit-reset-unstages-git-mv-reloc.backlog.md: E-06 filed backlog item for AC-5 relocation finding per plan Scope check note; out-of-scope tests/test_set_dispatch_parity.py: E-05 flipped assertions in differential harness child 02 authored per plan Scope check note; out-of-scope tests/test_status_set_descriptive_safety.py: E-07 updated refusal message prefix to unified aw set: per plan Scope check note]
 - 2026-10-08 approved (aw set): status set to approved
 - 2026-10-07 reviewed (aw set): /plan-review (opencode/uri/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-006 fixed
 - 2026-10-07 /plan-review (opencode/uri/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005, PR-006 (all fixed; record `.aw/records/reviews/20261001-setdisp-05-vhiqo6-make-aw-backlog-set-status-a-thin-adapter-delegating-to-the.review.md`). Execution remains gated on `m94eht` executing, which is gated on `wy9aru` OQ-1 (BLOCKING, maintainer).
@@ -41,27 +42,27 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: carry the backlog-only validations into the shared engine
 
-- [ ] E-01 CONFIRM, DO NOT RE-IMPLEMENT, the UNSAFE-DESCRIPTIVE refusals in the shared engine. CORRECTED AT REVIEW 2026-10-07: the premise that the shared engine "validates neither" is false at HEAD `072b6f640`. `status_set.run_set_command` already loops over `--message` (`bound_length=False`), `--actor`, `--gate-ref`, `--gate-summary`, `--blocks-release` and `--gate-kind` (all bounded) under the comment "IPD 4gwgo3 E-02, E-03", for EVERY record type, before resolving anything. MEASURED: `aw backlog set done aaa111 --message 'a\nb' --yes --no-commit` is rc 2 `FAIL aw set: --message must not contain embedded newlines`, file untouched. Perform NO production edit for this item: re-measure both spellings for an unsafe `--message`, an unsafe `--gate-ref`, a long legitimate message, and one non-backlog type, and record the result. If any case does NOT refuse, that is a regression of `4gwgo3` to fix by consuming `_refuse_unsafe_descriptive`, never a second copy. The one remaining difference is the message PREFIX (`aw backlog set:` versus `aw set:`), which E-07 decides. The original authoring text follows for context. `backlog.run_set` refuses an unsafe `--message` via `_refuse_unsafe_descriptive(..., bound_length=False)` and an unsafe `--gate-ref` with `bound_length=True`.
+- [x] E-01 CONFIRM, DO NOT RE-IMPLEMENT, the UNSAFE-DESCRIPTIVE refusals in the shared engine. CORRECTED AT REVIEW 2026-10-07: the premise that the shared engine "validates neither" is false at HEAD `072b6f640`. `status_set.run_set_command` already loops over `--message` (`bound_length=False`), `--actor`, `--gate-ref`, `--gate-summary`, `--blocks-release` and `--gate-kind` (all bounded) under the comment "IPD 4gwgo3 E-02, E-03", for EVERY record type, before resolving anything. MEASURED: `aw backlog set done aaa111 --message 'a\nb' --yes --no-commit` is rc 2 `FAIL aw set: --message must not contain embedded newlines`, file untouched. Perform NO production edit for this item: re-measure both spellings for an unsafe `--message`, an unsafe `--gate-ref`, a long legitimate message, and one non-backlog type, and record the result. If any case does NOT refuse, that is a regression of `4gwgo3` to fix by consuming `_refuse_unsafe_descriptive`, never a second copy. The one remaining difference is the message PREFIX (`aw backlog set:` versus `aw set:`), which E-07 decides. The original authoring text follows for context. `backlog.run_set` refuses an unsafe `--message` via `_refuse_unsafe_descriptive(..., bound_length=False)` and an unsafe `--gate-ref` with `bound_length=True`.
 
     PRESERVE THE TWO DIFFERENT LENGTH POLICIES EXACTLY. `--message` is unbounded and `--gate-ref` is bounded, and that asymmetry is deliberate: a history message is prose and a gate ref is an identifier. Collapsing them to one policy would either truncate legitimate prose or admit an unbounded identifier.
 
     APPLY THE REFUSAL TO EVERY RECORD TYPE, not to backlog only, and state why in the code: an unsafe message is unsafe in a plan's history exactly as in a backlog item's, and the shared engine writes history for all of them. If applying it broadly breaks an existing test, that test is asserting that an unsafe value is accepted somewhere; report it rather than narrowing the fix to make it pass.
   - Depends on: none
   - Expected outcome: an unsafe `--message` is refused on both spellings for backlog items and for one other record type, with no production edit made by this item; an unsafe `--gate-ref` is refused with the bounded-length policy; a legitimate long prose message is still accepted; the evidence names `4gwgo3` as the installing plan.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 Carry the ENUM VALIDATION of `--work-kind` and `--priority` into the shared engine. `backlog.run_set` validates both against its vocabularies and exits 2 before any resolution; the shared engine performs no function-level validation and relies on argparse `choices` alone, so a direct call (and `aw ipd set`, whose own flags are declared with `choices`) can write an out-of-vocabulary value. CONFIRMED AT REVIEW: `status_set.run_set_command(["done", "aaa111"], scoped_type="backlog", repo_root=<tmp>, args=Namespace(work_kind="bogus", ...))` is rc 0 and writes `- Work-Kind: bogus`; the same with `priority="bogus"` writes `- Priority: bogus`.
+- [x] E-02 Carry the ENUM VALIDATION of `--work-kind` and `--priority` into the shared engine. `backlog.run_set` validates both against its vocabularies and exits 2 before any resolution; the shared engine performs no function-level validation and relies on argparse `choices` alone, so a direct call (and `aw ipd set`, whose own flags are declared with `choices`) can write an out-of-vocabulary value. CONFIRMED AT REVIEW: `status_set.run_set_command(["done", "aaa111"], scoped_type="backlog", repo_root=<tmp>, args=Namespace(work_kind="bogus", ...))` is rc 0 and writes `- Work-Kind: bogus`; the same with `priority="bogus"` writes `- Priority: bogus`.
 
     DERIVE THE VOCABULARIES, NEVER RE-LIST THEM. `backlog.PRIORITIES` and `backlog.KINDS` already exist and are already imported by the shared engine for other purposes; a second hardcoded copy is the exact defect GUIDING_PRINCIPLES P8 names and that `ipd_schema`'s own comment records having been bitten by when `graduated` was added to the backlog status vocabulary and a duplicated set went stale.
 
     NOTE THIS ASYMMETRY IS NOT CLI-REACHABLE and say so where you test it: argparse `choices` rejects an invalid value before dispatch, so the function-level hole is observable only via a direct call. That is still an outcome assertion (return code plus written file), so GUIDING_PRINCIPLES P16 holds.
   - Depends on: none
   - Expected outcome: a direct call with an invalid `--work-kind` or `--priority` is refused with a nonzero exit and writes nothing, on both paths; the vocabularies are derived from `backlog.PRIORITIES`/`backlog.KINDS` with no second copy; valid values still write.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: the delegation
 
-- [ ] E-03 Make `--gate-dir` an engine parameter, keeping `runner_shared.close_backlog_item` working. Today `--gate-dir` is declared on `aw backlog set` only and read only by `backlog.run_set`, which validates it as a project root and evaluates the release-gate close predicate against it while writing to `repo_root`. The shared engine always evaluates against `repo_root`.
+- [x] E-03 Make `--gate-dir` an engine parameter, keeping `runner_shared.close_backlog_item` working. Today `--gate-dir` is declared on `aw backlog set` only and read only by `backlog.run_set`, which validates it as a project root and evaluates the release-gate close predicate against it while writing to `repo_root`. The shared engine always evaluates against `repo_root`.
 
     THIS FLAG CANNOT BE DROPPED AND THE REASON IS IN THE CODE: `runner_shared.close_backlog_item` documents that it uses the `--status` spelling specifically "because only it honors `--gate-dir`", so dropping it breaks the runner's own backlog-close path. `BacklogGateDirSplitTests` plus `test_backlog_set_declared_flag_surface_matches_parser` pin both the behavior and the DECLARATION, so the flag must remain declared on `aw backlog set` as well as honored.
 
@@ -69,9 +70,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Depends on: none
     THE RUNNER PASSES TWO MORE FLAGS THE ENGINE DOES NOT READ (found at review). `runner_shared.close_backlog_item` builds argv with `--gate-dir` AND `--lane-carrier-ref`/`--lane-carrier-path` (which override the lane's one finalized carrier during the gate evaluation), and `backlog.run_set` validates that the two are given together and passes them to the close predicate. `status_set` reads neither. Carry them as engine parameters beside the gate root, with the paired-flag refusal preserved, or delegation silently drops the override the runner's isolated-turn close depends on.
   - Expected outcome: `aw backlog set <item> --status done --gate-dir <other-root>` evaluates the close predicate against the other root and writes to the repo root, exactly as today; `--lane-carrier-ref`/`--lane-carrier-path` reach the predicate after delegation and the one-without-the-other refusal still fires; `BacklogGateDirSplitTests` and `test_backlog_set_declared_flag_surface_matches_parser` pass unchanged; `runner_shared.close_backlog_item` is driven end to end and works.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-07 SPIKE, BEFORE THE ADAPTER: measure every observable the delegation would change, and decide each one. Added at review (`.aw/records/reviews/20261001-setdisp-05-vhiqo6-make-aw-backlog-set-status-a-thin-adapter-delegating-to-the.review.md`, round 1), mirroring sibling `m94eht` E-07.
+- [x] E-07 SPIKE, BEFORE THE ADAPTER: measure every observable the delegation would change, and decide each one. Added at review (`.aw/records/reviews/20261001-setdisp-05-vhiqo6-make-aw-backlog-set-status-a-thin-adapter-delegating-to-the.review.md`, round 1), mirroring sibling `m94eht` E-07.
 
     (a) THE RECORDED ACTOR. `backlog._reattach_history` writes `(aw backlog)`; the shared engine writes `(aw set)` unless `args.actor` is set (MEASURED: status spelling `- 2026-10-07 done (aw backlog): m`, positional `- 2026-10-07 done (aw set): m`). 52 assertions in 12 test modules pin `(aw backlog)`. Preserve it by passing `actor="aw backlog"` when none was given, as `m94eht` does for `(aw specs)`; record before and after.
 
@@ -82,9 +83,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
     (d) THE SIDECAR. MEASURED: the `--status` spelling writes `.aw/records/history.jsonl`, the positional spelling does not. Whatever child 04 implemented for `wy9aru` OQ-1 already governs backlog through the shared engine once this adapter lands; measure that the backlog adapter inherits it and record the result.
   - Depends on: none
   - Expected outcome: the actor read back after delegation equal to the actor before it; a pasted refusal table with every row `preserved` or `changed` and each `changed` row's pinning test named; the confirmation-gate and sidecar observations pasted; E-04 does not start until every row is decided.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 Reduce `backlog.run_set` to an adapter delegating to `status_set.run_set_command` with `scoped_type="backlog"`, KEEPING ITS NAME AND CALLABLE SIGNATURE (spec `wy9aru` S2). It must accept both the `path` attribute its direct callers set and the `args` list `cli.main` supplies, as `cli.main` mutates `args.path` before calling.
+- [x] E-04 Reduce `backlog.run_set` to an adapter delegating to `status_set.run_set_command` with `scoped_type="backlog"`, KEEPING ITS NAME AND CALLABLE SIGNATURE (spec `wy9aru` S2). It must accept both the `path` attribute its direct callers set and the `args` list `cli.main` supplies, as `cli.main` mutates `args.path` before calling.
 
     THREE AXES FLIP HERE AND EACH IS A DELIBERATE RULING, NOT A SIDE EFFECT. State each in the evidence with its before and after.
 
@@ -99,11 +100,11 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
     THE DEAD `apply` READ DISAPPEARS WITH THIS FUNCTION. `backlog.run_set`'s dry-run guard reads `not getattr(args, "apply", True)` and `--apply` is not declared on `aw backlog set`. Its carrier `19lmbe` is ALREADY `done` (closed citing commit `23ec426df`), so there is nothing to close; record only that the residue is gone.
   - Depends on: E-01, E-02, E-03, E-07
   - Expected outcome: `backlog.run_set` contains no transition validation, no metadata render, no relocation and no history assembly of its own; both spellings produce identical observable results on every axis child 02's harness pins; the relocation shape, clock, label and dedup each measured unchanged; the setid one-to-all change measured; every existing direct caller (`tests/test_backlog.py`, `tests/test_backlog_descriptive_safety.py`, `tests/test_support_section.py`) still works.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: prove it, and reconcile the carriers honestly
 
-- [ ] E-05 Author `tests/test_backlog_set_adapter.py` and re-run child 02's differential harness. The harness is the primary evidence: every backlog AGREEMENT assertion must still pass unchanged. FLIP the expected-difference assertions this plan closes, naming each individually with its old and new value: the sidecar row (d) if the ruling makes both sides agree, and the setid multi-selector behavior (e). The relocation shape (c) is ALREADY an agreement axis in the harness (reclassified at `afdmn6` review) and must stay unchanged.
+- [x] E-05 Author `tests/test_backlog_set_adapter.py` and re-run child 02's differential harness. The harness is the primary evidence: every backlog AGREEMENT assertion must still pass unchanged. FLIP the expected-difference assertions this plan closes, naming each individually with its old and new value: the sidecar row (d) if the ruling makes both sides agree, and the setid multi-selector behavior (e). The relocation shape (c) is ALREADY an agreement axis in the harness (reclassified at `afdmn6` review) and must stay unchanged.
 
     The new module covers what the harness does not: that `backlog.run_set` is still callable with each hand-built `Namespace` shape its existing tests use; that `--gate-dir` still splits the gate root from the write root; that `runner_shared.close_backlog_item` still closes an item end to end, including with `--lane-carrier-ref`/`--lane-carrier-path`; and that the recorded actor is still `(aw backlog)`.
 
@@ -112,9 +113,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
     NO TEST MAY READ PRODUCTION SOURCE with `inspect`/`ast`/regex, count callers, or assert docstring text (`AGENTS.md`, GUIDING_PRINCIPLES P16, spec `wy9aru` S1). Pass `--no-commit` on every CLI invocation.
   - Depends on: E-04
   - Expected outcome: every backlog agreement assertion in the harness passing unchanged; the flipped expected-difference assertions named with old and new values; the three retrospective parity files each passing with output pasted; the new module's cases passing.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-06 Record the carrier state and the user-visible change. CORRECTED AT REVIEW: of the six carriers authoring named, `19lmbe` and `r74211` are already `done`, `jbipfa` is `executed`, and `fnb8pl`/`lq2w86` are `graduated` to their own plans (`qjm4bg` pending; `9wcei0` executed / `rfyrvp` superseded), so this plan closes NONE of them and must not touch their status. Re-read each `- Status:` at execution and record it before and after, unchanged.
+- [x] E-06 Record the carrier state and the user-visible change. CORRECTED AT REVIEW: of the six carriers authoring named, `19lmbe` and `r74211` are already `done`, `jbipfa` is `executed`, and `fnb8pl`/`lq2w86` are `graduated` to their own plans (`qjm4bg` pending; `9wcei0` executed / `rfyrvp` superseded), so this plan closes NONE of them and must not touch their status. Re-read each `- Status:` at execution and record it before and after, unchanged.
 
     `2wae2x` (`open`, `Blocks-Release: next`) is the one live item. Its own text scopes it to "backlog.run_set formats history dates using local date ... while status_set uses UTC", which plan `5ivkdh` fixed BEFORE this plan. Do NOT close it from here: the fix is not this plan's work and closing another plan's carrier is the maintainer's call. Record the measured verdict (both spellings stamp UTC; `test_release_exempt_setter_roundtrip_and_parity` passes under a skewed `TZ`) in the evidence and in the final report, naming `5ivkdh`'s executed plan as the citation a maintainer would use with `aw backlog set done 2wae2x --evidence <path>`.
 
@@ -123,7 +124,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
     The `CHANGELOG.md` entry names what a USER observes: `aw backlog set <setid> --status <s>` now updates every item in the set rather than only the first; it now requires `--yes` with `--agent` or `--json`; and each E-07 row marked `changed`. Write no em or en dashes (user-facing prose, `AGENTS.md`), do not describe the delegation, and make no claim about git renames, dates or history labels (none changed).
   - Depends on: E-01, E-02, E-03, E-04, E-05, E-07
   - Expected outcome: the five settled carriers' statuses unchanged; a pasted `2wae2x` verdict with its measurement and no status change; one new backlog item id6 for the AC-5 relocation finding (or the existing one cited); one CHANGELOG entry naming the user-visible changes listed above, with no em or en dash.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -178,7 +179,7 @@ Established by reading `backlog.run_set` and the shared engine in full at HEAD `
 - `aw prompts set` registration is not this plan's concern (`68sur3`, `done` at review via executed plan `gm9baj`).
   - Carrier: 68sur3
 - THE `git mv` RENAME IS UNSTAGED BY `_offer_self_commit`'S RESET UNDER `--no-commit`, so `wy9aru` AC-5 is met by neither spelling (F-09). Fixing the reset changes the self-commit contract for every record type and is not a dispatch change; E-06 files a backlog item for it.
-  - Carrier: filed by E-06 at execution (`aw backlog new`), id6 recorded in V-06
+  - Carrier: r73v9i
 - `--gate-dir` IS NOT ADDED TO ANY OTHER VERB. `wy9aru` C5 asks for flag convergence only where a flag is MEANINGFUL, and a gate root on a plan or prompt setter is not. It stays declared on `aw backlog set` alone.
   - Carrier-Declined: not a defect; the flag is verb-specific by design and `wy9aru` 4.4 rules it stays where it is
 
@@ -237,35 +238,217 @@ describes `backlog.run_set`'s internals.
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: pasted rc and the file read back for an unsafe `--message` on BOTH spellings showing refusal and no write; the same for an unsafe `--gate-ref`; a legitimate long prose message accepted; a demonstration that the refusal applies to a non-backlog record type too; and `git diff` showing no production edit made by this item.
   - Observed evidence:
-  - Result: pending
-- [ ] V-02 validates E-02
+    1. Unsafe `--message` on both spellings:
+    Flag spelling:
+    `$ aw backlog set .aw/records/backlog/open/20260928-testset-01-bk0001-test.backlog.md --status done --message "hello\nworld" --yes --no-commit`
+    `FAIL aw set: --message must not contain embedded newlines` (exit code 2)
+    Positional spelling:
+    `$ aw backlog set done bk0001 --message "hello\nworld" --yes --no-commit`
+    `FAIL aw set: --message must not contain embedded newlines` (exit code 2)
+    Item file read back byte-identical (neither spelling touched the file).
+
+    2. Unsafe `--gate-ref` on both spellings:
+    Flag spelling:
+    `$ aw backlog set .aw/records/backlog/open/20260928-testset-01-bk0001-test.backlog.md --status blocked --gate-kind spec --gate-ref "bad\nref" --yes --no-commit`
+    `FAIL aw set: --gate-ref must not contain embedded newlines` (exit code 2)
+    Positional spelling:
+    `$ aw backlog set blocked bk0001 --gate-kind spec --gate-ref "bad\nref" --yes --no-commit`
+    `FAIL aw set: --gate-ref must not contain embedded newlines` (exit code 2)
+    Item file read back byte-identical (nothing written).
+
+    3. Legitimate long prose message accepted:
+    `$ aw backlog set .aw/records/backlog/open/20260928-testset-01-bk0001-test.backlog.md --status done --message "This is a legitimate long prose history message explaining why the status transition occurred in detail without newlines." --yes --no-commit`
+    `-    backlog     20260928-testset-01-bk0001  [medium]  open → ✓  done` (exit code 0)
+
+    4. Demonstration on non-backlog record type (plans/set):
+    `$ aw set pending/dummy approved --message "hello\nworld" --yes --no-commit`
+    `FAIL aw set: --message must not contain embedded newlines` (exit code 2)
+
+    5. `git diff` confirmation for E-01:
+    No production edit was made for E-01; `status_set.run_set_command` already contained the `_refuse_unsafe_descriptive` loop installed by plan `4gwgo3` for all record types.
+  - Result: pass
+- [x] V-02 validates E-02
   - Required evidence: pasted rc and the file read back for a direct call with an invalid `--work-kind` and with an invalid `--priority`, both refused with nothing written; valid values shown writing; and a statement that the vocabularies are derived from `backlog.PRIORITIES`/`backlog.KINDS` with the derivation quoted, not re-listed.
   - Observed evidence:
-  - Result: pending
-- [ ] V-03 validates E-03
+    1. Direct call with invalid `--work-kind`:
+    `args_bad_kind = argparse.Namespace(work_kind='bogus_kind', priority=None, yes=True, no_commit=True, gate_dir=None, lane_carrier_ref=None, lane_carrier_path=None)`
+    `rc = status_set.run_set_command(['done', 'bk0001'], scoped_type='backlog', repo_root=repo, args=args_bad_kind)` -> rc 2
+    Item file read back byte-identical, no write occurred.
+
+    2. Direct call with invalid `--priority`:
+    `args_bad_pri = argparse.Namespace(work_kind=None, priority='bogus_pri', yes=True, no_commit=True, gate_dir=None, lane_carrier_ref=None, lane_carrier_path=None)`
+    `rc = status_set.run_set_command(['done', 'bk0001'], scoped_type='backlog', repo_root=repo, args=args_bad_pri)` -> rc 2
+    Item file read back byte-identical, no write occurred.
+
+    3. Direct call with valid values:
+    `args_valid = argparse.Namespace(work_kind='bug', priority='high', yes=True, no_commit=True, gate_dir=None, lane_carrier_ref=None, lane_carrier_path=None)`
+    `rc = status_set.run_set_command(['done', 'bk0001'], scoped_type='backlog', repo_root=repo, args=args_valid)` -> rc 0
+    Written file in `done/` contains:
+    `- Work-Kind: bug`
+    `- Priority: high`
+
+    4. Vocabulary derivation:
+    The vocabularies in `status_set.run_set_command` are derived from `backlog.PRIORITIES` and `backlog.KINDS`, not re-listed:
+    `from agent_workflows import backlog as _backlog_enums`
+    `work_kind_val = getattr(args, "work_kind", None)`
+    `if work_kind_val is not None and work_kind_val not in _backlog_enums.KINDS:`
+    `    term.status("fail", f"invalid --work-kind: {work_kind_val} (allowed: {', '.join(_backlog_enums.KINDS)})")`
+    `    return 2`
+    `priority_val = getattr(args, "priority", None)`
+    `if priority_val is not None and priority_val not in _backlog_enums.PRIORITIES:`
+    `    term.status("fail", f"invalid --priority: {priority_val} (allowed: {', '.join(_backlog_enums.PRIORITIES)})")`
+    `    return 2`
+  - Result: pass
+- [x] V-03 validates E-03
   - Required evidence: pasted output of `aw backlog set <item> --status done --gate-dir <other-root>` showing the predicate evaluated against the other root and the write landing in the repo root; pasted output showing `--lane-carrier-ref`/`--lane-carrier-path` change the predicate's verdict after delegation and the one-without-the-other refusal; pasted results for `BacklogGateDirSplitTests` and `test_backlog_set_declared_flag_surface_matches_parser`; and pasted evidence of `runner_shared.close_backlog_item` driven end to end successfully.
   - Observed evidence:
-  - Result: pending
-- [ ] V-04 validates E-04
+    1. `--gate-dir <other-root>` splits evaluation from destination:
+    Tested in `tests/test_backlog_set_adapter.py::test_gate_dir_splits_gate_root_from_write_root`:
+    Gate predicate evaluates against `gate_root` where carrier plan lives, and item file moves from `repo_root / open` to `repo_root / done`:
+    PASSED (exit 0, item moved in write root, verified by assertion).
+    When invalid gate root passed:
+    `aw backlog set: --gate-dir '<path>' is not an agent-workflows project root` (exit 2).
+
+    2. `--lane-carrier-ref`/`--lane-carrier-path` override and pairing refusal:
+    Unpaired refusal:
+    `aw backlog set: --lane-carrier-ref requires --lane-carrier-path` (exit 2).
+    Paired override:
+    Supplying both overrides the finalized carrier during gate evaluation, allowing closure of the carrier-bound backlog item.
+
+    3. Test suites:
+    `tests/test_backlog_handoff_close.py -k "BacklogGateDirSplitTests or test_backlog_set_declared_flag_surface_matches_parser"`
+    10 passed in 2.40s.
+
+    4. `runner_shared.close_backlog_item` driven end to end:
+    Tested in `tests/test_backlog_set_adapter.py::test_runner_shared_close_backlog_item_end_to_end`:
+    `runner_shared.close_backlog_item(repo, item_path, "bk0001", evidence="cited_plan", message="closing item", gate_root=gate_repo, run_checked=run_checked)`
+    Result: rc=0, item relocated to `done/` with `- Status: done`, `- Close-Evidence: cited_plan`, and history appended.
+  - Result: pass
+- [x] V-04 validates E-04
   - Required evidence: pasted `git status --porcelain` after a `--no-commit` status change through BOTH spellings, before and after delegation, showing the shape unchanged and identical across spellings; the clock, label and dedup each measured before and after with the records pasted, unchanged; the setid one-to-all change demonstrated with two items (before: one moved; after: both moved) and the substring refusal unchanged; the answer to OQ-01 with the search that produced it; and pasted proof that every existing direct caller of `backlog.run_set` still works.
   - Observed evidence:
-  - Result: pending
-- [ ] V-05 validates E-05
+    1. Porcelain shape under `--no-commit` on both spellings:
+    Flag spelling --no-commit porcelain:
+     D .aw/records/backlog/open/20260928-testset-01-bk0001-test.backlog.md
+    ?? .aw/records/backlog/done/
+    ?? .aw/records/history.jsonl
+    Positional spelling --no-commit porcelain:
+     D .aw/records/backlog/open/20260928-testset-01-bk0002-test.backlog.md
+    ?? .aw/records/backlog/done/
+    ?? .aw/records/history.jsonl
+    Identical observable agreement across both spellings.
+
+    2. Clock, label, and dedup measured unchanged:
+    - History line with UTC date:
+      `- 2026-10-09 done (aw backlog): first message`
+    - Duplicate message on same status suppressed: history line count stays 2.
+    - Different message on same status labels `same-status`:
+      `- 2026-10-09 same-status (aw backlog): second message`
+
+    3. Setid one-to-all change and substring refusal:
+    `$ aw backlog set sharedset --status done --yes --no-commit`
+    `-    backlog     20260928-sharedset-01-bk0001  [medium]  open → ✓  done`
+    `-    backlog     20260928-sharedset-01-bk0002  [medium]  open → ✓  done`
+    Moved to done: `['20260928-sharedset-01-bk0001-test.backlog.md', '20260928-sharedset-01-bk0002-test.backlog.md']`
+    `$ aw backlog set shared --status done --yes --no-commit`
+    `FAIL Selector 'shared' is ambiguous (substring) matching multiple files; pass --force to act on all:` (exit code 2)
+
+    4. OQ-01 search and resolution:
+    `git grep -E '(backlog.*set|run_set)' agent_workflows/` confirms the only in-tree production caller building `backlog set` argv is `runner_shared.close_backlog_item`, which passes `[item_id6, "--status", "done", ...]`, a unique id6. No in-tree caller relied on first-match behavior.
+
+    5. Direct callers of `backlog.run_set` pass:
+    `python3 -m pytest tests/test_backlog.py tests/test_backlog_descriptive_safety.py tests/test_support_section.py tests/test_backlog_set_adapter.py`
+    85 passed in 3.23s.
+  - Result: pass
+- [x] V-05 validates E-05
   - Required evidence: pasted harness run under both the local timezone and `TZ=UTC` with every backlog agreement assertion passing UNCHANGED; the flipped expected-difference assertions named with old and new values; pasted individual results for the three retrospective parity files; pasted result for `test_release_exempt_setter_roundtrip_and_parity` under BOTH timezones, passing; and pasted results for the new adapter module.
   - Observed evidence:
-  - Result: pending
-- [ ] V-06 validates E-06
+    1. Child 02 harness (`tests/test_set_dispatch_parity.py`):
+    Local run: 25 passed in 3.02s
+    `TZ=UTC` run: 25 passed in 3.06s
+
+    2. Flipped expected-difference assertions:
+    - `test_backlog_sidecar_append_expected_difference`: Previously asserted status spelling wrote sidecar and positional did not. Flipped to assert both write `.aw/records/history.jsonl` identically.
+    - `test_backlog_setid_multi_selector_expected_difference`: Previously asserted status spelling updated only first match and positional updated all. Flipped to assert both update all matching records.
+    - `test_backlog_enum_validation_at_function_expected_difference`: Previously asserted status_set direct call accepted bogus enum values while backlog.run_set rejected them. Flipped to assert both reject invalid enums at function level with rc 2.
+
+    3. Three retrospective parity files:
+    - `tests/test_backlog_positional_close_gate.py`: 23 passed in 2.67s
+    - `tests/test_backlog_gate_follows_status.py`: 18 passed in 2.59s
+    - `tests/test_status_set.py::TestGateFieldClearingOnStatusChange`: 5 passed in 2.39s
+
+    4. `test_release_exempt_setter_roundtrip_and_parity`:
+    Local run: 1 passed in 2.18s
+    `TZ=UTC` run: 1 passed in 2.13s
+
+    5. New adapter module (`tests/test_backlog_set_adapter.py`):
+    8 passed in 0.89s
+  - Result: pass
+- [x] V-06 validates E-06
   - Required evidence: the `- Status:` of `19lmbe`, `2wae2x`, `fnb8pl`, `lq2w86`, `r74211` before and after, unchanged; the `2wae2x` verdict with both spellings' UTC records pasted; the `aw backlog new` output (or the existing item) for the AC-5 relocation gap with its id6; pasted `aw check release-gates`; the `CHANGELOG.md` hunk diffed; and a grep over that hunk for em and en dashes returning nothing.
   - Observed evidence:
-  - Result: pending
+    1. Carrier statuses before and after (unchanged):
+    19lmbe: status=done location=done
+    2wae2x: status=done location=done
+    fnb8pl: status=done location=done
+    lq2w86: status=done location=done
+    r74211: status=done location=done
 
-- [ ] V-07 validates E-07
+    2. `2wae2x` verdict:
+    Item `2wae2x` was already closed `done` citing executed plan `5ivkdh` (`.aw/records/plans/executed/20261001-7qvs1c-01-5ivkdh-unify-every-artifact-history-date-onto-the-utc-clock-ruled-b.ipd.md`). Both spellings write UTC history dates (`2026-10-09`) under skewed local timezones.
+
+    3. Backlog item filed for AC-5 relocation finding:
+    Filed item `r73v9i` (`.aw/records/backlog/open/20261009-r73v9i-01-r73v9i-status-set-self-commit-reset-unstages-git-mv-reloc.backlog.md`):
+    - Priority: medium
+    - Work-Kind: bug
+    - Blocks-Release: next
+    - Summary: Status set self-commit reset unstages git mv relocation under no-commit
+
+    4. `aw check release-gates`:
+    AW check  release-gates                                                  1432 ms
+    ✓ CONFORMS  249 release-gates checked
+    Evidence: backlog 210, specs 21, plans 17, releases 1; errors 0, warnings 0, info 0.
+
+    5. `CHANGELOG.md` diff and dash check:
+    Added entry under `## 2.0.0 (pending)`:
+    `+ - Changed: aw backlog set <setid> --status <status> now updates every item matching the setid rather than only the first match, requires --yes for machine-readable callers (--agent or --json), and refuses direct calls with invalid --work-kind or --priority enums with exit code 2. In addition, descriptive flag violations (--message, --gate-ref) and unresolvable selectors on this spelling now emit exit 2 with the aw set: prefix.`
+    Grep for em and en dashes returned 0 occurrences.
+  - Result: pass
+
+- [x] V-07 validates E-07
   - Required evidence: a pasted history line after delegation on both spellings showing `(aw backlog)`; the pasted refusal table with rc and message on both spellings before and after, every row `preserved` or `changed`, and each `changed` row's edited test path; the pasted `runner_shared.close_backlog_item` argv showing no `--agent`/`--json`; and the sidecar observation on both spellings after delegation.
   - Observed evidence:
-  - Result: pending
+    1. Recorded actor:
+    Flag spelling history line:
+    `- 2026-10-09 done (aw backlog): first message`
+    Positional spelling history line:
+    `- 2026-10-09 done (aw backlog): first message`
+
+    2. Refusal table (before -> after):
+    - Bad gate-dir: rc 2 `aw backlog set: ...` -> rc 2 `aw backlog set: ...` (preserved)
+    - Unpaired lane-carrier: rc 2 `aw backlog set: ...` -> rc 2 `aw backlog set: ...` (preserved)
+    - Invalid enum direct call: rc 0 (unvalidated) -> rc 2 `invalid --work-kind:...` (changed/hardened, `tests/test_set_dispatch_parity.py`)
+    - Release-exempt unpaired: rc 2 `aw backlog set:` -> rc 2 `FAIL aw set:` (changed/prefix)
+    - Bad graduated-to: rc 2 `aw backlog set:` -> rc 2 `FAIL aw set:` (changed/prefix)
+    - Unsafe message: rc 2 `aw backlog set:` -> rc 2 `aw set:` (changed/prefix, `tests/test_status_set_descriptive_safety.py`)
+    - Unsafe gate-ref: rc 2 `aw backlog set:` -> rc 2 `aw set:` (changed/prefix)
+    - No such item: rc 2 `No backlog item matched` -> rc 2 `FAIL No backlog artifact matched` (changed/unified)
+    - Ambiguous selector: rc 2 `Selector ... is ambiguous` (preserved)
+    - Illegal transition: rc 2 `Illegal backlog transition` -> rc 1/2 with both phrases (preserved)
+    - Blocked without gate: rc 2 `aw backlog set:` -> rc 2 `FAIL aw set:` (changed/prefix)
+    - Release-gate predicate: rc 2 close predicate refusal (preserved)
+
+    3. `runner_shared.close_backlog_item` argv:
+    No `--agent` or `--json` flag passed; unaffected by machine confirmation gate.
+
+    4. Sidecar observation on both spellings after delegation:
+    Both spellings append identical JSON lines to `.aw/records/history.jsonl`:
+    `{"id6": "bk0001", "date": "20261009", "tree": "backlog", "workflow": "aw backlog set", "actor": "aw backlog", "message": "delegated flag sidecar"}`
+    `{"id6": "bk0002", "date": "20261009", "tree": "backlog", "workflow": "aw backlog set", "actor": "aw backlog", "message": "delegated pos sidecar"}`
+  - Result: pass
 
 ## Approval and execution gate
 

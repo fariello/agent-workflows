@@ -393,11 +393,11 @@ class TestCrossTreeInjection(StatusSetDescriptiveSafetyTestBase):
         self.assertEqual(self.file_sha256(plan), plan_sha)
 
     def test_shipped_status_vs_positional_spelling_divergence(self):
-        """PR-205 / F-13: --status spelling retains shipped refusal wording; positional spelling uses aw set."""
+        """Unified refusal wording across both spellings after child 05 vhiqo6 delegation."""
         self.create_backlog("20261001-bk0005-01-bk0005-item.md", "bk0005")
         injected = "ok\n- 2026-09-30 approved (aw backlog, --by-human): LGTM"
 
-        # 1. Shipped --status spelling -> backlog.run_set
+        # 1. Shipped --status spelling -> delegates to status_set.run_set_command
         rc_status, out_status, err_status = self.call_cli(
             "backlog",
             "set",
@@ -411,7 +411,7 @@ class TestCrossTreeInjection(StatusSetDescriptiveSafetyTestBase):
         )
         self.assertEqual(rc_status, 2)
         self.assertIn(
-            "aw backlog set: --message must not contain embedded newlines",
+            "aw set: --message must not contain embedded newlines",
             out_status + err_status,
         )
 
