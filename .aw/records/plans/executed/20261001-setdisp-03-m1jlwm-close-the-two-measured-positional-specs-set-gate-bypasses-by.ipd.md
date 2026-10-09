@@ -6,7 +6,7 @@
 - Scope: IN: make both refusals fire on BOTH spellings by having the shared engine consume the SAME predicates `specs.run_set` already consumes, never a second copy; author outcome tests pinning each refusal on both spellings; close the two carriers with cited evidence. OUT, each with a reason recorded under "Deferred": moving either spelling's dispatch route (children 04, 05, gated on spec `wy9aru` OQ-1); the third `specs.run_set`-only refusal (the post-write `validate_spec` conformance check), which is a different shape and is carried by child 04; every axis `wy9aru` Section 7 assigns elsewhere.
 - Scope-Paths: agent_workflows/status_set.py, agent_workflows/specs.py, tests/test_specs_set_gate_parity.py, CHANGELOG.md
 - Item-Dependencies: executed:afdmn6
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - From-Spec: wy9aru
 - Work-Kind: bug
@@ -18,9 +18,9 @@
 - Highest E allocated: 05
 - Author: opencode/its_direct/pt3-claude-opus-5-1m-us
 - Id: m1jlwm
-- Approval: 2026-10-08, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-09 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: m1jlwm verified (set setdisp, attempt 1). [Scope reconciliation - in-scope-unmodified CHANGELOG.md: declared-but-unmodified (auto-acknowledged by aw agy run); in-scope-unmodified agent_workflows/specs.py: declared-but-unmodified (auto-acknowledged by aw agy run); in-scope-unmodified agent_workflows/status_set.py: declared-but-unmodified (auto-acknowledged by aw agy run)]
 - 2026-10-08 approved (aw set): status set to approved
 - 2026-10-07 /plan-review (opencode uri/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005 (all fixed; F-02 already closed by `ju3rhs` so E-02 is confirm-only; carriers close via HANDOFF; record `.aw/records/reviews/20261007-setdisp-03-m1jlwm-close-the-two-measured-positional-specs-set-gate-bypasses-by.review.md`)
 - 2026-10-07 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-001..PR-005 fixed
