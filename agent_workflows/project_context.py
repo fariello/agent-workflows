@@ -536,6 +536,171 @@ def classify_project_dir(path: Optional[str | Path] = None) -> ProjectClassifica
     return ProjectClassification(case=ProjectLocationCase.NO_PROJECT, root=None)
 
 
+@dataclass(frozen=True)
+class RefusalNextAction:
+    """The machine NextAction inputs produced by a refusal."""
+
+    command: str
+    description: str
+
+
+@dataclass(frozen=True)
+class RootRefusal:
+    """Outcome of evaluating a resolved repository root for a verb.
+
+    Pure, read-only, and side-effect-free data structure carrying everything
+    a repo-scoped verb needs to proceed or refuse honestly.
+    """
+
+    may_proceed: bool
+    human_message: Optional[str] = None
+    summary: Optional[str] = None
+    next_action: Optional[RefusalNextAction] = None
+
+    @property
+    def can_proceed(self) -> bool:
+        """Alias for may_proceed."""
+        return self.may_proceed
+
+    @property
+    def human_text(self) -> Optional[str]:
+        """Alias for human_message."""
+        return self.human_message
+
+    @property
+    def message(self) -> Optional[str]:
+        """Alias for human_message."""
+        return self.human_message
+
+    @property
+    def next_action_command(self) -> Optional[str]:
+        """The next action command string, or None."""
+        return self.next_action.command if self.next_action is not None else None
+
+    @property
+    def next_action_description(self) -> Optional[str]:
+        """The next action description string, or None."""
+        return self.next_action.description if self.next_action is not None else None
+
+    @property
+    def next_actions(self) -> List[RefusalNextAction]:
+        """List containing the next_action if present, else empty list."""
+        return [self.next_action] if self.next_action is not None else []
+
+
+def nonsurveyable_root_refusal(
+    verb: str,
+    repo_root: Optional[str | Path] = None,
+    explicit_dir: bool = False,
+) -> RootRefusal:
+    """Turn a resolved root and explicit-dir flag into a complete, honest refusal.
+
+    Converts a resolved root plus the explicit-dir flag into everything a verb
+    needs to refuse honestly when the resolved directory is not an AW project root:
+    the human stderr text, the path-free machine summary, and the structured next action.
+    Pure, read-only, and side-effect-free: writes no output to stdout or stderr,
+    builds no CommandResult, and imports neither renderers nor result_types.
+
+    Call shape for a converting verb:
+        repo_root = resolve_verb_repo_root(getattr(args, "dir", None))
+        explicit_dir = bool(getattr(args, "dir", None))
+        refusal = nonsurveyable_root_refusal(verb, repo_root, explicit_dir=explicit_dir)
+        if not refusal.may_proceed:
+            if ctx.is_agent or ctx.is_json:
+                res = CommandResult(
+                    command=verb,
+                    status="cannot-run",
+                    exit_code=2,
+                    summary=refusal.summary,
+                    next_actions=(
+                        [
+                            NextAction(
+                                command=refusal.next_action_command,
+                                description=refusal.next_action_description,
+                            )
+                        ]
+                        if refusal.next_action is not None
+                        else []
+                    ),
+                )
+                return get_renderer(ctx).emit(res, ctx)
+            sys.stderr.write(refusal.human_message + "\\n")
+            return EXIT_CANNOT_RUN
+
+    Reference implementation:
+        See ``attention.run`` (in ``agent_workflows/attention.py``) as the reference
+        implementation demonstrating this exact emission block in production.
+
+    Traps:
+        1. PATH-FREE MACHINE SUMMARY: A machine record must never carry an absolute path.
+           This is enforced rather than stylistic: the schema (``agent_schema``) refuses
+           an absolute home path in any string field and raises ValueError in the renderer
+           before a byte is emitted, causing an empty stdout and breaking the protocol.
+           The machine summary returned here is strictly path-free; only the human message
+           names paths.
+        2. EXIT CODE CONTRACT: A ``cannot-run`` record must carry exit 2, never 3.
+           ``aw.agent/v1`` admits only integer exit codes in (0, 1, 2); an ``exit_code=3``
+           record cannot serialize and raises in the renderer. Both human and machine
+           surfaces return exit 2 for this condition (retiring the earlier human exit 3
+           so one condition has one uniform exit code across all surfaces; there is no
+           split between human and machine exit codes). No site in the package builds
+           an ``exit_code=3`` record.
+
+    Policy:
+        Whether a given verb should refuse is the verb's policy, not this primitive's.
+        A read-class verb surveying nothing produces a false clean claim (an
+        anti-greenwashing invariant violation) and should refuse. A write-class verb
+        targets an operator's explicit destination and fails loudly and locally without
+        touching the real records tree (IPD lmyeas OQ-01). The primitive serves both
+        and chooses neither.
+
+    No-climb rule:
+        An explicit ``--dir`` still NEVER climbs upward to find an enclosing project root.
+        See ``resolve_verb_repo_root``'s docstring for the recorded decision, rationale,
+        and write-class safety hazards that govern why explicit ``--dir`` is honored verbatim.
+    """
+    where = Path(repo_root).resolve() if repo_root is not None else Path.cwd().resolve()
+    classification = classify_project_dir(where)
+    if classification.is_root:
+        return RootRefusal(may_proceed=True)
+
+    human_msg = no_project_message(verb, where, explicit=bool(explicit_dir))
+
+    if classification.is_inside_project and explicit_dir:
+        summary = (
+            "the specified directory is inside an AW project but is not its root; "
+            "--dir is honored verbatim with no upward climb"
+        )
+        next_action = None
+    else:
+        if explicit_dir:
+            summary = (
+                "no AW project found at the specified directory; "
+                "--dir is honored verbatim with no upward climb"
+            )
+        else:
+            summary = (
+                "no AW project found at the working directory or any ancestor; "
+                "cd into the repository or pass --dir <repo>"
+            )
+
+        git_root = git_root_for_message(where)
+        if git_root is not None and not is_project_dir(git_root):
+            next_action = RefusalNextAction(
+                command="aw install .",
+                description="install agent-workflows in this repo",
+            )
+        else:
+            next_action = None
+
+    return RootRefusal(
+        may_proceed=False,
+        human_message=human_msg,
+        summary=summary,
+        next_action=next_action,
+    )
+
+
 def read_project_identity(repo_root: str | Path) -> Dict[str, Optional[str]]:
     """Return ``{"preset": ..., "records_backend": ...}`` as RECORDED IN THE REPOSITORY.
 
