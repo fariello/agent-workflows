@@ -220,6 +220,8 @@ from agent_workflows.render_stream import (
     work_did_not_land,
     # ckxypc E-02: host error helpers
     scan_last_host_error,
+    # fixfirst Order 03 (mcbph5): redact absolute driver paths from notices
+    _redact_absolute_paths,
 )
 
 # ---- module constants the moved bodies close over ------------------------------------------------
@@ -6079,6 +6081,69 @@ def prepare_lane_for_conflict_resolution(
     )
 
 
+# fixfirst Order 03 (mcbph5) E-01: unified fix-it notice builder and rule text
+FIX_IT_EVIDENCE_BOUND: int = 4000
+FIX_IT_ELISION_MARKER: str = "\n... [evidence truncated: full text available in `Prior attempt:` or attempt outcome file] ..."
+
+FIX_IT_RULE_TEXT: str = (
+    "Fix what caused this. Do not change the gate, check, hook or test that refused to make it pass.\n\n"
+    "Changing a gate or an `aw` tool is normally the job of a plan scoped to change it. "
+    "If you find a real, small bug in one that is clearly not working as intended, you may fix it, "
+    "and you must say why in your outcome file and scope reason. For anything material, do not change it: "
+    "record a `proposal` in your outcome file (what blocked you, why it cannot be fixed in scope, what should change) and stop."
+)
+
+
+def build_fix_it_notice(
+    kind: str,
+    evidence: str,
+    attempt: Any,
+    budget: Any,
+    *,
+    recovery: bool,
+    include_rule: bool = True,
+) -> str:
+    """Build the unified fix-it notice for an agent recovery turn (IPD mcbph5 E-01).
+
+    Returns "" when recovery is False, matching the invariant that a first-attempt
+    prompt is byte-identical.
+    """
+    if not recovery:
+        return ""
+
+    kind_header = kind.strip()
+    if not kind_header.startswith("## "):
+        kind_header = f"## {kind_header}"
+    if f"attempt {attempt} of {budget}" not in kind_header:
+        kind_header = f"{kind_header} (attempt {attempt} of {budget})"
+
+    evidence_text = _redact_absolute_paths(str(evidence).strip())
+    if len(evidence_text) > FIX_IT_EVIDENCE_BOUND:
+        evidence_text = evidence_text[:FIX_IT_EVIDENCE_BOUND] + FIX_IT_ELISION_MARKER
+
+    lines = [
+        "",
+        "",
+        kind_header,
+        "",
+        evidence_text,
+    ]
+    if include_rule:
+        lines.extend(
+            [
+                "",
+                FIX_IT_RULE_TEXT,
+            ]
+        )
+    lines.extend(
+        [
+            "",
+            "Record your findings and disposition in your outcome file before exiting.",
+        ]
+    )
+    return "\n".join(lines)
+
+
 def merge_conflict_question(detail: Mapping[str, Any], *, main_tip: str) -> str:
     """Prompt for an agent correction turn to resolve a merge conflict in its lane."""
     files = list(detail.get("files") or ())
@@ -6126,7 +6191,8 @@ def merge_conflict_question(detail: Mapping[str, Any], *, main_tip: str) -> str:
         f"(b) The runner's ordinary isolated commit tool creates a single-parent commit in a detached worktree under CAS, leaving MERGE_HEAD behind and main not an ancestor of the lane.\n"
         f"The bare `git commit --no-edit` is therefore the correct tool here: git itself owns concluding a merge it started, the commit carries both parents, and the paths in it are exactly the ones git staged.\n\n"
         f"5. Do NOT run `aw ipd begin` or `finalize` (the plan was already finalized on the lane).\n"
-        f"6. Write your outcome file and stop.\n"
+        f"6. Write your outcome file and stop.\n\n"
+        f"{FIX_IT_RULE_TEXT}\n"
     )
 
 
@@ -9195,12 +9261,10 @@ def build_stale_receipt_notice(item: Mapping[str, Any], recovery: bool) -> str:
     refused = str(attempts[-1].get("finalize_refused") or "")
     if RETRYABLE_STALE_RECEIPT_SUMMARY not in refused:
         return ""
-    return "\n".join(
+    att_num = attempts[-1].get("attempt") or len(attempts)
+    budget = attempts[-1].get("budget") or (att_num + 1)
+    evidence = "\n".join(
         [
-            "",
-            "",
-            "## The plan text changed after `begin` (STALE receipt)",
-            "",
             "The runner froze this plan's reviewed instructions and Scope-Paths when the turn began,",
             "and the plan no longer matches that snapshot (the exact findings are in `Prior attempt:`",
             "under `finalize_refused`). This is NOT a failure of your work. Decide, for each change:",
@@ -9212,8 +9276,16 @@ def build_stale_receipt_notice(item: Mapping[str, Any], recovery: bool) -> str:
             "    line under the item, `  - Change after begin: <what changed and why it was required>`.",
             "",
             "Do NOT run `aw ipd begin` or `aw ipd finalize` yourself. The runner re-freezes the plan",
-            "as you leave it before this turn and finalizes afterwards. Then write the outcome file.",
+            "as you leave it before this turn and finalizes afterwards.",
         ]
+    )
+    return build_fix_it_notice(
+        "The plan text changed after `begin` (STALE receipt)",
+        evidence,
+        att_num,
+        budget,
+        recovery=recovery,
+        include_rule=False,
     )
 
 
@@ -9248,13 +9320,10 @@ def build_correction_notice(item: Mapping[str, Any], recovery: bool) -> str:
             break
     if not isinstance(packet, Mapping):
         return ""
+    att_num = packet.get("attempt", 1)
+    budget = packet.get("of", 2)
     predicates = [str(p) for p in (packet.get("failed_predicates") or ())]
     lines = [
-        "",
-        "",
-        "## This is a BOUNDED CORRECTION attempt "
-        f"({packet.get('attempt')} of {packet.get('of')})",
-        "",
         "The previous attempt FAILED and the run is spending one unit of its correction budget on",
         "this turn. Address ONLY the failed predicates below. Work that already passed must NOT be",
         "redone: this is a correction, not a fresh execution, and redoing passing work risks undoing",
@@ -9274,7 +9343,15 @@ def build_correction_notice(item: Mapping[str, Any], recovery: bool) -> str:
             "than retried forever, so fix the CAUSE rather than repeating the same attempt.",
         ]
     )
-    return "\n".join(lines)
+    evidence = "\n".join(lines)
+    return build_fix_it_notice(
+        "Bounded correction",
+        evidence,
+        att_num,
+        budget,
+        recovery=recovery,
+        include_rule=False,
+    )
 
 
 def turn_retry_remedy(labels: "HostLabels | None", id6: str, retry: bool) -> str:
@@ -24368,7 +24445,6 @@ def build_verification_refusal_notice(item: Mapping[str, Any], recovery: bool) -
     refused = attempts[-1].get(VERIFICATION_REFUSED_KEY)
     if not isinstance(refused, Mapping):
         return ""
-    from agent_workflows.render_stream import _redact_absolute_paths
 
     v_code = _redact_absolute_paths(str(refused.get("code") or ""))
     v_reason = _redact_absolute_paths(str(refused.get("reason") or ""))
@@ -24377,10 +24453,6 @@ def build_verification_refusal_notice(item: Mapping[str, Any], recovery: bool) -
     budget = refused.get("budget") or 2
 
     lines = [
-        "",
-        "",
-        f"## Verification failed on the prior attempt ({v_code})",
-        "",
         f"This is verification correction attempt {att_num} of {budget}.",
         "The previous attempt passed turn execution but independent verification was refused:",
         "",
@@ -24399,7 +24471,15 @@ def build_verification_refusal_notice(item: Mapping[str, Any], recovery: bool) -
                 "(for example `python3 -m pytest tests/test_x.py`), not test nodeids or module paths.",
             ]
         )
-    return "\n".join(lines)
+    evidence = "\n".join(lines)
+    return build_fix_it_notice(
+        f"Verification failed on the prior attempt ({v_code})",
+        evidence,
+        att_num,
+        budget,
+        recovery=recovery,
+        include_rule=False,
+    )
 
 
 def handle_verification_refusal(
@@ -24792,6 +24872,7 @@ def build_production_set_correction_prompt(
             )
         lines.append("")
 
+    lines.extend([FIX_IT_RULE_TEXT, ""])
     return "\n".join(lines)
 
 
@@ -24847,6 +24928,7 @@ def build_review_orchestrator_correction_prompt(
                 "",
             ]
         )
+    lines.extend([FIX_IT_RULE_TEXT, ""])
     return "\n".join(lines)
 
 
@@ -30289,11 +30371,20 @@ def build_prompt(
     # path a real run takes. `finalize_refused` works that way only because it is IN that allowlist,
     # and widening the allowlist is `lane_containment`'s scope rather than this plan's. Rendering the
     # packet as its own notice needs no allowlist entry and cannot be silently projected away.
-    correction_notice = (
+    raw_notices = (
         build_correction_notice(item, recovery)
         + build_stale_receipt_notice(item, recovery)
         + build_verification_refusal_notice(item, recovery)
     )
+    # fixfirst Order 03 (mcbph5) E-02: append FIX_IT_RULE_TEXT once to the concatenated notice block
+    if raw_notices:
+        correction_notice = raw_notices + f"\n\n{FIX_IT_RULE_TEXT}"
+    else:
+        correction_notice = ""
+    # fixfirst Order 03 (mcbph5) E-03: The gate-and-tool rule is stated exactly once per prompt.
+    # On a recovery turn carrying a fix-it notice, the rule is rendered in the notice block above;
+    # otherwise (on a first attempt or recovery without a fix-it notice), it is rendered in the body copy here.
+    gate_rule_body = f"\n\n{FIX_IT_RULE_TEXT}\n" if not correction_notice else ""
     return f"""# {labels.product} IPD Driver Turn
 
 Mode: {mode}{lane_notice}{verify_notice}{correction_notice}{isolation_notice}
@@ -30335,9 +30426,10 @@ Continue every independent part of this IPD despite a deferred question.
 
 Maximize safe forward progress. A local failure or unanswered question is not permission
 to abandon independent work. Do not weaken checks, fabricate evidence, broaden approved
-scope, bypass lifecycle controls, discard unrelated work, or push. Do not use git add -A,
-git add ., git commit -a, --no-verify, destructive reset/clean, or stashing that could hide
+scope, bypass lifecycle controls, discard unrelated work, or push.{gate_rule_body}
+Do not use git add -A, git add ., git commit -a, --no-verify, destructive reset/clean, or stashing that could hide
 ownership. Use the lifecycle available at this bootstrap stage and path-scoped commits.
+
 
 If the work is not validly complete, preserve partial work on the branch this turn is already
 on (an attributable isolated branch/worktree) and name that location in your outcome file's
@@ -32316,7 +32408,7 @@ Plan Documents (IPDs) in this repository.
 ## Execution Directives
 1. Execute only the assigned IPD in this turn.
 2. Read the assigned IPD in full, its current orchestrator, repository guidelines, and tests.
-3. Make safe, verifiable forward progress. Do not weaken checks or fabricate evidence.
+3. Make safe, verifiable forward progress. Do not weaken checks or fabricate evidence (see the gate-and-tool rule in your execute prompt).
 4. Commit only files you changed, limited to the paths you name, through `aw commit <plan> -- <paths>` (or `aw commit --no-plan -m <msg> -- <paths>` when no plan governs the change).
 5. Never push to remote.
 6. Write valid outcome JSON before exiting.

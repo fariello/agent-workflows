@@ -6,7 +6,7 @@
 - Scope: Add one message builder, `build_fix_it_notice`, that every fix-it turn uses: what failed (kind, verbatim evidence, attempt n of N), what to do (fix the cause), the gate-and-tool rule, and how to propose (Order 02's `proposal` field). Route the existing notices through it so their specific evidence is kept and the rule text is stated once. Add the same rule, once, to the execute prompt. EXCLUDES new retry classes (Orders 04 to 07) and the proposal mechanism itself (Order 02).
 - Scope-Paths: agent_workflows/runner_shared.py, tests/test_fix_it_notice.py
 - Item-Dependencies: executed:tha7a6
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: high
@@ -18,9 +18,9 @@
 - Highest E allocated: 05
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: mcbph5
-- Approval: 2026-10-09, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-09 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: mcbph5 verified (set fixfirst, attempt 1).
 - 2026-10-09 approved (aw set): status set to approved
 - 2026-10-08 reviewed (aw set): plan-review round 1: APPROVE WITH REVISIONS APPLIED
 - 2026-10-08 /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-006. The three notices are concatenated into one prompt, so the rule is now deduplicated per prompt (`include_rule=False` plus one append at the `build_prompt` assembly site); E-03 handles body-vs-notice duplication and aligns `DEFAULT_RUNBOOK_TEXT`; new E-05/V-05 routes the production, review-orchestrator and merge-conflict (`merge_conflict_question`) correction texts, since the merge send-back is not a notice function; redaction, bound constant, `recovery=False` contract and test-pinned phrases made explicit; tests widened; gate contract added. Review record `.aw/records/reviews/20261007-fixfirst-03-mcbph5-send-one-shared-fix-it-message-that-names-what-failed-and-sa.review.md`.
@@ -38,35 +38,35 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: the builder
 
-- [ ] E-01 In `agent_workflows/runner_shared.py`, add `build_fix_it_notice(kind, evidence, attempt, budget, *, recovery, include_rule=True)` returning the full notice (`""` when `recovery` is False, matching the existing notices' contract that a first-attempt prompt is byte-identical). Define the part (3)/(4) text as ONE module constant (e.g. `FIX_IT_RULE_TEXT`) that E-03 also uses. Pass all agent-visible evidence through the same redaction the existing notices use (`render_stream._redact_absolute_paths`, as `build_verification_refusal_notice` does) so no absolute driver-side path reaches the prompt. It MUST contain, in order: (1) one line naming the failure kind and "attempt n of N"; (2) the evidence verbatim (hook output, exit code and missing file, failing tests, refused finding lines), bounded with a visible elision marker and a pointer to where the full text is; (3) the instruction: "Fix what caused this. Do not change the gate, check, hook or test that refused to make it pass."; (4) the judgement rule, in the maintainer's terms: "Changing a gate or an `aw` tool is normally the job of a plan scoped to change it. If you find a real, small bug in one that is clearly not working as intended, you may fix it, and you must say why in your outcome file and scope reason. For anything material, do not change it: record a `proposal` in your outcome file (what blocked you, why it cannot be fixed in scope, what should change) and stop."; (5) the outcome-file reminder.
+- [x] E-01 In `agent_workflows/runner_shared.py`, add `build_fix_it_notice(kind, evidence, attempt, budget, *, recovery, include_rule=True)` returning the full notice (`""` when `recovery` is False, matching the existing notices' contract that a first-attempt prompt is byte-identical). Define the part (3)/(4) text as ONE module constant (e.g. `FIX_IT_RULE_TEXT`) that E-03 also uses. Pass all agent-visible evidence through the same redaction the existing notices use (`render_stream._redact_absolute_paths`, as `build_verification_refusal_notice` does) so no absolute driver-side path reaches the prompt. It MUST contain, in order: (1) one line naming the failure kind and "attempt n of N"; (2) the evidence verbatim (hook output, exit code and missing file, failing tests, refused finding lines), bounded with a visible elision marker and a pointer to where the full text is; (3) the instruction: "Fix what caused this. Do not change the gate, check, hook or test that refused to make it pass."; (4) the judgement rule, in the maintainer's terms: "Changing a gate or an `aw` tool is normally the job of a plan scoped to change it. If you find a real, small bug in one that is clearly not working as intended, you may fix it, and you must say why in your outcome file and scope reason. For anything material, do not change it: record a `proposal` in your outcome file (what blocked you, why it cannot be fixed in scope, what should change) and stop."; (5) the outcome-file reminder.
   - Depends on: none
   STATE THE BOUND as a named constant (for example 4000 characters), and make the pointer name where the full text lives in terms the agent can read in its lane (e.g. the `Prior attempt:` field or the outcome path), never an absolute run-directory path.
   - Expected outcome: the function returns text containing all five parts for each kind passed; evidence longer than the bound is elided with a marker; `include_rule=False` omits parts (3) and (4) only; `recovery=False` returns `""`; an absolute path in the evidence is redacted.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 Route `build_correction_notice`, `build_stale_receipt_notice` and `build_verification_refusal_notice` through `build_fix_it_notice`, keeping each one's specific evidence and instructions (for example the stale-receipt "UNDO it ... or KEEP it ... and JUSTIFY it") as that kind's evidence and keeping their signatures and their `""`-when-not-relevant behavior unchanged.
+- [x] E-02 Route `build_correction_notice`, `build_stale_receipt_notice` and `build_verification_refusal_notice` through `build_fix_it_notice`, keeping each one's specific evidence and instructions (for example the stale-receipt "UNDO it ... or KEEP it ... and JUSTIFY it") as that kind's evidence and keeping their signatures and their `""`-when-not-relevant behavior unchanged.
   THE THREE ARE CONCATENATED INTO ONE PROMPT (`build_prompt`: `correction_notice = build_correction_notice(...) + build_stale_receipt_notice(...) + build_verification_refusal_notice(...)`), and more than one can be non-empty on the same recovery turn. So "exactly once" is per PROMPT, not per notice: change that one assembly site so the rule is appended once after the concatenation when any of the three is non-empty, and have the three call the builder with `include_rule=False`. That assembly site is the only call-site change.
   PRESERVE THE PHRASES EXISTING TESTS MATCH, and do not edit those tests: `tests/test_finalize_sendback.py` asserts "Change after begin:"; `tests/test_verification_sendback.py` asserts the heading "## Verification failed on the prior attempt (verifier-no-test-evidence)" and its absence on a first prompt. Re-derive the list at execution by grepping `tests/` for each notice's distinctive headings and phrases before editing.
   - Depends on: E-01
   - Expected outcome: each existing notice still contains its specific instruction text; a recovery prompt in which two or three notices are non-empty contains parts (3) and (4) exactly once; a first-attempt prompt is unchanged apart from E-03's single rule; `tests/test_finalize_sendback.py` and `tests/test_verification_sendback.py` pass unmodified.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 Add the part (3)/(4) rule once to the execute prompt (`build_prompt`) next to "Do not weaken checks, fabricate evidence, broaden approved scope", reusing `FIX_IT_RULE_TEXT` so the two cannot drift. On a recovery turn that carries a fix-it notice, the prompt must still contain the rule exactly once: either the body copy or the notice copy is omitted, and which one is stated in the code. Also align `DEFAULT_RUNBOOK_TEXT` directive 3 ("Do not weaken checks or fabricate evidence.") with a one-line pointer to the same rule, so the attached runbook does not read as an absolute prohibition the prompt then relaxes.
+- [x] E-03 Add the part (3)/(4) rule once to the execute prompt (`build_prompt`) next to "Do not weaken checks, fabricate evidence, broaden approved scope", reusing `FIX_IT_RULE_TEXT` so the two cannot drift. On a recovery turn that carries a fix-it notice, the prompt must still contain the rule exactly once: either the body copy or the notice copy is omitted, and which one is stated in the code. Also align `DEFAULT_RUNBOOK_TEXT` directive 3 ("Do not weaken checks or fabricate evidence.") with a one-line pointer to the same rule, so the attached runbook does not read as an absolute prohibition the prompt then relaxes.
   - Depends on: E-01, E-02
   - Expected outcome: a rendered first-attempt execute prompt contains the rule exactly once; a rendered recovery prompt with two non-empty notices contains it exactly once; the runbook text no longer contradicts it.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 Route `build_production_set_correction_prompt` and `build_review_orchestrator_correction_prompt` (the production and review correction turns) and the merge-conflict send-back text built by `merge_conflict_question` through the same rule: each appends `FIX_IT_RULE_TEXT` exactly once, keeping its own heading, findings and instructions byte-identical otherwise. These are the other fix-it texts the runner already sends; leaving them out would make the rule "once" for some fix-it turns and absent for others.
+- [x] E-05 Route `build_production_set_correction_prompt` and `build_review_orchestrator_correction_prompt` (the production and review correction turns) and the merge-conflict send-back text built by `merge_conflict_question` through the same rule: each appends `FIX_IT_RULE_TEXT` exactly once, keeping its own heading, findings and instructions byte-identical otherwise. These are the other fix-it texts the runner already sends; leaving them out would make the rule "once" for some fix-it turns and absent for others.
   - Depends on: E-01
   - Expected outcome: each of the three rendered texts contains the rule exactly once and still contains its existing distinctive phrases (`tests/test_production_correction_turn.py` "never delete the checklist", "child-unauthored", "resolves to no plan on disk" pass unmodified).
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: tests
 
-- [ ] E-04 Add `tests/test_fix_it_notice.py` that calls the builder for every kind Orders 04 to 07 will send (nonzero exit, stall, spawn failure, hook refusal, red suite, out-of-scope, untooled status change, hook bypass) and the three existing notices, and asserts on the returned text: the kind line, the verbatim evidence, the fix-the-cause instruction, the gate-and-tool rule, the proposal instruction, elision of over-long evidence, redaction of an absolute path, and `""` for a non-recovery call. Also render real execute prompts through `build_prompt`: a first attempt, and a recovery attempt whose last attempt carries both a `turn_correction` packet and a stale-receipt `finalize_refused`; assert the rule appears exactly once in each. Render the E-05 texts and assert the rule appears once in each.
+- [x] E-04 Add `tests/test_fix_it_notice.py` that calls the builder for every kind Orders 04 to 07 will send (nonzero exit, stall, spawn failure, hook refusal, red suite, out-of-scope, untooled status change, hook bypass) and the three existing notices, and asserts on the returned text: the kind line, the verbatim evidence, the fix-the-cause instruction, the gate-and-tool rule, the proposal instruction, elision of over-long evidence, redaction of an absolute path, and `""` for a non-recovery call. Also render real execute prompts through `build_prompt`: a first attempt, and a recovery attempt whose last attempt carries both a `turn_correction` packet and a stale-receipt `finalize_refused`; assert the rule appears exactly once in each. Render the E-05 texts and assert the rule appears once in each.
   - Depends on: E-02, E-03, E-05
   - Expected outcome: the module passes; no source introspection.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -124,30 +124,124 @@ N/A: spec `25kzda` 5.5 states the rule (Order 01); this plan implements its text
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste one full rendered notice for a hook refusal, one with elided evidence (showing the marker and the pointer), one whose evidence contained an absolute path (showing it redacted), and the `recovery=False` result.
   - Observed evidence:
-  - Result: pending
+    1. Full rendered notice for hook refusal:
+    ```
+    ## hook refusal (attempt 1 of 2)
 
-- [ ] V-02 validates E-02
+    pre-commit hook refused with exit 1
+
+    Fix what caused this. Do not change the gate, check, hook or test that refused to make it pass.
+
+    Changing a gate or an `aw` tool is normally the job of a plan scoped to change it. If you find a real, small bug in one that is clearly not working as intended, you may fix it, and you must say why in your outcome file and scope reason. For anything material, do not change it: record a `proposal` in your outcome file (what blocked you, why it cannot be fixed in scope, what should change) and stop.
+
+    Record your findings and disposition in your outcome file before exiting.
+    ```
+    2. Elided evidence (showing marker and pointer):
+    ```
+    ## stall (attempt 1 of 2)
+
+    [... 4000 characters of evidence ...]
+    ... [evidence truncated: full text available in `Prior attempt:` or attempt outcome file] ...
+
+    Fix what caused this. Do not change the gate, check, hook or test that refused to make it pass.
+
+    Changing a gate or an `aw` tool is normally the job of a plan scoped to change it. If you find a real, small bug in one that is clearly not working as intended, you may fix it, and you must say why in your outcome file and scope reason. For anything material, do not change it: record a `proposal` in your outcome file (what blocked you, why it cannot be fixed in scope, what should change) and stop.
+
+    Record your findings and disposition in your outcome file before exiting.
+    ```
+    3. Redacted absolute path (/opt/secret/dir/file.py):
+    ```
+    ## nonzero exit (attempt 1 of 2)
+
+    Error at <path>:42
+
+    Fix what caused this. Do not change the gate, check, hook or test that refused to make it pass.
+
+    Changing a gate or an `aw` tool is normally the job of a plan scoped to change it. If you find a real, small bug in one that is clearly not working as intended, you may fix it, and you must say why in your outcome file and scope reason. For anything material, do not change it: record a `proposal` in your outcome file (what blocked you, why it cannot be fixed in scope, what should change) and stop.
+
+    Record your findings and disposition in your outcome file before exiting.
+    ```
+    4. recovery=False result:
+    `""`
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: paste a rendered recovery prompt (via `build_prompt`) carrying both the correction and the stale-receipt notice, with a count of `FIX_IT_RULE_TEXT` occurrences equal to 1, and paste each notice's own instruction text present.
   - Observed evidence:
-  - Result: pending
+    1. Recovery prompt rule count: `rec_prompt.count(FIX_IT_RULE_TEXT)` is 1.
+    2. Stale receipt instruction present: `"The plan text changed after `begin`"`, `"Change after begin:"`, `"Do NOT run `aw ipd begin` or `aw ipd finalize` yourself"`
+    3. Correction packet instruction present: `"Bounded correction"`, `"Address ONLY the failed predicates"`, `"pred_check_ok"`
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: paste the first-attempt execute-prompt excerpt with the rule and a count of 1, the recovery-prompt count of 1, and the amended `DEFAULT_RUNBOOK_TEXT` directive 3.
   - Observed evidence:
-  - Result: pending
+    1. First-attempt execute prompt rule count is 1.
+    Excerpt:
+    ```
+    Maximize safe forward progress. A local failure or unanswered question is not permission
+    to abandon independent work. Do not weaken checks, fabricate evidence, broaden approved
+    scope, bypass lifecycle controls, discard unrelated work, or push.
 
-- [ ] V-04 validates E-04
+    Fix what caused this. Do not change the gate, check, hook or test that refused to make it pass.
+
+    Changing a gate or an `aw` tool is normally the job of a plan scoped to change it. If you find a real, small bug in one that is clearly not working as intended, you may fix it, and you must say why in your outcome file and scope reason. For anything material, do not change it: record a `proposal` in your outcome file (what blocked you, why it cannot be fixed in scope, what should change) and stop.
+
+    Do not use git add -A, git add ., git commit -a, --no-verify, destructive reset/clean, or stashing that could hide
+    ownership. Use the lifecycle available at this bootstrap stage and path-scoped commits.
+    ```
+    2. Recovery-prompt rule count is 1.
+    3. Amended `DEFAULT_RUNBOOK_TEXT` directive 3:
+    `3. Make safe, verifiable forward progress. Do not weaken checks or fabricate evidence (see the gate-and-tool rule in your execute prompt).`
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: paste the passing run of the five named modules with per-test counts, `git diff --stat tests/` showing only `tests/test_fix_it_notice.py` changed, and the bare-suite summary line with before and after failing node IDs.
   - Observed evidence:
-  - Result: pending
+    1. Five named modules passing run:
+    ```
+    tests/test_production_correction_turn.py .........                       [  9%]
+    tests/test_finalize_sendback.py ........................................ [ 53%]
+    ....................                                                     [ 75%]
+    tests/test_fix_it_notice.py ...............                              [ 91%]
+    tests/test_prior_attempt_projection.py ..                                [ 93%]
+    tests/test_verification_sendback.py ......                               [100%]
 
-- [ ] V-05 validates E-05
+    ============================= 92 passed in 40.46s ==============================
+    ```
+    2. Tests diff: `git status --short tests/` shows only `?? tests/test_fix_it_notice.py` added; existing 4 test files unmodified.
+    3. Bare-suite summary line:
+    - Before edit: `1 failed, 7028 passed, 2 skipped, 3 warnings in 846.39s (0:14:06)`
+    - After edit:  `1 failed, 7043 passed, 2 skipped, 3 warnings in 187.83s (0:03:07)`
+    - Failing node ID before and after: `FAILED tests/test_runwire_verifier_authority.py::test_collision_guard_bites_by_mutation`
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: paste the tail of each of the three rendered texts (production Set correction, review-orchestrator correction, merge-conflict question) showing the rule once, and the passing `tests/test_production_correction_turn.py` run.
   - Observed evidence:
-  - Result: pending
+    1. Production Set correction tail:
+    ```
+    Changing a gate or an `aw` tool is normally the job of a plan scoped to change it. If you find a real, small bug in one that is clearly not working as intended, you may fix it, and you must say why in your outcome file and scope reason. For anything material, do not change it: record a `proposal` in your outcome file (what blocked you, why it cannot be fixed in scope, what should change) and stop.
+    ```
+    Rule count: 1
+
+    2. Review Orchestrator correction tail:
+    ```
+    Changing a gate or an `aw` tool is normally the job of a plan scoped to change it. If you find a real, small bug in one that is clearly not working as intended, you may fix it, and you must say why in your outcome file and scope reason. For anything material, do not change it: record a `proposal` in your outcome file (what blocked you, why it cannot be fixed in scope, what should change) and stop.
+    ```
+    Rule count: 1
+
+    3. Merge conflict question tail:
+    ```
+    Changing a gate or an `aw` tool is normally the job of a plan scoped to change it. If you find a real, small bug in one that is clearly not working as intended, you may fix it, and you must say why in your outcome file and scope reason. For anything material, do not change it: record a `proposal` in your outcome file (what blocked you, why it cannot be fixed in scope, what should change) and stop.
+    ```
+    Rule count: 1
+
+    4. `tests/test_production_correction_turn.py` passed: 9 passed.
+  - Result: pass
 
 ## Approval and execution gate
 
