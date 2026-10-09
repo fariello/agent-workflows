@@ -100,6 +100,13 @@ ALLOWLIST: tuple[AllowlistEntry, ...] = (
             "in runner_shared that neither host reaches (plan vbhat9 E-02/E-03)."
         ),
     ),
+    AllowlistEntry(
+        path="tests/test_no_unbounded_section_reads.py",
+        reason=(
+            "AST analyzer refusing marker-located unbounded section reads in test modules "
+            "(plan jj5ju1); inspects test source ASTs and documents its own scope and known holes."
+        ),
+    ),
 )
 
 

@@ -3559,7 +3559,9 @@ class MachineOutputPurityAndFailLoudDetailTests(unittest.TestCase):
         stdout = res_f.stdout.strip()
         idx = stdout.find("{")
         self.assertNotEqual(idx, -1, f"no JSON object found in stdout: {stdout}")
-        data = json.loads(stdout[idx:])
+        data = json.loads(
+            stdout[idx:]
+        )  # aw-unbounded-ok: JSON payload recovery from CLI stdout, json.loads enforces EOF
 
         summary = data.get("summary", "")
         diag_details = [d.get("detail", "") for d in data.get("diagnostics", [])]

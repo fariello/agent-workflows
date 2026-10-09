@@ -28,6 +28,7 @@ import unittest
 
 from agent_workflows import ipd_authoring as A
 from agent_workflows import ipd_schema as S
+from tests import support
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 WORKFLOWS_DIR = REPO_ROOT / ".aw" / "system" / "workflows"
@@ -52,16 +53,7 @@ class TestVItemDemonstrationReachability(unittest.TestCase):
     def test_single_file_plan_review_reachability_rule(self) -> None:
         """Assert single-file plan-review.md carries the reachability rule in rubric G."""
         content = PLAN_REVIEW_FILE.read_text(encoding="utf-8")
-
-        start_heading = "### G. Plan executability"
-        start_idx = content.find(start_heading)
-        self.assertNotEqual(
-            start_idx, -1, f"Missing heading '{start_heading}' in {PLAN_REVIEW_FILE}"
-        )
-
-        next_heading = "\n## "
-        end_idx = content.find(next_heading, start_idx)
-        section_g = content[start_idx:end_idx] if end_idx != -1 else content[start_idx:]
+        section_g = support.section(content, "### G. Plan executability", "## ")
 
         for phrase in REACHABILITY_ANCHOR_PHRASES:
             self.assertIn(
@@ -80,16 +72,7 @@ class TestVItemDemonstrationReachability(unittest.TestCase):
         accessibility text; we specifically slice on '## A. Plan completeness'.
         """
         content = REVIEW_RUBRIC_FILE.read_text(encoding="utf-8")
-
-        start_heading = "## A. Plan completeness"
-        start_idx = content.find(start_heading)
-        self.assertNotEqual(
-            start_idx, -1, f"Missing heading '{start_heading}' in {REVIEW_RUBRIC_FILE}"
-        )
-
-        next_heading = "\n## "
-        end_idx = content.find(next_heading, start_idx + len(start_heading))
-        section_a = content[start_idx:end_idx] if end_idx != -1 else content[start_idx:]
+        section_a = support.section(content, "## A. Plan completeness", "## ")
 
         for phrase in REACHABILITY_ANCHOR_PHRASES:
             self.assertIn(

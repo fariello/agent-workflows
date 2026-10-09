@@ -219,6 +219,7 @@ The gate has five honest limits:
 - Tests assert behavior, never code structure: follow `GUIDING_PRINCIPLES.md` P16
   ("Test outcomes and behavior, never code structure or text"); the mechanical guard
   in `tests/test_no_code_structure_pins.py` refuses new production-source reads in tests.
+- Tests reading markdown sections: a test that locates a section by a marker must establish where the section ends; use `tests/support.py` (`section`, `final_section`, `section_lines`) rather than reading to end of input; the author-time guard in `tests/test_no_unbounded_section_reads.py` refuses new marker-located unbounded section reads.
 - Tabulated and table-driven tests: follow the conventions in `GUIDING_PRINCIPLES.md`
   P16 ("Tabulated and table-driven tests (accumulate versus subTest)") for the row
   shape, the mandatory `why` column, when to tabulate, and runner-dependent row

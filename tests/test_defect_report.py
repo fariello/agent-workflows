@@ -112,7 +112,9 @@ class PromptDemandTests(unittest.TestCase):
             # plan tr8ugt (secbound Order 02): unbounded tail slice is load-bearing;
             # this asserts that the reporting contract is strictly the last element in prompt.
             self.assertEqual(
-                prompt[start:].strip("\n"),
+                prompt[start:].strip(
+                    "\n"
+                ),  # aw-unbounded-ok: prompt tail asserts reporting contract is strictly terminal
                 RC.contract_text().strip("\n"),
                 f"{mod.__name__}: text was added AFTER the reporting contract",
             )

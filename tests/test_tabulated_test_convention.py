@@ -18,6 +18,8 @@ from __future__ import annotations
 from pathlib import Path
 import unittest
 
+from tests import support
+
 # Distinctive anchor phrases for each of the four load-bearing rules:
 # 1. The canonical row shape citation from test_ipd_lint.py RULES comment.
 # 2. The mandatory why column rendering in failure messages.
@@ -44,29 +46,13 @@ class TestTabulatedTestConvention(unittest.TestCase):
 
         # Locate section 16 by heading boundary
         p16_heading = "## 16. Test outcomes and behavior, never code structure or text"
-        p16_idx = content.find(p16_heading)
-        self.assertNotEqual(
-            p16_idx,
-            -1,
-            f"Missing heading '{p16_heading}' in {GUIDING_PRINCIPLES_FILE.name}",
-        )
-
-        # Bounding rule: P16 is the last principle in GUIDING_PRINCIPLES.md and ends at EOF.
-        # Tolerate the absence of a following '## ' heading.
-        next_heading = "\n## "
-        end_idx = content.find(next_heading, p16_idx + len(p16_heading))
-        section_16 = content[p16_idx:end_idx] if end_idx != -1 else content[p16_idx:]
+        section_16 = support.final_section(content, p16_heading, next_marker="## ")
 
         # Locate the subsection heading
         subheading = "### Tabulated and table-driven tests (accumulate versus subTest):"
-        subheading_idx = section_16.find(subheading)
-        self.assertNotEqual(
-            subheading_idx,
-            -1,
-            f"Subsection heading '{subheading}' not found inside P16 of {GUIDING_PRINCIPLES_FILE.name}",
+        subsection_content = support.final_section(
+            section_16, subheading, next_marker="### "
         )
-
-        subsection_content = section_16[subheading_idx:]
 
         # Assert every anchor phrase is present in the subsection
         for phrase in ANCHOR_PHRASES:
@@ -82,18 +68,7 @@ class TestTabulatedTestConvention(unittest.TestCase):
 
         # Locate ## Authoring conventions
         heading = "## Authoring conventions"
-        heading_idx = content.find(heading)
-        self.assertNotEqual(
-            heading_idx,
-            -1,
-            f"Missing heading '{heading}' in {CONTRIBUTING_FILE.name}",
-        )
-
-        next_heading = "\n## "
-        end_idx = content.find(next_heading, heading_idx + len(heading))
-        section = (
-            content[heading_idx:end_idx] if end_idx != -1 else content[heading_idx:]
-        )
+        section = support.section(content, heading, "## ")
 
         # Assert pointer exists and points to the P16 subsection title
         pointer_title = "Tabulated and table-driven tests (accumulate versus subTest)"
