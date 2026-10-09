@@ -6,7 +6,7 @@
 - Scope: Change `status_set.run_set_command`'s per-record pre-flight gates so each records a refusal instead of returning, then: when some records are refused and others pass, on an interactive human terminal show the refused records with their reasons and ask whether to apply the rest; with `--skip-refused`, apply the rest without asking; otherwise (non-interactive, `--agent`/`--json`, or `--dry-run` without the flag) keep today's all-or-nothing refusal. Exit 1 whenever records were skipped. Declare `--skip-refused` on every setter spelling that routes through `run_set_command`. EXCLUDES: changing what any gate decides; the refusal wording and styling owned by `juu1rj`; and whole-command refusals (no selector match, id6 collision, ambiguous substring without `--force`, cross-type fan-out, scoped-type mismatch, the up-front flag-value validations, and the plan `executed` delegation to finalize), which keep returning immediately.
 - Scope-Paths: agent_workflows/status_set.py, agent_workflows/cli.py, tests/test_status_set_partial_batch.py, CHANGELOG.md
 - Item-Dependencies: executed:juu1rj
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -16,9 +16,9 @@
 - Highest E allocated: 05
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: f42oxd
-- Approval: 2026-10-09, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-09 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: f42oxd verified (set setbatch, attempt 1).
 - 2026-10-09 approved (aw set): status set to approved
 - 2026-10-08 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-001..PR-010 FIXED
 - 2026-10-08 /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001 (HIGH, fixed: per-gate exit codes 1 vs 2 preserved, all-refused rule defined), PR-002 (HIGH, fixed: never prompt under --agent/--json, dry-run defined), PR-003 (HIGH, fixed: Item-Dependencies executed:juu1rj, preserve its wording), PR-004 (MEDIUM, fixed: --skip-refused carried through _retry_command), PR-005 (MEDIUM, fixed: aw prompts set added to the flag surface), PR-006 (MEDIUM, fixed: agent result shape and per-gate rule ids specified), PR-007 (MEDIUM, fixed: prompt mechanism and test interactivity demonstrated, CI env scrubbed), PR-008 (MEDIUM, fixed: existing gate suites added to validation), PR-009 (LOW, fixed: garbled scope sentence, one reason per record), PR-010 (LOW, fixed: execution contract). Record: `.aw/records/reviews/20261007-setbatch-01-f42oxd-ask-before-applying-the-rest-of-a-status-batch-when-some-pla.review.md`.
