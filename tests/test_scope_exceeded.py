@@ -14,7 +14,6 @@ from __future__ import annotations
 
 import io
 import json
-import os
 import subprocess
 import tempfile
 import unittest
@@ -51,14 +50,8 @@ class TestScopeExceededMetadataAndSendBack(unittest.TestCase):
         run_id = "run-test-20261009"
         run_dir = self.root / ".aw" / "records" / "runs" / run_id
         run_dir.mkdir(parents=True, exist_ok=True)
-        self.attestation = LC.mint_driver_attestation(run_dir)
-        self._attest_patcher = unittest.mock.patch.dict(
-            os.environ, {LC.DRIVER_ATTEST_ENV: self.attestation}
-        )
-        self._attest_patcher.start()
 
     def tearDown(self) -> None:
-        self._attest_patcher.stop()
         self._tmp.cleanup()
 
     def _setup_lane_and_plan(
