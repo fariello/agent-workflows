@@ -1,5 +1,5 @@
 - Id: ye28s6
-- Status: graduated
+- Status: done
 - Graduated-To: runledger
 - Set: runwire
 - Priority: medium
@@ -7,6 +7,7 @@
 - Summary: Decide whether a driver run writes a hash-chained ledger, which is what makes run_engine and run_recovery reachable at all
 
 ## Workflow history
+- 2026-10-09 done (aw backlog): closed by aw agy run: IPD rdjka2 executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20261002-runledger-01-rdjka2-decide-whether-a-driver-run-writes-a-hash-chained-ledger-and.ipd.md); evidence .aw/records/plans/executed/20261002-runledger-01-rdjka2-decide-whether-a-driver-run-writes-a-hash-chained-ledger-and.ipd.md
 - 2026-10-02 graduated (aw backlog): graduated by run run-20261001T221821Z-1985969: rdjka2
 - 2026-09-30 created (aw backlog): Filed while authoring Set runwire from backlog ildjse: the Set wires run_state and verify_roles into the runners but CANNOT wire run_recovery, because its whole API takes a run_engine.RunEngine and calls reconstruct_state(), RunEngine requires a RunLedgerStore over a ledger.jsonl, and no driver run writes one. This item exists so that residual has a durable carrier rather than living only in an executed plan's prose.
 
