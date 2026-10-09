@@ -1,7 +1,7 @@
 # Spec: Canonical status-setter dispatch: one engine per set verb
 
 - Date: 2026-10-01
-- Status: reviewed
+- Status: approved
 - Id: wy9aru
 - Author: opencode/its_direct/pt3-claude-opus-5-1m-us
 - From-Backlog: fcnz1r
@@ -31,6 +31,7 @@
   Section 6 records.
 
 ## Workflow history
+- 2026-10-09 approved (aw set, --by-human): status set to approved
 - 2026-10-09 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; SR-001..SR-007 FIXED; OQ-1 (keep sidecar, type-conditional) and OQ-2 (widen selectors) resolved by the maintainer
 
 - 2026-10-09 note (aw specs): /spec-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; SR-001..SR-007 FIXED
