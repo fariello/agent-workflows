@@ -314,7 +314,9 @@ class FinalizeEmptyDeclaredScopeTests(unittest.TestCase):
         hist_line = next(
             line for line in executed_vol.splitlines() if "Scope delta" in line
         )
-        delta_note = hist_line[hist_line.index("[Scope delta") :]
+        delta_note = support.final_section(
+            hist_line, "[Scope delta", next_marker="\n", anchored=False
+        )
         self.assertIn("8 declared path(s)", delta_note)
         self.assertIn("3 more", delta_note)
         named_in_note = sum(1 for p in paths if p in delta_note)
@@ -327,6 +329,8 @@ class FinalizeEmptyDeclaredScopeTests(unittest.TestCase):
         commit_note_line = next(
             line for line in commit_msg.splitlines() if "Scope delta" in line
         )
-        commit_delta_note = commit_note_line[commit_note_line.index("[Scope delta") :]
+        commit_delta_note = support.final_section(
+            commit_note_line, "[Scope delta", next_marker="\n", anchored=False
+        )
         named_in_commit = sum(1 for p in paths if p in commit_delta_note)
         self.assertEqual(named_in_commit, 5)
