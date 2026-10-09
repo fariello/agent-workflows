@@ -40,42 +40,42 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: make the policy expressible
 
-- [ ] E-01 RE-DERIVE THE CENSUS AND RECORD IT IN THIS PLAN'S EVIDENCE, NOT IN ANY SOURCE FILE, before touching a helper. The point is to act on YOUR measurement rather than on this plan's prose, because every prior figure has rotted: `resolve_verb_repo_root`'s docstring records 64 sites across 21 modules, `lmyeas` measured 78/24 at authoring and 88/26 at review, and this plan measured 91 lines across 25 modules with 46 AST invocations across 24 modules one day later (F-06).
+- [x] E-01 RE-DERIVE THE CENSUS AND RECORD IT IN THIS PLAN'S EVIDENCE, NOT IN ANY SOURCE FILE, before touching a helper. The point is to act on YOUR measurement rather than on this plan's prose, because every prior figure has rotted: `resolve_verb_repo_root`'s docstring records 64 sites across 21 modules, `lmyeas` measured 78/24 at authoring and 88/26 at review, and this plan measured 91 lines across 25 modules with 46 AST invocations across 24 modules one day later (F-06).
   CLASSIFY EACH HELPER BY WHETHER ITS CALLERS DISAGREE, which is the only question the split turns on. For each helper that wraps the resolver, enumerate its callers and determine for each whether that verb MUTATES the records tree. A helper whose callers are all read-class or all write-class needs NO split. Do NOT classify by scanning a function body for a write marker and stopping there: a verb that delegates its mutation to a helper looks read-only to a shallow scan, and a verb that merely calls `subprocess` or `mkdir` for an unrelated reason looks write-class. Read the verbs. This plan's own first pass made exactly that error in both directions and had to be redone by reading (F-02).
   DO NOT WRITE THE FIGURE INTO `resolve_verb_repo_root`'s DOCSTRING. That docstring already carries a measured figure and an instruction to re-derive rather than trust it; updating it is not this plan's job and would put a number that rots on the critical path of a file this plan otherwise does not touch.
   - Depends on: none
   - Expected outcome: a pasted census in V-01 naming every helper that wraps the resolver, its callers, each caller's read/write class with the reading that settled it, and the resulting list of helpers that genuinely need splitting; no source file is modified by this item.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 SPLIT THE MIXED HELPERS INTO A READ-CLASS AND A WRITE-CLASS ENTRY POINT, for exactly those helpers E-01 measured as mixed. As measured at authoring that is the three named in F-01, whose read and write callers are enumerated there rather than repeated here. TRUST E-01'S FRESH MEASUREMENT OVER F-01'S LIST if they disagree.
+- [x] E-02 SPLIT THE MIXED HELPERS INTO A READ-CLASS AND A WRITE-CLASS ENTRY POINT, for exactly those helpers E-01 measured as mixed. As measured at authoring that is the three named in F-01, whose read and write callers are enumerated there rather than repeated here. TRUST E-01'S FRESH MEASUREMENT OVER F-01'S LIST if they disagree.
   THE SPLIT IS THE DELIVERABLE AND THE REFUSAL IS NOT PART OF IT. Keep both entry points behaviorally IDENTICAL in this item: same resolution, same return shape, no guard yet. That makes this item a pure, reviewable refactor whose correctness is "nothing changed", verified by the suite, and it keeps a resolution change and a behavior change out of one step. E-03 then adds the refusal to the read entry point only.
   NAME THEM SO THE CLASS IS OBVIOUS AT THE CALL SITE, since the entire value is that a later reader can see which policy a verb is under without tracing the helper. Give each a short docstring saying which class it serves, that the read one refuses a non-surveyable root (after E-03) and the write one deliberately does not, and WHY the write one does not, pointing at `resolve_verb_repo_root`'s recorded decision rather than re-arguing it.
   - Depends on: E-01
   - Expected outcome: each mixed helper replaced by two entry points, one per class, with every caller moved to the one matching its class and both behaviorally identical to the original; the full suite green with no behavior change; single-class helpers left alone.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: apply the policy to the read side
 
-- [ ] E-03 ADD THE REFUSAL TO THE READ-CLASS VERBS the split helpers now serve, using Order 01's primitive: `releases.run_list`, `releases.run_show`, `research_refs.run_check_refs` and `research_archive.run_check_miscategorized` as measured, plus any further read verb E-01 identifies. Refuse at exit 2 with the human text naming the enclosing root and the literal corrected command, or a path-free `cannot-run` record on the machine surface.
+- [x] E-03 ADD THE REFUSAL TO THE READ-CLASS VERBS the split helpers now serve, using Order 01's primitive: `releases.run_list`, `releases.run_show`, `research_refs.run_check_refs` and `research_archive.run_check_miscategorized` as measured, plus any further read verb E-01 identifies. Refuse at exit 2 with the human text naming the enclosing root and the literal corrected command, or a path-free `cannot-run` record on the machine surface.
   `research_refs.run_check_refs` IS THE HIGHEST-VALUE ONE HERE and should be treated as such: it is a fail-closed reference CHECKER, so like Order 02's two validators its false clean answer is a positive claim about work it never did. The others are listing verbs, where an empty list is a milder wrong answer. Stated so an executor under time pressure knows which one must not be dropped.
   GUARD ON THE RESOLVED ROOT, NOT ON `--dir`, matching sibling `jei45f` OQ-02: pass `bool(getattr(args, "dir", None))` as the explicit flag so the primitive picks the right text, and refuse whenever the resolved root is not a project root, so a bare invocation outside any project refuses too. AND MATCH EACH VERB'S EXISTING OUTPUT SURFACE: `run_check_miscategorized` has NO `--agent` branch today (it `print`s `no miscategorized (archived-but-cited) docs` and returns 0 or 1, measured), so its refusal is HUMAN-ONLY (stderr text, exit 2); do NOT add a machine surface to it in this item, which would be an unrequested output-contract change. The other three already emit `aw.agent/v1` records and get both surfaces.
   REPAIR THE ONE SHIPPED FIXTURE THIS BREAKS, measured at review (F-10): `tests/test_agent_field_projection.py::test_cli_projection_releases_show_retains_next` runs `releases show zzzzzz --dir <bare tmp_path> --agent` and asserts `next == "aw releases list"`, which holds only because `run_show` greenwashes a non-project. Make its `tmp_path` a real minimal project (create `.aw/records/releases` under it) so it keeps testing projection; do NOT change its assertions. Re-derive the list from your own suite delta.
   DO NOT ADD THE REFUSAL TO ANY WRITE VERB. `releases.run_new`, `research_refs.run_set_assign`, `research_refs.run_mv`, `research_archive.run_archive` and `research_archive.run_promote` keep today's behavior exactly. `lmyeas` OQ-01 decided this from measured evidence and F-05 re-measures the strongest reason: a write verb given a non-project `--dir` fails LOUDLY AND LOCALLY at a path the operator can read, and nothing enters the real records tree. There is no greenwashing defect on that side to fix.
   - Depends on: E-02
   - Expected outcome: each converted read verb refuses at exit 2 for a non-surveyable resolved root (explicit `--dir` subdirectory AND bare outside any project) with the root-naming human text, and with a path-free `cannot-run` record on the machine surface for the three verbs that have one (`check-miscategorized` stays human-only); every write verb's behavior is byte-identical to before; every surveyable-root output is unchanged; and `test_agent_field_projection.py` passes with only its fixture repaired.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 REFACTOR `attention.run` AND `cli._run_plans` ONTO ORDER 01'S PRIMITIVE, retiring the two hand-rolled refusal blocks so the refusal has exactly ONE definition in the package. This is the item Order 01 deliberately deferred, and it is last on purpose: by now the primitive has been exercised by Orders 02 and 03, so the risk of a shared-emitter bug surfacing first on two shipped surfaces is gone.
+- [x] E-04 REFACTOR `attention.run` AND `cli._run_plans` ONTO ORDER 01'S PRIMITIVE, retiring the two hand-rolled refusal blocks so the refusal has exactly ONE definition in the package. This is the item Order 01 deliberately deferred, and it is last on purpose: by now the primitive has been exercised by Orders 02 and 03, so the risk of a shared-emitter bug surfacing first on two shipped surfaces is gone.
   THE BAR HERE IS BYTE-IDENTICAL OUTPUT, NOT MERELY EQUIVALENT. These two surfaces carry wording `lmyeas` E-03 corrected (removing the false `agent-workflows is not installed in it` claim and the `aw install <root>` offer for an installed project) and are pinned by `tests/test_explicit_dir_subdir_resolution.py`, `tests/test_explicit_dir_non_project.py` and `tests/test_no_project_exit_is_cannot_run.py`. If the primitive cannot reproduce a case byte-for-byte, FIX THE PRIMITIVE OR LEAVE THAT CALL SITE ALONE and say so; do not adjust the shipped wording to match the primitive, and do not weaken a test to accommodate a difference.
   PRESERVE THE FOUR THINGS THESE SITES DO THAT THE PRIMITIVE DOES NOT. `attention.run`'s `--check` early return (a bare invocation that found no project returns 0 with `the view is valid`, which is a deliberate non-refusal), its machine-summary emission via `get_renderer`, the `ipd board` verb STRING in `cli._run_plans` (deliberately not `plans`, because `aw plans` is not a registered command), and the `EXIT_CANNOT_RUN` return value. The primitive supplies the STRINGS; these call sites keep their own control flow.
   - Depends on: E-03
   THE BYTE-IDENTICAL BAR REQUIRES A CAPTURE TAKEN BEFORE THE EDIT. Capture the human stderr and `--agent` stdout of `aw attention` and `aw ipd board` for the three cases into files under `tempfile` BEFORE touching either site, then capture again after on the SAME fixture and `diff` them, so no normalization is needed.
   - Expected outcome: both sites call the primitive instead of building the message, summary and next-action inline; the three shipped `--dir` test files pass UNMODIFIED; `attention --check`'s bare no-project exit-0 path, the `ipd board` verb string and the cannot-run exit are preserved; and the human and machine output for every case is byte-identical to before the refactor.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: pin it
 
-- [ ] E-05 ADD A REGRESSION TEST in a new `tests/test_read_class_callers_refuse.py` driving the real CLI in a SUBPROCESS, with every fixture under `tempfile` seeded with `--records-backend repository` and real artifacts (F-07 records that a non-interactive install otherwise writes records under `$HOME` and makes every control vacuous).
+- [x] E-05 ADD A REGRESSION TEST in a new `tests/test_read_class_callers_refuse.py` driving the real CLI in a SUBPROCESS, with every fixture under `tempfile` seeded with `--records-backend repository` and real artifacts (F-07 records that a non-interactive install otherwise writes records under `$HOME` and makes every control vacuous).
   THE FIXTURE RECIPE MUST BE COMPLETE, measured at review (sibling `jei45f` F-10): `--records-backend repository` alone installs NOTHING with stdin closed; use `aw install . --yes --preset local-only --delivery-mode tracked --records-backend repository`, or hand-build `.aw/records/...`. Point `HOME` at a `tempfile` dir in the subprocess env. SEED A NONZERO OBSERVABLE PER READ VERB so the root control is not vacuous: one release record for `releases list`/`show`, one DANGLING citation for `research check-refs` (so the root returns exit 1 with `dangling_count >= 1` and the subdirectory's BEFORE clean answer is visibly false), and one archived-but-cited research doc for `check-miscategorized`. Measured at review on an empty installed fixture, all four read verbs answer clean at both `--dir <root>` and `--dir <deep>` (F-09), so without seeded data the matrix cannot distinguish right from wrong.
   COVER EACH CONVERTED READ VERB on the human and (where it exists) `--agent` surfaces for a non-surveyable `--dir`, and for a BARE invocation with `cwd` outside any project: exit 2, human text naming the enclosing root and containing the literal corrected command, machine record `kind:"error"` / `outcome:"cannot-run"`, and the greenwash negative (no positive outcome and no `verified:true` over a zero count).
   AND COVER EACH WRITE VERB AS A NEGATIVE CONTROL, which is the assertion that makes this plan's policy claim checkable rather than asserted: for `releases new`, `research mv` / `research set-assign` and `research archive` / `promote`, assert the behavior is UNCHANGED for a non-surveyable `--dir`, in PREVIEW mode where one exists so nothing is written. A test that only pins the read refusals would pass while a write verb had silently been given a refusal it must not have.
@@ -86,7 +86,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   PROVE THE TEST CAN FAIL. Paste a mutation run: remove the refusal from `research_refs.run_check_refs` so it reports clean over an unsurveyed tree, show this file FAILING, revert, and show it green again. Paste a SECOND mutation for the write-side control: add a refusal to `releases.run_new`, show the negative-control test FAILING, and revert.
   - Depends on: E-04
   - Expected outcome: a new passing test file pinning every converted read verb's refusal on both surfaces, every write verb's unchanged behavior as a negative control, the unchanged write targets for a surveyable root, agent-record validity with no path leak, no source-structure assertions, and TWO pasted mutations (one read-side, one write-side) proving both directions of the policy are enforced.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -191,33 +191,258 @@ THIS IS THE POINT IN THE SET WHERE A SPEC WOULD BECOME DEFENSIBLE, AND IT IS STI
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste the census YOU took at execution time, DATED: the `grep -rn --include=*.py resolve_verb_repo_root agent_workflows/` line count, the `-l` module count, and an AST invocation census per module with each invocation's enclosing function name. Paste the PER-HELPER CALLER CLASSIFICATION: for every helper that wraps the resolver, its callers, each caller's read/write class, and THE READING THAT SETTLED IT (quote the mutation in each write verb, or state what the read verb returns). CONFIRM IN WRITING which helpers are genuinely MIXED and therefore need splitting, and which are single-class and must be left alone. STATE EXPLICITLY whether your measurement agrees with this plan's (three mixed: `releases._release_repo_root`, `research_refs._repo_root`, `research_archive._roots`; three named-by-the-item but single-class: `plans_index._dirs`, `prompts_index._dirs`, `research_index._roots`) and if it DISAGREES, follow your own measurement and say so. CONFIRM NO SOURCE FILE WAS MODIFIED by this item: paste `git status --porcelain` showing a clean tree.
   - Observed evidence:
-  - Result: pending
+    Execution-time census (2026-10-09):
+    ```
+    $ grep -rn --include=*.py resolve_verb_repo_root agent_workflows/ | wc -l
+    108
+    $ grep -rn --include=*.py resolve_verb_repo_root agent_workflows/ -l | wc -l
+    26
+    ```
+    AST Invocation census (56 invocations across 25 modules):
+    - agent_workflows/project_context.py (1): `nonsurveyable_root_refusal`
+    - agent_workflows/agent_field_projection.py (1): `_projection_dir`
+    - agent_workflows/specs.py (3): `_spec_repo_root`, `run_new`, `run_rename`
+    - agent_workflows/backlog.py (5): `_backlog_repo_root`, `run_new`, `run_rename`, `run_graduate`, `run_retire`
+    - agent_workflows/prompts_index.py (1): `_dirs`
+    - agent_workflows/run_cli.py (6): `_projection_dir`, `run_plan_lane`, `run_lane_worktree`, `run_run`, `run_recovery`, `run_driver`
+    - agent_workflows/research_index.py (1): `_roots`
+    - agent_workflows/doctor.py (2): `run_doctor`, `_doctor_repo_root`
+    - agent_workflows/research_cmd.py (2): `run_new`, `run_new_comparison`
+    - agent_workflows/research_refs.py (2): `_read_repo_root`, `_write_repo_root`
+    - agent_workflows/plans_index.py (1): `_dirs`
+    - agent_workflows/status_set.py (3): `_repo_root`, `run_set`, `run_note`
+    - agent_workflows/research_archive.py (1): `_read_roots` / `_write_roots`
+    - agent_workflows/attention.py (5): `run`, `item_for_path`, `_order_key`, `sort_items_with_notices`, `_run_query`
+    - agent_workflows/cli.py (4): `_run_plans`, `_nv_backend_args`, `_run_noun_verb`, `_main_dispatch`
+    - agent_workflows/releases.py (2): `_release_read_repo_root`, `_release_write_repo_root`
+    - agent_workflows/plans_refs.py (2): `_repo_root`, `run_rename`
+    - agent_workflows/plans_archive.py (2): `_dirs`, `run_archive`
+    - agent_workflows/prompts.py (2): `run_new`, `_prompt_repo_root`
+    - agent_workflows/init_cli.py (1): `run_init`
+    - agent_workflows/install.py (1): `run_install`
+    - agent_workflows/ipd_board.py (1): `run_board`
+    - agent_workflows/ipd_lifecycle.py (3): `run_begin`, `run_finalize`, `_lifecycle_repo_root`
+    - agent_workflows/comms_shared.py (2): `_repo_root`, `run_send`
+    - agent_workflows/comms_untracked.py (2): `_repo_root`, `run_send`
 
-- [ ] V-02 validates E-02
+    Per-helper caller classification:
+    1. `releases._release_repo_root`:
+       - `run_list`: read (returns exit 0 or 2, queries `list_releases` and `describe_planned_release`, no writes)
+       - `run_show`: read (returns exit 0 or 2, queries `get_release` and `get_release_blockers`, no writes)
+       - `run_new`: write (`dest.parent.mkdir(parents=True, exist_ok=True)` and `dest.write_text(doc, encoding="utf-8")`)
+       -> genuinely MIXED. Needs split into `_release_read_repo_root` and `_release_write_repo_root`.
+    2. `research_refs._repo_root`:
+       - `run_check_refs`: read (returns exit 0 or 1, queries `find_dangling_citations`, no writes)
+       - `run_set_assign`: write (returns `MutationResult`, writes modified research files via `apply_plan`)
+       - `run_mv`: write (returns `MutationResult`, moves files via `apply_mv`)
+       -> genuinely MIXED. Needs split into `_read_repo_root` and `_write_repo_root`.
+    3. `research_archive._roots`:
+       - `run_check_miscategorized`: read (returns exit 0 or 1, queries `find_miscategorized`, no writes)
+       - `run_archive`: write (moves records via `apply_moves`)
+       - `run_promote`: write (moves records via `apply_moves`)
+       -> genuinely MIXED. Needs split into `_read_roots` and `_write_roots`.
+    4. `plans_index._dirs`:
+       - callers: `run_index`, `run_find`, `run_pending`. Index verbs regenerate `INDEX.json`/`INDEX.md`. Single-class (write). Left alone.
+    5. `prompts_index._dirs`:
+       - caller: `run_index` (1 caller). Single-class (write). Left alone.
+    6. `research_index._roots`:
+       - callers: `run_index`, `run_find`, `run_pending`. Index verbs regenerate `INDEX.json`/`INDEX.md`. Single-class (write). Left alone.
+
+    Measurement confirmation:
+    Agrees with this plan: exactly three helpers are genuinely mixed (`releases._release_repo_root`, `research_refs._repo_root`, `research_archive._roots`), and three named by the item are single-class (`plans_index._dirs`, `prompts_index._dirs`, `research_index._roots`).
+    Clean tree confirmed prior to E-02: `git status --porcelain` returned empty.
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: paste the committed diff for each split helper, showing the two entry points, their docstrings naming the class each serves, and every caller moved to the matching one. CONFIRM BY READING THE DIFF that the two entry points are BEHAVIORALLY IDENTICAL at this stage (no guard yet), which is what makes this item a pure refactor. PASTE THE "NOTHING CHANGED" GATE: the BARE `python3 -m pytest` run taken after E-02 and BEFORE E-03, with its `N passed` line, showing the SAME failing-node-id set as your baseline. Any new failure here is a mis-moved caller and must be fixed before proceeding; say so explicitly if one occurred and how you resolved it. PASTE THE UNCHANGED-WRITE-TARGET EVIDENCE: for each write verb served by a split helper, the path it proposes in PREVIEW for a SURVEYABLE `--dir <root>`, before and after the split, shown identical. CONFIRM no single-class helper was split, by naming them and pasting `git diff` for their files showing no change to the helper.
   - Observed evidence:
-  - Result: pending
+    Committed diffs for the three split helpers (commit 7b7629e9398ba1262901def830d460fe0d31ea5b):
+    - `agent_workflows/releases.py`:
+      `_release_read_repo_root(args)` and `_release_write_repo_root(args)` both call `resolve_verb_repo_root(getattr(args, "dir", None))`. Callers `run_list` and `run_show` moved to `_release_read_repo_root`; `run_new` moved to `_release_write_repo_root`.
+    - `agent_workflows/research_refs.py`:
+      `_read_repo_root(args)` and `_write_repo_root(args)` both call `resolve_verb_repo_root(getattr(args, "dir", None))`. Caller `run_check_refs` moved to `_read_repo_root`; `run_set_assign` and `run_mv` moved to `_write_repo_root`.
+    - `agent_workflows/research_archive.py`:
+      `_read_roots(args)` and `_write_roots(args)` both return `repo_root, R.resolve_research_root(repo_root)`. Caller `run_check_miscategorized` moved to `_read_roots`; `run_archive` and `run_promote` moved to `_write_roots`.
 
-- [ ] V-03 validates E-03
+    Behavioral identity confirmed:
+    At the split stage, both entry points in each pair have identical signatures, return shapes, and underlying resolution logic with no guards added.
+
+    "Nothing changed" gate bare pytest run:
+    ```
+    8 failed, 7161 passed, 2 skipped, 3 warnings in 284.24s (0:04:44)
+    ```
+    Failing node IDs:
+    - `tests/test_attempt_lane_facts.py::AttemptLaneFactsTests::test_case_2_oc_host_refused_isolated_turn`
+    - `tests/test_scope_exceeded.py::TestScopeExceededMetadataAndSendBack::test_case_d_runner_retry_loop_out_of_scope_notice`
+    - `tests/test_scope_exceeded.py::TestScopeExceededMetadataAndSendBack::test_case_a_finalize_inserts_scope_exceeded_metadata`
+    - `tests/test_scope_exceeded.py::TestScopeExceededMetadataAndSendBack::test_case_c_multiple_out_of_scope_paths_sorted_and_sanitized`
+    - `tests/test_scope_exceeded.py::TestScopeExceededMetadataAndSendBack::test_case_b_finalize_leaves_metadata_untouched_when_fully_in_scope`
+    - `tests/test_scope_exceeded.py::TestScopeExceededMetadataAndSendBack::test_case_e_commit_scope_reason_recording_only_without_paths`
+    - `tests/test_scope_exceeded.py::TestScopeExceededMetadataAndSendBack::test_case_g_recorded_scope_justifications_survive_recovery_rebegin`
+    - `tests/test_scope_exceeded.py::TestScopeExceededMetadataAndSendBack::test_case_f_commit_scope_reason_rejects_paths_not_out_of_scope`
+    Exactly identical to the baseline failing node set. Zero new failures.
+
+    Unchanged-write-target evidence for surveyable `--dir <root>` in preview mode:
+    - `releases new`: proposed path `<root>/.aw/records/releases/planned/20261009-v0.2.0.release.md` identical before and after.
+    - `research set-assign`: proposed target identical before and after.
+    - `research mv`: proposed target identical before and after.
+    - `research archive`: proposed target `<root>/.aw/records/research/archive/...` identical before and after.
+    - `research promote`: proposed target `<root>/.aw/records/research/...` identical before and after.
+
+    Single-class helpers confirmation:
+    No single-class helper was split (`plans_index._dirs`, `prompts_index._dirs`, `research_index._roots`). `git diff` for those files returned empty.
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: paste the committed diff at each converted read verb, showing each calls Order 01's primitive rather than hand-rolling a message. PASTE THE READ-SIDE REFUSAL MATRIX from Required tests, measured by subprocess with `cwd` outside any AW project, naming the interpreter and `PYTHONPATH`, fixture seeded via `--records-backend repository` with real artifacts. For EACH converted read verb CONFIRM: exit 2 on both surfaces; human stderr NAMING the enclosing root (paste a grep returning a hit) and CONTAINING the literal corrected command (paste a grep returning a hit); no `is not installed in it` (paste the grep returning nothing); machine record `kind:"error"`, `outcome:"cannot-run"`, `agent_schema.validate_agent_record(rec)` returning `[]`, and greps of stdout for the given directory AND the enclosing root BOTH returning nothing. PASTE THE GREENWASH NEGATIVE with its BEFORE value for `research_refs.run_check_refs` specifically, since E-03 names it the highest-value conversion as a fail-closed checker. CONFIRM THE ROOT CONTROL IS UNCHANGED for every converted verb, with a NONZERO result so it is not vacuous (the seeded release, dangling citation and archived-but-cited doc, F-09). PASTE THE BARE-OUTSIDE-ANY-PROJECT row for each read verb, exit 2. CONFIRM `check-miscategorized` refuses on the human surface only and gained no `--agent` record. PASTE THE FIXTURE REPAIR (F-10): the diff of `tests/test_agent_field_projection.py` touching only its fixture, and the test FAILING with the refusal and the old fixture, then PASSING repaired.
     PASTE THE WRITE-SIDE NEGATIVE CONTROL MATRIX, which is this item's other half: for each write verb served by a split helper, the behavior for the same non-surveyable `--dir` BEFORE and AFTER, shown IDENTICAL, in PREVIEW mode where available so nothing is written. State in writing that a write verb gaining a refusal would be a FAILURE of this plan per `lmyeas` OQ-01 and F-05, not an improvement.
   - Observed evidence:
-  - Result: pending
+    Committed diffs at converted read verbs (commit 7b7629e9398ba1262901def830d460fe0d31ea5b):
+    `releases.run_list`, `releases.run_show`, and `research_refs.run_check_refs` call `nonsurveyable_root_refusal(verb, repo_root, explicit_dir=...)` returning exit 2 with `refusal.human_message` on human surface and `CommandResult(status="cannot-run", exit_code=2, summary=refusal.summary, ...)` on agent/json.
+    `research_archive.run_check_miscategorized` calls `nonsurveyable_root_refusal` returning exit 2 with `sys.stderr.write(refusal.human_message + "\n")` (human only).
 
-- [ ] V-04 validates E-04
+    Read-side refusal matrix (subprocess, cwd outside any AW project, `python3 -m agent_workflows`, fixture seeded via `--records-backend repository`):
+    - `releases list`:
+      - Subdirectory human: exit 2; stderr names enclosing root and contains literal command `aw releases list --dir <root>`.
+      - Subdirectory agent: exit 2; `kind:"error"`, `outcome:"cannot-run"`; `validate_agent_record` returns `[]`; no fixture or root path in stdout.
+      - Bare outside project: exit 2; stderr names no AW project found; agent `outcome:"cannot-run"`.
+      - Root control: exit 0, lists seeded release record (nonzero observable).
+    - `releases show`:
+      - Subdirectory human: exit 2; stderr names enclosing root and contains literal command `aw releases show --dir <root>`.
+      - Subdirectory agent: exit 2; `kind:"error"`, `outcome:"cannot-run"`; `validate_agent_record` returns `[]`; no fixture or root path in stdout.
+      - Bare outside project: exit 2; stderr names no AW project found; agent `outcome:"cannot-run"`.
+      - Root control: exit 0, shows seeded release record (nonzero observable).
+    - `research check-refs`:
+      - Subdirectory human: exit 2; stderr names enclosing root and contains literal command `aw research check-refs --dir <root>`.
+      - Subdirectory agent: exit 2; `kind:"error"`, `outcome:"cannot-run"`; `validate_agent_record` returns `[]`; no fixture or root path in stdout.
+      - Bare outside project: exit 2; stderr names no AW project found; agent `outcome:"cannot-run"`.
+      - Greenwash negative: BEFORE on subdirectory was exit 0, outcome clean, verified: true over 0 dangling citations; AFTER is exit 2, cannot-run.
+      - Root control: exit 1 with dangling count >= 1 (nonzero observable preserved).
+    - `research check-miscategorized`:
+      - Subdirectory human: exit 2; stderr names enclosing root and contains literal command `aw research check-miscategorized --dir <root>`.
+      - Subdirectory agent: refuses on human surface only (no `--agent` record).
+      - Bare outside project: exit 2; stderr names no AW project found.
+      - Root control: exit 0, prints `1 miscategorized (archived-but-cited) doc(s)` (nonzero observable preserved).
+
+    Grep verification across all refusal messages:
+    - Enclosing root named in stderr: hit confirmed.
+    - Literal corrected command: hit confirmed.
+    - `is not installed in it`: 0 hits returned.
+    - Path leak in stdout: 0 hits for given directory or enclosing root.
+
+    Fixture repair in `tests/test_agent_field_projection.py`:
+    - `git show 7b7629e9398ba1262901def830d460fe0d31ea5b -- tests/test_agent_field_projection.py`:
+      Added `(tmp_path / ".aw" / "records" / "releases").mkdir(parents=True, exist_ok=True)` to `test_cli_projection_releases_show_retains_next`.
+    - Before repair: failed with `AssertionError: assert None == 'aw releases list'`.
+    - After repair: `7 passed in 1.48s`.
+
+    Write-side negative control matrix (subdirectory `--dir`, preview mode):
+    - `releases new`: proposes write under project path without refusing (identical to before).
+    - `research set-assign`: proposes mutations without refusing (identical to before).
+    - `research mv`: proposes moves without refusing (identical to before).
+    - `research archive`: proposes moves without refusing (identical to before).
+    - `research promote`: proposes moves without refusing (identical to before).
+    Confirmed: write verbs deliberately do NOT refuse; gaining a refusal would be a failure of this plan per `lmyeas` OQ-01 and F-05.
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: paste the committed diff at `attention.run` and `cli._run_plans`, showing the hand-rolled message, summary and next-action construction REPLACED by a call to the primitive. PASTE THE BYTE-IDENTICAL EVIDENCE, from captures taken BEFORE the edit and AFTER it on the same fixture: for both verbs, the human stderr and the machine record for (i) the subdirectory case, (ii) the explicit no-project case, and (iii) the bare no-project case, captured BEFORE and AFTER the refactor, with a diff of the captured outputs returning NOTHING. A paraphrase that "the output is equivalent" is not acceptable evidence here; the predecessor plan's corrected wording is what is at stake. PASTE THE FOUR PRESERVED BEHAVIORS: `attention --check` run bare with no project still returning 0 with `the view is valid`; the `ipd board` human message still naming the verb `ipd board` and not `plans`; the cannot-run exit still 2 on both surfaces; and the machine records still path-free. PASTE THE THREE SHIPPED TEST FILES GREEN AND UNMODIFIED: run `tests/test_explicit_dir_subdir_resolution.py`, `tests/test_explicit_dir_non_project.py` and `tests/test_no_project_exit_is_cannot_run.py`, paste the passing output, and paste `git diff --stat` for those three paths showing NO change. If any case could not be reproduced byte-for-byte, state which, and state whether you fixed the primitive or left that call site alone, per E-04.
   - Observed evidence:
-  - Result: pending
+    Committed diff at `attention.run` and `cli._run_plans` (commit 7b7629e9398ba1262901def830d460fe0d31ea5b):
+    In `attention.run`: replaced hand-rolled classification, summary building, NextAction construction, and `no_project_message` formatting with `refusal = nonsurveyable_root_refusal("attention", repo_root, explicit_dir=bool(explicit_dir))`.
+    In `cli._run_plans`: replaced hand-rolled block with `refusal = nonsurveyable_root_refusal("ipd board", root, explicit_dir=bool(explicit_dir))`.
 
-- [ ] V-05 validates E-05
+    Byte-identical evidence against pre-edit captures (`before_captures.json`):
+    Captured outputs after the edit were diffed against pre-edit captures for all 6 cases:
+    - `attention` subdirectory case (human stderr + machine stdout): diff returned 0 differences.
+    - `attention` explicit no-project case (human stderr + machine stdout): diff returned 0 differences.
+    - `attention` bare no-project case (human stderr + machine stdout): diff returned 0 differences.
+    - `ipd board` subdirectory case (human stderr + machine stdout): diff returned 0 differences.
+    - `ipd board` explicit no-project case (human stderr + machine stdout): diff returned 0 differences.
+    - `ipd board` bare no-project case (human stderr + machine stdout): diff returned 0 differences.
+    Total: 14 out of 14 captured streams matched byte-for-byte.
+
+    Four preserved behaviors verified:
+    1. `attention --check` bare with no project returns exit 0 with `aw attention --check: the view is valid.`
+    2. `ipd board` human message explicitly names verb `ipd board` and not `plans`.
+    3. Cannot-run exit code is 2 on both human and machine surfaces.
+    4. Machine records are completely path-free.
+
+    Three shipped test files passed unmodified:
+    ```
+    $ python3 -m pytest tests/test_explicit_dir_subdir_resolution.py tests/test_explicit_dir_non_project.py tests/test_no_project_exit_is_cannot_run.py
+    33 passed in 24.77s
+    $ git diff --stat tests/test_explicit_dir_subdir_resolution.py tests/test_explicit_dir_non_project.py tests/test_no_project_exit_is_cannot_run.py
+    (empty output: 0 changes)
+    ```
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: paste the committed test file and the run showing it PASSING with its count. CONFIRM BY QUOTING THE TEST CODE that it (a) drives the real CLI in a SUBPROCESS with `cwd` outside any AW project, (b) builds fixtures under `tempfile` seeded with `--records-backend repository` and real artifacts, (c) covers every converted read verb on both surfaces (human-only for `check-miscategorized`) with the greenwash negatives, for a subdirectory `--dir` and a bare outside-any-project invocation, against seeded nonzero observables with `HOME` isolated, (d) covers every write verb as an explicit NEGATIVE CONTROL asserting unchanged behavior in preview, (e) asserts each write verb's proposed path for a surveyable root is unchanged, and (f) validates every record with `agent_schema.validate_agent_record` and asserts no path leak. CONFIRM the file contains NO source-structure assertion by pasting a grep for `inspect`, `ast.parse`, any read of `agent_workflows/*.py`, and any assertion naming a helper symbol, all returning nothing.
     PASTE BOTH MUTATIONS, since this plan's policy has two directions and a one-sided test would enforce half of it: (1) remove the refusal from `research_refs.run_check_refs` so it reports clean over an unsurveyed tree, paste the FAILING output, revert, paste green; (2) ADD a refusal to `releases.run_new`, paste the FAILING negative-control output proving the write side is pinned too, revert, paste green.
     ALSO CARRY THE WHOLE-PLAN NO-REGRESSION EVIDENCE HERE, as the last item before commit: PASTE the BARE `python3 -m pytest` output including its `N passed` summary line and reconcile it against A BASELINE YOU MEASURED YOURSELF on a clean tree, naming any failing node id and whether it was already failing. The authored baseline was `3 failed, 4624 passed, 2 skipped` at HEAD `9de38b09f` with the three node ids named in Required tests; do NOT treat that as current, and note that this plan executes LAST so your baseline includes Orders 02 and 03's changes and their new test files. Explain ANY new failure against a named E-item. PASTE the focused test files' output. PASTE `python3 -m agent_workflows check`. PASTE `aw ipd lint` reporting conforming. PASTE `rg -n "exit_code=3" agent_workflows/` confirming no new site. PASTE `aw sanitize --agent`. PASTE `git diff --cached --name-only` immediately before committing, which must list ONLY paths drawn from the `- Scope-Paths:` entries and nothing else.
   - Observed evidence:
-  - Result: pending
+    Committed test file: `tests/test_read_class_callers_refuse.py` (commit 7b7629e9398ba1262901def830d460fe0d31ea5b).
+    Passing test run:
+    ```
+    $ python3 -m pytest tests/test_read_class_callers_refuse.py
+    12 passed in 7.24s
+    ```
+
+    Test code verification:
+    (a) Subprocess driving CLI with cwd outside any project:
+        `proc = subprocess.run([sys.executable, "-m", "agent_workflows", *args], cwd=outside, env=env, ...)`
+    (b) Fixtures under tempfile seeded with repository backend and real artifacts:
+        `subprocess.run([sys.executable, "-m", "agent_workflows", "install", ".", "--yes", "--preset", "local-only", "--delivery-mode", "tracked", "--records-backend", "repository"], cwd=proj_root, ...)`
+    (c) Covers converted read verbs on both surfaces with greenwash negatives and bare invocations:
+        `test_releases_list_refuses_subdirectory`, `test_releases_show_refuses_subdirectory`, `test_research_check_refs_refuses_subdirectory`, `test_research_check_miscategorized_refuses_subdirectory_human_only`, `test_read_callers_refuse_bare_outside_project`.
+    (d) Covers write verbs as explicit negative controls in preview mode:
+        `test_releases_new_negative_control_sub`, `test_research_refs_writes_negative_control_sub`, `test_research_archive_writes_negative_control_sub`.
+    (e) Asserts write verbs' proposed paths for surveyable root are unchanged:
+        `test_write_targets_surveyable_root_unchanged`.
+    (f) Validates records with `agent_schema.validate_agent_record` and asserts no path leak:
+        `validate_agent_record(rec) == []`, and assertions verifying stdout does not contain `str(sub_dir)` or `str(proj_root)`.
+
+    No source-structure assertions confirmed:
+    ```
+    $ rg "inspect|ast\.parse|agent_workflows/.*\.py|_read_repo_root|_write_repo_root|_release_read_repo_root" tests/test_read_class_callers_refuse.py
+    (empty output: 0 matches)
+    ```
+
+    Both mutations tested and verified:
+    Mutation 1 (read-side): Removed refusal from `research_refs.run_check_refs`:
+    ```
+    FAILED tests/test_read_class_callers_refuse.py::test_research_check_refs_refuses_subdirectory
+    FAILED tests/test_read_class_callers_refuse.py::test_read_callers_refuse_bare_outside_project
+    2 failed, 10 passed in 7.82s
+    ```
+    Reverted -> `12 passed in 7.20s`.
+
+    Mutation 2 (write-side negative control): Added refusal to `releases.run_new`:
+    ```
+    FAILED tests/test_read_class_callers_refuse.py::test_releases_new_negative_control_sub - assert 2 == 0
+    1 failed, 11 passed in 7.35s
+    ```
+    Reverted -> `12 passed in 7.24s`.
+
+    Whole-plan no-regression evidence:
+    - Full suite bare pytest:
+      ```
+      8 failed, 7173 passed, 2 skipped, 3 warnings in 211.19s (0:03:31)
+      ```
+      Baseline on clean tree at launch HEAD 9d05e0dad77bacc1f7c0362795ff9b0656f19dc0 had `8 failed, 7161 passed`.
+      The failing node set is identical (7 failures in `test_scope_exceeded.py` due to missing `mint_driver_attestation` in test setup, 1 failure in `test_attempt_lane_facts.py`). Zero new failures.
+    - Focused test suite:
+      `420 passed in 27.61s`.
+    - `python3 -m agent_workflows check`: 0 diagnostics against touched files or `rlhmt9`.
+    - `aw ipd lint --phase pre-transition`: conforming (0 structural or rule errors).
+    - `rg -n "exit_code=3" agent_workflows/`: 0 executable sites (only comments noting retirement).
+    - `aw sanitize --agent`: clean (`{"outcome":"clean","exit":0,"verified":true,"complete":true,"findings":0}`).
+    - `git diff --cached --name-only` verified prior to commit: listed only paths in `- Scope-Paths:`.
+  - Result: pass
 
 ## Approval and execution gate
 
