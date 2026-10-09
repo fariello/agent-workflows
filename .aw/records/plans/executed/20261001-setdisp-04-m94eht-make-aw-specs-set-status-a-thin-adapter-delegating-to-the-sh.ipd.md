@@ -5,8 +5,9 @@
 - Concern: `aw specs set` has two spellings reaching two separate implementations, and `specs.run_set` is the smaller of the two at roughly 330 lines against the shared engine's 1480. It re-implements status validation, the status write, relocation, history assembly and the self-commit offer, and it carries behaviors the shared engine lacks (a post-write `validate_spec` conformance refusal, a `--date` override, a sidecar append) while LACKING capabilities the shared engine has (selector resolution beyond a bare path, multi-selector batch, `--force`, the confirmation gate, structured agent/JSON output, auto-indexing). Spec `wy9aru` Section 4.1 rules the shared engine canonical and these per-verb functions thin adapters. Until that happens, every future gate on `aw specs set` must be written twice or it is bypassable, which is the recurring class backlog `fcnz1r` documents five instances of.
 - Scope: IN: reduce `specs.run_set` to an argument-normalizing adapter that delegates to `status_set.run_set_command`, preserving its name and callable signature; carry its three genuinely-own behaviors into the shared engine as explicitly type-scoped parameters (the post-write `validate_spec` refusal, the `--date` override, the sidecar append); inherit the shared engine's selector vocabulary per `wy9aru` 4.5 and OQ-2; keep every refusal from both sides per `wy9aru` 4.7. OUT, each with a reason recorded under "Deferred": the backlog path (child 05); the two gate bypasses (child 03, which must land first); every axis `wy9aru` Section 7 assigns elsewhere; any change to what a spec status MEANS or to the transition table.
 - Scope-Paths: agent_workflows/specs.py, agent_workflows/status_set.py, agent_workflows/cli.py, tests/test_specs_set_adapter.py, .aw/records/specs/implemented/20260818-1525-02-sidecar-metadata-and-history.spec.md, CHANGELOG.md
+- Scope-Exceeded: tests/test_set_dispatch_parity.py (E-05 flipped expected-difference assertion for specs selector widening); tests/test_specs_releases_descriptive_safety.py (E-07 b updated assertions for changed refusal rows on specs set delegation); tests/test_specs_set_gate_parity.py (E-07 b updated assertion for changed refusal row on gate-summary parity)
 - Item-Dependencies: executed:m1jlwm, executed:ulepef, state:spec:approved:wy9aru
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: medium
@@ -17,9 +18,9 @@
 - Highest E allocated: 07
 - Author: opencode/its_direct/pt3-claude-opus-5-1m-us
 - Id: m94eht
-- Approval: 2026-10-08, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-09 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: m94eht verified (set setdisp, attempt 1). [Scope reconciliation - out-of-scope tests/test_set_dispatch_parity.py: E-05 flipped expected-difference assertion for specs selector widening; out-of-scope tests/test_specs_releases_descriptive_safety.py: E-07 (b) updated assertions for changed refusal rows on specs set delegation; out-of-scope tests/test_specs_set_gate_parity.py: E-07 (b) updated assertion for changed refusal row on gate-summary parity]
 - 2026-10-08 approved (aw set): status set to approved
 - 2026-10-07 reviewed (aw set): /plan-review (opencode/uri/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-006 fixed
 - 2026-10-07 /plan-review (opencode/uri/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005, PR-006 (all fixed; record `.aw/records/reviews/20261001-setdisp-04-m94eht-make-aw-specs-set-status-a-thin-adapter-delegating-to-the-sh.review.md`). Execution remains gated on `wy9aru` reaching `approved` (its OQ-1 is BLOCKING on the maintainer) and on `ulepef` executing.
