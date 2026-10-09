@@ -6,7 +6,7 @@
 - Scope: Orchestrate three children that together make a model attributable per attempt and make the consumers read it. This plan holds ORCHESTRATION ONLY: every deliverable belongs to a child (`czut8j` the frozen per-attempt producer, `ov2c9n` the host-observed model, `r5fk4k` the three consumers), and this file contributes no code, no test, no doc and no record of its own. EXCLUDES, in every child without exception: back-filling history, moving `MODEL_COVERAGE_THRESHOLD` from its declared 0.80, editing the retained `CORPUS_BASELINE` snapshot, adding a new CLI flag (which would require amending spec `25kzda` Section 2.1), and making anything GATE or REFUSE on a model value.
 - Scope-Paths: .aw/records/plans/pending/20260930-attmodel-00-1u4olp-record-the-resolved-model-per-attempt-so-run-analytics-can-c.ipd.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Coverage: pass
 - Coverage-Fingerprint: d60d56985ca092503bd9fd0a1f8cabc33f0e556f20997b2c4f1d8bc501fe47ad
@@ -19,9 +19,9 @@
 - Highest E allocated: 03
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: 1u4olp
-- Approval: 2026-10-08, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-09 executed (aw agy run model=Gemini-3.8-Flash-High): RETIRED as the orchestrator rollup step of a runner Set completion, not executed by an agent: every child of Set attmodel reached executed, so the runner (run run-20261009T013333Z-334392) retired this Order-0 plan as bookkeeping. Its own E-*/V-* items were NOT performed; the runner superseded them by enforcing the ordering, the isolation and the per-child merge gate. Justifying children: czut8j, ov2c9n, r5fk4k.
 - 2026-10-08 approved (aw set): status set to approved
 - 2026-10-07 /plan-review (opencode uri/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004
 - 2026-10-07 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-001..PR-004 all FIXED (dead test_run_flag_surface citation; stale r5fk4k V-06 -> V-08; residue filing step replaced by children's recorded dispositions qswokt/declined; execution contract completed with honesty rule, scope fence, conditional lifecycle). Coverage re-run: pass.
@@ -42,6 +42,9 @@ Make every attempt in a future run name the model it ran under, and make the thr
 model read that field, so the comparison backlog `7yz545` asks for receives a real population.
 
 ## Detailed Implementation Checklist (TODO)
+
+
+> Its own E-*/V-* items were NOT performed; the runner superseded them by enforcing the ordering, the isolation and the per-child merge gate.
 
 Execution-state rule: mark an `E-*` item complete only after performing the action. That mark is not validation. Right-sizing rule: each E-item must address one concern and be executable in one focused pass; split when an E-item names multiple distinct deliverables or independent test-surfaces.
 
