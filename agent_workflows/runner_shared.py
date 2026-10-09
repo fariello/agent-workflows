@@ -37070,6 +37070,27 @@ def execute_item_core(
                         host=host_name,
                     )
                 )
+                findings.extend(
+                    _pc.spec_plan_trace(
+                        target_tree,
+                        item["id6"],
+                        all_verified_paths,
+                        host=host_name,
+                        run_id=str(state.get("run_id") or ""),
+                        continued_ids=continued_ids,
+                    )
+                )
+                trace_vacuity = _pc.spec_plan_trace_vacuity(target_tree, item["id6"])
+                if trace_vacuity is not None:
+                    append_jsonl(
+                        run_dir / "events.jsonl",
+                        {
+                            "at": utc_now(),
+                            "event": "spec-plan-trace-vacuity",
+                            "id6": item["id6"],
+                            "vacuity": trace_vacuity,
+                        },
+                    )
 
             # Production correction turn loop (nnsa2o E-02)
             while findings:
@@ -37249,6 +37270,16 @@ def execute_item_core(
                             item["id6"],
                             all_verified_paths,
                             host=host_name,
+                        )
+                    )
+                    findings.extend(
+                        _pc.spec_plan_trace(
+                            target_tree,
+                            item["id6"],
+                            all_verified_paths,
+                            host=host_name,
+                            run_id=str(state.get("run_id") or ""),
+                            continued_ids=continued_ids,
                         )
                     )
 
