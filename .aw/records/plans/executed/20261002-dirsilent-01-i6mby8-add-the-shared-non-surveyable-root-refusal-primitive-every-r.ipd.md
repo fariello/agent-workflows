@@ -6,7 +6,7 @@
 - Scope: ADD one shared, reusable refusal primitive to `project_context` that a repo-scoped verb calls to turn a non-surveyable resolved root into (a) the human stderr text and (b) the machine summary + next-action inputs, derived from `classify_project_dir`. IN: the primitive and its return shape; a `no_project_message`-equivalent human string for the inside-a-project and no-project cases reusing the shipped wording so no verb invents its own; the PATH-FREE machine summary string plus the correct `NextAction` (none for the inside-a-project case, the shipped `aw install .` only for the genuine git-repo-without-AW case); and a regression test pinning the primitive's three outcomes, its path-free machine output, and the `aw install .` negative. OUT: converting ANY verb to call it (Order 02 converts the two validators, Order 03 the bypass sites, Order 04 the remainder); REFACTORING `attention.run` or `cli._run_plans` onto it (deliberately deferred to Order 04 so this plan cannot regress two shipped surfaces); changing `classify_project_dir`, `is_project_dir`, `_is_project_marker`, `find_project_root`, or `resolve_verb_repo_root` (body OR docstring); making anything CLIMB from an explicit `--dir`; changing the exit-code contract; and widening `agent_schema`.
 - Scope-Paths: agent_workflows/project_context.py, tests/test_nonsurveyable_root_refusal.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -17,9 +17,9 @@
 - Highest E allocated: 03
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: i6mby8
-- Approval: 2026-10-08, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-09 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: i6mby8 verified (set dirsilent, attempt 1).
 - 2026-10-08 approved (aw set): status set to approved
 - 2026-10-07 reviewed (aw set): /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004. Added the third shipped summary string (bare-cwd) and its test cases; the primitive now returns the NextAction description too; the executor must record the primitive's name and return type in V-01 for jei45f/sjsb04/rlhmt9; no-project fixtures assert find_project_root is None since HOME may be an AW project.
 - 2026-10-07 to-review (aw set): returned to review: each Set-level check the coverage probe quoted now names its owning child; coverage pass recorded
