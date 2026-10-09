@@ -6,7 +6,7 @@
 - Scope: Add ONE guard test that walks the suite's test modules with `ast` and refuses a NEW marker-located unbounded section slice, carrying a typed per-site exemption comment for the sites where the unboundedness IS the assertion, and point `CONTRIBUTING.md` at the rule so an author meets it while authoring. The guard detects TWO spellings of the same defect, each measured live: a SLICE whose lower bound comes from a marker search (`x[x.index(M):]`, or `start = x.find(M)` then `x[start:]`), and a `split(HEADING, ...)[1]` whose separator is a markdown heading. It EXCLUDES its own detection of field-delimiter splits (`":"`, `"."`, `"="`, `"---"`), which the backlog item explicitly lists as sites that must not be flagged. It EXCLUDES complementary text reconstruction (`t[:i] + block + t[i:]`), which is a rewrite and not a section read. EXCLUDES converting any site Order 02 (`tr8ugt`) owned: those conversions are Order 02's, which MUST land first or this guard is red on arrival. INCLUDES (added at review, PR-001) converting the marker-located section reads that LANDED AFTER AUTHORING in files no Set plan owns (E-06), because without that this guard is red on arrival against them and no other plan carries them. INCLUDES (added at review, PR-003) the one `(path, reason)` allowlist entry `76ic0k`'s guard needs for this new AST analyzer (E-07), because without it the suite ends this plan RED. EXCLUDES every production module.
 - Scope-Paths: tests/test_no_unbounded_section_reads.py, CONTRIBUTING.md, tests/test_defect_report.py, tests/test_support_section.py, tests/test_ipd_lifecycle_cli.py, tests/test_plan_review_feasibility_rule.py, tests/test_tabulated_test_convention.py, tests/test_v_item_demonstration_reachability.py, tests/test_v_item_evidence_durability.py, tests/test_no_code_structure_pins.py
 - Item-Dependencies: executed:tr8ugt, executed:76ic0k
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -16,9 +16,9 @@
 - Highest E allocated: 07
 - Author: opencode/its_direct-pt3-claude-opus-5-1m-us
 - Id: jj5ju1
-- Approval: 2026-10-03, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-09 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: jj5ju1 verified (set secbound, attempt 3). [Scope reconciliation - out-of-scope .aw/records/backlog/done/20261007-op57fn-01-op57fn-convert-tail-slices-finalize-scope.backlog.md: changed by the plan's approved execution (auto-reconciled by aw agy run)]
 - 2026-10-03 approved (aw set): status set to approved
 - 2026-10-02 reviewed (aw set): plan-review APPROVE WITH REVISIONS APPLIED
 - 2026-10-02 /plan-review (opencode/its_direct-pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001 (BLOCKER, fixed), PR-002, PR-003 (HIGH, fixed), PR-004, PR-005, PR-006 (fixed). Re-ran the specified detector on the post-Order-02 tree: 15 slice hits where the plan predicted 3, from 11 section reads landed after authoring plus one JSON-recovery tail, which made the guard red on arrival under a gate that forbade every remedy; added E-06 (convert them, demonstrated green) and E-03(d). The `76ic0k` interaction guaranteed a red suite; added E-07 and declared the file. Full record: `.aw/records/reviews/20261002-secbound-03-jj5ju1-refuse-a-new-marker-located-unbounded-section-slice-in-tests.review.md`.
