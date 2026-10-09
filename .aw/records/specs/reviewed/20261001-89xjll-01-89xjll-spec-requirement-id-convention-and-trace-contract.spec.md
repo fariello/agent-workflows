@@ -6,10 +6,11 @@
 - Author: opencode / antigravity (IPD jjh4aj)
 - From-Backlog: vy20et
 - From-Spec: 25kzda
-- Scope: Requirement-ID convention for new specs, acceptance-criterion namespace, declaration-site rule, retrofit policy via stamped cutover, and SPEC-PLAN-TRACE verification contract (scope, severity, grandfathering behavior, and citation-not-implementation limit).
+- Scope: Requirement-ID convention for new specs, acceptance-criterion namespace, declaration-site rule, retrofit policy via stamped cutover, and SPEC-PLAN-TRACE verification contract (scope pooled over linked plans, qualified-citation grammar, severity, grandfathering behavior, `[Deferred]` marker and its `implemented` gate, and citation-not-implementation limit).
 
 ## Workflow history
 
+- 2026-10-09 note (aw specs): amendment (opencode its_direct/pt3-claude-opus-5.5-1m-us): body rewritten to match maintainer decisions OQ-04..OQ-07 (1a, 1b R-1/R-4..R-6 revised + R-8/R-9 added, 3.1, new 3.3 markers, 6.1 pooled scope, 6.2/6.2a, new 6.2b qualified citations, 6.3 partial pass, new 6.5 deferred blocks implemented, 7 rtvdak re-review note, 9 AC-1/AC-4/AC-5 revised + AC-9/AC-10 added). Addresses SR-002/SR-003; needs /spec-review to close them.
 - 2026-10-09 note (aw specs): /askme (opencode its_direct/pt3-claude-opus-5.5-1m-us): maintainer resolved blocking OQ-04 (FORM A only, N excluded) and OQ-05 (qualified citations only), plus follow-ons OQ-06 (pool all linked plans) and OQ-07 ([Deferred] marker on requirement and acceptance ids, blocking implemented). Body sections 3, 6, R-4..R-6, AC-4..AC-6 NOT yet amended to match; required before approval.
 - 2026-10-02 note (aw specs): /spec-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): REVIEWED - OPEN QUESTIONS; SR-001..SR-010 (SR-002, SR-003 OPEN, gate approval)
 - 2026-10-03 reviewed (aw set): REVIEWED - OPEN QUESTIONS; SR-001,SR-004..SR-010 FIXED; SR-002,SR-003 OPEN as blocking OQ-05,OQ-04
@@ -39,7 +40,7 @@ This specification resolves the convention, the namespaces, the declaration rule
 
 - NOT a retrofit of any existing spec's requirement text or ids (Section 5; `vkub9o` Q5).
 - NOT a corpus-wide `aw check` rule over requirement ids. Going-forward conformance of a NEW spec's ids is enforced by spec review, not by a check rule (`vkub9o` Option B records why a corpus rule either exempts most specs or reds every run).
-- NOT a requirements-outstanding `aw attention` view, a partial spec status, a plan-side requirement declaration field, or `implemented` computed from coverage (`vkub9o` Section 5, item 3).
+- NOT a requirements-outstanding `aw attention` view, a partial spec status, a plan-side requirement declaration field, or `implemented` computed from coverage (`vkub9o` Section 5, item 3). The `[Deferred]` marker of Section 3.3 is a property of a declared id, not a spec status: it narrows what TRACE demands and blocks `implemented` (R-9), and computes nothing from coverage.
 - NOT an amendment to `25kzda` (OQ-02).
 - NOT a semantic coverage judgement: TRACE is a citation gate only (Section 6.4).
 
@@ -49,13 +50,15 @@ This table is the single canonical declaration of this spec's requirements; the 
 
 | ID | Requirement | Detail |
 | --- | --- | --- |
-| R-1 | Requirement ids in a post-cutover spec are drawn from the admitted families; acceptance ids from the distinct `A`/`AC` namespace. | 3.1, 3.2 |
+| R-1 | Requirement ids in a post-cutover spec are drawn from the admitted families; acceptance ids from the distinct `A`/`AC` namespace. Only FORM A letter-prefixed ids, excluding the `N` family, are TRACE-mandatory; FORM B and FORM C are addressing handles only. | 3.1, 3.2 |
 | R-2 | An id is extracted only at a declaration site; a mention is never extracted. | 4.1 |
 | R-3 | Grandfathering is per spec against the stamped `spec_requirement_ids` cutover, via `config.KNOWN_FEATURE_CUTOVERS`, with a non-`None` fallback. | 5.1 |
-| R-4 | TRACE runs only at spec production, against the single producing spec and its newly produced plans, evaluated across the produced plan set. | 6.1 |
-| R-5 | TRACE renders `25kzda` 4.8's action and message template verbatim and implements all three conjuncts of its pass criterion. | 6.2, 6.2a |
-| R-6 | TRACE passes a grandfathered spec and a spec with no traceable ids. | 6.3 |
+| R-4 | TRACE runs only at spec production, against the single producing spec, and evaluates coverage across EVERY active plan linked to that spec by `- From-Spec:` (plans linked before this production plus the newly produced plans). | 6.1 |
+| R-5 | TRACE renders `25kzda` 4.8's action and message template verbatim and implements all three conjuncts of its pass criterion, counting ONLY citations qualified with the producing spec's id6. | 6.2, 6.2a, 6.2b |
+| R-6 | TRACE passes a grandfathered spec and a spec with no traceable ids, and excludes `[Deferred]` ids from coverage while listing them in its result. | 6.3, 3.3 |
 | R-7 | TRACE is described only as a citation gate, never as proof of implementation; a plan from a grandfathered or zero-id spec is not described as trace-verified. | 6.4 |
+| R-8 | A declared requirement or acceptance id may carry the `[Deferred]` marker at its declaration site, with the grammar of Section 3.3. | 3.3 |
+| R-9 | A spec whose body still declares any `[Deferred]` id MUST NOT transition to `implemented`. | 3.3, 6.5 |
 
 ## 2. Measured corpus evidence (HEAD census)
 
@@ -93,7 +96,12 @@ For new specifications, requirement IDs must be drawn from the recognized prefix
 
 Grounding in census evidence: Mandating a single prefix letter such as `R` would leave 3 of the 10 id-carrying `approved` specs outside the convention (`2vev8j` using `C*`/`N*`, `2lcqno` using `N*`, `5tapom` using `B*`/`H*`/`F*`), as well as pending/draft specs (`pqsx96`, `llbr2b`, `wy9aru`, `4sd62s`). (Corrected at review, SR-006: the draft said 5 while naming 3. All of these predate the cutover and are grandfathered either way, so the argument is about matching established practice for NEW specs, not about invalidating existing ones.)
 
-WHICH ADMITTED FORMS ARE TRACE-MANDATORY IS NOT YET DECIDED (OQ-04). Admitting a form as a valid ADDRESSING handle (something a plan, comment, or reviewer may cite) is not the same as making every occurrence of it a mandatory requirement that `SPEC-PLAN-TRACE` demands an `E-*` citation for. Under OQ-01 Option A, FORM C as written makes every numbered heading of a post-cutover spec (including `## 1. Why this exists`) a mandatory requirement, and an `N`-prefixed non-goal (the `2vev8j` usage) a mandatory requirement too. Section 6 MUST NOT be implemented until OQ-04 is ratified.
+WHICH ADMITTED FORMS ARE TRACE-MANDATORY (decided by the maintainer 2026-10-08, OQ-04). Admitting a form as a valid ADDRESSING handle (something a plan, comment, or reviewer may cite) is not the same as making it a requirement `SPEC-PLAN-TRACE` demands a citation for. The rule is:
+
+1. ONLY FORM A ids are extracted for TRACE. FORM B dotted paragraph numbers and FORM C numbered headings remain valid addressing handles and may be cited, but they are NEVER extracted as requirements, so a post-cutover spec's `## 1. Why this exists` or `## 8. Open Questions` heading creates no obligation. Measured on this spec at amendment: 22 numbered headings that the "all forms" reading would have made mandatory, beside its real FORM A ids.
+2. The `N` family is EXCLUDED from TRACE extraction, because its corpus meaning is inconsistent (normative in `2lcqno`, non-goal in `2vev8j`). `N` remains an admitted addressing handle. A post-cutover spec that wants a normative item traced uses another admitted family (for example `R`).
+3. Every other FORM A family (`R`, `F`, `G`, `I`, `C`, `P`, `T`, `B`, `H`) is TRACE-extracted.
+4. A post-cutover spec therefore must use FORM A ids for anything it wants traced. A spec that uses only FORM B/C handles declares zero traceable ids and passes TRACE vacuously (Section 6.3); spec review, not TRACE, is what catches that (Section 1a).
 
 ### 3.2 Acceptance-Criterion Namespace (Distinct from Requirements)
 
@@ -102,6 +110,24 @@ Acceptance criteria represent verifiable conditions demonstrating that requireme
 - **Separation from Requirements**: Acceptance criteria are strictly distinct from requirement IDs. As measured in `vkub9o` 1.2, treating `A*` identifiers as requirements would inflate the requirement population while conflating obligations with validation conditions. Under `SPEC-PLAN-TRACE`, requirements map to plan `E-*` checklist items, whereas acceptance criteria map to plan `V-*` validation checklist items. The two namespaces must never collide.
 
 Census figures cited: Across the 12 `approved` specs, 7 carry acceptance-criterion IDs (`7ckptx`: 36 IDs; `6kwd2e`: 49 IDs; `uonrjg`: 25 IDs; `w15vzb`: 12 IDs; `6m4kow`: 11 IDs; `2vev8j`: 11 IDs; `25kzda`: 4 table rows), while 4 specs have an acceptance heading without IDs and 1 lacks an acceptance heading.
+
+### 3.3 Markers: Mandatory, Non-mandatory, and Deferred
+
+Every TRACE-extracted id is MANDATORY by default (OQ-01). A marker token placed immediately after the id at its declaration site (Section 4.1), in backticks or not, changes that:
+
+| Marker | Applies to | TRACE effect | Lifecycle effect |
+| --- | --- | --- | --- |
+| (none) | requirement and acceptance ids | Must be cited by an `E-*` (requirement) or `V-*` (acceptance) item of a linked plan. | None. |
+| `[Should]`, `[Optional]` | requirement ids only | Not required; never reported. | None. |
+| `[Deferred]` | requirement AND acceptance ids | Not required in this production; LISTED in the verifier's result as deferred, so a deliberately partial plan set is visible, not silent. | Blocks `implemented` (6.5). |
+
+Rules:
+- `[Deferred]` exists so a spec can be PLANNED IN STAGES (OQ-07): a first production plans part of the spec, and a later one plans the rest after the marker is removed. Pooling (6.1) alone cannot do this, because a first production has no earlier linked plans to pool.
+- Acceptance ids are deferrable with the same marker and the same rules, because deferring a requirement while still demanding its acceptance criterion would force a `V-*` step for work the staged plans do not contain.
+- A deferred id is still DECLARED: it is part of the spec's declared set for the unknown-reference conjunct (6.2a), so a plan citing a deferred id is not an unknown reference.
+- `[Should]`/`[Optional]` on an acceptance id has no effect (acceptance criteria have no optional form); `[Deferred]` is the only marker an acceptance id may carry.
+- `(optional)` or "deferred" in running prose is NOT a marker. Only the bracketed token at the declaration site counts.
+- Removing `[Deferred]` is an ordinary spec edit. Whoever removes it is responsible for the id being planned; TRACE on the next production of the spec enforces that.
 
 ## 4. Declaration-Site Rule and Addressing Rationale
 
@@ -149,11 +175,14 @@ As documented in `vkub9o` Option B, the accepted cost of per-spec grandfathering
 
 ### 6.1 Check Scope
 
-`SPEC-PLAN-TRACE` runs exclusively as a post-generation gate during the spec production action (`aw <host> run <spec-id6>`). As measured in `run_selection_policy._SPEC_ACTIONS`, only specifications with status `approved` map to `ACTION_PLAN`.
+`SPEC-PLAN-TRACE` runs exclusively as a post-generation gate during the spec production action (`aw <host> run <spec-id6>`). As measured in `run_selection_policy._SPEC_ACTIONS`, only specifications with status `approved` map to `ACTION_PLAN`. It is wired at the SPEC production block only, not the near-identical backlog production block. It does NOT inspect the repository corpus; it judges ONE producing spec.
 
-The check inspects the newly produced plans against the SINGLE producing specification that was dispatched. It does NOT inspect the entire repository corpus. The produced plans are in hand at execution time: as measured in `runner_shared.py`, the dispatcher identifies `new_produced_paths` by comparing the target tree's plans against `baseline_plan_ids` before invoking verifiers. It is wired at the SPEC production block only, not the near-identical backlog production block.
+COVERAGE IS EVALUATED ACROSS EVERY ACTIVE PLAN LINKED TO THE PRODUCING SPEC (decided by the maintainer 2026-10-08, OQ-06; this replaces the draft's "newly produced plans" scope). The pooled set is the plans already linked to the spec by `- From-Spec:` before this production plus the plans this production newly wrote. That is exactly the set the runner's spec production block already assembles for its sibling checks: `existing_linked_plans` (from `production_checks.existing_handoff_plans(target_tree, "spec", <id6>)`, which skips plans in a terminal disposition) plus `new_produced_plans`, combined as `all_verified_plans`. Consequences:
+- One production may write several plans or several Sets; a requirement cited in any of them is covered.
+- A spec may be planned across several productions; the later one is judged on the union, so it need cover only what earlier plans did not.
+- A plan in `superseded/` or `not-executed/` does not count, since `existing_handoff_plans` excludes terminal dispositions other than `executed`; the implementing plan MUST state and test whether an `executed` linked plan counts (it is returned today and SHOULD count, since its citations were real).
 
-COVERAGE IS EVALUATED ACROSS THE PRODUCED PLAN SET, not per plan (added at review, SR-004): a requirement cited by an `E-*` item of ANY produced plan is covered, and an acceptance criterion cited by a `V-*` item of any produced plan is covered. An Order-0 orchestrator's typed child-tracking rows (`ipd_lint._ORCH_ROW_RE`, `CONFIRM <child-id6> REACHED <status>`) cite no requirement by construction and contribute nothing; they are not a violation. A per-plan reading would fail every produced Set that has an orchestrator for a reason unrelated to coverage. Basis: `SPEC-PLAN-COUNT`'s existing set-level reading ("At least one new IPD links to the spec") and plan `rtvdak`'s resolved open question on the same point. Which text of an `E-*`/`V-*` item counts as citing (the item's first line only, or its sub-fields too) is an implementation choice the implementing plan MUST state and pin with a test; this spec does not fix it.
+A requirement cited by an `E-*` item of any pooled plan is covered, and an acceptance criterion cited by a `V-*` item of any pooled plan is covered. An Order-0 orchestrator's typed child-tracking rows (`ipd_lint._ORCH_ROW_RE`, `CONFIRM <child-id6> REACHED <status>`) cite no requirement by construction and contribute nothing; they are not a violation. Which text of an `E-*`/`V-*` item counts as citing (the item's first line only, or its sub-fields too) is an implementation choice the implementing plan MUST state and pin with a test; this spec does not fix it.
 
 ### 6.2 Severity, Action, and Message Template (Adopting 25kzda 4.8)
 
@@ -163,15 +192,23 @@ This specification ADOPTS the `SPEC-PLAN-TRACE` row from `25kzda` 4.8 verbatim, 
 - **Message Template**:
   `[SPEC-PLAN-TRACE] Generated IPD <plan-id> does not cover spec items: <ids>. Correct and sync the IPD, then: aw <host> run resume <run-id>`
 
-The new verifier `production_checks.spec_plan_trace` renders this exact template and returns `list[tuple[str, str, str]]` of `(code, plan_id, message)`, taking the argument shape of `spec_plan_conformance(repo, spec_id6, produced_paths, *, host, run_id)` specifically, because it is the only sibling that takes `run_id` and the template contains `<run-id>`. Because coverage is set-level, `<plan-id>` names a produced plan the finding is reported against; the implementing plan states which.
+The new verifier `production_checks.spec_plan_trace` renders this exact template and returns `list[tuple[str, str, str]]` of `(code, plan_id, message)`, taking the argument shape of `spec_plan_conformance(repo, spec_id6, produced_paths, *, host, run_id)` specifically, because it is the only sibling that takes `run_id` and the template contains `<run-id>`. Because coverage is pooled (6.1), `<plan-id>` names a NEWLY produced plan the finding is reported against (a previously linked plan is not re-blamed for a gap this production failed to close); the implementing plan states which. `produced_paths` passed to the verifier is the pooled set of 6.1, not only the new plans.
 
 ### 6.2a The third conjunct: "there are no unknown references"
 
-The adopted pass criterion has THREE conjuncts and all three are in scope (added at review, SR-002). The third is the reverse direction: a produced plan that cites, as an id of THIS producing spec, an identifier the spec does not declare (a typo such as `R-99`, or a stale citation) fails. It is reported with the same template, the unknown ids carried in `<ids>`. A produced plan routinely mentions OTHER specs' ids (for example "`77tr3o` R-5"), so a rule that treats every id-shaped token in a plan as a citation of the producing spec would fire constantly. HOW a plan-side token is attributed to the producing spec is NOT decided by this spec and is OPEN (OQ-05, blocking).
+The adopted pass criterion has THREE conjuncts and all three are in scope (added at review, SR-002). The third is the reverse direction: a produced plan that cites, as an id of THIS producing spec, an identifier the spec does not declare (a typo such as `R-99`, or a stale citation) fails. It is reported with the same template, the unknown ids carried in `<ids>`. A deferred id (3.3) is declared, so citing it is not unknown. Which plan-side tokens count as citations at all is fixed by 6.2b.
+
+### 6.2b Citation Grammar: Qualified Citations Only
+
+Decided by the maintainer 2026-10-08 (OQ-05). A token in a pooled plan's `E-*`/`V-*` item counts as a citation of the producing spec ONLY when it is QUALIFIED with that spec's id6: the id6, optionally in backticks, followed by whitespace and the id (for example "`89xjll` R-3" or "89xjll AC-2"). Every other id-shaped token is IGNORED by TRACE in all three conjuncts: it neither covers a requirement nor counts as an unknown reference.
+
+Why: plans are full of id-shaped tokens that are not citations of their spec. Measured over the 116 existing plans carrying `- From-Spec:`, 160 id-shaped tokens in `E-*`/`V-*` lines are not declared by the producing spec, across 44 plans: 126 are the plan's OWN finding ids (`F-03`), 18 are `GUIDING_PRINCIPLES` references (`P16`), and 16 are other references. Treating unqualified tokens as citations would refuse plans written in the prevailing style; only 6 tokens in that population are already qualified. Consequences, accepted: plan authors MUST qualify requirement citations, and the spec-to-plan production prompt and `/plan-review` guidance MUST say so (an authoring obligation on the implementing work, not on this spec's check); an unqualified citation of a real requirement does not cover it, so TRACE refuses and the RETRY turn is where the author qualifies it.
 
 ### 6.3 Grandfathered-Spec and No-IDs Behavior
 
 When the producing specification predates the cutover date or declares zero requirement/acceptance IDs (such as legacy grandfathered specs), `SPEC-PLAN-TRACE` evaluates to a PASS with no findings. It must not fail or refuse plan production on specifications that were never required to adopt requirement IDs. Likewise a spec that declares requirement ids but no acceptance ids cannot fail the acceptance half, and vice versa.
+
+A spec whose ONLY uncovered mandatory ids are `[Deferred]` passes, with the deferred ids listed in the result. Such a pass is NOT vacuous (the non-deferred ids were genuinely checked) but MUST be distinguishable as PARTIAL: the result names the deferred ids, and output describing the plan set as trace-verified MUST say it is trace-verified except for those ids.
 
 Honest consequence: at review HEAD every one of the 12 `approved` specs predates any plausible cutover, so on the current approved population TRACE passes vacuously. It begins to bind only on specs authored after the stamped boundary.
 
@@ -186,17 +223,21 @@ Further limits: the check does not prove the spec's ids are the RIGHT decomposit
 
 This explicit limit, once Order 02 (`rtvdak`) ships the check, replaces the prohibition in `z7nbn1` 4.4 for non-vacuous passes; until then the prohibition stands (Section 7).
 
+### 6.5 Deferred ids block `implemented`
+
+Decided by the maintainer 2026-10-08 (OQ-07). A spec whose body still declares any `[Deferred]` id MUST NOT transition to `implemented`. The refusal names every remaining deferred id. Remedy: remove each marker and plan the id (TRACE then enforces it on the next production), or delete the requirement from the spec. This is enforced at the spec status setter (`aw specs set` / `aw spec set`, both spellings), which already refuses `implemented` without cited evidence; it is a transition refusal, not a corpus check rule. A grandfathered spec is not exempt: the marker grammar only exists in post-cutover specs, so in practice the rule binds only them.
+
 ## 7. Relations to Other Specifications
 
 - **`25kzda` 4.8**: ADOPTED VERBATIM. The pass criterion, message template, and `RETRY, then FAIL ITEM` action are adopted exactly as specified. No amendment to `25kzda` is made.
 - **`z7nbn1` 4.4**: Addresses the deferral of `SPEC-PLAN-TRACE` to backlog `vy20et`. Note that this deferral is addressed by this specification, but is NOT discharged until Order 02 (`rtvdak`) implements the parser and wires the check into `runner_shared.py`.
 - **Research `vkub9o`**: Cites the census methodology and harm findings. DEPARTS from its Section 5 "do not build a requirement parser" recommendation, scoped to production time, on the basis stated in Section 1; every other item on its do-not-build list is kept as a non-goal (Section 1a).
-- **Plan `rtvdak`** (Order 02, depends on this spec): implements R-1 through R-7. Direction: `rtvdak` depends on this spec reaching `approved`; this spec does not depend on `rtvdak`.
+- **Plan `rtvdak`** (Order 02, depends on this spec): implements the TRACE requirements. Direction: `rtvdak` depends on this spec reaching `approved`; this spec does not depend on `rtvdak`. NOTE (2026-10-08 amendment): `rtvdak` was reviewed and approved against the pre-amendment contract (R-1..R-7, new-plans-only coverage, unqualified citations, no markers). This amendment changes R-1, R-4, R-5, R-6 and adds R-8 and R-9 (R-9 touches the spec status setter, which may be outside `rtvdak`'s declared scope). `rtvdak` MUST be re-reviewed against this spec before it executes; executing it as approved would implement the superseded contract.
 - **Backlog `vy20et`**: the item this spec graduates. It carries no `- Blocks-Release:`, so there is no release gate to inherit.
 
 ## 8. Open Questions (Recommendations for Spec Review)
 
-OQ-01 through OQ-03 were resolved on repository evidence by the author. These resolutions are agent recommendations awaiting human ratification via the human approval attestation (`aw spec set approved <id6> --by-human`), not maintainer determinations or approvals. OQ-04 and OQ-05 were raised at review as OPEN and BLOCKING; both were DECIDED BY THE MAINTAINER on 2026-10-08 (/askme), together with two follow-on decisions OQ-06 and OQ-07 raised while answering. The body of this spec (Sections 3, 6, R-4/R-5/R-6, AC-4..AC-6) has NOT yet been amended to match them and MUST be before approval.
+OQ-01 through OQ-03 were resolved on repository evidence by the author. These resolutions are agent recommendations awaiting human ratification via the human approval attestation (`aw spec set approved <id6> --by-human`), not maintainer determinations or approvals. OQ-04 and OQ-05 were raised at review as OPEN and BLOCKING; both were DECIDED BY THE MAINTAINER on 2026-10-08 (/askme), together with two follow-on decisions OQ-06 and OQ-07 raised while answering. The body was amended to match them on 2026-10-08 (Sections 1a, 1b, 3.1, 3.3, 6.1, 6.2, 6.2a, 6.2b, 6.3, 6.5, 7, 9).
 
 ### OQ-01: How is a "mandatory" spec requirement identified, given that no marker is in general use?
 
@@ -207,7 +248,7 @@ OQ-01 through OQ-03 were resolved on repository evidence by the author. These re
 - **Recommended Answer**: Option A (fail-closed: every declared requirement ID is mandatory by default).
 - **Evidence & Rationale**: Census measurements show that `[Must]` appears in only 2 of 12 `approved` specifications (`2vev8j`, `5tapom`). Under Option B, `SPEC-PLAN-TRACE` would be vacuous for 10 of 12 approved specs, passing by default and teaching authors to treat the gate as decoration. Option A fails closed, aligning with all other safety gates in this repository.
 - **Marker grammar, made exact at review (SR-005)**: under Option A a declared requirement is NON-mandatory if and only if the declaration-site line carries the token `[Should]` or `[Optional]`, in backticks or not, immediately after the id. These are the only non-mandatory markers already in the corpus (`[Should]` 5 occurrences, all in pre-cutover specs). `(optional)` in running prose is NOT a marker. Acceptance criteria have no optional form: every declared acceptance criterion must map to a `V-*` item.
-- **Cost recorded (SR-008)**: OQ-01 Option A interacts with OQ-03 Option A. Together they make every FORM C numbered heading in a post-cutover spec mandatory, including non-normative ones. That interaction is OQ-04.
+- **Cost recorded (SR-008)**: OQ-01 Option A interacts with OQ-03 Option A. Together they make every FORM C numbered heading in a post-cutover spec mandatory, including non-normative ones. That interaction is OQ-04, resolved by extracting FORM A only (Section 3.1).
 
 ### OQ-02: Does the spec ADOPT 25kzda 4.8's TRACE row verbatim, or AMEND it?
 
@@ -222,7 +263,7 @@ OQ-01 through OQ-03 were resolved on repository evidence by the author. These re
 - **Options Considered**:
   1. (Option A) Admit bare dotted paragraph IDs (FORM B) and numbered section handles (FORM C) as valid requirement handles.
   2. (Option B) Restrict valid requirement IDs strictly to letter-prefixed identifiers (FORM A).
-- **Recommended Answer**: Option A (Admit FORM B and FORM C).
+- **Recommended Answer**: Option A (Admit FORM B and FORM C). NARROWED by OQ-04 (maintainer, 2026-10-08): FORM B and FORM C are admitted as ADDRESSING handles only and are never TRACE-extracted.
 - **Evidence & Rationale**: Two of the repository's foundational specifications (`25kzda` with 61 sections and `z7nbn1` with 30 dotted paragraph clauses) are structured around numbered sections and clauses without letter prefixes. Requiring letter-prefixed IDs would treat these key specifications as unaddressable or demand an invasive retrofit. Note (review): both are pre-cutover and grandfathered, so the evidence supports FORM B/C as ADDRESSING handles; whether they are TRACE-MANDATORY in a new spec is OQ-04.
 
 ### OQ-04 (RESOLVED 2026-10-08 by the maintainer; was OPEN, BLOCKING, raised at review SR-003): Which admitted forms does TRACE treat as mandatory requirements?
@@ -271,11 +312,13 @@ Each criterion names the requirement it covers and the evidence that satisfies i
 
 | ID | Covers | Criterion | Evidence |
 | --- | --- | --- | --- |
-| AC-1 | R-1, R-2 | The parser returns the declared requirement and acceptance id sets of a post-cutover fixture spec using each admitted family and both acceptance prefixes, and returns them as DISJOINT sets. | Test output asserting the returned sets. |
-| AC-2 | R-2 | An id appearing mid-sentence, in a parenthetical, inside a fenced code block, or qualified by another spec's id6 is NOT returned. | Test output for each negative case. |
+| AC-1 | R-1, R-2 | The parser returns the declared requirement and acceptance id sets of a post-cutover fixture spec using each TRACE-extracted family and both acceptance prefixes, and returns them as DISJOINT sets. A FORM B paragraph number, a FORM C numbered heading, and an `N`-prefixed id in the same fixture are NOT returned. | Test output asserting the returned sets. |
+| AC-2 | R-2 | An id appearing mid-sentence, in a parenthetical, inside a fenced code block, or qualified by another spec's id6 is NOT returned by the spec-side parser. | Test output for each negative case. |
 | AC-3 | R-3 | A fixture spec whose filename date is before the resolved boundary is grandfathered and one on or after it is bound; with no stamped key and no install history, the module fallback is used (the boundary is non-`None`). | Test output for all three cases. |
-| AC-4 | R-4, R-5 | A production run whose produced plan set cites every mandatory requirement in some `E-*` item and every acceptance criterion in some `V-*` item PASSES; an orchestrator in the set contributes no failure. | Run disposition and events pasted. |
-| AC-5 | R-5 | A produced set omitting one mandatory requirement FAILS with code `SPEC-PLAN-TRACE`, the omitted id in `<ids>`, the message byte-identical to the 25kzda 4.8 template, and the item dispositioned per `RETRY, then FAIL ITEM`. Likewise for an uncovered acceptance criterion against `V-*` items, and for an unknown reference per the OQ-05 ruling. | Message text and disposition pasted for each failing case. |
+| AC-4 | R-4, R-5 | A production whose pooled plan set (a previously linked plan plus a newly produced one) cites every mandatory requirement, QUALIFIED with the spec id6, in some `E-*` item and every acceptance criterion in some `V-*` item PASSES, where the earlier plan alone covers part and the new plan the rest; an orchestrator in the set contributes no failure. A linked plan in `superseded/` contributes no coverage. | Run disposition and events pasted. |
+| AC-5 | R-5 | A pooled set omitting one mandatory requirement FAILS with code `SPEC-PLAN-TRACE`, the omitted id in `<ids>`, the message byte-identical to the 25kzda 4.8 template, and the item dispositioned per `RETRY, then FAIL ITEM`. Likewise for an uncovered acceptance criterion against `V-*` items, and for a qualified citation of an id the spec does not declare (the unknown reference in `<ids>`). An UNQUALIFIED token naming a real requirement does not cover it, and an unqualified unknown token (for example the plan's own `F-03`) produces no finding. | Message text and disposition pasted for each case. |
 | AC-6 | R-6 | A grandfathered spec with uncovered ids, and a post-cutover spec with zero declared ids, both PASS with no findings, and the result marks the pass as vacuous. | Test output. |
 | AC-7 | R-7 | The verifier's docstring and user-visible result state the citation-not-implementation limit, and no output labels a vacuous pass as trace-verified. | Pasted docstring and output. |
 | AC-8 | R-4 | The three existing siblings (`SPEC-PLAN-COUNT`, `SPEC-PLAN-CONFORMANCE`, `SPEC-PLAN-GATE-CARRY`) behave exactly as before, and the backlog production block is untouched. | Their existing tests passing unedited. |
+| AC-9 | R-6, R-8 | A post-cutover fixture spec with one `[Deferred]` requirement and one `[Deferred]` acceptance id, whose pooled plans cover every other id, PASSES; the result lists both deferred ids and is marked partial, not vacuous. A `[Deferred]` id cited by a plan is not reported as unknown. `[Should]` on a requirement makes it non-required and unlisted; `[Should]` on an acceptance id has no effect. | Test output. |
+| AC-10 | R-9 | `aw specs set <path> --status implemented` and `aw spec set implemented <id6>` on a spec still declaring a `[Deferred]` id both REFUSE, naming the id, and change nothing on disk; after the marker is removed the same transition is no longer refused for that reason. | Command output and `git status` pasted. |
