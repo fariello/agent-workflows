@@ -12269,9 +12269,11 @@ def _run_show(
 def _run_record_history(
     args: argparse.Namespace, term: Term, context: Optional[Any] = None
 ) -> int:
-    import os
-    from pathlib import Path
-
+    from agent_workflows.artifact_types import EXIT_CANNOT_RUN
+    from agent_workflows.project_context import (
+        nonsurveyable_root_refusal,
+        resolve_verb_repo_root,
+    )
     from agent_workflows import record_history as rh
     from agent_workflows.renderers import get_renderer
     from agent_workflows.result_types import (
@@ -12282,7 +12284,32 @@ def _run_record_history(
     )
 
     ctx = context or select_output(args)
-    repo_root = Path(getattr(args, "dir", None) or os.getcwd())
+    repo_root = resolve_verb_repo_root(getattr(args, "dir", None))
+    refusal = nonsurveyable_root_refusal(
+        "record-history", repo_root, explicit_dir=bool(getattr(args, "dir", None))
+    )
+    if not refusal.may_proceed:
+        if ctx.is_agent or ctx.is_json:
+            res = CommandResult(
+                command="record-history",
+                status="cannot-run",
+                exit_code=2,
+                summary=refusal.summary,
+                next_actions=(
+                    [
+                        NextAction(
+                            command=refusal.next_action_command,
+                            description=refusal.next_action_description,
+                        )
+                    ]
+                    if refusal.next_action is not None
+                    else []
+                ),
+            )
+            return get_renderer(ctx).emit(res, ctx)
+        sys.stderr.write(refusal.human_message + "\n")
+        return EXIT_CANNOT_RUN
+
     id6 = args.id6
     records = rh.read_for(repo_root, id6)
     if ctx.is_agent or ctx.is_json:
@@ -12346,9 +12373,12 @@ def _run_graduation(
     the view. Exit 0 on any resolvable id6, including the common and reassuring "nothing yet" answer,
     which is rendered as an AFFIRMATIVE statement rather than as an error or as empty output.
     """
-    import os
-    from pathlib import Path
 
+    from agent_workflows.artifact_types import EXIT_CANNOT_RUN
+    from agent_workflows.project_context import (
+        nonsurveyable_root_refusal,
+        resolve_verb_repo_root,
+    )
     from agent_workflows import check_engine as ce
     from agent_workflows.renderers import get_renderer
     from agent_workflows.result_types import (
@@ -12359,7 +12389,32 @@ def _run_graduation(
     )
 
     ctx = context or select_output(args)
-    repo_root = Path(getattr(args, "dir", None) or os.getcwd())
+    repo_root = resolve_verb_repo_root(getattr(args, "dir", None))
+    refusal = nonsurveyable_root_refusal(
+        "graduation", repo_root, explicit_dir=bool(getattr(args, "dir", None))
+    )
+    if not refusal.may_proceed:
+        if ctx.is_agent or ctx.is_json:
+            res = CommandResult(
+                command="graduation",
+                status="cannot-run",
+                exit_code=2,
+                summary=refusal.summary,
+                next_actions=(
+                    [
+                        NextAction(
+                            command=refusal.next_action_command,
+                            description=refusal.next_action_description,
+                        )
+                    ]
+                    if refusal.next_action is not None
+                    else []
+                ),
+            )
+            return get_renderer(ctx).emit(res, ctx)
+        sys.stderr.write(refusal.human_message + "\n")
+        return EXIT_CANNOT_RUN
+
     source = (getattr(args, "source", None) or "").strip()
     source_kind = getattr(args, "source_kind", None)
 
@@ -13423,10 +13478,13 @@ def _run_find(
     args: argparse.Namespace, term: Term, context: Optional[Any] = None
 ) -> int:
     """awcmdsurf Order 02 / highpbacklog0822 Order 04: find artifacts with empty-state UX."""
-    import os
-    from pathlib import Path
 
     from agent_workflows import artifact_types as at
+    from agent_workflows.artifact_types import EXIT_CANNOT_RUN
+    from agent_workflows.project_context import (
+        nonsurveyable_root_refusal,
+        resolve_verb_repo_root,
+    )
     from agent_workflows.renderers import get_renderer
     from agent_workflows.result_types import (
         CommandResult,
@@ -13447,7 +13505,32 @@ def _run_find(
         norm = "all"
         selectors = ([raw_type] if raw_type is not None else []) + raw_selector
 
-    repo_root = Path(getattr(args, "dir", None) or os.getcwd())
+    repo_root = resolve_verb_repo_root(getattr(args, "dir", None))
+    refusal = nonsurveyable_root_refusal(
+        "find", repo_root, explicit_dir=bool(getattr(args, "dir", None))
+    )
+    if not refusal.may_proceed:
+        if ctx.is_agent or ctx.is_json:
+            res = CommandResult(
+                command="find",
+                status="cannot-run",
+                exit_code=2,
+                summary=refusal.summary,
+                next_actions=(
+                    [
+                        NextAction(
+                            command=refusal.next_action_command,
+                            description=refusal.next_action_description,
+                        )
+                    ]
+                    if refusal.next_action is not None
+                    else []
+                ),
+            )
+            return get_renderer(ctx).emit(res, ctx)
+        sys.stderr.write(refusal.human_message + "\n")
+        return EXIT_CANNOT_RUN
+
     types = at.ARTIFACT_TYPES if norm == "all" else (norm,)
 
     status_filter = getattr(args, "status", None)
@@ -14066,11 +14149,14 @@ def _run_search(
     restricts search to that type; otherwise searches 'all' types. Prints file path once
     in bold blue, followed by matching lines with matches highlighted in bold yellow
     (with line numbers if --line-numbers)."""
-    import os
     import re
-    from pathlib import Path
 
     from agent_workflows import artifact_types as at
+    from agent_workflows.artifact_types import EXIT_CANNOT_RUN
+    from agent_workflows.project_context import (
+        nonsurveyable_root_refusal,
+        resolve_verb_repo_root,
+    )
     from agent_workflows import attention as att
     from agent_workflows import selectors
     from agent_workflows.renderers import get_renderer
@@ -14159,7 +14245,31 @@ def _run_search(
         term.status("fail", f"invalid regex: {exc}")
         return 2
 
-    repo_root = Path(getattr(args, "dir", None) or os.getcwd())
+    repo_root = resolve_verb_repo_root(getattr(args, "dir", None))
+    refusal = nonsurveyable_root_refusal(
+        "search", repo_root, explicit_dir=bool(getattr(args, "dir", None))
+    )
+    if not refusal.may_proceed:
+        if ctx.is_agent or ctx.is_json:
+            res = CommandResult(
+                command="search",
+                status="cannot-run",
+                exit_code=2,
+                summary=refusal.summary,
+                next_actions=(
+                    [
+                        NextAction(
+                            command=refusal.next_action_command,
+                            description=refusal.next_action_description,
+                        )
+                    ]
+                    if refusal.next_action is not None
+                    else []
+                ),
+            )
+            return get_renderer(ctx).emit(res, ctx)
+        sys.stderr.write(refusal.human_message + "\n")
+        return EXIT_CANNOT_RUN
     types = [t for t in at.ARTIFACT_TYPES if t in types_set]
     status_filters = att.parse_status_filters(flag_status)
 
@@ -14477,12 +14587,15 @@ def _run_check(
     context: Optional[Any] = None,
 ) -> int:
     """awcmdsurf Order 02 / awcliux Order 02: validate a TYPE via the check engine with the doctor-derived recipe."""
-    import os
     import time
-    from pathlib import Path
 
     from agent_workflows import artifact_core as core
     from agent_workflows import artifact_types as at
+    from agent_workflows.artifact_types import EXIT_CANNOT_RUN
+    from agent_workflows.project_context import (
+        nonsurveyable_root_refusal,
+        resolve_verb_repo_root,
+    )
     from agent_workflows import check_engine as ce
     from agent_workflows.renderers import get_renderer
     from agent_workflows.result_types import (
@@ -14496,7 +14609,31 @@ def _run_check(
     start_time = time.monotonic()
     ctx = context or select_output(args)
     raw_type = getattr(args, "type", None) or "all"
-    repo_root = Path(getattr(args, "dir", None) or os.getcwd())
+    repo_root = resolve_verb_repo_root(getattr(args, "dir", None))
+    refusal = nonsurveyable_root_refusal(
+        "check", repo_root, explicit_dir=bool(getattr(args, "dir", None))
+    )
+    if not refusal.may_proceed:
+        if ctx.is_agent or ctx.is_json:
+            res = CommandResult(
+                command="check",
+                status="cannot-run",
+                exit_code=2,
+                summary=refusal.summary,
+                next_actions=(
+                    [
+                        NextAction(
+                            command=refusal.next_action_command,
+                            description=refusal.next_action_description,
+                        )
+                    ]
+                    if refusal.next_action is not None
+                    else []
+                ),
+            )
+            return get_renderer(ctx).emit(res, ctx)
+        sys.stderr.write(refusal.human_message + "\n")
+        return EXIT_CANNOT_RUN
     include_retired = bool(getattr(args, "all", False))
 
     limit_val = getattr(args, "limit", None)
