@@ -1130,7 +1130,24 @@ def check_graduated_to(
 # ======================================================================================
 
 
-def _release_repo_root(args) -> Path:
+def _release_read_repo_root(args) -> Path:
+    """Resolve repo root for read-class release verbs (`run_list`, `run_show`).
+
+    Refuses a non-surveyable root to prevent false clean claims over an unsurveyed
+    tree (anti-greenwashing invariant).
+    """
+    from agent_workflows.project_context import resolve_verb_repo_root
+
+    return resolve_verb_repo_root(getattr(args, "dir", None))
+
+
+def _release_write_repo_root(args) -> Path:
+    """Resolve repo root for write-class release verbs (`run_new`).
+
+    Deliberately does not refuse a non-project `--dir`: honors verbatim so the write
+    operation fails loudly and locally at a readable path without touching the real
+    records tree (see `resolve_verb_repo_root` docstring and IPD lmyeas OQ-01).
+    """
     from agent_workflows.project_context import resolve_verb_repo_root
 
     return resolve_verb_repo_root(getattr(args, "dir", None))
@@ -1158,12 +1175,44 @@ def run_list(args) -> int:
     Human view is a fixed-width table (Id / Status / Version / Summary) via `term.format_table`;
     `--json`/`--agent` carry the same records plus the resolved `next` release. Exit 0 always (an
     empty tree is a legitimate clean answer, rendered as the shared empty-result guidance)."""
+    from agent_workflows.project_context import nonsurveyable_root_refusal
     from agent_workflows.renderers import get_renderer
-    from agent_workflows.result_types import CommandResult, Evidence, select_output
+    from agent_workflows.result_types import (
+        CommandResult,
+        Evidence,
+        NextAction,
+        select_output,
+    )
     from agent_workflows.term import Term
 
-    repo_root = _release_repo_root(args)
+    repo_root = _release_read_repo_root(args)
     ctx = select_output(args)
+    explicit_dir = bool(getattr(args, "dir", None))
+    refusal = nonsurveyable_root_refusal(
+        "releases list", repo_root, explicit_dir=explicit_dir
+    )
+    if not refusal.may_proceed:
+        if ctx.is_agent or ctx.is_json:
+            res = CommandResult(
+                command="releases list",
+                status="cannot-run",
+                exit_code=2,
+                summary=refusal.summary,
+                next_actions=(
+                    [
+                        NextAction(
+                            command=refusal.next_action_command,
+                            description=refusal.next_action_description,
+                        )
+                    ]
+                    if refusal.next_action is not None
+                    else []
+                ),
+            )
+            return get_renderer(ctx).emit(res, ctx)
+        sys.stderr.write(refusal.human_message + "\n")
+        return 2
+
     records = list_releases(repo_root)
     planned = describe_planned_release(repo_root)
     data = {
@@ -1229,6 +1278,7 @@ def run_show(args) -> int:
     The selector defaults to `next` (OQ-01). The blocker list comes from `get_release_blockers`, i.e.
     from `attention.release_blockers`, so it is the SAME set the board shows. Exit 2 when the selector
     resolves to no release (a usage error, not an empty result)."""
+    from agent_workflows.project_context import nonsurveyable_root_refusal
     from agent_workflows.renderers import get_renderer
     from agent_workflows.result_types import (
         CommandResult,
@@ -1238,8 +1288,34 @@ def run_show(args) -> int:
     )
     from agent_workflows.term import Term
 
-    repo_root = _release_repo_root(args)
+    repo_root = _release_read_repo_root(args)
     ctx = select_output(args)
+    explicit_dir = bool(getattr(args, "dir", None))
+    refusal = nonsurveyable_root_refusal(
+        "releases show", repo_root, explicit_dir=explicit_dir
+    )
+    if not refusal.may_proceed:
+        if ctx.is_agent or ctx.is_json:
+            res = CommandResult(
+                command="releases show",
+                status="cannot-run",
+                exit_code=2,
+                summary=refusal.summary,
+                next_actions=(
+                    [
+                        NextAction(
+                            command=refusal.next_action_command,
+                            description=refusal.next_action_description,
+                        )
+                    ]
+                    if refusal.next_action is not None
+                    else []
+                ),
+            )
+            return get_renderer(ctx).emit(res, ctx)
+        sys.stderr.write(refusal.human_message + "\n")
+        return 2
+
     selector = (getattr(args, "selector", None) or "next").strip()
     rec = get_release(repo_root, selector)
     if rec is None:
@@ -1344,7 +1420,7 @@ def run_new(args) -> int:
         select_output,
     )
 
-    repo_root = _release_repo_root(args)
+    repo_root = _release_write_repo_root(args)
     ctx = select_output(args)
     version = (getattr(args, "version", None) or "").strip()
     summary = (getattr(args, "summary", None) or "").strip()

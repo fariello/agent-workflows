@@ -261,6 +261,7 @@ def test_projection_anti_overreach_and_combinatorial_sweep():
 
 def test_cli_projection_releases_show_retains_next(tmp_path, capsys):
     """E-01: aw releases show preserves non-null next across --fields projection."""
+    (tmp_path / ".aw" / "records" / "releases").mkdir(parents=True, exist_ok=True)
     tmp = str(tmp_path)
     # 1. Unprojected run
     capsys.readouterr()

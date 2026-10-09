@@ -4177,9 +4177,7 @@ def run(args) -> int:
     # Climb to the project root so `aw attention` works from any subdirectory; an explicit --dir is
     # honored verbatim (IPD awretrofit Order 06).
     from agent_workflows.project_context import (
-        classify_project_dir,
-        git_root_for_message,
-        no_project_message,
+        nonsurveyable_root_refusal,
         resolve_verb_repo_root,
     )
     from agent_workflows.renderers import get_renderer
@@ -4196,13 +4194,10 @@ def run(args) -> int:
     check = getattr(args, "check", False)
     ctx = select_output(args)
 
-    # ci9kx2-01 (`bjgqez`) E-02 / OQ-01: An explicitly named directory that is not an AW project (or a
-    # subdirectory of a real project without upward climb) enters this branch intentionally and exits
-    # nonzero (human 3 / machine 2) rather than exiting 0. Exit 0 was a false clean claim for an
-    # unsurveyed directory. The nonzero exit on explicit --dir is deliberate and required by
-    # cli-output-contract.md Section 3 / 11.4.
-    classification = classify_project_dir(repo_root)
-    if not classification.is_root:
+    refusal = nonsurveyable_root_refusal(
+        "attention", repo_root, explicit_dir=bool(explicit_dir)
+    )
+    if not refusal.may_proceed:
         # ci9kx2-01 (`bjgqez`) E-03: --check is valid only for a climb that found no project (nothing
         # to violate); an explicitly named non-project directory fails closed with cannot-run
         # (spec Section 8.1: could-not-run is exit 2 / fail closed; human 3).
@@ -4226,87 +4221,25 @@ def run(args) -> int:
             sys.stdout.write("aw attention --check: the view is valid.\n")
             return 0
         if ctx.is_agent or ctx.is_json:
-            # attcor `rkn8ya` E-12: EMIT the result. This `CommandResult` was built and then thrown
-            # away - the `emit` call was missing - so `aw attention --agent` outside an AW project
-            # wrote prose to STDERR and NOTHING to stdout, breaking the `aw.agent/v1` envelope
-            # contract for a consumer that only reads stdout. The correct sibling is the `--check`
-            # branch ten lines above, and the scan-error branch below also emits; this one path did
-            # not. Reproduced before the fix: rc=3, stdout empty, stderr carrying the prose.
-            #
-            # AND THE SUMMARY IS SANITIZED. `no_project_message` interpolates the directory it
-            # checked (`project_context.py`), so emitting it verbatim would write a machine-local
-            # ABSOLUTE path into a machine payload, the same leak class as E-02 and forbidden by the
-            # attention spec's Section 8.5. The human STDERR line keeps the full guidance (it names
-            # the directory it checked, which is exactly what helps an operator standing in the wrong
-            # one); the MACHINE summary states the condition and the remedies without the path.
-            #
-            # THE MACHINE SURFACE CARRIES EXIT 2, NOT 3, and the reason is a hard contract.
-            # `aw.agent/v1` admits ONLY 0/1/2 (`agent_schema.validate_agent_record`: "Field 'exit'
-            # must be an integer in (0, 1, 2)"), and additionally requires an error-class record to
-            # carry exit=2; `docs/cli-output-contract.md` Section 3 classifies precisely this case
-            # ("Cannot-Run ... preventing domain inspection") as 2, and its exit-parity rule requires
-            # the embedded `exit` to EQUAL the process exit code. An `exit_code=3` result therefore
-            # cannot be emitted at all: it raises `ValueError` in the renderer before writing a byte,
-            # which is why simply adding the missing `emit` call with 3 would reproduce the empty
-            # stdout this fix removes. (The sibling `aw ipd board` had the identical defect and was
-            # filed as backlog `5x195l`; nogitmsg `quqyc4` E-05 FIXED it the same way, so no site in
-            # the package now builds an `exit_code=3` record. That property is pinned by
-            # `tests/test_attention.py::NoProjectAgentEnvelopeTests` and
-            # `tests/test_no_project_exit_is_cannot_run.py`.)
-            #
-            # THE HUMAN PATH WAS LATER MOVED TO EXIT 2 AS WELL by backlog `c6vs7y` (IPD `rwvzqm`),
-            # retiring the human exit 3 so one condition has one code and satisfies the published
-            # uniform three-state exit classification across all audience surfaces. Pinned by
-            # `tests/test_no_project_exit_is_cannot_run.py`.
-            #
-            # nogitmsg `quqyc4` E-04 ADDS THE INSTALL OFFER AS STRUCTURED DATA, not only as prose:
-            # when cwd IS inside a git repository, the record carries a `NextAction` so an automated
-            # consumer can read the remedy from the `next` field instead of parsing the summary. The
-            # command is `aw install .` and NOT `aw install <absolute root>` because the absolute form
-            # is UNEMITTABLE: `agent_schema` refuses an absolute home path in ANY string field, so it
-            # would raise in the renderer and reintroduce the very crash class this branch documents
-            # (measured; decision 03-quqyc4-D2). `aw install` defaults to cwd, so `.` is literally
-            # runnable. In a NON-git directory no action is attached and `next` stays null, because an
-            # unconditional install suggestion would be wrong there.
-            if classification.is_inside_project and explicit_dir:
-                summary = (
-                    "the specified directory is inside an AW project but is not its root; "
-                    "--dir is honored verbatim with no upward climb"
-                )
-                next_actions = []
-            else:
-                git_root = git_root_for_message(repo_root)
-                summary = (
-                    "no AW project found at the specified directory; "
-                    "--dir is honored verbatim with no upward climb"
-                    if explicit_dir
-                    else (
-                        "no AW project found at the working directory or any ancestor; "
-                        "cd into the repository or pass --dir <repo>"
+            next_actions = (
+                [
+                    NextAction(
+                        command=refusal.next_action_command,
+                        description=refusal.next_action_description,
                     )
-                )
-                next_actions = (
-                    [
-                        NextAction(
-                            command="aw install .",
-                            description="install agent-workflows in this repo",
-                        )
-                    ]
-                    if git_root is not None
-                    else []
-                )
+                ]
+                if refusal.next_action is not None
+                else []
+            )
             res = CommandResult(
                 command="attention",
                 status="cannot-run",
                 exit_code=2,
-                summary=summary,
+                summary=refusal.summary,
                 next_actions=next_actions,
             )
             return get_renderer(ctx).emit(res, ctx)
-        sys.stderr.write(
-            no_project_message("attention", repo_root, explicit=bool(explicit_dir))
-            + "\n"
-        )
+        sys.stderr.write(refusal.human_message + "\n")
         return EXIT_CANNOT_RUN
 
     type_filters = parse_type_filters(getattr(args, "types", None))

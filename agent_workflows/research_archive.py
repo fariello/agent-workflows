@@ -398,7 +398,26 @@ def apply_moves(repo_root: Path, research_root: Path, moves: List[Move]) -> List
 # --------------------------------------------------------------------------------------
 
 
-def _roots(args: argparse.Namespace) -> Tuple[Path, Path]:
+def _read_roots(args: argparse.Namespace) -> Tuple[Path, Path]:
+    """Resolve repo root and research root for read-class research archive verbs (`run_check_miscategorized`).
+
+    Refuses a non-surveyable root to prevent false clean claims over an unsurveyed
+    tree (anti-greenwashing invariant).
+    """
+    from agent_workflows.project_context import resolve_verb_repo_root
+
+    repo_root = resolve_verb_repo_root(getattr(args, "dir", None))
+    # Layout-aware (IPD awretrofit Order 01): shared research-root resolution.
+    return repo_root, R.resolve_research_root(repo_root)
+
+
+def _write_roots(args: argparse.Namespace) -> Tuple[Path, Path]:
+    """Resolve repo root and research root for write-class research archive verbs (`run_archive`, `run_promote`).
+
+    Deliberately does not refuse a non-project `--dir`: honors verbatim so the write
+    operation fails loudly and locally at a readable path without touching the real
+    records tree (see `resolve_verb_repo_root` docstring and IPD lmyeas OQ-01).
+    """
     from agent_workflows.project_context import resolve_verb_repo_root
 
     repo_root = resolve_verb_repo_root(getattr(args, "dir", None))
@@ -414,7 +433,7 @@ def run_archive(args: argparse.Namespace) -> int:
     ctx = select_output(args)
     is_agent_or_json = ctx.is_agent or ctx.is_json
 
-    repo_root, research_root = _roots(args)
+    repo_root, research_root = _write_roots(args)
     target = getattr(args, "target", None)
     apply = getattr(args, "apply", False)
     raw_age = getattr(args, "age", None)
@@ -787,7 +806,7 @@ def run_promote(args: argparse.Namespace) -> int:
     ctx = select_output(args)
     is_agent_or_json = ctx.is_agent or ctx.is_json
 
-    repo_root, research_root = _roots(args)
+    repo_root, research_root = _write_roots(args)
     apply = getattr(args, "apply", False)
 
     if getattr(args, "suggest", False):
@@ -911,8 +930,18 @@ def run_promote(args: argparse.Namespace) -> int:
 
 def run_check_miscategorized(args: argparse.Namespace) -> int:
     """Report archived-but-cited docs (the miscategorization flag)."""
+    import sys
+    from agent_workflows.project_context import nonsurveyable_root_refusal
 
-    repo_root, research_root = _roots(args)
+    repo_root, research_root = _read_roots(args)
+    explicit_dir = bool(getattr(args, "dir", None))
+    refusal = nonsurveyable_root_refusal(
+        "research check-miscategorized", repo_root, explicit_dir=explicit_dir
+    )
+    if not refusal.may_proceed:
+        sys.stderr.write(refusal.human_message + "\n")
+        return 2
+
     flagged = find_miscategorized(repo_root, research_root)
     if not flagged:
         print("no miscategorized (archived-but-cited) docs")

@@ -10699,9 +10699,7 @@ def _run_plans(
 ) -> int:
     from agent_workflows.artifact_types import EXIT_CANNOT_RUN
     from agent_workflows.project_context import (
-        classify_project_dir,
-        git_root_for_message,
-        no_project_message,
+        nonsurveyable_root_refusal,
         resolve_verb_repo_root,
     )
     from agent_workflows.renderers import get_renderer
@@ -10719,77 +10717,26 @@ def _run_plans(
     # (IPD awretrofit Order 06).
     explicit_dir = getattr(args, "dir", None)
     root = resolve_verb_repo_root(explicit_dir)
-    # ci9kx2-01 (`bjgqez`) E-02 / OQ-01: An explicitly named directory that is not an AW project (or a
-    # subdirectory of a real project without upward climb) enters this branch intentionally and exits
-    # nonzero (human 3 / machine 2) rather than exiting 0. Exit 0 was a false clean claim for an
-    # unsurveyed directory. The nonzero exit on explicit --dir is deliberate and required by
-    # cli-output-contract.md Section 3 / 11.4.
-    classification = classify_project_dir(root)
-    if not classification.is_root:
+    refusal = nonsurveyable_root_refusal(
+        "ipd board", root, explicit_dir=bool(explicit_dir)
+    )
+    if not refusal.may_proceed:
         if ctx.is_agent or ctx.is_json:
-            # nogitmsg `quqyc4` E-05 / backlog `5x195l`: THIS BRANCH USED TO CRASH. It built
-            # `exit_code=3` and emitted it, but `aw.agent/v1` admits only 0/1/2 and additionally
-            # requires an error-class record to carry exit=2, so the record could never serialize and
-            # `assert_valid_agent_record` raised BEFORE writing a byte: `aw ipd board --agent` outside
-            # a project exited 1 with a `ValueError` traceback and an empty stdout (measured).
-            #
-            # THE FIX MIRRORS THE SIBLING rather than widening the protocol, and that is a recorded
-            # reversal of this plan's own OQ-01 (decision 03-quqyc4-D1). OQ-01 chose to widen
-            # `agent_schema` to admit 3, on the ground that the parity rule in
-            # `docs/cli-output-contract.md` ("the embedded `exit` MUST equal the process exit code")
-            # forbade emitting 2 beside a process exit of 3. Since that ruling, attcor `rkn8ya` E-12
-            # fixed the SAME defect in `aw attention` by satisfying parity the OTHER way: it moved the
-            # MACHINE process exit to 2, originally leaving the HUMAN surface at 3. The human surface
-            # was LATER moved to 2 as well by backlog `c6vs7y` (IPD `rwvzqm`), retiring the human exit 3
-            # so one condition has one code across all audience surfaces. That cross-surface agreement
-            # is pinned by `tests/test_no_project_exit_is_cannot_run.py`. Widening the schema would
-            # promote exit 3 into two published contracts at the moment its only other emitter was
-            # removed, and would leave verbs answering one condition with different codes. After this
-            # change no executable site in the package constructs an `exit_code=3` record, so the
-            # schema and both contract docs need no amendment at all.
-            #
-            # THE SUMMARY IS SANITIZED for the same reason attention's is: `no_project_message`
-            # interpolates the resolved directory, so emitting it verbatim would write a machine-local
-            # ABSOLUTE path into a machine payload, which `agent_schema` refuses outright. The human
-            # STDERR path below keeps the full guidance, including the git root and the install offer,
-            # because naming the directory is exactly what helps an operator.
-            #
-            # E-04 ATTACHES THE INSTALL OFFER AS STRUCTURED DATA when a git root was found, so a
-            # consumer reads the remedy from `next` instead of parsing prose. `aw install .` and not
-            # `aw install <absolute root>`, because the absolute form is unemittable for the leak
-            # reason above (decision 03-quqyc4-D2); `aw install` defaults to cwd.
-            if classification.is_inside_project and explicit_dir:
-                summary = (
-                    "the specified directory is inside an AW project but is not its root; "
-                    "--dir is honored verbatim with no upward climb"
-                )
-                next_actions = []
-            else:
-                git_root = git_root_for_message(root)
-                summary = (
-                    "no AW project found at the specified directory; "
-                    "--dir is honored verbatim with no upward climb"
-                    if explicit_dir
-                    else (
-                        "no AW project found at the working directory or any ancestor; "
-                        "cd into the repository or pass --dir <repo>"
+            next_actions = (
+                [
+                    NextAction(
+                        command=refusal.next_action_command,
+                        description=refusal.next_action_description,
                     )
-                )
-                next_actions = (
-                    [
-                        NextAction(
-                            command="aw install .",
-                            description="install agent-workflows in this repo",
-                        )
-                    ]
-                    if git_root is not None
-                    else []
-                )
+                ]
+                if refusal.next_action is not None
+                else []
+            )
             res = CommandResult(
                 command="ipd board",
                 status="cannot-run",
                 exit_code=2,
-                summary=summary,
+                summary=refusal.summary,
                 next_actions=next_actions,
             )
             return get_renderer(ctx).emit(res, ctx)
@@ -10797,9 +10744,7 @@ def _run_plans(
         # is to tell the operator what to run, and `aw plans` is NOT a registered command: it exits 2
         # from argparse as an invalid choice (measured). So the pre-change message misdirected the
         # operator from inside the help text.
-        sys.stderr.write(
-            no_project_message("ipd board", root, explicit=bool(explicit_dir)) + "\n"
-        )
+        sys.stderr.write(refusal.human_message + "\n")
         return EXIT_CANNOT_RUN
 
     # Validate --status up front so a typo teaches the valid set instead of silently

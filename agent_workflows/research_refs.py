@@ -290,8 +290,24 @@ def plan_mv(
 # --------------------------------------------------------------------------------------
 
 
-def _repo_root(args: argparse.Namespace) -> Path:
-    # Climb to the project root so research verbs work from any subdirectory (Order 06).
+def _read_repo_root(args: argparse.Namespace) -> Path:
+    """Resolve repo root for read-class research reference verbs (`run_check_refs`).
+
+    Refuses a non-surveyable root to prevent false clean claims over an unsurveyed
+    tree (anti-greenwashing invariant).
+    """
+    from agent_workflows.project_context import resolve_verb_repo_root
+
+    return resolve_verb_repo_root(getattr(args, "dir", None))
+
+
+def _write_repo_root(args: argparse.Namespace) -> Path:
+    """Resolve repo root for write-class research reference verbs (`run_set_assign`, `run_mv`).
+
+    Deliberately does not refuse a non-project `--dir`: honors verbatim so the write
+    operation fails loudly and locally at a readable path without touching the real
+    records tree (see `resolve_verb_repo_root` docstring and IPD lmyeas OQ-01).
+    """
     from agent_workflows.project_context import resolve_verb_repo_root
 
     return resolve_verb_repo_root(getattr(args, "dir", None))
@@ -596,7 +612,7 @@ def run_set_assign(
 ) -> "MutationResult":
     if emit_human is None:
         emit_human = not (getattr(args, "agent", False) or getattr(args, "json", False))
-    repo_root = _repo_root(args)
+    repo_root = _write_repo_root(args)
     research_root = R.resolve_research_root(repo_root)
     from datetime import date
 
@@ -702,7 +718,7 @@ def run_mv(
 ) -> "MutationResult":
     if emit_human is None:
         emit_human = not (getattr(args, "agent", False) or getattr(args, "json", False))
-    repo_root = _repo_root(args)
+    repo_root = _write_repo_root(args)
     research_root = R.resolve_research_root(repo_root)
     plan, err = plan_mv(
         research_root,
@@ -756,17 +772,47 @@ def run_mv(
 
 def run_check_refs(args: argparse.Namespace) -> int:
     """Report dangling citations (the reusable detector as a standalone verb)."""
+    from agent_workflows.project_context import nonsurveyable_root_refusal
     from agent_workflows.renderers import get_renderer
     from agent_workflows.result_types import (
         CommandResult,
         Diagnostic,
         Evidence,
+        NextAction,
         select_output,
     )
 
-    repo_root = _repo_root(args)
-    danglers = find_dangling_citations(repo_root)
+    repo_root = _read_repo_root(args)
     ctx = select_output(args)
+    explicit_dir = bool(getattr(args, "dir", None))
+    refusal = nonsurveyable_root_refusal(
+        "research check-refs", repo_root, explicit_dir=explicit_dir
+    )
+    if not refusal.may_proceed:
+        if ctx.is_agent or ctx.is_json:
+            res = CommandResult(
+                command="research check-refs",
+                status="cannot-run",
+                exit_code=2,
+                summary=refusal.summary,
+                next_actions=(
+                    [
+                        NextAction(
+                            command=refusal.next_action_command,
+                            description=refusal.next_action_description,
+                        )
+                    ]
+                    if refusal.next_action is not None
+                    else []
+                ),
+            )
+            return get_renderer(ctx).emit(res, ctx)
+        import sys
+
+        sys.stderr.write(refusal.human_message + "\n")
+        return 2
+
+    danglers = find_dangling_citations(repo_root)
     if ctx.is_agent or ctx.is_json:
         status = "clean" if not danglers else "findings"
         exit_code = 1 if danglers else 0
