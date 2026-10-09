@@ -1,9 +1,10 @@
 """Deterministic verifiers for production actions (artdispatch aeq7f8).
 
-Pure-ish module implementing the three in-scope verification codes from spec 25kzda 4.8 / z7nbn1 4.4:
+Pure-ish module implementing the verification codes from spec 25kzda 4.8 / z7nbn1 4.4 / 89xjll:
   - SPEC-PLAN-COUNT
   - SPEC-PLAN-CONFORMANCE
   - SPEC-PLAN-GATE-CARRY
+  - SPEC-PLAN-TRACE
 
 Each verifier returns a list of findings `[(code, plan_or_source_id6, message)]` rendered from the
 25kzda 4.8 message templates.
@@ -27,6 +28,45 @@ _SCOPE_PATHS_RE = re.compile(r"(?m)^-[ \t]*Scope-Paths:[ \t]*(.*?)[ \t]*$")
 _ITEM_FROM_BACKLOG_RE = re.compile(r"(?m)^-[ \t]*From-Backlog:[ \t]*([^\n]*?)[ \t]*$")
 _SET_RE = re.compile(r"(?m)^-[ \t]*Set:[ \t]*(\S+)")
 _TERMINAL_DISPOSITIONS = frozenset(("executed", "superseded", "not-executed"))
+
+# Spec requirement IDs cutover (spec 89xjll Section 5.1 / IPD rtvdak E-06): specs adopt
+# requirement and acceptance IDs GOING FORWARD, so a spec whose FILENAME date is at or after
+# the cutover is bound by SPEC-PLAN-TRACE, while a pre-cutover spec is grandfathered.
+# THIS CONSTANT IS THE FALLBACK, NOT THE BOUNDARY: `spec_requires_requirement_ids` resolves
+# `config.resolve_cutover_date(repo, "spec_requirement_ids")` FIRST, so a repository moves its
+# own boundary in `.aw/config/project.json` and never by editing Python. The fallback is non-None
+# DELIBERATELY, avoiding BOTH documented failure modes: a config-only resolver fails open to
+# None in a fresh clone or CI checkout lacking install history and grandfathers every spec
+# forever (the decoration mode), while a constant-only rule ships an immovable date in a
+# repo that already moved that capability into config.
+SPEC_REQUIREMENT_IDS_CUTOVER_DATE = (
+    "20261001"  # compact YYYYMMDD; bound iff filename date >= this
+)
+
+_SPEC_DATE_RE = re.compile(r"\A(\d{8})-")
+
+
+def spec_requires_requirement_ids(filename: str, repo_root: Path | None = None) -> bool:
+    """True iff a spec filename's leading YYYYMMDD date is at/after the spec_requirement_ids cutover.
+
+    When repo_root is provided, resolves dynamically via resolve_cutover_date(repo_root, 'spec_requirement_ids').
+    Falls back to SPEC_REQUIREMENT_IDS_CUTOVER_DATE when unconfigured or repo_root is omitted.
+    A filename with no parseable leading date is treated as pre-cutover (returns False) so a legacy
+    or unusually-named spec is grandfathered. Front-matter `- Date:` is not consulted.
+    """
+    m = _SPEC_DATE_RE.match(Path(filename).name)
+    if m is None:
+        return False
+    cutover: str | None = None
+    if repo_root is not None:
+        from agent_workflows import config as _config
+
+        cutover = _config.resolve_cutover_date(
+            repo_root, "spec_requirement_ids", compact=True
+        )
+    if cutover is None:
+        cutover = SPEC_REQUIREMENT_IDS_CUTOVER_DATE
+    return m.group(1) >= cutover
 
 
 class HandoffPlan(NamedTuple):
@@ -479,6 +519,335 @@ def spec_plan_gate_carry(
             findings.append(("SPEC-PLAN-GATE-CARRY", plan_id, msg))
 
     return findings
+
+
+_REQ_ID_RE = re.compile(r"^([RFGICPTBH](?:[-_]?\d+(?:\.\d+)*(?:[a-zA-Z](?:-\d+)?)?))")
+_AC_ID_RE = re.compile(r"^(A[C]?[-_]?\d+(?:\.\d+)*(?:[a-zA-Z](?:-\d+)?)?)")
+_DELIM_RE = re.compile(r"^([:.\s|]|$)")
+_MARKER_RE = re.compile(r"^(?:[:.\-\s|]|\*\*|`)*`?\[(Should|Optional|Deferred)\]`?")
+
+
+def parse_spec_requirement_ids(spec_text: str) -> tuple[set[str], set[str]]:
+    """Parse declared requirement and acceptance IDs from spec text (IPD rtvdak E-03 / spec 89xjll).
+
+    Honors the declaration-site rule (spec 89xjll Section 4.1):
+      1. Appears at the beginning of a line outside of fenced code blocks, preceded by at most
+         one structural marker (markdown bullet `- `, `* `, `+ `; table pipe `|`; heading `## `;
+         or bare text at start of paragraph preceded by blank line).
+      2. Initial token matches admitted requirement ID or acceptance criterion ID grammar,
+         optionally wrapped in bold (**...**) or backticks (`...`).
+      3. Followed by delimiter (colon, period, hyphen, whitespace, closing formatting markers,
+         or table delimiter).
+    Mentions mid-sentence, parenthetical notes, other-spec citations, or in paragraph prose
+    are NOT extracted.
+    FORM B dotted paragraphs, FORM C numbered headings, and the N family are excluded from TRACE.
+
+    Returns:
+      (declared_requirement_ids, declared_acceptance_ids) as two disjoint sets.
+    """
+    req_ids, ac_ids, _ = _parse_spec_ids_and_markers(spec_text)
+    return req_ids, ac_ids
+
+
+def parse_spec_id_markers(spec_text: str) -> dict[str, str]:
+    """Parse marker tokens (`[Should]`, `[Optional]`, `[Deferred]`) attached to declared IDs.
+
+    Returns mapping of id -> marker name ('Should', 'Optional', 'Deferred').
+    For acceptance IDs, only 'Deferred' is recognized ('Should'/'Optional' has no effect).
+    """
+    _, _, markers = _parse_spec_ids_and_markers(spec_text)
+    return markers
+
+
+def _parse_spec_ids_and_markers(
+    spec_text: str,
+) -> tuple[set[str], set[str], dict[str, str]]:
+    req_ids: set[str] = set()
+    ac_ids: set[str] = set()
+    markers: dict[str, str] = {}
+
+    in_code_block = False
+    can_start_para = True
+
+    for line in spec_text.splitlines():
+        stripped = line.strip()
+        if stripped.startswith("```"):
+            in_code_block = not in_code_block
+            can_start_para = False
+            continue
+        if in_code_block:
+            continue
+
+        if not stripped:
+            can_start_para = True
+            continue
+
+        # Check structural marker
+        m_bullet = re.match(r"^[ \t]*[-*+][ \t]+(.*)$", line)
+        m_pipe = re.match(r"^[ \t]*\|[ \t]*(.*)$", line)
+        m_heading = re.match(r"^[ \t]*#{1,6}[ \t]+(.*)$", line)
+
+        rest: str | None = None
+        if m_bullet:
+            rest = m_bullet.group(1).strip()
+            can_start_para = False
+        elif m_pipe:
+            rest = m_pipe.group(1).strip()
+            can_start_para = False
+        elif m_heading:
+            rest = m_heading.group(1).strip()
+            can_start_para = True  # Start of section (spec 89xjll Section 4.1)
+        elif can_start_para:
+            rest = stripped
+            can_start_para = False
+
+        if rest is None:
+            can_start_para = False
+            continue
+
+        token: str | None = None
+        after: str = ""
+        m_bold = re.match(r"^\*\*([^*]+)\*\*(.*)$", rest)
+        m_tick = re.match(r"^`([^`]+)`(.*)$", rest)
+        if m_bold:
+            token = m_bold.group(1).strip()
+            after = m_bold.group(2).strip()
+        elif m_tick:
+            token = m_tick.group(1).strip()
+            after = m_tick.group(2).strip()
+        else:
+            m_r = _REQ_ID_RE.match(rest)
+            m_a = _AC_ID_RE.match(rest)
+            if m_r:
+                tok = m_r.group(1)
+                rem = rest[len(tok) :]
+                if _DELIM_RE.match(rem):
+                    token = tok
+                    after = rem.strip()
+            elif m_a:
+                tok = m_a.group(1)
+                rem = rest[len(tok) :]
+                if _DELIM_RE.match(rem):
+                    token = tok
+                    after = rem.strip()
+
+        if not token:
+            continue
+
+        if m_bold or m_tick:
+            m_r = _REQ_ID_RE.match(token)
+            m_a = _AC_ID_RE.match(token)
+            if m_r and m_r.group(1) == token:
+                is_req = True
+            elif m_a and m_a.group(1) == token:
+                is_req = False
+            else:
+                continue
+        else:
+            is_req = bool(_REQ_ID_RE.match(token))
+
+        # A declaration line allows the next line to be another declaration
+        can_start_para = True
+
+        m_marker = _MARKER_RE.search(after)
+        marker_val = m_marker.group(1) if m_marker else None
+
+        if is_req:
+            req_ids.add(token)
+            if marker_val:
+                markers[token] = marker_val
+        else:
+            ac_ids.add(token)
+            if marker_val == "Deferred":
+                markers[token] = marker_val
+
+    return req_ids, ac_ids, markers
+
+
+def _find_executed_linked_plans(repo: Path, spec_id6: str) -> list[Path]:
+    """Find plans in executed/ linking spec_id6 by From-Spec (spec 89xjll Section 6.1)."""
+    repo = Path(repo)
+    target_id6 = str(spec_id6).strip().lower()
+    executed_dir = repo / ".aw" / "records" / "plans" / "executed"
+    if not executed_dir.is_dir():
+        return []
+    plans: list[Path] = []
+    for p in sorted(executed_dir.glob("*.ipd.md")):
+        try:
+            text = p.read_text(encoding="utf-8")
+        except OSError:
+            continue
+        m_from = _ce._ITEM_FROM_SPEC_RE.search(text)
+        from_spec = m_from.group(1).strip() if m_from else None
+        if from_spec and from_spec.lower() == target_id6:
+            plans.append(p)
+    return plans
+
+
+def spec_plan_trace(
+    repo: Path,
+    spec_id6: str,
+    produced_paths: Sequence[Path | str],
+    *,
+    host: str = "<host>",
+    run_id: str = "<run-id>",
+    continued_ids: Container[str] | None = None,
+) -> list[tuple[str, str, str]]:
+    """Verify SPEC-PLAN-TRACE: every mandatory spec requirement maps to at least one E item
+    and every acceptance criterion maps to at least one V item; there are no unknown references.
+
+    Pass criterion (25kzda 4.8):
+      Every mandatory spec requirement maps to at least one E item and every acceptance criterion
+      maps to at least one V item; there are no unknown references
+
+    Citation-not-implementation limit (spec 89xjll Section 6.4):
+      A trace check proves only that a plan step CITES a requirement or acceptance identifier;
+      it does NOT prove that the plan correctly, completely, or safely implements the requirement.
+      SPEC-PLAN-TRACE is a structural citation gate, never a semantic proof of implementation.
+      A produced plan verified by this check may be described as trace-verified against declared
+      identifiers, but MUST NOT be described as having verified the semantic correctness of the
+      implementation. A PASS produced by the grandfathered or zero-id path of Section 6.3 is
+      VACUOUS and MUST NOT be described as trace-verified at all.
+    """
+    repo = Path(repo)
+    spec_path, spec_text = _find_spec_text_and_path(repo, spec_id6)
+    if not spec_path or not spec_text:
+        return []
+
+    # Check grandfathering per spec filename date
+    if not spec_requires_requirement_ids(spec_path.name, repo_root=repo):
+        return []
+
+    req_ids, ac_ids = parse_spec_requirement_ids(spec_text)
+    markers = parse_spec_id_markers(spec_text)
+
+    # A spec declaring no traceable IDs passes vacuously
+    if not req_ids and not ac_ids:
+        return []
+
+    mandatory_reqs = {
+        r for r in req_ids if markers.get(r) not in ("Should", "Optional", "Deferred")
+    }
+    mandatory_acs = {a for a in ac_ids if markers.get(a) != "Deferred"}
+    declared_all = req_ids | ac_ids
+
+    # Assemble pooled plan set: passed produced_paths plus executed linked plans
+    pooled_paths: list[Path] = []
+    seen_paths: set[Path] = set()
+    for p_raw in produced_paths:
+        p = Path(p_raw)
+        if not p.is_absolute():
+            p = repo / p
+        if p not in seen_paths:
+            seen_paths.add(p)
+            pooled_paths.append(p)
+
+    for p in _find_executed_linked_plans(repo, spec_id6):
+        if p not in seen_paths:
+            seen_paths.add(p)
+            pooled_paths.append(p)
+
+    # Qualified citation regex for producing spec
+    cite_pattern = re.compile(
+        rf"(?i)`?{re.escape(spec_id6)}`?[ \t]+`?([a-zA-Z0-9]+(?:[-_.][a-zA-Z0-9]+)*)`?"
+    )
+
+    cited_reqs: set[str] = set()
+    cited_acs: set[str] = set()
+    unknown_refs: set[str] = set()
+
+    for p in pooled_paths:
+        try:
+            text = p.read_text(encoding="utf-8")
+        except OSError:
+            continue
+        doc = _lint.parse(text)
+        is_orch = (doc.meta_fields.get("Kind") or "").strip() == "orchestrator"
+
+        # Search E leaves
+        for leaf in doc.exec_leaves:
+            if is_orch and _lint._ORCH_ROW_RE.match(leaf.text):
+                continue
+            leaf_content = f"{leaf.text}\n" + "\n".join(
+                str(v) for v in leaf.fields.values()
+            )
+            for cited_id in cite_pattern.findall(leaf_content):
+                if cited_id in declared_all:
+                    if cited_id in req_ids:
+                        cited_reqs.add(cited_id)
+                else:
+                    unknown_refs.add(cited_id)
+
+        # Search V leaves
+        for leaf in doc.valid_leaves:
+            leaf_content = f"{leaf.text}\n" + "\n".join(
+                str(v) for v in leaf.fields.values()
+            )
+            for cited_id in cite_pattern.findall(leaf_content):
+                if cited_id in declared_all:
+                    if cited_id in ac_ids:
+                        cited_acs.add(cited_id)
+                else:
+                    unknown_refs.add(cited_id)
+
+    uncovered_reqs = mandatory_reqs - cited_reqs
+    uncovered_acs = mandatory_acs - cited_acs
+
+    missing_or_unknown = sorted(uncovered_reqs | uncovered_acs | unknown_refs)
+    if not missing_or_unknown:
+        return []
+
+    # Identify plan_id for finding message (a newly produced plan preferred)
+    target_plan_id = spec_id6
+    if produced_paths:
+        new_plans: list[str] = []
+        for p_raw in produced_paths:
+            p = Path(p_raw)
+            if not p.is_absolute():
+                p = repo / p
+            try:
+                p_text = p.read_text(encoding="utf-8")
+                pid = _extract_plan_id(p, p_text)
+            except OSError:
+                pid = p.stem
+            if continued_ids is None or pid not in continued_ids:
+                new_plans.append(pid)
+        target_plan_id = (
+            new_plans[0]
+            if new_plans
+            else (_extract_plan_id(Path(produced_paths[0]), "") or spec_id6)
+        )
+
+    ids_str = ", ".join(missing_or_unknown)
+    msg = (
+        f"[SPEC-PLAN-TRACE] Generated IPD {target_plan_id} does not cover spec items: {ids_str}. "
+        f"Correct and sync the IPD, then: aw {host} run resume {run_id}"
+    )
+    return [("SPEC-PLAN-TRACE", target_plan_id, msg)]
+
+
+def spec_plan_trace_vacuity(repo: Path, spec_id6: str) -> str | None:
+    """Return the vacuity reason ('grandfathered' or 'no-ids') if TRACE passes vacuously, else None."""
+    repo = Path(repo)
+    spec_path, spec_text = _find_spec_text_and_path(repo, spec_id6)
+    if not spec_path or not spec_text:
+        return "grandfathered"
+    if not spec_requires_requirement_ids(spec_path.name, repo_root=repo):
+        return "grandfathered"
+    req_ids, ac_ids = parse_spec_requirement_ids(spec_text)
+    if not req_ids and not ac_ids:
+        return "no-ids"
+    return None
+
+
+def spec_plan_trace_deferred(repo: Path, spec_id6: str) -> list[str]:
+    """Return the list of declared requirement and acceptance IDs carrying the [Deferred] marker."""
+    repo = Path(repo)
+    _, spec_text = _find_spec_text_and_path(repo, spec_id6)
+    if not spec_text:
+        return []
+    markers = parse_spec_id_markers(spec_text)
+    return sorted(id_name for id_name, m in markers.items() if m == "Deferred")
 
 
 def _find_backlog_text_and_path(

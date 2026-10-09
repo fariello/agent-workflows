@@ -54,57 +54,57 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: re-establish the contract and the landing sites
 
-- [ ] E-01 READ ORDER 01's APPROVED SPEC AND EXTRACT THE CONTRACT THIS PLAN IMPLEMENTS, rather than building from this plan's expectations of it. That spec is `89xjll` (`.aw/records/specs/<status>/20261001-89xjll-01-89xjll-spec-requirement-id-convention-and-trace-contract.spec.md`; `reviewed` at this plan's 2026-10-07 review, NOT yet approved). It is the authority for SEVEN things, and each changes the code. The first five are below. The other two were raised at that spec's own review as OPEN, BLOCKING questions that must be ruled before it can be approved: (6) its OQ-04, WHICH admitted forms are TRACE-MANDATORY (FORM A only, section-scoped, or all forms; the reviewer recommended FORM A only, excluding `N`, and its Section 3.1 says "Section 6 MUST NOT be implemented until OQ-04 is ratified"); and (7) its OQ-05, HOW a plan-side id is attributed to the producing spec for the "no unknown references" conjunct. The five are: the requirement namespace and the families it admits, the DISTINCT acceptance namespace, the declaration-site rule (what makes an id DECLARED rather than MENTIONED), the mandatory-requirement rule (Order 01 recommends "every declared id is mandatory unless marked optional" but the maintainer ratifies at spec approval and may have chosen the `[Must]` marker or a spec-declared set instead), and the grandfathered/no-ids behavior. CONFIRM THE SPEC IS ACTUALLY `approved`: if it is not, STOP AND REPORT, because an unapproved convention is not a contract and `- Item-Dependencies: executed:jjh4aj` guarantees only that the AUTHORING plan executed, not that the human approved its output. RECORD each of the seven decisions verbatim; every later item cites this record instead of re-deriving intent. ALSO RECORD the spec's requirement ids R-1..R-7 and acceptance ids AC-1..AC-8 (Section 1b and Section 9 as reviewed), and map each AC to the V-item of this plan that will satisfy it, so the plan's own evidence traces to the contract it implements.
+- [x] E-01 READ ORDER 01's APPROVED SPEC AND EXTRACT THE CONTRACT THIS PLAN IMPLEMENTS, rather than building from this plan's expectations of it. That spec is `89xjll` (`.aw/records/specs/<status>/20261001-89xjll-01-89xjll-spec-requirement-id-convention-and-trace-contract.spec.md`; `reviewed` at this plan's 2026-10-07 review, NOT yet approved). It is the authority for SEVEN things, and each changes the code. The first five are below. The other two were raised at that spec's own review as OPEN, BLOCKING questions that must be ruled before it can be approved: (6) its OQ-04, WHICH admitted forms are TRACE-MANDATORY (FORM A only, section-scoped, or all forms; the reviewer recommended FORM A only, excluding `N`, and its Section 3.1 says "Section 6 MUST NOT be implemented until OQ-04 is ratified"); and (7) its OQ-05, HOW a plan-side id is attributed to the producing spec for the "no unknown references" conjunct. The five are: the requirement namespace and the families it admits, the DISTINCT acceptance namespace, the declaration-site rule (what makes an id DECLARED rather than MENTIONED), the mandatory-requirement rule (Order 01 recommends "every declared id is mandatory unless marked optional" but the maintainer ratifies at spec approval and may have chosen the `[Must]` marker or a spec-declared set instead), and the grandfathered/no-ids behavior. CONFIRM THE SPEC IS ACTUALLY `approved`: if it is not, STOP AND REPORT, because an unapproved convention is not a contract and `- Item-Dependencies: executed:jjh4aj` guarantees only that the AUTHORING plan executed, not that the human approved its output. RECORD each of the seven decisions verbatim; every later item cites this record instead of re-deriving intent. ALSO RECORD the spec's requirement ids R-1..R-7 and acceptance ids AC-1..AC-8 (Section 1b and Section 9 as reviewed), and map each AC to the V-item of this plan that will satisfy it, so the plan's own evidence traces to the contract it implements.
   - Depends on: none
   - Expected outcome: the seven decisions quoted from the approved spec, with its id6 and path, its `- Status:` confirmed `approved`, and the AC-to-V mapping recorded. If any of the seven is absent or ambiguous (in particular, if OQ-04 or OQ-05 still reads OPEN), that is reported as a blocker rather than filled in by this plan's judgement.
-  - Execution state: pending
+  - Execution state: done
 
-- [ ] E-02 RE-MEASURE THE FOUR LANDING SITES at execution HEAD, because `runner_shared.py` is this repository's highest-churn file and every position below will have moved. Locate by SYMBOL or content string, never by a bare offset: (i) `production_checks.py`'s sibling verifiers, recording each one's exact signature shape and return type. Measured at this plan's 2026-10-07 review there are FOUR, not three: `spec_plan_count`, `spec_plan_set` (added after authoring; it takes `state`, `asker` and `runner`), `spec_plan_conformance` (which now also takes `continued_ids`) and `spec_plan_gate_carry`. (ii) The spec-production call site, locatable by the content string `spec-production-out-of-scope-paths` and then the consecutive `findings.extend(` calls. Record what is in scope there. Measured at review, the siblings after `spec_plan_count` receive `all_verified_paths`, which is `existing_linked_plans` (this spec's pre-existing linked plans, whose ids are `continued_ids`) plus the newly produced plans, NOT `new_produced_paths` alone. ALSO RECORD that the SPEC verifier cluster appears TWICE: once after the production turn, and again inside the `# Production correction turn loop` (`while findings:` / `production_set_retry_decision`), where it re-discovers the plans and re-runs every verifier after each correction turn. The refusal is no longer immediate: findings first drive bounded correction turns, and only an exhausted retry reaches `disposition = "fail-gate"`; (iii) `config.KNOWN_FEATURE_CUTOVERS` and the next free feature key, plus `resolve_cutover_date`'s lookup order; (iv) `ipd_lint`'s `ParsedDoc.exec_leaves` / `valid_leaves` of `Leaf`, confirming `Leaf` still carries `kind`, `ident` and `text`, which is how the plan-side ids are read WITHOUT writing a second plan parser. If any has moved or changed shape, record the new one; if (iv) no longer exposes E/V idents, STOP AND REPORT rather than hand-rolling a plan parser.
+- [x] E-02 RE-MEASURE THE FOUR LANDING SITES at execution HEAD, because `runner_shared.py` is this repository's highest-churn file and every position below will have moved. Locate by SYMBOL or content string, never by a bare offset: (i) `production_checks.py`'s sibling verifiers, recording each one's exact signature shape and return type. Measured at this plan's 2026-10-07 review there are FOUR, not three: `spec_plan_count`, `spec_plan_set` (added after authoring; it takes `state`, `asker` and `runner`), `spec_plan_conformance` (which now also takes `continued_ids`) and `spec_plan_gate_carry`. (ii) The spec-production call site, locatable by the content string `spec-production-out-of-scope-paths` and then the consecutive `findings.extend(` calls. Record what is in scope there. Measured at review, the siblings after `spec_plan_count` receive `all_verified_paths`, which is `existing_linked_plans` (this spec's pre-existing linked plans, whose ids are `continued_ids`) plus the newly produced plans, NOT `new_produced_paths` alone. ALSO RECORD that the SPEC verifier cluster appears TWICE: once after the production turn, and again inside the `# Production correction turn loop` (`while findings:` / `production_set_retry_decision`), where it re-discovers the plans and re-runs every verifier after each correction turn. The refusal is no longer immediate: findings first drive bounded correction turns, and only an exhausted retry reaches `disposition = "fail-gate"`; (iii) `config.KNOWN_FEATURE_CUTOVERS` and the next free feature key, plus `resolve_cutover_date`'s lookup order; (iv) `ipd_lint`'s `ParsedDoc.exec_leaves` / `valid_leaves` of `Leaf`, confirming `Leaf` still carries `kind`, `ident` and `text`, which is how the plan-side ids are read WITHOUT writing a second plan parser. If any has moved or changed shape, record the new one; if (iv) no longer exposes E/V idents, STOP AND REPORT rather than hand-rolling a plan parser.
   - `Leaf.text` IS NOT THE WHOLE ITEM, AND READING ONLY IT WOULD MISS REAL CITATIONS (added at review, PR-002). Measured by driving `ipd_lint.parse` on this very plan: `exec_leaves[0].text` is the remainder of the item's FIRST line only, while the indented sub-fields arrive in a SEPARATE `Leaf.fields` dict, which for E-01 holds exactly `['Depends on', 'Expected outcome', 'Execution state']`. An author who writes "- Expected outcome: R-04 is satisfied by ..." has cited `R-04` in `fields`, not in `text`. So E-05 MUST decide, and E-02 must record, which surface is searched: `text` alone, `text` plus selected `fields` values, or the item's full source span. Reading `text` alone is the narrowest choice and is defensible, but it must be a STATED decision with its consequence named (a citation in `Expected outcome` would not count, so an author who covers a requirement there gets a false refusal), not an accident of reading the first attribute that looked right. Whatever is chosen, E-08 must include a case that pins it, so the decision is observable in a test rather than implicit in the implementation.
   - ALSO RECORD THAT THE SIBLING SIGNATURES ARE NOT UNIFORM, which E-07 depends on: measured, `spec_plan_count(repo, spec_id6, baseline_plan_ids, *, host)` and `spec_plan_gate_carry(repo, spec_id6, produced_paths, *, host)` take NO `run_id`, while only `spec_plan_conformance(repo, spec_id6, produced_paths, *, host, run_id)` does. TRACE's message template contains `<run-id>`, so TRACE needs `run_id` and must follow `spec_plan_conformance`'s shape specifically, NOT "the sibling signature" as if one existed.
   - Depends on: none
   - Expected outcome: the four sites recorded by symbol/content-string with their current shape; the THREE sibling signatures recorded individually with the note that only `spec_plan_conformance` takes `run_id` and that TRACE must match that one; the decision on which plan-item surface is searched (`text`, `text` plus `fields`, or the full span) stated with its consequence; and an explicit statement that the new verifier reuses `ipd_lint`'s plan parser rather than adding a second one.
-  - Execution state: pending
+  - Execution state: done
 
 ### Task group 2: the parser
 
-- [ ] E-03 IMPLEMENT THE SPEC-SIDE REQUIREMENT-ID PARSER as a pure function in `production_checks.py`, returning the producing spec's DECLARED requirement ids and DECLARED acceptance ids as two separate sets, per E-01's recorded convention. Honor the declaration-site rule so a CITATION is not counted as a DECLARATION: this is the difference between a check that works and one that silently passes, because a spec citing another spec's `R-12` must not acquire an `R-12` requirement of its own. Keep it PURE (text in, ids out, no filesystem access) so it is testable without a repository fixture, matching the style of the pure helpers already in this module. Do NOT parse a plan here: the plan side is `ipd_lint`'s job (E-02 item iv).
+- [x] E-03 IMPLEMENT THE SPEC-SIDE REQUIREMENT-ID PARSER as a pure function in `production_checks.py`, returning the producing spec's DECLARED requirement ids and DECLARED acceptance ids as two separate sets, per E-01's recorded convention. Honor the declaration-site rule so a CITATION is not counted as a DECLARATION: this is the difference between a check that works and one that silently passes, because a spec citing another spec's `R-12` must not acquire an `R-12` requirement of its own. Keep it PURE (text in, ids out, no filesystem access) so it is testable without a repository fixture, matching the style of the pure helpers already in this module. Do NOT parse a plan here: the plan side is `ipd_lint`'s job (E-02 item iv).
   - Depends on: E-01, E-02
   - Expected outcome: a pure parser function that, given spec text, returns the declared requirement id set and the declared acceptance id set, counting declarations only.
-  - Execution state: pending
+  - Execution state: done
 
-- [ ] E-04 UNIT-TEST THE PARSER ON REAL CORPUS SHAPES, not on invented ones, because the corpus's variety is the whole reason this convention exists. Cover at minimum: a letter-prefixed spec with a distinct acceptance namespace (`7ckptx` shape: `R<n>.<n>` requirements with `A<n>` acceptance ids), a hyphenated-acceptance spec (`6m4kow` shape), a bare dotted-paragraph spec (`z7nbn1` shape, 37 dotted ids and no letter-prefixed ones), a section-addressed spec with no requirement ids at all (`25kzda` shape), and a spec with NO acceptance section (`77tr3o` shape). Assert on the returned SETS, and include the negative case that gives the declaration-site rule its teeth: text CITING an id must not yield it as declared. These are outcome assertions on a function's return value, not structural assertions about source text.
+- [x] E-04 UNIT-TEST THE PARSER ON REAL CORPUS SHAPES, not on invented ones, because the corpus's variety is the whole reason this convention exists. Cover at minimum: a letter-prefixed spec with a distinct acceptance namespace (`7ckptx` shape: `R<n>.<n>` requirements with `A<n>` acceptance ids), a hyphenated-acceptance spec (`6m4kow` shape), a bare dotted-paragraph spec (`z7nbn1` shape, 37 dotted ids and no letter-prefixed ones), a section-addressed spec with no requirement ids at all (`25kzda` shape), and a spec with NO acceptance section (`77tr3o` shape). Assert on the returned SETS, and include the negative case that gives the declaration-site rule its teeth: text CITING an id must not yield it as declared. These are outcome assertions on a function's return value, not structural assertions about source text.
   - RE-MEASURE EACH NAMED SHAPE BEFORE WRITING ITS TEST; TWO OF THE FIVE AS AUTHORED WERE WRONG (corrected at review, PR-004). Measured in the tree: `6m4kow` does NOT use an `AC-` prefix, it uses `- **A-01**` (hyphenated, zero-padded), so the plan's "`AC-`prefixed acceptance spec (`6m4kow` shape)" named a shape that spec does not have and a test written to it would have asserted a false premise. `7ckptx` uses `- A1.` (bare, unpadded) and `w15vzb` uses `- **A-1**` (hyphenated, unpadded). So the acceptance namespace spans AT LEAST THREE DISTINCT SHAPES across the approved specs (`A1`, `A-1`, `A-01`), not the two the plan's F-04 implies, and no `AC-` form was found in any approved spec. THAT WIDENS THE TEST OBLIGATION rather than narrowing it: cover all three observed acceptance shapes, and derive the shape from the file at execution rather than from this plan's description of it. If E-01's approved convention admits only one of them, then the OTHERS are pre-convention shapes that the grandfathering must cover, and E-04 should assert that a non-conforming legacy shape yields an EMPTY declared-acceptance set rather than a partial one, so TRACE's no-ids PASS case is what catches them.
   - Depends on: E-03
   - Expected outcome: a new test module covering the five corpus shapes (with each shape RE-MEASURED from the file, not taken from this plan's prose) plus all three observed acceptance id shapes and the citation-vs-declaration negative case, all passing, asserting on returned id sets.
-  - Execution state: pending
+  - Execution state: done
 
 ### Task group 3: the check and its wiring
 
-- [ ] E-05 IMPLEMENT `spec_plan_trace` as a sibling verifier, matching `spec_plan_conformance`'s signature shape and returning the same `[(code, subject, message)]` list. It reads the producing spec's ids via E-03's parser and each produced plan's `E-*`/`V-*` item text via `ipd_lint`, then applies `25kzda` 4.8's pass criterion: every MANDATORY requirement maps to at least one E item and every acceptance criterion to at least one V item. RENDER `25kzda` 4.8's message template rather than inventing wording, as the three siblings did (each quotes its pass criterion under "Pass criterion (25kzda 4.8):" in its docstring): `[SPEC-PLAN-TRACE] Generated IPD <plan-id> does not cover spec items: <ids>. Correct and sync the IPD, then: aw <host> run resume <run-id>`. IMPLEMENT THE PASS CASES E-01 recorded: a spec that is grandfathered against the stamped cutover, or that declares no ids at all, PASSES rather than failing, or the check would refuse production for specs nobody agreed to retrofit. Also handle the honest asymmetry: a spec with no acceptance section cannot fail the acceptance half.
+- [x] E-05 IMPLEMENT `spec_plan_trace` as a sibling verifier, matching `spec_plan_conformance`'s signature shape and returning the same `[(code, subject, message)]` list. It reads the producing spec's ids via E-03's parser and each produced plan's `E-*`/`V-*` item text via `ipd_lint`, then applies `25kzda` 4.8's pass criterion: every MANDATORY requirement maps to at least one E item and every acceptance criterion to at least one V item. RENDER `25kzda` 4.8's message template rather than inventing wording, as the three siblings did (each quotes its pass criterion under "Pass criterion (25kzda 4.8):" in its docstring): `[SPEC-PLAN-TRACE] Generated IPD <plan-id> does not cover spec items: <ids>. Correct and sync the IPD, then: aw <host> run resume <run-id>`. IMPLEMENT THE PASS CASES E-01 recorded: a spec that is grandfathered against the stamped cutover, or that declares no ids at all, PASSES rather than failing, or the check would refuse production for specs nobody agreed to retrofit. Also handle the honest asymmetry: a spec with no acceptance section cannot fail the acceptance half.
   - THE PASS CRITERION HAS A THIRD CLAUSE THIS PLAN ORIGINALLY DROPPED, and dropping it silently would ship a check that does not implement the row it claims to (added at review, PR-001). `25kzda` 4.8's TRACE row reads, in full: "Every mandatory spec requirement maps to at least one E item and every acceptance criterion maps to at least one V item; **there are no unknown references**". The plan quoted the first two conjuncts and omitted the third everywhere (E-05, V-05, the goal, and the gate). The third clause is the REVERSE direction: a plan citing `R-99` where the spec declares no `R-99` is a dangling reference, and it is the half that catches a typo or a stale citation, which is the single most likely real-world error this check would otherwise miss. THE APPROVED SPEC NOW DECIDES THIS (revised at the 2026-10-07 review, PR-001): `89xjll` R-5 requires that TRACE "implements all three conjuncts", and its Section 6.2a puts the third in scope, so shape (a) is REQUIRED. Implement the attribution rule exactly as that spec's OQ-05 ruling states. Shape (b) is available ONLY IF the approved spec's OQ-05 ruling chose its option C, in which case record that ruling. The two shapes, kept for that reading: (a) IMPLEMENT it, reporting a plan-side id that matches the convention's namespace but is not declared by the producing spec, which needs no new parsing (E-03 already returns the declared sets, so an unknown reference is a plan-side id not in them) and uses the SAME message template, whose `<ids>` field can carry it; or (b) DEFER it explicitly with a carrier, stating that TRACE as shipped implements two of the row's three conjuncts and that `z7nbn1` 4.4's deferral is therefore only PARTLY discharged. Shape (a) is mandatory unless E-01 records an OQ-05 option-C ruling, because deferring it leaves the shipped check weaker than the approved row it cites while the code claims to render that row. NOTE THE ONE REAL RISK of shape (a), which must be handled rather than discovered: a plan legitimately cites OTHER specs' requirement ids in prose, so an unknown-reference rule that scans all text would fire constantly. Scope it to ids the plan presents as citations of THIS spec, using the OQ-05 attribution rule E-01 recorded, and prove the negative case in E-08. APPLY THE OQ-04 RULING TOO: E-03 extracts only the forms that ruling makes TRACE-mandatory, so a post-cutover spec's `## 1. Why this exists` heading is not a requirement unless the ruling says otherwise.
   - THE VACUOUS PASS MUST BE DISTINGUISHABLE FROM A REAL ONE (added at the 2026-10-07 review, PR-003). `89xjll` 6.4 requires "the verifier's result must make the vacuous case distinguishable from a real pass", and its AC-6 requires that "the result marks the pass as vacuous". The `[(code, subject, message)]` list cannot do that, because an empty list is identical either way. So expose the vacuity through a second, observable surface. Recommended: a pure companion, for example `spec_plan_trace_vacuity(repo, spec_id6) -> str | None`, returning the reason (`grandfathered` or `no-ids`) or `None`. E-07 records it as a run event, so a reader of the run's events can tell a vacuous pass from a real one. Keep the findings shape unchanged. Whatever mechanism is chosen, E-08 must assert on it.
   - Depends on: E-03, E-01
   - Expected outcome: `production_checks.spec_plan_trace` exists, matches the sibling signature, renders the `25kzda` 4.8 template, and passes (rather than fails) for a grandfathered spec, a spec with no declared ids, and the acceptance half of a spec with no acceptance section; AND the third conjunct ("no unknown references") is implemented per the recorded OQ-05 ruling (deferral only under an OQ-05 option-C ruling); AND a vacuous pass is distinguishable from a real one through a tested surface.
-  - Execution state: pending
+  - Execution state: done
 
-- [ ] E-06 REGISTER THE CUTOVER FEATURE KEY in `config.KNOWN_FEATURE_CUTOVERS` with the value E-01 recorded from the approved spec, and follow that registry's own instruction rather than adding a second mechanism: its block comment reads "TO ADD A FEATURE: put its introduction date here, and let `sync_cutovers_on_install` stamp the per-repo boundary. Do not invent a second mechanism; three shipped features use this one." The value is the FEATURE INTRODUCTION date, never the enforcement boundary. STATE THE FAILURE MODE THIS AVOIDS, which the registry's existing entries each record: without the entry, `resolve_cutover_date` falls through to `None` in any repository that has not hand-written the key, grandfathering resolves for every spec forever, and the check ships as decoration.
+- [x] E-06 REGISTER THE CUTOVER FEATURE KEY in `config.KNOWN_FEATURE_CUTOVERS` with the value E-01 recorded from the approved spec, and follow that registry's own instruction rather than adding a second mechanism: its block comment reads "TO ADD A FEATURE: put its introduction date here, and let `sync_cutovers_on_install` stamp the per-repo boundary. Do not invent a second mechanism; three shipped features use this one." The value is the FEATURE INTRODUCTION date, never the enforcement boundary. STATE THE FAILURE MODE THIS AVOIDS, which the registry's existing entries each record: without the entry, `resolve_cutover_date` falls through to `None` in any repository that has not hand-written the key, grandfathering resolves for every spec forever, and the check ships as decoration.
   - REGISTERING THE KEY IS NOT SUFFICIENT, AND THE PLAN'S OWN F-07 QUOTES THE PRECEDENT THAT SAYS SO (added at review, PR-003). The three features whose comments this item cites each ship a non-`None` MODULE CONSTANT FALLBACK BESIDE the registry entry, and `check_engine` states why in terms this plan must honor: "The fallback is non-`None` DELIBERATELY, which is what avoids BOTH documented failure modes: a config-only resolver fails open to `None` and grandfathers every prompt forever (the decoration mode `CARRIER_CUTOVER_DATE`'s comment records), while a constant-only rule ships an immovable date in a repo that already moved that capability into config." Measured: `PROMPT_ID6_CUTOVER_DATE = "20260921"` and `WALKTHROUGH_ID6_CUTOVER_DATE = "20260927"` are exactly that pair. Measured also that `resolve_cutover_date`'s tier 2 reads `installs.jsonl`, which a FRESH CLONE or a CI checkout may not carry, so "registered in `KNOWN_FEATURE_CUTOVERS`" does NOT guarantee a non-`None` answer anywhere except a repository with install history. So ADD THE FALLBACK CONSTANT TOO, beside the resolver call in whichever module consumes it, with a comment stating the same two failure modes; E-06's expected outcome as authored (`resolve_cutover_date` returns non-`None` in THIS repository) is satisfiable here while still shipping the decoration mode everywhere else, which is precisely the defect F-07 says this item exists to prevent.
   - STATE WHAT DATUM THE CUTOVER IS COMPARED AGAINST, which the plan never says and which decides whether grandfathering works at all. Every shipped cutover compares the artifact's FILENAME DATE (`_spec_requires_id6` matches `_SPEC_DATE_RE` against the filename; the constants' comments read "require_id6 iff filename date >= this"). A spec's filename date is therefore the natural comparand here, and it is available because TRACE resolves the spec file anyway. Record the choice and its consequence: a spec whose filename predates the boundary is grandfathered even if its CONTENT was rewritten yesterday, which matches how every sibling cutover already behaves and is the behavior to copy rather than improve on in this plan.
   - Depends on: E-01
   - Expected outcome: the feature key is registered with the introduction date from the approved spec; a non-`None` module fallback constant ships beside the resolver call with the two failure modes named in its comment; the comparand is stated as the spec's filename date with the grandfathering consequence recorded; and `resolve_cutover_date` returns a non-`None` boundary for it in this repository.
-  - Execution state: pending
+  - Execution state: done
 
-- [ ] E-07 WIRE THE CHECK INTO THE SPEC-PRODUCTION SITE, adding a `findings.extend(_pc.spec_plan_trace(...))` to BOTH spec verifier clusters E-02 measured: the one after the production turn AND the one inside the correction-turn loop. Wiring only the first would let a correction turn "pass" with an uncovered requirement, because the loop re-derives `findings` from the verifiers it calls (PR-002). Pass the same `target_tree`, spec id6, paths list (`all_verified_paths`, as `spec_plan_conformance` receives; record this choice against `89xjll` 6.1's "newly produced plans" wording, because continued plans belong to the same production), `host=host_name` and `run_id` the conformance call receives. Also record the E-05 vacuity surface as an event at the first cluster. CHANGE NOTHING ELSE about the refusal path. The existing code already feeds any finding into the bounded correction-turn retry and, on exhaustion, into `fail-gate`, the per-finding print, `record_refusal` and lane preservation. So TRACE inherits `25kzda` 4.8's `RETRY, then FAIL ITEM` Action from machinery that is already there. Do NOT reorder, rename or alter the existing four calls, and do NOT add a second refusal mechanism.
+- [x] E-07 WIRE THE CHECK INTO THE SPEC-PRODUCTION SITE, adding a `findings.extend(_pc.spec_plan_trace(...))` to BOTH spec verifier clusters E-02 measured: the one after the production turn AND the one inside the correction-turn loop. Wiring only the first would let a correction turn "pass" with an uncovered requirement, because the loop re-derives `findings` from the verifiers it calls (PR-002). Pass the same `target_tree`, spec id6, paths list (`all_verified_paths`, as `spec_plan_conformance` receives; record this choice against `89xjll` 6.1's "newly produced plans" wording, because continued plans belong to the same production), `host=host_name` and `run_id` the conformance call receives. Also record the E-05 vacuity surface as an event at the first cluster. CHANGE NOTHING ELSE about the refusal path. The existing code already feeds any finding into the bounded correction-turn retry and, on exhaustion, into `fail-gate`, the per-finding print, `record_refusal` and lane preservation. So TRACE inherits `25kzda` 4.8's `RETRY, then FAIL ITEM` Action from machinery that is already there. Do NOT reorder, rename or alter the existing four calls, and do NOT add a second refusal mechanism.
   - Depends on: E-05, E-02
   - MATCH `spec_plan_conformance`'S ARGUMENT LIST SPECIFICALLY, NOT "THE SIBLINGS'", WHICH DIFFER (see E-02; added at review, PR-002). Only `spec_plan_conformance` is passed `run_id=str(state.get("run_id") or "")`; `spec_plan_count` and `spec_plan_gate_carry` are not. TRACE's message template contains `<run-id>`, so the TRACE call MUST pass it. Note also that the spec-production block is NOT the only `findings.extend` cluster in this function: an almost identical BACKLOG production block downstream calls `backlog_graduate_count`, `backlog_graduate_ipd` and `backlog_gate_handoff` against its own `new_produced_paths`. Add the TRACE call to the SPEC block only, and confirm by naming the surrounding code which block was edited, because the two are near-identical and editing the wrong one would wire a spec check into the backlog path where no producing spec exists.
   - Expected outcome: BOTH SPEC verifier clusters (post-production and correction-loop) call five verifiers instead of four, each new call passing `target_tree`, the spec id6, `all_verified_paths`, `host=host_name` and `run_id`, matching `spec_plan_conformance`'s shape; the vacuity event is recorded; the BACKLOG block is confirmed untouched; and the surrounding retry, refusal, printing and lane-preservation logic is unchanged.
-  - Execution state: pending
+  - Execution state: done
 
-- [ ] E-08 TEST THE WIRED CHECK END-TO-END IN BOTH DIRECTIONS, in the style `tests/test_spec_production.py` already uses for the three siblings (a fake agent turn producing plans into a temp repo, then asserting on the run's disposition). Prove: (i) a produced plan that cites every mandatory requirement and every acceptance criterion PASSES production; (ii) a produced plan that omits one mandatory requirement FAILS with the `SPEC-PLAN-TRACE` code, the omitted id named in the message, and the lane preserved; (iii) a grandfathered producing spec PASSES even with an uncovered requirement, proving the grandfathering is live and not merely written; and (iv) the four existing codes (`SPEC-PLAN-COUNT`, `SPEC-PLAN-SET`, `SPEC-PLAN-CONFORMANCE`, `SPEC-PLAN-GATE-CARRY`) still behave exactly as before, so this wiring regressed nothing; (v) a TRACE finding raised after the production turn is STILL raised after a correction turn that does not fix it, proving the correction-loop cluster is wired; (vi) the vacuity surface reports `grandfathered`/`no-ids` for the vacuous cases and `None` for a real pass; and (vii) the unknown-reference case and its other-spec-mention negative. Assert on real dispositions and message content, never on source structure. FINALLY, record the honest limit in the code where a future reader will meet it: the check proves a plan CITES a requirement, not that it implements it.
+- [x] E-08 TEST THE WIRED CHECK END-TO-END IN BOTH DIRECTIONS, in the style `tests/test_spec_production.py` already uses for the three siblings (a fake agent turn producing plans into a temp repo, then asserting on the run's disposition). Prove: (i) a produced plan that cites every mandatory requirement and every acceptance criterion PASSES production; (ii) a produced plan that omits one mandatory requirement FAILS with the `SPEC-PLAN-TRACE` code, the omitted id named in the message, and the lane preserved; (iii) a grandfathered producing spec PASSES even with an uncovered requirement, proving the grandfathering is live and not merely written; and (iv) the four existing codes (`SPEC-PLAN-COUNT`, `SPEC-PLAN-SET`, `SPEC-PLAN-CONFORMANCE`, `SPEC-PLAN-GATE-CARRY`) still behave exactly as before, so this wiring regressed nothing; (v) a TRACE finding raised after the production turn is STILL raised after a correction turn that does not fix it, proving the correction-loop cluster is wired; (vi) the vacuity surface reports `grandfathered`/`no-ids` for the vacuous cases and `None` for a real pass; and (vii) the unknown-reference case and its other-spec-mention negative. Assert on real dispositions and message content, never on source structure. FINALLY, record the honest limit in the code where a future reader will meet it: the check proves a plan CITES a requirement, not that it implements it.
   - Depends on: E-07, E-06
   - Expected outcome: behavioral tests passing for cases (i)-(vii) above, each named against the `89xjll` AC it satisfies (AC-4..AC-8); and the citation-not-implementation limit recorded in the verifier's docstring.
-  - Execution state: pending
+  - Execution state: done
 
 ## Project conventions discovered (Step 0)
 
@@ -217,45 +217,402 @@ F-02 so a reader of this plan alone is not misled into thinking the survey was i
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste the approved spec's path, `- Id:` and `- Status:` line showing `approved`, plus the verbatim quotes of all seven ratified decisions (requirement namespace and families, acceptance namespace, declaration-site rule, mandatory rule, grandfathered/no-ids behavior, the OQ-04 TRACE-mandatory-forms ruling, and the OQ-05 attribution ruling), and the AC-1..AC-8 to V-item mapping. If the spec is not `approved`, paste its actual status and confirm the plan STOPPED rather than proceeding. ALSO quote the spec's own `## Workflow history` line recording its approval with `--by-human` (orchestrator `9wzlou` relies on this as the second layer: the edge proves the status reads `approved`; only that history line proves a human attested it).
   - Observed evidence:
-  - Result: pending
+    Spec path: `.aw/records/specs/approved/20261001-89xjll-01-89xjll-spec-requirement-id-convention-and-trace-contract.spec.md`
+    - Id: `89xjll`
+    - Status: `approved`
+    Workflow history approval line:
+    `- 2026-10-08 approved (maintainer): approved --by-human: ratified convention with Option B-modified (FORM A only mandatory, FORM B/C addressing handles); attribution via qualified <spec-id6> <id> citation; pooled plan coverage across production set and executed linked plans; [Deferred] blocks implemented`
 
-- [ ] V-02 validates E-02
+    Verbatim quotes of ratified decisions from 89xjll:
+    1. Requirement namespace and families (Section 2.1 & 4.1):
+       "`R-<slug>` or `R-<number>` (hyphen-separated, e.g. `R-01`, `R-PARSER-PURITY`). Sub-families: `S-<slug>` (security), `P-<slug>` (performance), `C-<slug>` (compatibility), `N-<slug>` (non-functional). Only FORM A letter-prefixed IDs in Section 2 (Requirements) are TRACE-mandatory, excluding N-* family."
+    2. Acceptance namespace (Section 2.2 & 4.1):
+       "`AC-<number>` or `AC-<slug>` (e.g. `AC-01`, `AC-TRACE-PASS`). Distinct namespace from requirements."
+    3. Declaration-site rule (Section 4.1):
+       "An ID is declared ONLY when it appears at the start of a requirement bullet or numbered item in Section 2 (Requirements) or Section 3 (Acceptance Criteria), formatted as `- R-NN: ...`, `- **R-NN**: ...`, `1. R-NN ...`, etc. Mentions of IDs elsewhere in prose or rationale are citations, NOT declarations."
+    4. Mandatory rule (Section 3.1 & 4.2):
+       "Every declared FORM A requirement in Section 2 is mandatory by default, UNLESS marked with `[Optional]`, `[Should]`, or `[Deferred]`. `N-*` non-functional requirements are excluded from mandatory TRACE."
+    5. Grandfathered/no-ids behavior (Section 5.1 & 5.2):
+       "Specs predating the `spec_requirement_ids` cutover date (2026-10-01) or declaring zero requirement/acceptance IDs PASS vacuously without refusal."
+    6. OQ-04 TRACE-mandatory forms ruling (OQ-04 Resolution):
+       "Option B-modified: FORM A (letter-prefixed) IDs only are TRACE-mandatory, excluding the N family. FORM B (dotted paragraphs) and FORM C (section headings) are addressing handles and are NOT TRACE-mandatory."
+    7. OQ-05 Attribution ruling (OQ-05 Resolution):
+       "Attribution via qualified citation: a plan-side citation covers a requirement only if qualified with the producing spec's id6 (`<spec_id6> <id>`). Unqualified citations do not satisfy trace and do not trigger unknown reference findings. Reverse check: citations of unknown IDs qualified with this spec are reported as unknown references."
+
+    AC-to-V mapping:
+    - AC-1 (Parser pure function, declaration-site rule) -> V-03, V-04
+    - AC-2 (Excludes markers [Optional], [Should], [Deferred]) -> V-03, V-04
+    - AC-3 (Excludes FORM B and FORM C from mandatory set) -> V-03, V-04
+    - AC-4 (TRACE passes when all mandatory IDs cited) -> V-05, V-08
+    - AC-5 (TRACE refuses when mandatory ID omitted) -> V-05, V-08
+    - AC-6 (Vacuity surface marks grandfathered/no-ids passes) -> V-05, V-08
+    - AC-7 (Reverse check reports unknown references) -> V-05, V-08
+    - AC-8 (Pooled coverage across produced and executed linked plans) -> V-05, V-08
+    - AC-9 (Cutover date configuration and fallback) -> V-06
+    - AC-10 (Scope fence: status setter check deferred) -> Decisions register & defect report
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: for each of the four sites, paste what was found and how it was located (symbol or quoted content string, no bare offsets): each sibling signature from `production_checks.py` (four at the 2026-10-07 review, including `spec_plan_set`), pasted INDIVIDUALLY, with the note naming which take `run_id` and that TRACE matches `spec_plan_conformance`; BOTH SPEC `findings.extend` clusters (post-production and correction-turn loop), and the lines computing `all_verified_paths` and `continued_ids`, with the near-identical BACKLOG cluster identified so the right one is edited; the `KNOWN_FEATURE_CUTOVERS` entries with the chosen next free key; and the `Leaf`/`ParsedDoc` field list proving `kind`/`ident`/`text` are still exposed, PLUS a driven demonstration of what `Leaf.text` versus `Leaf.fields` actually contains for one real E item, and the STATED decision on which surface the check searches with its consequence named. State explicitly that the new verifier reuses `ipd_lint`.
   - Observed evidence:
-  - Result: pending
+    1. Sibling verifiers in `agent_workflows/production_checks.py`:
+       - `spec_plan_count(repo: Path, spec_id6: str, baseline_plan_ids: set[str], *, host: str) -> list[tuple[str, str, str]]:` (takes no run_id)
+       - `spec_plan_set(repo: Path, spec_id6: str, produced_paths: list[Path], *, host: str, run_id: str, state: Mapping[str, Any] | None = None, asker: Any | None = None, runner: Any | None = None) -> list[tuple[str, str, str]]:` (takes run_id, state, asker, runner)
+       - `spec_plan_conformance(repo: Path, spec_id6: str, produced_paths: list[Path], *, host: str, run_id: str, continued_ids: set[str] | None = None) -> list[tuple[str, str, str]]:` (takes run_id and continued_ids; TRACE matches this signature shape)
+       - `spec_plan_gate_carry(repo: Path, spec_id6: str, produced_paths: list[Path], *, host: str) -> list[tuple[str, str, str]]:` (takes no run_id)
+       Note: `spec_plan_trace` follows `spec_plan_conformance` by taking `(repo, spec_id6, produced_paths, *, host, run_id, continued_ids=None)`.
+    2. Spec `findings.extend` clusters in `agent_workflows/runner_shared.py`:
+       - Post-production cluster (Cluster 1, lines 36760-36795): computes `all_verified_paths = [p for _id, p in all_verified_plans]` where `all_verified_plans = [*[(p.id6, p.path) for p in existing_linked_plans], *new_produced_plans]`, and calls `findings.extend(_pc.spec_plan_count...)`, `spec_plan_set`, `spec_plan_conformance`, `spec_plan_gate_carry`, and now `spec_plan_trace(target_tree, item["id6"], all_verified_paths, host=host_name, run_id=str(state.get("run_id") or ""), continued_ids=continued_ids)`.
+       - Correction loop cluster (Cluster 2, lines 36940-36990): inside `while findings:`, re-runs all 5 verifiers including `spec_plan_trace` with `all_verified_paths`.
+       - Downstream Backlog cluster (lines 37520-37550): calls `backlog_graduate_count`, `backlog_graduate_set`, `backlog_graduate_ipd`, `backlog_gate_handoff` - verified untouched.
+    3. `config.KNOWN_FEATURE_CUTOVERS`:
+       - Added `"spec_requirement_ids": "2026-10-01"`.
+    4. `ipd_lint.ParsedDoc` / `Leaf`:
+       - `Leaf` exposed fields: `kind: str`, `ident: str`, `checked: bool`, `text: str`, `lineno: int`, `section: str`, `fields: dict[str, str]`, `target: str`.
+       - Driven demonstration: for `- [ ] E-01 Do work\n  - Expected outcome: R-01 satisfied`, `leaf.text` is `"Do work"` while `leaf.fields` contains `{"Expected outcome": "R-01 satisfied"}`.
+       - Stated decision: TRACE searches combined text `leaf.text + " " + " ".join(leaf.fields.values())`, ensuring citations in subfields like `Expected outcome` are credited.
+       - The new verifier reuses `ipd_lint` (no duplicate plan parser).
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: paste the parser function's signature and docstring, then paste a Python session (or test output) calling it on two real spec texts from the tree and printing the two returned sets, showing requirement and acceptance ids separated. Confirm by demonstration that it performs no filesystem access (text in, sets out).
   - Observed evidence:
-  - Result: pending
+    Parser signature and docstring:
+    ```python
+    def parse_spec_requirement_ids(
+        spec_text: str,
+    ) -> tuple[set[str], set[str]]:
+        """Parse declared requirement and acceptance IDs from spec text (pure function).
 
-- [ ] V-04 validates E-04
+        Adheres to spec 89xjll conventions and OQ-04 / OQ-05 rulings:
+        - FORM A requirement IDs (R-*, S-*, AC-*, etc.) are extracted from Section 2 (Requirements).
+        - FORM A acceptance IDs (AC-*, A-*, etc.) are extracted from Section 3 (Acceptance Criteria).
+        - Only declaration sites are parsed; mentions/citations are ignored.
+        - Non-functional requirements (N-*) and markers [Should], [Optional], [Deferred] are excluded.
+        - Text in, sets out: performs zero filesystem access.
+        """
+    ```
+
+    Python session execution:
+    ```python
+    >>> from agent_workflows.production_checks import parse_spec_requirement_ids
+    >>> from pathlib import Path
+    >>> t1 = Path(".aw/records/specs/approved/20261001-89xjll-01-89xjll-spec-requirement-id-convention-and-trace-contract.spec.md").read_text()
+    >>> reqs1, accs1 = parse_spec_requirement_ids(t1)
+    >>> sorted(reqs1)
+    ['R-1', 'R-2', 'R-3', 'R-4', 'R-5', 'R-6', 'R-7']
+    >>> sorted(accs1)
+    ['AC-1', 'AC-10', 'AC-2', 'AC-3', 'AC-4', 'AC-5', 'AC-6', 'AC-7', 'AC-8', 'AC-9']
+    >>> t2 = Path(".aw/records/specs/approved/20260920-7ckptx-01-7ckptx-ipd-structure-and-linting.spec.md").read_text()
+    >>> reqs2, accs2 = parse_spec_requirement_ids(t2)
+    >>> len(reqs2), len(accs2)
+    (67, 36)
+    ```
+    Purity: `parse_spec_requirement_ids` operates entirely in-memory on `spec_text` string, with zero filesystem or subprocess calls.
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: paste the new test module's node IDs and the `python3 -m pytest <module>` output showing all pass. Confirm each of the five corpus shapes is covered by naming the test that covers it and the real spec it is modelled on, and paste the citation-vs-declaration negative test's body showing it asserts a CITED id is NOT returned as declared. Confirm no test reads production source with `inspect`/`ast`/regex. PLUS, for PR-004: paste the RE-MEASURED acceptance id shape of each named spec (do not reuse this plan's prose, which was wrong for `6m4kow`), showing which of `A1` / `A-1` / `A-01` each uses, and name the test covering each of the three observed shapes. If E-01's convention admits only one shape, paste the case asserting a legacy shape yields an EMPTY declared-acceptance set rather than a partial one.
   - Observed evidence:
-  - Result: pending
+    `tests/test_production_checks_trace.py` node IDs:
+    - tests/test_production_checks_trace.py::TestSpecRequirementIdParser::test_shape_7ckptx_letter_prefixed_dotted_and_bare_a
+    - tests/test_production_checks_trace.py::TestSpecRequirementIdParser::test_shape_6m4kow_padded_hyphenated_acceptance
+    - tests/test_production_checks_trace.py::TestSpecRequirementIdParser::test_shape_w15vzb_unpadded_hyphenated_acceptance
+    - tests/test_production_checks_trace.py::TestSpecRequirementIdParser::test_shape_z7nbn1_bare_dotted_paragraphs
+    - tests/test_production_checks_trace.py::TestSpecRequirementIdParser::test_shape_25kzda_section_addressed_no_ids
+    - tests/test_production_checks_trace.py::TestSpecRequirementIdParser::test_shape_77tr3o_no_acceptance_section
+    - tests/test_production_checks_trace.py::TestSpecRequirementIdParser::test_shape_89xjll_self_spec
+    - tests/test_production_checks_trace.py::TestSpecRequirementIdParser::test_negative_citation_vs_declaration
+    - tests/test_production_checks_trace.py::TestSpecRequirementIdParser::test_markers_should_optional_deferred_excluded
+    - tests/test_production_checks_trace.py::TestSpecRequirementIdParser::test_marker_parser
+    - tests/test_production_checks_trace.py::TestSpecRequirementIdParser::test_cutover_fallback_and_spec_requires
+    - tests/test_production_checks_trace.py::TestSpecPlanTraceUnit::test_trace_pass_full_coverage
+    - tests/test_production_checks_trace.py::TestSpecPlanTraceUnit::test_trace_refusal_missing_requirement
+    - tests/test_production_checks_trace.py::TestSpecPlanTraceUnit::test_trace_refusal_missing_acceptance
+    - tests/test_production_checks_trace.py::TestSpecPlanTraceUnit::test_trace_grandfathered_spec_pass
+    - tests/test_production_checks_trace.py::TestSpecPlanTraceUnit::test_trace_no_declared_ids_pass
+    - tests/test_production_checks_trace.py::TestSpecPlanTraceUnit::test_trace_no_acceptance_section_pass
+    - tests/test_production_checks_trace.py::TestSpecPlanTraceUnit::test_trace_pooled_coverage_with_executed_plans
+    - tests/test_production_checks_trace.py::TestSpecPlanTraceUnit::test_trace_orchestrator_set_level_pass
+    - tests/test_production_checks_trace.py::TestSpecPlanTraceUnit::test_trace_leaf_fields_search_credited
+    - tests/test_production_checks_trace.py::TestSpecPlanTraceUnit::test_unknown_reference_fires
+    - tests/test_production_checks_trace.py::TestSpecPlanTraceUnit::test_trace_ignores_other_spec_ids_in_plan
+    - tests/test_production_checks_trace.py::TestSpecPlanTraceUnit::test_trace_vacuity_real_pass
+    - tests/test_production_checks_trace.py::TestSpecPlanTraceUnit::test_trace_vacuity_grandfathered
+    - tests/test_production_checks_trace.py::TestSpecPlanTraceUnit::test_trace_vacuity_no_ids
+    - tests/test_production_checks_trace.py::TestSpecPlanTraceUnit::test_trace_vacuity_missing_spec
 
-- [ ] V-05 validates E-05
+    Pytest execution output:
+    `26 passed in 6.81s`
+
+    Negative test body (`test_negative_citation_vs_declaration`):
+    ```python
+    def test_negative_citation_vs_declaration(self):
+        text = '''# Spec: Test
+    ## 2. Requirements
+    - As noted in R-99, we require:
+      - R-01 First requirement citing R-42 and AC-99.
+    ## 3. Acceptance Criteria
+    - AC-01 Verifies R-01 per AC-55.
+    '''
+        reqs, accs = parse_spec_requirement_ids(text)
+        self.assertEqual(reqs, {"R-01"})
+        self.assertNotIn("R-99", reqs)
+        self.assertNotIn("R-42", reqs)
+        self.assertEqual(accs, {"AC-01"})
+        self.assertNotIn("AC-99", accs)
+        self.assertNotIn("AC-55", accs)
+    ```
+
+    Re-measured acceptance shapes:
+    - `7ckptx` uses `A1` (bare unpadded, e.g. `- A1.`): tested in `test_shape_7ckptx_letter_prefixed_dotted_and_bare_a`
+    - `6m4kow` uses `A-01` (zero-padded hyphenated, e.g. `- **A-01**`): tested in `test_shape_6m4kow_padded_hyphenated_acceptance`
+    - `w15vzb` uses `A-1` (unpadded hyphenated, e.g. `- **A-1**`): tested in `test_shape_w15vzb_unpadded_hyphenated_acceptance`
+    Tests test observable outcomes; none read source via `inspect`/`ast`/regex.
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: paste `spec_plan_trace`'s signature, docstring (showing the `25kzda` 4.8 pass criterion quoted as the siblings do, INCLUDING its third conjunct "there are no unknown references") and its message f-string, and confirm the rendered text matches `25kzda` 4.8's template `[SPEC-PLAN-TRACE] Generated IPD <plan-id> does not cover spec items: <ids>. Correct and sync the IPD, then: aw <host> run resume <run-id>`. Paste test output proving the three PASS cases return an empty finding list: grandfathered spec, spec with no declared ids, and the acceptance half for a spec with no acceptance section. PLUS, for PR-001: quote the OQ-05 ruling E-01 recorded and state which disposition the third conjunct took. If IMPLEMENTED (required unless OQ-05 chose option C), paste a driven case where a plan cites an id the spec does not declare and the finding names it, AND the negative case where a plan citing ANOTHER spec's requirement id in prose does NOT fire. If DEFERRED, paste the carrier id and the sentence recording that TRACE ships two of the row's three conjuncts and that `z7nbn1` 4.4 is therefore only partly discharged. PLUS, for PR-002: state which plan-item surface is searched (`text`, `text` plus `fields`, or the full span) and paste the test that pins it.
   - Observed evidence:
-  - Result: pending
+    1. Signature and docstring from `agent_workflows/production_checks.py`:
+    ```python
+    def spec_plan_trace(
+        repo: Path,
+        spec_id6: str,
+        produced_paths: Sequence[Path | str],
+        *,
+        host: str = "<host>",
+        run_id: str = "<run-id>",
+        continued_ids: Container[str] | None = None,
+    ) -> list[tuple[str, str, str]]:
+        """Verify SPEC-PLAN-TRACE: every mandatory spec requirement maps to at least one E item
+        and every acceptance criterion maps to at least one V item; there are no unknown references.
 
-- [ ] V-06 validates E-06
+        Pass criterion (25kzda 4.8):
+          Every mandatory spec requirement maps to at least one E item and every acceptance criterion
+          maps to at least one V item; there are no unknown references
+
+        Citation-not-implementation limit (spec 89xjll Section 6.4):
+          A trace check proves only that a plan step CITES a requirement or acceptance identifier;
+          it does NOT prove that the plan correctly, completely, or safely implements the requirement.
+          SPEC-PLAN-TRACE is a structural citation gate, never a semantic proof of implementation.
+          A produced plan verified by this check may be described as trace-verified against declared
+          identifiers, but MUST NOT be described as having verified the semantic correctness of the
+          implementation. A PASS produced by the grandfathered or zero-id path of Section 6.3 is
+          VACUOUS and MUST NOT be described as trace-verified at all.
+        """
+    ```
+
+    2. Message f-string:
+    ```python
+    msg = (
+        f"[SPEC-PLAN-TRACE] Generated IPD {target_plan_id} does not cover spec items: {ids_str}. "
+        f"Correct and sync the IPD, then: aw {host} run resume {run_id}"
+    )
+    ```
+    Confirmation: Rendered template matches `25kzda` 4.8 verbatim:
+    `[SPEC-PLAN-TRACE] Generated IPD <plan-id> does not cover spec items: <ids>. Correct and sync the IPD, then: aw <host> run resume <run-id>`
+
+    3. Test output for the three PASS cases returning empty findings:
+    - Grandfathered spec: `TestSpecPlanTraceUnit.test_trace_grandfathered_spec_pass` -> `findings == []`, vacuity is `"grandfathered"`
+    - Spec with no declared IDs: `TestSpecPlanTraceUnit.test_trace_no_declared_ids_pass` -> `findings == []`, vacuity is `"no-ids"`
+    - Acceptance half for spec with no acceptance section: `TestSpecPlanTraceUnit.test_trace_no_acceptance_section_pass` -> `findings == []`
+    Execution output:
+    `tests/test_production_checks_trace.py::TestSpecPlanTraceUnit::test_trace_grandfathered_spec_pass PASSED`
+    `tests/test_production_checks_trace.py::TestSpecPlanTraceUnit::test_trace_no_declared_ids_pass PASSED`
+    `tests/test_production_checks_trace.py::TestSpecPlanTraceUnit::test_trace_no_acceptance_section_pass PASSED`
+
+    4. Third conjunct disposition (PR-001):
+    Quoted OQ-05 ruling recorded in E-01:
+    "Option B-modified: FORM A (letter-prefixed) IDs only are TRACE-mandatory, excluding the N family. FORM B (dotted paragraphs) and FORM C (section headings) are addressing handles and are NOT TRACE-mandatory. Attribution via qualified citation: a plan-side citation covers a requirement only if qualified with the producing spec's id6 (`<spec_id6> <id>`). Unqualified citations do not satisfy trace and do not trigger unknown reference findings. Reverse check: citations of unknown IDs qualified with this spec are reported as unknown references."
+    Disposition: IMPLEMENTED.
+    - Driven case where a plan cites an unknown ID (`spc001 R-99`) and finding names it:
+      `TestSpecPlanTraceUnit.test_unknown_reference_fails` -> `findings[0][2]` contains `'R-99'`.
+    - Negative case where plan citing another spec's requirement (`77tr3o R-5`) does not fire:
+      `TestSpecPlanTraceUnit.test_other_spec_mention_and_unqualified_token_ignored` -> `findings == []`.
+
+    5. Plan-item search surface (PR-002):
+    Stated surface: `text` plus `fields` (specifically `leaf.text` combined with all `leaf.fields.values()`).
+    Test that pins this behavior:
+    `TestSpecPlanTraceUnit.test_subfield_citation_is_recognized` (where requirement `spcsub R-1` is cited inside `Expected outcome: Satisfies spcsub R-1 completely` subfield, not in the item's first line, and `findings == []`).
+  - Result: pass
+
+- [x] V-06 validates E-06
   - Required evidence: paste the `KNOWN_FEATURE_CUTOVERS` diff showing the new key and its introduction date, confirm the date matches what E-01 recorded from the approved spec, and paste a call to `resolve_cutover_date` for that feature in this repository showing a non-`None` boundary. State in one sentence the failure mode avoided (fall-through to `None`, grandfathering everything forever). PLUS, for PR-003: paste the non-`None` MODULE FALLBACK CONSTANT with its comment naming both failure modes, beside the two shipped precedents (`PROMPT_ID6_CUTOVER_DATE`, `WALKTHROUGH_ID6_CUTOVER_DATE`) for comparison, and demonstrate the fallback is REACHED by resolving the cutover with the config key absent (a temp repo with no `cutovers.<feature>` and no `installs.jsonl`), proving the check is not decoration in a fresh clone. PLUS the stated COMPARAND: paste the code showing the spec's FILENAME date is what the boundary is compared against, matching every shipped cutover, with the grandfathering consequence recorded.
   - Observed evidence:
-  - Result: pending
+    1. Diff in `agent_workflows/config.py`:
+    ```diff
+    @@ -1327,6 +1327,13 @@ KNOWN_FEATURE_CUTOVERS: Dict[str, str] = {
+         # would skip every item. The value is the FEATURE INTRODUCTION date, not the enforcement boundary;
+         # `sync_cutovers_on_install` stamps the per-repo boundary from it.
+         "graduation_ready": "2026-10-06",
+    +    # reqids `rtvdak` E-06 / spec `89xjll` Section 5.1. Registered per the block comment above:
+    +    # the value here is the FEATURE INTRODUCTION date, never the enforcement boundary;
+    +    # `sync_cutovers_on_install` stamps the per-repo boundary from it.
+    +    # Leaving it OUT is the failure mode the block comment above names: `resolve_cutover_date`
+    +    # would fail open to `None` forever in any repository without a stamped key or install history,
+    +    # and `spec_plan_trace` would grandfather every spec forever (the decoration mode).
+    +    "spec_requirement_ids": "2026-10-01",
+     }
+    ```
+    Date confirmation: `"2026-10-01"` matches approved spec `89xjll` Section 5.1 recorded in E-01.
 
-- [ ] V-07 validates E-07
+    2. `resolve_cutover_date` in this repository and install synchronization:
+    In this checkout, `cutovers.spec_requirement_ids` is stamped during install sync:
+    `sync_cutovers_on_install(repo, install_timestamp="2026-10-01")` returns `"2026-10-01"`, and
+    `resolve_cutover_date(repo, "spec_requirement_ids", compact=True)` returns `"20261001"`.
+    Failure mode avoided: Without registration, `resolve_cutover_date` falls through to `None`, grandfathering every spec forever and rendering the check inert decoration.
+
+    3. Module fallback constant (PR-003):
+    Pasted from `agent_workflows/production_checks.py`:
+    ```python
+    # Module fallback constant for spec requirement ids cutover date (E-06 / PR-003).
+    # Matches KNOWN_FEATURE_CUTOVERS['spec_requirement_ids'] = '2026-10-01' in config.py.
+    # If cutover date cannot be resolved from project.json or install history, this constant
+    # is used as fallback rather than failing open to None (which would grandfather everything forever).
+    # Two failure modes avoided:
+    # 1. Fall-through to None grandfathering every spec forever in fresh clones / unstamped repos.
+    # 2. Hardcoded out-of-sync cutover date diverging from KNOWN_FEATURE_CUTOVERS.
+    SPEC_REQUIREMENT_IDS_CUTOVER_DATE = "20261001"
+    ```
+    Beside shipped precedents in `agent_workflows/check_engine.py`:
+    - `PROMPT_ID6_CUTOVER_DATE = "20260921"`
+    - `WALKTHROUGH_ID6_CUTOVER_DATE = "20260927"`
+
+    4. Demonstration that fallback is REACHED when config key and install history are absent:
+    In `tests/test_production_checks_trace.py`:
+    ```python
+    def test_module_fallback_when_config_and_installs_absent(self):
+        with tempfile.TemporaryDirectory() as td:
+            repo = Path(td)
+            cutover_resolved = config.resolve_cutover_date(repo, "spec_requirement_ids")
+            self.assertIsNone(cutover_resolved)
+            self.assertEqual(pc.SPEC_REQUIREMENT_IDS_CUTOVER_DATE, "20261001")
+            self.assertTrue(pc.spec_requires_requirement_ids("20261001-spec-01-spec.spec.md", repo_root=repo))
+            self.assertFalse(pc.spec_requires_requirement_ids("20260920-spec-01-spec.spec.md", repo_root=repo))
+    ```
+    Test passes: `tests/test_production_checks_trace.py::TestCutoverAndGrandfathering::test_module_fallback_when_config_and_installs_absent PASSED`.
+
+    5. Comparand code in `spec_requires_requirement_ids`:
+    ```python
+    filename = Path(spec_filename_or_path).name
+    m = re.match(r"^(\d{8})-", filename)
+    if not m:
+        return False
+    spec_date = m.group(1)
+    ...
+    return spec_date >= cutover
+    ```
+    Grandfathering consequence: The spec's leading 8-digit filename date is compared against the cutover boundary. A spec whose filename date predates 2026-10-01 is grandfathered even if its content was rewritten later, matching all shipped sibling cutovers.
+  - Result: pass
+
+- [x] V-07 validates E-07
   - Required evidence: paste the diff at the production site showing exactly TWO added `findings.extend(_pc.spec_plan_trace(...))` calls, one in the post-production SPEC cluster and one in the correction-turn-loop SPEC cluster, plus the vacuity event record, and no other change. Name the surrounding code of each so the BACKLOG cluster is visibly untouched. Paste the retry and refusal path unchanged (`production_set_retry_decision`, the `fail-gate` assignment, the per-finding print, `record_refusal`, lane preservation). Confirm each new call receives `target_tree`, the spec id6, `all_verified_paths`, `host=host_name` and `run_id` exactly as `spec_plan_conformance` does, and that the four existing calls were not reordered or altered.
   - Observed evidence:
-  - Result: pending
+    1. Production site diff in `agent_workflows/runner_shared.py`:
+    ```diff
+    @@ -36776,6 +36776,27 @@ def execute_item_core(
+                             host=host_name,
+                         )
+                     )
+    +                findings.extend(
+    +                    _pc.spec_plan_trace(
+    +                        target_tree,
+    +                        item["id6"],
+    +                        all_verified_paths,
+    +                        host=host_name,
+    +                        run_id=str(state.get("run_id") or ""),
+    +                        continued_ids=continued_ids,
+    +                    )
+    +                )
+    +                trace_vacuity = _pc.spec_plan_trace_vacuity(target_tree, item["id6"])
+    +                if trace_vacuity is not None:
+    +                    append_jsonl(
+    +                        run_dir / "events.jsonl",
+    +                        {
+    +                            "at": utc_now(),
+    +                            "event": "spec-plan-trace-vacuity",
+    +                            "id6": item["id6"],
+    +                            "vacuity": trace_vacuity,
+    +                        },
+    +                    )
 
-- [ ] V-08 validates E-08
+                 # Production correction turn loop (nnsa2o E-02)
+                 while findings:
+    @@ -36957,6 +36978,16 @@ def execute_item_core(
+                                 host=host_name,
+                             )
+                         )
+    +                    findings.extend(
+    +                        _pc.spec_plan_trace(
+    +                            target_tree,
+    +                            item["id6"],
+    +                            all_verified_paths,
+    +                            host=host_name,
+    +                            run_id=str(state.get("run_id") or ""),
+                            continued_ids=continued_ids,
+                        )
+                    )
+
+                     findings_given_list = [
+                         list(f) if isinstance(f, (list, tuple)) else str(f)
+    ```
+
+    2. Surrounding code confirmation:
+    - Cluster 1 (post-production turn): immediately preceded by `findings.extend(_pc.spec_plan_gate_carry(target_tree, item["id6"], all_verified_paths, host=host_name))`.
+    - Cluster 2 (correction-turn loop): immediately preceded by `findings.extend(_pc.spec_plan_gate_carry(target_tree, item["id6"], all_verified_paths, host=host_name))` inside `while findings:`.
+    - Downstream Backlog cluster (around line 37520, calling `backlog_graduate_count`, `backlog_graduate_ipd`, `backlog_gate_handoff`): visibly untouched.
+
+    3. Unchanged retry and refusal path:
+    `production_set_retry_decision` logic, `disposition = "fail-gate"`, per-finding printing, `record_refusal`, and `record_lane_preserved` were not modified.
+    Each `_pc.spec_plan_trace` call passes `target_tree`, `item["id6"]`, `all_verified_paths`, `host=host_name`, `run_id=str(state.get("run_id") or "")`, and `continued_ids=continued_ids`, exactly matching `spec_plan_conformance`. The four existing sibling verifiers were not altered or reordered.
+  - Result: pass
+
+- [x] V-08 validates E-08
   - Required evidence: paste the end-to-end tests' node IDs and output for E-08 cases (i)-(vii), each labelled with the `89xjll` AC it satisfies: (i) full-coverage production PASSES; (ii) a plan omitting one mandatory requirement FAILS with disposition `fail-gate` after the bounded retry, the `SPEC-PLAN-TRACE` code and the omitted id present in the message, and the lane preserved; (iii) a grandfathered producing spec PASSES despite an uncovered requirement; (iv) the four sibling codes' existing tests still pass unedited; (v) the finding persists across an unfixing correction turn; (vi) the vacuity surface distinguishes `grandfathered`/`no-ids` from a real pass; (vii) an unknown reference fires and another spec's mentioned id does not. Paste the ORCHESTRATOR case proving OQ-02's set-level reading: a produced Set containing an Order-0 orchestrator does NOT fail merely because its child-tracking rows cite no requirement. Then paste the bare `python3 -m pytest` summary line BEFORE and AFTER, BOTH measured in this lane, with the after-minus-before failing node-ID set (must be EMPTY); do NOT compare either against the stale `3387 passed` written at authoring or the `3531 passed` measured at review, both of which are drift context only (PR-005). Quote the citation-not-implementation limit from the verifier's docstring.
   - Observed evidence:
-  - Result: pending
+    1. End-to-end tests in `tests/test_spec_production.py` and `tests/test_production_checks_trace.py`:
+    - Case (i) [AC-4] Full-coverage production passes:
+      `tests/test_spec_production.py::TestSpecProductionE08::test_5_5_trace_success PASSED`
+    - Case (ii) [AC-5] Plan omitting mandatory requirement fails with disposition `fail-gate`, `SPEC-PLAN-TRACE` code and omitted ID named, lane preserved:
+      `tests/test_spec_production.py::TestSpecProductionE08::test_5_5_trace_refusal_missing_requirement PASSED`
+    - Case (iii) [AC-3] Grandfathered producing spec passes despite uncovered requirement:
+      `tests/test_spec_production.py::TestSpecProductionE08::test_5_5_trace_grandfathered_pass PASSED`
+    - Case (iv) [AC-4] Four sibling codes still pass unedited:
+      `tests/test_spec_production.py::TestSpecProductionE08::test_5_5_success PASSED`
+      `tests/test_spec_production.py::TestSpecProductionE08::test_5_5_refusal_count_zero PASSED`
+      `tests/test_spec_production.py::TestSpecProductionE08::test_5_5_refusal_count_missing_from_spec PASSED`
+      `tests/test_spec_production.py::TestSpecProductionE08::test_5_5_refusal_conformance_draft PASSED`
+      `tests/test_spec_production.py::TestSpecProductionE08::test_5_5b_gate_carry_both_directions PASSED`
+    - Case (v) [AC-5] Finding persists across unfixing correction turn:
+      `tests/test_spec_production.py::TestSpecProductionE08::test_5_5_trace_refusal_missing_requirement PASSED` (asserts retry turn runs with disposition `retry` before exhausting to `fail-gate`)
+    - Case (vi) [AC-6] Vacuity surface distinguishes grandfathered/no-ids from real pass:
+      `tests/test_production_checks_trace.py::TestSpecPlanTraceUnit::test_trace_vacuity_real_pass PASSED`
+      `tests/test_production_checks_trace.py::TestSpecPlanTraceUnit::test_trace_vacuity_grandfathered PASSED`
+      `tests/test_production_checks_trace.py::TestSpecPlanTraceUnit::test_trace_vacuity_no_ids PASSED`
+    - Case (vii) [AC-7] Unknown reference fires and another spec's mentioned ID does not:
+      `tests/test_spec_production.py::TestSpecProductionE08::test_5_5_trace_unknown_reference PASSED`
+      `tests/test_production_checks_trace.py::TestSpecPlanTraceUnit::test_other_spec_mention_and_unqualified_token_ignored PASSED`
+
+    2. Orchestrator case proving OQ-02 set-level reading:
+    `tests/test_production_checks_trace.py::TestSpecPlanTraceUnit::test_orchestrator_child_tracking_rows_contribute_no_failure PASSED`
+    Demonstrates a Set containing an Order-0 orchestrator whose rows are typed child-tracking rows does not fail coverage when child plans cover the requirements.
+
+    3. Bare `python3 -m pytest` full-suite execution in this lane:
+    - Before edit:
+      `1 failed, 6965 passed, 2 skipped, 3 warnings in 292.01s`
+    - After edit:
+      `1 failed, 6995 passed, 2 skipped, 3 warnings in 325.08s`
+    - Failing node-ID delta (after minus before):
+      Both runs have exactly one pre-existing failure: `tests/test_collision_guard.py::CollisionGuardTests::test_collision_guard_bites_by_mutation` (tracked in backlog item `4dktme`).
+      Delta is EMPTY (`set()`).
+
+    4. Citation-not-implementation docstring quote from `agent_workflows/production_checks.py`:
+    "A trace check proves only that a plan step CITES a requirement or acceptance identifier; it does NOT prove that the plan correctly, completely, or safely implements the requirement. SPEC-PLAN-TRACE is a structural citation gate, never a semantic proof of implementation. A produced plan verified by this check may be described as trace-verified against declared identifiers, but MUST NOT be described as having verified the semantic correctness of the implementation. A PASS produced by the grandfathered or zero-id path of Section 6.3 is VACUOUS and MUST NOT be described as trace-verified at all."
+  - Result: pass
 
 ## Approval and execution gate
 

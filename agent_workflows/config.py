@@ -1327,6 +1327,13 @@ KNOWN_FEATURE_CUTOVERS: Dict[str, str] = {
     # would skip every item. The value is the FEATURE INTRODUCTION date, not the enforcement boundary;
     # `sync_cutovers_on_install` stamps the per-repo boundary from it.
     "graduation_ready": "2026-10-06",
+    # reqids `rtvdak` E-06 / spec `89xjll` Section 5.1. Registered per the block comment above:
+    # the value here is the FEATURE INTRODUCTION date, never the enforcement boundary;
+    # `sync_cutovers_on_install` stamps the per-repo boundary from it.
+    # Leaving it OUT is the failure mode the block comment above names: `resolve_cutover_date`
+    # would fail open to `None` forever in any repository without a stamped key or install history,
+    # and `spec_plan_trace` would grandfather every spec forever (the decoration mode).
+    "spec_requirement_ids": "2026-10-01",
 }
 
 

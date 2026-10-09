@@ -51,27 +51,40 @@ def _write_spec(
     title: str = "Test Spec",
     slug: str = "test-spec",
     gate: str | None = None,
+    filename_date: str = "20260927",
+    spec_date: str = "2026-09-27",
+    requirements: list[str] | None = None,
+    acceptance: list[str] | None = None,
 ) -> Path:
     bucket = "approved" if status == "approved" else status
     specs_dir = repo / ".aw" / "records" / "specs" / bucket
     specs_dir.mkdir(parents=True, exist_ok=True)
-    file_path = specs_dir / f"20260927-{id6}-01-{id6}-{slug}.spec.md"
+    file_path = specs_dir / f"{filename_date}-{id6}-01-{id6}-{slug}.spec.md"
 
     gate_line = f"- Blocks-Release: {gate}\n" if gate else ""
+    req_section = ""
+    if requirements:
+        req_lines = "\n".join(f"- {r}" for r in requirements)
+        req_section = f"\n## 2. Requirements\n{req_lines}\n"
+    ac_section = ""
+    if acceptance:
+        ac_lines = "\n".join(f"- {a}" for a in acceptance)
+        ac_section = f"\n## 3. Acceptance Criteria\n{ac_lines}\n"
+
     content = f"""# SPEC: {title}
 
-- Date: 2026-09-27
+- Date: {spec_date}
 - Status: {status}
 - Title: {title}
 - Slug: {slug}
 - Id: {id6}
 {gate_line}
 ## Workflow history
-- 2026-09-27 {status} (tester): set status
+- {spec_date} {status} (tester): set status
 
 ## 1. Overview
 Overview of spec {id6}.
-"""
+{req_section}{ac_section}"""
     file_path.write_text(content, encoding="utf-8")
     return file_path
 
@@ -86,9 +99,44 @@ def _write_plan_content(
     gate: str | None = None,
     scope_paths: str = "README.md",
     dependencies: str = "none",
+    e_items: list[str] | None = None,
+    v_items: list[str] | None = None,
 ) -> str:
     spec_line = f"- From-Spec: {spec_id6}\n" if spec_id6 else ""
     gate_line = f"- Blocks-Release: {gate}\n" if gate else ""
+    highest_e = f"{len(e_items):02d}" if e_items else "01"
+
+    if e_items:
+        e_body_lines = []
+        for i, text in enumerate(e_items, 1):
+            e_body_lines.append(
+                f"- [ ] E-{i:02d} {text}\n  - Depends on: none\n  - Expected outcome: done\n  - Execution state: pending"
+            )
+        e_body = "\n\n".join(e_body_lines)
+    else:
+        e_body = """- [ ] E-01 Work item
+  - Depends on: none
+  - Expected outcome: done
+  - Execution state: pending"""
+
+    if v_items:
+        v_body_lines = []
+        for i, text in enumerate(v_items, 1):
+            target_e = min(i, len(e_items)) if e_items else 1
+            if "validates E-" in text:
+                v_prefix = f"- [ ] V-{i:02d} {text}"
+            else:
+                v_prefix = f"- [ ] V-{i:02d} validates E-{target_e:02d} {text}"
+            v_body_lines.append(
+                f"{v_prefix}\n  - Required evidence: check\n  - Observed evidence:\n  - Result: pending"
+            )
+        v_body = "\n\n".join(v_body_lines)
+    else:
+        v_body = """- [ ] V-01 validates E-01
+  - Required evidence: check.
+  - Observed evidence:
+  - Result: pending"""
+
     return f"""# IPD: Test Plan {id6}
 
 - Date: 2026-09-27
@@ -99,7 +147,7 @@ def _write_plan_content(
 - Status: {status}
 {spec_line}{gate_line}- Set: {setid}
 - Order: {order}
-- Highest E allocated: 01
+- Highest E allocated: {highest_e}
 - Author: test
 - Priority: medium
 - Work-Kind: feature
@@ -114,10 +162,7 @@ Test goal for plan {id6}.
 
 ## Detailed Implementation Checklist (TODO)
 ### Task group 1: work
-- [ ] E-01 Work item
-  - Depends on: none
-  - Expected outcome: done
-  - Execution state: pending
+{e_body}
 
 ## Project conventions discovered (Step 0)
 None.
@@ -144,10 +189,7 @@ None.
 - None.
 
 ## Validation and cross-check (verify before reporting done)
-- [ ] V-01 validates E-01
-  - Required evidence: check.
-  - Observed evidence:
-  - Result: pending
+{v_body}
 
 ## Approval and execution gate
 - Size assessment: standard
@@ -167,10 +209,13 @@ def _write_conforming_plan(
     scope_paths: str = "README.md",
     dependencies: str = "none",
     bucket: str = "pending",
+    filename_date: str = "20260927",
+    e_items: list[str] | None = None,
+    v_items: list[str] | None = None,
 ) -> Path:
     dir_path = repo / ".aw" / "records" / "plans" / bucket
     dir_path.mkdir(parents=True, exist_ok=True)
-    file_path = dir_path / f"20260927-{setid}-{order:02d}-{id6}-test-plan.ipd.md"
+    file_path = dir_path / f"{filename_date}-{setid}-{order:02d}-{id6}-test-plan.ipd.md"
     content = _write_plan_content(
         id6=id6,
         spec_id6=spec_id6,
@@ -180,6 +225,8 @@ def _write_conforming_plan(
         gate=gate,
         scope_paths=scope_paths,
         dependencies=dependencies,
+        e_items=e_items,
+        v_items=v_items,
     )
     file_path.write_text(content, encoding="utf-8")
     return file_path
@@ -769,6 +816,293 @@ class TestSpecProductionE08(unittest.TestCase):
                         (run_dir2 / "state.json").read_text(encoding="utf-8")
                     )
                     self.assertEqual(state2["queue"][0]["status"], "executed")
+
+    def test_5_5_trace_success(self):
+        """Case: post-cutover spec with requirements and ACs; agent produces plan citing all -> executed."""
+        for host_label, mod in _HOSTS:
+            with self.subTest(host=host_label):
+                with tempfile.TemporaryDirectory() as td:
+                    repo = _make_test_repo(Path(td))
+                    _write_spec(
+                        repo,
+                        id6="spctr1",
+                        status="approved",
+                        filename_date="20261001",
+                        spec_date="2026-10-01",
+                        requirements=[
+                            "R-1 First requirement.",
+                            "R-2 Second requirement.",
+                        ],
+                        acceptance=["AC-1 First acceptance criterion."],
+                    )
+                    subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
+                    subprocess.run(
+                        ["git", "commit", "-qm", "add post-cutover spec"],
+                        cwd=repo,
+                        check=True,
+                    )
+
+                    run_id = f"run-{host_label}-tr-succ"
+                    cmd = [
+                        "start",
+                        "spctr1",
+                        "--action",
+                        "plan",
+                        "--repo",
+                        str(repo),
+                        "--run-id",
+                        run_id,
+                        "--no-isolate-worktree",
+                    ]
+                    args = mod.build_parser().parse_args(cmd)
+                    buf = io.StringIO()
+                    with contextlib.redirect_stdout(buf), contextlib.redirect_stderr(
+                        buf
+                    ):
+                        run_dir = mod.initialize_run(args)
+
+                    def fake_agent(
+                        state, rdir, item, plan_path, prompt_path, attempt_no, **kwargs
+                    ):
+                        work_dir = kwargs.get("work_dir")
+                        target = Path(work_dir) if work_dir else Path(state["repo"])
+                        _write_conforming_plan(
+                            target,
+                            id6="plntr1",
+                            spec_id6="spctr1",
+                            filename_date="20261001",
+                            e_items=[
+                                "Implements `spctr1` R-1",
+                                "Implements `spctr1` R-2",
+                            ],
+                            v_items=["Validates `spctr1` AC-1", "Validates check"],
+                        )
+                        return 0, "session", rdir / "log.txt", ["cmd"]
+
+                    with _patch_host_agent(mod, fake_agent):
+                        with contextlib.redirect_stdout(
+                            buf
+                        ), contextlib.redirect_stderr(buf):
+                            mod.run_queue(run_dir, retry_incomplete=False)
+
+                    state = json.loads(
+                        (run_dir / "state.json").read_text(encoding="utf-8")
+                    )
+                    item = state["queue"][0]
+                    self.assertEqual(item["status"], "executed")
+                    self.assertEqual(item["attempts"][0]["disposition"], "executed")
+
+    def test_5_5_trace_refusal_missing_requirement(self):
+        """Case: post-cutover spec; plan omits R-2 -> fail-gate with SPEC-PLAN-TRACE, lane preserved."""
+        for host_label, mod in _HOSTS:
+            with self.subTest(host=host_label):
+                with tempfile.TemporaryDirectory() as td:
+                    repo = _make_test_repo(Path(td))
+                    _write_spec(
+                        repo,
+                        id6="spctr2",
+                        status="approved",
+                        filename_date="20261001",
+                        spec_date="2026-10-01",
+                        requirements=[
+                            "R-1 First requirement.",
+                            "R-2 Second requirement.",
+                        ],
+                        acceptance=["AC-1 First acceptance criterion."],
+                    )
+                    subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
+                    subprocess.run(
+                        ["git", "commit", "-qm", "add post-cutover spec"],
+                        cwd=repo,
+                        check=True,
+                    )
+
+                    run_id = f"run-{host_label}-tr-fail"
+                    cmd = [
+                        "start",
+                        "spctr2",
+                        "--action",
+                        "plan",
+                        "--repo",
+                        str(repo),
+                        "--run-id",
+                        run_id,
+                        "--no-isolate-worktree",
+                    ]
+                    args = mod.build_parser().parse_args(cmd)
+                    buf = io.StringIO()
+                    with contextlib.redirect_stdout(buf), contextlib.redirect_stderr(
+                        buf
+                    ):
+                        run_dir = mod.initialize_run(args)
+
+                    def fake_agent(
+                        state, rdir, item, plan_path, prompt_path, attempt_no, **kwargs
+                    ):
+                        work_dir = kwargs.get("work_dir")
+                        target = Path(work_dir) if work_dir else Path(state["repo"])
+                        _write_conforming_plan(
+                            target,
+                            id6="plntr2",
+                            spec_id6="spctr2",
+                            filename_date="20261001",
+                            e_items=["Implements `spctr2` R-1 only"],
+                            v_items=["Validates `spctr2` AC-1"],
+                        )
+                        return 0, "session", rdir / "log.txt", ["cmd"]
+
+                    with _patch_host_agent(mod, fake_agent):
+                        with contextlib.redirect_stdout(
+                            buf
+                        ), contextlib.redirect_stderr(buf):
+                            mod.run_queue(run_dir, retry_incomplete=False)
+
+                    state = json.loads(
+                        (run_dir / "state.json").read_text(encoding="utf-8")
+                    )
+                    item = state["queue"][0]
+                    self.assertEqual(item["status"], "fail-gate")
+                    refusal = item.get("refusal") or {}
+                    self.assertEqual(refusal.get("code"), "SPEC-PLAN-TRACE")
+                    self.assertIn("R-2", refusal.get("reason", ""))
+                    self.assertIn("SPEC-PLAN-TRACE", refusal.get("reason", ""))
+
+    def test_5_5_trace_grandfathered_pass(self):
+        """Case: pre-cutover spec predating cutover; plan omits requirements -> passes."""
+        for host_label, mod in _HOSTS:
+            with self.subTest(host=host_label):
+                with tempfile.TemporaryDirectory() as td:
+                    repo = _make_test_repo(Path(td))
+                    _write_spec(
+                        repo,
+                        id6="spcgf1",
+                        status="approved",
+                        filename_date="20260920",
+                        spec_date="2026-09-20",
+                        requirements=["R-1 First requirement."],
+                        acceptance=["AC-1 First acceptance criterion."],
+                    )
+                    subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
+                    subprocess.run(
+                        ["git", "commit", "-qm", "add pre-cutover spec"],
+                        cwd=repo,
+                        check=True,
+                    )
+
+                    run_id = f"run-{host_label}-gf-pass"
+                    cmd = [
+                        "start",
+                        "spcgf1",
+                        "--action",
+                        "plan",
+                        "--repo",
+                        str(repo),
+                        "--run-id",
+                        run_id,
+                        "--no-isolate-worktree",
+                    ]
+                    args = mod.build_parser().parse_args(cmd)
+                    buf = io.StringIO()
+                    with contextlib.redirect_stdout(buf), contextlib.redirect_stderr(
+                        buf
+                    ):
+                        run_dir = mod.initialize_run(args)
+
+                    def fake_agent(
+                        state, rdir, item, plan_path, prompt_path, attempt_no, **kwargs
+                    ):
+                        work_dir = kwargs.get("work_dir")
+                        target = Path(work_dir) if work_dir else Path(state["repo"])
+                        _write_conforming_plan(
+                            target,
+                            id6="plngf1",
+                            spec_id6="spcgf1",
+                            filename_date="20260920",
+                            e_items=["Unrelated work"],
+                            v_items=["Unrelated check"],
+                        )
+                        return 0, "session", rdir / "log.txt", ["cmd"]
+
+                    with _patch_host_agent(mod, fake_agent):
+                        with contextlib.redirect_stdout(
+                            buf
+                        ), contextlib.redirect_stderr(buf):
+                            mod.run_queue(run_dir, retry_incomplete=False)
+
+                    state = json.loads(
+                        (run_dir / "state.json").read_text(encoding="utf-8")
+                    )
+                    item = state["queue"][0]
+                    self.assertEqual(item["status"], "executed")
+
+    def test_5_5_trace_unknown_reference(self):
+        """Case: plan cites an unknown spec requirement -> fail-gate with SPEC-PLAN-TRACE."""
+        for host_label, mod in _HOSTS:
+            with self.subTest(host=host_label):
+                with tempfile.TemporaryDirectory() as td:
+                    repo = _make_test_repo(Path(td))
+                    _write_spec(
+                        repo,
+                        id6="spcunk",
+                        status="approved",
+                        filename_date="20261001",
+                        spec_date="2026-10-01",
+                        requirements=["R-1 First requirement."],
+                        acceptance=["AC-1 First acceptance criterion."],
+                    )
+                    subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
+                    subprocess.run(
+                        ["git", "commit", "-qm", "add spec"], cwd=repo, check=True
+                    )
+
+                    run_id = f"run-{host_label}-tr-unk"
+                    cmd = [
+                        "start",
+                        "spcunk",
+                        "--action",
+                        "plan",
+                        "--repo",
+                        str(repo),
+                        "--run-id",
+                        run_id,
+                        "--no-isolate-worktree",
+                    ]
+                    args = mod.build_parser().parse_args(cmd)
+                    buf = io.StringIO()
+                    with contextlib.redirect_stdout(buf), contextlib.redirect_stderr(
+                        buf
+                    ):
+                        run_dir = mod.initialize_run(args)
+
+                    def fake_agent(
+                        state, rdir, item, plan_path, prompt_path, attempt_no, **kwargs
+                    ):
+                        work_dir = kwargs.get("work_dir")
+                        target = Path(work_dir) if work_dir else Path(state["repo"])
+                        _write_conforming_plan(
+                            target,
+                            id6="plnunk",
+                            spec_id6="spcunk",
+                            filename_date="20261001",
+                            e_items=["Implements `spcunk` R-1 and `spcunk` R-999"],
+                            v_items=["Validates `spcunk` AC-1"],
+                        )
+                        return 0, "session", rdir / "log.txt", ["cmd"]
+
+                    with _patch_host_agent(mod, fake_agent):
+                        with contextlib.redirect_stdout(
+                            buf
+                        ), contextlib.redirect_stderr(buf):
+                            mod.run_queue(run_dir, retry_incomplete=False)
+
+                    state = json.loads(
+                        (run_dir / "state.json").read_text(encoding="utf-8")
+                    )
+                    item = state["queue"][0]
+                    self.assertEqual(item["status"], "fail-gate")
+                    refusal = item.get("refusal") or {}
+                    self.assertEqual(refusal.get("code"), "SPEC-PLAN-TRACE")
+                    self.assertIn("R-999", refusal.get("reason", ""))
 
 
 class TestSpecProductionLifecycleArmAndReportE09(unittest.TestCase):
