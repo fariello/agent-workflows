@@ -754,6 +754,256 @@ class ReadinessAttestationTests(unittest.TestCase):
         self.assertEqual(offenders, [], f"unattested Readiness in: {offenders}")
 
 
+class ReadinessRequiredTests(unittest.TestCase):
+    """rdyreq fhinri: `- Readiness:` is required at reviewed and ready-to-execute statuses (IPD-M113).
+
+    Mirror of IPD-M107: M107 refuses an unattested field that should not be there;
+    M113 refuses the absence of a field a review owes.
+    """
+
+    REVIEW_ENTRY = (
+        "- 2026-10-07 reviewed (tester): /plan-review round 1: "
+        "APPROVE WITH REVISIONS APPLIED; GO - PENDING HUMAN APPROVAL."
+    )
+
+    def _plan(
+        self,
+        status: str = "reviewed",
+        readiness: str | None = None,
+        approval: bool = False,
+        review: str | None = None,
+    ) -> str:
+        """The conforming child with configurable status, readiness, approval, and history."""
+        text = _conforming_child()
+        meta_lines = [f"- Status: {status}"]
+        if approval:
+            meta_lines.append("- Approval: 2026-10-07, human probe")
+        if readiness is not None:
+            meta_lines.append(f"- Readiness: {readiness}")
+        meta = "\n".join(meta_lines)
+        text = text.replace("- Status: to-review", meta, 1)
+        if review is not None:
+            text = text.replace(
+                "## Workflow history", f"## Workflow history\n\n{review}", 1
+            )
+        return text
+
+    #: (case, status, readiness, approval, review, phase, directory, fires, why)
+    CASES = (
+        (
+            "reviewed with absent Readiness",
+            "reviewed",
+            None,
+            False,
+            REVIEW_ENTRY,
+            "review-finalize",
+            "pending",
+            True,
+            "THE PRIMARY HOLE: a reviewed plan with no readiness output must be refused",
+        ),
+        (
+            "reviewed with blank Readiness",
+            "reviewed",
+            "",
+            False,
+            REVIEW_ENTRY,
+            "review-finalize",
+            "pending",
+            True,
+            "blank value is not a readiness attestation and must be refused",
+        ),
+        (
+            "reviewed with valid go-pending-approval Readiness",
+            "reviewed",
+            "go-pending-approval",
+            False,
+            REVIEW_ENTRY,
+            "review-finalize",
+            "pending",
+            False,
+            "conforming output of review must pass silently without diagnostic or advisory",
+        ),
+        (
+            "approved with absent Readiness (human direct-approve shape)",
+            "approved",
+            None,
+            True,
+            None,
+            "pre-execution",
+            "pending",
+            True,
+            "human direct-approval without review must be caught before execution (OQ-03)",
+        ),
+        (
+            "auto-approved with absent Readiness",
+            "auto-approved",
+            None,
+            False,
+            REVIEW_ENTRY,
+            "pre-execution",
+            "pending",
+            True,
+            "automated tier in READY_TO_EXECUTE must be covered; literal approved keying would miss this",
+        ),
+        (
+            "to-review with absent Readiness (the R6 exhaustion case)",
+            "to-review",
+            None,
+            False,
+            None,
+            "review-finalize",
+            "pending",
+            False,
+            "THE R6 NO-EXEMPTION ANCHOR: honest exhaustion leaves to-review with absent readiness and must stay silent",
+        ),
+        (
+            "draft with absent Readiness",
+            "draft",
+            None,
+            False,
+            None,
+            "author",
+            "pending",
+            False,
+            "draft plans are unreviewed and must not require readiness",
+        ),
+        (
+            "executed in terminal directory with absent Readiness",
+            "executed",
+            None,
+            False,
+            "- 2026-10-07 executed (tester): executed",
+            "author",
+            "executed",
+            False,
+            "terminal directory plans short-circuit to legacy and must be silent",
+        ),
+    )
+
+    def test_readiness_required_table(self):
+        """Table-driven verification of IPD-M113 across statuses, readiness states, and phases."""
+        wrong = []
+        for (
+            case,
+            status,
+            readiness,
+            approval,
+            review,
+            phase,
+            directory,
+            fires,
+            why,
+        ) in self.CASES:
+            text = self._plan(
+                status=status, readiness=readiness, approval=approval, review=review
+            )
+            res = L.lint_text(text, checkpoint=phase, directory=directory)
+            blocking = [d for d in res.diagnostics if d.code == L.C_READINESS_REQUIRED]
+            advisory = [d for d in res.advisories if d.code == L.C_READINESS_REQUIRED]
+            problems = []
+            if fires and not blocking:
+                problems.append(
+                    "expected a BLOCKING IPD-M113 diagnostic; got diagnostics: "
+                    + repr([d.render("t") for d in res.diagnostics] or "none")
+                    + (
+                        f" (reported as ADVISORY: {[d.render('t') for d in advisory]!r})"
+                        if advisory
+                        else ""
+                    )
+                )
+            if fires and blocking and res.disposition != S.DISPOSITION_ERROR:
+                problems.append(
+                    f"IPD-M113 fired but disposition is {res.disposition!r}, not {S.DISPOSITION_ERROR!r}"
+                )
+            if not fires and blocking:
+                problems.append(
+                    f"IPD-M113 must NOT fire; it did: {[d.render('t') for d in blocking]!r}"
+                )
+            if not fires and advisory:
+                problems.append(
+                    f"IPD-M113 must not appear as an ADVISORY; it did: {[d.render('t') for d in advisory]!r}"
+                )
+            if problems:
+                wrong.append(
+                    f"  {case} (status={status}, phase={phase}, directory={directory}):\n"
+                    + "".join(f"    - {p}\n" for p in problems)
+                    + f"    this row exists because: {why}"
+                )
+        self.assertEqual(
+            wrong,
+            [],
+            f"Readiness required rule was wrong for {len(wrong)} of {len(self.CASES)} rows:\n"
+            + "\n".join(wrong),
+        )
+
+    def test_checkpoint_independence_across_all_checkpoints(self):
+        """IPD-M113 is keyed on STATUS and is checkpoint-independent across all 5 checkpoints."""
+        for cp in S.CHECKPOINTS:
+            # Firing case: reviewed with absent readiness
+            res_fail = L.lint_text(
+                self._plan(status="reviewed", readiness=None, review=self.REVIEW_ENTRY),
+                checkpoint=cp,
+                directory="pending",
+            )
+            blocking_fail = [
+                d for d in res_fail.diagnostics if d.code == L.C_READINESS_REQUIRED
+            ]
+            self.assertEqual(
+                res_fail.disposition,
+                S.DISPOSITION_ERROR,
+                f"checkpoint {cp} must have error disposition",
+            )
+            self.assertEqual(
+                len(blocking_fail),
+                1,
+                f"checkpoint {cp} must produce exactly one IPD-M113 diagnostic",
+            )
+            self.assertEqual(
+                [d for d in res_fail.advisories if d.code == L.C_READINESS_REQUIRED],
+                [],
+                f"checkpoint {cp} must not produce IPD-M113 advisory",
+            )
+
+            # Silent case: reviewed with valid readiness
+            res_pass = L.lint_text(
+                self._plan(
+                    status="reviewed",
+                    readiness="go-pending-approval",
+                    review=self.REVIEW_ENTRY,
+                ),
+                checkpoint=cp,
+                directory="pending",
+            )
+            self.assertEqual(
+                [d for d in res_pass.diagnostics if d.code == L.C_READINESS_REQUIRED],
+                [],
+                f"checkpoint {cp} must be silent on IPD-M113",
+            )
+            self.assertEqual(
+                [d for d in res_pass.advisories if d.code == L.C_READINESS_REQUIRED],
+                [],
+                f"checkpoint {cp} must not produce IPD-M113 advisory",
+            )
+
+    @pytest.mark.livecorpus
+    def test_every_nonterminal_plan_at_gated_status_carries_readiness(self):
+        """Corpus regression guard: every nonterminal tracked plan at reviewed or ready-to-execute status must carry - Readiness: (IPD-M113)."""
+        offenders = []
+        for plan in sorted((REPO_ROOT / SOURCE_PLANS).rglob("*.ipd.md")):
+            text = plan.read_text(encoding="utf-8")
+            res = L.lint_text(text, checkpoint="author", directory=plan.parent.name)
+            if res.disposition in (S.DISPOSITION_LEGACY, S.DISPOSITION_QUARANTINED):
+                continue
+            diags = [d for d in res.diagnostics if d.code == L.C_READINESS_REQUIRED]
+            if diags:
+                offenders.append(plan.name)
+        self.assertEqual(
+            offenders,
+            [],
+            f"missing or blank Readiness in nonterminal plans: {offenders}",
+        )
+
+
 class IdBijectionTests(unittest.TestCase):
     """What remains after the bijection RULES moved into `StructuralRuleTests`: the id GRAMMAR itself."""
 
@@ -1692,10 +1942,11 @@ class DensityAdvisoryLintTests(unittest.TestCase):
         text = text.replace("Status: to-review", "Status: approved")
         text = text.replace(
             "- 2026-08-03 to-review (tester): created.",
-            "- 2026-08-03 approved (tester): approved.",
+            "- 2026-08-03 approved (tester): approved.\n- 2026-08-03 reviewed (tester): /plan-review: APPROVE WITH REVISIONS APPLIED",
         )
         text = text.replace(
-            "- Author: tester", "- Author: tester\n- Approval: tester 2026-08-03"
+            "- Author: tester",
+            "- Author: tester\n- Approval: tester 2026-08-03\n- Readiness: go-pending-approval",
         )
         # Order oorry1: a ready-to-execute plan needs a Scope-Paths value; declare a real allowlist so
         # these rows isolate the DENSITY advisory (Z602) they are actually about.
@@ -2342,6 +2593,11 @@ def _approved(text: str) -> str:
         out.append(ln)
         if in_meta and ln.startswith("- Author:"):
             out.append("- Approval: 2026-08-24, human: approved")
+            out.append("- Readiness: go-pending-approval")
+        elif not in_meta and ln.startswith("## Workflow history"):
+            out.append(
+                "- 2026-08-24 reviewed (tester): /plan-review: APPROVE WITH REVISIONS APPLIED"
+            )
     return "\n".join(out) + "\n"
 
 

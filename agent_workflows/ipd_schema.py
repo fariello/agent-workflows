@@ -332,7 +332,7 @@ PLAN_WORK_KIND_UNRESOLVED = "unresolved"
 # ABSENT MEANS UNKNOWN, NOT CLEAR: consumers evaluate readiness with a three-way rule where a
 # valid attested field decides, a corrupt (out-of-vocab) value refuses outright with no fallback,
 # and an absent field falls back to history prose, clearing the plan only if the newest history
-# entry is a genuine review record with an approving verdict.
+# entry is a genuine review record with an approving verdict (refused upstream at `reviewed` by IPD-M113).
 META_READINESS = "Readiness"
 # The closed value enum. `read_readiness` returns None for anything outside it (fail closed).
 READINESS_VALUES: FrozenSet[str] = frozenset(("go", "go-pending-approval", "no-go"))
@@ -430,7 +430,7 @@ def read_readiness(text: str) -> Optional[str]:
     carries anything outside the enum. Absent and unrecognized are DELIBERATELY the same answer to
     the caller: both mean "the review recorded no machine-readable readiness"; downstream consumers
     distinguish the two so that a corrupt value refuses outright while an absent field falls back
-    to history prose. Value
+    to history prose (refused upstream at `reviewed` by IPD-M113). Value
     matching is case-insensitive so a reviewer who writes the workflow's shouty ``NO-GO`` still gets
     the safe answer instead of an unparseable one; the FIELD NAME is matched exactly, as elsewhere.
 

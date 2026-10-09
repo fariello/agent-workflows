@@ -85,6 +85,7 @@ C_EXEC_ATTRIBUTION = (
 C_READINESS_UNATTESTED = (
     "IPD-M107"  # `- Readiness:` present with no review verdict behind it (rdattest)
 )
+C_READINESS_REQUIRED = "IPD-M113"  # `- Readiness:` required at reviewed / ready-to-execute status (rdyreq fhinri)
 C_GATE_HAND_ROLLED_MOVE = (
     "IPD-M108"  # gate prescribes hand-rolled terminal lifecycle move (dcri4s)
 )
@@ -1308,6 +1309,40 @@ def check_readiness_attestation(doc: ParsedDoc) -> List[Diagnostic]:
     ]
 
 
+_READINESS_GATED_STATUSES = frozenset({"reviewed"}) | S.READY_TO_EXECUTE
+
+
+def check_readiness_required(doc: ParsedDoc) -> List[Diagnostic]:
+    """IPD-M113: Refuse a reviewed or approved plan lacking `- Readiness:` (rdyreq fhinri).
+
+    Keyed on STATUS, not on checkpoint, so the R6 exhaustion path (which leaves
+    `to-review`) is excluded structurally and needs no exemption clause, whereas a
+    checkpoint-keyed rule would fire on an R6 plan left field-less by contract.
+    Gated status set is derived from frozenset({"reviewed"}) | ipd_schema.READY_TO_EXECUTE
+    so auto-approved is covered without a second literal.
+    """
+    raw_status = doc.meta_fields.get("Status")
+    if raw_status is None:
+        return []
+    status = str(raw_status).strip().lower()
+    if status not in _READINESS_GATED_STATUSES:
+        return []
+    raw_readiness = doc.meta_fields.get(S.META_READINESS)
+    if raw_readiness is not None and str(raw_readiness).strip():
+        return []
+    return [
+        Diagnostic(
+            0,
+            0,
+            C_READINESS_REQUIRED,
+            f"{S.META_READINESS}: missing or blank on a plan with '- Status: {raw_status}'. "
+            "A plan at reviewed or ready-to-execute status must carry a structured readiness "
+            "attestation. Do not hand-write this field: re-run /plan-review, which writes it. "
+            "If the plan was approved directly without a review, it must be reviewed before it can execute.",
+        )
+    ]
+
+
 _COVERAGE_HIST_RE = re.compile(
     r"^-\s+(?:\d{4}-\d{2}-\d{2})\s+coverage\s+(pass|fail)\b.*?fingerprint\s+([0-9a-fA-F]+)",
     re.MULTILINE,
@@ -2220,6 +2255,7 @@ def lint_text(
     diags: List[Diagnostic] = []  # type: ignore[no-redef]  # benign re-annotation in disjoint branch
     diags += check_metadata(doc, directory)
     diags += check_readiness_attestation(doc)
+    diags += check_readiness_required(doc)
     diags += check_coverage_record(doc, text)
     diags += check_headings(doc)
     diags += check_ids_and_bijection(doc)
