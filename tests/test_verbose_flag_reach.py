@@ -107,6 +107,7 @@ class VerboseFlagReachTests(unittest.TestCase):
         """
         with tempfile.TemporaryDirectory() as td:
             repo_root = Path(td)
+            (repo_root / ".aw" / "records" / "plans").mkdir(parents=True)
 
             compact_stdout = io.StringIO()
             with contextlib.redirect_stdout(compact_stdout):

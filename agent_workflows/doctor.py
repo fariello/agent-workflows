@@ -2312,7 +2312,17 @@ def run(
 ) -> int:
     """`aw doctor` entrypoint: run every probe, emit structured output via the renderer boundary,
     and return the standard 0/1 exit code."""
-    repo_root = Path(getattr(args, "dir", None) or os.getcwd())
+    explicit_dir = getattr(args, "dir", None)
+    if explicit_dir:
+        repo_root = project_context.resolve_verb_repo_root(explicit_dir)
+    else:
+        climbed = project_context.resolve_verb_repo_root(None)
+        cwd = Path.cwd().resolve()
+        git_root = project_context._find_git_root(str(cwd))
+        if git_root is not None and climbed in Path(git_root).resolve().parents:
+            repo_root = cwd
+        else:
+            repo_root = climbed
     if context is None:
         if term is not None and not (
             getattr(args, "agent", False) or getattr(args, "as_agent", False)

@@ -84,7 +84,7 @@ def scoped_repo_dir(tmp_path_factory) -> Path:
     """
     temp_dir = tmp_path_factory.mktemp("scoped_aw_project")
     subprocess.run(["git", "init"], cwd=temp_dir, capture_output=True, check=True)
-    (temp_dir / ".aw").mkdir()
+    (temp_dir / ".aw" / "records" / "plans").mkdir(parents=True)
     return temp_dir
 
 

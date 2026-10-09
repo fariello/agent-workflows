@@ -108,6 +108,7 @@ class FieldsFlagReachTests(unittest.TestCase):
         """
         with tempfile.TemporaryDirectory() as td:
             repo_root = Path(td)
+            (repo_root / ".aw" / "records" / "plans").mkdir(parents=True)
 
             def parse_record(output: str) -> dict:
                 for line in output.strip().splitlines():

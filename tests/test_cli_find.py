@@ -134,6 +134,9 @@ class CliFindExitMatrixTests(unittest.TestCase):
         )
         self.empty_repo = self.repo_root / "empty_repo"
         self.empty_repo.mkdir(parents=True, exist_ok=True)
+        (self.empty_repo / ".aw" / "records" / "plans").mkdir(
+            parents=True, exist_ok=True
+        )
 
     def tearDown(self):
         shutil.rmtree(self.temp_dir, ignore_errors=True)
