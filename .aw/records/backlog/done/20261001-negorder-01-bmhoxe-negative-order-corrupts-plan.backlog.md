@@ -1,5 +1,5 @@
 - Id: bmhoxe
-- Status: graduated
+- Status: done
 - Blocks-Release: next
 - Set: negorder
 - Priority: low
@@ -7,6 +7,7 @@
 - Summary: aw group/rename plans accept a negative --order and corrupt the plan: a duplicate - Order: line plus a filename outside the NN grammar
 
 ## Workflow history
+- 2026-10-09 done (aw backlog): closed by aw agy run: IPD yqv6b7 executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20261002-negorder-01-yqv6b7-refuse-an-out-of-grammar-order-in-aw-group-and-aw-rename-and.ipd.md); evidence .aw/records/plans/executed/20261002-negorder-01-yqv6b7-refuse-an-out-of-grammar-order-in-aw-group-and-aw-rename-and.ipd.md
 - 2026-10-02 graduated (aw backlog): status -> graduated
 - 2026-10-01 created (aw backlog): Measured while authoring plan xvi55d (from backlog oev4h7); see the body for the full reproduction and cause
 

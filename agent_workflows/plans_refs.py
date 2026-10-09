@@ -49,7 +49,7 @@ _BARE_STEM_RE = re.compile(r"\b(\d{8}-\d{4}-\d{2})\b")
 _ID_RE = re.compile(r"(?m)^- Id:\s*([0-9a-z]{6})\s*$")
 _DATE_RE = re.compile(r"(?m)^- Date:\s*(\d{8}|\d{4}-\d{2}-\d{2})\s*$")
 _SET_LINE_RE = re.compile(r"(?m)^- Set:\s*(.+?)\s*$")
-_ORDER_LINE_RE = re.compile(r"(?m)^- Order:\s*(\d+)\s*$")
+_ORDER_LINE_RE = re.compile(r"(?m)^- Order:\s*(-?\d+)\s*$")
 
 
 def _read_id(text: str) -> Optional[str]:
@@ -76,7 +76,12 @@ def _set_value(set_id: str, descriptive: Optional[str]) -> str:
 
 
 def _set_metadata(
-    text: str, *, set_id: str, order: int, descriptive: Optional[str] = None
+    text: str,
+    *,
+    set_id: str,
+    order: int,
+    descriptive: Optional[str] = None,
+    plan_name: Optional[str] = None,
 ) -> str:
     """Return ``text`` with Set/Order set (updating existing lines or inserting after Author/Id).
 
@@ -89,27 +94,35 @@ def _set_metadata(
         text = _SET_LINE_RE.sub(f"- Set: {set_val}", text, count=1)
     if _ORDER_LINE_RE.search(text):
         text = _ORDER_LINE_RE.sub(f"- Order: {order}", text, count=1)
-    if _SET_LINE_RE.search(text) and _ORDER_LINE_RE.search(text):
-        return text
-    # Insert Set/Order after the Id line (or Author line) when absent.
-    lines = text.splitlines(keepends=True)
-    anchor = None
-    for i, line in enumerate(lines):
-        if line.startswith("- Id:"):
-            anchor = i
-    if anchor is None:
+    if not (_SET_LINE_RE.search(text) and _ORDER_LINE_RE.search(text)):
+        # Insert Set/Order after the Id line (or Author line) when absent.
+        lines = text.splitlines(keepends=True)
+        anchor = None
         for i, line in enumerate(lines):
-            if line.startswith("- Author:"):
+            if line.startswith("- Id:"):
                 anchor = i
-    if anchor is not None:
-        nl = "\n"
-        ins = []
-        if not _SET_LINE_RE.search(text):
-            ins.append(f"- Set: {set_val}{nl}")
-        if not _ORDER_LINE_RE.search(text):
-            ins.append(f"- Order: {order}{nl}")
-        lines[anchor + 1 : anchor + 1] = ins
-    return "".join(lines)
+        if anchor is None:
+            for i, line in enumerate(lines):
+                if line.startswith("- Author:"):
+                    anchor = i
+        if anchor is not None:
+            nl = "\n"
+            ins = []
+            if not _SET_LINE_RE.search(text):
+                ins.append(f"- Set: {set_val}{nl}")
+            if not _ORDER_LINE_RE.search(text):
+                ins.append(f"- Order: {order}{nl}")
+            lines[anchor + 1 : anchor + 1] = ins
+        text = "".join(lines)
+
+    order_lines = re.findall(r"(?m)^- Order:.*$", text)
+    if len(order_lines) != 1:
+        target = plan_name or _read_id(text) or "plan"
+        raise ValueError(
+            f"plan '{target}': expected exactly one '- Order:' line after metadata update, "
+            f"found {len(order_lines)}"
+        )
+    return text
 
 
 def _plan_date(text: str) -> str:
@@ -275,6 +288,16 @@ def _preserved_date(name: str, text: str) -> str:
     return _plan_date(text)
 
 
+def _order_grammar_error(order: int) -> Optional[str]:
+    """Validate that the resolved Order is an integer in 0 to 99 inclusive (the two-digit NN facet)."""
+    if not isinstance(order, int) or order < 0 or order > 99:
+        return (
+            f"Order '{order}' is out of grammar: must be an integer from 0 to 99 "
+            "(the two-digit NN facet)"
+        )
+    return None
+
+
 def _validate_plan_order(text: str, order: int) -> Optional[str]:
     """Validate that the resolved Order is permitted for the plan's Kind.
 
@@ -365,6 +388,9 @@ def plan_set_assign(
             if start_order is not None
             else _preserved_order(src.name, text)
         )
+        grammar_err = _order_grammar_error(order)
+        if grammar_err:
+            return None, f"plan '{id6}' ({src.name}): {grammar_err}"
         order_err = _validate_plan_order(text, order)
         if order_err:
             if allow_invalid_order:
@@ -539,16 +565,21 @@ def apply_renames(
     touched: List[str] = []
     targets_applied: List[MutationTarget] = []
 
+    # IPD yqv6b7 E-03: Pre-compute every plan's new text in a first pass before any write or
+    # git_mv, so an invalid plan raises ValueError before any file in the batch is touched.
+    new_texts: List[str] = []
     for i, p in enumerate(plans):
-        # Update Set/Order metadata in place first. Use the plan's explicit order when provided
-        # (mv preserves it), else the enumerate index (set-assign batch sequencing).
-        text = p.old_path.read_text(encoding="utf-8")
-        text = _set_metadata(
-            text,
+        raw_text = p.old_path.read_text(encoding="utf-8")
+        new_text = _set_metadata(
+            raw_text,
             set_id=_core.kebab(set_id),
             order=p.order if p.order is not None else i,
             descriptive=descriptive,
+            plan_name=p.old_path.name,
         )
+        new_texts.append(new_text)
+
+    for p, text in zip(plans, new_texts):
         _core.atomic_write(p.old_path, text, prefix=".plans-refs-")
         if p.old_path != p.new_path:
             src_rel = p.old_path.relative_to(repo_root).as_posix()
@@ -736,16 +767,31 @@ def run_set_assign(args: argparse.Namespace) -> "MutationResult":
                 ),
             ),
         )
-    return apply_renames(
-        repo_root,
-        plans_dir,
-        plans or [],
-        getattr(args, "set", ""),
-        apply=getattr(args, "apply", False),
-        update_refs=not getattr(args, "no_refs", False),
-        yes=bool(getattr(args, "yes", False)),
-        notes=tuple(collected_notes),
-    )
+    try:
+        return apply_renames(
+            repo_root,
+            plans_dir,
+            plans or [],
+            getattr(args, "set", ""),
+            apply=getattr(args, "apply", False),
+            update_refs=not getattr(args, "no_refs", False),
+            yes=bool(getattr(args, "yes", False)),
+            notes=tuple(collected_notes),
+        )
+    except ValueError as e:
+        msg = f"error: {e}"
+        print(msg)
+        return MutationResult(
+            2,
+            diagnostics=(
+                MutationDiagnostic(
+                    location="set",
+                    rule="metadata-order-error",
+                    detail=msg,
+                    severity="error",
+                ),
+            ),
+        )
 
 
 def run_mv(args: argparse.Namespace) -> "MutationResult":
@@ -850,6 +896,21 @@ def run_mv(args: argparse.Namespace) -> "MutationResult":
         else:
             parsed = _CLUSTERED_RE.match(src.name)
             order = int(parsed.group("nn")) if parsed else 0
+    grammar_err = _order_grammar_error(order)
+    if grammar_err:
+        msg = f"error: plan '{id6}' ({src.name}): {grammar_err}"
+        print(msg)
+        return MutationResult(
+            2,
+            diagnostics=(
+                MutationDiagnostic(
+                    location=src.name,
+                    rule="order-grammar-error",
+                    detail=msg,
+                    severity="error",
+                ),
+            ),
+        )
     # Validity refusal (qhcojn, xvi55d): refuse a resolved Order violating either half of
     # ipd_schema's kind-conditional rule (child must be >= 1, orchestrator must be 0)
     # unless --allow-invalid-order is passed, consulting ipd_schema.validate_metadata.
@@ -889,14 +950,29 @@ def run_mv(args: argparse.Namespace) -> "MutationResult":
         artifact_type="ipd",
     )
     plan = RenamePlan(src, src.parent / new_name, id6, order=order)
-    return apply_renames(
-        repo_root,
-        plans_dir,
-        [plan],
-        set_id,
-        apply=getattr(args, "apply", False),
-        update_refs=not getattr(args, "no_refs", False),
-        verb="rename",
-        yes=bool(getattr(args, "yes", False)),
-        notes=tuple(collected_notes),
-    )
+    try:
+        return apply_renames(
+            repo_root,
+            plans_dir,
+            [plan],
+            set_id,
+            apply=getattr(args, "apply", False),
+            update_refs=not getattr(args, "no_refs", False),
+            verb="rename",
+            yes=bool(getattr(args, "yes", False)),
+            notes=tuple(collected_notes),
+        )
+    except ValueError as e:
+        msg = f"error: {e}"
+        print(msg)
+        return MutationResult(
+            2,
+            diagnostics=(
+                MutationDiagnostic(
+                    location=src.name,
+                    rule="metadata-order-error",
+                    detail=msg,
+                    severity="error",
+                ),
+            ),
+        )

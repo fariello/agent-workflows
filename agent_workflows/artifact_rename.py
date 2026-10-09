@@ -34,7 +34,7 @@ _WALKTHROUGH_BARE_RE = _naming._WALKTHROUGH_BARE_RE
 _DATED_SLUG_FACET_RE = _naming._DATED_SLUG_FACET_RE
 
 _SET_LINE_RE = re.compile(r"(?m)^- Set:\s*(.+?)\s*$")
-_ORDER_LINE_RE = re.compile(r"(?m)^- Order:\s*(\d+)\s*$")
+_ORDER_LINE_RE = re.compile(r"(?m)^- Order:\s*(-?\d+)\s*$")
 
 
 # RefEdit is defined ONCE in the unified reference library (IPD 3cmnfc); re-export it so this
