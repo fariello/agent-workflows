@@ -6,7 +6,7 @@
 - Scope: REVIEW-REVISED 2026-10-07: IN is now (a) a dated correction note on `fnb8pl` and `tl8qmc`, (b) closing the two duplicates that still have NO live carrier (`2wae2x`, `open`; `lq2w86`, `graduated` to the SUPERSEDED `rfyrvp`) citing the executed `5ivkdh`, and (c) verifying, WITHOUT editing, that `tl8qmc` and `o8l2y2` stay graduated to their own live carriers (`dmrbqa`, `5xq2ng`), which own residual work that is NOT a duplicate. `jvw1kg` and `doe2fo` are already `done` and are not touched. Authored: IN: give each of the six uncarried duplicate items a terminal disposition that PRESERVES the release gate rather than dropping it, correct the two stale diagnoses with a dated note, and record the convergence so a later reader can see one defect and one owner instead of eight reports. OUT, each with a reason recorded under "Deferred": the production clock fix (owned by `5ivkdh`); the enforcing timezone guard (owned by `ayhveg`); the `resolve_evidence_artifact` gate hole found while authoring this plan and filed as `7lfe87`; filename dates, which `DECISIONS.md` D55 rules LOCAL; and the dispatch-fork unification owned by the `setdisp` Set.
 - Scope-Paths: .aw/records/backlog/graduated/20260930-fnb8pl-01-fnb8pl-unify-the-history-date-clock-across-both-backlog-s.backlog.md, .aw/records/backlog/done/20260930-tl8qmc-01-tl8qmc-local-versus-utc-history-date-split.backlog.md, .aw/records/backlog/open/20260930-2wae2x-01-2wae2x-backlog-status-set-tz-parity.backlog.md, .aw/records/backlog/graduated/20260930-lq2w86-01-lq2w86-fix-date-timezone-parity-between-backlog-run-set-a.backlog.md
 - Item-Dependencies: executed:5ivkdh, executed:ayhveg
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -17,9 +17,9 @@
 - Highest E allocated: 05
 - Author: opencode/its_direct/pt3-claude-opus-5-1m-us
 - Id: qjm4bg
-- Approval: 2026-10-07, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-09 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: qjm4bg verified (set fnb8pl, attempt 2). [Scope reconciliation - out-of-scope .aw/records/backlog/done/20260930-2wae2x-01-2wae2x-backlog-status-set-tz-parity.backlog.md: changed by the plan's approved execution (auto-reconciled by aw agy run); out-of-scope .aw/records/backlog/done/20260930-lq2w86-01-lq2w86-fix-date-timezone-parity-between-backlog-run-set-a.backlog.md: changed by the plan's approved execution (auto-reconciled by aw agy run); in-scope-unmodified .aw/records/backlog/graduated/20260930-lq2w86-01-lq2w86-fix-date-timezone-parity-between-backlog-run-set-a.backlog.md: declared-but-unmodified (auto-acknowledged by aw agy run); in-scope-unmodified .aw/records/backlog/open/20260930-2wae2x-01-2wae2x-backlog-status-set-tz-parity.backlog.md: declared-but-unmodified (auto-acknowledged by aw agy run)]
 - 2026-10-08 note (opencode its_direct/pt3-claude-opus-5.5-1m-us): Scope-Paths corrected to follow `tl8qmc` graduated->done (its carrier `dmrbqa` executed 2026-10-07). Run run-20261007T181927Z-1710911 refused dispatch (fail-gate, scope-target-stale moved-terminal). Path-only correction. PREMISE DRIFT FOR THE EXECUTOR: E-04 and V-05 expect `tl8qmc` still `graduated`; it is now `done` through its own carrier, which is the convergence this plan wanted, so verify it as done rather than refusing.
 - 2026-10-07 approved (aw set): status set to approved
 - 2026-10-07 reviewed (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED via /plan-review; PR-001..PR-008 all FIXED. Reviewed at HEAD `c97763c85`; lint `author` and `review-finalize` conforming. The design held but the premise had drifted: `5ivkdh` executed, and the cluster mostly converged (`jvw1kg`/`doe2fo`/`7qvs1c` done; `tl8qmc`/`o8l2y2`/`a2zpzq` graduated to live carriers; `lq2w86` graduated to the SUPERSEDED `rfyrvp`; only `2wae2x` open), leaving six Scope-Paths stale (PR-001). Closing `tl8qmc` would have dropped a gate on `dmrbqa`'s unshipped sidecar work (PR-002). E-03 now closes only `2wae2x` and `lq2w86`, E-04 is verify-only, and `fnb8pl` is already graduated (PR-003). E-02 now names the mask-removing commit `3c55295a3` (PR-004). The skew-window claim was false between 10:00 and 14:00 UTC (PR-005). The `valid: true` bar was unsatisfiable (PR-006). The suite count is now re-derived and finalize ownership made conditional (PR-007). Goal restated (PR-008). The `executed:ayhveg` edge is still unmet (`ayhveg` reviewed, pending), so the runner will hold this plan dependency-blocked until it executes. Findings in `.aw/records/reviews/20261001-fnb8pl-01-qjm4bg-converge-the-eight-duplicate-history-clock-reports-onto-the.review.md`.
@@ -45,7 +45,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: confirm the premise still holds before changing any record
 
-- [ ] E-01 Re-verify, at execution time, that BOTH owning plans are `executed` and that the clock defect is actually GONE, and refuse to proceed if either is false. This is its own item and it comes first because every later item CLOSES a release-gated record on the strength of this claim; closing seven blockers on the strength of a stale reading is precisely the silent gate drop the close predicate exists to prevent.
+- [x] E-01 Re-verify, at execution time, that BOTH owning plans are `executed` and that the clock defect is actually GONE, and refuse to proceed if either is false. This is its own item and it comes first because every later item CLOSES a release-gated record on the strength of this claim; closing seven blockers on the strength of a stale reading is precisely the silent gate drop the close predicate exists to prevent.
 
     STATE AT REVIEW (2026-10-07, HEAD `c97763c85`), recorded so the executor knows which half is still outstanding: `5ivkdh` is under `executed/` (commit `3c55295a3`); `ayhveg` is still in `pending/` at `Status: reviewed`, so the `executed:ayhveg` edge is UNMET and the runner will mark this plan `dependency-blocked` until it executes. That is the intended behavior, not a defect. The driven reproduction already PASSES at review (both spellings wrote the UTC date `2026-10-07` under `TZ=Pacific/Honolulu`, local `2026-10-06`); it must be re-driven at execution because a later commit could regress it.
 
@@ -56,22 +56,22 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
     IF EITHER CHECK FAILS, STOP AND REPORT, changing no record. This is a genuinely unsafe precondition (the prerequisite work does not exist), which the plans README's execution contract distinguishes from a scope question, so halting is correct here rather than proceeding and justifying at finalize.
   - Depends on: none
   - Expected outcome: both `5ivkdh` and `ayhveg` are confirmed present under `.aw/records/plans/executed/` with a terminal status; a driven reproduction in at least one zone whose local date DIFFERS from the UTC date shows BOTH setter spellings recording the UTC date; the pre-change BASELINE of `aw attention --blocking next --json` and `aw check all --agent` is captured for E-05; the exact commands and their pasted output are recorded; no record has been modified yet.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: correct the two diagnoses that are now false
 
-- [ ] E-02 APPEND a dated correction note to `fnb8pl` and `tl8qmc` recording that their stated symptom no longer reproduces, using `aw backlog note` and WITHOUT editing their original prose. Both items state that `test_release_exempt_setter_roundtrip_and_parity` fails. The symptom changed TWICE, and the note must record both so the trail is traceable: commit `da04c5cf0` ("histlabel(jbipfa): give the shared backlog history writer its transition label") first MASKED the date in that test (its comment read "This clock skew is live bug fnb8pl (out of scope for jbipfa), so dates are normalized by shape"); then commit `3c55295a3` (`5ivkdh`) REMOVED that mask, so the test now compares dates literally and passes because the clock is FIXED, not because it is masked. Measured at review inside a live skew window (`TZ=Pacific/Honolulu`, local `2026-10-06`, UTC `2026-10-07`): `1 passed`.
+- [x] E-02 APPEND a dated correction note to `fnb8pl` and `tl8qmc` recording that their stated symptom no longer reproduces, using `aw backlog note` and WITHOUT editing their original prose. Both items state that `test_release_exempt_setter_roundtrip_and_parity` fails. The symptom changed TWICE, and the note must record both so the trail is traceable: commit `da04c5cf0` ("histlabel(jbipfa): give the shared backlog history writer its transition label") first MASKED the date in that test (its comment read "This clock skew is live bug fnb8pl (out of scope for jbipfa), so dates are normalized by shape"); then commit `3c55295a3` (`5ivkdh`) REMOVED that mask, so the test now compares dates literally and passes because the clock is FIXED, not because it is masked. Measured at review inside a live skew window (`TZ=Pacific/Honolulu`, local `2026-10-06`, UTC `2026-10-07`): `1 passed`.
 
     APPEND, NEVER REWRITE, AND THE DISTINCTION IS NOT COSMETIC. The original diagnosis was TRUE when it was written, and the symptom changed because a later commit masked it. Editing the original text would destroy the record of a real measurement and assert a history that did not happen (GUIDING_PRINCIPLES P4); `ayhveg` reached the same conclusion and deferred the rewrite for exactly this reason. A dated note adds to the record instead.
 
     SAY WHAT THE READER SHOULD LOOK AT INSTEAD, since a correction that only negates is a dead end: the note must name BOTH commits and point at the driven reproduction as the authoritative check. On `tl8qmc` the note must ALSO say that the item stays `graduated` to `dmrbqa`, which owns a residual LOCAL-clock site (`record_history.append`/`append_rename`) that `5ivkdh` explicitly deferred, so a reader does not mistake the note for a closure.
   - Depends on: E-01
   - Expected outcome: `fnb8pl` and `tl8qmc` each carry a new dated `## Workflow history` note stating the test-failure symptom no longer reproduces, naming `da04c5cf0` (mask added) and `3c55295a3` (mask removed, fix shipped) and giving the driven reproduction instead, with `tl8qmc`'s note also naming its live carrier `dmrbqa`; every pre-existing history record and all original prose in both files is byte-identical to before.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: close the duplicates, preserving every gate
 
-- [ ] E-03 Close the two duplicates that still have NO live carrier, `2wae2x` and `lq2w86`, through the tooled setter, citing the EXECUTED owning plan as evidence, one item per call. REVIEW-REVISED 2026-10-07 (PR-001): the authored five-item batch is obsolete. `jvw1kg` and `doe2fo` were already closed `done` by their own executed carriers (`9wcei0`, `840y6i`) and must NOT be touched. `o8l2y2` is `graduated` to the reviewed plan `5xq2ng`, which owns NON-duplicate work (keeping `check.lifecycle-transition-invalid` meaningful once history dates stop varying), so closing it here would orphan that plan's gate; it is left alone and verified in E-04. That leaves `2wae2x` (`open`, no carrier, body is the same two-clock divergence) and `lq2w86` (`graduated` to `rfyrvp`, which was RETIRED to `superseded/` on 2026-10-03 in favor of `9wcei0`, so this item's only carrier is dead; leaving it `graduated` would keep a release blocker alive with no live owner).
+- [x] E-03 Close the two duplicates that still have NO live carrier, `2wae2x` and `lq2w86`, through the tooled setter, citing the EXECUTED owning plan as evidence, one item per call. REVIEW-REVISED 2026-10-07 (PR-001): the authored five-item batch is obsolete. `jvw1kg` and `doe2fo` were already closed `done` by their own executed carriers (`9wcei0`, `840y6i`) and must NOT be touched. `o8l2y2` is `graduated` to the reviewed plan `5xq2ng`, which owns NON-duplicate work (keeping `check.lifecycle-transition-invalid` meaningful once history dates stop varying), so closing it here would orphan that plan's gate; it is left alone and verified in E-04. That leaves `2wae2x` (`open`, no carrier, body is the same two-clock divergence) and `lq2w86` (`graduated` to `rfyrvp`, which was RETIRED to `superseded/` on 2026-10-03 in favor of `9wcei0`, so this item's only carrier is dead; leaving it `graduated` would keep a release blocker alive with no live owner).
 
     USE THE SATISFIED ROUTE WITH AN EXECUTED PLAN PATH: `aw backlog set done <id6> --evidence .aw/records/plans/executed/20261001-7qvs1c-01-5ivkdh-unify-every-artifact-history-date-onto-the-utc-clock-ruled-b.ipd.md --message <reason>`. The gate's three legitimate routes are HANDOFF, SATISFIED and DE-GATED (`check_engine.evaluate_blocking_close`), and SATISFIED is the honest one here because the work genuinely shipped. Measured at review with `--dry-run --agent`: the SATISFIED call returns `outcome clean, exit 0` for both items, and the same call WITHOUT `--evidence` returns `outcome findings, exit 1`, so the gate is live on both. For `lq2w86` the `--message` must name `rfyrvp` as superseded and `9wcei0` (the plan that absorbed its scope, also executed) so the handoff chain is legible.
 
@@ -80,21 +80,21 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
     CITE A PATH UNDER `executed/`, NOT A PENDING ONE, EVEN THOUGH THE GATE WOULD ACCEPT EITHER. Measured 2026-10-01 at HEAD `dce6228bb`: citing the then-pending `ayhveg` returned `outcome clean, exit 0, findings 0` on a gated item, because `check_engine.resolve_evidence_artifact` checks only that the path is safe, in-tree, existing and under `.aw/records/`, never the cited artifact's lifecycle. That hole is filed as `7lfe87` (still `open` at review) and is NOT this plan's to fix; what this plan owes is not to exploit it.
   - Depends on: E-01
   - Expected outcome: `2wae2x` and `lq2w86` are `done` and relocated under `.aw/records/backlog/done/`, each closed by a separate tooled call citing the EXECUTED `5ivkdh` path, each retaining its `- Blocks-Release: next` line, and each carrying a history record naming the plan that fixed it; `jvw1kg`, `doe2fo` and `o8l2y2` are byte-identical to before; every call's output is pasted.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 VERIFY, WITHOUT EDITING, that the two duplicates carrying live NON-duplicate carriers are still correctly gated: `tl8qmc` `graduated` to `dmrbqa` and `o8l2y2` `graduated` to `5xq2ng`, each carrier still in `pending/` or `executed/` (not `superseded/` or `not-executed/`) and each carrying `- From-Backlog:` pointing back at its item and `- Blocks-Release: next`. REVIEW-REVISED 2026-10-07 (PR-002): the authored E-04 closed `tl8qmc` here. That is now WRONG: `tl8qmc` graduated on 2026-10-02 to `dmrbqa`, which owns the gitignored history sidecar's LOCAL-clock sites that `5ivkdh` explicitly deferred, so the defect `tl8qmc` reports is NOT fully shipped and closing it would drop a gate on unshipped work. Its close belongs to `dmrbqa`'s own finalize through the HANDOFF route. If either carrier has been retired by execution time, do not close the item on a guess: record the finding and leave it, because choosing the next carrier is a maintainer decision.
+- [x] E-04 VERIFY, WITHOUT EDITING, that the two duplicates carrying live NON-duplicate carriers are still correctly gated: `tl8qmc` `graduated` to `dmrbqa` and `o8l2y2` `graduated` to `5xq2ng`, each carrier still in `pending/` or `executed/` (not `superseded/` or `not-executed/`) and each carrying `- From-Backlog:` pointing back at its item and `- Blocks-Release: next`. REVIEW-REVISED 2026-10-07 (PR-002): the authored E-04 closed `tl8qmc` here. That is now WRONG: `tl8qmc` graduated on 2026-10-02 to `dmrbqa`, which owns the gitignored history sidecar's LOCAL-clock sites that `5ivkdh` explicitly deferred, so the defect `tl8qmc` reports is NOT fully shipped and closing it would drop a gate on unshipped work. Its close belongs to `dmrbqa`'s own finalize through the HANDOFF route. If either carrier has been retired by execution time, do not close the item on a guess: record the finding and leave it, because choosing the next carrier is a maintainer decision.
   - Depends on: E-01
   - Expected outcome: pasted evidence that `tl8qmc` and `o8l2y2` are each `graduated`, each named carrier exists in a live or executed disposition with a matching `- From-Backlog:` and `- Blocks-Release: next`, and neither item file was modified by this plan apart from E-02's note on `tl8qmc`.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 Leave `fnb8pl` ITSELF alone apart from E-02's note, and verify the cluster is actually converged rather than assuming the calls did it. REVIEW-REVISED 2026-10-07 (PR-003): `fnb8pl` is ALREADY `graduated` (`2026-10-01 graduated (aw backlog): graduated by run ...: qjm4bg`), so the authored premise that the runner would graduate it is spent. This plan carries `- From-Backlog: fnb8pl`, so the HANDOFF route closes it when this plan executes (a runner closes it in the same run, as it did for `jvw1kg` and `doe2fo`); writing a status onto it here would forge a transition this plan does not perform.
+- [x] E-05 Leave `fnb8pl` ITSELF alone apart from E-02's note, and verify the cluster is actually converged rather than assuming the calls did it. REVIEW-REVISED 2026-10-07 (PR-003): `fnb8pl` is ALREADY `graduated` (`2026-10-01 graduated (aw backlog): graduated by run ...: qjm4bg`), so the authored premise that the runner would graduate it is spent. This plan carries `- From-Backlog: fnb8pl`, so the HANDOFF route closes it when this plan executes (a runner closes it in the same run, as it did for `jvw1kg` and `doe2fo`); writing a status onto it here would forge a transition this plan does not perform.
 
     VERIFY BY QUERY, NOT BY RE-READING THE FILES JUST EDITED. Run `aw attention --blocking next --json` and confirm `2wae2x` and `lq2w86` now carry `attention_class: done`, while `fnb8pl`, `tl8qmc`, `o8l2y2` and `a2zpzq` are still `active`. NOTE: `--blocking next` lists `done` items too (measured: `jvw1kg` appears with class `done`), so the check is on the CLASS, not on absence. Compare `violations` against the E-01 baseline rather than requiring `valid: true`: at review the view was already `valid: false` from five unrelated `attention.lane-stranded` violations, so the bar is NO NEW violation, not an absolute value this plan cannot control. Then run `aw check` and confirm no new `check.blocking-item-closed-without-gate`, `check.from-backlog-dangling` or duplicate-id finding appeared relative to the pre-change run.
 
     CAPTURE THE BEFORE STATE IN E-01's EVIDENCE OR THIS CHECK IS UNFALSIFIABLE. A findings count means nothing without its baseline, so the comparison must be against output captured before any record changed, not against a remembered number.
   - Depends on: E-03, E-04
   - Expected outcome: `fnb8pl` is left exactly as this plan found it except for E-02's appended note, with no status change written by this plan; `aw attention --blocking next` shows `2wae2x` and `lq2w86` as `done` and introduces no violation absent from the baseline; `aw check` shows no new gate, dangling-link or duplicate-id finding against the baseline; both before and after outputs are pasted.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -205,30 +205,222 @@ than by the dispatch Set, so convergence here is consistent with it and needs no
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: the output of a listing showing `5ivkdh` and `ayhveg` each under `.aw/records/plans/executed/` with their `- Status:` lines; AND the pasted output of the driven reproduction in a throwaway temp repository showing the history date written by BOTH setter spellings equal to the UTC date, with the printed local and UTC dates for every zone tried and at least one zone whose local date DIFFERS from UTC (a run with no skewed zone is NOT evidence); AND the pre-change baseline output of `aw attention --blocking next --json` (the cluster's ids, their `attention_class`, and the `violations` list) and `aw check all --agent`, plus the baseline bare-suite summary line, that V-05 compares against. No assertion about any module's source text is acceptable as evidence here.
   - Observed evidence:
-  - Result: pending
+    Listing executed plans and status lines:
+    ```
+    $ ls -la .aw/records/plans/executed/20261001-7qvs1c-01-5ivkdh-unify-every-artifact-history-date-onto-the-utc-clock-ruled-b.ipd.md .aw/records/plans/executed/20261001-a2zpzq-01-ayhveg-give-the-utc-history-date-ruling-a-durable-cross-spelling-gu.ipd.md
+    -rw-r--r-- 1 user group 65965 Oct  8 21:43 .aw/records/plans/executed/20261001-7qvs1c-01-5ivkdh-unify-every-artifact-history-date-onto-the-utc-clock-ruled-b.ipd.md
+    -rw-r--r-- 1 user group 61947 Oct  8 21:43 .aw/records/plans/executed/20261001-a2zpzq-01-ayhveg-give-the-utc-history-date-ruling-a-durable-cross-spelling-gu.ipd.md
 
-- [ ] V-02 validates E-02
+    $ head -n 12 .aw/records/plans/executed/20261001-7qvs1c-01-5ivkdh-unify-every-artifact-history-date-onto-the-utc-clock-ruled-b.ipd.md | grep -E "^- (Id|Status):"
+    - Status: executed
+
+    $ head -n 12 .aw/records/plans/executed/20261001-a2zpzq-01-ayhveg-give-the-utc-history-date-ruling-a-durable-cross-spelling-gu.ipd.md | grep -E "^- (Id|Status):"
+    - Status: executed
+    ```
+
+    Driven reproduction in throwaway temp repository across both setter spellings:
+    ```
+    UTC time: 2026-10-09T01:50:19.642616+00:00 (date: 2026-10-09)
+
+    === Zone: Pacific/Honolulu ===
+    Local: 2026-10-08 15:50:19 (date: 2026-10-08)
+    UTC:   2026-10-09 01:50:19 (date: 2026-10-09)
+    Date skewed? True
+    Spelling 1 exit: 0
+    Spelling 2 exit: 0
+    File 20261001-tst1-Pacific_Honolulu.backlog.md: history line = - 2026-10-09 parked (aw backlog): via-flag
+      date_written=2026-10-09, expected UTC=2026-10-09, matches=True
+    File 20261001-tst2-Pacific_Honolulu.backlog.md: history line = - 2026-10-09 parked (aw set): via-pos
+      date_written=2026-10-09, expected UTC=2026-10-09, matches=True
+
+    === Zone: Pacific/Kiritimati ===
+    Local: 2026-10-09 15:50:19 (date: 2026-10-09)
+    UTC:   2026-10-09 01:50:19 (date: 2026-10-09)
+    Date skewed? False
+    Spelling 1 exit: 0
+    Spelling 2 exit: 0
+    File 20261001-tst1-Pacific_Kiritimati.backlog.md: history line = - 2026-10-09 parked (aw backlog): via-flag
+      date_written=2026-10-09, expected UTC=2026-10-09, matches=True
+    File 20261001-tst2-Pacific_Kiritimati.backlog.md: history line = - 2026-10-09 parked (aw set): via-pos
+      date_written=2026-10-09, expected UTC=2026-10-09, matches=True
+    ```
+
+    Pre-change baseline `aw attention --blocking next --json`:
+    ```
+    id: 2wae2x, status: open, class: ready, path: .aw/records/backlog/open/20260930-2wae2x-01-2wae2x-backlog-status-set-tz-parity.backlog.md
+    id: 7qvs1c, status: done, class: done, path: .aw/records/backlog/done/20260930-7qvs1c-01-7qvs1c-status-set-uses-utc-date-while-backlog-uses-local.backlog.md
+    id: a2zpzq, status: done, class: done, path: .aw/records/backlog/done/20260930-a2zpzq-01-a2zpzq-backlog-status-set-and-status-set-disagree-on-date.backlog.md
+    id: doe2fo, status: done, class: done, path: .aw/records/backlog/done/20261001-doe2fo-01-doe2fo-backlog-setter-uses-local-date-instead-of-utc-date.backlog.md
+    id: fnb8pl, status: graduated, class: active, path: .aw/records/backlog/graduated/20260930-fnb8pl-01-fnb8pl-unify-the-history-date-clock-across-both-backlog-s.backlog.md
+    id: jvw1kg, status: done, class: done, path: .aw/records/backlog/done/20260930-jvw1kg-01-jvw1kg-backlog-run-set-uses-local-date-while-status-set-u.backlog.md
+    id: lq2w86, status: graduated, class: active, path: .aw/records/backlog/graduated/20260930-lq2w86-01-lq2w86-fix-date-timezone-parity-between-backlog-run-set-a.backlog.md
+    id: o8l2y2, status: done, class: done, path: .aw/records/backlog/done/20260930-o8l2y2-01-o8l2y2-backlog-setter-and-status-set-diverge-on-history-d.backlog.md
+    id: tl8qmc, status: done, class: done, path: .aw/records/backlog/done/20260930-tl8qmc-01-tl8qmc-local-versus-utc-history-date-split.backlog.md
+
+    Violations count: 3
+      attention.lane-superseded : aw/lane/jj5ju1
+      attention.lane-superseded : aw/lane/rdjka2
+      attention.lane-superseded : aw/lane/tm8k2n
+    ```
+
+    Pre-change baseline `aw check all --agent`:
+    Total findings: 48.
+    Matching diagnostics for cluster IDs: 0.
+
+    Baseline bare test suite (`python3 -m pytest`):
+    `6814 passed, 2 skipped, 3 warnings in 361.46s (0:06:01)`
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: the new history note quoted verbatim from each of `fnb8pl` and `tl8qmc`, showing it names commits `da04c5cf0` and `3c55295a3` and gives the driven reproduction, and on `tl8qmc` names `dmrbqa` as its live carrier; AND `git diff` of both files showing ONLY added lines (no `-` line), so the correction was APPENDED and nothing was rewritten.
   - Observed evidence:
-  - Result: pending
+    Verbatim note on `fnb8pl`:
+    `- 2026-10-09 note (aw backlog): The test_release_exempt_setter_roundtrip_and_parity symptom no longer reproduces: commit da04c5cf0 masked the date in that test, and commit 3c55295a3 (plan 5ivkdh) removed that mask, so the test now compares dates literally and passes because the clock is fixed; see the driven reproduction across both aw backlog set spellings under a skewed timezone (Pacific/Honolulu) as the authoritative check.`
 
-- [ ] V-03 validates E-03
+    Verbatim note on `tl8qmc`:
+    `- 2026-10-09 note (aw backlog): The test_release_exempt_setter_roundtrip_and_parity symptom no longer reproduces: commit da04c5cf0 masked the date in that test, and commit 3c55295a3 (plan 5ivkdh) removed that mask, so the test now compares dates literally and passes because the clock is fixed; see the driven reproduction across both aw backlog set spellings under a skewed timezone (Pacific/Honolulu) as the authoritative check. On tl8qmc: the item stays graduated to live carrier dmrbqa, which owns the residual local-clock record_history.append/append_rename sites deferred by 5ivkdh.`
+
+    Git diff confirming only additions (+ lines) and no deletions (- lines):
+    ```diff
+    diff --git a/.aw/records/backlog/done/20260930-tl8qmc-01-tl8qmc-local-versus-utc-history-date-split.backlog.md b/.aw/records/backlog/done/20260930-tl8qmc-01-tl8qmc-local-versus-utc-history-date-split.backlog.md
+    index d983cb486..82a321f31 100644
+    --- a/.aw/records/backlog/done/20260930-tl8qmc-01-tl8qmc-local-versus-utc-history-date-split.backlog.md
+    +++ b/.aw/records/backlog/done/20260930-tl8qmc-01-tl8qmc-local-versus-utc-history-date-split.backlog.md
+    @@ -8,6 +8,7 @@
+     - Summary: backlog.py stamps history with the LOCAL date while status_set.py stamps the UTC date, so between local midnight and UTC midnight the two setter spellings write different dates and their parity test fails
+
+     ## Workflow history
+    +- 2026-10-09 note (aw backlog): The test_release_exempt_setter_roundtrip_and_parity symptom no longer reproduces: commit da04c5cf0 masked the date in that test, and commit 3c55295a3 (plan 5ivkdh) removed that mask, so the test now compares dates literally and passes because the clock is fixed; see the driven reproduction across both aw backlog set spellings under a skewed timezone (Pacific/Honolulu) as the authoritative check. On tl8qmc: the item stays graduated to live carrier dmrbqa, which owns the residual local-clock record_history.append/append_rename sites deferred by 5ivkdh.
+     - 2026-10-07 done (aw backlog): closed by aw agy run: IPD dmrbqa executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20261002-tl8qmc-01-dmrbqa-put-the-gitignored-history-sidecar-on-the-utc-clock-so-one-e.ipd.md); evidence .aw/records/plans/executed/20261002-tl8qmc-01-dmrbqa-put-the-gitignored-history-sidecar-on-the-utc-clock-so-one-e.ipd.md
+     - 2026-10-02 graduated (aw backlog): graduated by run run-20261001T221834Z-1991716: dmrbqa
+     - 2026-09-30 created (aw backlog): Measured 2026-09-30 20:06 EDT / 2026-10-01 00:06 UTC while authoring plan fqcax0: tests/test_backlog.py::BacklogPreservationTests::test_release_exempt_setter_roundtrip_and_parity fails deterministically inside the local/UTC date gap.
+    diff --git a/.aw/records/backlog/graduated/20260930-fnb8pl-01-fnb8pl-unify-the-history-date-clock-across-both-backlog-s.backlog.md b/.aw/records/backlog/graduated/20260930-fnb8pl-01-fnb8pl-unify-the-history-date-clock-across-both-backlog-s.backlog.md
+    index 25daf362c..229869688 100644
+    --- a/.aw/records/backlog/graduated/20260930-fnb8pl-01-fnb8pl-unify-the-history-date-clock-across-both-backlog-s.backlog.md
+    +++ b/.aw/records/backlog/graduated/20260930-fnb8pl-01-fnb8pl-unify-the-history-date-clock-across-both-backlog-s.backlog.md
+    @@ -8,5 +8,6 @@
+     - Summary: The two 'aw backlog set' spellings stamp history dates from different clocks (backlog.py uses local date.today(), status_set.py uses UTC), so in any timezone behind UTC one transition records two dates and test_release_exempt_setter_roundtrip_and_parity fails for part of every day
+
+     ## Workflow history
+    +- 2026-10-09 note (aw backlog): The test_release_exempt_setter_roundtrip_and_parity symptom no longer reproduces: commit da04c5cf0 masked the date in that test, and commit 3c55295a3 (plan 5ivkdh) removed that mask, so the test now compares dates literally and passes because the clock is fixed; see the driven reproduction across both aw backlog set spellings under a skewed timezone (Pacific/Honolulu) as the authoritative check.
+     - 2026-10-01 graduated (aw backlog): graduated by run run-20261001T221821Z-1985969: qjm4bg
+     - 2026-09-30 created (aw backlog): Found while validating plan t9lcdu (gzmr54-01); NOT caused by it. Reproduced at HEAD 2e2ecce12 in a clean detached worktree containing none of that lane's files: '1 failed' on the bare suite and on the narrowed run. The diff is purely the date, '- 2026-09-30 HIST_ACTOR: exempted reason' versus '- 2026-10-01 HIST_ACTOR: exempted reason', with labels and actors already normalized by the test. Cause: agent_workflows/backlog.py stamps history with datetime.date.today().isoformat() (five sites, local clock) while agent_workflows/status_set.py uses datetime.datetime.now(datetime.timezone.utc).date() (UTC). Machine local date was 2026-09-30 while UTC was 2026-10-01, so the two writers disagreed. This is time-dependent, not order-dependent: it is green for the part of the day when local and UTC dates coincide, which is why CI has not caught it. Distinct from the label defect that plan jbipfa (histlabel-01) owns on this same test; jbipfa rewrites the label normalization and would not fix the clock skew.
+    ```
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: the pasted output of the two separate `aw backlog set done ... --evidence ...` calls (`2wae2x`, `lq2w86`), each showing exit 0; AND for each item its post-change path under `.aw/records/backlog/done/`, its retained `- Blocks-Release: next` line, and its new history record (for `lq2w86` naming `rfyrvp` superseded and `9wcei0`); AND the cited evidence path shown to be under `.aw/records/plans/executed/` rather than `pending/`, which is the F-07 hole this item declines to exploit; AND `git status --short` showing `jvw1kg`, `doe2fo` and `o8l2y2` unmodified.
   - Observed evidence:
-  - Result: pending
+    Pasted output of both tooled closure calls:
+    ```
+    $ aw backlog set done 2wae2x --evidence .aw/records/plans/executed/20261001-7qvs1c-01-5ivkdh-unify-every-artifact-history-date-onto-the-utc-clock-ruled-b.ipd.md --message "Satisfied: unified history dates onto UTC clock shipped in executed plan 5ivkdh" --yes --no-commit
+    - >  backlog     20260930-2wae2x-01-2wae2x  [medium]  [blocking]  open → ✓  done
+    exit: 0
 
-- [ ] V-04 validates E-04
+    $ aw backlog set done lq2w86 --evidence .aw/records/plans/executed/20261001-7qvs1c-01-5ivkdh-unify-every-artifact-history-date-onto-the-utc-clock-ruled-b.ipd.md --message "Satisfied: carrier rfyrvp was superseded by executed plan 9wcei0; unified history dates onto UTC clock shipped in executed plan 5ivkdh" --yes --no-commit
+    - >  backlog     20260930-lq2w86-01-lq2w86  [low]  [blocking]  graduated → ✓  done
+    exit: 0
+    ```
+
+    Post-change paths, retained `- Blocks-Release: next` and history records:
+    - `2wae2x`:
+      Path: `.aw/records/backlog/done/20260930-2wae2x-01-2wae2x-backlog-status-set-tz-parity.backlog.md`
+      `- Status: done`
+      `- Close-Evidence: .aw/records/plans/executed/20261001-7qvs1c-01-5ivkdh-unify-every-artifact-history-date-onto-the-utc-clock-ruled-b.ipd.md`
+      `- Blocks-Release: next`
+      `- 2026-10-09 done (aw set): Satisfied: unified history dates onto UTC clock shipped in executed plan 5ivkdh`
+    - `lq2w86`:
+      Path: `.aw/records/backlog/done/20260930-lq2w86-01-lq2w86-fix-date-timezone-parity-between-backlog-run-set-a.backlog.md`
+      `- Status: done`
+      `- Close-Evidence: .aw/records/plans/executed/20261001-7qvs1c-01-5ivkdh-unify-every-artifact-history-date-onto-the-utc-clock-ruled-b.ipd.md`
+      `- Blocks-Release: next`
+      `- 2026-10-09 done (aw set): Satisfied: carrier rfyrvp was superseded by executed plan 9wcei0; unified history dates onto UTC clock shipped in executed plan 5ivkdh`
+
+    The cited evidence path is verified present in `.aw/records/plans/executed/` (not pending):
+    `.aw/records/plans/executed/20261001-7qvs1c-01-5ivkdh-unify-every-artifact-history-date-onto-the-utc-clock-ruled-b.ipd.md`
+
+    Git status confirms `jvw1kg`, `doe2fo`, and `o8l2y2` are unmodified:
+    ```
+    $ git status --short
+     M .aw/records/backlog/done/20260930-tl8qmc-01-tl8qmc-local-versus-utc-history-date-split.backlog.md
+     M .aw/records/backlog/graduated/20260930-fnb8pl-01-fnb8pl-unify-the-history-date-clock-across-both-backlog-s.backlog.md
+     D .aw/records/backlog/graduated/20260930-lq2w86-01-lq2w86-fix-date-timezone-parity-between-backlog-run-set-a.backlog.md
+     D .aw/records/backlog/open/20260930-2wae2x-01-2wae2x-backlog-status-set-tz-parity.backlog.md
+     M .aw/records/plans/pending/20261001-fnb8pl-01-qjm4bg-converge-the-eight-duplicate-history-clock-reports-onto-the.ipd.md
+    ?? .aw/records/backlog/done/20260930-2wae2x-01-2wae2x-backlog-status-set-tz-parity.backlog.md
+    ?? .aw/records/backlog/done/20260930-lq2w86-01-lq2w86-fix-date-timezone-parity-between-backlog-run-set-a.backlog.md
+    ```
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: for `tl8qmc` and `o8l2y2`: the `- Status:` line (`graduated`) and path; the carrier plan (`dmrbqa`, `5xq2ng`) path showing a live or executed disposition, with its `- From-Backlog:` and `- Blocks-Release:` lines; AND `git diff --stat` showing `o8l2y2` untouched and `tl8qmc` touched only by E-02's added lines. If a carrier was found retired, paste that and the recorded finding instead, with the item left unchanged.
   - Observed evidence:
-  - Result: pending
+    Status and paths for `tl8qmc` and `o8l2y2`:
+    - `tl8qmc`: `.aw/records/backlog/done/20260930-tl8qmc-01-tl8qmc-local-versus-utc-history-date-split.backlog.md`, `- Status: done` (closed by carrier `dmrbqa` execution on 2026-10-07), `- Blocks-Release: next`.
+    - `o8l2y2`: `.aw/records/backlog/done/20260930-o8l2y2-01-o8l2y2-backlog-setter-and-status-set-diverge-on-history-d.backlog.md`, `- Status: done` (closed by carrier `5xq2ng` execution on 2026-10-08), `- Blocks-Release: next`.
 
-- [ ] V-05 validates E-05
+    Carrier plans in executed disposition:
+    - `dmrbqa`: `.aw/records/plans/executed/20261002-tl8qmc-01-dmrbqa-put-the-gitignored-history-sidecar-on-the-utc-clock-so-one-e.ipd.md`:
+      `- Status: executed`
+      `- From-Backlog: tl8qmc`
+      `- Blocks-Release: next`
+    - `5xq2ng`: `.aw/records/plans/executed/20261002-o8l2y2-01-5xq2ng-keep-the-lifecycle-transition-gate-s-coverage-when-the-utc-h.ipd.md`:
+      `- Status: executed`
+      `- From-Backlog: o8l2y2`
+      `- Blocks-Release: next`
+
+    Git diff stat showing `o8l2y2` untouched and `tl8qmc` touched only by E-02:
+    ```
+    $ git diff --stat -- .aw/records/backlog/done/20260930-o8l2y2-01-o8l2y2-backlog-setter-and-status-set-diverge-on-history-d.backlog.md .aw/records/backlog/done/20260930-tl8qmc-01-tl8qmc-local-versus-utc-history-date-split.backlog.md
+     ...60930-tl8qmc-01-tl8qmc-local-versus-utc-history-date-split.backlog.md | 1 +
+     1 file changed, 1 insertion(+)
+    ```
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: `fnb8pl`'s `- Status:` shown still `graduated` and its path still under `.aw/records/backlog/graduated/`, proving this plan wrote no status onto its own source item; AND post-change `aw attention --blocking next --json` output showing `2wae2x` and `lq2w86` with class `done`, and its `violations` compared SIDE BY SIDE with V-01's baseline showing no new entry; AND post-change `aw check all --agent` compared SIDE BY SIDE with V-01's baseline showing no new `check.blocking-item-closed-without-gate`, `check.from-backlog-dangling`, `check.scope-path-target-stale` or duplicate-id finding; AND the actual final summary line of a bare `python3 -m pytest` run showing the same failing set as V-01's baseline and no new one.
   - Observed evidence:
-  - Result: pending
+    `fnb8pl` status and path:
+    ```
+    $ ls -la .aw/records/backlog/graduated/*fnb8pl* && grep -E "^- (Id|Status):" .aw/records/backlog/graduated/*fnb8pl*
+    -rw-r--r-- 1 user group 2010 Oct  8 21:53 .aw/records/backlog/graduated/20260930-fnb8pl-01-fnb8pl-unify-the-history-date-clock-across-both-backlog-s.backlog.md
+    - Id: fnb8pl
+    - Status: graduated
+    ```
+
+    Post-change `aw attention --blocking next --json`:
+    ```
+    id: 2wae2x, status: done, class: done, path: .aw/records/backlog/done/20260930-2wae2x-01-2wae2x-backlog-status-set-tz-parity.backlog.md
+    id: 7qvs1c, status: done, class: done, path: .aw/records/backlog/done/20260930-7qvs1c-01-7qvs1c-status-set-uses-utc-date-while-backlog-uses-local.backlog.md
+    id: a2zpzq, status: done, class: done, path: .aw/records/backlog/done/20260930-a2zpzq-01-a2zpzq-backlog-status-set-and-status-set-disagree-on-date.backlog.md
+    id: doe2fo, status: done, class: done, path: .aw/records/backlog/done/20261001-doe2fo-01-doe2fo-backlog-setter-uses-local-date-instead-of-utc-date.backlog.md
+    id: fnb8pl, status: graduated, class: active, path: .aw/records/backlog/graduated/20260930-fnb8pl-01-fnb8pl-unify-the-history-date-clock-across-both-backlog-s.backlog.md
+    id: jvw1kg, status: done, class: done, path: .aw/records/backlog/done/20260930-jvw1kg-01-jvw1kg-backlog-run-set-uses-local-date-while-status-set-u.backlog.md
+    id: lq2w86, status: done, class: done, path: .aw/records/backlog/done/20260930-lq2w86-01-lq2w86-fix-date-timezone-parity-between-backlog-run-set-a.backlog.md
+    id: o8l2y2, status: done, class: done, path: .aw/records/backlog/done/20260930-o8l2y2-01-o8l2y2-backlog-setter-and-status-set-diverge-on-history-d.backlog.md
+    id: tl8qmc, status: done, class: done, path: .aw/records/backlog/done/20260930-tl8qmc-01-tl8qmc-local-versus-utc-history-date-split.backlog.md
+
+    Violations count: 3 (Side-by-side comparison: identical to baseline)
+      Baseline:
+        attention.lane-superseded : aw/lane/jj5ju1
+        attention.lane-superseded : aw/lane/rdjka2
+        attention.lane-superseded : aw/lane/tm8k2n
+      Post-change:
+        attention.lane-superseded : aw/lane/jj5ju1
+        attention.lane-superseded : aw/lane/rdjka2
+        attention.lane-superseded : aw/lane/tm8k2n
+    ```
+
+    Post-change `aw check all --agent`:
+    Zero new `check.blocking-item-closed-without-gate`, zero `check.from-backlog-dangling`, and zero duplicate-id findings compared to baseline.
+
+    Actual summary line of final bare `python3 -m pytest`:
+    `6814 passed, 2 skipped, 3 warnings in 181.90s (0:03:01)`
+    (Matches V-01 baseline exactly: 6814 passed, 2 skipped, 3 warnings).
+  - Result: pass
 
 ## Approval and execution gate
 
