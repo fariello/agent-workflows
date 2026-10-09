@@ -135,6 +135,29 @@ class RenamePlan(NamedTuple):
     order: Optional[int] = None
 
 
+class MutationTarget(NamedTuple):
+    old_path: str
+    new_path: str
+    id6: str
+    kind: str
+    detail: str
+
+
+class MutationRefEdit(NamedTuple):
+    file: str
+    kind: str
+    old: str
+    new: str
+    hits: int
+
+
+class MutationDiagnostic(NamedTuple):
+    location: str
+    rule: str
+    detail: str
+    severity: str
+
+
 class MutationResult(NamedTuple):
     """The exact set of paths a records-mutating backend touched, for the self-commit offer.
 
@@ -147,16 +170,21 @@ class MutationResult(NamedTuple):
     * ``rc`` - the backend's exit code (0 ok / 1 findings / 2 cannot-run); the router still honors it.
     * ``touched_paths`` - repo-relative paths the backend moved/renamed/rewrote (incl. citing files
       whose references were rewritten), tracked EXPLICITLY during the mutation - never a dirty scan.
-
-    The commit path-set is ``touched_paths``, and that is the WHOLE of it. There is deliberately no
-    ``index_paths`` companion: the backends still REGENERATE the INDEX.json/INDEX.md manifests, but
-    those are generated output that no `aw` verb commits (idxuntrack `4r0qp1` E-03), so a caller must
-    not add them back to a commit path-set. This type is defined here (in scope) and imported by
-    ``research_refs`` and ``artifact_rename`` so there is a single shared definition.
+    * ``targets`` - per-target old/new path pairs, id6, change kind ("rename"|"update"|"noop"), and
+      human-meaningful detail suffix.
+    * ``applied`` - True when applied, False on preview.
+    * ``ref_edits`` - citation rewrites actually applied on apply, or planned on preview.
+    * ``diagnostics`` - structured refusal or advisory diagnostics (location, rule, detail, severity).
+    * ``notes`` - advisory lines (setid length warning, override note, ref-rewrite warnings, etc.).
     """
 
     rc: int
     touched_paths: Tuple[str, ...] = ()
+    targets: Tuple[MutationTarget, ...] = ()
+    applied: bool = False
+    ref_edits: Tuple[MutationRefEdit, ...] = ()
+    diagnostics: Tuple[MutationDiagnostic, ...] = ()
+    notes: Tuple[str, ...] = ()
 
 
 def clustered_name(
@@ -278,6 +306,7 @@ def plan_set_assign(
     allow_invalid_order: bool = False,
     repo_root: Optional[Path] = None,
     force: bool = False,
+    notes: Optional[List[str]] = None,
 ) -> Tuple[Optional[List[RenamePlan]], Optional[str]]:
     """Plan a Set (re)assignment for the given plans; with ``rename`` also plan clustering renames.
 
@@ -339,7 +368,10 @@ def plan_set_assign(
         order_err = _validate_plan_order(text, order)
         if order_err:
             if allow_invalid_order:
-                print(f"note: plan '{id6}' ({src.name}): overridden rule: {order_err}")
+                msg = f"note: plan '{id6}' ({src.name}): overridden rule: {order_err}"
+                print(msg)
+                if notes is not None:
+                    notes.append(msg)
             else:
                 return (
                     None,
@@ -423,14 +455,14 @@ def apply_renames(
     update_refs: bool = True,
     verb: str = "group",
     yes: bool = False,
-) -> Tuple[str, ...]:
+    notes: Tuple[str, ...] = (),
+) -> MutationResult:
     """Set metadata + (optional) clustering rename + citation rewrite. Preview when not apply.
     update_refs=False (from `--no-refs`, awcmdsurf Order 03) renames the file only, leaving citing
     documents untouched.
 
-    Returns the repo-relative paths actually touched on ``apply`` (the mutated plan files at their
-    final location + rewritten citing files); empty on preview. The caller adds the regenerated
-    INDEX paths and drives the self-commit offer (selfcommit jgcm68 E-03)."""
+    Returns a ``MutationResult`` carrying the touched paths, targets, applied flag, ref_edits,
+    and notes. Touched paths are empty on preview."""
 
     name_map = {
         p.old_path.name: p.new_path.name for p in plans if p.old_path != p.new_path
@@ -440,9 +472,17 @@ def apply_renames(
         if (name_map and update_refs)
         else ([], [])
     )
+
+    def _rel(path: Path) -> str:
+        try:
+            return path.resolve().relative_to(repo_root.resolve()).as_posix()
+        except ValueError:
+            return path.as_posix()
+
     if not apply:
         for w in warnings:
             print(w)
+        targets: List[MutationTarget] = []
         for i, p in enumerate(plans):
             if p.old_path == p.new_path:
                 # e3hzyc: preview the Order that would ACTUALLY be written (the plan's own, when
@@ -452,20 +492,52 @@ def apply_renames(
                 print(
                     f"--- would set Set={_core.kebab(set_id)} Order={shown:02d} on {p.old_path.name} ---"
                 )
+                targets.append(
+                    MutationTarget(
+                        old_path=_rel(p.old_path),
+                        new_path=_rel(p.old_path),
+                        id6=p.id6,
+                        kind="update",
+                        detail=f"Set: {_core.kebab(set_id)}",
+                    )
+                )
             else:
                 print(f"--- would rename {p.old_path.name} -> {p.new_path.name} ---")
+                targets.append(
+                    MutationTarget(
+                        old_path=_rel(p.old_path),
+                        new_path=_rel(p.new_path),
+                        id6=p.id6,
+                        kind="rename",
+                        detail=f"-> {p.new_path.name}",
+                    )
+                )
         for e in ref_edits:
             print(
                 f"--- would rewrite {e.hits}x [{e.kind}] '{e.old}' -> '{e.new}' in {e.file} ---"
             )
-        return ()
-    touched: List[str] = []
+        mutation_ref_edits = tuple(
+            MutationRefEdit(
+                file=_rel(e.file) if isinstance(e.file, Path) else str(e.file),
+                kind=e.kind,
+                old=e.old,
+                new=e.new,
+                hits=e.hits,
+            )
+            for e in ref_edits
+        )
+        return MutationResult(
+            0,
+            touched_paths=(),
+            targets=tuple(targets),
+            applied=False,
+            ref_edits=mutation_ref_edits,
+            diagnostics=(),
+            notes=tuple(notes) + tuple(warnings),
+        )
 
-    def _rel(path: Path) -> str:
-        try:
-            return path.resolve().relative_to(repo_root.resolve()).as_posix()
-        except ValueError:
-            return path.as_posix()
+    touched: List[str] = []
+    targets_applied: List[MutationTarget] = []
 
     for i, p in enumerate(plans):
         # Update Set/Order metadata in place first. Use the plan's explicit order when provided
@@ -495,8 +567,27 @@ def apply_renames(
             # The tracked change is at the destination (rename records both delete+add).
             touched.append(src_rel)
             touched.append(dst_rel)
+            targets_applied.append(
+                MutationTarget(
+                    old_path=src_rel,
+                    new_path=dst_rel,
+                    id6=p.id6,
+                    kind="rename",
+                    detail=f"-> {p.new_path.name}",
+                )
+            )
         else:
-            touched.append(_rel(p.old_path))
+            old_rel = _rel(p.old_path)
+            touched.append(old_rel)
+            targets_applied.append(
+                MutationTarget(
+                    old_path=old_rel,
+                    new_path=old_rel,
+                    id6=p.id6,
+                    kind="update",
+                    detail=f"Set: {_core.kebab(set_id)}",
+                )
+            )
     for w in warnings:
         print(w)
     if update_refs and ref_edits:
@@ -523,7 +614,25 @@ def apply_renames(
     seen: dict = {}
     for t in touched:
         seen.setdefault(t, None)
-    return tuple(seen.keys())
+    mutation_applied_ref_edits = tuple(
+        MutationRefEdit(
+            file=_rel(e.file) if isinstance(e.file, Path) else str(e.file),
+            kind=e.kind,
+            old=e.old,
+            new=e.new,
+            hits=e.hits,
+        )
+        for e in (ref_edits if update_refs else [])
+    )
+    return MutationResult(
+        0,
+        touched_paths=tuple(seen.keys()),
+        targets=tuple(targets_applied),
+        applied=True,
+        ref_edits=mutation_applied_ref_edits,
+        diagnostics=(),
+        notes=tuple(notes) + tuple(warnings),
+    )
 
 
 # --------------------------------------------------------------------------------------
@@ -554,8 +663,19 @@ def run_set_assign(args: argparse.Namespace) -> "MutationResult":
     repo_root, plans_dir = _dirs(args)
     ids = [i.strip() for i in (getattr(args, "ids", None) or []) if i.strip()]
     if not ids:
-        print("error: at least one <id6> is required")
-        return MutationResult(2)
+        msg = "error: at least one <id6> is required"
+        print(msg)
+        return MutationResult(
+            2,
+            diagnostics=(
+                MutationDiagnostic(
+                    location="ids",
+                    rule="missing-target",
+                    detail=msg,
+                    severity="error",
+                ),
+            ),
+        )
     # setidlen x75obw E-06 (catalog I-17): the ONE shared setid-length guard, on the PLANS backend of
     # `aw group` (`artifact_types` routes plans here, not to `artifact_rename.run_group_generic`, so
     # guarding only the generic engine would leave the plans tree unguarded). Judged on the KEBABED
@@ -568,10 +688,24 @@ def run_set_assign(args: argparse.Namespace) -> "MutationResult":
         verb="aw group plans",
     )
     if _setid_err:
-        print(f"error: {_setid_err}")
-        return MutationResult(2)
+        msg = f"error: {_setid_err}"
+        print(msg)
+        return MutationResult(
+            2,
+            diagnostics=(
+                MutationDiagnostic(
+                    location="set",
+                    rule="setid-length-error",
+                    detail=msg,
+                    severity="error",
+                ),
+            ),
+        )
+    collected_notes: List[str] = []
     if _setid_warn:
-        print(f"note: {_setid_warn}")
+        msg = f"note: {_setid_warn}"
+        print(msg)
+        collected_notes.append(msg)
     # e3hzyc: pass the flag THROUGH, including its absence. Collapsing None to 0 here was the
     # defect: it renumbered every named plan from zero, so a bare `aw group plans <child> --set X`
     # wrote `- Order: 0` onto a `Kind: child` (and, with --rename, moved it into the `00` filename
@@ -586,11 +720,23 @@ def run_set_assign(args: argparse.Namespace) -> "MutationResult":
         allow_invalid_order=bool(getattr(args, "allow_invalid_order", False)),
         repo_root=repo_root,
         force=bool(getattr(args, "force", False)),
+        notes=collected_notes,
     )
     if err:
-        print(f"error: {err}")
-        return MutationResult(2)
-    touched = apply_renames(
+        msg = f"error: {err}"
+        print(msg)
+        return MutationResult(
+            2,
+            diagnostics=(
+                MutationDiagnostic(
+                    location="set",
+                    rule="plan-error",
+                    detail=msg,
+                    severity="error",
+                ),
+            ),
+        )
+    return apply_renames(
         repo_root,
         plans_dir,
         plans or [],
@@ -598,43 +744,98 @@ def run_set_assign(args: argparse.Namespace) -> "MutationResult":
         apply=getattr(args, "apply", False),
         update_refs=not getattr(args, "no_refs", False),
         yes=bool(getattr(args, "yes", False)),
+        notes=tuple(collected_notes),
     )
-    return MutationResult(0, touched)
 
 
 def run_mv(args: argparse.Namespace) -> "MutationResult":
     repo_root, plans_dir = _dirs(args)
     selector = getattr(args, "id", "") or getattr(args, "selector", "") or ""
     if not selector:
-        print("error: at least one <id6>, <setid>, or <path> is required")
-        return MutationResult(2)
+        msg = "error: at least one <id6>, <setid>, or <path> is required"
+        print(msg)
+        return MutationResult(
+            2,
+            diagnostics=(
+                MutationDiagnostic(
+                    location="selector",
+                    rule="missing-target",
+                    detail=msg,
+                    severity="error",
+                ),
+            ),
+        )
 
     force = bool(getattr(args, "force", False))
     paths, amb_err = _selectors.resolve_for_mutation(
         repo_root, "plans", selector, force=force
     )
     if amb_err:
-        print(f"error: {amb_err}")
-        return MutationResult(2)
+        msg = f"error: {amb_err}"
+        print(msg)
+        return MutationResult(
+            2,
+            diagnostics=(
+                MutationDiagnostic(
+                    location=selector,
+                    rule="ambiguous-selector",
+                    detail=msg,
+                    severity="error",
+                ),
+            ),
+        )
     # IPD 87m438 E-03 / F-15 / OQ-05: rename mutates ONE file; a setid selecting several
     # refuses unless --force, rather than silently renaming an arbitrary member (paths[0]).
     if len(paths) > 1 and not force:
         cand = "\n  ".join(str(p) for p in paths)
-        print(
+        msg = (
             f"error: selector '{selector}' matched multiple files; rename targets one "
             f"(pass --force to rename the first, or use a unique id6):\n  {cand}"
         )
-        return MutationResult(2)
+        print(msg)
+        return MutationResult(
+            2,
+            diagnostics=(
+                MutationDiagnostic(
+                    location=selector,
+                    rule="multiple-targets",
+                    detail=msg,
+                    severity="error",
+                ),
+            ),
+        )
     src = paths[0].resolve()
     if not src.exists():
-        print(f"error: no plans artifact matched '{selector}'")
-        return MutationResult(2)
+        msg = f"error: no plans artifact matched '{selector}'"
+        print(msg)
+        return MutationResult(
+            2,
+            diagnostics=(
+                MutationDiagnostic(
+                    location=selector,
+                    rule="not-found",
+                    detail=msg,
+                    severity="error",
+                ),
+            ),
+        )
 
     text = src.read_text(encoding="utf-8")
     id6 = _read_id(text)
     if not id6:
-        print(f"error: plan '{src.name}' declares no '- Id:'")
-        return MutationResult(2)
+        msg = f"error: plan '{src.name}' declares no '- Id:'"
+        print(msg)
+        return MutationResult(
+            2,
+            diagnostics=(
+                MutationDiagnostic(
+                    location=src.name,
+                    rule="missing-id",
+                    detail=msg,
+                    severity="error",
+                ),
+            ),
+        )
 
     m = _SET_LINE_RE.search(text)
     om = _ORDER_LINE_RE.search(text)
@@ -655,14 +856,26 @@ def run_mv(args: argparse.Namespace) -> "MutationResult":
     # Mirrors plan_set_assign.
     allow_invalid_order = bool(getattr(args, "allow_invalid_order", False))
     order_err = _validate_plan_order(text, order)
+    collected_notes: List[str] = []
     if order_err:
         if allow_invalid_order:
-            print(f"note: plan '{id6}' ({src.name}): overridden rule: {order_err}")
+            msg = f"note: plan '{id6}' ({src.name}): overridden rule: {order_err}"
+            print(msg)
+            collected_notes.append(msg)
         else:
-            print(
-                f"error: plan '{id6}' ({src.name}): {order_err} (pass --allow-invalid-order to override)"
+            msg = f"error: plan '{id6}' ({src.name}): {order_err} (pass --allow-invalid-order to override)"
+            print(msg)
+            return MutationResult(
+                2,
+                diagnostics=(
+                    MutationDiagnostic(
+                        location=src.name,
+                        rule="invalid-order",
+                        detail=msg,
+                        severity="error",
+                    ),
+                ),
             )
-            return MutationResult(2)
     # Preserve the plan's existing date (vf03z3: a bare rename must NOT recompute the date;
     # 949enf: consult clustered name, then legacy name, then front-matter fallback via _preserved_date).
     new_date = _preserved_date(src.name, text)
@@ -676,7 +889,7 @@ def run_mv(args: argparse.Namespace) -> "MutationResult":
         artifact_type="ipd",
     )
     plan = RenamePlan(src, src.parent / new_name, id6, order=order)
-    touched = apply_renames(
+    return apply_renames(
         repo_root,
         plans_dir,
         [plan],
@@ -685,5 +898,5 @@ def run_mv(args: argparse.Namespace) -> "MutationResult":
         update_refs=not getattr(args, "no_refs", False),
         verb="rename",
         yes=bool(getattr(args, "yes", False)),
+        notes=tuple(collected_notes),
     )
-    return MutationResult(0, touched)

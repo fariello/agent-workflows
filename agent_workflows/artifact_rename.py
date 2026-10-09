@@ -13,7 +13,10 @@ from typing import List, Optional, Tuple
 
 from agent_workflows import artifact_core as _core
 from agent_workflows.plans_refs import (
+    MutationDiagnostic,
+    MutationRefEdit,
     MutationResult,
+    MutationTarget,
 )  # shared self-commit result type (jgcm68)
 from agent_workflows import artifact_naming as _naming
 from agent_workflows import artifact_refs as _refs
@@ -593,8 +596,19 @@ def run_rename_generic(
         selector = selector[0] if selector else None
 
     if not selector:
-        print("error: at least one <id6>, <setid>, or <path> is required")
-        return MutationResult(2)
+        msg = "error: at least one <id6>, <setid>, or <path> is required"
+        print(msg)
+        return MutationResult(
+            2,
+            diagnostics=(
+                MutationDiagnostic(
+                    location="selector",
+                    rule="missing-target",
+                    detail=msg,
+                    severity="error",
+                ),
+            ),
+        )
 
     # IPD laykok E-07: apply the kind-aware ambiguity policy through the unified resolver. `rename`
     # mutates ONE file, so a UNIQUE-id collision or an unforced substring multi-match REFUSES with
@@ -604,19 +618,52 @@ def run_rename_generic(
         repo_root, artifact_type, selector, force=bool(getattr(args, "force", False))
     )
     if amb_err:
-        print(f"error: {amb_err}")
-        return MutationResult(2)
+        msg = f"error: {amb_err}"
+        print(msg)
+        return MutationResult(
+            2,
+            diagnostics=(
+                MutationDiagnostic(
+                    location=str(selector),
+                    rule="ambiguous-selector",
+                    detail=msg,
+                    severity="error",
+                ),
+            ),
+        )
     if len(paths) > 1 and not bool(getattr(args, "force", False)):
         cand = "\n  ".join(str(p) for p in paths)
-        print(
+        msg = (
             f"error: selector '{selector}' matched multiple files; rename targets one "
             f"(pass --force to rename the first, or use a unique id6):\n  {cand}"
         )
-        return MutationResult(2)
+        print(msg)
+        return MutationResult(
+            2,
+            diagnostics=(
+                MutationDiagnostic(
+                    location=str(selector),
+                    rule="multiple-targets",
+                    detail=msg,
+                    severity="error",
+                ),
+            ),
+        )
     src = paths[0].resolve()
     if not src.exists():
-        print(f"error: no {artifact_type} artifact matched '{selector}'")
-        return MutationResult(2)
+        msg = f"error: no {artifact_type} artifact matched '{selector}'"
+        print(msg)
+        return MutationResult(
+            2,
+            diagnostics=(
+                MutationDiagnostic(
+                    location=str(selector),
+                    rule="not-found",
+                    detail=msg,
+                    severity="error",
+                ),
+            ),
+        )
 
     new_slug = getattr(args, "slug", None)
     new_set = getattr(args, "set", None)
@@ -651,8 +698,19 @@ def run_rename_generic(
         mint_id6=minted_id6,
     )
     if err:
-        print(f"error: {err}")
-        return MutationResult(2)
+        msg = f"error: {err}"
+        print(msg)
+        return MutationResult(
+            2,
+            diagnostics=(
+                MutationDiagnostic(
+                    location=src.name,
+                    rule="target-name-error",
+                    detail=msg,
+                    severity="error",
+                ),
+            ),
+        )
 
     assert new_name is not None
     dst = src.parent / new_name
@@ -661,8 +719,19 @@ def run_rename_generic(
     update_refs = not bool(getattr(args, "no_refs", False))
 
     if dst.resolve() != src.resolve() and dst.exists():
-        print(f"error: destination file already exists: {dst.name}")
-        return MutationResult(2)
+        msg = f"error: destination file already exists: {dst.name}"
+        print(msg)
+        return MutationResult(
+            2,
+            diagnostics=(
+                MutationDiagnostic(
+                    location=dst.name,
+                    rule="destination-exists",
+                    detail=msg,
+                    severity="error",
+                ),
+            ),
+        )
 
     ref_edits, warnings = (
         plan_reference_rewrites_with_warnings(repo_root, src.name, new_name)
@@ -679,17 +748,20 @@ def run_rename_generic(
         print(
             f"--- would rename {src.relative_to(repo_root).as_posix()} -> {new_name} ---"
         )
+        preview_notes: List[str] = []
         if to_id6 and inject_id6:
             # The MESSAGE names the real destination per type (IPD ubac5n E-04): a prompt's id6 goes
             # into its one metadata comment, not into a `- Id:` bullet, and a preview that said
             # otherwise would describe a purity violation as the intended behavior.
-            print(
+            msg = (
                 "--- "
                 + _id6_write_message(
                     artifact_type, inject_id6, new_name, preview=True, src=src
                 )
                 + " ---"
             )
+            print(msg)
+            preview_notes.append(msg)
         elif to_id6 and minted_id6:
             # Same per-type phrasing rule as the write message above: a prompt's existing id6 was
             # read out of its metadata comment, so calling it a `- Id:` bullet would be false. The
@@ -699,9 +771,12 @@ def run_rename_generic(
                 if artifact_type == "prompts"
                 else f"'- Id: {minted_id6}'"
             )
-            print(f"--- reuses existing {existing_label} (no re-mint) ---")
+            msg = f"--- reuses existing {existing_label} (no re-mint) ---"
+            print(msg)
+            preview_notes.append(msg)
         for w in warnings:
             print(w)
+            preview_notes.append(w)
         if update_refs:
             for e in ref_edits:
                 try:
@@ -712,20 +787,73 @@ def run_rename_generic(
                     f"--- would rewrite {e.hits}x '{e.old}' -> '{e.new}' in {rel_f} ---"
                 )
         for rel_f, cited in unrewritable:
-            print(
+            msg = (
                 f"--- WARNING: full-path citation '{cited}' in {rel_f} names a different "
                 f"directory and cannot be auto-rewritten; fix it by hand ---"
             )
-        return MutationResult(0)
+            print(msg)
+            preview_notes.append(msg)
+        preview_target_id6 = minted_id6 or _read_existing_id6(src, artifact_type) or ""
+        if not preview_target_id6:
+            m_id = _UNIFORM_RE.match(src.name)
+            if m_id:
+                preview_target_id6 = m_id.group("id6")
+        if src.resolve() != dst.resolve():
+            target = MutationTarget(
+                old_path=_rel_to_repo(src, repo_root),
+                new_path=_rel_to_repo(dst, repo_root),
+                id6=preview_target_id6,
+                kind="rename",
+                detail=f"-> {new_name}",
+            )
+        else:
+            target = MutationTarget(
+                old_path=_rel_to_repo(src, repo_root),
+                new_path=_rel_to_repo(dst, repo_root),
+                id6=preview_target_id6,
+                kind="update",
+                detail=f"Set: {new_set}" if new_set else "",
+            )
+        preview_ref_edits = tuple(
+            MutationRefEdit(
+                file=e.file.relative_to(repo_root).as_posix()
+                if isinstance(e.file, Path)
+                else str(e.file),
+                kind=e.kind,
+                old=e.old,
+                new=e.new,
+                hits=e.hits,
+            )
+            for e in ref_edits
+        )
+        return MutationResult(
+            0,
+            touched_paths=(),
+            targets=(target,),
+            applied=False,
+            ref_edits=preview_ref_edits,
+            diagnostics=(),
+            notes=tuple(preview_notes),
+        )
 
     if unrewritable:
         # Fail loud on --apply so the operator fixes the un-auto-rewritable citation first.
+        diags: List[MutationDiagnostic] = []
         for rel_f, cited in unrewritable:
-            print(
+            msg = (
                 f"error: full-path citation '{cited}' in {rel_f} names a different directory "
                 f"than the file; cannot auto-rewrite. Fix it by hand, then retry."
             )
-        return MutationResult(2)
+            print(msg)
+            diags.append(
+                MutationDiagnostic(
+                    location=rel_f,
+                    rule="unrewritable-citation",
+                    detail=msg,
+                    severity="error",
+                )
+            )
+        return MutationResult(2, diagnostics=tuple(diags))
 
     # Apply changes
     touched: List[str] = []
@@ -748,6 +876,7 @@ def run_rename_generic(
     else:
         touched.append(_rel_to_repo(dst, repo_root))
 
+    applied_notes: List[str] = []
     if new_set is not None or new_order is not None or inject_id6 is not None:
         # IPD ha55fi E-04: same atomic transaction writes Set/Order AND injects the minted `- Id:`.
         _update_frontmatter_metadata(
@@ -761,15 +890,16 @@ def run_rename_generic(
             # Read `dst` (post-write) rather than `src` (already moved away): for a prompt WITH a
             # comment the id6 is now in it, and for one WITHOUT the file is untouched, so the message
             # reflects what is actually on disk in both cases.
-            print(
-                _id6_write_message(
-                    artifact_type, inject_id6, dst.name, preview=False, src=dst
-                )
+            msg = _id6_write_message(
+                artifact_type, inject_id6, dst.name, preview=False, src=dst
             )
+            print(msg)
+            applied_notes.append(msg)
         touched.append(_rel_to_repo(dst, repo_root))
 
     for w in warnings:
         print(w)
+        applied_notes.append(w)
     if update_refs and ref_edits:
         ref_edits = _refs.filter_test_edits_interactive(
             repo_root, ref_edits, yes=bool(getattr(args, "yes", False))
@@ -822,7 +952,48 @@ def run_rename_generic(
         except Exception:
             pass
 
-    return MutationResult(0, _dedup(touched))
+    applied_target_id6 = minted_id6 or _read_existing_id6(dst, artifact_type) or ""
+    if not applied_target_id6:
+        m_id = _UNIFORM_RE.match(dst.name)
+        if m_id:
+            applied_target_id6 = m_id.group("id6")
+    if src.resolve() != dst.resolve():
+        target = MutationTarget(
+            old_path=src_rel,
+            new_path=dst_rel,
+            id6=applied_target_id6,
+            kind="rename",
+            detail=f"-> {dst.name}",
+        )
+    else:
+        target = MutationTarget(
+            old_path=_rel_to_repo(src, repo_root),
+            new_path=_rel_to_repo(dst, repo_root),
+            id6=applied_target_id6,
+            kind="update",
+            detail=f"Set: {new_set}" if new_set else "",
+        )
+    mutation_applied_ref_edits = tuple(
+        MutationRefEdit(
+            file=e.file.relative_to(repo_root).as_posix()
+            if isinstance(e.file, Path)
+            else str(e.file),
+            kind=e.kind,
+            old=e.old,
+            new=e.new,
+            hits=e.hits,
+        )
+        for e in (ref_edits if update_refs else [])
+    )
+    return MutationResult(
+        0,
+        _dedup(touched),
+        targets=(target,),
+        applied=True,
+        ref_edits=mutation_applied_ref_edits,
+        diagnostics=(),
+        notes=tuple(applied_notes),
+    )
 
 
 def run_group_generic(args: argparse.Namespace, artifact_type: str) -> "MutationResult":
@@ -838,13 +1009,35 @@ def run_group_generic(args: argparse.Namespace, artifact_type: str) -> "Mutation
     selectors_list = [s.strip() for s in (raw_selectors or []) if s and s.strip()]
 
     if not selectors_list:
-        print("error: at least one <id6>, <setid>, or <path> is required")
-        return MutationResult(2)
+        msg = "error: at least one <id6>, <setid>, or <path> is required"
+        print(msg)
+        return MutationResult(
+            2,
+            diagnostics=(
+                MutationDiagnostic(
+                    location="selectors",
+                    rule="missing-target",
+                    detail=msg,
+                    severity="error",
+                ),
+            ),
+        )
 
     new_set = getattr(args, "set", None)
     if not new_set or not new_set.strip():
-        print("error: --set <set-id> is required")
-        return MutationResult(2)
+        msg = "error: --set <set-id> is required"
+        print(msg)
+        return MutationResult(
+            2,
+            diagnostics=(
+                MutationDiagnostic(
+                    location="set",
+                    rule="missing-set",
+                    detail=msg,
+                    severity="error",
+                ),
+            ),
+        )
 
     set_k = _core.kebab(new_set)
     # setidlen x75obw E-06 (catalog I-17): the ONE shared setid-length guard. Judged on the KEBABED
@@ -857,10 +1050,24 @@ def run_group_generic(args: argparse.Namespace, artifact_type: str) -> "Mutation
         repo_root, set_k, verb=f"aw group {artifact_type}"
     )
     if _setid_err:
-        print(f"error: {_setid_err}")
-        return MutationResult(2)
+        msg = f"error: {_setid_err}"
+        print(msg)
+        return MutationResult(
+            2,
+            diagnostics=(
+                MutationDiagnostic(
+                    location="set",
+                    rule="setid-length-error",
+                    detail=msg,
+                    severity="error",
+                ),
+            ),
+        )
+    group_notes: List[str] = []
     if _setid_warn:
-        print(f"note: {_setid_warn}")
+        msg = f"note: {_setid_warn}"
+        print(msg)
+        group_notes.append(msg)
     start_order = getattr(args, "order", None)
     apply = bool(getattr(args, "apply", False))
     update_refs = not bool(getattr(args, "no_refs", False))
@@ -873,8 +1080,19 @@ def run_group_generic(args: argparse.Namespace, artifact_type: str) -> "Mutation
     for i, sel in enumerate(selectors_list):
         src = find_target_record(repo_root, artifact_type, sel)
         if src is None or not src.exists():
-            print(f"error: no {artifact_type} artifact matched '{sel}'")
-            return MutationResult(2)
+            msg = f"error: no {artifact_type} artifact matched '{sel}'"
+            print(msg)
+            return MutationResult(
+                2,
+                diagnostics=(
+                    MutationDiagnostic(
+                        location=str(sel),
+                        rule="not-found",
+                        detail=msg,
+                        severity="error",
+                    ),
+                ),
+            )
         order_val = (start_order + i) if start_order is not None else None
         if rename_files:
             new_name, err = compute_target_name(
@@ -886,16 +1104,38 @@ def run_group_generic(args: argparse.Namespace, artifact_type: str) -> "Mutation
             if err:
                 # dl86am D2: a name the verb cannot re-cluster is REFUSED, not silently kept. The old
                 # `new_name = src.name` reported a successful group whose `--rename` half did nothing.
-                print(f"error: cannot --rename {src.name}: {err}")
-                return MutationResult(2)
+                msg = f"error: cannot --rename {src.name}: {err}"
+                print(msg)
+                return MutationResult(
+                    2,
+                    diagnostics=(
+                        MutationDiagnostic(
+                            location=src.name,
+                            rule="target-name-error",
+                            detail=msg,
+                            severity="error",
+                        ),
+                    ),
+                )
             assert new_name is not None
             dst = src.parent / new_name
         else:
             dst = src
 
         if dst.resolve() != src.resolve() and dst.exists():
-            print(f"error: destination file already exists: {dst.name}")
-            return MutationResult(2)
+            msg = f"error: destination file already exists: {dst.name}"
+            print(msg)
+            return MutationResult(
+                2,
+                diagnostics=(
+                    MutationDiagnostic(
+                        location=dst.name,
+                        rule="destination-exists",
+                        detail=msg,
+                        severity="error",
+                    ),
+                ),
+            )
 
         targets.append((src, dst, order_val))
         if update_refs and src.name != dst.name:
@@ -908,13 +1148,40 @@ def run_group_generic(args: argparse.Namespace, artifact_type: str) -> "Mutation
                     all_warnings.append(w)
 
     if not apply:
+        preview_targets: List[MutationTarget] = []
         for src, dst, _order_val in targets:
             src_rel = src.relative_to(repo_root).as_posix()
+            t_id6 = _read_existing_id6(src, artifact_type) or ""
+            if not t_id6:
+                m_id = _UNIFORM_RE.match(src.name)
+                if m_id:
+                    t_id6 = m_id.group("id6")
             if src.resolve() != dst.resolve():
                 print(f"--- would rename {src_rel} -> {dst.name} ---")
+                preview_targets.append(
+                    MutationTarget(
+                        old_path=src_rel,
+                        new_path=dst.relative_to(repo_root).as_posix(),
+                        id6=t_id6,
+                        kind="rename",
+                        detail=f"-> {dst.name}",
+                    )
+                )
             print(f"--- would set metadata Set: {set_k} in {src_rel} ---")
+            preview_targets.append(
+                MutationTarget(
+                    old_path=src_rel,
+                    new_path=dst.relative_to(repo_root).as_posix()
+                    if src.resolve() != dst.resolve()
+                    else src_rel,
+                    id6=t_id6,
+                    kind="update",
+                    detail=f"Set: {set_k}",
+                )
+            )
         for w in all_warnings:
             print(w)
+            group_notes.append(w)
         if update_refs:
             for e in all_edits:
                 try:
@@ -924,11 +1191,37 @@ def run_group_generic(args: argparse.Namespace, artifact_type: str) -> "Mutation
                 print(
                     f"--- would rewrite {e.hits}x '{e.old}' -> '{e.new}' in {rel_f} ---"
                 )
-        return MutationResult(0)
+        mutation_edits = tuple(
+            MutationRefEdit(
+                file=e.file.relative_to(repo_root).as_posix()
+                if isinstance(e.file, Path)
+                else str(e.file),
+                kind=e.kind,
+                old=e.old,
+                new=e.new,
+                hits=e.hits,
+            )
+            for e in all_edits
+        )
+        return MutationResult(
+            0,
+            touched_paths=(),
+            targets=tuple(preview_targets),
+            applied=False,
+            ref_edits=mutation_edits,
+            diagnostics=(),
+            notes=tuple(group_notes),
+        )
 
     # Apply changes
     touched: List[str] = []
+    applied_targets: List[MutationTarget] = []
     for src, dst, order_val in targets:
+        t_id6 = _read_existing_id6(src, artifact_type) or ""
+        if not t_id6:
+            m_id = _UNIFORM_RE.match(src.name)
+            if m_id:
+                t_id6 = m_id.group("id6")
         if src.resolve() != dst.resolve():
             src_rel = src.relative_to(repo_root).as_posix()
             dst_rel = dst.relative_to(repo_root).as_posix()
@@ -945,13 +1238,32 @@ def run_group_generic(args: argparse.Namespace, artifact_type: str) -> "Mutation
             )
             touched.append(src_rel)
             touched.append(dst_rel)
+            applied_targets.append(
+                MutationTarget(
+                    old_path=src_rel,
+                    new_path=dst_rel,
+                    id6=t_id6,
+                    kind="rename",
+                    detail=f"-> {dst.name}",
+                )
+            )
         _update_or_inject_set_metadata(dst, set_id=set_k, order=order_val)
         dst_rel = dst.relative_to(repo_root).as_posix()
         print(f"set metadata Set: {set_k} in {dst_rel}")
         touched.append(dst_rel)
+        applied_targets.append(
+            MutationTarget(
+                old_path=dst_rel,
+                new_path=dst_rel,
+                id6=t_id6,
+                kind="update",
+                detail=f"Set: {set_k}",
+            )
+        )
 
     for w in all_warnings:
         print(w)
+        group_notes.append(w)
     if update_refs and all_edits:
         all_edits = _refs.filter_test_edits_interactive(
             repo_root, all_edits, yes=bool(getattr(args, "yes", False))
@@ -1004,7 +1316,27 @@ def run_group_generic(args: argparse.Namespace, artifact_type: str) -> "Mutation
         except Exception:
             pass
 
-    return MutationResult(0, _dedup(touched))
+    applied_mutation_edits = tuple(
+        MutationRefEdit(
+            file=e.file.relative_to(repo_root).as_posix()
+            if isinstance(e.file, Path)
+            else str(e.file),
+            kind=e.kind,
+            old=e.old,
+            new=e.new,
+            hits=e.hits,
+        )
+        for e in (all_edits if update_refs else [])
+    )
+    return MutationResult(
+        0,
+        _dedup(touched),
+        targets=tuple(applied_targets),
+        applied=True,
+        ref_edits=applied_mutation_edits,
+        diagnostics=(),
+        notes=tuple(group_notes),
+    )
 
 
 def run_rename_backlog(args: argparse.Namespace) -> "MutationResult":

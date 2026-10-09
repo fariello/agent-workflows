@@ -28,7 +28,10 @@ from agent_workflows import record_history as _rh
 from agent_workflows import research_cmd as _rcmd
 from agent_workflows import research_contract as R
 from agent_workflows.plans_refs import (
+    MutationDiagnostic,
+    MutationRefEdit,
     MutationResult,
+    MutationTarget,
 )  # shared self-commit result type (jgcm68)
 
 # --------------------------------------------------------------------------------------
@@ -336,13 +339,12 @@ def _apply_renames(
     apply: bool,
     verb: str = "group",
     yes: bool = False,
-) -> Optional[Tuple[str, ...]]:
+    notes: Tuple[str, ...] = (),
+) -> Optional[MutationResult]:
     """Apply the file renames as tracked git moves plus the reference rewrites.
 
-    Returns the repo-relative touched paths on ``apply`` (moved files + rewritten citing files);
-    empty on preview. Returns None on containment refusal. The CALLER adds the regenerated
-    INDEX paths and drives the self-commit offer (selfcommit jgcm68 E-03: the backend RETURNS
-    its touched set, it does NOT commit)."""
+    Returns a ``MutationResult`` carrying the touched paths, targets, applied flag, ref_edits,
+    diagnostics, and notes. Touched paths are empty on preview. Returns None on containment refusal."""
 
     containment_err = _refuse_uncontained_destination(repo_root, plans)
     if containment_err:
@@ -357,27 +359,73 @@ def _apply_renames(
         if renames
         else ([], [])
     )
+    notes_list: List[str] = list(notes)
     if not apply:
         for w in warnings:
             print(w)
+            notes_list.append(w)
+        targets: List[MutationTarget] = []
         for p in plans:
             print(f"--- would rename {p.old_path} -> {p.new_path.name} ---")
             parsed, parse_err = R.parse_name(p.new_path.name)
-            if parsed is None:
-                print(
-                    f"warning: destination '{p.new_path.name}' is not a conformant research document: {parse_err}"
+            target_id6 = parsed.id6 if parsed else ""
+            src_rel = p.old_path.relative_to(repo_root).as_posix()
+            dst_rel = p.new_path.relative_to(repo_root).as_posix()
+            targets.append(
+                MutationTarget(
+                    old_path=src_rel,
+                    new_path=dst_rel,
+                    id6=target_id6,
+                    kind="rename",
+                    detail=f"-> {p.new_path.name}",
                 )
+            )
+            if parsed is None:
+                msg = f"warning: destination '{p.new_path.name}' is not a conformant research document: {parse_err}"
+                print(msg)
+                notes_list.append(msg)
             else:
                 updates = _planned_frontmatter_updates(parsed)
                 print(
                     f"--- would set metadata {'/'.join(updates.keys())} in {p.old_path} ---"
                 )
+                targets.append(
+                    MutationTarget(
+                        old_path=dst_rel,
+                        new_path=dst_rel,
+                        id6=target_id6,
+                        kind="update",
+                        detail=f"set metadata {'/'.join(updates.keys())}",
+                    )
+                )
         for e in ref_edits:
             print(
                 f"--- would rewrite {e.hits}x '{e.old_name}' -> '{e.new_name}' in {e.file} ---"
             )
-        return ()
+        preview_ref_edits = tuple(
+            MutationRefEdit(
+                file=e.file.relative_to(repo_root).as_posix()
+                if isinstance(e.file, Path)
+                else str(e.file),
+                kind=_refs.FULL_NAME if e.old_name.endswith(".md") else _refs.BARE_STEM,
+                old=e.old_name,
+                new=e.new_name,
+                hits=e.hits,
+            )
+            for e in ref_edits
+        )
+        return MutationResult(
+            0,
+            touched_paths=(),
+            targets=tuple(targets),
+            applied=False,
+            ref_edits=preview_ref_edits,
+            diagnostics=(),
+            notes=tuple(notes_list),
+        )
+
     touched: List[str] = []
+    targets_applied: List[MutationTarget] = []
 
     def _rel(path: Path) -> str:
         try:
@@ -391,10 +439,20 @@ def _apply_renames(
         _git_mv(repo_root, src_rel, dst_rel)
         print(f"renamed {src_rel} -> {dst_rel}")
         parsed, parse_err = R.parse_name(p.new_path.name)
-        if parsed is None:
-            print(
-                f"warning: destination '{p.new_path.name}' is not a conformant research document: {parse_err}"
+        target_id6 = parsed.id6 if parsed else ""
+        targets_applied.append(
+            MutationTarget(
+                old_path=src_rel,
+                new_path=dst_rel,
+                id6=target_id6,
+                kind="rename",
+                detail=f"-> {p.new_path.name}",
             )
+        )
+        if parsed is None:
+            msg = f"warning: destination '{p.new_path.name}' is not a conformant research document: {parse_err}"
+            print(msg)
+            notes_list.append(msg)
         else:
             updates = _planned_frontmatter_updates(parsed)
             try:
@@ -403,8 +461,19 @@ def _apply_renames(
                 if new_text != old_text:
                     _atomic_write(p.new_path, new_text)
                 print(f"set metadata {'/'.join(updates.keys())} in {dst_rel}")
+                targets_applied.append(
+                    MutationTarget(
+                        old_path=dst_rel,
+                        new_path=dst_rel,
+                        id6=target_id6,
+                        kind="update",
+                        detail=f"set metadata {'/'.join(updates.keys())}",
+                    )
+                )
             except Exception as e:
-                print(f"warning: could not update frontmatter in '{dst_rel}': {e}")
+                msg = f"warning: could not update frontmatter in '{dst_rel}': {e}"
+                print(msg)
+                notes_list.append(msg)
         # IPD 52zgqr: additive, failure-isolated rename ledger record (never breaks the rename).
         _rh.record_rename(
             repo_root,
@@ -418,6 +487,7 @@ def _apply_renames(
         touched.append(dst_rel)
     for w in warnings:
         print(w)
+        notes_list.append(w)
     if ref_edits:
         unified_edits = [
             _refs.RefEdit(
@@ -439,10 +509,12 @@ def _apply_renames(
         for e in ref_edits:
             print(f"rewrote {e.hits}x '{e.old_name}' -> '{e.new_name}' in {e.file}")
             touched.append(_rel(e.file))
+
+    diagnostics: List[MutationDiagnostic] = []
     try:
         from agent_workflows import research_index as _ridx
 
-        _ridx.run_index(
+        rc_idx = _ridx.run_index(
             argparse.Namespace(
                 dir=str(repo_root),
                 check=False,
@@ -450,12 +522,45 @@ def _apply_renames(
                 limit=None,
             )
         )
+        if rc_idx != 0:
+            research_root = R.resolve_research_root(repo_root)
+            _, drift_findings = _ridx._scan_docs(research_root, repo_root=repo_root)
+            for d in drift_findings:
+                diagnostics.append(
+                    MutationDiagnostic(
+                        location=d.location,
+                        rule=d.rule,
+                        detail=d.detail,
+                        severity="warning",
+                    )
+                )
+            notes_list.append(
+                "note: research manifest was not regenerated; run 'aw index research' to resolve"
+            )
     except Exception:
         pass
     seen: dict = {}
     for t in touched:
         seen.setdefault(t, None)
-    return tuple(seen.keys())
+    applied_mutation_ref_edits = tuple(
+        MutationRefEdit(
+            file=_rel(e.file) if isinstance(e.file, Path) else str(e.file),
+            kind=_refs.FULL_NAME if e.old_name.endswith(".md") else _refs.BARE_STEM,
+            old=e.old_name,
+            new=e.new_name,
+            hits=e.hits,
+        )
+        for e in ref_edits
+    )
+    return MutationResult(
+        0,
+        touched_paths=tuple(seen.keys()),
+        targets=tuple(targets_applied),
+        applied=True,
+        ref_edits=applied_mutation_ref_edits,
+        diagnostics=tuple(diagnostics),
+        notes=tuple(notes_list),
+    )
 
 
 def run_set_assign(args: argparse.Namespace) -> "MutationResult":
@@ -465,8 +570,19 @@ def run_set_assign(args: argparse.Namespace) -> "MutationResult":
 
     ids = [i.strip() for i in (getattr(args, "ids", None) or []) if i.strip()]
     if not ids:
-        print("error: at least one <id6> is required")
-        return MutationResult(2)
+        msg = "error: at least one <id6> is required"
+        print(msg)
+        return MutationResult(
+            2,
+            diagnostics=(
+                MutationDiagnostic(
+                    location="ids",
+                    rule="missing-target",
+                    detail=msg,
+                    severity="error",
+                ),
+            ),
+        )
     # setidlen x75obw E-06 (catalog I-17): the ONE shared setid-length guard, on the RESEARCH backend
     # of `aw group` (`artifact_types` routes research here, like plans, not through the generic engine).
     from agent_workflows import config as _config
@@ -477,10 +593,24 @@ def run_set_assign(args: argparse.Namespace) -> "MutationResult":
         verb="aw group research",
     )
     if _setid_err:
-        print(f"error: {_setid_err}")
-        return MutationResult(2)
+        msg = f"error: {_setid_err}"
+        print(msg)
+        return MutationResult(
+            2,
+            diagnostics=(
+                MutationDiagnostic(
+                    location="set",
+                    rule="setid-length-error",
+                    detail=msg,
+                    severity="error",
+                ),
+            ),
+        )
+    notes_from_run: List[str] = []
     if _setid_warn:
-        print(f"note: {_setid_warn}")
+        msg = f"note: {_setid_warn}"
+        print(msg)
+        notes_from_run.append(msg)
     raw_date = getattr(args, "date", None)
     date_str = date.today().strftime("%Y%m%d") if raw_date is None else raw_date
     start = getattr(args, "order", None)
@@ -493,17 +623,41 @@ def run_set_assign(args: argparse.Namespace) -> "MutationResult":
         repo_root=repo_root,
     )
     if err:
-        print(f"error: {err}")
-        return MutationResult(2)
-    touched = _apply_renames(
+        msg = f"error: {err}"
+        print(msg)
+        return MutationResult(
+            2,
+            diagnostics=(
+                MutationDiagnostic(
+                    location="ids",
+                    rule="plan-error",
+                    detail=msg,
+                    severity="error",
+                ),
+            ),
+        )
+    res = _apply_renames(
         repo_root,
         plans or [],
         getattr(args, "apply", False),
         yes=bool(getattr(args, "yes", False)),
+        notes=tuple(notes_from_run),
     )
-    if touched is None:
-        return MutationResult(2)
-    return MutationResult(0, touched)
+    if res is None:
+        containment_err = _refuse_uncontained_destination(repo_root, plans or [])
+        msg = f"error: {containment_err}"
+        return MutationResult(
+            2,
+            diagnostics=(
+                MutationDiagnostic(
+                    location="destination",
+                    rule="containment-refusal",
+                    detail=msg,
+                    severity="error",
+                ),
+            ),
+        )
+    return res
 
 
 def run_mv(args: argparse.Namespace) -> "MutationResult":
@@ -518,18 +672,43 @@ def run_mv(args: argparse.Namespace) -> "MutationResult":
         repo_root=repo_root,
     )
     if err:
-        print(f"error: {err}")
-        return MutationResult(2)
-    touched = _apply_renames(
+        msg = f"error: {err}"
+        print(msg)
+        return MutationResult(
+            2,
+            diagnostics=(
+                MutationDiagnostic(
+                    location=getattr(args, "id", "") or "id",
+                    rule="plan-error",
+                    detail=msg,
+                    severity="error",
+                ),
+            ),
+        )
+    res = _apply_renames(
         repo_root,
         [plan] if plan else [],
         getattr(args, "apply", False),
         verb="rename",
         yes=bool(getattr(args, "yes", False)),
     )
-    if touched is None:
-        return MutationResult(2)
-    return MutationResult(0, touched)
+    if res is None:
+        containment_err = _refuse_uncontained_destination(
+            repo_root, [plan] if plan else []
+        )
+        msg = f"error: {containment_err}"
+        return MutationResult(
+            2,
+            diagnostics=(
+                MutationDiagnostic(
+                    location="destination",
+                    rule="containment-refusal",
+                    detail=msg,
+                    severity="error",
+                ),
+            ),
+        )
+    return res
 
 
 def run_check_refs(args: argparse.Namespace) -> int:
