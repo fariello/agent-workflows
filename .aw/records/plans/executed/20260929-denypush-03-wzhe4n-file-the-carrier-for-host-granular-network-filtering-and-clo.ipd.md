@@ -6,7 +6,7 @@
 - Scope: Verify the durable backlog carrier for host-granular network filtering (`sv9ce4`, filed at authoring time) is intact and honestly worded, point spec 5.2 at it, and verify the Set's end state reports honestly: no artifact claims push denial, no finding code was reintroduced, and the capability report matches what was actually probed. Records and verification only; no product code. NOTE the title says "File" because the filename derives from it and was minted before the carrier was moved earlier; the carrier is FILED at authoring time and this plan VERIFIES it, which is the stronger arrangement and is explained in E-01.
 - Scope-Paths: .aw/records/backlog/open, .aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md
 - Item-Dependencies: executed:pi3bk8
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - From-Spec: 25kzda
 - Work-Kind: feature
@@ -17,9 +17,9 @@
 - Highest E allocated: 04
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: wzhe4n
-- Approval: 2026-10-08, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-09 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: wzhe4n verified (set denypush, attempt 1).
 - 2026-10-08 approved (aw set): status set to approved
 - 2026-10-07 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-1001 (HIGH, fixed), PR-1002 (MEDIUM, fixed), PR-1003 (MEDIUM, fixed), PR-1004 (MEDIUM, fixed), PR-1005 (LOW, fixed), PR-1006 (LOW, fixed). Re-review after return to authoring. PR-1001: carrier sv9ce4 now carries Graduated-To: netnsfilter, so E-01's 'still open, else re-file' would fork the carrier once that Set graduates or completes; 'live' now includes graduated or done via netnsfilter. PR-1002: netnsfilter wn956n also amends spec 5.2, so the sentence is re-read at execution. PR-1003: sub-check (e) reframed as definition-vs-mention, since 15 historical mentions make zero hits impossible. PR-1004: uq4y6q stale-state-to-promote is pre-existing. Record: .aw/records/reviews/20260930-denypush-03-wzhe4n-file-the-carrier-for-host-granular-network-filtering-and-clo.review.md (Round 2).
 - 2026-10-07 to-review (aw set): returned to review: Set-level checks owned by wzhe4n E-03/E-04 (runs last); carrier sv9ce4 already exists; coverage pass recorded
