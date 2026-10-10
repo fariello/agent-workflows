@@ -57,9 +57,17 @@ STALE_RECEIPT_REFUSAL = (
     "refused: the begin receipt for zzcrlo is STALE: the plan content changed since begin; "
     "re-run `aw ipd begin`.\n  plan content digest no longer matches the receipt"
 )
+# The runner-rendered shape (`driver_finalize`: `refused: <summary>` then one `  IPD-FINALIZE <finding>`
+# line per diagnostic), including the attribution and suggested-command lines the real refusal
+# carries (h3fnoc: a fixture without them hid the misclassification).
 SCOPE_REFUSAL = (
     "refused: finalize needs scope reconciliation answers (plan left unmoved).\n"
-    "  out-of-scope path needs a --scope-reason: agent_workflows/cli.py"
+    "  attribution: run-record-exact (this execution's own recorded commit SHAs; every path below "
+    "is genuinely this plan's)\n"
+    "Supply them with:\n"
+    "  aw ipd finalize zzcrlo --actor a --message m --apply "
+    "--scope-reason agent_workflows/cli.py=<why-this-out-of-scope-edit-was-needed>\n"
+    "  IPD-FINALIZE out-of-scope path needs a --scope-reason: agent_workflows/cli.py"
 )
 REDUCTION_REFUSAL_SINGULAR = (
     "refused: the begin receipt for 787hb4 is STALE: the plan content changed since begin; "

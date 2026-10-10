@@ -200,8 +200,8 @@ class TestScopeExceededMetadataAndSendBack(unittest.TestCase):
         """(d) runner retry loop receives out-of-scope notice with recovery turn instructions."""
         refusal_msg = (
             "refused: finalize needs scope reconciliation answers (plan left unmoved).\n"
-            "  out-of-scope path needs a --scope-reason: extra_one.py\n"
-            "  out-of-scope path needs a --scope-reason: extra_two.py"
+            "  IPD-FINALIZE out-of-scope path needs a --scope-reason: extra_one.py\n"
+            "  IPD-FINALIZE out-of-scope path needs a --scope-reason: extra_two.py"
         )
 
         # 1. Verification of retryable classification

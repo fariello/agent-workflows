@@ -8375,20 +8375,24 @@ def finalize_refusal_is_retryable(fin_msg: str) -> bool:
         return True
 
     # Arm 3: Scope reconciliation refusal (answerable: out-of-scope paths need --scope-reason)
+    #
+    # h3fnoc: judge the FINDING lines only, exactly as Arm 1 does. The refusal `ipd_lifecycle.finalize`
+    # really produces carries an `attribution:` line, a `Supply them with:` line and a suggested
+    # `aw ipd finalize ... --scope-reason ...` command between the summary and the findings. This arm
+    # used to demand that EVERY non-summary line be a finding, so the real text always failed it and
+    # verified work was stranded (measured: m47znv, run-20261009T030837Z-2088618). The every-FINDING
+    # rule is unchanged: one unanswerable finding still makes the whole message non-retryable.
     if RETRYABLE_SCOPE_RECONCILIATION_SUMMARY in text:
         finding_lines = [
             line.strip()
             for line in text.splitlines()
-            if line.strip() and RETRYABLE_SCOPE_RECONCILIATION_SUMMARY not in line
+            if line.strip().startswith("IPD-")
         ]
         if not finding_lines:
             return False
         for line in finding_lines:
-            cleaned = line
-            if cleaned.startswith("IPD-"):
-                parts = cleaned.split(None, 1)
-                if len(parts) > 1:
-                    cleaned = parts[1]
+            parts = line.split(None, 1)
+            cleaned = parts[1] if len(parts) > 1 else ""
             if not cleaned.startswith("out-of-scope path needs a --scope-reason:"):
                 return False
         return True
