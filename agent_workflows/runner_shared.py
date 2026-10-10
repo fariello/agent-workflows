@@ -28577,7 +28577,7 @@ def nested_aw_message(stdout: str | None, stderr: str | None) -> str:
     kept = [
         line
         for line in text.splitlines()
-        if not line.startswith(_CHECKOUT_PIN_NOTICE_PREFIX)
+        if not line.startswith(_STRIPPED_ADVISORY_PREFIXES)
     ]
     reason = "\n".join(kept).strip()
     return reason or text
@@ -28587,6 +28587,14 @@ def nested_aw_message(stdout: str | None, stderr: str | None) -> str:
 #: `tests/test_runner_finalize_message.py` against `checkout_pin`'s own source, so a reworded notice
 #: fails a test instead of silently leaking back into refusal reasons.
 _CHECKOUT_PIN_NOTICE_PREFIX = "aw: invoked in checkout "
+
+#: The fixed prefix of every advisory line emitted by lifecycle lane nudge (lifegate m47znv E-03 / PR-001).
+_LIFECYCLE_LANE_NUDGE_PREFIX = "aw: a lane for this plan exists"
+
+_STRIPPED_ADVISORY_PREFIXES = (
+    _CHECKOUT_PIN_NOTICE_PREFIX,
+    _LIFECYCLE_LANE_NUDGE_PREFIX,
+)
 
 
 # ---- THE HOST DESCRIPTOR (rununify Order 04, `tx6q0h`) -------------------------------------------

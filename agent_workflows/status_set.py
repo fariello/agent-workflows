@@ -2091,8 +2091,14 @@ def _delegate_plan_executed_to_finalize(
     scope_acks = _life._parse_scope_ack_flags(getattr(args, "scope_ack", None))
 
     overall = 0
+    nudge_emitted = False
     for rec in plan_recs:
         selector = rec.id6 or rec.path.name
+        if not (ctx.is_agent or ctx.is_json) and not nudge_emitted:
+            # lifegate m47znv E-03 / PR-201: emit D1 advisory nudge from human-mode delegation.
+            # Advisory ONLY; never alters exit code or blocks transition. Emit at most once.
+            if _life.maybe_emit_lane_nudge(repo_root, rec.id6):
+                nudge_emitted = True
         if not actor:
             extra_tokens = (
                 ["--actor <agent/model>", "--message <summary>"]
