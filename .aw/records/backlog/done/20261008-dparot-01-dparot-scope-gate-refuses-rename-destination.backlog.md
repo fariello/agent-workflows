@@ -1,5 +1,6 @@
 - Id: dparot
-- Status: open
+- Status: done
+- Close-Evidence: .aw/records/walkthroughs/20261009-runfix1009-01-04qifi-run-failure-recovery-2026-10-09.walkthrough.md
 - Blocks-Release: next
 - Set: dparot
 - Priority: high
@@ -7,6 +8,7 @@
 - Summary: Scope-target dispatch gate refuses a plan whose declared rename DESTINATION does not exist yet
 
 ## Workflow history
+- 2026-10-10 done (aw set): Fixed in e1955edba; evidence in walkthrough 04qifi.
 - 2026-10-09 created (aw backlog): Scope-target dispatch gate refuses a plan whose declared rename DESTINATION does not exist yet
 
 MEASURED 2026-10-08, run run-20261007T181927Z-1710911: plan j7dsci (tf4jz5) was refused at dispatch with fail-gate, scope_target_refused '.aw/records/plans/executed/20260723-instsafe-07-qrokie-...ipd.md -> moved-terminal (resolved: .aw/records/plans/executed/20260101-instsafe-07-qrokie-...ipd.md)'.
