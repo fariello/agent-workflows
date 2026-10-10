@@ -23,6 +23,11 @@ suite on main was also red (8 failures).
   `ipd_lifecycle.finalize` refusal through the runner-rendered shape and failed before the fix.
 - `ytas91` (fixfirst 04): stale `pending/` path of retired `p47qfu` dropped from Scope-Paths
   (`b8f0bf4b1`).
+- `dparot` fixed in `e1955edba`: `check_engine.stale_record_scope_paths` skips a missing records entry
+  whose resolved location is itself declared (a declared move pair), so a rename plan dispatches;
+  spec `25kzda` 5.7 amended to match; `tests/test_scope_path_target_stale.py::DeclaredMovePairTests`
+  failed before the fix. `j7dsci` also had its references to the spec `h8e3sm` renamed corrected.
+  Bare suite: `7219 passed, 2 skipped, 3 warnings`.
 - Red suite: `tests/test_scope_exceeded.py` still minted the driver attestation `e25iy9` deleted
   (`64b8c94f3`, closes `fdkkco` and its duplicate `i6dzbj`); `tests/test_attempt_lane_facts.py`
   case 2 broke when `w9nvq4` made a red merge retryable (`d62ef31f3`). Bare suite after all fixes:
@@ -34,6 +39,5 @@ suite on main was also red (8 failures).
 ## What is not done here
 
 Open work is tracked in backlog, not here: the partition defect (orchestrators split from their
-children, and Sets with unrunnable children admitted), `dparot` (rename destination refused at
-dispatch), `8o7gco` (find the leaking test), and the two `to-review` netnsfilter children
+children, and Sets with unrunnable children admitted), `8o7gco` (find the leaking test), and the two `to-review` netnsfilter children
 (`2j4pd0`, `wn956n`) that block `m0kl28`.
