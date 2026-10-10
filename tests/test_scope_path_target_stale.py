@@ -861,3 +861,109 @@ class ScopePathTargetStaleTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class DeclaredMovePairTests(unittest.TestCase):
+    """dparot: a missing records path whose resolved location is ALSO declared is a declared move.
+
+    Measured 2026-10-08 (run-20261007T181927Z-1710911, j7dsci) and 2026-10-09
+    (run-20261009T013333Z-334392, ytas91): a plan declaring BOTH the old and the new path of a record
+    it moves was refused at dispatch as `moved-terminal`, because the predicate judged the missing
+    destination alone. Declaring both sides is how a rename is scoped, so the pair is not stale.
+    """
+
+    def setUp(self) -> None:
+        support.declare_execution_role(self)
+
+    def _executed_plan(self, repo: Path) -> str:
+        executed = repo / ".aw" / "records" / "plans" / "executed"
+        executed.mkdir(parents=True, exist_ok=True)
+        target = executed / "20260101-instsafe-07-qrokie-design.ipd.md"
+        target.write_text(
+            "# IPD: T\n- Status: executed\n- Id: qrokie\n", encoding="utf-8"
+        )
+        return target.relative_to(repo).as_posix()
+
+    def test_rename_destination_with_source_declared_is_not_stale(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            repo = Path(temp)
+            source = self._executed_plan(repo)
+            dest = (
+                ".aw/records/plans/executed/20260723-instsafe-07-qrokie-design.ipd.md"
+            )
+            text = f"# IPD: S\n- Status: approved\n- Scope-Paths: {source}, {dest}\n"
+            self.assertEqual(check_engine.stale_record_scope_paths(repo, text), [])
+
+    def test_stale_old_path_with_new_path_declared_is_not_stale(self) -> None:
+        """The ytas91 shape: old pending/ path missing, new superseded/ path declared and present."""
+        with tempfile.TemporaryDirectory() as temp:
+            repo = Path(temp)
+            sup = repo / ".aw" / "records" / "plans" / "superseded"
+            sup.mkdir(parents=True)
+            (sup / "20261002-vmrhj0-01-p47qfu-x.ipd.md").write_text(
+                "# IPD: T\n- Status: superseded\n- Id: p47qfu\n", encoding="utf-8"
+            )
+            old = ".aw/records/plans/pending/20261002-vmrhj0-01-p47qfu-x.ipd.md"
+            new = ".aw/records/plans/superseded/20261002-vmrhj0-01-p47qfu-x.ipd.md"
+            text = f"# IPD: S\n- Status: approved\n- Scope-Paths: {old}, {new}\n"
+            self.assertEqual(check_engine.stale_record_scope_paths(repo, text), [])
+
+    def test_missing_destination_alone_is_still_stale(self) -> None:
+        """Without the existing side declared, the missing path is still a stale pointer."""
+        with tempfile.TemporaryDirectory() as temp:
+            repo = Path(temp)
+            self._executed_plan(repo)
+            dest = (
+                ".aw/records/plans/executed/20260723-instsafe-07-qrokie-design.ipd.md"
+            )
+            text = f"# IPD: S\n- Status: approved\n- Scope-Paths: {dest}\n"
+            res = check_engine.stale_record_scope_paths(repo, text)
+            self.assertEqual(len(res), 1)
+            self.assertEqual(
+                res[0].classification, check_engine.SCOPE_STALE_MOVED_TERMINAL
+            )
+
+    def test_dispatch_runs_a_plan_declaring_a_move_pair(self) -> None:
+        """The runner dispatches (reaches the launcher) instead of refusing fail-gate."""
+        with tempfile.TemporaryDirectory() as temp:
+            repo = Path(temp) / "repo"
+            plan = _init_repo_with_conforming_plan(repo, "wir002")
+            source = self._executed_plan(repo)
+            dest = (
+                ".aw/records/plans/executed/20260723-instsafe-07-qrokie-design.ipd.md"
+            )
+            text = plan.read_text(encoding="utf-8").replace(
+                "- Scope-Paths: src/", f"- Scope-Paths: {source}, {dest}, src/"
+            )
+            plan.write_text(text, encoding="utf-8")
+            run_dir = repo / ".aw" / "records" / "runs" / "run-test"
+            (run_dir / "outcomes").mkdir(parents=True)
+            (run_dir / "prompts").mkdir(parents=True)
+            item = {
+                "id6": "wir002",
+                "setid": "demo",
+                "order": 1,
+                "position": 1,
+                "status": "queued",
+                "configured_file": str(plan.relative_to(repo)),
+                "action": "execute",
+            }
+            state = {
+                "run_id": "run-test",
+                "repo": str(repo),
+                "queue": [item],
+                "options": {"self_finalize": False, "isolate_worktree": False},
+            }
+            reached = []
+
+            def launcher(*a, **k):
+                reached.append(True)
+                raise RuntimeError("stop after dispatch")
+
+            with mock.patch.object(oc_runipd, "run_opencode", launcher):
+                try:
+                    oc_runipd.execute_item(run_dir, state, item, recovery=False)
+                except RuntimeError:
+                    pass
+            self.assertTrue(reached, item.get("scope_target_refusal"))
+            self.assertNotIn("scope_target_refusal", item)

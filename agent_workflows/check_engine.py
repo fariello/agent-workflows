@@ -8375,6 +8375,14 @@ def stale_record_scope_paths(repo_root: Path, plan_text: str) -> List[StaleScope
     if is_grandfathered or errors or not paths:
         return []
 
+    # dparot: a DECLARED MOVE is not stale. A plan that renames or relocates a record declares both
+    # its old and its new path, and before execution one of the two does not exist yet (or no
+    # longer exists). Judging that missing side alone refused every such plan at dispatch (measured:
+    # j7dsci, ytas91). So a missing entry whose resolved location is ALSO a declared Scope-Paths
+    # entry is the other half of a declared pair and is skipped. A missing entry with no declared
+    # counterpart is still reported exactly as before.
+    declared_rel = {Path(p).as_posix() for p in paths}
+
     stale: List[StaleScopePath] = []
     for entry in paths:
         if any(c in entry for c in ("*", "?", "[")):
@@ -8402,6 +8410,15 @@ def stale_record_scope_paths(repo_root: Path, plan_text: str) -> List[StaleScope
             records_dir = repo_root / ".aw" / "records"
             if records_dir.exists():
                 hits = sorted([p for p in records_dir.rglob(entry_name) if p.is_file()])
+
+        hit_rels = set()
+        for h in hits:
+            try:
+                hit_rels.add(h.resolve().relative_to(repo_root.resolve()).as_posix())
+            except (ValueError, OSError):
+                pass
+        if hit_rels & declared_rel:
+            continue  # dparot: the other half of a declared move pair.
 
         if not hits:
             stale.append(StaleScopePath(entry, SCOPE_STALE_VANISHED, ()))
