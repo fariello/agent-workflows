@@ -13,7 +13,7 @@ endpoint (plain OpenAI, Google Gemini, and any other gateway without a LiteLLM p
 are reported as skipped and left byte-identical rather than guessed at.
 
 Safety posture (ocsync-01 g7hljt, hardened by /plan-review):
-- Preview by default; `--apply` is required to write anything.
+- Writes by default; pass `--dry-run` to preview. `--apply` is retained as an explicit synonym for writing.
 - The bearer key is sent over https ONLY. A non-https base URL is skipped without issuing a
   request unless the caller passes `--allow-insecure`, and even then only to a loopback host.
 - The API key, the Authorization header, and key-file contents never appear in any output,
@@ -22,7 +22,7 @@ Safety posture (ocsync-01 g7hljt, hardened by /plan-review):
   replace, so an interrupted run cannot truncate the file that gates the user's whole tool.
 - A `.jsonc` (or otherwise unparseable) config is UNSUPPORTED-FOR-WRITE: stdlib json cannot
   round-trip comments, so it is reported and skipped instead of silently destroying content.
-- Formatting is NOT byte-preserved on `--apply`: the file's existing indent width is detected
+- Formatting is NOT byte-preserved on write: the file's existing indent width is detected
   and reused, but the output is normalized JSON. This is stated in --help rather than overclaimed.
 """
 
@@ -988,13 +988,13 @@ def build_parser(prog: str = "aw oc update-models") -> argparse.ArgumentParser:
         prog=prog,
         description=(
             "Refresh OpenCode provider model lists and pricing from the gateways declared in "
-            "your own OpenCode config. Previews by default; pass --apply to write. Pricing is "
-            "read from a provider's LiteLLM endpoints (/model/info, /model_group/info) and "
-            "converted to $ per million tokens; providers without a pricing endpoint (plain "
-            "OpenAI, Google) are reported as skipped and left untouched. --apply rewrites the "
-            "file with normalized JSON formatting: the existing indent width is detected and "
-            "reused, but byte-for-byte formatting is not preserved. Credentials are sent over "
-            "https only and are never printed."
+            "your own OpenCode config. Writes changes by default; pass --dry-run to preview. "
+            "Pricing is read from a provider's LiteLLM endpoints (/model/info, /model_group/info) "
+            "and converted to $ per million tokens; providers without a pricing endpoint (plain "
+            "OpenAI, Google) are reported as skipped and left untouched. Rewrites the file with "
+            "normalized JSON formatting: the existing indent width is detected and reused, but "
+            "byte-for-byte formatting is not preserved. Credentials are sent over https only and "
+            "are never printed."
         ),
     )
     parser.add_argument(
@@ -1004,12 +1004,12 @@ def build_parser(prog: str = "aw oc update-models") -> argparse.ArgumentParser:
     parser.add_argument(
         "--apply",
         action="store_true",
-        help="Write the changes (default: preview only).",
+        help="Write the changes (default behavior; retained for backwards compatibility).",
     )
     parser.add_argument(
         "--dry-run",
         action="store_true",
-        help="Explicit synonym for the default preview behavior.",
+        help="Preview changes without writing.",
     )
     parser.add_argument(
         "--no-backup",
@@ -1090,7 +1090,22 @@ def run(
             )
             return 2
 
-    if args.apply and not target.writable:
+    is_dry_run = bool(args.dry_run)
+
+    if not target.writable:
+        if is_dry_run:
+            if is_agent_or_json:
+                res = CommandResult(
+                    status="cannot-run",
+                    summary=f"{target.path} is preview-only: {target.reason}",
+                    command="oc update-models",
+                    exit_code=2,
+                    verified=False,
+                    complete=False,
+                )
+                return get_renderer(ctx).emit(res, ctx)
+            print(f"note: {target.path} is preview-only: {target.reason}")
+            return 2
         if is_agent_or_json:
             res = CommandResult(
                 status="cannot-run",
@@ -1102,19 +1117,6 @@ def run(
             )
             return get_renderer(ctx).emit(res, ctx)
         print(f"error: refusing to rewrite {target.path}: {target.reason}")
-        return 2
-    if not target.writable:
-        if is_agent_or_json:
-            res = CommandResult(
-                status="cannot-run",
-                summary=f"{target.path} is preview-only: {target.reason}",
-                command="oc update-models",
-                exit_code=2,
-                verified=False,
-                complete=False,
-            )
-            return get_renderer(ctx).emit(res, ctx)
-        print(f"note: {target.path} is preview-only: {target.reason}")
         return 2
 
     original = target.path.read_text(encoding="utf-8")
@@ -1151,7 +1153,7 @@ def run(
                 complete=True,
             )
             return get_renderer(ctx).emit(res, ctx)
-        if not args.apply:
+        if is_dry_run:
             res = CommandResult(
                 status="preview",
                 summary=f"{len(mutated)} provider(s) have changes",
@@ -1160,7 +1162,7 @@ def run(
                 complete=False,
                 next_actions=[
                     NextAction(
-                        command="aw oc update-models --apply",
+                        command="aw oc update-models",
                         description="apply model updates",
                     )
                 ],
@@ -1194,8 +1196,8 @@ def run(
 
     if not mutated:
         return 0
-    if not args.apply:
-        print("\npreview only; re-run with --apply to write")
+    if is_dry_run:
+        print("\npreview only; re-run without --dry-run to write")
         return 0
 
     text = serialize(config, detect_indent(original))

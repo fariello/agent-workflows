@@ -296,31 +296,43 @@ class PricingProbeTests(unittest.TestCase):
 
 
 class EntryPointTests(unittest.TestCase):
-    """E-03 / V-03: preview-by-default, flags, and the .jsonc apply refusal."""
+    """E-03 / V-03: write-by-default, flags, and the .jsonc write refusal."""
 
     def test_entry_point_preview_apply_and_backup(self):
         with TemporaryDirectory() as td:
+            # 1. Bare run writes changes and creates backup by default
             cfg = Path(td) / "opencode.json"
             cfg.write_text(_config(), encoding="utf-8")
-            before = cfg.read_bytes()
             buf = io.StringIO()
             with redirect_stdout(buf):
                 rc = oc_models.run(
                     ["--config", str(cfg)], fetch=lambda u, k: _model_info_payload()
                 )
             self.assertEqual(rc, 0)
-            self.assertEqual(cfg.read_bytes(), before)
-            self.assertIn("preview only", buf.getvalue())
+            written = json.loads(cfg.read_text(encoding="utf-8"))
+            self.assertIn("beta", written["provider"]["uri"]["models"])
+            backups = list(Path(td).glob("opencode.json.*.bak"))
+            self.assertEqual(len(backups), 1)
+            self.assertIn("wrote:", buf.getvalue())
+            self.assertIn("backup:", buf.getvalue())
 
-            # dry-run
-            with redirect_stdout(io.StringIO()):
-                oc_models.run(
+            # 2. --dry-run previews without writing or creating backups
+            for b in backups:
+                b.unlink()
+            cfg.write_text(_config(), encoding="utf-8")
+            before = cfg.read_bytes()
+            buf_dry = io.StringIO()
+            with redirect_stdout(buf_dry):
+                rc = oc_models.run(
                     ["--config", str(cfg), "--dry-run"],
                     fetch=lambda u, k: _model_info_payload(),
                 )
+            self.assertEqual(rc, 0)
             self.assertEqual(cfg.read_bytes(), before)
+            self.assertIn("preview only", buf_dry.getvalue())
+            self.assertEqual(list(Path(td).glob("opencode.json.*.bak")), [])
 
-            # apply writes and backs up
+            # 3. --apply writes and backs up (explicit compatibility)
             with redirect_stdout(io.StringIO()):
                 rc = oc_models.run(
                     ["--config", str(cfg), "--apply"],
@@ -332,17 +344,17 @@ class EntryPointTests(unittest.TestCase):
             backups = list(Path(td).glob("opencode.json.*.bak"))
             self.assertEqual(len(backups), 1)
 
-            # no-backup suppresses bak and idempotent rerun
+            # 4. no-backup suppresses bak and idempotent rerun
             with redirect_stdout(io.StringIO()):
                 oc_models.run(
-                    ["--config", str(cfg), "--apply", "--no-backup"],
+                    ["--config", str(cfg), "--no-backup"],
                     fetch=lambda u, k: _model_info_payload(),
                 )
             after_first = cfg.read_bytes()
             buf2 = io.StringIO()
             with redirect_stdout(buf2):
                 oc_models.run(
-                    ["--config", str(cfg), "--apply", "--no-backup"],
+                    ["--config", str(cfg), "--no-backup"],
                     fetch=lambda u, k: _model_info_payload(),
                 )
             self.assertEqual(cfg.read_bytes(), after_first)
@@ -356,10 +368,21 @@ class EntryPointTests(unittest.TestCase):
             buf = io.StringIO()
             with redirect_stdout(buf):
                 rc = oc_models.run(
-                    ["--config", str(cfg), "--apply"],
+                    ["--config", str(cfg)],
                     fetch=lambda u, k: _model_info_payload(),
                 )
-            self.assertNotEqual(rc, 0)
+            self.assertEqual(rc, 2)
+            self.assertIn("refusing to rewrite", buf.getvalue())
+            self.assertEqual(cfg.read_text(encoding="utf-8"), original)
+
+            buf2 = io.StringIO()
+            with redirect_stdout(buf2):
+                rc = oc_models.run(
+                    ["--config", str(cfg), "--dry-run"],
+                    fetch=lambda u, k: _model_info_payload(),
+                )
+            self.assertEqual(rc, 2)
+            self.assertIn("preview-only", buf2.getvalue())
             self.assertEqual(cfg.read_text(encoding="utf-8"), original)
 
         with redirect_stdout(io.StringIO()):
@@ -371,7 +394,7 @@ class EntryPointTests(unittest.TestCase):
             cfg.write_text(_config(), encoding="utf-8")
             with redirect_stdout(io.StringIO()):
                 oc_models.run(
-                    ["--config", str(cfg), "--apply"],
+                    ["--config", str(cfg)],
                     fetch=lambda u, k: _model_info_payload(),
                 )
             written = json.loads(cfg.read_text(encoding="utf-8"))
@@ -379,6 +402,34 @@ class EntryPointTests(unittest.TestCase):
                 written["provider"]["openai"]["models"],
                 {"gpt-x": {"name": "GPT X", "cost": {"input": 5.0}}},
             )
+
+    def test_entry_point_agent_mode(self):
+        with TemporaryDirectory() as td:
+            cfg = Path(td) / "opencode.json"
+            cfg.write_text(_config(), encoding="utf-8")
+
+            # dry-run in agent mode emits preview
+            buf_dry = io.StringIO()
+            with redirect_stdout(buf_dry):
+                rc = oc_models.run(
+                    ["--config", str(cfg), "--dry-run", "--agent"],
+                    fetch=lambda u, k: _model_info_payload(),
+                )
+            self.assertEqual(rc, 0)
+            self.assertIn('"outcome":"preview"', buf_dry.getvalue())
+            self.assertIn('"applied":false', buf_dry.getvalue())
+            self.assertIn('"next":"aw oc update-models"', buf_dry.getvalue())
+
+            # default bare run in agent mode writes
+            buf_write = io.StringIO()
+            with redirect_stdout(buf_write):
+                rc = oc_models.run(
+                    ["--config", str(cfg), "--agent"],
+                    fetch=lambda u, k: _model_info_payload(),
+                )
+            self.assertEqual(rc, 0)
+            self.assertIn('"outcome":"ok"', buf_write.getvalue())
+            self.assertIn('"applied":true', buf_write.getvalue())
 
 
 class AtomicWriteTests(unittest.TestCase):

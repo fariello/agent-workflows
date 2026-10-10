@@ -5269,13 +5269,13 @@ def _build_parser() -> argparse.ArgumentParser:
         "update-models",
         aliases=["sync-models"],
         parents=[common],
-        help="Sync provider models + pricing from the gateways in your OpenCode config (preview unless --apply).",
+        help="Sync provider models + pricing from the gateways in your OpenCode config (writes unless --dry-run).",
         description=(
             "Refresh OpenCode provider model lists and pricing from the gateways declared in your "
-            "own OpenCode config. Previews by default; pass --apply to write. Pricing is read from "
-            "a provider's LiteLLM endpoints (/model/info, /model_group/info) and converted to $ per "
-            "million tokens; providers without a pricing endpoint (plain OpenAI, Google) are "
-            "reported as skipped and left untouched. --apply rewrites the file with normalized JSON "
+            "own OpenCode config. Writes changes by default; pass --dry-run to preview. Pricing is "
+            "read from a provider's LiteLLM endpoints (/model/info, /model_group/info) and converted to $ "
+            "per million tokens; providers without a pricing endpoint (plain OpenAI, Google) are "
+            "reported as skipped and left untouched. Rewrites the file with normalized JSON "
             "formatting: the existing indent width is detected and reused, but byte-for-byte "
             "formatting is not preserved. Credentials are sent over https only and are never printed."
         ),
@@ -5287,12 +5287,12 @@ def _build_parser() -> argparse.ArgumentParser:
     p_oc_models.add_argument(
         "--apply",
         action="store_true",
-        help="Write the changes (default: preview only).",
+        help="Write the changes (default behavior; retained for backwards compatibility).",
     )
     p_oc_models.add_argument(
         "--dry-run",
         action="store_true",
-        help="Explicit synonym for the default preview behavior.",
+        help="Preview changes without writing.",
     )
     p_oc_models.add_argument(
         "--no-backup",
