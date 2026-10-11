@@ -6,7 +6,7 @@
 - Scope: Coordinate three children that (1) record the measurement and amend the two contracts that assert or disclaim push denial, (2) add ONE probed port-denial capability named for what it proves, gating no action and reintroducing no finding code, and (3) verify the Set did not overclaim and that the unbuilt half has a live carrier. This orchestrator performs no product change of its own.
 - Scope-Paths: .aw/records/plans/pending/20260929-denypush-00-l4vw9o-decide-and-if-approved-build-a-landlock-backed-network-denia.ipd.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Coverage: pass
 - Coverage-Fingerprint: 85d00a1ba1d43deaa76f3fce916c4809b9f52d072bf4b3ad929b4cc064f5c74e
@@ -19,9 +19,9 @@
 - Highest E allocated: 03
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: l4vw9o
-- Approval: 2026-10-08, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-11 executed (aw agy run model=Gemini-3.8-Flash-High): RETIRED as the orchestrator rollup step of a runner Set completion, not executed by an agent: every child of Set denypush reached executed, so the runner (run run-20261011T141448Z-2272908) retired this Order-0 plan as bookkeeping. Its own E-*/V-* items were NOT performed; the runner superseded them by enforcing the ordering, the isolation and the per-child merge gate. Justifying children: x2dwu5, pi3bk8, wzhe4n, d5ntkj.
 - 2026-10-08 approved (aw set): status set to approved
 - 2026-10-07 reviewed (opencode uri/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-006 fixed
 - 2026-10-07 coverage pass (aw oc run): fingerprint 85d00a1ba1d4, model uri/its_direct/pt3-claude-opus-5.5-1m-us
@@ -48,6 +48,9 @@ it that is enforceable: a probed port-denial capability, two honestly amended co
 carrier for the part that is not. Nothing this Set ships may be readable as a push-denial guarantee.
 
 ## Detailed Implementation Checklist (TODO)
+
+
+> Its own E-*/V-* items were NOT performed; the runner superseded them by enforcing the ordering, the isolation and the per-child merge gate.
 
 Execution-state rule: mark an `E-*` item complete only after performing the action. That mark is not validation. Right-sizing rule: each E-item must address one concern and be executable in one focused pass; split when an E-item names multiple distinct deliverables or independent test-surfaces.
 
