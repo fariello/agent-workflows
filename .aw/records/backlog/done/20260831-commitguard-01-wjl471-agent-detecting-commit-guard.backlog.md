@@ -1,0 +1,199 @@
+- Id: wjl471
+- Status: done
+- Set: commitguard
+- Priority: high
+- Work-Kind: feature
+- Summary: Commit guard that detects agent context from the environment and redirects to the tooled path: an accident-stopper, not a security boundary, plus wire the four existing gates that are currently invoked by nothing
+
+## Workflow history
+- 2026-10-11 done (aw set): status set to done
+- 2026-09-08 graduated (aw set): PARTIALLY GRADUATED to a three-plan Set; the agent-detecting guard is deliberately NOT graduated. Plans: orchestrator ao1rb7 (Set commitguard Order 00), child kbqpkn (Order 01, wire the four unwired gates and install the missing pre-push hook), child y9vpvv (Order 02, add a plan-less aw commit and land the ruled MUST wording). All three carry From-Backlog: wjl471. This item carries no Blocks-Release, so none inherits one. Status graduated (design handed off), NOT done. WHY A SET: the item's two implementable halves have different risk and different prerequisites, so coupling them would block the free half behind the gated one. FINDING 2 RE-VERIFIED LIVE 2026-09-08 at HEAD a2e0438a and it reproduces exactly: precommit-scope-gate, prepush-authorization-gate, backlog-blocking-close-gate and ipd-dependency-statement-gate each appear ZERO times in .pre-commit-config.yaml while ipd-executed-gate appears once and ipd-status-untooled-gate twice; and the sharper half also holds, the ONLY installed hook in the repository git dir is pre-commit, so prepush-authorization-gate cannot fire even if registered. Order 01 wires them, with one important refusal to wire reflexively: this item warns 'do not assume unwired means forgotten' and specifically names backlog-blocking-close-gate as deliberately opt-in, which AGENTS.md confirms in the repository's own words ('NOT installed by default', wired via engine.create_backlog_close_gate_hook(repo, install=True)). So Order 01's E-01 produces a per-gate INTENT VERDICT with citations before wiring anything, and its E-02 proves each gate runs clean against the real tree first, because backlog gjadwm records that a gate which false-positives on correct behavior TRAINS agents to bypass it. THE MAINTAINER RULING OF 2026-09-01 IS GRADUATED IN FULL as Order 02, and ITS HARD ORDERING CONSTRAINT IS NOW SATISFIABLE AND MACHINE-READABLE: the item states the retry sentence in the ruled wording is DESCRIPTIVE and must not ship before egqt32 layer 1 lands. egqt32 has since been graduated to plan lqly9m (.aw/records/plans/pending/20260908-hookretry-01-lqly9m-...ipd.md, From-Backlog: egqt32), so Order 02 declares Item-Dependencies: executed:lqly9m rather than leaving the constraint as prose, and its E-05 re-proves the retry BY BEHAVIOR at execution time with a documented fallback (ship the MUST imperative, which the ruling says carries no dependency, and withhold the descriptive sentence) if the retry is absent. ONE REFINEMENT THE EXECUTOR MUST KNOW: lqly9m found that this item's premise about WHERE the retry goes is obsolete, because offer_commit no longer performs the commit itself but delegates to commit_lock.commit_isolated, so the retry lands there; the ruled sentence stays TRUE of the tooled path as a whole, but must be verified by behavior rather than by grepping one function. THE PLAN-LESS GAP THIS ITEM IDENTIFIED IS CONFIRMED AND IS FIXED FIRST, so the MUST is compliable before it is mandatory: work_cmd.py:138 returns 'a <plan> selector is required', and this item's evidence that the helper never needed a plan verifies (offer_commit takes no plan argument, 8 call sites in the package pass none, and run_commit uses the plan for exactly two things, the Scope-Paths refusal at work_cmd.py:436-452 and the engine validation at :459-465). Crucially the graceful-degradation path it points at is real and is the shape reused: a plan declaring no Scope-Paths already prints a notice and PROCEEDS (:454-458), so --no-plan is that same flow with a reworded notice rather than a new code path. NOT GRADUATED, AND THIS ITEM STAYS OPEN FOR IT: FINDING 1, the agent-context detector and the new commit guard, with its four open questions (where the guard lives, given that a pre-commit hook sees the staged set but not the INTENT; what exactly the accident is; how the refusal names the replacement command; and how an override is recorded and audited). That needs a maintainer ruling on shape, and this item itself says the gate wiring 'may catch most of the remaining accidents at near-zero cost', so the cheap wins are separated from the design. The five-host environment-marker table committed with this item is the DURABLE record (its tmp/ dumps are gitignored and local-only) and must travel with whatever item takes the guard forward. The orchestrator's OQ-01 asks the maintainer explicitly not to close this item on the Set alone, for exactly that reason. Also carried forward untouched: the honesty constraint that a bypassable guard must never be DESCRIBED as a boundary, which the orchestrator enforces as a cross-child check (E-03) because Order 01 turns bypassable gates on and Order 02 rewrites the paragraph describing the commit path's guarantees, so either could violate it alone. Related items mjx7ne, suugsf, a8eufb and 077yqc remain open and are not mine to touch.
+- 2026-08-31 created (aw backlog): Commit guard that detects agent context from the environment and redirects to the tooled path: an accident-stopper, not a security boundary, plus wire the four existing gates that are currently invoked by nothing
+
+GOAL: a commit guard that catches the ACCIDENT, tells the agent what to do instead, and is cheap
+enough to always be on. NOT a security boundary. The distinction is deliberate and is the whole
+design premise, so it is stated first.
+
+THE THREAT MODEL, decided by the maintainer 2026-08-31 and supported by measured evidence.
+
+Agents do not go rogue here; they act on TRAINED REFLEX. They are trained to run SOLO in repos they
+fully control, where `git add -A` is correct and expected. This repo asks for something that is, for
+lack of a better term, not in their nature. Every failure observed in the 2026-08-31 session fits that
+shape, and NONE required an agent to defy an instruction it had understood:
+
+| Failure | Cause | Needed malice? |
+| --- | --- | --- |
+| An agent committed 18 files into `main` while its lane branch stayed at ZERO commits | The prompt said "leave the main execution checkout safe" AND every absolute path in that same prompt was main's; the agent read `../../../DECISIONS.md` because the prompt handed it that path | No |
+| `codex` re-authored plan `ntf6sx` into `pending/` 3.5 hours AFTER its twin finalized to `executed/` (20:04:27 -> 23:27:42) | Nothing signalled that the work had already landed | No |
+| A walkthrough claimed its plan's `id6` as its own identity, breaching D140 | Reflex to make the plan/walkthrough pairing greppable by sharing an id | No |
+| 21 plans stranded in lanes, 24 hand-merges, roughly $528 | Two independently sensible defaults that silently cancelled each other | No |
+
+CONSEQUENCE FOR THE DESIGN. A guard that REFUSES and says "we want you to use X instead" would very
+likely have caught all four. BYPASSABILITY IS A FEATURE, NOT A WEAKNESS, against accidents: the
+operator must be able to override deliberately when they mean to. Do NOT reject a design merely
+because `--no-verify` defeats it; that objection applies a security standard to a safety problem.
+
+THE ONE CAVEAT THAT STILL MATTERS: a bypassable guard must never be DESCRIBED as a boundary, because
+that is how a fail-open check comes to be trusted. The shipped `prepush-authorization-gate` already
+gets this right, printing its own limit out loud: "this is a LOCAL, OPT-IN, bypassable (`--no-verify`)
+FEEDBACK hook, NOT an authority boundary and NOT independent authorization - a local env ack is
+settable by the agent." Reuse that honesty pattern verbatim.
+
+FINDING 1: AGENT CONTEXT IS RELIABLY DETECTABLE FROM THE ENVIRONMENT. Measured across FIVE agent
+hosts plus a plain login shell, with the raw dumps committed as evidence in `tmp/` (see EVIDENCE
+below). Every host self-identifies, and NO marker appears in the plain shell, so a detector keyed on
+these has no false positives on a human at a terminal:
+
+| Host | Markers observed |
+| --- | --- |
+| OpenCode | `AGENT=1`, `OPENCODE=1`, `OPENCODE_PID=<pid>` |
+| Antigravity | `AI_AGENT=antigravity`, `ANTIGRAVITY_AGENT=1`, plus `ANTIGRAVITY_CONVERSATION_ID` / `ANTIGRAVITY_TRAJECTORY_ID` / `ANTIGRAVITY_PROJECT_ID` |
+| Codex | `CODEX_SESSION_ID`, `CODEX_THREAD_ID`, `CODEX_PERMISSION_PROFILE`, `CODEX_SANDBOX_NETWORK_DISABLED` |
+| Hermes | `HERMES_SESSION_ID`, `HERMES_INTERACTIVE`, `HERMES_QUIET`, `HERMES_REAL_HOME` |
+| Claude Code | `AI_AGENT=claude-code_2-1-252_agent`, `CLAUDECODE=1`, `CLAUDE_CODE_SESSION_ID`, `CLAUDE_PID`, `CLAUDE_CODE_ENTRYPOINT` |
+| plain login shell | NONE of the above |
+
+TWO OBSERVATIONS THAT SHOULD SHAPE THE IMPLEMENTATION.
+
+(a) `AI_AGENT` IS THE SHAPE TO STANDARDIZE ON. Two of the five hosts (Antigravity and Claude Code)
+    ALREADY set it, and it is the only marker that is both host-neutral in NAME and carries WHICH
+    agent as its VALUE. A guard keyed on a generic `AI_AGENT` plus a fallback list of vendor-specific
+    markers does not need a code change every time a new host appears; an unknown future host can
+    self-declare. Consider also SETTING `AI_AGENT` ourselves in the drivers for hosts that do not,
+    so downstream tooling has one thing to read.
+
+(b) EVERY HOST LEAKS A SESSION OR THREAD ID, which is a STRONGER signal than a bare boolean flag: a
+    plain shell has no reason to set one, whereas a boolean like `AGENT=1` is the sort of thing a
+    user might set for unrelated reasons. Prefer the id-bearing markers when deciding, and record the
+    id in the refusal message so an accident is traceable to a specific session.
+
+FINDING 2: FOUR OF THE SIX EXISTING GATES ARE WIRED TO NOTHING, which is very likely a bigger
+real-world win than any new guard, and is nearly free because the code already exists and works.
+MEASURED at HEAD `187318eb`:
+
+| Gate (exists as a working `aw` verb) | In `.pre-commit-config.yaml`? | In `Makefile`? |
+| --- | --- | --- |
+| `ipd-executed-gate` | YES | no |
+| `ipd-status-untooled-gate` | YES | no |
+| `precommit-scope-gate` | **no** | no |
+| `prepush-authorization-gate` | **no** | no |
+| `backlog-blocking-close-gate` | **no** | no (documented as deliberately opt-in) |
+| `ipd-dependency-statement-gate` | **no** | no |
+
+Also measured: the ONLY installed git hook is `pre-commit`. There is NO `pre-push` hook, so
+`prepush-authorization-gate` CANNOT fire even though running it by hand prints a correct, actionable
+refusal. A guard that is never invoked is not a guard.
+
+WHAT TO SOLVE FOR, not prescribed here.
+
+1. WHERE DOES THE GUARD LIVE? A `pre-commit` hook sees the staged set but not the INTENT (it cannot
+   tell `git add -A` from an explicit path list, because staging already happened). A wrapper around
+   `git` would see intent but is invasive and easy to bypass by calling `/usr/bin/git` directly.
+   Reading `git reflog`/`ORIG_HEAD` after the fact catches it too late. Decide deliberately, and note
+   the shipped `git_commit_helper.offer_commit` already enforces the desired behavior for callers
+   that USE it, so part of the answer may be "make the tooled path the path of least resistance"
+   rather than intercepting the untooled one.
+2. WHAT EXACTLY IS THE ACCIDENT TO CATCH? Candidates, all observed: staging paths the agent did not
+   modify (the `add -A` reflex); committing in the MAIN checkout while an isolated lane was allocated
+   for the turn (the 18-file case, which is the most expensive one and is detectable, because the
+   driver knows the lane path); using `--no-verify` without a stated reason; pushing at all.
+3. HOW DOES IT TELL THE AGENT WHAT TO DO? The refusal message IS the product here, not a side effect.
+   It must name the exact replacement command (e.g. `aw commit <plan> -- <paths>`), state that the
+   refusal is a local accident-guard and not an authority boundary, and say how to override
+   deliberately. Copy the tone of `prepush-authorization-gate`'s existing message.
+4. HOW IS IT OVERRIDDEN, AND IS THAT AUDITABLE? An env-var acknowledgement is settable by the agent
+   itself, which is fine for accidents but means the override should be RECORDED (which agent, which
+   session id, which reason) rather than silently honored.
+5. SHOULD THE FOUR UNWIRED GATES SIMPLY BE INSTALLED FIRST? They may catch most of the remaining
+   accidents at near-zero cost. Note `backlog-blocking-close-gate` is documented as deliberately
+   opt-in, so confirm each gate's intent before wiring it; do not assume "unwired" means "forgotten".
+
+MAINTAINER RULING 2026-09-01 ON OQ-1: THE CONTRACT SAYS **MUST**, NOT "PREFER".
+
+OQ-1 above ends by suggesting the answer may be to "make the tooled path the path of least resistance"
+rather than intercepting the untooled one. The maintainer has now ruled on the wording half of that.
+
+WHAT PROMPTED IT. While filing `egqt32` (a mutating pre-commit hook rewrites a staged file, rejects, and
+`offer_commit` gives up instead of re-staging), the agent drafted a softened replacement for
+`engine.py:1190-1194` keeping the existing "PREFER THE TOOLED COMMIT PATH" framing, and argued that MUST
+would be untruthful because `aw commit` REQUIRES a plan selector (`work_cmd.py:135-136` returns "a
+<plan> selector is required"; `run_commit` exits 2 without one), leaving plan-less commits (a backlog
+item, a spec edit, a typo fix) with no tooled path to comply with.
+
+THE MAINTAINER REJECTED THAT REASONING, and the correction is the substance of this ruling: "MUST is not
+a statement that it does not have the ability to do so, it is a command that it MUST follow." A
+directive is not a capability claim. Its validity does not wait on the tooling being total, and a gap in
+coverage is a reason to CLOSE THE GAP, not to weaken the instruction. The truthfulness constraint
+applies only to DESCRIPTIVE sentences (see the ordering constraint below), never to the imperative.
+
+RULED WORDING for `engine.py:1190-1194` (renders as `AGENTS.md:51`), replacing the current paragraph
+whose "immune to this by construction" claim is true for index pollution and false for auto-fix
+rejection:
+
+    USE THE TOOLED COMMIT PATH. You MUST commit through `aw commit`, not raw `git commit`. It snapshots
+    the index BEFORE staging, stages only your explicit paths, commits only the intersection of those
+    paths with what it itself staged, and on any failure resets ONLY its own paths, so a co-worker's
+    restored path can never enter your commit. When a MUTATING hook rewrites one of your own paths and
+    rejects, it re-stages that path and retries ONCE, so whitespace or format churn costs you no round
+    trip and no re-verify. If no form of `aw commit` fits your case, you MUST say so explicitly in your
+    report, naming what you ran and why, and re-verify the staged set as above.
+
+The escape hatch is deliberately a REPORTING OBLIGATION, not permission. That is enforceable in a way an
+absolute MUST with no exit is not: a silent raw `git commit` becomes a visible contract violation,
+while a declared one is auditable and tells the maintainer which gap to close next.
+
+COMPANION NARROWING of `engine.py:1184-1189` (`AGENTS.md:49`), which currently charges the re-verify
+after EVERY failed attempt including tooled ones, and never mentions that a mutating hook also REWROTE
+the file: retitle to "RE-VERIFY AFTER A FAILED RAW COMMIT", scope it to raw `git commit`, and add one
+sentence: "A MUTATING hook (whitespace or eof fixer, formatter) also REWRITES your file and then
+rejects, so your retry must re-stage the rewritten path." The `git reset`/`git stash` prohibition in
+that paragraph stays VERBATIM; it is about a co-worker's work and is unrelated to this change.
+
+HARD ORDERING CONSTRAINT. The retry sentence in the ruled wording is DESCRIPTIVE, so it MUST NOT ship
+before `egqt32` layer 1 (the bounded single retry in `git_commit_helper.offer_commit`) lands, or the
+contract installed into every managed repo would document behavior the code does not have. The MUST
+IMPERATIVE itself carries no such dependency and could ship immediately. Sequence: `egqt32` layer 1,
+then this wording.
+
+CONSEQUENCE THIS ITEM MUST DECIDE: PLAN-LESS `aw commit`. Under MUST, every plan-less commit becomes a
+reported exception. That is coherent (the exception reports are themselves the signal for which gap to
+close first), but it makes non-compliance the COMMON case, which is the failure mode `gjadwm:45-49`
+warns about: a rule that fires on correct behavior trains agents to ignore it. Closing the gap looks
+cheap, and the evidence says the helper never needed a plan:
+
+- `offer_commit` takes no plan argument and 15 other call sites already use it plan-lessly, e.g.
+  `specs.py:650`, `status_set.py:1076`, `plans_archive.py:296`, `research_archive.py:400`,
+  `cli.py:3880`, `oc_runipd.py:1183`.
+- `run_commit` uses the plan for exactly two things: the `Scope-Paths` refusal (`work_cmd.py:409-423`)
+  and the engine validation (`:431-436`).
+- It ALREADY degrades gracefully when a plan declares no `Scope-Paths` (`:424-428` prints "note - plan
+  declares no Scope-Paths allowlist; committing the requested paths without scope enforcement" and
+  proceeds), so a plan-less mode is that same path with a reworded notice, not a new code path.
+
+A shape to consider (not prescribed): `aw commit --no-plan -m <msg> -- <paths>`, or a sibling verb.
+Decide it here, since it is the concrete form of OQ-1's "path of least resistance".
+
+WHY MUST BUYS MORE THAN CONVENIENCE, and why this belongs in THIS item rather than the whitespace one:
+`offer_commit`'s snapshot-then-intersect (`git_commit_helper.py:192`, `:233-234`) is the ONLY mechanism
+in the repo that STRUCTURALLY prevents sweeping a concurrent agent's staged edits into your commit.
+`AGENTS.md:38-47` currently delegates that safety to an agent REMEMBERING to run `git diff --cached
+--name-only`, which is precisely the trained-reflex failure this item's threat model says will not hold.
+Mandating the tooled path converts a remembered discipline into a code guarantee, which is the same
+accident-stopper goal stated at the top of this item, reached by making the safe path mandatory instead
+of by intercepting the unsafe one.
+
+EVIDENCE, committed with this item so a successor does not have to re-capture five hosts:
+`tmp/env-from-opencode.txt`, `tmp/env-from-agy.txt`, `tmp/env-from-codex.txt`,
+`tmp/env-from-hermes.txt`, `tmp/env-from-claude.txt`, `tmp/env-straight-from-command-line.txt`.
+NOTE: `tmp/` is GITIGNORED, so these dumps are LOCAL ONLY and will not survive a fresh clone. If the
+detection matrix is to be relied on later, the marker table above (which is committed with this item)
+is the durable record; re-capture the dumps if raw environments are needed again. Also note the dumps
+contain machine-local paths and session ids, so they should NOT be committed as-is without running
+`aw sanitize`.
+
+RELATED. `mjx7ne` (hostcap-01) describes host capabilities including `commit_gateway` and `deny_push`,
+both of which grep to ZERO enforcement today; under this item's threat model those are worth shipping
+as honestly-labelled ACCIDENT GUARDS rather than being narrowed away. `suugsf` covers the contract
+never warning that other agents share the checkout. `a8eufb` and `077yqc` cover finalize
+misattributing a concurrent agent's files. The cross-platform confinement research prompt
+(`q65sz3`) covers the harder OS-level question, which this item deliberately does NOT depend on.
