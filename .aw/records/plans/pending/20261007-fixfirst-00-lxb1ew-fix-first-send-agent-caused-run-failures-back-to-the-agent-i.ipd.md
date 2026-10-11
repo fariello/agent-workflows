@@ -148,10 +148,12 @@ This plan runs no tests. `iksylm` (Order 08) performs the whole-Set measurement,
 
 - Blocking: yes
 - Finding: PR-001
-- Status: open
+- Status: resolved
 - Owner: maintainer
+- Carrier: 03y5g6
 - Context: this is child `tb6lw3` OQ-02 (blocking, open), raised to the Set because the answer changes this plan's Scope and criterion 4 and child `iksylm` E-04's assertion. Shipped code aborts on `runner_shared.ToolIdentityError` as well as a corrupt ledger (plan `af7i6p` OQ-02 ruled it run-fatal). `aw ipd coverage lxb1ew` reports `child-lint-failing` for `tb6lw3` (`IPD-Q501 OQ-02`), so this orchestrator cannot reach `reviewed` until it is answered.
 - Options and recommendation: see `tb6lw3` OQ-02 (A: both abort, code unchanged, recommended; B: ledger only, tool identity becomes stop-item with a carrier; C: treat tool identity as a form of corrupt ledger). Answer it THERE, then resolve this question citing that answer.
+- Resolution or deferral rationale: Resolved by maintainer 2026-10-08 via child `tb6lw3` OQ-02: Option B chosen. The abort set is strictly "Corrupt run ledger" only. An item must not fail at all unless the specific item cannot complete, and if unable to complete, fail ONLY that one item. Aborting the entire run for a tool identity mismatch prevents modifying the tool codebase itself and disrupts unattended runs. Tool identity error is handled as an item failure (stopping the item and letting independent items continue); carrier backlog item `03y5g6` is filed to update `run_queue` accordingly.
 
 ## Validation and cross-check (verify before reporting the Set complete)
 
