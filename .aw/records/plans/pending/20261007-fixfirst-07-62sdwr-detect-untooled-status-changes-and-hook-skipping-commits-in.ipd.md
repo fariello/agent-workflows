@@ -3,10 +3,11 @@
 - Date: 2026-10-07
 - Kind: child
 - Concern: Two rule breaks the spec says abort a run are not detected at all. (1) An agent that hand-edits a plan's `- Status:` or `git mv`s a plan between lifecycle directories is not caught by the runner: `outcome_precedence_disposition` trusts a plan found in `superseded/`/`not-executed/` by directory alone and lands it as `retired`, and a plan found in `executed/` turns a refused finalize into success through `finalize_already_done`. The only detectors (`check_engine.check_status_untooled`, the `status_untooled_gate` and `executed_transition_gate` hooks) are commit-scoped, local and skippable. (2) A lane commit made with `--no-verify` is not detected: `RUN-COMMIT-GATEWAY` is `UNBOUND_BY_DEPENDENCY`. The maintainer ruled on 2026-10-07: detect them, tell the agent to undo and redo with the proper tool, continue.
-- Scope: After each execute turn and before finalize or integration, check the lane's commits since the turn began for (a) plan status or lifecycle-directory changes with no matching tool-written history line or finalize journal, reusing the shared predicates behind `check_status_untooled` and `executed_transition_gate`, and (b) commits whose staged content the repository's pre-commit hooks would refuse, by re-running those hooks over each lane commit's changed files; send any finding back as a fix-it turn (Order 03) with the specific undo-and-redo instruction; stop trusting a plan's directory alone in `outcome_precedence_disposition` and `finalize_already_done`. EXCLUDES push detection (Set `denypush`) and making the local hooks mandatory.
-- Scope-Paths: agent_workflows/runner_shared.py, agent_workflows/check_engine.py, agent_workflows/run_evidence.py, tests/test_lane_rule_break_detection.py
+- Scope: After each execute turn and before finalize or integration, check the lane's commits since the turn began for (a) plan status or lifecycle-directory changes with no matching tool-written history line or, for `executed`, no `lifecycle(<id6>): finalize` commit in the range, reusing the predicates behind `check_status_untooled` and `executed_transition_gate`, and (b) lane changes the repository's pre-commit hooks would refuse, by re-running those hooks over the lane's net change in a disposable worktree; send any finding back as a fix-it turn (Order 03) with the specific undo-and-redo instruction; stop trusting a plan's directory alone in `outcome_precedence_disposition` and `finalize_already_done`. EXCLUDES push detection (Set `denypush`) and making the local hooks mandatory.
+- Scope-Paths: agent_workflows/runner_shared.py, agent_workflows/check_engine.py, agent_workflows/run_evidence.py, tests/test_lane_rule_break_detection.py, tests/test_host_capability_extension.py, tests/test_ipd_exec_finding_codes.py, tests/test_inlane_retirement_lands.py
 - Item-Dependencies: executed:mcbph5
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: high
 - From-Backlog: coivul
@@ -19,6 +20,7 @@
 - Id: 62sdwr
 
 ## Workflow history
+- 2026-10-11 reviewed (opencode/its_direct/pt3-claude-opus-5.5-1m-us): /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-900, PR-901, PR-902, PR-903, PR-904, PR-905, PR-906. Reviewed at HEAD 2284049fa. Hook re-run moved to one net-change pass in a disposable worktree (the lane --from-ref form measured checking the wrong content, missing staged gates and mutating the lane); executed evidence is the finalize commit, not the deleted journal; tooled retirement kept legitimate; RUN-COMMIT-GATEWAY stays unbound (OQ-02). Record: .aw/records/reviews/20261007-fixfirst-07-62sdwr-detect-untooled-status-changes-and-hook-skipping-commits-in.review.md.
 - 2026-10-07 to-review (aw set): authored review-ready from backlog coivul (maintainer rulings 2026-10-07)
 
 - 2026-10-07 draft (opencode its_direct/pt3-claude-opus-5.5-1m-us): created.
@@ -33,31 +35,37 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: untooled status changes
 
-- [ ] E-01 In `check_engine`, expose a range-scoped form of the untooled-status predicate: given a base and head commit, return one finding per plan whose `- Status:` or lifecycle directory changed in that range with no matching tool-written `## Workflow history` line (intermediate statuses) or no finalize journal (`executed`). Reuse the existing predicate code; do not write a second rule.
+- [ ] E-01 In `check_engine`, expose a range-scoped form of the untooled-status predicate: given a base and head commit, return one finding per plan whose `- Status:` or lifecycle directory changed in that range with no matching tool-written `## Workflow history` line for the new status. Factor the per-path comparison out of `check_status_untooled` (which compares `:0:` against `HEAD`) so both callers read the same `_status_meta` / `_has_matching_history_line` pair over a `(old_blob, new_blob)` pair; do not write a second rule.
+  - THE `executed` CASE IS IN-TREE EVIDENCE, NOT A JOURNAL (review PR-901). The finalize journal is the wrong evidence after the fact: `ipd_lifecycle._clear_finalize_journal` deletes it on completion (finalize's COMPLETE path: "Finalize the journal + consume the receipt" then `_clear_finalize_journal`), and it lives under the gitignored `.aw/state/`, so it never travels with a lane branch. `hooks/executed_transition_gate.py`'s own docstring records that limit and accepts instead "a `lifecycle(<id6>): finalize` commit reachable" from the incoming side. Use that: an arrival in `executed/` within the range is tooled iff the range contains a commit whose subject starts with `artifact_core.finalize_commit_subject(<id6>)`. Under the default `self_finalize` the agent cannot produce one (a worker-role `aw ipd finalize` is refused `AW-LIFECYCLE-ROLE-001`), so every in-lane `executed` arrival is untooled, which is the correct verdict.
+  - RETIREMENT IS LEGITIMATE AND MUST NOT BE FLAGGED (review PR-902). `superseded`/`not-executed` are reached by `aw ipd set superseded <id6>` (measured at review: `aw ipd set superseded 62sdwr --dry-run` -> `to-review -> superseded (dry-run)`), which writes a history line, so the history-line predicate covers them. `tests/test_inlane_retirement_lands.py` drives a hand `git mv` + `- Status: superseded` retirement and expects `RETIRED_STATUS`; that fixture is a HAND retirement with no history line, so E-02 changes its verdict. Decide it explicitly in E-02 rather than discovering it as a red test.
   - Depends on: none
-  - Expected outcome: over a scratch range containing one tooled and one hand-edited status change, and one hand `git mv` into `executed/`, the function returns exactly the two untooled ones.
+  - Expected outcome: over a scratch range containing one tooled and one hand-edited intermediate status change, one hand `git mv` into `executed/` with no finalize commit, one `aw ipd set superseded` retirement and one hand retirement with no history line, the function returns exactly the hand-edited change, the hand `executed` arrival and the hand retirement.
   - Execution state: pending
 
-- [ ] E-02 In the runner, after an execute turn and before finalize, run E-01 over `lane_starting_head..HEAD` of the lane; on any finding, send the item back with Order 03's message (kind `untooled-status-change`) naming each plan and the instruction: "revert the hand edit or move, then use `aw ipd set <status> <id6>` (or `aw ipd finalize`)". Make `outcome_precedence_disposition` and `finalize_already_done` require the tooled evidence, not the directory alone.
+- [ ] E-02 In the runner, after an execute turn and before finalize, run E-01 over `attempt["lane_starting_head"]..HEAD` of the lane; on any finding, send the item back through `runner_shared.build_fix_it_notice` (Order 03, kind `untooled-status-change`) naming each plan and the instruction: "revert the hand edit or move, then use `aw ipd set <status> <id6>` for an intermediate status or a retirement; for `executed`, leave the plan in `pending/` and let the runner finalize it". Do NOT tell the agent to run `aw ipd finalize`: under the default `self_finalize` a worker-role finalize is refused `AW-LIFECYCLE-ROLE-001` and `ipd_lifecycle.runner_owns_lifecycle_notice` tells it not to, so that instruction would contradict the turn's own prompt (review PR-903). Count against the per-kind `--retry-budget`; an uncorrected finding fails the item (spec `25kzda` 5.5 group (a)).
+  - THE DIRECTORY-ALONE FIX IS A RUNNER-LEVEL GATE, NOT A CHANGE TO THE TWO PURE HELPERS' SIGNATURES (review PR-904). `outcome_precedence_disposition(bucket, outcome)` is pure and also called by `run_viewer` and the crash-recovery path; `finalize_already_done` is called from `finalize_outcome` with the MAIN repo and is the `ld8lb3` idempotence fix for a legitimate agent-or-driver double finalize. Gate their callers in the execute path instead: when the E-01 check over the lane range reports the item's own plan as untooled, the item is sent back BEFORE `reconcile_disposition` / `driver_finalize` run, so neither helper ever sees a hand-placed plan. Leave both helpers' behavior unchanged for every other caller, and say so in their docstrings. If execution shows a caller the gate does not cover, add the range evidence as an optional keyword defaulting to today's behavior.
   - Depends on: E-01
-  - Expected outcome: a lane that `git mv`s its own plan into `executed/` gets a fix-it turn instead of being scored executed; after the agent reverts and the driver finalizes, the item executes normally.
+  - Expected outcome: a lane that `git mv`s its own plan into `executed/` gets a fix-it turn instead of being scored executed; after the agent reverts and the driver finalizes, the item executes normally. A lane that retires its plan through `aw ipd set superseded` still lands `RETIRED_STATUS` with no fix-it turn; a hand retirement gets one; `tests/test_inlane_retirement_lands.py` (declared in Scope-Paths) is updated so its retiring fixture uses the tooled retirement, plus one hand-retirement case asserting the fix-it turn.
   - Execution state: pending
 
 ### Task group 2: hook-skipping commits
 
-- [ ] E-03 After an execute turn, for each lane commit since `lane_starting_head`, re-run the repository's configured pre-commit hooks over that commit's changed files (`pre-commit run --from-ref <parent> --to-ref <commit>` when pre-commit is configured; otherwise skip and record that hook checking was unavailable). A commit the hooks refuse is a hook-skipping commit. Send the item back with Order 03's message (kind `hook-bypass`) carrying the hook output and the instruction: "the commit <sha> does not pass the hooks; fix what they report and recommit through `aw commit` (amend or add a fix commit; do not use --no-verify)".
+- [ ] E-03 After an execute turn, re-run the repository's configured pre-commit hooks over the lane's NET change since `lane_starting_head`, in a DISPOSABLE detached worktree, never in the lane: check out `lane_starting_head`, stage the lane `HEAD`'s tree over it (`git checkout <HEAD> -- .` stages every changed path), then run `pre-commit run` (no `--from-ref`) so `pass_filenames` hooks see the changed files and the staged-index gates (`ipd-executed-transition-gate`, `ipd-status-untooled-gate`, both `pass_filenames: false`, `always_run: true`) see the real delta; remove the worktree afterwards. When pre-commit is not installed or `.pre-commit-config.yaml` is absent, skip and record "hook checking unavailable". A refusal is a hook-skipping change. Send the item back through `runner_shared.build_fix_it_notice` (kind `hook-bypass`) carrying the hook output and the instruction: "your lane's changes since the turn began do not pass the hooks; fix what they report and commit the fix through `aw commit` (do not use --no-verify)".
+  - THE PLAN'S `pre-commit run --from-ref <parent> --to-ref <commit>` IN THE LANE WAS MEASURED WRONG THREE WAYS (review PR-900), in a scratch repo with a content hook, a staged-index gate shaped like `ipd-executed-gate`, and a mutating fixer: (1) `--from-ref`/`--to-ref` only SELECTS FILE NAMES and the hooks read the WORKING TREE, so after a later fix commit the per-commit check of the bad commit printed `refuse BAD ... Passed` while `git show <bad>:x.txt` was still `BAD`; (2) the staged-index gate printed `Passed` for a range that added the file it refuses, because nothing is staged, whereas the disposable-worktree form printed `Failed` / `STAGED-z-SEEN`; (3) a mutating hook rewrote the lane in place (`lane status after: [ M .pre-commit-config.yaml ]`). The disposable-worktree form refused both bad changes and left the lane clean (`lane status: []`). It checks the NET change, which is what integration merges, so a bypass commit later fixed by a normal commit is correctly not a finding.
+  - OFFLINE AND COST. This repository's config fetches `pre-commit-hooks`, `gitleaks` and `ruff-pre-commit` from the network on a cold cache, and a self-commit's pre-commit pass was measured at 10.6s (`commit_lock` docstring). A hook-environment install failure (exit 3 from `pre-commit`, or no network) is "hook checking unavailable", never a hook refusal, so a cold offline host does not send every item back. OQ-01's measurement belongs in V-03.
   - Depends on: none
-  - Expected outcome: a lane commit made with `--no-verify` over a file a hook refuses yields a fix-it turn with the hook output; a clean lane yields none; a repo without pre-commit yields none and records "unavailable".
+  - Expected outcome: a lane commit made with `--no-verify` over a file a hook refuses yields a fix-it turn with the hook output; a `--no-verify` commit that moves a plan into `executed/` with no finalize commit is refused by the staged-index gate in the disposable worktree; a clean lane yields none; a repo without pre-commit, or with an unbuildable hook environment, yields none and records "unavailable"; the lane's working tree is byte-identical before and after the check.
   - Execution state: pending
 
-- [ ] E-04 Bind `RUN-COMMIT-GATEWAY` in `run_evidence` to E-03's check rather than leaving it `UNBOUND_BY_DEPENDENCY`, with its action cell matching the spec as amended by Order 01.
+- [ ] E-04 Record E-03's check against `RUN-COMMIT-GATEWAY` in `run_evidence` WITHOUT binding the code as decided by it, unless the maintainer answers OQ-02 otherwise. The code's pass criterion is "The engine, not the agent, invoked `git commit ... -- <explicit paths>` as an argv list; no `-a`, broad add, shell string, or `git commit --no-verify` occurred", which needs a captured commit-gateway event and argv. E-03 re-runs hooks over the content, so it detects a bypass whose content the hooks REFUSE, not that a bypass happened (this plan's own Scope check: "a bypass whose content would pass the hooks is not distinguishable"). Binding the code to it would be the fail-open claim `run_evidence`'s comment forbids ("binding these two now would be exactly the fail-open error described above") and `RUN-NO-PUSH`'s retirement recorded. So: keep `binding=UNBOUND_BY_DEPENDENCY`, and add the new predicate to the row's `waiting_on` text as a PARTIAL detector, naming what it does and does not decide.
+  - THREE SHIPPED TESTS PIN THE CURRENT STATE (review PR-905). `tests/test_host_capability_extension.CommitGatewayClaimConsistencyTests` asserts `row.binding == run_evidence.UNBOUND_BY_DEPENDENCY` and `row.predicates == ()` ("Leg 2 is asserted nowhere else"); `tests/test_ipd_exec_finding_codes` asserts `len(run_evidence.bound_run_finding_codes()) == 10`. Binding would turn both red, and both are now declared in Scope-Paths so whichever OQ-02 answer is chosen, the executor updates them in the same change and says why.
   - Depends on: E-03
-  - Expected outcome: `RUN-COMMIT-GATEWAY`'s binding names the new predicate; `tests/test_run_finding_spec_transcription.py` passes.
+  - Expected outcome: `RUN-COMMIT-GATEWAY` stays `UNBOUND_BY_DEPENDENCY` with empty `predicates` and its `waiting_on` names E-03's partial detector; `run_evidence.validate_finding_table().ok` holds; `tests/test_run_finding_spec_transcription.py`, `tests/test_host_capability_extension.py` and `tests/test_ipd_exec_finding_codes.py` pass. If OQ-02 is answered "bind it", the binding names the predicate and the two pinning tests are amended with the reason.
   - Execution state: pending
 
 ### Task group 3: tests
 
-- [ ] E-05 Add `tests/test_lane_rule_break_detection.py` driving the real runner with a scripted host that (a) hand-edits a plan status, (b) `git mv`s its plan into `executed/`, (c) commits with `--no-verify` past a refusing hook, and (d) does everything through the tools; assert on fix-it turns, delivered prompt text and final status. No source introspection.
+- [ ] E-05 Add `tests/test_lane_rule_break_detection.py` driving the real runner on BOTH hosts (`oc_runipd`, `agy_runipd`, the `tests/test_inlane_retirement_lands._HOSTS` pattern) with a scripted host that (a) hand-edits a plan status, (b) `git mv`s its plan into `executed/`, (c) commits with `--no-verify` past a refusing hook, (d) retires its plan through `aw ipd set superseded`, (e) hand-retires it, and (f) does everything through the tools; assert on fix-it turns, delivered prompt text (including that it never tells the agent to run `aw ipd finalize`), the lane's working tree unchanged by the hook check, and final status. Use a scratch repo with a local `language: system` hook so the test needs no network. No source introspection.
   - Depends on: E-02, E-04
   - Expected outcome: the module passes.
   - Execution state: pending
@@ -76,6 +84,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 | F-02 | The untooled-status detectors are commit-scoped and local only. | `hooks/status_untooled_gate.py` docstring "Git hooks are LOCAL, not cloned by default, and skippable with `--no-verify`"; `check_engine.check_status_untooled` compares the staged index against HEAD. |
 | F-03 | Hook bypass is not detected. | `run_evidence` `RUN-COMMIT-GATEWAY` `binding=UNBOUND_BY_DEPENDENCY`, waiting on "a captured commit-gateway RECEIPT". |
 | F-04 | Maintainer ruling 2026-10-07: detect hand edits and bypass now; undo and redo with the tools; continue. Push stays with `denypush`. | Session 2026-10-07. |
+| F-05 | `pre-commit run --from-ref/--to-ref` in the lane does not check a commit's content, misses staged-index gates and mutates the lane (measured at review). | Scratch repo: bad commit checked after a later fix -> `refuse BAD ... Passed` while `git show <bad>:x.txt` = `BAD`; staged-index gate `Passed` vs `Failed` / `STAGED-z-SEEN` in a disposable worktree; mutating hook left `M .pre-commit-config.yaml` in the lane. |
+| F-06 | The finalize journal cannot be after-the-fact evidence. | `ipd_lifecycle._clear_finalize_journal` on the COMPLETE path; `.aw/state/` is gitignored; `executed_transition_gate` docstring: the journal "cannot travel with a lane branch ... and it is also EPHEMERAL". |
+| F-07 | `RUN-COMMIT-GATEWAY` cannot be honestly bound to a content check, and two tests pin it unbound. | `run_evidence` row pass criterion and `waiting_on`; `CommitGatewayClaimConsistencyTests`; `test_ipd_exec_finding_codes` `bound_run_finding_codes()) == 10`. |
 
 ## Proposed changes (ordered, validatable)
 
@@ -92,17 +103,17 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ## Scope check
 
-- Over-scope: none. `check_engine.py` E-01; `runner_shared.py` E-02, E-03; `run_evidence.py` E-04; the test module E-05.
+- Over-scope: none. `check_engine.py` E-01; `runner_shared.py` E-02, E-03; `run_evidence.py` E-04; `tests/test_host_capability_extension.py` and `tests/test_ipd_exec_finding_codes.py` E-04 (acknowledged at finalize as declared-but-unmodified if OQ-02 keeps the code unbound and they need no edit); the new test module E-05. `tests/test_inlane_retirement_lands.py` is edited by E-02, because its hand-retirement fixture is exactly the behavior this plan reclassifies.
 - Under-scope: a bypass whose content would pass the hooks is not distinguishable from a normal commit and does not matter for this purpose; recorded rather than chased.
 
 ## Required tests / validation
 
-- `python3 -m pytest tests/test_lane_rule_break_detection.py tests/test_run_finding_spec_transcription.py -o addopts=""`.
+- `python3 -m pytest tests/test_lane_rule_break_detection.py tests/test_run_finding_spec_transcription.py tests/test_host_capability_extension.py tests/test_ipd_exec_finding_codes.py tests/test_inlane_retirement_lands.py tests/test_finalize_stale_plan_path.py tests/test_finidem_reusable_not_finalized.py -o addopts=""`.
 - Bare `python3 -m pytest`, baseline re-derived in the lane before any edit.
 
 ## Spec / documentation sync
 
-N/A: spec `25kzda` 5.5/5.7 and the Section 4.2 action cells are amended by Order 01.
+No spec edit: spec `25kzda` 5.5/5.7 and the Section 4.2 action cells were amended by Order 01 (`tb6lw3`, executed). Under OQ-02's default answer the `RUN-COMMIT-GATEWAY` row stays unbound, so the spec's 4.2 `binding` statements ("`RUN-COMMIT-GATEWAY` is unbound and fails closed") remain true. If OQ-02 is answered "bind it", that sentence becomes false and this plan must add the spec to Scope-Paths and amend it in the same change.
 
 ## Open questions
 
@@ -111,35 +122,42 @@ N/A: spec `25kzda` 5.5/5.7 and the Section 4.2 action cells are amended by Order
 - Blocking: no
 - Status: open
 - Owner: executor of E-03
-- Resolution or deferral rationale: Measure at execution on a real lane and record the time. The runner already runs the full suite at merge, so a hook pass over changed files is expected to be small; if it is not, run it once over `lane_starting_head..HEAD` instead of per commit and record that choice.
+- Resolution or deferral rationale: Measure at execution on a real lane and record the time. Review (PR-900) already changed the design to ONE hook pass over the lane's net change in a disposable worktree, not one per commit, so the cost is one pre-commit run (a self-commit's pass was measured at 10.6s in `commit_lock`) plus a worktree checkout, beside a full-suite merge gate. Record the measured time in V-03; if it is materially larger, say so and keep the design.
 - Carrier-Declined: answered inside this plan by its executor, whose V-item evidence records the measurement and the choice; nothing outlives the plan.
+
+### OQ-02: Should `RUN-COMMIT-GATEWAY` be bound to the hook re-run, or stay unbound with the re-run recorded as a partial detector?
+
+- Blocking: no
+- Status: resolved
+- Owner: plan author
+- Resolution or deferral rationale: RESOLVED at review (2026-10-11): stay unbound, record the partial detector. The code's pass criterion is about HOW a commit was made (argv, no `--no-verify`), which the hook re-run cannot observe; it detects only bypasses whose content the hooks refuse. `run_evidence` already records that binding a code to a weaker predicate "would be exactly the fail-open error", and `RUN-NO-PUSH` was retired for the same reason. Keeping it unbound costs nothing the maintainer asked for: the 2026-10-07 ruling (F-04) asks for DETECTION and a fix-it turn, which E-03 delivers without the finding code. Reversible: a later plan with a captured commit gateway binds it.
 
 ## Validation and cross-check (verify before reporting done)
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'.
 
 - [ ] V-01 validates E-01
-  - Required evidence: paste the predicate's findings over the scratch range.
+  - Required evidence: paste the predicate's findings over the scratch range of E-01's six cases, showing exactly the three untooled ones reported and the tooled change, the `aw ipd set superseded` retirement and a range containing a `lifecycle(<id6>): finalize` commit NOT reported. Paste one `aw check` run over a staged hand edit showing `check.status-untooled` still fires, to prove the refactor kept the commit-scoped caller.
   - Observed evidence:
   - Result: pending
 
 - [ ] V-02 validates E-02
-  - Required evidence: paste the delivered fix-it prompt for the hand `git mv` case and the item's final status after the agent reverted.
+  - Required evidence: paste the delivered fix-it prompt for the hand `git mv` case (it must name the plan and must NOT tell the agent to run `aw ipd finalize`) and the item's final status after the agent reverted. Paste the tooled-retirement case ending `RETIRED_STATUS` with no fix-it turn, the hand-retirement case receiving one, and `tests/test_inlane_retirement_lands.py`, `tests/test_finalize_stale_plan_path.py` and `tests/test_finidem_reusable_not_finalized.py` passing.
   - Observed evidence:
   - Result: pending
 
 - [ ] V-03 validates E-03
-  - Required evidence: paste the fix-it prompt with hook output for the `--no-verify` case, the clean case showing no finding, the no-pre-commit case showing "unavailable", and the measured hook-pass time for OQ-01.
+  - Required evidence: paste the fix-it prompt with hook output for the `--no-verify` content case and for the `--no-verify` move-into-`executed/` case (refused by the staged-index gate), the clean case showing no finding, the no-pre-commit and unbuildable-environment cases showing "unavailable", `git status --porcelain` of the lane before and after the check (identical), and the measured hook-pass time on this repository's own config for OQ-01.
   - Observed evidence:
   - Result: pending
 
 - [ ] V-04 validates E-04
-  - Required evidence: paste `RUN-COMMIT-GATEWAY`'s binding and the passing transcription test.
+  - Required evidence: paste `RUN-COMMIT-GATEWAY`'s `binding`, `predicates` and `waiting_on` as read from `run_evidence.RUN_FINDING_CODES` at runtime, `run_evidence.validate_finding_table().ok`, and the passing runs of `tests/test_run_finding_spec_transcription.py`, `tests/test_host_capability_extension.py` and `tests/test_ipd_exec_finding_codes.py`.
   - Observed evidence:
   - Result: pending
 
 - [ ] V-05 validates E-05
-  - Required evidence: paste the passing module runs with per-test counts and the bare-suite summary line.
+  - Required evidence: paste the passing module run (per-test lines, `-o addopts=""`) showing every scripted case on both hosts, and the bare `python3 -m pytest` summary line against the baseline re-derived in the lane before any edit.
   - Observed evidence:
   - Result: pending
 
@@ -148,4 +166,6 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 - Size assessment: standard
 - Cohesion rationale: not required
 
-Requires explicit human approval before execution. Commit only the Scope-Paths through `aw commit <plan> -- <paths>`; never push. Paste actual runner output into each V-item.
+Requires explicit human approval before execution. Execute only after `mcbph5` has executed (`- Item-Dependencies:`), because every send-back uses its `build_fix_it_notice`. Commit through `aw commit <plan> -- <paths>`, never `git add -A`, and never push. Scope-Paths is a declaration: an out-of-scope edit is made and then justified with `--scope-reason` at finalize, never a reason to stop. PASTE THE ACTUAL RUNNER OUTPUT into each V-item; a summary you did not produce is not evidence.
+
+LIFECYCLE TRANSITION. Do not claim done until `aw ipd lint --phase pre-transition` conforms and every `V-*` carries observed evidence. Under `aw oc run` / `aw agy run` the RUNNER owns begin and finalize, so do NOT run `aw ipd finalize` yourself; a HAND execution finishes with `aw ipd finalize <plan> --actor <agent/model> --message <summary> --apply`. Never hand-edit `- Status:` and never hand-`git mv` into `executed/`, which is the exact behavior this plan detects. This plan must not set backlog `coivul` to `done`.
