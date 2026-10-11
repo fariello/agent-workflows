@@ -6,7 +6,7 @@
 - Scope: Orchestrate three children that together implement decisions D1 through D8. `urv602` records the machine in `driver.lock` and adds the one plan-scoped three-valued live-holder predicate, changing no refusal. `e25iy9` deletes the token and the location guess, places the worker-label and holder checks inside all three core transition functions, adds the recorded `--take-over` override, and amends specs `7ckptx` and `llbr2b`. `m47znv` emits the advisory lane nudge D1 requires, refusing nothing. This plan holds ORCHESTRATION ONLY: every deliverable belongs to a child, and this file contributes no code, no test, no record and no spec edit of its own. EXCLUDES, in every child without exception: the worker-label check's semantics (D1 keeps them verbatim), the opt-in OS sandbox (D7 keeps it as optional isolation), every other anti-malice mechanism in the tree (D5 hands those to backlog `ariaau`), and any attempt to make the new check a hard boundary rather than guidance.
 - Scope-Paths: .aw/records/plans/pending/20260930-lifegate-00-u4glub-replace-the-location-plus-token-lifecycle-gate-with-one-plan.ipd.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Coverage: pass
 - Coverage-Fingerprint: 471fccd8c79f3174ba991b1e1d902c52ccd1f0e6fc31e6d05355cfec20beaec4
@@ -21,9 +21,9 @@
 - Highest E allocated: 03
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: u4glub
-- Approval: 2026-10-08, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-11 executed (aw agy run model=Gemini-3.8-Flash-High): RETIRED as the orchestrator rollup step of a runner Set completion, not executed by an agent: every child of Set lifegate reached executed, so the runner (run run-20261011T141448Z-2272908) retired this Order-0 plan as bookkeeping. Its own E-*/V-* items were NOT performed; the runner superseded them by enforcing the ordering, the isolation and the per-child merge gate. Justifying children: urv602, e25iy9, m47znv.
 - 2026-10-08 approved (aw set): status set to approved
 - 2026-10-07 /plan-review (opencode uri/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005 (all fixed; record `.aw/records/reviews/20261007-lifegate-00-u4glub-replace-the-location-plus-token-lifecycle-gate-with-one-plan.review.md`)
 - 2026-10-07 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-001..PR-005 fixed
@@ -73,6 +73,9 @@ refuses only when a live run other than the caller's own holds this plan, or whe
 determined. Nothing else refuses. No path is consulted and no secret is presented.
 
 ## Detailed Implementation Checklist (TODO)
+
+
+> Its own E-*/V-* items were NOT performed; the runner superseded them by enforcing the ordering, the isolation and the per-child merge gate.
 
 Execution-state rule: mark an `E-*` item complete only after performing the action. That mark is not validation. Right-sizing rule: each E-item must address one concern and be executable in one focused pass; split when an E-item names multiple distinct deliverables or independent test-surfaces.
 
