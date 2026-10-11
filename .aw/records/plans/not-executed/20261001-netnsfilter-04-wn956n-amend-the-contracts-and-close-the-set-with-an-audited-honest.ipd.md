@@ -6,7 +6,7 @@
 - Scope: Amend spec `25kzda` 5.2, `host_sandbox_profile`'s module docstring, and the operator documentation for the hardened profile to state exactly what the Set proved and what it did not, and AUDIT the end state for overclaim by running commands rather than reading plans. Records, documentation and verification only; no product behavior changes.
 - Scope-Paths: .aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md, agent_workflows/host_sandbox_profile.py, docs/runner-profiles.md, CHANGELOG.md
 - Item-Dependencies: executed:2j4pd0
-- Status: reviewed
+- Status: not-executed
 - Readiness: go-pending-approval
 - From-Backlog: sv9ce4
 - From-Spec: 25kzda
@@ -19,6 +19,7 @@
 - Id: wn956n
 
 ## Workflow history
+- 2026-10-11 not-executed (aw set): RETIRED 2026-10-11 by maintainer decision (option a): the network-boundary work stops here. No incident motivated it (zero agent git push commands found in 174 session logs; the requirement came from spec 25kzda 5.2's open host question, carried by backlog sv9ce4, low/feature). Costs judged to outweigh the benefit: namespace setup varies by host (WSL, containers, macOS unsupported), an egress allow list breaks legitimate agent traffic, and a parent-owned broker adds runner surface. The executed probe (nxh5s4) and broker (rozdkp) stay, unused by default. No replacement.
 - 2026-10-11 reviewed (opencode/its_direct/pt3-claude-opus-5.5-1m-us): /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-1001, PR-1002, PR-1003, PR-1004, PR-1005, PR-1006. Reviewed at HEAD d96a0ea68. Re-quoted the docstring sentence that no longer exists; E-02 reconciles 5.2's existing x2dwu5/pi3bk8 paragraphs; operator docs follow 2j4pd0's allow-list-conditional design and measured limits; audit grep fixed to -i -F over four files incl. CHANGELOG. Record: .aw/records/reviews/20261001-netnsfilter-04-wn956n-amend-the-contracts-and-close-the-set-with-an-audited-honest.review.md.
 - 2026-10-07 to-review (aw set): returned to review: Set-level validation sweep owned by wn956n E-05/V-05; coverage pass recorded; open questions are non-blocking
 - 2026-10-06 draft (aw set): demoted to-review -> draft: returned to authoring by gradcover 52opph: uncovered obligation: Bare pytest run green with actual summary line pasted

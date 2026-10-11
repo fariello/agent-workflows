@@ -6,7 +6,7 @@
 - Scope: Wire the egress boundary into the hardened execution profile so a confined worker reaches allow-listed destinations through the broker and nothing else, create the namespace in the PARENT, drop `CAP_NET_ADMIN` before handing off, and prove non-evadability by attempting teardown from inside and verifying refusal from OUTSIDE. Hardened remains opt-in and fails closed where the capability is absent.
 - Scope-Paths: agent_workflows/host_sandbox_profile.py, agent_workflows/oc_runipd.py, agent_workflows/egress_policy.py, agent_workflows/runner_profiles.py, tests/test_host_sandbox_profile.py, tests/test_egress_confinement.py, tests/test_runner_profiles.py
 - Item-Dependencies: executed:rozdkp
-- Status: reviewed
+- Status: not-executed
 - Readiness: no-go
 - From-Backlog: sv9ce4
 - From-Spec: 25kzda
@@ -19,6 +19,7 @@
 - Id: 2j4pd0
 
 ## Workflow history
+- 2026-10-11 not-executed (aw set): RETIRED 2026-10-11 by maintainer decision (option a): the network-boundary work stops here. No incident motivated it (zero agent git push commands found in 174 session logs; the requirement came from spec 25kzda 5.2's open host question, carried by backlog sv9ce4, low/feature). Costs judged to outweigh the benefit: namespace setup varies by host (WSL, containers, macOS unsupported), an egress allow list breaks legitimate agent traffic, and a parent-owned broker adds runner surface. The executed probe (nxh5s4) and broker (rozdkp) stay, unused by default. No replacement.
 - 2026-10-11 reviewed (opencode/its_direct/pt3-claude-opus-5.5-1m-us): /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): REVIEWED - OPEN QUESTIONS; PR-800, PR-801, PR-802, PR-803, PR-804, PR-805, PR-806. Reviewed at HEAD 0dd8c3a3e. Measured a host AF_UNIX escape (systemd-run --user reached the host netns) the original design left open: new E-07 socket mask, E-03 full capability drop, new E-08 in-namespace relay, E-04 engages only with a declared allow list. OQ-04 (blocking, maintainer): where the allow list is declared. Review record .aw/records/reviews/20261001-netnsfilter-03-2j4pd0-confine-a-worker-in-the-egress-boundary-and-prove-it-survive.review.md.
 - 2026-10-07 to-review (aw set): returned to review: Set-level validation sweep owned by wn956n E-05/V-05; coverage pass recorded; open questions are non-blocking
 - 2026-10-06 draft (aw set): demoted to-review -> draft: returned to authoring by gradcover 52opph: uncovered obligation: Bare pytest run green with actual summary line pasted

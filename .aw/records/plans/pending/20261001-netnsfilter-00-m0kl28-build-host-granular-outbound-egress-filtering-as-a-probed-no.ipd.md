@@ -8,9 +8,9 @@
 - Item-Dependencies: none
 - Status: approved
 - Readiness: go-pending-approval
-- Coverage: pass
-- Coverage-Fingerprint: a2cc304d9eb745094864f11d9f794247cd9612cdbab744dafde75d455e5f726c
-- Coverage-Checked: 2026-10-07 by uri/its_direct/pt3-claude-opus-5.5-1m-us
+- Coverage: fail
+- Coverage-Fingerprint: 0873f75ad43cc59e049712da86586bd40184bcab2960152ebafaaa29865087bc
+- Coverage-Checked: 2026-10-11 by uri/its_direct/pt3-claude-opus-5.5-1m-us
 - From-Backlog: sv9ce4
 - From-Spec: 25kzda
 - Work-Kind: feature
@@ -23,6 +23,14 @@
 - Approval: 2026-10-08, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-11 coverage fail (aw oc run): fingerprint 0873f75ad43c, model uri/its_direct/pt3-claude-opus-5.5-1m-us
+- 2026-10-11 coverage fail (aw oc run): fingerprint b46b0ab10a6a, model uri/its_direct/pt3-claude-opus-5.5-1m-us
+- 2026-10-11 coverage fail (aw oc run): fingerprint cdf16d40ee59, model uri/its_direct/pt3-claude-opus-5.5-1m-us
+- 2026-10-11 coverage fail (aw oc run): fingerprint 0ed0fd14d09d, model uri/its_direct/pt3-claude-opus-5.5-1m-us
+- 2026-10-11 coverage fail (aw oc run): fingerprint 0ed0fd14d09d, model uri/its_direct/pt3-claude-opus-5.5-1m-us
+- 2026-10-11 re-scope (opencode its_direct/pt3-claude-opus-5.5-1m-us): children 2j4pd0 and wn956n retired not-executed by maintainer decision (option a); their child-table rows and checklist items E-03/E-04, V-03/V-04 removed per 2pv5xd OQ-02; completion criteria that depended on them marked WITHDRAWN; the Set-level sweep is recorded as not performed.
+- 2026-10-11 same-status (aw set): child wn956n retired not-executed (maintainer decision, option a; see the 2j4pd0 line).
+- 2026-10-11 same-status (aw set): child 2j4pd0 retired not-executed: maintainer decision (option a), 2026-10-11. No observed agent push motivated the work; the costs of a runner-level network gate outweigh the benefit here. The executed probe (nxh5s4) and broker (rozdkp) stay, unused by default. No replacement.
 - 2026-10-08 approved (aw set): status set to approved
 - 2026-10-07 reviewed (aw set): /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005, PR-006. Reviewed at HEAD 2f90a295f. E-01 no longer claims a parent-owned baseline; the real-remote git completion criterion is replaced by child 2j4pd0 E-05's hermetic same-port test; V-01..V-04 demand pasted status, post-transition lint and quoted child evidence; gate corrected for sv9ce4 being open and gains the scope-fence wording; OQ-02 (non-blocking, maintainer) notes wcbpqf's text does not yet carry it. Review record .aw/records/reviews/20261001-netnsfilter-00-m0kl28-build-host-granular-outbound-egress-filtering-as-a-probed-no.review.md.
 - 2026-10-07 to-review (aw set): returned to review: Set-level validation sweep owned by wn956n E-05/V-05; coverage pass recorded; open questions are non-blocking
@@ -64,26 +72,14 @@ and verify children and produce no artifact of their own.
   - Expected outcome: Destination allow-list policy type and parent-owned broker implemented; policy refuses unlisted destination in unit test.
   - Execution state: pending
 
-- [ ] E-03 CONFIRM 2j4pd0 REACHED executed
-  - Depends on: E-02
-  Confirm child 03 (`2j4pd0`, confine worker in egress boundary and prove non-evadability) reached `executed`. Confirms boundary is wired into hardened profile, drops `CAP_NET_ADMIN`, and teardown attempt is refused from outside the sandbox.
-  - Expected outcome: Confined worker in egress boundary verified from outside the sandbox.
-  - Execution state: pending
-
-- [ ] E-04 CONFIRM wn956n REACHED executed
-  - Depends on: E-03
-  Confirm child 04 (`wn956n`, amend contracts and audit against overclaim) reached `executed`. Confirms the Set's end state does not overclaim, amends contracts, and closes the Set honestly.
-  - Expected outcome: The Set closes with a capability that claims destination-granular filtering with a declared allow list, and nowhere claims a universal push boundary.
-  - Execution state: pending
-
 ## Child IPDs, sequence, and dependencies
 
 | Order | Id | File | What it does | Depends on |
 |---|---|---|---|---|
 | 01 | `nxh5s4` | `20261001-netnsfilter-01-nxh5s4-probe-host-granular-egress-filtering-by-attempt-two-sided-an.ipd.md` | Adds the hermetic two-sided executed probe and the capability field, reported and gating nothing | none |
 | 02 | `rozdkp` | `20261001-netnsfilter-02-rozdkp-build-the-egress-policy-and-the-parent-owned-filtering-broke.ipd.md` | Adds the destination allow-list policy type and the parent-owned filtering broker that enforces it | executed:nxh5s4 |
-| 03 | `2j4pd0` | `20261001-netnsfilter-03-2j4pd0-confine-a-worker-in-the-egress-boundary-and-prove-it-survive.ipd.md` | Wires the boundary into the hardened execution profile, drops `CAP_NET_ADMIN`, and proves non-evadability from outside | executed:rozdkp |
-| 04 | `wn956n` | `20261001-netnsfilter-04-wn956n-amend-the-contracts-and-close-the-set-with-an-audited-honest.ipd.md` | Amends spec `25kzda` 5.2 and the module docstring, and audits the end state for overclaim | executed:2j4pd0 |
+
+RETIRED CHILDREN (2026-10-11, maintainer decision, option a): Order 03 `2j4pd0` (worker confinement) and Order 04 `wn956n` (contract amendment and Set-level audit) were retired `not-executed` and removed from this table, with their checklist rows E-03/E-04 and V-03/V-04, as `2pv5xd` OQ-02 requires. The work they owned is NOT reassigned: it is deliberately not being done. Their retirement is recorded in each plan under `plans/not-executed/` and in this plan's workflow history.
 
 The order is forced by evidence dependency and not by preference. The probe (01) must exist before a
 policy is worth enforcing, because a policy on a host that cannot create the namespace is
@@ -95,22 +91,12 @@ specific failure this Set guards against is a contract written to a hoped-for ca
 ## Completion criteria (the whole Set is done only when)
 
 - A capability on `HostSandboxCapabilities` reports destination-granular egress filtering, set True
-  only by an executed two-sided probe, with a `probe_notes` entry naming its limits.
+  only by an executed two-sided probe, with a `probe_notes` entry naming its limits. OWNER: `nxh5s4` (executed).
 - The probe returns False, with an explanatory note and no exception, on a host that cannot create a
-  network namespace. Fail-closed is a REQUIREMENT of done, not a degraded outcome.
-- A confined worker can reach an allow-listed destination and cannot reach a denied one on the SAME
-  port, demonstrated by child 03 E-05/V-05 with a REAL confined subprocess against PARENT-HELD
-  endpoints (hermetic, no external network). A real `git ls-remote` against a real remote was
-  measured at authoring (research `akmzyq` Findings 3 and 4) and is context, not a gate any child
-  re-runs, because a test that needs the public internet is not a reproducible acceptance check.
-- The confined worker's attempt to tear down its own boundary is REFUSED, verified from outside the
-  sandbox by the parent.
-- Spec `25kzda` 5.2 and `host_sandbox_profile`'s module docstring state what is now probed and what
-  remains unproven, with the allow-list and proxy-trust limits named.
-- `python3 -m pytest` is green, `aw ipd lint` conforms over every plan in the Set, and the audit in
-  child 04 reports no artifact claiming push denial.
+  network namespace. Fail-closed is a REQUIREMENT of done, not a degraded outcome. OWNER: `nxh5s4` (executed).
+- WITHDRAWN 2026-10-11 with children 03 and 04 (retired not-executed): the same-port confined-worker demonstration, the teardown-refusal proof, the contract amendment, and the Set-level sweep (bare suite, lint over the Set, overclaim audit) are not required. That spec note is ALREADY DONE, not owed: spec `25kzda` 5.2 was amended on 2026-10-11 in the same commit that retired the children (sentence beginning "DECIDED 2026-10-11 (maintainer): that half is NOT being built."), recorded by `aw specs note`.
 - No action is gated: `ACTION_CLASSES` is unchanged and `RUNNER_ACTION_TO_CONTRACT_ACTION` stays
-  empty. Enforcement is a separate decision with its own carrier.
+  empty. Enforcement is a separate decision with its own carrier. OWNER: `nxh5s4` and `rozdkp` (both executed; neither gates an action).
 
 ## Cross-IPD validation
 
@@ -127,18 +113,7 @@ specific failure this Set guards against is a contract written to a hoped-for ca
 - NO CHILD MAY ADD A FINDING CODE. `run_evidence.validate_finding_table` hard-fails a count other
   than 12 with `RC-COUNT`. Backlog `oq05nc`'s ordering rule allows a code only after a probe exists,
   and whether THIS probe satisfies that gate is a maintainer decision, not a child's to assume.
-- CHILD 03 MUST NOT WEAKEN CHILD 01'S FAIL-CLOSED PATH to make confinement reachable on a host where
-  the namespace cannot be created. The correct outcome there is that hardened egress filtering is
-  unavailable and says so, exactly as `select_execution_profile` already raises
-  `HardModeUnavailableError` rather than degrading silently.
-- THE CAPABILITY-DROP IS LOAD-BEARING AND IS CHILD 03'S, NOT A DETAIL. Research `akmzyq` Finding 6
-  measured the naive arrangement being torn down in ONE command (`FLUSH SUCCEEDED`), and the correct
-  arrangement refusing it (`flush rc=4 ... Permission denied`). A child that confines a worker while
-  leaving it `CAP_NET_ADMIN` has built a convention and must not describe it as a boundary.
-- EVERY TEARDOWN CHECK MUST BE VERIFIED FROM OUTSIDE the sandbox. Asking the confined process whether
-  it is still confined is not evidence. Research `akmzyq` Finding 6 records a measurement that
-  printed exactly the wrong verdict because a pipeline masked an exit status, and it would have
-  argued against building a mechanism that works.
+- WITHDRAWN 2026-10-11 (child 03 `2j4pd0` retired not-executed): three constraints that bound the worker-confinement child are moot because no worker is confined. They required (i) that child 03 keep child 01's fail-closed path, (ii) that the confined worker lose `CAP_NET_ADMIN` (research `akmzyq` Finding 6 measured the naive arrangement torn down in one command), and (iii) that every teardown check be verified from outside the sandbox. They are kept here as the record of what any future attempt must satisfy, not as live obligations.
 
 ## Deferred / out of scope (with reason)
 
@@ -180,18 +155,9 @@ specific failure this Set guards against is a contract written to a hoped-for ca
 
 ## Required tests / validation
 
-OWNER: every check below is performed by Order 04 `wn956n`, the last child (its E-05 runs the full validation sweep and its V-05 pastes each output: the bare suite, `aw ipd lint` over the Set, the `aw check` delta, `aw sanitize --agent`, and `aw host capabilities opencode`). This plan runs none of them.
+NONE OWED BY THIS PLAN OR ANY CHILD (re-scoped 2026-10-11). The Set-level sweep was owned by Order 04 `wn956n`, which was retired not-executed by maintainer decision, so no Set closeout sweep is performed. The two shipped children validated themselves: `nxh5s4` and `rozdkp` are `executed` with their own pasted suite, lint and sanitizer evidence. This plan's only remaining work is V-01/V-02 (confirm those two reached `executed`), after which the runner retires it.
 
-- `python3 -m pytest` run BARE, green, with the actual summary line pasted. Bare is required: the
-  configured `addopts` already supply `-q -n auto --dist=worksteal` and the fast-subset markers.
-- `aw ipd lint` reports conforming over all five plans in Set `netnsfilter`.
-- `aw check` reports no NEW finding naming an artifact this Set touched. JUDGED AS A DELTA, not by
-  exit code: it exits nonzero today on pre-existing findings this Set does not own, so capture the
-  count and rule breakdown before and after and re-derive both at execution time, since the
-  population drifts with every plan authored in the repository.
-- `aw sanitize --agent` exits zero. This Set pastes probe output and namespace command output, which
-  is a realistic leak vector for host paths.
-- `aw host capabilities opencode` run and its ACTUAL output pasted, showing the new row and its note.
+Originally specified, and withdrawn with `wn956n`: a bare `python3 -m pytest`, `aw ipd lint` over the Set, an `aw check` delta, `aw sanitize --agent`, and `aw host capabilities opencode` output.
 
 ## Open questions
 
@@ -230,6 +196,12 @@ OWNER: every check below is performed by Order 04 `wn956n`, the last child (its 
   in `aw attention`, so the carrier is visible, but the maintainer should add this question to it
   (or file a fresh carrier) when ruling on `denypush`, since nothing in its text yet mentions it.
 
+## Coverage findings
+
+- "- A capability on `HostSandboxCapabilities` reports destination-granular egress filtering, set True"
+- "- The probe returns False, with an explanatory note and no exception, on a host that cannot create a"
+- "- No action is gated: `ACTION_CLASSES` is unchanged and `RUNNER_ACTION_TO_CONTRACT_ACTION` stays"
+
 ## Validation and cross-check (verify before reporting the Set complete)
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
@@ -241,16 +213,6 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 
 - [ ] V-02 validates E-02
   - Required evidence: The pasted `- Status: executed` line of `rozdkp` and its post-transition lint result, plus its V-01 (unlisted destination DENIED) and V-03 (broker decision log, parent process) evidence QUOTED from its record.
-  - Observed evidence:
-  - Result: pending
-
-- [ ] V-03 validates E-03
-  - Required evidence: The pasted `- Status: executed` line of `2j4pd0` and its post-transition lint result, plus its V-03 (teardown REFUSED with the parent's own unpiped view of the rules afterwards) and V-05 (same-port partition, or the stated skip reason) evidence QUOTED from its record.
-  - Observed evidence:
-  - Result: pending
-
-- [ ] V-04 validates E-04
-  - Required evidence: The pasted `- Status: executed` line of `wn956n` and its post-transition lint result, plus its V-02 (spec `25kzda` 5.2 diff), V-04 (overclaim audit) and V-05 (bare-suite summary line, `aw check` delta, `aw sanitize --agent` exit 0) evidence QUOTED from its record.
   - Observed evidence:
   - Result: pending
 

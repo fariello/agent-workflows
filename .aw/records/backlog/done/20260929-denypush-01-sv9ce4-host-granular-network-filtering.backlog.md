@@ -1,5 +1,5 @@
 - Id: sv9ce4
-- Status: open
+- Status: done
 - Graduated-To: netnsfilter
 - Set: denypush
 - Priority: low
@@ -7,6 +7,7 @@
 - Summary: Build host-granular outbound network filtering (netns plus filtering proxy), the only mechanism that can deny a git push without also denying the model API
 
 ## Workflow history
+- 2026-10-11 done (aw set): Closed as decided-against (maintainer, 2026-10-11, option a): host-granular network filtering stops after the probe (nxh5s4) and broker (rozdkp); the worker confinement (2j4pd0) and contract amendment (wn956n) were retired not-executed. Basis: no observed agent push (0 'git push' commands in 174 session logs), the costs of a runner-level network gate (per-host fragility, allow-list breakage of legitimate traffic, new runner surface) outweigh the benefit for this repository. Push protection is to be discussed separately (agent identity, PR requirements). Spec 25kzda 5.2 records that the push-denial host requirement stays open by decision.
 - 2026-10-09 note (aw backlog): Research akmzyq Finding 0 supersedes the blocked premise: user namespaces succeed with rc=0 on a non-nested namespace host
 - 2026-10-06 open (aw set): m0kl28 returned to authoring: uncovered obligation: Bare pytest run green with actual summary line pasted; re-run graduation to complete the handoff
 - 2026-10-01 graduated (aw backlog): graduated: 2j4pd0, m0kl28, nxh5s4, rozdkp, wn956n
