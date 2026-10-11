@@ -6,7 +6,7 @@
 - Scope: ORCHESTRATION ONLY. This plan sequences five children and contributes no implementation, no test and no deliverable of its own. Every artifact is owned by exactly one child and named in the child table below. IN: the dependency order, the Set-level completion criteria, and the cross-child consistency checks. OUT: everything the children do, which is the shared refusal primitive (Order 01), the two fail-closed validators (Order 02), the six resolver-bypass sites (Order 03), and the shared read/write helper split plus the remaining read-class callers and the duplication retirement (Order 04), and the seventh bypass site `cli._nv_backend_args` found at review (Order 05). This plan also does NOT reopen the no-climb decision `lmyeas` OQ-01 settled, and does NOT add a refusal to any write-class verb.
 - Scope-Paths: .aw/records/plans/pending/20261002-dirsilent-01-i6mby8-add-the-shared-non-surveyable-root-refusal-primitive-every-r.ipd.md, .aw/records/plans/pending/20261002-dirsilent-02-jei45f-convert-the-two-fail-closed-validators-specs-check-and-backl.ipd.md, .aw/records/plans/pending/20261002-dirsilent-03-sjsb04-route-the-six-resolver-bypass-sites-through-resolve-verb-rep.ipd.md, .aw/records/plans/pending/20261002-dirsilent-04-rlhmt9-split-the-shared-read-write-helpers-and-convert-the-remainin.ipd.md, .aw/records/plans/pending/20261007-dirsilent-05-pua92o-route-the-noun-verb-backend-adapter-through-resolve-verb-rep.ipd.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Coverage: pass
 - Coverage-Fingerprint: c757ac4e13ec027f412a09afa1109268f0b627c0c8dcbf0d6e78a7dc51f4abf1
@@ -20,9 +20,9 @@
 - Highest E allocated: 05
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: axozpe
-- Approval: 2026-10-08, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-11 executed (aw agy run model=Gemini-3.8-Flash-High): RETIRED as the orchestrator rollup step of a runner Set completion, not executed by an agent: every child of Set dirsilent reached executed, so the runner (run run-20261011T141448Z-2272908) retired this Order-0 plan as bookkeeping. Its own E-*/V-* items were NOT performed; the runner superseded them by enforcing the ordering, the isolation and the per-child merge gate. Justifying children: i6mby8, jei45f, sjsb04, rlhmt9, pua92o.
 - 2026-10-08 approved (aw set): status set to approved
 - 2026-10-07 reviewed (opencode uri/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-005 fixed (child pua92o added)
 - 2026-10-07 coverage pass (aw oc run): fingerprint c757ac4e13ec, model uri/its_direct/pt3-claude-opus-5.5-1m-us
@@ -44,6 +44,9 @@
 Make every read-class repo-scoped verb tell the truth about a directory it cannot survey, and make a bare invocation from a project subdirectory climb like its siblings. At the end of this Set no verb reports `conforms`, `clean` or `0 findings` for a tree it never examined, the refusal has exactly one definition in the package, and write-class verbs are exactly as safe as they are today.
 
 ## Detailed Implementation Checklist (TODO)
+
+
+> Its own E-*/V-* items were NOT performed; the runner superseded them by enforcing the ordering, the isolation and the per-child merge gate.
 
 Execution-state rule: mark an `E-*` item complete only after performing the action. That mark is not validation. Right-sizing rule: each E-item must address one concern and be executable in one focused pass; split when an E-item names multiple distinct deliverables or independent test-surfaces. Accepted execution states: blocked, failed, pending, performed; terminal gate demands 'performed'.
 
