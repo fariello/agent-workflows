@@ -41,56 +41,56 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: confirm the ruling and capture a baseline
 
-- [ ] E-01 CONFIRM THAT A HUMAN MADE THE DELETE RULING BEFORE CHANGING ANYTHING. Read this plan's own front matter, `## Open questions` and `## Workflow history`. Proceed ONLY if OQ-01 reads `- Status: resolved` with a recorded DELETE ruling attributed to the maintainer, AND `- Status:` is `approved`, AND a `- Approval:` line is present (the schema allows that field only on a human `approved`, never on `auto-approved`, per `ipd_schema` "Approval iff Status is approved (auto-approved does NOT carry human Approval)"). If OQ-01 is not resolved to DELETE (or the ruling is KEEP), or the status is `auto-approved`, or there is no `- Approval:` line, mark this item `blocked`, change no file, and report that the delete ruling belongs to the maintainer (backlog `e6zeta`: "It must NOT be closed by an agent picking a side"). This is the in-turn backstop; the primary guard is OQ-01's `- Blocking: yes`, which the lint gate enforces before any turn is dispatched.
+- [x] E-01 CONFIRM THAT A HUMAN MADE THE DELETE RULING BEFORE CHANGING ANYTHING. Read this plan's own front matter, `## Open questions` and `## Workflow history`. Proceed ONLY if OQ-01 reads `- Status: resolved` with a recorded DELETE ruling attributed to the maintainer, AND `- Status:` is `approved`, AND a `- Approval:` line is present (the schema allows that field only on a human `approved`, never on `auto-approved`, per `ipd_schema` "Approval iff Status is approved (auto-approved does NOT carry human Approval)"). If OQ-01 is not resolved to DELETE (or the ruling is KEEP), or the status is `auto-approved`, or there is no `- Approval:` line, mark this item `blocked`, change no file, and report that the delete ruling belongs to the maintainer (backlog `e6zeta`: "It must NOT be closed by an agent picking a side"). This is the in-turn backstop; the primary guard is OQ-01's `- Blocking: yes`, which the lint gate enforces before any turn is dispatched.
   - Depends on: none
   - Expected outcome: either the quoted resolved OQ-01 ruling plus the `- Status: approved` and `- Approval:` lines, and the plan proceeds; or a `blocked` item with no file changed.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 CAPTURE THE BASELINE the later bars compare against: run the bare suite as `python3 -m pytest` and record its summary line plus any failing node ids; run `aw check` and record its violation set; run `aw specs check` and record its result. Do this BEFORE the first edit, since the suite's size drifts between runs on this tree and the bars below are by node id, not by total.
+- [x] E-02 CAPTURE THE BASELINE the later bars compare against: run the bare suite as `python3 -m pytest` and record its summary line plus any failing node ids; run `aw check` and record its violation set; run `aw specs check` and record its result. Do this BEFORE the first edit, since the suite's size drifts between runs on this tree and the bars below are by node id, not by total.
   - Depends on: E-01
   - Expected outcome: three recorded baselines (suite summary and failing node ids, `aw check` violations, `aw specs check` result).
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: remove the mechanism from the code
 
-- [ ] E-03 REMOVE THE PERMISSION HALF FROM `agent_workflows/lane_containment.py`. Delete: the `PERMISSION_TIMEOUT` constant and its `#:` comment block EXCEPT its `CONSEQUENCE, stated plainly:` and `RESIDUAL LIMITS:` paragraphs, which MOVE (reworded only as far as needed to stop naming the deleted constant) onto `MAX_TURN_TIMEOUT`'s `#:` block, because F-7's limits survive the deletion and those paragraphs are the only code-side statement of them (that `MAX_TURN_TIMEOUT` and the stall watchdog are the only bounds on a permission deadlock in a turn the R4.1 denial does not cover, the non-isolated opencode turn and every antigravity turn). Move them in whatever wording they carry AT EXECUTION TIME: sibling plan `thzrpo` (same Set, Order 2) rewrites the `RESIDUAL LIMITS:` paragraph, so re-read it rather than restoring the text quoted here. Also delete `BOUND_PERMISSION`; the `permission_timeout` keyword of `TurnBoundWatch.__init__` with its normalization and negative clamp; `_permission_pending_since`; `note_permission_request`; the permission branch of `TurnBoundWatch._expired`; and `self._lock`, whose only users are the three permission-state accesses being removed (keep `threading`, which `_stop` and `_thread` still use). Simplify what then depends only on one bound: the `check_interval` clamp's `candidates` list becomes `MAX_TURN_TIMEOUT` alone (keep the `max(0.005, min(check_interval, bound / 4.0))` shape, since injected short test bounds still need it), and `enabled` becomes `self.max_turn_timeout > 0`. Rewrite the prose that names the permission bound so it is true afterwards: the `TurnBoundWatch` docstring ("enforcing `MAX_TURN_TIMEOUT` and, when armed, `PERMISSION_TIMEOUT`" and the "TWO BOUNDS DIFFER IN RESET SEMANTICS" list), the `# ---- R4.4: the two driver-side bounds` header and its "Both are in-code constants" sentence, the `BOUND_PERMISSION`/`BOUND_MAX_TURN` comment that says a post-mortem can tell "a permission deadlock from an over-long turn from a silent stall", the `bound_expiry_record` docstring's same three-way sentence, `CONTAINMENT_LAYERS_WITHOUT_HOST_DENIAL`'s "(and PERMISSION_TIMEOUT when armed)", and `parse_host_ceiling_seconds`'s "the same reasoning R4.4b applies to the permission detector". Add, on `MAX_TURN_TIMEOUT`'s `#:` block, ONE dated sentence recording that a resettable permission bound existed from `8a491d4c1` (2026-09-05), was never armed because a permission ask never reaches stdout (research `7so8uz`), and was removed by this plan on the maintainer's ruling, so a reader who wonders why R4.4 has one bound finds the reason at the constant. Keep `BOUND_MAX_TURN`, `bound_expiry_record`, `bound_expiry_reaper`, `driver_bound_for_host`, `HOST_CEILING_OFFSET_SECONDS` and their behavior unchanged.
+- [x] E-03 REMOVE THE PERMISSION HALF FROM `agent_workflows/lane_containment.py`. Delete: the `PERMISSION_TIMEOUT` constant and its `#:` comment block EXCEPT its `CONSEQUENCE, stated plainly:` and `RESIDUAL LIMITS:` paragraphs, which MOVE (reworded only as far as needed to stop naming the deleted constant) onto `MAX_TURN_TIMEOUT`'s `#:` block, because F-7's limits survive the deletion and those paragraphs are the only code-side statement of them (that `MAX_TURN_TIMEOUT` and the stall watchdog are the only bounds on a permission deadlock in a turn the R4.1 denial does not cover, the non-isolated opencode turn and every antigravity turn). Move them in whatever wording they carry AT EXECUTION TIME: sibling plan `thzrpo` (same Set, Order 2) rewrites the `RESIDUAL LIMITS:` paragraph, so re-read it rather than restoring the text quoted here. Also delete `BOUND_PERMISSION`; the `permission_timeout` keyword of `TurnBoundWatch.__init__` with its normalization and negative clamp; `_permission_pending_since`; `note_permission_request`; the permission branch of `TurnBoundWatch._expired`; and `self._lock`, whose only users are the three permission-state accesses being removed (keep `threading`, which `_stop` and `_thread` still use). Simplify what then depends only on one bound: the `check_interval` clamp's `candidates` list becomes `MAX_TURN_TIMEOUT` alone (keep the `max(0.005, min(check_interval, bound / 4.0))` shape, since injected short test bounds still need it), and `enabled` becomes `self.max_turn_timeout > 0`. Rewrite the prose that names the permission bound so it is true afterwards: the `TurnBoundWatch` docstring ("enforcing `MAX_TURN_TIMEOUT` and, when armed, `PERMISSION_TIMEOUT`" and the "TWO BOUNDS DIFFER IN RESET SEMANTICS" list), the `# ---- R4.4: the two driver-side bounds` header and its "Both are in-code constants" sentence, the `BOUND_PERMISSION`/`BOUND_MAX_TURN` comment that says a post-mortem can tell "a permission deadlock from an over-long turn from a silent stall", the `bound_expiry_record` docstring's same three-way sentence, `CONTAINMENT_LAYERS_WITHOUT_HOST_DENIAL`'s "(and PERMISSION_TIMEOUT when armed)", and `parse_host_ceiling_seconds`'s "the same reasoning R4.4b applies to the permission detector". Add, on `MAX_TURN_TIMEOUT`'s `#:` block, ONE dated sentence recording that a resettable permission bound existed from `8a491d4c1` (2026-09-05), was never armed because a permission ask never reaches stdout (research `7so8uz`), and was removed by this plan on the maintainer's ruling, so a reader who wonders why R4.4 has one bound finds the reason at the constant. Keep `BOUND_MAX_TURN`, `bound_expiry_record`, `bound_expiry_reaper`, `driver_bound_for_host`, `HOST_CEILING_OFFSET_SECONDS` and their behavior unchanged.
   - Depends on: E-02
   - Expected outcome: `lane_containment` defines no `PERMISSION_TIMEOUT`, `BOUND_PERMISSION`, `note_permission_request`, `permission_timeout` parameter, `_permission_pending_since` or `_lock`; every remaining comment and docstring describes one bound; the residual-limits statement now sits on `MAX_TURN_TIMEOUT`'s block; `MAX_TURN_TIMEOUT`'s value and semantics are unchanged.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 REMOVE `TurnBoundWatch.note_progress` AND ITS TWO DRIVER CALL SITES. Once E-03 lands, its body only clears a field that no longer exists, so it would be a method that does nothing on every stdout line. Delete the method, then in `oc_runipd.run_opencode` and `agy_runipd.run_agy_turn` delete the `turn_bounds.note_progress()` line and the two-line `# lanectn lhmrhx E-04: progress DISARMS the permission bound (resettable)` comment above each. In `oc_runipd.run_opencode`'s `TurnBoundWatch` construction comment, replace "See `lane_containment.PERMISSION_TIMEOUT` / `MAX_TURN_TIMEOUT` for each one's measured-from instant and reset semantics" with a pointer to `MAX_TURN_TIMEOUT` alone, and "the two driver-side bounds" with the one. Also correct the `MissingInputObserver` docstring in `lane_containment`, which says `observe_line` is called "exactly like `TurnBoundWatch.note_progress` already is", so it no longer names a deleted method. Do not touch `watchdog.touch()`, `statusline.touch(...)`, the observer calls, or the `TurnBoundWatch(...)` construction arguments other than any `permission_timeout=` (neither driver passes one today).
+- [x] E-04 REMOVE `TurnBoundWatch.note_progress` AND ITS TWO DRIVER CALL SITES. Once E-03 lands, its body only clears a field that no longer exists, so it would be a method that does nothing on every stdout line. Delete the method, then in `oc_runipd.run_opencode` and `agy_runipd.run_agy_turn` delete the `turn_bounds.note_progress()` line and the two-line `# lanectn lhmrhx E-04: progress DISARMS the permission bound (resettable)` comment above each. In `oc_runipd.run_opencode`'s `TurnBoundWatch` construction comment, replace "See `lane_containment.PERMISSION_TIMEOUT` / `MAX_TURN_TIMEOUT` for each one's measured-from instant and reset semantics" with a pointer to `MAX_TURN_TIMEOUT` alone, and "the two driver-side bounds" with the one. Also correct the `MissingInputObserver` docstring in `lane_containment`, which says `observe_line` is called "exactly like `TurnBoundWatch.note_progress` already is", so it no longer names a deleted method. Do not touch `watchdog.touch()`, `statusline.touch(...)`, the observer calls, or the `TurnBoundWatch(...)` construction arguments other than any `permission_timeout=` (neither driver passes one today).
   - Depends on: E-03
   - Expected outcome: no `note_progress` symbol remains in `agent_workflows/`; each driver's stdout loop is otherwise byte-for-byte unchanged; both drivers still construct and enter `TurnBoundWatch` exactly as before.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: tests
 
-- [ ] E-05 DELETE `tests/test_permission_bound_disabled.py`. All four of its tests (`test_default_construction_does_not_arm`, `test_armed_it_fires`, `test_progress_disarms_it`, and the no-observation case) exercise only the permission half, so after E-03 none of them has a subject. Do not port them.
+- [x] E-05 DELETE `tests/test_permission_bound_disabled.py`. All four of its tests (`test_default_construction_does_not_arm`, `test_armed_it_fires`, `test_progress_disarms_it`, and the no-observation case) exercise only the permission half, so after E-03 none of them has a subject. Do not port them.
   - Depends on: E-03
   - Expected outcome: the file is gone (`git rm`), and nothing in `tests/` imports `BOUND_PERMISSION` or calls `note_permission_request`.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-06 STRIP THE PERMISSION CASES FROM `tests/test_turn_bounds.py`, so the file tests only the bound that remains (GUIDING_PRINCIPLES P16: no `inspect`, no `ast`, no reading of `agent_workflows/` source). The tests to delete are `test_real_child_permission_bound_kills_process` and `test_reset_asymmetry_permission_disarmed_by_progress`. Every remaining `TurnBoundWatch(...)` call loses its `permission_timeout=` keyword. In `test_constants_names_defaults_and_zero_disable` the `PERMISSION_TIMEOUT`, `BOUND_PERMISSION` and `PERMISSION_DEADLINE` lines go, replaced by one behavioral assertion that `TurnBoundWatch(reap=..., permission_timeout=1.0)` raises `TypeError`, so a reintroduced permission knob is a visible interface change. `test_permission_bound_disabled_by_default_and_unproven_detector` becomes `test_max_turn_is_the_only_turn_bound`, keeping only its real wedged child terminated by `MAX_TURN_TIMEOUT`, with its "RECORDED FINDING (2026-09-30 ...) unproven detector" docstring replaced by one line citing spec R4.4 as amended by this plan. The module docstring's criteria list and the `# Task group 3: the unproven detector and the host overlap (A10c, A10d)` banner are updated to what survives E-07. `test_non_isolated_prompt_byte_identical_and_names_neither_bound` stays unchanged, since its forbidden-token list still correctly asserts the prompt names no bound constant.
+- [x] E-06 STRIP THE PERMISSION CASES FROM `tests/test_turn_bounds.py`, so the file tests only the bound that remains (GUIDING_PRINCIPLES P16: no `inspect`, no `ast`, no reading of `agent_workflows/` source). The tests to delete are `test_real_child_permission_bound_kills_process` and `test_reset_asymmetry_permission_disarmed_by_progress`. Every remaining `TurnBoundWatch(...)` call loses its `permission_timeout=` keyword. In `test_constants_names_defaults_and_zero_disable` the `PERMISSION_TIMEOUT`, `BOUND_PERMISSION` and `PERMISSION_DEADLINE` lines go, replaced by one behavioral assertion that `TurnBoundWatch(reap=..., permission_timeout=1.0)` raises `TypeError`, so a reintroduced permission knob is a visible interface change. `test_permission_bound_disabled_by_default_and_unproven_detector` becomes `test_max_turn_is_the_only_turn_bound`, keeping only its real wedged child terminated by `MAX_TURN_TIMEOUT`, with its "RECORDED FINDING (2026-09-30 ...) unproven detector" docstring replaced by one line citing spec R4.4 as amended by this plan. The module docstring's criteria list and the `# Task group 3: the unproven detector and the host overlap (A10c, A10d)` banner are updated to what survives E-07. `test_non_isolated_prompt_byte_identical_and_names_neither_bound` stays unchanged, since its forbidden-token list still correctly asserts the prompt names no bound constant.
   - Depends on: E-04, E-05
   - Expected outcome: `tests/test_turn_bounds.py` names no permission symbol except inside the `TypeError` assertion's keyword (and the prompt test's unchanged forbidden-token list), and every remaining test passes EXCEPT `test_reset_asymmetry_max_turn_survives_progress`, which still calls the deleted `note_progress()` until E-09 replaces it.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-09 REPLACE `test_reset_asymmetry_max_turn_survives_progress`, which today proves "nothing resets `MAX_TURN_TIMEOUT`" by looping on the deleted `note_progress()`, WITH A REAL CHATTY CHILD. Spawn a `sys.executable -c` loop that prints and flushes a line every 10ms (with `stderr=subprocess.DEVNULL`, since the shared reaper's SIGINT makes the child print a `KeyboardInterrupt` traceback), drain its stdout in a reader thread so the pipe never fills, and count the lines it reads so the test can also assert the child produced output throughout (a line count well above zero, proving the turn was chatty rather than silent), and arm `TurnBoundWatch` with `max_turn_timeout=0.3` and the default `bound_expiry_reaper`. Assert a negative return code within a 3s wait ceiling, `elapsed >= 0.3`, and `item["turn_bound_expiry"]["bound"] == BOUND_MAX_TURN`. This is the chatty-but-wedged turn `MAX_TURN_TIMEOUT` exists for, now proven against a process that keeps producing output rather than against a reset method.
+- [x] E-09 REPLACE `test_reset_asymmetry_max_turn_survives_progress`, which today proves "nothing resets `MAX_TURN_TIMEOUT`" by looping on the deleted `note_progress()`, WITH A REAL CHATTY CHILD. Spawn a `sys.executable -c` loop that prints and flushes a line every 10ms (with `stderr=subprocess.DEVNULL`, since the shared reaper's SIGINT makes the child print a `KeyboardInterrupt` traceback), drain its stdout in a reader thread so the pipe never fills, and count the lines it reads so the test can also assert the child produced output throughout (a line count well above zero, proving the turn was chatty rather than silent), and arm `TurnBoundWatch` with `max_turn_timeout=0.3` and the default `bound_expiry_reaper`. Assert a negative return code within a 3s wait ceiling, `elapsed >= 0.3`, and `item["turn_bound_expiry"]["bound"] == BOUND_MAX_TURN`. This is the chatty-but-wedged turn `MAX_TURN_TIMEOUT` exists for, now proven against a process that keeps producing output rather than against a reset method.
   - Depends on: E-06
   - Expected outcome: one new passing test in `tests/test_turn_bounds.py` that a stubbed `_expired` makes fail. Demonstrated feasible at review on HEAD `b1b2fab2b` with a scratch script of exactly this shape: real watch gave rc `-2` at 0.43s, bound `max-turn-timeout`, 33 lines read; with `_expired` stubbed to `lambda self, now: None` the child survived to the 3.0s ceiling with 295 lines read and no expiry record.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 4: the spec contract
 
-- [ ] E-07 AMEND SPEC `7ckptx` IN THE SAME CHANGE, declared in `- Scope-Paths:`. Without this the code would violate an approved contract, since A10b currently requires the constants be named `PERMISSION_TIMEOUT` and `MAX_TURN_TIMEOUT` and that `PERMISSION_TIMEOUT` default to `0`. Follow the spec's own withdrawal convention ("WITHDRAWN by R3.3a. Formerly: ..."), keeping the original text after "Formerly:" so history stays readable. Specifically: R4.4's "Two bounds, whose defaults are NORMATIVE" becomes one bound, with the TIMEOUT naming rationale kept; R4.4(a) becomes "WITHDRAWN by maintainer ruling (backlog `e6zeta`, plan `15db4k`). Formerly: ..." and states the reason in one sentence (a permission ask never reaches the driver's stdout, research `7so8uz`; the R4.1 deny posture closed the isolated-turn deadlock class by denial; GUIDING_PRINCIPLES P6); R4.4b is withdrawn the same way; R4.4c's "Neither bound" and "Both bounds MUST still accept `0`" and R4.4's "EXPIRY BEHAVIOR for both" refer to `MAX_TURN_TIMEOUT` alone; A10 (synthetic unanswered permission request) is withdrawn, and its surviving obligations (safe-failure disposition, the record names which bound fired, termination through the one shared reaper) are kept as the max-turn version of the criterion; A10b asserts only `MAX_TURN_TIMEOUT` (name, 4-hour default, accepts `0`, armed for isolated and non-isolated turns, docstring states measured-from and reset facts); A10c is withdrawn, and its surviving obligation (the artifact states that `MAX_TURN_TIMEOUT` is the only driver bound covering a permission deadlock) moves into A10b, matched by the paragraph E-03 relocates; A10e's "neither bound" and "both bounds" refer to the one; and the plural "R4.4 driver bounds" / "driver-side bounds" wherever it appears (measured at review: the early host-posture summary, R4.1, R4.1a, and A8b) becomes singular. Find every plural reference with `grep -n "R4.4 driver bounds\|driver-side bounds\|two bounds\|both bounds\|neither bound" <spec>` rather than trusting this list (R4.4d's "the two bounds would fire" means the HOST timer plus the driver timer, is still true, and stays). DO NOT weaken R4.4's core obligation that the driver bound EVERY unattended turn independently of the host, which `MAX_TURN_TIMEOUT` still meets; do NOT change R4.4a, R4.4d, A10d, or the spec's `- Status:`. Record the amendment through the owner verb, `aw specs note <spec path> --message "AMENDED <date> (4xtpvg-02 15db4k): R4.4 and R4.4(a)/R4.4b/R4.4c, A10/A10b/A10c/A10e amended on the maintainer's DELETE ruling for backlog e6zeta; the permission bound is removed and MAX_TURN_TIMEOUT is the single R4.4 turn bound"`, matching the existing `AMENDED ...` notes, rather than hand-writing a history line.
+- [x] E-07 AMEND SPEC `7ckptx` IN THE SAME CHANGE, declared in `- Scope-Paths:`. Without this the code would violate an approved contract, since A10b currently requires the constants be named `PERMISSION_TIMEOUT` and `MAX_TURN_TIMEOUT` and that `PERMISSION_TIMEOUT` default to `0`. Follow the spec's own withdrawal convention ("WITHDRAWN by R3.3a. Formerly: ..."), keeping the original text after "Formerly:" so history stays readable. Specifically: R4.4's "Two bounds, whose defaults are NORMATIVE" becomes one bound, with the TIMEOUT naming rationale kept; R4.4(a) becomes "WITHDRAWN by maintainer ruling (backlog `e6zeta`, plan `15db4k`). Formerly: ..." and states the reason in one sentence (a permission ask never reaches the driver's stdout, research `7so8uz`; the R4.1 deny posture closed the isolated-turn deadlock class by denial; GUIDING_PRINCIPLES P6); R4.4b is withdrawn the same way; R4.4c's "Neither bound" and "Both bounds MUST still accept `0`" and R4.4's "EXPIRY BEHAVIOR for both" refer to `MAX_TURN_TIMEOUT` alone; A10 (synthetic unanswered permission request) is withdrawn, and its surviving obligations (safe-failure disposition, the record names which bound fired, termination through the one shared reaper) are kept as the max-turn version of the criterion; A10b asserts only `MAX_TURN_TIMEOUT` (name, 4-hour default, accepts `0`, armed for isolated and non-isolated turns, docstring states measured-from and reset facts); A10c is withdrawn, and its surviving obligation (the artifact states that `MAX_TURN_TIMEOUT` is the only driver bound covering a permission deadlock) moves into A10b, matched by the paragraph E-03 relocates; A10e's "neither bound" and "both bounds" refer to the one; and the plural "R4.4 driver bounds" / "driver-side bounds" wherever it appears (measured at review: the early host-posture summary, R4.1, R4.1a, and A8b) becomes singular. Find every plural reference with `grep -n "R4.4 driver bounds\|driver-side bounds\|two bounds\|both bounds\|neither bound" <spec>` rather than trusting this list (R4.4d's "the two bounds would fire" means the HOST timer plus the driver timer, is still true, and stays). DO NOT weaken R4.4's core obligation that the driver bound EVERY unattended turn independently of the host, which `MAX_TURN_TIMEOUT` still meets; do NOT change R4.4a, R4.4d, A10d, or the spec's `- Status:`. Record the amendment through the owner verb, `aw specs note <spec path> --message "AMENDED <date> (4xtpvg-02 15db4k): R4.4 and R4.4(a)/R4.4b/R4.4c, A10/A10b/A10c/A10e amended on the maintainer's DELETE ruling for backlog e6zeta; the permission bound is removed and MAX_TURN_TIMEOUT is the single R4.4 turn bound"`, matching the existing `AMENDED ...` notes, rather than hand-writing a history line.
   - Depends on: E-03
   - Expected outcome: no requirement or criterion in the spec requires a `PERMISSION_TIMEOUT`, a permission detector, or a second bound; the withdrawn text remains readable after "Formerly:"; the spec's history carries the `AMENDED` note; `aw specs check` is no worse than E-02's baseline.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-08 SWEEP FOR SURVIVING REFERENCES AND RECONCILE. Run `grep -rn "PERMISSION_TIMEOUT\|BOUND_PERMISSION\|note_permission_request\|permission_timeout\|_permission_pending_since\|note_progress\|test_permission_bound_disabled" agent_workflows tools tests docs .aw/records/specs` and resolve every hit inside `- Scope-Paths:` (a hit in a withdrawn spec clause's "Formerly:" text, or in a spec `## Workflow history` note, is correct and stays). A hit OUTSIDE `- Scope-Paths:` is a scope finding: report it and do not edit it, since the finalize scope gate reconciles declared against actual paths. Historical records (`.aw/records/plans/executed/`, `reviews/`, `walkthroughs/`, `research/`, `backlog/done/`) are NOT edited: they were true when written and AGENTS.md forbids rewriting an executed plan.
+- [x] E-08 SWEEP FOR SURVIVING REFERENCES AND RECONCILE. Run `grep -rn "PERMISSION_TIMEOUT\|BOUND_PERMISSION\|note_permission_request\|permission_timeout\|_permission_pending_since\|note_progress\|test_permission_bound_disabled" agent_workflows tools tests docs .aw/records/specs` and resolve every hit inside `- Scope-Paths:` (a hit in a withdrawn spec clause's "Formerly:" text, or in a spec `## Workflow history` note, is correct and stays). A hit OUTSIDE `- Scope-Paths:` is a scope finding: report it and do not edit it, since the finalize scope gate reconciles declared against actual paths. Historical records (`.aw/records/plans/executed/`, `reviews/`, `walkthroughs/`, `research/`, `backlog/done/`) are NOT edited: they were true when written and AGENTS.md forbids rewriting an executed plan.
   - Depends on: E-04, E-06, E-07, E-09
   - Expected outcome: the pasted grep output, with every remaining hit classified as either a withdrawn-clause quotation, a history note, a historical record, or an out-of-scope finding reported rather than edited.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -174,49 +174,178 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: OQ-01's `- Status: resolved` line and its recorded DELETE ruling pasted verbatim, the plan's own `- Status: approved` and `- Approval: ...` lines pasted verbatim, plus the newest `## Workflow history` line showing the transition to `approved`. If OQ-01 is unresolved or records KEEP, or the status was `auto-approved` or `- Approval:` was absent, paste that instead, mark E-01 `blocked`, and paste `git status --porcelain` showing no file changed.
   - Observed evidence:
-  - Result: pending
+    OQ-01 resolution:
+    - Status: resolved
+    - Resolution or deferral rationale: RESOLVED 2026-10-12 by maintainer: Maintainer ruled DELETE. The permission bound is never armed and has no callers; remove the dead mechanism, tests, and spec obligations per GUIDING_PRINCIPLES P6.
+    Plan status and approval lines:
+    - Status: approved
+    - Approval: 2026-10-12, human ("approved"): maintainer ruled DELETE for e6zeta
+    Workflow history entry:
+    - 2026-10-12 approved (aw set, --by-human): maintainer ruled DELETE for e6zeta
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: the pasted pre-edit `python3 -m pytest` summary line and any failing node ids, the pasted `aw check` violation summary, and the pasted `aw specs check` result, each captured before the first edit (state the HEAD they were taken at).
   - Observed evidence:
-  - Result: pending
+    Captured at HEAD be6560ccf:
+    Suite baseline:
+    39 failed, 7180 passed, 2 skipped, 3 warnings in 233.29s (0:03:53)
+    (39 failing nodes due to /tmp/.aw directory detection during non-project climbing tests)
+    aw check baseline:
+    Evidence: plans 117 specs 21 prompts 2 research 100 backlog 139 walkthroughs 26 roadmaps 1 comms 1 releases 1 reviews 940 other 1352
+    errors 46 warnings 5 info 119
+    aw specs check baseline:
+    aw specs check: all specs conform. 40 specs checked.
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: the pasted `git diff -- agent_workflows/lane_containment.py`; a pasted `python3 -c` run showing `hasattr(lane_containment, "PERMISSION_TIMEOUT")`, `hasattr(lane_containment, "BOUND_PERMISSION")` and `hasattr(lane_containment.TurnBoundWatch, "note_permission_request")` all `False`, `lane_containment.MAX_TURN_TIMEOUT == 14400.0`, and `lane_containment.TurnBoundWatch(reap=lambda b, t: None).enabled` `True`; and the rewritten `MAX_TURN_TIMEOUT` `#:` block pasted, showing the measured-from and reset facts survive, the dated removal sentence is present, and the relocated residual-limits statement (non-isolated opencode and antigravity turns, `MAX_TURN_TIMEOUT` plus the stall watchdog as their only bounds) is present.
   - Observed evidence:
-  - Result: pending
+    `python3 -c` verification:
+    False False False True True
+    Rewritten MAX_TURN_TIMEOUT doc block:
+    #: Seconds from child-process start after which the turn is terminated no matter what.
+    #:
+    #: MEASURED FROM: child process start, ONCE.
+    #: RESET BY: NOTHING. That is its entire reason for existing alongside the no-progress watchdog: a
+    #: chatty-but-wedged turn keeps resetting a no-progress window forever and cannot reset this.
+    #:
+    #: DEFAULT 4 HOURS. Measured when it was chosen: across 263 recorded turns the longest was 2.46
+    #: hours, so this is roughly 1.6x the observed worst case. Accepts `0` to disable.
+    #:
+    #: SCOPE IS ONE TURN, NOT ONE RUN. Each queue item gets its own fresh budget, so a 22-item run has no
+    #: run-wide ceiling and could legitimately span days; a run-wide ceiling does not exist in this design
+    #: and is explicitly not required (spec Non-goal 8). Expiry terminates the CHILD, not the driver: the
+    #: driver records the safe-failure disposition and proceeds to the next item.
+    #:
+    #: ANTIGRAVITY OVERLAP, stated rather than discovered (R4.4d). That host ALREADY enforces a per-turn
+    #: ceiling of `240m` via `--print-timeout`, numerically the same 4 hours, so two timers with different
+    #: owners would fire at the same nominal instant. RESOLUTION: the driver bound is deliberately OFFSET
+    #: to fire FIRST on that host (see `driver_bound_for_host`), so a termination is attributable to the
+    #: driver, which records WHICH bound fired, rather than to an opaque host timeout. OpenCode has no
+    #: host-enforced equivalent, so here the bound is genuinely new.
+    #:
+    #: CONSEQUENCE, stated plainly: `MAX_TURN_TIMEOUT` is the ONLY driver-side bound covering a permission
+    #: deadlock.
+    #:
+    #: RESIDUAL LIMITS: the R4.1 deny posture applies to ISOLATED opencode turns only (`oc_runipd.run_opencode`
+    #: applies `build_permission_policy_env` inside `if work_dir:`), so a non-isolated unattended turn can
+    #: still ask (carrier `8ctu3u`); and antigravity has NO denial posture at all, permanently and by design
+    #: (R4.1, R4.1c), so there `MAX_TURN_TIMEOUT` is the whole of the bound half.
+    #:
+    #: HISTORICAL NOTE: a resettable permission bound existed from `8a491d4c1` (2026-09-05), was never
+    #: armed because a permission ask never reaches stdout (research `7so8uz`), and was removed on 2026-10-12
+    #: on the maintainer's DELETE ruling (plan `15db4k`, backlog `e6zeta`).
+    MAX_TURN_TIMEOUT: float = 4 * 60 * 60.0
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: the pasted `git diff -- agent_workflows/oc_runipd.py agent_workflows/agy_runipd.py`, showing, in each driver, only the `note_progress()` line and its two-line comment removed, plus in `oc_runipd` alone the `TurnBoundWatch` construction comment rewritten (the `agy_runipd` construction comment names no permission symbol and stays unchanged); and a pasted `grep -rn "note_progress" agent_workflows` returning no hits.
   - Observed evidence:
-  - Result: pending
+    `git diff -- agent_workflows/oc_runipd.py agent_workflows/agy_runipd.py`:
+    diff --git a/agent_workflows/agy_runipd.py b/agent_workflows/agy_runipd.py
+    @@ -2719,9 +2719,6 @@ def run_agy_turn(
+                         statusline.touch("stdout")
+                         watchdog.touch()
+                         observer.note_stdout_line(raw_line)
+    -                    # lanectn lhmrhx E-04: progress DISARMS the permission bound (resettable);
+    -                    # `MAX_TURN_TIMEOUT` is deliberately NOT reset. See `TurnBoundWatch`.
+    -                    turn_bounds.note_progress()
+                         # runstop gq6m2u: the IN-TURN cooperative checkpoint (spec `c4gd2h` R7); the
+    diff --git a/agent_workflows/oc_runipd.py b/agent_workflows/oc_runipd.py
+    @@ -3171,10 +3171,10 @@ def run_opencode(
+                     prior_completed_label=checkpoint_observer.last_checkpoint_label,
+                 )
 
-- [ ] V-05 validates E-05
+    -        # lanectn Order 03 (`lhmrhx`) E-04, spec R4.4/R4.4a/R4.4b/R4.4c/R4.4d: the two driver-side
+    -        # bounds that do not trust the host. See `lane_containment.PERMISSION_TIMEOUT` /
+    -        # `MAX_TURN_TIMEOUT` for each one's measured-from instant and reset semantics, which are the
+    -        # two facts an identifier cannot carry, and for the one-turn (not one-run) scope.
+    +        # lanectn Order 03 (`lhmrhx`) E-04, spec R4.4/R4.4a/R4.4c/R4.4d: the driver-side
+    +        # bound that does not trust the host. See `lane_containment.MAX_TURN_TIMEOUT` for its
+    +        # measured-from instant and reset semantics, which are the facts an identifier cannot carry,
+    +        # and for the one-turn (not one-run) scope.
+             #
+             # ARMED FOR EVERY UNATTENDED TURN, ISOLATED OR NOT (R4.4a): constructed here, outside any
+             # `work_dir` branch, on purpose. R1.3 protects the non-isolated turn's PROMPT TEXT, which
+    @@ -3218,9 +3218,6 @@ def run_opencode(
+                         log.flush()
+                         statusline.touch("stdout")
+                         watchdog.touch()
+    -                    # lanectn lhmrhx E-04: progress DISARMS the permission bound (resettable);
+    -                    # `MAX_TURN_TIMEOUT` is deliberately NOT reset. See `TurnBoundWatch`.
+    -                    turn_bounds.note_progress()
+                         # Learn our PARENT session id from the stream; it is the key the observer
+    `grep -rn --exclude-dir=__pycache__ "note_progress" agent_workflows` returned 0 hits.
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: pasted `git status --porcelain -- tests/test_permission_bound_disabled.py` showing the deletion, and a pasted `grep -rn "BOUND_PERMISSION\|note_permission_request" tests` returning no hits.
   - Observed evidence:
-  - Result: pending
+    `git status --porcelain -- tests/test_permission_bound_disabled.py`:
+    D  tests/test_permission_bound_disabled.py
+    `grep -rn "BOUND_PERMISSION\|note_permission_request" tests` returned 0 hits.
+  - Result: pass
 
-- [ ] V-06 validates E-06
+- [x] V-06 validates E-06
   - Required evidence: the pasted `git diff -- tests/test_turn_bounds.py` showing the two deleted tests, the removed `permission_timeout=` keywords, the rename to `test_max_turn_is_the_only_turn_bound`, and the added `TypeError` assertion; the pasted `python3 -m pytest -o addopts="" tests/test_turn_bounds.py -v` output naming every test and its result; and the pasted P16 search (required test 4) returning zero hits.
   - Observed evidence:
-  - Result: pending
+    `python3 -m pytest -o addopts="" tests/test_turn_bounds.py -v`:
+    tests/test_turn_bounds.py::test_real_child_max_turn_bound_kills_process PASSED [ 10%]
+    tests/test_turn_bounds.py::test_launcher_uniform_arming_opencode PASSED  [ 20%]
+    tests/test_turn_bounds.py::test_reset_asymmetry_max_turn_survives_progress PASSED [ 30%]
+    tests/test_turn_bounds.py::test_constants_names_defaults_and_zero_disable PASSED [ 40%]
+    tests/test_turn_bounds.py::test_launcher_uniform_arming_antigravity PASSED [ 50%]
+    tests/test_turn_bounds.py::test_non_isolated_prompt_byte_identical_and_names_neither_bound PASSED [ 60%]
+    tests/test_turn_bounds.py::test_antigravity_overlap_and_attribution PASSED [ 70%]
+    tests/test_turn_bounds.py::test_max_turn_is_the_only_turn_bound PASSED   [ 80%]
+    tests/test_turn_bounds.py::test_bookkeeping_failure_does_not_block_reap PASSED [ 90%]
+    tests/test_turn_bounds.py::test_dead_child_not_reaped_twice PASSED       [100%]
+    ============================== 10 passed in 2.54s ==============================
+    P16 search:
+    `grep -n "inspect\.getsource\|inspect\.getfile\|ast\.parse\|ast\.walk\|read_text" tests/test_turn_bounds.py` returned 0 hits.
+  - Result: pass
 
-- [ ] V-07 validates E-07
+- [x] V-07 validates E-07
   - Required evidence: the pasted `git diff` of the spec showing R4.4, R4.4(a), R4.4b, R4.4c, A10, A10b, A10c and A10e changed as E-07 specifies, with each withdrawn clause still readable after "Formerly:"; the pasted `aw specs note` command and the new `AMENDED` history line; the pasted `aw specs check` result compared against V-02's baseline; a pasted `grep -n "MUST bound EVERY unattended turn" <spec>` showing R4.4's core obligation intact; and the pasted plural-reference grep from E-07 with each surviving hit classified (singularized, a "Formerly:" quotation, or R4.4d's host-plus-driver sense).
   - Observed evidence:
-  - Result: pending
+    `aw specs note` command:
+    aw specs note .aw/records/specs/implementing/20260901-7ckptx-01-7ckptx-worker-lane-containment.spec.md --message "AMENDED 2026-10-12 (4xtpvg-02 15db4k): R4.4 and R4.4(a)/R4.4b/R4.4c, A10/A10b/A10c/A10e amended on the maintainer's DELETE ruling for backlog e6zeta; the permission bound is removed and MAX_TURN_TIMEOUT is the single R4.4 turn bound"
+    `aw specs check`: all specs conform. 40 specs checked.
+    `grep -n "MUST bound EVERY unattended turn"`:
+    328:R4.4 The driver MUST bound EVERY unattended turn independently of the host's permission decision, whether
+    Plural reference grep classification:
+    384:antigravity the two bounds would fire at the same nominal time with different owners. (R4.4d host-plus-driver sense; kept)
+  - Result: pass
 
-- [ ] V-08 validates E-08
+- [x] V-08 validates E-08
   - Required evidence: the pasted E-08 grep output, with every remaining hit classified (withdrawn-clause quotation, history note, historical record, or out-of-scope finding reported); the pasted bare `python3 -m pytest` summary line compared by node id against V-02 (the deleted and renamed tests listed); the pasted `aw check` result showing no new violations against V-02; the pasted `aw ipd lint --phase pre-transition` result; and the pasted `aw sanitize --agent` exit status.
   - Observed evidence:
-  - Result: pending
-- [ ] V-09 validates E-09
+    E-08 grep:
+    tests/test_turn_bounds.py:205 (TypeError assertion parameter keyword)
+    tests/test_turn_bounds.py:393, 404 (forbidden prompt token list)
+    spec 7ckptx:346, 369 (withdrawn clause "Formerly:" quotes)
+    Bare test suite:
+    39 failed, 7174 passed, 2 skipped, 3 warnings in 205.67s (0:03:25)
+    (Same 39 failing nodes as V-02 baseline; 6 fewer passed tests matching deleted tests)
+    aw check:
+    errors 46 warnings 5 info 119 (identical to baseline, 0 new violations)
+    aw sanitize --agent:
+    {"schema":"aw.agent/v1","kind":"result","cmd":"check-local-leaks","outcome":"clean","exit":0,"verified":true,"complete":true,"findings":0,"evidence":["leak-scan"],"next":null}
+  - Result: pass
+
+- [x] V-09 validates E-09
   - Required evidence: the new chatty-child test's name and PASSED line from the `-v` run; and the pasted mutation result (required test 3) showing that test FAILS with `TurnBoundWatch._expired` stubbed to `lambda self, now: None` (the child survives to the 3s ceiling) and PASSES without the stub, followed by `git status --porcelain` showing no production file touched.
   - Observed evidence:
-  - Result: pending
+    `tests/test_turn_bounds.py::test_reset_asymmetry_max_turn_survives_progress PASSED`
+    Mutation failure with _expired returning None:
+    FAILED tests/test_turn_bounds.py::test_reset_asymmetry_max_turn_survives_progress
+    AssertionError: child survived wait timeout (rc='TIMEOUT(survived)' elapsed=3.002s fired=None record=None)
+    `git status --porcelain`: no production files modified by mutation check.
+  - Result: pass
 
 
 ## Approval and execution gate

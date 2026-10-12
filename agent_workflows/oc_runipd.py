@@ -3171,10 +3171,10 @@ def run_opencode(
                 prior_completed_label=checkpoint_observer.last_checkpoint_label,
             )
 
-        # lanectn Order 03 (`lhmrhx`) E-04, spec R4.4/R4.4a/R4.4b/R4.4c/R4.4d: the two driver-side
-        # bounds that do not trust the host. See `lane_containment.PERMISSION_TIMEOUT` /
-        # `MAX_TURN_TIMEOUT` for each one's measured-from instant and reset semantics, which are the
-        # two facts an identifier cannot carry, and for the one-turn (not one-run) scope.
+        # lanectn Order 03 (`lhmrhx`) E-04, spec R4.4/R4.4a/R4.4c/R4.4d: the driver-side
+        # bound that does not trust the host. See `lane_containment.MAX_TURN_TIMEOUT` for its
+        # measured-from instant and reset semantics, which are the facts an identifier cannot carry,
+        # and for the one-turn (not one-run) scope.
         #
         # ARMED FOR EVERY UNATTENDED TURN, ISOLATED OR NOT (R4.4a): constructed here, outside any
         # `work_dir` branch, on purpose. R1.3 protects the non-isolated turn's PROMPT TEXT, which
@@ -3218,9 +3218,6 @@ def run_opencode(
                     log.flush()
                     statusline.touch("stdout")
                     watchdog.touch()
-                    # lanectn lhmrhx E-04: progress DISARMS the permission bound (resettable);
-                    # `MAX_TURN_TIMEOUT` is deliberately NOT reset. See `TurnBoundWatch`.
-                    turn_bounds.note_progress()
                     # Learn our PARENT session id from the stream; it is the key the observer
                     # needs to attribute a subagent's log lines to THIS turn.
                     if observer.parent_session_id is None:

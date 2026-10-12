@@ -12,6 +12,7 @@
 
 ## Workflow history
 
+- 2026-10-12 note (aw specs): AMENDED 2026-10-12 (4xtpvg-02 15db4k): R4.4 and R4.4(a)/R4.4b/R4.4c, A10/A10b/A10c/A10e amended on the maintainer's DELETE ruling for backlog e6zeta; the permission bound is removed and MAX_TURN_TIMEOUT is the single R4.4 turn bound
 - 2026-10-09 note (aw specs): AMENDED 2026-10-09 by lifegate Order 02 (e25iy9): R4.5 and A11 amended to restate that driver-owned lifecycle verbs refuse for a worker-labelled caller, and that for any other caller refusal is conditioned on a live run holding the plan, anywhere, not on location.
 - 2026-10-09 note (aw specs): Narrow R2.5: an item that recorded no attempt in a lane and has no submission under its lane submission root has nothing to collect in that lane (45z93e)
 - 2026-10-08 note (aw specs): AMENDED 2026-10-08 (nvymif-01 z8ex9f): R2.5 narrowed to distinguish provably-empty lanes from uncollected submissions; R5.5 updated to four conditions; R5.7 added to block teardown on unlanded lane commits; A21 added to pin the six-shape classification table.
@@ -111,7 +112,7 @@ every requirement below inherits it.
    cannot answer. So this is not an unclosed gap awaiting work: it is a decided constraint, and R4.1c
    forbids any plan tracing to this spec from flipping it. What this spec requires instead is that the
    absence of host-layer denial be reported honestly (R4.1a) and that the layers which DO apply on that
-   host (R1 prompt purity, R4.4 driver bounds) carry the whole guarantee.
+   host (R1 prompt purity, R4.4 driver bound) carry the whole guarantee.
 
 ## 3. Requirements
 
@@ -292,14 +293,14 @@ rather than assumed uniform:
   CONSEQUENCE, and the reason the ruling belongs in a containment spec rather than only in the driver:
   on this host the host layer contributes NOTHING to containment, by design and permanently. Every
   containment guarantee for Antigravity therefore rests on R1 (the prompt names nothing outside the lane)
-  and R4.4 (driver-side bounds that fire regardless of the host). That makes R1 and R4.4 load-bearing for
+  and R4.4 (driver-side bound that fires regardless of the host). That makes R1 and R4.4 load-bearing for
   this host rather than defence-in-depth, which raises their priority and is the practical argument for
   doing the prompt work at all.
 
 R4.1a CONSEQUENCE, stated normatively so no plan can paper over it: on a host with no denial posture,
 R4.1 is satisfied by RECORDING that fact on the attempt (a per-host capability statement), and the
 containment guarantee for that host rests ENTIRELY on R1 (the prompt names nothing outside the lane) and
-R4.4 (driver-side bounds that fire regardless of the host). An artifact MUST NOT describe such a host as
+R4.4 (driver-side bound that fires regardless of the host). An artifact MUST NOT describe such a host as
 "denied"; it MUST describe it as unenforced-at-the-host and point at the layers that do apply. Claiming
 parity where none exists is the specific failure this sub-requirement exists to prevent.
 
@@ -325,25 +326,24 @@ same variable. The policy MUST either be merged with validation or override expl
 blind overwrite is non-conforming.
 
 R4.4 The driver MUST bound EVERY unattended turn independently of the host's permission decision, whether
-or not that turn is isolated (maintainer ruling 2026-09-01: "make it uniform"). Two bounds, whose defaults
-are NORMATIVE so an implementation cannot pick weaker ones silently.
+or not that turn is isolated (maintainer ruling 2026-09-01: "make it uniform"). One bound (`MAX_TURN_TIMEOUT`), whose default
+is NORMATIVE so an implementation cannot pick a weaker one silently.
 
-NAMING IS NORMALIZED TO `TIMEOUT` (maintainer ruling 2026-09-01). Both are named `..._TIMEOUT`, not
+NAMING IS NORMALIZED TO `TIMEOUT` (maintainer ruling 2026-09-01). Named `..._TIMEOUT`, not
 `..._DEADLINE`. Reasons, measured rather than stylistic: (i) every bound in this codebase is a DURATION IN
 SECONDS, never a wall-clock instant, and `timeout` is the accurate word for a duration; (ii) four of the
 six bounds already shipped say `TIMEOUT`, including both public CLI flags, so normalizing the other way
 would rename shipped surface; and (iii) the `DEADLINE`/`TIMEOUT` split did NOT track any real property in
 the existing code, so nothing is lost by collapsing it. Concretely, three shipped `..._TIMEOUT` constants
 are UNRESETTABLE ceilings (`agy` `DEFAULT_TIMEOUT`, `SUITE_CHECK_TIMEOUT_SECONDS`,
-`run_evidence.capture_command`'s default) while the one named `..._DEADLINE` was RESETTABLE, so the naming
+`run_evidence.capture_command`'s default) while the former permission bound named `..._DEADLINE` was RESETTABLE, so the naming
 was backwards more often than it was right.
 
-THE DISTINCTION THAT IS REAL MUST LIVE IN THE DOCSTRING, NOT THE IDENTIFIER. Every bound MUST document
-two facts, because they are what an implementer and a post-mortem reader actually need and they were
-exactly what was missing (establishing them required reading `_started` versus `_last_activity`): WHAT
+THE DISTINCTION THAT IS REAL MUST LIVE IN THE DOCSTRING, NOT THE IDENTIFIER. The bound MUST document
+two facts, because they are what an implementer and a post-mortem reader actually need: WHAT
 INSTANT it is measured from, and WHETHER ANYTHING RESETS IT.
 
-(a) `PERMISSION_TIMEOUT`, default 30 SECONDS (qualifying note: 30 seconds is the value that would apply only if a host ever carries the event on stdout; it ships and stays at `0` per R4.4b, and the log-route measurement prices 30 seconds at 15 false kills of 1,149). Measured from the instant a permission request is OBSERVED,
+R4.4(a) WITHDRAWN by maintainer ruling (backlog `e6zeta`, plan `15db4k`). A permission ask never reaches the driver's stdout (research `7so8uz`), the R4.1 deny posture closed the isolated-turn deadlock class by denial, and dead code is not kept for hypothetical needs (GUIDING_PRINCIPLES P6). Formerly: `PERMISSION_TIMEOUT`, default 30 SECONDS (qualifying note: 30 seconds is the value that would apply only if a host ever carries the event on stdout; it ships and stays at `0` per R4.4b, and the log-route measurement prices 30 seconds at 15 false kills of 1,149). Measured from the instant a permission request is OBSERVED,
 including a nested child-session request, which is the shape the qyaime deadlock actually took. RESETTABLE:
 observed progress clears the pending ask and disarms it. Seconds rather than minutes is the whole point,
 because an unattended turn has NO answerer, so a permission ask is not a slow operation but a dead one and
@@ -362,11 +362,11 @@ ceiling and could legitimately span days. Expiry terminates the CHILD process, n
 records the safe-failure disposition and proceeds to the next item. A RUN-WIDE ceiling does not exist in
 this design and is explicitly NOT required here (see Non-goal 8).
 
-EXPIRY BEHAVIOR for both: terminate through the ONE shared reaper (spec `c4gd2h` R5 forbids a second) and
-record a safe-failure disposition naming WHICH bound fired, so a post-mortem can distinguish a permission
-deadlock from an over-long turn from a silent stall.
+EXPIRY BEHAVIOR: terminate through the ONE shared reaper (spec `c4gd2h` R5 forbids a second) and
+record a safe-failure disposition naming WHICH bound fired, so a post-mortem can distinguish
+an over-long turn from a silent stall.
 
-R4.4b THE `PERMISSION_TIMEOUT` SHIPS DISABLED (`0`) UNTIL DETECTION IS PROVEN, per the maintainer's rule
+R4.4b WITHDRAWN by maintainer ruling (backlog `e6zeta`, plan `15db4k`). A permission ask never reaches the driver's stdout (research `7so8uz`), the R4.1 deny posture closed the isolated-turn deadlock class by denial, and dead code is not kept for hypothetical needs (GUIDING_PRINCIPLES P6). Formerly: THE `PERMISSION_TIMEOUT` SHIPS DISABLED (`0`) UNTIL DETECTION IS PROVEN, per the maintainer's rule
 that it "better have a deterministic way to know it's waiting for permission, otherwise it better not
 fire". Detection on stdout is MEASURED UNSATISFIABLE on this host: across 788,504 recorded stdout events in
 2,414 streams the complete type census carries six event types and ZERO permission-typed events (research
@@ -391,13 +391,13 @@ post-mortem cannot say which one killed a turn. Note the asymmetry: OpenCode has
 equivalent, so `MAX_TURN_TIMEOUT` is genuinely new there.
 
 R4.4c NO NEW CONFIGURATION SURFACE IS REQUIRED (maintainer ruling 2026-09-01: KISS, "add them if they're
-needed when the need arises"). Neither bound needs a config-file entry or a CLI flag in this Set. The
+needed when the need arises"). The bound does not need a config-file entry or a CLI flag in this Set. The
 evidence behind the ruling: across 87 recorded runs `--stall-timeout` appears in 73 with exactly ONE
 distinct value (its default) and `--timeout` in none, so no timeout has ever been overridden in practice,
 and adding eight knobs to a parser that already fails
 `test_command_surface_declarations::test_zero_undeclared_parser_leaves` with 65 undeclared leaves would
-make a live problem worse. Both bounds MUST still accept `0` to disable, in-code, matching the shape
-`--stall-timeout` already documents, so an operator who needs to turn one off has a supported way to.
+make a live problem worse. The bound MUST still accept `0` to disable, in-code, matching the shape
+`--stall-timeout` already documents, so an operator who needs to turn it off has a supported way to.
 
 R4.4a UNIFORM SCOPE, and the reason it does not violate R1.3. R4.4 applies to isolated and non-isolated
 turns alike. This is a deliberate exception to the conservatism R1.3 asks for elsewhere, and the exception
@@ -605,7 +605,7 @@ re-flag it as a traceability gap.
   (R4.1, R4.1a, R4.2)
 - A8b. Assert the honest-reporting rule mechanically: for a host recorded as having no denial posture, the
   attempt record and any rendered summary MUST NOT contain a claim of denial, and MUST name the layers
-  that do apply (R1 prompt purity and R4.4 driver bounds). (R4.1a)
+  that do apply (R1 prompt purity and R4.4 driver bound). (R4.1a)
 - A8c. THE ANTIGRAVITY DEFAULT IS PINNED. Assert that `dangerously_skip_permissions` still defaults to
   `True` and that the constructed argv for an unattended `aw agy run` turn still carries
   `--dangerously-skip-permissions`. This is a REGRESSION GUARD in the opposite direction from every other
@@ -614,31 +614,31 @@ re-flag it as a traceability gap.
 - A9. With an operator-supplied value already set for the policy variable, the resulting child environment
   either merges it verifiably or overrides it with an explicit loud record. A silent overwrite fails this
   criterion. (R4.3)
-- A10b. THE BOUNDS ARE NAMED, DEFAULTED, AND SCOPED AS SPECIFIED. Assert the two constants are named
-  `PERMISSION_TIMEOUT` and `MAX_TURN_TIMEOUT` (not `..._DEADLINE`); that `MAX_TURN_TIMEOUT` defaults to 4
-  hours and `PERMISSION_TIMEOUT` defaults to `0`, i.e. DISABLED, unless R4.4b's detection evidence was
-  produced; that both accept `0` to disable; and that both are armed for a NON-isolated turn as well as an
-  isolated one. Paste each constant's docstring showing it states WHAT INSTANT it measures from and
-  WHETHER ANYTHING RESETS IT. Also show the non-isolated turn's PROMPT is still byte-identical, which is
+- A10b. THE BOUND IS NAMED, DEFAULTED, AND SCOPED AS SPECIFIED. Assert the constant is named
+  `MAX_TURN_TIMEOUT` (not `..._DEADLINE`); that `MAX_TURN_TIMEOUT` defaults to 4
+  hours; that it accepts `0` to disable; and that it is armed for a NON-isolated turn as well as an
+  isolated one. Paste the constant's docstring showing it states WHAT INSTANT it measures from and
+  WHETHER ANYTHING RESETS IT, and showing the artifact states that `MAX_TURN_TIMEOUT` is
+  consequently the only driver-side bound covering a permission deadlock. Also show the non-isolated turn's PROMPT is still byte-identical, which is
   what R1.3 protects and what makes the uniform supervision scope safe. (R4.4, R4.4a)
-- A10c. THE PERMISSION DETECTOR IS PROVEN OR THE BOUND STAYS OFF. The prohibition on a synthetic line is
+- A10c. WITHDRAWN by maintainer ruling (backlog `e6zeta`, plan `15db4k`); surviving obligation (stating that `MAX_TURN_TIMEOUT` is the only bound covering a permission deadlock) moved into A10b. Formerly: THE PERMISSION DETECTOR IS PROVEN OR THE BOUND STAYS OFF. The prohibition on a synthetic line is
   CORRECT and now moot for the stdout route: detection on stdout is measured impossible (zero
   permission-typed events across 788,504 recorded stdout events; research `7so8uz`). The criterion is
   satisfied permanently by the option (ii) branch plus the cost-benefit measurement (the log route is the
   only carrier, and was refused on measurement: 15 false kills at 30s and zero cases the stall watchdog
   misses). Show the default remains `0`, and show the artifact stating that `MAX_TURN_TIMEOUT` is
   consequently the only bound covering a permission deadlock. (R4.4b)
-- A10e. NO NEW CONFIGURATION SURFACE WAS ADDED. Show that neither bound gained a config-file entry or a
+- A10e. NO NEW CONFIGURATION SURFACE WAS ADDED. Show that the bound gained no config-file entry or a
   CLI flag, and that `test_command_surface_declarations` is no worse than its measured baseline. This is a
   criterion in the NEGATIVE direction, which is deliberate: the natural instinct is to make a new constant
   configurable, and the maintainer's KISS ruling was that the knob waits until a real need appears. Also
-  show both bounds still accept `0` to disable in-code, so declining a flag did not remove the operator's
-  ability to turn one off. (R4.4c)
+  show the bound still accepts `0` to disable in-code, so declining a flag did not remove the operator's
+  ability to turn it off. (R4.4c)
 - A10d. THE ANTIGRAVITY OVERLAP IS DOCUMENTED. Show that the relationship between the host's 240m
   `--print-timeout` and the driver's `MAX_TURN_TIMEOUT` is stated in the code, naming which is expected to
   fire first, and that a post-mortem can attribute a termination to one of them rather than guessing.
   (R4.4d)
-- A10. Feed a synthetic unanswered permission request, including the nested child-session shape: the
+- A10. WITHDRAWN by maintainer ruling (backlog `e6zeta`, plan `15db4k`) as a permission test; surviving obligations (safe-failure disposition, the record names which bound fired, termination through the one shared reaper) are kept under the max-turn criterion. Formerly: Feed a synthetic unanswered permission request, including the nested child-session shape: the
   process is terminated within the permission deadline, demonstrably not at the coarse no-progress bound,
   the disposition is the safe-failure value, the reason names which bound fired, and the termination is
   attributable to the shared reaper with no second reaper introduced (checked structurally, not by text

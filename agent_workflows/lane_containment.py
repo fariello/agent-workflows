@@ -915,8 +915,8 @@ HOST_POSTURE_NONE = "no-denial-posture"
 #: the record and any rendered summary read from ONE list and cannot drift.
 CONTAINMENT_LAYERS_WITHOUT_HOST_DENIAL = (
     "R1 prompt purity: the emitted prompt names no path outside the lane",
-    "R4.4 driver-side bounds: MAX_TURN_TIMEOUT (and PERMISSION_TIMEOUT when armed) "
-    "terminate the turn regardless of the host's permission decision",
+    "R4.4 driver-side bound: MAX_TURN_TIMEOUT "
+    "terminates the turn regardless of the host's permission decision",
 )
 
 
@@ -1093,43 +1093,18 @@ def evaluate_policy_observation(
     )
 
 
-# ---- R4.4: the two driver-side bounds that do not trust the host ----------------------------------
+# ---- R4.4: the driver-side bound that does not trust the host ------------------------------------
 #
 # ARMED FOR EVERY UNATTENDED TURN, isolated or not (R4.4a, maintainer ruling). That uniformity is a
-# deliberate exception to the conservatism asked for elsewhere, and it is safe because these are
-# driver-side SUPERVISION and change no instruction an agent ever reads: R1.3 protects the
+# deliberate exception to the conservatism asked for elsewhere, and it is safe because this is
+# driver-side SUPERVISION and changes no instruction an agent ever reads: R1.3 protects the
 # NON-ISOLATED PROMPT TEXT, which stays byte-identical.
 #
-# NO CONFIG ENTRY AND NO CLI FLAG (R4.4c, maintainer KISS ruling). Both are in-code constants that
-# accept `0` to disable. Evidence behind the ruling: across 87 recorded runs `--stall-timeout`
+# NO CONFIG ENTRY AND NO CLI FLAG (R4.4c, maintainer KISS ruling). It is an in-code constant that
+# accepts `0` to disable. Evidence behind the ruling: across 87 recorded runs `--stall-timeout`
 # appears with exactly ONE distinct value (its default) and `--timeout` in none, so no timeout has
 # ever been overridden in practice, while the parser already fails
 # `test_command_surface_declarations::test_zero_undeclared_parser_leaves` with undeclared leaves.
-
-#: Seconds to wait after a permission request is OBSERVED before terminating the turn.
-#:
-#: MEASURED FROM: the instant a permission request is observed on the child's stream, including a
-#: nested child-session request (the shape the measured deadlock actually took).
-#: RESET BY: observed progress, which clears the pending ask and disarms the bound. RESETTABLE.
-#:
-#: SHIPS AT `0`, MEANING DISABLED, and that is a REQUIREMENT rather than caution (R4.4b). Detection
-#: on stdout is IMPOSSIBLE: measured 2026-10-01 at HEAD `ce55ef615` (research `7so8uz`), across 788,504
-#: recorded stdout events in 2,414 `.aw/records/runs/*/sessions/*.jsonl` streams, the complete type
-#: census carries six event types (step_update 273,961, tool_use 148,886, step_start 135,208,
-#: step_finish 135,049, text 94,623, error 10) and ZERO permission-typed events. A permission ask is a
-#: host-internal event that never reaches stdout. The host log DOES carry it (`message=asking ...
-#: permission=<class>`, 1,552 asks measured in research `7so8uz`, 1,166 on driver turns), but arming
-#: a log-fed bound at the spec's own 30s default would have killed 15 of 1,149 healthy turns while
-#: catching nothing the `StallWatchdog` does not already catch (all 17 silent asks are covered).
-#:
-#: CONSEQUENCE, stated plainly: `MAX_TURN_TIMEOUT` is currently the ONLY bound covering a permission
-#: deadlock.
-#:
-#: RESIDUAL LIMITS: the R4.1 deny posture applies to ISOLATED opencode turns only (`oc_runipd.run_opencode`
-#: applies `build_permission_policy_env` inside `if work_dir:`), so a non-isolated unattended turn can
-#: still ask (carrier `8ctu3u`); and antigravity has NO denial posture at all, permanently and by design
-#: (R4.1, R4.1c), so there `MAX_TURN_TIMEOUT` is the whole of the bound half.
-PERMISSION_TIMEOUT: float = 0.0
 
 #: Seconds from child-process start after which the turn is terminated no matter what.
 #:
@@ -1151,15 +1126,26 @@ PERMISSION_TIMEOUT: float = 0.0
 #: to fire FIRST on that host (see `driver_bound_for_host`), so a termination is attributable to the
 #: driver, which records WHICH bound fired, rather than to an opaque host timeout. OpenCode has no
 #: host-enforced equivalent, so here the bound is genuinely new.
+#:
+#: CONSEQUENCE, stated plainly: `MAX_TURN_TIMEOUT` is the ONLY driver-side bound covering a permission
+#: deadlock.
+#:
+#: RESIDUAL LIMITS: the R4.1 deny posture applies to ISOLATED opencode turns only (`oc_runipd.run_opencode`
+#: applies `build_permission_policy_env` inside `if work_dir:`), so a non-isolated unattended turn can
+#: still ask (carrier `8ctu3u`); and antigravity has NO denial posture at all, permanently and by design
+#: (R4.1, R4.1c), so there `MAX_TURN_TIMEOUT` is the whole of the bound half.
+#:
+#: HISTORICAL NOTE: a resettable permission bound existed from `8a491d4c1` (2026-09-05), was never
+#: armed because a permission ask never reaches stdout (research `7so8uz`), and was removed on 2026-10-12
+#: on the maintainer's DELETE ruling (plan `15db4k`, backlog `e6zeta`).
 MAX_TURN_TIMEOUT: float = 4 * 60 * 60.0
 
 #: Seconds by which the driver's own ceiling is pulled in AHEAD of a host-enforced one, so the two
 #: cannot fire at the same nominal instant and a post-mortem can attribute the kill (R4.4d).
 HOST_CEILING_OFFSET_SECONDS: float = 5 * 60.0
 
-#: Which bound fired, recorded on the safe-failure disposition so a post-mortem can tell a permission
-#: deadlock from an over-long turn from a silent stall (R4.4).
-BOUND_PERMISSION = "permission-timeout"
+#: Which bound fired, recorded on the safe-failure disposition so a post-mortem can tell an
+#: over-long turn from a silent stall (R4.4).
 BOUND_MAX_TURN = "max-turn-timeout"
 
 #: The disposition an expiry records. `failed-safely` is an EXISTING terminal state in both drivers'
@@ -1191,9 +1177,8 @@ def driver_bound_for_host(host_ceiling_seconds: float | None) -> float:
 def bound_expiry_record(bound: str, timeout: float, at: str) -> dict[str, Any]:
     """The safe-failure record for an expired bound, NAMING WHICH ONE FIRED (R4.4).
 
-    Naming the bound is the requirement, not a nicety: without it a post-mortem cannot distinguish a
-    permission deadlock from an over-long turn from a silent stall, and all three arrive as the same
-    terminated child.
+    Naming the bound is the requirement, not a nicety: without it a post-mortem cannot distinguish
+    an over-long turn from a silent stall, and both arrive as the same terminated child.
     """
 
     return {
@@ -1277,7 +1262,7 @@ def bound_expiry_reaper(
 
 
 class TurnBoundWatch:
-    """Out-of-band supervisor enforcing `MAX_TURN_TIMEOUT` and, when armed, `PERMISSION_TIMEOUT`.
+    """Out-of-band supervisor enforcing `MAX_TURN_TIMEOUT`.
 
     HOST-NEUTRAL BY CONSTRUCTION. It is handed a `reap` callable and an `is_alive` callable rather
     than a process, so the ONE shared reaper (`runner_shutdown.clean_shutdown`, which spec `c4gd2h`
@@ -1287,13 +1272,10 @@ class TurnBoundWatch:
     WHY A THREAD AND NOT AN IN-LOOP CHECK, which is the same measured reason every other watch in
     this codebase is out of band: the driver's read loop blocks in `for line in process.stdout`, so a
     ceiling on a SILENT child could never be noticed from the main thread. A wedged turn is exactly
-    the case these bounds exist for.
+    the case this bound exists for.
 
-    THE TWO BOUNDS DIFFER IN RESET SEMANTICS, and that difference is the whole design:
-
-      * `MAX_TURN_TIMEOUT` is measured from `__enter__` (child start) ONCE and NOTHING resets it.
-      * `PERMISSION_TIMEOUT` is measured from `note_permission_request()` and IS reset by
-        `note_progress()`, which clears the pending ask.
+    RESET SEMANTICS: `MAX_TURN_TIMEOUT` is measured from `__enter__` (child start) ONCE and NOTHING
+    resets it.
 
     HONEST LIMIT: this bounds the turn, it does not contain the worker. A terminated child may
     already have written outside its lane. Containment is R1 (the prompt names nothing outside the
@@ -1306,37 +1288,23 @@ class TurnBoundWatch:
         reap: Callable[[str, float], None],
         is_alive: Callable[[], bool] | None = None,
         max_turn_timeout: float | None = None,
-        permission_timeout: float | None = None,
         check_interval: float = 1.0,
     ) -> None:
         self.max_turn_timeout = (
             MAX_TURN_TIMEOUT if max_turn_timeout is None else float(max_turn_timeout)
         )
-        self.permission_timeout = (
-            PERMISSION_TIMEOUT
-            if permission_timeout is None
-            else float(permission_timeout)
-        )
         if self.max_turn_timeout < 0:
             self.max_turn_timeout = 0.0
-        if self.permission_timeout < 0:
-            self.permission_timeout = 0.0
         self._reap = reap
         self._is_alive = is_alive
-        # Never sleep past the nearer bound, or a short injected timeout (as tests use) would be
+        # Never sleep past the bound, or a short injected timeout (as tests use) would be
         # reported late. Mirrors `StallWatchdog`'s own timeout/4 clamp.
-        candidates = [
-            t for t in (self.max_turn_timeout, self.permission_timeout) if t > 0
-        ]
-        nearest = min(candidates) if candidates else 0.0
         self.check_interval = (
-            max(0.005, min(check_interval, nearest / 4.0))
-            if nearest
+            max(0.005, min(check_interval, self.max_turn_timeout / 4.0))
+            if self.max_turn_timeout > 0
             else check_interval
         )
         self._started: float | None = None
-        self._permission_pending_since: float | None = None
-        self._lock = threading.Lock()
         self._stop = threading.Event()
         self._thread: threading.Thread | None = None
         self.fired: str | None = None
@@ -1344,51 +1312,14 @@ class TurnBoundWatch:
 
     @property
     def enabled(self) -> bool:
-        """True when at least one bound is armed. `0` disables a bound (R4.4c)."""
+        """True when the bound is armed. `0` disables the bound (R4.4c)."""
 
-        return self.max_turn_timeout > 0 or self.permission_timeout > 0
-
-    def note_permission_request(self) -> None:
-        """Arm `PERMISSION_TIMEOUT` from THIS instant (a permission request was observed).
-
-        Idempotent while an ask is already pending, so a repeated observation does not extend the
-        window: the bound measures from the FIRST observed ask, which is when waiting began.
-
-        NO PRODUCTION CALLERS BY DECISION, not by omission. Measured 2026-10-01 at HEAD `ce55ef615`
-        (research `7so8uz`): a permission ask is a host-internal event that never reaches stdout
-        (zero permission-typed events across 788,504 recorded stdout stream events), and a log-fed bound
-        was refused on measurement (15 false kills of 1,149 healthy turns at the 30s default, with
-        zero cases missed by the stall watchdog). The one condition that would reopen wiring is a host
-        whose stdout stream carries a permission-typed event, which opencode's stream does not. The
-        method earns its place by keeping the mechanism correct and tested so a future host whose stream
-        does carry the event needs no redesign (covered by tests/test_permission_bound_disabled.py).
-        """
-
-        if self.permission_timeout <= 0:
-            return
-        with self._lock:
-            if self._permission_pending_since is None:
-                self._permission_pending_since = time.monotonic()
-
-    def note_progress(self) -> None:
-        """Clear a pending permission ask, DISARMING `PERMISSION_TIMEOUT` (it is RESETTABLE).
-
-        Deliberately does NOT touch `MAX_TURN_TIMEOUT`: nothing resets that one, which is why it
-        catches the chatty-but-wedged turn a no-progress window never can.
-        """
-
-        with self._lock:
-            self._permission_pending_since = None
+        return self.max_turn_timeout > 0
 
     def _expired(self, now: float) -> tuple[str, float] | None:
         if self._started is not None and self.max_turn_timeout > 0:
             if now - self._started >= self.max_turn_timeout:
                 return BOUND_MAX_TURN, self.max_turn_timeout
-        with self._lock:
-            pending = self._permission_pending_since
-        if pending is not None and self.permission_timeout > 0:
-            if now - pending >= self.permission_timeout:
-                return BOUND_PERMISSION, self.permission_timeout
         return None
 
     def _run(self) -> None:
@@ -1483,8 +1414,7 @@ def parse_host_ceiling_seconds(value: Any) -> float | None:
     Returns `None` for anything unrecognized, and NEVER raises: an unparseable host ceiling must not
     abort a turn, it must simply mean "no known host ceiling", which leaves the driver bound at its
     own default rather than at some value derived from a misread string. Fail-safe in the direction of
-    the LONGER bound, deliberately: guessing short would kill healthy turns, which is the same
-    reasoning R4.4b applies to the permission detector.
+    the LONGER bound, deliberately: guessing short would kill healthy turns.
     """
 
     if value is None:
@@ -1918,7 +1848,7 @@ class MissingInputObserver:
     """The per-turn, host-neutral observer both drivers feed their child's stdout to (spec R3).
 
     ONE PER TURN, constructed by the driver adapter with the turn's own `checkout`. `observe_line` is
-    called for EVERY line, exactly like `TurnBoundWatch.note_progress` already is, and returns the
+    called for EVERY line, and returns the
     decision it recorded (or `None` for an ordinary line) so a caller can react without re-parsing.
 
     IT DOES NOT BLOCK THE WORKER, which is R3.1's explicit requirement: observing a report records a

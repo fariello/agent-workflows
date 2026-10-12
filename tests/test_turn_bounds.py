@@ -1,4 +1,4 @@
-"""Behavioral turn-bound coverage for spec 7ckptx A10, A10b, A10c, and A10d.
+"""Behavioral turn-bound coverage for spec 7ckptx A10, A10b, and A10d.
 
 Tests in this file exercise observable outcomes and runtime behaviors: real
 subprocess execution, signal termination, timeout arithmetic, launcher arming,
@@ -12,11 +12,13 @@ import hashlib
 import io
 import subprocess
 import sys
+import threading
 import time
 from pathlib import Path
 from typing import Any
 from unittest import mock
 
+import pytest
 
 from agent_workflows import agy_runipd, lane_containment, oc_runipd, runner_shared
 
@@ -46,7 +48,6 @@ def test_real_child_max_turn_bound_kills_process(tmp_path: Path) -> None:
         reap=reaper,
         is_alive=lambda: proc.poll() is None,
         max_turn_timeout=bound_seconds,
-        permission_timeout=0.0,
     )
 
     t0 = time.monotonic()
@@ -78,34 +79,41 @@ def test_real_child_max_turn_bound_kills_process(tmp_path: Path) -> None:
     assert expiry_record["disposition"] == lane_containment.BOUND_EXPIRY_DISPOSITION
 
 
-def test_real_child_permission_bound_kills_process(tmp_path: Path) -> None:
-    """E-01: Permission bound kills an immortal real child after an ask is noted.
-
-    Demonstrably not at the coarse no-progress bound: PERM * 20 <= STALL is
-    explicitly asserted in the test body, and observed elapsed is strictly under STALL.
-    """
+def test_reset_asymmetry_max_turn_survives_progress(tmp_path: Path) -> None:
+    """E-09: Real chatty child producing output throughout is terminated by MAX_TURN_TIMEOUT."""
     proc = subprocess.Popen(
-        [sys.executable, "-c", "import time\nwhile True: time.sleep(0.05)"]
+        [
+            sys.executable,
+            "-u",
+            "-c",
+            "import time, sys\nwhile True:\n    sys.stdout.write('line\\n')\n    sys.stdout.flush()\n    time.sleep(0.01)\n",
+        ],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.DEVNULL,
+        text=True,
     )
+    lines_read = 0
+
+    def drain_stdout() -> None:
+        nonlocal lines_read
+        assert proc.stdout is not None
+        for _ in proc.stdout:
+            lines_read += 1
+
+    drain_thread = threading.Thread(target=drain_stdout, daemon=True)
+    drain_thread.start()
+
     item: dict[str, Any] = {"id6": "f15tne", "position": 1, "setid": "f15tne"}
     reaper = lane_containment.bound_expiry_reaper(proc, tmp_path, item)
-
-    perm_seconds = 0.3
-    stall_ceiling = 6.0
-    assert (
-        perm_seconds * 20 <= stall_ceiling
-    ), "margin between permission and stall must be >= 20x"
-
+    bound_seconds = 0.3
     watch = lane_containment.TurnBoundWatch(
         reap=reaper,
         is_alive=lambda: proc.poll() is None,
-        max_turn_timeout=0.0,
-        permission_timeout=perm_seconds,
+        max_turn_timeout=bound_seconds,
     )
 
     t0 = time.monotonic()
     with watch:
-        watch.note_permission_request()
         try:
             rc = proc.wait(timeout=3.0)
         except subprocess.TimeoutExpired:
@@ -113,6 +121,8 @@ def test_real_child_permission_bound_kills_process(tmp_path: Path) -> None:
             proc.wait()
             rc = "TIMEOUT(survived)"
     elapsed = time.monotonic() - t0
+
+    drain_thread.join(timeout=1.0)
 
     assert rc != "TIMEOUT(survived)", (
         f"child survived wait timeout (rc={rc!r} elapsed={elapsed:.3f}s "
@@ -122,56 +132,16 @@ def test_real_child_permission_bound_kills_process(tmp_path: Path) -> None:
         isinstance(rc, int) and rc < 0
     ), f"expected negative signal returncode, got {rc}"
     assert (
-        elapsed >= perm_seconds
-    ), f"elapsed {elapsed:.3f}s must be >= bound {perm_seconds}s"
-    assert (
-        elapsed < stall_ceiling
-    ), f"elapsed {elapsed:.3f}s must be under stall ceiling {stall_ceiling}s"
-    assert watch.fired == lane_containment.BOUND_PERMISSION
+        elapsed >= bound_seconds
+    ), f"elapsed {elapsed:.3f}s must be >= bound {bound_seconds}s"
+    assert elapsed < 3.0, f"elapsed {elapsed:.3f}s exceeded wait ceiling"
+    assert lines_read > 0, "child must have produced output throughout (chatty turn)"
+    assert watch.fired == lane_containment.BOUND_MAX_TURN
 
     expiry_record = item.get("turn_bound_expiry")
     assert expiry_record is not None
-    assert expiry_record["bound"] == lane_containment.BOUND_PERMISSION
+    assert expiry_record["bound"] == lane_containment.BOUND_MAX_TURN
     assert expiry_record["disposition"] == lane_containment.BOUND_EXPIRY_DISPOSITION
-
-
-def test_reset_asymmetry_permission_disarmed_by_progress() -> None:
-    """E-02(a) part 1: Progress disarms the permission bound (resettable)."""
-    reap_calls: list[str] = []
-    watch = lane_containment.TurnBoundWatch(
-        reap=lambda bound, timeout: reap_calls.append(bound),
-        is_alive=lambda: True,
-        max_turn_timeout=0.0,
-        permission_timeout=0.05,
-    )
-    with watch:
-        watch.note_permission_request()
-        watch.note_progress()
-        time.sleep(0.15)
-
-    assert (
-        reap_calls == []
-    ), f"reaper must not be called after note_progress: {reap_calls}"
-    assert watch.fired is None
-
-
-def test_reset_asymmetry_max_turn_survives_progress() -> None:
-    """E-02(a) part 2: Max-turn bound is unresettable; tight progress loop does not disarm it."""
-    reap_calls: list[str] = []
-    watch = lane_containment.TurnBoundWatch(
-        reap=lambda bound, timeout: reap_calls.append(bound),
-        is_alive=lambda: True,
-        max_turn_timeout=0.05,
-        permission_timeout=0.0,
-    )
-    with watch:
-        t0 = time.monotonic()
-        while time.monotonic() - t0 < 0.2 and not reap_calls:
-            watch.note_progress()
-            time.sleep(0.01)
-
-    assert reap_calls == [lane_containment.BOUND_MAX_TURN]
-    assert watch.fired == lane_containment.BOUND_MAX_TURN
 
 
 def test_dead_child_not_reaped_twice() -> None:
@@ -181,7 +151,6 @@ def test_dead_child_not_reaped_twice() -> None:
         reap=lambda bound, timeout: reap_calls.append(bound),
         is_alive=lambda: False,
         max_turn_timeout=0.05,
-        permission_timeout=0.0,
     )
     with watch:
         time.sleep(0.2)
@@ -220,24 +189,27 @@ def test_bookkeeping_failure_does_not_block_reap(tmp_path: Path) -> None:
 
 def test_constants_names_defaults_and_zero_disable() -> None:
     """E-03: Names, defaults, zero-disables read from live module attributes."""
-    assert lane_containment.PERMISSION_TIMEOUT == 0.0
     assert lane_containment.MAX_TURN_TIMEOUT == 14400.0
     assert lane_containment.MAX_TURN_TIMEOUT == 4 * 60 * 60.0
     assert lane_containment.HOST_CEILING_OFFSET_SECONDS == 300.0
-    assert lane_containment.BOUND_PERMISSION == "permission-timeout"
     assert lane_containment.BOUND_MAX_TURN == "max-turn-timeout"
     assert lane_containment.BOUND_EXPIRY_DISPOSITION == "failed-safely"
 
     # Contract verification: names are ..._TIMEOUT, not ..._DEADLINE
-    assert not hasattr(lane_containment, "PERMISSION_DEADLINE")
     assert not hasattr(lane_containment, "MAX_TURN_DEADLINE")
+
+    # A reintroduced permission knob is a visible interface change (TypeError)
+    with pytest.raises(TypeError):
+        lane_containment.TurnBoundWatch(
+            reap=lambda bound, timeout: None,
+            permission_timeout=1.0,
+        )
 
     # Zero-disable behavior: enabled is False and no thread fires
     zero_calls: list[str] = []
     watch_zero = lane_containment.TurnBoundWatch(
         reap=lambda bound, timeout: zero_calls.append(bound),
         max_turn_timeout=0,
-        permission_timeout=0,
     )
     assert watch_zero.enabled is False
     with watch_zero:
@@ -440,7 +412,7 @@ def test_non_isolated_prompt_byte_identical_and_names_neither_bound(
 
 
 # --------------------------------------------------------------------------------------------------
-# Task group 3: the unproven detector and the host overlap (A10c, A10d)
+# Task group 3: the host overlap and attribution (A10d)
 # --------------------------------------------------------------------------------------------------
 
 
@@ -483,7 +455,6 @@ def test_antigravity_overlap_and_attribution(tmp_path: Path) -> None:
         reap=reaper,
         is_alive=lambda: proc.poll() is None,
         max_turn_timeout=0.3,
-        permission_timeout=0.0,
     )
     with watch:
         try:
@@ -497,51 +468,8 @@ def test_antigravity_overlap_and_attribution(tmp_path: Path) -> None:
     assert item["turn_bound_expiry"]["bound"] == lane_containment.BOUND_MAX_TURN
 
 
-def test_permission_bound_disabled_by_default_and_unproven_detector(
-    tmp_path: Path,
-) -> None:
-    """E-07: Permission bound disabled by default; max-turn bound is sole cover (A10c option ii).
-
-    RECORDED FINDING (2026-09-30, HEAD e9d397a4): The permission detector is unproven
-    and note_permission_request has ZERO production call sites in agent_workflows/ or
-    tools/. Both drivers call note_progress() on every stdout line, but neither arms
-    the permission bound. Thus PERMISSION_TIMEOUT ships at 0.0 (disabled) and MAX_TURN_TIMEOUT
-    is currently the only bound covering a permission deadlock. Tracked by carrier 4xtpvg.
-
-    Behavioral test:
-    (a) Default remains disabled: PERMISSION_TIMEOUT == 0.0 and default watch never fires
-        even with an ask noted.
-    (b) Off by default is not unimplemented: armed watch differs from default.
-    (c) Real wedged child without permission observation is terminated by MAX_TURN_TIMEOUT alone.
-        Note: note_permission_request is NEVER called in this test.
-    """
-    assert lane_containment.PERMISSION_TIMEOUT == 0.0
-
-    # (a) Default construction does not fire on permission request
-    reap_calls: list[str] = []
-    watch_default = lane_containment.TurnBoundWatch(
-        reap=lambda bound, timeout: reap_calls.append(bound),
-        is_alive=lambda: True,
-        max_turn_timeout=0.0,
-    )
-    assert watch_default.permission_timeout == 0.0
-    assert not watch_default.enabled
-    with watch_default:
-        watch_default.note_permission_request()
-        time.sleep(0.05)
-    assert reap_calls == []
-
-    # (b) Armed construction is enabled
-    watch_armed = lane_containment.TurnBoundWatch(
-        reap=lambda bound, timeout: reap_calls.append(bound),
-        is_alive=lambda: True,
-        max_turn_timeout=0.0,
-        permission_timeout=0.05,
-    )
-    assert watch_armed.permission_timeout == 0.05
-    assert watch_armed.enabled is True
-
-    # (c) Max-turn alone terminates real wedged child with zero permission observations
+def test_max_turn_is_the_only_turn_bound(tmp_path: Path) -> None:
+    """MAX_TURN_TIMEOUT is the single R4.4 turn bound covering an over-long or wedged turn."""
     proc = subprocess.Popen(
         [sys.executable, "-c", "import time\nwhile True: time.sleep(0.05)"]
     )
@@ -551,10 +479,8 @@ def test_permission_bound_disabled_by_default_and_unproven_detector(
         reap=reaper,
         is_alive=lambda: proc.poll() is None,
         max_turn_timeout=0.3,
-        permission_timeout=0.0,
     )
     with watch_max_only:
-        # Deliberately do NOT call note_permission_request()
         try:
             rc = proc.wait(timeout=3.0)
         except subprocess.TimeoutExpired:

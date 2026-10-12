@@ -2719,9 +2719,6 @@ def run_agy_turn(
                     statusline.touch("stdout")
                     watchdog.touch()
                     observer.note_stdout_line(raw_line)
-                    # lanectn lhmrhx E-04: progress DISARMS the permission bound (resettable);
-                    # `MAX_TURN_TIMEOUT` is deliberately NOT reset. See `TurnBoundWatch`.
-                    turn_bounds.note_progress()
                     # runstop gq6m2u: the IN-TURN cooperative checkpoint (spec `c4gd2h` R7); the
                     # exact counterpart of the `oc_runipd` site. Side-effect free: it REPORTS the
                     # requested level, and acting on a level belongs to the later phases.
