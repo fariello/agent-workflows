@@ -6,7 +6,8 @@
 - Scope: COMMENT-ONLY edits re-anchoring every citation `aw check --source-offsets` reports on the real tree, by SYMBOL or QUOTED CONTENT STRING per spec `ipd-structure-and-linting` Section 10.2, deleting each bare offset rather than refreshing it (a refreshed offset is a new copy of the same expiring reference, the `fnbtta` idiom). The 8 sites measured at authoring live in `agent_workflows/agy_runipd.py` (3), `agent_workflows/runner_shared.py` (2), `agent_workflows/selectors.py` (1), `tests/test_oc_runipd.py` (1) and `tests/test_runner_shared.py` (1). Where a flagged citing sentence carries a second offset on the same sentence, re-anchor that one too, so no sentence keeps a half-fixed citation. EXCLUDES any code or test-behavior change, EXCLUDES the detector itself (Order 02), EXCLUDES offsets the report does not flag (a resolvable offset landing on plausible code is not mechanically decidable and is out of this Set's reach), and EXCLUDES the spec-anchor comments pending `sbh1o1` plan `fz3i3m` retargets in `agy_runipd.py` and `oc_runipd.py`.
 - Scope-Paths: agent_workflows/agy_runipd.py, agent_workflows/runner_shared.py, agent_workflows/selectors.py, tests/test_oc_runipd.py, tests/test_runner_shared.py
 - Item-Dependencies: executed:pyuw4v
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
 - From-Backlog: 7jl2bf
@@ -17,6 +18,7 @@
 - Id: jem77o
 
 ## Workflow history
+- 2026-10-12 reviewed (opencode model=its_direct/pt3-claude-opus-5.5-1m-us): /plan-review (opencode model=its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-003. Record: .aw/records/reviews/20261012-hostcite-03-jem77o-re-anchor-the-live-stale-python-source-file-line-citations-t.review.md
 
 - 2026-10-12 draft (opencode its_direct/pt3-claude-opus-5.5-1m-us): created.
 - 2026-10-12 to-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): authored as Order 03 of two plans graduating backlog 7jl2bf; sweeps the live census of the report Order 02 (pyuw4v) builds.
@@ -31,9 +33,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: Baseline
 
-- [ ] E-01 RECORD THE CENSUS AND SUITE BASELINE before any edit. Run and paste `aw check --source-offsets` on the real tree (expect the 8 sites in F-01, or whatever it reports now; every reported site is in scope for E-02/E-03 if it is in a declared path, otherwise record it under Scope check and justify the extra path to finalize with `--scope-reason`). Paste the bare suite `python3 -m pytest` summary line and the SET of failing test ids for E-04.
+- [ ] E-01 RECORD THE CENSUS AND SUITE BASELINE before any edit. Run and paste `aw check --source-offsets` on the real tree (the census is a LIVE population: 8 sites at authoring, 7 at review because `oc_runipd.py:4823` now lands on non-blank code (F-06), so re-derive it and do not treat any count as the bar). Every reported site in a declared path is in scope for E-02/E-03; a reported site outside them is fixed the same comment-only way and justified to finalize with `--scope-reason`. ALSO perform every E-02/E-03 item whether or not the report still flags it: each named offset was verified wrong at authoring or review, and an offset that drifts onto plausible code is still wrong (F-05, F-06). Paste the bare suite `python3 -m pytest` summary line and the SET of failing test ids for E-04.
   - Depends on: none
-  - Expected outcome: pasted report output and suite baseline.
+  - Expected outcome: pasted report output (re-derived, not compared to a fixed count) and suite baseline.
   - Execution state: pending
 
 ### Task group 2: Re-anchor
@@ -69,6 +71,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 | F-02 | The constructs the agy_runipd comments meant are in `oc_runipd.run_queue`: its comment "`register_signal_report` is called again after each state reload so the report never runs off a stale snapshot" precedes its first `register_signal_report(run_dir, state)`, and a later call follows `retry_deferred_integrations(run_dir, state, poll=True, ask=True)`. | Read at authoring; all `register_signal_report(` calls in `oc_runipd.py` fall inside `run_queue`. |
 | F-03 | `plan_repo = Path(work_dir) if work_dir else repo` no longer exists in `oc_runipd.py`; it lives in `runner_shared.execute_item_core`. | `grep` at authoring returned only `runner_shared.py`. |
 | F-04 | The "Consume the begin receipt" step is in `ipd_lifecycle._complete_after_commit`, and `ipd_lifecycle.py` already cites it by that quoted string in its own comment ("see the \"Consume the begin receipt\" step in `_complete_after_commit`"). | Read at authoring. |
+| F-06 | RE-MEASURED AT REVIEW HEAD `d63a85cc5` with a throwaway script implementing `pyuw4v` E-02's rules: 7 findings, the F-01 set MINUS `tests/test_oc_runipd.py` -> `oc_runipd.py:4823`, which now lands on the non-blank `# instead of being told the frozen value cannot change (DECISION 06-kgpptv-D5).` comment and so reads `valid`. It is still WRONG (the quoted `plan_repo = ...` line lives only in `runner_shared.execute_item_core`), so E-03(a) remains in scope. The population drifts with every edit to a cited file; this is why E-01 re-derives it and E-04's bar is ZERO rather than a delta. | Script output at review (7 tuples: `agy_runipd.py` 3266/3267/3322 `past_eof`, `runner_shared.py` 13042/13854 `blank_line`, `selectors.py` 455 `punct_only`, `tests/test_runner_shared.py` 4350 `blank_line`). |
 | F-05 | The `test_runner_shared.py` sentence's other offset `oc_runipd.py:3477-3478` resolves to valid code (inside `is_host_model_observation_enabled`), so the report cannot see it, but it is equally wrong; the keys it describes are written in `oc_runipd`'s run options (`"validate": resolved_launch.validate`, `"no_audit": not resolved_launch.validate`) and `agy_runipd`'s (`"no_verify": not verification.validate`). | Read at authoring. |
 
 ## Proposed changes (ordered, validatable)
@@ -86,7 +89,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ## Scope check
 
-- Over-scope: none. Each declared path holds at least one F-01 site.
+- Over-scope: none. Each declared path holds at least one F-01 site (`tests/test_oc_runipd.py`'s is no longer DETECTED but is still wrong, F-06).
 - Under-scope: if E-01 reports a site outside the five declared paths (a citation added after authoring), fix it in the same comment-only manner and justify the path to finalize with `--scope-reason`.
 
 ## Required tests / validation
@@ -105,7 +108,7 @@ N/A: comment-only edits; no spec, help text or user-facing document describes th
 
 - Blocking: no
 - Status: resolved
-- Owner: none
+- Owner: plan author
 - Resolution or deferral rationale: RESOLVED FROM EVIDENCE: replace with a symbol or quoted string and delete the offset. Spec `ipd-structure-and-linting` Section 10.2 explains a bare offset "expires by construction", and `fnbtta` (Order 01 of this Set, executed) established the same idiom for source comments; a refreshed offset would simply be re-reported by the next drift.
 
 ## Validation and cross-check (verify before reporting done)
@@ -117,11 +120,11 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Observed evidence:
   - Result: pending
 - [ ] V-02 validates E-02
-  - Required evidence: the pasted `git diff -U0 agent_workflows/agy_runipd.py agent_workflows/runner_shared.py agent_workflows/selectors.py` showing only comment or docstring lines changed and no new bare `<file>.py:<line>` offset introduced.
+  - Required evidence: the pasted `git diff -U0 agent_workflows/agy_runipd.py agent_workflows/runner_shared.py agent_workflows/selectors.py` showing only comment or docstring lines changed, all five E-02 sites (a)-(e) rewritten, and no new bare `<file>.py:<line>` offset introduced; plus a pasted `rg -n 'oc_runipd\.py:[0-9]|ipd_lifecycle\.py:3989|cli\.py:8487|status_set\.py:13[23]' agent_workflows/agy_runipd.py agent_workflows/runner_shared.py agent_workflows/selectors.py` returning nothing.
   - Observed evidence:
   - Result: pending
 - [ ] V-03 validates E-03
-  - Required evidence: the pasted `git diff -U0 tests/test_oc_runipd.py tests/test_runner_shared.py` showing only comment lines changed and no new bare offset introduced.
+  - Required evidence: the pasted `git diff -U0 tests/test_oc_runipd.py tests/test_runner_shared.py` showing only comment lines changed, both E-03 sites rewritten (including (a) even if E-01's report no longer flags it), and no new bare offset introduced.
   - Observed evidence:
   - Result: pending
 - [ ] V-04 validates E-04
@@ -140,4 +143,6 @@ EXECUTION CONTRACT. Commit only the declared `- Scope-Paths:` plus this plan, th
 
 SCOPE FENCE. Comments and docstrings only. Do NOT change code, assertions, fixtures or test names, do NOT edit `agent_workflows/source_offsets.py` or any spec, and do NOT touch the spec-`25kzda` anchor comments `fz3i3m` owns. An out-of-scope edit that proves necessary is MADE and then JUSTIFIED to `aw ipd finalize` with `--scope-reason`; a declared path left unmodified needs `--scope-ack`.
 
-POST-GATE LIFECYCLE. Do not move this plan to `executed/` until `aw ipd lint --phase pre-transition` conforms and every `V-*` item carries observed evidence. Under `aw oc run` / `aw agy run` the runner performs finalize; executed by hand, run `aw ipd finalize <plan> --actor <agent/model> --message <summary> --apply`. When this plan and `pyuw4v` are both executed, backlog `7jl2bf` may close `done` with `aw backlog set done 7jl2bf --evidence <this executed plan path>`.
+OPEN QUESTIONS: OQ-01 resolved; none blocking.
+
+POST-GATE LIFECYCLE. Do not move this plan to `executed/` until `aw ipd lint --phase pre-transition` conforms and every `V-*` item carries observed evidence. Under `aw oc run` / `aw agy run` the runner performs `aw ipd begin` and finalize, so do not call them yourself; executed by hand, run `aw ipd begin jem77o` before E-02 and `aw ipd finalize <plan> --actor <agent/model> --message <summary> --apply`. When this plan and `pyuw4v` are both executed, backlog `7jl2bf` may close `done` with `aw backlog set done 7jl2bf --evidence <this executed plan path>`.
