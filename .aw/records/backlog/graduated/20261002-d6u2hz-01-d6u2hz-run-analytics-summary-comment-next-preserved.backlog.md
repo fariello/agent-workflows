@@ -1,11 +1,13 @@
 - Id: d6u2hz
-- Status: open
+- Status: graduated
+- Graduated-To: d6u2hz
 - Set: d6u2hz
 - Priority: low
 - Work-Kind: chore
 - Summary: refresh the run_analytics_cli query-summary comment once a --fields projection preserves next, since its stated reason becomes false
 
 ## Workflow history
+- 2026-10-12 graduated (aw backlog): graduated by run run-20261012T005641Z-2321995: gbizqt
 - 2026-10-02 created (aw backlog): refresh the run_analytics_cli query-summary comment once a --fields projection preserves next, since its stated reason becomes false
 
 FILED BY PLAN `6rcby1` (backlog `kkjrqr`) as the carrier for a comment that plan deliberately leaves alone.
