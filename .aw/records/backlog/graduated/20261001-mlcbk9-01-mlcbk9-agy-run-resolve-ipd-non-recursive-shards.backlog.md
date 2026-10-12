@@ -1,5 +1,6 @@
 - Id: mlcbk9
-- Status: open
+- Status: graduated
+- Graduated-To: mlcbk9
 - Blocks-Release: next
 - Set: mlcbk9
 - Priority: medium
@@ -7,6 +8,7 @@
 - Summary: Make agy_run.resolve_ipd recursive so sharded plans resolve
 
 ## Workflow history
+- 2026-10-12 graduated (aw backlog): graduated by run run-20261012T005606Z-2321569: m734rl
 - 2026-10-01 created (aw backlog): Make agy_run.resolve_ipd recursive so sharded plans resolve
 
 `agy_run._candidate_plans` enumerates candidate plans with non-recursive `plans_base.glob("*.md")` over `.agents/plans/<state>` and `.aw/records/plans/<state>`, so a plan that has been moved into a monthly shard is invisible to `resolve_ipd`.
