@@ -1,5 +1,6 @@
 - Id: ki1uqk
-- Status: open
+- Status: graduated
+- Graduated-To: ki1uqk
 - Blocks-Release: next
 - Set: ki1uqk
 - Priority: medium
@@ -7,6 +8,7 @@
 - Summary: artifact_core.git_mv swallows git's own 'outside repository' refusal and moves the file anyway with shutil.move, leaving the index inconsistent; measured 2026-10-02 while authoring plb8jx
 
 ## Workflow history
+- 2026-10-12 graduated (aw backlog): graduated by run run-20261012T005650Z-2322198: 7sy2gm
 - 2026-10-02 created (aw backlog): artifact_core.git_mv swallows git's own 'outside repository' refusal and moves the file anyway with shutil.move, leaving the index inconsistent; measured 2026-10-02 while authoring plb8jx
 
 FILED AS THE CARRIER for the deferred `git_mv` row in plan `plb8jx` (Set `0ougsh`), which fixes the `aw research set-assign --date` traversal at the verb and deliberately leaves this helper alone.
