@@ -4,20 +4,22 @@
 - Kind: child
 - Concern: Nothing mechanically detects that a machine-output flag declared ONCE on the shared `common` argparse parent (`--json`, `--fields`) is accepted by a subcommand's parser yet silently not honored by its handler. That is the defect CLASS behind `xym8g8`, where `aw sanitize --json` exited 0 with zero stdout bytes, and it shipped because every existing surface test either inspects parser DECLARATION (`tests/test_fields_flag_reach.py`, `tests/test_verbose_flag_reach.py`) or drives only `--agent` (`tests/test_agent_surface_conformance.py`). Authoring swept the existing conformance universes at HEAD `85184f648` and measured the class is LIVE beyond `xym8g8`: five leaves emit no parseable JSON under `--json` (filed as `jfdk7p`) and nine leaves ignore `--fields` under `--agent` (filed as `aws1tg`). Any detector must encode `docs/cli-output-contract.md` Section 1.3's exemption for the verbatim-forwarding driver leaves (`aw oc run`, `aw agy run`, the `review`/`integrate` aliases, `aw run as`, `aw run ipd`, `aw agy sessions|view|exec`), where `--agent`/`--json` are deliberately NOT provided, or it fires on each of them.
 - Scope: Add ONE new behavioral test module, `tests/test_shared_flag_honored.py`, that runs every leaf in the two existing conformance universes (`test_agent_surface_conformance.UNIVERSE` and `MUTATION_UNIVERSE`) as a real subprocess under (a) `--json`, asserting stdout parses as one JSON value, and (b) `--agent --fields cmd`, asserting no terminal record carries a key outside the preserved envelope plus `cmd`. It encodes the Section 1.3 exemption by DERIVATION (a leaf whose parser does not declare `--json` is outside the universe) and pins that derivation against the documented forwarded-leaf list so the exemption cannot silently widen. Measured-broken leaves are registered in a strict-xfail `KNOWN_BROKEN` ceiling, each citing a resolvable backlog id, so the gate turns red both when a NEW leaf regresses and when a broken leaf is FIXED without its entry being removed. Add one sentence to `docs/cli-output-contract.md` Section 1.3 naming the new gate. EXCLUDES fixing any of the measured-broken leaves (owned by `jfdk7p`, `aws1tg`, `k84fqu`), any `aw check` rule in `check_engine` (OQ-01), any `--verbose` reach assertion (OQ-02), and any change to the forwarded driver leaves.
-- Scope-Paths: tests/test_shared_flag_honored.py, docs/cli-output-contract.md
+- Scope-Paths: tests/test_shared_flag_honored.py, docs/cli-output-contract.md, .aw/records/plans/pending/20261012-uxq5mg-01-cgsrnb-behaviorally-gate-that-every-leaf-declaring-a-shared-common.ipd.md
 - Item-Dependencies: none
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: medium
 - From-Backlog: uxq5mg
 - Set: uxq5mg
 - Order: 1
-- Highest E allocated: 06
+- Highest E allocated: 07
 - Author: opencode/its_direct/pt3-claude-opus-5.5-1m-us
 - Id: cgsrnb
 
 ## Workflow history
-
+- 2026-10-12 reviewed (aw set): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-001..PR-005
+- 2026-10-12 /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005
 - 2026-10-12 draft (opencode/its_direct/pt3-claude-opus-5.5-1m-us): created.
 - 2026-10-12 to-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): Authored from backlog item `uxq5mg` (Work-Kind `chore`, no `Blocks-Release`, so none is inherited or invented). The item asks for a "check rule"; OQ-01 resolves from repository evidence that the right carrier is a CI-gating behavioral test, not an `aw check` rule, and records why. Authoring MEASURED the defect class rather than assuming it: a `--json` sweep and a `--agent --fields cmd` sweep across all 71 leaves of the two existing conformance universes at HEAD `85184f648` (F-03, F-04). The sweeps found the class is live on 13 distinct leaves beyond the `xym8g8` instance, which `wyy09f` already fixed (F-05). Those were filed as `jfdk7p` (`--json`, bug, `Blocks-Release: next`) and `aws1tg` (`--fields`, bug, `Blocks-Release: next`) rather than fixed here, because this plan is a `chore` detector and bundling nine handler fixes into it would hide release-gated bug work behind a non-gating item. The Section 1.3 exemption was verified against the parser: exactly the eleven documented forwarded leaves plus the hidden `__complete` declare no `--json` (F-02).
 
@@ -51,14 +53,19 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Expected outcome: the exemption-pin test and the ceiling exist; the module now passes with every broken case reported as XFAIL; removing any one KNOWN_BROKEN entry makes that case FAIL; and each citation resolves.
   - Execution state: pending
 
-- [ ] E-05 PROVE THE GATE IS SENSITIVE to the exact regression it exists for and that its ceiling is strict. (1) MUTATION: through a restoring wrapper whose `finally` rewrites the original bytes, temporarily make `cli._run_check_local_leaks` drop the threaded context again (the `wyy09f` fix: pass `context=None` into `leak_sanitizer.main`), run ONLY the new module, confirm the `check-local-leaks` and `sanitize` `--json` cases FAIL, then restore and confirm the `sha256` of `agent_workflows/cli.py` equals the pre-mutation hash. (2) With a restoring wrapper on the test module, remove one KNOWN_BROKEN entry and confirm the matching case FAILS; then point one entry at a leaf that passes and confirm the strict xfail reports XPASS as a failure.
+- [ ] E-05 PROVE THE GATE IS SENSITIVE to the exact regression it exists for and that its ceiling is strict. (1) MUTATION: through a restoring wrapper whose `finally` rewrites the original bytes, temporarily make `cli._run_check_local_leaks` drop the threaded context again (the `wyy09f` fix: pass `context=None` into `leak_sanitizer.main`), run ONLY the new module, confirm the `check-local-leaks` `--json` case FAILS (there is no separate `sanitize` case: `sanitize` is an ALIAS of `check-local-leaks`, sharing its parser object, so `command_surface.discover_parser_leaves` yields only `check-local-leaks`; measured at review). The edit must be ON DISK, because `run_cli` launches a subprocess importing the worktree package through `PYTHONPATH`, so an in-process monkeypatch cannot reach it. Measured at review: with the context dropped, `check-local-leaks --json` exits 0 with 0 stdout bytes (the `xym8g8` shape) while `--agent --fields cmd` still projects correctly, so only the `--json` case is expected to fail. Then restore and confirm the `sha256` of `agent_workflows/cli.py` equals the pre-mutation hash. (2) With a restoring wrapper on the test module, remove one KNOWN_BROKEN entry and confirm the matching case FAILS; then point one entry at a leaf that passes and confirm the strict xfail reports XPASS as a failure.
   - Depends on: E-04
   - Expected outcome: pasted evidence the gate fails under the reverted `xym8g8` fix and passes after byte-identical restoration, and that the ceiling fails both on a removed entry and on a stale entry.
   - Execution state: pending
 
-- [ ] E-06 DOCUMENT the gate and RUN the suite. Add ONE sentence to `docs/cli-output-contract.md` Section 1.3, after the paragraph naming `tests/test_flag_surface_uniformity.py`, stating that `tests/test_shared_flag_honored.py` asserts every leaf declaring `--json`/`--fields` honors them observably and pins the forwarded-leaf exemption; write no em or en dashes (user-facing doc). Measure the new module's wall time; if it adds more than 30 seconds to the bare suite, mark the mutation-universe half `@pytest.mark.slow` (CI runs `-m slow` as its own gating step in `.github/workflows/tests.yml`) and record the numbers either way. Then run the full fast suite BARE as `python3 -m pytest`; for any failure, re-run the same selection at the base commit and report pre-existing versus caused.
+- [ ] E-06 DOCUMENT the gate. Add ONE sentence to `docs/cli-output-contract.md` Section 1.3, after the paragraph naming `tests/test_flag_surface_uniformity.py`, stating that `tests/test_shared_flag_honored.py` asserts every leaf declaring `--json`/`--fields` honors them observably and pins the forwarded-leaf exemption; write no em or en dashes (user-facing doc).
   - Depends on: E-05
-  - Expected outcome: the one-sentence doc addition, the measured wall time with the slow-marker decision, and a bare full-suite `N passed` summary with every failure attributed.
+  - Expected outcome: a one-sentence addition to Section 1.3 and no other doc change.
+  - Execution state: pending
+
+- [ ] E-07 MEASURE the module and RUN the suite. Record the new module's wall time under the bare suite's own xdist settings (`python3 -m pytest tests/test_shared_flag_honored.py` with the configured `addopts`) and its serial time (`-o addopts="" -q`). Do NOT mark any part of the module `@pytest.mark.slow`: the `-m slow` step in `.github/workflows/tests.yml` is ADVISORY (`continue-on-error: true`), so a slow-marked gate would no longer gate anything. If the wall time is judged too costly, report the numbers to the maintainer instead of moving the gate out of the gating step. (For reference, review measured about 24s for both flags over the read universe and about 11s over the mutation universe with 8 worker threads.) Then run the full fast suite BARE as `python3 -m pytest`; for any failure, re-run the same selection at the base commit and report pre-existing versus caused.
+  - Depends on: E-06
+  - Expected outcome: both measured times recorded with no slow marker added, and a bare full-suite `N passed` summary with every failure attributed.
   - Execution state: pending
 
 ## Project conventions discovered (Step 0)
@@ -69,7 +76,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 - The conformance universes are computed in `tests/test_agent_surface_conformance` (`compute_conformance_universe`, `compute_mutation_conformance_universe`) from `command_surface.get_all_declarations` minus `tests/conformance_matrix.EXEMPTION_REGISTRY` / `MUTATION_EXEMPTION_REGISTRY`. Those registries are documented as "A CEILING, NOT A CONVENIENCE" and require a filed item for `known_broken`; the KNOWN_BROKEN dict here follows the same rule.
 - `tests/conformance_matrix.run_cli` runs `python -m agent_workflows` with `stdin=DEVNULL` and separately captured stdout/stderr, which is exactly the separation `wyy09f` F-06 identified as missing from the old combined-stream helper.
 - `agent_schema.filter_record_fields` preserves `_PRESERVED_FIELDS` (`schema, kind, cmd, exit, outcome, complete, verified` plus `applied, total, emitted, omitted, next`) on every projection; Section 6 of the output contract documents the same set.
-- Run the suite BARE (`python3 -m pytest`); `pyproject.toml` `addopts` already deselects `slow` and `livecorpus`, and `.github/workflows/tests.yml` runs `-m slow` as a separate gating step.
+- Run the suite BARE (`python3 -m pytest`); `pyproject.toml` `addopts` already deselects `slow` and `livecorpus`. `.github/workflows/tests.yml` runs `-m slow` as a separate step that is ADVISORY (`continue-on-error: true`), so only the fast suite gates CI.
 
 ## Findings
 
@@ -89,7 +96,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 2. Add `tests/test_shared_flag_honored.py` with the `--json` parseability gate over the imported universes (E-02).
 3. Add the `--fields` projection gate with a non-vacuity guard (E-03).
 4. Pin the Section 1.3 exemption by derivation and add the strict-xfail KNOWN_BROKEN ceiling with resolvable citations (E-04).
-5. Prove the gate catches the reverted `xym8g8` fix, add the one-sentence doc pointer, measure runtime, run the bare suite (E-05, E-06).
+5. Prove the gate catches the reverted `xym8g8` fix (E-05).
+6. Add the one-sentence doc pointer (E-06).
+7. Measure runtime without moving the gate out of the gating step, and run the bare suite (E-07).
 
 ## Deferred / out of scope (with reason)
 
@@ -97,7 +106,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Carrier: jfdk7p
 - FIXING THE NINE `--fields` LEAVES. Same reason.
   - Carrier: aws1tg
-- THE `leak_sanitizer.main` `--fix` AND EXIT-2 BRANCHES EMITTING NOTHING UNDER `--agent`. Already filed; this gate's universe runs `sanitize` without `--fix` so it neither depends on nor masks that defect.
+- THE `leak_sanitizer.main` `--fix` AND EXIT-2 BRANCHES EMITTING NOTHING UNDER `--agent`. Already filed; this gate's universe runs `check-local-leaks` (of which `sanitize` is an alias) without `--fix` so it neither depends on nor masks that defect.
   - Carrier: k84fqu
 - NORMALIZING THE `--json` PAYLOAD SHAPE (some leaves emit a single-line agent record or a bare domain dict instead of a pretty `CommandResult`). Parseability is the property whose absence broke callers in `xym8g8`; shape uniformity is a separate contract decision no measured caller is blocked on, and asserting it would fail many leaves for a reason outside this item.
   - Carrier-Declined: No defect is measured and no caller is broken: every such leaf emits valid JSON, which is what Section 6 promises a "machine ingestion" consumer. Filing it would record a preference as an obligation (GUIDING_PRINCIPLES P6). If a maintainer wants shape uniformity it is a new contract decision, not deferred work from this item.
@@ -116,8 +125,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 - `tests/test_shared_flag_honored.py` passing under the bare suite with every F-03/F-04 case reported XFAIL (strict) and every other case passing (E-02, E-03, E-04).
 - The exemption-pin test asserting the no-`--json` leaf set equals the Section 1.3 list plus `__complete` (E-04).
 - The citation-resolution and no-dead-entry tests for KNOWN_BROKEN (E-04).
-- A mutation run reverting the `wyy09f` context threading showing the `check-local-leaks`/`sanitize` `--json` cases fail, with matching before/after `sha256` of `agent_workflows/cli.py` (E-05).
-- A bare `python3 -m pytest` with its `N passed` summary pasted and any failure attributed against the base commit (E-06).
+- A mutation run reverting the `wyy09f` context threading showing the `check-local-leaks` `--json` case fails, with matching before/after `sha256` of `agent_workflows/cli.py` (E-05).
+- The one-sentence Section 1.3 doc addition (E-06).
+- The module's measured wall time with no slow marker, and a bare `python3 -m pytest` with its `N passed` summary pasted and any failure attributed against the base commit (E-07).
 
 ## Spec / documentation sync
 
@@ -149,7 +159,7 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Result: pending
 
 - [ ] V-02 validates E-02
-  - Required evidence: The new file path and its module docstring (showing `xym8g8`, Section 1.3, and the imported-universe rationale); pasted pytest output of the `--json` cases BEFORE the KNOWN_BROKEN registry exists, whose failing set equals the V-01 `--json` broken list exactly (no more, no fewer); and the count of `--json` cases collected, equal to `len(UNIVERSE) + len(MUTATION_UNIVERSE)` printed in the same session.
+  - Required evidence: The new file path and its module docstring (showing `xym8g8`, Section 1.3, and the imported-universe rationale); pasted pytest output of the `--json` cases BEFORE the KNOWN_BROKEN registry exists, whose failing set equals the V-01 `--json` broken list exactly (no more, no fewer); and proof every imported leaf is covered: the set of `--json` parametrize ids, printed in the same session, equals `set(UNIVERSE) | set(MUTATION_UNIVERSE)` (a set comparison re-derived at execution, not a count written here).
   - Observed evidence:
   - Result: pending
 
@@ -164,12 +174,17 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Result: pending
 
 - [ ] V-05 validates E-05
-  - Required evidence: Pasted output of the mutation run (context threading reverted in the `cli._run_check_local_leaks` call path) showing the `check-local-leaks` and `sanitize` `--json` cases FAILED, then the restored run passing, with the pre-mutation and post-restoration `sha256` of `agent_workflows/cli.py` pasted and equal; pasted output showing a removed KNOWN_BROKEN entry FAILS its case and a stale entry reports a strict XPASS failure.
+  - Required evidence: Pasted output of the mutation run (context threading reverted in the `cli._run_check_local_leaks` call path) showing the `check-local-leaks` `--json` case FAILED (empty stdout), then the restored run passing, with the pre-mutation and post-restoration `sha256` of `agent_workflows/cli.py` pasted and equal; pasted output showing a removed KNOWN_BROKEN entry FAILS its case and a stale entry reports a strict XPASS failure.
   - Observed evidence:
   - Result: pending
 
 - [ ] V-06 validates E-06
-  - Required evidence: The diff of the one-sentence `docs/cli-output-contract.md` addition (no em/en dashes); the measured module wall time and the slow-marker decision; and the bare `python3 -m pytest` summary line pasted verbatim with any failure attributed by a base-commit re-run.
+  - Required evidence: The `git diff -- docs/cli-output-contract.md` hunk showing the single added sentence inside Section 1.3, and a grep of that hunk for em/en dashes returning nothing.
+  - Observed evidence:
+  - Result: pending
+
+- [ ] V-07 validates E-07
+  - Required evidence: The two measured wall times (xdist and serial) pasted from the runs; a grep of `tests/test_shared_flag_honored.py` for `mark.slow` returning nothing; and the bare `python3 -m pytest` summary line pasted verbatim with any failure attributed by a base-commit re-run.
   - Observed evidence:
   - Result: pending
 
@@ -178,4 +193,10 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 - Size assessment: standard
 - Cohesion rationale: not required
 
-Execute only after explicit human approval (`- Status: approved`). Commit only `tests/test_shared_flag_honored.py` and `docs/cli-output-contract.md` through `aw commit cgsrnb -- <paths>`, never push, and paste actual runner output for every validation item. Do not fix any KNOWN_BROKEN leaf here; a newly measured broken leaf is filed as a backlog item and registered, not fixed. Move to `.aw/records/plans/executed/` only after `aw ipd lint --phase pre-transition` conforms and every `V-*` reads `pass` with observed evidence.
+Execute only after explicit human approval (`- Status: approved`). Execution contract:
+
+- Open questions: OQ-01 and OQ-02 are resolved; no blocking question remains.
+- Scope fence: the declared `- Scope-Paths:` are `tests/test_shared_flag_honored.py`, `docs/cli-output-contract.md`, and this plan. This is a declaration, not a stop condition: an out-of-scope edit that proves necessary is made and then justified at finalize (`--scope-reason`), and a declared path left unmodified is acknowledged (`--scope-ack`). A backlog item E-01 files for a NEW broken leaf is such an out-of-scope path and needs a `--scope-reason`. Do not fix any KNOWN_BROKEN leaf here: a newly measured broken leaf is filed and registered, not fixed. The E-01 STOP on an exemption-population drift is a maintainer decision about a public contract, not a scope question, and stays.
+- Honesty: every `Observed evidence` MUST paste the ACTUAL runner output; never claim a pass that was not run. The E-05 mutation of `agent_workflows/cli.py` must be restored byte-identically (matching `sha256`) and never committed.
+- Commit: path-scoped via `aw commit cgsrnb -- tests/test_shared_flag_honored.py docs/cli-output-contract.md <this plan>` (plus any justified out-of-scope path); never `git add -A`, never push.
+- Lifecycle: start with `aw ipd begin cgsrnb --actor <you>`. The terminal transition to `executed/` happens only after `aw ipd lint --phase pre-transition` conforms and every `V-*` reads `pass` with observed evidence. Under `aw oc run`/`aw agy run` the runner performs that transition, so the executor must NOT run `aw ipd finalize` itself; when executing by hand, run `aw ipd finalize cgsrnb --actor <you> --message <msg> --apply` (never a hand `git mv` to `executed/`).
