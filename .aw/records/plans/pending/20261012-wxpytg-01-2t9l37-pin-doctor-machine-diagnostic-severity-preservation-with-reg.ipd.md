@@ -6,7 +6,8 @@
 - Scope: Verify the severity-preserving `Diagnostic` construction in `doctor.inspect_repo` and add behavior regression tests that drive `inspect_repo` and the `aw doctor --agent` CLI, asserting the emitted diagnostic severities and the unchanged exit code.
 - Scope-Paths: agent_workflows/doctor.py, tests/test_doctor_diagnostic_severity.py
 - Item-Dependencies: none
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: low
 - From-Backlog: wxpytg
@@ -18,6 +19,7 @@
 - Id: 2t9l37
 
 ## Workflow history
+- 2026-10-12 reviewed (aw set): /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-004. Re-measured at HEAD 6aa8c3441: fallback chain present, seam probe info/warning/info/error, compact --agent omits severity.
 
 - 2026-10-12 draft (opencode): created.
 - 2026-10-12 to-review (opencode): authored from backlog wxpytg; source fix found already present, plan scoped to verification plus regression coverage.
@@ -47,9 +49,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Depends on: E-01
   - Expected outcome: test passes; info-only findings yield a clean exit with `info` diagnostics.
   - Execution state: pending
-- [ ] E-04 In the same file add an end-to-end CLI test: in an `init_repo` fixture under `tmp_path` create one untracked file, run `tests.support.run_cli("doctor", "--agent", cwd=repo)`, parse the `aw.agent/v1` JSONL `result` record, and assert every diagnostic carries a severity in `{"error", "warning", "info"}` and that each diagnostic's severity equals `check_engine.rule_spec(rule).severity` for its rule (the untracked-file drift carries no explicit severity, so this asserts the registry fallback reaches the CLI surface).
+- [ ] E-04 In the same file add an end-to-end CLI test. In an `init_repo` fixture under `tmp_path`, write an `AGENTS.md` whose `<!-- aw:block -->` ... `<!-- /aw:block -->` region backticks a missing path (e.g. `` `docs/missing-thing.md` ``), so `doctor.probe_installed_doc_references` yields a `doctor.dangling-doc-reference` drift with severity `info`. Also create one untracked file. Run `tests.support.run_cli("doctor", "--agent", "--verbose", cwd=repo)`, take the `aw.agent/v1` `result` record, and run `tests.support.run_cli("doctor", "--json", cwd=repo)` too. On BOTH surfaces assert: every diagnostic carries a severity in `{"error", "warning", "info"}`; the `doctor.dangling-doc-reference` diagnostic is `info`, which is the DISCRIMINATING assertion because a hardcoded `error` turns it red; and the `doctor.git-untracked` diagnostic equals `check_engine.rule_spec("doctor.git-untracked").severity`. `--verbose` is REQUIRED for the agent surface: compact `--agent` emits diagnostics as `{location, rule}` only (`result_types.CommandResult.to_agent_record`, the `else` arm of `if is_verbose:` under `# Diagnostics (omitted in compact if clean)`), so a bare `--agent` record has no severity to assert. Note that the registry fallback is not discriminating at the CLI: `doctor.git-untracked` is unregistered and resolves to the default `error`, which a hardcoded `error` would also produce. The seam test (E-02) is what pins the fallback chain.
   - Depends on: E-01
-  - Expected outcome: test passes; CLI machine output reflects registry severities rather than a constant.
+  - Expected outcome: test passes; both machine surfaces report `doctor.dangling-doc-reference` as `info` beside `error` diagnostics (measured at review on HEAD `6aa8c3441`: `[('doctor.version-not-installed', 'error'), ('doctor.dangling-doc-reference', 'info'), ('doctor.git-untracked', 'error')]` on `--agent --verbose` and on `--json`, exit 1).
   - Execution state: pending
 
 ## Project conventions discovered (Step 0)
@@ -66,7 +68,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 |---|---|---|
 | F-01 | The defect described by `wxpytg` (hardcoded `severity="error"` in doctor's machine `Diagnostic` construction) is no longer present in source. | `git blame` on the `severity=getattr(d, "severity", "")` lines in `doctor.inspect_repo` attributes them to commit `64ccf6758` (`work(ka0g86): Make the managed AGENTS.md block target-neutral ...`, 2026-10-08), which landed after the backlog item was filed from the `36sifo` review. |
 | F-02 | No test pins the doctor-side behavior. | `tests/test_severity_truth_surfaces.py` tests only the doctor summary bucket count and the attention diagnostic severity (`test_attention_diagnostic_preserves_drift_severity_and_exit_code`); `tests/test_sanitizer_severity_vocabulary.py` covers only `doctor.leak-*` sanitizer translation. |
-| F-03 | The fix was incidental to an unrelated plan, so nothing would catch a revert. | `ka0g86` concerns AGENTS.md target neutrality, not severity. |
+| F-03 | The fix was incidental to an unrelated plan, so nothing would catch a revert. | `ka0g86` concerns AGENTS.md target neutrality, not severity; `git show 64ccf6758 -- agent_workflows/doctor.py` shows `-                severity="error",` replaced by the fallback chain. The backlog file was added at `ad7599ee1` (2026-10-08 04:33) and the fix landed at `64ccf6758` (06:24 the same day). |
+| F-04 | Compact `--agent` output carries NO severity on diagnostics; only `--agent --verbose` and `--json` do. Of the drifts a fresh `init_repo` produces, the ones carrying `info` are `doctor.dangling-doc-reference` and `doctor.artifact-status-location-drift`, both set explicitly in their `core.Drift(...)` calls; `doctor.git-untracked` and `doctor.version-not-installed` are unregistered and resolve to `error`. | Review run at HEAD `6aa8c3441`: bare `--agent` diagnostics `[{"location":"<version>","rule":"doctor.version-not-installed"},{"location":"u.txt","rule":"doctor.git-untracked"}]`; `result_types.CommandResult.to_agent_record` compact branch; `check_engine.rule_spec('doctor.git-untracked').severity == 'error'`. |
+| F-05 | The seam works as E-02/E-03 assume. Monkeypatching `doctor.run_doctor` to the four drifts yields `[('x.one','info'), ('x.two','warning'), ('doctor.dangling-doc-reference','info'), ('zz.unregistered','error')]`, status `findings`, exit 1; an info-only list yields status `clean`, exit 0, and `artifact_core.drift_exit_code == 0`. | Review probe calling `doctor.inspect_repo` on an `init_repo` fixture. |
 
 ## Proposed changes (ordered, validatable)
 
@@ -99,7 +103,7 @@ N/A: no spec or user-facing doc describes doctor's per-diagnostic severity mappi
 
 - Blocking: no
 - Status: resolved
-- Owner: none
+- Owner: plan author
 - Resolution or deferral rationale: Repository evidence (F-01) shows the fix is present; E-01 is therefore a verification step that only edits source if the expression has regressed. The remaining value is regression coverage (F-02, F-03).
 
 ## Validation and cross-check (verify before reporting done)
@@ -111,7 +115,7 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Observed evidence:
   - Result: pending
 - [ ] V-02 validates E-02
-  - Required evidence: pasted pytest output for the seam-level preservation test showing it passed, with the test asserting `info`, `warning`, `info`, `error` for the four drifts.
+  - Required evidence: pasted pytest output for the seam-level preservation test showing it passed, with the test asserting `info`, `warning`, `info`, `error` for the four drifts. Then a MUTATION run: temporarily replace the fallback-chain expression in `doctor.inspect_repo` with `severity="error"`, re-run the test file, and paste the FAILED output naming this test (and E-04's test); restore it, and paste an empty `git diff agent_workflows/doctor.py`.
   - Observed evidence:
   - Result: pending
 - [ ] V-03 validates E-03
@@ -119,7 +123,7 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Observed evidence:
   - Result: pending
 - [ ] V-04 validates E-04
-  - Required evidence: pasted pytest output for the CLI end-to-end test showing it passed (the observation is produced by `aw doctor --agent` via `doctor.inspect_repo`), plus the pasted summary line of a bare `python3 -m pytest` full-suite run with no new failures.
+  - Required evidence: pasted pytest output for the CLI end-to-end test showing it passed (the observation is produced by `aw doctor --agent --verbose` and `aw doctor --json` via `doctor.inspect_repo`), the V-02 mutation run showing this test also went red, and the pasted summary line of a bare `python3 -m pytest` full-suite run with no new failures (any failure shown as pre-existing by re-running it at the base commit).
   - Observed evidence:
   - Result: pending
 
@@ -128,4 +132,4 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 - Size assessment: standard
 - Cohesion rationale: not required
 
-Execute only after explicit human approval (`Status: approved`). Commit through `aw commit <this plan> -- agent_workflows/doctor.py tests/test_doctor_diagnostic_severity.py <this plan>`; never push. After every `V-*` reads `pass` with pasted evidence and `aw ipd lint --phase pre-transition` conforms, move the plan to `.aw/records/plans/executed/` through the tooled lifecycle transition.
+Execute only after explicit human approval (`Status: approved`). OQ-01 is resolved; none remain. `- Scope-Paths:` is a declaration that finalize reconciles: an out-of-scope edit that proves necessary is made and then justified with `--scope-reason`, and an unmodified declared path (expected for `agent_workflows/doctor.py` when E-01 finds no regression) gets a `--scope-ack`. Commit through `aw commit 2t9l37 -- <paths>` (never `git add -A`), and never push. Paste the ACTUAL runner output for every claim that a test passed; never claim a pass you did not run. After every `E-*` reads `performed`, every `V-*` reads `pass` with pasted evidence, and `aw ipd lint --phase pre-transition` conforms, the plan moves to `.aw/records/plans/executed/` through the tooled lifecycle. Under `aw oc run` / `aw agy run` the runner performs `aw ipd finalize`. In a hand-driven execution the executor runs `aw ipd finalize 2t9l37 --actor <agent/model> --message <summary> --apply`. Backlog `wxpytg` (and its `Blocks-Release: next` gate, which this plan carries) is advanced by the runner's backlog-close step, never by hand.
