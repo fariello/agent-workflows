@@ -746,6 +746,11 @@ def run_rename_generic(
         if update_refs
         else ([], [])
     )
+    # IPD 69pxm5 E-03: never rewrite citations inside an in-flight plan (live begin receipt).
+    ref_edits, _in_flight_notes = _refs.filter_in_flight_plan_edits(
+        repo_root, ref_edits
+    )
+    warnings = list(warnings) + _in_flight_notes
 
     # IPD ha55fi E-05: surface full-path citations that a filename-only rewrite cannot safely fix.
     unrewritable: List[Tuple[str, str]] = []
@@ -1180,6 +1185,13 @@ def run_group_generic(
             for w in warns:
                 if w not in all_warnings:
                     all_warnings.append(w)
+    # IPD 69pxm5 E-03: never rewrite citations inside an in-flight plan (live begin receipt).
+    all_edits, _in_flight_notes = _refs.filter_in_flight_plan_edits(
+        repo_root, all_edits
+    )
+    for w in _in_flight_notes:
+        if w not in all_warnings:
+            all_warnings.append(w)
 
     if not apply:
         preview_targets: List[MutationTarget] = []
