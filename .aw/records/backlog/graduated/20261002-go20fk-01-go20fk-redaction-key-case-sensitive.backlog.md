@@ -1,11 +1,13 @@
 - Id: go20fk
-- Status: open
+- Status: graduated
+- Graduated-To: go20fk
 - Set: go20fk
 - Priority: medium
 - Work-Kind: security
 - Summary: RedactionPolicy sensitive-key match is case-sensitive, so an uppercase secret key is never masked
 
 ## Workflow history
+- 2026-10-12 graduated (aw backlog): graduated by run run-20261012T005606Z-2321569: pbl020
 - 2026-10-02 created (aw backlog): filed from mflqqf plan authoring; measured at HEAD 4fbbc8386
 
 Measured at HEAD 4fbbc8386 while authoring plan gqyold (backlog item mflqqf).
