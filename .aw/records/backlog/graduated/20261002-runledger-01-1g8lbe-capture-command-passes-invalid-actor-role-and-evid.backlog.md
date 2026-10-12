@@ -1,5 +1,6 @@
 - Id: 1g8lbe
-- Status: open
+- Status: graduated
+- Graduated-To: runledger
 - Blocks-Release: next
 - Set: runledger
 - Priority: medium
@@ -7,6 +8,7 @@
 - Summary: capture_command is called with actor='driver' and evidence_kind='tests', neither in the ledger schema's closed vocabulary, so both produced records fail validation
 
 ## Workflow history
+- 2026-10-12 graduated (aw backlog): graduated by run run-20261012T005617Z-2321742: 1rozt5
 - 2026-10-02 created (aw backlog): Filed while graduating backlog ye28s6 into plan rdjka2: found while measuring whether a driver run could write a ledger.
 
 MEASURED at 2026-10-02 (lane worktree ye28s6, HEAD fb75224d) by calling the function live and validating its output with run_ledger_schema.validate_record.
