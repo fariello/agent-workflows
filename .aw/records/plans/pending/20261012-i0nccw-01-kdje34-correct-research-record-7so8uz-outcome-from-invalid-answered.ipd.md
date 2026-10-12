@@ -6,7 +6,8 @@
 - Scope: Change the single frontmatter value in `7so8uz` to the valid `adopted` (its declared consumer `0b7fic` already exists) through the tooled `aw research set-outcome` verb, and prove the index gate returns to exit 0. No code, spec, or other record changes.
 - Scope-Paths: .aw/records/research/20261001-4xtpvg-00-7so8uz-permission-ask-observability.assessment.md, .aw/records/plans/pending/20261012-i0nccw-01-kdje34-correct-research-record-7so8uz-outcome-from-invalid-answered.ipd.md
 - Item-Dependencies: none
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: high
 - From-Backlog: i0nccw
@@ -19,6 +20,7 @@
 
 ## Workflow history
 
+- 2026-10-12 reviewed (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005
 - 2026-10-12 draft (opencode/claude-opus): created.
 - 2026-10-12 to-review (opencode/claude-opus): authored from backlog `i0nccw`; fix rehearsed in the authoring lane (then reverted) to confirm it clears the gate.
 
@@ -32,12 +34,12 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: Reproduce, fix, verify
 
-- [ ] E-01 REPRODUCE THE FAILURE before changing anything: run `aw research index --check` and capture its exit code and the `frontmatter-invalid` line naming `20261001-4xtpvg-00-7so8uz-permission-ask-observability.assessment.md` with `outcome must be one of ['adopted', 'informational', 'none-yet', 'rejected']`. If the line is ABSENT (someone already fixed it), record that, skip E-02, and still perform E-03.
+- [ ] E-01 REPRODUCE THE FAILURE before changing anything: run `aw research index --check` and capture its exit code and the `frontmatter-invalid` line naming `20261001-4xtpvg-00-7so8uz-permission-ask-observability.assessment.md` with `outcome must be one of ['adopted', 'informational', 'none-yet', 'rejected']`. If the line is ABSENT (someone already fixed it), record that; E-02 then performs as a recorded no-op (see E-02), and E-03 still runs.
   - Depends on: none
   - Expected outcome: the failing exit code (1) and the exact `frontmatter-invalid` diagnostic for `7so8uz` are recorded, or its absence is recorded.
   - Execution state: pending
 
-- [ ] E-02 APPLY THE FIX WITH THE TOOLED VERB, not a hand edit: `aw research set-outcome 7so8uz --to adopted --consumed-by 0b7fic --apply`. Then confirm with `git diff` that the ONLY change to the record is the single line `-outcome: answered` / `+outcome: adopted` (the `consumed-by: [0b7fic]`, `status: active`, body, and every other field unchanged). Commit via `aw commit kdje34 -- <record path> <this plan path>`.
+- [ ] E-02 APPLY THE FIX WITH THE TOOLED VERB, not a hand edit: `aw research set-outcome 7so8uz --to adopted --consumed-by 0b7fic --apply`. Then confirm with `git diff` that the ONLY change to the record is the single line `-outcome: answered` / `+outcome: adopted` (the `consumed-by: [0b7fic]`, `status: active`, body, and every other field unchanged). Commit via `aw commit kdje34 -- <record path> <this plan path>` and record the resulting commit hash. If E-01 found the line already absent, do NOT run the verb or commit: paste `grep -n '^outcome:\|^consumed-by:' <record path>` showing `outcome: adopted` and `consumed-by: [0b7fic]` and mark E-02 performed as a no-op.
   - Depends on: E-01
   - Expected outcome: the record reads `outcome: adopted` with `consumed-by: [0b7fic]`; the diff is exactly one changed line in that file.
   - Execution state: pending
@@ -66,6 +68,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 | F4 | `adopted` is the correct replacement: the record was consumed by executed plan `0b7fic` and already declares `consumed-by: [0b7fic]`. `informational` would understate a record a plan acted on. | Record frontmatter; plan `0b7fic` in `executed/`. |
 | F5 | The fix works. Rehearsed in the authoring lane: `aw research set-outcome 7so8uz --to adopted --consumed-by 0b7fic --apply` produced a one-line diff and `aw research index --check` returned `rc=0` with 0 `frontmatter-invalid` lines; the change was then reverted (`git checkout`) so execution performs it. | Authoring lane transcript. |
 | F6 | No other record carries `outcome: answered`. | Repository grep: the only research hit is `7so8uz`; other hits are prose in an executed plan and a review. |
+| F7 | Re-measured at review HEAD `8a523e16e`: `aw research index --check` still exits 1 with the same single `frontmatter-invalid` line for `7so8uz`; `dangling-citation` now counts 275 (live count, context only, not a bar). Rehearsal repeated and reverted: `set-outcome --apply` gave a one-line diff (`-outcome: answered` / `+outcome: adopted`), the check exited 0 with 0 `frontmatter-invalid` lines, `INDEX.json`/`INDEX.md` are gitignored (`.aw/.gitignore` lines 50-51), and `tests/test_research_index.py` reported `51 passed`. | Commands run in the review lane. |
 
 ## Proposed changes (ordered, validatable)
 
@@ -76,8 +79,11 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 ## Deferred / out of scope (with reason)
 
 - Hardening authoring so a hand-written invalid research outcome cannot be committed (for example a pre-commit hook on research frontmatter): out of scope; the backlog item asks only to fix the record, and the existing `aw research index --check` gate already detected it. Fileable as separate backlog if the maintainer wants it.
+  - Carrier-Declined: the existing `aw research index --check` gate detected the defect; no measured recurrence (F6 finds no other `outcome: answered` record), so no hardening obligation is carried.
 - The executed plan `0b7fic` and its review text that mention `outcome: answered`: not edited, because executed records are immutable.
+  - Carrier-Declined: executed plans and review records are historical; the prose accurately records what authoring set at the time.
 - The 274 `dangling-citation` and other `info` findings: not defects of this item and do not gate.
+  - Carrier-Declined: `info` severity is exempt from the drift exit code (`artifact_core.drift_exit_code`), so these do not gate the index and are outside this item.
 
 ## Scope check
 
@@ -100,7 +106,7 @@ N/A: the outcome vocabulary is unchanged and already documented (`docs/artifact-
 
 - Blocking: no
 - Status: resolved
-- Owner: none
+- Owner: plan author
 - Resolution or deferral rationale: `adopted`, because executed plan `0b7fic` consumed the record and it already declares `consumed-by: [0b7fic]` (F4); this also satisfies the `adopted-without-consumer` rule.
 
 ## Validation and cross-check (verify before reporting done)
@@ -113,7 +119,7 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Result: pending
 
 - [ ] V-02 validates E-02
-  - Required evidence: paste `git show --stat HEAD` and the `git show HEAD -- <record path>` hunk proving the only change is `-outcome: answered` / `+outcome: adopted`, with `consumed-by: [0b7fic]` present in the resulting file.
+  - Required evidence: paste `git show --stat <E-02 commit>` and the `git show <E-02 commit> -- <record path>` hunk (the hash E-02 recorded, not a bare `HEAD`, which a later commit may move) proving the only change is `-outcome: answered` / `+outcome: adopted`, with `consumed-by: [0b7fic]` present in the resulting file. In the E-01 already-fixed branch, paste instead the `grep` output E-02 recorded and `git log --oneline -1 -- <record path>` naming the commit that fixed it.
   - Observed evidence:
   - Result: pending
 
@@ -127,4 +133,8 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 - Size assessment: standard
 - Cohesion rationale: not required
 
-Execute only after human approval. Commit through `aw commit kdje34 -- <paths>` limited to the Scope-Paths, never push. Move this plan to `.aw/records/plans/executed/` only after `aw ipd lint --phase pre-transition` conforms and every `V-*` reads `pass` with pasted evidence.
+EXECUTION CONTRACT. Execute only after human approval. Commit only the `- Scope-Paths:` files through `aw commit kdje34 -- <paths>`; never `git add -A` or `-a`, and never push. Verify the staged set with `git diff --cached --name-only` before committing, and never stage the gitignored `INDEX.json`/`INDEX.md`. Paste the ACTUAL command and runner output for every claim; never assert a pass you did not run. OQ-01 is resolved.
+
+SCOPE FENCE. The declared change is one frontmatter line in `7so8uz` plus this plan; no code, spec, test, or other record is in scope. An out-of-scope edit that proves necessary is made and justified with `aw ipd finalize --scope-reason`, never silently.
+
+POST-GATE LIFECYCLE. After every `E-*` is performed and every `V-*` reads `pass` with pasted evidence, run `aw ipd lint --phase pre-transition` and require it conforming. In a managed runner lane (`AW_EXECUTION_ROLE=worker`) the RUNNER owns `aw ipd begin`/`aw ipd finalize`; executing by hand, run `aw ipd begin` before the first edit and `aw ipd finalize` for the terminal move. Never hand-edit status or `git mv` the plan into `executed/`.
