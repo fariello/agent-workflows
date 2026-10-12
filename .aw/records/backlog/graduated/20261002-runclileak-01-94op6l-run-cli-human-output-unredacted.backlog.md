@@ -1,5 +1,6 @@
 - Id: 94op6l
-- Status: open
+- Status: graduated
+- Graduated-To: runclileak
 - Blocks-Release: next
 - Set: runclileak
 - Priority: medium
@@ -7,6 +8,7 @@
 - Summary: run_cli human-mode output is not redacted though its docstring claims both surfaces are, leaking a token that the --agent surface masks
 
 ## Workflow history
+- 2026-10-12 graduated (aw backlog): graduated by run run-20261012T005606Z-2321569: omst3h
 - 2026-10-02 created (aw backlog): found while graduating h9kgjp (run_cli docstring vs module contradictions)
 
 `run_cli`'s module docstring Contract block claims "Redacts sensitive values in both human and machine outputs". MEASURED FALSE on the human surface: redaction lives ONLY in `run_cli._emit_machine`, which calls `_redact_output` before printing, while `_emit_error`'s human branch prints `f"error: {message}"` with no redaction, and no other `print(` in the module routes through `_redact_output`.
