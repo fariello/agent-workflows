@@ -4202,6 +4202,8 @@ def run(args) -> int:
         # to violate); an explicitly named non-project directory fails closed with cannot-run
         # (spec Section 8.1: could-not-run is exit 2 / fail closed; human 3).
         if check and not explicit_dir:
+            # rolswj/akhwp7: one local carries the examined count to both surfaces.
+            no_project_items = 0
             if ctx.is_agent or ctx.is_json:
                 res = CommandResult(
                     command="attention",
@@ -4211,14 +4213,17 @@ def run(args) -> int:
                     evidence=[
                         Evidence(
                             key="attention",
-                            value={"items": 0, "drift": 0},
+                            value={"items": no_project_items, "drift": 0},
                             status="clean",
                         )
                     ],
                     data={"items": [], "drift": []},
                 )
                 return get_renderer(ctx).emit(res, ctx)
-            sys.stdout.write("aw attention --check: the view is valid.\n")
+            sys.stdout.write(
+                "aw attention --check: the view is valid. "
+                f"{no_project_items} items checked, 0 violations.\n"
+            )
             return 0
         if ctx.is_agent or ctx.is_json:
             next_actions = (
@@ -4554,8 +4559,9 @@ def run(args) -> int:
         if drift:
             for d in drift:
                 sys.stdout.write(f"{d.location}: {d.rule}: {d.detail}\n")
+            sys.stdout.write(f"aw attention --check: {summary}.\n")
         else:
-            sys.stdout.write("aw attention --check: the view is valid.\n")
+            sys.stdout.write(f"aw attention --check: the view is valid. {summary}.\n")
         return exit_code
 
     id6_only = getattr(args, "id6_only", False)

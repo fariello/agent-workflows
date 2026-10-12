@@ -300,11 +300,12 @@ class ValidatorNonsurveyableDirTests(unittest.TestCase):
         self.assertTrue(rec_sp["verified"])
         self.assertEqual(rec_sp["checked"], 1)
 
-        # Backlog check human (countless success line preserved)
+        # Backlog check human (nonzero examined count reported, rolswj/akhwp7)
         proc_bl = self._run_cli("backlog", "check", "--dir", str(self.proj_root))
         self.assertEqual(proc_bl.returncode, 0)
-        self.assertIn("all backlog items conform.", proc_bl.stdout)
-        self.assertNotIn("0", proc_bl.stdout)
+        self.assertIn(
+            "all backlog items conform. 1 backlog items checked.", proc_bl.stdout
+        )
 
         # Backlog check agent (nonzero checked asserted)
         proc_bl_agent = self._run_cli(
@@ -388,7 +389,9 @@ class ValidatorNonsurveyableDirTests(unittest.TestCase):
 
         proc_bl = self._run_cli("backlog", "check", "--dir", str(empty_root))
         self.assertEqual(proc_bl.returncode, 0)
-        self.assertIn("all backlog items conform.", proc_bl.stdout)
+        self.assertIn(
+            "all backlog items conform. 0 backlog items checked.", proc_bl.stdout
+        )
 
 
 if __name__ == "__main__":
