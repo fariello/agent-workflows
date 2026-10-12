@@ -7,7 +7,8 @@
 - Scope-Paths: agent_workflows/term.py, tests/test_generic_color_depth.py, CHANGELOG.md
 - Item-Dependencies: none
 - Status: to-review
-- Work-Kind: followup
+- Work-Kind: bug
+- Blocks-Release: next
 - Priority: medium
 - From-Backlog: cvtg9u
 - Set: cvtg9u
@@ -17,6 +18,7 @@
 - Id: lv0dvv
 
 ## Workflow history
+- 2026-10-12 same-status (aw set): Maintainer ruling 2026-10-12: pin none must disable all color (reading B); OQ-01 still to be marked resolved + plan approved by maintainer
 
 - 2026-10-12 draft (opencode): created.
 - 2026-10-12 to-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): authored from backlog `cvtg9u`. Reproduced F-08 in the lane, measured a prototype of the fix against the full bare suite at two `TERM` values (zero new failures) and across seven CLI commands at pins `none` and `16` (zero escapes at `none`, zero `38;5;` at `16`), measured that an unmemoized resolver call costs no end-to-end time, filed the out-of-`Term` raw-literal residue as backlog `y11p5u`, and left the scope ruling the item reserves for the maintainer as OQ-01 (owner maintainer, gated by E-01).

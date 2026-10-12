@@ -1,11 +1,13 @@
 - Id: y11p5u
 - Status: open
+- Work-Kind: bug
+- Blocks-Release: next
 - Set: y11p5u
 - Priority: low
-- Work-Kind: followup
 - Summary: Raw 38;5 escapes in pwatch, runners_monitor and render_stream headers bypass the color_depth pin
 
 ## Workflow history
+- 2026-10-12 same-status (aw set): Maintainer ruling 2026-10-12: color_depth=none must turn off ALL color; reclassified bug
 - 2026-10-12 created (aw backlog): filed while graduating cvtg9u (plan lv0dvv), which fixes the Term generic axis only
 
 ## Context

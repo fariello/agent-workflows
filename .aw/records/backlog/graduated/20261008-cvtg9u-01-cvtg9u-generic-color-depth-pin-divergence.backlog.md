@@ -1,12 +1,14 @@
 - Id: cvtg9u
 - Status: graduated
+- Work-Kind: bug
+- Blocks-Release: next
 - Graduated-To: cvtg9u
 - Set: cvtg9u
 - Priority: medium
-- Work-Kind: followup
 - Summary: Generic color axis ignores color_depth pin at pin none
 
 ## Workflow history
+- 2026-10-12 same-status (aw set): Maintainer ruling 2026-10-12: color_depth=none must turn off ALL color (OQ-01 reading B); reclassified bug
 - 2026-10-12 graduated (aw backlog): graduated by run run-20261012T005617Z-2321742: lv0dvv
 - 2026-10-08 created (aw backlog): Generic color axis ignores color_depth pin at pin none
 
