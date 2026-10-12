@@ -6,19 +6,21 @@
 - Scope: IN: (a) one shared, generic in-flight edit filter in `artifact_refs` that drops every planned rewrite whose target file is a plan file with a begin receipt present, REUSING `artifact_refs.classify_citing_plans_for_rewrite` (5h3qyy E-04) as the liveness predicate rather than defining liveness a second time, and returns one human-readable skip note per skipped file; (b) wiring that filter immediately after edit PLANNING at each of the four planning call sites (`artifact_rename.run_rename_generic`, `artifact_rename.run_group_generic`, `plans_refs.apply_renames`, `research_refs._apply_renames`), so preview and apply, human and `--agent`/`--json`, all see the same filtered edit set and the skip notes flow through each backend's existing `warnings` -> printed line + `MutationResult.notes` channel; (c) behavior tests driving the real CLI verbs; (d) a DECISIONS.md entry recording skip-and-report over refuse; (e) a one-sentence amendment to the plans-adopter spec Section 4.5, whose "rewriting citations" contract this narrows; (f) one CHANGELOG line. OUT: `plans_archive` (a shard move is DIR-only and its module docstring records it is "a CITATION NO-OP (no reference rewrite)", so it has no rewrite to guard); the status setters (already guarded by `5h3qyy`); any override flag to force-rewrite an in-flight plan (`--no-refs` already exists for the opposite direction, and a force flag would re-create the hazard on demand; see OQ-01); repairing citations left stale by a skip (the in-flight plan's own author fixes them after finalize, exactly as D159 leaves skipped status-setter citations).
 - Scope-Paths: agent_workflows/artifact_refs.py, agent_workflows/artifact_rename.py, agent_workflows/plans_refs.py, agent_workflows/research_refs.py, tests/test_rename_receipt_guard.py, DECISIONS.md, CHANGELOG.md, .aw/records/specs/implemented/20260808-0004-01-artifact-organization-plans-adopter.spec.md
 - Item-Dependencies: executed:5h3qyy
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: low
 - From-Backlog: 23p80m
 - Blocks-Release: next
 - Set: scoperewrite
 - Order: 2
-- Highest E allocated: 07
+- Highest E allocated: 08
 - Author: opencode/claude-opus
 - Id: 69pxm5
 
 ## Workflow history
 
+- 2026-10-12 reviewed (opencode/its_direct/pt3-claude-opus-5.5-1m-us): /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001 (MEDIUM, fixed: E-04(h) demanded note text on compact --agent output, which projects evidence to key names; now --json data.notes), PR-002 (MEDIUM, fixed: in-flight plan self-rename unguarded, recorded as F-07, pinned by E-04(i), handed off via 23p80m), PR-003 (LOW, fixed: E-02 path resolution for absolute vs relative edit files), PR-004 (LOW, fixed: E-08 files F-07 so it outlives 23p80m). F-01 re-reproduced on all three backends at HEAD ebe34e463; E-02/E-03 design prototyped by wrapping the three planners: in-flight plan unchanged, sibling plan and tests/ file rewritten, rc 0, SKIPPED printed on apply and preview. Record: .aw/records/reviews/20261011-scoperewrite-02-69pxm5-guard-aw-rename-group-citation-rewrites-against-in-flight-be.review.md.
 - 2026-10-12 to-review (opencode/claude-opus): graduated from backlog `23p80m`. Authoring reproduced the defect on all three rewrite backends with a live receipt present (F-01), confirmed `classify_citing_plans_for_rewrite` from `5h3qyy` is directly reusable (F-03), and found that the guard must skip the WHOLE citing file rather than only its `Scope-Paths` line because the frozen region also covers E/V action blocks (F-02).
 - 2026-10-12 draft (opencode/claude-opus): created.
 
@@ -39,7 +41,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 2: The shared filter
 
-- [ ] E-02 Add `artifact_refs.filter_in_flight_plan_edits(repo_root, edits) -> (kept_edits, skip_notes)`. It is GENERIC over any edit object exposing a `.file` path (both `artifact_refs.RefEdit` and `research_refs.RefEdit` do), so one function serves all three backends. Partition the distinct `.file` values into PLAN files (a `.ipd.md` file under `.aw/records/plans/` or `.agents/plans/`, any disposition, resolved relative to `repo_root`) and everything else; pass only the plan files to the EXISTING `classify_citing_plans_for_rewrite(repo_root, plan_files)` and do not re-implement its receipt or `- Id:` logic. Drop EVERY edit whose file is in its `must_skip` set (all edits for that file, not only `Scope-Paths` edits, per F-02), keep all others in their original order, and emit one note per skipped file in the form `--- SKIPPED citation rewrite in <repo-relative path>: <reason> (in-flight plan; fix the citation after it finalizes) ---`, matching the `--- WARNING: ... ---` shape the planner's existing warnings use. Non-plan files and plan files without a receipt are never dropped, so with zero receipts present the function returns its input unchanged and no notes.
+- [ ] E-02 Add `artifact_refs.filter_in_flight_plan_edits(repo_root, edits) -> (kept_edits, skip_notes)`. It is GENERIC over any edit object exposing a `.file` path (both `artifact_refs.RefEdit` and `research_refs.RefEdit` do), so one function serves all three backends. Edit `.file` values are absolute paths in practice (the planner walks under `repo_root`), but resolve a relative one against `repo_root` and compare by `Path.resolve()` so both forms match; a file that resolves outside `repo_root` is never dropped. Partition the distinct `.file` values into PLAN files (a `.ipd.md` file under `.aw/records/plans/` or `.agents/plans/`, any disposition, resolved relative to `repo_root`) and everything else; pass only the plan files to the EXISTING `classify_citing_plans_for_rewrite(repo_root, plan_files)` and do not re-implement its receipt or `- Id:` logic. Drop EVERY edit whose file is in its `must_skip` set (all edits for that file, not only `Scope-Paths` edits, per F-02), keep all others in their original order, and emit one note per skipped file in the form `--- SKIPPED citation rewrite in <repo-relative path>: <reason> (in-flight plan; fix the citation after it finalizes) ---`, matching the `--- WARNING: ... ---` shape the planner's existing warnings use. Non-plan files and plan files without a receipt are never dropped, so with zero receipts present the function returns its input unchanged and no notes.
   - Depends on: E-01
   - Expected outcome: a new function in `artifact_refs.py`; `classify_citing_plans_for_rewrite`, `plan_reference_rewrites_with_warnings` and `apply_reference_rewrites` are byte-unchanged.
   - Execution state: pending
@@ -53,9 +55,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 4: Tests
 
-- [ ] E-04 Add `tests/test_rename_receipt_guard.py`, driving the real CLI (`cli.main` with `--dir <tmp git repo>`, following the fixture style of `tests/test_artifact_refs_rewrite.py`) and asserting only on real outputs, exit codes and file bytes (GUIDING_PRINCIPLES P16: never read production source, count callers, or pin comments). Pin: (a) `aw group specs ... --rename --apply` with two citing pending plans, one with a receipt file and one without, leaves the in-flight plan byte-identical, rewrites the other, exits 0, and prints a SKIPPED line naming the in-flight plan; (b) the same for `aw rename plans` (plans_refs backend); (c) the same for `aw rename research` (research_refs backend); (d) a citation inside an E-item action block (not `Scope-Paths`) of an in-flight plan is also left unchanged, pinning F-02; (e) a non-plan citing file (a file under `tests/` in the scratch repo) is still rewritten while an in-flight plan is skipped; (f) PREVIEW (no `--apply`) prints the SKIPPED line and lists no `would rewrite` line for the in-flight plan; (g) with NO receipt anywhere, the in-flight-candidate plan IS rewritten, pinning that the guard is a no-op in the common case; (h) under `--agent`, the record validates with `agent_schema.assert_valid_agent_record` and carries the skip note in its evidence/notes.
+- [ ] E-04 Add `tests/test_rename_receipt_guard.py`, driving the real CLI (`cli.main` with `--dir <tmp git repo>`, following the fixture style of `tests/test_artifact_refs_rewrite.py`) and asserting only on real outputs, exit codes and file bytes (GUIDING_PRINCIPLES P16: never read production source, count callers, or pin comments). Pin: (a) `aw group specs ... --rename --apply` with two citing pending plans, one with a receipt file and one without, leaves the in-flight plan byte-identical, rewrites the other, exits 0, and prints a SKIPPED line naming the in-flight plan; (b) the same for `aw rename plans` (plans_refs backend); (c) the same for `aw rename research` (research_refs backend); (d) a citation inside an E-item action block (not `Scope-Paths`) of an in-flight plan is also left unchanged, pinning F-02; (e) a non-plan citing file (a file under `tests/` in the scratch repo) is still rewritten while an in-flight plan is skipped; (f) PREVIEW (no `--apply`) prints the SKIPPED line and lists no `would rewrite` line for the in-flight plan; (g) with NO receipt anywhere, the in-flight-candidate plan IS rewritten, pinning that the guard is a no-op in the common case; (h) under `--agent`, the record validates with `agent_schema.assert_valid_agent_record` and its `evidence` list names `notes`, and under `--json` the `data.notes` list contains the SKIPPED line. (Measured at review: the COMPACT `--agent` record projects evidence to its key names only, `"evidence":["notes"]`, so the note TEXT is visible only under `--json` or `--agent --verbose`; do not assert the text on compact `--agent` output.); (i) renaming the IN-FLIGHT PLAN ITSELF (`aw rename plans <in-flight id6> --slug <s> --apply`) still succeeds and is unchanged by this plan, recording that behavior as the baseline, since F-07 leaves it out of scope.
   - Depends on: E-03
-  - Expected outcome: a new passing test module pinning (a) through (h).
+  - Expected outcome: a new passing test module pinning (a) through (i).
   - Execution state: pending
 
 ### Task group 5: Records
@@ -75,6 +77,11 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Expected outcome: exactly one new CHANGELOG bullet.
   - Execution state: pending
 
+- [ ] E-08 File F-07 as its own backlog item so it survives this plan's close of `23p80m`: run `aw backlog new` (Work-Kind `bug`, so it carries `- Blocks-Release: next` per the live-bug gate unless the maintainer exempts it) with a summary naming "renaming an in-flight plan's own file while its begin receipt is live" and a body quoting F-07's reproduction, then replace the F-07 deferred row's `- Carrier: 23p80m` with the new item's id6. Before filing, re-drive F-07's reproduction on a scratch repo and paste whether the rename still succeeds; if a later change already guards it, record that and file nothing.
+  - Depends on: E-04
+  - Expected outcome: a new backlog item id6 (or a recorded "already guarded" result), and the F-07 deferred row's carrier pointing at it.
+  - Execution state: pending
+
 ## Project conventions discovered (Step 0)
 
 - ONE LIVENESS PREDICATE. `5h3qyy` shipped `artifact_refs.classify_citing_plans_for_rewrite`, which fails CLOSED (a receipt file present, readable or corrupt, or a missing `- Id:`, means must-skip) and deliberately does NOT reuse `check_engine._receipt_is_live`, whose fail-safe direction is the opposite. The backlog item asks to reuse that predicate rather than define liveness a second time; E-02 does exactly that.
@@ -92,6 +99,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 | F-03 | MEDIUM | `artifact_refs.classify_citing_plans_for_rewrite` | **THE 5h3qyy PREDICATE IS DIRECTLY REUSABLE.** Signature `(repo_root, candidate_files) -> (rewritable, must_skip_with_reasons)`; it reads each file's `- Id:` and checks `ipd_lifecycle.receipt_path_for(repo_root, id6).exists()`. It is not tied to `Scope-Paths` or to pending plans, so feeding it the plan files among a rename's edit targets is a correct use. It treats a missing `- Id:` as must-skip; measured at authoring, every `.ipd.md` under `.aw/records/plans/` carries `- Id:` (the only 7 files without one are the `README.md`/`STATUS.md` manifests, which the planner already skips via `_SKIP_NAMES`), so restricting the predicate to `.ipd.md` files avoids a spurious skip. |
 | F-04 | MEDIUM | `artifact_rename.py`, `plans_refs.py`, `research_refs.py`, `plans_archive.py` | **NO GUARD EXISTS AND `plans_archive` NEEDS NONE.** `grep -c 'receipt\|in_flight\|in-flight'` over the four modules at authoring HEAD: 0 matches in total. `plans_archive`'s module docstring states a shard move "changes the plan's path but NOT its filename, and plans are cited by basename/stem, so it is a CITATION NO-OP (no reference rewrite)", and it imports no reference rewriter, so it is out of scope. |
 | F-05 | LOW | four planning call sites | **THE PLANNING SITES ARE FOUR, NOT THREE.** `artifact_rename` plans edits in two functions (`run_rename_generic` and, per target, `run_group_generic`), plus `plans_refs.apply_renames` and `research_refs._apply_renames`; `plans_refs.run_set_assign`/`run_mv` and `research_refs.run_set_assign`/`run_mv` route through those last two. Wiring at planning time covers every verb spelling and both preview and apply. |
+| F-07 | LOW | `plans_refs` rename of the in-flight plan itself | (review, 2026-10-12, HEAD `ebe34e463`) RENAMING THE IN-FLIGHT PLAN ITSELF IS A DIFFERENT HAZARD AND IS NOT COVERED. Driven: `aw rename plans p22222 --slug renamed --apply --no-commit` with `p22222`'s receipt present renamed the executing plan's file, rc 0. The receipt keys on the id6 (`receipt_path_for(repo_root, id6)`), so finalize still FINDS the receipt; the open question is whether a runner holding the old path strands. That is a source-file move, not a citation rewrite, so this plan's filter (which drops EDITS) cannot reach it; it is reported here, not fixed, and E-04 (i) pins today's behavior so a later fix is a visible change. |
 | F-06 | LOW | `.aw/state/ipd-lifecycle/` | Live exposure is latent: the receipt directory does not exist in this authoring lane, so zero live receipts here. The guard is a cheap no-op in the common case and the defect bites only when a rename coincides with an execution. |
 
 ## Proposed changes (ordered, validatable)
@@ -101,6 +109,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 3. Wire it at the four planning sites through the existing warnings channel (E-03).
 4. Add CLI-driven behavior tests across all three backends (E-04).
 5. Record the decision, amend the spec sentence, add the CHANGELOG line (E-05, E-06, E-07).
+6. File F-07 (in-flight plan self-rename) as its own backlog item (E-08).
 
 ## Deferred / out of scope (with reason)
 
@@ -108,12 +117,14 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Carrier-Declined: there is no outstanding need. A forced rewrite re-creates exactly the stranding this plan removes, and the only legitimate actor wanting it (the in-flight plan's own executor) can fix its own citation after finalize; nobody has asked for the flag.
 - **`plans_archive` shard moves.** Not a rewrite path (F-04).
   - Carrier-Declined: there is nothing to guard; the module performs no reference rewrite by design.
+- **Renaming or regrouping the in-flight plan ITSELF** (F-07). A file move of the executing plan, not a citation rewrite into it, so the edit filter cannot reach it, and whether it strands a lane is unmeasured.
+  - Carrier: 23p80m (interim; E-08 files a follow-on item with F-07's reproduction and replaces this carrier with its id6, so the observation survives this plan's close of `23p80m`; the new backlog file lies outside `- Scope-Paths:`, so justify it at finalize with `--scope-reason`).
 - **Repairing citations left behind by a skip.** Left to the skipped plan's own author, as D159 does for the status setters; the skip note names the file, and the stale citation surfaces through the existing dangling-citation and `check.scope-path-target-stale` checks.
   - Carrier-Declined: the work belongs to another party's in-flight plan, which the shared-checkout rule forbids editing, and the existing checks already surface it.
 
 ## Scope check
 
-- Over-scope: none. Each declared path is written by a named E-item: `artifact_refs.py` (E-02), `artifact_rename.py`, `plans_refs.py`, `research_refs.py` (E-03), `tests/test_rename_receipt_guard.py` (E-04), `DECISIONS.md` (E-05), the plans-adopter spec (E-06), `CHANGELOG.md` (E-07).
+- Over-scope: none. Each declared path is written by a named E-item: `artifact_refs.py` (E-02), `artifact_rename.py`, `plans_refs.py`, `research_refs.py` (E-03), `tests/test_rename_receipt_guard.py` (E-04), `DECISIONS.md` (E-05), the plans-adopter spec (E-06), `CHANGELOG.md` (E-07). E-08 writes one new `.aw/records/backlog/` file, which cannot be named in advance (its id6 is minted); it is justified at finalize with `--scope-reason`.
 - Under-scope: none known. `cli.py` is deliberately NOT declared: skip notes ride the existing `MutationResult.notes` -> `Evidence(key="notes")` path, so no CLI change is needed. The one `.aw/records/` entry, the plans-adopter spec, sits in `implemented/`, whose only onward move is `superseded/`, so a concurrent status transition staling it during this plan's execution is unlikely; if it does move, `check.scope-path-target-stale` reports it and finalize's `--scope-reason` covers the edit.
 
 ## Required tests / validation
@@ -155,7 +166,7 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Result: pending
 
 - [ ] V-04 validates E-04
-  - Required evidence: the pasted targeted run of `tests/test_rename_receipt_guard.py` showing it passing, with behaviors (a) through (h) each mapped to a named passing test (names non-binding); the pasted targeted run of the adjacent test modules listed under Required tests; and the pasted BARE `python3 -m pytest` summary line. Quote the assertions showing the tests check exit codes, stdout and file bytes only and never read production source (P16).
+  - Required evidence: the pasted targeted run of `tests/test_rename_receipt_guard.py` showing it passing, with behaviors (a) through (i) each mapped to a named passing test (names non-binding); the pasted targeted run of the adjacent test modules listed under Required tests; and the pasted BARE `python3 -m pytest` summary line. Quote the assertions showing the tests check exit codes, stdout and file bytes only and never read production source (P16).
   - Observed evidence:
   - Result: pending
 
@@ -171,6 +182,11 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 
 - [ ] V-07 validates E-07
   - Required evidence: pasted `git diff CHANGELOG.md` showing exactly one added `Fixed:` bullet under the existing `## 2.0.0 (pending)` heading, no other change, and no em or en dash in the added line.
+  - Observed evidence:
+  - Result: pending
+
+- [ ] V-08 validates E-08
+  - Required evidence: the pasted re-run of F-07's reproduction (rc and resulting file names); the pasted `aw backlog new` output naming the new id6 and the new file's front matter (`- Work-Kind:`, `- Blocks-Release:` or exemption); and the pasted F-07 deferred row showing `- Carrier: <new id6>`. Or, if already guarded, the pasted reproduction showing the refusal.
   - Observed evidence:
   - Result: pending
 
