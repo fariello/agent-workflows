@@ -26,10 +26,12 @@ output for the same event stream.
 
 from __future__ import annotations
 
+import atexit
 import datetime as dt
 import json
 import re
 import signal
+import sys
 import threading
 import time
 from collections.abc import Mapping, Sequence
@@ -1297,6 +1299,122 @@ def make_badge(
     return (colored if color else plain), plain
 
 
+def format_stop_badge(
+    stop_level: int | str | None,
+    *,
+    use_unicode: bool = True,
+    color: bool = True,
+) -> tuple[str, str]:
+    """Return (colored_badge, plain_badge) for the statusline bottom-right border.
+
+    Returns ("", "") if no stop level is active.
+    """
+    if (
+        stop_level is None
+        or stop_level == 0
+        or stop_level == "none"
+        or stop_level == ""
+    ):
+        return "", ""
+
+    if isinstance(stop_level, int):
+        level_map = {1: "after-call", 2: "after-set", 3: "now", 4: "now-force"}
+        level_name = level_map.get(stop_level, "after-call")
+    else:
+        level_name = str(stop_level).strip().lower()
+
+    c_amber = "\033[1;38;5;208m"
+    c_red = "\033[1;31m"
+    b_on = "\033[1m"
+    reset = _ANSI_RESET
+
+    if level_name in ("after-call", "1"):
+        desc = "finish current"
+        prefix = "STOP:"
+        lvl_color = c_amber
+    elif level_name in ("after-set", "2"):
+        desc = "finish set"
+        prefix = "STOP-SET:"
+        lvl_color = c_amber
+    elif level_name in ("now", "3"):
+        desc = "checkpoint"
+        prefix = "STOP NOW:"
+        lvl_color = c_red
+    elif level_name in ("now-force", "4"):
+        desc = "force stop"
+        prefix = "FORCE STOP:"
+        lvl_color = c_red
+    else:
+        desc = "requested"
+        prefix = "STOP:"
+        lvl_color = c_amber
+
+    if use_unicode:
+        plain = f"[⏹ {prefix} {desc}]"
+        if color:
+            colored = f"{lvl_color}[{b_on}⏹ {prefix}{reset}{lvl_color} {desc}]{reset}"
+        else:
+            colored = plain
+    else:
+        plain = f"[{prefix} {desc}]"
+        if color:
+            colored = f"{lvl_color}[{b_on}{prefix}{reset}{lvl_color} {desc}]{reset}"
+        else:
+            colored = plain
+
+    return colored, plain
+
+
+def format_tally_badge(
+    passed: int,
+    failed: int,
+    *,
+    use_unicode: bool = True,
+    color: bool = True,
+) -> tuple[str, str]:
+    """Return (colored_badge, plain_badge) for the statusline progress column border."""
+    c_ok = "\033[1;38;5;78m"
+    c_fail = "\033[1;31m" if failed > 0 else "\033[38;5;244m"
+    bdr_color = "\033[38;5;67m"
+    reset = _ANSI_RESET
+
+    if use_unicode:
+        plain = f"[✓ {passed} ok · ✗ {failed} fail]"
+        if color:
+            colored = f"{bdr_color}[{c_ok}✓ {passed} ok{bdr_color} · {c_fail}✗ {failed} fail{bdr_color}]{reset}"
+        else:
+            colored = plain
+    else:
+        plain = f"[{passed} ok, {failed} fail]"
+        if color:
+            colored = f"{bdr_color}[{c_ok}{passed} ok{bdr_color}, {c_fail}{failed} fail{bdr_color}]{reset}"
+        else:
+            colored = plain
+
+    return colored, plain
+
+
+def compute_queue_tally(queue: Sequence[Mapping[str, Any]] | None) -> tuple[int, int]:
+    """Compute (passed_count, failed_count) for items that have finished so far in the queue."""
+    if not queue:
+        return 0, 0
+    passed = 0
+    failed = 0
+    from agent_workflows.runner_shared import item_reached_success, TERMINAL_STATES
+
+    for it in queue:
+        if not isinstance(it, Mapping):
+            continue
+        st = it.get("status")
+        if not st or st in ("queued", "not-run", "not-started"):
+            continue
+        if item_reached_success(it):
+            passed += 1
+        elif st in TERMINAL_STATES or str(st).startswith("fail") or "error" in str(st):
+            failed += 1
+    return passed, failed
+
+
 def format_statusline_lines(
     now_ts: float,
     run_start_ts: float,
@@ -1318,6 +1436,9 @@ def format_statusline_lines(
     model: str | None = None,
     variant: str | None = None,
     divider_style: str = "chevron",
+    stop_level: int | str | None = None,
+    items_passed: int | None = None,
+    items_failed: int | None = None,
 ) -> tuple[str, str, str, str]:
     """Format the 4-line boxed runner statusline (top border, header line, value line, bottom border):
 
@@ -1367,6 +1488,22 @@ def format_statusline_lines(
     h1 = f"{hdr1_plain}{' ' * pad_h1}"
     v1 = f" {val1_right_plain}{' ' * pad_v1}"
 
+    # Badges for bottom border: Tally (Col 2) and Stop (Col 5)
+    if items_passed is not None or items_failed is not None:
+        p_num = items_passed or 0
+        f_num = items_failed or 0
+        colored_tally, plain_tally = format_tally_badge(
+            p_num, f_num, use_unicode=use_unicode, color=True
+        )
+    else:
+        colored_tally, plain_tally = "", ""
+    t_vis = _T.visible_width(plain_tally)
+
+    colored_stop, plain_stop = format_stop_badge(
+        stop_level, use_unicode=use_unicode, color=True
+    )
+    s_vis = _T.visible_width(plain_stop)
+
     # Col 2: Set & Progress Bar (without duplicate item elapsed)
     hdr2_left = f" set: {setid}"
     hdr2_right = f"id6: {id6} "
@@ -1376,6 +1513,8 @@ def format_statusline_lines(
     suffix = f"] {pct_str:>4s}  "
 
     min_w = _T.visible_width(prefix) + _T.visible_width(suffix) + 10
+    if t_vis > 0:
+        min_w = max(min_w, t_vis + 2)
     if setid and id6:
         col2_w = max(
             31,
@@ -1452,6 +1591,12 @@ def format_statusline_lines(
     w_out = max(7, _T.visible_width(out_str) + 1)
     w_cache = max(7, _T.visible_width(cache_str) + 2)
 
+    if s_vis > 0:
+        needed_stop_w = s_vis + 2
+        current_col5 = w_tot + w_in + w_out + w_cache
+        if current_col5 < needed_stop_w:
+            w_cache += needed_stop_w - current_col5
+
     h_tot = _pad_to("Total", w_tot, align="right", use_unicode=use_unicode)
     h_in = _pad_to("In", w_in, align="right", use_unicode=use_unicode)
     h_out = _pad_to("Out", w_out, align="right", use_unicode=use_unicode)
@@ -1525,7 +1670,31 @@ def format_statusline_lines(
             + c_tr
         )
 
-    bot_border_plain = c_bl + c_bm.join(c_h * w for w in col_widths) + c_br
+    if t_vis > 0:
+        pad_t = col2_w - t_vis
+        pad_t_left = pad_t // 2
+        pad_t_right = pad_t - pad_t_left
+        bot_c2_plain = f"{c_h * pad_t_left}{plain_tally}{c_h * pad_t_right}"
+    else:
+        pad_t_left, pad_t_right = 0, 0
+        bot_c2_plain = c_h * col2_w
+
+    if s_vis > 0:
+        rem_s = max(0, col5_w - 1 - s_vis)
+        bot_c5_plain = f"{c_h}{plain_stop}{c_h * rem_s}"
+    else:
+        rem_s = 0
+        bot_c5_plain = c_h * col5_w
+
+    bot_segs_plain = [
+        c_h * col_widths[0],
+        c_h * col_widths[1],
+        bot_c2_plain,
+        c_h * col_widths[3],
+        c_h * col_widths[4],
+        bot_c5_plain,
+    ]
+    bot_border_plain = c_bl + c_bm.join(bot_segs_plain) + c_br
 
     div_plain = c_v
     l1_plain = div_plain + div_plain.join(hdrs) + div_plain
@@ -1568,9 +1737,29 @@ def format_statusline_lines(
             + f"{bdr_color}{c_tm}{seg_tok_color}{bdr_color}{c_tr}{reset}"
         )
 
+    if t_vis > 0:
+        bot_c2_color = (
+            f"{c_h * pad_t_left}{colored_tally}{bdr_color}{c_h * pad_t_right}"
+        )
+    else:
+        bot_c2_color = c_h * col2_w
+
+    if s_vis > 0:
+        bot_c5_color = f"{c_h}{colored_stop}{bdr_color}{c_h * rem_s}"
+    else:
+        bot_c5_color = c_h * col5_w
+
+    bot_segs_color = [
+        c_h * col_widths[0],
+        c_h * col_widths[1],
+        bot_c2_color,
+        c_h * col_widths[3],
+        c_h * col_widths[4],
+        bot_c5_color,
+    ]
     bot_border_color = (
         f"{bdr_color}{c_bl}"
-        + f"{bdr_color}{c_bm}".join(c_h * w for w in col_widths)
+        + f"{bdr_color}{c_bm}".join(bot_segs_color)
         + f"{bdr_color}{c_br}{reset}"
     )
 
@@ -1649,6 +1838,9 @@ def format_statusline(
     model: str | None = None,
     variant: str | None = None,
     divider_style: str = "chevron",
+    stop_level: int | str | None = None,
+    items_passed: int | None = None,
+    items_failed: int | None = None,
 ) -> str:
     """Format the 4-line unified runner statusline box as a newline-delimited string."""
     item_ts = start_ts if item_start_ts is None else item_start_ts
@@ -1673,8 +1865,28 @@ def format_statusline(
         model=model,
         variant=variant,
         divider_style=divider_style,
+        stop_level=stop_level,
+        items_passed=items_passed,
+        items_failed=items_failed,
     )
     return "\n".join(lines)
+
+
+_CURSOR_HIDE = "\033[?25l"
+_CURSOR_SHOW = "\033[?25h"
+
+
+def _restore_terminal_cursor() -> None:
+    """Restore terminal cursor visibility if stdout is a tty."""
+    try:
+        if sys.stdout and getattr(sys.stdout, "isatty", None) and sys.stdout.isatty():
+            sys.stdout.write(_CURSOR_SHOW)
+            sys.stdout.flush()
+    except Exception:
+        pass
+
+
+atexit.register(_restore_terminal_cursor)
 
 
 class Statusline:
@@ -1700,6 +1912,11 @@ class Statusline:
         model: str | None = None,
         variant: str | None = None,
         divider_style: str = "chevron",
+        run_dir: Path | str | None = None,
+        state: Mapping[str, Any] | None = None,
+        stop_level: int | str | None = None,
+        items_passed: int | None = None,
+        items_failed: int | None = None,
     ) -> None:
         self.pal = pal
         self.use_unicode = use_unicode if use_unicode is not None else pal.use_unicode
@@ -1726,6 +1943,11 @@ class Statusline:
         # Which source last showed progress: "stdout" or "subagent". Names WHY the turn is
         # considered alive, so a quiet-stdout turn is not mistaken for a dead one.
         self.progress_source: str | None = None
+        self.run_dir = Path(run_dir) if run_dir is not None else None
+        self.state = state
+        self.stop_level = stop_level
+        self.items_passed = items_passed
+        self.items_failed = items_failed
 
         mono_now = time.monotonic()
         self._item_start_mono = mono_now
@@ -1759,6 +1981,17 @@ class Statusline:
             return watchdog.remaining()  # type: ignore[attr-defined]
         except Exception:
             return None
+
+    def update_tally(self, passed: int | None, failed: int | None) -> None:
+        """Update explicit queue passed / failed count for the statusline bottom border."""
+        with self._lock:
+            self.items_passed = passed
+            self.items_failed = failed
+
+    def update_stop(self, level: int | str | None) -> None:
+        """Update explicit stop level indicator for the statusline bottom border."""
+        with self._lock:
+            self.stop_level = level
 
     def update_item(
         self,
@@ -1797,6 +2030,24 @@ class Statusline:
         run_wall = now_wall - (cur_mono - self._run_start_mono)
         item_wall = now_wall - (cur_mono - self._item_start_mono)
         last_wall = now_wall - (cur_mono - self._last_activity)
+
+        stop_level = self.stop_level
+        if stop_level is None and self.run_dir is not None:
+            try:
+                from agent_workflows import runner_stop
+
+                stop_level = runner_stop.poll_stop(self.run_dir)
+            except Exception:
+                stop_level = None
+
+        if self.items_passed is not None or self.items_failed is not None:
+            passed = self.items_passed or 0
+            failed = self.items_failed or 0
+        elif self.state is not None and self.state.get("queue"):
+            passed, failed = compute_queue_tally(self.state.get("queue"))
+        else:
+            passed, failed = None, None
+
         return format_statusline_lines(
             now_ts=now_wall,
             run_start_ts=run_wall,
@@ -1818,6 +2069,9 @@ class Statusline:
             model=self.model,
             variant=self.variant,
             divider_style=self.divider_style,
+            stop_level=stop_level,
+            items_passed=passed,
+            items_failed=failed,
         )
 
     def render_line(self) -> str:
@@ -1834,11 +2088,11 @@ class Statusline:
             top, l1, l2, bot = self._render_lines_unlocked()
             if self._has_drawn:
                 self.stream.write(
-                    f"\033[3A\r\033[K{top}\n\r\033[K{l1}\n\r\033[K{l2}\n\r\033[K{bot}"
+                    f"{_CURSOR_HIDE}\033[3A\r\033[K{top}\n\r\033[K{l1}\n\r\033[K{l2}\n\r\033[K{bot}"
                 )
             else:
                 self.stream.write(
-                    f"\r\033[K{top}\n\r\033[K{l1}\n\r\033[K{l2}\n\r\033[K{bot}"
+                    f"{_CURSOR_HIDE}\r\033[K{top}\n\r\033[K{l1}\n\r\033[K{l2}\n\r\033[K{bot}"
                 )
             self.stream.flush()
             self._has_drawn = True
@@ -1848,6 +2102,9 @@ class Statusline:
         with self._lock:
             self._paused = True
             self.clear()
+            if self._is_tty:
+                self.stream.write(_CURSOR_SHOW)
+                self.stream.flush()
 
     def resume(self) -> None:
         """Unpause redrawing and redraw the statusline."""
@@ -1859,7 +2116,9 @@ class Statusline:
         with self._lock:
             if not self._is_tty or not self._has_drawn:
                 return
-            self.stream.write("\033[3A\r\033[K\n\r\033[K\n\r\033[K\n\r\033[K\033[3A\r")
+            self.stream.write(
+                f"\033[3A\r\033[K\n\r\033[K\n\r\033[K\n\r\033[K\033[3A\r{_CURSOR_SHOW}"
+            )
             self.stream.flush()
             self._has_drawn = False
 
@@ -1869,7 +2128,7 @@ class Statusline:
             if self._is_tty and self._has_drawn:
                 top, l1, l2, bot = self._render_lines_unlocked()
                 self.stream.write(
-                    f"\033[3A\r\033[K\n\r\033[K\n\r\033[K\n\r\033[K\033[3A\r{rendered_text}\n{top}\n{l1}\n{l2}\n{bot}"
+                    f"\033[3A\r\033[K\n\r\033[K\n\r\033[K\n\r\033[K\033[3A\r{rendered_text}\n{_CURSOR_HIDE}{top}\n{l1}\n{l2}\n{bot}"
                 )
                 self.stream.flush()
             else:
@@ -1883,10 +2142,13 @@ class Statusline:
     def __enter__(self) -> Statusline:
         global _ACTIVE_STATUSLINE
         _ACTIVE_STATUSLINE = self
-        if self._is_tty and self.interval > 0:
-            self.redraw()
-            self._thread = threading.Thread(target=self._run, daemon=True)
-            self._thread.start()
+        if self._is_tty:
+            self.stream.write(_CURSOR_HIDE)
+            self.stream.flush()
+            if self.interval > 0:
+                self.redraw()
+                self._thread = threading.Thread(target=self._run, daemon=True)
+                self._thread.start()
         return self
 
     def __exit__(self, *exc: object) -> None:
@@ -1897,6 +2159,140 @@ class Statusline:
         if self._thread is not None:
             self._thread.join(timeout=1.0)
         self.clear()
+        if self._is_tty:
+            self.stream.write(_CURSOR_SHOW)
+            self.stream.flush()
+
+
+def print_final_statusline(
+    state: Mapping[str, Any] | None,
+    run_dir: Path | str | None = None,
+    *,
+    tracker: StreamTracker | None = None,
+    pal: Palette | None = None,
+    runner: str = "agy",
+    model: str | None = None,
+    variant: str | None = None,
+    divider_style: str = "chevron",
+    stream: TextIO | None = None,
+) -> None:
+    """Print the final 4-line statusline box as the closing runner output."""
+    if state is not None and isinstance(state, dict):
+        if state.get("_final_statusline_printed"):
+            return
+        state["_final_statusline_printed"] = True
+
+    stream = stream if stream is not None else sys.stdout
+    if pal is None:
+        use_unicode = _T.should_unicode(stream)
+        color = _T.should_color(stream)
+        pal = Palette(color, use_unicode=use_unicode)
+
+    now_wall = time.time()
+    run_start_ts = now_wall
+    if state is not None:
+        if "_invocation_start_mono" in state:
+            el = max(0.0, time.monotonic() - state["_invocation_start_mono"])
+            run_start_ts = now_wall - el
+        elif "created_at" in state:
+            try:
+                cat = state["created_at"]
+                if isinstance(cat, (int, float)):
+                    run_start_ts = float(cat)
+                elif isinstance(cat, str):
+                    ts = dt.datetime.fromisoformat(
+                        cat.replace("Z", "+00:00")
+                    ).timestamp()
+                    run_start_ts = ts
+            except Exception:
+                pass
+
+    queue = state.get("queue") if state else None
+    passed, failed = compute_queue_tally(queue)
+    total_items = len(queue) if queue else 0
+    finished_count = (
+        sum(
+            1
+            for it in queue
+            if isinstance(it, Mapping)
+            and it.get("status") not in ("queued", "not-run", "not-started")
+        )
+        if queue
+        else 0
+    )
+    current_idx = min(total_items, finished_count)
+
+    setid = ""
+    id6 = ""
+    action = None
+    if state:
+        setid = state.get("setid") or ""
+        id6 = state.get("id6") or ""
+        action = state.get("action")
+        if queue:
+            if not setid:
+                for it in reversed(queue):
+                    if isinstance(it, Mapping) and it.get("setid"):
+                        setid = it["setid"]
+                        break
+            if not id6 and len(queue) == 1 and isinstance(queue[0], Mapping):
+                id6 = queue[0].get("id6", "")
+            if not action:
+                for it in reversed(queue):
+                    if isinstance(it, Mapping) and it.get("action"):
+                        action = it["action"]
+                        break
+
+    options = state.get("options") if state else {}
+    if not model and options:
+        model = options.get("model")
+    if not variant and options:
+        variant = options.get("variant")
+
+    if tracker is None and state and "_tracker" in state:
+        tracker = state.get("_tracker")
+
+    stop_level = None
+    if state and "_stop_level" in state:
+        stop_level = state["_stop_level"]
+    elif run_dir is not None:
+        try:
+            from agent_workflows import runner_stop
+
+            stop_level = runner_stop.poll_stop(run_dir)
+        except Exception:
+            stop_level = None
+
+    top, l1, l2, bot = format_statusline_lines(
+        now_ts=now_wall,
+        run_start_ts=run_start_ts,
+        item_start_ts=now_wall,
+        last_act_ts=now_wall,
+        current_idx=current_idx,
+        total_items=total_items,
+        setid=setid,
+        id6=id6,
+        tracker=tracker,
+        pal=pal,
+        stall_remaining=None,
+        progress_source=None,
+        action=action,
+        artifact_kind=None,
+        use_unicode=pal.use_unicode,
+        activity=None,
+        runner=runner,
+        model=model,
+        variant=variant,
+        divider_style=divider_style,
+        stop_level=stop_level,
+        items_passed=passed if queue else None,
+        items_failed=failed if queue else None,
+    )
+
+    stream.write(f"{top}\n{l1}\n{l2}\n{bot}\n")
+    if getattr(stream, "isatty", None) and stream.isatty():
+        stream.write(_CURSOR_SHOW)
+    stream.flush()
 
 
 _ACTIVE_STATUSLINE: Statusline | None = None

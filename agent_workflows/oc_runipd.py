@@ -122,6 +122,7 @@ from agent_workflows.render_stream import (
     format_statusline,
     format_statusline_lines,
     format_tokens,
+    print_final_statusline,
     render_event,
     render_run_summary_table,
     install_exit_signal_handler,
@@ -3068,6 +3069,8 @@ def run_opencode(
             runner="opencode",
             model=options.get(model_key),
             variant=options.get(variant_key),
+            run_dir=run_dir,
+            state=state,
         )
         watchdog = StallWatchdog(process, timeout=stall_timeout)
         # The countdown the operator sees must come from the watchdog that kills, so the
@@ -3859,6 +3862,7 @@ def run_queue(
     # on its own first iteration regardless.
     _integrate_stranded_lanes(run_dir, state)
     tracker = StreamTracker()
+    state["_tracker"] = tracker
     invocation_start_mono = time.monotonic()
     state["_invocation_start_mono"] = invocation_start_mono
     # runstop 1qxuke: the observed level-1/2 wind-down, or None while no between-turn stop has been
@@ -4371,6 +4375,16 @@ def run_queue(
     # uncatchable kill still leaves the answer on disk.
     register_signal_report(run_dir, state)
     emit_shutdown_report()
+    run_options = state.get("options") or {}
+    print_final_statusline(
+        state,
+        run_dir,
+        tracker=tracker,
+        pal=pal,
+        runner="opencode",
+        model=run_options.get("model"),
+        variant=run_options.get("variant"),
+    )
     # runstop 1qxuke (E-05): a DELIBERATE stop exits 0 without lying about the queue. The plain
     # predicate treats any non-success status, INCLUDING the `queued` items a level-1/2 stop
     # intentionally never started, as failure; spec A1/A4 require 0. The shared helper ignores

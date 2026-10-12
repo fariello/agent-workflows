@@ -90,6 +90,7 @@ from agent_workflows.selectors import read_front_matter_id as _read_id  # noqa: 
 
 from agent_workflows.render_stream import (
     Statusline,
+    print_final_statusline,
     render_run_summary_table,
     install_exit_signal_handler,
     statusline_action_for_item,
@@ -2568,6 +2569,8 @@ def run_agy_turn(
             runner="agy",
             model=options.get("model"),
             variant=options.get("variant"),
+            run_dir=run_dir,
+            state=state,
         )
         # stallfp: Observe transcript and task log updates when background tasks are active.
         # When background tasks run (e.g. pytest in background or schedule timers), the root
@@ -3201,6 +3204,7 @@ def run_queue(
     _integrate_stranded_lanes(run_dir, state)
 
     tracker = StreamTracker()
+    state["_tracker"] = tracker
     invocation_start_mono = time.monotonic()
     state["_invocation_start_mono"] = invocation_start_mono
 
@@ -3635,6 +3639,16 @@ def run_queue(
     # other. Ledger BEFORE print (an uncatchable kill still leaves the answer on disk).
     register_signal_report(run_dir, state)
     emit_shutdown_report()
+    run_options = state.get("options") or {}
+    print_final_statusline(
+        state,
+        run_dir,
+        tracker=tracker,
+        pal=pal,
+        runner="agy",
+        model=run_options.get("model"),
+        variant=run_options.get("variant"),
+    )
     # runstop 1qxuke (E-05): the same deliberate-stop exit contract as `oc_runipd` (spec A1/A4 need
     # 0; the plain predicate returns 1 because a stop leaves items `queued`). Statuses are never
     # rewritten to manufacture the 0, and a run item that genuinely failed still exits nonzero.
