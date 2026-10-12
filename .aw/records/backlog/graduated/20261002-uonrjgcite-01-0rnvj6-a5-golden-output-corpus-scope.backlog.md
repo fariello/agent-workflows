@@ -1,11 +1,13 @@
 - Id: 0rnvj6
-- Status: open
+- Status: graduated
+- Graduated-To: uonrjgcite
 - Set: uonrjgcite
 - Priority: low
 - Work-Kind: followup
 - Summary: Decide whether uonrjg criterion A5 should extend to a committed lifecycle golden-output corpus
 
 ## Workflow history
+- 2026-10-12 graduated (aw backlog): graduated by run run-20261012T005641Z-2321995: mq715m
 - 2026-10-02 created (aw backlog): Decide whether uonrjg criterion A5 should extend to a committed lifecycle golden-output corpus
 
 RAISED BY plan xtensb (backlog nzqj6m) as its OQ-01, while sweeping spec uonrjg's criteria for stale citations and uncovered surfaces.
