@@ -6,7 +6,8 @@
 - Scope: Verification of the existing declarations and the test's enforcement in the bare suite and in the CI `output-conformance` job. Code edits are permitted ONLY if a regression is measured, and only to the declarations in `agent_workflows/command_surface.py`.
 - Scope-Paths: agent_workflows/command_surface.py, tests/test_command_surface_declarations.py
 - Item-Dependencies: none
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
 - From-Backlog: vxqtqm
@@ -18,6 +19,7 @@
 
 ## Workflow history
 
+- 2026-10-12 reviewed (opencode/its_direct/pt3-claude-opus-5.5-1m-us): /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001 (MEDIUM, fixed: bars by named tests and node ids, not counts; collection under default addopts proven), PR-002 (LOW, fixed: execution contract and finalize ownership). F-1..F-3 re-measured at HEAD dbde69ccb. Record: .aw/records/reviews/20261011-vxqtqm-01-4mv9ul-verify-the-five-aw-oc-profile-leaves-stay-declared-and-the-w.review.md.
 - 2026-10-12 draft (opencode Claude Opus): created.
 - 2026-10-12 to-review (opencode Claude Opus): authored from backlog `vxqtqm`; found already fixed by executed plan `0yrtne`, so the plan is verification-only.
 
@@ -43,7 +45,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 - [ ] E-03 Confirm enforcement outside the isolated run: run the bare suite `python3 -m pytest` and record the summary line, and confirm `.github/workflows/tests.yml` job `output-conformance` step "Run the output-conformance harness" invokes `tests/test_command_surface_declarations.py` by running that step's command `python -m pytest tests/test_command_surface_declarations.py` locally.
   - Depends on: E-02
-  - Expected outcome: bare suite passes with no failure in `test_command_surface_declarations.py`; the CI step's command exits 0 with 2 passed.
+  - Expected outcome: in the bare suite, the module is COLLECTED under the default `addopts` (not deselected by the `slow`/`livecorpus` markers; shown with `python3 -m pytest --collect-only -q tests/test_command_surface_declarations.py`, which must list both tests), and no node id in `tests/test_command_surface_declarations.py` appears among the bare run's failures. Failures elsewhere in the suite are recorded by node id but are not this plan's bar. The CI step's command exits 0 with `test_zero_undeclared_parser_leaves` and `test_zero_unreachable_command_declarations` both passing.
   - Execution state: pending
 
 ## Project conventions discovered (Step 0)
@@ -104,12 +106,12 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Result: pending
 
 - [ ] V-02 validates E-02
-  - Required evidence: pasted `pytest -v` output showing `test_zero_undeclared_parser_leaves PASSED` and the `2 passed` summary.
+  - Required evidence: pasted `pytest -v` output showing `test_zero_undeclared_parser_leaves PASSED` and `test_zero_unreachable_command_declarations PASSED`, with exit code 0, re-derived at execution HEAD (the passing named tests are the bar, not the count).
   - Observed evidence:
   - Result: pending
 
 - [ ] V-03 validates E-03
-  - Required evidence: pasted bare-suite summary line (`N passed`) with no failure from `test_command_surface_declarations.py`, and pasted output of the CI step command showing `2 passed`.
+  - Required evidence: the pasted `--collect-only` output listing both tests under default `addopts`; the pasted bare-suite summary line plus its failing node ids (if any), showing none from `tests/test_command_surface_declarations.py`; the pasted `sed -n` (or equivalent) excerpt of `.github/workflows/tests.yml`'s `output-conformance` step showing it runs that module; and the pasted output and exit code of that step's command run locally, both named tests passing.
   - Observed evidence:
   - Result: pending
 
@@ -118,4 +120,6 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 - Size assessment: standard
 - Cohesion rationale: not required
 
-Execute only after human approval. Commit through `aw commit 4mv9ul -- <paths>` limited to the declared Scope-Paths (likely only this plan file, since no code change is expected); never push. Move to `executed/` only after `aw ipd lint --phase pre-transition` conforms and every `V-*` is `pass` with pasted evidence.
+Execute only after human approval. Commit through `aw commit 4mv9ul -- <paths>` limited to the declared Scope-Paths (likely only this plan file, since no code change is expected); verify `git diff --cached --name-only` first, and never push. PASTE THE ACTUAL OUTPUT of every command the `V-*` items demand; never report a pass that was not run. If E-01 or E-02 measures a regression, the only permitted code edit is a restored declaration in `agent_workflows/command_surface.py` (using `0yrtne` F-7's field judgements); record it, and justify any other edited path at finalize with `--scope-reason`.
+
+LIFECYCLE. The terminal move to `executed/` goes through the lifecycle tooling, never a hand `git mv`: in a managed lane the runner finalizes; when executing by hand, run `aw ipd finalize 4mv9ul`. Either way, only after `aw ipd lint --phase pre-transition` conforms and every `V-*` is `pass` with pasted evidence. Backlog `vxqtqm` then closes through the `- From-Backlog:` handoff as a duplicate of `4fe3al` (already `done`).
