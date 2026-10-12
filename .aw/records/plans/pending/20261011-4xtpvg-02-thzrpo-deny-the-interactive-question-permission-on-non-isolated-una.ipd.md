@@ -1,0 +1,205 @@
+# IPD: Deny the interactive-question permission on non-isolated unattended opencode turns
+
+- Date: 2026-10-11
+- Kind: child
+- Concern: `oc_runipd.run_opencode` sets the R4.1 deny posture (`permission.external_directory=deny`, `permission.question=deny` via `OPENCODE_CONFIG_CONTENT`) only inside `if work_dir:`. So a NON-isolated unattended opencode turn gets no host denial at all. It relies on `--auto` and the `StallWatchdog` (backlog `8ctu3u`, research `7so8uz` Finding 5: 24 of the 45 non-isolated driver-turn asks came after the posture landed in commit `8a491d4c1`, while isolated-turn asks fell 1,102 -> 19 -> 0). The narrowing is deliberate for `external_directory`, because a non-isolated turn legitimately works in the main checkout. The same reasoning does NOT cover `question`, since no human can ever answer an interactive question on any `opencode run` child the driver launches.
+- Scope: Take backlog option (b). A non-isolated unattended opencode turn gets a QUESTION-ONLY denial (`{"permission": {"question": "deny"}}`), supplied through the same `lane_containment.build_permission_policy_env` merge (R4.3), observed through the same `observe_opencode_policy` probe (R4.2), and recorded through the same `lane_containment.record_host_posture` with an HONEST partial-denial posture record (R4.1a). The isolated turn's policy, prompt, and record stay byte-identical. The non-isolated turn's PROMPT stays byte-identical (R1.3). `external_directory` is NOT denied on a non-isolated turn. Amend spec `7ckptx` so this is a stated requirement and not a code-only narrowing (closing the gap plan `heglfv` OQ-02 named). EXCLUDES antigravity entirely (R4.1c forbids changing its posture), any `PERMISSION_TIMEOUT` change (owned by `e6zeta`), and any new CLI flag or config knob.
+- Scope-Paths: agent_workflows/oc_runipd.py, agent_workflows/lane_containment.py, tests/test_non_isolated_permission_posture.py, .aw/records/specs/implementing/20260901-7ckptx-01-7ckptx-worker-lane-containment.spec.md, CHANGELOG.md
+- Item-Dependencies: none
+- Status: to-review
+- Work-Kind: followup
+- Priority: low
+- From-Backlog: 8ctu3u
+- Set: 4xtpvg
+- Order: 2
+- Highest E allocated: 08
+- Author: opencode
+- Id: thzrpo
+
+## Workflow history
+- 2026-10-12 to-review (aw set): Authored from backlog 8ctu3u: option (b), deny question only on non-isolated opencode turns; spec 7ckptx R4.1d/A8d amendment
+
+- 2026-10-12 draft (opencode): created.
+
+## Goal
+
+Make sure no unattended opencode turn, isolated or not, can stall on an interactive question that has no
+answerer, without refusing any ordinary main-checkout work a non-isolated turn does. Write that rule
+into spec `7ckptx` so the isolated/non-isolated split stops being a code-only convention.
+
+## Detailed Implementation Checklist (TODO)
+
+Execution-state rule: mark an `E-*` item complete only after performing the action. That mark is not validation. Right-sizing rule: each E-item must address one concern and be executable in one focused pass; split when an E-item names multiple distinct deliverables or independent test-surfaces. Accepted execution states: blocked, failed, pending, performed; terminal gate demands 'performed'.
+
+### Task group 1: baseline
+
+- [ ] E-01 CAPTURE A BASELINE BEFORE THE FIRST EDIT. Run the bare suite (`python3 -m pytest`) and record its summary line and the node IDs of any failure. Also run `aw check` and keep its violation list for comparison. Authoring measured at HEAD `fa5b433ee` that `tests/test_commit_run_trailers_env.py::test_byte_identity_without_env_vars`, `::test_scratch_repo_end_to_end_stamps_trailers` and `::test_malformed_values_dropped_with_warning` ALREADY FAIL in a lane with no change applied, because they spawn `aw commit` subprocesses that are sensitive to the ambient lane environment. Those three are a pre-existing condition and NOT a bar for this plan. Bars are by node ID: nothing that passed in the baseline may fail afterwards.
+  - Depends on: none
+  - Expected outcome: a recorded baseline summary line, failing node-ID list, and `aw check` violation list.
+  - Execution state: pending
+
+### Task group 2: the shared policy and its honest record (`lane_containment`)
+
+- [ ] E-02 ADD THE NON-ISOLATED POLICY CONSTANT next to `lane_containment.LANE_PERMISSION_POLICY`: `NON_ISOLATED_PERMISSION_POLICY: dict[str, str] = {"question": "deny"}`. Give it a `#:` block (the module's convention for constants) that says three things. FIRST, why `question` is denied: every driver child is `opencode run` with stdout piped and no TTY, so an interactive question has no answerer in ANY mode, and the driver prompt already tells the agent "do not invoke an interactive question tool or wait for human input" (`runner_shared.build_prompt`). SECOND, why `external_directory` is NOT denied: a non-isolated turn legitimately works in the main checkout and outside it, so denying it would refuse ordinary work. THIRD, cite research `7so8uz` Finding 5 and backlog `8ctu3u` as the measurement behind it. Do NOT change `LANE_PERMISSION_POLICY`.
+  - Depends on: E-01
+  - Expected outcome: the new constant exists with its rationale block, and `LANE_PERMISSION_POLICY` is byte-identical.
+  - Execution state: pending
+
+- [ ] E-03 ADD AN HONEST PARTIAL-DENIAL POSTURE RECORD. The existing `lane_containment.opencode_posture_record` hard-codes a reason stating that BOTH classes are refused, and a layer string saying "external-directory and interactive-question asks are denied". Using it for a question-only request would be exactly the false parity claim R4.1a forbids. So add `HOST_POSTURE_PARTIAL = "partial-denial"` beside `HOST_POSTURE_DENIED`/`HOST_POSTURE_NONE`. That comment already says "three capability tiers" while defining two, and this addition makes the comment true. Then add `opencode_non_isolated_posture_record(request: PermissionPolicyRequest) -> HostPostureRecord` returning `host="opencode"`, `posture=HOST_POSTURE_PARTIAL`, a `reason` that names the classes `request.policy` denies and states that `external_directory` is NOT denied on a non-isolated turn and is left to `--auto`, and `layers` that name the question denial followed by `CONTAINMENT_LAYERS_WITHOUT_HOST_DENIAL`, plus `requested`/`policy_source`/`policy_note` from the request just as the isolated constructor does. Leave `opencode_posture_record` byte-identical so the isolated record cannot move.
+  - Depends on: E-02
+  - Expected outcome: a third posture tier and a constructor whose record never uses the word `denied` as its posture and names what is and is not denied.
+  - Execution state: pending
+
+- [ ] E-04 UPDATE THE MODULE'S OWN DOCUMENTATION OF THE GAP so it does not contradict the code. (a) The R4 section header (the `# WHAT IS NOT UNIFORM` block whose `OPENCODE` row reads "a real denial. `permission.external_directory` and `permission.question` are set to `deny`") gets a sentence saying this applies to ISOLATED turns, and that a non-isolated turn gets the question-only denial. (b) The `RESIDUAL LIMITS:` paragraph in `PERMISSION_TIMEOUT`'s `#:` block currently says "a non-isolated unattended turn can still ask (carrier `8ctu3u`)". Replace it with the narrowed truth: a non-isolated turn can still be asked an `external_directory` permission, which `--auto` approves, but it can no longer be asked an interactive question (plan `thzrpo`). Keep the antigravity half of that paragraph and keep `PERMISSION_TIMEOUT` at `0.0`.
+  - Depends on: E-03
+  - Expected outcome: both comment blocks describe the post-change behavior, and no constant value changes.
+  - Execution state: pending
+
+### Task group 3: the driver (`oc_runipd`)
+
+- [ ] E-05 APPLY THE POSTURE TO BOTH TURN CLASSES IN `oc_runipd.run_opencode`, in the block that begins "lanectn Order 03 (`lhmrhx`) E-01/E-02/E-03". Replace the `if work_dir:` gate with a selection: an isolated turn (`work_dir` truthy) requests `lane_containment.LANE_PERMISSION_POLICY` and records `opencode_posture_record`, exactly as today. A non-isolated turn requests `lane_containment.NON_ISOLATED_PERMISSION_POLICY` and records `opencode_non_isolated_posture_record`. Both go through the SAME `build_permission_policy_env(child_env.get(OPENCODE_RUNTIME_CONFIG_ENV), policy)` merge (R4.3), the SAME `observe_opencode_policy(opencode, child_env, policy_request.policy)` probe (R4.2), and the SAME `record_host_posture` call. Do not fork a second env construction. Rewrite the "ISOLATED TURNS ONLY, deliberately narrower than the bounds below" paragraph so it states the new split and its reason, and cite the amended spec requirement from E-07. Do NOT touch the prompt builders: R1.3 requires the non-isolated prompt to stay byte-identical, and this change is env-only. KNOWN COST, accepted and recorded: a non-isolated turn now pays the R4.2 probe (`opencode --version` plus `opencode debug config`). Authoring measured about 2.05s wall time for both on this machine, and the probe never raises and never aborts a turn.
+  - Depends on: E-03
+  - Expected outcome: a non-isolated child env carries `{"permission": {"question": "deny"}}` (merged with any operator value), an isolated child env is unchanged, and both attempts carry a `host_posture` record.
+  - Execution state: pending
+
+### Task group 4: behavioral coverage
+
+- [ ] E-06 ADD `tests/test_non_isolated_permission_posture.py`. Every test drives `oc_runipd.run_opencode` with `subprocess.Popen` replaced by a fake that captures `env`, and `oc_runipd.observe_opencode_policy` patched to return a fixed `lane_containment.PolicyObservation`, so no real host is spawned. Each test clears ambient `OPENCODE_CONFIG_CONTENT` with `mock.patch.dict(os.environ, ...)` and a pop, because a driver-launched test run inherits the parent turn's value (the `cfgj8s` lesson). Asserted behaviors: (a) NON-ISOLATED, no operator value: the decoded `OPENCODE_CONFIG_CONTENT` is exactly `{"permission": {"question": "deny"}}` and has no `external_directory` key. (b) ISOLATED: the decoded value denies both `external_directory` and `question`, i.e. unchanged. (c) NON-ISOLATED with operator value `{"permission": {"external_directory": "allow", "question": "allow"}, "x": 1}`: `x` survives, `external_directory` stays `allow`, `question` becomes `deny`, and the recorded `policy_source` is `merged-with-operator`. (d) NON-ISOLATED posture record on the item/attempt: `posture == "partial-denial"`, `requested_policy == {"question": "deny"}`, the `policy_observation` is present, and the record's `reason` text mentions `external_directory` as not denied (an assertion on a produced OUTPUT, not on source). (e) The isolated posture record still has `posture == "denied"`. Write no `inspect`, `ast`, or source-text reads (GUIDING_PRINCIPLES P16).
+  - Depends on: E-05
+  - Expected outcome: five passing behavioral tests that fail if the non-isolated policy is removed or the isolated one is weakened.
+  - Execution state: pending
+
+### Task group 5: contract and user-facing record
+
+- [ ] E-07 AMEND SPEC `7ckptx` (declared in `- Scope-Paths:`). After R4.1c, add `R4.1d` stating: an unattended NON-isolated opencode turn MUST run with the interactive-question class denied, supplied through the same runner-owned runtime config, merged per R4.3, observed per R4.2, and recorded per R4.1a as a PARTIAL denial. It MUST NOT have `external_directory` denied, because its ordinary work is in the main checkout. Its prompt stays byte-identical per R1.3. Add acceptance criterion `A8d` after `A8c`: decode the child env for a non-isolated opencode turn and show `question` denied and `external_directory` absent from the request, and show its attempt record says `partial-denial` and never `denied`. Cite research `7so8uz` and backlog `8ctu3u`. Log the amendment with `aw specs note <spec> --message "AMENDED <date> (4xtpvg-02 thzrpo): R4.1d and A8d added ..."`. Do NOT change the spec's `- Status:`.
+  - Depends on: E-05
+  - Expected outcome: spec carries R4.1d and A8d plus a workflow-history note, and `aw specs check` conforms.
+  - Execution state: pending
+
+- [ ] E-08 ADD ONE `CHANGELOG.md` LINE under the pending 2.0.0 entry, in the file's existing `- Changed:` style and with no em or en dashes (user-facing prose): `aw oc run` now denies the interactive-question permission on non-isolated (`--no-isolate-worktree`) turns too, so an unattended turn cannot wait on a question nobody can answer. Out-of-checkout file access on those turns is unchanged.
+  - Depends on: E-05
+  - Expected outcome: one new CHANGELOG line, dash-free.
+  - Execution state: pending
+
+## Project conventions discovered (Step 0)
+
+- Cite code by SYMBOL (`module.function`) or by a quoted content string, with a line number only appended to one of those and never alone: an offset expires before this plan executes (spec `ipd-structure-and-linting` Section 10.2; advisory `IPD-C801`).
+- Tests assert behavior and never pin source structure or text (GUIDING_PRINCIPLES P16; `AGENTS.md` "TEST OUTCOMES, NOT CODE STRUCTURE").
+- `lane_containment` constants document themselves with `#:` comment blocks, not docstrings (recorded by plan `0b7fic`'s conventions).
+- Rules both drivers consume live in `lane_containment`, and each driver keeps a thin adapter (spec R2.6; the module's R4 header "WHY THIS LIVES HERE AND NOT IN A DRIVER").
+- Tests that build a child env must neutralize ambient `OPENCODE_CONFIG_CONTENT`, because a test run launched by the driver inherits the parent turn's value (backlog `cfgj8s`, plan `heglfv`).
+- A plan amending a spec declares the `.spec.md` in `- Scope-Paths:` and logs the change with `aw specs note` (`AGENTS.md` "A PLAN MAY AMEND A SPEC, AND MUST DECLARE IT").
+- Run the suite bare as `python3 -m pytest`; clear defaults with `-o addopts=""` only for a narrowed per-test view (`AGENTS.md` repository development contract).
+
+## Findings
+
+| # | Finding | Evidence | Consequence |
+|---|---|---|---|
+| F-1 | The deny posture is gated on isolation | `oc_runipd.run_opencode`: `if work_dir:` wraps `build_permission_policy_env`, `observe_opencode_policy`, `record_host_posture`. Authoring probe (`tmp/pr/probe.py`, gitignored): non-isolated child env `OPENCODE_CONFIG_CONTENT` = `None`, posture `None`; isolated = `{"permission": {"external_directory": "deny", "question": "deny"}}`, posture `denied`. | The gap the backlog names is real at HEAD `fa5b433ee`. |
+| F-2 | The narrowing's stated reason covers `external_directory` only | Comment in `run_opencode`: "a non-isolated turn legitimately works in the main checkout, where an external-directory denial would refuse its ordinary work." | Nothing in code or spec justifies leaving `question` undenied. |
+| F-3 | No driver child can ever answer an interactive question | `run_opencode` launches `opencode run ... --format json` with `stdout=subprocess.PIPE` and no TTY. `runner_shared.build_prompt` says "This run is non-interactive: do not invoke an interactive question tool or wait for human input". | Denying `question` refuses nothing legitimate. This answers the backlog's "nobody has checked whether a non-isolated turn ever legitimately needs `question`". |
+| F-4 | Isolated turns already run with `question` denied, including review turns | Isolation is the default (`isolate_worktree`), and review sweeps run in a lane (`runner_shared.turn_runs_in_review_sweep_lane`). Research `7so8uz` Finding 5: 676 isolated turns after 2026-09-05 under this posture. | Workflows that tell the agent to prompt (e.g. `/plan-review`'s "Ask and wait") already run under the denial in the common case, so this is not a new constraint on them. |
+| F-5 | The merge helper already supports a custom policy | `build_permission_policy_env(operator_value, policy=None)`. Authoring call with `{"question": "deny"}` and an operator value `{"permission":{"external_directory":"allow","question":"allow"},"x":1}` returned `{"permission": {"external_directory": "allow", "question": "deny"}, "x": 1}`, source `merged-with-operator`. | No new merge logic is needed. R4.3 holds unchanged. |
+| F-6 | The real host honors a question-only runtime config | `OPENCODE_CONFIG_CONTENT='{"permission":{"question":"deny"}}' opencode debug config` on opencode 1.18.35 reported `"question": "deny"` in the resolved `permission` object. | The R4.2 probe will observe `conforms_to_request: true` for the new policy. |
+| F-7 | The existing posture constructor would misreport a question-only request | `opencode_posture_record` reason: "the runner supplied `permission.external_directory=deny` and `permission.question=deny` ... so the host itself refuses both request classes". | E-03 needs a separate constructor, or the record would violate R4.1a. |
+| F-8 | Spec `7ckptx` is silent on the non-isolated posture | R4.1 opens "An unattended isolated turn MUST ..."; plan `heglfv` OQ-02 recommended amending the spec so the split is a stated requirement. | E-07 closes that gap. |
+| F-9 | Prototype regression scan | With E-05's selection applied as a throwaway edit (since reverted), the nine `run_opencode`-calling test files gave `3 failed, 247 passed`, and the 3 failures (`test_commit_run_trailers_env.py`) also fail with the change reverted. | The change does not break existing launcher tests. E-01 re-baselines at execution time. |
+
+## Proposed changes (ordered, validatable)
+
+1. Baseline (E-01).
+2. `lane_containment`: new policy constant, partial-denial tier and constructor, corrected comments (E-02..E-04).
+3. `oc_runipd.run_opencode`: choose the policy by isolation and apply it to both turn classes through the one existing path (E-05).
+4. New behavioral test file (E-06).
+5. Spec R4.1d/A8d plus history note (E-07). CHANGELOG line (E-08).
+
+## Deferred / out of scope (with reason)
+
+- Denying `external_directory` on a non-isolated turn. Out of scope by design: backlog `8ctu3u` and F-2 establish that it would refuse the turn's ordinary work, which is the worse failure.
+- Antigravity. Spec R4.1c forbids changing its posture, and it has no denial mechanism (R4.1b).
+- Arming or deleting `PERMISSION_TIMEOUT`. Owned by backlog `e6zeta`.
+- Re-measuring the host-log ask corpus after this change. The corpus is machine-local and unreachable from a lane (plan `0b7fic` E-01). Any future non-isolated deadlock is a `bug` to be filed with this plan as context, as the backlog item says.
+
+## Scope check
+
+- Over-scope: one temptation named. An executor may want to unify the two posture constructors or make the policy configurable. Do neither: the isolated record must stay byte-identical, and spec R4.4c's KISS ruling rejects new knobs for this surface.
+- Under-scope: the non-isolated `external_directory` ask stays possible, approved by `--auto`. That is the deliberate residual, and E-04/E-07 document it. Non-isolated turns now pay roughly 2s for the R4.2 probe (F-6 timing). That is accepted, because R4.2 forbids requesting a policy without observing it.
+
+## Required tests / validation
+
+1. Bare suite `python3 -m pytest`, actual summary line pasted, compared by node ID with the E-01 baseline (E-06, E-05).
+2. `python3 -m pytest -o addopts="" tests/test_non_isolated_permission_posture.py -v`, with every test named and its result shown (E-06).
+3. Mutation check in a throwaway process via `mock.patch.object(lane_containment, "NON_ISOLATED_PERMISSION_POLICY", {})` or an equivalent monkeypatch, never by editing source: test (a) or (d) must FAIL while (b) and (e) still PASS. Paste `git status --porcelain` afterwards (E-06).
+4. A search of the new test file showing zero `inspect.`, `ast.`, and zero `read_text()` on an `agent_workflows/` path (E-06).
+5. Real-host observation of the non-isolated policy: run `opencode debug config` with `OPENCODE_CONFIG_CONTENT` set to `build_permission_policy_env(None, NON_ISOLATED_PERMISSION_POLICY).env_value`, and paste the resolved `permission` object's `question` value. If the binary is unavailable in the workspace, say so and paste F-6 as the dated measurement instead (E-05).
+6. `aw specs check` conforming (E-07). `aw ipd lint --phase pre-transition` conforming. `aw check` showing no new violations against E-01's baseline. `aw sanitize --agent` exit 0 (E-01..E-08).
+
+## Spec / documentation sync
+
+- Spec `7ckptx` IS AMENDED (declared in `- Scope-Paths:`). WHY: today the isolated/non-isolated split exists only in a code comment. Plan `heglfv` found that this leaves a test defending a property that no requirement states. Since this plan changes that property, writing it into the spec as R4.1d with acceptance criterion A8d is what keeps code and contract aligned. The amendment adds an obligation for non-isolated turns and leaves every existing requirement as it is. The spec's `- Status:` is not changed.
+- `lane_containment` and `oc_runipd` comments are updated in E-04/E-05 so they do not keep describing the old gap.
+- `CHANGELOG.md` gets one user-facing line (E-08).
+
+## Open questions
+
+### OQ-01: Which of backlog `8ctu3u`'s three options to take?
+
+- Blocking: no
+- Status: resolved
+- Owner: maintainer (by approving or rejecting this plan)
+- Resolution or deferral rationale: RESOLVED FROM REPOSITORY EVIDENCE IN FAVOR OF (b), with the maintainer's approval of this plan as the confirming decision the backlog item asks for. The item called (b) "most promising and UNMEASURED: nobody has checked whether a non-isolated turn ever legitimately needs `question`". F-3 settles that: every driver child is a piped, TTY-less `opencode run`, and the driver's own prompt forbids interactive questions, so a non-isolated turn never legitimately needs `question`. F-4 shows the denial already runs on the default isolated path, including review turns, without breaking them. (a) leaves a known-unanswerable class open for no benefit. (c) gives up a host denial that F-6 shows works. Neither weakens anything (b) keeps. If the maintainer prefers (a) or (c), the right move is to reject this plan and record that choice on backlog `8ctu3u`, not to edit this plan down.
+
+## Validation and cross-check (verify before reporting done)
+
+Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
+
+- [ ] V-01 validates E-01
+  - Required evidence: the pasted baseline `python3 -m pytest` summary line, the list of failing node IDs (or "none"), and the baseline `aw check` violation summary, all captured before any edit, together with the HEAD commit they were taken at.
+  - Observed evidence:
+  - Result: pending
+
+- [ ] V-02 validates E-02
+  - Required evidence: `git diff agent_workflows/lane_containment.py` excerpt showing the new `NON_ISOLATED_PERMISSION_POLICY = {"question": "deny"}` with its `#:` block, plus pasted output of `python3 -c "from agent_workflows import lane_containment as l; print(l.LANE_PERMISSION_POLICY, l.NON_ISOLATED_PERMISSION_POLICY)"` showing the isolated policy still `{'external_directory': 'deny', 'question': 'deny'}`.
+  - Observed evidence:
+  - Result: pending
+
+- [ ] V-03 validates E-03
+  - Required evidence: pasted output of a one-off `python3 -c` call that builds `opencode_non_isolated_posture_record(build_permission_policy_env(None, NON_ISOLATED_PERMISSION_POLICY)).as_dict()` and prints it, showing `posture: partial-denial`, `requested_policy: {'question': 'deny'}`, and a reason naming `external_directory` as not denied. Also the same call for `opencode_posture_record(build_permission_policy_env(None)).as_dict()`, showing `posture: denied` and the reason text unchanged against `git show HEAD:agent_workflows/lane_containment.py`.
+  - Observed evidence:
+  - Result: pending
+
+- [ ] V-04 validates E-04
+  - Required evidence: `git diff` excerpts of the R4 header `OPENCODE` row and of the `RESIDUAL LIMITS:` paragraph showing the post-change wording, plus pasted `python3 -c "from agent_workflows import lane_containment as l; print(l.PERMISSION_TIMEOUT)"` printing `0.0`.
+  - Observed evidence:
+  - Result: pending
+
+- [ ] V-05 validates E-05
+  - Required evidence: `git diff agent_workflows/oc_runipd.py` showing the `if work_dir:` gate replaced by the policy selection, with one `build_permission_policy_env`/`observe_opencode_policy`/`record_host_posture` sequence serving both classes. The pasted real-host observation from Required tests item 5 (the `question` value in the resolved `permission` object, produced by `observe_opencode_policy`'s own probe command `opencode debug config`), or an explicit unavailability statement citing F-6. Also the pasted result of the existing `tests/test_turn_bounds.py::test_non_isolated_prompt_byte_identical_and_names_neither_bound` passing, as evidence that R1.3 prompt byte-identity survived.
+  - Observed evidence:
+  - Result: pending
+
+- [ ] V-06 validates E-06
+  - Required evidence: the pasted `python3 -m pytest -o addopts="" tests/test_non_isolated_permission_posture.py -v` output with each of the five tests named and PASSED. The pasted mutation run (Required tests item 3) showing the split: non-isolated tests FAIL and isolated tests PASS. `git status --porcelain` after the mutation showing no production file modified. The pasted search output showing zero `inspect.`/`ast.`/source `read_text()` uses. The pasted bare `python3 -m pytest` summary line, with any failing node IDs shown as a subset of V-01's baseline list.
+  - Observed evidence:
+  - Result: pending
+
+- [ ] V-07 validates E-07
+  - Required evidence: `git diff` of the spec showing R4.1d and A8d, the spec's `## Workflow history` line added by `aw specs note`, an unchanged `- Status: implementing`, and pasted `aw specs check` output conforming.
+  - Observed evidence:
+  - Result: pending
+
+- [ ] V-08 validates E-08
+  - Required evidence: `git diff CHANGELOG.md` showing exactly one added line, plus pasted output of a search of that added line for the characters U+2013 and U+2014 returning no match. Also the pasted `aw sanitize --agent` result exiting 0 and `aw check` showing no new violations against V-01's baseline.
+  - Observed evidence:
+  - Result: pending
+
+## Approval and execution gate
+
+- Size assessment: standard
+- Cohesion rationale: not required
+
+WHAT A REVIEWER SHOULD CHALLENGE HARDEST: F-3's claim that no driver child can ever legitimately use `question`. If any supported launch path gives the `opencode run` child an answerer (a TTY, an attached client, a server mode a human watches), that claim is false and the plan must narrow to unattended runs only. The authoring check covered `run_opencode`'s `popen_kwargs` (stdout piped, `start_new_session`) and the shared prompt's non-interactive instruction.
+
+Execution contract: commit ONLY the paths named in `- Scope-Paths:`, through `aw commit <plan> -- <paths>`, never `git add -A` and never push. This is a SHARED CHECKOUT: verify the staged set with `git diff --cached --name-only` before committing, unstage anything that is not yours with `git restore --staged <path>`, and re-verify after any failed raw commit attempt. Run the suite BARE as `python3 -m pytest` and PASTE ITS ACTUAL SUMMARY LINE. Every `V-*` demands pasted, observed evidence; do not write evidence you did not observe.
+
+LIFECYCLE TRANSITION. Do not claim done or move this plan to `.aw/records/plans/executed/` until `aw ipd lint --phase pre-transition` conforms and every `V-*` carries concrete observed evidence. Under `aw oc run` / `aw agy run` the RUNNER owns the terminal transition and finalize, so do NOT invoke `aw ipd finalize` yourself in a runner-driven execution. A HAND execution invokes it (`aw ipd finalize <plan> --actor <agent/model> --message <summary> --apply`). Never hand-edit `- Status:` and never hand-roll a `git mv` into `executed/`. Do NOT set backlog `8ctu3u` to `done`: the runner manages its state.
