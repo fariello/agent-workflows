@@ -1,5 +1,6 @@
 - Id: l5dq92
-- Status: open
+- Status: graduated
+- Graduated-To: l5dq92
 - Blocks-Release: next
 - Set: l5dq92
 - Priority: low
@@ -7,6 +8,7 @@
 - Summary: aw runs and aw runs list emit the bare payload {"runs": []} under --agent with no aw.agent/v1 record
 
 ## Workflow history
+- 2026-10-12 graduated (aw backlog): graduated by run run-20261012T005641Z-2321995: t76qdk
 - 2026-10-02 created (aw backlog): aw runs and aw runs list emit the bare payload {"runs": []} under --agent with no aw.agent/v1 record
 
 Measured in lane lbbo9s at HEAD b8e1e0157 while authoring plan 7pnneh (from backlog lbbo9s), which fixed the sibling defect on `aw upgrade-test` and declined this one because it has a different fix site.
