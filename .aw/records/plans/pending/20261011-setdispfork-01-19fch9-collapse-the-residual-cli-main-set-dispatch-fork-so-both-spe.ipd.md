@@ -1,0 +1,160 @@
+# IPD: Collapse the residual cli.main set-dispatch fork so both spellings of aw backlog set and aw specs set enter through one adapter
+
+- Date: 2026-10-11
+- Kind: child
+- Concern: Backlog `fcnz1r` asks that a behavior wired into one spelling of `aw backlog set` (and, by its closing note, `aw specs set`) can no longer be missing from the other. Set `setdisp` (orchestrator `63zo2f` and children `c6f6sj`, `afdmn6`, `m1jlwm`, `m94eht`, `vhiqo6`, `7zb4ny`, all `executed`) made `backlog.run_set` and `specs.run_set` thin adapters over `status_set.run_set_command`, so transition validation, the status write and relocation now have one implementation per verb (spec `wy9aru` C1). What survives is the ENTRY-POINT fork in `cli.main` that `wy9aru` 3c names as "the specific mechanism all five measured instances went through": `if getattr(args, "status", None) is None:` still routes the positional spelling straight to `status_set.run_set_command` and the `--status` spelling to the per-type adapter. Anything added to an adapter (a default, a pre-validation, a repo-root rule) is therefore reached by ONE spelling only, which is exactly the class the item exists to end. The item was reopened on 2026-10-06 by `gradcover` `52opph` ("uncovered obligation: The bare suite pytest after the final child compared by name against baseline") and its Set has since fully executed, so it has NO active carrier; this plan is that carrier for the residual work.
+- Scope: IN: (1) route `aw backlog set` and `aw specs set` through their adapter (`backlog.run_set`, `specs.run_set`) for BOTH spellings, deleting the `--status`-is-absent branch in `cli.main` for those two verbs; (2) make each adapter preserve today's positional behavior exactly when no `--status` was passed: the history ACTOR and output `_verb_label` defaults stay as the engine's today (`aw set` actor on the positional spelling, per `jbipfa`'s ruling that the actor is deliberate attribution and `wy9aru` 4.6, which declines to decide it), and repo-root derivation never treats the STATUS token as a path; (3) extend `tests/test_set_dispatch_parity.py` with an entry-convergence class that drives both spellings through `cli.main` and proves a behavior added at the adapter is reached by both; (4) a dated note in spec `wy9aru` Section 6a recording that the entry fork is closed. OUT: `aw set`, `aw ipd set`, `aw prompts set` and `aw finish` (single-entry already); the actor string (deliberate, `jbipfa`); the `aw set:` prefix the engine prints for descriptive-field refusals on every spelling (identical on both spellings, measured below, so it is not a fork defect); any status vocabulary or transition table.
+- Scope-Paths: agent_workflows/cli.py, agent_workflows/backlog.py, agent_workflows/specs.py, tests/test_set_dispatch_parity.py, .aw/records/specs/approved/20261001-wy9aru-01-wy9aru-canonical-set-dispatch.spec.md
+- Item-Dependencies: none
+- Status: to-review
+- Work-Kind: chore
+- Priority: medium
+- From-Backlog: fcnz1r
+- Set: setdispfork
+- Order: 1
+- Highest E allocated: 05
+- Author: opencode/its_direct/pt3-claude-opus-5.5-1m-us
+- Id: 19fch9
+
+## Workflow history
+
+- 2026-10-12 draft (opencode/its_direct/pt3-claude-opus-5.5-1m-us): created.
+- 2026-10-12 to-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): authored from backlog `fcnz1r` after Set `setdisp` fully executed; residual entry fork MEASURED at the lane base `9e3b99850`.
+
+## Goal
+
+Make `cli.main` dispatch each of `aw backlog set` and `aw specs set` to ONE function regardless of spelling, so a future default, refusal or normalization added at that function cannot be reached by one spelling and missed by the other, while every observable outcome of both spellings stays exactly what it is today.
+
+## Detailed Implementation Checklist (TODO)
+
+Execution-state rule: mark an `E-*` item complete only after performing the action. That mark is not validation. Right-sizing rule: each E-item must address one concern and be executable in one focused pass; split when an E-item names multiple distinct deliverables or independent test-surfaces. Accepted execution states: blocked, failed, pending, performed; terminal gate demands 'performed'.
+
+### Task group 1: baseline and characterization (before any edit)
+
+- [ ] E-01 Record the pre-edit baseline. Run the bare suite `python3 -m pytest -rf` at the execution base and record the summary line and the FAILURE SET BY TEST ID (this plan's own baseline; `63zo2f`'s reopen reason was precisely a suite comparison by name, so counts alone do not satisfy it). Then capture, for BOTH spellings of BOTH verbs over identical fixtures built with `tests/test_set_dispatch_parity.py`'s `_setup_repo`, `_create_backlog_item` and `_create_spec`: rc, stdout+stderr, the resulting file location, the newest inline history record, and the `.aw/records/history.jsonl` record, for (a) a plain transition with `--dir`, (b) an id6 selector run from a subdirectory with no `--dir`, (c) an ABSOLUTE path selector run from an unrelated cwd with no `--dir`, (d) an embedded-newline `--message` refusal, (e) `--dry-run`. Measured while authoring at `9e3b99850`: (a) both spellings rc 0, same location, inline records differ ONLY in actor (`done (aw backlog)` vs `done (aw set)`; `to-review (aw specs)` vs `to-review (aw set)`); sidecar records identical; (b) and (c) rc 0 on all four; (d) rc 2 `aw set: --message must not contain embedded newlines` on all four.
+  - Depends on: none
+  - Expected outcome: a pasted baseline summary line plus failure-set ids, and a characterization table of the five cases times four surfaces, which E-02 to E-04 must reproduce byte-for-byte after the edit (dates normalized by shape, per `wy9aru` S3).
+  - Execution state: pending
+
+### Task group 2: collapse the entry fork
+
+- [ ] E-02 Make the adapters spelling-faithful BEFORE rerouting. In `backlog.run_set` and `specs.run_set`, the defaulting of `args.actor` (`aw backlog` / `aw specs`) and `args._verb_label` must apply ONLY when `--status` was passed (`getattr(args, "status", None) is not None`), so the positional spelling keeps the engine's own defaults (`status_set.apply_status_change`'s `actor ... or "aw set"` and `run_set_command`'s `prefix` fallback). In `specs.run_set`, the no-`--dir` repo-root derivation currently calls `_repo_root_of(Path(selectors[0]))`; when `status` is None the first raw arg is the STATUS token, so derive from the first SELECTOR (`raw_args[1:]`), or, if none, fall back to `project_context.resolve_verb_repo_root(None)` exactly as `run_set_command` does. Do NOT change any default on the `--status` spelling.
+  - Depends on: E-01
+  - Expected outcome: calling either adapter with `status=None` and positional `args` produces the same rc, files and records as calling `status_set.run_set_command` with the same args today (case table from E-01).
+  - Execution state: pending
+
+- [ ] E-03 Reroute `cli.main`. In the `args.command == "backlog"` and `args.command in ("specs", "spec")` branches, replace the `if getattr(args, "status", None) is None: ... status_set.run_set_command(...) else: ...` fork for `set` with a single call to the adapter (`backlog_mod.run_set(args, term=term)` / `sp.run_set(args, term=term)`), keeping the `args.path = args.args[0] if args.args else args.path` normalization only where the adapter still reads `args.path` (it prefers `args.args`, so confirm and drop it if dead). Leave `aw set`, `aw ipd set`, `aw prompts set` and every other `run_set_command` caller untouched.
+  - Depends on: E-02
+  - Expected outcome: `cli.main` contains one dispatch target per verb for `backlog set` and `specs set`; the E-01 characterization table reproduces unchanged on all four surfaces.
+  - Execution state: pending
+
+### Task group 3: pin the property and record it
+
+- [ ] E-04 Add `TestSetEntryConvergence` to `tests/test_set_dispatch_parity.py`. Drive real `cli.main` argv only (no source reading, no symbol census, no caller count: `AGENTS.md`, GUIDING_PRINCIPLES P16, `wy9aru` S1). Cases: (1) THE PROPERTY ITSELF: patch `agent_workflows.backlog.run_set` (and separately `agent_workflows.specs.run_set`) with a `unittest.mock` wrapper that records its call and delegates to the original, invoke `cli.main` with each spelling, and assert the wrapper was called for BOTH spellings and the transition happened; this fails at the base commit for the positional spelling, which is what makes it a regression pin for the fork rather than for a structure; (2) the E-01 cases (a) to (e) on both spellings with outcomes asserted (rc, location, sidecar record, and inline record equal after normalizing the date by shape and the actor token, with the actor asserted separately as `aw backlog`/`aw specs` on the flag spelling and `aw set` on the positional one so the deliberate attribution is pinned, not lost); (3) case (c) specifically for `aw specs set <status> <abs-path>` from an unrelated cwd, the case E-02's repo-root fix protects. Run the class under `TZ=Pacific/Kiritimati` and `TZ=Etc/GMT+12` as well as the default zone.
+  - Depends on: E-03
+  - Expected outcome: the new class passes on the edited tree in all three zones, and case (1) demonstrably fails at the base commit for the positional spelling (run once against a scratch worktree at the base).
+  - Execution state: pending
+
+- [ ] E-05 Append a dated note to spec `wy9aru` Section 6a: "2026-10-xx: the `cli.main` entry fork named in E-1r is closed by plan `19fch9` (Set `setdispfork`, `From-Backlog: fcnz1r`): both spellings of `aw backlog set` and `aw specs set` now enter through their adapter." Edit nothing else in the spec, and record no status change on it (it stays `approved`; `implemented` needs cited evidence and is not this plan's call).
+  - Depends on: E-04
+  - Expected outcome: a one-paragraph addition to `wy9aru` Section 6a, `aw specs check` conforming.
+  - Execution state: pending
+
+## Project conventions discovered (Step 0)
+
+- Run the suite BARE as `python3 -m pytest`; add `-rf` only to list failing ids; never `-n0`, an extra `-q`, or `-p no:randomly` (`AGENTS.md`, repository development contract).
+- Commit through `aw commit 19fch9 -- <paths>`; never `git add -A`; never push (`AGENTS.md`, agent execution contract).
+- Cross-spelling comparisons normalize the date by SHAPE and pass an explicit `--message` (`wy9aru` S3); the precedent is `tests/test_set_dispatch_parity.py`'s existing normalizers (`TestNormalizersSubstitute`).
+- The history actor is deliberate attribution and is not unified (`jbipfa` "Deferred"; `tests/test_history_label_parity.py` docstring "Actor: '(aw backlog)' vs '(aw set)' truthfully identifies the writer and is deliberate"; `wy9aru` 4.6).
+- Cite code by SYMBOL (`module.function`) or by a quoted content string, with a line number only appended to one of those and never alone: an offset expires before this plan executes (spec `ipd-structure-and-linting` Section 10.2; advisory `IPD-C801`).
+
+## Findings
+
+| ID | Severity | Evidence (measured at `9e3b99850`) | Meaning |
+|---|---|---|---|
+| F-01 | MEDIUM | `cli.main`, `backlog_cmd == "set"` and `specs_cmd == "set"` branches: `if getattr(args, "status", None) is None:` returns `status_set.run_set_command(args.args, scoped_type=...)`, else the adapter. | The entry fork survives Set `setdisp`; `wy9aru` E-1r records the same: "The entry-point fork itself is UNCHANGED". |
+| F-02 | LOW | Both spellings of both verbs, identical fixtures: rc 0, same destination, identical sidecar record; inline record differs only in actor (`done (aw backlog)` vs `done (aw set)`). | Outcomes have converged; the only per-spelling difference is the deliberate actor, which the adapter sets and the engine defaults. A collapse must preserve it explicitly (E-02). |
+| F-03 | MEDIUM (LATENT) | `specs.run_set` with no `--dir` derives the repo root via `_repo_root_of(Path(selectors[0]))`, where `selectors` is `raw_args` verbatim. On the positional spelling `raw_args[0]` is the status token. | Naively rerouting the positional spelling into the adapter would derive the root from a path named after the status, a silent retarget risk for an absolute-path selector run outside the repo. E-02 fixes this before E-03 reroutes. |
+| F-04 | INFO | `--message 'a\nb'`: rc 2 `aw set: --message must not contain embedded newlines` on all four surfaces. | The `aw set:` prefix on the `--status` spelling is engine-wide, identical across spellings, so it is not a fork defect and is out of scope. |
+| F-05 | INFO | Every `setdisp` plan is under `executed/`; `existing_handoff_plans` skips terminal dispositions, so `fcnz1r` has no active carrier. | This plan is required for the item to graduate at all (`production_checks.backlog_graduate_count` condition (a)). |
+
+## Proposed changes (ordered, validatable)
+
+1. Baseline and characterization table (E-01).
+2. Spelling-faithful adapters: actor/label defaulting only on `--status`; specs repo-root derived from the selector, not the status token (E-02).
+3. Single dispatch target per verb in `cli.main` (E-03).
+4. `TestSetEntryConvergence` proving both spellings enter the adapter and outcomes are unchanged (E-04).
+5. Dated note in `wy9aru` Section 6a (E-05).
+
+## Deferred / out of scope (with reason)
+
+- Unifying the history actor: deliberate attribution, declined by `jbipfa` and by `wy9aru` 4.6; the positional spelling keeps `aw set` and the new tests pin that.
+  - Carrier-Declined: deliberate attribution ruled by executed plan jbipfa and spec wy9aru 4.6; not an outstanding defect
+- The `aw set:` prefix on engine refusals reached through `aw backlog set --status` / `aw specs set --status` (F-04): identical across spellings, so it is not the class `fcnz1r` names; changing it would move pinned strings for no parity gain.
+  - Carrier-Declined: the prefix is identical on every spelling (F-04), so no fork defect remains to carry
+- `aw set`, `aw ipd set`, `aw prompts set`, `aw finish`: already a single entry into `run_set_command`.
+  - Carrier-Declined: no fork exists on these verbs, so there is no work to carry
+- Moving `wy9aru` to `implementing`/`implemented`: a status decision with evidence requirements that belongs to the spec's owner, not to this plan.
+  - Carrier-Declined: a spec status decision owned by the wy9aru owner through aw specs set, not deferred work of this plan
+
+## Scope check
+
+- Over-scope: none. Every declared path is edited by a named E-item (cli: E-03; backlog/specs adapters: E-02; parity test: E-04; spec note: E-05).
+- Under-scope: none. The residual fork (F-01) and its one latent hazard (F-03) are both covered; the property is pinned behaviorally (E-04).
+
+## Required tests / validation
+
+- `python3 -m pytest tests/test_set_dispatch_parity.py -o addopts=""` passing, under the default zone, `TZ=Pacific/Kiritimati` and `TZ=Etc/GMT+12`.
+- The retrospective parity files `tests/test_backlog_positional_close_gate.py`, `tests/test_backlog_gate_follows_status.py`, `tests/test_status_set.py::TestGateFieldClearingOnStatusChange`, plus `tests/test_history_label_parity.py`, `tests/test_set_dispatch_dedup.py` and `tests/test_releases_line_writers.py`, passing unchanged.
+- Bare `python3 -m pytest -rf` after the change, with the `N passed` line pasted and the failure SET compared BY NAME with E-01's baseline; no new failing id.
+- `AW_NO_REEXEC=1 aw specs check`, `AW_NO_REEXEC=1 aw backlog check`, `AW_NO_REEXEC=1 aw check release-gates`, `AW_NO_REEXEC=1 aw sanitize --agent`.
+
+## Spec / documentation sync
+
+- Spec `wy9aru` (`approved`) Section 6a receives a dated note (E-05). WHY: E-1r of that spec records the entry fork as still open; leaving it would make the contract every later `set`-family plan is reviewed against describe a fork that no longer exists. The note changes no requirement. Declared in `- Scope-Paths:` so the runner announces it.
+- No CHANGELOG entry: no user-visible behavior changes (E-01's table must reproduce exactly).
+
+## Open questions
+
+### OQ-01: should the positional spelling's history actor become `aw backlog` / `aw specs` once both spellings share one entry?
+
+- Blocking: no
+- Status: resolved
+- Owner: none
+- Resolution or deferral rationale: RESOLVED, keep it as is. `jbipfa` ruled the actor deliberate attribution, `wy9aru` 4.6 declines to decide it, `tests/test_history_label_parity.py` pins `(aw set)` on the positional spelling, and `wy9aru` C4 requires unification to be behavior-preserving on axes it does not rule on. E-02 therefore preserves it explicitly. Reversible: a later plan may unify it with its own ruling.
+
+## Validation and cross-check (verify before reporting done)
+
+Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
+
+- [ ] V-01 validates E-01
+  - Required evidence: paste the base commit hash, the bare `python3 -m pytest -rf` summary line with its `TZ`, and the baseline failure set by test id; paste the characterization table (cases (a) to (e) times four surfaces) with rc, location, inline record and sidecar record per cell, produced by driving `cli.main` (the code path that produces the observation).
+  - Observed evidence:
+  - Result: pending
+
+- [ ] V-02 validates E-02
+  - Required evidence: paste the diff of `backlog.run_set` and `specs.run_set`; paste the output of calling each adapter directly with `status=None` positional args for cases (a) and (c), showing rc, destination, and an inline record carrying `(aw set)`, matching E-01's positional cells.
+  - Observed evidence:
+  - Result: pending
+
+- [ ] V-03 validates E-03
+  - Required evidence: paste the diff of `cli.main`'s `backlog set` and `specs set` branches showing one dispatch target each; re-run the E-01 characterization through `cli.main` and paste the table, stating cell by cell that it matches the baseline (dates normalized by shape).
+  - Observed evidence:
+  - Result: pending
+
+- [ ] V-04 validates E-04
+  - Required evidence: paste `python3 -m pytest tests/test_set_dispatch_parity.py -o addopts="" -v` passing under the default zone, `TZ=Pacific/Kiritimati` and `TZ=Etc/GMT+12`; paste the convergence case (1) FAILING for the positional spelling when run against a scratch worktree at the base commit (`git worktree add --detach <scratch> <base>`, removed afterwards, `git worktree list` pasted after cleanup); paste the retrospective and label/dedup/line-writer files passing; paste the post-change bare `python3 -m pytest -rf` summary and its failure set compared by id with V-01's baseline.
+  - Observed evidence:
+  - Result: pending
+
+- [ ] V-05 validates E-05
+  - Required evidence: paste the `wy9aru` diff (Section 6a only), `AW_NO_REEXEC=1 aw specs check`, `AW_NO_REEXEC=1 aw backlog check`, `AW_NO_REEXEC=1 aw check release-gates` and `AW_NO_REEXEC=1 aw sanitize --agent` output, `aw ipd lint --phase pre-transition` on this plan conforming, and `git diff --cached --name-only` before each commit showing only declared paths.
+  - Observed evidence:
+  - Result: pending
+
+## Approval and execution gate
+
+- Size assessment: standard
+- Cohesion rationale: not required
+
+Execute only after explicit human approval (`- Status: approved`). Execute E-items in order; E-02 MUST land before E-03 because F-03 makes the reroute unsafe without it. Commit through `aw commit 19fch9 -- <declared paths>`, never push. Move the plan to `.aw/records/plans/executed/` only after `aw ipd lint --phase pre-transition` conforms and every `V-*` carries pasted evidence with `Result: pass`. Do not set backlog `fcnz1r` `done`; it closes through its normal route once this plan is executed.
