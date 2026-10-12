@@ -1,11 +1,13 @@
 - Id: gte0pd
-- Status: open
+- Status: graduated
+- Graduated-To: gte0pd
 - Set: gte0pd
 - Priority: medium
 - Work-Kind: chore
 - Summary: tools/ipdrunner/ is outside testpaths, so its tests rot unnoticed (10 failures live there today)
 
 ## Workflow history
+- 2026-10-12 graduated (aw backlog): graduated by run run-20261012T005641Z-2321995: g0u7f9
 - 2026-09-30 created (aw backlog): tools/ipdrunner/ is outside testpaths, so its tests rot unnoticed (10 failures live there today)
 
 Found while authoring plan h0zk2g (backlog s4jctz), measured at HEAD 27a80985.
