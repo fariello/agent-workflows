@@ -6,7 +6,8 @@
 - Scope: Route the `summary` arm of `attention_contract.validate_gate_flags` through `attention_contract.refuse_unsafe_descriptive` so every `--gate-summary` refusal in the code base speaks one vocabulary; correct the stale comment in `tests/test_specs_releases_descriptive_safety.py::test_non_regression_already_validated_run_set_flags_preserved`; add behavioral tests for the validator's summary arm; record the decision in the CHANGELOG.
 - Scope-Paths: agent_workflows/attention_contract.py, tests/test_specs_releases_descriptive_safety.py, tests/test_gate_summary_refusal_vocabulary.py, CHANGELOG.md
 - Item-Dependencies: none
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
 - From-Backlog: 303k5n
@@ -18,6 +19,7 @@
 
 ## Workflow history
 
+- 2026-10-12 reviewed (opencode/its_direct/pt3-claude-opus-5.5-1m-us): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-001..PR-004 fixed. Re-verified at ba0fb6975: F-01..F-06 reproduce; validate_gate_flags returns the old wording for newline, BEL, 301 and 400 chars and None at 300; refuse_unsafe_descriptive gives the three specific messages; the five related test files pass (1051 passed).
 - 2026-10-12 draft (opencode): created.
 - 2026-10-12 to-review (opencode): authored from backlog 303k5n after re-verifying the premise against HEAD 76204c8f4; premise found drifted (inline refusal already removed by m94eht), plan scoped to the residue.
 
@@ -31,14 +33,14 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: Re-verify, then unify the validator's summary arm
 
-- [ ] E-01 Re-verify the premise before editing: confirm `specs.run_set` contains no inline `--gate-summary` refusal (it is a thin adapter to `status_set.run_set_command`), confirm `attention_contract.validate_gate_flags` still returns `f"{verb}: --gate-summary must be a bounded single control-char-free line"` for an unsafe summary, and run `python3 -m pytest tests/test_specs_releases_descriptive_safety.py -k non_regression_already` to confirm it passes and pins `aw set: --gate-summary must not contain embedded newlines` at rc 2. If any of these differ from the Findings table, stop and record the drift instead of editing.
+- [ ] E-01 Re-verify the premise before editing: confirm `specs.run_set` contains no inline `--gate-summary` refusal (it is a thin adapter to `status_set.run_set_command`), confirm `attention_contract.validate_gate_flags` still returns `f"{verb}: --gate-summary must be a bounded single control-char-free line"` for an unsafe summary, and run `python3 -m pytest -o addopts="" -q tests/test_specs_releases_descriptive_safety.py -k non_regression_already` to confirm the selected test passes and pins `aw set: --gate-summary must not contain embedded newlines` at rc 2. If any of these differ from the Findings table, stop and record the drift instead of editing.
   - Depends on: none
   - Expected outcome: pasted grep/pytest output matching Findings F-01..F-04, or a recorded drift note and a halt.
   - Execution state: pending
 
 - [ ] E-02 In `attention_contract.validate_gate_flags`, replace the summary arm (`if summary is not None and not is_safe_descriptive(summary): return f"{verb}: --gate-summary must be a bounded single control-char-free line"`) with a delegation to `refuse_unsafe_descriptive(verb, "--gate-summary", summary)` (default `bound_length=True`, `prose=False`), returning its message when non-None. Leave the kind/ref arms and their messages untouched. Update the docstring to say the summary arm uses the shared Section 8.8 vocabulary.
   - Depends on: E-01
-  - Expected outcome: `validate_gate_flags("aw set","date","2026-10-02","a\nb")` returns `aw set: --gate-summary must not contain embedded newlines`; a 400-char summary returns `aw set: --gate-summary exceeds maximum length of 300 characters (400 > 300)`; a control-char summary returns `aw set: --gate-summary must not contain control characters`; a safe summary still returns None; the string `bounded single control-char-free line` no longer appears in `agent_workflows/`.
+  - Expected outcome: `validate_gate_flags("aw set","date","2026-10-02","a\nb")` returns `aw set: --gate-summary must not contain embedded newlines`; a 400-char summary returns `aw set: --gate-summary exceeds maximum length of 300 characters (400 > 300)`; a control-char summary returns `aw set: --gate-summary must not contain control characters`; a safe summary still returns None; `git grep -n 'bounded single control-char-free' -- agent_workflows` returns nothing (use `git grep`, not `grep -r`, which also matches stale `__pycache__/*.pyc` bytes).
   - Execution state: pending
 
 ### Task group 2: Tests and record
@@ -48,9 +50,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Expected outcome: new test file passes; the edited test's assertions are byte-identical to before (diff shows only the comment line changed).
   - Execution state: pending
 
-- [ ] E-04 Add one CHANGELOG `Unreleased` entry: `- Changed: the library-level gate validator (attention_contract.validate_gate_flags) now reports an unsafe --gate-summary with the same specific reason the CLI already uses (embedded newline, control character, or over-length with the actual length), so one wording is used everywhere.` (no em or en dashes). Then run the full suite bare (`python3 -m pytest`).
+- [ ] E-04 Add one CHANGELOG `Unreleased` entry: `- Changed: the library-level gate validator (attention_contract.validate_gate_flags) now reports an unsafe --gate-summary with the same specific reason the CLI already uses (embedded newline, control character, or over-length with the actual length), so one wording is used everywhere.` (no em or en dashes). Place it in the topmost pending release section (`## 2.0.0 (pending)`, beside the other `- Changed:` lines); the file has no `Unreleased` heading. Then run the targeted files from `## Required tests / validation`, and the full suite bare (`python3 -m pytest`) at the execution base AND after the change, comparing failures BY NAME: the bare suite is not green on this tree for unrelated reasons (a sibling plan measured `39 failed` at `2600a93e3`), so "zero failures" is not the bar.
   - Depends on: E-03
-  - Expected outcome: CHANGELOG line present; full suite reports `N passed` with no failures.
+  - Expected outcome: CHANGELOG line present; targeted files all pass; the post-change bare suite has no failing test absent from the base-commit failure list (any newly red node is re-run alone at the base before being called pre-existing).
   - Execution state: pending
 
 ## Project conventions discovered (Step 0)
@@ -94,7 +96,8 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 - `python3 -m pytest tests/test_gate_summary_refusal_vocabulary.py tests/test_specs_releases_descriptive_safety.py tests/test_gate_pair_validation_parity.py tests/test_specs_set_gate_parity.py tests/test_status_set_descriptive_safety.py tests/test_descriptive_refusal_hoist.py` passes.
 - Full suite run bare: `python3 -m pytest`.
-- Grep: `bounded single control-char-free` absent from `agent_workflows/`.
+- `git grep -n 'bounded single control-char-free' -- agent_workflows` returns nothing.
+- Full-suite failures compared by name against a base-commit baseline (E-04).
 
 ## Spec / documentation sync
 
@@ -115,12 +118,12 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
 - [ ] V-01 validates E-01
-  - Required evidence: pasted output of the grep for `def run_set` body in `agent_workflows/specs.py` showing the `status_set.run_set_command` delegation, a pasted direct `python3 -c` call of `attention_contract.validate_gate_flags` showing the old wording, and the pasted pytest line `1 passed` for `-k non_regression_already`.
+  - Required evidence: pasted output of the grep for `def run_set` body in `agent_workflows/specs.py` showing the `status_set.run_set_command` delegation, a pasted direct `python3 -c` call of `attention_contract.validate_gate_flags` showing the old wording, and the pasted pytest summary for `-k non_regression_already` showing the selected test passed and none failed.
   - Observed evidence:
   - Result: pending
 
 - [ ] V-02 validates E-02
-  - Required evidence: pasted `python3 -c` output calling `attention_contract.validate_gate_flags("aw set","date","2026-10-02",v)` for newline, BEL, 400-char, and `ok` inputs, showing the three specific messages and `None`; pasted grep for `bounded single control-char-free` under `agent_workflows/` returning no matches; pasted `git diff agent_workflows/attention_contract.py` confined to `validate_gate_flags`.
+  - Required evidence: pasted `python3 -c` output calling `attention_contract.validate_gate_flags("aw set","date","2026-10-02",v)` for newline, BEL, 400-char, and `ok` inputs, showing the three specific messages and `None`; pasted `git grep -n 'bounded single control-char-free' -- agent_workflows` returning no matches; pasted `git diff agent_workflows/attention_contract.py` confined to `validate_gate_flags`.
   - Observed evidence:
   - Result: pending
 
@@ -130,7 +133,7 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Result: pending
 
 - [ ] V-04 validates E-04
-  - Required evidence: pasted `git diff CHANGELOG.md` showing the one `Changed` line with no em or en dash; pasted final summary line of a bare `python3 -m pytest` run showing `passed` and zero failed.
+  - Required evidence: pasted `git diff CHANGELOG.md` showing the one `Changed` line with no em or en dash; pasted summary line of the targeted-files run (zero failed); pasted base-commit and post-change bare `python3 -m pytest` summary lines and failure lists, with a by-name diff showing no new failure (any difference re-run alone at the base, output pasted).
   - Observed evidence:
   - Result: pending
 
@@ -139,4 +142,8 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 - Size assessment: standard
 - Cohesion rationale: not required
 
-Execute only after explicit human approval (`Status: approved`). Commit only the Scope-Paths files through `aw commit vql6j0 -- <paths>`; never push. Move to `executed/` through the tooled lifecycle only after `aw ipd lint --phase pre-transition` conforms and every `V-*` carries pasted evidence with `Result: pass`.
+Execute only after explicit human approval (`Status: approved`). OQ-01 is resolved and non-blocking.
+
+EXECUTION CONTRACT. Scope fence: the four `- Scope-Paths:` files; an out-of-scope edit is made and then justified at finalize (`--scope-reason`), not a reason to stop. E-01's drift halt is a prerequisite check, not a scope stop. Commit only the Scope-Paths files through `aw commit vql6j0 -- <paths>` (never `git add -A`/`-a`, `--no-verify`, or `git stash` in the shared checkout), verify the staged set first, and never push. You MUST paste the actual runner output for every test claim; never report a run that was not performed.
+
+POST-GATE LIFECYCLE. Do not mark this plan `executed` until `aw ipd lint --phase pre-transition` conforms and every `V-*` carries pasted evidence with `Result: pass`. Under `aw oc run`/`aw agy run` the runner owns begin/finalize, so do not finalize yourself; by hand, use `aw ipd begin` and `aw ipd finalize`, never a hand `git mv` to `executed/`.
