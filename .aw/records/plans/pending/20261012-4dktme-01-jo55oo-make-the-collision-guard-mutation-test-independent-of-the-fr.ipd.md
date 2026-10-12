@@ -1,0 +1,129 @@
+# IPD: Make the collision-guard mutation test independent of the fresh-verifier capability probe
+
+- Date: 2026-10-12
+- Kind: child
+- Concern: `tests/test_runwire_verifier_authority.py::test_collision_guard_bites_by_mutation` monkeypatches the module-global `agy_verifier.assert_distinct_sessions`, which is ALSO the predicate the host-capability probe `host_sandbox_profile._probe_fresh_verifier_session` exercises; when the execute preflight measures capabilities on demand, the mutation makes the probe report `supports_fresh_verifier_session=False`, the execute item is refused `fail-gate` before any verify turn, and the test dies with `KeyError: 'verification_status'`.
+- Scope: Make the test's isolation from the capability probe explicit and asserted (rather than an incidental side effect of a fixture key), make the mutated run's failure mode diagnosable, and add a behavioral regression proving the probe genuinely detects the same mutation. Test-only change; no production code changes.
+- Scope-Paths: tests/test_runwire_verifier_authority.py
+- Item-Dependencies: none
+- Status: to-review
+- Work-Kind: bug
+- Priority: medium
+- From-Backlog: 4dktme
+- Blocks-Release: next
+- Set: 4dktme
+- Order: 1
+- Highest E allocated: 03
+- Author: opencode
+- Id: jo55oo
+
+## Workflow history
+
+- 2026-10-12 draft (opencode): created.
+- 2026-10-12 to-review (opencode): authored from backlog 4dktme with measured root cause and reproduction.
+
+## Goal
+
+Make `test_collision_guard_bites_by_mutation` deterministically test what it claims (the runner's shared verify-site collision guard) without depending on whether the host-capability preflight happens to re-probe, and pin, as a separate behavioral test, that the fresh-verifier probe itself fails closed under the same mutation.
+
+## Detailed Implementation Checklist (TODO)
+
+Execution-state rule: mark an `E-*` item complete only after performing the action. That mark is not validation. Right-sizing rule: each E-item must address one concern and be executable in one focused pass; split when an E-item names multiple distinct deliverables or independent test-surfaces. Accepted execution states: blocked, failed, pending, performed; terminal gate demands 'performed'.
+
+### Task group 1: Decouple the mutation test from the capability probe
+
+- [ ] E-01 In `tests/test_runwire_verifier_authority.py`, make the mutated run in `test_collision_guard_bites_by_mutation` explicitly hold the fresh-verifier capability constant across the mutation: wrap BOTH `_drive_execute_turn` calls in `host_sandbox_profile.forced_runner_safety_verdicts({host_sandbox_profile.CAP_FRESH_VERIFIER_SESSION: (True, "4dktme: isolate verify-site guard from probe")})`, and add a comment on the `host_capabilities` key in `_drive_execute_turn` stating it is the frozen descriptor that keeps the preflight from re-probing (citing backlog `4dktme`).
+  - Depends on: none
+  - Expected outcome: the test no longer relies solely on the incidental `host_capabilities` fixture key added by commit `163874fcc` (psgyzw); removing that key no longer reintroduces the `KeyError`.
+  - Execution state: pending
+
+- [ ] E-02 In the same test, before reading `verification_status`, assert the mutated item was NOT refused by the preflight (`item_mutated["status"] != "fail-gate"` and no attempt carries `host_capability_unavailable`), with an assertion message naming backlog `4dktme`, and read `verification_status` via `.get()` so a regression surfaces as a clear assertion rather than `KeyError`.
+  - Depends on: E-01
+  - Expected outcome: if the coupling ever returns, the failure names the preflight refusal instead of `KeyError: 'verification_status'`.
+  - Execution state: pending
+
+### Task group 2: Pin the probe's own fail-closed behavior
+
+- [ ] E-03 Add `test_fresh_verifier_probe_detects_disabled_distinct_session_guard` to `tests/test_runwire_verifier_authority.py`: with `monkeypatch.setattr(agy_verifier, "assert_distinct_sessions", lambda e, v: None)`, call `host_sandbox_profile.probe_runner_safety_capabilities()` (unforced) and assert `verdicts[CAP_FRESH_VERIFIER_SESSION] is False` with a note containing `ACCEPTED a reused session identity`; without the mutation assert it is `True`.
+  - Depends on: none
+  - Expected outcome: the interaction that caused this bug is now an asserted, intended behavior (the probe fails closed when the guard is disabled), not a hidden trap.
+  - Execution state: pending
+
+## Project conventions discovered (Step 0)
+
+- Suite command is bare `python3 -m pytest` (AGENTS.md repo-local contract); a narrowed run uses `python3 -m pytest -o addopts="" <path>`.
+- The shipped seam for forcing runner-safety verdicts is `host_sandbox_profile.forced_runner_safety_verdicts` (a restoring context manager, per its docstring "a test that sets it MUST restore it"); used already in `tests/test_host_capability_wiring.py` and `tests/test_host_capability_extension.py`. No new injection mechanism is introduced.
+- Tests must exercise behavior, not code structure (P16 / AGENTS.md "TEST OUTCOMES, NOT CODE STRUCTURE"); E-03 calls the real probe and asserts its verdict.
+- Execute-action preflight: `runner_shared.execute_item_core` calls `runner_action_contract_class(action)` -> `ensure_frozen_host_capabilities(state, cli_host, run_dir=run_dir)` -> `host_sandbox_profile.preflight_host_capabilities`; `ensure_frozen_host_capabilities` re-measures via `detect_host_capabilities` only when `state["host_capabilities"]["descriptor"]` is absent.
+- `ACTION_CAPABILITY_REQUIREMENTS[ACTION_EXECUTE].required == (CAP_FRESH_VERIFIER_SESSION,)` (plan `y9m1ya`, commit `5d36b3554`).
+
+## Findings
+
+| # | Finding | Evidence |
+|---|---------|----------|
+| F-1 | Root cause: `_probe_fresh_verifier_session` calls the real `agy_verifier.run_fresh_verifier`, which calls the module-global `assert_distinct_sessions`; the test's monkeypatch disables it, so the probe returns False ("fresh-verifier contract ACCEPTED a reused session identity ... (would fail OPEN)"). | Measured 2026-10-12: `python3 -c` with the lambda patch -> `detect_host_capabilities('opencode').supports_fresh_verifier_session == False` and that note. |
+| F-2 | With capability False, the execute preflight refuses the item `fail-gate` before the verify turn, so `verification_status` is never written. | Reproduced 2026-10-12: the test file as of commit `846e9a722` (eow7p4) run against current code -> `E KeyError: 'verification_status'`, `1 failed`. |
+| F-3 | The failure is currently MASKED, not fixed: commit `163874fcc` (psgyzw, 2026-10-09) added a frozen `host_capabilities.descriptor` to `_drive_execute_turn`'s state, so `ensure_frozen_host_capabilities` does not re-probe. Nothing in the test states or asserts that dependency. | `git show 163874fcc -- tests/test_runwire_verifier_authority.py`; current file passes: `1 passed, 11 deselected`. |
+| F-4 | Several executed plans recorded this as a pre-existing failure attributed to backlog `4dktme` (e.g. `urv602`, `x7unul`, `yqv6b7`, `rtvdak`). | grep of `.aw/records/plans/executed/` for `4dktme`. |
+| F-5 | Backlog `qkzet8` describes the same defect (same test, same mechanism). | `.aw/records/backlog/open/20261009-qkzet8-01-qkzet8-...backlog.md` Summary. |
+
+## Proposed changes (ordered, validatable)
+
+1. E-01: force the fresh-verifier verdict True around both drives in the mutation test and document the frozen descriptor in the helper.
+2. E-02: assert no preflight refusal before reading the verify disposition; use `.get()`.
+3. E-03: add the probe fail-closed regression test.
+
+## Deferred / out of scope (with reason)
+
+- Production code in `host_sandbox_profile` / `runner_shared` is NOT changed: the probe failing closed under a disabled guard is correct behavior (F-1), and the frozen-descriptor design is intentional (bqtgmo).
+- Duplicate backlog `qkzet8` is not modified by this plan (not this item; changing another item's status is outside this authoring turn). A human may close it as a duplicate citing this plan once executed.
+
+## Scope check
+
+- Over-scope: none.
+- Under-scope: none; the only affected surface is the one test file named in Scope-Paths.
+
+## Required tests / validation
+
+- `python3 -m pytest -o addopts="" tests/test_runwire_verifier_authority.py -q` passes, including the new test.
+- Mutation-of-fixture check: temporarily delete the `host_capabilities` key from `_drive_execute_turn` and re-run `-k collision_guard_bites`; it must still pass (proves E-01 decoupling). Restore afterwards.
+- Full bare suite `python3 -m pytest` shows no new failures.
+
+## Spec / documentation sync
+
+N/A: test-only change; no spec or user-facing documentation describes this test's fixture.
+
+## Open questions
+
+### OQ-01: Should the fix instead scope the monkeypatch so the probe sees the real predicate?
+
+- Blocking: no
+- Status: resolved
+- Owner: none
+- Resolution or deferral rationale: No. Both the runner verify site and the probe import the predicate from the same module lazily, so there is no call-site-local seam to patch without a production change. Forcing the verdict via the shipped `forced_runner_safety_verdicts` seam is the repository-established approach and keeps production untouched.
+
+## Validation and cross-check (verify before reporting done)
+
+Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
+
+- [ ] V-01 validates E-01
+  - Required evidence: pasted output of `python3 -m pytest -o addopts="" tests/test_runwire_verifier_authority.py -q -k collision_guard_bites` passing BOTH as committed AND with the `host_capabilities` key temporarily removed from `_drive_execute_turn` (paste both runs and the `git diff` of the temporary removal, then `git diff --stat` showing it reverted).
+  - Observed evidence:
+  - Result: pending
+
+- [ ] V-02 validates E-02
+  - Required evidence: pasted diff hunk showing the preflight-refusal assertion and the `.get()` read, plus pasted output of a run with E-01's forced verdict temporarily removed AND the `host_capabilities` key removed, showing the failure message names `4dktme`/preflight refusal rather than `KeyError`.
+  - Observed evidence:
+  - Result: pending
+
+- [ ] V-03 validates E-03
+  - Required evidence: pasted passing output of `python3 -m pytest -o addopts="" tests/test_runwire_verifier_authority.py -q -k fresh_verifier_probe_detects`, plus pasted output of the full bare `python3 -m pytest` summary line showing no new failures.
+  - Observed evidence:
+  - Result: pending
+
+## Approval and execution gate
+
+- Size assessment: standard
+- Cohesion rationale: not required
+
+Execute only after explicit human approval (`- Status: approved`). Commit via `aw commit jo55oo -- tests/test_runwire_verifier_authority.py <this plan>`; never push. Move to `.aw/records/plans/executed/` only after `aw ipd lint --phase pre-transition` conforms and every `V-*` carries pasted evidence with `Result: pass`.
