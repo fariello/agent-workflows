@@ -6,7 +6,8 @@
 - Scope: IN: remove `A.escape_detail` from the 17 drift-detail call sites F-03 and F-04 classify (8 repr-wrapped, 9 provable identity) in `attention.py`, `specs.py`, `research_index.py` and `releases.py`; rewrite the `_AGENT_ESCAPES` comment and the `escape_detail` docstring in `attention_contract.py` so they state the helper's REMAINING purpose (keep an untrusted value on one line of a human-rendered surface) instead of a deleted wire form; add a behavioral test module; amend spec Section 8.8's stale `--agent` TSV escaping clause; add a CHANGELOG line. OUT: the 9 call sites F-05 keeps (`attention.scan` duplicate-id, `attention.stranded_lane_drift`, the four board gate-ref renders, the `cli.py` gate-ref render, and the two `specs.run_migrate` history-message writes); deleting or renaming `escape_detail` or `_AGENT_ESCAPES`; `tests/test_attention_contract.py::test_detail_escaping_keeps_one_line`; any change to `_CONTROL_CHAR_RE`, `is_safe_descriptive`, `neutralize_control_characters` or `escape_markdown_inline`.
 - Scope-Paths: agent_workflows/attention.py, agent_workflows/specs.py, agent_workflows/research_index.py, agent_workflows/releases.py, agent_workflows/attention_contract.py, tests/test_drift_detail_escaping.py, .aw/records/specs/implemented/20260808-1945-01-attention-registry-and-cross-tree-status.spec.md, CHANGELOG.md
 - Item-Dependencies: none
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
 - From-Backlog: 4ep6mp
@@ -17,6 +18,7 @@
 - Id: 8cu5ml
 
 ## Workflow history
+- 2026-10-12 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-001..PR-004
 
 - 2026-10-12 to-review (opencode): Authored from backlog `4ep6mp`. Classified all 26 live call sites by measurement into remove-repr-wrapped (8), remove-provable-identity (9) and keep-human-single-line (9); measured that the repr-wrapped sites double-escape backslashes today.
 - 2026-10-12 draft (opencode): created.
@@ -33,13 +35,13 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 - [ ] E-01 Record the baseline on the unmodified tree: the full call-site census (`rg -n "escape_detail\(" agent_workflows`), and the failing node-id set of a bare `python3 -m pytest` run, so later failures can be compared by node id rather than by count.
   - Depends on: none
-  - Expected outcome: a census of 26 call sites across `attention.py` (12), `specs.py` (8), `research_index.py` (3), `releases.py` (2) and `cli.py` (1), matching F-02, plus a saved list of baseline failing node ids (possibly empty).
+  - Expected outcome: a census matching F-02 (26 call sites: `attention.py` 12, `specs.py` 8, `research_index.py` 3, `releases.py` 2, `cli.py` 1, re-measured at review HEAD), or any drift recorded and every added or removed site classified into F-03/F-04/F-05 before E-03 proceeds; plus a saved list of baseline failing node ids (possibly empty).
   - Execution state: pending
 
 - [ ] E-02 Create `tests/test_drift_detail_escaping.py` with behavioral tests that drive the real producers on temp fixtures and assert on the returned `Drift.detail`:
-  (a) for each REPR-WRAPPED site (F-03), a hostile native value containing a backslash and a tab yields a detail EQUAL to the producer's message formatted with a single `repr` (for example `"backlog status " + repr("we\\ird")`), and containing no raw tab, newline or carriage return. Drive `attention.scan` on a temp repo for the backlog, plans, research, release and prompts producers (`_backlog_record`, `_plans_record`, `_research_record`, `_release_record`, `_prompts_record`), and `specs.validate_spec` directly for the spec status, unknown `Gate-Kind` and invalid `Gate-Ref` producers. The prompts producer's value is a bucket directory name, so its fixture must place a prompt under an unrecognized bucket directory; if a bucket name containing a backslash cannot reach the drift branch, use a plain unrecognized bucket and assert exact equality with the single-repr form only.
+  (a) for each REPR-WRAPPED site (F-03), a hostile native value containing a backslash and a tab yields a detail EQUAL to the producer's message formatted with a single `repr` (for example `"backlog status " + repr("we\\ird")`), and containing no raw tab, newline or carriage return. Drive `attention.scan` on a temp repo for the backlog, plans, research, release and prompts producers (`_backlog_record`, `_plans_record`, `_research_record`, `_release_record`, `_prompts_record`), and `specs.validate_spec` directly for the spec status, unknown `Gate-Kind` and invalid `Gate-Ref` producers. The prompts producer's value is a bucket directory name, so its fixture must place a prompt under an unrecognized bucket directory. A backslash CANNOT reach this producer (`attention._prompt_disposition_from_rel` runs `rel.replace("\\", "/")` before splitting, measured at review), so use a bucket name containing a TAB (which `repr` renders `\t` and the wrapper doubles to `\\t`) and assert exact equality with the single-repr form; if the platform refuses such a directory name, use a plain unrecognized bucket and assert single-repr equality only, recording which.
   (b) for the PROVABLE-IDENTITY sites (F-04), the detail equals the literal message exactly (`"Scope is over-length or has control chars/newlines"`, `"Summary is over-length or has control chars/newlines"`, `"metadata bullet - <Key>: appears <N> times"`, the three research `"... is over-length or has control chars/newlines"` messages, the two releases messages, and `"dir <disp> vs status <status>"`).
-  (c) one end-to-end case: `python -m agent_workflows.cli attention --check --json --dir <temp repo>` run as a subprocess on the hostile backlog fixture, parsing the JSON and asserting the drift entry's `detail` decodes to the single-repr form. Use `--json`, not `--agent`: measured at authoring, the `aw.agent/v1` record's diagnostics carry `location` and `rule` only, with no `detail` key, so `--agent` cannot observe this change. If the `--json` payload nests the drift list under a different key than `data.drift`, locate it from the payload and say where.
+  (c) one end-to-end case: `python -m agent_workflows.cli attention --check --json --dir <temp repo>` run as a subprocess on the hostile backlog fixture, parsing the JSON and asserting the drift entry's `detail` decodes to the single-repr form. Use `--json`. Measured at review: `attention --check --json` emits an `aw.agent/v1` payload whose `data.drift[].detail` AND `diagnostics[].detail` both carry the detail (on the unmodified tree the decoded detail for `- Status: we\ird` holds FOUR backslashes between `we` and `ird`, where a single `repr` gives two), while the compact `--agent` result record carries `location` and `rule` only. Assert on `data.drift` and also on the matching `diagnostics` entry.
   Run the new module on the UNMODIFIED tree first: (a) must FAIL for the repr-wrapped sites (double backslash), and (b) must PASS (identity), which is what proves the F-04 sites are no-ops.
   - Depends on: E-01
   - Expected outcome: the new module exists; on the unmodified tree the (a) cases fail with a doubled-backslash mismatch and the (b) cases pass.
@@ -131,14 +133,14 @@ E-06 amends `.aw/records/specs/implemented/20260808-1945-01-attention-registry-a
 
 - Blocking: no
 - Status: resolved
-- Owner: none
+- Owner: plan author
 - Resolution or deferral rationale: RESOLVED: keep `repr`, drop `escape_detail`. `repr` quotes the value (so a reader can see leading or trailing whitespace and an empty string), already renders tab, newline and CR as visible escapes, and is what every one of these messages was written with. Dropping `repr` instead would remove the quotes from 8 user-visible messages; dropping `escape_detail` changes only the doubled backslash F-03 measured.
 
 ### OQ-02: Is the doubled backslash a `bug` that should gate the release?
 
 - Blocking: no
 - Status: resolved
-- Owner: none
+- Owner: plan author
 - Resolution or deferral rationale: RESOLVED: no; the item stays `chore` as filed. The defect only appears when an authored status or gate value already contains a backslash or tab, which is itself invalid input reported by the same message, and the message remains readable and one line. That is not a user-perceptible impact under the AGENTS.md test, and this plan does not alter the backlog item's classification.
 
 ## Validation and cross-check (verify before reporting done)
@@ -146,7 +148,7 @@ E-06 amends `.aw/records/specs/implemented/20260808-1945-01-attention-registry-a
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
 - [ ] V-01 validates E-01
-  - Required evidence: paste the `rg -n "escape_detail\(" agent_workflows` census output showing 26 call sites plus the definition, and paste the bare `python3 -m pytest` summary line from the unmodified tree together with the list of failing node ids (or state it is empty).
+  - Required evidence: paste the `rg -n "escape_detail\(" agent_workflows` census output (26 call sites plus the definition expected, or any drift classified per E-01), and paste the bare `python3 -m pytest` summary line from the unmodified tree together with the list of failing node ids (or state it is empty).
   - Observed evidence:
   - Result: pending
 
@@ -184,4 +186,4 @@ This plan is ONE cohesive change: a single helper's call-site population, classi
 
 EXECUTION CONTRACT. Execution requires explicit human approval first (`- Status: approved`); OQ-01 and OQ-02 are resolved and non-blocking. Run `aw ipd begin` first when executing by hand (a runner performs begin for a managed lane). Commit through `aw commit 8cu5ml -- <paths>` with only this plan's declared paths, never `git add -A` and never a push. SCOPE FENCE: `- Scope-Paths:` is a declaration; an out-of-scope edit that proves necessary is made and then JUSTIFIED at finalize (`--scope-reason`), and a declared path left unmodified needs a `--scope-ack`.
 
-POST-GATE LIFECYCLE. Do not move this plan to `.aw/records/plans/executed/` until `aw ipd lint --phase pre-transition` conforms and every `V-*` item carries concrete pasted evidence with `Result: pass`. Under `aw oc run` / `aw agy run` the RUNNER owns the terminal transition; when executing by hand, run `aw ipd finalize` (never a hand-rolled `git mv`). The runner sets backlog `4ep6mp` to `graduated`; do not set it `done` by hand.
+POST-GATE LIFECYCLE. Do not move this plan to `.aw/records/plans/executed/` until `aw ipd lint --phase pre-transition` conforms and every `V-*` item carries concrete pasted evidence with `Result: pass`. Under `aw oc run` / `aw agy run` the RUNNER owns the terminal transition; when executing by hand, run `aw ipd finalize` (never a hand-rolled `git mv`). Backlog `4ep6mp` is already `graduated` and carries no `- Blocks-Release:`; it closes `done` through the `From-Backlog` handoff once this plan is executed, so do not set it `done` by hand.
