@@ -1,5 +1,6 @@
 - Id: go8ztx
-- Status: open
+- Status: graduated
+- Graduated-To: newgatevocab
 - Blocks-Release: next
 - Set: newgatevocab
 - Priority: medium
@@ -7,6 +8,7 @@
 - Summary: aw backlog new --status blocked writes an out-of-vocabulary Gate-Kind that every set verb refuses
 
 ## Workflow history
+- 2026-10-12 graduated (aw backlog): graduated by run run-20261012T005650Z-2322198: 7vs14y
 - 2026-10-02 created (aw backlog): aw backlog new --status blocked writes an out-of-vocabulary Gate-Kind that every set verb refuses
 
 MEASURED 2026-10-02 at HEAD 45bd52b2f in a scratch repo, while authoring plan ju3rhs from backlog fv4b6s:
