@@ -3,15 +3,17 @@
 - Date: 2026-10-12
 - Kind: orchestrator
 - Concern: The four overnight runs of 2026-10-12 (`run-20261012T005606Z-2321569`, `run-20261012T005617Z-2321742`, `run-20261012T005641Z-2321995`, `run-20261012T005650Z-2322198`) ended ten items `fail-gate`. All ten were backlog items queued for graduation (action `plan`), and all ten were failed by the same check, `production_checks.backlog_graduate_count` (`BACKLOG-GRADUATE-COUNT`). In every case the agent did the right thing and the runner failed it. There were no `fail-verify` or other failure statuses in these runs; each item's underlying attempt disposition was `fail-verify` and the queue status `fail-gate`, so this Set covers every failure in them.
-- Scope: Two independent root causes, one child each. Order 01: eight items were already finished (every linked plan executed) but still `open`, so the runner asked an agent to plan finished work and failed it for writing nothing. Order 02: two items were failed because other runs merged plans into main during the item's start, and the check counted those as plans this item produced. This plan coordinates and confirms both children.
+- Scope: Two independent root causes, one child each. Order 01: eight items had every linked plan executed but were still `open` (seven are provably finished; `vy20et` also has an unimplemented spec carrier), so the runner asked an agent to plan finished work and failed it for writing nothing. Order 02: two items were failed because other runs merged plans into main during the item's start, and the check counted those as plans this item produced. This plan coordinates and confirms both children.
 - Scope-Paths: .aw/records/plans/pending/20261012-gradfix-00-kht4vk-stop-backlog-graduation-runs-from-failing-on-already-finishe.ipd.md
 - Item-Dependencies: none
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
 - Coverage: pass
-- Coverage-Fingerprint: 28b24ac431b7d4c0439099e161dabf2e953c8e70400b67560465fe25eb049cb8
+- Coverage-Fingerprint: 3a4f6e35bc6846351ec7c250bed126471f18995341c418e876844f41ec957c0a
 - Coverage-Checked: 2026-10-12 by uri/its_direct/pt3-claude-opus-5.5-1m-us
 - Work-Kind: bug
 - Priority: high
+- Blocks-Release: next
 - Set: gradfix
 - Order: 0
 - Highest E allocated: 02
@@ -19,6 +21,8 @@
 - Id: kht4vk
 
 ## Workflow history
+- 2026-10-12 reviewed (aw set): /plan-review (opencode model=its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-007. Record: .aw/records/reviews/20261012-gradfix-00-kht4vk-stop-backlog-graduation-runs-from-failing-on-already-finishe.review.md Round 1
+- 2026-10-12 coverage pass (aw oc run): fingerprint 3a4f6e35bc68, model uri/its_direct/pt3-claude-opus-5.5-1m-us
 - 2026-10-12 to-review (aw set): authored to fix the 2026-10-12 fail-gate cluster; coverage pass recorded
 
 - 2026-10-12 coverage pass (aw oc run): fingerprint 28b24ac431b7, model uri/its_direct/pt3-claude-opus-5.5-1m-us
@@ -27,7 +31,7 @@
 
 ## Goal
 
-No run fails a backlog graduation because the work was already done, or because another run merged plans at the same time. The eight already-finished items are closed by Order 01 (`0owirm` E-05); the two concurrency victims (`2rm0gz`, `iosmvn`) need no closing, since their lanes hold correct plans that graduate on the next run once Order 02 (`s95x79`) ships.
+No run fails a backlog graduation because the work was provably already done (every IPD carrier `executed`, every spec carrier `implemented`), or because another run merged plans at the same time. Order 01 (`0owirm` E-07) closes every stranded item its predicate reports ALREADY COMPLETE at execution time; at review that is seven of the eight Cause-1 items, and `vy20et` is NOT closable because its spec carrier `89xjll` is `approved`, not `implemented` (see Deferred). The two concurrency victims (`2rm0gz`, `iosmvn`) need no closing: they stay `open` and are re-dispatched as fresh graduation turns on the next run after Order 02 (`s95x79`) ships. Their earlier, correct plans exist only on the preserved lanes `aw/lane/2rm0gz` and `aw/lane/iosmvn` (`aw lanes list` reports both "keep: no run record"); the next run does NOT reuse them, because `runner_shared.allocate_isolation_worktree` attempt-scopes a new lane when the existing one holds work and `runner_shared.integrate_stranded_lanes` only integrates lanes recorded in the current run's state. Integrating or pruning those lanes is a human choice and is out of scope.
 
 ## Detailed Implementation Checklist (TODO)
 
@@ -37,8 +41,8 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 - [ ] E-01 CONFIRM 0owirm REACHED executed
   - Depends on: none
-  Confirm child 01 (`0owirm`, close already-complete backlog items instead of re-graduating them) reached `executed`, with the eight stranded items closed.
-  - Expected outcome: `0owirm` is under `plans/executed/`; `ariaau`, `ildjse`, `mflqqf`, `7yz545`, `s8veyk`, `oq05nc`, `vy20et`, `h0tiaw` are under `backlog/done/`.
+  Confirm child 01 (`0owirm`, close already-complete backlog items instead of re-graduating them) reached `executed`, and that its E-07 closed exactly the items its predicate reported `COMPLETE`. Re-derive the population from `0owirm`'s recorded V-01/V-07 evidence, not from the list below: at review the Cause-1 items were `ariaau`, `ildjse`, `mflqqf`, `7yz545`, `s8veyk`, `oq05nc`, `vy20et`, `h0tiaw`, of which `vy20et` was `NOT_COMPLETE`.
+  - Expected outcome: `0owirm` is under `plans/executed/`; every item `0owirm` E-07 reported `COMPLETE` is under `backlog/done/`; every item it reported `NOT_COMPLETE` is still `open` and is named with its reason.
   - Execution state: pending
 
 - [ ] E-02 CONFIRM s95x79 REACHED executed
@@ -81,7 +85,7 @@ WHY IT PREVENTS RECURRENCE. The failure needs the two reads to see different ver
 
 ## Completion criteria (the whole Set is done only when)
 
-- An `open` backlog item whose linked plans are all executed is closed with no agent turn, and the eight stranded items are closed. OWNER: `0owirm`.
+- An `open` backlog item that is ALREADY COMPLETE (at least one IPD carrier, every IPD carrier executed, every spec carrier implemented) is closed with no agent turn, and every stranded item that is ALREADY COMPLETE at execution time is closed. OWNER: `0owirm`.
 - A graduation turn that writes correctly linked plans passes while another run merges unrelated plans into main. OWNER: `s95x79`.
 
 ## Cross-IPD validation
@@ -92,12 +96,18 @@ WHY IT PREVENTS RECURRENCE. The failure needs the two reads to see different ver
 ## Deferred / out of scope (with reason)
 
 - Making orchestrator retirement close its source backlog item: Order 01's dispatch-time check already covers that route and every other one.
+  - Carrier-Declined: Nothing is owed. `0owirm` E-03 closes the item at its next dispatch whichever route left it `open` with finished carriers, so a second close site at retirement would duplicate that close.
 - Serializing parallel runs: not needed once Order 02 lands.
+  - Carrier-Declined: Nothing is owed. `s95x79` E-03 takes the baseline and the post-turn scan from one tree, so no concurrent merge can fall between them; serializing would only slow every parallel run.
+- `vy20et` (a Cause-1 item whose three IPD carriers are executed but whose spec carrier `89xjll` is `approved`, not `implemented`) is NOT closed by this Set, because `0owirm`'s predicate correctly refuses to call it finished. CONSEQUENCE, stated so it is not mistaken for a fix: until `89xjll` reaches `implemented` with cited evidence (an act an agent may not perform without that evidence) or a human closes or re-scopes the item, it stays `open`, is dispatched for graduation, and can fail `BACKLOG-GRADUATE-COUNT` again if the agent again finds nothing to plan.
+  - Carrier: vy20et
+- The preserved lanes `aw/lane/2rm0gz` and `aw/lane/iosmvn` holding the concurrency victims' earlier correct plans (`hdep9j`; `6jp1ox`, `yuhl6o`, `9rthek`, `ev7t1w`, `ellenm`): integrating them by hand instead of letting the next run re-author, or pruning them, is the maintainer's choice.
+  - Carrier-Declined: Nothing is owed by this Set. Both items stay `open` and are re-graduated by the next run, so no work is lost if the lanes are pruned; the lanes are evidence, and `aw lanes list` already surfaces them.
 
 ## Scope check
 
 - Over-scope: none.
-- Under-scope: none. All ten fail-gate items in the four runs map to one of the two causes, and the four later runs (`run-20261012T0416*`) had no failures when investigated.
+- Under-scope: none known. All ten fail-gate items in the four runs map to one of the two causes, and the four later runs (`run-20261012T0416*`) had no failures when investigated. The one residual recurrence path, `vy20et`, is recorded under Deferred with its carrier.
 
 ## Required tests / validation
 
@@ -121,12 +131,12 @@ N/A here; each child records its own.
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'.
 
 - [ ] V-01 validates E-01
-  - Required evidence: the pasted `- Status: executed` line of `0owirm` and `aw find` showing the eight items under `backlog/done/`.
+  - Required evidence: the pasted `- Status: executed` line of `0owirm`; `0owirm`'s recorded `COMPLETE`/`NOT_COMPLETE` split from its V-07; pasted `aw find backlog <id6>` output for every `COMPLETE` item showing it under `backlog/done/`, and for every `NOT_COMPLETE` item showing it still under `backlog/open/`.
   - Observed evidence:
   - Result: pending
 
 - [ ] V-02 validates E-02
-  - Required evidence: the pasted `- Status: executed` line of `s95x79`.
+  - Required evidence: the pasted `- Status: executed` line of `s95x79`, and its V-03 pasted concurrent-merge test output showing a pass.
   - Observed evidence:
   - Result: pending
 
@@ -135,4 +145,4 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 - Size assessment: standard
 - Cohesion rationale: not required
 
-The children are independent and may run in either order or together. This plan is retired by the runner once both are `executed`.
+The children are independent and may run in either order or together. Execute only after explicit human approval. Open questions: OQ-01 is resolved; none remain. `- Scope-Paths:` is a DECLARATION reconciled at finalize: this plan edits only itself, and an out-of-scope edit that proves necessary is made and justified with `--scope-reason`, not a reason to stop. HONESTY RULE: every `V-*` item MUST paste the ACTUAL output it cites; a claimed pass with no output does not satisfy it. Commit only through `aw commit kht4vk -- <paths>` (never `git add -A`, `-a`, or `--no-verify`), verify the staged set with `git diff --cached --name-only` first, and never push. The terminal transition is MANDATORY and its owner is conditional: under `aw oc run` / `aw agy run` the runner retires this orchestrator once both children are `executed`, so no agent runs `aw ipd finalize` on it; executed by hand, the executor runs `aw ipd finalize kht4vk` once `aw ipd lint --phase pre-transition` conforms and V-01 and V-02 record concrete pasted evidence with Result: pass. Never hand-roll the move or `git mv` this plan into `executed/`. Release gate: this plan carries `- Blocks-Release: next` as a live `bug` plan; keep it.
