@@ -1,11 +1,13 @@
 - Id: o7wwop
-- Status: open
+- Status: graduated
+- Graduated-To: o7wwop
 - Set: o7wwop
 - Priority: low
 - Work-Kind: followup
 - Summary: no conformance gate asserts that every CLI family root emits a schema-valid agent record under --agent
 
 ## Workflow history
+- 2026-10-12 graduated (aw backlog): graduated by run run-20261012T005650Z-2322198: 0qdl9e
 - 2026-10-02 created (aw backlog): no conformance gate asserts that every CLI family root emits a schema-valid agent record under --agent
 
 Measured in lane lbbo9s at HEAD b8e1e0157 while authoring plan 7pnneh (from backlog lbbo9s).
