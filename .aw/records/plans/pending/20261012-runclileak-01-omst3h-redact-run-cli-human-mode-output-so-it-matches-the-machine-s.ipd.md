@@ -6,7 +6,8 @@
 - Scope: Route every human-mode stdout write in `agent_workflows/run_cli.py` through one redacting helper that applies the same `run_cli._redact_output` the machine path uses, add behavioral tests that drive the real CLI and prove a token is absent from human output on every leaf and for ledger-content secrets, and record the fix in the CHANGELOG. The docstring bullet is KEPT (it becomes true); the redaction pattern set itself is not widened.
 - Scope-Paths: agent_workflows/run_cli.py, tests/test_run_cli_human_redaction.py, CHANGELOG.md, .aw/records/plans/pending/20261012-runclileak-01-omst3h-redact-run-cli-human-mode-output-so-it-matches-the-machine-s.ipd.md
 - Item-Dependencies: none
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
 - Work-Kind: security
 - Priority: medium
 - From-Backlog: 94op6l
@@ -19,6 +20,7 @@
 
 ## Workflow history
 
+- 2026-10-12 reviewed (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005, PR-006
 - 2026-10-12 draft (opencode): created.
 - 2026-10-12 to-review (opencode): authored from backlog 94op6l; leak re-measured at authoring HEAD on all seven read leaves.
 
@@ -39,12 +41,12 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 2: behavioral regression tests
 
-- [ ] E-02 Create `tests/test_run_cli_human_redaction.py` that, via `subprocess.run([sys.executable, "-m", "agent_workflows", ...])`, drives each read leaf `runs show|status|next|resume|evidence|verify-ledger` with a missing target `<tmp_path>/ghp_<24 chars>` in HUMAN mode and asserts the literal token is absent from stdout+stderr and `[REDACTED]` is present, with the exit code unchanged from the `--agent` run of the same call (both 2, `run_cli.EXIT_INVALID_INVOCATION`). Also drive `runs decisions <token-run-id>` and `runs questions <token-run-id>` (whose "no ... projection found" line echoes the path) and assert the token is absent.
+- [ ] E-02 Create `tests/test_run_cli_human_redaction.py` that, via `subprocess.run([sys.executable, "-m", "agent_workflows", ...])`, drives each read leaf `runs show|status|next|resume|evidence|verify-ledger` with a missing target `<tmp_path>/ghp_<24 chars>` in HUMAN mode and asserts the literal token is absent from stdout+stderr and `[REDACTED]` is present, with the exit code unchanged from the `--agent` run of the same call (both 2, `run_cli.EXIT_INVALID_INVOCATION`). Also drive `runs decisions <token-run-id>` and `runs questions <token-run-id>` (whose "no ... projection found" line echoes the path) in BOTH human and `--agent` mode and assert the token is absent in both: these two leaves have no machine branch and print the same raw line under `--agent`, so they leak on the machine surface too (F-6). Also drive the four writer leaves `run start|record|cancel|finalize <token-path>` in human mode: each reaches the absent-ledger refusal with no extra arguments (exit 2, F-6), so they are REQUIRED cases, not optional. Every case asserts the exit code equals the pre-fix value (2) so the fix changes text only.
   - Depends on: E-01
   - Expected outcome: test file exists; every parametrized case passes against the E-01 code and FAILS against the pre-E-01 code.
   - Execution state: pending
 
-- [ ] E-03 In the same test file, build a real ledger with `run_ledger_store.RunLedgerStore.append` (a `run` record plus a `tool_event` whose `argv` contains `"Authorization: Bearer ghp_<24 chars>"`, fields per `run_ledger_schema._KIND_FIELDS["tool_event"]`), then run `aw runs evidence <ledger>` in human mode and assert the token is absent and `[REDACTED]` present, and run it with `--agent` and assert the same (parity). Do NOT pass a `RedactionPolicy` to `append`, so the secret is genuinely present on disk and only the output layer masks it; assert the raw ledger file DOES contain the token so the test cannot pass vacuously.
+- [ ] E-03 In the same test file, build a real ledger with `run_ledger_store.RunLedgerStore.append` (a `run` record plus a `tool_event` whose `argv` contains `"Authorization: Bearer ghp_<24 chars>"`, fields per `run_ledger_schema._KIND_FIELDS["tool_event"]`; every record also carries the common fields `schema_version: 1`, `run_id` matching `run-<hex>`, a known actor role such as `runtime`, and `parent: ""`, and `stdout_sha256` is a bare 64-hex digest, the shape `tests/test_run_cli_declarations.py` `_create_valid_one_record_ledger` uses and the review rehearsal confirmed `append` accepts, F-7), then run `aw runs evidence <ledger>` in human mode and assert the token is absent and `[REDACTED]` present, and run it with `--agent` and assert the same (parity). Do NOT pass a `RedactionPolicy` to `append`, so the secret is genuinely present on disk and only the output layer masks it; assert the raw ledger file DOES contain the token so the test cannot pass vacuously.
   - Depends on: E-01
   - Expected outcome: content-secret test passes post-fix and fails pre-fix; the on-disk precondition assertion holds.
   - Execution state: pending
@@ -74,6 +76,8 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 | F-3 | Leak reproduced on every read leaf at authoring time. | Authoring measurement with target `/tmp/opencode/x/ghp_BBBBBBBBBBBBBBBBBBBBBBBB`: count of token occurrences in human stdout was 1 for `show`, `status`, `evidence`, `verify-ledger`, `next`, `resume`, and `decisions`; `--agent` was 0 for each of the first six. |
 | F-4 | Ledger-content leak (backlog repro 2): `_run_evidence` human branch prints `f"  Command: {item.get('argv')}"` raw. | `run_cli._run_evidence`; the machine branch masks the same `argv` via `_emit_machine`. |
 | F-5 | The redaction capability is adequate for the reported classes. | `_redact_output` regex `(ghp_[A-Za-z0-9]{20,}|Bearer\s+[A-Za-z0-9._~+/-]+)`; idempotent on `[REDACTED]` (starts with `[`, so re-application is a no-op). |
+| F-6 | Review re-measurement at HEAD `d1dfd6295`, target `/tmp/opencode/rv/ghp_<24 B>`: human token count 1 and exit 2 on ALL TWELVE leaves (`show status next resume evidence verify-ledger decisions questions` under `aw runs`, `start record cancel finalize` under `aw run`); `--agent` count 0 on the first six but 1 on `decisions` and `questions`, because `run_cli._run_decisions`/`_run_questions` print unconditionally with no machine branch. | Loop run in the review lane. |
+| F-7 | The content-secret repro needs a schema-valid ledger: a minimal record is refused (`RL-E010` missing `schema_version`/`parent`, `RL-E014` unknown actor, `RL-E015` run_id shape, `RL-E034` stdout_sha256 shape). With the `_create_valid_one_record_ledger` field set plus a bare-hex `stdout_sha256`, the ledger holds the token on disk (count 1), human `runs evidence` prints `Authorization: Bearer ghp_...` verbatim at exit 0, and `--agent` prints `Authorization: [REDACTED]`. | Review-lane script, temp dir removed afterwards. |
 
 ## Proposed changes (ordered, validatable)
 
@@ -86,14 +90,18 @@ Alternative considered and rejected: wrapping `sys.stdout` with a redacting stre
 ## Deferred / out of scope (with reason)
 
 - Widening `_redact_output`'s pattern set (other token formats, home-path redaction of human output): a separate policy decision; this plan only makes the existing property true on both surfaces.
+  - Carrier-Declined: no measured leak class outside the existing pattern set is reported; widening it is a policy change with no defect behind it.
 - Converting machine payloads to `aw.agent/v1`: explicitly out of scope per the `_emit_error` docstring (F-16).
+  - Carrier-Declined: a deliberate, documented contract choice recorded in `run_cli._emit_error`'s docstring; not a defect of this item.
 - The run viewer (`agent_workflows/run_viewer.py`, bare `aw runs` / `aw runs list`): a different module not covered by this docstring claim.
+  - Carrier-Declined: no leak is measured there and the redaction claim being restored is `run_cli`'s own docstring.
 - Backlog `h9kgjp` (exit-code half of the same docstring) is already `done`; nothing here depends on it.
+  - Carrier-Evidence: .aw/records/backlog/done/20260930-h9kgjp-01-h9kgjp-run-cli-docstring-contradicts-own-exit-constants.backlog.md
 
 ## Scope check
 
 - Over-scope: none.
-- Under-scope: none known. The writer leaves (`aw run start|record|cancel|finalize`) are covered by E-01 (their prints route through the helper) and by their shared `_emit_error`/`_resolve_or_error` path; E-02 tests the read leaves explicitly because their missing-target path needs no extra required arguments. If the executor finds a writer whose missing-target path is reachable with no extra arguments, adding it to E-02's parametrization is in scope.
+- Under-scope: none known after review. The writer leaves (`aw run start|record|cancel|finalize`) reach the absent-ledger refusal with no extra arguments (F-6), so E-02 tests them explicitly. The `decisions`/`questions` machine-mode leak (F-6) is closed by the same E-01 routing and asserted by E-02.
 
 ## Required tests / validation
 
@@ -114,15 +122,16 @@ Alternative considered and rejected: wrapping `sys.stdout` with a redacting stre
 
 - Blocking: no
 - Status: deferred
-- Owner: maintainer
-- Resolution or deferral rationale: The machine surface does not apply home-path redaction in this module either, so doing it only on the human side would create a new asymmetry. Deferred as out of scope; parity with the existing `_redact_output` is the contract being restored.
+- Owner: plan author
+- Resolution or deferral rationale: The machine surface does not apply home-path redaction in this module either, so doing it only on the human side would create a new asymmetry. Deferred as out of scope; parity with the existing `_redact_output` is the contract being restored. The `docs/cli-output-contract.md` home-path rule binds `aw.agent/v1` envelope fields, and this module's payloads are deliberately NOT `aw.agent/v1` (F-16), so whether it applies here is part of the declined `aw.agent/v1` conversion, not a gap this plan opens.
+- Carrier-Declined: tied to the deliberately declined `aw.agent/v1` conversion (deferred row 2); a home path is not a credential and shows only on the operator's own surface.
 
 ## Validation and cross-check (verify before reporting done)
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition), as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction, name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
 - [ ] V-01 validates E-01
-  - Required evidence: paste `grep -n "print(" agent_workflows/run_cli.py` output showing `print(` only inside `_print_human` and `_emit_machine`; paste the post-fix re-run of the F-3 loop (human and `--agent` token counts per leaf for `show status evidence verify-ledger next resume`, plus `decisions`), every count 0. Code path observed: `run_cli.run_cli` dispatch into each `_run_*` handler, created by E-01.
+  - Required evidence: paste `grep -n "print(" agent_workflows/run_cli.py` output showing `print(` only inside `_print_human` and `_emit_machine`; paste the post-fix re-run of the F-3 loop (human and `--agent` token counts per leaf for all twelve leaves: `runs show status evidence verify-ledger next resume decisions questions` and `run start record cancel finalize`), every count 0, with each exit code pasted and equal to 2. Code path observed: `run_cli.run_cli` dispatch into each `_run_*` handler, created by E-01.
   - Observed evidence:
   - Result: pending
 
@@ -148,4 +157,8 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 
 This is a security fix to a stated safety property; reviewers should push hardest on completeness (that NO human-mode print escapes the helper, which V-01's grep and per-leaf measurement establish) and on the tests failing pre-fix (V-02/V-03), so they cannot pass vacuously.
 
-Execution contract: commit only the paths in `Scope-Paths` through `aw commit omst3h -- <paths>`, never `git add -A`, never push. Verify the staged set with `git diff --cached --name-only` before committing. Run the suite bare as `python3 -m pytest` and paste its actual summary line. Transition with `aw ipd begin` / `aw ipd finalize`; never hand-edit `- Status:` or hand-roll a `git mv` into `executed/`. Backlog `94op6l` must not be set `done` by authoring; it closes via the From-Backlog handoff once this plan is executed, carrying `Blocks-Release: next`.
+EXECUTION CONTRACT. OQ-01 is deferred with a recorded reason and blocks nothing. Commit only the paths in `- Scope-Paths:` through `aw commit omst3h -- <paths>`; never `git add -A` or `-a`, and never push. Verify the staged set with `git diff --cached --name-only` before committing. Any pre-fix comparison (V-02/V-03) temporarily restores ONLY `agent_workflows/run_cli.py` from the base commit and puts the fixed file back; never commit that state. Run the suite bare as `python3 -m pytest`, and paste the actual command and runner output for every test claim: never assert a pass you did not run. Backlog `94op6l` must not be set `done` by this plan; it closes through the From-Backlog handoff once this plan is executed, carrying `Blocks-Release: next`.
+
+SCOPE FENCE. The declared change is `agent_workflows/run_cli.py`, the new test module, `CHANGELOG.md`, and this plan; the redaction pattern set and machine payload shapes are untouched. An out-of-scope edit that proves necessary is made and justified with `aw ipd finalize --scope-reason`, never silently.
+
+POST-GATE LIFECYCLE. After every `E-*` is performed and every `V-*` reads `pass` with pasted evidence, run `aw ipd lint --phase pre-transition` and require it conforming. In a managed runner lane (`AW_EXECUTION_ROLE=worker`) the RUNNER owns `aw ipd begin`/`aw ipd finalize`; executing by hand, run `aw ipd begin` before the first edit and `aw ipd finalize` for the terminal move. Never hand-edit `- Status:` or hand-roll a `git mv` into `executed/`.
