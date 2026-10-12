@@ -3,22 +3,24 @@
 - Date: 2026-10-12
 - Kind: child
 - Concern: `aw set` (every spelling: `aw backlog set`, `aw specs set`, `aw ipd set`, positional and `--status`) relocates a record with `git mv`, then its self-commit offer unconditionally runs `git reset --quiet HEAD -- <touched paths>` before deciding whether to commit. When it does NOT commit (`--no-commit`, or the non-interactive default without `--commit`), that reset unstages the rename and leaves ` D <src>` plus `?? <dest>`, the two-halves shape behind the measured 36-duplicate-id incident.
-- Scope: Remove the redundant pre-reset from `status_set._offer_self_commit`, prove a relocation stays one staged rename on both spellings and both record types under `--no-commit` and the non-interactive default, prove the committing path still records a single rename, flip the one pinned test that recorded the defect shape, and add a CHANGELOG line.
+- Scope: Remove the redundant pre-reset from `status_set._offer_self_commit`, prove a relocation stays one staged rename on both spellings and all three relocating record types (backlog, specs, plans) under `--no-commit` and the non-interactive default, prove the committing path and the runner's `runner_shared.commit_backlog_close` consumer still record a single rename, flip the one pinned test that recorded the defect shape, and add a CHANGELOG line.
 - Scope-Paths: agent_workflows/status_set.py, tests/test_set_dispatch_parity.py, CHANGELOG.md, .aw/records/plans/pending/20261012-r73v9i-01-a63epo-keep-the-staged-git-mv-rename-when-aw-set-does-not-commit.ipd.md
 - Item-Dependencies: none
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
 - From-Backlog: r73v9i
 - Blocks-Release: next
 - Set: r73v9i
 - Order: 1
-- Highest E allocated: 05
+- Highest E allocated: 06
 - Author: opencode
 - Id: a63epo
 
 ## Workflow history
-
+- 2026-10-12 reviewed (aw set): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-001..PR-005
+- 2026-10-12 /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005
 - 2026-10-12 draft (opencode): created.
 - 2026-10-12 to-review (opencode): authored from backlog r73v9i; root cause and fix measured in scratch repos (F-01..F-04).
 
@@ -33,16 +35,16 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 ### Task group 1: Baseline
 
 - [ ] E-01 Record the BEFORE shape and the bare-suite baseline.
-  In a scratch repo (`tests.test_set_dispatch_dedup._setup_test_repo` plus a commit of the fixture is sufficient, as F-01 did), run `aw backlog set <item> --status done --message x` three ways: `--no-commit`, no flag (non-interactive), and `--commit`. Paste `git status --porcelain` after each and `git show --stat --find-renames --format=%s HEAD` after `--commit`. Then run the bare suite `python3 -m pytest` and save the failing-test SET by name.
+  In a scratch repo (`tests.test_set_dispatch_dedup._setup_test_repo` plus a commit of the fixture is sufficient, as F-01 did; put any probe script under the gitignored `.aw/state/`, never a tracked path), run `aw backlog set <item> --status done --message x` three ways: `--no-commit`, no flag (non-interactive), and `--commit`. Paste `git status --porcelain` after each and `git show --stat --find-renames --format=%s HEAD` after `--commit`. Then run the bare suite `python3 -m pytest` and save the failing-test SET by name.
   - Depends on: none
   - Expected outcome: ` D .../open/<item>` plus `?? .../done/` for the two non-committing modes, `{open => done}` for `--commit`, and a named baseline failure set.
   - Execution state: pending
 
-### Task group 2: Fix (perform AFTER E-03 and E-04, which are written test-first)
+### Task group 2: Fix (perform AFTER E-03, E-04 and E-06, which are written test-first)
 
 - [ ] E-02 Delete the pre-reset in `status_set._offer_self_commit`.
   Remove the `_gch._git(repo_root, ["reset", "--quiet", "HEAD", "--", *paths])` call and its "jgcm68 D2" comment, replacing the comment with a short note: the touched paths are passed to `git_commit_helper.offer_commit` already staged by `artifact_core.git_mv`; `offer_commit` drops a staged rename's source from its `git add` set via `_in_index` and stages the rest itself, so no pre-reset is needed, and a pre-reset would unstage the rename whenever the commit is skipped (backlog `r73v9i`). Change nothing else in the function (message, `assume_yes`, `no_commit`, `on_unrelated_staged="scope"` stay byte-identical).
-  - Depends on: E-01, E-03, E-04
+  - Depends on: E-01, E-03, E-04, E-06
   - Expected outcome: a diff in `agent_workflows/status_set.py` confined to `_offer_self_commit` that removes exactly the reset call and rewrites its comment.
   - Execution state: pending
 
@@ -55,16 +57,22 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Execution state: pending
 
 - [ ] E-04 Add outcome tests for the remaining relocation surfaces in `tests/test_set_dispatch_parity.py`.
-  (a) Backlog, both spellings, NO commit flag and non-interactive (`AW_NONINTERACTIVE=1`): porcelain shows one `R` line for the item. (b) Spec relocation (`aw specs set <path> --status to-review --no-commit` and the positional `aw specs set to-review <id6> --no-commit`): porcelain shows one `R` line `specs/draft/... -> specs/to-review/...`. (c) Backlog `--commit` on both spellings: the new commit's `git show --name-status -M` has a single `R` line for the item, and `git status --porcelain` shows no remaining entry for either half. (d) An unrelated pre-staged file survives staged and uncommitted after a `--commit` relocation (guards that removing the reset did not widen the commit). Drive the CLI and assert on git output only (P16; no source reads).
+  (a) Backlog, both spellings, NO commit flag and NO `--yes`, with the environment forced non-interactive (set `AW_NONINTERACTIVE=1` via `mock.patch.dict(os.environ, ...)`, so `git_commit_helper._is_interactive` resolves False and `offer_commit` takes its "skipped: non-interactive" branch; `--yes` must be absent because `_offer_self_commit` maps a bare `--yes` to `assume_yes=True`): porcelain shows one `R` line for the item. (b) Spec relocation (`aw specs set <path> --status to-review --no-commit` and the positional `aw specs set to-review <id6> --no-commit`, fixture `_create_spec(repo, status="draft")`): porcelain shows one `R` line `specs/draft/... -> specs/to-review/...`. (c) Plan relocation (`aw ipd set superseded <plan> --message m --no-commit`, fixture `_write_conforming_plan`): porcelain shows one `R` line `plans/pending/... -> plans/superseded/...`. (d) Backlog `--commit` on both spellings: the new commit's `git show --name-status -M` has a single `R` line for the item, and `git status --porcelain` shows no tracked entry for either half (the gitignore-less fixture's untracked `.aw/records/history.jsonl` sidecar is expected and must be excluded from that assertion, not asserted absent). (e) An unrelated pre-staged file survives staged and uncommitted after a `--commit` relocation (guards that removing the reset did not widen the commit). Drive the CLI and assert on git output only (P16; no source reads).
   - Depends on: E-01
-  - Expected outcome: run before E-02, (a) and (b) FAIL and (c) and (d) pass (pasted); after E-02 all four pass.
+  - Expected outcome: run before E-02, (a), (b) and (c) FAIL and (d) and (e) pass (pasted); after E-02 all five pass.
+  - Execution state: pending
+
+- [ ] E-06 Add one outcome test that the runner's non-isolated backlog close still commits a single rename after the fix.
+  In `tests/test_set_dispatch_parity.py`, relocate a committed backlog item with `aw backlog set <path> --status done --message m --no-commit` (the exact argv shape `runner_shared.close_backlog_item` builds), then call `runner_shared.commit_backlog_close(repo, "<id6>", "close", run_checked=<subprocess wrapper returning stripped stdout and raising on nonzero>)`. Assert it returns a sha, the commit's `git show --name-status -M --format= HEAD` is exactly one `R` line `backlog/open/... -> backlog/done/...`, and no tracked entry for either half remains in porcelain. This guards the one in-repo consumer of the `--no-commit` porcelain shape the fix changes (it parses `old -> new` rename lines and fails closed on fewer than two paths).
+  - Depends on: E-01
+  - Expected outcome: passes both before and after E-02 (pasted both); a regression after E-02 would show as a None return or a non-`R` commit.
   - Execution state: pending
 
 ### Task group 4: Record
 
 - [ ] E-05 Add one `CHANGELOG.md` entry and run the full validation.
   Under the pending 2.0.0 section, add a `- Fixed:` line in user terms: when `aw backlog set`, `aw specs set` or `aw ipd set` moves a record to a new status directory without committing, the move now stays staged as a single file rename instead of a deleted file plus an untracked file. No em or en dashes (user-facing prose). Then run the bare suite and compare its failure set by name with E-01's.
-  - Depends on: E-02, E-03, E-04
+  - Depends on: E-02, E-03, E-04, E-06
   - Expected outcome: one CHANGELOG line; bare-suite failure set equal to the baseline except for tests this plan edits or adds, all of which pass.
   - Execution state: pending
 
@@ -86,12 +94,14 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 | F-03 | `git_commit_helper.offer_commit` builds `add_paths` filtered by `(repo_root / p).exists() or _in_index(repo_root, p)`; its comment records this was added 2026-09-13 precisely because `git add` on an already-staged rename's source fails "pathspec did not match any files". `_staged_paths` is rename-aware (both sides, fix of 2026-09-22). | The failure the jgcm68 D2 reset worked around is now handled inside `offer_commit`, so the reset is redundant on the commit path and harmful on the skip path. |
 | F-04 | MEASURED 2026-10-12: same scratch repo, with only that reset call suppressed at runtime (monkeypatched `_gch._git` for calls from `_offer_self_commit`; no repo edit): `--no-commit` and no-flag both give `RM .aw/records/backlog/open/... -> .aw/records/backlog/done/...`; `--commit` still gives `.../{open => done}/... | 3 ++-` and a clean porcelain apart from the untracked `history.jsonl` sidecar. | Deleting the call is sufficient and does not regress the committing path. (`RM`: the rename is staged and the post-move `atomic_write` content edit is unstaged, which still begins with `R` as AC-5 requires.) |
 | F-05 | `tests/test_set_dispatch_parity.py::test_backlog_relocation_porcelain_shape_agreement` asserts ` D .aw/records/backlog/open/` and `?? .aw/records/backlog/done/` and its docstring says neither spelling meets AC-5 today; plan `vhiqo6` (executed) E-06 filed `r73v9i` for exactly this. | That test pins the defect and must be flipped (E-03); it is the only test found asserting the defect shape for `aw set` (grep of `tests/` for ` D .aw` / `?? .aw/records` porcelain asserts: the others are `test_research_set_assign_date_containment.py`, a different verb pinning `shutil.move`, and `test_orchestrator_retirement.py`, INDEX files). |
+| F-07 | MEASURED at review 2026-10-12 (scratch repos from `tests/test_set_dispatch_parity.py` `_setup_repo`/`_create_spec`/`_write_conforming_plan`, same runtime suppression as F-04): pre-fix, `aw specs set <path> --status to-review --no-commit`, `aw specs set to-review sp0001 --no-commit`, `aw ipd set superseded <plan> --no-commit` and `aw set not-executed <plan> --no-commit` all leave ` D <src>` plus `?? <dest dir>/`; with the reset suppressed each gives one `RM <src> -> <dest>` line. | Plans relocate through the same `status_set.apply_status_change` / `_offer_self_commit` path and are equally affected and equally fixed, so the CHANGELOG's `aw ipd set` claim needs its own test (E-04 (c)). |
+| F-08 | `runner_shared.commit_backlog_close` (non-isolated runner path) runs `git status --porcelain -uall` after `close_backlog_item` (which passes `--no-commit`), splits `old -> new` rename lines into both paths, and returns None on fewer than two. MEASURED at review: pre-fix and with the reset suppressed it commits `R075 backlog/open/... backlog/done/...` and leaves only the untracked `history.jsonl`. The other `runner_shared` porcelain parsers (e.g. `commit_review_lane_output`) also split ` -> `. | The fix changes the porcelain shape this consumer sees from ` D`+`??` to `RM`, and the consumer handles it; E-06 pins that so a later refactor of either side cannot regress it silently. |
 | F-06 | The same jgcm68 D2 pre-reset exists in `cli._offer_records_commit`, `plans_archive` and `research_archive`. | Different verbs (records rename/regroup, archive), not `aw set`; not measured here. Out of scope (see Deferred). |
 
 ## Proposed changes (ordered, validatable)
 
 1. Baseline measurement and bare-suite failure set (E-01).
-2. `tests/test_set_dispatch_parity.py`: flip the pinned defect test (E-03) and add four outcome tests (E-04), observed failing first.
+2. `tests/test_set_dispatch_parity.py`: flip the pinned defect test (E-03), add five outcome tests (E-04) observed failing first where applicable, and add the runner-consumer test (E-06).
 3. `agent_workflows/status_set.py`: delete the pre-reset in `_offer_self_commit`, rewrite its comment (E-02).
 4. `CHANGELOG.md`: one `Fixed:` line; bare suite compared to baseline (E-05).
 
@@ -105,13 +115,13 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ## Scope check
 
-- Over-scope: none. Every declared path is edited by a numbered item: `agent_workflows/status_set.py` (E-02), `tests/test_set_dispatch_parity.py` (E-03, E-04), `CHANGELOG.md` (E-05), this plan (evidence).
-- Under-scope: none. Both non-committing modes (F-01), both spellings, both relocating record types that route through `_offer_self_commit` (backlog, specs), and the committing path are covered by E-03/E-04.
+- Over-scope: none. Every declared path is edited by a numbered item: `agent_workflows/status_set.py` (E-02), `tests/test_set_dispatch_parity.py` (E-03, E-04, E-06), `CHANGELOG.md` (E-05), this plan (evidence).
+- Under-scope: none. Both non-committing modes (F-01), both spellings, all three relocating record types that route through `_offer_self_commit` (backlog, specs, plans; F-07), the committing path, and the runner's `commit_backlog_close` consumer (F-08) are covered by E-03/E-04/E-06.
 
 ## Required tests / validation
 
-- `python3 -m pytest -o addopts="" -q tests/test_set_dispatch_parity.py tests/test_set_dispatch_dedup.py tests/test_git_commit_helper.py tests/test_backlog.py tests/test_backlog_set_adapter.py` passes after E-02..E-04.
-- E-03's flipped test and E-04 (a)/(b) are shown to FAIL against the pre-E-02 code and pass after.
+- `python3 -m pytest -o addopts="" -q tests/test_set_dispatch_parity.py tests/test_set_dispatch_dedup.py tests/test_git_commit_helper.py tests/test_backlog.py tests/test_backlog_set_adapter.py tests/test_backlog_close_host_label.py` passes after E-02..E-04 and E-06.
+- E-03's flipped test and E-04 (a)/(b)/(c) are shown to FAIL against the pre-E-02 code and pass after; E-04 (d)/(e) and E-06 pass both before and after.
 - Bare `python3 -m pytest`: failure set equal to E-01's baseline by name, except tests this plan edits or adds.
 - `aw ipd lint` on this plan conforms; `aw check release-gates` exits 0.
 
@@ -149,7 +159,12 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Result: pending
 
 - [ ] V-04 validates E-04
-  - Required evidence: pasted pytest output for the four new tests passing after E-02, and (a)/(b) failing on pre-E-02 code; the test diff showing assertions on git output only.
+  - Required evidence: pasted pytest output for the five new tests (a)-(e) passing after E-02, and (a)/(b)/(c) failing on pre-E-02 code with the failure showing the ` D`/`??` shape; the test diff showing assertions on git output only, that (a) passes no `--yes` and forces `AW_NONINTERACTIVE=1`, and that (c) drives `aw ipd set`.
+  - Observed evidence:
+  - Result: pending
+
+- [ ] V-06 validates E-06
+  - Required evidence: the test diff showing it drives `aw backlog set ... --no-commit` then `runner_shared.commit_backlog_close` and asserts on the returned sha and `git show --name-status -M` output; pasted pytest output passing on pre-E-02 code and again after E-02.
   - Observed evidence:
   - Result: pending
 
@@ -163,4 +178,10 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 - Size assessment: standard
 - Cohesion rationale: not required
 
-Execute only after explicit human approval (`- Status: approved`). Commit via `aw commit a63epo -- agent_workflows/status_set.py tests/test_set_dispatch_parity.py CHANGELOG.md <this plan>`; never push. Move to `.aw/records/plans/executed/` only after `aw ipd lint --phase pre-transition` conforms and every `V-*` carries pasted evidence with `Result: pass`.
+Execute only after explicit human approval (`- Status: approved`). Execution contract:
+
+- Open questions: OQ-01 is resolved; no blocking question remains.
+- Scope fence: the declared `- Scope-Paths:` are `agent_workflows/status_set.py`, `tests/test_set_dispatch_parity.py`, `CHANGELOG.md`, and this plan. This is a declaration, not a stop condition: an out-of-scope edit that proves necessary is made and then justified at finalize (`--scope-reason`), and a declared path left unmodified is acknowledged (`--scope-ack`). Do NOT touch the same pre-reset in `cli._offer_records_commit`, `plans_archive` or `research_archive` (Deferred).
+- Honesty: every `Observed evidence` MUST paste the ACTUAL command output (pytest summary lines, `git status --porcelain`, `git show`, `git diff`); never claim a pass that was not run. Observe the failing-before state by writing E-03/E-04/E-06 BEFORE E-02, never with `git stash`.
+- Commit: path-scoped via `aw commit a63epo -- agent_workflows/status_set.py tests/test_set_dispatch_parity.py CHANGELOG.md <this plan>`; never `git add -A`, never push.
+- Lifecycle: start with `aw ipd begin a63epo --actor <you>`. The terminal transition to `executed/` happens only after `aw ipd lint --phase pre-transition` conforms and every `V-*` carries pasted evidence with `Result: pass`. Under `aw oc run`/`aw agy run` the runner performs that transition, so the executor must NOT run `aw ipd finalize` itself; when executing by hand, run `aw ipd finalize a63epo --actor <you> --message <msg> --apply` (never a hand `git mv` to `executed/`).
