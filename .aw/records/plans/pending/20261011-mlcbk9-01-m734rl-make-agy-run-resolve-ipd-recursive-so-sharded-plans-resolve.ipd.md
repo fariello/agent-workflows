@@ -6,7 +6,8 @@
 - Scope: Give plans ONE canonical "which files are plans" enumerator, `plans_index.plan_files(plans_dir)`, extracted from the recursive, ignored-path-filtered, `_EXCLUDE_NAMES`-skipping walk `plans_index.scan_plans` already performs, make `scan_plans` consume it (behavior unchanged), and make `agy_run._candidate_plans` delegate to it, keeping only files whose top-level disposition is in the requested states and that lie inside the repository root. Add a collected behavioral test module under `tests/`. Does NOT change the matching semantics, either error message, the `direct.is_file()` early return, the function signatures, any caller, or `resolve_spec`.
 - Scope-Paths: agent_workflows/agy_run.py, agent_workflows/plans_index.py, tests/test_agy_run_resolve_ipd_recursive.py
 - Item-Dependencies: none
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
 - From-Backlog: mlcbk9
@@ -18,7 +19,7 @@
 - Id: m734rl
 
 ## Workflow history
-
+- 2026-10-12 reviewed (opencode its_direct/pt3-claude-opus-5.5-1m-us): /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005. Reviewed at HEAD 7e9129224. Duplicate id6 across a shard measured to silently misresolve at base, so E-02 (8) split into red (8a) with its own id6 and green (8b); ambiguity renderer fixed to relative_to(root.resolve()); plan_files takes optional ignored_dirs; exclude written before first resolver call (lru_cache); base bare-suite run moved into E-01. Record: .aw/records/reviews/20261011-mlcbk9-01-m734rl-make-agy-run-resolve-ipd-recursive-so-sharded-plans-resolve.review.md.
 - 2026-10-12 draft (opencode its_direct/pt3-claude-opus-5.5-1m-us): created.
 - 2026-10-12 to-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): Authored from backlog item `mlcbk9`, graduating it. Every claim in the item was re-measured in this lane at HEAD `cedb25f80` (F-01, F-02). The item left the canonical-source choice open; resolved here from repository evidence as OQ-01 (extract `plans_index.plan_files`, F-03, F-04). Two extra defects measured that the item does not state: README resolution (F-05) and the missing ignored-path filter (F-06).
 
@@ -34,11 +35,11 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 - [ ] E-01 CAPTURE THE REPRODUCTION AT THE BASE COMMIT, before any edit.
 
-  Build a throwaway temp git repo (inside the gitignored `tmp/` of the workspace or the system temp dir; never under the tracked tree) containing `.aw/records/plans/executed/202609/20260901-set-01-ab12cd-thing.ipd.md` and `.aw/records/plans/pending/README.md`. In process (`AW_NO_REEXEC=1 python3 -c ...`, resolved root), capture verbatim: (1) `agy_run.resolve_ipd(root, "ab12cd", ("executed",))` raising `ScriptError` `No IPD matching 'ab12cd' found in plan states: executed.`; (2) the same for the bare filename `20260901-set-01-ab12cd-thing.ipd.md`; (3) the exact path `.aw/records/plans/executed/202609/20260901-set-01-ab12cd-thing.ipd.md` RESOLVING (must keep working); (4) `agy_run.resolve_mode_and_target(root, agy_run.parse_args(["--audit-only", "ab12cd"]))` returning `('prompt', 'ab12cd', '')`; (5) `agy_run.resolve_ipd(root, "README.md", ("pending",))` returning the pending README. Also run `python3 -m pytest tools/test_agy_run.py -o addopts="" -q` and keep its summary line (the module is NOT collected by the default suite, `testpaths = ["tests"]`).
+  Build a throwaway temp git repo (inside the gitignored `tmp/` of the workspace or the system temp dir; never under the tracked tree) containing `.aw/records/plans/executed/202609/20260901-set-01-ab12cd-thing.ipd.md` and `.aw/records/plans/pending/README.md`. In process (`AW_NO_REEXEC=1 python3 -c ...`, resolved root), capture verbatim: (1) `agy_run.resolve_ipd(root, "ab12cd", ("executed",))` raising `ScriptError` `No IPD matching 'ab12cd' found in plan states: executed.`; (2) the same for the bare filename `20260901-set-01-ab12cd-thing.ipd.md`; (3) the exact path `.aw/records/plans/executed/202609/20260901-set-01-ab12cd-thing.ipd.md` RESOLVING (must keep working); (4) `agy_run.resolve_mode_and_target(root, agy_run.parse_args(["--audit-only", "ab12cd"]))` returning `('prompt', 'ab12cd', '')`; (5) `agy_run.resolve_ipd(root, "README.md", ("pending",))` returning the pending README; (6) with a second plan `.aw/records/plans/executed/20260801-set-02-dd44ee-other.ipd.md` and `.aw/records/plans/executed/202609/20260901-set-03-dd44ee-dup.ipd.md`, `resolve_ipd(root, "dd44ee", ("executed",))` SILENTLY returning the top-level one instead of raising `is ambiguous` (F-09). Also run `python3 -m pytest tools/test_agy_run.py -o addopts="" -q` and keep its summary line (the module is NOT collected by the default suite, `testpaths = ["tests"]`), and run the bare `python3 -m pytest` NOW, before any edit, keeping its summary line and sorted failing test ids as the base for E-05's delta.
 
   NEVER LAUNCH A REAL AGENT. These probes call resolver functions only; if a CLI probe is added, pass `--agy <stub> --no-audit` where `<stub>` is a throwaway executable that prints argv and exits 1 (the a6ootg E-01 pattern).
   - Depends on: none
-  - Expected outcome: four pasted defect captures, one pasted must-keep-working resolution, the base commit hash, and the `tools/test_agy_run.py` summary line.
+  - Expected outcome: five pasted defect captures, one pasted must-keep-working resolution, the base commit hash, the `tools/test_agy_run.py` summary line, and the base bare-suite summary line with its failing ids.
   - Execution state: pending
 
 - [ ] E-02 WRITE `tests/test_agy_run_resolve_ipd_recursive.py` AND SHOW IT RED BEFORE ANY PRODUCTION EDIT.
@@ -52,25 +53,28 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   (5b) a plan under `.aw/records/plans/pending/scratch/` ignored ONLY by a rule in the fixture's `.git/info/exclude` is NOT resolvable (proves the `get_ignored_dirs` git path is consulted);
   (6) `README.md` in `pending/` is NOT resolvable as an IPD by bare name `README.md`;
   (7) positional `resolve_mode_and_target(root, parse_args(["--audit-only", "ab12cd"]))` returns mode `ipd` with the repo-relative sharded path;
-  (8) preserved semantics: two plans sharing an id6 across `executed/` and `executed/202609/` raise `is ambiguous` listing both repo-relative paths; an exact existing path still resolves; a path in a disallowed state still raises `not in an allowed plan state`.
+  (8a) two plans sharing a DIFFERENT id6 (e.g. `dd44ee`) across `executed/` and `executed/202609/` raise `is ambiguous` listing both repo-relative paths (today the flat glob sees only the top-level one and SILENTLY returns it, F-09);
+  (8b) preserved semantics: an exact existing path still resolves; a path in a disallowed state still raises `not in an allowed plan state`.
+
+  FIXTURE RULES: every id6 is used by exactly the assertions that name it, so (1), (2) and (7) see ONE `ab12cd` plan and (8a) uses its own id6; write `.git/info/exclude` in `setUp` BEFORE the first resolver call, because `artifact_core._cached_ignored_dirs` is an `lru_cache` keyed on the plans dir's own (absent) `.gitignore`/`.git/info/exclude` mtimes, so a rule added after the first call in the same process is not seen (each test's fresh temp root is a fresh cache key).
 
   NO STATIC ANALYSIS (GUIDING_PRINCIPLES P16): never read `agy_run.py` or `plans_index.py` source, never assert `rglob` appears, never count callers.
   - Depends on: E-01
-  - Expected outcome: a collected module whose assertions (1), (2), (6) and (7) FAIL at the base commit and whose (3), (4), (5a), (5b) and (8) PASS there (exclusions hold vacuously before the fix because the flat glob cannot descend), with the red output pasted verbatim.
+  - Expected outcome: a collected module whose assertions (1), (2), (6), (7) and (8a) FAIL at the base commit and whose (3), (4), (5a), (5b) and (8b) PASS there (exclusions hold vacuously before the fix because the flat glob cannot descend), with the red output pasted verbatim.
   - Execution state: pending
 
 ### Task group 2: one canonical plan enumerator
 
 - [ ] E-03 EXTRACT `plans_index.plan_files(plans_dir) -> List[Path]` AND MAKE `plans_index.scan_plans` CONSUME IT.
 
-  Move the walk out of `scan_plans` into a public function: return `[]` when `plans_dir` is not a dir; compute `ignored_dirs = _core.get_ignored_dirs(plans_dir)` once; return `sorted` `plans_dir.rglob("*.md")` minus `p.name in _EXCLUDE_NAMES` minus `_core.is_ignored_path(p, plans_dir, ignored_dirs)`. These are exactly the two filters `plan_entry` applies today (its `_EXCLUDE_NAMES` / `is_ignored_path` early-return), so `scan_plans` keeping its `plan_entry` call over `plan_files(...)` produces an identical entry list. Keep `plan_entry`'s own filter (it is also called directly by `cli.py`'s `aw find plans` path with explicit paths). Give `plan_files` a docstring stating it is THE definition of which files are plans, that recursion and the ignored-path filter are COUPLED (a recursive walk without the filter returns box-local `untracked/` plans; cite backlog `mlcbk9` and the `specs._spec_files` docstring that records the same lesson), and that disposition is `rel.parts[0]`. Do not change `scan_plans`' signature, return type, or ordering.
+  Move the walk out of `scan_plans` into a public function `plan_files(plans_dir, *, ignored_dirs=None)`: return `[]` when `plans_dir` is not a dir; when `ignored_dirs` is None compute `_core.get_ignored_dirs(plans_dir)` once (`scan_plans` computes it itself and passes it to both `plan_files` and `plan_entry`, so the git subprocess still runs once per scan, the F-6 rule `plan_entry`'s docstring records); return `sorted` `plans_dir.rglob("*.md")` minus `p.name in _EXCLUDE_NAMES` minus `_core.is_ignored_path(p, plans_dir, ignored_dirs)`. These are exactly the two filters `plan_entry` applies today (its `_EXCLUDE_NAMES` / `is_ignored_path` early-return), so `scan_plans` keeping its `plan_entry` call over `plan_files(...)` produces an identical entry list. Keep `plan_entry`'s own filter (it is also called directly by `cli.py`'s `aw find plans` path with explicit paths). Give `plan_files` a docstring stating it is THE definition of which files are plans, that recursion and the ignored-path filter are COUPLED (a recursive walk without the filter returns box-local `untracked/` plans; cite backlog `mlcbk9` and the `specs._spec_files` docstring that records the same lesson), and that disposition is `rel.parts[0]`. Do not change `scan_plans`' signature, return type, or ordering.
   - Depends on: E-02
   - Expected outcome: `plans_index.plan_files` exists and is used by `scan_plans`; `tests/test_plans_index.py` (including `test_recursive_scan_sees_sharded_plan`) passes unchanged; the live repo's `scan_plans` entry count is identical before and after.
   - Execution state: pending
 
 - [ ] E-04 DELEGATE `agy_run._candidate_plans` TO `plans_index.plan_files`.
 
-  For each of the two existing bases (`root / ".agents" / "plans"` and `root / ".aw" / "records" / "plans"`, kept HARDCODED and in-repo exactly as today; do NOT switch to `record_producers.resolve_record_path`, which can return an out-of-repo dir under a `home` backend and would break `relative_posix` / the ambiguity renderer, the a6ootg F-10 lesson), call `plans_index.plan_files(base)` and keep `p` only when `p.relative_to(base).parts[0] in states`. Then resolve and fence: `sorted({p.resolve() for p in ... if p.resolve().is_relative_to(root.resolve())})`. Import `plans_index` LOCALLY inside the function, matching the module's existing local imports of `specs` and `agy_sessions` (no top-level package import exists in `agy_run`). Render the ambiguity list relative to `root.resolve()` if `root` is not already resolved. Leave the three matching branches (`.md`/path name match, `-{id6}-` substring, exact name), both error messages and the `direct.is_file()` early return EXACTLY as found, and say so in a comment citing `mlcbk9`.
+  For each of the two existing bases (`root / ".agents" / "plans"` and `root / ".aw" / "records" / "plans"`, kept HARDCODED and in-repo exactly as today; do NOT switch to `record_producers.resolve_record_path`, which can return an out-of-repo dir under a `home` backend and would break `relative_posix` / the ambiguity renderer, the a6ootg F-10 lesson), call `plans_index.plan_files(base)` and keep `p` only when `p.relative_to(base).parts[0] in states`. Then resolve and fence: `sorted({p.resolve() for p in ... if p.resolve().is_relative_to(root.resolve())})`. Import `plans_index` LOCALLY inside the function, matching the module's existing local imports of `specs` and `agy_sessions` (no top-level package import exists in `agy_run`). Because candidates are now RESOLVED paths, change the ambiguity renderer in `resolve_ipd` from `p.relative_to(root)` to `p.relative_to(root.resolve())`, unconditionally: with an unresolved `root` (a symlinked temp dir, or a relative `Path(".")`) the old expression would raise an uncaught `ValueError` instead of the `is ambiguous` `ScriptError`. That rendering change is the ONLY edit to `resolve_ipd`'s body. Leave the three matching branches (`.md`/path name match, `-{id6}-` substring, exact name), both error messages and the `direct.is_file()` early return EXACTLY as found, and say so in a comment citing `mlcbk9`.
   - Depends on: E-03
   - Expected outcome: every E-02 assertion passes; `tools/test_agy_run.py` passes at its E-01 count; matching expressions and both message texts unchanged.
   - Execution state: pending
@@ -79,7 +83,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 - [ ] E-05 RUN `tools/test_agy_run.py` BY NAME, `tests/test_plans_index.py`, `tests/test_plans_archive.py`, AND THE BARE FULL SUITE BEFORE AND AFTER.
 
-  `python3 -m pytest tools/test_agy_run.py -o addopts="" -q` (uncollected by default, so run by name), `python3 -m pytest tests/test_plans_index.py tests/test_plans_archive.py tests/test_agy_run_resolve_ipd_recursive.py tests/test_agy_run_resolve_spec_recursive.py`, then the bare `python3 -m pytest` with NO added flags (AGENTS.md: no `-n0`, no extra `-q`, no `-p no:randomly`) at the base commit and at the end. The bar is an EMPTY failure-set delta stated as test ids, not a count comparison. Also re-run the E-01 in-process probes after the fix and paste them.
+  `python3 -m pytest tools/test_agy_run.py -o addopts="" -q` (uncollected by default, so run by name), `python3 -m pytest tests/test_plans_index.py tests/test_plans_archive.py tests/test_agy_run_resolve_ipd_recursive.py tests/test_agy_run_resolve_spec_recursive.py`, then the bare `python3 -m pytest` with NO added flags (AGENTS.md: no `-n0`, no extra `-q`, no `-p no:randomly`) at the end, compared with the base run E-01 captured before any edit. The bar is an EMPTY failure-set delta stated as test ids, not a count comparison. Also re-run the E-01 in-process probes after the fix and paste them.
   - Depends on: E-04
   - Expected outcome: targeted modules pass; two bare-suite summary lines pasted; failure-set delta explicitly empty; E-01 probes now resolve (`ipd` mode, sharded path) and README raises.
   - Execution state: pending
@@ -105,6 +109,8 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 | F-05 | THE FLAT LOOP RESOLVES `README.md` AS AN IPD. Temp repo with `.aw/records/plans/pending/README.md`: `resolve_ipd(root, "README.md", ("pending",))` -> `.aw/records/plans/pending/README.md`. Every disposition dir in this repo carries a `README.md`. `plan_files` skips `_EXCLUDE_NAMES` (`INDEX.json`, `INDEX.md`, `STATUS.md`, `README.md`), fixing this. | Same temp repo; `ls .aw/records/plans/*/`. |
 | F-06 | A RECURSIVE WALK NEEDS THE IGNORE FILTER. A prototype of `plan_files` over a temp repo with `pending/untracked/<plan>` and `pending/scratch/<plan>` (the latter ignored only by `.git/info/exclude`) returned only the sharded executed plan, so both the hardcoded `untracked` rule and the `git ls-files --ignored` path of `artifact_core.get_ignored_dirs` work when the root passed is the plans dir. | Prototype run in process. |
 | F-07 | STATES ARE TOP-LEVEL DISPOSITIONS. `resolve_ipd`'s direct branch already checks `rel.parts[0] in states` relative to the plans root, so it accepts sharded exact paths; the candidate branch must use the same rule (`relative_to(base).parts[0]`) rather than enumerating per-state dirs, matching `plans_index.plan_entry`'s `disposition = rel.split("/", 1)[0]`. | `resolve_ipd` and `plan_entry` read. |
+| F-09 | A DUPLICATE id6 ACROSS A SHARD SILENTLY MISRESOLVES TODAY. Review fixture (2026-10-12, HEAD `7e9129224`) with `executed/20260801-set-02-ab12cd-other.ipd.md` and `executed/202609/20260901-set-01-ab12cd-thing.ipd.md`: `resolve_ipd(root, "ab12cd", ("executed",))` returned the top-level `...-other.ipd.md` with no ambiguity error, and the positional path returned `('ipd', '.aw/records/plans/executed/20260801-set-02-ab12cd-other.ipd.md', '')`. So the ambiguity assertion is RED at base, not green. | In-process review probe. |
+| F-10 | THE PROPOSED FILTER WORKS ON BOTH BASES. Same review fixture plus `pending/untracked/<plan>`, `pending/scratch/<plan>` (ignored only via `.git/info/exclude` `scratch/`), `pending/README.md`, and a legacy `.agents/plans/pending/<plan>`: the E-03 expression (`rglob` minus `_EXCLUDE_NAMES` minus `is_ignored_path(p, base, get_ignored_dirs(base))`) returned exactly the two `executed/` plans for `.aw/records/plans` (with `get_ignored_dirs` reporting `pending/scratch`) and exactly the legacy plan for `.agents/plans`. | In-process review probe. |
 | F-08 | NO SPEC GOVERNS THIS. Specs mentioning `plans_index` (`sidecar-metadata-and-history`, `command-surface-redesign`, `attention-registry...`, metastore `4sd62s`) concern parsers and dispatch, none specifies resolver enumeration or forbids adding a function; `sidecar` requires parsers keep working unchanged, which E-03 preserves. No `.spec.md` is in Scope-Paths. | Grep across `.aw/records/specs/` for `resolve_ipd`, `_candidate_plans`, `scan_plans`, `plans_index`. |
 
 ## Proposed changes (ordered, validatable)
@@ -126,12 +132,12 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ## Scope check
 
-- Over-scope: none. `agent_workflows/plans_index.py` gains `plan_files` and `scan_plans` consumes it (E-03); `agent_workflows/agy_run.py` changes only `_candidate_plans` and the ambiguity rendering in `resolve_ipd` if needed (E-04); `tests/test_agy_run_resolve_ipd_recursive.py` is new (E-02). Not edited: `artifact_core.py`, `plans_archive.py`, `ipd_lint.py`, `cli.py`, `tools/test_agy_run.py`, any spec.
+- Over-scope: none. `agent_workflows/plans_index.py` gains `plan_files` and `scan_plans` consumes it (E-03); `agent_workflows/agy_run.py` changes only `_candidate_plans` and the ambiguity renderer in `resolve_ipd` (`relative_to(root.resolve())`, E-04); `tests/test_agy_run_resolve_ipd_recursive.py` is new (E-02). Not edited: `artifact_core.py`, `plans_archive.py`, `ipd_lint.py`, `cli.py`, `tools/test_agy_run.py`, any spec.
 - Under-scope: `plans_index.plan_entry` is also called by `cli.py`'s `aw find plans` explicit-path branch, so its own filter must stay; E-03 says so. The fixture must be a real git repo for `get_ignored_dirs`; E-02 uses `init_repo`.
 
 ## Required tests / validation
 
-- New `tests/test_agy_run_resolve_ipd_recursive.py` (E-02 assertions 1-8), red before, green after.
+- New `tests/test_agy_run_resolve_ipd_recursive.py` (E-02 assertions 1-8b), red before for (1), (2), (6), (7), (8a), green after.
 - `tests/test_plans_index.py`, `tests/test_plans_archive.py`, `tests/test_agy_run_resolve_spec_recursive.py` passing.
 - `tools/test_agy_run.py` run by name, zero failures at its E-01 count.
 - Live `scan_plans` entry count identical before/after E-03.
@@ -156,12 +162,12 @@ N/A: no spec specifies how the agy runner enumerates plan candidates (F-08), and
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
 - [ ] V-01 validates E-01
-  - Required evidence: Paste the base commit hash, the fixture layout, and the verbatim output of all five E-01 probes (id6 and filename `ScriptError`, exact path resolving, positional `('prompt', 'ab12cd', '')`, README resolving), plus the `tools/test_agy_run.py` summary line. Produced by `agy_run.resolve_ipd` / `agy_run.resolve_mode_and_target` called in process.
+  - Required evidence: Paste the base commit hash, the fixture layout, and the verbatim output of all six E-01 probes (id6 and filename `ScriptError`, exact path resolving, positional `('prompt', 'ab12cd', '')`, README resolving, duplicate `dd44ee` silently returning one path), plus the `tools/test_agy_run.py` summary line and the base bare-suite summary line with its sorted failing ids. Produced by `agy_run.resolve_ipd` / `agy_run.resolve_mode_and_target` called in process.
   - Observed evidence:
   - Result: pending
 
 - [ ] V-02 validates E-02
-  - Required evidence: Paste the pytest output of `tests/test_agy_run_resolve_ipd_recursive.py` at the base commit showing (1), (2), (6), (7) failing and the rest passing, and quote that the module contains no source reading (`inspect`/`ast`/`read_text` of production modules).
+  - Required evidence: Paste the pytest output of `tests/test_agy_run_resolve_ipd_recursive.py` at the base commit showing (1), (2), (6), (7) and (8a) failing and the rest passing, and quote that the module contains no source reading (`inspect`/`ast`/`read_text` of production modules).
   - Observed evidence:
   - Result: pending
 
@@ -171,12 +177,12 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Result: pending
 
 - [ ] V-04 validates E-04
-  - Required evidence: Paste the `git diff` of `agent_workflows/agy_run.py` showing the three matching expressions and both error message texts unchanged and a local `plans_index` import; paste the new module passing in full; paste the `tools/test_agy_run.py` summary at its E-01 count with zero failures.
+  - Required evidence: Paste the `git diff` of `agent_workflows/agy_run.py` showing the three matching expressions and both error message texts unchanged, the renderer now `relative_to(root.resolve())`, and a local `plans_index` import; paste the new module passing in full; paste the `tools/test_agy_run.py` summary at its E-01 count with zero failures.
   - Observed evidence:
   - Result: pending
 
 - [ ] V-05 validates E-05
-  - Required evidence: Paste the targeted-module pytest output, the two bare `python3 -m pytest` summary lines (before and after), the failure-set delta stated as test ids (must be empty), and the re-run E-01 probes now returning the sharded path, mode `ipd`, and `ScriptError` for README.
+  - Required evidence: Paste the targeted-module pytest output, the two bare `python3 -m pytest` summary lines (before and after), the failure-set delta stated as test ids (must be empty), and the re-run E-01 probes now returning the sharded path, mode `ipd`, `ScriptError` for README, and `is ambiguous` listing both `dd44ee` paths.
   - Observed evidence:
   - Result: pending
 
@@ -185,7 +191,7 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 - Size assessment: standard
 - Cohesion rationale: not required
 
-EXECUTION CONTRACT. Commit only the `- Scope-Paths:` files plus this plan, through `aw commit <plan> -- <paths>`; never `git add -A`, never `-a`, never push. Paste ACTUAL runner output for every test claim. No `.spec.md` is declared and none may be edited.
+EXECUTION CONTRACT. OQ-01 is resolved; none remain open. Commit only the `- Scope-Paths:` files plus this plan, through `aw commit <plan> -- <paths>`, verifying `git diff --cached --name-only` lists only those; never `git add -A`, never `-a`, never push. Paste ACTUAL runner output for every test claim. No `.spec.md` is declared and none may be edited.
 
 SCOPE FENCE (declared for runner reconciliation): `agent_workflows/plans_index.py` (E-03), `agent_workflows/agy_run.py` (E-04), `tests/test_agy_run_resolve_ipd_recursive.py` (E-02). Do NOT edit `artifact_core.py`, `plans_archive.py`, `ipd_lint.py`, `cli.py`, `specs.py` or `tools/test_agy_run.py`; a necessary out-of-scope edit is made and justified to `aw ipd finalize` with `--scope-reason`.
 
