@@ -21,7 +21,7 @@
 ## Workflow history
 - 2026-10-12 reviewed (aw set): /plan-review APPROVE WITH REVISIONS APPLIED; PR-001..PR-004 fixed
 
-- 2026-10-12 /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-004 fixed (review record `.aw/records/reviews/20261012-o8cz48-01-2va0jb-route-aw-config-exclude-subcommand-less-refusal-through-the.review.md`). Re-measured at review HEAD `0d3ab57ab` with an isolated `XDG_CONFIG_HOME`: root and all three leaves still print human lines under `--agent` (F-01, F-03 confirmed); `0qdl9e` is still pending, so no `FAMILY_ROOT_EXEMPTION_REGISTRY` exists yet.
+- 2026-10-12 /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-005 fixed (review record `.aw/records/reviews/20261012-o8cz48-01-2va0jb-route-aw-config-exclude-subcommand-less-refusal-through-the.review.md`). Re-measured at review HEAD `0d3ab57ab` with an isolated `XDG_CONFIG_HOME`: root and all three leaves still print human lines under `--agent` (F-01, F-03 confirmed); `0qdl9e` is still pending, so no `FAMILY_ROOT_EXEMPTION_REGISTRY` exists yet.
 - 2026-10-12 draft (opencode): created.
 - 2026-10-12 to-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): authored from backlog o8cz48; all four `config` family surfaces plus the three `config exclude` leaves re-measured at authoring HEAD 5f816e9aa.
 
