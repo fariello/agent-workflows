@@ -1,11 +1,13 @@
 - Id: lfko0e
-- Status: open
+- Status: graduated
+- Graduated-To: lfko0e
 - Set: lfko0e
 - Priority: medium
 - Work-Kind: security
 - Summary: check_evidence_redaction and host_runner.run_task admit a credential in worker stdout: stage 2 runs only the leak sanitizer, never the secret scanner
 
 ## Workflow history
+- 2026-10-12 graduated (aw backlog): graduated by run run-20261012T005617Z-2321742: n09qoq
 - 2026-10-02 created (aw backlog): filed from /plan-review of gqyold (finding PR-003)
 
 Measured 2026-10-02 at lane HEAD 76faafbc2 during /plan-review of plan gqyold.
