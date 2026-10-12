@@ -6,7 +6,7 @@
 - Scope: IN: a new `tools/replay_coverage_diff.py` with two subcommands: `baseline` runs the surviving default selection under `coverage run` (rcfile written to a temp dir: `source = agent_workflows`, `dynamic_context = test_function`, `parallel = true`, `patch = subprocess`; `COVERAGE_FILE` in the temp dir, so nothing is written into the repo) and saves a combined data file plus a JSON summary keyed by `agent_workflows/<module>.py::<qualname>` of covered lines and reaching test contexts; `diff` replays deleted files (reusing `tools/deleted_test_replay.py` from Order 02, run under the same rcfile) and reports, per deleted file, every production function with lines the replay covers, split into `exclusive_lines` (not covered by baseline) and `shared_lines`, plus the baseline's reaching tests for each function and a `subprocess_only` flag when baseline covered the function only under the empty context. The tool refuses with a clear message (exit 2) when `coverage` is not importable. Behavioral tests over a synthesized repo, skipped with a stated reason only when `coverage` is not importable. `tools/README.md` section. OUT: adding `coverage` to any dependency list (it is an audit-time tool, see OQ-01); interpreting results (Order 05).
 - Scope-Paths: tools/replay_coverage_diff.py, tests/test_replay_coverage_diff.py, tools/README.md
 - Item-Dependencies: executed:nzzu8n
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -16,8 +16,10 @@
 - Highest E allocated: 04
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: sk2rbf
+- Approval: 2026-10-12, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-12 approved (aw set): status set to approved
 
 - 2026-10-12 reviewed (opencode its_direct/pt3-claude-opus-5.5-1m-us): /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005, PR-006. Reviewed at HEAD c7234010c. Recipe demonstrated (xdist and subprocess traced, nothing written to repo, ~1.8x overhead); paths keyed relative to each run root (raw keying made every line exclusive across nzzu8n's worktree); def lines excluded from reach (import-time empty context); stale-baseline refusal; -p no:xdist not -n 0; gate itemized. Record: .aw/records/reviews/20261011-uncitedaudit-04-sk2rbf-add-a-coverage-differential-that-finds-production-lines-only.review.md.
 - 2026-10-12 draft (opencode its_direct/pt3-claude-opus-5.5-1m-us): created.

@@ -6,7 +6,7 @@
 - Scope: Take backlog option (b). A non-isolated unattended opencode turn gets a QUESTION-ONLY denial (`{"permission": {"question": "deny"}}`), supplied through the same `lane_containment.build_permission_policy_env` merge (R4.3), observed through the same `observe_opencode_policy` probe (R4.2), and recorded through the same `lane_containment.record_host_posture` with an HONEST partial-denial posture record (R4.1a). The isolated turn's policy, prompt, and record stay byte-identical. The non-isolated turn's PROMPT stays byte-identical (R1.3). `external_directory` is NOT denied on a non-isolated turn. Amend spec `7ckptx` so this is a stated requirement and not a code-only narrowing (closing the gap plan `heglfv` OQ-02 named). EXCLUDES antigravity entirely (R4.1c forbids changing its posture), any `PERMISSION_TIMEOUT` change (owned by `e6zeta`), and any new CLI flag or config knob.
 - Scope-Paths: agent_workflows/oc_runipd.py, agent_workflows/lane_containment.py, tests/test_non_isolated_permission_posture.py, tests/test_oc_runipd.py, .aw/records/specs/implementing/20260901-7ckptx-01-7ckptx-worker-lane-containment.spec.md, CHANGELOG.md
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: followup
 - Priority: low
@@ -16,8 +16,10 @@
 - Highest E allocated: 09
 - Author: opencode
 - Id: thzrpo
+- Approval: 2026-10-12, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-12 approved (aw set): status set to approved
 - 2026-10-12 reviewed (opencode its_direct/pt3-claude-opus-5.5-1m-us): /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005. Reviewed at HEAD 8fc33dcd8. Prototype of E-05 measured a 2s->62s regression in the stall-watchdog fake-host test (new E-09/V-09, tests/test_oc_runipd.py added to Scope-Paths); E-06 harness demonstrated and given an unparseable-operator case; gate challenge answered (F-11, OQ-02); 15db4k ordering and scope fence added. Record: .aw/records/reviews/20261011-4xtpvg-02-thzrpo-deny-the-interactive-question-permission-on-non-isolated-una.review.md.
 - 2026-10-12 to-review (aw set): Authored from backlog 8ctu3u: option (b), deny question only on non-isolated opencode turns; spec 7ckptx R4.1d/A8d amendment
 

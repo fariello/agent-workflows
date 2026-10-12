@@ -6,7 +6,7 @@
 - Scope: Verification-only. Re-measure the named test in isolation and in the full default suite, confirm the two existing fixes are present and behaving, and record the evidence in this plan so `cqgr7f` can be closed as satisfied by this plan's execution. No production or test code change.
 - Scope-Paths: .aw/records/plans/**
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -17,8 +17,10 @@
 - Highest E allocated: 04
 - Author: opencode
 - Id: d22iwu
+- Approval: 2026-10-12, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-12 approved (aw set): status set to approved
 - 2026-10-12 reviewed (aw set): plan-review complete: APPROVE WITH REVISIONS APPLIED
 
 - 2026-10-12 /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004 (all fixed; E-01..E-04 re-measured at review: pairwise + slow markers present, hang guard `9 passed`, isolated call `0.04s`, full suite `39 failed, 7180 passed` with the named nodeid absent from FAILED and the slowest-50; F-04 cause corrected).

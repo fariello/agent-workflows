@@ -6,7 +6,7 @@
 - Scope: Bring the docstring of `test_must_not_refuse_matrix` into agreement with its (already correct) assertions for the plans arm, and verify by running the test that relpath, abspath and id6 selectors all reach the rename preview for plans. No production code change.
 - Scope-Paths: tests/test_selector_type_containment.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: followup
 - Priority: medium
@@ -16,8 +16,10 @@
 - Highest E allocated: 03
 - Author: opencode
 - Id: 1m7js5
+- Approval: 2026-10-12, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-12 approved (aw set): status set to approved
 - 2026-10-12 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002
 
 - 2026-10-12 draft (opencode): created.

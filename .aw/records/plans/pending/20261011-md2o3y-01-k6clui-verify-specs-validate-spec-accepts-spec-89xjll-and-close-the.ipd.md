@@ -6,7 +6,7 @@
 - Scope: Confirm on current main that `specs.validate_spec` returns no drift for `89xjll` and for every real spec, that `aw specs check` reports no `attention.unsafe-field`, and that the prose length class guard tests pass; fix forward in the validator or bound only if a re-run fails.
 - Scope-Paths: agent_workflows/specs.py, agent_workflows/attention_contract.py, tests/test_descriptive_length_classes.py, tests/test_spec_review_attestation.py, .aw/records/specs/implemented/20260808-1945-01-attention-registry-and-cross-tree-status.spec.md
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -17,8 +17,10 @@
 - Highest E allocated: 03
 - Author: opencode model=its_direct/pt3-claude-opus-5.5-1m-us
 - Id: k6clui
+- Approval: 2026-10-12, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-12 approved (aw set): status set to approved
 - 2026-10-12 /plan-review (opencode model=its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-005 fixed (review record 20261011-md2o3y-01-k6clui)
 - 2026-10-12 reviewed (aw set): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-001..PR-005
 

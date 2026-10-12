@@ -6,7 +6,7 @@
 - Scope: Confirm on current main that the real-corpus spec conformance test and the descriptive-length tests pass, that `specs.validate_spec` reports no drift for `89xjll`, and that the cause (Scope over the one-line bound) is closed by the prose length class; fix forward only if the re-run fails.
 - Scope-Paths: tests/test_spec_review_attestation.py, tests/test_descriptive_length_classes.py, agent_workflows/specs.py, agent_workflows/attention_contract.py, .aw/records/specs/implemented/20260808-1945-01-attention-registry-and-cross-tree-status.spec.md
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -18,8 +18,10 @@
 - Highest E allocated: 03
 - Author: opencode model=its_direct/pt3-claude-opus-5.5-1m-us
 - Id: oehkmh
+- Approval: 2026-10-12, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-12 approved (aw set): status set to approved
 - 2026-10-12 reviewed (aw set): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-001..PR-007
 
 - 2026-10-12 /plan-review (opencode model=its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-007 fixed (review record 20261011-6bolin-01-oehkmh)

@@ -6,7 +6,7 @@
 - Scope: IN: route the two residual HISTORY-record date writers (`coverage_record.write`'s workflow-history line and its `- Coverage-Checked:` date, and the proposal-fallback backlog record's `created` history line) through the existing `artifact_core.utc_history_date()`; add timezone-parameterized behavioral tests that drive both writers under a zone east and west of UTC and assert the UTC date; re-run the `date.today()`-class census over `agent_workflows/` and record a verdict for every site so no HISTORY writer is left unaccounted for. OUT, each with a reason under "Deferred": FILENAME date prefixes (D55 rules them LOCAL); the walkthrough `- Date:` front matter in `set_records.render_walkthrough` (front matter, not a history record); the `setdisp` dispatch unification; closing the backlog item (the runner sets `graduated`).
 - Scope-Paths: agent_workflows/coverage_record.py, agent_workflows/runner_shared.py, tests/test_history_date_clock_residual.py, CHANGELOG.md
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -18,8 +18,10 @@
 - Highest E allocated: 05
 - Author: opencode/its_direct/pt3-claude-opus-5.5-1m-us
 - Id: 8chbn9
+- Approval: 2026-10-12, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-12 approved (aw set): status set to approved
 - 2026-10-12 /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005 (all fixed; both writers re-driven local-dated under Honolulu at review; child-process tests now pin PYTHONPATH and drop the ambient worker role; record `.aw/records/reviews/20261011-auf552-01-8chbn9-put-the-coverage-record-and-proposal-fallback-history-writer.review.md`)
 - 2026-10-12 reviewed (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-005 fixed
 - 2026-10-12 to-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): authored from backlog auf552. The backlog/status_set divergence the item names is already fixed by executed 5ivkdh and guarded by executed ayhveg (5 TZ suites, 26 passed at HEAD 9e3b99850); this plan owns the two residual local-clock history writers (coverage_record.write, runner proposal fallback) measured live under TZ=Pacific/Honolulu (local 2026-10-11, UTC 2026-10-12). Clock RESOLVED from spec 2vev8j 4.4 and DECISIONS.md D55. Bare suite baseline: 6 failed, 7213 passed, 2 skipped (all six non-project-cwd tests, untouched here).

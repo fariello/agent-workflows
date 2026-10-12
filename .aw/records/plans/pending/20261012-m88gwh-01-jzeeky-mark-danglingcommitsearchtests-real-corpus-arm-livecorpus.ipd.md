@@ -6,7 +6,7 @@
 - Scope: add `@pytest.mark.livecorpus` (and the `import pytest` it needs) to that one test method in `tests/test_runner_shared.py`; no production code changes.
 - Scope-Paths: tests/test_runner_shared.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -17,8 +17,10 @@
 - Highest E allocated: 02
 - Author: agent
 - Id: jzeeky
+- Approval: 2026-10-12, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-12 approved (aw set): status set to approved
 - 2026-10-12 reviewed (aw set): /plan-review (opencode/its_direct-pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005. Re-verified at HEAD d795acb85: test body and conditions as F1 states, 0abc01d9 present and not an ancestor of main, test passes, tests 01-06 hermetic, no pytest import in the file.
 
 - 2026-10-12 draft (agent): created.

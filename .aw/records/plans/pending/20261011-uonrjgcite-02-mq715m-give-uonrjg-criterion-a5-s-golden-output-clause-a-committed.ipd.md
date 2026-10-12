@@ -6,7 +6,7 @@
 - Scope: Amend A5 in spec `uonrjg` so "golden output" is defined as BOTH the rendered output of the shared lifecycle helpers at every tier and Unicode mode AND every committed golden fixture file under `tests/`; extend the existing A5 test to scan the committed golden corpus so the second half is asserted, including any lifecycle snapshot corpus added later. No production code, renderer, glyph, or mapping changes.
 - Scope-Paths: .aw/records/specs/approved/20260913-uonrjg-01-uonrjg-cross-artifact-lifecycle-symbols-and-ansi-status-styling.spec.md, tests/test_lifecycle_style.py
 - Item-Dependencies: executed:xtensb
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: followup
 - Priority: low
@@ -17,8 +17,10 @@
 - Highest E allocated: 04
 - Author: aw oc run model=agent
 - Id: mq715m
+- Approval: 2026-10-12, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-12 approved (aw set): status set to approved
 - 2026-10-12 reviewed (aw set): /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004
 
 - 2026-10-12 draft (aw oc run model=agent): created.

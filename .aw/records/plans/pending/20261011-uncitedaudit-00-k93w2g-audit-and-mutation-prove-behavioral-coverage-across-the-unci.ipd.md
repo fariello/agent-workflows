@@ -6,7 +6,7 @@
 - Scope: Orchestration only: sequence the eight children below and confirm each reaches `executed`. No code, test or record of its own.
 - Scope-Paths: .aw/records/plans/pending/20261011-uncitedaudit-00-k93w2g-audit-and-mutation-prove-behavioral-coverage-across-the-unci.ipd.md
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Coverage: pass
 - Coverage-Fingerprint: d726a52ad65c242b8ed20406c3bd86645978472bac3872090f938c7e8a2c51af
@@ -19,8 +19,10 @@
 - Highest E allocated: 08
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: k93w2g
+- Approval: 2026-10-12, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-12 approved (aw set): status set to approved
 - 2026-10-12 reviewed (aw set): plan-review complete: APPROVE WITH REVISIONS APPLIED
 
 - 2026-10-12 coverage pass (aw oc run): fingerprint d726a52ad65c, model uri/its_direct/pt3-claude-opus-5.5-1m-us

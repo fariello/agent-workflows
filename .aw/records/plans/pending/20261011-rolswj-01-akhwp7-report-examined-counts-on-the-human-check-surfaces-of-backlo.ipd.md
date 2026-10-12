@@ -6,7 +6,7 @@
 - Scope: IN: (1) `backlog.run_check` human branch prints the already-computed `items_count` on clean and drift paths; (2) `attention.run`'s `--check` human branch prints the already-computed `len(items)` on clean and drift paths, including the no-project climb branch; (3) `research_refs.run_check_refs` gains an examined-file count from a counted variant of `artifact_core.find_dangling_citations`, reported on all three surfaces; (4) `leak_sanitizer.main` gains a scanned-unit count from a counted variant of `leak_sanitizer.run`, reported on all three surfaces; (5) behavioral regression tests for each command at zero and nonzero; (6) one CHANGELOG line. OUT: adopting `HumanRenderer` for any of the four (OQ-01); `--fix` output of `sanitize`; `plans_index`'s use of the dangling detector; any change to which artifacts or files are examined; any exit code.
 - Scope-Paths: agent_workflows/backlog.py, agent_workflows/attention.py, agent_workflows/research_refs.py, agent_workflows/artifact_core.py, agent_workflows/leak_sanitizer.py, tests/test_agent_checked_count.py, tests/test_validator_nonsurveyable_dir.py, CHANGELOG.md
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: followup
 - Priority: medium
@@ -16,8 +16,10 @@
 - Highest E allocated: 11
 - Author: opencode/its_direct/pt3-claude-opus-5.5-1m-us
 - Id: akhwp7
+- Approval: 2026-10-12, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-12 approved (aw set): status set to approved
 - 2026-10-12 reviewed (aw set): plan-review complete: APPROVE WITH REVISIONS APPLIED
 
 - 2026-10-12 /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005, PR-006 (all fixed; F-1..F-4 re-measured in throwaway repos; fixture-anchoring convention added after a bare temp repo was measured climbing to a stray ancestor `.aw/`; `backlog new` invocation corrected).

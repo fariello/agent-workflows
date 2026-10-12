@@ -6,7 +6,7 @@
 - Scope: Delete exactly ONE source line, `self.assertEqual(len(runner_shared.TERMINAL_STATES_CANONICAL), 14)`, from that one test, adding no replacement. KEEP the preceding name-level equality and every other line of the file, including the `EXPECTED_CANONICAL_STATES` table and the test's docstring. EXCLUDES the three bare count literals in `tests/test_runwire_verifier_authority.py::test_set_level_checks` part (c), which are a DIFFERENT shape (no name-level equality beside them) filed separately as backlog `2n9y3f`; EXCLUDES the module docstring's stale "12 canonical terminal states" prose count; EXCLUDES any production change and any new test.
 - Scope-Paths: tests/test_terminal_status_vocabulary.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -16,8 +16,10 @@
 - Highest E allocated: 01
 - Author: opencode/its_direct-pt3-claude-opus-5.5-1m-us
 - Id: aoy1uk
+- Approval: 2026-10-12, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-12 approved (aw set): status set to approved
 - 2026-10-12 reviewed (aw set): /plan-review (opencode/its_direct-pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001. Re-verified at HEAD ff5f9937d: target and table as F-01 states, 16 passed, F-02 mutation reproduced (growth 'probe-15th-state' 1 failed; shrink 'retired' 1 failed), F-04 site present, F-06 no other pending plan declares the file. Gate rewritten into a full execution contract.
 
 - 2026-10-12 to-review (opencode/its_direct-pt3-claude-opus-5.5-1m-us): Authored from backlog `rdtme9`, filed at plan `44c42h`'s review (PR-404) from its Deferred row. Every claim MEASURED at HEAD `9e94438c7`. Unlike sibling `9g97e5`, whose item inherited a false "name-level equality on the line above" premise, the premise here is TRUE and was proven by in-process mutation in both directions (F-02): the name-level equality fails first on growth and on shrink, so the literal is unreachable as a failure. Filed backlog `2n9y3f` for the adjacent but differently-shaped literals in `tests/test_runwire_verifier_authority.py` rather than widening scope.

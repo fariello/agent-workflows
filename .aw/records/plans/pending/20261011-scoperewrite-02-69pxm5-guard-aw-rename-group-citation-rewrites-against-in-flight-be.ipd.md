@@ -6,7 +6,7 @@
 - Scope: IN: (a) one shared, generic in-flight edit filter in `artifact_refs` that drops every planned rewrite whose target file is a plan file with a begin receipt present, REUSING `artifact_refs.classify_citing_plans_for_rewrite` (5h3qyy E-04) as the liveness predicate rather than defining liveness a second time, and returns one human-readable skip note per skipped file; (b) wiring that filter immediately after edit PLANNING at each of the four planning call sites (`artifact_rename.run_rename_generic`, `artifact_rename.run_group_generic`, `plans_refs.apply_renames`, `research_refs._apply_renames`), so preview and apply, human and `--agent`/`--json`, all see the same filtered edit set and the skip notes flow through each backend's existing `warnings` -> printed line + `MutationResult.notes` channel; (c) behavior tests driving the real CLI verbs; (d) a DECISIONS.md entry recording skip-and-report over refuse; (e) a one-sentence amendment to the plans-adopter spec Section 4.5, whose "rewriting citations" contract this narrows; (f) one CHANGELOG line. OUT: `plans_archive` (a shard move is DIR-only and its module docstring records it is "a CITATION NO-OP (no reference rewrite)", so it has no rewrite to guard); the status setters (already guarded by `5h3qyy`); any override flag to force-rewrite an in-flight plan (`--no-refs` already exists for the opposite direction, and a force flag would re-create the hazard on demand; see OQ-01); repairing citations left stale by a skip (the in-flight plan's own author fixes them after finalize, exactly as D159 leaves skipped status-setter citations).
 - Scope-Paths: agent_workflows/artifact_refs.py, agent_workflows/artifact_rename.py, agent_workflows/plans_refs.py, agent_workflows/research_refs.py, tests/test_rename_receipt_guard.py, DECISIONS.md, CHANGELOG.md, .aw/records/specs/implemented/20260808-0004-01-artifact-organization-plans-adopter.spec.md
 - Item-Dependencies: executed:5h3qyy
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: low
@@ -17,8 +17,10 @@
 - Highest E allocated: 08
 - Author: opencode/claude-opus
 - Id: 69pxm5
+- Approval: 2026-10-12, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-12 approved (aw set): status set to approved
 
 - 2026-10-12 reviewed (opencode/its_direct/pt3-claude-opus-5.5-1m-us): /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001 (MEDIUM, fixed: E-04(h) demanded note text on compact --agent output, which projects evidence to key names; now --json data.notes), PR-002 (MEDIUM, fixed: in-flight plan self-rename unguarded, recorded as F-07, pinned by E-04(i), handed off via 23p80m), PR-003 (LOW, fixed: E-02 path resolution for absolute vs relative edit files), PR-004 (LOW, fixed: E-08 files F-07 so it outlives 23p80m). F-01 re-reproduced on all three backends at HEAD ebe34e463; E-02/E-03 design prototyped by wrapping the three planners: in-flight plan unchanged, sibling plan and tests/ file rewritten, rc 0, SKIPPED printed on apply and preview. Record: .aw/records/reviews/20261011-scoperewrite-02-69pxm5-guard-aw-rename-group-citation-rewrites-against-in-flight-be.review.md.
 - 2026-10-12 to-review (opencode/claude-opus): graduated from backlog `23p80m`. Authoring reproduced the defect on all three rewrite backends with a live receipt present (F-01), confirmed `classify_citing_plans_for_rewrite` from `5h3qyy` is directly reusable (F-03), and found that the guard must skip the WHOLE citing file rather than only its `Scope-Paths` line because the frozen region also covers E/V action blocks (F-02).

@@ -9,7 +9,7 @@
 - Scope: IN: (1) re-measure the current signal exits and the caller survey at the executing HEAD, as a gate (E-01); (2) make SIGTERM return `143` and keep SIGINT at `0`, with the `finally` terminal restore still running on both paths (E-02); (3) restore the previously installed SIGINT and SIGTERM handlers when `pwatch.main` returns (E-03); (4) add a behavioral test file that drives real subprocess signals and an in-process handler-restoration check (E-04); (5) fix the two comments that currently say `pwatch` returns `0` on both signals, without changing any `exit_contract` tuple (E-05); (6) document the exit status in `tools/README.md` (E-06); (7) record the decision as a new `DECISIONS.md` entry that refines D162 measurement 4 without rewriting D162, plus a `CHANGELOG.md` line (E-07). OUT: the `aw runners` table dashboard (`runners_monitor.run_table_dashboard`), which has the same `stop_cleanly` shape. It is filed separately as backlog `uu4rfe` because it is another verb with its own (also unknown) supervisors. Also OUT: any `exit_contract` change, any change to `cli.main`, `render_stream`, or the drivers, and any spec edit.
 - Scope-Paths: agent_workflows/pwatch.py, tests/test_pwatch_signal_exit.py, agent_workflows/command_surface.py, tests/test_exit_contract_conformance.py, tools/README.md, DECISIONS.md, CHANGELOG.md
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -19,8 +19,10 @@
 - Highest E allocated: 07
 - Author: opencode
 - Id: ww744p
+- Approval: 2026-10-12, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-12 approved (aw set): status set to approved
 - 2026-10-12 reviewed (opencode/its_direct/pt3-claude-opus-5.5-1m-us): plan-review: APPROVE WITH REVISIONS APPLIED
 
 - 2026-10-12 /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005. Re-measured F-01/F-04 at HEAD 47538dba5; added F-07 (--runners --table bypasses the handlers; README note must say so) and F-08 (in-process SIGTERM test made required and bounded).

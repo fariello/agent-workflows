@@ -6,7 +6,7 @@
 - Scope: Add one end-to-end test module and perform the Set-level measurement: one scripted run per fix-it kind on both hosts, one proposal run, one corrupt-state run (driver runs keep `state.json`, not a hash-chained ledger; F-04), a non-abort and a tool-identity run, a spec-to-code cross-check, and the bare suite. EXCLUDES changing any production behavior; a defect found here is fixed in the owning child's code only if it is a one-line slip, otherwise filed as a backlog item and the plan stops.
 - Scope-Paths: tests/test_fixfirst_end_to_end.py
 - Item-Dependencies: executed:ytas91, executed:w9nvq4, executed:psgyzw, executed:62sdwr
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: high
@@ -18,8 +18,10 @@
 - Highest E allocated: 06
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: iksylm
+- Approval: 2026-10-12, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-12 approved (aw set): status set to approved
 - 2026-10-11 reviewed (opencode/its_direct/pt3-claude-opus-5.5-1m-us): /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-008. Reviewed at HEAD 69d6026db. E-03 statuses aligned to Order 02's shipped vocabulary; E-04 rewritten to observable driver behavior (corrupt state.json exits 2, measured; tool-identity abort asserted as the 03y5g6 divergence; push undrivable); E-01 names run_queue and per-kind counters; E-02 behavioral rule count, no source reads; E-05 covers every 5.5 row and stale owner ids; E-06 baseline pinned to 03ddbcb83; execution contract and gap carriers added. Record: .aw/records/reviews/20261007-fixfirst-08-iksylm-prove-fix-first-end-to-end-with-one-scripted-run-per-failure.review.md
 - 2026-10-07 to-review (aw set): authored review-ready from backlog coivul (maintainer rulings 2026-10-07)
 
