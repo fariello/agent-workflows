@@ -1,11 +1,13 @@
 - Id: xp6o3v
-- Status: open
+- Status: graduated
+- Graduated-To: xp6o3v
 - Set: xp6o3v
 - Priority: low
 - Work-Kind: chore
 - Summary: aw rename/group never rewrite a facet-less filename citation, so a rename silently leaves prose citing the old name
 
 ## Workflow history
+- 2026-10-12 graduated (aw backlog): graduated by run run-20261012T005650Z-2322198: 1v2e1o
 - 2026-10-01 created (aw backlog): Found while authoring plan j7dsci (graduating tf4jz5): measured that the three citations tf4jz5 names as the propagated damage are all unreachable by the rewriter.
 
 MEASURED WHILE AUTHORING PLAN j7dsci. This is the TOOLING gap that forces that plan to make three of its edits by hand; j7dsci works around it deliberately and carries this as its OQ-02.
