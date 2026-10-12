@@ -6,7 +6,8 @@
 - Scope: IN: add ONE shared primitive `verifier_corroboration.agy_tool_name(step_update)` that resolves an Antigravity tool name with a single, documented precedence (`tool_info.name` first, then `tool_name`, both stripped, empty string when neither is a non-blank string); route `tool_call_from_event` onto it and make its delegation flag fail open on a conflicting step (delegation when EITHER raw name is in `SUBAGENT_TOOLS`); bump `run_dashboard.DASHBOARD_SCHEMA_VERSION` because cached per-file values change for unchanged log files; route `agy_runipd.render_agy_event`, `agy_view.format_record`, `runner_stop.event_label` and `agy_run._progress_messages` onto the same primitive while keeping each reader's own default label; add one cross-reader parity test file plus verdict-level and dashboard-level outcome tests; record the decision in `DECISIONS.md` with a `CHANGELOG.md` line. OUT, each with a reason in the Deferred section: the agy `FAILED` tool state (backlog `8fiybc`), the `step_type == "subagent"` delegation shape (backlog `iuhx9d`), the OpenCode tool-name key (one key, no disagreement), `stall_progress`'s raw substring scan for `"schedule"`/`"invoke_subagent"`/`"manage_task"` (key-agnostic, so precedence cannot disagree there), and any change to what a corroboration verdict DOES (D160: observational only).
 - Scope-Paths: agent_workflows/verifier_corroboration.py, agent_workflows/run_dashboard.py, agent_workflows/agy_runipd.py, agent_workflows/agy_view.py, agent_workflows/runner_stop.py, agent_workflows/agy_run.py, tests/test_verifier_corroboration.py, tests/test_run_dashboard.py, tests/test_agy_tool_name_precedence.py, DECISIONS.md, CHANGELOG.md
 - Item-Dependencies: executed:e08ssu
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
 - From-Backlog: 1kebul
@@ -18,6 +19,8 @@
 - Id: n8we3u
 
 ## Workflow history
+- 2026-10-12 reviewed (opencode/its_direct/pt3-claude-opus-5.5-1m-us): plan-review: APPROVE WITH REVISIONS APPLIED
+- 2026-10-12 /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005. Re-measured at HEAD 220239939: F-02 (conflict -> uncorroborated, dashboard commands={'test': 1}) and F-03 (info-only -> indeterminate missing-command-text) reproduce; added F-08 (renderer hides the name behind a command payload; degenerate shapes raise or diverge today) and reconciled E-05/E-06/E-07/E-08/E-09 and V-02/V-05/V-06/V-07; Deferred rows now carry Carrier/Carrier-Declined (check.ipd-uncarried-obligation was ERROR).
 - 2026-10-12 to-review (aw set): Graduated from backlog 1kebul. Re-measured at HEAD f6473cd68: the backlog's CONFLICT shape reproduces end to end (corroborate_verifier_turn -> uncorroborated; dashboard commands={'test': 1}); found a fifth reader the item omits (agy_run._progress_messages) and that the INFO-ONLY shape the shipped tests construct is invisible to analytics (indeterminate missing-command-text). Precedence chosen tool_info.name first on evidence (OQ-01), with fail-open delegation on conflicting names (OQ-02) because no live agy log exists to measure real precedence. Suite baseline: 38 failed (unrelated no-project/explicit-dir env tests), 7181 passed, 2 skipped.
 
 - 2026-10-12 draft (opencode/its_direct/pt3-claude-opus-5.5-1m-us): created.
@@ -46,7 +49,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 - [ ] E-03 Route `verifier_corroboration.tool_call_from_event`'s Antigravity branch onto `agy_tool_name` for `ToolCall.tool` and for the `run_command` command-extraction test, and make its delegation flag FAIL OPEN: `delegation=True` when the resolved name OR either raw candidate (`tool_info.name`, `tool_name`, each stripped) is in `SUBAGENT_TOOLS`. Record the fail-open rule in the function's DESIGN DECISIONS docstring as a fourth numbered decision, citing the module header's own rule that "every unknown, missing, unreadable, delegated, or unresolved case resolves to `indeterminate`, never to `uncorroborated`": a step whose two name keys disagree and one of them is a subagent is ambiguous, so it must land on the permissive side. Do NOT change the OpenCode branch, the accepted state tuple (`DONE`/`ERROR`, see `8fiybc`), or the `step_type == "tool"` gate (see `iuhx9d`).
   - Depends on: E-02
-  - Expected outcome: the CONFLICT shape yields `ToolCall(tool='browser_subagent', ..., delegation=True)` and the reverse conflict (`tool_name="browser_subagent"`, `tool_info.name="run_command"`) also yields `delegation=True`; the INFO-ONLY shape yields `tool='run_command'` with its command extracted; the NAME-ONLY shape is byte-identical to today.
+  - Expected outcome: the CONFLICT shape yields `ToolCall(tool='browser_subagent', ..., delegation=True)` and the reverse conflict (`tool_name="browser_subagent"`, `tool_info.name="run_command"`) also yields `delegation=True` (its `tool` is `run_command` and its `command` is still extracted; `extract_session_commands` checks `tc.delegation` before `tc.command`, so the verdict counts it as a delegation and not as an observed command, while the dashboard, which ignores `delegation`, still counts it under `run_command`; that dashboard reading is accepted as the resolved-name view); the INFO-ONLY shape yields `tool='run_command'` with its command extracted; the NAME-ONLY shape is byte-identical to today.
   - Execution state: pending
 
 - [ ] E-04 Bump `run_dashboard.DASHBOARD_SCHEMA_VERSION` from 3 to 4 and update the existing version assertion in `tests/test_run_dashboard.py` (`test_dashboard_schema_version_is_3`, renamed to `..._is_4`, docstring citing this plan). Reason (F-06, same rule `e08ssu` OQ-02 applied): `_StatsCache` keys entries by `(size, mtime_ns)` and gates the whole cache on `raw.get("schema") == DASHBOARD_SCHEMA_VERSION`, and E-03 changes the `tools`/`commands`/`categories` a CONFLICT or INFO-ONLY log produces WITHOUT changing the file, so a stale entry would otherwise be served as fresh. Change no other dashboard logic: `_agy_line` already obtains its tool record from `tool_call_from_event`, so routing is inherited.
@@ -56,29 +59,29 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 3: route the three renderers and the progress reader onto the resolver
 
-- [ ] E-05 Route `agy_runipd.render_agy_event`'s `step_type == "tool"` branch onto `verifier_corroboration.agy_tool_name(step) or "tool"`, replacing `tool_info.get("name") or step.get("tool_name") or "tool"`. Keep `params = tool_info.get("parameters") or {}` and every downstream use unchanged. The only behavior change is that a padded name now renders stripped (precedence is already the chosen one).
+- [ ] E-05 Route `agy_runipd.render_agy_event`'s `step_type == "tool"` branch onto `verifier_corroboration.agy_tool_name(step) or "tool"`, replacing `tool_info.get("name") or step.get("tool_name") or "tool"`. Also normalize `tool_info` to `{}` when `step.get("tool_info")` is not a Mapping (F-08: today `tool_info="junk"` makes `tool_info.get("parameters")` raise `AttributeError` in the live renderer), then keep `params = tool_info.get("parameters") or {}` and every downstream use unchanged. Behavior changes, all intended (F-08): a padded name now renders stripped AND, because the stripped name is then found in `_AGY_TOOL_PREFIX_KIND`, a padded `" run_command "` renders with the `bash` prefix instead of `• tool:`; a non-string `tool_info.name` falls back to `tool_name` instead of rendering `str(5)`; a non-Mapping `tool_info` no longer raises. Note: the renderer DROPS the tool name by design whenever `agy_prefix_kind` resolves to `bash`/`edit`/`write`/`read`/`find` and a command payload exists (it prints the payload), so the F-02 CONFLICT shape WITH a `CommandLine` renders `❯ bash:  python3 -m pytest tests/x.py` both before and after; the name is only visible on a parameter-free step.
   - Depends on: E-02
-  - Expected outcome: the CONFLICT shape still renders `browser_subagent`; an existing `tests/test_agy_runipd_cli.py` case is not edited and still passes.
+  - Expected outcome: a parameter-free CONFLICT step (`tool_name="run_command"`, `tool_info={"name": "browser_subagent"}`) still renders `• tool:  browser_subagent` at `verbosity=1`; a non-Mapping `tool_info` returns a line instead of raising; an existing `tests/test_agy_runipd_cli.py` case is not edited and still passes.
   - Execution state: pending
 
-- [ ] E-06 Route `agy_view.format_record`'s `TOOL` branch onto `agy_tool_name(update) or "tool"`, replacing `update.get("tool_name") or info.get("name") or "tool"`. This FLIPS the viewer's precedence on a CONFLICT step (it now prints `browser_subagent` where it printed `run_command`), which is the point; keep `info` for the `parameters`/`output` parts.
+- [ ] E-06 Route `agy_view.format_record`'s `TOOL` branch onto `agy_tool_name(update) or "tool"`, replacing `update.get("tool_name") or info.get("name") or "tool"`. This FLIPS the viewer's precedence on a CONFLICT step (it now prints `browser_subagent` where it printed `run_command`), which is the point; keep `info` for the `parameters`/`output` parts, but normalize it to `{}` when `update.get("tool_info")` is not a Mapping (F-08: `tool_info="junk"` raises `AttributeError` in `format_record` today).
   - Depends on: E-02
-  - Expected outcome: `aw agy view` names the CONFLICT step `browser_subagent`, matching the live renderer.
+  - Expected outcome: `aw agy view` names the CONFLICT step `browser_subagent`, matching the live renderer; a non-Mapping `tool_info` yields a line instead of raising.
   - Execution state: pending
 
 - [ ] E-07 Route `runner_stop.event_label`'s `step_update` branch onto `agy_tool_name(step) or step.get("step_type")`, preserving the `step_type` fallback and the "never raise" contract its docstring states. Import `verifier_corroboration` at module top (it is stdlib-only, so no cycle with `platform_lock`/`runner_shutdown`).
   - Depends on: E-02
-  - Expected outcome: labels are unchanged for every shape except a padded name (now stripped); `tests/test_runner_stop_triggers_e2e.py` passes unedited.
+  - Expected outcome: labels are unchanged for every shape except a padded name (now stripped) and a non-string `tool_info.name` (today `unknown`, because the non-string wins the `or` chain and fails the `isinstance(name, str)` check; now `unknown:<tool_name>`, F-08); `tests/test_runner_stop_triggers_e2e.py` passes unedited.
   - Execution state: pending
 
-- [ ] E-08 Route `agy_run._progress_messages`'s tool branch onto `agy_tool_name(step) or "tool"` (then `_compact(..., 60)`), replacing `tool.get("name", "tool")`. Keep the existing `isinstance(tool, dict)` gate so a step without `tool_info` still emits no tool message. Behavior change: a NAME-ONLY step with an empty `tool_info` now names the tool instead of printing `tool finished: tool` (F-04).
+- [ ] E-08 Route `agy_run._progress_messages`'s tool branch onto `agy_tool_name(step) or "tool"` (then `_compact(..., 60)`), replacing `tool.get("name", "tool")`. Keep the existing `isinstance(tool, dict)` gate so a step without `tool_info` still emits no tool message. Behavior change: a NAME-ONLY step with an empty `tool_info` now names the tool instead of printing `tool finished: tool` (F-04), and a non-string `tool_info.name` falls back to `tool_name` instead of printing `str(5)` (F-08). The message KEY (`step:<i>:<state>:tool:<name>`) changes with the name; that is intended.
   - Depends on: E-02
   - Expected outcome: the NAME-ONLY shape with `tool_info: {"parameters": {}}` yields `tool finished: <tool_name>`.
   - Execution state: pending
 
 ### Task group 4: make the next divergence fail a test
 
-- [ ] E-09 Add `tests/test_agy_tool_name_precedence.py`, a cross-reader PARITY test that drives all five real readers (no mocks) with one parametrized table of `step_update` shapes (CONFLICT, REVERSE-CONFLICT, NAME-ONLY, INFO-ONLY, PADDED, NON-STRING `tool_info.name`, NON-MAPPING `tool_info`, NEITHER) and asserts each reader's emitted tool name equals `agy_tool_name(step)` (or that reader's documented default when it is `""`): the renderer's rendered line at `verbosity=1`, `format_record`'s output, `event_label`'s suffix, `_progress_messages`' message, and `tool_call_from_event(...).tool`. Assert on rendered OUTPUT, never on source text.
+- [ ] E-09 Add `tests/test_agy_tool_name_precedence.py`, a cross-reader PARITY test that drives all five real readers (no mocks) with one parametrized table of `step_update` shapes (CONFLICT, REVERSE-CONFLICT, NAME-ONLY, INFO-ONLY, PADDED, NON-STRING `tool_info.name`, NON-MAPPING `tool_info`, NEITHER) and asserts each reader's emitted tool name equals `agy_tool_name(step)` (or that reader's documented default when it is `""`): the renderer's rendered line at `verbosity=1`, `format_record`'s output, `event_label`'s suffix, `_progress_messages`' message, and `tool_call_from_event(...).tool`. Construct the parity rows WITHOUT command-bearing parameters (`tool_info` carries no `parameters`, or `{}`), because `render_agy_event` deliberately prints the command payload instead of the tool name when one exists (F-08), so a row with a `CommandLine` cannot show the renderer's name choice. Documented defaults when `agy_tool_name` is `""`: renderer and viewer `tool`; `event_label` the `step_type` (`tool`); `_progress_messages` `tool` when `tool_info` is a Mapping and NO message when it is not (its `isinstance(tool, dict)` gate, E-08); `tool_call_from_event` `''`. The NON-MAPPING `tool_info` row must also assert that no reader raises (F-08). Assert on rendered OUTPUT, never on source text.
   - Depends on: E-03, E-05, E-06, E-07, E-08
   - Expected outcome: the new file passes; reverting any one reader to its old precedence makes at least one row fail (demonstrated in V-09).
   - Execution state: pending
@@ -121,6 +124,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 | F-05 | DECISION INPUT | precedence | `tool_info.name` IS THE BETTER-EVIDENCED KEY. The in-tree research report states completed tool steps carry "`tool_name` and `tool_info`, including canonical tool name"; the two runtime-critical readers (`render_agy_event`, `event_label`) already prefer it; and every shipped test and the executed probe that constructs an Antigravity name uses `tool_info.name` (only `tests/test_stall_progress_agy.py` sets both, to the same value). Choosing `tool_name`-first would flip the live stream and the interrupt ledger instead of the two outliers. | `.aw/records/research/reference/202608/20260810-gemini-actually-validate-playbook-00-6zf5av-...research-report.md` (the "Antigravity 1.1.11 supports `--output-format stream-json`" paragraph); `dwbm7a` F-05 ("the key is `tool_info.name`"); `rg -n '"tool_info": \{"name"' tests` hits only `test_runner_stop_triggers_e2e.py` and `test_runfresh_end_to_end.py`. No live Antigravity session log exists in this checkout to measure real precedence (`mm6wuz`: "zero `\"event\":\"step_update\"` lines in all 380 session logs"), which is why E-03 adds the fail-open delegation rule rather than trusting precedence alone. |
 | F-06 | MED | `run_dashboard._StatsCache` | THE CACHE WOULD SERVE STALE COUNTS: entries are keyed by `(size, mtime_ns)` and gated on `raw.get("schema") == DASHBOARD_SCHEMA_VERSION` (currently 3, pinned by `test_dashboard_schema_version_is_3`). E-03 changes the counts for an unchanged CONFLICT/INFO-ONLY file, so the version must move. | `run_dashboard.DASHBOARD_SCHEMA_VERSION = 3`; `_StatsCache.__init__` reads `raw.get("schema") == DASHBOARD_SCHEMA_VERSION`; `e08ssu` OQ-02 applied the same rule. |
 | F-07 | LOW | import cost | Importing `verifier_corroboration` from `runner_stop`, `agy_view` and `agy_run` adds about 5ms of module self time (`python3 -X importtime`: `5513 | 84811 | agent_workflows.verifier_corroboration`, the cumulative figure being dominated by the `agent_workflows` package import every caller already pays). Not user-perceptible. | `python3 -X importtime -c "import agent_workflows.verifier_corroboration"`. |
+| F-08 | MED | `agy_runipd.render_agy_event`, `agy_view.format_record`, `runner_stop.event_label`, `agy_run._progress_messages` | ADDED AT REVIEW. (a) The renderer prints the COMMAND PAYLOAD, not the tool name, whenever `agy_prefix_kind` resolves to a command class and a payload exists, so the F-02 CONFLICT shape WITH a `CommandLine` renders `❯ bash:  python3 -m pytest tests/x.py`; a parity row with a command cannot observe the renderer's name choice. (b) The degenerate shapes E-09 lists diverge today in ways beyond precedence: `tool_info="junk"` RAISES `AttributeError` in `render_agy_event` and `format_record`; `tool_info={"name": 5}` renders `5` in the renderer and `_progress_messages` but makes `event_label` return bare `unknown`; a padded `" run_command "` renders `• tool:   run_command ` because the unstripped name misses `_AGY_TOOL_PREFIX_KIND`. Routing through `agy_tool_name` fixes all of these, and they are now named as intended changes rather than surprises. | Review probe at HEAD `220239939`: `CONFLICT render: '❯ bash:  python3 -m pytest tests/x.py'`; `CONFLICT-noparams render: '• tool:  browser_subagent'`; `NONMAP render RAISES AttributeError 'str' object has no attribute 'get'`; `NONMAP view RAISES AttributeError`; `NONSTR label 'unknown'`; `NONSTR progress '[p] tool finished: 5'`; `PADDED render '• tool:   run_command '`. |
 
 ## Proposed changes (ordered, validatable)
 
@@ -134,10 +138,15 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 ## Deferred / out of scope (with reason)
 
 - The agy `FAILED` tool state accepted by the renderer but not by analytics: backlog `8fiybc` owns it; it is a different key (state, not name) and changes different counts.
+  - Carrier: 8fiybc
 - The `step_type == "subagent"` delegation shape: backlog `iuhx9d` owns it; it is a step-type gate, not a name precedence, and has its own fixture needs.
+  - Carrier: iuhx9d
 - OpenCode tool names: a single key (`part.tool`), so there is nothing to disagree on.
+  - Carrier-Declined: no defect exists; OpenCode has one name key, so there is no outstanding work to carry.
 - `stall_progress`'s background-task detection: it substring-scans the raw line for the quoted tool names, so it matches whichever key carries the name and cannot disagree on precedence.
+  - Carrier-Declined: no defect exists; the scan is key-agnostic, so precedence cannot diverge there.
 - What the corroboration verdict does: D160 rules it observational; this plan changes which verdict is computed for two shapes and nothing that consumes it.
+  - Carrier-Declined: settled decision D160; changing what the verdict does is not desired work.
 
 ## Scope check
 
@@ -192,7 +201,7 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Result: pending
 
 - [ ] V-02 validates E-02
-  - Required evidence: PASTE the `git diff` of `agy_tool_name` and its docstring, and a transcript calling it on each shape: CONFLICT -> `'browser_subagent'`; REVERSE-CONFLICT -> `'run_command'`; NAME-ONLY -> the `tool_name`; INFO-ONLY -> `'run_command'`; PADDED (`" run_command "`) -> `'run_command'`; `tool_info={"name": 5}` with `tool_name="x"` -> `'x'`; `tool_info="junk"` with `tool_name="x"` -> `'x'`; neither -> `''`; a non-Mapping argument -> `''`. Also paste `"agy_tool_name" in verifier_corroboration.__all__` -> `True` and the `python3 -X importtime` line showing the module still imports no new `agent_workflows` submodule.
+  - Required evidence: PASTE the `git diff` of `agy_tool_name` and its docstring, and a transcript calling it on each shape: CONFLICT -> `'browser_subagent'`; REVERSE-CONFLICT -> `'run_command'`; NAME-ONLY -> the `tool_name`; INFO-ONLY -> `'run_command'`; PADDED (`" run_command "`) -> `'run_command'`; `tool_info={"name": 5}` with `tool_name="x"` -> `'x'`; `tool_info="junk"` with `tool_name="x"` -> `'x'`; neither -> `''`; a non-Mapping argument -> `''`. Also paste `"agy_tool_name" in verifier_corroboration.__all__` -> `True` and the import-purity delta (import `agent_workflows` first, snapshot `sys.modules`, then import `agent_workflows.verifier_corroboration` and paste the sorted new `agent_workflows.*` keys), which must be exactly `['agent_workflows.verifier_corroboration']` (measured at review; the `-X importtime` form cannot show this because the package `__init__` loads its own submodules first, `e08ssu` PR-005).
   - Observed evidence:
   - Result: pending
 
@@ -207,17 +216,17 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Result: pending
 
 - [ ] V-05 validates E-05
-  - Required evidence: PASTE the diff of `render_agy_event`'s tool branch and the rendered line at `verbosity=1` for CONFLICT (contains `browser_subagent`) and PADDED (contains `run_command` with no surrounding spaces); paste `python3 -m pytest -o addopts="" -q tests/test_agy_runipd_cli.py` passing with that file unedited (`git diff --stat tests/test_agy_runipd_cli.py` empty).
+  - Required evidence: PASTE the diff of `render_agy_event`'s tool branch and the rendered line at `verbosity=1` for a PARAMETER-FREE CONFLICT step (contains `browser_subagent`), PADDED `tool_info={"name": " run_command "}` (contains `run_command` with no surrounding spaces), and `tool_info="junk"` with `tool_name="x"` (returns a line containing `x`, no exception); paste `python3 -m pytest -o addopts="" -q tests/test_agy_runipd_cli.py` passing with that file unedited (`git diff --stat tests/test_agy_runipd_cli.py` empty).
   - Observed evidence:
   - Result: pending
 
 - [ ] V-06 validates E-06
-  - Required evidence: PASTE the diff of `agy_view.format_record` and its output for CONFLICT, showing `browser_subagent` where V-01 showed `run_command`, and for NAME-ONLY, unchanged from V-01.
+  - Required evidence: PASTE the diff of `agy_view.format_record` and its output for CONFLICT, showing `browser_subagent` where V-01 showed `run_command`, for NAME-ONLY, unchanged from V-01, and for `tool_info="junk"` with `tool_name="x"` (a line naming `x`, no exception).
   - Observed evidence:
   - Result: pending
 
 - [ ] V-07 validates E-07
-  - Required evidence: PASTE the diff of `runner_stop.event_label` and its output for CONFLICT, NAME-ONLY, INFO-ONLY, a step with no name keys (falls back to `step_type`), and a non-JSON line (`unknown`), and paste `python3 -m pytest -o addopts="" -q tests/test_runner_stop_triggers_e2e.py` passing with the file unedited.
+  - Required evidence: PASTE the diff of `runner_stop.event_label` and its output for CONFLICT, NAME-ONLY, INFO-ONLY, `tool_info={"name": 5}` with `tool_name="x"` (now `<type>:x`), a step with no name keys (falls back to `step_type`), and a non-JSON line (`unknown`), and paste `python3 -m pytest -o addopts="" -q tests/test_runner_stop_triggers_e2e.py` passing with the file unedited.
   - Observed evidence:
   - Result: pending
 
