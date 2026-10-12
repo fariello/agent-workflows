@@ -1,5 +1,6 @@
 - Id: 58x9mw
-- Status: open
+- Status: graduated
+- Graduated-To: z3cqvz
 - Blocks-Release: next
 - Set: suiteeff
 - Priority: high
@@ -7,6 +8,7 @@
 - Summary: Full pytest suites are run wastefully and concurrently: 322 runner baselines never collected, 1,258 agent full-suite runs (91.5h) with no reuse, oversubscribed -n auto, and no machine-wide serialization
 
 ## Workflow history
+- 2026-10-12 graduated (aw set): graduated to Set suiteeff (z3cqvz, 9ec94f, 0o0wt2, xvm6no, 1qut7y; all to-review, lint clean, coverage pass)
 - 2026-10-12 created (aw backlog): filed from operator investigation of 2026-10-12 stalls
 
 ## Measured (2026-10-12, October run records `.aw/records/runs/run-202610*`)
