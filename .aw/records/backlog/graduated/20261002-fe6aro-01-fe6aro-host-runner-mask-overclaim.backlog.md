@@ -1,11 +1,13 @@
 - Id: fe6aro
-- Status: open
+- Status: graduated
+- Graduated-To: fe6aro
 - Set: fe6aro
 - Priority: medium
 - Work-Kind: chore
 - Summary: host_runner module docstring claims captured output is masked, but redact_worker_output only detects a leak without masking it
 
 ## Workflow history
+- 2026-10-12 graduated (aw backlog): graduated by run run-20261012T005617Z-2321742: 0ev8cz
 - 2026-10-02 created (aw backlog): filed from mflqqf plan authoring; measured at HEAD 4fbbc8386
 
 Measured at HEAD 4fbbc8386 while authoring plan gqyold (backlog item mflqqf).
