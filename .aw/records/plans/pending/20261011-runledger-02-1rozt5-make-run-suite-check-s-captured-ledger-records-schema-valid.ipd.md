@@ -6,7 +6,8 @@
 - Scope: Change the two literal arguments at the single defective call site to the legal `actor="runtime"` and `evidence_kind="test_report"`, and add one behavior test that drives the real `run_suite_check` and validates the records `capture_command` actually returned. No schema vocabulary change, no ledger wiring, no change to `host_runner`.
 - Scope-Paths: agent_workflows/runner_shared.py, tests/test_capture_command_contract.py
 - Item-Dependencies: none
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
 - From-Backlog: 1g8lbe
@@ -19,6 +20,7 @@
 
 ## Workflow history
 
+- 2026-10-12 reviewed (opencode/its_direct/pt3-claude-opus-5.5-1m-us): /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001 (MEDIUM, fixed: suite bar by failing node id, not total), PR-002 (LOW, fixed: finalize ownership and mutation-revert guard in gate). F-01/F-02/F-03 re-measured at HEAD 7b8dde681; E-03's spy test shape demonstrated (HEAD args: RL-E014 / RL-E014+RL-E033; fixed args: clean; SuiteCheckResult unchanged). Record: .aw/records/reviews/20261011-runledger-02-1rozt5-make-run-suite-check-s-captured-ledger-records-schema-valid.review.md.
 - 2026-10-12 draft (opencode its_direct/pt3-claude-opus-5.5-1m-us): created.
 - 2026-10-11 to-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): authored from backlog `1g8lbe` after plan `rdjka2` (executed) resolved its OQ-01 to option (b); OQ-02 resolved here from repository evidence.
 
@@ -34,7 +36,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 - [ ] E-01 Re-measure F-01 and F-02 at the executing HEAD and capture the bare-suite baseline before any edit.
   - Depends on: none
-  - Expected outcome: `git rev-parse HEAD` recorded; the in-process snippet from F-01 re-run, showing `driver`/`tests` produce `RL-E014` on the `tool_event` and `RL-E014` plus `RL-E033` on the envelope, and `runtime`/`test_report` produce `ok=True` on both; `grep -n 'actor="driver"' agent_workflows/runner_shared.py` confirms the call site still exists inside `run_suite_check`; bare `python3 -m pytest` summary line captured as the baseline. If the call site has already changed or the schema vocabulary now contains `driver` or `tests`, STOP and report the premise as moved.
+  - Expected outcome: `git rev-parse HEAD` recorded; the in-process snippet from F-01 re-run, showing `driver`/`tests` produce `RL-E014` on the `tool_event` and `RL-E014` plus `RL-E033` on the envelope, and `runtime`/`test_report` produce `ok=True` on both; `grep -n 'actor="driver"' agent_workflows/runner_shared.py` confirms the call site still exists inside `run_suite_check`; bare `python3 -m pytest` summary line AND its failing node ids (if any) captured as the baseline. If the call site has already changed or the schema vocabulary now contains `driver` or `tests`, STOP and report the premise as moved.
   - Execution state: pending
 
 ### Task group 2: Fix the call site
@@ -94,7 +96,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ## Required tests / validation
 
-- Bare `python3 -m pytest` summary line before (E-01) and after (V-02), with no new failures and exactly one added passing test.
+- Bare `python3 -m pytest` summary line before (E-01) and after (V-02). The bar is by FAILING NODE ID, not by total: every node id failing after the change must also have failed in the E-01 baseline, and the new test's node id must appear as passing. A changed total is not itself a finding, since the suite size drifts between runs on this tree.
 - The new test run alone with `-o addopts=""`, passing after E-02, and shown failing with `RL-E014`/`RL-E033` when E-02 is temporarily reverted.
 - The existing `test_run_suite_check_consumer_contract` still passes (proves `SuiteCheckResult` behavior is unchanged).
 - `aw ipd lint` conforming on this plan.
@@ -122,7 +124,7 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Result: pending
 
 - [ ] V-02 validates E-02
-  - Required evidence: PASTE `git diff agent_workflows/runner_shared.py` in full and confirm by inspection that only the `evidence_kind` and `actor` values changed (to `test_report` and `runtime`) plus added `#` comment lines, all inside `run_suite_check`. PASTE the post-change bare `python3 -m pytest` summary line beside the E-01 baseline. FAILS if any other executable line changed.
+  - Required evidence: PASTE `git diff agent_workflows/runner_shared.py` in full and confirm by inspection that only the `evidence_kind` and `actor` values changed (to `test_report` and `runtime`) plus added `#` comment lines, all inside `run_suite_check`. PASTE the post-change bare `python3 -m pytest` summary line and failing node ids beside the E-01 baseline, and state that no node id fails now that passed then. FAILS if any other executable line changed, or if a node id that passed at baseline now fails.
   - Observed evidence:
   - Result: pending
 
@@ -138,4 +140,6 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 
 EXECUTION CONTRACT. Commit only the two Scope-Paths files plus this plan, through `aw commit <plan> -- <paths>`; never `git add -A`, never push. Verify `git diff --cached --name-only` before committing. Run the suite BARE and paste the actual summary line; never claim a pass not run. If E-01 shows the premise moved (call site already fixed, or vocabulary widened), stop and report rather than editing.
 
-POST-GATE LIFECYCLE. Move to `.aw/records/plans/executed/` only after `aw ipd lint --phase pre-transition` conforms and every `V-*` carries pasted evidence. Backlog `1g8lbe` is set `graduated` by the authoring run; it closes `done` via the From-Backlog handoff once this plan is executed, which carries its `- Blocks-Release: next` gate.
+The E-03 mutation check reverts E-02 only in the working tree and restores it before any commit; never commit the reverted state, and paste `git diff` after restoring.
+
+POST-GATE LIFECYCLE. The terminal move to `.aw/records/plans/executed/` goes through the lifecycle tooling, never a hand `git mv`: in a managed lane the runner finalizes; when executing by hand, run `aw ipd finalize 1rozt5`. Either way, only after `aw ipd lint --phase pre-transition` conforms and every `V-*` reads `pass` with pasted evidence. Backlog `1g8lbe` is set `graduated` by the authoring run; it closes `done` via the From-Backlog handoff once this plan is executed, which carries its `- Blocks-Release: next` gate.
