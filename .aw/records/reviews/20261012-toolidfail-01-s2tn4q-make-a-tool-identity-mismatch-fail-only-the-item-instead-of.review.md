@@ -1,0 +1,48 @@
+# Review findings: plan s2tn4q
+
+- Subject-Id: s2tn4q
+- Subject-Type: ipd
+- Reviewed-At: 2026-10-12
+- Reviewer: opencode/its_direct/pt3-claude-opus-5.5-1m-us
+- Verdict: APPROVE WITH REVISIONS APPLIED
+
+## Round 1
+
+Reviewed in an isolated review lane at HEAD `ee7716c85`. The plan was committed and unchanged, so no snapshot was needed.
+`aw ipd lint --phase author --agent` was clean before semantic review.
+
+Re-verified at review HEAD:
+- F-01: `oc_runipd.run_queue` and `agy_runipd.run_queue` both carry `except ToolIdentityError:` / "RUN-FATAL" / `save_state(run_dir, state)` / `raise`, ordered before `except KeyboardInterrupt`, `StopNowForce`, `StopAtCheckpoint`, `except DriverError as exc` (which writes `failed-safely` and an `ipd-driver-error` event).
+- F-02: the only call site of `assert_child_tool_identity` in `agent_workflows/` is `runner_shared.execute_item_core` under `if self_finalize and not is_review and not is_production:`, after `item.setdefault("attempts", []).append(attempt)` / `item["status"] = "running"` / `save_state`, and before `_call_driver_begin` and `allocate_isolation_worktree`. Confirmed: nothing needs containment.
+- F-03: message text "ABORTING RUN ... This is run-fatal by design" confirmed in `runner_shared.assert_child_tool_identity`.
+- F-04: spec `25kzda` 4.1 abort table has the single row "Corrupt run ledger"; 5.5 group (c) "corrupt run ledger only"; history line 2026-10-09 names carrier `03y5g6`.
+- F-05: both dependent tests confirmed. No other test asserts the abort (`rg ToolIdentityError tests/`); the only other mention is the retired AST fixture `tests/fixtures/runnerlayer_rehomed_premove_fingerprints.json`, which no test reads.
+- F-06 re-measured: `run_exit_code([fail-gate, executed])` = 1; `fail-gate` in `TERMINAL_STATES`, not in `EXECUTION_SUCCESS_STATES`; `TURN_RETRY_CLASSIFICATION` row `('fail-gate', False, ...)`; `fail-gate` is in both hosts' `--retry-incomplete` requeue set.
+- `record_refusal` is re-exported by `runner_shared` and redacts absolute paths; `HostLabels.command` is "aw oc run" / "aw agy run" (verb included).
+- Demonstration (F-08): a scratch test (gitignored `.aw/state/scratch/`) drove the real `run_queue` on both hosts with `execute_item` raising `DriverError` for the first item. Independent: dispatched both, `failed-safely` + `executed`, rc 1. Dependent via `"dependencies": ["executed:agy001"]`: second never dispatched, `fail-depend`, rc 1. Without a fake-side `save_state` the loop re-dispatched forever (60s hang guard).
+- E-08 device: the `_StopDispatch` substitution applied to a scratch copy of `tests/test_action_table_runner_parity.py` passes on current code (`1 passed`). Scratch copy removed.
+
+### Findings
+
+| ID | Severity | Scope | Area | Evidence | Finding | Remediation Risk | Decision | Resolution |
+|----|----------|-------|------|----------|---------|------------------|----------|------------|
+| PR-001 | HIGH | IN-SCOPE | E. Testing executability | `oc_runipd.run_queue` "state = load_state(run_dir)" at loop top; review probe hang | E-04's fake "sets `status = "executed"` for the second" without persisting. `run_queue` reloads state from disk each iteration, so the item stays `queued` and is re-dispatched until the 60s hang guard fires (measured). An executor following E-04 literally gets a hanging test. | C:Low; U:Low; S:Low; F:Low; Overall:Low | FIXED | E-04 now states the fixture rule (every fake that sets a status calls `mod.save_state`), with the measurement in F-08. |
+| PR-002 | MEDIUM | IN-SCOPE | E. Vacuous-pass risk | `runner_shared.execute_item_core` attempt append precedes probe; E-01 (b) "closes the item's LAST attempt" | E-04 (a) fakes `execute_item` entirely, so no attempt exists and E-01's attempt-closing branch is never exercised; nothing tests it. | C:Low; U:Low; S:Low; F:Low; Overall:Low | FIXED | Case (a)'s fake now reproduces the open attempt + `running` status before raising, and asserts `ended_at` and `disposition == "fail-gate"`; E-01 tolerates an absent attempts list; V-04 quotes it. |
+| PR-003 | MEDIUM | IN-SCOPE | D. Anti-regression / sweep | `oc_runipd.py` "THAT DIVERGENCE WAS A REAL DEFECT AND IS FILED AS `232wcg`" ("a run-fatal tool-identity mismatch"); `agy_runipd.py` "AND THE ONE DEFINITION REALLY IS ONE NOW" ("losing the ABORT-RUN escalation") | The validation grep `rg "ABORTING RUN\|RUN-FATAL"` is case-sensitive and misses the lowercase "run-fatal" and "ABORT-RUN escalation" phrases, so stale comments could survive a passing check. E-02/E-03 did not pin which paragraphs to rewrite. | C:Low; U:Low; S:Low; F:Low; Overall:Low | FIXED | E-02/E-03 quote the paragraphs; grep is case-insensitive over the hosts and covers "abort-run escalation"; V-02/V-03 paste it empty; F-09 records the evidence. |
+| PR-004 | MEDIUM | IN-SCOPE | E. Test isolation | `runner_shared._TOOL_IDENTITY_VERIFIED` module-global memo; `tests/test_runfresh_end_to_end.py` calls the real probe | Case (c) said "cleared (restore it in teardown)" but not snapshot-before-clear; a memo filled by an earlier test in the same xdist worker would make the function return early and the case pass vacuously, or a naive restore would wipe state. | C:Low; U:Low; S:Low; F:Low; Overall:Low | FIXED | Case (c) now snapshots, clears, and restores, and scopes the `subprocess.run` patch via `mock.patch.object(runner_shared.subprocess, ...)`; V-04 quotes it. |
+| PR-005 | MEDIUM | IN-SCOPE | F. UX / honest remedy | `runner_shared.HostLabels.command` contract (verb included; plan `z3si7r`) | The remedy text was "resume with --retry-incomplete, using host_labels.command", which invites the known `aw oc run run resume` misrender. | C:Low; U:Low; S:Low; F:Low; Overall:Low | FIXED | E-01 now gives the literal f-string `{host_labels.command} resume --retry-incomplete <run-id>`, verified against both hosts' `resume --help`. |
+| PR-006 | LOW | IN-SCOPE | E. Executability | E-04 (b) "or the queue's dependency field as the existing fixtures express it"; "dependency-blocked or fail-depend" | The dependency encoding and expected status were left to the executor. | C:Low; U:Low; S:Low; F:Low; Overall:Low | FIXED | Pinned to `"dependencies": ["executed:<first>"]` and `fail-depend` (measured), accepting legacy `dependency-blocked`. |
+| PR-007 | LOW | IN-SCOPE | E. Safe procedure | Required tests "temporarily restore only those two files from HEAD ... never stash" | The pre-fix procedure was ambiguous ("restore from HEAD" over uncommitted work risks losing the fix). | C:Low; U:Low; S:Low; F:Low; Overall:Low | FIXED | Spelled out: copy fixed files to scratch, `git show <begin-HEAD>:... >`, run, copy back, paste `git diff --stat`. |
+| PR-008 | LOW | IN-SCOPE | G. Execution contract | `## Approval and execution gate` | The gate lacked the OQ status line, the scope-fence declaration wording, the MUST-paste rule wording, and conditional runner/executor ownership of begin/finalize (it unconditionally said "Transition with `aw ipd begin` / `aw ipd finalize`"). | C:Low; U:Low; S:Low; F:Low; Overall:Low | FIXED | Gate rewritten with all elements; no STOP directive for scope. |
+| PR-009 | LOW | IN-SCOPE | E. Test design | `tests/test_agy_runipd_cli.py::ToolIdentityAbortsTests` fake raises for every item | E-05 did not say what the second item should end as when the fake raises for both; under the fix both end `fail-gate`, which is also the honest "persistent mismatch fails each item" behavior. | C:Low; U:Low; S:Low; F:Low; Overall:Low | FIXED | E-05 keeps the raise-for-all fake and asserts both `fail-gate` and dispatch order. |
+| PR-010 | MEDIUM | UNDER-SCOPE | G. Carrier discipline | `aw check all`: `check.ipd-uncarried-obligation` (severity error) "deferred row 1, deferred row 2, deferred row 3 ... NO durable carrier" | The three Deferred rows named no carrier, so `aw check` failed on this plan and the `fixfirst` follow-up would vanish once the plan is executed. | C:Low; U:Low; S:Low; F:Low; Overall:Low | FIXED | Row 2 now carries `- Carrier: iksylm` (pending, approved, already conditional on `03y5g6`); rows 1 and 3 carry `- Carrier-Declined:` with reasons. `aw check all` now reports only the info-level `check.lifecycle-transition-unvalidated` for this plan. |
+
+### Decisions
+
+| ID | Question | Chosen | Alternatives considered | Basis | Reversible |
+|----|----------|--------|-------------------------|-------|------------|
+| D-1 | How should E-04 (b) encode the dependency? | Queue-entry `"dependencies": ["executed:<first>"]` | `Item-Dependencies` in the plan file (needs a full queue build) | `runner_shared.cascade_dependency_blocked` reads `item.get("dependencies", [])`; review probe measured `fail-depend` on both hosts | yes |
+| D-2 | Should case (a) exercise attempt closing? | Yes, by having the fake append an open attempt before raising | Leave it untested; add a separate unit test of the helper only | `runner_shared.execute_item_core` appends the attempt before the probe (F-02), so the real precondition always has one | yes |
+| D-3 | Exact remedy string | `{command} resume --retry-incomplete <run-id>` | `{command} --retry-incomplete`; `aw oc runipd resume ...` (the `dependency_block_recovery` spelling) | `HostLabels.command` docstring (z3si7r); `aw oc run resume --help` lists `--retry-incomplete` | yes |
+| D-4 | Widen the stale-text grep? | Case-insensitive on hosts; narrow on `runner_shared` | One case-insensitive grep everywhere (false hit on `orchestrator_refusal_text` docstring "RUN-FATAL") | measured `rg` output at review HEAD | yes |
+| D-5 | Carrier for the deferred `fixfirst` update | `iksylm` | file a new backlog item (duplicates `iksylm`'s own conditional wording) | `iksylm` is pending/approved and references `03y5g6` | yes |
