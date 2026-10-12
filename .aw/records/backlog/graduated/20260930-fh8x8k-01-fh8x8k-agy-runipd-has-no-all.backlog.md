@@ -1,11 +1,13 @@
 - Id: fh8x8k
-- Status: open
+- Status: graduated
+- Graduated-To: fh8x8k
 - Set: fh8x8k
 - Priority: low
 - Work-Kind: chore
 - Summary: agy_runipd has no __all__, so its deliberate re-exports can only be justified by noqa comments
 
 ## Workflow history
+- 2026-10-12 graduated (aw backlog): graduated by run run-20261012T005650Z-2322198: vzk1iw
 - 2026-09-30 created (aw backlog): agy_runipd has no __all__, so its deliberate re-exports can only be justified by noqa comments
 
 Found while authoring plan h0zk2g (backlog s4jctz), measured at HEAD 27a80985.
