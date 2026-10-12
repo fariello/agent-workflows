@@ -2,11 +2,12 @@
 
 - Date: 2026-10-11
 - Kind: child
-- Concern: Backlog `krwj2o` (filed 2026-10-01 as a carrier from executed plan `zosxj4`, Set `zdjhug`) asks for two things: (F-04) restore the CLI quality and conformance gates deleted by trim commit `19313eed7` (`tests/test_cli_quality_gates.py`, `tests/test_cli_conformance_matrix.py`) so `tests/conformance_matrix.py` and the twelve goldens under `tests/fixtures/conformance_goldens/` are exercised again, and (F-05) refresh the stale `Fix:` remediation strings in `check_findings.human.golden`. MEASURED IN THIS LANE AT HEAD `075a7b9cf`, BOTH ARE ALREADY DONE by the independently filed Set `h0tiaw` (backlog `h0tiaw`, orchestrator `l8wvv3`, children `dq9bj9` and `9i2hge`, all `executed`): `tests/test_conformance_matrix_structure.py` (commit `3ec1c2d5a`, `work(dq9bj9)`) revives the structural matrix and alias gates, `tests/test_cli_quality_gates.py` (commit `67d026bcd`, `work(9i2hge)`) restores the seven renderer gates and reads all twelve goldens, and `check_findings.human.golden` now carries the `--to-id6 --apply` and `--rename --apply` strings the live renderer emits. Neither `h0tiaw` plan carries `- From-Backlog: krwj2o`, so nothing machine-readable records that `krwj2o` was discharged, and the item would sit `open` forever. ONE RESIDUAL GAP survives the restoration and is in the item's own words ("twelve goldens ... are exercised again"): the restored reader iterates the four fixture names in `_fixtures()` crossed with three suffixes, so a THIRTEENTH `.golden` file dropped into the directory, or a golden orphaned by a fixture rename, is read by nothing and passes silently. Measured: `touch tests/fixtures/conformance_goldens/zzz_orphan.human.golden` then `python3 -m pytest tests/test_cli_quality_gates.py` reports `14 passed`. That is exactly the condition `krwj2o` and `h0tiaw` filed (committed reviewed bytes that no test reads), so the guarantee is currently a one-time measurement and not a gate.
+- Concern: Backlog `krwj2o` (filed 2026-10-01 as a carrier from executed plan `zosxj4`, Set `zdjhug`) asks for two things: (F-04) restore the CLI quality and conformance gates deleted by trim commit `19313eed7` (`tests/test_cli_quality_gates.py`, `tests/test_cli_conformance_matrix.py`) so `tests/conformance_matrix.py` and the twelve goldens under `tests/fixtures/conformance_goldens/` are exercised again, and (F-05) refresh the stale `Fix:` remediation strings in `check_findings.human.golden`. MEASURED IN THIS LANE AT HEAD `075a7b9cf`, BOTH ARE ALREADY DONE by the independently filed Set `h0tiaw` (backlog `h0tiaw`, orchestrator `l8wvv3`, children `dq9bj9` and `9i2hge`, all `executed`): `tests/test_conformance_matrix_structure.py` (commit `3ec1c2d5a`, `work(dq9bj9)`) revives the structural matrix and alias gates, `tests/test_cli_quality_gates.py` (commit `67d026bcd`, `work(9i2hge)`) restores the seven renderer gates and reads all twelve goldens, and `check_findings.human.golden` now carries the `--to-id6 --apply` and `--rename --apply` strings the live renderer emits. Neither `h0tiaw` plan carries `- From-Backlog: krwj2o`, so nothing machine-readable records that `krwj2o` was discharged by `h0tiaw`. (The item has since moved `open` -> `graduated`, graduated to THIS plan by run `run-20261012T005606Z-2321569`, so this plan is now its only carrier and must execute for the item to close.) ONE RESIDUAL GAP survives the restoration and is in the item's own words ("twelve goldens ... are exercised again"): the restored reader iterates the four fixture names in `_fixtures()` crossed with three suffixes, so a THIRTEENTH `.golden` file dropped into the directory, or a golden orphaned by a fixture rename, is read by nothing and passes silently. Measured: `touch tests/fixtures/conformance_goldens/zzz_orphan.human.golden` then `python3 -m pytest tests/test_cli_quality_gates.py` reports `14 passed`. That is exactly the condition `krwj2o` and `h0tiaw` filed (committed reviewed bytes that no test reads), so the guarantee is currently a one-time measurement and not a gate.
 - Scope: IN: (1) re-measure and record, with pasted output, that F-04 and F-05 are discharged by the `h0tiaw` Set at execution HEAD; (2) add ONE default-collected test to `tests/test_cli_quality_gates.py` asserting that the set of `*.golden` files present in `GOLDEN_DIR` equals exactly the set the module's fixtures and render suffixes read, so an orphaned or extra golden fails; (3) prove that test is sensitive with a reverted throwaway orphan. OUT: re-restoring anything `h0tiaw` already restored; the live per-leaf scenario sweep and the live fact-parity gate (carrier `2wowfy`, now pending plan `34iwyp`, Set `livesweep`); any change to `agent_workflows/` production code; any edit to the twelve golden files' contents; any edit to the executed `h0tiaw` or `zosxj4` plans.
 - Scope-Paths: tests/test_cli_quality_gates.py, .aw/records/plans/pending/20261011-krwj2o-01-cqxq2a-verify-the-h0tiaw-restoration-discharged-krwj2o-and-pin-that.ipd.md
 - Item-Dependencies: none
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: medium
 - From-Backlog: krwj2o
@@ -17,6 +18,8 @@
 - Id: cqxq2a
 
 ## Workflow history
+- 2026-10-12 /plan-review (opencode model=its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-006 fixed (review record 20261011-krwj2o-01-cqxq2a)
+- 2026-10-12 reviewed (aw set): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-001..PR-006
 
 - 2026-10-11 to-review (opencode uri/its_direct/pt3-claude-opus-5.5-1m-us): Authored from backlog `krwj2o`. Measured at HEAD `075a7b9cf` that both of the item's findings were already delivered by Set `h0tiaw` (filed separately, same root cause), so this plan does NOT re-restore anything: it re-measures the discharge with pasted evidence, closes the one residual gap the item's wording implies (an unread golden still passes silently; measured `14 passed` with a planted orphan), and carries `- From-Backlog: krwj2o` so the item's discharge becomes machine-readable. No `- Blocks-Release:` on the item, so none is inherited.
 - 2026-10-11 draft (opencode uri/its_direct/pt3-claude-opus-5.5-1m-us): created.
@@ -35,14 +38,19 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 - [ ] E-01 RE-MEASURE F-04 AT EXECUTION HEAD. Confirm both revived modules exist and are default-collected
   (no `pytestmark = pytest.mark.slow`), and that they pass under a bare run of just those two files:
-  `python3 -m pytest tests/test_cli_quality_gates.py tests/test_conformance_matrix_structure.py`. Confirm
+  `python3 -m pytest tests/test_cli_quality_gates.py tests/test_conformance_matrix_structure.py` (measured at review
+  HEAD `66401aeb1`: `22 passed`). Confirm
   `tests/conformance_matrix.py` symbols `ANSI_RE`, `GOLDEN_DIR`, `build_matrix`, `required_scenarios` and
   `USAGE_ERROR_FLAG` each have at least one importer under `tests/` other than the module itself
   (`rg -lw <name> tests --glob '!conformance_matrix.py'`). If either module is missing, marked `slow`, or
   failing, STOP: the premise of this plan is false, set this item `blocked`, and report rather than
-  re-restoring (re-restoration would need its own review).
+  re-restoring (re-restoration would need its own review). The two-module run goes through the configured
+  `addopts` (which deselect `slow` and `livecorpus`), so a non-zero `passed` count that includes both modules'
+  classes is itself the default-collection proof. BEFORE ANY EDIT, also take the bare-suite baseline
+  (`python3 -m pytest`, bare) and record its summary line and failing-test names; E-04 compares against it.
   - Depends on: none
-  - Expected outcome: both modules present, unmarked, and passing; each named symbol has a test importer.
+  - Expected outcome: both modules present, unmarked, and passing; each named symbol has a test importer; the
+    bare-suite baseline is recorded.
   - Execution state: pending
 
 - [ ] E-02 RE-MEASURE F-05 AT EXECUTION HEAD. Show that `check_findings.human.golden` carries the live
@@ -66,7 +74,11 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   GOLDEN_DIR.glob("*.golden")}`, and asserts equality with a message naming the extra files (unread, so delete
   them or add a fixture) and the missing files (regenerate with `AW_CONFORMANCE_UPDATE_GOLDENS=1` and review
   the diff). Lift the suffix tuple into one module-level constant only if the three golden methods are switched
-  to use it in the same edit; otherwise reuse the literal so no reader changes. This lists a FIXTURE DIRECTORY,
+  to use it in the same edit; otherwise reuse the literal so no reader changes. A future fourth render suffix
+  added to a reader without updating this tuple fails the test as an "extra" golden, which is the fail-closed
+  direction and is acceptable. The failure message for missing files must also say that a regeneration run with
+  `AW_CONFORMANCE_UPDATE_GOLDENS=1` writes them, since under randomized order this test can run before the
+  writers in that same run. This lists a FIXTURE DIRECTORY,
   which is the artifact under test, and does not read production source, so it is within GUIDING_PRINCIPLES
   P16. Leave the module default-collected (no `slow` marker).
   - Depends on: E-02
@@ -76,11 +88,12 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 - [ ] E-04 PROVE THE NEW TEST IS SENSITIVE, then run the suite. With a THROWAWAY probe, reverted before
   commit: (a) `touch tests/fixtures/conformance_goldens/zzz_orphan.human.golden`, run the module, and confirm
   the new test FAILS naming `zzz_orphan.human.golden`; delete the probe. (b) Temporarily `mv
-  read_clean.json.golden` aside, confirm a failure (the new test names it as missing; the existing
+  tests/fixtures/conformance_goldens/read_clean.json.golden` to a path OUTSIDE `tests/fixtures/` (e.g. a gitignored
+  `.aw/state/` scratch file), confirm a failure (the new test names it as missing; the existing
   `test_json_goldens_stable` also raises `FileNotFoundError`), and restore it. Confirm `git status --short
-  tests/fixtures/` is EMPTY after both probes. Then run the bare suite `python3 -m pytest` and report the
-  failure set against the base, attributing any pre-existing failure to its filed owner rather than to this
-  change. Commit through `aw commit cqxq2a -- tests/test_cli_quality_gates.py <this plan path>`.
+  tests/fixtures/` is EMPTY after both probes. Then run the bare suite `python3 -m pytest` and compare its failing-test
+  names with the E-01 baseline: the bar is NO NEW failing test name, and any failure also present in the baseline
+  is attributed to its filed owner rather than to this change. Commit through `aw commit cqxq2a -- tests/test_cli_quality_gates.py <this plan path>`.
   - Depends on: E-03
   - Expected outcome: both probes fail red, the fixture directory is clean afterwards, and the bare suite
     introduces no new failure.
@@ -110,7 +123,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 | F-02 | THE ITEM'S F-05 IS ALREADY DISCHARGED. `check_findings.human.golden` now reads `Fix: a.md does not carry a clustered identity prefix; run 'aw rename plans a.md --to-id6 --apply' ...` and `run 'aw group plans b.md --set <new-set-id> --rename --apply' to regroup this record`, the strings `9i2hge` E-02 regenerated with its diff quoted, and the human golden test passes against the live render. | `grep -n "Fix:" tests/fixtures/conformance_goldens/check_findings.human.golden`; `9i2hge` E-02 and F-02. |
 | F-03 | THE HARNESS HAS NO ZERO-IMPORTER PUBLIC SYMBOL THE ITEM CARES ABOUT. A per-name importer count over `tests/` and `agent_workflows/` excluding the module: `ANSI_RE` 2, `GOLDEN_DIR` 1, `build_matrix` 1, `required_scenarios` 2, `USAGE_ERROR_FLAG` 1, `run_cli` 36. The only zero-importer names (`MatrixRow`, `MatrixReport`, `RunResult`, `_pinned_env`) are the internally-used category `dq9bj9` E-03 deliberately kept (types returned by imported functions). | `rg -lw` sweep per name, run in this lane. |
 | F-04 | ONE RESIDUAL GAP: AN UNREAD GOLDEN STILL PASSES. The readers iterate `_fixtures()` (four names) crossed with the suffixes `agent`, `human`, `json`, so a file outside that product is never opened. Planting `zzz_orphan.human.golden` and running the module gives `14 passed`. That is the exact condition both `krwj2o` ("twelve goldens ... exercised again") and `h0tiaw` F-07 filed, and `9i2hge` E-06(a) established it only as a one-time measurement at execution. The converse (a missing golden) IS already caught: `_read_or_write_golden` now raises `FileNotFoundError` when the file is absent and the update variable is unset, so `9i2hge` F-06's sharp edge was fixed. | The planted-orphan run in this lane (probe removed, `git status --short` clean); `_read_or_write_golden` read. |
-| F-05 | NOTHING MACHINE-READABLE LINKS `krwj2o` TO ITS DISCHARGE. Neither `h0tiaw` plan carries `- From-Backlog: krwj2o`, and executed plans may not be edited in place (`AGENTS.md`), so the only legitimate way to give the item a carrier is a new plan that carries the field. That is why this plan exists rather than the item being closed by hand. | `grep -rl krwj2o .aw/records` returns only the item itself and the `zosxj4` plan that filed it. |
+| F-05 | NOTHING MACHINE-READABLE LINKS `krwj2o` TO ITS DISCHARGE BY `h0tiaw`. Neither `h0tiaw` plan carries `- From-Backlog: krwj2o`, and executed plans may not be edited in place (`AGENTS.md`), so the only legitimate way to give the item a carrier is a new plan that carries the field. That is why this plan exists rather than the item being closed by hand. Review 2026-10-12: the item is now `graduated` (`- Graduated-To: krwj2o`, history "graduated by run run-20261012T005606Z-2321569: cqxq2a") and carries no `- Blocks-Release:`. | `grep -rl krwj2o .aw/records` returns the item, the `zosxj4` plan that filed it, this plan, and the plans INDEX. |
 | F-06 | THE LIVE-SWEEP REMAINDER HAS ITS OWN OWNER. The deleted `LiveScenarioConformanceTests` and live `FactParityTests` were deliberately deferred by `l8wvv3` to carrier `2wowfy` (now `graduated`), whose plan `34iwyp` (Set `livesweep`) is pending. Re-reviving them here would duplicate that plan. | `.aw/records/backlog/graduated/20261001-h0tiaw-01-2wowfy-*.backlog.md`; `.aw/records/plans/pending/20261011-livesweep-01-34iwyp-*.ipd.md`. |
 
 ## Proposed changes (ordered, validatable)
@@ -160,7 +173,7 @@ the regeneration instruction the module docstring already states.
 
 - Blocking: no
 - Status: resolved
-- Owner: none
+- Owner: plan author
 - Resolution or deferral rationale: No. Repository evidence (F-01, F-02) shows Set `h0tiaw` restored both,
   from the same `19313eed7^` source the item names, under review. The item stayed `open` only because it
   was filed by a different plan (`zosxj4`) and nothing linked the two (F-05). This plan records the discharge
@@ -170,7 +183,7 @@ the regeneration instruction the module docstring already states.
 
 - Blocking: no
 - Status: resolved
-- Owner: none
+- Owner: plan author
 - Resolution or deferral rationale: The existing module. The expected set must be derived from the same
   `_fixtures()` and `_golden_path` the readers use, which are private to that module, so a separate module
   would have to duplicate the fixture list and could drift from it.
@@ -180,7 +193,8 @@ the regeneration instruction the module docstring already states.
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
 - [ ] V-01 validates E-01
-  - Required evidence: the pasted pytest summary line (`N passed`) for the two-module run, a pasted
+  - Required evidence: the pasted pre-edit bare-suite baseline summary line with its failing-test names (or
+    none), the pasted pytest summary line (`N passed`) for the two-module run, a pasted
     `grep -n pytestmark` over both modules showing no `slow` marker, and the pasted per-symbol `rg -lw`
     output showing at least one test importer for each of `ANSI_RE`, `GOLDEN_DIR`, `build_matrix`,
     `required_scenarios`, `USAGE_ERROR_FLAG`.
@@ -205,8 +219,8 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 - [ ] V-04 validates E-04
   - Required evidence: the pasted FAILING pytest output for the orphan probe naming `zzz_orphan.human.golden`,
     the pasted failing output for the removed-golden probe naming `read_clean.json.golden`, `git status --short
-    tests/fixtures/` pasted EMPTY after both, the pasted bare `python3 -m pytest` summary line with any failure
-    attributed to a pre-existing owner, the pasted `aw sanitize --agent` record, and the commit hash from
+    tests/fixtures/` pasted EMPTY after both, the pasted bare `python3 -m pytest` summary line and failing-test
+    names compared against the E-01 baseline showing no new name, the pasted `aw sanitize --agent` record, and the commit hash from
     `aw commit`.
   - Observed evidence:
   - Result: pending
@@ -216,10 +230,23 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 - Size assessment: standard
 - Cohesion rationale: not required
 
-Execute only after explicit human approval (`- Status: approved`). The executor commits ONLY
-`tests/test_cli_quality_gates.py` and this plan, through `aw commit cqxq2a -- <paths>`, never pushes, and
-pastes actual runner output for every `V-*`. If E-01 finds either revived module missing, `slow`-marked, or
-failing, the plan's premise is false: mark E-01 `blocked`, stop, and report rather than re-restoring. After every
-`V-*` is `pass` and `aw ipd lint --phase pre-transition` conforms, move this plan to
-`.aw/records/plans/executed/` through the tooled lifecycle. Backlog `krwj2o` may then close `done` through
-`aw backlog set done krwj2o`, which the HANDOFF rule will accept once this plan (the only carrier) is executed.
+Execute only after explicit human approval (`aw ipd set approved cqxq2a --by-human`); OQ-01 and OQ-02 are
+resolved, and no question is open. Begin with `aw ipd begin cqxq2a`.
+
+Scope fence: `- Scope-Paths:` is a DECLARATION, not a stop condition. If an edit outside it proves necessary,
+make it and justify it at finalize with `--scope-reason <path>=<why>`. The golden files, `tests/conformance_matrix.py`,
+`agent_workflows/`, and the executed `h0tiaw`/`zosxj4` plans are out of scope by design; the E-04 probes touch
+`tests/fixtures/` only transiently and must leave `git status --short tests/fixtures/` empty. The one
+deliberate stop is E-01's: if either revived module is missing, `slow`-marked, or failing, the plan's premise is
+false, so mark E-01 `blocked` and report rather than re-restoring.
+
+Honesty: you MUST paste the ACTUAL runner output for every test or command claim in each `V-*`; never claim a
+result you did not run, and never run a golden test with `AW_CONFORMANCE_UPDATE_GOLDENS` set.
+
+Commits: only `tests/test_cli_quality_gates.py` and this plan, through `aw commit cqxq2a -- <paths>`; verify
+`git diff --cached --name-only` before any raw commit; never push, never tag.
+
+Lifecycle: under `aw oc run` / `aw agy run` the runner owns finalize; when executed by hand, after every `V-*` is
+`pass` and `aw ipd lint --phase pre-transition` conforms, run `aw ipd finalize cqxq2a`. Backlog `krwj2o`
+(`graduated`, no `- Blocks-Release:`) may then close with `aw backlog set done krwj2o`; it carries no release gate,
+so the close needs no handoff proof, and this plan's `- From-Backlog: krwj2o` is the durable record of discharge.
