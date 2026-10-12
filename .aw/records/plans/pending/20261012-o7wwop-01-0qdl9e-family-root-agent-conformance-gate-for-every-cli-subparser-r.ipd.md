@@ -4,9 +4,10 @@
 - Kind: child
 - Concern: No test drives a CLI FAMILY ROOT (a parser node that carries an `argparse._SubParsersAction`, e.g. `aw backlog`, `aw config exclude`, `aw runs`) under `--agent`. Every existing conformance sweep draws its universe from `command_surface.discover_parser_leaves`, which by construction yields only parsers with NO subparsers, so the 23 roots measured at authoring HEAD `fc3877544` are outside every gate. A bare invocation is a common way for an agent to probe a verb, so these are machine surfaces in practice, and the population already contained three defects of one shape (`upgrade-test`, fixed by `7pnneh`; `runs` and `config exclude`, still open as `l5dq92` and `o8cz48`).
 - Scope: IN: (1) re-measure the root census and per-root behavior at the executing HEAD, as a gate (E-01); (2) add `command_surface.discover_parser_roots`, the alias-excluding inversion of `discover_parser_leaves`, beside it (E-02); (3) add a typed, citation-required `FAMILY_ROOT_EXEMPTION_REGISTRY` in `tests/conformance_matrix.py` holding ONLY roots still non-conforming at execution, each citing its live backlog item (E-03); (4) a new behavioral test module sweeping every non-exempt root as a real subprocess, plus a registry contract test that refuses stale or unresolvable entries (E-04); (5) run the full suite (E-05). OUT: fixing `aw runs` (owned by `l5dq92`) or `aw config exclude` (owned by `o8cz48`); any change to `cli.py`, `_show_family_help`, `agent_schema`, or any production emit path; any change to `tests/test_agent_surface_conformance.py` or its `UNIVERSE`; `--json` parity for roots; adding roots to `COMMAND_INVENTORY` (which declares leaves only, per `7pnneh` F-rows).
-- Scope-Paths: agent_workflows/command_surface.py, tests/conformance_matrix.py, tests/test_family_root_agent_conformance.py
+- Scope-Paths: agent_workflows/command_surface.py, tests/conformance_matrix.py, tests/test_family_root_agent_conformance.py, .aw/records/backlog/open/
 - Item-Dependencies: none
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
 - Work-Kind: followup
 - Priority: low
 - From-Backlog: o7wwop
@@ -17,6 +18,7 @@
 - Id: 0qdl9e
 
 ## Workflow history
+- 2026-10-12 reviewed (aw set): /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-004. Re-measured at HEAD 9ff0658da: 23 roots, BAD = config exclude, runs; cited items now graduated.
 
 - 2026-10-12 to-review (opencode): authored from open backlog item `o7wwop`; census and per-root behavior measured in lane `o7wwop` at HEAD `fc3877544`.
 - 2026-10-12 draft (opencode): created.
@@ -33,7 +35,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 - [ ] E-01 RE-MEASURE the root census and each root's bare `--agent` behavior at the executing HEAD, before writing code. Run the authoring probe (recurse `cli._build_parser()` for nodes with an `_SubParsersAction`, alias-excluded by object identity, run `python3 -m agent_workflows <root> --agent` for each, parse the last `result`/`summary`/`error` stdout record, check `validate_agent_record == []` and `exit == returncode`). Record the root count, the list of non-conforming roots, and the open/done status of `l5dq92` and `o8cz48` via `aw find backlog <id6>`. This list, NOT the authoring-time list, decides E-03's registry contents.
   - Depends on: none
-  - Expected outcome: A pasted census (count plus per-root OK/BAD line) and the two items' current status. At authoring HEAD `fc3877544` it read 23 roots, BAD = `config exclude` (stdout `FAIL     Usage: aw config exclude {add|list|rm} ...`, rc 2, no record) and `runs` (stdout `{"runs": []}`, rc 0, no record); every other root OK. If a root outside `{runs, config exclude}` is BAD at execution, STOP that root's admission: file a backlog item for it with `aw backlog new` (Work-Kind `bug`, gated per the repository bug rule) and exempt it under E-03 citing that new id6, recording the decision in the plan.
+  - Expected outcome: A pasted census (count plus per-root OK/BAD line) and the two items' current status. At authoring HEAD `fc3877544` it read 23 roots, BAD = `config exclude` (stdout `FAIL     Usage: aw config exclude {add|list|rm} ...`, rc 2, no record) and `runs` (stdout `{"runs": []}`, rc 0, no record); every other root OK. If a root outside `{runs, config exclude}` is BAD at execution, do not admit it to the sweep: file a backlog item for it with `aw backlog new` (Work-Kind `bug`, gated per the repository bug rule) and exempt it under E-03 citing that new id6, recording the decision in the plan.
   - Execution state: pending
 
 - [ ] E-02 ADD `discover_parser_roots(parser, prefix="") -> Set[str]` to `agent_workflows/command_surface.py`, directly after `discover_parser_leaves`. It returns the canonical command path of every node that HAS at least one `argparse._SubParsersAction`, excluding the top-level parser itself (empty prefix), and excludes aliases with the SAME first-key-by-identity rule `discover_parser_leaves` documents (`any(subparser is prior ...)`). Docstring states it is the inversion of `discover_parser_leaves` and that the two sets are disjoint by construction.
@@ -43,7 +45,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 2: registry and gate
 
-- [ ] E-03 ADD `FAMILY_ROOT_EXEMPTION_REGISTRY: Dict[str, Exemption]` to `tests/conformance_matrix.py`, after `MUTATION_EXEMPTION_REGISTRY`, reusing the existing `Exemption` dataclass, with a module comment repeating the ceiling rule ("adding an entry to silence a red sweep is the prohibited failure mode"). Allowed `reason_kind` is `known_broken` ONLY, and `citation` must be an id6 of an OPEN backlog item. Populate it with exactly the roots E-01 measured BAD: at authoring that is `"runs"` citing `l5dq92` and `"config exclude"` citing `o8cz48`. If E-01 shows either already conforming, OMIT its entry.
+- [ ] E-03 ADD `FAMILY_ROOT_EXEMPTION_REGISTRY: Dict[str, Exemption]` to `tests/conformance_matrix.py`, after `MUTATION_EXEMPTION_REGISTRY`, reusing the existing `Exemption` dataclass, with a module comment repeating the ceiling rule ("adding an entry to silence a red sweep is the prohibited failure mode"). Allowed `reason_kind` is `known_broken` ONLY, and `citation` must be an id6 of a LIVE backlog item, meaning one under `backlog/open/`, `backlog/graduated/` or `backlog/blocked/` (not `done/` or `parked/`). Both cited items were `graduated` at review (plans `t76qdk` and `2va0jb` carry them), so an open-only rule would reject the two legitimate entries on day one. Populate it with exactly the roots E-01 measured BAD: at authoring that is `"runs"` citing `l5dq92` and `"config exclude"` citing `o8cz48`. If E-01 shows either already conforming, OMIT its entry.
   - Depends on: E-01
   - Expected outcome: The registry exists with one entry per E-01 BAD root and no others; each entry's `reason` names the observed defect in one line (e.g. "bare payload {\"runs\": []} with no aw.agent/v1 envelope").
   - Execution state: pending
@@ -52,7 +54,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   (a) `ROOTS = sorted(discover_parser_roots(cli._build_parser()))` computed at collection time from the live parser, never a hand list; a census test asserting `ROOTS` is non-empty, disjoint from `discover_parser_leaves(...)`, and that every `FAMILY_ROOT_EXEMPTION_REGISTRY` key is in `ROOTS`.
   (b) a unit test of `discover_parser_roots` on a SYNTHETIC `argparse` tree built in the test (one root with an alias, one nested root, one leaf), asserting the alias is excluded, the nested root is reported with its full path, and the leaf is not reported.
   (c) `test_family_root_agent_conformance`, parametrized over `ROOTS` minus the registry, running `<root> --agent` and asserting: stdout non-empty; a terminal `result`/`summary`/`error` record parses (last one wins); `validate_agent_record(rec) == []`; `rec["exit"] == returncode`; `"next" in rec`. Then the OUTCOME SHAPE, which is deliberately not uniform: if `returncode == 0` the root dispatched to a default view (measured: `ipd` -> `cmd "ipd board"`, `releases` -> `cmd "releases list"`) and the record's `outcome` must not be `cannot-run`/`error`; otherwise the record must be `kind == "error"`, `outcome == "cannot-run"`, `exit == 2`, with a non-empty `next`. No root name is special-cased in the test.
-  (d) `test_family_root_exemption_registry_contract`: every entry has `reason_kind == "known_broken"`, non-empty citation and reason, and the citation resolves to an OPEN item, asserted by running `aw find backlog <id6>` through `run_cli` and requiring the stdout path to contain `/backlog/open/`.
+  (d) `test_family_root_exemption_registry_contract`: every entry has `reason_kind == "known_broken"`, non-empty citation and reason, and the citation resolves to a LIVE item, asserted by running `aw find backlog <id6>` through `run_cli` (returncode 0) and requiring the stdout path to contain one of `/backlog/open/`, `/backlog/graduated/`, `/backlog/blocked/`. A citation that has moved to `done/` or `parked/` fails, naming the entry to delete.
   (e) `test_exempted_family_root_still_nonconforming`, parametrized over the registry: re-runs the root and asserts it STILL fails at least one of the (c) properties, with a failure message telling the executor of the cited item to delete the entry. This makes the registry self-pruning, as the backlog item requires ("entries must cite a live item and be deleted by its executor").
   - Depends on: E-02, E-03
   - Expected outcome: The new module passes; temporarily deleting one registry entry makes (c) fail for that root with the root name and stdout in the message (demonstrated in V-04, then reverted).
@@ -81,10 +83,10 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 |---|---|---|
 | F-01 | The root population is 23 at HEAD `fc3877544` (the backlog item measured 22; `lanes` has since been added). | Authoring probe output: `23`, then per-root lines including `OK  lanes 2 cannot-run lanes True`. |
 | F-02 | Exactly two roots are non-conforming now: `config exclude` (rc 2, stdout `FAIL     Usage: aw config exclude {add|list|rm} ...`, no record) and `runs` (rc 0, stdout `{"runs": []}`, no record). `upgrade-test` now conforms (`OK  upgrade-test 2 cannot-run upgrade-test True`), confirming `7pnneh` landed. | Authoring probe lines `BAD config exclude 2 None None False ...` and `BAD runs 0 None None False {"runs": []}`. |
-| F-03 | Both outstanding defects have OPEN, release-gated backlog items, so `known_broken` exemptions citing them are legitimate under the ceiling rule. No plan yet graduates either (`grep From-Backlog: (o8cz48|l5dq92)` over `.aw/records/plans/` is empty). | `o8cz48` and `l5dq92` files under `.aw/records/backlog/open/`, each `- Blocks-Release: next`, `- Work-Kind: bug`. |
+| F-03 | Both outstanding defects have LIVE, release-gated backlog items, so `known_broken` exemptions citing them are legitimate under the ceiling rule. RE-MEASURED AT REVIEW (HEAD `9ff0658da`): both are now `graduated`, carried by pending plans `t76qdk` (`l5dq92`, `aw runs`) and `2va0jb` (`o8cz48`, `config exclude`), both `to-review`. `2va0jb` E-04 already deletes any `0qdl9e` root entry citing `o8cz48`; `t76qdk` does not declare `tests/conformance_matrix.py`, so if it lands after this plan, E-04(e) turns red and its executor deletes the `runs` entry as an out-of-scope edit justified at finalize, which is the intended handoff. Whichever order they land in, E-01's measurement decides the registry. | `aw find backlog l5dq92` / `o8cz48` -> `.aw/records/backlog/graduated/...`; `grep -l 'From-Backlog: \(o8cz48\|l5dq92\)' .aw/records/plans/pending/`. |
 | F-04 | Exit-0 default views exist and must be accepted: `aw ipd --agent` emits `cmd "ipd board"`, `outcome "clean"`, `exit 0`, `next null`; `releases` emits `cmd "releases list"`, exit 0. Hence the gate asserts `"next" in rec` (key present), not a non-null value, on exit 0. | `aw ipd --agent` last line pasted at authoring; probe line `OK  releases 0 clean releases list True`. |
-| F-05 | The sweep is cheap: 23 serial subprocesses took 7.94 s wall at authoring, so no `slow` marker is needed; under `-n auto` it parallelizes. | Probe output `wall 7.94`. |
-| F-06 | Plan `gm9baj` (the behavioral `COMMAND_INVENTORY` gate the item says to check first) is `executed`, and it edited `tests/test_command_surface_declarations.py`, not the agent-surface sweep. Pending plans touching `tests/conformance_matrix.py` (`0z7ds3`, `34iwyp`, others) edit different registries/tables; this plan adds a NEW registry and a NEW test module, so it does not redesign anything they own. | `aw find gm9baj` -> `executed`; `grep -ln conformance_matrix.py .aw/records/plans/pending/*.md`. |
+| F-05 | The sweep is cheap: 23 serial subprocesses took 7.94 s wall at authoring, so no `slow` marker is needed; under `-n auto` it parallelizes. Re-measured at review on a heavily loaded host (load average 86) it took 75.44 s serial, about 3.3 s per subprocess, which is host load, not command cost (one `aw storage --agent` took 0.6 s user CPU). | Probe output `wall 7.94`; review probe `wall 75.44`, `uptime` load 86.18. |
+| F-06 | Plan `gm9baj` (the behavioral `COMMAND_INVENTORY` gate the item says to check first) is `executed`, and it edited `tests/test_command_surface_declarations.py`, not the agent-surface sweep. Pending plans touching `tests/conformance_matrix.py` (`0z7ds3`, `34iwyp`, others) edit different registries/tables; this plan adds a NEW registry and a NEW test module, so it does not redesign anything they own. | `aw find plans gm9baj` -> `executed` (bare `aw find gm9baj` matches nothing); `grep -ln conformance_matrix.py .aw/records/plans/pending/*.md`. |
 | F-07 | `0z7ds3` (from `91pjax`) explicitly scopes OUT family roots ("the family-root (subcommand-less group) case, already owned by `_show_family_help`") and `config exclude` (`o8cz48`), so no other plan already gates this population. | `0z7ds3` `- Scope:` OUT clause. |
 
 ## Proposed changes (ordered, validatable)
@@ -124,14 +126,14 @@ N/A: no spec governs the conformance test harness's universe, and `docs/cli-outp
 
 - Blocking: no
 - Status: resolved
-- Owner: none
+- Owner: plan author
 - Resolution or deferral rationale: YES (E-04(e)). The backlog item requires entries to "cite a live item and be deleted by its executor"; a strict still-broken check is the only way that obligation is enforced rather than hoped for, mirroring the ceiling rule in `tests/conformance_matrix.py`. Cost: the `l5dq92`/`o8cz48` executor sees one red test naming the entry to delete, which is the intended handoff. Reversible by deleting the test.
 
 ### OQ-02: Where does the root census live?
 
 - Blocking: no
 - Status: resolved
-- Owner: none
+- Owner: plan author
 - Resolution or deferral rationale: In `agent_workflows/command_surface.py` beside `discover_parser_leaves`, as the backlog item states ("belongs beside it"), so the alias rule is shared in one module rather than re-implemented in a test.
 
 ## Validation and cross-check (verify before reporting done)
