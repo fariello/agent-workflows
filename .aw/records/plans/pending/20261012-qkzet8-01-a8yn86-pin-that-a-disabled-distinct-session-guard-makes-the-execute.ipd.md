@@ -6,7 +6,8 @@
 - Scope: Test-only. Give `_drive_execute_turn` an opt-out of the frozen descriptor and a record of which spawns ran, then add one end-to-end behavioral test proving that under the same mutation, with the descriptor NOT frozen, the real execute preflight refuses the item by the `host_capability_unavailable` code naming `supports_fresh_verifier_session`, starts no executor or verifier turn, and writes no `verification_status`. No production code changes.
 - Scope-Paths: tests/test_runwire_verifier_authority.py, .aw/records/plans/pending/20261012-qkzet8-01-a8yn86-pin-that-a-disabled-distinct-session-guard-makes-the-execute.ipd.md
 - Item-Dependencies: none
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
 - From-Backlog: qkzet8
@@ -18,6 +19,7 @@
 - Id: a8yn86
 
 ## Workflow history
+- 2026-10-12 reviewed (aw set): /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003
 
 - 2026-10-12 draft (opencode Claude Opus): created.
 - 2026-10-12 to-review (opencode Claude Opus): authored review-ready from backlog qkzet8 with the mechanism measured at HEAD and the sibling plans jo55oo/r6ykw2 cross-checked for non-overlap.
@@ -32,14 +34,14 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: Make the fixture able to exercise the on-demand probe
 
-- [ ] E-01 In `tests/test_runwire_verifier_authority.py` `_drive_execute_turn`, add a keyword parameter `freeze_host_capabilities: bool = True`; when False, omit the `host_capabilities` key from `state` so `runner_shared.ensure_frozen_host_capabilities` measures on demand. Also record every call to the local `spawn_executor` / `spawn_verifier` closures in a list stored on the returned state under a test-only key (for example `state["_test_spawns"]`, appending `"executor"` / `"verifier"`). The default path must behave exactly as today, and add a comment on the frozen descriptor citing backlog `qkzet8` (the descriptor is what keeps the preflight from re-probing under a mutated guard).
+- [ ] E-01 In `tests/test_runwire_verifier_authority.py` `_drive_execute_turn`, add a keyword parameter `freeze_host_capabilities: bool = True`; when False, omit the `host_capabilities` key from `state` so `runner_shared.ensure_frozen_host_capabilities` measures on demand. Also record every call to the local `spawn_executor` / `spawn_verifier` closures in a list stored on the returned state under a test-only key (for example `state["_test_spawns"]`, appending `"executor"` / `"verifier"`). The default path must behave exactly as today, and add a comment on the frozen descriptor citing backlog `qkzet8` (the descriptor is what keeps the preflight from re-probing under a mutated guard). If sibling `jo55oo` has already landed its own comment on that key (citing `4dktme`), extend that comment to cite both backlogs rather than adding a second one.
   - Depends on: none
   - Expected outcome: every existing test in the file still passes unchanged; a caller can now drive the pipeline with no frozen descriptor and observe which spawns ran.
   - Execution state: pending
 
 ### Task group 2: Pin the end-to-end refusal
 
-- [ ] E-02 Add `test_disabled_distinct_session_guard_refuses_execute_preflight` to `tests/test_runwire_verifier_authority.py`: `monkeypatch.setattr(agy_verifier, "assert_distinct_sessions", lambda e, v: None)`, then call `_drive_execute_turn(..., driver_module=oc_runipd, host_labels=runner_shared.OC_HOST_LABELS, freeze_host_capabilities=False)` and assert ALL of: `item["status"] == "fail-gate"`; `render_stream.refusal_of_item(item)` is not None with `.code == run_selection_policy.SKIP_HOST_CAPABILITY_UNAVAILABLE` and `"supports_fresh_verifier_session" in .reason`; `item["attempts"][-1]["disposition"] == "fail-gate"` and the attempt carries `host_capability_unavailable`; `"verification_status" not in item`; the recorded spawn list is empty (no executor and no verifier turn); and `state["host_capabilities"]["descriptor"]["supports_fresh_verifier_session"] is False` (the on-demand measurement was frozen into state). Also add the unmutated control in the same test or a sibling: with no monkeypatch and `freeze_host_capabilities=False`, the item is NOT refused by the preflight (no `host_capability_unavailable` on the last attempt) and the executor spawn ran.
+- [ ] E-02 Add `test_disabled_distinct_session_guard_refuses_execute_preflight` to `tests/test_runwire_verifier_authority.py`: `monkeypatch.setattr(agy_verifier, "assert_distinct_sessions", lambda e, v: None)`, then call `_drive_execute_turn(..., driver_module=oc_runipd, host_labels=runner_shared.OC_HOST_LABELS, freeze_host_capabilities=False)` and assert ALL of: `item["status"] == "fail-gate"`; `render_stream.refusal_of_item(item)` is not None with `.code == run_selection_policy.SKIP_HOST_CAPABILITY_UNAVAILABLE` and `"supports_fresh_verifier_session" in .reason`; `item["attempts"][-1]["disposition"] == "fail-gate"` and the attempt carries `host_capability_unavailable`; `"verification_status" not in item`; the recorded spawn list is empty (no executor and no verifier turn); and `state["host_capabilities"]["descriptor"]["supports_fresh_verifier_session"] is False` (the on-demand measurement was frozen into state). Also add the unmutated control in the same test or a sibling: with no monkeypatch and `freeze_host_capabilities=False`, the item is NOT refused by the preflight (no `host_capability_unavailable` key on the last attempt, and the item carries no `host_capability_unavailable` refusal) and the recorded spawn list contains `"executor"`. Do NOT assert on `item["status"]` in the control: in this fixture the unmutated item also ends `fail-gate`, from a LATER gate (`turn_retry_skipped` reads "lifecycle gate or clean-base gate refused"), with `verification_status == "verified"` and spawns `["executor", "verifier"]` (measured at review, F-7). So `status == "fail-gate"` alone does not tell the two runs apart; the discriminators are the `host_capability_unavailable` attempt key, the refusal code, and the spawn list.
   - Depends on: E-01
   - Expected outcome: the backlog's exact mechanism (global monkeypatch -> probe False -> execute preflight refusal) is a named, passing behavioral test, with a control proving the refusal is caused by the mutation and not by the environment.
   - Execution state: pending
@@ -67,6 +69,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 | F-3 | Counting `run_opencode` calls is the wrong "no session" signal. | Same prototype: `assert launched == []` failed with `[1, 1] == []`, the two calls coming from the on-demand sandbox probe, not from an agent turn. Hence E-01's spawn record. |
 | F-4 | At HEAD the original test passes only because `psgyzw` froze the descriptor in the fixture; nothing states or tests that dependency. | `git log -1 -- tests/test_runwire_verifier_authority.py` -> `163874fcc work(psgyzw)`; `python3 -m pytest -o addopts="" tests/test_runwire_verifier_authority.py -q` -> `12 passed in 15.47s`. |
 | F-5 | No existing test pins the end-to-end path "mutated guard -> on-demand probe -> execute refusal". `tests/test_hostcapgate_execute_requirement.py` forces `supports_fresh_verifier_session=False` in the descriptor by hand, so it never exercises the probe; `tests/test_hostcapgate_descriptor_freeze.py` tests freeze/no-reprobe with injected probe functions. | `rg -n assert_distinct_sessions tests/` matches only `tests/test_runwire_verifier_authority.py`. |
+| F-7 | (Review, 2026-10-12) The proposed E-01/E-02 shape works at HEAD `d9aa65367`, prototyped in a gitignored scratch copy of the test file that was then deleted. Mutated and unfrozen: passes in 2.23s, every E-02 assertion holds, and stderr names `supports_fresh_verifier_session`. Unmutated control: no `host_capability_unavailable`, spawns `['executor', 'verifier']`, frozen probe verdict `True`, and still `status == 'fail-gate'` from a later lifecycle gate with `verification_status == 'verified'`. A full unfrozen `detect_host_capabilities('opencode')` costs 0.81s (1.2s mutated), so the control's runtime of about 22s is the pipeline's own cost and roughly matches the existing frozen test (about 25s). | Review prototype output: `MUT host_capability_unavailable [RUN-HOST-CAPABILITY] Host opencode cannot enforce supports_fresh_verifier_session ...`; `CONTROL fail-gate verified ['executor', 'verifier'] True`; `--durations` `21.97s call ...test_a8_control`, `25.35s call ...test_verifier_session_captured_and_persisted`. |
 | F-6 | Sibling plans cover adjacent but different ground: `jo55oo` (backlog `4dktme`) forces the verdict True around the mutation test and adds a probe-level (not pipeline-level) fail-closed test; `r6ykw2` (backlog `0016hm`) adds a reached-verify assertion in the helper. Neither drives the pipeline with the descriptor unfrozen. | `.aw/records/plans/pending/20261012-4dktme-01-jo55oo-...ipd.md` E-01..E-03; `.aw/records/plans/pending/20261012-0016hm-01-r6ykw2-...ipd.md` E-02. |
 
 ## Proposed changes (ordered, validatable)
@@ -106,7 +109,7 @@ N/A: test-only change; no CLI, spec, or user-facing documentation describes this
 
 - Blocking: no
 - Status: resolved
-- Owner: none
+- Owner: plan author
 - Resolution or deferral rationale: No. The frozen descriptor is the intended run-scoped design (`bqtgmo`: `ensure_frozen_host_capabilities` reads the frozen descriptor instead of re-probing per item), and leaving it on by default keeps the other tests in the file independent of host probing cost and environment. E-01 makes the unfrozen path opt-in, which is exactly what E-02 needs.
 
 ## Validation and cross-check (verify before reporting done)
@@ -133,4 +136,10 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 - Size assessment: standard
 - Cohesion rationale: not required
 
-Execute only after explicit human approval (`- Status: approved`). Follow the agent execution contract: commit through `aw commit a8yn86 -- <paths>`, never push, and paste real runner output. Move to `.aw/records/plans/executed/` only through the tooled lifecycle, after `aw ipd lint --phase pre-transition` conforms and every `V-*` carries pasted evidence with `Result: pass`.
+Execute only after explicit human approval (`- Status: approved`). All open questions are resolved (OQ-01).
+
+Execution contract:
+- Scope declaration: the change is confined to the two paths in `- Scope-Paths:`. That list is a declaration, not a stop condition. If an edit outside it turns out to be genuinely required, make it and justify it at finalize with `--scope-reason`. Acknowledge a declared path you left unmodified with `--scope-ack`.
+- Honesty: you MUST paste the ACTUAL runner output for every test claim. Never report a pass you did not run.
+- Commits: commit only the declared paths through `aw commit a8yn86 -- <paths>`. Never use `git add -A`, and never push.
+- Lifecycle: when this plan runs under `aw oc run` / `aw agy run`, the runner owns finalize and the move to `executed/`. Do not run `aw ipd finalize` yourself. When executing by hand, finalize through `aw ipd finalize` once `aw ipd lint --phase pre-transition` conforms and every `V-*` carries pasted evidence with `Result: pass`. Never hand-roll a `git mv` into `executed/`.
