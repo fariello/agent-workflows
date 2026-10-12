@@ -2,11 +2,12 @@
 
 - Date: 2026-10-11
 - Kind: child
-- Concern: The cheapest honest way to learn what a deleted test file asserted, and whether that property still holds, is to RUN it against today's code. Reading 102,815 lines of deleted test source by hand (measured: the 209 uncited files total 102,815 lines at `19313eed^`) is not affordable, and reading it without running it cannot tell a still-true property from a regressed one. Nothing in the repo replays a historical test blob today. Measured facts that shape the harness: 46 of the 209 files import `tests.support`, 4 import `tests.test_ipd_lifecycle_cli`, 4 import `tests.conformance_matrix`, 3 import `tests.fixtures`; 2 import `tests.test_run_analytics_export`, which no longer exists at HEAD; 20 import `pytest` and the rest are plain `unittest.TestCase` (`pyproject.toml` comment "the tests themselves are plain stdlib `unittest.TestCase`"). A replay must therefore run with the repo root on `sys.path` (as `conftest.py` arranges via `PYTHONPATH`) while the blob itself lives OUTSIDE the tracked tree, because writing it under `tests/` in a shared checkout would collide with co-workers and with the 4 recreated paths (`1ub8ex` F-03).
-- Scope: IN: a new `tools/deleted_test_replay.py` that, given a commit and one or more deleted test paths, materializes each blob from `<commit>^:<path>` into a fresh temporary directory (never under the repo), runs it with `python3 -m pytest -o addopts="" -q -p no:cacheprovider --rootdir <repo>` and `PYTHONPATH=<repo>`, with `cwd` = repo, a per-file timeout, and reports per file one of `pass` / `fail` / `error-collect` / `error-import` / `timeout`, plus per-test outcomes (parsed from a `--junitxml` written into the temp dir), as text and JSON; behavioral tests over a synthesized `tmp_path` git repository; a `tools/README.md` section. OUT: interpreting results (Order 05); mutation (Order 03); restoring any test into `tests/`.
+- Concern: The cheapest honest way to learn what a deleted test file asserted, and whether that property still holds, is to RUN it against today's code. Reading 102,815 lines of deleted test source by hand (measured: the 209 uncited files total 102,815 lines at `19313eed^`) is not affordable, and reading it without running it cannot tell a still-true property from a regressed one. Nothing in the repo replays a historical test blob today. Measured facts that shape the harness: 46 of the 209 files import `tests.support`, 4 import `tests.test_ipd_lifecycle_cli`, 4 import `tests.conformance_matrix`, 3 import `tests.fixtures`; 2 import `tests.test_run_analytics_export`, which no longer exists at HEAD; 20 import `pytest` and the rest are plain `unittest.TestCase` (`pyproject.toml` comment "the tests themselves are plain stdlib `unittest.TestCase`"). A replay must therefore run with the repo root on `sys.path` while the blob itself lives OUTSIDE the invoking checkout, because writing it under `tests/` in a shared checkout would collide with co-workers and with the recreated paths (`1ub8ex` F-03). Review measured that a BARE temp dir is not a faithful environment: 85 of the 298 test files the trim deleted resolve the repo from `Path(__file__)` (most often `REPO_ROOT = Path(__file__).resolve().parents[1]`), and the root `conftest.py` home sandbox (`AW_HOME`/`XDG_CONFIG_HOME`) does not apply to a file outside the rootdir. So each replay runs inside a throwaway detached `git worktree` of `HEAD` created under a temp dir, with the blob written at its ORIGINAL repo-relative path; that is the same isolation `g55j1e` (Order 03) uses.
+- Scope: IN: a new `tools/deleted_test_replay.py` that, given a commit and one or more deleted test paths, materializes each blob from `<commit>^:<path>` at `<path>` inside a fresh detached worktree of `HEAD` under `tempfile.mkdtemp()` (never inside the invoking checkout's tree), runs it with `python3 -m pytest -o addopts="" -q -p no:cacheprovider -p no:randomly` with `cwd` = the worktree and `PYTHONPATH=<worktree>`, a per-file timeout that kills the whole process group, and reports per file one of `pass` / `fail` / `error-import` / `error-collect` / `no-tests` / `timeout` / `error`, plus per-test outcomes (parsed from a `--junitxml` written into the temp dir), as text and JSON; behavioral tests over a synthesized `tmp_path` git repository; a `tools/README.md` section. OUT: interpreting results (Order 05); mutation (Order 03); restoring any test into `tests/`.
 - Scope-Paths: tools/deleted_test_replay.py, tests/test_deleted_test_replay.py, tools/README.md
 - Item-Dependencies: none
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
 - From-Backlog: e486tz
@@ -18,6 +19,7 @@
 
 ## Workflow history
 
+- 2026-10-12 reviewed (opencode its_direct/pt3-claude-opus-5.5-1m-us): /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005, PR-006, PR-007. Reviewed at HEAD d2bbf1ded. Replay moved from a bare temp dir to a detached worktree of HEAD with the blob at its original path (demonstrated 6 spurious failures and no home sandbox otherwise; --rootdir cost ~65s/file); verdict set gains no-tests and error; process-group timeout kill; seven-case fixture plus CLI --from-json subprocess test; live count re-derived; gate itemized. Record: .aw/records/reviews/20261011-uncitedaudit-02-nzzu8n-add-a-deleted-test-replay-harness-that-runs-a-trim-deleted-t.review.md.
 - 2026-10-12 draft (opencode its_direct/pt3-claude-opus-5.5-1m-us): created.
 - 2026-10-12 to-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): authored review-ready from backlog e486tz.
 
@@ -31,27 +33,43 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: Harness
 
-- [ ] E-01 Create `tools/deleted_test_replay.py` with `replay_file(repo_root, commit, rel_path, timeout_s=300, python_prefix=None, extra_env=None) -> ReplayResult` (`python_prefix`, default `[sys.executable]`, lets Order 04 run the same replay as `[sys.executable, "-m", "coverage", "run", "--rcfile", rc]`; `extra_env` is merged into the child env) and a `main(argv)` CLI (`<commit> <path>... [--from-json <inventory.json>] [--format text|json] [--timeout N]`; `--from-json` accepts the `--uncited --format json` output of `tools/lost_guard_census.py` from Order 01 and replays every listed path). For each path: `git show <commit>^:<path>` into `tempfile.mkdtemp()`/<basename>; run `sys.executable -m pytest -o addopts="" -q -p no:cacheprovider -p no:randomly --rootdir <repo_root> --junitxml <tmp>/junit.xml <tmp>/<basename>` with `cwd=repo_root`, `env` = current env plus `PYTHONPATH=<repo_root>` prepended; classify: exit 0 -> `pass`; exit 1 -> `fail`; exit 2 or 4 or 5 with a collection error whose message contains `ModuleNotFoundError`/`ImportError` -> `error-import`, otherwise `error-collect`; `subprocess.TimeoutExpired` -> `timeout`. Parse the junit XML into per-test `(nodeid, outcome)` pairs. Always remove the temp dir. Never write under `repo_root`. Disabling `pytest-randomly` is deliberate for reproducible per-test outcomes in a one-shot replay; it is not the bare-suite run the repo contract governs.
+- [ ] E-01 Create `tools/deleted_test_replay.py` with `replay_file(repo_root, commit, rel_path, timeout_s=300, python_prefix=None, extra_env=None) -> ReplayResult` and a `main(argv)` CLI.
+  - Hooks for Order 04 (`sk2rbf` E-04): `python_prefix`, default `[sys.executable]`, lets the same replay run as `[sys.executable, "-m", "coverage", "run", "--rcfile", rc]`; `extra_env` is merged into the child env last.
+  - CLI: `<commit> [<path>...] [--from-json <inventory.json>] [--format text|json] [--timeout N]`. `--from-json` accepts the `--uncited --format json` output of `tools/lost_guard_census.py` (Order 01, a JSON list of records each carrying `path`; `1ub8ex` E-01) and replays every listed `path` in list order after any positional paths. No path at all is a usage error (exit 2 via `parser.error`). Exit 0 for any set of verdicts. `--format json` writes ONLY `json.dumps([result, ...], indent=2, sort_keys=True)`; text prints one line per file (verdict, counts) and a totals line per verdict.
+  - Isolation: `tmp = tempfile.mkdtemp()`; `git -C <repo_root> worktree add --detach <tmp>/wt HEAD`; write `git show <commit>^:<rel_path>` to `<tmp>/wt/<rel_path>` (creating parents). If that path exists at `HEAD`, set `overwrote_head_path: true`. The replay sees COMMITTED `HEAD` only; uncommitted edits in the invoking checkout are not seen, and `ReplayResult.head` records the sha. Rationale: `Path(__file__)`-relative repo lookups and the root `conftest.py` (home sandbox, `PYTHONPATH`) then behave as they did in-tree (F-02, F-05).
+  - Run: `python_prefix + ["-m", "pytest", "-o", "addopts=", "-q", "-p", "no:cacheprovider", "-p", "no:randomly", "--junitxml", "<tmp>/junit.xml", rel_path]` with `cwd=<tmp>/wt`, `env` = current env plus `PYTHONPATH=<tmp>/wt` prepended plus `extra_env`, `start_new_session=True`, stdout/stderr captured. On `timeout_s`, `os.killpg` the group with SIGKILL and reap it, so subprocess-spawning tests leave no orphans (F-06). Disabling `pytest-randomly` is deliberate for reproducible per-test outcomes in a one-shot replay; it is not the bare-suite run the repo contract governs.
+  - Classify (exit codes per pytest `ExitCode`): timeout -> `timeout`; exit 0 -> `pass`; exit 1 -> `fail`; exit 2 with a junit `<error>` whose text contains `ModuleNotFoundError` or `ImportError` -> `error-import`; any other exit 2 with a junit `<error>` -> `error-collect`; exit 5 -> `no-tests`; anything else (3 internal error, 4 usage error, a signal, or exit 1/2 with no parsable junit XML) -> `error`. Exit-2-plus-junit-`<error>` text for an import failure was demonstrated at review (F-07).
+  - Per-test outcomes: parse the junit XML into sorted `(nodeid, outcome)` pairs, `nodeid = <classname>::<name>`, outcome `passed`/`failed`/`error`/`skipped` from the child element. For `error-import`/`error-collect`, set `error_line` to the first line of the error text that names the exception (Order 05 cites it).
+  - Result fields: `commit`, `path`, `head`, `verdict`, `exit_code`, `tests` (the pairs), `counts` (per outcome), `error_line`, `overwrote_head_path`, `replay_root` (the worktree path used, so Order 04 can relativize coverage file paths after the worktree is gone), `wall_s`.
+  - Cleanup: a `finally` always runs `git -C <repo_root> worktree remove --force <tmp>/wt`, `git -C <repo_root> worktree prune`, then `shutil.rmtree(tmp, ignore_errors=True)`. Apart from git's own worktree metadata, which this cleanup removes, nothing is written to the invoking checkout.
   - Depends on: none
-  - Expected outcome: `python3 tools/deleted_test_replay.py 19313eed tests/test_run_freeze.py` reports a verdict and 12 per-test outcomes (the file defines 12 tests at `19313eed^`), and `git status --short` is unchanged by the run.
+  - Expected outcome: `python3 tools/deleted_test_replay.py 19313eed tests/test_run_freeze.py --format json` reports a verdict and one per-test outcome for every test pytest collects from that blob, with the count re-derived at execution (at review the blob collected 12 and passed: `12 passed in 0.15s`; context, not the bar). `git status --short` and `git worktree list` of the invoking checkout are identical before and after.
   - Execution state: pending
 
 ### Task group 2: Tests and docs
 
-- [ ] E-02 Create `tests/test_deleted_test_replay.py` that builds a throwaway git repo under `tmp_path` containing a tiny package `pkg/` with a function, commits test files that (a) pass, (b) fail one assertion against the current `pkg`, (c) import a module that the trim commit removes, then commits a trim deleting all three; drive `replay_file` against that repo and assert verdicts `pass`, `fail`, `error-import` respectively, the per-test outcome lists, and that the fixture repo's `git status --porcelain` is empty afterwards. Also drive `main([... , "--format", "json"])` and assert the parsed JSON and exit code. Add one `timeout` case with a test that sleeps beyond a 1s timeout. No `livecorpus` marker; never references the real trim shas.
+- [ ] E-02 Create `tests/test_deleted_test_replay.py` (import as `from tools.deleted_test_replay import ...`, the pattern `tests/test_lost_guard_census.py` uses). A fixture builds a throwaway git repo under a temp dir (`git init -b main`, local `user.name`/`user.email`) containing a tiny package `pkg/` with a function and a data file, plus a root `conftest.py` that sets an env var `REPLAY_CONFTEST=1`. It commits test files that:
+  - (a) pass;
+  - (b) fail one assertion against the current `pkg`;
+  - (c) import a module `pkg.gone` that the trim commit removes;
+  - (d) have a syntax error;
+  - (e) define no tests;
+  - (f) sleep 30s inside one test;
+  - (g) read `Path(__file__).resolve().parents[1] / "pkg" / "data.txt"` and assert `os.environ["REPLAY_CONFTEST"] == "1"`.
+  Then it commits a trim deleting all seven. Drive `replay_file` per file (timeout 1s for (f), default otherwise) and assert verdicts `pass`, `fail`, `error-import`, `error-collect`, `no-tests`, `timeout`, `pass` respectively. Also assert the per-test `(nodeid, outcome)` lists for (a) and (b), a non-empty `error_line` naming `ModuleNotFoundError` for (c), and that after every call the fixture repo's `git status --porcelain` is empty and `git worktree list` holds only the main worktree. Add one `overwrote_head_path: true` case: a deleted path re-created at `HEAD`. Run the CLI as a subprocess `[sys.executable, <tool path>, <trim sha>, "--from-json", <inv.json>, "--format", "json"]`, where `<inv.json>` is a list of `{"path": ...}` records written to `tmp_path`; assert exit 0 and that the parsed JSON has one result per listed path, in order. Also assert that no path exits 2. No `livecorpus` marker; never reference the real trim shas.
   - Depends on: E-01
-  - Expected outcome: the new file passes in the default bare run; each verdict class is exercised.
+  - Expected outcome: the new file passes in the default bare run (under xdist, so no test changes the pytest process's cwd), and every verdict class except `error` has a dedicated case. `error` is the residual class, reachable only through a pytest internal error or a missing junit file, and is deliberately not simulated.
   - Execution state: pending
 
-- [ ] E-03 Add a `deleted_test_replay.py` section to `tools/README.md` stating purpose, the temp-dir isolation rule, the verdict classes, and the `--from-json` handoff from `lost_guard_census.py --uncited --format json`.
+- [ ] E-03 Add a `deleted_test_replay.py` section to `tools/README.md` stating purpose, the isolation rule (a throwaway worktree of committed `HEAD`, never the invoking checkout), the seven verdict classes, and the `--from-json` handoff from `lost_guard_census.py --uncited --format json`. `tools/README.md` is user-facing prose: no em or en dashes.
   - Depends on: E-01
-  - Expected outcome: a README section exists with those four points.
+  - Expected outcome: a README section exists with those four points and contains no em or en dash.
   - Execution state: pending
 
 ## Project conventions discovered (Step 0)
 
-- Shared checkout: never write into tracked paths another party may edit (`AGENTS.md` "Shared checkout: you are not alone in this repo"); the replay therefore stages blobs in a temp dir.
-- `conftest.py` puts the repo root on `PYTHONPATH` ("os.environ[\"PYTHONPATH\"] = f\"{_REPO_ROOT}...") so subprocesses import the checkout's package; the harness reproduces that explicitly because a temp-dir test file is outside the conftest's reach.
+- Shared checkout: never write into tracked paths another party may edit (`AGENTS.md` "Shared checkout: you are not alone in this repo"); the replay therefore stages blobs in a throwaway worktree under a temp dir.
+- `conftest.py` puts the repo root on `PYTHONPATH` (`conftest.py:113` `_current_pp = os.environ.get("PYTHONPATH", "")`) and installs the home sandbox (`conftest.py:140` `_HOME_KEYS = ("AW_HOME", "XDG_CONFIG_HOME")`). Running inside a worktree of `HEAD` makes both apply to the replayed file; the harness additionally sets `PYTHONPATH=<worktree>` so the worktree's package copy wins over the editable install (`g55j1e` F-05 demonstration).
 - Tools here are stdlib-only scripts with a `main(argv)` and behavioral tests over synthesized git repos (`tools/lost_guard_census.py`, `tests/test_lost_guard_census.py`).
 - P16 (`GUIDING_PRINCIPLES.md` Section 16): the new tests exercise the harness through calls and subprocesses and assert outputs; they read no production source.
 
@@ -62,11 +80,14 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 | F-01 | The uncited population is 102,815 lines of test source, too large to read unaided. | Authoring probe summing `git show 19313eed^:<p>` line counts over the 209 uncited paths. |
 | F-02 | Replayed files need repo-root imports of `tests.*` helpers. | Authoring probe of import lines: `tests.support` 46, `tests.test_ipd_lifecycle_cli` 4, `tests.conformance_matrix` 4, `tests.fixtures` 3; `tests/__init__.py` and `tests/support.py` exist at HEAD. |
 | F-03 | Some replays will fail on imports that no longer exist, which is a distinct verdict from a behavioral failure. | `tests.test_run_analytics_export` imported by 2 files, absent at HEAD; `agent_workflows.wtiso_gate` imported by 1 file, absent at HEAD (`1ub8ex` F-04). |
-| F-04 | A pytest run of a file outside the repo is cheap to start (~0.4s). | `time python3 -m pytest -o addopts="" -q -p no:randomly <tmpdir>/x.py` -> `real 0m0.419s` at authoring. |
+| F-04 | Per-file overhead is small: a detached worktree costs about 0.8s and a one-file run about 0.6s. The authoring design (`--rootdir <repo>` with the file outside it) instead took 66s for a one-assert test. | Review: `git worktree add --detach` `real 0m0.763s`; `tests/test_run_freeze.py` in the worktree `real 0m0.612s`; `--rootdir "$PWD" <tmp>/test_p.py` -> `1 passed in 64.54s`. |
+| F-05 | A bare temp dir changes outcomes. 85 of the 298 test files deleted by the trim use `__file__`, mostly as a repo-root anchor. The root conftest's home sandbox does not reach a file outside the rootdir. | Review: `tests/test_shared_checkout_contract.py` from `19313eed^` gives `6 failed, 4 passed` from a temp dir but `10 passed` at its own path in a tree of `HEAD`. A probe printed `AW_HOME= None` from a temp dir and `AW_HOME= /tmp/aw-test-home-...` inside a worktree. |
+| F-06 | 137 of the 298 deleted files use `subprocess`, so a timeout that kills only the direct child can orphan grandchildren. | Review grep over the `19313eed^` blobs; process-group kill (`start_new_session` + `os.killpg`) returned at the 2s timeout in a probe. |
+| F-07 | Import failures surface as exit 2 with junit `<error message="collection failure">` whose text contains `ModuleNotFoundError`; a syntax error is also exit 2 without it; a file with no tests is exit 5. | Review probes: `i exit=2 ModuleNotFoundError: No module named 'nosuchmod_xyz'`, `s exit=2`, `n exit=5`. |
 
 ## Proposed changes (ordered, validatable)
 
-1. Replay harness with verdict classes and JSON output (E-01).
+1. Worktree-isolated replay harness with verdict classes and JSON output (E-01).
 2. Synthesized-repo behavioral tests covering every verdict (E-02).
 3. README section (E-03).
 
@@ -80,13 +101,14 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 ## Scope check
 
 - Over-scope: none.
-- Under-scope: none known. If some files need fixtures from `tests/fixtures/` relative to their own `__file__`, they will report `fail`/`error-collect`; Order 05 records that as `replay-env-limited` rather than this harness special-casing it.
+- Under-scope: none known. Files needing `tests/fixtures/` relative to their own `__file__` now resolve them, because the blob sits at its original path in a tree of `HEAD`. A file whose fixture was itself deleted by the trim still reports `fail`/`error-collect`; Order 05 records that as `replay-env-limited`. The two classes this review added, `no-tests` and `error`, also map to `replay-env-limited` in Order 05 (`8d0qsg`), with the cause named. They are cross-referenced here because this plan owns the verdict set.
 
 ## Required tests / validation
 
+- Before E-01, capture an execution-start baseline: bare `python3 -m pytest`, with the summary line and failing node ids saved outside the repo.
 - `python3 -m pytest -o addopts="" -q tests/test_deleted_test_replay.py` passes.
-- A live replay of `tests/test_run_freeze.py` at `19313eed` leaves `git status --short` unchanged.
-- Bare `python3 -m pytest`, actual summary pasted, no new failures versus an execution-start baseline.
+- A live replay of `tests/test_run_freeze.py` at `19313eed` leaves `git status --short` and `git worktree list` unchanged.
+- Bare `python3 -m pytest`: paste the actual summary; no new failures versus the baseline.
 
 ## Spec / documentation sync
 
@@ -101,22 +123,29 @@ N/A for specs: no `.spec.md` governs audit tooling under `tools/`. `tools/README
 - Owner: none
 - Resolution or deferral rationale: No. One file per process with `-o addopts=""` keeps per-test outcomes deterministic; Order 05 parallelizes across files if it needs to. The bare-suite contract in `AGENTS.md` governs suite runs, not single-file replays.
 
+### OQ-02: Should the replay run from a bare temp dir or from a worktree of `HEAD`?
+
+- Blocking: no
+- Status: resolved
+- Owner: plan reviewer
+- Resolution or deferral rationale: Worktree. Demonstrated at review (F-05): from a bare temp dir, `tests/test_shared_checkout_contract.py` gives `6 failed, 4 passed`; at its own path in a tree of `HEAD` it gives `10 passed`. The conftest home sandbox applied only in the worktree. The cost is about 0.8s per file (F-04). Recorded as D-1 in the review record.
+
 ## Validation and cross-check (verify before reporting done)
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
 - [ ] V-01 validates E-01
-  - Required evidence: pasted `git status --short` before and after, and the pasted output of `python3 tools/deleted_test_replay.py 19313eed tests/test_run_freeze.py --format json` (produced by E-01's `main`), showing a verdict and 12 per-test outcomes.
+  - Required evidence: pasted `git status --short` and `git worktree list` before and after, both identical. Also the pasted output of `python3 tools/deleted_test_replay.py 19313eed tests/test_run_freeze.py --format json` (produced by E-01's `main`), showing a verdict and a `tests` list. Its length must equal the count pytest collects from that blob, re-derived at execution: write the blob to a scratch worktree and paste the `--collect-only -q` summary. A hard-coded number is not the bar.
   - Observed evidence:
   - Result: pending
 
 - [ ] V-02 validates E-02
-  - Required evidence: pasted `python3 -m pytest -o addopts="" -q tests/test_deleted_test_replay.py` summary line, and a list of which test asserts each of the five verdict classes.
+  - Required evidence: pasted `python3 -m pytest -o addopts="" -q tests/test_deleted_test_replay.py` summary line, and a mapping from each verdict class other than `error` (`pass`, `fail`, `error-import`, `error-collect`, `no-tests`, `timeout`) to the case that asserts it, plus the `__file__`/conftest case (g). Sensitivity check: in a scratch copy, change the classifier so `error-import` falls through to `error-collect`, paste the failing run, and discard the copy.
   - Observed evidence:
   - Result: pending
 
 - [ ] V-03 validates E-03
-  - Required evidence: pasted `git diff tools/README.md`; pasted bare `python3 -m pytest` summary line with no new failures versus the execution-start baseline.
+  - Required evidence: pasted `git diff tools/README.md`, and pasted output of a search of the added lines for U+2013/U+2014 that finds none. Also the pasted execution-start baseline and the final bare `python3 -m pytest` summary lines, showing no new failing node ids.
   - Observed evidence:
   - Result: pending
 
@@ -125,4 +154,15 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 - Size assessment: standard
 - Cohesion rationale: not required
 
-Requires explicit human approval before execution. EXECUTION CONTRACT: commit only the declared `- Scope-Paths:` through `aw commit <plan> -- <paths>`; never `git add -A`, never `--no-verify`, never push. The harness must never write under the repository; a replay that dirties the tree is a defect to fix, not to clean up by hand. Under a runner, the runner finalizes; by hand, use `aw ipd finalize`.
+Requires explicit human approval before execution. EXECUTION CONTRACT:
+- Open questions: OQ-01 and OQ-02 are resolved, and none remain.
+- Order: capture the bare-suite baseline, then E-01, then E-02 and E-03.
+- Scope fence (a declaration, not a stop rule): the change is expected to touch only the paths in `- Scope-Paths:`. If an out-of-scope edit proves necessary, make it and justify it at finalize: `--scope-reason` for each out-of-scope path, `--scope-ack` for each declared path left unmodified.
+- Invariants:
+  - The harness never writes a file in the invoking checkout's tree. Blobs go only into its own temp worktree.
+  - Every worktree it creates is removed and pruned, even on exception or timeout.
+  - A timeout kills the whole process group.
+  - If a replay leaves a dirty path or a worktree behind, fix the tool. Do not hand-clean.
+- Honesty: paste the ACTUAL runner output for every claim. Never claim a result you did not run.
+- Commit: only the declared paths, through `aw commit <plan> -- <paths>`. Verify that `git diff --cached --name-only` lists only your paths. Never `git add -A`, never `--no-verify`, never push.
+- Lifecycle: under `aw oc run` / `aw agy run` the runner performs finalize and the lifecycle move. When executing by hand, finalize with `aw ipd finalize` after `aw ipd lint --phase pre-transition` conforms. Never move the plan with a hand `git mv`.
