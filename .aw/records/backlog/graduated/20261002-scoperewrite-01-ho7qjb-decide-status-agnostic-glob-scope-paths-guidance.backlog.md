@@ -1,11 +1,13 @@
 - Id: ho7qjb
-- Status: open
+- Status: graduated
+- Graduated-To: scoperewrite
 - Set: scoperewrite
 - Priority: low
 - Work-Kind: chore
 - Summary: Decide whether to teach the status-agnostic Scope-Paths glob spelling as author guidance, which prevents stale record scope targets at the source with no code
 
 ## Workflow history
+- 2026-10-12 graduated (aw backlog): graduated by run run-20261012T005617Z-2321742: yrq57q
 - 2026-10-02 created (aw backlog): Decide whether to teach the status-agnostic Scope-Paths glob spelling as author guidance, which prevents stale record scope targets at the source with no code
 
 RAISED while authoring plan `5h3qyy` (Set `scoperewrite`, graduating backlog `es7wdp`) as that plan's F-03, and originally noted as F-10 of executed plan `guti33`. Filed as the durable carrier of `5h3qyy`'s deferred row. This is the ZERO-CODE alternative to the whole `scoperewrite` line of work: if plan authors spelled a record scope entry status-agnostically, the stale-target finding could not arise in the first place.
