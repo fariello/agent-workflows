@@ -1,11 +1,13 @@
 - Id: cvtg9u
-- Status: open
+- Status: graduated
+- Graduated-To: cvtg9u
 - Set: cvtg9u
 - Priority: medium
 - Work-Kind: followup
 - Summary: Generic color axis ignores color_depth pin at pin none
 
 ## Workflow history
+- 2026-10-12 graduated (aw backlog): graduated by run run-20261012T005617Z-2321742: lv0dvv
 - 2026-10-08 created (aw backlog): Generic color axis ignores color_depth pin at pin none
 
 ## Context and Measured Evidence
