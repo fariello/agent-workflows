@@ -1,11 +1,13 @@
 - Id: 303k5n
-- Status: open
+- Status: graduated
+- Graduated-To: 303k5n
 - Set: 303k5n
 - Priority: low
 - Work-Kind: chore
 - Summary: Decide whether specs.run_set's inline --gate-summary refusal should adopt the shared descriptive-refusal vocabulary, which changes a shipped user-facing message and the non-regression test pinning it verbatim
 
 ## Workflow history
+- 2026-10-12 graduated (aw backlog): graduated by run run-20261012T005650Z-2322198: vql6j0
 - 2026-10-02 created (aw backlog): Decide whether specs.run_set's inline --gate-summary refusal should adopt the shared descriptive-refusal vocabulary, which changes a shipped user-facing message and the non-regression test pinning it verbatim
 
 FILED AS THE CARRIER for the one outstanding obligation in plan `685iq8` (Set `zllcnv`), which hoists the
