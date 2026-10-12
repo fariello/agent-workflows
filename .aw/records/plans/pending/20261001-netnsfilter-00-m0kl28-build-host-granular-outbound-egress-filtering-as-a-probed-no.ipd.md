@@ -8,9 +8,9 @@
 - Item-Dependencies: none
 - Status: approved
 - Readiness: go-pending-approval
-- Coverage: fail
-- Coverage-Fingerprint: 0873f75ad43cc59e049712da86586bd40184bcab2960152ebafaaa29865087bc
-- Coverage-Checked: 2026-10-11 by uri/its_direct/pt3-claude-opus-5.5-1m-us
+- Coverage: pass
+- Coverage-Fingerprint: 3ba064065d63a65c687fb254166bcfc9d102c1805e9cb3969416e8d2d0e3d08e
+- Coverage-Checked: 2026-10-12 by uri/its_direct/pt3-claude-opus-5.5-1m-us
 - From-Backlog: sv9ce4
 - From-Spec: 25kzda
 - Work-Kind: feature
@@ -23,6 +23,7 @@
 - Approval: 2026-10-08, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-12 coverage pass (aw oc run): fingerprint 3ba064065d63, model uri/its_direct/pt3-claude-opus-5.5-1m-us
 - 2026-10-11 coverage fail (aw oc run): fingerprint 0873f75ad43c, model uri/its_direct/pt3-claude-opus-5.5-1m-us
 - 2026-10-11 coverage fail (aw oc run): fingerprint b46b0ab10a6a, model uri/its_direct/pt3-claude-opus-5.5-1m-us
 - 2026-10-11 coverage fail (aw oc run): fingerprint cdf16d40ee59, model uri/its_direct/pt3-claude-opus-5.5-1m-us
@@ -90,13 +91,10 @@ specific failure this Set guards against is a contract written to a hoped-for ca
 
 ## Completion criteria (the whole Set is done only when)
 
-- A capability on `HostSandboxCapabilities` reports destination-granular egress filtering, set True
-  only by an executed two-sided probe, with a `probe_notes` entry naming its limits. OWNER: `nxh5s4` (executed).
-- The probe returns False, with an explanatory note and no exception, on a host that cannot create a
-  network namespace. Fail-closed is a REQUIREMENT of done, not a degraded outcome. OWNER: `nxh5s4` (executed).
+- A capability on `HostSandboxCapabilities` reports destination-granular egress filtering, set True only by an executed two-sided probe, with a `probe_notes` entry naming its limits. OWNER: `nxh5s4` (executed).
+- The probe returns False, with an explanatory note and no exception, on a host that cannot create a network namespace. Fail-closed is a REQUIREMENT of done, not a degraded outcome. OWNER: `nxh5s4` (executed).
 - WITHDRAWN 2026-10-11 with children 03 and 04 (retired not-executed): the same-port confined-worker demonstration, the teardown-refusal proof, the contract amendment, and the Set-level sweep (bare suite, lint over the Set, overclaim audit) are not required. That spec note is ALREADY DONE, not owed: spec `25kzda` 5.2 was amended on 2026-10-11 in the same commit that retired the children (sentence beginning "DECIDED 2026-10-11 (maintainer): that half is NOT being built."), recorded by `aw specs note`.
-- No action is gated: `ACTION_CLASSES` is unchanged and `RUNNER_ACTION_TO_CONTRACT_ACTION` stays
-  empty. Enforcement is a separate decision with its own carrier. OWNER: `nxh5s4` and `rozdkp` (both executed; neither gates an action).
+- No action is gated: `ACTION_CLASSES` is unchanged and `RUNNER_ACTION_TO_CONTRACT_ACTION` stays empty. Enforcement is a separate decision with its own carrier. OWNER: `nxh5s4` and `rozdkp` (both executed; neither gates an action).
 
 ## Cross-IPD validation
 
@@ -195,12 +193,6 @@ Originally specified, and withdrawn with `wn956n`: a bare `python3 -m pytest`, `
   `not-executed/`, and its body names only the `denypush` decisions. It still surfaces as `active`
   in `aw attention`, so the carrier is visible, but the maintainer should add this question to it
   (or file a fresh carrier) when ruling on `denypush`, since nothing in its text yet mentions it.
-
-## Coverage findings
-
-- "- A capability on `HostSandboxCapabilities` reports destination-granular egress filtering, set True"
-- "- The probe returns False, with an explanatory note and no exception, on a host that cannot create a"
-- "- No action is gated: `ACTION_CLASSES` is unchanged and `RUNNER_ACTION_TO_CONTRACT_ACTION` stays"
 
 ## Validation and cross-check (verify before reporting the Set complete)
 
