@@ -1,11 +1,13 @@
 - Id: n8adhb
-- Status: open
+- Status: graduated
+- Graduated-To: n8adhb
 - Set: n8adhb
 - Priority: medium
 - Work-Kind: chore
 - Summary: tools/test_agy_run.py is not collected by any gate
 
 ## Workflow history
+- 2026-10-12 graduated (aw backlog): graduated by run run-20261012T005641Z-2321995: 5s31xp
 - 2026-10-01 created (aw backlog): tools/test_agy_run.py is not collected by any gate
 
 `tools/test_agy_run.py` contains 44 passing tests that NO GATE RUNS.
