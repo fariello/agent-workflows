@@ -6,7 +6,8 @@
 - Scope: Verification-only. Re-measure the named test in isolation and in the full default suite, confirm the two existing fixes are present and behaving, and record the evidence in this plan so `cqgr7f` can be closed as satisfied by this plan's execution. No production or test code change.
 - Scope-Paths: .aw/records/plans/**
 - Item-Dependencies: none
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
 - From-Backlog: cqgr7f
@@ -18,7 +19,9 @@
 - Id: d22iwu
 
 ## Workflow history
+- 2026-10-12 reviewed (aw set): plan-review complete: APPROVE WITH REVISIONS APPLIED
 
+- 2026-10-12 /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004 (all fixed; E-01..E-04 re-measured at review: pairwise + slow markers present, hang guard `9 passed`, isolated call `0.04s`, full suite `39 failed, 7180 passed` with the named nodeid absent from FAILED and the slowest-50; F-04 cause corrected).
 - 2026-10-12 draft (opencode): created.
 - 2026-10-11 to-review (opencode): authored from backlog cqgr7f as a verification-only plan; root cause already fixed by executed plans mat9bt and 6ye76g.
 
@@ -51,7 +54,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 - [ ] E-04 Run the full default suite BARE with durations (`python3 -m pytest --durations=50`), the configuration the backlog item reported failing under, and record whether the named nodeid appears in any failure or in the slowest-50 list.
   - Depends on: E-03
-  - Expected outcome: The named nodeid is absent from the FAILED list and from the slowest-50 list (or present with a duration far below the CPU and wall budgets). Unrelated failures, if any, are recorded verbatim and not acted on here.
+  - Expected outcome: The named nodeid is absent from the FAILED list and from the slowest-50 list (or present with a duration far below the CPU and wall budgets). Unrelated failures, if any, are recorded by file name and count and not acted on here. The FAILED set's size is a live artifact (38 at authoring, 39 at review), so it is NOT a bar: re-derive it at execution, and the only bar is the named nodeid's absence plus its duration.
   - Execution state: pending
 
 ## Project conventions discovered (Step 0)
@@ -67,8 +70,8 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 | F-01 | The swept-inputs test no longer runs the 7,776-combination cartesian product in the default suite; it iterates a pairwise covering array, and the exhaustive sweep is `@pytest.mark.slow` with `@pytest.mark.timeout(300)`. | `.aw/records/plans/executed/20261002-8sr0or-01-mat9bt-cut-the-statusline-swept-input-sweep-to-a-pairwise-covering.ipd.md` (`- Status: executed`); `tests/test_statusline_behavior.py` `TestStatuslineBoxInvariants.test_box_renderer_invariants_exhaustive_sweep` carries both markers. |
 | F-02 | The per-test hang guard now charges CPU time (`ITIMER_PROF`) with a retained 240s wall ceiling, so xdist contention no longer bills a correct test for waiting on CPU. | `.aw/records/plans/executed/20261002-hangcpu-01-6ye76g-make-the-per-test-hang-guard-measure-cpu-time-so-machine-loa.ipd.md` (`- Status: executed`); `conftest.py` "_DEFAULT_TEST_WALL_TIMEOUT = 240.0". |
 | F-03 | Authoring-time measurement: isolated run `1 passed ... in 0.98s`, call `0.03s`; full default suite `38 failed, 7181 passed, 2 skipped ... in 201.72s`, with the named nodeid NOT among the failures, and `0.06s` when run alongside `tests/test_hang_guard_budget.py` (`55 passed in 7.92s`). | Runner output captured in this lane on 2026-10-11. |
-| F-04 | The 38 full-suite failures (e.g. `tests/test_no_project_exit_is_cannot_run.py`, `tests/test_nonsurveyable_root_refusal.py`, `tests/test_read_class_callers_refuse.py`) are no-project / non-surveyable-root refusal tests, unrelated to the statusline or the hang guard, and are environment-sensitive to running inside a nested lane worktree. | FAILED list from the authoring run; none touch `render_stream` or `conftest.py` hang-guard behavior. |
-| F-05 | `cqgr7f` is the last open record of three describing one defect (`8sr0or` -> `mat9bt`, `mu4k1g` -> `6ye76g`), and it carries `Work-Kind: bug` + `Blocks-Release: next`, so it falsely gates the next release. | `.aw/records/backlog/open/20261001-cqgr7f-01-cqgr7f-statusline-swept-inputs-test-exceeds-90s-hang-time.backlog.md`; F-11 of `mat9bt`, F-10 of `6ye76g`. |
+| F-04 | The full-suite failures are unrelated to the statusline and the hang guard. CORRECTED AT REVIEW (2026-10-12): the cause is not the nested lane worktree. A re-run in the review lane reported `39 failed, 7180 passed, 2 skipped, 3 warnings in 203.09s`. Most of the failures (`tests/test_no_project_exit_is_cannot_run.py`, `tests/test_explicit_dir_non_project.py`, `tests/test_validator_nonsurveyable_dir.py`, `tests/test_nonsurveyable_root_refusal.py`, `tests/test_read_class_callers_refuse.py`, ...) are no-project tests whose `tmp_path` fixtures (`/tmp/pytest-of-<user>/...`) climb via `project_context.find_project_root` to a stray host directory `/tmp/.aw/records`, which makes `/tmp` look like an AW project (e.g. `Human surface for ('att',) expected exit 2, got 0`). `tests/test_commit_run_trailers_env.py` fails because the lane exports `AW_RUN_ID`/`AW_ITEM_ID6`/`AW_EXECUTION_ROLE`. Both are host or lane environment, not product defects that this plan carries. | Review-lane FAILED list; `ls -d /tmp/.aw/records`; failure text quoted. None touch `render_stream` or `conftest.py` hang-guard behavior. |
+| F-05 | `cqgr7f` is the last open record of three describing one defect (`8sr0or` -> `mat9bt`, `mu4k1g` -> `6ye76g`), and it carries `Work-Kind: bug` + `Blocks-Release: next`, so it falsely gates the next release. | `.aw/records/backlog/graduated/20261001-cqgr7f-01-cqgr7f-statusline-swept-inputs-test-exceeds-90s-hang-time.backlog.md` (moved from `open/` when this plan graduated it; `8sr0or` and `mu4k1g` are `done`); F-11 of `mat9bt`, F-10 of `6ye76g`. |
 
 ## Proposed changes (ordered, validatable)
 
@@ -82,7 +85,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Carrier-Declined: Not carried because they were observed only inside a nested lane worktree and are not yet confirmed on the main checkout; filing an unconfirmed environment artifact as a bug would add a phantom release blocker, the very defect this plan removes.
 - Any change to `conftest.py` budgets or to `tests/test_statusline_behavior.py`: the defect is already fixed (F-01, F-02); changing either would broaden scope with no failing evidence.
   - Carrier-Declined: Nothing to carry: there is no remaining defect to fix (F-01, F-02, F-03).
-- Setting `cqgr7f` to `done`: the runner and lifecycle own backlog status; this plan only supplies the executed carrier.
+- Setting `cqgr7f` to `done` as an E-item: the runner (`runner_shared.evaluate_backlog_close`) or a human/agent via `aw backlog set done cqgr7f` closes it after this plan executes (see the gate); this plan supplies the executed carrier. `cqgr7f` is already `graduated` (to `d22iwu`), not `open`.
   - Carrier-Declined: This plan itself is the From-Backlog carrier for `cqgr7f`; no further record is needed.
 
 ## Scope check
@@ -106,7 +109,7 @@ N/A: no behavior changes; no spec describes this test's runtime.
 
 - Blocking: no
 - Status: resolved
-- Owner: none
+- Owner: plan author
 - Resolution or deferral rationale: Closed as a duplicate via this verification plan. Repository evidence (F-01, F-02, F-03) shows the defect is fixed and the test runs in 0.03s; both prior plans explicitly recommended closing `cqgr7f` against their execution. New code would have no failing case to target.
 
 ## Validation and cross-check (verify before reporting done)
@@ -129,7 +132,7 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Result: pending
 
 - [ ] V-04 validates E-04
-  - Required evidence: Pasted final summary line of the bare full-suite run, plus pasted output of filtering its FAILED list and durations list for `test_box_renderer_invariants_across_swept_inputs`, showing it absent from FAILED and either absent from the slowest-50 or listed at a duration below 10s.
+  - Required evidence: Pasted final summary line of the bare full-suite run, plus pasted output of `grep -n "swept_inputs"` over the saved full output (FAILED lines AND the slowest-50 block), showing it absent from FAILED and either absent from the slowest-50 or listed at a duration below 10s. Also paste the per-file count of the FAILED list (`grep "^FAILED" | cut -d: -f1 | sort | uniq -c`) so a reader can see that no failing file is `tests/test_statusline_behavior.py`, `tests/test_hang_guard_budget.py` or `conftest.py`-level.
   - Observed evidence:
   - Result: pending
 
@@ -138,4 +141,4 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 - Size assessment: standard
 - Cohesion rationale: not required
 
-Execution requires explicit human approval. The executor modifies no code, records observed evidence in this plan only, commits through `aw commit <plan> -- <plan path>`, and never pushes. If any V-item fails (the named test fails or approaches a budget), the plan must NOT be moved to `executed/`; record the failure and leave `cqgr7f` live. On success, `aw ipd lint --phase pre-transition` must conform before the lifecycle move to `.aw/records/plans/executed/`, after which `cqgr7f` closes via the HANDOFF path.
+Execution requires explicit human approval. The executor modifies no code and records observed evidence in this plan only. It commits through `aw commit d22iwu -- <plan path>` (never `git add -A`, `-a` or `--no-verify`), verifies the staged set with `git diff --cached --name-only` first, and never pushes, tags or releases. Paste the ACTUAL runner output for every test claim; never claim a pass you did not run. `- Scope-Paths:` is a declaration: if an out-of-scope edit proves necessary, make it and justify it with `--scope-reason`. If any V-item fails (the named test fails or approaches a budget), the plan must NOT reach `executed`; record the failure and leave `cqgr7f` live. On success, `aw ipd lint --phase pre-transition` must conform before the terminal transition. In a runner lane the runner owns finalize; outside one, the executor runs `aw ipd finalize d22iwu` (never a hand `git mv`). Afterwards `cqgr7f` closes via the HANDOFF path (this plan carries the same `- From-Backlog: cqgr7f` and `- Blocks-Release: next`, checked by `check_engine.evaluate_blocking_close`); in a runner lane that close is the runner's (`runner_shared.evaluate_backlog_close`), otherwise run `aw backlog set done cqgr7f`.
