@@ -1,0 +1,117 @@
+# IPD: Refresh the run_analytics_cli query-summary comment now that a --fields projection preserves next
+
+- Date: 2026-10-12
+- Kind: child
+- Concern: The comment block above the `render_summary` call in `run_analytics_cli._emit_query_agent` justifies the call's no-context shape with "The summary takes no field projection because `next` is not in `agent_schema._PRESERVED_FIELDS`, so projecting this record could drop the paging continuation". Plan `6rcby1` (executed) added `next` to `_PRESERVED_FIELDS`, and the renderer independently retains `next` on a summary (`AgentRenderer.render_summary`, "IPD okiso1 E-03"), so that causal claim is now false and the comment misdescribes live behavior.
+- Scope: Rewrite that one comment block so it describes the post-fix reality: a projection is now a no-op on this summary record, the call is kept as shipped, and the load-bearing reason for the call's SHAPE is that the summary carries the query engine's counts (the neighbouring `THE SUMMARY CARRIES THE QUERY'S COUNTS, NOT THE STREAM'S` block), not a paging workaround. Comment lines only; no executable statement in `agent_workflows/run_analytics_cli.py` changes, the `render_summary` call and its arguments stay byte-identical, and no test, spec, or doc is touched.
+- Scope-Paths: agent_workflows/run_analytics_cli.py
+- Item-Dependencies: none
+- Status: to-review
+- Work-Kind: chore
+- Priority: low
+- From-Backlog: d6u2hz
+- Set: d6u2hz
+- Order: 1
+- Highest E allocated: 02
+- Author: opencode
+- Id: gbizqt
+
+## Workflow history
+
+- 2026-10-12 draft (opencode): created.
+- 2026-10-12 to-review (opencode): authored from backlog d6u2hz; prerequisite 6rcby1 confirmed executed; F-01..F-05 measured at HEAD 114af0797.
+
+## Goal
+
+Make the comment above `_emit_query_agent`'s `render_summary` call true again, describing why the call has its shape in terms that do not depend on a since-fixed projection defect, so the comment stops tracking a defect that no longer exists (third invalidation in the `gygujf` -> `mcdvx0` -> `6rcby1` lineage the backlog item records).
+
+## Detailed Implementation Checklist (TODO)
+
+Execution-state rule: mark an `E-*` item complete only after performing the action. That mark is not validation. Right-sizing rule: each E-item must address one concern and be executable in one focused pass; split when an E-item names multiple distinct deliverables or independent test-surfaces. Accepted execution states: blocked, failed, pending, performed; terminal gate demands 'performed'.
+
+### Task group 1: rewrite the comment
+
+- [ ] E-01 Replace the comment block in `run_analytics_cli._emit_query_agent` that begins `# THE SUMMARY IS RENDERED WITHOUT THE FIELD PROJECTION, DELIBERATELY, TO PRESERVE PAGINATION.` and ends immediately above `parts.append(` with a block that: (a) leads with a capitalized claim line in the file's existing style stating the summary is rendered from the engine's counts and its call is kept as shipped; (b) states that a `--fields` projection is now a no-op on this record, because `agent_schema._PRESERVED_FIELDS` retains `total`/`emitted`/`omitted` and `next` (plan `6rcby1`, backlog `kkjrqr`) and `AgentRenderer.render_summary` retains `next` on a summary regardless; (c) says the shape is justified by the counts reason given in the `THE SUMMARY CARRIES THE QUERY'S COUNTS, NOT THE STREAM'S` block above, by pointing at it rather than repeating it; (d) keeps a one-line history note that earlier versions of this call worked around a crash (`gygujf`/`3f4ayi`) and then a dropped `next` (`6rcby1`/`kkjrqr`), both fixed. Before editing, RE-MEASURE F-02 (the projection-equivalence probe in Findings); if any projection now changes the record, STOP and report instead of writing (b), because the rationale would be false. Do not touch the `render_summary` call, its arguments, or any other line.
+  - Depends on: none
+  - Expected outcome: The block no longer contains the phrase "`next` is not in `agent_schema._PRESERVED_FIELDS`" or any claim that projecting could drop the paging continuation; it states (a)-(d); `git diff -- agent_workflows/run_analytics_cli.py` contains only comment or blank `+`/`-` lines.
+  - Execution state: pending
+
+### Task group 2: prove inertness
+
+- [ ] E-02 Prove the change is behavior-neutral as the last act before commit. FIRST, capture `aw runs query overview --agent --fields cmd` and `aw runs query overview --agent` before E-01 and after it, and `diff` each pair. SECOND, run the suite BARE as `python3 -m pytest` once before E-01 and once after; record each summary line and the named FAILURE SET; the bar is that the two failure sets are identical (do NOT require green, do NOT fix or `TZ`-mask any pre-existing failure, which belongs to other parties). THIRD, mechanically confirm every `+`/`-` line in `git diff -- agent_workflows/run_analytics_cli.py` matches `^[+-]\s*#` or `^[+-]\s*$`, and that `git diff --stat` names no other source file.
+  - Depends on: E-01
+  - Expected outcome: Both command-output pairs byte-identical; identical named failure sets before and after; a comment-only diff touching only `agent_workflows/run_analytics_cli.py`.
+  - Execution state: pending
+
+## Project conventions discovered (Step 0)
+
+- Cite code by SYMBOL (`module.function`) or by a quoted content string, with a line number only appended to one of those and never alone: an offset expires before this plan executes (spec `ipd-structure-and-linting` Section 10.2; advisory `IPD-C801`).
+- Comment style in `agent_workflows/run_analytics_cli.py` leads with a capitalized claim line then justifies it (`THE SUMMARY CARRIES THE QUERY'S COUNTS, NOT THE STREAM'S, and the distinction is load-bearing.`, `A CAVEAT IS PART OF THE ANSWER.`); the replacement keeps that shape.
+- Code comments are exempt from the no-dash rule (execution contract); no effort is spent avoiding them.
+- P16 (`GUIDING_PRINCIPLES`) forbids a test that pins comment text, so no comment-text test is added; the comment is verified by reading (V-01) and the change by an inertness proof (V-02).
+- Suite runs BARE as `python3 -m pytest` per AGENTS.md repo-local contract; no `-n0`, extra `-q`, or `-p no:randomly`.
+
+## Findings
+
+| Id | Finding | Evidence |
+| --- | --- | --- |
+| F-01 | Prerequisite satisfied: `6rcby1` is executed and `next` is in `_PRESERVED_FIELDS`. The backlog item's "DO NOT START THIS UNTIL `6rcby1` IS EXECUTED" gate is met. | `.aw/records/plans/executed/20261001-kkjrqr-01-6rcby1-preserve-a-summary-s-next-paging-continuation-through-a-fiel.ipd.md` carries `- Status: executed`. `agent_schema._PRESERVED_FIELDS = _MANDATORY_FIELDS \| {"applied", "total", "emitted", "omitted", "next"}` at HEAD `114af0797`. |
+| F-02 | A projection is now a NO-OP on this summary record, so the comment's first justification is false, not merely weakened. | At HEAD `114af0797`, `AgentRenderer().render_summary('runs query', total=5, emitted=2, omitted=3, outcome='partial', exit_code=0, next_cmd='aw runs query metrics --limit 5', complete=False, context=OutputContext(mode=OutputMode.AGENT, fields=f))` equals the no-context rendering for `f` in `['cmd']`, `['total']`, `['outcome']`, `['a']` (all printed `True`); the unprojected record is `{"schema":"aw.agent/v1","kind":"summary","cmd":"runs query","outcome":"partial","exit":0,"total":5,"emitted":2,"omitted":3,"complete":false,"next":"aw runs query metrics --limit 5"}`. |
+| F-03 | `next` is retained by TWO independent mechanisms, so the replacement comment should name both rather than credit only `6rcby1`. `AgentRenderer.render_summary` re-adds `next` (and `diagnostics`) after `filter_record_fields` under the comment "IPD okiso1 E-03: retain next and diagnostics on a summary regardless of projection". | `agent_workflows/renderers.py`, `AgentRenderer.render_summary`; introduced in commit `a2f55c630` ("okiso1: make aw find --agent emit a real aw.agent/v1 record stream ..."). |
+| F-04 | The surviving justification is about the summary's COUNTS, already stated in the neighbouring block: "`render_stream` derives `omitted` from ITS OWN `--limit` truncation ... So the items are rendered individually and the summary is built from `result.total`/`result.emitted`/`result.omitted`". Strictly, that reason justifies calling `render_summary` with engine counts instead of `render_stream`; it does not by itself require omitting `ctx`. Given F-02, omitting `ctx` is now merely equivalent. The comment must say this honestly rather than invent a projection reason. | `_emit_query_agent`, block beginning `# THE SUMMARY CARRIES THE QUERY'S COUNTS, NOT THE STREAM'S`. |
+| F-05 | The existing behavioral pin `test_emit_query_agent_bounded_preserves_next_under_fields_projection` (added by `mcdvx0` E-04) still passes as an OUTCOME test, but its recorded falsifier (pass `ctx`, observe `next` missing) no longer fails because of F-02/F-03. The test still asserts a true, user-relevant property and needs no change; it is noted so the executor does not misread a non-failing falsifier as a defect. | `tests/test_run_analytics_cli.py::RunAnalyticsCliUxTests::test_emit_query_agent_bounded_preserves_next_under_fields_projection`; `mcdvx0` V-04 falsifier output `'next' not found in {...}` predates `6rcby1`. |
+
+## Proposed changes (ordered, validatable)
+
+1. E-01: rewrite the one comment block in `_emit_query_agent` per F-02..F-04 (validated by V-01).
+2. E-02: prove byte-identical output, unchanged failure set, and comment-only diff (validated by V-02).
+
+## Deferred / out of scope (with reason)
+
+- CHANGING the `render_summary` call to pass `ctx` (now equivalent per F-02) is declined: the backlog item states "the call shape is right; only its first justification expires", and a code change would turn a prose fix into a behavior change with its own validation burden.
+  - Carrier-Declined: No future work exists; the call is correct as written, and a carrier would imply someone should change it.
+- Updating `test_emit_query_agent_bounded_preserves_next_under_fields_projection` or its docstring is declined (F-05): it pins a true outcome and does not mention the comment's rationale.
+  - Carrier-Declined: The test is correct; nothing remains to do.
+
+## Scope check
+
+- Over-scope: none. One comment block in one file.
+- Under-scope: none. Every claim in the stale block is replaced; the neighbouring counts block is already accurate and is referenced, not edited.
+
+## Required tests / validation
+
+No test can or may pin comment text (P16), and no new behavior exists to test. Validation is: V-01 reads the new block against (a)-(d) and re-runs the F-02 probe at commit time; V-02 proves inertness by byte-identical command output, an unchanged bare-suite failure set, and a mechanically comment-only diff. The existing outcome test (F-05) continues to run in the suite.
+
+## Spec / documentation sync
+
+N/A. No spec governs an internal code comment and no user-facing document describes this call; `docs/cli-agent-protocol.md` and `docs/cli-output-contract.md` were already updated for `next` retention by `6rcby1`. No `.spec.md` is touched.
+
+## Open questions
+
+### OQ-01: Should the replacement say the call omits `ctx` "because the counts must be the engine's, full stop", as the backlog item suggests?
+
+- Blocking: no
+- Status: resolved
+- Owner: none
+- Resolution or deferral rationale: RESOLVED FROM REPOSITORY EVIDENCE, refining the suggestion without changing the item's requirement (describe post-fix reality, not a workaround). F-04: the counts reason justifies building the summary with `render_summary` from `result.total`/`result.emitted`/`result.omitted` rather than via `render_stream`; passing `ctx` would not alter those counts (they are explicit arguments and are in `_PRESERVED_FIELDS`). Saying the counts are why `ctx` is omitted would plant the same kind of false causal claim this item exists to remove. So the comment states that the shape rests on the counts reason, that projection is a no-op here (F-02), and that the call is kept as shipped.
+
+## Validation and cross-check (verify before reporting done)
+
+Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
+
+- [ ] V-01 validates E-01
+  - Required evidence: Paste the full new comment block from its lead line to `parts.append(` and quote the sentence satisfying each of (a)-(d) in E-01; confirm by quoting that the strings "`next` is not in" and "could drop the paging continuation" are absent. Paste `git diff -- agent_workflows/run_analytics_cli.py` in full. Paste the output of the F-02 probe re-run at commit time (code path: `agent_workflows.renderers.AgentRenderer.render_summary`) showing `True` for each projection.
+  - Observed evidence:
+  - Result: pending
+
+- [ ] V-02 validates E-02
+  - Required evidence: Paste the before and after captures of `aw runs query overview --agent --fields cmd` and `aw runs query overview --agent` and the `diff` exit status for each pair (code path: `run_analytics_cli._emit_query_agent`, produced by E-02's captures). Paste both bare `python3 -m pytest` summary lines with the named failure set of each and state they are identical. Paste the output of the comment-only check (e.g. `git diff -U0 -- agent_workflows/run_analytics_cli.py | grep -E '^[+-]' | grep -vE '^(\+\+\+|---)' | grep -vE '^[+-]\s*(#|$)'` returning nothing, with its exit status) and `git diff --stat`.
+  - Observed evidence:
+  - Result: pending
+
+## Approval and execution gate
+
+- Size assessment: standard
+- Cohesion rationale: not required
+
+This plan is `to-review` and requires explicit human approval before execution; this authoring turn does not execute it. Execution follows the repository execution contract: commit only `agent_workflows/run_analytics_cli.py` (and this plan's lifecycle move) through `aw commit <plan> -- <paths>`, never `git add -A`/`-a`/`--no-verify`, never push, and paste actual runner output. The one risk is OVERREACH: any executable line in the diff means E-01 exceeded its mandate and must be redone as prose only. Post-gate lifecycle: once every `V-*` passes with pasted evidence and `aw ipd lint --phase pre-transition` conforms, move this plan to `.aw/records/plans/executed/` through the tooled transition. Backlog item `d6u2hz` is transitioned by the runner, not by this plan.
