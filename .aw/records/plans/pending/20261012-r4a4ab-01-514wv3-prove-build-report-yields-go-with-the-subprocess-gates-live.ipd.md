@@ -2,11 +2,12 @@
 
 - Date: 2026-10-12
 - Kind: child
-- Concern: Backlog `r4a4ab` records that `aw ipd lint --all` exits 1 on this repository's live tree, so `release_readiness.gate_ipd_lint` fails and `release_readiness.build_report` can never return GO against it. As a result no test asserts a GO verdict with the two shelling-out gates (`gate_leak_scan`, `gate_ipd_lint`) actually running: the existing GO test passes `run_subprocess_gates=False`, so the end-to-end GO path through real subprocesses is unproven.
-- Scope: Add hermetic behavioral tests to `tests/test_release_readiness.py` that build a synthetic clean repository in `tmp_path`, call `build_report` with `run_subprocess_gates=True`, and assert GO; then add one nonconforming pending plan to the same synthetic tree and assert the verdict flips to NO-GO with `failing_gates() == ["ipd_lint"]`. The live tree's red is NOT changed: it is a correct verdict produced by another plan's deliberately blocking open question.
+- Concern: Backlog `r4a4ab` recorded that `aw ipd lint --all` exited 1 on this repository's live tree (no longer true at review HEAD `03363cbc8`, where it exits 0; see F-01), so `release_readiness.gate_ipd_lint` fails and `release_readiness.build_report` can never return GO against it. As a result no test asserts a GO verdict with the two shelling-out gates (`gate_leak_scan`, `gate_ipd_lint`) actually running: the existing GO test passes `run_subprocess_gates=False`, so the end-to-end GO path through real subprocesses is unproven.
+- Scope: Add hermetic behavioral tests to `tests/test_release_readiness.py` that build a synthetic clean repository in `tmp_path`, call `build_report` with `run_subprocess_gates=True`, and assert GO; then add one nonconforming pending plan to the same synthetic tree and assert the verdict flips to NO-GO with `failing_gates() == ["ipd_lint"]`. The live tree's lint state is NOT touched and NOT asserted on: whether it is red or green at any moment is a property of other agents' pending plans (livecorpus hazard).
 - Scope-Paths: tests/test_release_readiness.py
 - Item-Dependencies: none
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: medium
 - From-Backlog: r4a4ab
@@ -17,6 +18,7 @@
 - Id: 514wv3
 
 ## Workflow history
+- 2026-10-12 reviewed (aw set): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-001..PR-004
 
 - 2026-10-12 draft (opencode): created.
 - 2026-10-12 to-review (opencode): authored from backlog r4a4ab; findings re-measured at HEAD 58f0f7fe5.
@@ -31,9 +33,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: Re-measure
 
-- [ ] E-01 At execution HEAD, record the HEAD sha and re-derive the premise. Run `python3 -m agent_workflows ipd lint --all >/dev/null 2>&1; echo exit=$?` and `python3 -m agent_workflows ipd lint --all 2>&1 | grep counts:` and record both. Run `grep -n "run_subprocess_gates" tests/test_release_readiness.py` and confirm that every existing `build_report` call in that file passes `run_subprocess_gates=False` (so no existing test drives GO through live subprocess gates). If a test already asserts GO with live subprocess gates on a synthetic tree, STOP AND REPORT: the work is already done.
+- [ ] E-01 At execution HEAD, record the HEAD sha and re-derive the premise. Run `python3 -m agent_workflows ipd lint --all >/dev/null 2>&1; echo exit=$?` and `python3 -m agent_workflows ipd lint --all 2>&1 | grep counts:` and record both; either exit code is acceptable and neither stops the plan, because the tests never read the live tree (F-01). Run `grep -n "run_subprocess_gates" tests/test_release_readiness.py` and confirm that every existing `build_report` call in that file passes `run_subprocess_gates=False` (so no existing test drives GO through live subprocess gates). If a test already asserts GO with live subprocess gates on a synthetic tree, STOP AND REPORT: the work is already done.
   - Depends on: none
-  - Expected outcome: HEAD sha, the live lint exit code and counts line, and the grep output are recorded; the grep confirms no live-gate GO test exists.
+  - Expected outcome: HEAD sha, the live lint exit code and counts line, and the grep output are recorded; the grep confirms no live-gate GO test of `build_report` exists. (`tests/test_release_readiness_child_pin.py` asserts each gate individually returns 0 on this tree shape; that is NOT a `build_report` GO test and does not trigger the stop, F-06.)
   - Execution state: pending
 
 ### Task group 2: Add the tests
@@ -66,11 +68,12 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 | Id | Finding | Evidence |
 |---|---|---|
-| F-01 | The live tree is still red, but the population changed since the backlog item was filed: now 1 error plan, not 7. | At HEAD 58f0f7fe5, `ipd lint --all` exit=1 and `counts: conforming=69, quarantined=0, legacy/not evaluated=1323, error=1`. |
-| F-02 | The remaining error is `IPD-Q501` on plan `15db4k` (OQ-01), a question its own review made BLOCKING on purpose so the plan cannot auto-approve; it is a maintainer decision (KEEP vs DELETE). | `15db4k` OQ-01 "deliberately BLOCKING (review PR-001, 2026-10-12)". |
-| F-03 | Therefore a NO-GO from `gate_ipd_lint` on the live tree is the CORRECT verdict: a pending plan blocked on a maintainer ruling should block a release. Making the live tree green is not this plan's job and would require resolving another author's maintainer-owned question. | F-02; backlog `r4a4ab` "the red is a property of OTHER agents' pending plans". |
-| F-04 | The real gap is coverage: no test proves GO through live subprocess gates. A probe at HEAD 58f0f7fe5 against a synthetic tree (git init, empty `pending/`, CHANGELOG `## 1.0.0`, `.aw/system/VERSION` `1.0.0`, `docs/`) returned `GO []` in about 1.1s; adding a two-line nonconforming plan returned `NO-GO ['ipd_lint']`. | Inline probe run during authoring. |
-| F-05 | The run time (about 1.1s for two subprocess gates) is in line with `test_release_readiness_child_pin.py`, which spawns the same two gates and is not marked `slow`. | F-04 timing. |
+| F-01 | HISTORICAL, re-measured at review: at authoring HEAD 58f0f7fe5 the live tree was red with 1 error plan (`ipd lint --all` exit=1, `counts: conforming=69, quarantined=0, legacy/not evaluated=1323, error=1`). At review HEAD `03363cbc8` it is GREEN: exit=0, `counts: conforming=117, quarantined=0, legacy/not evaluated=1324, error=0`. The live state flips with other agents' plans, which is exactly why the tests must not depend on it. | `python3 -m agent_workflows ipd lint --all` at both HEADs (review PR-001). |
+| F-02 | HISTORICAL: the authoring-time error was `IPD-Q501` on plan `15db4k` (OQ-01), a deliberately BLOCKING maintainer question. `15db4k` has since been resolved and is in `plans/executed/`. | `.aw/records/plans/executed/20261011-4xtpvg-02-15db4k-...ipd.md`. |
+| F-03 | Whenever the live tree is red because a pending plan carries a blocking question, a NO-GO from `gate_ipd_lint` is the CORRECT verdict, and greening the tree is never this plan's job. The principle stands even though the live tree happens to be green today. | F-01, F-02; backlog `r4a4ab` "the red is a property of OTHER agents' pending plans". |
+| F-04 | The real gap is coverage: no test proves GO through live subprocess gates. A probe at HEAD 58f0f7fe5 against a synthetic tree (git init, empty `pending/`, CHANGELOG `## 1.0.0`, `.aw/system/VERSION` `1.0.0`, `docs/`) returned `GO []` in about 1.1s; adding a two-line nonconforming plan returned `NO-GO ['ipd_lint']`. Reproduced at review HEAD `03363cbc8`: `GO [] [('leak_scan', {'returncode': 0}), ('ipd_lint', {'returncode': 0})]`, then `NO-GO ['ipd_lint']` with `ipd_lint` `returncode: 1` for the E-03 plan name. Review also confirmed both tree preconditions are load-bearing: without `git init` `leak_scan` returns 2; without `pending/` `ipd_lint` returns 2. | Authoring probe; review probe (PR-002). |
+| F-05 | Run time is load-sensitive: about 1.1s at authoring, but 10.6 to 11.9s at review under load average ~115, where `test_release_readiness_child_pin.py::test_gates_do_not_execute_decoy_package_in_caller_repo_root` (same two gates, not marked `slow`) took 9.25s. The new tests therefore match an existing unmarked precedent and are left unmarked; E-03 spawns the gates twice, so it costs about double. | Review timing (PR-003). |
+| F-06 | Each gate is already proven to return 0 individually on this tree shape by `test_gates_do_not_execute_decoy_package_in_caller_repo_root` (calls `gate_leak_scan` / `gate_ipd_lint` directly). What is unproven is the AGGREGATE: `build_report` with `run_subprocess_gates=True` reaching GO, and the verdict flipping on tree content. That is this plan's actual delta. | `tests/test_release_readiness_child_pin.py`; `grep -n run_subprocess_gates tests/test_release_readiness.py` -> lines 339, 354, 370, 431, all `False` (review PR-002). |
 
 ## Proposed changes (ordered, validatable)
 
@@ -88,7 +91,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 ## Scope check
 
 - Over-scope: none. Only `tests/test_release_readiness.py` changes; no production code changes.
-- Under-scope: none. The backlog item's actionable consequence is that no test can assert GO; E-02 and E-03 supply that assertion hermetically, and F-03 records why the live-tree red itself is correct and left alone.
+- Under-scope: none. The backlog item's actionable consequence is that no test asserts `build_report` GO with live gates; E-02 and E-03 supply that assertion hermetically (F-06), and F-03 records why the live tree's state is left alone.
 
 ## Required tests / validation
 
@@ -102,7 +105,7 @@ N/A: no behavior, CLI surface, or contract changes; only tests are added. The `r
 
 ## Open questions
 
-None. Whether to make the live tree green was answered from repository evidence (F-02, F-03): the remaining red is a maintainer-owned blocking question in another plan, and the gate is right to report it.
+None. Whether to make the live tree green was answered from repository evidence (F-01, F-03): the live tree's state belongs to other agents' plans (and is green at review HEAD regardless), and the tests deliberately do not depend on it.
 
 ## Validation and cross-check (verify before reporting done)
 
@@ -130,4 +133,4 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 - Size assessment: standard
 - Cohesion rationale: not required
 
-Execute only after explicit human approval (`- Status: approved`). The executor follows the agent execution contract: commit only `tests/test_release_readiness.py` and this plan through `aw commit`, and never push. Moving the plan to `.aw/records/plans/executed/` happens through the tooled lifecycle (`aw ipd begin` / finalize), and only after `aw ipd lint --phase pre-transition` conforms and every `V-*` reads `pass` with pasted evidence. Executing this plan does not close backlog `r4a4ab`'s observation that the live tree is red; F-03 records why that red is correct.
+Execute only after explicit human approval (`- Status: approved`). No open questions remain. The executor follows the agent execution contract: commit only `tests/test_release_readiness.py` and this plan through `aw commit 514wv3 -- <paths>`, never `git add -A`, never push, and paste the ACTUAL runner output for every test claim. Scope fence: `- Scope-Paths:` is a declaration; an out-of-scope edit is justified at finalize with `--scope-reason`. E-01's stop (the work already exists) is a genuine prerequisite stop, not a scope stop. Lifecycle: once `aw ipd lint --phase pre-transition` conforms and every `V-*` reads `pass` with pasted evidence, the plan moves to `executed/`: under `aw oc run` / `aw agy run` the runner owns that finalize, so do not run `aw ipd finalize` or `git mv` yourself; executed by hand, run `aw ipd finalize 514wv3`. Never `git mv` the plan by hand. This plan asserts nothing about the live tree's lint state (F-01, F-03).
