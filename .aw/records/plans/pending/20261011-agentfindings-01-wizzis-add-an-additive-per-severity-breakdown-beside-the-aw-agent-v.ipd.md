@@ -4,19 +4,21 @@
 - Kind: child
 - Concern: The aw.agent/v1 `findings` integer is severity-blind, so a clean, exit-0 record carrying one warning-severity Diagnostic reports `findings: 1`, and an agent has no in-record way to tell gating problems from advisories.
 - Scope: Add one additive, optional `findings_by_severity` object (`{"error": n, "warning": n, "info": n}`) to every aw.agent/v1 record built by `CommandResult.to_agent_record` that carries diagnostics, leave the `findings` integer's derivation and meaning unchanged, and document the new field in the agent protocol and output contract docs.
-- Scope-Paths: agent_workflows/result_types.py, docs/cli-agent-protocol.md, docs/cli-output-contract.md, tests/test_agent_findings_severity.py
+- Scope-Paths: agent_workflows/result_types.py, docs/cli-agent-protocol.md, docs/cli-output-contract.md, tests/test_agent_findings_severity.py, tests/fixtures/conformance_goldens/check_findings.agent.golden
 - Item-Dependencies: none
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: medium
 - From-Backlog: 3ouico
 - Set: agentfindings
 - Order: 1
-- Highest E allocated: 04
+- Highest E allocated: 05
 - Author: opencode
 - Id: wizzis
 
 ## Workflow history
+- 2026-10-12 reviewed (aw set): /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005
 
 - 2026-10-12 draft (opencode): created.
 - 2026-10-12 to-review (opencode): authored review-ready from backlog 3ouico; route decision (additive breakdown, no v2 bump) resolved from repository evidence in OQ-01.
@@ -31,9 +33,13 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: Record derivation
 
-- [ ] E-01 In `agent_workflows/result_types.py`, `CommandResult.to_agent_record`, directly after the existing `# Findings count` block (the `findings_count = (len(self.diagnostics) if self.diagnostics else self.data.get("findings", 0))` assignment), add: when `self.diagnostics` is non-empty, set `rec["findings_by_severity"] = {"error": e, "warning": w, "info": i}` where each count tallies `Diagnostic.severity`, with any severity outside `warning`/`info` (including empty) counted as `error` (fail closed, matching `Diagnostic.severity`'s `"error"` default and `artifact_core.drift_exit_code`'s treatment of non-info as gating). All three keys are always present when the object is emitted. Do NOT change the `findings` derivation. Emit nothing when `self.diagnostics` is empty (the `data["findings"]` fallback has no severity information to report).
+- [ ] E-01 In `agent_workflows/result_types.py`, `CommandResult.to_agent_record`, directly after the existing `# Findings count` block (the `findings_count = (len(self.diagnostics) if self.diagnostics else self.data.get("findings", 0))` assignment), add: when `self.diagnostics` is non-empty, set `rec["findings_by_severity"] = {"error": e, "warning": w, "info": i}` where each count tallies `Diagnostic.severity`, with any severity outside `warning`/`info` (including empty) counted as `error` (fail closed, matching `Diagnostic.severity`'s `"error"` default and `artifact_core.drift_exit_code`'s treatment of non-info as gating). All three keys are always present when the object is emitted. Do NOT change the `findings` derivation. Emit nothing when `self.diagnostics` is empty (the `data["findings"]` fallback has no severity information to report). The key MUST be set before the existing `# Field filtering` block so `--fields` projection governs it like any other optional key (dropped unless requested), and before `_schema.assert_valid_agent_record`.
   - Depends on: none
   - Expected outcome: A record built from diagnostics carries `findings_by_severity` whose three values sum to `findings`; a record with no diagnostics carries no such key; `findings` is byte-for-byte unchanged for every input.
+  - Execution state: pending
+- [ ] E-05 Regenerate the one committed agent golden the new key changes. The `check_findings` fixture in `tests/test_cli_quality_gates.py` `_fixtures` carries two default-severity diagnostics, so `DeterministicByteGoldenTests.test_agent_goldens_stable` FAILS after E-01 (measured at review with E-01 applied in-process: `1 failed, 13 passed` for `tests/test_cli_quality_gates.py`, diff `...,"findings_by_severity":{"error":2,...}`). Run `AW_CONFORMANCE_UPDATE_GOLDENS=1 python3 -m pytest tests/test_cli_quality_gates.py -o addopts=""`, then confirm with `git status --short tests/fixtures/` that ONLY `check_findings.agent.golden` changed and that its diff is exactly the insertion of `"findings_by_severity":{"error":2,"warning":0,"info":0}` and nothing else. The `.json` and `.human` goldens must not change (`CommandResult.to_dict` and the human renderer do not read the new key). If any other golden changes, revert that file and investigate rather than committing it.
+  - Depends on: E-01
+  - Expected outcome: `tests/test_cli_quality_gates.py` passes again with the single golden updated by exactly the new key.
   - Execution state: pending
 
 ### Task group 2: Behavioral tests
@@ -45,11 +51,11 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 3: Documentation
 
-- [ ] E-03 In `docs/cli-agent-protocol.md`, add a short subsection (after `## Outcomes and exit codes`, before `## Stream truncation is honest`) titled `## Findings and severity` stating: `findings` counts every diagnostic regardless of severity and its meaning is unchanged; `findings_by_severity` is an optional, additive object present only when the record carries diagnostics, with keys `error`, `warning`, `info` summing to `findings`; the exit code, not `findings`, is the verdict, so a `findings` count of nonzero beside `exit: 0` means advisories only. Write no em or en dashes (user-facing doc).
+- [ ] E-03 In `docs/cli-agent-protocol.md`, add a short subsection (after `## Outcomes and exit codes`, before `## Stream truncation is honest`) titled `## Findings and severity` stating: `findings` counts every diagnostic regardless of severity and its meaning is unchanged; `findings_by_severity` is an optional, additive object present only when the record carries diagnostics, with keys `error`, `warning`, `info` summing to `findings`; the exit code, not `findings`, is the verdict, so a `findings` count of nonzero beside `exit: 0` means advisories only. Also update the `Domain findings (exit: 1)` example record under `## Example records` to carry the new key, since every real record with diagnostics will now carry it and the example would otherwise misdescribe the output. Write no em or en dashes (user-facing doc).
   - Depends on: E-01
   - Expected outcome: The protocol doc names and defines `findings_by_severity` and its sum invariant.
   - Execution state: pending
-- [ ] E-04 In `docs/cli-output-contract.md`, add one sentence beside the existing compact-record field description (near the `### Domain Findings Result (exit: 1)` example section) defining `findings_by_severity` identically to E-03, so the normative contract and the protocol summary agree. No em or en dashes.
+- [ ] E-04 In `docs/cli-output-contract.md`, add one sentence beside the existing compact-record field description (near the `### Domain Findings Result (exit: 1)` example section) defining `findings_by_severity` identically to E-03, so the normative contract and the protocol summary agree, and add the key to that section's example record. No em or en dashes.
   - Depends on: E-03
   - Expected outcome: Both docs define the field with the same keys and the same sum invariant.
   - Execution state: pending
@@ -76,7 +82,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ## Proposed changes (ordered, validatable)
 
-1. E-01: additive `findings_by_severity` derivation in `to_agent_record`.
+1. E-01: additive `findings_by_severity` derivation in `to_agent_record`; E-05: regenerate the one agent golden it changes.
 2. E-02: behavioral tests over the record outputs.
 3. E-03, E-04: document the field in the protocol summary and the normative contract.
 
@@ -89,13 +95,13 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 ## Scope check
 
 - Over-scope: none.
-- Under-scope: none; the backlog's survey requirement is satisfied by F3, and the additive-vs-v2 decision by OQ-01.
+- Under-scope: the committed agent golden `check_findings.agent.golden` changes with the new key; added at review as E-05 / V-05 and to Scope-Paths. The backlog's survey requirement is satisfied by F3, and the additive-vs-v2 decision by OQ-01.
 
 ## Required tests / validation
 
 - `python3 -m pytest tests/test_agent_findings_severity.py -o addopts=""` passes (V-02).
 - `python3 -m pytest tests/test_cli_quality_gates.py tests/test_agent_field_projection.py tests/test_cli_agent_protocol_doc.py -o addopts=""` passes (no regression of parity, budget, projection, doc-agreement gates).
-- Bare `python3 -m pytest` full fast suite passes.
+- Bare `python3 -m pytest` full fast suite: no failure that is absent from a baseline run on the same HEAD before editing (compare failing test ids by name; at review this lane's baseline carried 39 environment-dependent failures, context only).
 - `aw ipd lint` on this plan conforms.
 
 ## Spec / documentation sync
@@ -120,7 +126,7 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Observed evidence:
   - Result: pending
 - [ ] V-02 validates E-02
-  - Required evidence: Pasted runner output of `python3 -m pytest tests/test_agent_findings_severity.py -o addopts="" -v` listing every case (a) through (g) as PASSED, plus pasted output of the full bare `python3 -m pytest` run showing its `N passed` summary line with zero failures.
+  - Required evidence: Pasted runner output of `python3 -m pytest tests/test_agent_findings_severity.py -o addopts="" -v` listing every case (a) through (g) as PASSED, plus pasted output of the full bare `python3 -m pytest` run showing its summary line, with its failing test ids compared BY NAME against a baseline bare run on the same HEAD before editing and zero new failures.
   - Observed evidence:
   - Result: pending
 - [ ] V-03 validates E-03
@@ -131,10 +137,21 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Required evidence: Paste `git diff -- docs/cli-output-contract.md` showing the added definition with the same keys and sum invariant as V-03, plus pasted output of `grep -nP '[\x{2013}\x{2014}]'` over the added lines of both docs returning nothing.
   - Observed evidence:
   - Result: pending
+- [ ] V-05 validates E-05
+  - Required evidence: Paste the regeneration command and its output, `git status --short tests/fixtures/` showing only `check_findings.agent.golden` modified, `git diff -- tests/fixtures/conformance_goldens/check_findings.agent.golden` showing only the `findings_by_severity` insertion, and `python3 -m pytest tests/test_cli_quality_gates.py -o addopts=""` passing WITHOUT the update env var.
+  - Observed evidence:
+  - Result: pending
 
 ## Approval and execution gate
 
 - Size assessment: standard
 - Cohesion rationale: not required
 
-Execute only after explicit human approval (`Status: approved`). Commit through `aw commit <this-plan> -- <Scope-Paths>` only, never push. Move to `executed/` only after `aw ipd lint --phase pre-transition` conforms and every `V-*` is `pass` with pasted evidence.
+Execute only after explicit human approval (`Status: approved`).
+
+Execution contract:
+- Open questions: OQ-01 is resolved; none are open.
+- Scope fence: `- Scope-Paths:` is a declaration, not a stop condition. An out-of-scope edit is made and justified at finalize with `--scope-reason <path>=<why>`; a declared path left unmodified needs `--scope-ack`.
+- Commit only the edited Scope-Paths through `aw commit wizzis -- <paths>`; never `git add -A`; never push. Check `git diff --cached --name-only` before committing and re-check after any failed commit.
+- You MUST paste ACTUAL runner output; never claim a result you did not run, and never mark a `V-*` `pass` from its E-item checkmark.
+- Lifecycle: begin with `aw ipd begin`. After every `V-*` is `pass` and `aw ipd lint --phase pre-transition` conforms, the plan moves to `executed/` through the tooled lifecycle, never a hand `git mv`. Under `aw oc run` / `aw agy run` the driver self-finalizes and the executor does NOT run `aw ipd finalize`; when executing by hand outside a runner, the executor runs `aw ipd finalize wizzis`.
