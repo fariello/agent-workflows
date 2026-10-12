@@ -1,11 +1,13 @@
 - Id: rdtme9
-- Status: open
+- Status: graduated
+- Graduated-To: structpin
 - Set: structpin
 - Priority: low
 - Work-Kind: chore
 - Summary: A count literal restates the name-level equality on the line above it in test_canonical_terminal_states_set
 
 ## Workflow history
+- 2026-10-12 graduated (aw backlog): graduated by run run-20261012T005606Z-2321569: aoy1uk
 - 2026-09-30 created (aw backlog): Filed while reviewing plan 44c42h, whose Deferred row names this case and leaves filing to the reviewer.
 
 tmp/pr-44c42h/body.md
