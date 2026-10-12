@@ -13,8 +13,13 @@ posture is pinned:
   * BOUNDED TIMEOUT + CANCELLATION are net-new: a hung worker is killed and recorded as a FAILURE
     (never completion); a cancelled worker terminates. `capture_command` maps a timeout to exit 124.
   * REDACTION: all captured stdout/stderr/diff pass through `security_hardening.check_evidence_
-    redaction` (RedactionPolicy + canonical leak sanitizer) BEFORE anything enters the ledger; a
-    planted home-path/secret is masked/blocked.
+    redaction` (RedactionPolicy + canonical leak sanitizer) BEFORE anything enters the ledger. A
+    planted home path is DETECTED by the canonical leak sanitizer, which makes the boundary fail
+    closed (`BoundaryResult.ok=False`), and `run_task` then REFUSES the raw text (records
+    `[REDACTED-LEAK]` and a `failed_final` worker state) rather than admitting it. The
+    `RedactionPolicy` masks only sensitive KEYS, so the `stdout`/`stderr`/`diff` values are not
+    masked in place. Free-text credential detection is not evaluated by this boundary today
+    (backlog `lfko0e`).
   * A host exit 0 is NEVER treated as success. The terminal envelope is a `run_packet.
     StepOutcomeEnvelope` validated by `run_packet.validate_outcome_envelope` + gated by
     `run_evidence.validate_evidence` (EV-FAILED-EXIT / EV-MISSING-OUTPUT / EV-FABRICATED-TEXT /
@@ -232,16 +237,20 @@ def redact_worker_output(
     repo_root=None,
 ) -> Tuple[RawWorkerResult, object]:
     """Run captured stdout/stderr/diff through `security_hardening.check_evidence_redaction` BEFORE
-    anything enters the ledger. Returns (possibly-masked RawWorkerResult, BoundaryResult).
+    anything enters the ledger. Returns (RawWorkerResult, BoundaryResult). The returned
+    RawWorkerResult carries the text after the key-based `RedactionPolicy`, which today never
+    changes these three values. A detected leak is reported ONLY via `BoundaryResult.ok=False` with
+    findings in `evidence`.
 
-    The BoundaryResult.ok is False when a hard leak (severity 'fail') is present; the caller must
-    treat that as a failure to record rather than admitting the raw text.
+    The BoundaryResult.ok is False when a hard leak (severity 'fail') is present; the caller
+    (`run_task`) must treat that as a failure to record rather than admitting the raw text.
     """
     from agent_workflows import security_hardening as _sh
 
     payload = {"stdout": raw.stdout, "stderr": raw.stderr, "diff": raw.diff}
     result = _sh.check_evidence_redaction(payload, repo_root=repo_root)
-    # The RedactionPolicy masks matched secrets/keys; reflect the masked text back into the result.
+    # The RedactionPolicy masks sensitive KEYS only; for this payload (keys stdout, stderr, diff)
+    # no value is changed today. Reflect any policy result back into the returned structure.
     policy = _sh.default_redaction_policy()
     masked, _was = policy.redact(dict(payload))
     redacted = raw._replace(
