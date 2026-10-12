@@ -6,7 +6,7 @@
 - Scope: Two independent root causes, one child each. Order 01: eight items had every linked plan executed but were still `open` (seven are provably finished; `vy20et` also has an unimplemented spec carrier), so the runner asked an agent to plan finished work and failed it for writing nothing. Order 02: two items were failed because other runs merged plans into main during the item's start, and the check counted those as plans this item produced. This plan coordinates and confirms both children.
 - Scope-Paths: .aw/records/plans/pending/20261012-gradfix-00-kht4vk-stop-backlog-graduation-runs-from-failing-on-already-finishe.ipd.md
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Coverage: pass
 - Coverage-Fingerprint: 3a4f6e35bc6846351ec7c250bed126471f18995341c418e876844f41ec957c0a
@@ -19,8 +19,10 @@
 - Highest E allocated: 02
 - Author: opencode model=its_direct/pt3-claude-opus-5.5-1m-us
 - Id: kht4vk
+- Approval: 2026-10-12, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-12 approved (aw set): status set to approved
 - 2026-10-12 reviewed (aw set): /plan-review (opencode model=its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-007. Record: .aw/records/reviews/20261012-gradfix-00-kht4vk-stop-backlog-graduation-runs-from-failing-on-already-finishe.review.md Round 1
 - 2026-10-12 coverage pass (aw oc run): fingerprint 3a4f6e35bc68, model uri/its_direct/pt3-claude-opus-5.5-1m-us
 - 2026-10-12 to-review (aw set): authored to fix the 2026-10-12 fail-gate cluster; coverage pass recorded

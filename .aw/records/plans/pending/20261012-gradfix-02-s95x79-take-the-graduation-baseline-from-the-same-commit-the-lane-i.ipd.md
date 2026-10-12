@@ -6,7 +6,7 @@
 - Scope: On an isolated run, compute the pre-turn plan list (and the continued-plan list) from the lane worktree right after it is allocated and before the agent turn, instead of from an earlier read of the main checkout, so the comparison is between two states of the same tree and a concurrent merge cannot fall between them. On a non-isolated run, keep reading the shared checkout's working tree but move the read to the same point (immediately before the turn), which narrows the window and does not close it (see Deferred). Use the same fix for spec production, which uses the same comparison. No change to which plans count as linked, or to the checks' messages.
 - Scope-Paths: agent_workflows/runner_shared.py, tests/test_production_baseline_same_commit.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: high
@@ -16,8 +16,10 @@
 - Highest E allocated: 04
 - Author: opencode model=its_direct/pt3-claude-opus-5.5-1m-us
 - Id: s95x79
+- Approval: 2026-10-12, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-12 approved (aw set): status set to approved
 - 2026-10-12 reviewed (aw set): /plan-review (opencode model=its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-008. Record: .aw/records/reviews/20261012-gradfix-02-s95x79-take-the-graduation-baseline-from-the-same-commit-the-lane-i.review.md Round 1
 - 2026-10-12 to-review (aw set): authored to fix the 2026-10-12 fail-gate cluster (Set gradfix)
 

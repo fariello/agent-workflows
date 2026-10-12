@@ -6,7 +6,7 @@
 - Scope: Fold key case on both sides of the sensitive-key comparison in `run_ledger_store.RedactionPolicy`, add outcome tests for mixed-case keys, and record the behavior change in CHANGELOG and docs/evidence.md.
 - Scope-Paths: agent_workflows/run_ledger_store.py, tests/test_redaction_key_casefold.py, CHANGELOG.md, docs/evidence.md
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: security
 - Priority: medium
@@ -16,8 +16,10 @@
 - Highest E allocated: 05
 - Author: opencode
 - Id: pbl020
+- Approval: 2026-10-12, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-12 approved (aw set): status set to approved
 - 2026-10-12 reviewed (opencode/its_direct/pt3-claude-opus-5.5-1m-us): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004
 
 - 2026-10-12 draft (opencode): created.

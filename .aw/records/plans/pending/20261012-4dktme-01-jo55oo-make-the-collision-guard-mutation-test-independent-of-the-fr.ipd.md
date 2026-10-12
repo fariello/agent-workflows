@@ -6,7 +6,7 @@
 - Scope: Make the test's isolation from the capability probe explicit and asserted (rather than an incidental side effect of a fixture key), make the mutated run's failure mode diagnosable, and add a behavioral regression proving the probe genuinely detects the same mutation. Test-only change; no production code changes.
 - Scope-Paths: tests/test_runwire_verifier_authority.py, .aw/records/plans/pending/20261012-4dktme-01-jo55oo-make-the-collision-guard-mutation-test-independent-of-the-fr.ipd.md
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -17,8 +17,10 @@
 - Highest E allocated: 03
 - Author: opencode
 - Id: jo55oo
+- Approval: 2026-10-12, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-12 approved (aw set): status set to approved
 - 2026-10-12 reviewed (aw set): /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003
 
 - 2026-10-12 draft (opencode): created.

@@ -6,7 +6,7 @@
 - Scope: IN: (a) a new `backlog.validate_item` drift rule `backlog.history-empty` raised when the item's `## Workflow history` heading is ABSENT or its block holds no column-zero record, reading the block through `attention_contract.history_block` (added by `kgv213`) so the check and the writer agree on what a record is; (b) document the rule in the backlog README's validation section and in the `aw backlog check` help text; (c) behavioral tests; (d) repair the two existing `tests/test_check_engine.py` backlog fixtures that carry no history and would otherwise start failing (F-04); (e) a CHANGELOG entry. OUT: the same rule for specs or plans (specs carry their own `aw specs check` and plans are fenced by `ipd_lint`; neither was measured empty); a fixer or migration (no tracked item violates the rule, F-02); refusing at write time in `status_set` (the writer fix is `kgv213`'s).
 - Scope-Paths: agent_workflows/backlog.py, agent_workflows/cli.py, tests/test_backlog_history_empty_rule.py, tests/test_check_engine.py, .aw/records/backlog/README.md, CHANGELOG.md
 - Item-Dependencies: executed:kgv213
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -16,8 +16,10 @@
 - Highest E allocated: 06
 - Author: opencode/its_direct/pt3-claude-opus-5.5-1m-us
 - Id: v5m5y8
+- Approval: 2026-10-12, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-12 approved (aw set): status set to approved
 - 2026-10-12 reviewed (aw set): /plan-review (opencode model=its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-006. Record: .aw/records/reviews/20261012-histdedup-03-v5m5y8-refuse-a-backlog-item-whose-workflow-history-block-holds-no.review.md Round 1
 
 - 2026-10-12 to-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): Authored from backlog item `wkpcop` as the item's suggested independent backstop. Live-corpus violation count measured as 0 of 967 tracked backlog items at HEAD `5ebf5364d`, so the rule refuses nothing that exists today. Blocking status: none.

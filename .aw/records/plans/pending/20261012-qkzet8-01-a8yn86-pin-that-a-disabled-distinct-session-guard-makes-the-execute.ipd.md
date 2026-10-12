@@ -6,7 +6,7 @@
 - Scope: Test-only. Give `_drive_execute_turn` an opt-out of the frozen descriptor and a record of which spawns ran, then add one end-to-end behavioral test proving that under the same mutation, with the descriptor NOT frozen, the real execute preflight refuses the item by the `host_capability_unavailable` code naming `supports_fresh_verifier_session`, starts no executor or verifier turn, and writes no `verification_status`. No production code changes.
 - Scope-Paths: tests/test_runwire_verifier_authority.py, .aw/records/plans/pending/20261012-qkzet8-01-a8yn86-pin-that-a-disabled-distinct-session-guard-makes-the-execute.ipd.md
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -17,8 +17,10 @@
 - Highest E allocated: 03
 - Author: opencode Claude Opus
 - Id: a8yn86
+- Approval: 2026-10-12, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-12 approved (aw set): status set to approved
 - 2026-10-12 reviewed (aw set): /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003
 
 - 2026-10-12 draft (opencode Claude Opus): created.

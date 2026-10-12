@@ -6,7 +6,7 @@
 - Scope: Comment/docstring-only correction in `agent_workflows/host_runner.py` (module docstring REDACTION bullet, `redact_worker_output` docstring, and its inline masking comment) so all three state the real contract: detection drives `ok=False`, the returned text is NOT masked, and the caller must refuse. No behavior change.
 - Scope-Paths: agent_workflows/host_runner.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: medium
@@ -16,8 +16,10 @@
 - Highest E allocated: 03
 - Author: opencode
 - Id: 0ev8cz
+- Approval: 2026-10-12, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-12 approved (aw set): status set to approved
 - 2026-10-12 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003
 
 - 2026-10-12 draft (opencode): created.

@@ -6,7 +6,7 @@
 - Scope: Add a BOUNDARY-CROSSING guard to `artifact_core.git_mv` that resolves both the source and the destination against the resolved repository root (the `relative_to`/`ValueError` idiom of `check_engine.resolve_evidence_artifact`) and raises a dedicated `ValueError` subclass BEFORE the `mkdir` and before any subprocess when exactly ONE of the two is inside the repository (or the destination is the root itself), so nothing on disk changes on refusal; a move whose source and destination are BOTH outside the repository (the companion and home records backends, F-07) keeps today's behavior, and the `shutil.move` fallback is unchanged for an in-repository untracked source. Make `engine._git_mv` delegate to the shared helper so the installer moves get the same guard. Add behavioral tests. NOT covered: other nonzero `git mv` failures for a tracked in-repository source (see Deferred).
 - Scope-Paths: agent_workflows/artifact_core.py, agent_workflows/engine.py, tests/test_artifact_core_git_mv_containment.py, tests/test_research_set_assign_date_containment.py, CHANGELOG.md
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -17,8 +17,10 @@
 - Highest E allocated: 05
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: 7sy2gm
+- Approval: 2026-10-12, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-12 approved (aw set): status set to approved
 - 2026-10-12 reviewed (aw set): /plan-review APPROVE WITH REVISIONS APPLIED; PR-001..PR-005 fixed
 
 - 2026-10-12 /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-005 fixed (review record `.aw/records/reviews/20261012-ki1uqk-01-7sy2gm-refuse-out-of-repository-destinations-in-the-shared-git-mv-f.review.md`). PR-001 narrowed the guard to boundary-crossing moves after a review prototype showed the authored both-inside rule crashes `aw set` on a companion-backend repository (F-07, OQ-02).

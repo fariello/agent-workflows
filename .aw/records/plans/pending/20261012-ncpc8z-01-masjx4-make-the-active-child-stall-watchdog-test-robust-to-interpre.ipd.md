@@ -6,7 +6,7 @@
 - Scope: Test-only change to the one flaky test: raise its stall timeout well above worst-case child startup and restructure the fake child so it stays ACTIVE (emitting events at gaps well under the timeout) for a total duration LONGER than the timeout, so the test still proves the property it exists for (activity resets the watchdog) instead of becoming vacuous. No production code change.
 - Scope-Paths: tests/test_oc_runipd.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: low
@@ -17,8 +17,10 @@
 - Highest E allocated: 03
 - Author: opencode
 - Id: masjx4
+- Approval: 2026-10-12, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-12 approved (aw set): status set to approved
 
 - 2026-10-12 reviewed (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005
 - 2026-10-12 draft (opencode): created.

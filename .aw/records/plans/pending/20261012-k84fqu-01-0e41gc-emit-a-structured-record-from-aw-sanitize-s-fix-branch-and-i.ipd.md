@@ -6,7 +6,7 @@
 - Scope: In `leak_sanitizer.main`, resolve the `OutputContext` (threaded `context` or `select_output(args)`) BEFORE the `--fix` branch and the scan, and route the `--fix` outcome (applied, preview, nothing-to-fix, unfixable) and the three exit-2 handlers through `get_renderer(ctx).emit` with a `CommandResult` when `ctx.is_agent or ctx.is_json`. Under a machine context, `--fix` with neither `--yes` nor `--dry-run` refuses with a `cannot-run` exit-2 record instead of prompting (OQ-01). The HUMAN path (no machine flag) stays byte-identical on stdout, stderr and exit code. Add behavioral coverage driving `cli.main` with separated streams. EXCLUDES any change to the scan ruleset, the rewrite logic in `fix_working_tree`/`_rewrite_line`, the payload content of the already-correct scan branch (owned by `wyy09f`, executed), home-path redaction policy (`9yd6tx`), `cli._run_check_local_leaks` (the context is already threaded by `wyy09f`), and the other forwarded driver leaves.
 - Scope-Paths: agent_workflows/leak_sanitizer.py, tests/test_leak_sanitizer_machine_flags.py, CHANGELOG.md
 - Item-Dependencies: executed:wyy09f
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -17,8 +17,10 @@
 - Highest E allocated: 06
 - Author: opencode/its_direct/pt3-claude-opus-5.5-1m-us
 - Id: 0e41gc
+- Approval: 2026-10-12, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-12 approved (aw set): status set to approved
 - 2026-10-12 reviewed (aw set): /plan-review APPROVE WITH REVISIONS APPLIED; PR-001..PR-006 fixed
 
 - 2026-10-12 /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-006 fixed (review record `.aw/records/reviews/20261012-k84fqu-01-0e41gc-emit-a-structured-record-from-aw-sanitize-s-fix-branch-and-i.review.md`). F-04/F-05 re-measured at review HEAD `04ba026c0` (in-process `cli.main`, stdin at EOF): `--fix --agent` -> rc 0, stdout `'Rewrite leak-class paths in a.md? [y/N] '`; `--fix --dry-run --agent`/`--json` -> rc 0, stdout empty, stderr `would rewrite: a.md`.

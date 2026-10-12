@@ -10,7 +10,7 @@
 - Scope: IN: (1) give `gate_generated_drift`, `gate_workflow_disposition` and `gate_capability_freshness` a `None` sentinel default plus `repo_root`, computing their findings from the repository when nothing is injected and preserving explicit injection, exactly the pattern `gate_docs_checks` already follows; (2) make each computed path FAIL rather than pass or crash when its input tree is missing or its producer raises (including `SystemExit` and `InventoryError`); (3) carry the three sentinels and `repo_root` through `build_report`; (4) extend the two existing synthetic GO fixtures so every existing GO assertion still exercises every gate, weakening no assertion; (5) add a behavioral test file with falsifiability arms shown RED against the pre-change gates. OUT, each with a carrier: editing `host_matrix.json` or adding probe evidence to clear the 19 unproven claims (`5gzno3`); the inert `artifact_manifest` gate, the same defect class on two booleans (`3jkm7y`); a command that renders the report (`wa64wz`, Order 02 of this Set); running the report from CI, release-review or a hook (`uypgvi`); and any edit to `workflow_cli.py`, `migration_inventory.py`, `host_capability_registry.py` or `engine.py`, whose behavior is consumed unchanged.
 - Scope-Paths: agent_workflows/release_readiness.py, tests/test_release_readiness.py, tests/test_release_readiness_docs_gate.py, tests/test_release_readiness_producers.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: followup
 - Priority: medium
@@ -20,8 +20,10 @@
 - Highest E allocated: 08
 - Author: opencode/its_direct/pt3-claude-opus-5.5-1m-us
 - Id: ttg9uz
+- Approval: 2026-10-12, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-12 approved (aw set): status set to approved
 
 - 2026-10-12 reviewed (opencode/its_direct/pt3-claude-opus-5.5-1m-us): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-001..PR-006 fixed. Re-verified at c6bea069b: three gates pass with no argument; 19 unproven host-matrix claims; build_inventory ok with 64 dispositions; 0 live packages; minimal whatnext tree inventories clean; producers spawn no subprocess.
 - 2026-10-12 to-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): Authored from backlog `usggph` in an isolated lane at HEAD `2600a93e3`. The item's claim reproduced exactly (F-01). Each gate already has an in-repo producer (F-02..F-04). Driving them found one true red (19 unproven host-matrix support booleans, F-05, data remedy filed as `5gzno3`) and three fail-open or crash modes the wiring must close (F-06, F-07). The fixture-coupling hazard to existing GO tests is handled in E-06 (F-08). Bare suite baseline: `39 failed, 7180 passed, 2 skipped`, all failures in the nonsurveyable-root / explicit-dir / commit-trailer families and unrelated (F-09).

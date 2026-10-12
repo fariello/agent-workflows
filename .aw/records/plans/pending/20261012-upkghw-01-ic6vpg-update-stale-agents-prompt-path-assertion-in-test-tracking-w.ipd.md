@@ -6,7 +6,7 @@
 - Scope: Update the single stale assertion in `test_tracking_warning_scan` to the canonical `.aw/records/prompts/untracked/` path (and assert the sibling comms lane), leaving production code unchanged.
 - Scope-Paths: tests/test_installer.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: low
@@ -17,8 +17,10 @@
 - Highest E allocated: 02
 - Author: opencode
 - Id: ic6vpg
+- Approval: 2026-10-12, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-12 approved (aw set): status set to approved
 - 2026-10-12 reviewed (aw set): /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-002 fixed; review record .aw/records/reviews/20261012-upkghw-01-ic6vpg-update-stale-agents-prompt-path-assertion-in-test-tracking-w.review.md
 
 - 2026-10-12 draft (opencode): created.

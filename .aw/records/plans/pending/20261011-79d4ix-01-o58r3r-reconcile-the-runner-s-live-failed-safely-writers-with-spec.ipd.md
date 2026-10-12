@@ -6,7 +6,7 @@
 - Scope: Choose option (b) of backlog `79d4ix` (keep the writers, correct the contract), on repository evidence recorded in OQ-01. IN: add a normative paragraph to spec `25kzda` Section 5.5 stating that `failed-safely` is a LIVE runner-written token for contained host/driver failures and naming why it is not migrated; append a dated correction note through `aw specs note` to `25kzda` and to the seven sibling specs carrying the same false sentence; add a clarifying comment at `runner_shared.TERMINAL_STATUS_ALIASES`; add one behavioral test module that drives each live producer and asserts the token it writes plus the downstream behavior that depends on that spelling. OUT: migrating any writer to `fail-gate` (option a, rejected in OQ-01); changing `TERMINAL_STATUS_ALIASES`, `TERMINAL_STATES_CANONICAL`, `TURN_RETRY_CLASSIFICATION`, `runner_shutdown.KNOWN_ITEM_STATUSES` or any `--retry-incomplete` set; touching the retry predicate (owned by approved plan `ytas91`); rewriting any existing `## Workflow history` line.
 - Scope-Paths: .aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md, .aw/records/specs/approved/20260906-77tr3o-01-77tr3o-runner-orchestrator-retirement.spec.md, .aw/records/specs/approved/20260912-6kwd2e-01-6kwd2e-midrun-question-surfacing.spec.md, .aw/records/specs/approved/20260913-uonrjg-01-uonrjg-cross-artifact-lifecycle-symbols-and-ansi-status-styling.spec.md, .aw/records/specs/draft/20260920-i4gpto-01-i4gpto-standalone-executed-plan-audit.spec.md, .aw/records/specs/implementing/20260829-c4gd2h-01-c4gd2h-runner-lifecycle-graceful-quit.spec.md, .aw/records/specs/implementing/20260901-7ckptx-01-7ckptx-worker-lane-containment.spec.md, .aw/records/specs/implementing/20260916-z7nbn1-01-z7nbn1-universal-artifact-dispatch.spec.md, agent_workflows/runner_shared.py, tests/test_failed_safely_live_writers.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -17,8 +17,10 @@
 - Highest E allocated: 06
 - Author: opencode
 - Id: o58r3r
+- Approval: 2026-10-12, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-12 approved (aw set): status set to approved
 
 - 2026-10-12 /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-004 fixed (5.5 `fix-it budget exhausted` row names an unwritten token; agent-recorded `failed-safely` canonicalization stated; E-05 cells demonstrated and made token-following; per-path specs check; OQ-01 owner corrected)
 - 2026-10-12 reviewed (aw set): plan-review revisions applied (PR-001..PR-004)

@@ -6,7 +6,7 @@
 - Scope: IN: (a) a new read-only advisory producer `check_engine.graduated_closable_warnings(repo_root)` that reports every `graduated` backlog item whose From-Backlog carriers are ALL terminal (plans `executed`, specs `implemented`, judged by the shipped `check_engine._carrier_is_executed`), built on the ONE-walk `check_engine._from_backlog_carrier_index`, with a copy-pasteable `Fix:` close command; (b) registering its rule id `check.graduated-item-closable` in `check_engine.RULE_REGISTRY` at `info` severity; (c) rendering it in the `aw attention` human board as its own advisory section next to `release-gate-warnings`, never affecting the exit code or `--check`; (d) behavioral tests; (e) a CHANGELOG entry. OUT: performing or offering the close from `aw specs set ... implemented` (see OQ-01 and Deferred); changing `release_gate_warnings` (its output is consumed by `production_checks.backlog_cross_tree` as a FAILING finding for any rule other than `check.orphaned-live-blocker`, so adding a rule there would change graduation verdicts); changing either close predicate; the JSON/agent attention renderer.
 - Scope-Paths: agent_workflows/check_engine.py, agent_workflows/attention.py, tests/test_graduated_closable_warning.py, CHANGELOG.md
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: followup
 - Priority: low
@@ -16,8 +16,10 @@
 - Highest E allocated: 05
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: isnqja
+- Approval: 2026-10-12, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-12 approved (aw set): status set to approved
 - 2026-10-12 reviewed (aw set): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-001..PR-004
 - 2026-10-12 /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004
 - 2026-10-12 to-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): authored from backlog `wfswdb` (filed by `5eygjt` plan-review finding F-10). Findings measured at HEAD `402655b05c7b0de8092202968d89d62bd2e70cfd` in the isolated authoring lane.

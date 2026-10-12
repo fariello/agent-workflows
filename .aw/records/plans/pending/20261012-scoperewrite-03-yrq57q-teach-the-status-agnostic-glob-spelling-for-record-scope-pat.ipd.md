@@ -6,7 +6,7 @@
 - Scope: IN: (a) a behavior test module pinning the existing code behaviors the guidance relies on, so the guidance cannot silently become false; (b) one DECISIONS.md entry recording the ruling, the options, and the measured trade-offs; (c) one additive paragraph in the IPD structure spec Section 4.5 stating the recommended spelling and its trade-offs, plus an `aw specs note` history line; (d) one guidance subsection in this repo's plans README and the identical subsection in the shipped plans-README template that `engine` installs into managed repos; (e) one CHANGELOG line. OUT: any production code change (none is needed, F-01); a `check` advisory nudging literal record entries toward the glob (declined, OQ-02); making the glob form REQUIRED or lint-enforced (declined, OQ-01); teaching the looser id6-glob form `**/*-<id6>-*.<facet>.md` (deferred, see Deferred); rewriting any existing plan's literal entries (other parties' files, and `5h3qyy`'s opt-in rewriter already exists for that); changing the `5h3qyy` rewriter or its default (OQ-01 of that plan, a separate maintainer call).
 - Scope-Paths: tests/test_scope_paths_status_agnostic.py, DECISIONS.md, .aw/records/specs/**/20260802-1904-01-ipd-structure-and-linting.spec.md, .aw/records/plans/README.md, .aw/system/workflows/templates/plans-README.md, .aw/system/managed-sections.json, CHANGELOG.md
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -16,8 +16,10 @@
 - Highest E allocated: 06
 - Author: opencode/claude-opus
 - Id: yrq57q
+- Approval: 2026-10-12, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-12 approved (aw set): status set to approved
 - 2026-10-12 reviewed (opencode model=its_direct/pt3-claude-opus-5.5-1m-us): /plan-review (opencode model=its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-005. Record: .aw/records/reviews/20261012-scoperewrite-03-yrq57q-teach-the-status-agnostic-glob-spelling-for-record-scope-pat.review.md
 
 - 2026-10-12 to-review (opencode/claude-opus): graduated from backlog `ho7qjb`. Re-drove every behavioral claim in the item at HEAD `649280be1` (all hold, F-01); measured that the widening loss applies only when the glob entry itself is ADDED mid-execution, not to a plan that declares it at authoring (F-02); found the stale-target check is blind to a mistyped glob (F-03). Recommends optional guidance, no mandate, no check advisory (OQ-01, OQ-02). This plan's own spec entry dogfoods the spelling.

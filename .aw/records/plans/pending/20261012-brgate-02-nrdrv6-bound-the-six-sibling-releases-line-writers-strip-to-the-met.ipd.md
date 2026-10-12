@@ -6,7 +6,7 @@
 - Scope: IN: add one private module helper in `releases` that runs a line writer's whole strip-and-insert on the metadata region only and reattaches the untouched remainder; route `set_blocks_release_line` and the six sibling writers through it, so BOTH the strip and the insertion anchor search are bounded (F-06); author outcome tests driving each writer on fixtures; one CHANGELOG entry. OUT (reasons under Deferred): the anchor ORDER and fallbacks (unchanged; only their search extent is bounded), the field grammars and regexes themselves (unchanged, including `Graduated-To`'s multi-valued value), `research_cmd._set_priority_line` (already fence-bounded), and every caller in `status_set`.
 - Scope-Paths: agent_workflows/releases.py, tests/test_releases_sibling_line_writers_bounding.py, CHANGELOG.md
 - Item-Dependencies: executed:b92m14
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: low
@@ -17,8 +17,10 @@
 - Highest E allocated: 09
 - Author: opencode
 - Id: nrdrv6
+- Approval: 2026-10-12, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-12 approved (aw set): status set to approved
 - 2026-10-12 reviewed (opencode/its_direct/pt3-claude-opus-5.5-1m-us): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003
 
 - 2026-10-12 draft (opencode): created.

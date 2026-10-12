@@ -6,7 +6,7 @@
 - Scope: Make the four verbs refuse, at exit 2 with a `cannot-run` outcome naming each offending token on every surface they have (human, `--agent`, `--json`), a selector token that matches NO artifact in any tracked record tree AND is not a standing-vocabulary token, through ONE shared predicate and ONE shared emitter. Keep every legitimately empty answer at exit 0: a selector naming a REAL artifact that simply has no review, no sidecar history, or no linked plan/spec is a correct "nothing yet" answer, not an error. Update the `ipd recheck-readiness` exit contract declaration and docstring, the `graduation` help text that promises it "never refuses", the one shipped test that pins the defect, the read-verb contract doc, and the CHANGELOG. Does NOT touch `aw find`, `aw attention`, `aw runs`, `aw show` (filed separately as `upryxf`), any mutating `set`/`rename`/`group` verb, or what any verb matches when the selector DOES resolve.
 - Scope-Paths: agent_workflows/cli.py, agent_workflows/reviews.py, agent_workflows/readiness_recheck.py, agent_workflows/command_surface.py, tests/test_read_verb_zero_match_refusal.py, tests/test_graduation_forward_links.py, docs/cli-output-contract.md, CHANGELOG.md
 - Item-Dependencies: executed:zyj8io
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -17,8 +17,10 @@
 - Highest E allocated: 09
 - Author: opencode/its_direct-pt3-claude-opus-5.5-1m-us
 - Id: yxsfjc
+- Approval: 2026-10-12, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-12 approved (aw set): status set to approved
 - 2026-10-12 reviewed (aw set): /plan-review (opencode model=its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-006. Record: .aw/records/reviews/20261012-selquiet-02-yxsfjc-make-reviews-decisions-record-history-graduation-and-ipd-rec.review.md Round 1
 
 - 2026-10-12 draft (opencode/its_direct-pt3-claude-opus-5.5-1m-us): created.

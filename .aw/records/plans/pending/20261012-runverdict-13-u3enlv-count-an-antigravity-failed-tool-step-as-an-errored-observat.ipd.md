@@ -6,7 +6,7 @@
 - Scope: IN: decide once that an Antigravity `FAILED` step is a terminal, ERRORED observation (it ran and failed), equivalent to `ERROR`; define that decision as two shared constants in `verifier_corroboration` (`AGY_TERMINAL_STATES = ("DONE", "ERROR", "FAILED")`, `AGY_ERROR_STATES = ("ERROR", "FAILED")`); route `tool_call_from_event`'s Antigravity branch, `run_dashboard._agy_line`'s state gate, and both state gates in `agy_runipd.render_agy_event` onto them; bump `run_dashboard.DASHBOARD_SCHEMA_VERSION` by one because cached per-file values change for unchanged logs; add outcome tests for the extractor, the verdict, the dashboard, and cross-reader parity; record the decision in `DECISIONS.md` and one `CHANGELOG.md` line. OUT, each with a reason in the Deferred section: the tool-name key precedence (plan `n8we3u`, backlog `1kebul`), the `step_type == "subagent"` delegation shape (backlog `iuhx9d`), what a corroboration verdict DOES (D160), how a matched-but-errored command is judged (existing `ERROR` behavior, unchanged), `runner_stop.is_agy_safe_checkpoint` (a `FAILED` step is correctly not a checkpoint), and `agy_run._progress_messages`' state word table.
 - Scope-Paths: agent_workflows/verifier_corroboration.py, agent_workflows/run_dashboard.py, agent_workflows/agy_runipd.py, tests/test_verifier_corroboration.py, tests/test_run_dashboard.py, tests/test_agy_failed_state_parity.py, DECISIONS.md, CHANGELOG.md
 - Item-Dependencies: executed:e08ssu, executed:n8we3u
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -16,8 +16,10 @@
 - Highest E allocated: 09
 - Author: opencode/its_direct/pt3-claude-opus-5.5-1m-us
 - Id: u3enlv
+- Approval: 2026-10-12, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-12 approved (aw set): status set to approved
 - 2026-10-12 reviewed (opencode model=its_direct/pt3-claude-opus-5.5-1m-us): /plan-review (opencode model=its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-008. Record: .aw/records/reviews/20261012-runverdict-13-u3enlv-count-an-antigravity-failed-tool-step-as-an-errored-observat.review.md
 
 - 2026-10-12 to-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): Graduated from backlog 8fiybc. Re-measured at HEAD 3301efc96: the backlog's measured consequence reproduces (FAILED -> tool_call_from_event None, verdict indeterminate missing-command-text, dashboard tool_calls 0) while the renderer renders the step. Decision (OQ-01): FAILED is an errored observation, identical to ERROR, on the evidence that the renderer already maps FAILED to "error". Suite baseline: 39 failed (unrelated no-project/explicit-dir/trailer/finalize-sendback env tests), 7180 passed, 2 skipped.

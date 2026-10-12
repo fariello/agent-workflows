@@ -6,7 +6,7 @@
 - Scope: Change ONLY the `--agent` arm of the empty-state branch of `run_viewer.run_viewer_cli` (the block guarded by `if not summaries and not issues_only:`) so it emits one validated `kind: "summary"` record with `outcome: "clean"`, `exit: 0` and zero counts, carrying any `excluded_runs` and the active filters. Both spellings (`aw runs`, `aw runs list`) reach that one branch, so one edit decides both. Keep `runs list` declared `agent_record_kind="summary"` (no `command_surface` change). Leave the `--json` empty payload and the exit code unchanged. Update the one existing test that pins the bare agent line, add behavioral tests for both spellings, add a sentence to `docs/cli-output-contract.md` Section 3.1, and a CHANGELOG line. The non-empty `--agent` stream and the bare flag-conflict refusals are OUT of scope and filed as backlog `4d3ynu`.
 - Scope-Paths: agent_workflows/run_viewer.py, tests/test_run_viewer.py, tests/test_runs_empty_agent_record.py, docs/cli-output-contract.md, CHANGELOG.md, .aw/records/plans/pending/20261012-l5dq92-01-t76qdk-aw-runs-empty-state-agent-emits-an-aw-agent-v1-summary-recor.ipd.md
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: low
@@ -17,8 +17,10 @@
 - Highest E allocated: 05
 - Author: opencode/its_direct/pt3-claude-opus-5.5-1m-us
 - Id: t76qdk
+- Approval: 2026-10-12, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-12 approved (aw set): status set to approved
 
 - 2026-10-12 reviewed (opencode its_direct/pt3-claude-opus-5.5-1m-us): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-001..PR-006 fixed.
 - 2026-10-12 draft (opencode): created.

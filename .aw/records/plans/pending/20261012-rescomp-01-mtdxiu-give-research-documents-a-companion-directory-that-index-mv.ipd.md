@@ -6,7 +6,7 @@
 - Scope: IN: define the companion convention (a sibling directory `<doc-stem>.data/`, where `<doc-stem>` is the document's filename minus `.md`, so it carries the doc's `<id6>` and sorts beside it); one shared contract helper; every research `*.md` walk skips companion contents; `aw research index` lists a doc's companion in `INDEX.json` and `--check` flags an orphaned companion with a registered rule; `mv`/`set-assign` rename the companion with the doc and refuse a colliding destination; `promote`/`archive` move the companion with the doc; `aw attention` does not treat companion files as artifacts; README (template and this repo's copy), installer retired-hash census, spec amendment, CHANGELOG; behavior tests. OUT: an adopt verb for companions (`aw adopt` already covers the Markdown half per the backlog item; companion adoption was not requested); migrating any existing directory (none exists in this repo: `find .aw/records/research -type d -name '*.data'` prints nothing).
 - Scope-Paths: agent_workflows/research_contract.py, agent_workflows/selectors.py, agent_workflows/completion.py, agent_workflows/artifact_refs.py, agent_workflows/research_index.py, agent_workflows/research_refs.py, agent_workflows/research_archive.py, agent_workflows/research_cmd.py, agent_workflows/artifact_adopt.py, agent_workflows/attention.py, agent_workflows/check_engine.py, agent_workflows/engine.py, .aw/system/workflows/templates/agents-docs-research-README.md, .aw/records/research/README.md, .aw/records/specs/implemented/20260730-2152-01-agents-artifact-organization.spec.md, CHANGELOG.md, tests/test_research_companion.py, tests/test_installed_text_current.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: feature
 - Priority: low
@@ -16,8 +16,10 @@
 - Highest E allocated: 10
 - Author: opencode/claude-opus-5.5
 - Id: mtdxiu
+- Approval: 2026-10-12, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-12 approved (aw set): status set to approved
 - 2026-10-12 reviewed (aw set): /plan-review (opencode model=its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-005. Record: .aw/records/reviews/20261012-rescomp-01-mtdxiu-give-research-documents-a-companion-directory-that-index-mv.review.md Round 1
 - 2026-10-12 to-review (aw set): authored from backlog bh1cy5 after reproducing F-01..F-04 in a scratch target at HEAD ad4a07f9f
 

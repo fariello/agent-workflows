@@ -6,7 +6,7 @@
 - Scope: Change the single frontmatter value in `7so8uz` to the valid `adopted` (its declared consumer `0b7fic` already exists) through the tooled `aw research set-outcome` verb, and prove the index gate returns to exit 0. No code, spec, or other record changes.
 - Scope-Paths: .aw/records/research/20261001-4xtpvg-00-7so8uz-permission-ask-observability.assessment.md, .aw/records/plans/pending/20261012-i0nccw-01-kdje34-correct-research-record-7so8uz-outcome-from-invalid-answered.ipd.md
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: high
@@ -17,8 +17,10 @@
 - Highest E allocated: 03
 - Author: opencode/claude-opus
 - Id: kdje34
+- Approval: 2026-10-12, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-12 approved (aw set): status set to approved
 
 - 2026-10-12 reviewed (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005
 - 2026-10-12 draft (opencode/claude-opus): created.

@@ -6,7 +6,7 @@
 - Scope: Add one new behavioral test module that drives `runner_shared.manifest_entry_is_selectable` and, end to end, both hosts' `initialize_run` over a Set selector, asserting on real return values and the persisted queue. No production code changes.
 - Scope-Paths: tests/test_manifest_entry_selectable.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: medium
@@ -16,8 +16,10 @@
 - Highest E allocated: 04
 - Author: OpenCode model=Claude
 - Id: df486j
+- Approval: 2026-10-12, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-12 approved (aw set): status set to approved
 - 2026-10-12 reviewed (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003
 
 - 2026-10-12 draft (OpenCode model=Claude): created.

@@ -6,7 +6,7 @@
 - Scope: IN: make `Term.colorize` and `Term.color256` in `agent_workflows/term.py` consult the ONE existing resolver (`Term.lifecycle_depth`, which delegates to `term.resolve_color_depth`), so the `none` tier emits no escape on the generic axis and the `16` tier emits no `38;5;` sequence; add one behavioral test file. The 256 tier is byte-identical to today. Because the generic axis now reads the SAME resolver, an UNPINNED terminal that detection classifies as 16-color (`TERM` containing `vt100`, `linux`, `-color`, `ansi`, ... per `term._TERM_16_MARKERS`) also moves from `38;5;N` to 16-color SGR on the generic axis; that is the D42 ladder applied consistently and is in scope (review PR-005). OUT: modules that emit hard-coded SGR literals without going through `Term` (`pwatch.py`, `runners_monitor.py`, `render_stream.py` header/statusline literals, `render_stream.Palette.__call__`), filed as backlog `y11p5u`; the lifecycle axis (already correct, guarded by `tests/test_term.py`); any change to `should_color` or `resolve_color_depth` precedence; a per-role authored 16-color generic palette (see OQ-02).
 - Scope-Paths: agent_workflows/term.py, tests/test_generic_color_depth.py, CHANGELOG.md
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Blocks-Release: next
@@ -17,8 +17,10 @@
 - Highest E allocated: 05
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: lv0dvv
+- Approval: 2026-10-12, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-12 approved (aw set): status set to approved
 - 2026-10-12 /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-006 fixed (OQ-01 transcribed as resolved per maintainer commit b76d48d38; exact 16-color mapping with chroma guard; end-to-end red cells moved off lifecycle-only find backlog; collectable negative control; unpinned 16-detection declared and tested; execution contract completed)
 - 2026-10-12 reviewed (aw set): plan-review revisions applied (PR-001..PR-006)
 - 2026-10-12 same-status (aw set): Maintainer ruling 2026-10-12: pin none must disable all color (reading B); OQ-01 still to be marked resolved + plan approved by maintainer

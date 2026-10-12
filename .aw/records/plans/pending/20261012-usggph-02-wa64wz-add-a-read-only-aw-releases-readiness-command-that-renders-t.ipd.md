@@ -8,7 +8,7 @@
 - Scope: IN: (1) `release_readiness.gate_full_suite` accepts `suite_passed=None` and FAILS with a distinct "result not supplied" detail; (2) a `release_readiness.run_readiness(args)` handler that resolves and refuses a non-surveyable root like `releases.run_list`, builds the report with both subprocess gates live, prints `render()` for humans and an `aw.agent/v1` result for `--agent`/`--json`, and exits 0 on GO, 1 on NO-GO, 2 on cannot-run; (3) the `releases readiness` parser leaf, its dispatch in `cli.py`, its `CommandDeclaration`, and the two existing tests in `tests/test_releases_cli.py` that pin the `releases` subcommand set to exactly `{list, show, new}` (F-06); (4) a behavioral test file; (5) user docs and a CHANGELOG entry. OUT: running the report from release-review, CI or a hook (`uypgvi`); the inert `artifact_manifest` row (`3jkm7y`); clearing the live NO-GO causes (`5gzno3`, `r4a4ab`); any tag, publish, push or upload, which the module forbids by construction (`assert_no_release_action`).
 - Scope-Paths: agent_workflows/release_readiness.py, agent_workflows/cli.py, agent_workflows/command_surface.py, tests/test_releases_readiness_cli.py, tests/test_releases_cli.py, docs/recovery.md, docs/artifact-lifecycles.md, CHANGELOG.md
 - Item-Dependencies: executed:ttg9uz
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: followup
 - Priority: medium
@@ -18,8 +18,10 @@
 - Highest E allocated: 07
 - Author: opencode/its_direct/pt3-claude-opus-5.5-1m-us
 - Id: wa64wz
+- Approval: 2026-10-12, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-12 approved (aw set): status set to approved
 
 - 2026-10-12 reviewed (opencode/its_direct/pt3-claude-opus-5.5-1m-us): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-001..PR-007 fixed. Verified at 008c87f60: proposed CommandResult shape validates under agent_schema; build_report over a synthetic GO tree is GO in 1.0s and changes no file; two tests pin releases subcommands to {list, show, new}.
 - 2026-10-12 to-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): Authored from backlog `usggph` in an isolated lane at HEAD `2600a93e3`. The "no caller" claim reproduced (F-01). Two findings shaped the design. FIRST, a command cannot supply the suite result or the residual-risk sign-off itself, and defaulting either one forges a row (F-02), so both become explicit flags and `gate_full_suite` gains a "not supplied" state. SECOND, the live report is NO-GO today for real reasons (F-03), so the command's exit 1 on this tree is correct. Depends on `ttg9uz` so the command never ships while three of its rows are vacuous.

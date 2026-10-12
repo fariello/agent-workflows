@@ -6,7 +6,7 @@
 - Scope: IN: (1) route the subcommand-less fall-through of `cli._run_config_exclude` through `cli._show_family_help(parser, "config exclude", "aw config exclude list", term, context)`, threading `parser` and `context` from the `config` dispatch; (2) give the `add`, `list` and `rm` leaves an `--agent` arm emitting one validated `result` record through the existing `cli._emit_config_agent_record` helper, and a `--json` arm emitting a bare sorted JSON dict, mirroring sibling `config` verbs (`_run_config_remove`, `_run_config_is`); (3) delete the stale `sanctioned_raw` exemption for `config exclude list` in `tests/conformance_matrix.EXEMPTION_REGISTRY` so the existing read-surface sweep gates it, and delete any `FAMILY_ROOT_EXEMPTION_REGISTRY` entry for `config exclude` if plan `0qdl9e` has landed one; (4) behavioral subprocess tests in `tests/test_config_agent_surface.py`; (5) one CHANGELOG line. OUT: the `add`/`rm` `arg_fixture_needed` entries in `MUTATION_EXEMPTION_REGISTRY` (the mutation sweep's fixture design is not this item's concern; the new tests cover both leaves with an isolated `XDG_CONFIG_HOME`); `aw runs` (owned by `l5dq92`); the family-root sweep itself (owned by `0qdl9e`); human-mode wording of the leaves; `_show_family_help` itself.
 - Scope-Paths: agent_workflows/cli.py, tests/test_config_agent_surface.py, tests/conformance_matrix.py, CHANGELOG.md, .aw/records/plans/pending/20261012-o8cz48-01-2va0jb-route-aw-config-exclude-subcommand-less-refusal-through-the.ipd.md
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: low
@@ -17,8 +17,10 @@
 - Highest E allocated: 06
 - Author: opencode/its_direct/pt3-claude-opus-5.5-1m-us
 - Id: 2va0jb
+- Approval: 2026-10-12, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-12 approved (aw set): status set to approved
 - 2026-10-12 reviewed (aw set): /plan-review APPROVE WITH REVISIONS APPLIED; PR-001..PR-004 fixed
 
 - 2026-10-12 /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-005 fixed (review record `.aw/records/reviews/20261012-o8cz48-01-2va0jb-route-aw-config-exclude-subcommand-less-refusal-through-the.review.md`). Re-measured at review HEAD `0d3ab57ab` with an isolated `XDG_CONFIG_HOME`: root and all three leaves still print human lines under `--agent` (F-01, F-03 confirmed); `0qdl9e` is still pending, so no `FAMILY_ROOT_EXEMPTION_REGISTRY` exists yet.

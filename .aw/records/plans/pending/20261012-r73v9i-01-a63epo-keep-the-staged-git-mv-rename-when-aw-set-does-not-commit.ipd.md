@@ -6,7 +6,7 @@
 - Scope: Remove the redundant pre-reset from `status_set._offer_self_commit`, prove a relocation stays one staged rename on both spellings and all three relocating record types (backlog, specs, plans) under `--no-commit` and the non-interactive default, prove the committing path and the runner's `runner_shared.commit_backlog_close` consumer still record a single rename, flip the one pinned test that recorded the defect shape, and add a CHANGELOG line.
 - Scope-Paths: agent_workflows/status_set.py, tests/test_set_dispatch_parity.py, CHANGELOG.md, .aw/records/plans/pending/20261012-r73v9i-01-a63epo-keep-the-staged-git-mv-rename-when-aw-set-does-not-commit.ipd.md
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -17,8 +17,10 @@
 - Highest E allocated: 06
 - Author: opencode
 - Id: a63epo
+- Approval: 2026-10-12, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-12 approved (aw set): status set to approved
 - 2026-10-12 reviewed (aw set): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-001..PR-005
 - 2026-10-12 /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005
 - 2026-10-12 draft (opencode): created.

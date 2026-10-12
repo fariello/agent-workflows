@@ -6,7 +6,7 @@
 - Scope: COMMENT-ONLY edits re-anchoring every citation `aw check --source-offsets` reports on the real tree, by SYMBOL or QUOTED CONTENT STRING per spec `ipd-structure-and-linting` Section 10.2, deleting each bare offset rather than refreshing it (a refreshed offset is a new copy of the same expiring reference, the `fnbtta` idiom). The 8 sites measured at authoring live in `agent_workflows/agy_runipd.py` (3), `agent_workflows/runner_shared.py` (2), `agent_workflows/selectors.py` (1), `tests/test_oc_runipd.py` (1) and `tests/test_runner_shared.py` (1). Where a flagged citing sentence carries a second offset on the same sentence, re-anchor that one too, so no sentence keeps a half-fixed citation. EXCLUDES any code or test-behavior change, EXCLUDES the detector itself (Order 02), EXCLUDES offsets the report does not flag (a resolvable offset landing on plausible code is not mechanically decidable and is out of this Set's reach), and EXCLUDES the spec-anchor comments pending `sbh1o1` plan `fz3i3m` retargets in `agy_runipd.py` and `oc_runipd.py`.
 - Scope-Paths: agent_workflows/agy_runipd.py, agent_workflows/runner_shared.py, agent_workflows/selectors.py, tests/test_oc_runipd.py, tests/test_runner_shared.py
 - Item-Dependencies: executed:pyuw4v
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -16,8 +16,10 @@
 - Highest E allocated: 04
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: jem77o
+- Approval: 2026-10-12, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-12 approved (aw set): status set to approved
 - 2026-10-12 reviewed (opencode model=its_direct/pt3-claude-opus-5.5-1m-us): /plan-review (opencode model=its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-003. Record: .aw/records/reviews/20261012-hostcite-03-jem77o-re-anchor-the-live-stale-python-source-file-line-citations-t.review.md
 
 - 2026-10-12 draft (opencode its_direct/pt3-claude-opus-5.5-1m-us): created.

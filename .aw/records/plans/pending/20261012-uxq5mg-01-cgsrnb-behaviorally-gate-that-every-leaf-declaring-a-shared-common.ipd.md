@@ -6,7 +6,7 @@
 - Scope: Add ONE new behavioral test module, `tests/test_shared_flag_honored.py`, that runs every leaf in the two existing conformance universes (`test_agent_surface_conformance.UNIVERSE` and `MUTATION_UNIVERSE`) as a real subprocess under (a) `--json`, asserting stdout parses as one JSON value, and (b) `--agent --fields cmd`, asserting no terminal record carries a key outside the preserved envelope plus `cmd`. It encodes the Section 1.3 exemption by DERIVATION (a leaf whose parser does not declare `--json` is outside the universe) and pins that derivation against the documented forwarded-leaf list so the exemption cannot silently widen. Measured-broken leaves are registered in a strict-xfail `KNOWN_BROKEN` ceiling, each citing a resolvable backlog id, so the gate turns red both when a NEW leaf regresses and when a broken leaf is FIXED without its entry being removed. Add one sentence to `docs/cli-output-contract.md` Section 1.3 naming the new gate. EXCLUDES fixing any of the measured-broken leaves (owned by `jfdk7p`, `aws1tg`, `k84fqu`), any `aw check` rule in `check_engine` (OQ-01), any `--verbose` reach assertion (OQ-02), and any change to the forwarded driver leaves.
 - Scope-Paths: tests/test_shared_flag_honored.py, docs/cli-output-contract.md, .aw/records/plans/pending/20261012-uxq5mg-01-cgsrnb-behaviorally-gate-that-every-leaf-declaring-a-shared-common.ipd.md
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: medium
@@ -16,8 +16,10 @@
 - Highest E allocated: 07
 - Author: opencode/its_direct/pt3-claude-opus-5.5-1m-us
 - Id: cgsrnb
+- Approval: 2026-10-12, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-12 approved (aw set): status set to approved
 - 2026-10-12 reviewed (aw set): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-001..PR-005
 - 2026-10-12 /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005
 - 2026-10-12 draft (opencode/its_direct/pt3-claude-opus-5.5-1m-us): created.

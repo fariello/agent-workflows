@@ -6,7 +6,7 @@
 - Scope: Delete `cli._run_plan_names` and `cli._load_normalizer` (its sole caller is `_run_plan_names`), and repoint the stale "mirroring cli" docstring pointer in `check_engine._load_normalizer`, which becomes the only loader. No behavior change: nothing dispatches to either function.
 - Scope-Paths: agent_workflows/cli.py, agent_workflows/check_engine.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -16,8 +16,10 @@
 - Highest E allocated: 04
 - Author: opencode/its_direct/pt3-claude-opus-5.5-1m-us
 - Id: 7zutcc
+- Approval: 2026-10-12, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-12 approved (aw set): status set to approved
 - 2026-10-12 reviewed (aw set): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-001..PR-004
 
 - 2026-10-12 draft (opencode/its_direct/pt3-claude-opus-5.5-1m-us): created.

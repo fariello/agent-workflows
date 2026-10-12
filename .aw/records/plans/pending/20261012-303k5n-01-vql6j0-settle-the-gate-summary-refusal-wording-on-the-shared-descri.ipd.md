@@ -6,7 +6,7 @@
 - Scope: Route the `summary` arm of `attention_contract.validate_gate_flags` through `attention_contract.refuse_unsafe_descriptive` so every `--gate-summary` refusal in the code base speaks one vocabulary; correct the stale comment in `tests/test_specs_releases_descriptive_safety.py::test_non_regression_already_validated_run_set_flags_preserved`; add behavioral tests for the validator's summary arm; record the decision in the CHANGELOG.
 - Scope-Paths: agent_workflows/attention_contract.py, tests/test_specs_releases_descriptive_safety.py, tests/test_gate_summary_refusal_vocabulary.py, CHANGELOG.md
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -16,8 +16,10 @@
 - Highest E allocated: 04
 - Author: opencode
 - Id: vql6j0
+- Approval: 2026-10-12, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-12 approved (aw set): status set to approved
 
 - 2026-10-12 reviewed (opencode/its_direct/pt3-claude-opus-5.5-1m-us): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-001..PR-004 fixed. Re-verified at ba0fb6975: F-01..F-06 reproduce; validate_gate_flags returns the old wording for newline, BEL, 301 and 400 chars and None at 300; refuse_unsafe_descriptive gives the three specific messages; the five related test files pass (1051 passed).
 - 2026-10-12 draft (opencode): created.

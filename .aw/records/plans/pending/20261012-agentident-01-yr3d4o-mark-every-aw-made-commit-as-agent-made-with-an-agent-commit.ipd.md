@@ -6,7 +6,7 @@
 - Scope: Every commit and merge that aw makes keeps the user as AUTHOR and records `AW Agent (<model>) <local+aw@domain>` as COMMITTER, where the address is the user's own email with `+aw` added before the `@`. Each such commit carries `AW-Runner: <runner>` (`aw oc run`, `aw agy run` or `aw commit`) when the runner is known, plus `AW-Run` and `AW-Item` when they are known; a commit from another aw verb (e.g. `aw ipd set --commit`) outside a run gets the committer label and no invented runner. A commit the user makes with plain `git commit` is unchanged. No new accounts, keys, GitHub settings or required configuration.
 - Scope-Paths: agent_workflows/git_commit_helper.py, agent_workflows/commit_lock.py, agent_workflows/ipd_lifecycle.py, agent_workflows/runner_shared.py, agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, agent_workflows/work_cmd.py, agent_workflows/coverage_record.py, agent_workflows/engine.py, agent_workflows/cli.py, agent_workflows/worktree_lease.py, tests/test_agent_commit_identity.py, docs/commit-identity.md, CHANGELOG.md
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: feature
 - Priority: medium
@@ -16,8 +16,10 @@
 - Highest E allocated: 07
 - Author: opencode model=its_direct/pt3-claude-opus-5.5-1m-us
 - Id: yr3d4o
+- Approval: 2026-10-12, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-12 approved (aw set): status set to approved
 - 2026-10-12 reviewed (opencode its_direct/pt3-claude-opus-5.5-1m-us): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-001..PR-009 fixed.
 - 2026-10-12 to-review (aw set): authored from backlog aluots on the maintainer's instruction (plans preferred to backlog items); design decided by the maintainer 2026-10-11
 

@@ -6,7 +6,7 @@
 - Scope: Record the classification of both nodes against the current tree; give the remaining in-suite live-corpus node an explicit hang-guard budget; file the newly measured standing mypy-gate failure as its own release-gated bug rather than fixing it here.
 - Scope-Paths: tests/test_verbose_flag_reach.py, .aw/records/backlog/open
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: medium
@@ -16,8 +16,10 @@
 - Highest E allocated: 04
 - Author: opencode
 - Id: z28jah
+- Approval: 2026-10-12, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-12 approved (aw set): status set to approved
 
 - 2026-10-12 reviewed (opencode/its_direct/pt3-claude-opus-5.5-1m-us): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-001..PR-006 fixed. Re-verified at 320b943c1: both nodes absent from the default collection; live-corpus node about 16.4s CPU / 17.2s wall; -m '' -n auto file run 4 passed; mypy Found 15 errors in 8 files (also under --python-version 3.12); related open bug 2rm0gz covers only render_stream.py.
 - 2026-10-12 draft (opencode): created.

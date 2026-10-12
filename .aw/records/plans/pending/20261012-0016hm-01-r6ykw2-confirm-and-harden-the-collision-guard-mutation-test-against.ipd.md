@@ -6,7 +6,7 @@
 - Scope: Confirm the defect is fixed at HEAD by the frozen `host_capabilities` descriptor that `psgyzw` (commit `163874fcc`) added to the helper, and harden the helper so any future pre-verify early return fails with a named diagnostic instead of a bare KeyError. Test-only change.
 - Scope-Paths: tests/test_runwire_verifier_authority.py, .aw/records/plans/pending/20261012-0016hm-01-r6ykw2-confirm-and-harden-the-collision-guard-mutation-test-against.ipd.md
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: high
@@ -17,8 +17,10 @@
 - Highest E allocated: 03
 - Author: opencode Claude Opus
 - Id: r6ykw2
+- Approval: 2026-10-12, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-12 approved (aw set): status set to approved
 
 - 2026-10-12 /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-004 fixed (negative control made deterministic; refusal key corrected to singular `refusal`; guard raises explicitly; execution contract completed)
 - 2026-10-12 reviewed (aw set): plan-review revisions applied (PR-001..PR-004)

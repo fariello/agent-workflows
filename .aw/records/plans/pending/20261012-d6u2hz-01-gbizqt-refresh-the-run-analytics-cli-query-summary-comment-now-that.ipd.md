@@ -6,7 +6,7 @@
 - Scope: Rewrite that one comment block so it describes the post-fix reality: a projection is now a no-op on this summary record, the call is kept as shipped, and the load-bearing reason for the call's SHAPE is that the summary carries the query engine's counts (the neighbouring `THE SUMMARY CARRIES THE QUERY'S COUNTS, NOT THE STREAM'S` block), not a paging workaround. Comment lines only; no executable statement in `agent_workflows/run_analytics_cli.py` changes, the `render_summary` call and its arguments stay byte-identical, and no test, spec, or doc is touched.
 - Scope-Paths: agent_workflows/run_analytics_cli.py, .aw/records/plans/pending/20261012-d6u2hz-01-gbizqt-refresh-the-run-analytics-cli-query-summary-comment-now-that.ipd.md
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -16,8 +16,10 @@
 - Highest E allocated: 03
 - Author: opencode
 - Id: gbizqt
+- Approval: 2026-10-12, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-12 approved (aw set): status set to approved
 - 2026-10-12 reviewed (aw set): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-001..PR-003
 - 2026-10-12 /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003
 - 2026-10-12 draft (opencode): created.

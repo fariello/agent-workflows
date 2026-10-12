@@ -6,7 +6,7 @@
 - Scope: Confirm the already-landed fix (commit 64b8c94f3) holds on the current tree, that no caller of the deleted symbol remains anywhere in tests or the package, and repair tests/test_scope_exceeded.py only if either check fails.
 - Scope-Paths: tests/test_scope_exceeded.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: high
@@ -17,8 +17,10 @@
 - Highest E allocated: 03
 - Author: opencode
 - Id: 3or4ce
+- Approval: 2026-10-12, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-12 approved (aw set): status set to approved
 - 2026-10-12 reviewed (aw set): /plan-review (opencode model=its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-004. Record: .aw/records/reviews/20261012-u18kic-01-3or4ce-verify-and-close-tests-test-scope-exceeded-py-setup-mint-dri.review.md Round 1
 
 - 2026-10-12 draft (opencode): created.

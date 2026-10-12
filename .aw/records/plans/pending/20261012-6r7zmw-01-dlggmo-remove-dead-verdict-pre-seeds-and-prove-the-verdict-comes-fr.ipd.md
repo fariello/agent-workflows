@@ -6,7 +6,7 @@
 - Scope: Test-only. In `tests/test_agy_runipd_cli.py` (`AgySelfFinalizeTests.test_finalize_fires_on_verified_and_marks_executed`, `AgySelfFinalizeTests.test_finalize_refusal_leaves_not_executed_and_not_forced`) remove the pre-seeded verification write and the dead `fresh_session` branch, so the verdict exists only because the verifier-turn fake wrote it. In `tests/test_finalize_stale_plan_path.py` (`test_a1_lane_arm_refuses_when_finalize_re_resolution_fails`, `test_a2_non_lane_arm_refuses_when_finalize_re_resolution_fails`) remove the verification write from the executor mock and keep it only in `mock_verifier`. Add one negative control in `tests/test_agy_runipd_cli.py` showing that a verdict written only BEFORE the run (with a verifier fake that writes nothing) does not let the item reach `executed`, which proves the in-turn write is load-bearing on the agy host. No production code changes.
 - Scope-Paths: tests/test_agy_runipd_cli.py, tests/test_finalize_stale_plan_path.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -17,8 +17,10 @@
 - Highest E allocated: 04
 - Author: opencode
 - Id: dlggmo
+- Approval: 2026-10-12, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-12 approved (aw set): status set to approved
 - 2026-10-12 reviewed (aw set): /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-004 fixed; review record .aw/records/reviews/20261012-6r7zmw-01-dlggmo-remove-dead-verdict-pre-seeds-and-prove-the-verdict-comes-fr.review.md
 
 - 2026-10-12 draft (opencode): created.

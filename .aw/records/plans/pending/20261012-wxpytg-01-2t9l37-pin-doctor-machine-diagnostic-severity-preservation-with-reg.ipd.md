@@ -6,7 +6,7 @@
 - Scope: Verify the severity-preserving `Diagnostic` construction in `doctor.inspect_repo` and add behavior regression tests that drive `inspect_repo` and the `aw doctor --agent` CLI, asserting the emitted diagnostic severities and the unchanged exit code.
 - Scope-Paths: agent_workflows/doctor.py, tests/test_doctor_diagnostic_severity.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: low
@@ -17,8 +17,10 @@
 - Highest E allocated: 04
 - Author: opencode
 - Id: 2t9l37
+- Approval: 2026-10-12, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-12 approved (aw set): status set to approved
 - 2026-10-12 reviewed (aw set): /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-004. Re-measured at HEAD 6aa8c3441: fallback chain present, seam probe info/warning/info/error, compact --agent omits severity.
 
 - 2026-10-12 draft (opencode): created.

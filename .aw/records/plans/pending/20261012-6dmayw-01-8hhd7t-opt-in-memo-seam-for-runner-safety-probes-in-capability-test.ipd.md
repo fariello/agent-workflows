@@ -6,7 +6,7 @@
 - Scope: Add an OPT-IN, default-off, restore-on-exit memo seam to `host_sandbox_profile.probe_runner_safety_capabilities`, and enable it in the capability test classes that consume `detect_host_capabilities` output but do not test the runner-safety probes themselves. Production behavior (uncached) is unchanged.
 - Scope-Paths: agent_workflows/host_sandbox_profile.py, tests/test_host_capability_extension.py, tests/test_host_sandbox_profile.py, tests/test_hostcapgate_descriptor_freeze.py, tests/test_hostdedup_third_host.py, tests/test_runner_safety_probe_memo.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -16,8 +16,10 @@
 - Highest E allocated: 05
 - Author: opencode
 - Id: 8hhd7t
+- Approval: 2026-10-12, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-12 approved (aw set): status set to approved
 - 2026-10-12 reviewed (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005
 
 - 2026-10-12 draft (opencode): created.

@@ -6,7 +6,7 @@
 - Scope: Route every human-mode stdout write in `agent_workflows/run_cli.py` through one redacting helper that applies the same `run_cli._redact_output` the machine path uses, add behavioral tests that drive the real CLI and prove a token is absent from human output on every leaf and for ledger-content secrets, and record the fix in the CHANGELOG. The docstring bullet is KEPT (it becomes true); the redaction pattern set itself is not widened.
 - Scope-Paths: agent_workflows/run_cli.py, tests/test_run_cli_human_redaction.py, CHANGELOG.md, .aw/records/plans/pending/20261012-runclileak-01-omst3h-redact-run-cli-human-mode-output-so-it-matches-the-machine-s.ipd.md
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: security
 - Priority: medium
@@ -17,8 +17,10 @@
 - Highest E allocated: 04
 - Author: opencode
 - Id: omst3h
+- Approval: 2026-10-12, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-12 approved (aw set): status set to approved
 
 - 2026-10-12 reviewed (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005, PR-006
 - 2026-10-12 draft (opencode): created.

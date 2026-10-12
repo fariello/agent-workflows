@@ -6,7 +6,7 @@
 - Scope: (1) a pytest plugin, loaded by the root `conftest.py`, that snapshots the identity-bearing keys of the real checkout's git config files at session start, re-checks them after every test, FAILS the test that observed a change (naming the key, old and new value, and the file), and restores the snapshot so the damage is contained; (2) harden `tests/support.init_repo` so a failed `git init` can never fall through and run `git config` against an enclosing repository; (3) behavior tests for both; (4) one full-suite run including `slow` under the guard to pin and fix the leaking test, if it still leaks. No history rewrite, no change to product code under `agent_workflows/`.
 - Scope-Paths: conftest.py, tests/git_config_guard.py, tests/support.py, tests/test_git_config_guard.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: high
@@ -17,8 +17,10 @@
 - Highest E allocated: 05
 - Author: opencode model=its_direct/pt3-claude-opus-5.5-1m-us
 - Id: lp1zkb
+- Approval: 2026-10-12, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-12 approved (aw set): status set to approved
 - 2026-10-12 reviewed (opencode/its_direct/pt3-claude-opus-5.5-1m-us): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004
 
 - 2026-10-12 to-review (opencode model=its_direct/pt3-claude-opus-5.5-1m-us): authored from backlog 8o7gco; review-ready.

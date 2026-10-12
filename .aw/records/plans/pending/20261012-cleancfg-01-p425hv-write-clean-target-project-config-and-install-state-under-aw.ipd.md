@@ -6,7 +6,7 @@
 - Scope: IN: (1) one shared locator, `project_context.project_config_dir(repo_root)`, returning `<target>/.aw/config` when that directory holds `project.json` or `local.json` (existing tracked and legacy installs keep working byte-for-byte) and otherwise `<aw_home>/projects/<derived-project-id>/config` when such a home `project.json` exists, else the target path; (2) `persist_project_policy` writes to the resolver's `config_project`/`config_local` paths for the policy being persisted (home for `clean-delta`, target for `tracked`), and writes a non-empty `project_id` into `local.json`; (3) `config.sync_cutovers_on_install` and the `config.py` `project.json` readers, `run_analytics_config.read_project_settings`/`read_local_settings`, `run_analytics_wizard._local_path`, `install_wizard.resolve_existing_policy`, `install_history.record_install_history` and `cli` install's D92 normalization read through the locator; (4) `resolve_project_context` reads Level 2/3 files through the locator and treats an empty `project_id` as absent; (5) `engine.stage_tracked_policy_files` stays a no-op for clean-delta (no target file exists to stage; verified, not changed); (6) the consent plan's "Target Delta" line for clean-delta stops claiming zero target files and names the classes that ARE kept out of the target (config and state), pointing at backlog `kvwwt0` for the rest; (7) spec `20260810-1447-01` Section 4 gets a dated note that clean-delta config/state resolve under `AW_HOME`, and that the full zero-target-write install remains spec `or061f` Phase 3; (8) behavior tests; (9) `project_context.read_project_identity` (backs `aw doctor`/`aw status`) reads through the locator; (10) `aw uninstall` removes the config and state files the install wrote under `AW_HOME/projects/<id>/` (E-09). Both clean-delta presets (`completely-clean-target`, `local-only`) are covered. OUT: `.aw/system/`, `.aw/records/`, `.aw/.gitignore`, `.aw/inbox`, `.aw/workflow-artifacts`, root `.gitignore`/`.gitleaksignore`, `.github/workflows` and host adapters still written into a clean-target target (backlog `kvwwt0`, spec `or061f` Phase 3); reinstall discarding unmodeled `project.json` keys and restamping cutovers (backlog `qyevpr`); a registry entry for the project (`project_registry.register_or_update_project` is not called by install today and is not needed for derivation); migrating an existing clean-target install that already wrote into its target (it keeps working through locator rule 1).
 - Scope-Paths: agent_workflows/project_context.py, agent_workflows/install_wizard.py, agent_workflows/config.py, agent_workflows/install_history.py, agent_workflows/run_analytics_config.py, agent_workflows/run_analytics_wizard.py, agent_workflows/cli.py, agent_workflows/engine.py, agent_workflows/doctor.py, .aw/records/specs/implemented/20260810-1447-01-physical-aw-hierarchy-placement-and-migration.spec.md, CHANGELOG.md, tests/test_clean_target_config_home.py, tests/test_install_consent_truth.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: high
@@ -17,8 +17,10 @@
 - Highest E allocated: 09
 - Author: opencode/claude-opus-5.5
 - Id: p425hv
+- Approval: 2026-10-12, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-12 approved (aw set): status set to approved
 - 2026-10-12 reviewed (aw set): /plan-review (opencode model=its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-005. Record: .aw/records/reviews/20261012-cleancfg-01-p425hv-write-clean-target-project-config-and-install-state-under-aw.review.md Round 1
 
 - 2026-10-12 draft (opencode/claude-opus-5.5): created.

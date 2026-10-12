@@ -6,7 +6,7 @@
 - Scope: IN: re-derive the census of every date-comparing READER in `agent_workflows/` with its stored operand's clock, so the amendment is written against the tree as it is at execution and not against `840y6i`'s 2026-10-02 snapshot; add one behavioral test module asserting the invariant on the four known readers under two always-skewed timezones, including a negative control proving the test can see a mixed-clock pairing; amend spec `2vev8j` Section 4.4 by APPENDING a reader paragraph (the heading and the existing writer sentence are left byte-unchanged, because three test modules quote the heading text "One timezone for every writer" and others cite "2vev8j 4.4"); record the amendment in the spec's `## Workflow history` with `aw specs note`. OUT, each with a reason under "Deferred": converting or otherwise editing any reader or writer (none is wrong at authoring, measured below); `DECISIONS.md` D55 (its scope is human-facing NAMES and needs no change for readers to follow it); re-approving the spec or writing any approval attestation; the per-artifact journal migration the spec itself specifies; closing the backlog item (the runner sets `graduated`).
 - Scope-Paths: .aw/records/specs/approved/20260908-2vev8j-01-2vev8j-artifact-metadata-storage.spec.md, tests/test_date_reader_clock_parity.py, .aw/records/plans/pending/20261012-6ly144-01-hinpcf-widen-spec-2vev8j-section-4-4-to-bind-date-readers-to-the-cl.ipd.md
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: followup
 - Priority: low
@@ -17,8 +17,10 @@
 - Highest E allocated: 04
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: hinpcf
+- Approval: 2026-10-12, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-12 approved (aw set): status set to approved
 - 2026-10-12 reviewed (aw set): /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005
 
 - 2026-10-12 draft (opencode its_direct/pt3-claude-opus-5.5-1m-us): created.

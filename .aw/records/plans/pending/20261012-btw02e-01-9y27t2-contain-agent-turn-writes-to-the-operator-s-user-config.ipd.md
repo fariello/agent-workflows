@@ -6,7 +6,7 @@
 - Scope: IN: an aw-specific `AW_CONFIG_DIR` override honored FIRST by `config.config_dir()` (and the two `except` fallbacks that mirror it); a per-turn seeded copy of the operator's aw user-config directory exported to each agent turn on BOTH hosts through one shared helper; a turn-end diff that DISCARDS changes, records each as a durable run event, and prints a warning; the end-of-run report line; the conftest scrub; behavioral tests; CHANGELOG and docs. OUT: redirecting `XDG_CONFIG_HOME` itself (see Findings F-04); `AW_HOME` containment (backlog `s4pys7`); `project_context`'s hard-coded `~/.config/agent-workflows` reader (backlog `m9dobx`); `aw runs` display of discarded changes (backlog `c4q9e8`); OS-level enforcement (the hardened profile already exists and is out of this plan's scope).
 - Scope-Paths: agent_workflows/config.py, agent_workflows/leak_sanitizer.py, agent_workflows/model_vocab.py, agent_workflows/runner_shared.py, agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, conftest.py, tests/test_agent_user_config_containment.py, CHANGELOG.md, docs/security.md
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: high
@@ -17,8 +17,10 @@
 - Highest E allocated: 08
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: 9y27t2
+- Approval: 2026-10-12, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-12 approved (aw set): status set to approved
 - 2026-10-12 reviewed (aw set): /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-006 fixed; review record .aw/records/reviews/20261012-btw02e-01-9y27t2-contain-agent-turn-writes-to-the-operator-s-user-config.review.md
 
 - 2026-10-12 draft (opencode its_direct/pt3-claude-opus-5.5-1m-us): created.

@@ -6,7 +6,7 @@
 - Scope: FOUR things, all on the opt-in `--source-anchors` report, none changing its severity. (1) Fix the `--agent` crash (backlog `g3ropl`): derive the branch's exit code and outcome from the registered rule severities via `artifact_core.drift_exit_code` instead of hardcoding `exit_code = 0` beside `status = "findings"`. (2) Teach the detector to accept a TABLE-ROW anchor: an offset that lands on a markdown table row is valid when that row's first cell (for example `I-07`) appears in the citing comment or docstring BLOCK, which removes the `check_engine.py` `pqsx96` `:135` false positive. (3) Report an UNATTRIBUTED spec anchor (a `spec \`:NNN\``/`spec :NNN` spelling with no resolvable spec id6 anywhere in its comment or docstring block) as a finding with validity `unattributed`, because an offset no tool can attribute is unverifiable by construction and is exactly the class backlog `1vd74h` point (5) names. (4) Retarget the three live unattributed `25kzda` anchors this exposes (two in `oc_runipd.py`, one in `agy_runipd.py`, all citing the long-moved `:129`/`:131`) onto the stable `Section 2.1` token with the quoted sentence intact, and reword the one test docstring that spells the pattern literally. EXCLUDES promoting the severity and wiring CI (Order 04 `l85xvi`), EXCLUDES any speed optimisation (Order 04 runs the detector only in CI, so no user waits on it), EXCLUDES editing any spec, and EXCLUDES the SECTION-token validity question (`mt54wr` OQ-02).
 - Scope-Paths: agent_workflows/spec_citations.py, agent_workflows/cli.py, agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, tests/test_spec_citation_anchors.py
 - Item-Dependencies: executed:mt54wr, executed:atpvao
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -17,8 +17,10 @@
 - Highest E allocated: 06
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: fz3i3m
+- Approval: 2026-10-12, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-12 approved (aw set): status set to approved
 - 2026-10-12 reviewed (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004
 
 - 2026-10-12 draft (opencode its_direct/pt3-claude-opus-5.5-1m-us): created.

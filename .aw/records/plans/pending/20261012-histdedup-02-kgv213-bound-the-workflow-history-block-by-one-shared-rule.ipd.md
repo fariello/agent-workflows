@@ -6,7 +6,7 @@
 - Scope: IN: (a) ONE shared, pure history-block reader in `agent_workflows/attention_contract.py` (stdlib-only, already owns `HISTORY_RECORD_RE` and `newest_history_record`, imported by both sides with no cycle) that states the bounding rule once and returns the block's RECORDS, the restorable RECORD LINES (records plus their wrapped continuations) and the BODY that follows it; (b) migrate the predicate `status_set.same_status_message_is_duplicate`, the backlog history writer `backlog._prior_history_records` (plus its body twin `backlog._strip_metadata_and_history`) and the `close_on_answer` body reader `set_records._extract_body` onto it, so the dedup answer, the restorable prior records and the body boundary all come from one definition (the writer needs both halves of one partition, F-06); (c) behavioral tests for the rule and for the end-to-end `aw backlog set` outcome on the indented fixture under BOTH spellings; (d) one CHANGELOG entry. OUT, each with a reason under "Deferred": the read-only date/verdict consumers of `attention._history_section_lines` (owned by sibling `6iab2o`, which carries the blast radius the backlog item warns about); the empty-history-block validation backstop (owned by sibling `v5m5y8`); any rewrite of committed records; and plan history writers in `ipd_lifecycle`.
 - Scope-Paths: agent_workflows/attention_contract.py, agent_workflows/status_set.py, agent_workflows/backlog.py, agent_workflows/set_records.py, tests/test_history_block_bounding.py, CHANGELOG.md
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -16,8 +16,10 @@
 - Highest E allocated: 06
 - Author: opencode/its_direct/pt3-claude-opus-5.5-1m-us
 - Id: kgv213
+- Approval: 2026-10-12, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-12 approved (aw set): status set to approved
 - 2026-10-12 reviewed (opencode/its_direct/pt3-claude-opus-5.5-1m-us): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005, PR-006
 
 - 2026-10-12 to-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): Authored from backlog item `wkpcop` with siblings `v5m5y8` and `6iab2o`. The canonical rule (F-04) was chosen by measuring three candidates over all 2489 tracked artifacts carrying a history heading at HEAD `5ebf5364d`; the chosen rule changes zero consumer answers. Blocking status: none.
