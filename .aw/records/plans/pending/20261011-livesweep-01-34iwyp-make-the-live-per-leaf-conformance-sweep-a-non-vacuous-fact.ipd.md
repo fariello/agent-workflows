@@ -98,8 +98,11 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 ## Deferred / out of scope (with reason)
 
 - Making `doctor`, `attention` and `status` cheap enough for the default suite: performance work on production commands, not a test change; their scenarios stay covered in `make test-all` (E-03, E-06 heavy halves).
-- Fact parity over table, board and rich renders: would require each renderer to expose a machine-parsable outcome line, a CLI output-contract change. The renderer-level parity property is already owned default-collected by executed `9i2hge`.
-- Flipping the advisory CI step: owned by the backlog items listed in that step's comment (`57dwkc`, `4vfkl1`, `3ypquf`, `g0bdgg`).
+  - Carrier-Declined: this plan's goal is enforcement of the cheap leaves, which it achieves without touching those commands; the heavy leaves lose no scenario coverage (they move nowhere, they stay `slow`), so nothing this plan defers is left unowned. Whether `doctor`'s measured 40s is itself a user-perceptible defect is a separate classification a filer must make with its own end-to-end measurement, not a by-product of a test plan.
+- Fact parity over table, board and rich renders: would require each renderer to expose a machine-parsable outcome line, a CLI output-contract change.
+  - Carrier-Declined: the renderer-level parity property is already owned default-collected by executed plan `9i2hge` (`.aw/records/plans/executed/20261001-h0tiaw-02-9i2hge-restore-the-renderer-level-output-quality-gates-so-the-four.ipd.md`); widening live parity to every render would duplicate it at higher cost.
+- Flipping the CI advisory step's `continue-on-error: true`: its own comment in `.github/workflows/tests.yml` names `57dwkc`, `4vfkl1`, `3ypquf`, `g0bdgg`, all of which are now in `backlog/done/`, so the comment's flip condition may already hold.
+  - Carrier-Declined: this plan removes the dependency of these three gates on that step entirely by making their cheap halves default-collected, so the step's status no longer decides whether they can fail CI. Flipping a whole-suite CI policy is outside a three-file test change and is a maintainer decision about every `slow` test, not about this carrier.
 
 ## Scope check
 
