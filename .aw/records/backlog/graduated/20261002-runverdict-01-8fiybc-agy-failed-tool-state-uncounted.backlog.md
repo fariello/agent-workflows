@@ -1,11 +1,13 @@
 - Id: 8fiybc
-- Status: open
+- Status: graduated
+- Graduated-To: runverdict
 - Set: runverdict
 - Priority: low
 - Work-Kind: chore
 - Summary: An agy tool step in state FAILED is rendered to the operator but contributes to no analytics count, because the three readers accept different state tuples
 
 ## Workflow history
+- 2026-10-12 graduated (aw backlog): graduated by run run-20261012T005641Z-2321995: u3enlv
 - 2026-10-02 created (aw backlog): An agy tool step in state FAILED is rendered to the operator but contributes to no analytics count, because the three readers accept different state tuples
 
 FILED by plan `e08ssu` (Order 10, from backlog `2mjfo7`) as the durable carrier for a divergence that plan MEASURES and deliberately does NOT fix. It is NOT the duplication `2mjfo7` is about: the two analytics readers AGREE with each other here and both differ from the renderer, so unifying them preserves the gap rather than closing it.
