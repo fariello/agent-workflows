@@ -6,7 +6,7 @@
 - Scope: IF AND ONLY IF the maintainer resolves OQ-01 to DELETE and a human approves this plan: remove `PERMISSION_TIMEOUT`, `BOUND_PERMISSION`, the `permission_timeout` constructor parameter, `_permission_pending_since`, the permission-only `_lock`, `note_permission_request`, the permission half of `TurnBoundWatch._expired`, and the now-no-op `note_progress` together with its two driver call sites; delete `tests/test_permission_bound_disabled.py` and rewrite the permission cases in `tests/test_turn_bounds.py` so `MAX_TURN_TIMEOUT` stays covered behaviorally; and amend spec `7ckptx` R4.4, R4.4(a), R4.4b, R4.4c, A10, A10b, A10c and A10e (plus the plural "driver bounds" references) IN THE SAME CHANGE so the contract stops requiring the constants exist. CHANGES NO BEHAVIOR A TURN CAN OBSERVE: the bound ships at `0.0` and has no trigger, so it cannot fire today, and `MAX_TURN_TIMEOUT` (4 hours, unresettable, offset on antigravity) is untouched. EXCLUDES the non-isolated deny-posture gap (carrier `8ctu3u`) and any log-fed detector (refused on measurement by `0b7fic`).
 - Scope-Paths: agent_workflows/lane_containment.py, agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, tests/test_turn_bounds.py, tests/test_permission_bound_disabled.py, .aw/records/specs/implementing/20260901-7ckptx-01-7ckptx-worker-lane-containment.spec.md
 - Item-Dependencies: executed:0b7fic
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: followup
 - Priority: low
@@ -17,9 +17,9 @@
 - Highest E allocated: 09
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: 15db4k
-- Approval: 2026-10-12, human ("approved"): maintainer ruled DELETE for e6zeta
 
 ## Workflow history
+- 2026-10-12 executed (antigravity): execute 15db4k: delete permission bound and amend spec 7ckptx R4.4
 - 2026-10-12 approved (aw set, --by-human): maintainer ruled DELETE for e6zeta
 - 2026-10-12 readiness re-check (agent (aw ipd recheck-readiness)): `- Readiness:` CHANGED `no-go` -> `go-pending-approval`. THIS IS A RE-CHECK, NOT A REVIEW: no finding was re-derived and no plan content was re-critiqued. The three `no-go` conditions were RECOMPUTED with the shipped predicates and each was found clear: unresolved-blocking-question -> clear (no unresolved BLOCKING open question; `has_unresolved_blocking_question` -> False (a NON-blocking open question is deliberately not counted, per the maintainer's 2026-09-10 ruling on qhy3i3 OQ-01)); unresolved-gating-finding -> clear (no unresolved gating finding; `review_findings.subject_gating_blocks` -> empty (an ABSENT review artifact is silent by that predicate's documented contract)); negative-review-verdict -> clear (the newest review record's verdict is not negative; `newest_verdict` -> neutral). RE-CHECKED REVIEW: the review of 2026-10-12, findings PR-001..PR-005. Recomputed at HEAD `be6560ccf`. HUMAN APPROVAL IS STILL REQUIRED AND WAS NOT GIVEN: `go-pending-approval` means the plan awaits sign-off, and nothing here approves it or clears it to execute. Only a review may set `go`.
 - 2026-10-12 reviewed (opencode/its_direct/pt3-claude-opus-5.5-1m-us): /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): REVIEWED - OPEN QUESTIONS; PR-001 (HIGH, fixed: OQ-01 made blocking so --full-auto cannot clear the maintainer's ruling; measured is_plan_review_approved True at go-pending-approval), PR-002 (MEDIUM, fixed: residual-limits paragraph relocated, not deleted), PR-003 (MEDIUM, fixed: spec plural-bound references and A10c obligation), PR-004 (LOW, fixed: _lock removal, V-04 agy construction comment, E-06 interim failure, E-09 stderr and chatty assertion), PR-005 (LOW, fixed: thzrpo coupling on RESIDUAL LIMITS). OQ-01 open by design (maintainer KEEP/DELETE); Readiness no-go until answered. Reviewed at HEAD b1b2fab2b. Record: .aw/records/reviews/20261011-4xtpvg-02-15db4k-on-a-maintainer-delete-ruling-remove-the-never-armed-permiss.review.md.
