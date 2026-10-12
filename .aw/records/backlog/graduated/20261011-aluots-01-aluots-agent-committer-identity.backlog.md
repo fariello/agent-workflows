@@ -1,11 +1,13 @@
 - Id: aluots
-- Status: open
+- Status: graduated
+- Graduated-To: agentident
 - Set: aluots
 - Priority: medium
 - Work-Kind: feature
 - Summary: Mark every aw-made commit as agent-made: author stays the user, committer becomes 'AW Agent (<model>) <user+aw@...>', plus runner trailers on every commit
 
 ## Workflow history
+- 2026-10-12 graduated (aw set): graduated to plan yr3d4o (Set agentident) on the maintainer's instruction
 - 2026-10-11 created (aw backlog): Mark every aw-made commit as agent-made: author stays the user, committer becomes 'AW Agent (<model>) <user+aw@...>', plus runner trailers on every commit
 
 MAINTAINER DECISION 2026-10-11: agent commits must be distinguishable from the maintainer's own, without new accounts or GitHub setup (the toolkit must stay zero-setup for other users). Chosen design, and ONLY this (separate keys, bot accounts, credential hiding and PR requirements were considered and declined):
