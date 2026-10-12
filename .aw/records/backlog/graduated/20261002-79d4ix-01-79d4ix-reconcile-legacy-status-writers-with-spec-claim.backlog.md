@@ -1,11 +1,13 @@
 - Id: 79d4ix
-- Status: open
+- Status: graduated
+- Graduated-To: 79d4ix
 - Set: 79d4ix
 - Priority: low
 - Work-Kind: chore
 - Summary: Decide whether to migrate the eight live legacy-token write sites or soften spec 25kzda's claim that the runner no longer writes them
 
 ## Workflow history
+- 2026-10-12 graduated (aw backlog): graduated by run run-20261012T005617Z-2321742: o58r3r
 - 2026-10-02 created (aw backlog): Measured while authoring plan fr19jr (backlog ku8szz): spec 25kzda asserts legacy terminal status tokens 'are no longer written by the runner', and that is false at HEAD.
 
 FILED BY PLAN `fr19jr` (from backlog `ku8szz`), whose F-08 measured this while sweeping for dead READERS of the terminal status vocabulary. That plan deliberately does not fix it, because the fix is a writer migration plus a spec reconciliation in the hottest file in the repository, and conflating it with an author-time checker would make both unreviewable.
