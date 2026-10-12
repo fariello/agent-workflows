@@ -1,11 +1,13 @@
 - Id: e6zeta
-- Status: open
+- Status: graduated
+- Graduated-To: 4xtpvg
 - Set: 4xtpvg
 - Priority: low
 - Work-Kind: followup
 - Summary: Decide whether to keep the unarmed permission-bound mechanism documented or delete it, given its trigger has never had a caller and the deadlock class was closed by denial instead
 
 ## Workflow history
+- 2026-10-12 graduated (aw backlog): graduated by run run-20261012T005617Z-2321742: 15db4k
 - 2026-10-01 created (aw backlog): Filed while authoring plan 0b7fic (from backlog 4xtpvg) as the durable carrier for that plan's OQ-01. THIS IS A MAINTAINER DECISION, NOT A DEFECT, and it is filed because the plan deliberately refuses to make it: the two readings are both defensible and the plan is written so either answer stays cheap. It must NOT be closed by an agent picking a side.
 
 THE SUBJECT: lane_containment.PERMISSION_TIMEOUT (ships 0.0), TurnBoundWatch.note_permission_request, BOUND_PERMISSION, and the _permission_pending_since half of TurnBoundWatch._expired.
