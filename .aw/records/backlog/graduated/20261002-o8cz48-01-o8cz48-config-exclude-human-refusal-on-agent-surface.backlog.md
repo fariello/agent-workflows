@@ -1,5 +1,6 @@
 - Id: o8cz48
-- Status: open
+- Status: graduated
+- Graduated-To: o8cz48
 - Blocks-Release: next
 - Set: o8cz48
 - Priority: low
@@ -7,6 +8,7 @@
 - Summary: aw config exclude with no subcommand prints a human FAIL status line to stdout under --agent instead of an aw.agent/v1 record
 
 ## Workflow history
+- 2026-10-12 graduated (aw backlog): graduated by run run-20261012T005641Z-2321995: 2va0jb
 - 2026-10-02 created (aw backlog): aw config exclude with no subcommand prints a human FAIL status line to stdout under --agent instead of an aw.agent/v1 record
 
 Measured in lane lbbo9s at HEAD b8e1e0157 while authoring plan 7pnneh (from backlog lbbo9s), which fixed the sibling defect on `aw upgrade-test` and declined this one because it is one verb of a family that should be decided together.
