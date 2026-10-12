@@ -1,5 +1,6 @@
 - Id: 23p80m
-- Status: open
+- Status: graduated
+- Graduated-To: scoperewrite
 - Blocks-Release: next
 - Set: scoperewrite
 - Priority: low
@@ -7,6 +8,7 @@
 - Summary: aw rename rewrites citing Scope-Paths entries with no in-flight begin-receipt guard, so renaming an artifact can stale an executing plan's frozen contract and strand its lane at finalize
 
 ## Workflow history
+- 2026-10-12 graduated (aw backlog): graduated by run run-20261012T005641Z-2321995: 69pxm5
 - 2026-10-02 created (aw backlog): aw rename rewrites citing Scope-Paths entries with no in-flight begin-receipt guard, so renaming an artifact can stale an executing plan's frozen contract and strand its lane at finalize
 
 RAISED while authoring plan `5h3qyy` (Set `scoperewrite`, graduating backlog `es7wdp`) as that plan's F-06. It is filed separately rather than bundled because it changes a SECOND verb's contract and deserves its own review; plan `5h3qyy` names this item as the durable carrier of its deferred row.
