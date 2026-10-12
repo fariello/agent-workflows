@@ -6,7 +6,8 @@
 - Scope: IN: (a) a new read-only advisory producer `check_engine.graduated_closable_warnings(repo_root)` that reports every `graduated` backlog item whose From-Backlog carriers are ALL terminal (plans `executed`, specs `implemented`, judged by the shipped `check_engine._carrier_is_executed`), built on the ONE-walk `check_engine._from_backlog_carrier_index`, with a copy-pasteable `Fix:` close command; (b) registering its rule id `check.graduated-item-closable` in `check_engine.RULE_REGISTRY` at `info` severity; (c) rendering it in the `aw attention` human board as its own advisory section next to `release-gate-warnings`, never affecting the exit code or `--check`; (d) behavioral tests; (e) a CHANGELOG entry. OUT: performing or offering the close from `aw specs set ... implemented` (see OQ-01 and Deferred); changing `release_gate_warnings` (its output is consumed by `production_checks.backlog_cross_tree` as a FAILING finding for any rule other than `check.orphaned-live-blocker`, so adding a rule there would change graduation verdicts); changing either close predicate; the JSON/agent attention renderer.
 - Scope-Paths: agent_workflows/check_engine.py, agent_workflows/attention.py, tests/test_graduated_closable_warning.py, CHANGELOG.md
 - Item-Dependencies: none
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
 - Work-Kind: followup
 - Priority: low
 - From-Backlog: wfswdb
@@ -17,7 +18,8 @@
 - Id: isnqja
 
 ## Workflow history
-
+- 2026-10-12 reviewed (aw set): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-001..PR-004
+- 2026-10-12 /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004
 - 2026-10-12 to-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): authored from backlog `wfswdb` (filed by `5eygjt` plan-review finding F-10). Findings measured at HEAD `402655b05c7b0de8092202968d89d62bd2e70cfd` in the isolated authoring lane.
 - 2026-10-12 draft (opencode its_direct/pt3-claude-opus-5.5-1m-us): created.
 
@@ -40,9 +42,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 2: pin the behavior first
 
-- [ ] E-02 ADD BEHAVIORAL TESTS in new `tests/test_graduated_closable_warning.py`, written BEFORE E-03/E-04 so they are observed failing first, on `tempfile` scratch repos with real files (reuse the fixture shape of `tests/test_check_engine_release_gate.py::_create_minimal_repo`, copied locally, not imported, so the two files stay independent). Cases: (1) graduated item + executed plan + `implemented` spec, both carrying `- From-Backlog:` -> exactly one `check.graduated-item-closable` warning located at the item, whose detail contains `aw backlog set <id6> --status done --evidence ` and a carrier path; (2) the same with the spec `approved` -> zero warnings; (3) graduated item with a PENDING plan -> zero; (4) graduated IPD-only item whose plan is executed -> one warning (the predicate is uniform, not mixed-only); (5) an `open` item and a `done` item with all-terminal carriers -> zero (only `graduated` qualifies); (6) a graduated item with NO carrier -> zero; (7) REMEDY WORKS: on case (1) with the item carrying `- Blocks-Release:` resolving to a planned release, run the warning's `Fix:` command through the real CLI (`python3 -m agent_workflows backlog set ... --dir <repo> --no-commit`, subprocess) and assert exit 0 and the item now under `backlog/done/`; (8) ATTENTION SURFACE: drive `attention.run` on case (1)'s repo (as `tests/test_attention.py` does) and assert stdout contains `graduated-closable (1)`, the item id6, and the `Fix:` line, and that the return code equals the return code of the same run on case (2)'s repo (the section never changes the exit code); (9) `check_engine.rule_spec("check.graduated-item-closable").severity == "info"`.
+- [ ] E-02 ADD BEHAVIORAL TESTS in new `tests/test_graduated_closable_warning.py`, written BEFORE E-03/E-04 so they are observed failing first, on `tempfile` scratch repos with real files (reuse the fixture shape of `tests/test_check_engine_release_gate.py::_create_minimal_repo`, copied locally, not imported, so the two files stay independent). Cases: (1) graduated item + executed plan + `implemented` spec, both carrying `- From-Backlog:` -> exactly one `check.graduated-item-closable` warning located at the item, whose detail contains `aw backlog set <id6> --status done --evidence ` and a carrier path; (2) the same with the spec `approved` -> zero warnings; (3) graduated item with a PENDING plan -> zero; (4) graduated IPD-only item whose plan is executed -> one warning (the predicate is uniform, not mixed-only); (5) an `open` item and a `done` item with all-terminal carriers -> zero (only `graduated` qualifies); (6) a graduated item with NO carrier -> zero; (7) REMEDY WORKS: on case (1) with the item carrying `- Blocks-Release:` resolving to a planned release, run the warning's `Fix:` command through the real CLI (`python3 -m agent_workflows backlog set ... --dir <repo> --no-commit`, subprocess) and assert exit 0 and the item now under `backlog/done/`; repeat it with the carrier plan carrying a DIFFERENT `- Blocks-Release:` from the item (the case E-03 cites as the reason for `--evidence`), with the same assertions; (8) ATTENTION SURFACE: drive `attention.run` on case (1)'s repo (as `tests/test_attention.py` does) and assert stdout contains `graduated-closable (1)`, the item id6, and the `Fix:` line, and that the return code equals the return code of the same run on case (2)'s repo, also under `--check` (the section never changes the exit code); and drive `attention --agent` on case (1)'s repo and assert its stdout does not contain `check.graduated-item-closable` (the section is human-view only and must not reach machine output); (9) `check_engine.rule_spec("check.graduated-item-closable").severity == "info"`.
   - Depends on: E-01
-  - Expected outcome: cases (1), (4), (7), (8), (9) fail before E-03/E-04 (missing function/section/registration) and all pass after; (2), (3), (5), (6) are vacuous before (they import a function that does not yet exist, so they ERROR) and pass after.
+  - Expected outcome: cases (1), (4), (7), (8), (9) fail before E-03/E-04 (the `--agent` half of (8) passes before and after, since nothing emits the rule yet) (missing function/section/registration) and all pass after; (2), (3), (5), (6) are vacuous before (they import a function that does not yet exist, so they ERROR) and pass after.
   - TEST OUTCOMES, NOT CODE STRUCTURE (P16): assert only on returned `Drift` fields, CLI exit codes, on-disk moves and rendered stdout. No `inspect`/`ast`/regex over production source. Do not pin the full detail string; assert on the command fragment and ids.
   - Execution state: pending
 
@@ -87,6 +89,7 @@ All at HEAD `402655b05c7b0de8092202968d89d62bd2e70cfd`.
 | F-05 | MED | `release_gate_warnings` is consumed by `attention.run`, `production_checks.backlog_cross_tree`, and twice in `runner_shared` (graduation advisory). `backlog_cross_tree` converts any non-`orphaned-live-blocker` rule located at the item into a `BACKLOG-CROSS-TREE` failure. A new rule there would change graduation outcomes, so the new producer must be separate. | `production_checks.backlog_cross_tree` body |
 | F-06 | LOW | Cost: `_from_backlog_carrier_index` measured 0.29-0.34 s warm (672 keys); `release_gate_warnings` 0.30 s; a warm `aw attention` 5.67 s. The new producer adds roughly one index walk, about 5 percent of the command; E-05 measures the real end-to-end delta. | timing script, `/usr/bin/time aw attention` |
 | F-07 | LOW | The inner gate's SATISFIED arm accepts any resolvable in-tree records path, so `--evidence <terminal carrier>` makes the Fix command legitimate for gated and ungated items alike. | `check_engine.evaluate_blocking_close` docstring; `check_engine.resolve_evidence_artifact` |
+| F-08 | LOW | REVIEW-ADDED. Pending sibling `0owirm` (Set `gradfix`) adds `runner_shared.backlog_item_already_complete` for `open` items and explicitly hands the `graduated` case to this plan (its Deferred: "owned by pending plan `isnqja`"). Its predicate requires at least one IPD carrier; this plan's requires a non-empty carrier list, so a spec-only graduated item with an `implemented` spec is surfaced here but would be NO_IPD_CARRIER there. Measured at review: `aw backlog set <id6> --status done --evidence <terminal carrier>` exits 0 and moves a graduated item to `done/` for a same-gate carrier, a different-gate carrier, and an ungated item, so a spec-only surface is still closable. | The two predicates are on different populations (`open` vs `graduated`) and both judge terminality by `_carrier_is_executed`, so they cannot disagree about one carrier. The spec-only difference is deliberate here (the backlog item is about spec carriers). Converging them is out of scope; do not import `0owirm`'s predicate, which may not exist at execution. |
 
 ## Proposed changes (ordered, validatable)
 
@@ -102,6 +105,8 @@ All at HEAD `402655b05c7b0de8092202968d89d62bd2e70cfd`.
   - Carrier-Declined: NOT OWED. The attention surface closes the visibility gap the backlog item names for every route; a setter-side hint would be a convenience, and if a maintainer wants it, it is a separate `followup` on `status_set.run_set_command`.
 - ADDING THE RULE TO `release_gate_warnings` or to `aw check`. Excluded because of F-05 (graduation verdicts) and because a closable item is not a defect to fail a check on.
   - Carrier-Declined: NOT OWED; deliberate design choice recorded here.
+- CONVERGING WITH `0owirm`'s `backlog_item_already_complete` (F-08). Different item populations, same terminality authority; folding them together would couple this plan to an unexecuted sibling.
+  - Carrier-Declined: NOT OWED; both judge carriers through `_carrier_is_executed`, so no disagreement is possible on a single carrier.
 - JSON / `--agent` attention output. The precedent section (`release-gate-warnings`) is human-view only; widening machine output is a contract change.
   - Carrier-Declined: NOT OWED; follows the shipped precedent.
 
@@ -153,7 +158,7 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Observed evidence:
   - Result: pending
 - [ ] V-05 validates E-05
-  - Required evidence: the CHANGELOG diff hunk; the bare `python3 -m pytest` summary line verbatim with the failing node-id list compared against V-01's baseline (no node id added); `python3 -m pytest tests/test_graduated_closable_warning.py` summary showing 9 passed; two warm `aw attention` timings after the change beside V-01's.
+  - Required evidence: the CHANGELOG diff hunk; the bare `python3 -m pytest` summary line verbatim with the failing node-id list compared against V-01's baseline (no node id added); `python3 -m pytest -o addopts="" -rA tests/test_graduated_closable_warning.py` output showing every case named in E-02 PASSED with none skipped or xfailed (a re-derived per-case listing, not a count bar); two warm `aw attention` timings after the change beside V-01's.
   - Observed evidence:
   - Result: pending
 
@@ -164,6 +169,12 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 
 EXECUTION CONTRACT. Commit only the declared `- Scope-Paths:` plus this plan file, through `aw commit <plan> -- <paths>`; never `git add -A`, never push. `- Scope-Paths:` is a declaration: an undeclared edit the work genuinely needs is made and justified at finalize with `--scope-reason <path>=<why>`.
 
+OPEN QUESTIONS. OQ-01 is resolved; no blocking question remains.
+
+HONESTY. Every `Observed evidence` MUST paste the ACTUAL runner output (pytest lines, `aw attention` stdout, timings); never claim a pass that was not run.
+
+LIFECYCLE START. Begin with `aw ipd begin isnqja --actor <you>`. Commit via `aw commit isnqja -- agent_workflows/check_engine.py agent_workflows/attention.py tests/test_graduated_closable_warning.py CHANGELOG.md <this plan>`.
+
 ORDER MATTERS. E-02's tests are run and observed failing before E-03 edits production code; V-02 cannot be satisfied retroactively.
 
-POST-GATE LIFECYCLE MOVE. Do not mark this plan executed until `aw ipd lint --phase pre-transition` conforms and every `V-*` carries pasted evidence with `Result: pass`. Under `aw oc run` / `aw agy run` the driver performs finalize; outside a run use the tooled lifecycle (`aw ipd finalize`), never a hand `git mv`. Closing backlog item `wfswdb` is the runner's act on executing this carrier; it carries no `- Blocks-Release:`, so this plan inherits none.
+POST-GATE LIFECYCLE MOVE. Do not mark this plan executed until `aw ipd lint --phase pre-transition` conforms and every `V-*` carries pasted evidence with `Result: pass`. Under `aw oc run` / `aw agy run` the driver performs finalize, so the executor must NOT run `aw ipd finalize` itself; outside a run use `aw ipd finalize isnqja --actor <you> --message <msg> --apply`, never a hand `git mv`. Closing backlog item `wfswdb` is the runner's act on executing this carrier; it carries no `- Blocks-Release:`, so this plan inherits none.
