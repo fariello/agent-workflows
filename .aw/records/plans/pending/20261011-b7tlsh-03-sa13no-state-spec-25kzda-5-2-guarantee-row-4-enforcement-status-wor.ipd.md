@@ -6,7 +6,8 @@
 - Scope: IN: amend ONE table cell (spec `25kzda` 5.2 guarantee row 4, `Enforcement or proof`) so it says what WOULD prove the guarantee, what runs today, and that the guarantee is not in force as a host-enforced property; add ONE behavioral regression test class pinning the measurements the cell will assert; record the amendment with `aw specs note`. OUT: rows 1, 2, 3 and 5; the `Bucket` column; the 5.2 host-requirement bullets, action table and 5.6 packet example; `UNREPRESENTED_SPEC_CAPABILITIES` and every production module; building any new capability field or probe.
 - Scope-Paths: .aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md, tests/test_host_capability_extension.py
 - Item-Dependencies: none
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
 - From-Backlog: gqy7yd
@@ -19,7 +20,9 @@
 - Id: sa13no
 
 ## Workflow history
+- 2026-10-12 reviewed (opencode/its_direct/pt3-claude-opus-5.5-1m-us): plan-review: APPROVE WITH REVISIONS APPLIED
 
+- 2026-10-12 /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003. All E-01 measurements re-derived at HEAD and match F-1..F-6; added F-9 (hardened refusal is OpenCode-only, agy ignores it) into E-03's target text and V-03.
 - 2026-10-12 draft (opencode/claude-opus): created.
 - 2026-10-11 to-review (opencode/claude-opus): authored from backlog gqy7yd; premise re-measured in the authoring lane.
 
@@ -47,14 +50,14 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 3: amend the cell and record provenance
 
-- [ ] E-03 Amend ONE table cell: spec `25kzda` 5.2 guarantee row 4, `Enforcement or proof`, identified by its quoted text "Worktree isolation, filesystem policy, and timeout/cancel capabilities." Follow the shape rows 2 and 3 use (mechanism as what WOULD prove the guarantee, then status, then "not in force today and fails closed"), and add the running-versus-proven distinction that is unique to this row. Target text (the executor may tighten wording but must keep every clause): "Worktree isolation, filesystem policy, and timeout/cancel capabilities would prove this guarantee. The capability contract has no field for any of them (`isolated_worktree`, `path_policy` and `timeout_cancel` are recorded in `UNREPRESENTED_SPEC_CAPABILITIES`), so the guarantee cannot be gated in the descriptor. Unlike rows 1 and 3, parts of the mechanism run: each execute item gets its own isolated worktree by default (`run.isolate_worktree`, opt out with `--no-isolate-worktree`), and a per-turn ceiling terminates a wedged worker; but the default worktree is a driver convention rather than a boundary, since nothing stops a worker with shell access from writing outside it, and coordinator-owned paths are made inaccessible only under the opt-in `hardened` execution profile, which refuses rather than degrading on a host whose executed sandbox probe fails. The guarantee is not in force today as a host-enforced property and fails closed." Do NOT change the `Bucket` cell, any other row, or delete row 4.
+- [ ] E-03 Amend ONE table cell: spec `25kzda` 5.2 guarantee row 4, `Enforcement or proof`, identified by its quoted text "Worktree isolation, filesystem policy, and timeout/cancel capabilities." Follow the shape rows 2 and 3 use (mechanism as what WOULD prove the guarantee, then status, then "not in force today and fails closed"), and add the running-versus-proven distinction that is unique to this row. Target text (the executor may tighten wording but must keep every clause): "Worktree isolation, filesystem policy, and timeout/cancel capabilities would prove this guarantee. The capability contract has no field for any of them (`isolated_worktree`, `path_policy` and `timeout_cancel` are recorded in `UNREPRESENTED_SPEC_CAPABILITIES`), so the guarantee cannot be gated in the descriptor. Unlike rows 1 and 3, parts of the mechanism run: each execute item gets its own isolated worktree by default (`run.isolate_worktree`, opt out with `--no-isolate-worktree`), and a per-turn ceiling terminates a wedged worker; but the default worktree is a driver convention rather than a boundary, since nothing stops a worker with shell access from writing outside it, and coordinator-owned paths are made inaccessible only under the opt-in `hardened` execution profile, a Linux/Landlock boundary available to `aw oc run` only, which refuses rather than degrading on a host whose executed sandbox probe fails; `aw agy run` reads no launch profile and runs a `hardened` request unsandboxed. The guarantee is not in force today as a host-enforced property and fails closed." Do NOT change the `Bucket` cell, any other row, or delete row 4.
   - Depends on: E-01, E-02
   - Expected outcome: The row 4 cell states what would prove the guarantee, that no field carries the proof, what runs today and why it is not a boundary, and that the guarantee is not in force and fails closed. Nothing else in the spec body changes.
   - Execution state: pending
 
-- [ ] E-04 Record provenance: run `python3 -m agent_workflows specs note .aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md --message "AMENDED (plan sa13no, backlog gqy7yd): 5.2 guarantee row 4 Enforcement or proof cell now states its status: isolated_worktree/path_policy/timeout_cancel are unrepresented in the capability contract; default worktree isolation and the per-turn ceiling run but are not a boundary; hardened profile is opt-in and fails closed. All five Host-dependent rows now state enforcement status."`. Do not hand-edit the history and do not change the spec's `- Status:` or `- Blocks-Release:`.
+- [ ] E-04 Record provenance: run `python3 -m agent_workflows specs note .aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md --message "AMENDED (plan sa13no, backlog gqy7yd): 5.2 guarantee row 4 Enforcement or proof cell now states its status: isolated_worktree/path_policy/timeout_cancel are unrepresented in the capability contract; default worktree isolation and the per-turn ceiling run but are not a boundary; hardened profile is opt-in and fails closed on OpenCode (agy ignores it). All five Host-dependent rows now state enforcement status."`. Do not hand-edit the history and do not change the spec's `- Status:` or `- Blocks-Release:`.
   - Depends on: E-03
-  - Expected outcome: Exactly one appended dated history line naming `sa13no` and `gqy7yd`; status and release gate byte-unchanged.
+  - Expected outcome: Exactly one new dated history line (the spec history is newest-first, so `aw specs note` inserts it at the top) naming `sa13no` and `gqy7yd`; status and release gate byte-unchanged.
   - Execution state: pending
 
 ## Project conventions discovered (Step 0)
@@ -78,6 +81,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 | F-5 | Coordinator-owned paths are made inaccessible only under an opt-in profile that fails closed | `host_sandbox_profile.build_sandbox_plan` computes the INACCESSIBLE class (control root, main worktree, sibling lanes, integration candidate, credentials); `select_execution_profile(None, caps)` returns `"default"`; `select_execution_profile("hardened", HostSandboxCapabilities())` raises `HardModeUnavailableError` (measured) | E-03 names the `hardened` profile as opt-in and fail-closed; leg B pins the refusal. |
 | F-6 | A per-turn ceiling runs, but timeout/cancel as the spec defines it ("without losing outcome evidence") is not proven | `lane_containment.MAX_TURN_TIMEOUT` = 14400.0 (4 hours), enforced by `lane_containment.TurnBoundWatch`; the `timeout_cancel` note says `supports_process_tree_kill` is "necessary but not sufficient" | E-03 says a ceiling terminates a wedged worker without claiming the full capability. |
 | F-7 | No other pending plan declares this spec | `grep -l "25kzda-aw-run-deterministic" .aw/records/plans/pending/*` returned nothing in the authoring lane; the spec's latest history (2026-10-11) records the `netnsfilter` stop decision, which concerns row 1's subject, not row 4 | No ordering or semantic collision; `Item-Dependencies: none`. |
+| F-9 | ADDED AT REVIEW. The `hardened` refusal is OpenCode-only: Antigravity silently ignores the request | `oc_runipd` comment at the `execution_profile` writer: "`agy_runipd` contains zero references to `execution_profile` ... an agy run SILENTLY IGNORES a stored request rather than refusing it"; `docs/runner-profiles.md` "IT IS OPENCODE ONLY, AND ANTIGRAVITY IGNORES IT RATHER THAN REFUSING"; `rg execution_profile agent_workflows/agy_runipd.py` returns nothing at review | A cell saying `hardened` "refuses rather than degrading" without the host qualifier would be a new overclaim in the very row being de-overclaimed. E-03's target text names the OpenCode-only scope and the agy behavior. |
 | F-8 | Row 4 is the last unamended Host-dependent row | Rows 1 and 3 amended by `e6w056`, row 2 by `00pirb`; row 5 measured honest by `e6w056` F-8 | After this plan, every Host-dependent row states its status; E-04's note says so. |
 
 ## Proposed changes (ordered, validatable)
@@ -123,14 +127,14 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 - Blocking: no
 - Status: resolved
-- Owner: none
+- Owner: plan author
 - Resolution or deferral rationale: RESOLVED FROM REPOSITORY EVIDENCE: yes, qualified as "not in force today as a host-enforced property". The guarantee is "Item mutation is CONFINED to an isolated worktree and coordinator-owned paths are INACCESSIBLE". `lane_containment`'s "HONEST LIMIT" says nothing prevents a worker with shell access from writing outside its lane, and inaccessibility exists only under opt-in `hardened`. So confinement is not guaranteed by default. The cell also names what runs, which is the distinction the backlog item requires and which rows 1 and 3 do not need.
 
 ### OQ-02: Should the cell cite `MAX_TURN_TIMEOUT` by value?
 
 - Blocking: no
 - Status: resolved
-- Owner: none
+- Owner: plan author
 - Resolution or deferral rationale: RESOLVED: no. The value (4 hours) is a tunable default documented on the constant; putting it in the spec would rot when it changes. The cell says "a per-turn ceiling terminates a wedged worker", and leg B pins only that the ceiling is positive.
 
 ## Validation and cross-check (verify before reporting done)
@@ -148,12 +152,12 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Result: pending
 
 - [ ] V-03 validates E-03
-  - Required evidence: `git diff` of the spec showing row 4's cell before and after, with the new cell quoted in full. It must contain: (i) the mechanism as what WOULD prove the guarantee; (ii) that no capability field carries it, citing `UNREPRESENTED_SPEC_CAPABILITIES` and all three names; (iii) that default worktree isolation and a per-turn ceiling run; (iv) that the worktree is not a boundary; (v) that inaccessibility exists only under opt-in `hardened`, which refuses rather than degrading; (vi) that the guarantee is not in force today and fails closed. A cell that names any `supports_*` field as the proof carrier, or that says no mechanism runs, FAILS this item. The diff hunk must show the `Bucket` cell and rows 1, 2, 3, 5 unchanged.
+  - Required evidence: `git diff` of the spec showing row 4's cell before and after, with the new cell quoted in full. It must contain: (i) the mechanism as what WOULD prove the guarantee; (ii) that no capability field carries it, citing `UNREPRESENTED_SPEC_CAPABILITIES` and all three names; (iii) that default worktree isolation and a per-turn ceiling run; (iv) that the worktree is not a boundary; (v) that inaccessibility exists only under opt-in `hardened`, which refuses rather than degrading on OpenCode, and that `aw agy run` ignores the request (F-9); (vi) that the guarantee is not in force today and fails closed. A cell that names any `supports_*` field as the proof carrier, or that says no mechanism runs, FAILS this item. The diff hunk must show the `Bucket` cell and rows 1, 2, 3, 5 unchanged.
   - Observed evidence:
   - Result: pending
 
 - [ ] V-04 validates E-04
-  - Required evidence: The pasted `aw specs note` output, and a `git diff` of the spec's `## Workflow history` showing exactly one appended line naming `sa13no` and `gqy7yd`. Paste the spec's `- Status:` and `- Blocks-Release:` lines after the edit showing `approved` and `next` unchanged.
+  - Required evidence: The pasted `aw specs note` output, and a `git diff` of the spec's `## Workflow history` showing exactly one added line naming `sa13no` and `gqy7yd`. Paste the spec's `- Status:` and `- Blocks-Release:` lines after the edit showing `approved` and `next` unchanged.
   - Observed evidence:
   - Result: pending
 
