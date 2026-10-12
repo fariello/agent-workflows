@@ -1,5 +1,6 @@
 - Id: upkghw
-- Status: open
+- Status: graduated
+- Graduated-To: upkghw
 - Blocks-Release: next
 - Set: upkghw
 - Priority: low
@@ -7,4 +8,5 @@
 - Summary: Update stale .agents prompt path assertion in test_tracking_warning_scan to .aw/records
 
 ## Workflow history
+- 2026-10-12 graduated (aw backlog): graduated by run run-20261012T005650Z-2322198: ic6vpg
 - 2026-10-08 created (aw backlog): Update stale .agents prompt path assertion in test_tracking_warning_scan to .aw/records
