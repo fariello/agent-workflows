@@ -6,7 +6,8 @@
 - Scope: Confirm the defect is fixed at HEAD by the frozen `host_capabilities` descriptor that `psgyzw` (commit `163874fcc`) added to the helper, and harden the helper so any future pre-verify early return fails with a named diagnostic instead of a bare KeyError. Test-only change.
 - Scope-Paths: tests/test_runwire_verifier_authority.py, .aw/records/plans/pending/20261012-0016hm-01-r6ykw2-confirm-and-harden-the-collision-guard-mutation-test-against.ipd.md
 - Item-Dependencies: none
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: high
 - From-Backlog: 0016hm
@@ -19,6 +20,8 @@
 
 ## Workflow history
 
+- 2026-10-12 /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-004 fixed (negative control made deterministic; refusal key corrected to singular `refusal`; guard raises explicitly; execution contract completed)
+- 2026-10-12 reviewed (aw set): plan-review revisions applied (PR-001..PR-004)
 - 2026-10-12 draft (opencode Claude Opus): created.
 - 2026-10-12 to-review (opencode Claude Opus): authored review-ready from backlog 0016hm with root cause reproduced at the filing commit.
 
@@ -34,14 +37,14 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 - [ ] E-01 Run `tests/test_runwire_verifier_authority.py` at HEAD, both alone and as part of the bare suite, and record that `test_collision_guard_bites_by_mutation` passes.
   - Depends on: none
-  - Expected outcome: `12 passed` for the file (or the current count), and the bare suite reports no failure for this test.
+  - Expected outcome: every test in the file passes (re-measured at review at HEAD `6bac33183`: `12 passed`; the count is context, not the bar), and the bare suite's `FAILED` list does not name `test_collision_guard_bites_by_mutation`.
   - Execution state: pending
 
 ### Task group 2: Harden the helper
 
-- [ ] E-02 In `tests/test_runwire_verifier_authority.py` `_drive_execute_turn`, after `runner_shared.execute_item_core(...)` returns, assert that the item reached the verify stage. Specifically, assert `"verification_status" in item`, with a failure message that quotes `item.get("status")`, `item.get("refusals")` (or the latest attempt's `host_capability_unavailable` / `clean_base_refused` / `begin_refused` / `scope_target_refused` / `worktree_error` keys, whichever are present), so an early return is named rather than surfacing later as `KeyError`. This asserts observable output of the real pipeline; it does not read source.
+- [ ] E-02 In `tests/test_runwire_verifier_authority.py` `_drive_execute_turn`, after `runner_shared.execute_item_core(...)` returns, assert that the item reached the verify stage: if `"verification_status" not in item`, raise `AssertionError` whose message starts `execute_item_core returned before the verify stage:` and quotes ALL of `item.get("status")`, `item.get("refusal")` (SINGULAR: `runner_shared.record_refusal` writes `item["refusal"] = {"code", "reason", "remedy"}`; there is no `refusals` key, measured at review), `item.get("worktree_error")` (an ITEM key, not an attempt key), and whichever of `host_capability_unavailable` / `scope_target_refused` / `clean_base_refused` / `begin_refused` are present on the latest attempt. Use an explicit `if ...: raise AssertionError(...)` rather than a bare `assert`, so the guard survives `python -O`. This asserts observable output of the real pipeline; it does not read source. All ten callers in the file then inherit the guard.
   - Depends on: E-01
-  - Expected outcome: Every existing test in the file still passes. A deliberately induced preflight refusal (removing the `host_capabilities` key from the helper's state, temporarily and locally, with no commit) makes the helper fail with an AssertionError naming the refusal instead of a KeyError.
+  - Expected outcome: Every existing test in the file still passes. A deliberately induced preflight refusal makes the helper fail with the named AssertionError instead of a KeyError. INDUCE IT by temporarily setting the helper's `"supports_fresh_verifier_session": True` to `False` (uncommitted, reverted after; verify with `git diff --stat`), NOT by removing the `host_capabilities` key: measured at review, removing the key falls through to the live host probe, which on this machine did NOT refuse (two drives both reached verify), so that control is environment-dependent and can prove nothing. The `False` descriptor refused deterministically on both hosts at review: `7 failed, 5 passed`, each failure `AssertionError: execute_item_core returned before the verify stage: status='fail-gate' refusal={'code': 'host_capability_unavailable', ...}`, zero `KeyError`.
   - Execution state: pending
 
 - [ ] E-03 Commit only the test file and this plan via `aw commit r6ykw2 -- tests/test_runwire_verifier_authority.py <this plan path>`.
@@ -65,6 +68,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 | F-2 | Root cause: the helper built `state` without `host_capabilities`, so the preflight probed the live host and refused the second (mutated) drive. `execute_item_core` returned at the preflight before writing `verification_status`. | Stderr in F-1; the `if not preflight.ok:` branch in `runner_shared.execute_item_core` returns without setting `verification_status`. |
 | F-3 | Already fixed at HEAD: commit `163874fcc` (psgyzw) added `"host_capabilities": {"descriptor": {"supports_fresh_verifier_session": True, "supports_session_resume": True}}` to the helper's state. | `git diff bbf408eed HEAD -- tests/test_runwire_verifier_authority.py` shows only that hunk. At HEAD the file runs `12 passed` three times with random order, and again under the bare configured addopts. |
 | F-4 | Residual risk: any new pre-verify early return in `execute_item_core` would bring back the same opaque KeyError in every test that uses this helper. | The early returns listed in Step 0. |
+| F-5 | The E-02 guard and its negative control were demonstrated at review on scratch copies (deleted afterwards; no tracked file changed). | Guarded copy: `12 passed`. Guarded copy with the descriptor capability set `False`: `7 failed, 5 passed`, all seven `AssertionError: execute_item_core returned before the verify stage: status='fail-gate' refusal={'code': 'host_capability_unavailable', ...} worktree_error=None early={'host_capability_unavailable': ...}` on opencode and antigravity; no `KeyError`. Removing `host_capabilities` instead reached verify on both of two drives (live probe passed here). |
 
 ## Proposed changes (ordered, validatable)
 
@@ -86,7 +90,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 - `python3 -m pytest tests/test_runwire_verifier_authority.py -o addopts="" -q` passes (V-01, V-02).
 - The bare `python3 -m pytest` reports no failure for `test_collision_guard_bites_by_mutation` (V-01).
-- A temporary, uncommitted removal of `host_capabilities` from the helper produces an AssertionError naming the refusal, not a KeyError (V-02).
+- A temporary, uncommitted change of the helper's `supports_fresh_verifier_session` to `False` produces the named AssertionError (refusal code `host_capability_unavailable`), not a KeyError (V-02).
 - The commit touches only the declared paths (V-03).
 
 ## Spec / documentation sync
@@ -99,7 +103,7 @@ N/A: this is a test-fixture change with no behavior, CLI, or spec contract chang
 
 - Blocking: no
 - Status: deferred
-- Owner: maintainer (trigger: a runner consumer needing the key on early returns)
+- Owner: plan author (trigger: a runner consumer needing the key on early returns)
 - Resolution or deferral rationale: Deferred (see Deferred section). The defect was fixture-side, and the runner's early-return item shape is an existing contract. File a separate backlog item if a consumer is found that needs the key.
 
 ## Validation and cross-check (verify before reporting done)
@@ -112,12 +116,12 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Result: pending
 
 - [ ] V-02 validates E-02
-  - Required evidence: paste the `git diff` of `_drive_execute_turn`; paste the pytest summary for the file with the change (all passing); paste the AssertionError output from the temporary, uncommitted removal of `host_capabilities`, showing the refusal text and no `KeyError`.
+  - Required evidence: paste the `git diff` of `_drive_execute_turn`; paste the pytest summary for the file with the change (all passing); paste the pytest output from the temporary, uncommitted `supports_fresh_verifier_session: False` edit, showing at least one `AssertionError: execute_item_core returned before the verify stage:` carrying `host_capability_unavailable` and no `KeyError`; then paste `git diff --stat` after reverting it, showing only the E-02 hunk remains.
   - Observed evidence:
   - Result: pending
 
 - [ ] V-03 validates E-03
-  - Required evidence: paste `git show --stat HEAD` showing only `tests/test_runwire_verifier_authority.py` and this plan.
+  - Required evidence: paste `git show --stat HEAD` showing only `tests/test_runwire_verifier_authority.py` and this plan (or only the test file, if the runner commits the plan separately).
   - Observed evidence:
   - Result: pending
 
@@ -126,4 +130,9 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 - Size assessment: standard
 - Cohesion rationale: not required
 
-Execute only after human approval (`Status: approved`). Follow the agent execution contract: commit through `aw commit r6ykw2 -- <paths>`, never push, and paste real runner output. Once every `V-*` reads `pass` and `aw ipd lint --phase pre-transition` conforms, finalize to `.aw/records/plans/executed/` through the tooled lifecycle.
+Execute only after human approval (`Status: approved`). Execution contract:
+- Open questions: OQ-01 is deferred and non-blocking; nothing else is open.
+- Scope fence (a DECLARATION, not a stop condition): `- Scope-Paths:` lists the expected files. An out-of-scope edit that proves necessary is made and then justified with `--scope-reason` at finalize; a declared path left untouched gets `--scope-ack`.
+- Honesty: you MUST paste the ACTUAL runner output into each `V-*`; never claim a pass you did not run.
+- Commit only your own paths through `aw commit r6ykw2 -- <paths>`; never `git add -A`, never push.
+- Lifecycle: under `aw oc run` / `aw agy run` the RUNNER finalizes; do not run `aw ipd finalize` yourself there. In a HAND execution, run `aw ipd finalize r6ykw2` once every `V-*` reads `pass` and `aw ipd lint --phase pre-transition` conforms. Never hand-roll a `git mv` to `executed/` or hand-edit `- Status:`. Backlog `0016hm` (gate `Blocks-Release: next`) closes through this plan's `From-Backlog` handoff.
