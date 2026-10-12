@@ -6,7 +6,8 @@
 - Scope: IN: (a) a new `check_engine` rule `check.source-test-citation-dangling` registered in `RULE_REGISTRY` at severity `info` (advisory, exit code unaffected), evaluated on the `aw check all` full-sweep seam in `check_engine.check_types`; (b) a keyed exemption for retirement statements (a citation whose sentence names it deleted/retired/removed together with a commit hash) and for an explicit placeholder set of illustrative names; (c) a behavioral test over synthesized fixture trees; (d) a CHANGELOG entry. OUT: fixing any existing dangling citation (owned by `iosmvn`, `3tov52`/`65d5zf`, `9vfxhn`/`l4lc6p` and siblings); promoting the rule to `error` (needs the baseline at zero first); `.aw/records/`, `docs/`, `CHANGELOG.md`/`DECISIONS.md` citation scanning (owned elsewhere or append-only history); test files themselves (fixture literals).
 - Scope-Paths: agent_workflows/check_engine.py, tests/test_check_engine_source_test_citation.py, CHANGELOG.md
 - Item-Dependencies: none
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
 - Work-Kind: feature
 - Priority: low
 - From-Backlog: j7daih
@@ -17,7 +18,9 @@
 - Id: ml7b9e
 
 ## Workflow history
+- 2026-10-12 reviewed (aw set): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-001..PR-008
 
+- 2026-10-12 /plan-review (opencode model=its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-008 fixed (review record 20261011-j7daih-01-ml7b9e)
 - 2026-10-12 draft (opencode): created.
 - 2026-10-11 to-review (opencode): authored from backlog `j7daih`; baseline measured at HEAD `0d67a8b70`.
 
@@ -31,9 +34,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: baseline
 
-- [ ] E-01 Re-measure the baseline at execution HEAD and record the suite baseline. Run (a) `git rev-parse --short HEAD`; (b) a throwaway measurement script (not committed) that walks non-test `*.py` under `agent_workflows/` and `tools/`, matches `tests/test_[A-Za-z0-9_]+\.py`, and prints counts of citations whose target is missing, partitioned into `placeholder`, `retired` and `live` using exactly the exemption rules E-03 will implement; (c) a BARE `python3 -m pytest` (no `-n0`, no extra `-q`, no `-p no:randomly`); (d) `time aw check all >/dev/null` for the wall-clock baseline.
+- [ ] E-01 Re-measure the baseline at execution HEAD and record the suite baseline. Run (a) `git rev-parse --short HEAD`; (b) a throwaway measurement script (not committed) that walks non-test `*.py` under `agent_workflows/` and `tools/`, matches `tests/test_[A-Za-z0-9_]+\.py`, and prints counts of citations whose target is missing, partitioned into `placeholder`, `retired` and `live` using exactly the exemption rules E-03 will implement, plus the count of distinct live (file, cited path) pairs (the figure E-03's deduplicated finding count must equal); (c) a BARE `python3 -m pytest` (no `-n0`, no extra `-q`, no `-p no:randomly`), recording the summary line AND the set of FAILED node ids; (d) `aw check all --agent`, recording its exit code and the per-rule count of its diagnostics; (e) `time aw check all >/dev/null` for end-to-end wall-clock context.
   - Depends on: none
-  - Expected outcome: four pasted outputs; the partition is close to the authoring measurement (placeholder 11, retired 21, live 110 at `0d67a8b70`), with any drift stated and attributed to sibling cleanup plans landing.
+  - Expected outcome: five pasted outputs. The partition and pair count are re-derived at execution HEAD and are the bar for V-03; the authoring measurement is context only (placeholder 11, retired 21, live 110, 79 live pairs at `0d67a8b70`, reproduced identically at review HEAD `bd8b8e993`), and any drift is stated and attributed to sibling cleanup plans landing.
   - Execution state: pending
 
 ### Task group 2: the rule
@@ -43,21 +46,21 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Expected outcome: `python3 -c "from agent_workflows import check_engine as c; print(c.RULE_REGISTRY['check.source-test-citation-dangling'].severity)"` prints `info`.
   - Execution state: pending
 
-- [ ] E-03 Add `check_engine.check_source_test_citations(repo_root, scan_roots=("agent_workflows", "tools"))` beside `check_spec_test_citations`. It walks `*.py` under each scan root, skips files named `test_*.py` or `*_test.py` (fixture literals) and paths for which `artifact_core.is_ignored_path` is True (using `artifact_core.get_ignored_dirs`), skips any file not containing the substring `tests/test_` before regex work (cheap prefilter), reuses the existing `_TEST_PATH_RE`, and for each match whose `repo_root / <match>` is not a file emits one `enrich_drift(_core.Drift(<repo-relative path>:<line>, "check.source-test-citation-dangling", <short detail>), observed=..., required=..., recovery=...)` with `severity="info"`. Exemptions, each a named module constant so a reviewer can read them: (i) `_SOURCE_TEST_CITATION_PLACEHOLDERS`, a frozenset of illustrative names measured in the live tree at authoring (`tests/test_x.py`, `tests/test_foo.py`, `tests/test_extra.py`, `tests/test_secret.py`); (ii) a RETIREMENT STATEMENT: the match's own line joined with the next line contains `deleted`, `retired` or `removed` (case-insensitive) followed within 80 characters on the same sentence by a hex token of 7 to 40 characters (a commit hash), which is the established retirement wording (`was deleted in \`19313eed\``) used by sibling plans `65d5zf` and `dtelfb`. Deduplicate per (file, cited path) so one stale pointer repeated in a paragraph reports once. Keep the detail under 60 characters (the `doctor.build_remediation` generic fallback uses a short detail as the title).
+- [ ] E-03 Add `check_engine.check_source_test_citations(repo_root, scan_roots=("agent_workflows", "tools"))` beside `check_spec_test_citations`. It walks `*.py` under each scan root, skips files named `test_*.py` or `*_test.py` (fixture literals) and paths for which `artifact_core.is_ignored_path` is True (using `artifact_core.get_ignored_dirs`), skips any file not containing the substring `tests/test_` before regex work (cheap prefilter), reuses the existing `_TEST_PATH_RE`, and for each match whose `repo_root / <match>` is not a file emits one `enrich_drift(_core.Drift(<repo-relative POSIX path>:<line>, "check.source-test-citation-dangling", <constant detail>), observed=..., required=..., recovery=...)` with `severity="info"`. Exemptions, each a named module constant so a reviewer can read them: (i) `_SOURCE_TEST_CITATION_PLACEHOLDERS`, a frozenset of illustrative names measured in the live tree at authoring (`tests/test_x.py`, `tests/test_foo.py`, `tests/test_extra.py`, `tests/test_secret.py`); (ii) a RETIREMENT STATEMENT, a compiled module regex `_SOURCE_TEST_CITATION_RETIRED_RE` applied to the WINDOW formed by the match's own line joined (with one space) to the next line: a whole word `deleted`, `retired` or `removed` (case-insensitive) followed within 80 characters by a whole-word hex token of 7 to 40 characters CONTAINING AT LEAST ONE DIGIT (so an English hex-letter word such as `defaced` is not a hash). No sentence parsing is attempted; the window is the only boundary. This is the established retirement wording (`was deleted in \`19313eed\``) used by sibling plans `65d5zf` and `dtelfb`; review reproduced the digit-requiring form exempting the same 21 citations as the authoring form. Exemptions are applied PER OCCURRENCE, BEFORE deduplication: deduplicate the remaining non-exempt occurrences per (file, cited path) and report the line of the FIRST non-exempt occurrence, so a pair whose first mention is a retirement statement but whose later mention is a live claim still reports (review measured 4 such mixed pairs). The `detail` is a CONSTANT string under 60 characters (for example `comment cites a test file that does not exist`), because `doctor.build_remediation`'s generic fallback uses a short detail as the title and `aw doctor` summaries group on (title, summary_fix), so interpolating the path would fragment the summary; the cited path goes in `observed`, and `recovery` names both remedies (repoint the citation, or rewrite it as a retirement statement naming the deleting commit).
   - Depends on: E-02
   - Expected outcome: calling the function on the live repo returns only findings of the new rule, each with severity `info` and a `path:line` location; on a fixture tree it returns exactly the defects planted there.
   - Execution state: pending
 
 - [ ] E-04 Wire the evaluator into the `collisions` full-sweep branch of `check_engine.check_types`, beside `check_scope_path_target_stale`, inside its OWN `try/except Exception: pass` matching its neighbours (a failure must not suppress another scan), with a comment noting that it therefore fires on `aw check all` and not on a type-scoped run, exactly like its siblings on that seam.
   - Depends on: E-03
-  - Expected outcome: `aw check all --agent` emits `check.source-test-citation-dangling` findings at `info` and exits with the same code it exited with at E-01 (pasted before/after exit codes).
+  - Expected outcome: `aw check all --agent` emits `check.source-test-citation-dangling` findings at `info`; its per-rule diagnostic counts differ from E-01's ONLY in the new rule id (every other rule's count unchanged, modulo drift explained by a commit landing between the two runs); and its exit code equals E-01's. Because the live tree already exits 1 at review (`bd8b8e993`), exit parity alone cannot show the rule is advisory; the discriminating proof is E-05 cases (9) and (9b).
   - Execution state: pending
 
 ### Task group 3: tests and docs
 
-- [ ] E-05 Create `tests/test_check_engine_source_test_citation.py` exercising the rule ONLY through behavior (P16: no reading of `check_engine.py` source). Each test builds a synthesized repo under `tempfile.TemporaryDirectory` with `agent_workflows/`, `tools/` and `tests/` dirs and calls `check_engine.check_source_test_citations`, then `check_engine.check_types(repo, ["all"])` for integration. Cases: (1) a comment citing a missing `tests/test_gone.py` FIRES once with rule id and severity `info` and a location naming the file and line; (2) a citation of an existing `tests/test_here.py` is SILENT; (3) a retirement statement ("`tests/test_gone.py` was deleted in `19313eed`") is SILENT; (4) the word "deleted" WITHOUT a commit hash still FIRES (discriminating negative for the exemption); (5) a placeholder `tests/test_x.py` is SILENT; (6) the same missing path cited twice in one file reports ONCE, and cited in two files reports twice; (7) a missing citation inside a file named `test_fixture.py` under `tools/` is SILENT; (8) a citation under a gitignored or `__pycache__` directory is SILENT; (9) `artifact_core.drift_exit_code` over a finding list containing only this rule returns 0; (10) the `check_types(repo, ["all"])` result contains the case (1) finding.
+- [ ] E-05 Create `tests/test_check_engine_source_test_citation.py` exercising the rule ONLY through behavior (P16: no reading of `check_engine.py` source). Each test builds a synthesized repo under `tempfile.TemporaryDirectory` with `agent_workflows/`, `tools/` and `tests/` dirs and calls `check_engine.check_source_test_citations`, then `check_engine.check_types(repo, ["all"])` for integration. Cases: (1) a comment citing a missing `tests/test_gone.py` FIRES once with rule id and severity `info` and a location naming the file and line; (2) a citation of an existing `tests/test_here.py` is SILENT; (3) a retirement statement ("`tests/test_gone.py` was deleted in `19313eed`") is SILENT; (4) the word "deleted" WITHOUT a commit hash still FIRES, and so does "deleted in `defaced`" (a hex-letter word with no digit) (discriminating negatives for the exemption); (5) a placeholder `tests/test_x.py` is SILENT; (6) the same missing path cited twice in one file reports ONCE, and cited in two files reports twice; (6b) a file whose FIRST mention of a missing path is a retirement statement and whose LATER mention is a bare live claim reports ONCE, at the later line; (7) a missing citation inside a file named `test_fixture.py` under `tools/` is SILENT; (8) a citation under a `__pycache__` directory is SILENT (default ignore set, no git needed), and a citation under a directory listed in `.gitignore` of a fixture on which `git init` was run is SILENT (skip only that half with a stated reason if `git` is unavailable); (9) `check_engine.rule_spec("check.source-test-citation-dangling").severity == "info"` and `artifact_core.drift_exit_code` over the case (1) finding list returns 0; (9b) the same list with each finding `._replace(severity="warning")` returns 1, the contrastive pair that localizes the exit code to the severity; (10) the `check_types(repo, ["all"])` result contains the case (1) finding.
   - Depends on: E-04
-  - Expected outcome: `python3 -m pytest tests/test_check_engine_source_test_citation.py -o addopts=""` passes all ten cases; temporarily neutering the retirement exemption (local edit, reverted, not committed) makes case (3) fail, proving the test discriminates.
+  - Expected outcome: `python3 -m pytest tests/test_check_engine_source_test_citation.py -o addopts=""` passes every case above; temporarily neutering the retirement exemption (local edit, reverted, not committed) makes case (3) fail, and temporarily moving deduplication before the exemption makes case (6b) fail, proving both discriminate.
   - Execution state: pending
 
 - [ ] E-06 Add one `- Added:` bullet under the pending `2.0.0` section of `CHANGELOG.md` describing the advisory `check.source-test-citation-dangling` rule in plain user-facing language (what it reports, that it is advisory and does not change the exit code, how to silence a deliberate historical mention by naming the deleting commit). No em or en dashes.
@@ -65,9 +68,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Expected outcome: `git diff CHANGELOG.md` shows exactly one added bullet, and `grep -nP '[\x{2013}\x{2014}]'` over the added line prints nothing.
   - Execution state: pending
 
-- [ ] E-07 Run the full regression: BARE `python3 -m pytest`, `aw check all --agent` (exit code compared against E-01), `time aw check all >/dev/null` (wall clock compared against E-01), and `aw sanitize --agent`.
+- [ ] E-07 Run the full regression: BARE `python3 -m pytest`, `aw check all --agent` (exit code and per-rule counts compared against E-01), a timing one-liner calling `check_engine.check_source_test_citations` on the live repo with `time.perf_counter`, `time aw check all >/dev/null` (context), and `aw sanitize --agent`.
   - Depends on: E-06
-  - Expected outcome: suite pass count equals E-01's plus the new tests with no new failures; `aw check all` exit code unchanged; wall-clock increase under 1 second (authoring measurement of the scan alone: about 0.12s over 46 candidate files); sanitizer result `pass`.
+  - Expected outcome: the set of FAILED node ids is a subset of E-01's (a node failing only after is re-run once alone and, if it still fails, is a STOP condition when attributable to this change); `aw check all` exit code unchanged; the new scan's own wall clock is under 1 second (review measured an equivalent scan at 0.23s over 47 candidate files), with the end-to-end `aw check all` times pasted as context only, since a 28s run's run-to-run noise exceeds the scan's cost; sanitizer result `pass`.
   - Execution state: pending
 
 ## Project conventions discovered (Step 0)
@@ -92,6 +95,8 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 | F-04 | INFO | `tests/test_docs_test_citations.py` module docstring: bounded to `docs/**/*.md` plus five root prose docs | The docs guard (plan `1jg2m2`) does not reach shipped source, as the backlog item states. |
 | F-05 | LOW | `time aw check all` -> `real 0m28.041s` | The full sweep is already slow; the new scan must be cheap. The substring prefilter limits regex work to the 46 files that mention `tests/test_` at all. |
 | F-06 | INFO | `grep -rln check.test-citation-dangling` over specs/docs -> only `check_engine.py` and its test | No spec or doc enumerates check rules by id, so no spec amendment is owed. |
+| F-07 | LOW | Review re-scan at `bd8b8e993`: 82 missing (file, path) pairs, 79 with a live occurrence, 4 mixed (`agy_runipd.py`/`oc_runipd.py` x `tests/test_runner_backlog_close.py`, `runner_shared.py` x `tests/test_orchestrator_probe_cache.py` and `tests/test_runner_refork_guard.py`) | Exemption-vs-dedup order decides whether a mixed pair reports; E-03 now fixes it (exempt per occurrence, then dedup) and V-03's bar is the live-pair count. |
+| F-08 | LOW | `aw check all --agent` at `bd8b8e993`: `exit 1` (79 `check.lifecycle-transition-unvalidated`, 30 `check.ipd-uncarried-obligation`, others) | The live tree already exits 1, so exit-code parity cannot prove the rule advisory; the proof is the registry assertion plus the `drift_exit_code` contrastive pair (E-05 9/9b) and the per-rule count delta (V-04). |
 
 ## Proposed changes (ordered, validatable)
 
@@ -123,11 +128,11 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ## Required tests / validation
 
-New `tests/test_check_engine_source_test_citation.py` (ten behavioral cases, E-05) including the discriminating negative for the retirement exemption; `tests/test_severity_tier_contract.py` continues to pass with the new registry entry; bare full suite with no new failures; `aw check all` exit code unchanged versus baseline; wall-clock increase under one second; `aw sanitize --agent` passes.
+New `tests/test_check_engine_source_test_citation.py` (behavioral cases enumerated in E-05) including the discriminating negatives for the retirement exemption (cases 4 and 3-neutered), the exempt-before-dedup ordering (6b), and the advisory proof (registry severity plus the `drift_exit_code` contrastive pair, 9/9b); `tests/test_severity_tier_contract.py` continues to pass with the new registry entry; bare full suite with no new failed node ids; `aw check all` exit code unchanged and only the new rule's count moved; the new scan itself under one second; `aw sanitize --agent` passes.
 
 ## Spec / documentation sync
 
-N/A for specs, with reason: F-06 measured that no spec or doc enumerates check rule ids (the sibling `check.test-citation-dangling` appears only in `check_engine.py` and its test), so `- Scope-Paths:` declares no `.spec.md`. Documentation: one CHANGELOG bullet (E-06).
+N/A for specs, with reason: F-06 measured that the sibling `check.test-citation-dangling` appears only in `check_engine.py` and its test; the specs that DO name rule ids (for example the attention-registry spec) name their own domain's rules and enumerate no catalog this rule must join, and `docs/cli-output-contract.md` describes the severity tiers generically (its `info` worked example is `check.plan-date-filename-mismatch`) without listing every rule. So `- Scope-Paths:` declares no `.spec.md` and no doc. Documentation: one CHANGELOG bullet (E-06).
 
 ## Open questions
 
@@ -150,7 +155,7 @@ N/A for specs, with reason: F-06 measured that no spec or doc enumerates check r
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
 - [ ] V-01 validates E-01
-  - Required evidence: pasted `git rev-parse --short HEAD`, the measurement script and its printed partition, the bare `python3 -m pytest` summary line with a statement that no flags were added, and the `time aw check all` output with its exit code; any drift from F-02 stated and attributed.
+  - Required evidence: pasted `git rev-parse --short HEAD`, the measurement script and its printed partition and live-pair count, the bare `python3 -m pytest` summary line and FAILED node-id set with a statement that no flags were added, the `aw check all --agent` exit code and per-rule diagnostic counts, and the `time aw check all` output; any drift from F-02 stated and attributed.
   - Observed evidence:
   - Result: pending
 
@@ -160,17 +165,17 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Result: pending
 
 - [ ] V-03 validates E-03
-  - Required evidence: the new function and exemption constants quoted from the diff; pasted output of a one-liner calling `check_engine.check_source_test_citations` on the live repo printing the finding count, the set of rule ids (exactly one), the set of severities (exactly `{'info'}`), and three sample locations; the count matches E-01's `live` figure modulo per-file deduplication, with the difference explained.
+  - Required evidence: the new function and exemption constants quoted from the diff; pasted output of a one-liner calling `check_engine.check_source_test_citations` on the live repo printing the finding count, the set of rule ids (exactly one), the set of severities (exactly `{'info'}`), and three sample locations; the count EQUALS E-01's live-pair count (both re-derived at execution HEAD); any inequality is explained per pair or treated as a defect in E-03.
   - Observed evidence:
   - Result: pending
 
 - [ ] V-04 validates E-04
-  - Required evidence: the `check_types` hunk quoted from the diff showing its own `try/except`; pasted `aw check all --agent` lines containing `check.source-test-citation-dangling`; pasted exit codes before (E-01) and after, which are equal. Observation produced by `check_engine.check_types` via the `aw check all` CLI path created in E-04.
+  - Required evidence: the `check_types` hunk quoted from the diff showing its own `try/except`; pasted `aw check all --agent` lines containing `check.source-test-citation-dangling`; pasted per-rule diagnostic counts before (E-01) and after showing the new rule id as the only id whose count moved (or the movement of any other id explained by a named intervening commit); pasted exit codes before and after, which are equal. Observation produced by `check_engine.check_types` via the `aw check all` CLI path created in E-04.
   - Observed evidence:
   - Result: pending
 
 - [ ] V-05 validates E-05
-  - Required evidence: pasted `python3 -m pytest tests/test_check_engine_source_test_citation.py -o addopts="" -v` output showing ten passing cases; pasted output of the same run with the retirement exemption locally neutered showing case (3) FAILING, followed by `git diff --stat agent_workflows/check_engine.py` proving the neutering was reverted; and a statement, checkable in the diff, that the test file contains no `inspect`, `ast`, or read of `check_engine.py`.
+  - Required evidence: pasted `python3 -m pytest tests/test_check_engine_source_test_citation.py -o addopts="" -v` output showing every E-05 case passing, including (6b), (9) and (9b); pasted output of the same run with the retirement exemption locally neutered showing case (3) FAILING, and with deduplication moved before the exemption showing case (6b) FAILING, followed by `git diff --stat agent_workflows/check_engine.py` proving the neutering was reverted; and a statement, checkable in the diff, that the test file contains no `inspect`, `ast`, or read of `check_engine.py`.
   - Observed evidence:
   - Result: pending
 
@@ -180,7 +185,7 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Result: pending
 
 - [ ] V-07 validates E-07
-  - Required evidence: pasted bare `python3 -m pytest` summary line compared with V-01's; pasted `aw check all` exit code and `time` output compared with V-01's (delta under 1s); pasted `aw sanitize --agent` result record showing `pass`; `git diff --cached --name-only` before commit listing only the three Scope-Paths plus this plan.
+  - Required evidence: pasted bare `python3 -m pytest` summary line and FAILED node-id set compared with V-01's (no new failure, or a re-run-alone result for any post-only failure); pasted `aw check all` exit code compared with V-01's; pasted `perf_counter` timing of `check_source_test_citations` on the live repo under 1s, with the end-to-end `time aw check all` output as context; pasted `aw sanitize --agent` result record showing `pass`; `git diff --cached --name-only` before commit listing only the three Scope-Paths plus this plan.
   - Observed evidence:
   - Result: pending
 
@@ -191,6 +196,6 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 
 The plan must not execute before explicit human approval recorded through `aw ipd set approved`.
 
-EXECUTION CONTRACT. Commit only the declared paths through `aw commit <plan> -- <paths>`; never `git add -A`, bare, or `-a`, never `--no-verify`, never push. Verify the staged set with `git diff --cached --name-only` before committing. Paste actual command output for every measurement and suite claim. STOP conditions: E-04 changes the `aw check all` exit code (the rule must be advisory), or E-07 shows a new suite failure attributable to this change.
+EXECUTION CONTRACT. Commit only the declared paths through `aw commit <plan> -- <paths>`; never `git add -A`, bare, or `-a`, never `--no-verify`, never push. Verify the staged set with `git diff --cached --name-only` before committing. Paste actual command output for every measurement and suite claim. STOP conditions: E-04 changes the `aw check all` exit code or E-05 case (9) shows a nonzero `drift_exit_code` (the rule must be advisory), or E-07 shows a new suite failure attributable to this change. Scope fence: `- Scope-Paths:` is a declaration, not a stop rule; an edit outside it is made and then justified to `aw ipd finalize` with `--scope-reason`.
 
 POST-GATE LIFECYCLE MOVE. After every `V-*` passes with pasted evidence and `aw ipd lint --phase pre-transition` conforms, the terminal transition is tooled: under `aw oc run`/`aw agy run` the runner performs `aw ipd begin`/`aw ipd finalize`; in a manual run use `aw ipd finalize <plan> --actor <agent/model> --message <summary> --apply`. Never `git mv` the plan or hand-edit `- Status:`. Backlog `j7daih` moves to `done` only after this plan is executed.
