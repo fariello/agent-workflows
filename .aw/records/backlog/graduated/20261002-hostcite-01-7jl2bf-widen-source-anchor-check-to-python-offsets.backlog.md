@@ -1,11 +1,13 @@
 - Id: 7jl2bf
-- Status: open
+- Status: graduated
+- Graduated-To: hostcite
 - Set: hostcite
 - Priority: low
 - Work-Kind: chore
 - Summary: Decide whether aw check --source-anchors should resolve <file>.py:<line> offsets in tracked source, not only spec anchors
 
 ## Workflow history
+- 2026-10-12 graduated (aw backlog): graduated by run run-20261012T005650Z-2322198: jem77o, pyuw4v
 - 2026-10-02 created (aw backlog): Filed while authoring plan fnbtta (backlog ma8aig), which carries gyam7x OQ-01 forward. The sample the question asked for is now measured and is recorded in fnbtta F-01/F-05/F-06.
 
 THE QUESTION, carried from gyam7x OQ-01 through backlog ma8aig: should a mechanical check refuse a `<file>:<line>` citation that points past end of file in tracked source?
