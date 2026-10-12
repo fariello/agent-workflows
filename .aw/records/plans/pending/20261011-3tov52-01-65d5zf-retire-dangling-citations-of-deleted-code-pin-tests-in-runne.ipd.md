@@ -6,7 +6,8 @@
 - Scope: Comment, docstring, and test-docstring prose only. Each cited deleted test is rewritten into a retirement statement (what it asserted, that it was deleted in which commit, that the source-reading form is a code pin that will not return under `GUIDING_PRINCIPLES` P16, and that the property is now held by review). The design reasoning each comment carries is preserved. No executable statement, constant, signature, import, or test assertion changes.
 - Scope-Paths: agent_workflows/runner_shared.py, agent_workflows/agy_runipd.py, agent_workflows/oc_runipd.py, tests/test_agy_runipd_cli.py, .aw/records/plans/pending/20261011-3tov52-01-65d5zf-retire-dangling-citations-of-deleted-code-pin-tests-in-runne.ipd.md
 - Item-Dependencies: none
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
 - From-Backlog: 3tov52
@@ -17,6 +18,7 @@
 - Id: 65d5zf
 
 ## Workflow history
+- 2026-10-12 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-001..PR-004
 
 - 2026-10-12 draft (opencode): created.
 - 2026-10-11 to-review (opencode): authored from backlog `3tov52`; sites measured at HEAD `31c16869b`.
@@ -36,9 +38,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Expected outcome: the site list below (F-01..F-03) reproduced, or any drift recorded and attributed; deleting commits confirmed; the two shim sets equal.
   - Execution state: pending
 
-- [ ] E-02 Record this lane's suite baseline with a BARE `python3 -m pytest` (no `-n0`, no extra `-q`, no `-p no:randomly`), plus `python3 -m pytest tests/test_agy_runipd_cli.py tests/test_oc_runipd.py -o addopts=""` and `git rev-parse --short HEAD`.
+- [ ] E-02 Record this lane's suite baseline with a BARE `python3 -m pytest` (no `-n0`, no extra `-q`, no `-p no:randomly`), plus `python3 -m pytest tests/test_agy_runipd_cli.py tests/test_oc_runipd.py -o addopts=""` and `git rev-parse --short HEAD` (this is the BASE commit V-06's AST comparison and V-07's parity check refer to).
   - Depends on: E-01
-  - Expected outcome: pass counts recorded as the pre-edit baseline.
+  - Expected outcome: the pre-edit FAILED node-id set of each run recorded as the baseline (sets by node id; the pass counts are context only, because load-sensitive nodes carried by `wc5c5e` vary run to run).
   - Execution state: pending
 
 ### Task group 2: rewrite the citations
@@ -53,12 +55,12 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Expected outcome: no `agy_runipd.py` non-shim comment claims a live test; history and numbers preserved.
   - Execution state: pending
 
-- [ ] E-05 Rewrite the implicit-start shim comment in `agy_runipd.main` above `subcommands = {`: replace "THE TWO DRIVERS' SETS MUST STAY IDENTICAL: `tests/test_runner_stop_triggers.py` regexes `subcommands = \{(.*?)\}` out of BOTH source files, so a one-sided edit here is exactly the divergence that guard exists to catch", "Added in lockstep with the oc twin and with the inline copy in `tests/test_runner_stop_triggers.py`, which pins all three equal", "a test asserts the bare form is not rewritten (in both drivers)", and "(a test pins the two sets against each other)" with: the sets MUST still stay identical and every hazardous verb MUST still be listed (the misfire reasoning is kept verbatim); the structural guard that read this set from source was a code pin deleted in `19313eed7` that will not return under P16, and the behavioral not-rewritten tests were deleted in the same commit; restoring behavioral coverage is tracked by backlog `2ohbkj`; until then lockstep is held by review.
+- [ ] E-05 Rewrite the implicit-start shim comment in `agy_runipd.main` above `subcommands = {`: replace "THE TWO DRIVERS' SETS MUST STAY IDENTICAL: `tests/test_runner_stop_triggers.py` regexes `subcommands = \{(.*?)\}` out of BOTH source files, so a one-sided edit here is exactly the divergence that guard exists to catch", "Added in lockstep with the oc twin and with the inline copy in `tests/test_runner_stop_triggers.py`, which pins all three equal", "a test asserts the bare form is not rewritten (in both drivers)", and "(a test pins the two sets against each other)" with: the sets MUST still stay identical and every hazardous verb MUST still be listed (the misfire reasoning is kept verbatim); the structural guard that read this set from source was a code pin deleted in `19313eed7` that will not return under P16, and the behavioral `stop` not-rewritten tests were deleted in the same commit; `integrate` alone is still driven through the real `main` in this driver's tests (`tests/test_agy_runipd_cli.py`, the `agy_runipd.main(["integrate", ...])` calls), which exercises its not-rewritten path, while `stop` and `audit` have no such coverage; restoring that coverage is tracked by backlog `2ohbkj`; until then lockstep of the two sets is held by review. Do not claim a live test for `stop`, `audit` or set equality, and do not deny the surviving `integrate` coverage.
   - Depends on: E-04
   - Expected outcome: the agy shim comment asserts no live test and points at `2ohbkj`; every reason a verb is listed survives.
   - Execution state: pending
 
-- [ ] E-06 Make the identical edit in the twin shim comment in `oc_runipd.main` (the "KEEP THIS AS AN INLINE SET LITERAL. `test_runner_stop_triggers` asserts structurally, by regexing ..." paragraph, "the two sets must stay IDENTICAL because the structural test regexes both source files", "pins this set against the agy copy AND against the inline copy in `tests/test_runner_stop_triggers.py`", and "a test asserts the bare form is not rewritten (in both drivers)"). The KEEP-INLINE instruction was justified ONLY by the deleted guard; reword it to say the inline literal is kept for symmetry with the agy twin and because no test now constrains its form, without changing the code. This is the same paragraph as E-05's in the twin driver; editing only one would leave the two drivers' comments contradicting each other.
+- [ ] E-06 Make the identical edit in the twin shim comment in `oc_runipd.main` (the "KEEP THIS AS AN INLINE SET LITERAL. `test_runner_stop_triggers` asserts structurally, by regexing ..." paragraph, "the two sets must stay IDENTICAL because the structural test regexes both source files", "pins this set against the agy copy AND against the inline copy in `tests/test_runner_stop_triggers.py`", "a test asserts the bare form is not rewritten (in both drivers)", and the `integpath-04` sentence "A test asserts the bare form is not rewritten, in both drivers, and a third assertion pins this set against the agy copy AND against the inline copy"), applying E-05's rule about `integrate` (still driven through the real `main` in `tests/test_oc_runipd.py`, e.g. `driver.main(["integrate", "mm6wuz"])`) versus `stop`/`audit` (no live coverage, `2ohbkj`). The KEEP-INLINE instruction was justified ONLY by the deleted guard; reword it to say the inline literal is kept for symmetry with the agy twin and because no test now constrains its form, without changing the code. This is the same paragraph as E-05's in the twin driver; editing only one would leave the two drivers' comments contradicting each other.
   - Depends on: E-05
   - Expected outcome: the oc shim comment matches the agy one in substance and asserts no live test.
   - Execution state: pending
@@ -84,6 +86,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 | F-02 | MEDIUM | `rg -n test_runner_stop_triggers agent_workflows/ tests/test_agy_runipd_cli.py` (excluding `_e2e`) -> two passages in `agy_runipd.main`'s shim comment, two in `oc_runipd.main`'s, one in `AgyVerbosityFlagTests`; `ls tests/test_runner_stop_triggers.py` -> absent; deletion `19313eed7` | Both shim comments justify KEEP-INLINE and lockstep by a structural guard that is gone, and both say "a test asserts the bare form is not rewritten", which is now false: `rg -n 'main\(\["(stop\|audit)"' tests/` -> no match (only `integrate` is still driven through `main`). |
 | F-03 | LOW | `runner_shared.parse_plan_file` docstring cites `TheRowWalkIsSharedWithTheRetirementGate` as enforcing the function-local import rule; `git show 19313eed7^:tests/test_orchestrator_probe_cache.py` shows that class was a row-walk spy test with no import assertion; `agy_runipd` comment "56 -> 53, re-measured in `tests/test_orchestrator_probe_cache.py`" cites the import-count baseline in the same deleted file | One mis-citation (the class never enforced the rule) and one historical number presented as re-measured by a live test. F-03's `runner_shared` site was explicitly deferred to this item by `dtelfb` F-05 (`- Carrier: 3tov52`). |
 | F-04 | INFO | AST read of the inline `subcommands` sets in `oc_runipd.main` and `agy_runipd.main` -> both `['--help', '-h', 'audit', 'integrate', 'report', 'resume', 'start', 'status', 'stop']` | The lockstep invariant the deleted guard asserted still holds in fact, so the rewrite describes a true, unenforced convention. |
+| F-06 | INFO | `tests/test_oc_runipd.py` `driver.main(["integrate", "mm6wuz"])` in `test_the_alias_names_the_subcommand_so_the_shim_cannot_rewrite_it`; `tests/test_agy_runipd_cli.py` `agy_runipd.main(["integrate", "agi001", ...])` | The bare-form not-rewritten claim is false for `stop` and `audit` but still behaviorally exercised for `integrate` in both drivers (added at review). E-05/E-06 must not over-correct into denying it. |
 | F-05 | INFO | Backlog item text names only `runner_shared.py` and `agy_runipd.py` | `oc_runipd.main` carries the twin of the agy shim paragraph citing the same deleted test. Editing agy alone would leave the two drivers' comments contradicting each other on the same invariant, so the oc twin is in scope (E-06). |
 
 ## Proposed changes (ordered, validatable)
@@ -144,7 +147,7 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Result: pending
 
 - [ ] V-02 validates E-02
-  - Required evidence: pasted summary line of the bare `python3 -m pytest` with a statement that no flags were added, pasted summary line of the narrowed run, and `git rev-parse --short HEAD` output.
+  - Required evidence: pasted summary line and `FAILED` lines of the bare `python3 -m pytest` with a statement that no flags were added, pasted summary line and `FAILED` lines of the narrowed run, and `git rev-parse --short HEAD` output.
   - Observed evidence:
   - Result: pending
 
@@ -164,19 +167,19 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Result: pending
 
 - [ ] V-06 validates E-06
-  - Required evidence: the rewritten `oc_runipd.main` shim comment QUOTED IN FULL; then the AST comparison script and its output for `agent_workflows/runner_shared.py`, `agent_workflows/agy_runipd.py`, `agent_workflows/oc_runipd.py`, and `tests/test_agy_runipd_cli.py` against `git show HEAD:<path>` with module/class/function docstrings stripped and `ast.dump(..., include_attributes=False)`, printing EQUAL for all four.
+  - Required evidence: the rewritten `oc_runipd.main` shim comment QUOTED IN FULL; then the AST comparison script and its output for `agent_workflows/runner_shared.py`, `agent_workflows/agy_runipd.py`, `agent_workflows/oc_runipd.py`, and `tests/test_agy_runipd_cli.py` against `git show <E-02 base commit>:<path>` with module/class/function docstrings stripped and `ast.dump(..., include_attributes=False)`, printing EQUAL for all four.
   - Observed evidence:
   - Result: pending
 
 - [ ] V-07 validates E-07
-  - Required evidence: the rewritten `AgyVerbosityFlagTests` docstring QUOTED IN FULL; post-edit `rg -n 'test_review_findings_cascade|test_runner_stop_triggers\.py|test_runner_stop_triggers\b|TheRowWalkIsSharedWithTheRetirementGate' agent_workflows/runner_shared.py agent_workflows/agy_runipd.py agent_workflows/oc_runipd.py tests/test_agy_runipd_cli.py` output with every hit shown inside a retirement statement; E-01(d) re-run output; and suite parity: bare `python3 -m pytest` and the narrowed run summary lines equal to V-02's baseline, or any difference attributed to a named intervening commit after re-baselining.
+  - Required evidence: the rewritten `AgyVerbosityFlagTests` docstring QUOTED IN FULL; post-edit `rg -n 'test_review_findings_cascade|test_runner_stop_triggers\.py|test_runner_stop_triggers\b|TheRowWalkIsSharedWithTheRetirementGate' agent_workflows/runner_shared.py agent_workflows/agy_runipd.py agent_workflows/oc_runipd.py tests/test_agy_runipd_cli.py` output with every hit shown inside a retirement statement; E-01(d) re-run output; and suite parity: the post-edit FAILED node-id sets of the bare `python3 -m pytest` and the narrowed run pasted beside V-02's baseline sets, showing no node id that fails only after the edit (a post-only failure is re-run singly once to rule out a load-sensitive flake, output pasted), or any difference attributed to a named intervening commit after re-baselining.
   - Observed evidence:
   - Result: pending
 
 ## Approval and execution gate
 
 - Size assessment: standard
-- Cohesion rationale: not required
+- Cohesion rationale: E-03 and E-04 each enumerate three sites (lint advisory `IPD-Z602` on E-04), but every site is a prose-only rewrite in ONE file applying ONE rule (retire a citation of a deleted test, name the commit, keep the design point), verified by one V-item quoting the passages; splitting per site would add items without adding an independent test surface.
 
 The plan must not execute before explicit human approval recorded through `aw ipd set approved`.
 
