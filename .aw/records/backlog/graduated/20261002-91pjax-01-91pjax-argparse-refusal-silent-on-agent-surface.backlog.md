@@ -1,5 +1,6 @@
 - Id: 91pjax
-- Status: open
+- Status: graduated
+- Graduated-To: 91pjax
 - Blocks-Release: next
 - Set: 91pjax
 - Priority: low
@@ -7,6 +8,7 @@
 - Summary: seven mutation leaves exit 2 with empty stdout under --agent when argparse refuses a missing required positional
 
 ## Workflow history
+- 2026-10-12 graduated (aw backlog): graduated by run run-20261012T005617Z-2321742: 0z7ds3
 - 2026-10-02 created (aw backlog): seven mutation leaves exit 2 with empty stdout under --agent when argparse refuses a missing required positional
 
 Measured in lane lbbo9s at HEAD b8e1e0157 while authoring plan 7pnneh (from backlog lbbo9s).
