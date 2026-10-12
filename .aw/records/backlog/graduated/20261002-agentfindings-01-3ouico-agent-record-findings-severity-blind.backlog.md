@@ -1,11 +1,13 @@
 - Id: 3ouico
-- Status: open
+- Status: graduated
+- Graduated-To: agentfindings
 - Set: agentfindings
 - Priority: medium
 - Work-Kind: chore
 - Summary: aw.agent/v1 findings counts every Diagnostic regardless of severity, so one warning-severity diagnostic reports findings 1 on a clean repo (outcome clean, exit 0), blocking the cheap route for any advisory that should reach an agent
 
 ## Workflow history
+- 2026-10-12 graduated (aw backlog): graduated by run run-20261012T005617Z-2321742: wizzis
 - 2026-10-02 created (aw backlog): Filed at authoring of plan qp8fn1 (Set awinbox, from backlog xqem10), which declined this obligation rather than absorbing it into a one-key addition.
 
 MEASURED 2026-10-02 at HEAD 2b6fcd437. result_types.CommandResult.to_agent_record derives the record's findings integer as len(self.diagnostics) if self.diagnostics else self.data.get('findings', 0), with NO severity filter. A clean CommandResult (status='clean', exit_code=0) carrying ONE severity='warning' Diagnostic produced outcome: clean, exit: 0, findings: 1, against findings: 0 without it.
