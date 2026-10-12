@@ -3,10 +3,11 @@
 - Date: 2026-10-11
 - Kind: child
 - Concern: Backlog `e486tz` asks to "mutation-prove surviving coverage". After Order 06 (`anzu8q`), each shortlisted property has a production symbol, an operator, a reaching-test selection and a positive control, but no proof. A property counts as guarded only if breaking it makes a SURVIVING test fail (`GUIDING_PRINCIPLES.md` Section 16, "A test is only valid if breaking the underlying behavior makes the test fail"), and a `survived` verdict is only meaningful if the same mutant is killable at all, which is what the positive control (the deleted test re-added in the probe worktree) shows.
-- Scope: IN: for each shortlisted property, run `tools/mutation_probe.py` (Order 03) twice: SURVIVOR run with the narrowed selection (reaching tests from Order 04, or the full default selection when `subprocess_only` or no reaching tests), and CONTROL run adding `--extra-test 19313eed:<deleted path>` with the deleted test as the only selection; record verdicts `guarded` (survivor killed), `unguarded` (survivor survived, control killed), `unprovable` (control also survived or `invalid`: the operator does not break what the deleted test asserted; record and do not file), `import-only` (`killed-by-import`; rerun once with a different operator, else `unprovable`). Append a `## Mutation results` table to the findings doc. OUT: filing items (Order 08); editing code or tests.
+- Scope: IN: for each shortlisted property, run `tools/mutation_probe.py` (Order 03) twice: SURVIVOR run with the narrowed selection (reaching tests from Order 04, or the full default selection when `subprocess_only` or no reaching tests), and CONTROL run adding `--extra-test 19313eed:<deleted path>` with the deleted test as the only selection; record verdicts `guarded` (survivor `killed`), `unguarded` (survivor `survived` after a passing selection preflight, control `killed`), `unprovable` (survivor `invalid`, or control `survived`/`invalid`/`killed-by-import`: the operator does not break what the deleted test asserted; or either probe `timeout`/`error`, which `g55j1e` E-01 says are not guard evidence; record the reason and do not file), `import-only` (survivor `killed-by-import`; rerun once with an operator not yet tried, else `unprovable`). Append a `## Mutation results` table to the findings doc. OUT: filing items (Order 08); editing code or tests.
 - Scope-Paths: .aw/records/research/
 - Item-Dependencies: executed:g55j1e, executed:anzu8q
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
 - From-Backlog: e486tz
@@ -17,6 +18,7 @@
 - Id: rq3q7v
 
 ## Workflow history
+- 2026-10-12 reviewed (opencode its_direct/pt3-claude-opus-5.5-1m-us): /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005, PR-006. Reviewed at HEAD 4dc9b2f82. Collect-only preflight added (a stale nodeid runs zero tests with valid junit, so the probe would report survived: demonstrated); every probe verdict mapped; one-HEAD batch with head checks; doc-only commit; whole-table V-02 reconciliation; gate itemized. Record: .aw/records/reviews/20261011-uncitedaudit-07-rq3q7v-mutation-prove-the-derived-properties-on-a-bounded-probe-bud.review.md.
 
 - 2026-10-12 draft (opencode its_direct/pt3-claude-opus-5.5-1m-us): created.
 - 2026-10-12 to-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): authored review-ready from backlog e486tz.
@@ -31,21 +33,28 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: Probe
 
-- [ ] E-01 Record the probe environment: HEAD sha, `git worktree list` and `git status --short` of the invoking checkout, and a bare `python3 -m pytest` summary line as the suite baseline, in a `## Mutation environment` section of the findings doc.
+- [ ] E-01 Record the probe environment: HEAD sha, `git worktree list` and `git status --short` of the invoking checkout, and a bare `python3 -m pytest` summary line as the suite baseline, in a `## Mutation environment` section of the findings doc. Make no commit until E-03, so every probe tests this HEAD (the probe tests committed `HEAD`, `g55j1e` E-01).
   - Depends on: none
   - Expected outcome: environment section with HEAD and the pasted baseline summary.
   - Execution state: pending
 
-- [ ] E-02 For each `## Mutation shortlist` row (from `anzu8q`), run the SURVIVOR and CONTROL probes with `python3 tools/mutation_probe.py <key> --op <operator> --format json [...] -- <selection>` (control: `--extra-test 19313eed:<deleted path> -- <wt-relative deleted path>`), saving JSON under a temp dir; assign the verdict per the Scope's rules; append one `## Mutation results` row per property: `P-NN`, key, operator, survivor verdict with baseline/mutated fail counts and up to 3 newly failing nodeids, control verdict, final verdict, wall time. Stop adding probes when cumulative wall time exceeds the cap `anzu8q` E-03 recorded, and move unprobed rows to `triaged-not-mutated` with the reason `budget exhausted at <time>`.
+- [ ] E-02 Process the `## Mutation shortlist` rows (from `anzu8q` E-03) in their recorded rank order. For each row:
+  1. SELECTION PREFLIGHT (narrowed selections only): run `python3 -m pytest -o addopts= -q --collect-only <nodeids>`. Required: exit 0 and the collected count equals the number of nodeids. Reason: one nodeid that no longer exists makes pytest exit 4 and run NOTHING while still writing a valid, empty junit file (demonstrated at review: a selection of one real and one missing nodeid gave `no tests ran`, exit 4, junit `tests="0"`), which the probe would read as `survived`, a false `unguarded`. Drop any missing nodeid, record it in the row, and if none remain use the full default selection.
+  2. SURVIVOR: `python3 tools/mutation_probe.py <key> --op <operator> --format json -- <nodeids>`, or with no `--` argument for `full default selection` (the probe then uses the bare suite's own selection, `g55j1e` E-01).
+  3. CONTROL: `python3 tools/mutation_probe.py <key> --op <operator> --format json --extra-test 19313eed:<deleted path> -- <deleted path>` (the path is relative to the worktree root, which mirrors the repo).
+  4. Save both JSONs under a temp dir outside the repo. Check that each JSON's `head` equals E-01's HEAD and that `checkout_status_changed` is empty; record any non-empty value in the row.
+  5. Assign the final verdict by the Scope's rules. For `import-only`, rerun both probes once with an operator from the five that this row has not tried and that `apply_operator` accepts, and record both attempts.
+  6. Append one `## Mutation results` row: `P-NN`, key, operator(s), selection size (after the preflight), survivor verdict with `baseline_failing`/`mutant_failing` counts and up to 3 `newly_failing` ids, control verdict, final verdict, reason (for `unprovable`), and the summed `wall_s`.
+  Stop starting new rows once the cumulative `wall_s` exceeds the cap `anzu8q` E-03 recorded. Move every unprobed row to `triaged-not-mutated` with the reason `budget exhausted at <cumulative time>`.
   - Depends on: E-01
-  - Expected outcome: every shortlisted property has a final verdict or is in `triaged-not-mutated` with a reason; `git status --short` outside `.aw/records/research/` and `git worktree list` unchanged after the batch.
+  - Expected outcome: every shortlisted property has exactly one final verdict or is in `triaged-not-mutated` with a reason; no `unguarded` verdict rests on a selection that failed its preflight; `git status --short` outside `.aw/records/research/` and `git worktree list` unchanged after the batch.
   - Execution state: pending
 
 ### Task group 2: Record
 
-- [ ] E-03 Add a `## Mutation totals` table (counts per final verdict, total wall time), run `aw research index`, and commit via `aw commit <this plan> -- .aw/records/research/`.
+- [ ] E-03 Add a `## Mutation totals` table (counts per final verdict plus `budget exhausted`, and total wall time), run `aw research index` (it regenerates the GITIGNORED index, `.aw/.gitignore:50-51`, so nothing of it is committed), and commit ONLY the findings doc via `aw commit <this plan> -- <findings doc path>`.
   - Depends on: E-02
-  - Expected outcome: totals reconcile with the shortlist count; index conforms; one path-scoped commit.
+  - Expected outcome: the four final-verdict counts plus the `budget exhausted` count sum to the shortlist row count; `aw research find --id <doc id6>` resolves the doc; one path-scoped commit containing only the doc.
   - Execution state: pending
 
 ## Project conventions discovered (Step 0)
@@ -60,12 +69,15 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 |---|---|---|
 | F-01 | A `survived` verdict without a positive control cannot distinguish "unguarded" from "operator does not break the property". | Mutation semantics; `g55j1e` E-02 tests the `--extra-test` positive-control case for exactly this reason. |
 | F-02 | Full default selection costs ~200 s per run. | Bare run at `fca848304`: `201.44s`. |
+| F-03 | A narrowed selection containing one nodeid that no longer exists runs zero tests and still writes valid junit XML, so the probe's baseline and mutant sets are both empty and it reports `survived`. | Review at `4dc9b2f82`: `python3 -m pytest -o addopts= -q -p no:randomly --continue-on-collection-errors --junitxml <x> <real nodeid> tests/test_lost_guard_census.py::Nope::test_x` -> `no tests ran in 0.09s`, exit 4, junit `tests="0"`. `g55j1e` E-01 reports `error` only when the baseline "could not produce junit XML". Nodeids come from `anzu8q` E-04 at an earlier HEAD. |
+| F-04 | `timeout` and `error` probe verdicts are not guard evidence, and this plan must map them. | `g55j1e` E-01 Verdicts, "Consumers" bullet, cross-referencing this plan. |
+| F-05 | The research index is gitignored and `aw research index --check` already exits 1 on pre-existing corpus diagnostics. | `.aw/.gitignore:50-51`; `8d0qsg` F-07. |
 
 ## Proposed changes (ordered, validatable)
 
 1. Environment and suite baseline (E-01).
 2. Survivor and control probes per property within budget (E-02).
-3. Totals, index, commit (E-03).
+3. Totals, local index refresh, commit of the doc only (E-03).
 
 ## Deferred / out of scope (with reason)
 
@@ -77,13 +89,14 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 ## Scope check
 
 - Over-scope: none.
-- Under-scope: none known.
+- Under-scope: none known. The bare-suite selection still contains about 38 failing nodes (`g55j1e` F-03); the probe subtracts them, so they cost time but not correctness.
 
 ## Required tests / validation
 
-- Every probe JSON's `verdict` matches its table row.
+- Every probe JSON's `verdict` matches its table row, and every JSON's `head` equals the recorded HEAD.
+- Every narrowed survivor selection passed its collect-only preflight.
 - `git status --short` and `git worktree list` unchanged across the batch.
-- `aw research index --check` conforms.
+- `aw research find --id <doc id6>` resolves the doc, and `aw research index --check` names no diagnostic against it.
 
 ## Spec / documentation sync
 
@@ -95,7 +108,7 @@ N/A: research record only.
 
 - Blocking: no
 - Status: resolved
-- Owner: none
+- Owner: plan author
 - Resolution or deferral rationale: The probe computes its own baseline per run inside the worktree (`g55j1e` E-01), so a drifted baseline changes nothing about verdict validity; E-01 records the bare-suite figure only for context.
 
 ## Validation and cross-check (verify before reporting done)
@@ -108,12 +121,12 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Result: pending
 
 - [ ] V-02 validates E-02
-  - Required evidence: two pasted probe JSON outputs (produced by `tools/mutation_probe.py` `main`) for one `unguarded` row (survivor `survived`, control `killed`) and one `guarded` row, or a statement that a class did not occur; pasted `git status --short` and `git worktree list` from before and after the batch.
+  - Required evidence: two pasted probe JSON outputs (produced by `tools/mutation_probe.py` `main`) for one `unguarded` row (survivor `survived`, control `killed`) and one `guarded` row, or a statement that a class did not occur; for the `unguarded` row, its pasted collect-only preflight summary line showing the collected count equal to the nodeid count; pasted output of a `python3 -c` check over all saved JSONs and the `## Mutation results` table showing every row's survivor and control verdicts match their JSON, every JSON's `head` equals E-01's HEAD, and every row's final verdict follows the Scope's mapping; pasted `git status --short` and `git worktree list` from before and after the batch.
   - Observed evidence:
   - Result: pending
 
 - [ ] V-03 validates E-03
-  - Required evidence: pasted `## Mutation totals` table summing to the shortlist count, pasted `aw research index --check`, and `git show --stat HEAD` listing only `.aw/records/research/` paths.
+  - Required evidence: pasted `## Mutation totals` table whose verdict counts plus `budget exhausted` sum to the shortlist row count (both numbers pasted); pasted `aw research find --id <doc id6>`; pasted `aw research index --check 2>&1 | grep <doc id6>` (empty, or each line explained); pasted `aw commit` output and `git show --stat HEAD` listing only the findings doc.
   - Observed evidence:
   - Result: pending
 
@@ -122,4 +135,4 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 - Size assessment: standard
 - Cohesion rationale: not required
 
-Requires explicit human approval before execution. EXECUTION CONTRACT: no code or test edits; every mutant runs only inside `tools/mutation_probe.py`'s disposable worktree; commit only `.aw/records/research/` through `aw commit <plan> -- .aw/records/research/`; never push. Under a runner, the runner finalizes; by hand, use `aw ipd finalize`.
+Requires explicit human approval before execution. EXECUTION CONTRACT: no code or test edits; every mutant runs only inside `tools/mutation_probe.py`'s disposable worktree; probe JSON goes to a temp dir outside the repo; commit only the findings doc through `aw commit <plan> -- <findings doc path>` (the research index is gitignored), never `git add -A`, never push. Scope fence: `- Scope-Paths:` declares `.aw/records/research/`; an edit outside it is justified at finalize, not avoided by stopping. Paste the ACTUAL output of every command whose numbers enter the doc or a V-item; never record a verdict you did not run. Prerequisite: `tools/mutation_probe.py` exists (`g55j1e`) and the findings doc carries `## Mutation shortlist` (`anzu8q`); if either is absent, stop and report. Under a runner, the runner finalizes; by hand, use `aw ipd finalize`.
