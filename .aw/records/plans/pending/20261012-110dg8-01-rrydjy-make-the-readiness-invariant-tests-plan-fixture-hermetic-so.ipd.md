@@ -6,7 +6,8 @@
 - Scope: Replace the live-corpus subject selection used by properties 2-4 with the module's existing synthetic plan, keep property 1 (the genuine live-corpus partition, already marked `livecorpus`) unchanged, and update the module docstring to match.
 - Scope-Paths: tests/test_readiness_absence_invariant.py
 - Item-Dependencies: none
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
 - From-Backlog: 110dg8
@@ -19,6 +20,7 @@
 
 ## Workflow history
 
+- 2026-10-12 reviewed (opencode its_direct/pt3-claude-opus-5.5-1m-us): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-001, PR-002 fixed.
 - 2026-10-12 to-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): Authored from backlog `110dg8` in an isolated lane at HEAD `2d77c00ee`. The defect reproduced in a scratch tree (F-03) and is LATENT on the live corpus right now (F-04): the selector today picks `o58r3r`, which passes, but the 40th live candidate `wa64wz` already has the failing shape. Fix chosen: hermetic synthetic subject for properties 2-4 (F-06), not a tighter filter (F-07).
 - 2026-10-12 draft (opencode its_direct/pt3-claude-opus-5.5-1m-us): created.
 
@@ -41,7 +43,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 - [ ] E-02 In `tests/test_readiness_absence_invariant.py`, make `get_field_absent_pending_plan_fixture` return the synthetic subject (`"20260803-sample-01-abc123-sample.ipd.md"`, `_SYNTHETIC_PENDING_PLAN`) unconditionally, taking no repository argument, and delete `find_field_absent_pending_plan` together with its now-unused live-tree scan. Update the three callers (properties 2, 3 and 4) to the new signature. Do NOT change any assertion, the synthetic plan's text, `check_corpus_partition`, `get_tracked_or_all_plans`, property 1, or `test_fallback_arm_forgery_shapes_and_surviving_fallback`. Amend the module docstring's property-2 line to say the backfill is inserted onto the module's synthetic field-absent pending plan (not a live one) and add one sentence stating that only property 1 reads the live corpus, which is why only it carries `livecorpus`. Remove an import only if it becomes unused (`re` and `Optional` remain used elsewhere in the module; check before removing).
   - Depends on: E-01
-  - Expected outcome: properties 2-4 no longer read `.aw/records/plans/pending/`; the module still collects 10 tests with identical names; no assertion text changed.
+  - Expected outcome: properties 2-4 no longer read `.aw/records/plans/pending/`; the module's collected node-id set is identical to E-01's baseline set (re-derived at execution, not a fixed count); no assertion text changed.
   - Execution state: pending
 
 ### Task group 3: Prove the fix
@@ -112,17 +114,17 @@ N/A. No spec or user-facing document describes how this test picks its subject. 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
 - [ ] V-01 validates E-01
-  - Required evidence: paste (a) the pre-edit `-o addopts="" -m "" -v` output for this file showing 10 tests and `10 passed`, (b) the pre-edit bare `python3 -m pytest` summary line and its list of FAILED node ids, (c) the planted scratch file's full text, and (d) the pre-edit run with it planted showing `FAILED tests/test_readiness_absence_invariant.py::test_linter_refuses_backfilled_readiness_field_with_m107` and the assertion message `got conforming`. If (d) does not fail, the reproduction is wrong, so stop and record it rather than proceeding.
+  - Required evidence: paste (a) the pre-edit `-o addopts="" -m "" -v` output for this file listing every collected node id with its result, every one PASSED (this node-id list is the baseline set; the count is whatever is collected at the executing HEAD), (b) the pre-edit bare `python3 -m pytest` summary line and its list of FAILED node ids, (c) the planted scratch file's full text, and (d) the pre-edit run with it planted showing `FAILED tests/test_readiness_absence_invariant.py::test_linter_refuses_backfilled_readiness_field_with_m107` and the assertion message `got conforming`. If (d) does not fail, the reproduction is wrong, so stop and record it rather than proceeding.
   - Observed evidence:
   - Result: pending
 
 - [ ] V-02 validates E-02
-  - Required evidence: paste `git diff tests/test_readiness_absence_invariant.py`, showing that `find_field_absent_pending_plan` is removed, `get_field_absent_pending_plan_fixture` returns the synthetic subject with no repository argument, the three callers are updated, the docstring is amended, and NO `assert` line or `_SYNTHETIC_PENDING_PLAN` text changed. Paste `python3 -m pytest tests/test_readiness_absence_invariant.py -o addopts="" -m "" --collect-only -q` listing the same 10 node ids as V-01 (a).
+  - Required evidence: paste `git diff tests/test_readiness_absence_invariant.py`, showing that `find_field_absent_pending_plan` is removed, `get_field_absent_pending_plan_fixture` returns the synthetic subject with no repository argument, the three callers are updated, the docstring is amended, and NO `assert` line or `_SYNTHETIC_PENDING_PLAN` text changed. Paste `python3 -m pytest tests/test_readiness_absence_invariant.py -o addopts="" -m "" --collect-only -q` listing exactly the node-id set recorded in V-01 (a), compared by name.
   - Observed evidence:
   - Result: pending
 
 - [ ] V-03 validates E-03
-  - Required evidence: paste (a) the post-edit `-o addopts="" -m "" -v` run with the scratch plan STILL planted, showing `10 passed`, (b) `git status --short .aw/records/plans/` after deleting it, showing no `zzrepro` entry, (c) the post-edit bare `python3 -m pytest` summary line and FAILED node-id list, stating which ids, if any, differ from V-01 (b) and that none is in this module or caused by this change, and (d) the `aw ipd lint --phase pre-transition` output for this plan reporting conforming.
+  - Required evidence: paste (a) the post-edit `-o addopts="" -m "" -v` run with the scratch plan STILL planted, showing every node id from V-01 (a) PASSED, including `test_linter_refuses_backfilled_readiness_field_with_m107` that V-01 (d) showed FAILED with the same plant (the regression proof), (b) `git status --short .aw/records/plans/` after deleting it, showing no `zzrepro` entry, (c) the post-edit bare `python3 -m pytest` summary line and FAILED node-id list, stating which ids, if any, differ from V-01 (b) and that none is in this module or caused by this change, and (d) the `aw ipd lint --phase pre-transition` output for this plan reporting conforming.
   - Observed evidence:
   - Result: pending
 
@@ -131,4 +133,4 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 - Size assessment: standard
 - Cohesion rationale: not required
 
-Execute only after human approval (`Status: approved`). Follow the tooled lifecycle. In a managed lane the runner owns `aw ipd begin`/`finalize`; in a manual run use `aw ipd begin rrydjy`, perform E-01 through E-03 in order, fill every `V-*` with pasted actual output, confirm `aw ipd lint --phase pre-transition` conforms, then `aw ipd finalize rrydjy`. Commit only `tests/test_readiness_absence_invariant.py` and this plan through `aw commit rrydjy -- <paths>`; never `git add -A`, never push. The E-01 scratch plan is UNTRACKED and must never be staged or committed, and it must be deleted before finalize. Once this plan is executed, backlog `110dg8` closes through the HANDOFF route (this plan carries `- From-Backlog: 110dg8` and `- Blocks-Release: next`).
+Execute only after human approval (`Status: approved`). Follow the tooled lifecycle. In a managed lane the runner owns `aw ipd begin`/`finalize`; in a manual run use `aw ipd begin rrydjy`, perform E-01 through E-03 in order, fill every `V-*` with pasted actual output, confirm `aw ipd lint --phase pre-transition` conforms, then `aw ipd finalize rrydjy`; never hand-`git mv` the plan to `executed/`. Every test claim MUST be backed by the ACTUAL pasted runner output; never claim a run you did not perform. OQ-01 is resolved; no open question remains. Scope fence: `- Scope-Paths:` declares `tests/test_readiness_absence_invariant.py` (plus this plan); an edit outside it must be justified at finalize via `--scope-reason`. Commit only `tests/test_readiness_absence_invariant.py` and this plan through `aw commit rrydjy -- <paths>`; never `git add -A`, never push. The E-01 scratch plan is UNTRACKED and must never be staged or committed, and it must be deleted before finalize. Once this plan is executed, backlog `110dg8` closes through the HANDOFF route (this plan carries `- From-Backlog: 110dg8` and `- Blocks-Release: next`).
