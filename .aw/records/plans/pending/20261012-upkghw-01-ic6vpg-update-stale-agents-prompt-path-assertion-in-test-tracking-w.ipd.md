@@ -6,7 +6,8 @@
 - Scope: Update the single stale assertion in `test_tracking_warning_scan` to the canonical `.aw/records/prompts/untracked/` path (and assert the sibling comms lane), leaving production code unchanged.
 - Scope-Paths: tests/test_installer.py
 - Item-Dependencies: none
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: low
 - From-Backlog: upkghw
@@ -18,6 +19,7 @@
 - Id: ic6vpg
 
 ## Workflow history
+- 2026-10-12 reviewed (aw set): /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-002 fixed; review record .aw/records/reviews/20261012-upkghw-01-ic6vpg-update-stale-agents-prompt-path-assertion-in-test-tracking-w.review.md
 
 - 2026-10-12 draft (opencode): created.
 - 2026-10-12 to-review (opencode): authored from backlog upkghw; review-ready.
@@ -39,9 +41,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 2: Verify
 
-- [ ] E-02 Run the targeted test and the full bare suite (`python3 -m pytest`) and capture the output.
+- [ ] E-02 BEFORE E-01's edit, run the bare suite `python3 -m pytest` and record its summary line and FAILED node ids as the baseline (`test_tracking_warning_scan` is expected among them). After E-01, run the targeted test and the bare suite again and capture the output.
   - Depends on: E-01
-  - Expected outcome: `test_tracking_warning_scan` passes and the full suite reports no new failures.
+  - Expected outcome: `test_tracking_warning_scan` passes, and the post-change FAILED node ids are a subset of the baseline's (the baseline minus `test_tracking_warning_scan`).
   - Execution state: pending
 
 ## Project conventions discovered (Step 0)
@@ -67,6 +69,7 @@ E       AssertionError: '.agents/prompts/untracked/' not found in "... - or use 
 | `tests/test_installer.py` `test_tracking_warning_scan` | Asserts legacy `.agents/prompts/untracked/` for a fresh repo | Update to `.aw/records/...` (E-01) |
 | `tests/test_installed_text_current.py` `test_keep_legacy_retains_legacy_paths` | Asserts `.agents/prompts/untracked/` for a `--keep-legacy` target; passes (5 passed) | Correct as-is; no change |
 | `agent_workflows/engine.py` `warn_tracking_and_scan` | Output is correct and layout-driven | No change |
+| Review demonstration (2026-10-12) | Driving `TrackingWarningScanTests._install_capture` on a fresh `init_repo` in-process: `.aw/records/prompts/untracked/` True, `.aw/records/comms/untracked/` True, `.agents/prompts/untracked/` False | Confirms both E-01 assertions hold |
 
 ## Proposed changes (ordered, validatable)
 
@@ -97,7 +100,7 @@ N/A: test-only change correcting a stale expectation; no spec or user-facing doc
 
 - Blocking: no
 - Status: resolved
-- Owner: none
+- Owner: plan author
 - Resolution or deferral rationale: No. `engine.warn_tracking_and_scan` derives the path from the resolved layout, the repo has migrated to `.aw/records/`, and the legacy branch is separately tested; the test is what is stale, as the backlog item states.
 
 ## Validation and cross-check (verify before reporting done)
@@ -110,7 +113,7 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Result: pending
 
 - [ ] V-02 validates E-02
-  - Required evidence: pasted actual output of `python3 -m pytest -o addopts="" -q tests/test_installer.py -k test_tracking_warning_scan` showing `1 passed`, and the summary line of a bare `python3 -m pytest` run showing no failure in `test_tracking_warning_scan` and no new failures versus baseline.
+  - Required evidence: pasted actual output of `python3 -m pytest -o addopts="" -q tests/test_installer.py -k test_tracking_warning_scan` showing `1 passed`, and the summary lines plus FAILED node-id lists of the bare `python3 -m pytest` runs before and after E-01, showing `test_tracking_warning_scan` dropped out and no new node id appeared.
   - Observed evidence:
   - Result: pending
 
@@ -119,4 +122,11 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 - Size assessment: standard
 - Cohesion rationale: not required
 
-Execute only after human approval (`Status: approved`). Commit via `aw commit <this plan> -- tests/test_installer.py` (plus the plan file), never push. After every E-item is `performed` and every V-item is `pass` with pasted evidence, and `aw ipd lint --phase pre-transition` conforms, transition the plan to `.aw/records/plans/executed/` through the tooled lifecycle.
+Execution contract:
+
+- Resolved questions: OQ-01 is resolved; nothing awaits the maintainer.
+- Scope declaration (not a stop directive): `- Scope-Paths:` lists `tests/test_installer.py`. If another edit proves necessary, make it and justify it at finalize with `--scope-reason <path>=<why>`. Production code is not to change.
+- Honesty: paste the ACTUAL runner output into every `V-*`; never record a pass you did not observe.
+- Commits: `aw commit ic6vpg -- tests/test_installer.py`; never `git add -A`, never push.
+- Lifecycle: under `aw oc run` / `aw agy run` as an isolated worker, do not run `aw ipd begin`/`finalize` in the lane; the driver finalizes. By hand, run `aw ipd lint --phase pre-transition` to conforming and then `aw ipd finalize ic6vpg`; never `git mv` the plan by hand.
+- Release gate: inherits `- Blocks-Release: next` from backlog `upkghw`, which closes through the handoff once this plan is executed.
