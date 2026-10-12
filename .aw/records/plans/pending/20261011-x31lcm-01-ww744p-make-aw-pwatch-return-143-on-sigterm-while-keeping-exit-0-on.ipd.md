@@ -9,7 +9,8 @@
 - Scope: IN: (1) re-measure the current signal exits and the caller survey at the executing HEAD, as a gate (E-01); (2) make SIGTERM return `143` and keep SIGINT at `0`, with the `finally` terminal restore still running on both paths (E-02); (3) restore the previously installed SIGINT and SIGTERM handlers when `pwatch.main` returns (E-03); (4) add a behavioral test file that drives real subprocess signals and an in-process handler-restoration check (E-04); (5) fix the two comments that currently say `pwatch` returns `0` on both signals, without changing any `exit_contract` tuple (E-05); (6) document the exit status in `tools/README.md` (E-06); (7) record the decision as a new `DECISIONS.md` entry that refines D162 measurement 4 without rewriting D162, plus a `CHANGELOG.md` line (E-07). OUT: the `aw runners` table dashboard (`runners_monitor.run_table_dashboard`), which has the same `stop_cleanly` shape. It is filed separately as backlog `uu4rfe` because it is another verb with its own (also unknown) supervisors. Also OUT: any `exit_contract` change, any change to `cli.main`, `render_stream`, or the drivers, and any spec edit.
 - Scope-Paths: agent_workflows/pwatch.py, tests/test_pwatch_signal_exit.py, agent_workflows/command_surface.py, tests/test_exit_contract_conformance.py, tools/README.md, DECISIONS.md, CHANGELOG.md
 - Item-Dependencies: none
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
 - From-Backlog: x31lcm
@@ -20,7 +21,9 @@
 - Id: ww744p
 
 ## Workflow history
+- 2026-10-12 reviewed (opencode/its_direct/pt3-claude-opus-5.5-1m-us): plan-review: APPROVE WITH REVISIONS APPLIED
 
+- 2026-10-12 /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005. Re-measured F-01/F-04 at HEAD 47538dba5; added F-07 (--runners --table bypasses the handlers; README note must say so) and F-08 (in-process SIGTERM test made required and bounded).
 - 2026-10-12 to-review (opencode): authored from backlog item `x31lcm`. Re-measured the item's signal facts at HEAD `7954f1a6d` (SIGINT `0`, SIGTERM `0`). Ran the supervision survey the item asked for: no in-repository caller supervises `pwatch` by signal or reads its exit status after a signal. Decided SIGTERM returns `143` and SIGINT stays `0`, from repository evidence (OQ-01). Filed the sibling dashboard as backlog `uu4rfe` instead of widening scope.
 - 2026-10-12 draft (opencode): created.
 
@@ -44,7 +47,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 - [ ] E-02 Make SIGTERM return `143` and SIGINT return `0` from `pwatch.main`, with the `finally` terminal restore (`LEAVE_ALT_SCREEN`) still running on both paths.
   - Depends on: E-01
-  - Expected outcome: `pwatch.main`'s handling tells the two signals apart (for example `stop_cleanly` uses its `signum` argument, or there are two handlers), and the loop's exit arm returns `143` for SIGTERM and `0` for SIGINT or `KeyboardInterrupt`. The `--once` path still returns `0`, the `RuntimeError` arm still returns `1`, and the argument-validation arms still return `2`. Define the code as a named module constant (for example `EXIT_SIGTERM = 143`) and cite `render_stream.install_exit_signal_handler` and `oc_runipd.main`'s `return 143 if is_sigterm else 130` as the precedent in a comment. Do NOT kill the process with `SIG_DFL` plus `os.kill`, because `pwatch.main` is called in-process (OQ-01).
+  - Expected outcome: `pwatch.main`'s handling tells the two signals apart (for example `stop_cleanly` uses its `signum` argument, or there are two handlers), and the loop's exit arm returns `143` for SIGTERM and `0` for SIGINT or `KeyboardInterrupt`. The `--once` path still returns `0`, the `RuntimeError` arm still returns `1`, and the argument-validation arms still return `2`. Define the code as a named module constant (for example `EXIT_SIGTERM = 143`) and cite `render_stream.install_exit_signal_handler` and `oc_runipd.main`'s `return 143 if is_sigterm else 130` as the precedent in a comment. Do NOT kill the process with `SIG_DFL` plus `os.kill`, because `pwatch.main` is called in-process (OQ-01). The `--runners --table` branch returns `runners_monitor.run_table_dashboard(args)` BEFORE any handler is installed, so it is NOT changed by this item and keeps exiting `0` on SIGTERM (F-07, carried by `uu4rfe`).
   - Execution state: pending
 
 - [ ] E-03 Save the SIGINT and SIGTERM handlers in place when `pwatch.main` installs its own, and restore them in the existing `finally` so an in-process caller gets its handlers back on every exit path.
@@ -56,7 +59,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 - [ ] E-04 Create `tests/test_pwatch_signal_exit.py` with behavioral tests for both signal exits and for handler restoration.
   - Depends on: E-02, E-03
-  - Expected outcome: three tests at minimum, each driving the code and asserting on its outputs. (1) A real subprocess test that sends SIGTERM through `os.killpg` after the first frame has been read (the E-01 probe shape, with no fixed sleep) and asserts `returncode == 143`. (2) The same with SIGINT, asserting `returncode == 0`. (3) An in-process test that sets known sentinel handlers, calls `pwatch.main(["-m", "python", "--once", "--no-color"])` with stdout captured, and asserts `signal.getsignal` returns the sentinels for both signals afterward. Restore the real handlers in a `try/finally` so the xdist worker is never left modified. A fourth in-process test is recommended: patch `pwatch.time.sleep` to `os.kill(os.getpid(), signal.SIGTERM)` and assert `pwatch.main([... "-m", "python", "--no-color"])` returns `143` and the sentinels are restored. That covers the restore-after-signal path without a subprocess. Every subprocess call has a `wait` timeout, so a regression fails instead of hanging. The file must not read `pwatch.py` source and must not assert on comments or docstrings (`AGENTS.md` "TEST OUTCOMES, NOT CODE STRUCTURE"). Linux only, the same as `pwatch` (it reads `/proc`), so skip on other platforms with a stated reason.
+  - Expected outcome: four tests at minimum, each driving the code and asserting on its outputs. (1) A real subprocess test that sends SIGTERM through `os.killpg` after the first frame has been read (the E-01 probe shape, with no fixed sleep) and asserts `returncode == 143`. (2) The same with SIGINT, asserting `returncode == 0`. (3) An in-process test that sets known sentinel handlers, calls `pwatch.main(["-m", "python", "--once", "--no-color"])` with stdout captured, and asserts `signal.getsignal` returns the sentinels for both signals afterward. Restore the real handlers in a `try/finally` so the xdist worker is never left modified. (4) REQUIRED, not optional (F-08): an in-process SIGTERM test that patches `pwatch.time.sleep` to `os.kill(os.getpid(), signal.SIGTERM)` and asserts `pwatch.main(["-m", "python", "--no-color"])` returns `143` and the sentinels are restored. It is the only test that covers restore-after-signal, which the subprocess tests cannot observe. It MUST be bounded: the patched `sleep` counts its calls and raises `AssertionError` on the second call, because if `pwatch.main` ever stops installing its own SIGTERM handler the no-op sentinel swallows the signal and the loop would otherwise spin forever. Every subprocess call has a `wait` timeout, so a regression fails instead of hanging. The file must not read `pwatch.py` source and must not assert on comments or docstrings (`AGENTS.md` "TEST OUTCOMES, NOT CODE STRUCTURE"). Linux only, the same as `pwatch` (it reads `/proc`), so skip on other platforms with a stated reason.
   - Execution state: pending
 
 ### Task group 4: keep the record true
@@ -68,10 +71,10 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 - [ ] E-06 Add a short exit-status note to the `aw pwatch` section of `tools/README.md`.
   - Depends on: E-02
-  - Expected outcome: a few sentences, or a small list, stating that `pwatch` exits `0` after `--once` or Ctrl-C (SIGINT), `143` when it is sent SIGTERM, `1` on a runtime error, and `2` on a usage error. Say that the terminal is restored in every case. This is user-facing prose, so it contains no em or en dashes (`AGENTS.md`).
+  - Expected outcome: a few sentences, or a small list, stating that `pwatch` exits `0` after `--once` or Ctrl-C (SIGINT), `143` when it is sent SIGTERM, `1` on a runtime error, and `2` on a usage error. Say that the terminal is restored in every case. Say that the `--runners --table` dashboard is the exception and still exits `0` on SIGTERM (F-07), so the note does not overclaim. This is user-facing prose, so it contains no em or en dashes (`AGENTS.md`).
   - Execution state: pending
 
-- [ ] E-07 Record the decision as the next `DECISIONS.md` entry (D163 at authoring) and add one `CHANGELOG.md` `Changed:` line under the pending release.
+- [ ] E-07 Record the decision as the next free `DECISIONS.md` entry number at execution (D163 at authoring; pending plan `n8we3u` also targets D163, so re-read the last `### D<n>` heading immediately before writing) and add one `CHANGELOG.md` `Changed:` line under the pending release.
   - Depends on: E-02
   - Expected outcome: the entry uses the shape D162 uses (`Context`, `Decision`, rejected alternatives, `Applied`). It answers backlog `x31lcm`, gives the survey result, names both rejected alternatives (keep `0`; die `WIFSIGNALED` through `SIG_DFL` re-raise) with the reason for each, and states that D162 measurement 4 is now `0` on SIGINT and `143` on SIGTERM while D162's decision is unchanged. D162 itself is NOT edited: it is a dated record, and the new entry refines it. The changelog line is user-facing: no em or en dashes.
   - Execution state: pending
@@ -95,6 +98,8 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 | F-03 | **The supervision survey the item asked for: nothing in this repository supervises `pwatch` by signal or reads its exit status after a signal.** Callers are `runners_monitor.main` (calls `pwatch.main(pwatch_argv)` in-process for `aw runners --tree`), `cli._dispatch` (the `aw pwatch` interception and the `args.command == "pwatch"` arm), `tools/pwatch.py` (`raise SystemExit(pwatch.main(sys.argv[1:]))`), and `tools/watch-agy.py` (`return pwatch.main(argv)`). None of them sends a signal or branches on `0`. Every other hit is a reference to module constants or `pwatch.Process`. So changing SIGTERM to `143` breaks no in-repository consumer. External supervisors cannot be surveyed from here, which is why OQ-01 records the decision as reversible. | `git grep -n pwatch` outside `.aw/records`, classified by call site. |
 | F-04 | **`pwatch.main` leaks its signal handlers into an in-process caller.** It installs handlers and never restores them, and it is called in-process by `runners_monitor.main`. After it returns, a Ctrl-C in the host raises `SystemExit(0)` from `stop_cleanly` instead of `KeyboardInterrupt`, which goes around `cli.main`'s `130` arm. The same leak would leave a modified handler in a pytest worker after an in-process test, which is why E-03 comes before E-04. | `pwatch.main` source: `signal.signal` calls with no saved previous value and no restore in the `finally`, which only writes `LEAVE_ALT_SCREEN`. |
 | F-05 | **`exit_contract` is unaffected.** `get_declaration("pwatch").exit_contract` prints `(0, 1, 2)`. Under D162, `143` from SIGTERM is signal-derived and is not listed. Two texts state the current `0`/`0` behavior and will become false: point 3 of the `CommandDeclaration.exit_contract` comment ("aw pwatch installs its own handlers and stop_cleanly raises SystemExit(0), returning 0 on both SIGINT and SIGTERM") and the `test_universal_130_floor_and_signal_code_exclusion` docstring ("verbs like pwatch return 0 on signals"). | Interpreter print of the declaration; the two quoted texts. |
+| F-07 | **ADDED AT REVIEW. `aw pwatch --runners --table` bypasses `pwatch`'s handlers entirely.** `pwatch.main` returns `runners_monitor.run_table_dashboard(args)` as its first branch, before `stop_cleanly` is installed, so this plan's change does not reach that spelling. An unqualified README note would overclaim. | `pwatch.main` first branch: `if getattr(args, "runners", False) and getattr(args, "table", False): ... return runners_monitor.run_table_dashboard(args)`; `aw pwatch --help` lists `--runners` and `--table`. |
+| F-08 | **ADDED AT REVIEW. Both defects re-measured at HEAD `47538dba5`, and the in-process SIGTERM test needs a bound.** Subprocess probe: `SIGINT rc= 0 first= True`, `SIGTERM rc= 0 first= True`. In-process with sentinel handlers: `once rc 0 int restored: False term restored: False` (F-04 leak confirmed); patched-`sleep` SIGTERM: `inproc sigterm rc 0` (the test shape works and observes the code); bare `pwatch.main([])` -> `2`. If the handler were not installed, the no-op SIGTERM sentinel would make the patched-`sleep` loop spin forever. | Review probe scripts run in this lane. |
 | F-06 | **The `aw runners` table dashboard has the same shape and is a separate verb.** `runners_monitor.run_table_dashboard` defines its own `stop_cleanly` raising `SystemExit(0)` for both signals. `aw runners --tree` goes through `pwatch.main` and picks up this plan's change. The default dashboard does not. It is filed as backlog `uu4rfe` and not carried here, so this plan stays one verb. | `runners_monitor.run_table_dashboard` source; `aw runners --tree --once` returned `rc=0` at authoring; backlog `uu4rfe` written. |
 
 ## Proposed changes (ordered, validatable)
@@ -144,7 +149,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 - Blocking: no
 - Status: resolved
-- Owner: none
+- Owner: plan author
 - Resolution or deferral rationale: RESOLVED FROM REPOSITORY EVIDENCE: return `143` and keep SIGINT at `0`. There were three options. (a) Keep `0`: rejected because it is the only place on the surface where termination reads as success (F-02), and a supervisor cannot tell it from a clean finish. (b) Restore `SIG_DFL` and re-send SIGTERM so the process dies `WIFSIGNALED` like ordinary verbs: rejected because `pwatch.main` is a library entry point called in-process by `runners_monitor.main` and `cli._dispatch` (F-03), so it would kill an embedding caller. (c) Return `143`: chosen. It is already the repository's returned SIGTERM code (the drivers), the shell shows the same `143` for an ordinary verb killed by SIGTERM, it is a plain return value so in-process callers keep working, and no in-repository caller relies on `0` (F-03). One limit: supervisors outside this repository cannot be surveyed. Some process managers count only a clean `0` or death by SIGTERM as a normal stop, and would need to be told `143` is expected. The change is reversible by restoring one return value, and D163 records the reasoning so it can be reopened. REVERSIBLE: yes.
 
 ## Validation and cross-check (verify before reporting done)
@@ -162,12 +167,12 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Result: pending
 
 - [ ] V-03 validates E-03
-  - Required evidence: the pasted passing output of E-04's in-process restoration test or tests (sentinel handlers equal after `--once` and, if the fourth test exists, after an in-process SIGTERM). Also the relevant `git diff` hunk of `agent_workflows/pwatch.py` showing the previous handlers saved and restored in `finally`.
+  - Required evidence: the pasted passing output of E-04's in-process restoration test or tests (sentinel handlers equal after `--once` and after the bounded in-process SIGTERM, which also returns `143`). Also the relevant `git diff` hunk of `agent_workflows/pwatch.py` showing the previous handlers saved and restored in `finally`.
   - Observed evidence:
   - Result: pending
 
 - [ ] V-04 validates E-04
-  - Required evidence: pasted output of `python3 -m pytest tests/test_pwatch_signal_exit.py -o addopts=""` showing every test passed, with the test names visible (use `-v` if needed). Then show the tests can fail: temporarily put `0` back as the SIGTERM return, re-run, paste the failing SIGTERM assertion, revert, and paste the `git diff --stat` showing the revert left only the intended changes. Paste the result of `grep -nE "inspect|ast\.|read_text|open\(.*pwatch\.py" tests/test_pwatch_signal_exit.py` showing no hits (the file does not read production source).
+  - Required evidence: pasted output of `python3 -m pytest tests/test_pwatch_signal_exit.py -o addopts=""` showing every test passed, with the test names visible (use `-v` if needed). Then show the tests can fail: temporarily put `0` back as the SIGTERM return, re-run, paste the failing SIGTERM assertion, revert, and paste the `git diff --stat` showing the revert left only the intended changes. Paste the result of `grep -nE "\binspect\b|\bast\.|read_text|open\(.*pwatch\.py" tests/test_pwatch_signal_exit.py` showing no hits (word-bounded, because an unbounded `ast\.` matches `last.` or `fast.`) (the file does not read production source).
   - Observed evidence:
   - Result: pending
 
@@ -177,7 +182,7 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Result: pending
 
 - [ ] V-06 validates E-06
-  - Required evidence: the pasted `git diff tools/README.md` showing the exit-status note naming `0` (once or SIGINT), `143` (SIGTERM), `1`, and `2`. Pasted output of `grep -nP "\x{2013}|\x{2014}" tools/README.md` limited to the added lines, showing no em or en dash in them.
+  - Required evidence: the pasted `git diff tools/README.md` showing the exit-status note naming `0` (once or SIGINT), `143` (SIGTERM), `1`, and `2`, and the `--runners --table` exception. Pasted output of `grep -nP "\x{2013}|\x{2014}" tools/README.md` limited to the added lines, showing no em or en dash in them.
   - Observed evidence:
   - Result: pending
 
