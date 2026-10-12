@@ -6,7 +6,8 @@
 - Scope: Answer the four decisions backlog `7jl2bf` owes (OQ-01..OQ-04, each resolved from repository evidence below) and build the report they describe. (1) A new pure detector module `agent_workflows/source_offsets.py` that extracts `<file>.py:<line>[-<line>]` citations from COMMENT tokens and DOCSTRING tokens only (via `tokenize`, never from ordinary string literals, which are fixture data), resolves each named file inside the repository, and returns findings with validity `past_eof`, `blank_line` or `punct_only`, REUSING `spec_citations._resolve_offset` for the first two verdicts. (2) A new opt-in flag `aw check --source-offsets` and its `_run_check` branch, reporting a new rule `check.source-offset-stale` registered `info` in `check_engine.RULE_REGISTRY`, with the exit code and outcome derived from registered severity (so an advisory finding exits 0 with outcome `conforms`). (3) Exempt a citation whose citing line names a commit hash (a HISTORICAL citation). (4) Fixture-only behavioral tests and one `CHANGELOG.md` line. EXCLUDES fixing the live sites the report finds (Order 03 `jem77o`), EXCLUDES any change to `spec_citations.py` or to the `--source-anchors` branch (owned by pending `sbh1o1` plans `fz3i3m`/`l85xvi`), EXCLUDES citation-FORM checking (that is `IPD-C801`'s job for plans), EXCLUDES any CI step, default-path wiring or severity above `info`.
 - Scope-Paths: agent_workflows/source_offsets.py, agent_workflows/cli.py, agent_workflows/check_engine.py, tests/test_source_offsets.py, CHANGELOG.md
 - Item-Dependencies: none
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
 - From-Backlog: 7jl2bf
@@ -17,6 +18,7 @@
 - Id: pyuw4v
 
 ## Workflow history
+- 2026-10-12 reviewed (aw set): /plan-review (opencode model=its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-004. Record: .aw/records/reviews/20261012-hostcite-02-pyuw4v-resolve-python-source-file-line-offsets-in-comments-and-docs.review.md Round 1
 
 - 2026-10-12 draft (opencode its_direct/pt3-claude-opus-5.5-1m-us): created.
 - 2026-10-12 to-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): authored as Order 02 of two plans graduating backlog 7jl2bf; resolves the item's four owed decisions from repository evidence; Order 03 (jem77o) depends on it.
@@ -49,7 +51,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 3: CLI surface
 
-- [ ] E-04 ADD `aw check --source-offsets`. In `cli._build_parser`, beside the `--source-anchors` argument, add `--source-offsets` (`dest="source_offsets"`, `store_true`) with help text "Scan Python comments and docstrings for <file>.py:<line> citations that point past end of file, at a blank line, or at a punctuation-only line (opt-in, advisory info; never changes the exit status)." In `cli._run_check`, add an `if getattr(args, "source_offsets", False):` branch modelled on the `--source-anchors` branch (same scan roots `agent_workflows`, `tools`, `tests`), with these differences: build each `Diagnostic` with `rule="check.source-offset-stale"`, `location` `<citing file>:<line>`, a detail naming the cited text, the resolved target path, the offset and the validity, and `severity=check_engine.rule_spec("check.source-offset-stale").severity`; derive `exit_code` as 1 when any diagnostic severity is not `info`, else 0; set `status = "conforms" if exit_code == 0 else "findings"` (never the hardcoded `exit_code = 0` beside `status = "findings"` pairing that backlog `g3ropl` records as crashing the `aw.agent/v1` validator); count the `rules` evidence by severity; render human lines as `<file>:<line>: <cited> -> <validity>`. Extend `cli._build_check_continuation` with an `is_source_offsets` keyword returning `aw check --source-offsets --agent --limit <n>`. Do NOT touch the `--source-anchors` branch.
+- [ ] E-04 ADD `aw check --source-offsets`. In `cli._build_parser`, beside the `--source-anchors` argument, add `--source-offsets` (`dest="source_offsets"`, `store_true`) with help text "Scan Python comments and docstrings for <file>.py:<line> citations that point past end of file, at a blank line, or at a punctuation-only line (opt-in, advisory info; never changes the exit status)." In `cli._run_check`, add an `if getattr(args, "source_offsets", False):` branch modelled on the `--source-anchors` branch (same scan roots `agent_workflows`, `tools`, `tests`), with these differences: build each `Diagnostic` with `rule="check.source-offset-stale"`, `location` `<citing file>:<line>`, a detail naming the cited text, the resolved target path, the offset and the validity, and `severity=check_engine.rule_spec("check.source-offset-stale").severity`; derive `exit_code` as 1 when any diagnostic severity is not `info`, else 0; set `status = "conforms" if exit_code == 0 else "findings"` (never the hardcoded `exit_code = 0` beside `status = "findings"` pairing that backlog `g3ropl` records as crashing the `aw.agent/v1` validator); count the `rules` evidence by severity; render human lines as `<file>:<line>: <cited> -> <validity>`. Place the new branch AFTER the `--source-anchors` branch, so the existing first-match precedence among the opt-in scan flags (`--source-citations`, then `--source-anchors`) is unchanged, and append to the help text "Not combined with --source-citations or --source-anchors; when given together the first of those runs." so the precedence is not silent. Extend `cli._build_check_continuation` with an `is_source_offsets` keyword returning `aw check --source-offsets --agent --limit <n>`. Do NOT touch the `--source-anchors` branch.
   - Depends on: E-02, E-03
   - Expected outcome: `aw check --source-offsets` and `aw check --source-offsets --agent` both exit 0 on a fixture with findings, print the findings, and emit no traceback; bare `aw check` does not run the detector.
   - Execution state: pending
@@ -60,7 +62,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 4: Tests
 
-- [ ] E-06 ADD BEHAVIORAL TESTS in a new `tests/test_source_offsets.py`, over self-written `tmp_path` fixtures only and never the live tree census (P16: call the function and drive the CLI, assert on returned findings, printed output, JSON records and exit codes). Cases: (a) a comment citing `target.py:999` against a 5-line `target.py` yields one `past_eof`; (b) a docstring line citing an offset that lands on a blank line yields one `blank_line` with the docstring's physical line number; (c) a citation landing on a bare `)` yields one `punct_only`; (d) a citation landing on real code yields none; (e) the same past-EOF citation inside an ordinary string literal assignment yields none; (f) a citation naming a file that does not exist yields none; (g) a past-EOF citation whose line also carries `at 6e299712f` yields none; (h) a range `target.py:2-999` yields one `past_eof`; (i) a basename citation resolves to the sibling file in the citing directory when two same-named files exist elsewhere; (j) `cli.main(["check", "--source-offsets", "--dir", <fixture>])` returns 0 and prints the finding; (k) `aw check --source-offsets --agent --dir <fixture>` run as a subprocess exits 0, writes no traceback to stderr, and its first JSON record carries outcome `conforms` and a `check.source-offset-stale` diagnostic with severity `info`; (l) a clean fixture through the same `--agent` command exits 0 with no diagnostic. Then run the bare suite and compare with the E-01 baseline.
+- [ ] E-06 ADD BEHAVIORAL TESTS in a new `tests/test_source_offsets.py`, over self-written `tmp_path` fixtures only and never the live tree census (P16: call the function and drive the CLI, assert on returned findings, printed output, JSON records and exit codes). Cases: (a) a comment citing `target.py:999` against a 5-line `target.py` yields one `past_eof`; (b) a docstring line citing an offset that lands on a blank line yields one `blank_line` with the docstring's physical line number; (c) a citation landing on a bare `)` yields one `punct_only`; (d) a citation landing on real code yields none; (e) the same past-EOF citation inside an ordinary string literal assignment yields none; (f) a citation naming a file that does not exist yields none; (g) a past-EOF citation whose line also carries `at 6e299712f` yields none; (h) a range `target.py:2-999` yields one `past_eof`; (i) a basename citation resolves to the sibling file in the citing directory when two same-named files exist elsewhere; (j) `cli.main(["check", "--source-offsets", "--dir", <fixture>])` returns 0 and prints the finding; (k) `aw check --source-offsets --agent --dir <fixture>` run as a subprocess (`sys.executable -m agent_workflows`, with `PYTHONPATH` at the checkout, `AW_NO_REEXEC=1`, and `HOME`/`XDG_CONFIG_HOME` in `tmp_path`, so the subprocess imports THIS checkout's package and not an installed one) exits 0, writes no traceback to stderr, and its first JSON record carries outcome `conforms` and a `check.source-offset-stale` diagnostic with severity `info`; (l) a clean fixture through the same `--agent` command exits 0 with no diagnostic. Then run the bare suite and compare with the E-01 baseline.
   - Depends on: E-02, E-03, E-04
   - Expected outcome: every test in the new file passes; the bare suite shows no new failures relative to E-01.
   - Execution state: pending
@@ -79,7 +81,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 | ID | Finding | Evidence |
 |---|---|---|
 | F-01 | The gap is the SUBJECT, as the backlog says: `spec_citations.stale_spec_anchors` builds its target set from `specs._spec_files`, so only `.spec.md` offsets are resolved; `artifact_refs.check_source_citations` calls `dead_filename_citations(... verify_on_disk=True ...)`, which checks file existence and never reads an offset. | Read at authoring at HEAD `59fddefa2`. |
-| F-02 | Re-measured at HEAD `59fddefa2` with a throwaway script implementing exactly E-02's rules (comments and docstrings only, the E-02 resolution order): 37 resolvable offsets, 3 unresolvable names skipped, 8 defective: 3 past EOF in `agy_runipd.py` (citing `oc_runipd.py` at 8766, 8645 and 8834 against a 5582-line file), 4 blank-line (`runner_shared.py` citing `ipd_lifecycle.py:3989` and `cli.py:8487`; `tests/test_oc_runipd.py` citing `oc_runipd.py:4823`; `tests/test_runner_shared.py` citing `agy_runipd.py:2190`), and 1 punctuation-only (`selectors.py` citing `status_set.py:132`, a bare closing brace). | Script output pasted at authoring: "resolved 37 skipped 3 8" followed by the 8 tuples. The backlog's own 2026-10-02 sample (51 offsets, 12 defective) predates `fnbtta`, which fixed the `runner_shared.py` sites it counted. |
+| F-02 | Re-measured at HEAD `59fddefa2` with a throwaway script implementing exactly E-02's rules (comments and docstrings only, the E-02 resolution order): 37 resolvable offsets, 3 unresolvable names skipped, 8 defective: 3 past EOF in `agy_runipd.py` (citing `oc_runipd.py` at 8766, 8645 and 8834 against a 5582-line file), 4 blank-line (`runner_shared.py` citing `ipd_lifecycle.py:3989` and `cli.py:8487`; `tests/test_oc_runipd.py` citing `oc_runipd.py:4823`; `tests/test_runner_shared.py` citing `agy_runipd.py:2190`), and 1 punctuation-only (`selectors.py` citing `status_set.py:132`, a bare closing brace). | Script output pasted at authoring: "resolved 37 skipped 3 8" followed by the 8 tuples. RE-MEASURED AT REVIEW, HEAD `dcdc79632`, with a script implementing E-02's rules: "resolved 37 unres 3 7"; the `tests/test_oc_runipd.py` site (comment quoting `plan_repo = Path(work_dir) if work_dir else repo`) now lands on a non-blank line and is no longer reported, the other 7 are unchanged. The population drifts with every commit, so E-02/V-02 judge against a re-derivation, not this count. The backlog's own 2026-10-02 sample (51 offsets, 12 defective) predates `fnbtta`, which fixed the `runner_shared.py` sites it counted. |
 | F-03 | Restricting extraction to comments and docstrings removes the fixture false positives a naive regex finds. A whole-line regex scan of the same tree reports 11, the extra 3 being test FIXTURE DATA: `tests/test_defect_report.py` `"where": "mod.py:12"` and two `tests/test_ipd_lint.py` lint-fixture strings, whose offsets are the line-as-subject case spec Section 10.2 exempts. | Naive scan at authoring: "total 49 {'past_eof': 4, 'blank': 6, 'punct': 1}", the 3 extras listed above. |
 | F-04 | No live defective citation names a commit hash, so the historical exemption (OQ-02) costs no true positive today. | A hex-token scan of the 8 citing lines at authoring returned nothing. |
 | F-05 | Cost is acceptable for an opt-in flag: about 2.0s wall on this tree with the raw-text prefilter (4.7s without it), against a command nobody runs by default. | `/usr/bin/time` at authoring: "1.91 user 2.00 real" with the prefilter, "4.56 user 4.66 real" without. |
@@ -124,28 +126,28 @@ N/A for specs: no spec governs citations inside Python source. Spec `ipd-structu
 
 - Blocking: no
 - Status: resolved
-- Owner: none
+- Owner: plan author
 - Resolution or deferral rationale: RESOLVED FROM EVIDENCE: `info`, opt-in, never changing the exit status. Both precedents the backlog names point the same way: `check.spec-anchor-stale` ships `info`, and spec `ipd-structure-and-linting` Section 10.2 records the advisory tier for a prose-citation heuristic as "a measured final position, not a provisional one" because "a gate that false-positives trains authors to bypass it". F-03 shows the residual false-positive class is real (fixture strings), even if comment/docstring extraction removes the measured instances. A separate rule id and flag (F-06) keeps this decision independent of `l85xvi`'s promotion of the spec-anchor rule.
 
 ### OQ-02: Is a historical citation exempt?
 
 - Blocking: no
 - Status: resolved
-- Owner: none
+- Owner: plan author
 - Resolution or deferral rationale: RESOLVED FROM EVIDENCE: yes, when the citing line names a commit hash. A citation describing code "as it stood at <commit>" has no correct current offset, so a past-EOF verdict on it would be a false positive by construction. Keying on a hex token on the same line is mechanical and cheap, and F-04 shows it suppresses no live true positive. Prose such as "previously" without a hash is NOT exempt, because it gives a reader no way to locate the cited state.
 
 ### OQ-03: Should the rule report an offset the repository's policy says should not be there at all?
 
 - Blocking: no
 - Status: resolved
-- Owner: none
+- Owner: plan author
 - Resolution or deferral rationale: RESOLVED FROM EVIDENCE: the rule judges RESOLVABILITY only and reports regardless of FORM. Section 10.2 form (c) permits a trailing offset beside a symbol, and such an offset can still point past end of file; a resolvability check is the only thing that would catch it. Form is `IPD-C801`'s subject and applies to plans, so this rule neither duplicates nor contradicts it.
 
 ### OQ-04: Should a cutover date gate it?
 
 - Blocking: no
 - Status: resolved
-- Owner: none
+- Owner: plan author
 - Resolution or deferral rationale: RESOLVED FROM EVIDENCE: no. `IPD-C801`'s cutover exists because it reports by default on every `aw ipd lint` and would otherwise flood an untouched corpus. This rule is opt-in and never changes the exit status, and Order 03 (`jem77o`) sweeps the 8 live findings, so there is no legacy corpus to shield; a per-citation date gate would also need `git blame` on every hit, multiplying a cost F-05 already measures at about 2s.
 
 ## Validation and cross-check (verify before reporting done)
@@ -182,9 +184,9 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 - Size assessment: standard
 - Cohesion rationale: not required
 
-This plan is `- Status: to-review` and carries no `- Readiness:` field, deliberately: readiness is an output of `/plan-review`. Explicit human approval is required before execution.
+Readiness is an output of `/plan-review` (recorded in front matter). Explicit human approval is required before execution.
 
-EXECUTION CONTRACT. Commit only the declared `- Scope-Paths:` plus this plan, through `aw commit <plan> -- <paths>`; never `git add -A`, never `-a`, never `--no-verify`, never push. Paste ACTUAL runner output for every test claim; run the suite bare (`python3 -m pytest`).
+EXECUTION CONTRACT. OQ-01..OQ-04 are resolved from repository evidence; no question is open. Execute E-items in dependency order. Commit only the declared `- Scope-Paths:` plus this plan, through `aw commit <plan> -- <paths>`; never `git add -A`, never `-a`, never `--no-verify`, never push; verify the staged set with `git diff --cached --name-only` first, since this is a shared checkout. HONESTY RULE (hard MUST): paste ACTUAL runner output for every test claim, and a claim without pasted output satisfies no `V-*`; run the suite bare (`python3 -m pytest`).
 
 SCOPE FENCE. Do NOT edit `agent_workflows/spec_citations.py`, the `--source-anchors` branch of `cli._run_check`, `.github/workflows/tests.yml`, any spec, or any comment the report flags (Order 03 owns those). An out-of-scope edit that proves necessary is MADE and then JUSTIFIED to `aw ipd finalize` with `--scope-reason`; a declared path left unmodified needs `--scope-ack`.
 
