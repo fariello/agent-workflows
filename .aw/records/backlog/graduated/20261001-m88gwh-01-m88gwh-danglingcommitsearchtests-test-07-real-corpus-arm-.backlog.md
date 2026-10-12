@@ -1,5 +1,6 @@
 - Id: m88gwh
-- Status: open
+- Status: graduated
+- Graduated-To: m88gwh
 - Blocks-Release: next
 - Set: m88gwh
 - Priority: medium
@@ -7,4 +8,5 @@
 - Summary: DanglingCommitSearchTests.test_07_real_corpus_arm_conditional lacks livecorpus marker
 
 ## Workflow history
+- 2026-10-12 graduated (aw backlog): graduated by run run-20261012T005650Z-2322198: jzeeky
 - 2026-10-01 created (aw backlog): DanglingCommitSearchTests.test_07_real_corpus_arm_conditional lacks livecorpus marker
