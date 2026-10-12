@@ -6,7 +6,8 @@
 - Scope: Comment/docstring-only correction in `agent_workflows/host_runner.py` (module docstring REDACTION bullet, `redact_worker_output` docstring, and its inline masking comment) so all three state the real contract: detection drives `ok=False`, the returned text is NOT masked, and the caller must refuse. No behavior change.
 - Scope-Paths: agent_workflows/host_runner.py
 - Item-Dependencies: none
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: medium
 - From-Backlog: fe6aro
@@ -17,6 +18,7 @@
 - Id: 0ev8cz
 
 ## Workflow history
+- 2026-10-12 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003
 
 - 2026-10-12 draft (opencode): created.
 - 2026-10-12 to-review (opencode): authored from backlog fe6aro; decision (a) docstring correction selected from repository evidence (F-04, F-05, OQ-01).
@@ -31,11 +33,11 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: Correct the prose in host_runner.py
 
-- [ ] E-01 Rewrite the module docstring's `* REDACTION:` bullet in `agent_workflows/host_runner.py` (the bullet ending with the quoted string "a planted home-path/secret is masked/blocked."). Replace "masked/blocked" with wording that says a planted home path is DETECTED by the canonical leak sanitizer, which makes the boundary fail closed (`BoundaryResult.ok=False`), and that `run_task` then REFUSES the raw text (records `[REDACTED-LEAK]` and a `failed_final` worker state) rather than admitting it. State that the `RedactionPolicy` masks only sensitive KEYS, so the `stdout`/`stderr`/`diff` values are not masked in place. Do not claim credential detection: per `docs/security.md` boundary 4 and backlog `lfko0e`, free-text credential detection is not evaluated by this boundary today; say so or cite `lfko0e`.
+- [ ] E-01 Rewrite the module docstring's `* REDACTION:` bullet in `agent_workflows/host_runner.py` (the bullet ending with the quoted string "a planted home-path/secret is masked/blocked."). Replace "masked/blocked" with wording that says a planted home path is DETECTED by the canonical leak sanitizer, which makes the boundary fail closed (`BoundaryResult.ok=False`), and that `run_task` then REFUSES the raw text (records `[REDACTED-LEAK]` and a `failed_final` worker state) rather than admitting it. State that the `RedactionPolicy` masks only sensitive KEYS, so the `stdout`/`stderr`/`diff` values are not masked in place. Do not claim credential detection: per `docs/security.md` boundary 4 and backlog `lfko0e`, free-text credential detection is not evaluated by this boundary today. State that explicitly AND cite `lfko0e` in the bullet (both, not either), using the phrase "not evaluated" so that pending sibling plan `n09qoq` E-06 (iii), which depends on this plan and must later replace exactly that statement, can locate it (F-08).
   - Depends on: none
   - Expected outcome: the module docstring no longer contains "masked/blocked" and states detect-then-refuse.
   - Execution state: pending
-- [ ] E-02 Rewrite the docstring of `host_runner.redact_worker_output` (first line contains "Returns (possibly-masked RawWorkerResult, BoundaryResult).") so it no longer says "possibly-masked" without qualification. It must say the returned `RawWorkerResult` carries the text after the key-based `RedactionPolicy`, which today never changes these three values, that a detected leak is reported ONLY via `BoundaryResult.ok=False` with findings in `evidence`, and keep (strengthen if needed) the existing sentence "the caller must treat that as a failure to record rather than admitting the raw text", naming `run_task` as the caller that does so.
+- [ ] E-02 Rewrite the docstring of `host_runner.redact_worker_output` (the sentence "Returns (possibly-masked RawWorkerResult, BoundaryResult)." at the end of its first paragraph) so it no longer says "possibly-masked" without qualification. It must say the returned `RawWorkerResult` carries the text after the key-based `RedactionPolicy`, which today never changes these three values, that a detected leak is reported ONLY via `BoundaryResult.ok=False` with findings in `evidence`, and keep (strengthen if needed) the existing sentence "the caller must treat that as a failure to record rather than admitting the raw text", naming `run_task` as the caller that does so.
   - Depends on: none
   - Expected outcome: the function docstring states detection-only and the caller obligation explicitly.
   - Execution state: pending
@@ -65,7 +67,7 @@ Measured at lane HEAD `8c520062c`.
 | F-05 | Executed plan `gqyold` added `tests/test_host_runner_redaction.py`, which PINS that `redact_worker_output` does NOT mask in place (`assertIn(self.PLANTED_HOME, redacted.stdout, ...)`) and that `run_task` refuses. Option (b) (mask in the function) would invert a pinned, reviewed outcome and fall outside this item's evidence; option (a) leaves every test valid. | `tests/test_host_runner_redaction.py`; `gqyold` E-06 ("DO NOT ASSERT THAT `redact_worker_output` MASKS ANYTHING"). |
 | F-06 | `docs/security.md` boundary 4 already states the accurate contract (masking sensitive keys, leak sanitizer fails closed, credential free-text not evaluated, backlog `lfko0e`), so the module docstring is the outlier and no doc edit is needed. | `docs/security.md` item "4. Evidence is redacted." |
 | F-07 | The backlog item's "ZERO callers" measurement is stale: `rg -ln redact_worker_output agent_workflows tests` now matches `agent_workflows/host_runner.py` (definition plus `run_task`) and `tests/test_host_runner_redaction.py`. `run_task` still has no package caller. The reason to fix the prose stands: the first production caller of `run_task`/`redact_worker_output` is still unwritten. | `rg -ln redact_worker_output agent_workflows tests` at HEAD `8c520062c`. |
-| F-08 | No pending plan declares `agent_workflows/host_runner.py` in `- Scope-Paths:`. | `grep -ln "host_runner.py" .aw/records/plans/pending/*.md` returned no match. |
+| F-08 | CORRECTED at review (PR-001): one other pending plan declares `agent_workflows/host_runner.py` in `- Scope-Paths:`: `n09qoq` (Set `lfko0e`, to-review), which carries `- Item-Dependencies: executed:0ev8cz` and whose E-06 (iii) rewrites the REDACTION bullet THIS plan writes, replacing its "not evaluated" credential statement / `lfko0e` citation. Overlap is not a runtime hazard (the runner orders by dependency and isolates worktrees); the obligation it creates is textual: E-01 must leave that statement findable. | `grep -ln "host_runner.py" .aw/records/plans/pending/*.md` -> this plan and `20261012-lfko0e-01-n09qoq-gate-worker-output-evidence-on-the-canonical-secret-scanner.ipd.md` (lines 7, 8, 60). |
 
 ## Proposed changes (ordered, validatable)
 
@@ -113,7 +115,7 @@ N/A: no `.spec.md` is amended, so none appears in `- Scope-Paths:`. `docs/securi
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
 - [ ] V-01 validates E-01
-  - Required evidence: Paste the `git diff agent_workflows/host_runner.py` hunk for the module docstring showing "masked/blocked" removed and the new detect-then-refuse wording naming `run_task` and `[REDACTED-LEAK]`. Paste `grep -n "masked/blocked" agent_workflows/host_runner.py` returning no match (exit 1).
+  - Required evidence: Paste the `git diff agent_workflows/host_runner.py` hunk for the module docstring showing "masked/blocked" removed and the new detect-then-refuse wording naming `run_task` and `[REDACTED-LEAK]`. Paste `grep -n "masked/blocked" agent_workflows/host_runner.py` returning no match (exit 1). Paste `grep -n "lfko0e\|not evaluated" agent_workflows/host_runner.py` showing both the citation and the "not evaluated" credential statement inside the REDACTION bullet.
   - Observed evidence:
   - Result: pending
 - [ ] V-02 validates E-02
@@ -130,4 +132,4 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 - Size assessment: standard
 - Cohesion rationale: not required
 
-EXECUTION CONTRACT. Execute only after human approval (`Status: approved`). Edit only `agent_workflows/host_runner.py`, and only comment/docstring lines. Commit through `aw commit <this plan> -- agent_workflows/host_runner.py <this plan path>`, never `git add -A`, never `--no-verify`; do not push; no tag or release. Run the suite bare and paste actual output. After every `V-*` reads `pass` with pasted evidence and `aw ipd lint --phase pre-transition` conforms, transition the plan to `executed/` through the tooled lifecycle (`aw ipd` begin/finalize), not by hand.
+EXECUTION CONTRACT. Execute only after human approval (`Status: approved`). Edit only `agent_workflows/host_runner.py`, and only comment/docstring lines. Commit through `aw commit <this plan> -- agent_workflows/host_runner.py <this plan path>`, never `git add -A`, never `--no-verify`; do not push; no tag or release. Run the suite bare and paste actual output. Scope fence: `- Scope-Paths:` is a declaration; an out-of-scope edit must be justified at finalize (`--scope-reason`), not silently made. Lifecycle: after every `V-*` reads `pass` with pasted evidence and `aw ipd lint --phase pre-transition` conforms, the plan moves to `executed/`. Under `aw oc run` / `aw agy run` the runner owns that finalize; do not run `aw ipd finalize` or `git mv` the plan yourself. Executed by hand, run `aw ipd finalize 0ev8cz` yourself. Never `git mv` it by hand.
