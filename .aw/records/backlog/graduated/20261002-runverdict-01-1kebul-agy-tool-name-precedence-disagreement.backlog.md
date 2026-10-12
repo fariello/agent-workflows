@@ -1,5 +1,6 @@
 - Id: 1kebul
-- Status: open
+- Status: graduated
+- Graduated-To: runverdict
 - Blocks-Release: next
 - Set: runverdict
 - Priority: medium
@@ -7,6 +8,7 @@
 - Summary: Three agy session-log readers use three different tool-name precedences, so one step can be a delegation to one reader and a shell command to another
 
 ## Workflow history
+- 2026-10-12 graduated (aw backlog): graduated by run run-20261012T005606Z-2321569: n8we3u
 - 2026-10-02 created (aw backlog): Three agy session-log readers use three different tool-name precedences, so one step can be a delegation to one reader and a shell command to another
 
 FILED by plan `e08ssu` (Order 10, from backlog `2mjfo7`) as the durable carrier for a divergence that plan MEASURES and deliberately does NOT fix, because resolving it changes a published verdict and is outside a de-duplication chore.
