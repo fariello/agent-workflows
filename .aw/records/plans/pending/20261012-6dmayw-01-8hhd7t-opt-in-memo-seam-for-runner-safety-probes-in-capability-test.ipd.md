@@ -6,7 +6,8 @@
 - Scope: Add an OPT-IN, default-off, restore-on-exit memo seam to `host_sandbox_profile.probe_runner_safety_capabilities`, and enable it in the capability test classes that consume `detect_host_capabilities` output but do not test the runner-safety probes themselves. Production behavior (uncached) is unchanged.
 - Scope-Paths: agent_workflows/host_sandbox_profile.py, tests/test_host_capability_extension.py, tests/test_host_sandbox_profile.py, tests/test_hostcapgate_descriptor_freeze.py, tests/test_hostdedup_third_host.py, tests/test_runner_safety_probe_memo.py
 - Item-Dependencies: none
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
 - From-Backlog: 6dmayw
@@ -17,6 +18,7 @@
 - Id: 8hhd7t
 
 ## Workflow history
+- 2026-10-12 reviewed (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005
 
 - 2026-10-12 draft (opencode): created.
 - 2026-10-12 to-review (opencode): authored from backlog 6dmayw with measured baseline; review-ready.
@@ -31,14 +33,14 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: Baseline measurement
 
-- [ ] E-01 Record the baseline: run the four capability test modules serially with a wrapper counting calls to and wall time inside `host_sandbox_profile.probe_runner_safety_capabilities`, and record the call count, the probe time, and the module wall time in this plan.
+- [ ] E-01 Record the baseline with the measurement plugin defined under "Required tests / validation" (saved OUTSIDE the tracked tree, e.g. under the gitignored `.aw/state/` or `/tmp`, and never committed). It wraps each non-`None` entry of `host_sandbox_profile._RUNNER_SAFETY_PROBES` once at import and counts EXECUTIONS of the probe callables (and their wall time) per test class. Counting executions, not calls to `probe_runner_safety_capabilities`, is required: the memo lives inside that function, so its call count is unchanged by this plan and cannot show the effect. Run it serially (`-n0`, because the counter is per-process and xdist workers would each hold a partial count) over the four capability modules and paste the output.
   - Depends on: none
-  - Expected outcome: A pasted baseline (authoring-time measurement on 2026-10-12 was `113 passed in 9.36s`, `SAFETY_PROBE calls=67 total=5.22s`) to compare E-05 against.
+  - Expected outcome: A pasted baseline `PROBE_EXEC executions=<n> total=<t>s` line, its per-class breakdown, and the pytest summary line, to compare E-05 against. Context only, not a bar: at review on 2026-10-12 this read `PROBE_EXEC executions=198 total=9.81s` with `113 passed in 17.72s` (machine under load; timings vary run to run).
   - Execution state: pending
 
 ### Task group 2: Memo seam
 
-- [ ] E-02 Add an opt-in memo seam to `agent_workflows/host_sandbox_profile.py`: a module-level `_RUNNER_SAFETY_MEMO` (default `None`, meaning disabled) and a context manager `memoized_runner_safety_verdicts` that enables it and restores the previous value on exit even when the body raises (same pattern as `forced_runner_safety_verdicts`). Inside `probe_runner_safety_capabilities`, when the memo is enabled, cache each EXECUTED probe's `(ok, note)` keyed by `(capability name, probe callable)` so a test that swaps an entry in `_RUNNER_SAFETY_PROBES` gets a fresh execution, and keep the `_FORCED_RUNNER_SAFETY` check AHEAD of the memo so a forced verdict is never cached and never shadowed. Update the function docstring: production stays uncached for the stated staleness reason; the memo exists only for test processes and is off unless entered.
+- [ ] E-02 Add an opt-in memo seam to `agent_workflows/host_sandbox_profile.py`: a module-level `_RUNNER_SAFETY_MEMO` (default `None`, meaning disabled) and a context manager `memoized_runner_safety_verdicts` that enables it and restores the previous value on exit even when the body raises (same pattern as `forced_runner_safety_verdicts`). Inside `probe_runner_safety_capabilities`, when the memo is enabled, cache each EXECUTED probe's `(ok, note)` keyed by `(capability name, probe callable)` so a test that swaps an entry in `_RUNNER_SAFETY_PROBES` gets a fresh execution, and keep the `_FORCED_RUNNER_SAFETY` check AHEAD of the memo so a forced verdict is never cached and never shadowed. Add `memoized_runner_safety_verdicts` to `__all__` beside `forced_runner_safety_verdicts`. Update the function docstring: production stays uncached for the stated staleness reason; the memo exists only for test processes and is off unless entered.
   - Depends on: E-01
   - Expected outcome: With the memo off, behavior is byte-identical to today; with it on, each probe callable executes at most once per memo scope.
   - Execution state: pending
@@ -50,16 +52,16 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 3: Opt the suites in
 
-- [ ] E-04 Enable the memo (via `setUp`/`addCleanup` or a class-level wrapper entering `memoized_runner_safety_verdicts`) in the test classes that call `detect_host_capabilities` or the `aw host` verbs for reasons OTHER than testing the runner-safety probes: in `tests/test_host_capability_extension.py` `InspectionVerbTests`, `SessionResumeArgvTrackingTests`, `StructuredToolEventsRendererTrackingTests`, `CheckerTests`, `FailClosedPreflightTests`, `DenyPushRemovedTests`, `CommitGatewayClaimConsistencyTests`; in `tests/test_host_sandbox_profile.py` `StructuredToolEventsProbeTests`, `SessionResumeProbeTests`, `CapabilityProbeTests`; `HostCapGateDescriptorFreezeTests` in `tests/test_hostcapgate_descriptor_freeze.py`; and the `ThirdHost*` classes in `tests/test_hostdedup_third_host.py`. Do NOT enable it in `RunnerSafetyProbeTests`, `MockSeamTests`, `DenyTcpPortProbeTests`, or `EgressFilteringProbeTests`, which test the probes and their arrangements and must execute them every time.
+- [ ] E-04 Enable the memo at CLASS scope (enter `memoized_runner_safety_verdicts()` in `setUpClass` and register its `__exit__` with `cls.addClassCleanup`, so one memo spans every test in the class and is restored even when a test or `setUpClass` fails; a per-test `setUp` scope is NOT acceptable because most consumer classes call the prober about once per test, so a per-test memo would save almost nothing) in the test classes that call `detect_host_capabilities` or the `aw host` verbs for reasons OTHER than testing the runner-safety probes: in `tests/test_host_capability_extension.py` `InspectionVerbTests`, `SessionResumeArgvTrackingTests`, `StructuredToolEventsRendererTrackingTests`, `CheckerTests`, `FailClosedPreflightTests`, `DenyPushRemovedTests`, `CommitGatewayClaimConsistencyTests`; in `tests/test_host_sandbox_profile.py` `StructuredToolEventsProbeTests`, `SessionResumeProbeTests`, `CapabilityProbeTests`, `ProbeMustProveDenialTests`, `DiscoveryThenExecutionTests`, `AdversarialOsDenialTests` (the last three call `detect_host_capabilities` for sandbox-ladder reasons and patch no runner-safety probe input); `HostCapGateDescriptorFreezeTests` in `tests/test_hostcapgate_descriptor_freeze.py`; and `ThirdHostCapabilitiesTests` and `ThirdHostInitializationAndLimitTests` in `tests/test_hostdedup_third_host.py` (the only `ThirdHost*` classes that reach the prober). If an existing class already defines `setUpClass`, call `super().setUpClass()` and keep its body. Do NOT enable it in `RunnerSafetyProbeTests`, `MockSeamTests`, `DenyTcpPortProbeTests`, or `EgressFilteringProbeTests`, which test the probes and their arrangements and must execute them every time.
   - Depends on: E-02
-  - Expected outcome: Only consumer classes share probe verdicts; probe-behavior classes still execute the real probes per call.
+  - Expected outcome: Only consumer classes share probe verdicts; probe-behavior classes still execute the real probes per call. Re-derive at execution time, with the E-01 per-class breakdown, that every class still executing probes after E-04 is either one of the four excluded probe-behavior classes or is named in this item; add any newly appearing consumer class here rather than leaving it uncached.
   - Execution state: pending
 
 ### Task group 4: Measure and validate
 
 - [ ] E-05 Re-run the E-01 measurement and the full bare suite; record the after numbers next to the baseline.
   - Depends on: E-03, E-04
-  - Expected outcome: Probe call count and probe time in the four modules drop materially below the E-01 baseline, all tests pass, and the bare suite passes.
+  - Expected outcome: Probe EXECUTIONS and probe time in the four modules (plus the new module) drop materially below the E-01 baseline measured in the same execution session, each opted-in class executes each probe at most once, all tests pass, and the bare suite passes.
   - Execution state: pending
 
 ## Project conventions discovered (Step 0)
@@ -78,6 +80,8 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 | F-02 | Per-call cost is about 80ms (three probes at roughly 0.03 to 0.05s each, measured 2026-10-12 by calling each entry of `_RUNNER_SAFETY_PROBES`). | Authoring measurement: `supports_fresh_verifier_session 0.04`, `supports_deny_tcp_port 0.05`, `supports_egress_filtering 0.03`, `safety 0.08`. |
 | F-03 | Across the four capability modules run serially, the probes ran 67 times for 5.22s of a 9.36s run. The backlog's "~10s" is the order of magnitude of the whole serial run; the probe share measured here is about 5s. | Authoring measurement: `113 passed in 9.36s`, `SAFETY_PROBE calls=67 total=5.22s`. |
 | F-04 | The heaviest consumers are `RunnerSafetyProbeTests` (9 calls, must stay uncached), `MockSeamTests` (8, mostly forced), `InspectionVerbTests` (8), `HostCapGateDescriptorFreezeTests` (6), `StructuredToolEventsRendererTrackingTests` (6). | Authoring per-class breakdown of the same run. |
+| F-06 | Calls to `probe_runner_safety_capabilities` are the wrong metric: the memo sits inside it, so the 67 calls stay 67. Each call executes three probes, so executions are the measurable unit (198 at review). | Review run with a call-counting plugin: `SAFETY_PROBE calls=67`; with a plugin wrapping each `_RUNNER_SAFETY_PROBES` entry: `PROBE_EXEC executions=198 total=9.81s`, `113 passed in 17.72s`. |
+| F-07 | Three more classes reach the prober for sandbox-ladder reasons: `AdversarialOsDenialTests` (6 executions), `DiscoveryThenExecutionTests` (3), `ProbeMustProveDenialTests` (3). | Same review run, per-class breakdown; `tests/test_host_sandbox_profile.py` `detect_host_capabilities("opencode")` in each. |
 | F-05 | This is a `chore`, not a `bug`: under the default `-n auto` the cost is spread across workers and no operator command waits on it. | AGENTS.md "INEFFICIENCY A USER CAN NOTICE IS A DEFECT" test; backlog `Work-Kind: chore`. |
 
 ## Proposed changes (ordered, validatable)
@@ -97,12 +101,48 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 ## Scope check
 
 - Over-scope: none.
-- Under-scope: none; every consumer class identified in F-04 and the authoring breakdown is listed in E-04, and the probe-behavior classes are explicitly excluded.
+- Under-scope: none; every consumer class in the review-time per-class breakdown (F-04, F-07) is listed in E-04, the probe-behavior classes are explicitly excluded, and E-04 re-derives the list at execution time.
 
 ## Required tests / validation
 
+Measurement plugin for E-01 and E-05 (save as `aw_probe_exec_plugin.py` in an untracked directory such as `.aw/state/memo-measure/`, run with `PYTHONPATH=<that dir> python3 -m pytest -o addopts="" -q -n0 -p aw_probe_exec_plugin <modules>`; `-n0` is required here only because the counter is per-process):
+
+```python
+import time, collections
+import pytest
+from agent_workflows import host_sandbox_profile as hsp
+
+stats, tm, cur = collections.Counter(), [0.0], ["?"]
+
+def _wrap(fn):
+    def counted():
+        t = time.perf_counter()
+        try:
+            return fn()
+        finally:
+            tm[0] += time.perf_counter() - t
+            stats[cur[0].rsplit("::", 1)[0]] += 1
+    return counted
+
+for _n, _fn in list(hsp._RUNNER_SAFETY_PROBES.items()):
+    if _fn is not None:
+        hsp._RUNNER_SAFETY_PROBES[_n] = _wrap(_fn)
+
+@pytest.hookimpl(hookwrapper=True)
+def pytest_runtest_call(item):
+    cur[0] = item.nodeid
+    yield
+
+def pytest_sessionfinish():
+    print(f"\nPROBE_EXEC executions={sum(stats.values())} total={tm[0]:.2f}s")
+    for c, v in sorted(stats.items()):
+        print(c, "executions=", v)
+```
+
+The wrapped callables are installed once and stay stable, so they are valid memo keys; tests that save and restore `_RUNNER_SAFETY_PROBES` restore the wrapped entries.
+
 - `python3 -m pytest -o addopts="" -q -n0 tests/test_runner_safety_probe_memo.py` passes (E-03).
-- `python3 -m pytest -o addopts="" -q -n0 tests/test_host_sandbox_profile.py tests/test_host_capability_extension.py tests/test_hostdedup_third_host.py tests/test_hostcapgate_descriptor_freeze.py tests/test_runner_safety_probe_memo.py` passes, with the counting-wrapper measurement showing fewer probe calls and less probe time than the E-01 baseline (E-05).
+- The plugin command above over `tests/test_host_sandbox_profile.py tests/test_host_capability_extension.py tests/test_hostdedup_third_host.py tests/test_hostcapgate_descriptor_freeze.py` (E-01), then the same four plus `tests/test_runner_safety_probe_memo.py` (E-05), passes, with fewer probe executions and less probe time than the E-01 baseline (E-05).
 - Bare `python3 -m pytest` passes (E-05).
 
 ## Spec / documentation sync
@@ -115,7 +155,7 @@ N/A: spec `25kzda` cites `probe_runner_safety_capabilities()` only for its verdi
 
 - Blocking: no
 - Status: resolved
-- Owner: none
+- Owner: plan author
 - Resolution or deferral rationale: No. The existing docstring of `probe_runner_safety_capabilities` deliberately keeps it uncached so a verdict cannot outlive the state it was measured against, and the backlog item scopes the problem to test suites. Out of scope.
 
 ## Validation and cross-check (verify before reporting done)
@@ -123,12 +163,12 @@ N/A: spec `25kzda` cites `probe_runner_safety_capabilities()` only for its verdi
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
 - [ ] V-01 validates E-01
-  - Required evidence: Pasted output of the baseline measurement showing the pytest summary line (`N passed in Xs`) and the `SAFETY_PROBE calls=<n> total=<t>s` line, produced by the counting wrapper around `probe_runner_safety_capabilities` (E-01 creates the observation).
+  - Required evidence: Pasted output of the baseline measurement showing the pytest summary line (`N passed in Xs`), the `PROBE_EXEC executions=<n> total=<t>s` line, and the per-class breakdown, produced by the plugin under "Required tests / validation" (E-01 creates the observation), plus `git status --short` showing the plugin file is not tracked or staged.
   - Observed evidence:
   - Result: pending
 
 - [ ] V-02 validates E-02
-  - Required evidence: `git diff` of `agent_workflows/host_sandbox_profile.py` showing `_RUNNER_SAFETY_MEMO` defaulting to `None`, the `memoized_runner_safety_verdicts` context manager restoring on `__exit__`, the forced-verdict branch preceding the memo lookup, the memo key including the probe callable, and the updated docstring.
+  - Required evidence: `git diff` of `agent_workflows/host_sandbox_profile.py` showing `_RUNNER_SAFETY_MEMO` defaulting to `None`, the `memoized_runner_safety_verdicts` context manager restoring on `__exit__`, the forced-verdict branch preceding the memo lookup, the memo key including the probe callable, the `__all__` entry, and the updated docstring.
   - Observed evidence:
   - Result: pending
 
@@ -138,12 +178,12 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Result: pending
 
 - [ ] V-04 validates E-04
-  - Required evidence: `git diff` of the four existing test modules showing the memo entered only in the E-04 consumer classes and absent from `RunnerSafetyProbeTests`, `MockSeamTests`, `DenyTcpPortProbeTests`, and `EgressFilteringProbeTests`.
+  - Required evidence: `git diff` of the four existing test modules showing the memo entered at class scope (`setUpClass` plus `addClassCleanup`) only in the E-04 consumer classes and absent from `RunnerSafetyProbeTests`, `MockSeamTests`, `DenyTcpPortProbeTests`, and `EgressFilteringProbeTests`, plus the E-05 per-class breakdown showing each opted-in class at no more than one execution per probe (at most 3 executions per class) and the four excluded classes still executing per call.
   - Observed evidence:
   - Result: pending
 
 - [ ] V-05 validates E-05
-  - Required evidence: Pasted after-measurement output (same command as V-01) with a lower `calls=` and `total=` than V-01, and pasted output of a bare `python3 -m pytest` ending in its `N passed` summary with no failures.
+  - Required evidence: Pasted after-measurement output (same plugin, same four modules plus `tests/test_runner_safety_probe_memo.py`) with a lower `executions=` and `total=` than V-01, and pasted output of a bare `python3 -m pytest` ending in its `N passed` summary with no failures.
   - Observed evidence:
   - Result: pending
 
@@ -152,4 +192,4 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 - Size assessment: standard
 - Cohesion rationale: not required
 
-Execute only after explicit human approval (`Status: approved`). Commit only the Scope-Paths files through `aw commit 8hhd7t -- <paths>`, never push. Move this plan to `.aw/records/plans/executed/` through the tooled lifecycle only after `aw ipd lint --phase pre-transition` conforms and every V-* item reads `pass` with pasted evidence.
+Execute only after explicit human approval (`Status: approved`). OQ-01 is resolved; none remain. `- Scope-Paths:` is a declaration that finalize reconciles: an out-of-scope edit that proves necessary is made and then justified with `--scope-reason`, and a declared path left unmodified gets a `--scope-ack`. The measurement plugin is NOT a deliverable and must never be committed. Commit through `aw commit 8hhd7t -- <paths>` (never `git add -A`), and never push. Paste the ACTUAL runner output for every claim that a test passed or a measurement moved; never claim a result you did not run. After every `E-*` reads `performed`, every `V-*` reads `pass` with pasted evidence, and `aw ipd lint --phase pre-transition` conforms, the plan moves to `.aw/records/plans/executed/` through the tooled lifecycle: under `aw oc run` / `aw agy run` the runner performs `aw ipd finalize`; in a hand-driven execution the executor runs `aw ipd finalize 8hhd7t --actor <agent/model> --message <summary> --apply`. Backlog `6dmayw` is advanced by the runner's backlog-close step, never by hand.
