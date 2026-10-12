@@ -1,5 +1,5 @@
 - Id: fe6aro
-- Status: graduated
+- Status: done
 - Graduated-To: fe6aro
 - Set: fe6aro
 - Priority: medium
@@ -7,6 +7,7 @@
 - Summary: host_runner module docstring claims captured output is masked, but redact_worker_output only detects a leak without masking it
 
 ## Workflow history
+- 2026-10-12 done (aw backlog): closed by aw agy run: IPD 0ev8cz executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20261012-fe6aro-01-0ev8cz-correct-host-runner-redaction-docstrings-to-say-detected-and.ipd.md); evidence .aw/records/plans/executed/20261012-fe6aro-01-0ev8cz-correct-host-runner-redaction-docstrings-to-say-detected-and.ipd.md
 - 2026-10-12 graduated (aw backlog): graduated by run run-20261012T005617Z-2321742: 0ev8cz
 - 2026-10-02 created (aw backlog): filed from mflqqf plan authoring; measured at HEAD 4fbbc8386
 
