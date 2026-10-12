@@ -6,7 +6,8 @@
 - Scope: Replace the long-form pointer bullet with a byte-identical copy of the single-file bullet, and convert its pointer-shape test into a byte-identity parity test. No other bullet, workflow body, spec, or production code changes.
 - Scope-Paths: .aw/system/workflows/plan-review-long/review-rubric.md, tests/test_v_item_evidence_durability.py
 - Item-Dependencies: none
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
 - From-Backlog: vbz06g
@@ -18,6 +19,7 @@
 
 ## Workflow history
 
+- 2026-10-12 reviewed (opencode its_direct/pt3-claude-opus-5.5-1m-us): /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003. Reviewed at HEAD f8d99c044. Byte-identity test and all mutation proofs demonstrated on in-memory copies (deleted bullet raises SectionBoundError, noted); mutation word pinned to a once-per-copy token; narrowed pytest runs use -o addopts=""; manifest-hash staleness and unrelated pointer recorded (F-06, F-07). Record: .aw/records/reviews/20261011-vbz06g-01-xl1iko-reconcile-the-long-form-live-artifact-rubric-bullet-to-the-v.review.md.
 - 2026-10-12 draft (opencode/claude-opus): created.
 - 2026-10-12 to-review (opencode/claude-opus): authored from backlog vbz06g; findings measured at HEAD 1feee61ca; review-ready.
 
@@ -40,7 +42,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 - [ ] E-02 In `tests/test_v_item_evidence_durability.py`, rewrite `TestVItemEvidenceDurability.test_long_form_plan_review_evidence_durability_parity` so it asserts the VERBATIM-COPY shape instead of the pointer shape: slice the `Live-artifact` bullet out of `review-rubric.md` `## A. Plan completeness` and out of `plan-review.md` `### G. Plan executability` (both via `support.section(..., bullet_prefix, "\n- **", anchored=False)`, the same slicing the module already uses) and `assertEqual` the two slices, plus assert every entry of `SINGLE_FILE_ANCHORS` is present in the long-form slice. Remove the now-false `assertNotIn("Criteria counting **stable code facts**", ...)` "must remain a pointer" assertion and the `LONG_FORM_POINTER_ANCHORS` constant (no other module references it; re-derive that by search at execution). Update the test's docstring and the module docstring's parity wording to say the long-form carries a verbatim copy. Keep the module's existing P16 exemption paragraph, which still applies (it reads workflow bodies, not `agent_workflows/*.py`).
   - Depends on: E-01
-  - Expected outcome: the test passes against the reconciled files and FAILS if either copy of the bullet is edited without the other, if the long-form bullet is deleted, or if the long-form bullet reverts to the pointer form.
+  - Expected outcome: the test passes against the reconciled files and FAILS if either copy of the bullet is edited without the other, if the long-form bullet is deleted (the slice then raises `support.SectionBoundError`, an error rather than an assertion failure, which still fails the test), or if the long-form bullet reverts to the pointer form. Demonstrated at review on in-memory copies with the same `support.section` slicing and assertions: HEAD pointer -> FAIL (6 anchors missing, unequal); reconciled -> PASS; one-word edit to the long-form copy only -> FAIL (unequal); one-word edit to the single-file copy only -> FAIL (unequal); long-form bullet deleted -> `SectionBoundError`.
   - Execution state: pending
 
 ### Task group 3: validate
@@ -67,7 +69,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 | F-02 | The two shapes came from two plans that each believed they were following convention. `vtup6x` (executed, commit `b3afea162`) wrote the pointer, reasoning that `tests/test_plan_review_feasibility_rule.py` enforces a pointer for this pair. `9aprci` (executed, commit `70266f371`) measured verbatim copy as the house style, followed it, and filed this backlog item for the divergence. `9aprci`'s review (F-11) recorded that `vtup6x`'s claim is wrong about the FILES: the feasibility test's long-form target is `03-resolve-and-finalize.md`, which carries the full text AND adds a pointer sentence; no shipped test enforced pointer-only for `review-rubric.md`. | `.aw/records/plans/executed/20260929-nos070-01-vtup6x-*.ipd.md` E-02 and OQ-03; `.aw/records/plans/executed/20260929-vreach-01-9aprci-*.ipd.md` F-06, F-11, OQ-02, and V-02 observed evidence naming `vbz06g` |
 | F-03 | The pointer shape is currently pinned by a test, so the reconciliation must change that test, not just the prose. `test_long_form_plan_review_evidence_durability_parity` asserts the pointer literals (`LONG_FORM_POINTER_ANCHORS`) and `assertNotIn("Criteria counting **stable code facts**", ...)`, i.e. it FAILS on a verbatim copy. | `tests/test_v_item_evidence_durability.py` `TestVItemEvidenceDurability.test_long_form_plan_review_evidence_durability_parity` |
 | F-04 | No existing test compares the full text of ANY review-rubric bullet to its single-file twin; the sibling parity tests assert only anchor phrases in `## A. Plan completeness`. So the four verbatim bullets can already drift beyond their anchors undetected; this plan closes that only for the bullet it touches (see Deferred). | `tests/test_plan_review_feasibility_rule.py` `test_no_error_added_proof_shape_in_rubrics`; `tests/test_v_item_demonstration_reachability.py` `test_long_form_review_rubric_reachability_rule_parity` |
-| F-05 | No pending plan declares either path this plan edits, so there is no sequencing edge to declare. | search of `.aw/records/plans/pending/` for `review-rubric.md` and `test_v_item_evidence_durability` at HEAD 1feee61ca returned only this plan |
+| F-05 | No pending plan declares either path this plan edits, so there is no sequencing edge to declare. | search of `.aw/records/plans/pending/` for `review-rubric.md` and `test_v_item_evidence_durability` at HEAD 1feee61ca returned only this plan; re-checked at review HEAD f8d99c044, same result |
+| F-06 | The `.aw/system/managed-sections.json` `sha256` for `review-rubric.md` (and for `plan-review.md`) ALREADY differs from the file on disk, so earlier edits to these bodies (`9aprci`, `vtup6x`, `k6t24p`) also did not refresh it. This plan inherits that state and does not change it. | Review: manifest `d7fae7f1...` vs `sha256sum` `ec407cac...` for `review-rubric.md`; `7c986280...` vs `e9723a9e...` for `plan-review.md`, at HEAD f8d99c044 |
+| F-07 | The other pointer in `plan-review-long.md` ("per the parity note above", the `Readiness` bullet) is about a different rule, so this reconciliation does not touch it. No generated command copy (`.opencode/`, `.claude/`) embeds the bullet. | Review search of `plan-review-long.md` for "parity note" and of `.opencode .claude .agents` for "Live-artifact success criteria" (no hits) |
 
 ## Proposed changes (ordered, validatable)
 
@@ -90,14 +94,14 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 ## Required tests / validation
 
 - Baseline: a bare `python3 -m pytest` in this lane BEFORE the first edit, recording the set of failing node ids (no suite total is written here; a plan-recorded figure cannot distinguish an added test from a merge).
-- `python3 -m pytest tests/test_v_item_evidence_durability.py tests/test_v_item_demonstration_reachability.py tests/test_plan_review_feasibility_rule.py` after E-02, all passing.
-- Three SOURCE-FILE mutation proofs, each restored with an empty `git diff --stat -- <path>`: (a) revert the long-form bullet to its pre-E-01 pointer text; (b) change one word in the long-form bullet only; (c) change one word in the single-file `plan-review.md` bullet only. Each must make `test_long_form_plan_review_evidence_durability_parity` FAIL. Mutation (c) touches an undeclared path TEMPORARILY and leaves no diff; it is not a scope edit.
+- `python3 -m pytest -o addopts="" tests/test_v_item_evidence_durability.py tests/test_v_item_demonstration_reachability.py tests/test_plan_review_feasibility_rule.py` after E-02, all passing. This is a narrowed per-test view, so the repo contract's `-o addopts=""` form is used; the bare-suite rule governs the full runs below.
+- Three SOURCE-FILE mutation proofs, each restored with an empty `git diff --stat -- <path>`: (a) revert the long-form bullet to its pre-E-01 pointer text; (b) change one word in the long-form bullet only; (c) change one word in the single-file `plan-review.md` bullet only. Use a word that occurs exactly once in each copy, such as `permitted` in "a test function name is permitted only as a non-binding pointer" (it occurred once in each copy at review), so the mutation cannot land outside the bullet. Each must make `test_long_form_plan_review_evidence_durability_parity` FAIL. Mutation (c) touches an undeclared path TEMPORARILY and leaves no diff; it is not a scope edit.
 - A bare `python3 -m pytest` after E-02, judged on the delta of failing node ids against the baseline.
 
 ## Spec / documentation sync
 
 - N/A, no spec amended. Spec `ipd-structure-and-linting` Section 3 already requires a parity test for duplicated rubric content; this plan conforms to it (E-02) rather than changing it. Spec `20260726-1340-01-ipd-spec` only points at plan-review Rubric G for this convention (history line `2026-09-24 amended (tgop8e)`), which is the single-file body this plan does not change.
-- `review-rubric.md` is a workflow body shipped verbatim by the installer; no managed block restates its bullets, so nothing generated needs regeneration.
+- `review-rubric.md` is a workflow body shipped verbatim by the installer; no managed block restates its bullets, so nothing generated needs regeneration. The manifest hash is already stale for this file (F-06), and refreshing it is not this plan's concern.
 
 ## Open questions
 
@@ -125,12 +129,12 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Result: pending
 
 - [ ] V-02 validates E-02
-  - Required evidence: paste `git diff -- tests/test_v_item_evidence_durability.py` showing the rewritten test with an equality assertion between the two slices and the removed pointer-only assertions, and paste the output of `rg -n LONG_FORM_POINTER_ANCHORS` across the repo showing no remaining reference. Then paste the ACTUAL output of `python3 -m pytest tests/test_v_item_evidence_durability.py tests/test_v_item_demonstration_reachability.py tests/test_plan_review_feasibility_rule.py` showing them passing. Reachable by construction (diff, search, test result).
+  - Required evidence: paste `git diff -- tests/test_v_item_evidence_durability.py` showing the rewritten test with an equality assertion between the two slices and the removed pointer-only assertions, and paste the output of `rg -n LONG_FORM_POINTER_ANCHORS` across the repo showing no remaining reference. Then paste the ACTUAL output of `python3 -m pytest -o addopts="" tests/test_v_item_evidence_durability.py tests/test_v_item_demonstration_reachability.py tests/test_plan_review_feasibility_rule.py` showing them passing. Reachable by construction (diff, search, test result).
   - Observed evidence:
   - Result: pending
 
 - [ ] V-03 validates E-03
-  - Required evidence: paste, for EACH of mutation proofs (a), (b), (c), the failing pytest output of `python3 -m pytest tests/test_v_item_evidence_durability.py` naming `test_long_form_plan_review_evidence_durability_parity`, followed by an empty `git diff --stat -- <mutated path>` after restoring. Paste the summary line and the failing node ids (if any) of the pre-edit baseline and of the post-change bare `python3 -m pytest`, and state that the post-change failing set is a subset of the baseline set. Reachable by construction (test results, diff).
+  - Required evidence: paste, for EACH of mutation proofs (a), (b), (c), the failing pytest output of `python3 -m pytest -o addopts="" tests/test_v_item_evidence_durability.py` naming `test_long_form_plan_review_evidence_durability_parity`, followed by an empty `git diff --stat -- <mutated path>` after restoring. Paste the summary line and the failing node ids (if any) of the pre-edit baseline and of the post-change bare `python3 -m pytest`, and state that the post-change failing set is a subset of the baseline set. Reachable by construction (test results, diff).
   - Observed evidence:
   - Result: pending
 
