@@ -1,0 +1,175 @@
+# IPD: Give the four None-defaulted execute_item_core bindings working shared fallbacks
+
+- Date: 2026-10-12
+- Kind: child
+- Concern: `runner_shared.execute_item_core` binds `integration_is_earned`, `driver_finalize`, `set_plan_approved` and `integrate_review_lane_branch` off `driver_module` with a default of `None` (directly, or via `globals().get(...)` of a name `runner_shared` does not define) and then CALLS them unguarded, so a host module that does not define one of them aborts the turn with `TypeError: 'NoneType' object is not callable` deep inside the shared body.
+- Scope: replace those four `None` defaults with working pre-bound fallbacks that delegate to the ONE shared definition each host wrapper already delegates to, preserving the `getattr` host preference; update the limit-pin test that currently asserts the `integration_is_earned` wall, and add behavioral coverage for each new fallback.
+- Scope-Paths: agent_workflows/runner_shared.py, tests/test_runner_fallback_bindings.py
+- Item-Dependencies: none
+- Status: to-review
+- Work-Kind: bug
+- Priority: medium
+- From-Backlog: 877qmy
+- Blocks-Release: next
+- Set: 877qmy
+- Order: 1
+- Highest E allocated: 05
+- Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
+- Id: u3ji9d
+
+## Workflow history
+
+- 2026-10-12 draft (opencode its_direct/pt3-claude-opus-5.5-1m-us): created.
+- 2026-10-12 to-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): authored from backlog `877qmy`, which is the follow-up carrier plan `vfjw09` (Set `fbkfix`, executed) declared for its deferred F-06 class. Every claim re-measured at HEAD `e57a0884a`; the per-symbol remedy is recorded in F-04 and the measured end state of a descriptor-only turn in F-06.
+
+## Goal
+
+Make the four remaining `None`-defaulted `getattr(driver_module, ...)` bindings in `runner_shared.execute_item_core` that are called unguarded (`integration_is_earned`, `driver_finalize`, `set_plan_approved`, `integrate_review_lane_branch`) resolve to a WORKING shared fallback when the host module does not define them, so a host lacking any of them gets the same behavior the shipped hosts' thin wrappers already produce instead of a late `TypeError: 'NoneType' object is not callable`. Prove it behaviorally by driving a real turn through a `driver_module` that defines none of the rebound names and observing it reach a terminal item disposition.
+
+## Detailed Implementation Checklist (TODO)
+
+Execution-state rule: mark an `E-*` item complete only after performing the action. That mark is not validation. Right-sizing rule: each E-item must address one concern and be executable in one focused pass; split when an E-item names multiple distinct deliverables or independent test-surfaces. Accepted execution states: blocked, failed, pending, performed; terminal gate demands 'performed'.
+
+### Task group 1: Re-confirm the census before changing anything
+
+- [ ] E-01 Re-derive, from the code at the EXECUTING HEAD, every `getattr(driver_module, ...)` binding in `runner_shared.execute_item_core` whose default is `None` (literal `None`, or `globals().get(<name>)` where `<name>` is not defined in `runner_shared`), and classify each as GUARDED (every call site checks `is not None` or `callable(...)`) or UNGUARDED. Also re-confirm that each shipped host's `oc_runipd`/`agy_runipd` definition of the four target names is a thin wrapper over a `runner_shared` definition, and record the exact keyword injections each wrapper supplies. This is an authoring-time measurement, NOT a shipped test (P16).
+  - Depends on: none
+  - Expected outcome: a table confirming the UNGUARDED set is exactly `integration_is_earned`, `driver_finalize`, `set_plan_approved`, `integrate_review_lane_branch`, and the GUARDED set is `observe_host_model` and `baseline_extractor` (`extract_suite_failures`), per F-01/F-02. For each of the four, the wrapper injection list (F-03). If the set differs, STOP and report: the F-04 per-symbol remedy must be re-decided for any new member rather than extrapolated.
+  - Execution state: pending
+
+### Task group 2: Give each unguarded binding a working fallback
+
+- [ ] E-02 In `runner_shared.execute_item_core`, replace the `None` default of `integration_is_earned` with the shared `runner_shared.integration_is_earned` itself (`globals()["integration_is_earned"]`, or equivalently `globals().get("integration_is_earned")`), since that definition takes only keyword-only `validate`, `verify_disp`, `suite_result`, which is exactly what the call site `integration = integration_is_earned(validate=..., verify_disp=..., suite_result=...)` passes (F-03). Keep the `getattr` so a host that defines it still wins.
+  - Depends on: E-01
+  - Expected outcome: with a `driver_module` lacking `integration_is_earned`, the binding resolves to the shared predicate and the call site returns an `IntegrationVerdict`; with `oc_runipd`/`agy_runipd` it still resolves to the host attribute.
+  - Execution state: pending
+
+- [ ] E-03 Replace the `None` defaults of `driver_finalize` and `set_plan_approved` with pre-bound lambdas over the shared definitions, mirroring the shipped host wrappers exactly except that the host labels come from the `host_labels` parameter: `lambda repo, plan_path, id6, actor, message, *, run_id=None: globals()["driver_finalize"](repo, plan_path, id6, actor, message, labels=host_labels, env_builder=globals()["pinned_child_env"], argv_builder=globals()["pinned_module_argv"], run_id=run_id)` and `lambda repo, id6, message=FULL_AUTO_APPROVAL_MESSAGE: globals()["set_plan_approved"](repo, id6, message, labels=host_labels, argv_builder=globals()["pinned_module_argv"], run_checked=run_checked)`, where `run_checked` is the function-local pre-bound binding (late binding, as `vfjw09` F-07 established). Use `globals()[...]` inside each lambda because the local name is being rebound by the very `getattr` the lambda is the default of (`vfjw09` E-02's stated reason).
+  - Depends on: E-01
+  - Expected outcome: both defaults are callable at their call-site shapes (`finalize_with_contention_retry(driver_finalize, finalize_repo, plan, id6, actor, message, run_id=...)` and `set_plan_approved(repo, item["id6"])`), and the arguments they forward to the shared definition are identical to what `oc_runipd.driver_finalize`/`oc_runipd.set_plan_approved` forward when `host_labels is OC_HOST_LABELS`, and to the `agy_runipd` wrappers when `host_labels is AGY_HOST_LABELS` (F-03 measured `pinned_child_env`, `pinned_module_argv` and `FULL_AUTO_APPROVAL_MESSAGE` to be the SAME objects in both host modules as in `runner_shared`).
+  - Execution state: pending
+
+- [ ] E-04 Replace the `globals().get("integrate_review_lane_branch")` default (always `None`, since `runner_shared` defines no such name) with a pre-bound lambda over the shared `integrate_lane_branch` in review mode, mirroring both host wrappers: `lambda repo, handle, id6: globals()["integrate_lane_branch"](repo, handle, id6, None, host_label=host_labels.command, run_checked=run_checked, action_kind=INTEGRATION_ACTION_REVIEW)`. Do NOT add a module-level `runner_shared.integrate_review_lane_branch`: that would widen the shared public surface and change `globals().get` resolution for any other caller, which is out of scope.
+  - Depends on: E-01
+  - Expected outcome: the default is callable at all three call-site shapes, each `integrate_review_lane_branch(repo, _handle, _item["id6"])`; with a shipped host it still resolves to the host wrapper. The `host_label` it forwards equals the literal each host wrapper hard-codes (`"aw oc run"` / `"aw agy run"`), which are `OC_HOST_LABELS.command` / `AGY_HOST_LABELS.command` (F-03).
+  - Execution state: pending
+
+### Task group 3: Guard behaviorally
+
+- [ ] E-05 Update `tests/test_runner_fallback_bindings.py`: the two `vfjw09` tests currently assert that an empty `driver_module` raises `TypeError: 'NoneType' object is not callable` at `integration_is_earned`; that is the LIMIT PIN `vfjw09` E-05 wrote precisely so it would fail when this is fixed. Replace the raise expectation with the new measured boundary: an empty `driver_module` turn RETURNS (no exception), the item reaches a terminal disposition, and the attempt records `starting_head` (40-hex) and `starting_status` (real porcelain). Add one behavioral test per fallback proving each forwards the host-equivalent arguments: call `execute_item_core` with an empty module while monkeypatching the SHARED `runner_shared.integration_is_earned`, `runner_shared.driver_finalize`, `runner_shared.set_plan_approved` and `runner_shared.integrate_lane_branch` with recording sentinels (or, where a turn cannot reach a call site in the fixture, by exercising the bound default through the smallest real turn that does reach it), and assert the recorded keyword arguments (`labels is host_labels`, `env_builder is pinned_child_env`, `argv_builder is pinned_module_argv`, `host_label == host_labels.command`, `action_kind == "review"`). Also assert, for `oc_runipd` and `agy_runipd` passed as `driver_module`, that the shared sentinels are NOT called for a name the host defines when the host's own attribute is replaced by a sentinel on that module (host preference preserved). Tests must drive real calls and assert on recorded arguments, exit outcomes and persisted state; they must NOT read source text, use `inspect`/`ast`, or count callers (AGENTS execution contract; GUIDING_PRINCIPLES P16).
+  - Depends on: E-02, E-03, E-04
+  - Expected outcome: the updated E-04/E-05 tests FAIL before E-02..E-04 (the empty-module turn still raises at `integration_is_earned`) and PASS after; the per-fallback argument tests pass; the host-preference tests pass. If a call site (for example the `set_plan_approved` full-auto review arm or the `integrate_review_lane_branch` review-lane arm) proves unreachable from the existing `_setup_test_repo` fixture, say so in V-05 and state which narrower real call was used instead, rather than skipping the assertion.
+  - Execution state: pending
+
+Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids.
+
+## Project conventions discovered (Step 0)
+
+- Cite code by SYMBOL (`module.function`) or by a quoted content string, with a line number only appended to one of those and never alone: an offset expires before this plan executes (spec `ipd-structure-and-linting` Section 10.2; advisory `IPD-C801`).
+- A PRE-BOUND LAMBDA DEFAULT closing over in-scope injections is the established fix IN THIS FUNCTION for this defect class: `execute_item_core` binds `write_report`, `save_state`, `run_checked`, and (since executed plan `vfjw09`) `integrate_lane_branch`, `route_recovery_turn`, `build_lane_outcome`, `git_head`, `git_status` this way, each using `globals()["<name>"]` inside the lambda.
+- HOST WRAPPERS ARE THIN DELEGATIONS to one shared definition with injected labels/builders (hostdedup Order 01 `li44r9` E-02/E-08), visible in `oc_runipd.driver_finalize`, `oc_runipd.set_plan_approved`, `oc_runipd.integrate_review_lane_branch` and their `agy_runipd` twins. The fallback therefore has an exact behavioral reference: the wrapper body with `host_labels` substituted for the module constant.
+- A CORRECT `None` DEFAULT CARRIES A GUARD: `observe_host_model` (`if session_id and observe_host_model is not None`) and `baseline_extractor` (`callable(baseline_extractor)`). Those two are not defects and are not touched.
+- LIMIT PINS ARE WRITTEN TO FAIL WHEN THE LIMIT MOVES (`tests/test_hostdedup_third_host.py::test_pin_measured_turn_execution_limits`; `vfjw09` E-05). Updating the `vfjw09` pin is the expected consequence of this plan, not a regression.
+- Tests MUST test observable behavior, never code structure (AGENTS execution contract; GUIDING_PRINCIPLES P16).
+- Run the suite BARE as `python3 -m pytest` (repo-local development contract in AGENTS.md).
+
+## Findings
+
+All findings measured 2026-10-12 at HEAD `e57a0884a` in the `877qmy` lane worktree.
+
+| # | Finding | Evidence |
+|---|---|---|
+| F-01 | **THE UNGUARDED `None` SET IS EXACTLY FOUR.** `integration_is_earned = getattr(driver_module, "integration_is_earned", None)`, `driver_finalize = getattr(driver_module, "driver_finalize", None)`, `set_plan_approved = getattr(driver_module, "set_plan_approved", None)`, and `integrate_review_lane_branch = getattr(driver_module, "integrate_review_lane_branch", globals().get("integrate_review_lane_branch"))`, the last being `None` because `runner_shared` defines no `integrate_review_lane_branch`. Call sites: `integration = integration_is_earned(` (one), `finalize_with_contention_retry(driver_finalize, ...)` (two arms), `set_plan_approved(repo, item["id6"])` (full-auto review arm), `integrate_review_lane_branch(repo, _handle, _item["id6"])` (three lambdas passed as `integrate=` to `integrate_under_repository_lock`). None of them checks for `None`. This matches `vfjw09` F-06 and its V-01 census rows 3, 5, 13, 18. | `grep -n` of each name within the `execute_item_core` body; `grep -n "^def integrate_review_lane_branch" agent_workflows/runner_shared.py` returns nothing |
+| F-02 | **TWO `None` DEFAULTS ARE CORRECTLY GUARDED AND ARE NOT DEFECTS.** `observe_host_model` is called only under `if session_id and observe_host_model is not None`; `baseline_extractor = getattr(driver_module, "extract_suite_failures", None)` is used only under `and callable(baseline_extractor)`. `vfjw09`'s census row 25 labelled `baseline_extractor` "unguarded call site"; at HEAD it is guarded, so this plan does not touch it. | Call-site text in `execute_item_core` |
+| F-03 | **EVERY INJECTION THE FOUR NEED IS ALREADY AVAILABLE TO THE SHARED BODY, AND IS THE SAME OBJECT THE HOSTS USE.** `runner_shared.integration_is_earned(*, validate, verify_disp, suite_result)` needs nothing extra. `runner_shared.driver_finalize(repo, plan_path, id6, actor, message, *, labels, env_builder, argv_builder, run_id=None)`, wrapped by both hosts with `labels=<HOST>_HOST_LABELS, env_builder=pinned_child_env, argv_builder=pinned_module_argv`. `runner_shared.set_plan_approved(repo, id6, message, *, labels, argv_builder, run_checked)`, wrapped with `labels=<HOST>_HOST_LABELS, argv_builder=pinned_module_argv, run_checked=run_checked` and default `message=FULL_AUTO_APPROVAL_MESSAGE`. Both hosts' `integrate_review_lane_branch(repo, handle, id6)` call `runner_shared.integrate_lane_branch(repo, handle, id6, None, host_label="aw oc run"/"aw agy run", run_checked=run_checked, action_kind=runner_shared.INTEGRATION_ACTION_REVIEW)`, and those literals equal `OC_HOST_LABELS.command`/`AGY_HOST_LABELS.command`. Identity probe: `oc_runipd.pinned_child_env is runner_shared.pinned_child_env`, `pinned_module_argv` likewise, and `FULL_AUTO_APPROVAL_MESSAGE` equal, for BOTH hosts: `agent_workflows.oc_runipd True True True` / `agent_workflows.agy_runipd True True True`. | Host wrapper bodies read at HEAD; identity probe output pasted in this cell |
+| F-04 | **PER-SYMBOL REMEDY: A WORKING FALLBACK FOR ALL FOUR, NOT A CALL-SITE GUARD.** `vfjw09` OQ-01 left open whether a `None` default is "arguably correct" and the bug is the missing guard. Measured, a guard is the WRONG fix for every one of the four: each is a REQUIRED step of the turn (the integration verdict, the finalize transition, the full-auto approval, the review-lane merge), so skipping it on `None` would silently produce a different outcome (an unintegrated lane, an unfinalized plan) rather than an error, which is strictly worse than today's loud `TypeError`. Raising an explicit `DriverError` at bind time is the other option, but F-03 shows a working fallback costs one lambda each with no new injection, and it is the established convention in this function. Hence option 1 for all four. | F-03; the guarded pair in F-02 are both OPTIONAL observations, which is why a guard is right for them and wrong here |
+| F-05 | **THE DEFECT IS REAL END TO END AT HEAD.** Driving `execute_item_core` with an empty `types.ModuleType` via `tests/test_runner_fallback_bindings.py::_drive_execute_turn_with_driver`: `empty RAISED TypeError 'NoneType' object is not callable`, traceback ending in `integration = integration_is_earned(` at `runner_shared.py` line 37179. | Probe `/tmp/opencode/probe877.py` output |
+| F-06 | **WITH THE FOUR SUPPLIED, A DESCRIPTOR-ONLY TURN REACHES A TERMINAL DISPOSITION.** Granting a synthetic module only the four (each built exactly as the F-03 wrapper bodies, with `OC_HOST_LABELS`), the same fixture returns without raising: `four-granted RETURNED status= fail-gate disp= fail-gate signal= None`, with the attempt recording `'starting_head': '17349ae6...'`, `'starting_status': '?? .aw/'`, `'disposition': 'fail-gate'`. So the four are the LAST missing fallbacks on this fixture's path; no fifth wall appears. The `fail-gate` is the fixture's own outcome (the scripted executor runs no lifecycle), not a binding failure. | Probe output; attempt dict pasted from the probe |
+| F-07 | **THE EXISTING `vfjw09` LIMIT PIN WILL FAIL BY DESIGN.** `test_descriptor_only_host_fallbacks_unblock_and_record_git_state` and `test_pin_descriptor_only_host_execution_limit_integration_is_earned` assert `pytest.raises(TypeError)` with `'NoneType' object is not callable`; the second's docstring names the four deferred symbols "so it fails loudly when they are fixed". E-05 replaces those expectations with F-06's boundary. | `tests/test_runner_fallback_bindings.py` read at HEAD |
+| F-08 | **THE `driver_finalize`/`set_plan_approved`/`integrate_review_lane_branch` CALL SITES ARE NOT REACHED BY THE DEFAULT FIXTURE.** Probing `self_finalize`, `validate` and `isolate_worktrees` option variants with recording wrappers ended at `fail-begin` (`AW-LIFECYCLE-ROLE-001`, the lane-worker begin refusal inherited from this authoring environment) with none of the three recorded as called. So E-05's per-fallback assertions may need either an environment where begin is permitted (the suite's own fixtures set this up) or a narrower real call of the bound default; E-05 requires the executor to state which. | Probe `/tmp/opencode/probe877b.py` output: `{'self_finalize': True} fail-begin []` and two similar lines |
+
+## Proposed changes (ordered, validatable)
+
+1. Re-confirm the F-01/F-02 census and F-03 wrapper injections (E-01). No file changes.
+2. `integration_is_earned`: default to the shared predicate (E-02).
+3. `driver_finalize`, `set_plan_approved`: pre-bound lambdas mirroring the host wrappers with `host_labels` (E-03).
+4. `integrate_review_lane_branch`: pre-bound lambda over `integrate_lane_branch` in review mode (E-04).
+5. Update the `vfjw09` limit pin and add per-fallback and host-preference behavioral tests (E-05).
+
+## Deferred / out of scope (with reason)
+
+- **Making a descriptor-only host actually launch an agent.** `tests/test_hostdedup_third_host.py::test_pin_measured_turn_execution_limits` pins structural walls (forked `execute_item`/`run_queue`, no spawn seam, no argv contract) owned by plan `hostdedup-03` (`xdvglg`). This plan removes the last binding wall on `execute_item_core`'s path and nothing more.
+  - Carrier-Declined: Out of scope per plan hostdedup-03 (xdvglg), which owns the forked-function and spawn-seam walls.
+- **`observe_host_model` and `baseline_extractor`.** Correctly guarded optional observations (F-02); not defects.
+  - Carrier-Declined: Not a defect; both are guarded at their call sites.
+- **Adding a module-level `runner_shared.integrate_review_lane_branch`.** Would widen the shared surface and change `globals().get` resolution elsewhere; the local lambda achieves the fallback without it (E-04).
+  - Carrier-Declined: Unnecessary; the local pre-bound default delivers the fallback with no public-surface change.
+
+## Scope check
+
+- Over-scope: none. One production file (the defect site) and the existing guard test file. No host module changes: both shipped hosts define all four names and the `getattr` preference is preserved, so their resolution is unchanged.
+- Under-scope: none for the backlog item's stated subject (all four unguarded `None` bindings are fixed). The structural third-host walls are deliberately excluded per Deferred.
+
+## Required tests / validation
+
+- `python3 -m pytest` run BARE, baseline captured at the executing HEAD BEFORE any edit and compared after, with both summary lines pasted.
+- `python3 -m pytest tests/test_runner_fallback_bindings.py`, shown FAILING (empty-module turn still raises at `integration_is_earned`) before E-02..E-04 and PASSING after.
+- Targeted regression set: `python3 -m pytest tests/test_runner_fallback_bindings.py tests/test_host_capability_wiring.py tests/test_action_table_runner_parity.py tests/test_attempt_model_identity.py tests/test_finalize_stale_plan_path.py tests/test_attempt_host_model_observation.py tests/test_verifier_corroboration.py tests/test_hostdedup_third_host.py` (every file `vfjw09` identified as calling `execute_item_core`, plus the third-host pin); re-derive the list with a grep for `execute_item_core(` under `tests/` at the executing HEAD and add any new file.
+
+## Spec / documentation sync
+
+N/A with reason: no spec governs how `execute_item_core` resolves a host collaborator (`vfjw09` reached the same conclusion for this function; spec `25kzda` governs per-host capability descriptors, not binding defaults). No CLI, artifact format, or lifecycle behavior changes, and both shipped hosts' behavior is unchanged, so no `.spec.md` is in `- Scope-Paths:`.
+
+## Open questions
+
+### OQ-01: Guard, fail at bind time, or provide a working fallback for each of the four?
+
+- Blocking: no
+- Status: resolved
+- Owner: none
+- Resolution or deferral rationale: WORKING FALLBACK for all four, per F-04. Each is a required step of the turn, so a call-site guard would silently change the outcome, and F-03 shows every needed injection is already in scope and identical to what the hosts use, so the fallback is exact rather than approximate. The backlog item's summary explicitly allows either; the repository convention (pre-bound lambdas in this same function) decides it.
+
+### OQ-02: Does changing these defaults alter shipped-host behavior?
+
+- Blocking: no
+- Status: resolved
+- Owner: none
+- Resolution or deferral rationale: NO. Both `oc_runipd` and `agy_runipd` define all four names (F-03), and `getattr` prefers the host attribute, so the new defaults are never taken on a shipped host. E-05 asserts host preference behaviorally and V-02..V-04 require a resolution probe for both hosts.
+
+## Validation and cross-check (verify before reporting done)
+
+Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
+
+- [ ] V-01 validates E-01
+  - Required evidence: paste the regenerated table of every `None`-defaulted `getattr(driver_module, ...)` binding in `execute_item_core` with GUARDED/UNGUARDED classification and each call site, plus the injection list each host wrapper supplies for the four targets. State explicitly whether the unguarded set is still exactly the four of F-01; if not, name the difference and confirm execution stopped.
+  - Observed evidence:
+  - Result: pending
+
+- [ ] V-02 validates E-02
+  - Required evidence: paste the diff of the `integration_is_earned` binding. Paste a runtime probe showing (a) with an empty `driver_module` the bound name is the shared `runner_shared.integration_is_earned` and the call site returns an `IntegrationVerdict` (observed through the turn: the attempt records `integration_signal` when the gate is relevant, or the turn passes the call site without raising), and (b) with `driver_module=oc_runipd` and `driver_module=agy_runipd` the name resolves to the host attribute. The observation is produced by `execute_item_core`'s own `integration = integration_is_earned(` call site driven by E-05's harness.
+  - Observed evidence:
+  - Result: pending
+
+- [ ] V-03 validates E-03
+  - Required evidence: paste the diff of the `driver_finalize` and `set_plan_approved` bindings. Paste a probe that invokes each bound default (through the turn where reachable, otherwise by the narrowest real call the executor names) with the shared definition replaced by a recording sentinel, and print the forwarded keyword arguments for `host_labels=OC_HOST_LABELS` and `host_labels=AGY_HOST_LABELS`, showing `labels is host_labels`, `env_builder is pinned_child_env` (finalize), `argv_builder is pinned_module_argv`, `run_checked` is the function-local pre-bound callable (approve), and `message == FULL_AUTO_APPROVAL_MESSAGE` when omitted. Then show both shipped hosts still resolve each name to their own wrapper.
+  - Observed evidence:
+  - Result: pending
+
+- [ ] V-04 validates E-04
+  - Required evidence: paste the diff of the `integrate_review_lane_branch` binding. Paste a probe invoking the bound default with `runner_shared.integrate_lane_branch` replaced by a recording sentinel, showing positional `(repo, handle, id6, None)` and keywords `host_label == host_labels.command`, `action_kind == "review"`, `run_checked` callable, for both host label sets; and show both shipped hosts still resolve the name to their own wrapper. Confirm no module-level `integrate_review_lane_branch` was added to `runner_shared` (`hasattr(runner_shared, "integrate_review_lane_branch")` prints `False`).
+  - Observed evidence:
+  - Result: pending
+
+- [ ] V-05 validates E-05
+  - Required evidence: paste `python3 -m pytest tests/test_runner_fallback_bindings.py` output FAILING against the pre-E-02 code and PASSING after. Paste the new/changed test bodies and confirm they read no source text, use no `inspect`/`ast`, and count no callers (P16). State, for each of `driver_finalize`, `set_plan_approved`, `integrate_review_lane_branch`, whether its assertion runs through a full `execute_item_core` turn or a narrower real call, and why (F-08). Paste the BARE `python3 -m pytest` summary line before the first edit and after the last, and the targeted regression set output from `## Required tests / validation`. Any net-new failure must be explained or the plan must not be marked executed.
+  - Observed evidence:
+  - Result: pending
+
+## Approval and execution gate
+
+- Size assessment: standard
+- Cohesion rationale: not required
+
+This plan is NOT approved for execution. It is authored `to-review` from backlog item `877qmy` and requires `/plan-review` and explicit human approval before execution. `- Readiness:` is deliberately absent: it is an output of `/plan-review`.
+
+Execution contract: honor `- Scope-Paths:` exactly (`agent_workflows/runner_shared.py`, `tests/test_runner_fallback_bindings.py`); commit only those paths via `aw commit u3ji9d -- <paths>`; never `git add -A`, never push. Capture the bare `python3 -m pytest` baseline BEFORE the first edit. Do not mark any `V-*` `pass` without the pasted evidence it demands, and do not move this plan to `.aw/records/plans/executed/` until `aw ipd lint --phase pre-transition` conforms and every validation item is verified. This plan inherits `- Blocks-Release: next` from `877qmy`.
