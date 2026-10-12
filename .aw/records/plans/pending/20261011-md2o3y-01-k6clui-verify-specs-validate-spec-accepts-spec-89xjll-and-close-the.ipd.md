@@ -84,7 +84,9 @@ In the expected case this plan changes no source or test file.
 ## Deferred / out of scope (with reason)
 
 - Closing `6bolin` or editing plan `oehkmh`: separate lifecycle (F-6).
+  - Carrier: oehkmh
 - Editing the approved `89xjll` spec body: forbidden as a way to pass the check, and unnecessary since the prose bound accepts it.
+  - Carrier-Declined: a forbidden shortcut, not owed work
 
 ## Scope check
 
