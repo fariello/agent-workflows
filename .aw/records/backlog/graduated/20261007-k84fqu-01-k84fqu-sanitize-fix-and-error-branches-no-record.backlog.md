@@ -1,5 +1,6 @@
 - Id: k84fqu
-- Status: open
+- Status: graduated
+- Graduated-To: k84fqu
 - Blocks-Release: next
 - Set: k84fqu
 - Priority: medium
@@ -7,6 +8,7 @@
 - Summary: aw sanitize --agent/--json writes nothing to stdout on the --fix branch and on its exit-2 error branches (not a git repo, OSError)
 
 ## Workflow history
+- 2026-10-12 graduated (aw backlog): graduated by run run-20261012T005650Z-2322198: 0e41gc
 - 2026-10-07 created (aw backlog): aw sanitize --agent/--json writes nothing to stdout on the --fix branch and on its exit-2 error branches (not a git repo, OSError)
 
 Filed by /plan-review of plan wyy09f on 2026-10-07 (HEAD 3c97bba81), as the carrier for a defect that plan's context threading does not reach.
