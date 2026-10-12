@@ -6,10 +6,11 @@
 - Scope: Orchestration only: sequence the eight children below and confirm each reaches `executed`. No code, test or record of its own.
 - Scope-Paths: .aw/records/plans/pending/20261011-uncitedaudit-00-k93w2g-audit-and-mutation-prove-behavioral-coverage-across-the-unci.ipd.md
 - Item-Dependencies: none
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
 - Coverage: pass
-- Coverage-Fingerprint: 7a35e51917dbb03c31cc596eeef41f94d00dce5aaf742727c6849623e5b4a65e
-- Coverage-Checked: 2026-10-11 by uri/its_direct/pt3-claude-opus-5.5-1m-us
+- Coverage-Fingerprint: d726a52ad65c242b8ed20406c3bd86645978472bac3872090f938c7e8a2c51af
+- Coverage-Checked: 2026-10-12 by uri/its_direct/pt3-claude-opus-5.5-1m-us
 - Work-Kind: chore
 - Priority: low
 - From-Backlog: e486tz
@@ -20,7 +21,10 @@
 - Id: k93w2g
 
 ## Workflow history
+- 2026-10-12 reviewed (aw set): plan-review complete: APPROVE WITH REVISIONS APPLIED
 
+- 2026-10-12 coverage pass (aw oc run): fingerprint d726a52ad65c, model uri/its_direct/pt3-claude-opus-5.5-1m-us
+- 2026-10-12 /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002 (both fixed; all eight children exist with matching Order, Id, From-Backlog and Item-Dependencies; census re-run at `7028b6f22` reports 209 / 3585; `aw ipd coverage k93w2g` ready).
 - 2026-10-11 coverage pass (aw oc run): fingerprint 7a35e51917db, model uri/its_direct/pt3-claude-opus-5.5-1m-us
 - 2026-10-12 draft (opencode its_direct/pt3-claude-opus-5.5-1m-us): created.
 - 2026-10-12 to-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): authored review-ready from backlog e486tz.
@@ -92,7 +96,7 @@ Orders 01, 02 and 03 are mutually independent. They all touch `tools/README.md`,
 
 ## Completion criteria (the whole Set is done only when)
 
-1. Every uncited deleted file of `19313eed` at the measured HEAD carries exactly one audit verdict, and the verdict totals equal the inventory count. [Owner: 8d0qsg E-03; reconciled by xmr5qj E-03 (a)]
+1. Every uncited deleted file of `19313eed` at the measured HEAD carries exactly one audit verdict, and the verdict totals equal the inventory count. The uncited count is a LIVE figure (it moves when docs cite or stop citing a deleted file: 207 at the census baseline, 209 at authoring and at review HEAD `7028b6f22`), so the bar is equality with `tools/lost_guard_census.py --summary` re-run on the same HEAD, never the number 209. [Owner: 8d0qsg E-03; reconciled by xmr5qj E-03 (a)]
 2. Every `pass-exclusive` candidate group has a derived property, a classification and (if behavioral) a mutation operator. [Owner: anzu8q E-01; reconciled by xmr5qj E-03 (b)]
 3. Every shortlisted behavioral property has a controlled mutation verdict or is listed `triaged-not-mutated` with a reason. [Owner: rq3q7v E-02; reconciled by xmr5qj E-03 (c)]
 4. Every non-guarded outcome has a carrier: a filed backlog item or a confirmed live owner. [Owner: xmr5qj E-02; reconciled by xmr5qj E-03 (d)]
@@ -128,7 +132,7 @@ This plan runs no tests. Each instrument child (`1ub8ex`, `nzzu8n`, `g55j1e`, `s
 
 - Blocking: no
 - Status: resolved
-- Owner: none
+- Owner: plan author
 - Resolution or deferral rationale: Yes on measurement: 102,815 lines across 209 files cannot be read and judged reliably by hand, the census's whole value is reproducibility (its docstring), and each instrument is a small stdlib script with behavioral tests. A reviewer who prefers a narrower Set can drop Order 04, at the cost of every mutant running the ~200 s full selection.
 
 ## Validation and cross-check (verify before reporting the Set complete)
@@ -180,4 +184,4 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 - Size assessment: standard
 - Cohesion rationale: not required
 
-Requires explicit human approval of each child before execution. The runner retires this orchestrator once every child is `executed`; executing by hand, confirm each child in Order and finish with `aw ipd finalize`, never a hand `git mv`. This plan writes no code; never push. Backlog `e486tz` is set `graduated` by the runner when the Set is authored.
+Requires explicit human approval of each child before execution. At this review, children `1ub8ex`, `nzzu8n` and `g55j1e` are `reviewed` and the other five are `to-review`: each still needs its own `/plan-review` and approval, which reviewing this orchestrator does not supply. The runner retires this orchestrator once every child is `executed`; executing by hand, confirm each child in Order and finish with `aw ipd finalize`, never a hand `git mv`. This plan writes no code; never push. Backlog `e486tz` is set `graduated` by the runner when the Set is authored.
