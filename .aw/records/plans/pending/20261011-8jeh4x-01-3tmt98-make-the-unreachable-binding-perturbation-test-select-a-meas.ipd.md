@@ -5,21 +5,23 @@
 - Concern: `tests/test_run_finding_reachability.py::TestRunFindingReachability::test_unreachable_binding_refusal_fires_under_perturbation` perturbs the `RUN-HOST-CAPABILITY` row to name ONE hardcoded predicate on the premise that it is unreachable, then asserts `validate_finding_table()` refuses with `RC-UNREACHABLE-BINDING`. The premise is an accident of the current package, not a property the test controls. Backlog `8jeh4x` records the original failure: the predicate was `worktree_lease.LeaseTable.claim`, which `run_evidence.prove_predicate_reachability` reports `reachable` (measured at authoring HEAD `0cae87760`), so the perturbed row validated clean and the test went red; backlog `wc5c5e` lists it among the five failures of a bare suite run. The reason, measured rather than assumed: the prover is NAME-KEYED by design (its own docstring, "DELIBERATE OVER-APPROXIMATION"), and `verifier_corroboration.match_claims_to_observed` contains a local variable `claim` (the `ClaimMatch(claim=claim, ...)` call, added by `bjx20r` in `d612cc8ec`, about four hours before `f7z10q` authored the test in `a0b32b07d`). That `ast.Name` matches the defined method name `claim`, so a reachable function creates a false edge to `LeaseTable.claim`. Commit `8c460a9a1` ("Fix baseline test failures on main ...") swapped the literal to `worktree_lease.LeaseTable.held_by`, which is unreachable TODAY, so the test is green at HEAD (`5 passed`), but the defect the item names is still present: any future function anywhere in `agent_workflows/` that mentions a local name `held_by` (or that genuinely calls it) turns the test red again with no change to the validator it exists to test. The test is coupled to the global name census of the package rather than to the behavior of `validate_finding_table`.
   A SECOND, SMALLER STALENESS rides on the same fact: the `prove_predicate_reachability` docstring states as "known consequence 2" that "`worktree_lease.LeaseTable.claim` is reported unreachable with zero real `.claim(` call sites anywhere in the package, which is a true negative". At HEAD that verdict is `reachable`, so the docstring documents a measurement that is false.
   WHY `bug`: inherited from the item (`- Work-Kind: bug`, `- Blocks-Release: next`); a suite node that goes red on unrelated edits fails a bare `python3 -m pytest`, which every lane's merge-and-revalidate gate runs, so the impact is user-perceptible (a rejected integration), not latent.
-- Scope: IN: (1) rewrite the perturbation test so the unreachable predicate it injects is SELECTED AT RUNTIME by asking the real prover, and the reachable one in the mixed arm likewise, with an explicit precondition assertion naming the chosen predicate and its verdict, so the test can no longer silently test the wrong thing; (2) correct the stale "known consequence 2" sentence in the `prove_predicate_reachability` docstring to describe the measured behavior (the `claim` false edge is an instance of consequence 1). OUT: changing the prover's name-keyed algorithm (deliberate per its docstring and `f7z10q`; tightening it is a design change, not this test's repair); changing `RUN-BASELINE-OWNERSHIP`'s predicate list (it is BOUND through other reachable predicates, `worktree_lease.assert_worker_scope` and `run_evidence.dirty_within`, so the false `claim` edge does not change its validated outcome); the other `wc5c5e` nodes (separately carried).
+- Scope: IN: (1) rewrite the perturbation test so the unreachable predicate it injects is SELECTED AT RUNTIME by asking the real prover, and the reachable one in the mixed arm likewise, with an explicit precondition assertion naming the chosen predicate and its verdict, so the test can no longer silently test the wrong thing; (2) correct the stale "known consequence 2" sentence in the `prove_predicate_reachability` docstring to describe the measured behavior (the `claim` false edge is an instance of consequence 1). OUT: changing the prover's name-keyed algorithm (deliberate per its docstring and `f7z10q`; tightening it is a design change, not this test's repair); changing `RUN-BASELINE-OWNERSHIP`'s predicate list (it stays BOUND through the reachable `run_evidence.dirty_within`; `worktree_lease.assert_worker_scope` is `unreachable` at HEAD, measured at review, so the false `claim` edge does not change its validated outcome); the other `wc5c5e` nodes (separately carried).
 - Scope-Paths: tests/test_run_finding_reachability.py, agent_workflows/run_evidence.py
 - Item-Dependencies: none
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
 - From-Backlog: 8jeh4x
 - Blocks-Release: next
 - Set: 8jeh4x
 - Order: 1
-- Highest E allocated: 04
+- Highest E allocated: 05
 - Author: opencode
 - Id: 3tmt98
 
 ## Workflow history
+- 2026-10-12 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-001..PR-006
 
 - 2026-10-12 draft (opencode): created.
 - 2026-10-12 to-review (opencode): authored review-ready from backlog 8jeh4x.
@@ -34,16 +36,16 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: Baseline
 
-- [ ] E-01 Record the baseline: run `python3 -m pytest -o addopts="" -q tests/test_run_finding_reachability.py` and print the prover verdicts for `worktree_lease.LeaseTable.claim` and `worktree_lease.LeaseTable.held_by` via `run_evidence.prove_predicate_reachability`.
+- [ ] E-01 Record the baseline: run `python3 -m pytest -o addopts="" -q tests/test_run_finding_reachability.py`, run the bare suite `python3 -m pytest` and record its `FAILED` node-id set (the base set E-05 compares against), and print the prover verdicts for `worktree_lease.LeaseTable.claim` and `worktree_lease.LeaseTable.held_by` via `run_evidence.prove_predicate_reachability`.
   - Depends on: none
-  - Expected outcome: 5 passed; `claim` -> `reachable`, `held_by` -> `unreachable` (the authoring measurement). If `held_by` is already `reachable`, the test is red on arrival, which confirms the defect; record that and continue.
+  - Expected outcome: the narrowed file passes (no failures or errors); the bare-suite failing node-id set is recorded; `claim` -> `reachable`, `held_by` -> `unreachable` (the authoring measurement). If `held_by` is already `reachable`, the test is red on arrival, which confirms the defect; record that and continue.
   - Execution state: pending
 
 ### Task group 2: Test repair
 
-- [ ] E-02 In `tests/test_run_finding_reachability.py`, add a module-level helper (for example `_select_predicate(verdict)`) that enumerates candidate `module.Class.method` / `module.function` predicates from a fixed set of runner-adjacent modules (at minimum `worktree_lease`, using `vars()` on its classes and the module, never `inspect.getsource`, `ast` or text search over production source, per P16), sorts them for determinism, calls `run_evidence.prove_predicate_reachability` on each, and returns the first whose verdict equals the requested one (`UNREACHABLE` or `REACHABLE`); it calls `self.fail`/raises with a message naming the verdict and the candidate pool when none qualifies, rather than skipping. Rewrite `test_unreachable_binding_refusal_fires_under_perturbation` to use it for both the "only unreachable" perturbation and the "one reachable beside one unreachable" mixed arm, assert the precondition verdict of each chosen predicate explicitly before perturbing, and assert the `RC-UNREACHABLE-BINDING` message names the CHOSEN predicate (not a literal). Keep every other assertion (finding `where`, code named in message, mixed table clean, restored table clean) and keep the `try/finally` restore of `run_evidence.RUN_FINDING_CODES`.
+- [ ] E-02 In `tests/test_run_finding_reachability.py`, add a module-level helper (for example `_select_predicate(verdict)`) that enumerates candidate `module.Class.method` / `module.function` predicates from a fixed set of runner-adjacent modules (at minimum `worktree_lease`, using `vars()` on its classes and the module, never `inspect.getsource`, `ast` or text search over production source, per P16), keeping only PUBLIC (no leading underscore) plain functions (`isinstance(obj, types.FunctionType)`) whose `__module__` is the module itself, so dunders, private helpers and namedtuple-generated methods (which the prover reports `unresolved` or reaches through generic names such as `__init__`) never enter the pool, sorts them for determinism, calls `run_evidence.prove_predicate_reachability` on each, and returns the first whose verdict equals the requested one (`UNREACHABLE` or `REACHABLE`); it raises `AssertionError` with a message naming the verdict and the candidate pool when none qualifies, rather than skipping. Rewrite `test_unreachable_binding_refusal_fires_under_perturbation` to use it for both the "only unreachable" perturbation and the "one reachable beside one unreachable" mixed arm, assert the precondition verdict of each chosen predicate explicitly before perturbing, and assert the `RC-UNREACHABLE-BINDING` message names the CHOSEN predicate (not a literal). Keep every other assertion (finding `where`, code named in message, mixed table clean, restored table clean) and keep the `try/finally` restore of `run_evidence.RUN_FINDING_CODES`.
   - Depends on: E-01
-  - Expected outcome: the test file contains no hardcoded `worktree_lease.LeaseTable.held_by`/`.claim` or `host_sandbox_profile.preflight_host_capabilities` literal inside the perturbation test; the test passes.
+  - Expected outcome: the test file contains no hardcoded `worktree_lease.LeaseTable.held_by`/`.claim` or `host_sandbox_profile.preflight_host_capabilities` literal inside the perturbation test; every test in the file passes.
   - Execution state: pending
 
 - [ ] E-03 Run the negative control proving the repair removes the coupling: write the PRE-`8c460a9a1` version of the test file (`git show 8c460a9a1^:tests/test_run_finding_reachability.py`) to a path under a `tempfile`/`/tmp` directory (never over a tracked file), run its perturbation node with `python3 -m pytest -o addopts="" -q <tmp-file> -k perturbation` against the current tree, and observe it FAIL (because `claim` is reachable), then run the repaired test and observe it PASS on the same tree.
@@ -53,9 +55,16 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 3: Docstring correction
 
-- [ ] E-04 In `agent_workflows/run_evidence.py`, edit `prove_predicate_reachability`'s docstring "Two known consequences" list: replace consequence 2 (the claim that `worktree_lease.LeaseTable.claim` is reported unreachable as a true negative) with an accurate statement that a local variable or keyword sharing a defined method's name also creates an edge, citing `LeaseTable.claim` (reachable via the `claim` local in `verifier_corroboration.match_claims_to_observed`) as the measured example, so the docstring no longer asserts a false verdict. Docstring-only; no behavior change.
+- [ ] E-04 In `agent_workflows/run_evidence.py`, edit `prove_predicate_reachability`'s docstring "Two known consequences" list: replace consequence 2 (the claim that `worktree_lease.LeaseTable.claim` is reported unreachable as a true negative) with an accurate statement that a local variable or keyword sharing a defined method's name also creates an edge, citing `LeaseTable.claim` (reachable via the `claim` local in `verifier_corroboration.match_claims_to_observed`) as the measured example, explicitly dated as a measurement (e.g. "measured 2026-10-12") so the docstring does not again present a census fact as a permanent property, so the docstring no longer asserts a false verdict. Docstring-only; no behavior change.
   - Depends on: E-01
   - Expected outcome: docstring matches the measured verdict; `git diff agent_workflows/run_evidence.py` touches only docstring lines.
+  - Execution state: pending
+
+### Task group 4: Regression
+
+- [ ] E-05 After E-02 and E-04, run the bare suite `python3 -m pytest` and compare its `FAILED` node-id set against the base set recorded in E-01 (sets by node id, never counts). A node failing only after the edit must be investigated; re-run it once to rule out a load-sensitive flake (`wc5c5e`) and record the outcome.
+  - Depends on: E-02, E-04
+  - Expected outcome: no node id fails after the edit that did not fail at the base; `test_unreachable_binding_refusal_fires_under_perturbation` is absent from the failure list.
   - Execution state: pending
 
 ## Project conventions discovered (Step 0)
@@ -74,7 +83,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 | F-02 | The reachability is a false name-keyed edge from the local `claim` in `verifier_corroboration.match_claims_to_observed` (the `ClaimMatch(claim=claim, ...)` call). | Walking every reachable function's AST for `Name`/`Attribute` `claim` finds exactly `verifier_corroboration.py match_claims_to_observed Name`; no `.claim(` call site exists in the package. |
 | F-03 | `8c460a9a1` swapped the literal to `held_by`; the test is green at HEAD but still coupled to the package-wide name census. | `git show 8c460a9a1 -- tests/test_run_finding_reachability.py`; `5 passed` at HEAD. Today `LeaseTable` verdicts: `claim`/`release`/`snapshot` reachable, `held_by`/`owner_of` unreachable. |
 | F-04 | The prover docstring's "known consequence 2" asserts `LeaseTable.claim` is unreachable, which is false at HEAD. | `prove_predicate_reachability` docstring text "is reported unreachable with zero real ``.claim(`` call sites". |
-| F-05 | `RUN-BASELINE-OWNERSHIP` names `worktree_lease.LeaseTable.claim` but also `worktree_lease.assert_worker_scope` and `run_evidence.dirty_within`, so its validated outcome does not depend on the false edge. | `RUN_FINDING_CODES` row `RUN-BASELINE-OWNERSHIP` predicates; `validate_finding_table()` is clean at HEAD. |
+| F-05 | `RUN-BASELINE-OWNERSHIP` names `worktree_lease.LeaseTable.claim` but also `worktree_lease.assert_worker_scope` (unreachable) and `run_evidence.dirty_within` (reachable), so its validated outcome does not depend on the false edge. | `RUN_FINDING_CODES` row `RUN-BASELINE-OWNERSHIP` predicates; `validate_finding_table()` is clean at HEAD. |
 
 ## Proposed changes (ordered, validatable)
 
@@ -82,6 +91,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 2. Runtime predicate selection in the test, with explicit precondition asserts (E-02).
 3. Negative control against the pre-`8c460a9a1` test (E-03).
 4. Docstring correction (E-04).
+5. Bare-suite regression against the E-01 base set (E-05).
 
 ## Deferred / out of scope (with reason)
 
@@ -98,7 +108,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 - `python3 -m pytest -o addopts="" -q tests/test_run_finding_reachability.py` passes (E-02).
 - Negative control: the pre-`8c460a9a1` test file fails on the current tree while the repaired test passes (E-03).
-- Full suite run BARE, `python3 -m pytest`, actual output pasted; no new failures versus the baseline set recorded at execution.
+- Full suite run BARE, `python3 -m pytest`, actual output pasted; no new failing node id versus the base set recorded in E-01 (E-05).
 
 ## Spec / documentation sync
 
@@ -110,7 +120,7 @@ N/A: no spec governs this test or the docstring's example list; the change is a 
 
 - Blocking: no
 - Status: resolved
-- Owner: none
+- Owner: plan author
 - Resolution or deferral rationale: Start with `worktree_lease` (it has both verdicts at HEAD, F-03); the helper fails loudly naming the pool if a verdict has no candidate, so a future need to widen is visible rather than silent. The executor may add modules if needed without re-review.
 
 ## Validation and cross-check (verify before reporting done)
@@ -123,7 +133,7 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Result: pending
 
 - [ ] V-02 validates E-02
-  - Required evidence: pasted `git diff tests/test_run_finding_reachability.py`, showing the selection helper, the precondition asserts, and no remaining hardcoded predicate literal in the perturbation test; pasted output of `python3 -m pytest -o addopts="" -q tests/test_run_finding_reachability.py` showing `5 passed`; and a grep of the TEST file (not production source) for `held_by`, `LeaseTable.claim` and `preflight_host_capabilities` showing no match inside the perturbation test.
+  - Required evidence: pasted `git diff tests/test_run_finding_reachability.py`, showing the selection helper, the precondition asserts, and no remaining hardcoded predicate literal in the perturbation test; pasted output of `python3 -m pytest -o addopts="" -q tests/test_run_finding_reachability.py` showing every collected test passed with no failures or errors (the count is context, not the bar); and a grep of the TEST file (not production source) for `held_by`, `LeaseTable.claim` and `preflight_host_capabilities` showing no match inside the perturbation test.
   - Observed evidence:
   - Result: pending
 
@@ -133,7 +143,12 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Result: pending
 
 - [ ] V-04 validates E-04
-  - Required evidence: pasted `git diff agent_workflows/run_evidence.py` limited to docstring lines in `prove_predicate_reachability`, plus pasted output of a BARE full-suite run `python3 -m pytest` (its summary line) showing no new failures relative to the baseline set.
+  - Required evidence: pasted `git diff agent_workflows/run_evidence.py` limited to docstring lines in `prove_predicate_reachability`, showing consequence 2 no longer asserts `LeaseTable.claim` is unreachable and the replacement is dated.
+  - Observed evidence:
+  - Result: pending
+
+- [ ] V-05 validates E-05
+  - Required evidence: pasted bare-suite summary line and `FAILED` lines after the edit, beside the E-01 base failing set, showing no new node id and the perturbation test absent; for any post-only failure, the pasted single-node re-run output.
   - Observed evidence:
   - Result: pending
 
@@ -142,6 +157,8 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 - Size assessment: standard
 - Cohesion rationale: not required
 
-This plan is `to-review` and requires explicit human approval before execution; it writes no `- Readiness:` field, since that is `/plan-review`'s output.
+This plan requires explicit human approval (`Status: approved`) before execution.
 
-EXECUTION CONTRACT. Commit only the declared `- Scope-Paths:` through `aw commit <plan> -- <paths>`, never `git add -A` and never `--no-verify`; do not push; no tag or release. Paste actual runner output, never summaries. The negative control in E-03 must NOT write over a tracked file: write the old test copy to a temp directory. Once every `V-*` passes and `aw ipd lint --phase pre-transition` conforms, move the plan to `executed/` through the lifecycle tooling.
+EXECUTION CONTRACT. Commit only the declared `- Scope-Paths:` through `aw commit <plan> -- <paths>`, never `git add -A` and never `--no-verify`; do not push; no tag or release. Paste actual runner output, never summaries. The negative control in E-03 must NOT write over a tracked file: write the old test copy to a temp directory. Do not fix other `wc5c5e` nodes here.
+
+POST-GATE LIFECYCLE. Run `aw ipd begin` before implementing. When dispatched by `aw oc run` / `aw agy run`, the runner performs finalize, so do not run `aw ipd finalize` yourself; when executed by hand, run `aw ipd finalize` after every `V-*` reads `pass`. Never hand-`git mv` the plan to `executed/`. Confirm `aw ipd lint --phase pre-transition` conforms before the transition. The plan carries the item's `- Blocks-Release: next`; backlog `8jeh4x` closes `done` via the From-Backlog handoff once this plan is executed.
