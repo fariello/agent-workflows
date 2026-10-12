@@ -6,7 +6,8 @@
 - Scope: Bring the docstring of `test_must_not_refuse_matrix` into agreement with its (already correct) assertions for the plans arm, and verify by running the test that relpath, abspath and id6 selectors all reach the rename preview for plans. No production code change.
 - Scope-Paths: tests/test_selector_type_containment.py
 - Item-Dependencies: none
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
 - Work-Kind: followup
 - Priority: medium
 - From-Backlog: bxnhdj
@@ -17,6 +18,7 @@
 - Id: 1m7js5
 
 ## Workflow history
+- 2026-10-12 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002
 
 - 2026-10-12 draft (opencode): created.
 - 2026-10-12 to-review (opencode): authored review-ready from backlog `bxnhdj`.
@@ -31,9 +33,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: Baseline
 
-- [ ] E-01 Run `python3 -m pytest -o addopts="" -q tests/test_selector_type_containment.py` at the execution base BEFORE editing and record the result, and confirm (by reading the plans arm of `test_must_not_refuse_matrix`, the block after the comment `# Plans: id6, relpath, and abspath selectors succeed`) that all three plans assertions expect `rc == 0 and "would rename" in out`. If the assertions at your base instead still expect `rc == 2`, ALSO flip those two assertions to `rc == 0 and "would rename" in out` in E-02 (the original reconciliation the backlog item asked for).
+- [ ] E-01 Run `python3 -m pytest -o addopts="" -q tests/test_selector_type_containment.py` and the bare suite `python3 -m pytest` at the execution base BEFORE editing, recording the narrowed summary line and the bare-suite `FAILED` node-id set (this is the base set E-03 compares against), and confirm (by reading the plans arm of `test_must_not_refuse_matrix`, the block after the comment `# Plans: id6, relpath, and abspath selectors succeed`) that all three plans assertions expect `rc == 0 and "would rename" in out`. If the assertions at your base instead still expect `rc == 2`, ALSO flip those two assertions to `rc == 0 and "would rename" in out` in E-02 (the original reconciliation the backlog item asked for).
   - Depends on: none
-  - Expected outcome: pasted pre-edit pytest summary line and a statement of which form the plans assertions are in.
+  - Expected outcome: pasted pre-edit narrowed pytest summary line, the pre-edit bare-suite summary line plus its `FAILED` node-id set, and a statement of which form the plans assertions are in.
   - Execution state: pending
 
 ### Task group 2: Reconcile the docstring
@@ -45,7 +47,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 3: Verify
 
-- [ ] E-03 Re-run `python3 -m pytest -o addopts="" -q tests/test_selector_type_containment.py` and then the bare suite `python3 -m pytest`, and compare the bare-suite failing node-id SET against a baseline re-measured on the unmodified base (not against any count in this plan).
+- [ ] E-03 Re-run `python3 -m pytest -o addopts="" -q tests/test_selector_type_containment.py` and then the bare suite `python3 -m pytest`, and compare the bare-suite failing node-id SET against the base set E-01 measured on the unmodified base (not against any count in this plan). A node id failing in both runs is pre-existing and not this plan's concern; a node failing only after the edit must be investigated (a docstring edit cannot plausibly cause it, so re-run it once to rule out flakiness and record the outcome).
   - Depends on: E-02
   - Expected outcome: the containment file passes in full; the bare suite introduces no newly failing node id, and `test_must_not_refuse_matrix` is absent from the failure list.
   - Execution state: pending
@@ -74,7 +76,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ## Deferred / out of scope (with reason)
 
-- Closing backlog `bxnhdj`: the runner/maintainer sets `graduated`/`done`; not this plan's act.
+- Closing backlog `bxnhdj`: it is already `graduated` (run run-20261012T005606Z-2321569); moving it to `done` after this plan executes is the runner/maintainer's act, not this plan's.
   - Carrier: bxnhdj
 - Other pre-existing suite failures (e.g. carriers `6bolin`, `8jeh4x`, `wc5c5e`): owned by their own items.
   - Carrier: 6bolin, 8jeh4x, wc5c5e
@@ -87,7 +89,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 ## Required tests / validation
 
 - `python3 -m pytest -o addopts="" -q tests/test_selector_type_containment.py` passes in full after the edit (performed by this plan, E-03).
-- Bare `python3 -m pytest` shows no newly failing node id versus the re-measured base (performed by this plan, E-03).
+- Bare `python3 -m pytest` shows no newly failing node id versus the base set measured in E-01 (performed by this plan, E-01 and E-03).
 
 ## Spec / documentation sync
 
@@ -102,7 +104,7 @@ None. The only candidate question (whether the assertions still need flipping) i
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
 - [ ] V-01 validates E-01
-  - Required evidence: the pasted pre-edit pytest summary line for `tests/test_selector_type_containment.py` and the pasted plans-arm assertion lines from the base.
+  - Required evidence: the pasted pre-edit pytest summary line for `tests/test_selector_type_containment.py`, the pasted pre-edit bare-suite summary line and `FAILED` node-id set, and the pasted plans-arm assertion lines from the base.
   - Observed evidence:
   - Result: pending
 
@@ -112,7 +114,7 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Result: pending
 
 - [ ] V-03 validates E-03
-  - Required evidence: pasted post-edit summary line of the narrowed run showing all tests in the file passed, and the pasted bare-suite summary plus `FAILED` lines alongside the re-measured base failing set, showing no new node id and `test_must_not_refuse_matrix` absent.
+  - Required evidence: pasted post-edit summary line of the narrowed run showing all tests in the file passed, and the pasted bare-suite summary plus `FAILED` lines alongside the E-01 base failing set, showing no new node id and `test_must_not_refuse_matrix` absent.
   - Observed evidence:
   - Result: pending
 
