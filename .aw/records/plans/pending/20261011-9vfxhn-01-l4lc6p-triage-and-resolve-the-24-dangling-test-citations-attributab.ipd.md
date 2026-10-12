@@ -1,0 +1,164 @@
+# IPD: Triage and resolve the 24 dangling test citations attributable to neither suite-trim commit
+
+- Date: 2026-10-11
+- Kind: child
+- Concern: Backlog `9vfxhn` reports 19 to 22 dangling `tests/test_*.py` path citations in the live tree that `tools/lost_guard_census.py` Axis A attributes to NEITHER trim commit (`19313eed`, `80db6750c`). Re-measured at authoring HEAD `8caebfd8d` the count is 24. Triage shows only ONE is a genuine stale pointer a reader is invited to follow; the other 23 are synthetic fixture literals inside tests, illustrative placeholder names in comments/docstrings, or an already-exempted past-tense historical mention. The census currently counts all 24 as defects because its declared `tmp_path` exclusion class is described in `EXCLUDED_CLASSES` but never implemented, and its placeholder set holds only `tests/test_x.py` and `tests/test_extra.py`.
+- Scope: IN: (a) repoint the one genuine stale citation; (b) make the census honor its declared fixture/placeholder/historical exclusions through an explicit, keyed, reviewable exemption table, reported as a separate count so nothing is hidden; (c) a behavioral test of the exemption over a synthetic git repo; (d) document the new class in `tools/README.md`. OUT: the 75 paths attributable to `19313eed` (owned by backlog `iosmvn` and its sibling items); `CHANGELOG.md`/`DECISIONS.md` (already out of scope as append-only history); `.aw/records/` (immutable); restoring any deleted test.
+- Scope-Paths: tools/lost_guard_census.py, tests/test_lost_guard_census.py, tests/test_lift_drift_scan.py, tools/README.md
+- Item-Dependencies: none
+- Status: to-review
+- Work-Kind: chore
+- Priority: low
+- From-Backlog: 9vfxhn
+- Set: 9vfxhn
+- Order: 1
+- Highest E allocated: 05
+- Author: opencode
+- Id: l4lc6p
+
+## Workflow history
+
+- 2026-10-12 draft (opencode): created.
+- 2026-10-12 to-review (opencode): authored from backlog `9vfxhn`; triaged all 24 NEITHER-attributed paths at HEAD `8caebfd8d`.
+
+## Goal
+
+Drive the census's "Attributable to NEITHER" Axis A count from 24 to 0 at execution HEAD by fixing the one real stale pointer and by recording every non-citation as an explicit keyed exemption with a reason, so the remaining count means "a real dangling citation" and any new one is visible.
+
+## Detailed Implementation Checklist (TODO)
+
+Execution-state rule: mark an `E-*` item complete only after performing the action. That mark is not validation. Right-sizing rule: each E-item must address one concern and be executable in one focused pass; split when an E-item names multiple distinct deliverables or independent test-surfaces. Accepted execution states: blocked, failed, pending, performed; terminal gate demands 'performed'.
+
+### Task group 1: Re-measure and repoint the genuine stale citation
+
+- [ ] E-01 Re-measure the NEITHER set at execution HEAD with `python3 -c "from pathlib import Path; from collections import defaultdict; from tools.lost_guard_census import scan_axis_a; r=scan_axis_a(Path('.'),['80db6750c','19313eed']); d=defaultdict(set); [d[t].add(f) for f,t in r.hits if t in r.attr_neither]; [print(p,sorted(d[p])) for p in r.attr_neither]"` and record the list. Compare to the 24-row table in Findings; any path not in the table is dispositioned by the same rules (genuine -> repoint/remove; fixture/placeholder/historical -> exemption in E-03) and recorded.
+  - Depends on: none
+  - Expected outcome: the recorded list equals the Findings table, or each delta row carries a recorded disposition.
+  - Execution state: pending
+
+- [ ] E-02 In `tests/test_lift_drift_scan.py` class `LiftDriftScanGuardTests` docstring, replace the stale pointer `tests/test_liftaudit_drift.py` (a file that has never existed in git history) with `tests/test_liftaudit_stop_halts_run.py`, the file executed plan `96xtmi` F-16 names as the behavioral replacement (`LiftauditStopHaltsRunTests::test_oc_run_queue_stop_now_force_level4`).
+  - Depends on: E-01
+  - Expected outcome: `grep -n "test_liftaudit_drift" tests/test_lift_drift_scan.py` prints nothing; the docstring names an existing file.
+  - Execution state: pending
+
+### Task group 2: Implement the declared exclusions in the census
+
+- [ ] E-03 In `tools/lost_guard_census.py`: (i) extend `EXCLUDED_PLACEHOLDER_PATHS` with the generic illustrative names `tests/test_foo.py`, `tests/test_secret.py`, `tests/test_demo.py` and update the `placeholders` text in `EXCLUDED_CLASSES` to list them; (ii) add a module constant `ACKNOWLEDGED_NON_CITATIONS: dict[tuple[str, str], str]` keyed `(carrying_file, cited_path) -> reason`, populated with every Findings row dispositioned FIXTURE or HISTORICAL, with a reason string per key; (iii) in `scan_axis_a`, skip a hit whose `(rel_path, target)` key is in that table, collecting it into a new `AxisAResult` field `acknowledged_hits: list[tuple[str, str]]` instead of `hits`/`cited_paths`; (iv) in `print_axis_a`, print `Acknowledged non-citations (keyed exemptions): N hits` under CENSUS RESULTS, and add an `acknowledged` entry to `EXCLUDED_CLASSES` so `print_scan_definition` declares it. Keep the `[review measured ...]` labels unchanged.
+  - Depends on: E-01
+  - Expected outcome: `python3 tools/lost_guard_census.py --axis a` prints `Attributable to NEITHER:   0 paths` and a nonzero acknowledged-hits line; the `19313eed` count is unchanged from the E-01 measurement.
+  - Execution state: pending
+
+- [ ] E-04 Add a behavioral test to `tests/test_lost_guard_census.py` class `LostGuardCensusSyntheticRepoTests`: in the synthetic repo, write a carrier at a carrying-file path that is a key of `ACKNOWLEDGED_NON_CITATIONS` (e.g. `tests/test_verifier_evidence.py` citing `tests/test_two.py`), a carrier citing `tests/test_foo.py`, and keep the existing `tests/test_unrelated_missing.py` citation in `agent_workflows/worker.py`; assert via `scan_axis_a` that the keyed path is absent from `dangling_paths`/`attr_neither` and present in `acknowledged_hits`, the placeholder is absent from `cited_paths`, and `tests/test_unrelated_missing.py` is STILL in `attr_neither` (the exemption is keyed, not global). Also assert the CLI `--axis a` output contains the acknowledged line.
+  - Depends on: E-03
+  - Expected outcome: the new test passes; mutating `scan_axis_a` to ignore the table makes it fail.
+  - Execution state: pending
+
+- [ ] E-05 Document the acknowledged-exemption class and the extended placeholder set in the `lost_guard_census.py` section of `tools/README.md` (what qualifies: fixture literals inside tests, illustrative placeholders, past-tense historical mentions already exempted by `tests/test_docs_test_citations.py`; what does not: any present-tense pointer a reader is invited to follow).
+  - Depends on: E-03
+  - Expected outcome: README section names the class and the rule.
+  - Execution state: pending
+
+## Project conventions discovered (Step 0)
+
+- The scanner is `tools/lost_guard_census.py` (`scan_axis_a`, `AxisAResult`, `EXCLUDED_PLACEHOLDER_PATHS`, `EXCLUDED_CLASSES`, `print_axis_a`); its tests in `tests/test_lost_guard_census.py` build a throwaway git repo (`_setup_repo`) and must not reference the live tree or real trim shas.
+- Precedent for keyed `(document, citation) -> rationale` exemptions: `tests/test_docs_test_citations.py` `HISTORICAL_EXEMPTIONS`, with the present-tense vs past-tense rule in its module docstring.
+- Tests must exercise behavior and never read production source (GUIDING_PRINCIPLES P16).
+- Run the suite bare: `python3 -m pytest`; narrowed runs use `-o addopts=""`.
+- Cite code by symbol, never by bare line number.
+
+## Findings
+
+Measured at HEAD `8caebfd8d` (24 NEITHER paths; `git log --all -- <path>` shows only two ever existed). Disposition key: GENUINE = stale present-tense pointer; FIXTURE = synthetic literal in a test's own data; PLACEHOLDER = generic illustrative name; HISTORICAL = past-tense mention already exempted.
+
+| ID | Cited path | Carrying file(s) | Ever existed | Disposition |
+|---|---|---|---|---|
+| F-01 | tests/test_liftaudit_drift.py | tests/test_lift_drift_scan.py (class docstring) | no | GENUINE: repoint to tests/test_liftaudit_stop_halts_run.py (E-02) |
+| F-02 | tests/test_wtiso_characterization.py | docs/wtiso-state-taxonomy.md, tests/test_docs_test_citations.py | yes, deleted d4dd6b880 | HISTORICAL: already in `HISTORICAL_EXEMPTIONS`; keyed exemption (E-03) |
+| F-03 | tests/test_rununify_initialize_run_characterization.py | tests/test_finalize_sendback.py (`REDUCTION_REFUSAL_SINGULAR` fixture string) | yes, deleted 7ebc29645 | FIXTURE (E-03) |
+| F-04 | tests/test_1.py, tests/test_2.py | tests/test_finalize_sendback.py | no | FIXTURE (E-03) |
+| F-05 | tests/test_a.py | tests/test_scope_match.py | no | FIXTURE (E-03) |
+| F-06 | tests/test_deleted_a.py, tests/test_deleted_b.py, tests/test_mixed.py, tests/test_modified_c.py, tests/test_unrelated_missing.py | tests/test_lost_guard_census.py (`_setup_repo`) | no | FIXTURE (E-03) |
+| F-07 | tests/test_deleted_suite.py, tests/test_e2e_nonexistent.py, tests/test_missing_file.py, tests/test_real_file.py | tests/test_check_engine_test_citation.py | no | FIXTURE (E-03) |
+| F-08 | tests/test_new.py | tests/test_scope_path_target_stale.py | no | FIXTURE (E-03) |
+| F-09 | tests/test_release_gate.py | tests/test_verifier_corroboration.py (`claimed_command`) | no | FIXTURE (E-03) |
+| F-10 | tests/test_spec.py | tests/test_agy_runipd_cli.py (mock `TargetFile`) | no | FIXTURE (E-03) |
+| F-11 | tests/test_two.py, tests/test_three.py, tests/test_verify.py | tests/test_verifier_evidence.py | no | FIXTURE (E-03) |
+| F-12 | tests/test_foo.py | agent_workflows/ipd_authoring.py (Scope-Paths example comment) and 8 test files | no | PLACEHOLDER (E-03) |
+| F-13 | tests/test_secret.py | agent_workflows/ipd_lifecycle.py (`scope_entry_is_literal_file` docstring example) | no | PLACEHOLDER (E-03) |
+| F-14 | tests/test_demo.py | tests/support.py and 7 test files | no | PLACEHOLDER (E-03) |
+
+The census's own `EXCLUDED_CLASSES["tmp_path"]` claims fixture paths are excluded, but `scan_axis_a` filters only `EXCLUDED_PLACEHOLDER_PATHS`; that gap is why F-03..F-11 count.
+
+## Proposed changes (ordered, validatable)
+
+1. E-01: re-measure; disposition any delta.
+2. E-02: repoint F-01.
+3. E-03: placeholders + keyed exemption table + separate acknowledged count.
+4. E-04: synthetic-repo behavioral test of the exemption.
+5. E-05: README documentation.
+
+## Deferred / out of scope (with reason)
+
+- The 75 `19313eed`-attributed paths: owned by backlog `iosmvn` and its dedicated sibling items; mixing them here would duplicate that work.
+- `CHANGELOG.md`/`DECISIONS.md` history hits: append-only records, already reported separately by the census.
+- Restoring any deleted suite: none of the 24 paths names lost behavioral coverage (F-01's behavior is pinned by `tests/test_liftaudit_stop_halts_run.py` per `96xtmi`).
+
+## Scope check
+
+- Over-scope: none; fixture strings in tests are NOT rewritten (they are correct test data), only acknowledged.
+- Under-scope: none; every one of the 24 rows has a disposition and an E-item.
+
+## Required tests / validation
+
+- `python3 -m pytest -o addopts="" tests/test_lost_guard_census.py tests/test_lift_drift_scan.py tests/test_docs_test_citations.py -v` (E-02, E-04).
+- `python3 tools/lost_guard_census.py --axis a` showing NEITHER 0 (E-03).
+- Bare suite `python3 -m pytest` (regression).
+
+## Spec / documentation sync
+
+`tools/README.md` updated (E-05). No spec governs `tools/lost_guard_census.py`; no `.spec.md` is touched.
+
+## Open questions
+
+### OQ-01: Should fixture literals be rewritten to an excluded placeholder instead of acknowledged?
+
+- Blocking: no
+- Status: resolved
+- Owner: none
+- Resolution or deferral rationale: No. Rewriting test data in ~10 unrelated test modules widens scope and risks behavior changes in those tests; the keyed-exemption precedent (`tests/test_docs_test_citations.py` `HISTORICAL_EXEMPTIONS`) is established and keeps each acknowledgement reviewable.
+
+## Validation and cross-check (verify before reporting done)
+
+Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
+
+- [ ] V-01 validates E-01
+  - Required evidence: pasted E-01 command output listing the NEITHER paths with carriers, and a recorded disposition for any row not in Findings.
+  - Observed evidence:
+  - Result: pending
+
+- [ ] V-02 validates E-02
+  - Required evidence: pasted `git diff tests/test_lift_drift_scan.py` showing the repoint, empty output of `grep -n test_liftaudit_drift tests/test_lift_drift_scan.py`, and `ls tests/test_liftaudit_stop_halts_run.py` succeeding.
+  - Observed evidence:
+  - Result: pending
+
+- [ ] V-03 validates E-03
+  - Required evidence: pasted `python3 tools/lost_guard_census.py --axis a` output (produced by `print_axis_a`) showing `Attributable to NEITHER:   0 paths`, the acknowledged-hits line, the `acknowledged` class in the scan definition, and a `19313eed` count equal to the E-01 measurement.
+  - Observed evidence:
+  - Result: pending
+
+- [ ] V-04 validates E-04
+  - Required evidence: pasted `python3 -m pytest -o addopts="" tests/test_lost_guard_census.py tests/test_docs_test_citations.py -v` output with the new test PASSED, plus pasted failing output from a temporary sabotage of the exemption skip in `scan_axis_a` (reverted afterwards, revert shown by `git diff --stat`).
+  - Observed evidence:
+  - Result: pending
+
+- [ ] V-05 validates E-05
+  - Required evidence: pasted `git diff tools/README.md` showing the acknowledged class and extended placeholder set, and the bare-suite `python3 -m pytest` summary line with no failures.
+  - Observed evidence:
+  - Result: pending
+
+## Approval and execution gate
+
+- Size assessment: standard
+- Cohesion rationale: not required
+
+Execute only after human approval. Commit through `aw commit l4lc6p -- <paths>` limited to the declared Scope-Paths plus this plan's lifecycle files; never push. Move to `executed/` only after `aw ipd lint --phase pre-transition` conforms and every `V-*` is `pass` with pasted evidence.
