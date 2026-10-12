@@ -6,7 +6,8 @@
 - Scope: Amend A5 in spec `uonrjg` so "golden output" is defined as BOTH the rendered output of the shared lifecycle helpers at every tier and Unicode mode AND every committed golden fixture file under `tests/`; extend the existing A5 test to scan the committed golden corpus so the second half is asserted, including any lifecycle snapshot corpus added later. No production code, renderer, glyph, or mapping changes.
 - Scope-Paths: .aw/records/specs/approved/20260913-uonrjg-01-uonrjg-cross-artifact-lifecycle-symbols-and-ansi-status-styling.spec.md, tests/test_lifecycle_style.py
 - Item-Dependencies: executed:xtensb
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
 - Work-Kind: followup
 - Priority: low
 - From-Backlog: 0rnvj6
@@ -18,6 +19,7 @@
 - Id: mq715m
 
 ## Workflow history
+- 2026-10-12 reviewed (aw set): /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004
 
 - 2026-10-12 draft (aw oc run model=agent): created.
 - 2026-10-12 to-review (aw oc run model=agent): authored from backlog `0rnvj6` (raised as `xtensb` OQ-01); both closing routes the item names are combined: A5 is amended to define "golden output", and the committed golden corpus that already exists is scanned so the definition is asserted rather than only stated.
@@ -42,14 +44,16 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 - [ ] E-01 In `tests/test_lifecycle_style.py`, add a test method to the existing class `CriterionA5VariationSelectorTests`. It discovers every committed golden fixture by globbing `**/*.golden` under the repository's `tests/` directory, reads each as UTF-8, and asserts that neither emoji-presentation sequence occurs: `"\u26a0\ufe0f"` (`⚠️`) and `"\u21a9\ufe0f"` (`↩️`). The failure message must name the offending file and the sequence. Put the discovery root in a module-level constant (for example `_GOLDEN_SCAN_ROOT = Path(__file__).resolve().parent`) so the counterfactual in V-01 can redirect it with `mock.patch.object` rather than writing a bad file into the real tree.
   NON-VACUITY: the test must also assert that it found AT LEAST ONE golden file, so a renamed or moved corpus fails loudly instead of the scan silently passing over nothing. Do NOT pin the count (12 at authoring): a count bar is the structure-pinning P16 forbids, and it would fail on every legitimate golden added or removed.
   NOT CODE-PINNING: the scanned files are committed TEST FIXTURES, i.e. the golden output A5 names, and not production source. This reads no `agent_workflows/` file and uses no `inspect` or `ast` (`AGENTS.md` execution contract; `GUIDING_PRINCIPLES` P16).
+  READ THE ROOT AT CALL TIME: the test body must reference the module global (e.g. `_GOLDEN_SCAN_ROOT.glob("**/*.golden")` inside the method), never a default argument or class attribute bound at import, or the V-01 `mock.patch.object` counterfactual silently scans the real tree.
+  SCAN BOTH SPELLINGS OF EACH SEQUENCE. `JsonRenderer.render` (`agent_workflows/renderers.py`) calls `json.dumps(result.to_dict(), indent=2)` with the default `ensure_ascii=True`, so an emoji reaching a `*.json.golden` is committed as the ASCII text `\u26a0\ufe0f` (backslash-u escapes), never as the literal code points (measured at review: `json.dumps("\u26a0\ufe0f")` prints `"\u26a0\ufe0f"`). A literal-only scan is therefore blind to one third of the corpus. For each file assert neither the literal sequence nor its JSON escape form occurs, comparing the escape form case-insensitively (`text.lower()` against `"\\u26a0\\ufe0f"` and `"\\u21a9\\ufe0f"`), since a JSON encoder may emit upper-case hex.
   SCAN ONLY THE TWO EMOJI SEQUENCES, not a bare `U+FE0F`. A5 names `⚠️` and `↩️`; a blanket `U+FE0F` ban over fixture files would be a new requirement the spec does not state, and an unrelated fixture could legitimately carry one.
   - Depends on: none
-  - Expected outcome: a committed golden fixture containing `⚠️` or `↩️` fails the suite with the file named, and an empty or vanished corpus fails rather than passing vacuously.
+  - Expected outcome: a committed golden fixture containing `⚠️` or `↩️`, either as literal code points or as a JSON `\uXXXX` escape pair, fails the suite with the file named, and an empty or vanished corpus fails rather than passing vacuously.
   - Execution state: pending
 
 ### Task group 2: Amend A5 so the obligation is stated
 
-- [ ] E-02 In the spec, amend criterion A5 (the line beginning "- **A5** `⚠️` and `↩️` do not occur in lifecycle constants or golden output.") by appending a definition, without changing the criterion's requirement: "golden output" means (a) the output of the shared lifecycle renderers `Term.format_lifecycle_marker` and `Term.style_lifecycle_text` for every stage in `lifecycle_style.STAGE_ORDER` at all three color depths and both Unicode modes, and (b) every committed golden fixture file (`*.golden`) under `tests/`, which today is the `tests/fixtures/conformance_goldens/` corpus and which automatically includes any lifecycle snapshot corpus added later provided it uses the `.golden` suffix. Cite the asserting tests by CLASS name (`tests/test_lifecycle_style.py` `CriterionA5VariationSelectorTests`), not by line. State in one sentence that this closes `xtensb` OQ-01 / backlog `0rnvj6` so a later reader does not re-raise it, and that a future snapshot corpus using a different suffix must either adopt `.golden` or extend this clause.
+- [ ] E-02 In the spec, amend criterion A5 (the line beginning "- **A5** `⚠️` and `↩️` do not occur in lifecycle constants or golden output.") by appending a definition, without changing the criterion's requirement: "golden output" means (a) the output of the shared lifecycle renderers `Term.format_lifecycle_marker` and `Term.style_lifecycle_text` for every stage in `lifecycle_style.STAGE_ORDER` at all three color depths and both Unicode modes, and (b) every committed golden fixture file (`*.golden`) under `tests/`, matched both as literal code points and as their JSON `\uXXXX` escape form (the JSON goldens are written ASCII-escaped), which today is the `tests/fixtures/conformance_goldens/` corpus and which automatically includes any lifecycle snapshot corpus added later provided it uses the `.golden` suffix. Cite the asserting tests by CLASS name (`tests/test_lifecycle_style.py` `CriterionA5VariationSelectorTests`), not by line. State in one sentence that this closes `xtensb` OQ-01 / backlog `0rnvj6` so a later reader does not re-raise it, and that a future snapshot corpus using a different suffix must either adopt `.golden` or extend this clause.
   - Depends on: E-01
   - Expected outcome: A5 names its two referents and the test that asserts each, and its requirement (the two sequences must not occur) is unchanged.
   - Execution state: pending
@@ -61,7 +65,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 3: Whole-change validation
 
-- [ ] E-04 Run the whole-change gate: bare `python3 -m pytest` (the spec is parsed by `tests/test_lifecycle_style.py` for its Section 5 table and by `check_engine`'s criteria-coverage rule, so a malformed edit can fail tests far from this plan), `aw check`, `git diff --check`, and `aw ipd lint --phase pre-transition` on this plan. Inspect the staged set before committing and confirm it is exactly the two `Scope-Paths` entries; commit through `aw commit mq715m -- <paths>`.
+- [ ] E-04 Run the whole-change gate: bare `python3 -m pytest` (the spec is parsed by `tests/test_lifecycle_style.py` for its Section 5 table and by `check_engine`'s criteria-coverage rule, so a malformed edit can fail tests far from this plan), `aw check`, `git diff --check`, and `aw ipd lint --phase pre-transition` on this plan. Inspect the staged set before committing and confirm it is exactly the two `Scope-Paths` entries; commit through `aw commit mq715m -- <paths>`. The plan file's own E/V state edits are not part of that commit; they travel with the lifecycle transition.
   - Depends on: E-01, E-02, E-03
   - Expected outcome: the full fast suite and repository checks pass with no regression against a baseline measured on the same HEAD before editing, the plan lints conforming, and the commit contains only the two declared paths.
   - Execution state: pending
@@ -90,8 +94,9 @@ Measured at authoring HEAD `cddecbc12`.
   (`check_findings`, `error_cannot_run`, `mutation_preview`, `read_clean`, each in `.agent`, `.human`,
   `.json`). No `*.snap` or `*snapshot*` corpus exists anywhere under `tests/`.
 - F2. THAT CORPUS IS CLEAN TODAY. A UTF-8 scan of all 12 files for `"\u26a0\ufe0f"`, `"\u21a9\ufe0f"`, and
-  bare `"\ufe0f"` returned False for every file and every sequence. So E-01's new assertion passes at HEAD
-  and needs no fixture change.
+  bare `"\ufe0f"` returned False for every file and every sequence. Re-measured at review (HEAD
+  `613ce0471`): same result, and no golden contains any `\u` escape text at all, so the JSON-escape arm
+  E-01 adds is also clean. So E-01's new assertion passes at HEAD and needs no fixture change.
 - F3. IT DOES RENDER HUMAN GLYPHS. `read_clean.human.golden` begins "✓ CONFORMS  repository is current",
   the `✓` coming from `term`'s role glyph table (the `"ok": "✓"` row). These are command-outcome role
   glyphs, which spec A18 keeps independent of lifecycle, but they are the same glyph family a lifecycle
@@ -161,7 +166,7 @@ Measured at authoring HEAD `cddecbc12`.
 
 - Blocking: no
 - Status: resolved
-- Owner: none
+- Owner: plan author (confirmed by /plan-review 2026-10-12, review decision D-1)
 - Resolution or deferral rationale: BOTH, resolved from repository evidence. The item offers "a ruling that
   the rendered-output assertion is the whole of A5's 'golden output' obligation" OR "the addition of a
   lifecycle snapshot corpus together with an A5 assertion over it". F1 shows a committed golden corpus
@@ -169,14 +174,15 @@ Measured at authoring HEAD `cddecbc12`.
   covers future corpora. Ruling rendered output alone to be the whole obligation would leave the exact
   hole the item describes (a regenerated golden picking up `⚠️` with nothing failing, see the
   `_read_or_write_golden` convention above). A reviewer who prefers the narrower ruling can drop E-01 and
-  shorten E-02's definition to referent (a); that is a scope call worth confirming at `/plan-review`.
+  shorten E-02's definition to referent (a). `/plan-review` (2026-10-12) kept both: the scan is one
+  reversible test over committed fixtures, and the narrower ruling leaves the regeneration hole open.
 
 ## Validation and cross-check (verify before reporting done)
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
 - [ ] V-01 validates E-01
-  - Required evidence: paste the new test's node id and the `python3 -m pytest tests/test_lifecycle_style.py -o addopts=""` output showing it passing with the real count. Then paste TWO scratch counterfactuals run in-process with `unittest.mock.patch.object` on the discovery-root constant (no edit left on disk, confirmed by `git status --short` pasted afterwards): (1) the root redirected to a temp directory holding one `x.golden` containing `"\u26a0\ufe0f"`, showing the test FAILS and its message names `x.golden`; repeat with `"\u21a9\ufe0f"`; (2) the root redirected to an empty temp directory, showing the test FAILS on the non-vacuity assertion. Paste the diff hunk proving the test reads only `*.golden` files under `tests/` and imports nothing from `inspect` or `ast`.
+  - Required evidence: paste the new test's node id and the `python3 -m pytest tests/test_lifecycle_style.py -o addopts=""` output showing it passing with the real count. Then paste TWO scratch counterfactuals run in-process with `unittest.mock.patch.object` on the discovery-root constant (no edit left on disk, confirmed by `git status --short` pasted afterwards): (1) the root redirected to a temp directory holding one `x.golden` containing `"\u26a0\ufe0f"`, showing the test FAILS and its message names `x.golden`; repeat with `"\u21a9\ufe0f"`; (1b) the root redirected to a temp directory holding one `x.json.golden` whose content is `json.dumps("\u26a0\ufe0f")` (the ASCII escape text, confirmed by pasting the file bytes), showing the test FAILS and names `x.json.golden`; (2) the root redirected to an empty temp directory, showing the test FAILS on the non-vacuity assertion. Paste the diff hunk proving the test reads only `*.golden` files under `tests/` and imports nothing from `inspect` or `ast`.
   - Observed evidence:
   - Result: pending
 
@@ -205,8 +211,16 @@ added, one approved spec criterion given a definition, no production code touche
 amending an `approved`, release-gating spec, which `AGENTS.md` permits when declared in `Scope-Paths`, as
 here; E-03 records it with `aw specs note` so the spec's `- Status:` never moves.
 
-Execution contract: commit only the two `Scope-Paths` entries through `aw commit mq715m -- <paths>`; never
-`git add -A`; never push. Verify the staged set before committing and re-verify after any failed commit.
-Paste ACTUAL runner output; do not mark a `V-*` `pass` from its E-item checkmark. After every `V-*` is
-`pass` and `aw ipd lint --phase pre-transition` conforms, move the plan to `executed/` through the tooled
-lifecycle (`aw ipd finalize` / runner self-finalize), never by hand.
+Execution contract:
+- Open questions: OQ-01 is resolved; none are open.
+- Scope fence: `- Scope-Paths:` is a declaration, not a stop condition. If an edit outside it proves
+  necessary, make it and justify it at finalize with `--scope-reason <path>=<why>`; a declared path left
+  unmodified needs `--scope-ack`.
+- Commit only the two `Scope-Paths` entries through `aw commit mq715m -- <paths>`; never `git add -A`;
+  never push. Verify the staged set before committing and re-verify after any failed commit.
+- You MUST paste ACTUAL runner output; never claim a result you did not run, and do not mark a `V-*`
+  `pass` from its E-item checkmark.
+- Lifecycle: after every `V-*` is `pass` and `aw ipd lint --phase pre-transition` conforms, the plan moves
+  to `executed/` through the tooled lifecycle, never a hand `git mv`. Under `aw oc run` / `aw agy run` the
+  driver self-finalizes and the executor does NOT run `aw ipd finalize`; when executing by hand outside a
+  runner, the executor runs `aw ipd finalize mq715m`.
