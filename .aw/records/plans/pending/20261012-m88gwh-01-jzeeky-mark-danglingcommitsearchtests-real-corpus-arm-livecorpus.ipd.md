@@ -6,7 +6,8 @@
 - Scope: add `@pytest.mark.livecorpus` (and the `import pytest` it needs) to that one test method in `tests/test_runner_shared.py`; no production code changes.
 - Scope-Paths: tests/test_runner_shared.py
 - Item-Dependencies: none
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
 - From-Backlog: m88gwh
@@ -18,6 +19,7 @@
 - Id: jzeeky
 
 ## Workflow history
+- 2026-10-12 reviewed (aw set): /plan-review (opencode/its_direct-pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005. Re-verified at HEAD d795acb85: test body and conditions as F1 states, 0abc01d9 present and not an ancestor of main, test passes, tests 01-06 hermetic, no pytest import in the file.
 
 - 2026-10-12 draft (agent): created.
 - 2026-10-12 to-review (agent): authored review-ready from backlog m88gwh.
@@ -32,16 +34,16 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: Mark the test
 
-- [ ] E-01 In `tests/test_runner_shared.py`, add `import pytest` to the stdlib/third-party import block (beside `import unittest`) if it is not already imported, and decorate `DanglingCommitSearchTests.test_07_real_corpus_arm_conditional` with `@pytest.mark.livecorpus`, preceded by a short comment stating why (it reads this repository's live git objects and history via `pathlib.Path.cwd()`), mirroring the comment style used beside `@pytest.mark.livecorpus` in `tests/test_verbose_flag_reach.py`.
+- [ ] E-01 In `tests/test_runner_shared.py`, add `import pytest` if it is not already imported, as its own third-party group after `from unittest import mock` and before `from agent_workflows import ...` (the grouping `tests/test_verbose_flag_reach.py` uses), and decorate `DanglingCommitSearchTests.test_07_real_corpus_arm_conditional` with `@pytest.mark.livecorpus`, preceded by a short comment stating why (it reads this repository's live git objects and history via `pathlib.Path.cwd()`), mirroring the comment style used beside `@pytest.mark.livecorpus` in `tests/test_verbose_flag_reach.py`. The comment must also name what keeps the fast suite covered (the hermetic tests 01-06 in the same class) and that it still runs in `make test-all`. Do not change the test body, its skip conditions, or any other test.
   - Depends on: none
   - Expected outcome: the test method carries the `livecorpus` marker; no other test or production file changes.
   - Execution state: pending
 
 ### Task group 2: Verify selection behavior
 
-- [ ] E-02 Run the bare default suite (`python3 -m pytest`) and a marker-selected run (`python3 -m pytest -o addopts="" -m livecorpus tests/test_runner_shared.py -k test_07_real_corpus_arm_conditional -rs -v`) and record both outputs.
+- [ ] E-02 Run the bare default suite (`python3 -m pytest`) once BEFORE E-01 as a baseline and once after it, and a marker-selected run (`python3 -m pytest -o addopts="" -m livecorpus tests/test_runner_shared.py -k test_07_real_corpus_arm_conditional -rs -v`) and record both outputs.
   - Depends on: E-01
-  - Expected outcome: the default run deselects the test and is otherwise green; the marker-selected run collects exactly that one test, which passes or skips by its own conditional logic.
+  - Expected outcome: the default run deselects the test and shows the same failing-test set as a bare baseline run taken on the tree as found before E-01 (re-derive it; do not fix, skip, or deselect other parties' failures); the marker-selected run collects exactly that one test, which passes or skips by its own conditional logic.
   - Execution state: pending
 
 ## Project conventions discovered (Step 0)
@@ -50,13 +52,15 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 - Precedent: `tests/test_verbose_flag_reach.py` applies `@pytest.mark.livecorpus` to a method of a `unittest.TestCase` subclass with an explanatory comment, so pytest markers on TestCase methods are an established pattern here.
 - `tests/test_runner_shared.py` currently imports `unittest` but not `pytest` (import block near "from typing import Any").
 - AGENTS.md repo-local rule: run the suite bare as `python3 -m pytest`; use `-o addopts=""` for narrowed runs.
+- MARKER FIT: the `livecorpus` marker text in `pyproject.toml` describes tests asserting over `.aw/records/`, while test 07 reads the git object store and the `main` ref. Its stated operational reason applies unchanged (a test whose verdict depends on live repository state can red a lane's merge-and-revalidate gate for every concurrent lane), and backlog `m88gwh` prescribes this marker, so it is used as is. The marker text is NOT amended here (that would change a shared contract for one test); `tests/livecorpus_notice.py` only observes `.aw/records/` reads and is unaffected.
+- Sibling plan `vzk1iw` (to-review) also declares `tests/test_runner_shared.py` (it adds a test beside `CrossHostReadIdReExportTests`); the sites are disjoint and the runner isolates each item's worktree, so no `- Item-Dependencies:` edge is needed.
 
 ## Findings
 
 | # | Finding | Evidence |
 |---|---------|----------|
 | F1 | `test_07_real_corpus_arm_conditional` uses `repo_path = pathlib.Path.cwd()` and runs `git cat-file -e 0abc01d9` / `git merge-base --is-ancestor 0abc01d9 main`, then calls `runner_shared.find_dangling_commits_by_subject(repo_path, "8u6770")`. Its outcome depends on the live checkout's object store and `main` tip. | Method body in `DanglingCommitSearchTests` |
-| F2 | It carries no marker, so it runs in the default fast suite, i.e. inside every lane's merge-and-revalidate gate, where the live repo (a worktree on a lane branch, with a `main` that other lanes advance) can flip it. | absence of `pytest.mark` on the method; `addopts` filter |
+| F2 | It carries no marker, so it runs in the default fast suite, i.e. inside every lane's merge-and-revalidate gate, where the live repo can flip it: it SKIPS when `0abc01d9` is absent or reachable from `main`, and FAILS when the object exists, is unreachable from `main`, yet is reachable from some other ref or reflog (so `git fsck --connectivity-only` does not report it dangling). Re-measured at review: object present, not an ancestor of `main`, no ref contains it, test passes in 1.18s. | absence of `pytest.mark` on the method; `addopts` filter; `git merge-base --is-ancestor 0abc01d9 main` -> 1 |
 | F3 | The synthetic-repo tests 01-06 in the same class already cover `find_dangling_commits_by_subject` behavior hermetically, so deselecting test 07 by default loses no fast-suite behavioral coverage. | sibling methods using `_make_repo` |
 
 ## Proposed changes (ordered, validatable)
@@ -90,7 +94,7 @@ N/A: no spec or user-facing doc describes this individual test's marker; the `li
 
 - Blocking: no
 - Status: resolved
-- Owner: none
+- Owner: plan author
 - Resolution or deferral rationale: No. Its purpose is to check the real-corpus arm (an actual unreachable commit in this repository), which cannot be made hermetic without becoming a duplicate of tests 01-06; the backlog item prescribes the marker.
 
 ## Validation and cross-check (verify before reporting done)
@@ -103,7 +107,7 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Result: pending
 
 - [ ] V-02 validates E-02
-  - Required evidence: pasted tail of the bare `python3 -m pytest` run showing the `N passed` summary with no failures, and pasted output of the `-m livecorpus ... -k test_07_real_corpus_arm_conditional -rs -v` run showing exactly one collected test with PASSED or SKIPPED (with skip reason); plus pasted `python3 -m pytest -o addopts="" -m "not slow and not livecorpus" tests/test_runner_shared.py -k test_07_real_corpus_arm_conditional` output showing 1 deselected and 0 selected.
+  - Required evidence: pasted summary lines of the bare `python3 -m pytest` baseline (before E-01) and post-edit runs, with the failing-test set identical by name (none expected) and the passed count not lower except by the one deselected test, and pasted output of the `-m livecorpus ... -k test_07_real_corpus_arm_conditional -rs -v` run showing exactly one collected test with PASSED or SKIPPED (with skip reason); plus pasted `python3 -m pytest -o addopts="" -m "not slow and not livecorpus" tests/test_runner_shared.py -k test_07_real_corpus_arm_conditional` output showing 1 deselected and 0 selected (pytest exit code 5, `no tests ran`, is the expected outcome and is pasted).
   - Observed evidence:
   - Result: pending
 
@@ -112,4 +116,4 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 - Size assessment: standard
 - Cohesion rationale: not required
 
-Execute only after explicit human approval. Commit through `aw commit jzeeky -- tests/test_runner_shared.py`; never push. Move to `executed/` only after `aw ipd lint --phase pre-transition` conforms and V-01 and V-02 record concrete pasted evidence with Result: pass.
+Execute only after explicit human approval. Open questions: OQ-01 is resolved; none remain. `- Scope-Paths:` is a DECLARATION reconciled at finalize: an out-of-scope edit that proves necessary is made and justified with `--scope-reason`, not a reason to stop. HONESTY RULE: every `V-*` item MUST paste the ACTUAL runner output; a claimed pass with no output does not satisfy it. Start with `aw ipd begin`. Commit only through `aw commit jzeeky -- tests/test_runner_shared.py` (never `git add -A`, `-a`, or `--no-verify`), verify the staged set with `git diff --cached --name-only` first, and never push. The terminal transition is MANDATORY and its owner is conditional: under `aw oc run` / `aw agy run` the runner performs the finalize after its merge-and-revalidate gate, so the executor must NOT run `aw ipd finalize`; executed by hand, the executor runs `aw ipd finalize`. Never hand-roll the move or `git mv` this plan into `executed/`; it happens only after `aw ipd lint --phase pre-transition` conforms and V-01 and V-02 record concrete pasted evidence with Result: pass. Release gate: this plan carries `- Blocks-Release: next` inherited from backlog `m88gwh`; keep it, and let the item close through the handoff route (this plan executed with `- From-Backlog: m88gwh`), not by hand.
