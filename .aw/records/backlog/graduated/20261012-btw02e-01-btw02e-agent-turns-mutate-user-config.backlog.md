@@ -1,5 +1,6 @@
 - Id: btw02e
-- Status: open
+- Status: graduated
+- Graduated-To: 9y27t2
 - Blocks-Release: next
 - Set: btw02e
 - Priority: high
@@ -7,6 +8,7 @@
 - Summary: aw oc run agent turns write the operator's real user config (an agent set color_depth none and silently decolored every command)
 
 ## Workflow history
+- 2026-10-12 graduated (aw set): graduated to plan 9y27t2 (to-review, lint clean)
 - 2026-10-12 created (aw backlog): Filed from operator diagnosis 2026-10-12: lane cvtg9u agent left color_depth=none in ~/.config/agent-workflows/config.json
 
 ## What happened (measured, 2026-10-12)
