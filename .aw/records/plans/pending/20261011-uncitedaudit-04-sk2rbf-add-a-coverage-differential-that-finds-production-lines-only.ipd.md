@@ -6,7 +6,8 @@
 - Scope: IN: a new `tools/replay_coverage_diff.py` with two subcommands: `baseline` runs the surviving default selection under `coverage run` (rcfile written to a temp dir: `source = agent_workflows`, `dynamic_context = test_function`, `parallel = true`, `patch = subprocess`; `COVERAGE_FILE` in the temp dir, so nothing is written into the repo) and saves a combined data file plus a JSON summary keyed by `agent_workflows/<module>.py::<qualname>` of covered lines and reaching test contexts; `diff` replays deleted files (reusing `tools/deleted_test_replay.py` from Order 02, run under the same rcfile) and reports, per deleted file, every production function with lines the replay covers, split into `exclusive_lines` (not covered by baseline) and `shared_lines`, plus the baseline's reaching tests for each function and a `subprocess_only` flag when baseline covered the function only under the empty context. The tool refuses with a clear message (exit 2) when `coverage` is not importable. Behavioral tests over a synthesized repo, skipped with a stated reason only when `coverage` is not importable. `tools/README.md` section. OUT: adding `coverage` to any dependency list (it is an audit-time tool, see OQ-01); interpreting results (Order 05).
 - Scope-Paths: tools/replay_coverage_diff.py, tests/test_replay_coverage_diff.py, tools/README.md
 - Item-Dependencies: executed:nzzu8n
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
 - From-Backlog: e486tz
@@ -18,6 +19,7 @@
 
 ## Workflow history
 
+- 2026-10-12 reviewed (opencode its_direct/pt3-claude-opus-5.5-1m-us): /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005, PR-006. Reviewed at HEAD c7234010c. Recipe demonstrated (xdist and subprocess traced, nothing written to repo, ~1.8x overhead); paths keyed relative to each run root (raw keying made every line exclusive across nzzu8n's worktree); def lines excluded from reach (import-time empty context); stale-baseline refusal; -p no:xdist not -n 0; gate itemized. Record: .aw/records/reviews/20261011-uncitedaudit-04-sk2rbf-add-a-coverage-differential-that-finds-production-lines-only.review.md.
 - 2026-10-12 draft (opencode its_direct/pt3-claude-opus-5.5-1m-us): created.
 - 2026-10-12 to-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): authored review-ready from backlog e486tz.
 
@@ -31,26 +33,44 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: Tool
 
-- [ ] E-01 Create `tools/replay_coverage_diff.py` with a `baseline [--out DIR] [-- <pytest args>]` subcommand. It writes the rcfile described in Scope to a temp dir and runs `sys.executable -m coverage run --rcfile <rc> -m pytest -o addopts="" -q -p no:randomly -n auto -m 'not slow and not livecorpus' <args>` with `COVERAGE_FILE=<tmp>/.coverage`, `COVERAGE_PROCESS_START=<rc>` and `PYTHONPATH=<repo>`, then `coverage combine`, loads `coverage.CoverageData`, maps covered lines to functions by parsing each `agent_workflows` module with `ast` (function `lineno..end_lineno`, innermost function wins), and writes `<out>/baseline.json` (`{head, xdist, functions: {key: {lines, contexts, subprocess_only}}}`). If xdist workers are not traced (zero measured files beyond the controller), it retries once with `-p no:xdist` and records `xdist: false`. When `import coverage` fails it exits 2 with "coverage is not installed; pip install coverage". It never writes under the repo.
+- [ ] E-01 Create `tools/replay_coverage_diff.py` with a `baseline [--out DIR] [-- <pytest args>]` subcommand and a `main(argv)` entry point.
+  - Rcfile: written to `tmp = tempfile.mkdtemp()` as `[run]` with `source = agent_workflows`, `dynamic_context = test_function`, `parallel = true`, `patch = subprocess`.
+  - Run: `sys.executable -m coverage run --rcfile <rc> -m pytest -o addopts="" -q -p no:randomly -p no:cacheprovider -n auto -m 'not slow and not livecorpus' <args>` with `cwd=<repo>` and env `COVERAGE_FILE=<tmp>/.coverage`, `COVERAGE_PROCESS_START=<rc>`, `PYTHONPATH=<repo>`. Trailing `<args>` are appended after the default selection; pass `-p no:xdist` (NOT `-n 0`/`-n auto` removal) to run serially, because `-n` is unrecognized once xdist is disabled (review measured `unrecognized arguments: -n`).
+  - Combine: `coverage combine --rcfile <rc> -q <tmp>`, then load `coverage.CoverageData(basename=<tmp>/.coverage)`.
+  - Path keying: every measured file is keyed RELATIVE to the root it ran in (`os.path.relpath(f, repo)`), and files outside that root are dropped. This is load-bearing for E-04, whose replay runs in a different root (F-06).
+  - Function mapping: parse each measured `agent_workflows` module with `ast`; a function owns lines `node.body[0].lineno .. node.end_lineno`, so its `def` line is excluded, and the innermost function wins. A covered line no function owns is ignored. The key is `agent_workflows/<module>.py::<qualname>` with class-qualified names. Excluding the `def` line matters because def lines execute at import time under the empty context, and keeping them would mark every imported function as "reached" (F-05: of the functions with any covered line in a review run, 1,789 had ONLY their header covered).
+  - Per function, record `lines` (sorted body lines covered), `contexts` (sorted non-empty context names reaching any body line; review measured names in the form `tests.test_m.T.test_a`, i.e. dotted module plus class plus function, with no parametrization suffix), and `subprocess_only` (body lines covered but `contexts` empty: reached only through a subprocess or at import time; review run: 157 of 1,134 reached functions).
+  - Output: `<out>/baseline.json` = `{head, xdist, selection, wall_s, functions: {key: {lines, contexts, subprocess_only}}}`, written with `sort_keys=True`. `--out` defaults to a new temp dir whose path is printed.
+  - Xdist check: if the combined data has no non-empty context at all, retry once with `-p no:xdist` and record `xdist: false`; otherwise `xdist: true`. At review, xdist workers WERE traced under this recipe (`-n 2` and `-n auto` both yielded per-test contexts), so the retry is a guard, not the expected path.
+  - Refusal: when `import coverage` fails, exit 2 with "coverage is not installed; pip install coverage". The tool never writes under the repo; the temp data dir is removed after `baseline.json` is written unless it is the `--out` dir.
   - Depends on: none
-  - Expected outcome: `python3 tools/replay_coverage_diff.py baseline --out <tmp>` completes and writes `baseline.json`, with `git status --short` unchanged.
+  - Expected outcome: `python3 tools/replay_coverage_diff.py baseline --out <tmp>` completes and writes `baseline.json`, with `git status --porcelain --ignored` unchanged (so a stray ignored `.coverage*` would also show). Coverage overhead measured at review on three files: 9.8s plain vs 17.6s under the recipe (about 1.8x), so the full default selection (about 200s, `rq3q7v`) should take on the order of 6 minutes. That figure is context, not the bar.
   - Execution state: pending
 
-- [ ] E-04 Add a `diff <commit> <path>... [--from-json inventory.json] --baseline <dir> [--format text|json]` subcommand to `tools/replay_coverage_diff.py`. For each path it calls `tools.deleted_test_replay.replay_file(..., python_prefix=[sys.executable, "-m", "coverage", "run", "--rcfile", rc], extra_env={"COVERAGE_FILE": ..., "COVERAGE_PROCESS_START": rc})` (the hook `nzzu8n` E-01 defines), maps the replay's covered lines to functions with the same mapper as `baseline`, and emits per deleted file the replay verdict plus, per touched function, `exclusive_lines`, `shared_lines`, the baseline `contexts` count and `subprocess_only`.
+- [ ] E-04 Add a `diff <commit> [<path>...] [--from-json inventory.json] --baseline <dir> [--format text|json] [--timeout N]` subcommand to `tools/replay_coverage_diff.py`.
+  - Replay: for each path, write the same rcfile to a fresh per-path temp dir and call `tools.deleted_test_replay.replay_file(repo_root, commit, path, timeout_s=N, python_prefix=[sys.executable, "-m", "coverage", "run", "--rcfile", rc], extra_env={"COVERAGE_FILE": <tmp>/.coverage, "COVERAGE_PROCESS_START": rc})` (the hook `nzzu8n` E-01 defines). Then `coverage combine` that dir.
+  - Path keying: key measured files relative to the replay's `ReplayResult.replay_root`, NOT `repo_root`. `nzzu8n` runs every replay in its own throwaway worktree, so its absolute paths never match the baseline's. Demonstrated at review: raw-path keying classified every covered line as exclusive (`[1, 2, 5, 6, 7]`), while root-relative keying gave exclusive `[6, 7]` and shared `[1, 2, 5]`. The data stays readable after the worktree is removed.
+  - Mapping: use the same function mapper as `baseline` (body lines only).
+  - Output per deleted file: `{commit, path, verdict, tests_count, functions: {key: {exclusive_lines, shared_lines, baseline_contexts, baseline_subprocess_only}}}`, where `exclusive_lines = replay_lines - baseline_lines` and `shared_lines = replay_lines & baseline_lines`, both computed over BODY lines. A function absent from the baseline has `baseline_contexts: 0` and every line exclusive. `baseline_contexts` is the reaching-test COUNT; the full list stays in `baseline.json`, which Order 07 reads for its narrowed selection.
+  - Exit codes and modes: refuse with exit 2 if `--baseline` lacks `baseline.json` or if `baseline.json`'s `head` differs from the current `git rev-parse HEAD`. Line numbers are only comparable on the same tree, so a stale baseline would silently misclassify. `--from-json` and the no-path usage error follow `nzzu8n`'s CLI. `--format json` writes ONLY `json.dumps([...], indent=2, sort_keys=True)`.
   - Depends on: E-01
-  - Expected outcome: `diff 19313eed tests/test_run_freeze.py --baseline <tmp>` lists `agent_workflows/run_freeze.py::freeze_requirements` among touched functions, with `git status --short` unchanged.
+  - Expected outcome: `diff 19313eed tests/test_run_freeze.py --baseline <tmp>` lists `agent_workflows/run_freeze.py::freeze_requirements` among touched functions, with `git status --porcelain --ignored` and `git worktree list` unchanged.
   - Execution state: pending
 
 ### Task group 2: Tests and docs
 
-- [ ] E-02 Create `tests/test_replay_coverage_diff.py`. Guard the module with `unittest.skipUnless(importlib.util.find_spec("coverage"), "coverage not installed: audit-only tool")`, the one legitimate skip (the tool's own refusal path is tested unconditionally by running `main` with `coverage` import forced to fail via `mock.patch.dict(sys.modules, {"coverage": None})` and asserting exit code 2 and the message). With coverage present: synthesize a git repo under `tmp_path` with `agent_workflows/m.py` defining `a()` and `b()`, a surviving `tests/test_m.py` calling only `a()`, and a deleted test (committed, then removed by a trim commit) calling `a()` and `b()`; run `baseline` (serial is fine in the fixture: pass `-p no:xdist`) and `diff`; assert `b` appears with non-empty `exclusive_lines` and `a` with only `shared_lines`, `a`'s contexts name the surviving test, and the fixture repo's `git status --porcelain` is empty. Add one case where the surviving test reaches `b()` only through `subprocess.run([sys.executable, "-c", "import agent_workflows.m as m; m.b()"])` and assert `b` is `subprocess_only: true`.
+- [ ] E-02 Create `tests/test_replay_coverage_diff.py`. Guard the module with `unittest.skipUnless(importlib.util.find_spec("coverage"), "coverage not installed: audit-only tool")`, the one legitimate skip (the tool's own refusal path is tested unconditionally by running `main` with `coverage` import forced to fail via `mock.patch.dict(sys.modules, {"coverage": None})` and asserting exit code 2 and the message). With coverage present: synthesize a git repo under `tmp_path` with `agent_workflows/m.py` defining `a()`, `b()` and `c()`, a surviving `tests/test_m.py` calling only `a()`, and a deleted test (committed, then removed by a trim commit) calling `a()` and `b()`; run `baseline` (serial is fine in the fixture: pass `-p no:xdist`) and `diff`. Assert: `b` appears with non-empty `exclusive_lines`; `a` has only `shared_lines`; `a`'s baseline contexts name the surviving test; a function NO test calls (`c()`) is absent from `baseline.json` even though its `def` line executed at import (pins the body-line rule); and the fixture repo's `git status --porcelain --ignored` is empty. Further cases:
+  - Subprocess-only: the surviving test reaches `b()` only through `subprocess.run([sys.executable, "-c", "import agent_workflows.m as m; m.b()"])`; assert `b` is `subprocess_only: true` (demonstrated at review: the subprocess's lines carry only the empty context).
+  - Stale baseline: `diff` against a `baseline.json` whose `head` differs exits 2 with a message naming both shas.
+  - Root-relative keying: covered by the main case, because `nzzu8n` replays in a separate worktree. If the shared lines come out empty, keying is broken.
+  Run the CLI as a subprocess with `cwd` set to the fixture repo, never changing the pytest process's cwd (xdist).
   - Depends on: E-01, E-04
-  - Expected outcome: the new file passes in the default bare run on this machine (coverage installed) and each classification is asserted.
+  - Expected outcome: the new file passes in the default bare run on this machine (coverage installed), and each classification plus the stale-baseline refusal is asserted.
   - Execution state: pending
 
-- [ ] E-03 Add a `replay_coverage_diff.py` section to `tools/README.md`: purpose, why coverage narrows mutation selection soundly for in-process reach and not for subprocess reach, the `coverage` audit-time requirement, the temp-dir data rule, and the measured baseline wall time from V-01.
+- [ ] E-03 Add a `replay_coverage_diff.py` section to `tools/README.md`: purpose, why coverage narrows mutation selection soundly for in-process reach and not for subprocess reach, the `coverage` audit-time requirement, the temp-dir data rule, the measured baseline wall time from V-01, and the rule that a baseline is valid only for the `HEAD` it records. `tools/README.md` is user-facing prose: no em or en dashes.
   - Depends on: E-01
-  - Expected outcome: README section with those points.
+  - Expected outcome: README section with those points and no em or en dash.
   - Execution state: pending
 
 ## Project conventions discovered (Step 0)
@@ -67,6 +87,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 | F-01 | `coverage` is available but undeclared; `pytest-cov` is absent. | `python3 -m coverage debug sys` -> `coverage_version: 7.15.0`, `CTracer: available`; `python3 -c "import pytest_cov"` fails; `pyproject.toml` `test` extra lists no coverage package. |
 | F-02 | Coverage 7.15 supports measuring subprocesses via config. | `coverage.config` defines the `run:patch` list option and checks `"subprocess" in self.patch` (read from the installed package at authoring). |
 | F-03 | Mutation narrowing by reaching tests is sound only for in-process reach. | A function body that a test never executes cannot change that test's outcome when mutated; a subprocess's coverage carries the empty dynamic context, so its reaching test is unknown. |
+| F-05 | Function `def` lines are covered at IMPORT time under the empty context. Counting them would mark every imported function as reached and as `subprocess_only`. | Review fixture: `def a()`/`def b()` lines (1, 5) covered under `''` only, body lines under `tests.test_m.test_a`/`tests.test_m.T.test_a`. Real-tree run over `test_lost_guard_census.py`, `test_cli.py`, `test_agy_runipd_cli.py` (65 tests): by body lines, 735 functions in-process only, 242 mixed, 157 empty-context only; 1,789 had only their header covered. |
+| F-06 | Baseline and replay run in DIFFERENT roots (repo vs `nzzu8n`'s throwaway worktree), so absolute coverage paths never match. | Review probe: raw-path exclusive = all lines `[1, 2, 5, 6, 7]`; relative to each root, exclusive `[6, 7]`, shared `[1, 2, 5]`; data readable after the replay root was deleted. |
+| F-07 | The recipe works with xdist and subprocesses, and writes nothing to the repo. | Review: `-n 2` -> per-test contexts present; `-n auto` real-tree run -> 58 data files combined in 1.2s, 193 measured files all inside the repo, `git status --porcelain --ignored` unchanged. `-p no:xdist -n auto` -> `unrecognized arguments: -n`. Overhead 9.8s -> 17.6s. |
 | F-04 | No coverage config exists to collide with. | `grep -n "\[tool.coverage" pyproject.toml` -> no match; no `.coveragerc` or `setup.cfg` at the repo root. |
 
 ## Proposed changes (ordered, validatable)
@@ -86,13 +109,14 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 ## Scope check
 
 - Over-scope: none.
-- Under-scope: none known.
+- Under-scope: none known after review. Lines executed at import time under the empty context are deliberately not attributed to any test (F-05). A function whose only reach is a module-level statement is therefore invisible to the narrowing, which is the conservative direction: Order 07 then uses the full selection.
 
 ## Required tests / validation
 
 - `python3 -m pytest -o addopts="" -q tests/test_replay_coverage_diff.py` passes.
 - A live `baseline` run plus one `diff` on the real tree, with `git status --short` unchanged and the wall time recorded.
-- Bare `python3 -m pytest`, actual summary pasted, no new failures versus an execution-start baseline.
+- Before E-01, capture an execution-start baseline: bare `python3 -m pytest`, saving the summary line and failing node ids outside the repo.
+- Bare `python3 -m pytest`, actual summary pasted, no new failures versus that baseline.
 
 ## Spec / documentation sync
 
@@ -104,7 +128,7 @@ N/A for specs: no `.spec.md` governs `tools/` audit scripts. `tools/README.md` g
 
 - Blocking: no
 - Status: resolved
-- Owner: none
+- Owner: plan author
 - Resolution or deferral rationale: No. The tool is audit-only, the shipped suite does not import it except in this tool's own test module, which skips with a stated reason when absent, and `pyproject.toml` comments show test extras are added deliberately with a recorded reason. Least disruptive and reversible.
 
 ## Validation and cross-check (verify before reporting done)
@@ -112,12 +136,12 @@ N/A for specs: no `.spec.md` governs `tools/` audit scripts. `tools/README.md` g
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
 - [ ] V-01 validates E-01
-  - Required evidence: pasted `git status --short` before and after, and the pasted tail of the live `baseline` run (produced by E-01's `baseline` subcommand) with wall time and the recorded `xdist` value.
+  - Required evidence: pasted `git status --porcelain --ignored` before and after, identical. The pasted tail of the live `baseline` run (produced by E-01's `baseline` subcommand), with wall time, the recorded `xdist` value, the function count, and the `subprocess_only` count. A pasted `jq`/`python3 -c` excerpt of one `baseline.json` entry showing `lines`, `contexts` and `subprocess_only`.
   - Observed evidence:
   - Result: pending
 
 - [ ] V-02 validates E-02
-  - Required evidence: pasted `python3 -m pytest -o addopts="" -q tests/test_replay_coverage_diff.py` summary line showing passes, not skips, on this machine; mapping of `exclusive`, `shared`, `contexts`, `subprocess_only` and the no-coverage refusal to their asserting test nodes.
+  - Required evidence: pasted `python3 -m pytest -o addopts="" -q tests/test_replay_coverage_diff.py` summary line showing passes, not skips, on this machine; mapping of `exclusive`, `shared`, `contexts`, `subprocess_only`, the def-line exclusion, the stale-baseline refusal and the no-coverage refusal to their asserting test nodes. Sensitivity check: in a scratch copy, key paths absolutely instead of root-relative, paste the failing run, and discard the copy.
   - Observed evidence:
   - Result: pending
 
@@ -127,7 +151,7 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Result: pending
 
 - [ ] V-04 validates E-04
-  - Required evidence: the pasted `diff 19313eed tests/test_run_freeze.py --baseline <tmp> --format json` entry (produced by E-04's `diff` subcommand) for `agent_workflows/run_freeze.py::freeze_requirements` with its exclusive and shared line counts, and pasted `git status --short` after the run unchanged.
+  - Required evidence: the pasted `diff 19313eed tests/test_run_freeze.py --baseline <tmp> --format json` entry (produced by E-04's `diff` subcommand) for `agent_workflows/run_freeze.py::freeze_requirements` with its exclusive and shared line counts, and pasted `git status --porcelain --ignored` and `git worktree list` after the run, both unchanged.
   - Observed evidence:
   - Result: pending
 
@@ -136,4 +160,12 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 - Size assessment: standard
 - Cohesion rationale: not required
 
-Requires explicit human approval before execution. EXECUTION CONTRACT: commit only the declared `- Scope-Paths:` through `aw commit <plan> -- <paths>`; never `git add -A`, never `--no-verify`, never push. Coverage data must live in a temp dir; a stray `.coverage*` file in the repo is a defect in the tool. Under a runner, the runner finalizes; by hand, use `aw ipd finalize`.
+Requires explicit human approval before execution. EXECUTION CONTRACT:
+- Open questions: OQ-01 is resolved, and none remain.
+- Prerequisite: `nzzu8n` executed (`- Item-Dependencies:`). Its `replay_file`, `python_prefix`, `extra_env` and `replay_root` are this plan's inputs. If any is absent at execution, that is an unsafe prerequisite: stop and report.
+- Order: capture the bare-suite baseline, then E-01, E-04, E-02, E-03.
+- Scope fence (a declaration, not a stop rule): the change is expected to touch only `- Scope-Paths:`. If an out-of-scope edit proves necessary, make it and justify it at finalize: `--scope-reason` per out-of-scope path, `--scope-ack` per declared path left unmodified.
+- Invariants: coverage data lives only in temp dirs; a stray `.coverage*` file in the repo (tracked or ignored) is a defect in the tool to fix, not to clean by hand. Every worktree `nzzu8n` creates is gone afterwards.
+- Honesty: paste the ACTUAL runner output for every claim. Never claim a result you did not run.
+- Commit: only the declared paths, through `aw commit <plan> -- <paths>`. Verify `git diff --cached --name-only` first. Never `git add -A`, never `--no-verify`, never push.
+- Lifecycle: under `aw oc run` / `aw agy run` the runner finalizes and moves the plan. By hand, run `aw ipd finalize` after `aw ipd lint --phase pre-transition` conforms. Never hand `git mv`.
