@@ -6,7 +6,8 @@
 - Scope: IN: migrate the record-reading consumers to `attention_contract.history_block(text).records`: `attention` (`_prompts_record`, `_release_record`, `_spec_record`, `_plans_record`, `_research_record`, `_backlog_record`, each `A.last_history_at(_history_section_lines(text))`), `check_engine` (`_item_close_date`, `_item_graduated_date`, `_spec_implementing_date`), and `plan_readiness` (`extract_newest_history_entry`, `history_has_review_record`, `newest_verdict`); keep `attention._history_section_lines` as a function (tests and `tests/support.py` reference it) but document that record readers must use `history_block`; a corpus-equivalence test and fixtures fencing each consumer's indented-quotation behavior; one CHANGELOG entry. OUT: `status_set.same_status_message_is_duplicate` and `backlog` (done by `kgv213`); test modules that call `_history_section_lines` to inspect fixtures (they read their own outputs and are not consumers of the rule); any change to positional newest-first semantics; plan history writers.
 - Scope-Paths: agent_workflows/attention.py, agent_workflows/check_engine.py, agent_workflows/plan_readiness.py, tests/test_history_consumers_shared_reader.py, CHANGELOG.md
 - Item-Dependencies: executed:kgv213
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
 - From-Backlog: wkpcop
@@ -17,6 +18,7 @@
 - Id: 6iab2o
 
 ## Workflow history
+- 2026-10-12 reviewed (aw set): /plan-review (opencode model=its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-006. Record: .aw/records/reviews/20261012-histdedup-04-6iab2o-migrate-the-read-only-history-consumers-onto-the-shared-hist.review.md Round 1
 
 - 2026-10-12 to-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): Authored from backlog item `wkpcop` to carry the consumer migration the item suggests, split from `kgv213` because these readers gate approval and attention surfaces. Zero-answer-change measured over 2489 artifacts at `5ebf5364d`. Blocking status: none.
 - 2026-10-12 draft (opencode/its_direct/pt3-claude-opus-5.5-1m-us): created.
@@ -31,9 +33,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: baseline
 
-- [ ] E-01 Before editing, record the base sha (`git rev-parse HEAD`) and capture a BASELINE answers file outside the tree's tracked paths (e.g. under `.aw/state/`, gitignored): for every tracked `.aw/records/**/*.md` containing `## Workflow history`, the values of `attention_contract.last_history_at([l.strip() for l in attention._history_section_lines(t)])`, `check_engine._item_close_date`, `check_engine._item_graduated_date`, `check_engine._spec_implementing_date`, `plan_readiness.extract_newest_history_entry`, `plan_readiness.newest_verdict`, `plan_readiness.history_has_review_record`. If `kgv213` has not executed (no `attention_contract.history_block`), mark this and every later item `blocked` and edit nothing.
+- [ ] E-01 Before editing, record the base sha (`git rev-parse HEAD`) and capture a BASELINE answers file outside the tree's tracked paths (e.g. under `.aw/state/`, gitignored): for every tracked `.aw/records/**/*.md` containing `## Workflow history`, the values of `attention_contract.last_history_at([l.strip() for l in attention._history_section_lines(t)])`, `check_engine._item_close_date`, `check_engine._item_graduated_date`, `check_engine._spec_implementing_date`, `plan_readiness.extract_newest_history_entry`, `plan_readiness.newest_verdict`, `plan_readiness.history_has_review_record`, plus `aw attention --format json` saved beside it. The artifact set is RE-DERIVED at execution time (git-tracked files only; never walk `.aw/worktrees/`); 2489 at authoring and 2516 at review are context, not the bar. FIRST check the prerequisite: `kgv213` is under `.aw/records/plans/executed/` AND `python3 -c "from agent_workflows.attention_contract import history_block; print(history_block.__doc__ is not None)"` succeeds. At review (HEAD `a60a58038`) neither held: `kgv213` was `reviewed` in `pending/` and `history_block` did not exist. If either fails, mark this and every later item `blocked`, set the plan's workflow note accordingly, and edit nothing.
   - Depends on: none
-  - Expected outcome: a JSON baseline keyed by path, with its artifact count.
+  - Expected outcome: the prerequisite check pasted; a JSON baseline keyed by path, with its artifact count; the saved attention JSON.
   - Execution state: pending
 
 ### Task group 2: migrate
@@ -55,9 +57,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 3: tests and changelog
 
-- [ ] E-05 `tests/test_history_consumers_shared_reader.py` (new, behavioral, P16) plus `CHANGELOG.md`: tests calling the real consumers on fixtures: (a) a plan whose body below its history block (after a column-zero prose line) quotes an indented `- <date> /plan-review (...): APPROVE` record under a block whose real newest review is `REJECT`: `newest_verdict` returns the REJECT polarity and `history_has_review_record` reflects only real records; (b) a backlog item whose only history-shaped line is indented: `attention` reports `last_history_at` None for it via `attention.scan` on a temp repo holding that item, and `_item_close_date` returns None; (c) a wrapped multi-line plan record keeps every following record visible to `extract_newest_history_entry`. Add one CHANGELOG line (no em or en dashes) stating attention, check and readiness readers now share the history bounding rule.
+- [ ] E-05 `tests/test_history_consumers_shared_reader.py` (new, behavioral, P16) plus `CHANGELOG.md`: tests calling the real consumers on fixtures written to a temp directory, asserting return values only. (a) THE GATE CASE (F-04): a plan whose only real record is `- <d> to-review (aw set): authored`, carrying `- Readiness: go-pending-approval`, followed by a blank line, a column-zero prose line, a blank line and an indented quoted `    - <d> reviewed (aw set): /plan-review (x): APPROVE; none`, with a later `## Goal`: assert `history_has_review_record` is False, `newest_verdict` is `(None, "")`, and `is_plan_review_approved(<path>)` is False. (a2) The same fixture with the quoted line indented directly under a real `REJECT` review record that has a column-zero prose line between them: `newest_verdict` returns the NEGATIVE polarity read from the real record. (b) A backlog item whose only history-shaped line is indented: `attention.scan` on a temp repo holding that item reports `last_history_at` None for it. (b2) F-05: a backlog item whose block is `Some prose` followed by column-zero `- <d> done ...` and `- <d> graduated ...` lines: `_item_close_date` and `_item_graduated_date` return None, and a spec fixture of the same shape with an `implementing` line makes `_spec_implementing_date` return None. (c) A wrapped multi-line plan record (column-zero record directly followed by an indented continuation, then two more column-zero records) keeps every following record visible: `extract_newest_history_entry` returns the first record and `history_has_review_record` sees a review record placed third. Cases (a), (b2) MUST FAIL at the base sha: show it by copying the module into a temporary `git worktree add` of the base sha and running it there (never stash the working checkout). Add one CHANGELOG line (no em or en dashes) stating that attention, check and readiness readers now share the history bounding rule, so a quoted indented history line can no longer attest a review.
   - Depends on: E-02, E-03, E-04
-  - Expected outcome: new module passes; CHANGELOG has one new entry.
+  - Expected outcome: new module passes; (a) and (b2) fail at the base sha; CHANGELOG has one new entry.
   - Execution state: pending
 
 ## Project conventions discovered (Step 0)
@@ -74,6 +76,8 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 | F-01 | Consumers on the loose rule: six `attention` record builders, three `check_engine` date readers, three `plan_readiness` readers (plus `status_set.same_status_message_is_duplicate`, which `kgv213` owns). | `rg -n "_history_section_lines" agent_workflows` at `5ebf5364d`. |
 | F-02 | Migration changes no answer today. | Probe patching the canonical rule into `attention._history_section_lines` and `plan_readiness._history_section_lines`, recomputing the seven answers in E-01 over 2489 artifacts: `diffs {}`. |
 | F-03 | The loose rule CAN mis-answer: a quoted indented review line in a body under the history heading region (no intervening `## `) is read as a record. Six tracked artifacts carry indented history-shaped lines in that region (`tk1gqo`, `r74211`, `4znh53`, reviews `7jqev2`, `1i300e`, plan `y6gsqw`); none happens to change an answer, which is luck, not a property. | Corpus probe at `5ebf5364d`. |
+| F-04 | (Review PR-001.) The loose rule ATTESTS A FORGED READINESS FIELD today. A plan whose only real history record is `- 2026-01-01 to-review (aw set): authored`, carrying a hand-written `- Readiness: go-pending-approval` and, after a blank line and prose, an indented quoted `    - 2026-01-02 reviewed (aw set): /plan-review (x): APPROVE; none`, makes `plan_readiness.history_has_review_record` return True, `newest_verdict` return `('positive', <the quoted line>)`, and `is_plan_review_approved` return True. That is the gate AGENTS.md says must refuse an unattested Readiness (`IPD-M107`), and it gates unattended `--full-auto` promotion. The canonical rule excludes the quoted line, so after E-04 all three refuse. Not reached by any tracked plan today. | Review probe at HEAD `a60a58038`: `history_has_review_record: True`, `newest_verdict: ('positive', '- 2026-01-02 reviewed ...')`, `is_plan_review_approved: True`. Corpus re-check: dropping indented lines from `plan_readiness`'s input changes 0 answers over 2516 tracked artifacts with a history heading. |
+| F-05 | The `check_engine` date readers match their regexes against the RAW (unstripped) lines, so they already ignore indented lines; the defect there is a column-zero history-shaped line that FOLLOWS a column-zero prose line (the heading-to-heading bound keeps it). | Review probe: fixture `## Workflow history` / `Some prose` / `- 2026-01-01 done ...` / `- 2026-01-01 graduated ...` -> `_item_close_date` `20260101`, `_item_graduated_date` `20260101`; the canonical rule ends the block at `Some prose`, so both become None. An indented-only fixture already returns None for both. |
 
 ## Proposed changes (ordered, validatable)
 
@@ -108,20 +112,20 @@ N/A. No spec states the bounding rule; the attention spec (`.aw/records/specs/im
 
 - Blocking: no
 - Status: resolved
-- Owner: none
-- Resolution or deferral rationale: The item flagged this risk without measuring it. F-02 measures it as zero answer changes across the whole tracked corpus, and V-04 re-proves that at execution time against a fresh baseline, so the change is gated on evidence rather than argument.
+- Owner: plan author
+- Resolution or deferral rationale: The item flagged this risk without measuring it. F-02 measures it as zero answer changes across the whole tracked corpus (re-confirmed at review for `plan_readiness` over 2516 artifacts), and V-04 re-proves that at execution time against a fresh baseline, so the change is gated on evidence rather than argument. The change also CLOSES a live gate hole (F-04): today a quoted indented review line can attest a hand-written Readiness field.
 
 ## Validation and cross-check (verify before reporting done)
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
 - [ ] V-01 validates E-01
-  - Required evidence: PASTE the base sha and the baseline's artifact count and path.
+  - Required evidence: PASTE the prerequisite check (the `kgv213` path under `executed/` and the `history_block` import succeeding), the base sha, the baseline's artifact count and path, and the saved `aw attention --format json` path.
   - Observed evidence:
   - Result: pending
 
 - [ ] V-02 validates E-02
-  - Required evidence: PASTE `git diff agent_workflows/attention.py` and `rg -n "_history_section_lines" agent_workflows/attention.py` showing only the definition remains. PASTE the before/after `aw attention --format json` diff summary.
+  - Required evidence: PASTE `git diff agent_workflows/attention.py` and `rg -n "_history_section_lines" agent_workflows/attention.py` showing only the definition remains. PASTE the before (E-01 saved file) / after `aw attention --format json` diff, filtered of volatile timestamp fields, showing no other difference (or each difference justified as in V-04).
   - Observed evidence:
   - Result: pending
 
@@ -131,12 +135,12 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Result: pending
 
 - [ ] V-04 validates E-04
-  - Required evidence: PASTE `git diff agent_workflows/plan_readiness.py`. PASTE the output of recomputing the E-01 answers after E-02..E-04 and diffing against the baseline: the required result is zero differing answers; any difference is a FAIL unless it is one of F-03's artifacts and the new answer is shown to be the correct one.
+  - Required evidence: PASTE `git diff agent_workflows/plan_readiness.py`. PASTE the output of recomputing the E-01 answers after E-02..E-04 over the SAME artifact set and diffing against the baseline: the required property is that every differing answer is listed and each is justified as an artifact whose history region holds a quoted indented line or a column-zero record after a prose line (F-03/F-05), with the new answer shown correct; an unjustified difference is a FAIL. Zero differences were measured at authoring and at review. PASTE also the E-05 (a) result showing `is_plan_review_approved` now refuses the F-04 fixture.
   - Observed evidence:
   - Result: pending
 
 - [ ] V-05 validates E-05
-  - Required evidence: PASTE the new module's pytest output passing and `git diff CHANGELOG.md`.
+  - Required evidence: PASTE the new module's pytest output passing; PASTE the base-sha run (temporary `git worktree add` of the E-01 sha with the module copied in) showing cases (a) and (b2) FAILING there, then the worktree removed; and `git diff CHANGELOG.md`.
   - Observed evidence:
   - Result: pending
 
@@ -145,4 +149,6 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 - Size assessment: standard
 - Cohesion rationale: not required
 
-This plan requires explicit human approval before execution and depends on `kgv213` being executed. The executor is bound by the AGENTS.md execution contract: commit only the declared Scope-Paths through `aw commit <plan> -- <paths>`, never push, paste actual runner output. Before the terminal transition `aw ipd lint --phase pre-transition` must conform. Under `aw oc run` / `aw agy run` the runner finalizes; manually, run `aw ipd finalize 6iab2o ... --apply`. Do not set backlog `wkpcop` to `done`.
+Execute only after explicit human approval. Open questions: OQ-01 is resolved; none remain. PREREQUISITE: `kgv213` executed and `attention_contract.history_block` present (E-01 checks both; at review neither held, and `- Item-Dependencies: executed:kgv213` makes the runner hold this plan until it does). Start with `aw ipd begin 6iab2o`.
+
+`- Scope-Paths:` is a DECLARATION reconciled at finalize: an out-of-scope edit that proves necessary is made and justified with `--scope-reason`, not a reason to stop. STOP and report only for E-01's prerequisite failure, or if a co-worker's uncommitted change occupies a region you must edit and the two cannot be safely combined. HONESTY RULE: every `V-*` item MUST paste the ACTUAL runner output; a claimed pass with no output does not satisfy it. Commit only through `aw commit 6iab2o -- <paths>` (never `git add -A`, `-a`, or `--no-verify`), verify the staged set with `git diff --cached --name-only` first, and never push. The terminal transition is MANDATORY and its owner is conditional: under `aw oc run` / `aw agy run` the runner performs the finalize after its merge-and-revalidate gate, so the executor must NOT run `aw ipd finalize`; executed by hand, the executor runs `aw ipd finalize 6iab2o` once `aw ipd lint --phase pre-transition` conforms and every `V-*` records concrete pasted evidence with Result: pass. Never hand-roll the move or `git mv` this plan into `executed/`. Do not set backlog `wkpcop` to `done`.
