@@ -1,11 +1,13 @@
 - Id: r4a4ab
-- Status: open
+- Status: graduated
+- Graduated-To: r4a4ab
 - Set: r4a4ab
 - Priority: medium
 - Work-Kind: chore
 - Summary: aw ipd lint --all exits 1 on the live tree, so release_readiness.gate_ipd_lint reports NO-GO and no test can assert a GO verdict
 
 ## Workflow history
+- 2026-10-12 graduated (aw backlog): graduated by run run-20261012T005606Z-2321569: 514wv3
 - 2026-10-02 created (aw backlog): Filed while authoring plan dyiasf (backlog 3rmvik).
 
 Measured at HEAD 75c78b668 by driving the code, not reading it:
