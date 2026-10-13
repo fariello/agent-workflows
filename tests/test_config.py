@@ -1292,5 +1292,85 @@ class SetidAuthoringGuardTests(unittest.TestCase):
             self.assertIsNone(err_raised)
 
 
+class PolicyFixItCapsTests(unittest.TestCase):
+    """Test policy_fix_it_caps configuration reader (IPD c0oysi / Set 38hwvk)."""
+
+    def test_default_when_no_project_json_or_none_repo(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            result = CFG.policy_fix_it_caps(d)
+            self.assertEqual(result, CFG.FIX_IT_CAPS_DEFAULTS)
+
+        result_none = CFG.policy_fix_it_caps(None)
+        self.assertEqual(result_none, CFG.FIX_IT_CAPS_DEFAULTS)
+
+    def test_partial_override(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            proj = Path(d) / ".aw" / "config" / "project.json"
+            proj.parent.mkdir(parents=True)
+            proj.write_text(
+                json.dumps(
+                    {
+                        "run": {
+                            "fix_it_caps": {
+                                "per_artifact": 5,
+                            }
+                        }
+                    }
+                ),
+                encoding="utf-8",
+            )
+            result = CFG.policy_fix_it_caps(d)
+            expected = dict(CFG.FIX_IT_CAPS_DEFAULTS)
+            expected["per_artifact"] = 5
+            self.assertEqual(result, expected)
+
+    def test_malformed_values_and_unknown_member_warn_and_fall_back(self) -> None:
+        warnings: list[str] = []
+        with tempfile.TemporaryDirectory() as d:
+            proj = Path(d) / ".aw" / "config" / "project.json"
+            proj.parent.mkdir(parents=True)
+            proj.write_text(
+                json.dumps(
+                    {
+                        "run": {
+                            "fix_it_caps": {
+                                "per_artifact": -1,
+                                "bogus": 3,
+                            }
+                        }
+                    }
+                ),
+                encoding="utf-8",
+            )
+            result = CFG.policy_fix_it_caps(d, warn=warnings.append)
+            self.assertEqual(result, CFG.FIX_IT_CAPS_DEFAULTS)
+            self.assertEqual(len(warnings), 2)
+            # Both warnings must name the key, value, and file
+            self.assertTrue(
+                any(
+                    "per_artifact" in w and "-1" in w and str(proj) in w
+                    for w in warnings
+                )
+            )
+            self.assertTrue(
+                any("bogus" in w and "3" in w and str(proj) in w for w in warnings)
+            )
+
+    def test_non_dict_fix_it_caps_warns_and_falls_back(self) -> None:
+        warnings: list[str] = []
+        with tempfile.TemporaryDirectory() as d:
+            proj = Path(d) / ".aw" / "config" / "project.json"
+            proj.parent.mkdir(parents=True)
+            proj.write_text(
+                json.dumps({"run": {"fix_it_caps": "invalid"}}),
+                encoding="utf-8",
+            )
+            result = CFG.policy_fix_it_caps(d, warn=warnings.append)
+            self.assertEqual(result, CFG.FIX_IT_CAPS_DEFAULTS)
+            self.assertEqual(len(warnings), 1)
+            self.assertIn("not a mapping", warnings[0])
+            self.assertIn(str(proj), warnings[0])
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -1837,6 +1837,18 @@ RUN_POLICY_KEY = "run"
 #: The member of the `run` object holding spec 5.5's repository-policy correction budget.
 RUN_RETRY_BUDGET_MEMBER = "retry_budget"
 
+#: The member of the `run` object holding repository global fix-it turn caps.
+RUN_FIX_IT_CAPS_MEMBER: str = "fix_it_caps"
+
+#: Default values for global fix-it turn caps (spec 25kzda 5.5, IPD c0oysi).
+FIX_IT_CAPS_DEFAULTS: Dict[str, int] = {
+    "per_artifact": 20,
+    "per_set_floor": 20,
+    "per_set_per_member": 15,
+    "per_run_floor": 40,
+    "per_run_per_artifact": 10,
+}
+
 #: The member of the `run` object holding the active runner conflict policy.
 RUN_ON_CONFLICT_MEMBER = "on_conflict"
 
@@ -2094,6 +2106,77 @@ def policy_isolation(
         f"Falling back to default (True for both actions)."
     )
     return default_result
+
+
+def policy_fix_it_caps(
+    repo_root: "os.PathLike[str] | str | None",
+    *,
+    warn: Any = None,
+) -> Dict[str, int]:
+    """The repository-policy global fix-it turn caps (spec 25kzda 5.5, IPD c0oysi).
+
+    Reads `.aw/config/project.json` under `run.fix_it_caps` (or top-level `fix_it_caps`).
+    Returns a dictionary mapping the five cap members to non-negative integers.
+
+    Follows the warn-and-default posture: never raises on malformed configuration;
+    warns and falls back to default values.
+    """
+    import sys as _sys
+
+    def _emit(message: str) -> None:
+        if warn is None:
+            print(message, file=_sys.stderr)
+        else:
+            warn(message)
+
+    default_result: Dict[str, int] = dict(FIX_IT_CAPS_DEFAULTS)
+    if not repo_root:
+        return default_result
+
+    project_file = Path(repo_root) / ".aw" / "config" / "project.json"
+    run_policy = read_run_policy(repo_root)
+    raw = None
+    where = None
+    if run_policy is not None and RUN_FIX_IT_CAPS_MEMBER in run_policy:
+        raw = run_policy.get(RUN_FIX_IT_CAPS_MEMBER)
+        where = f"{RUN_POLICY_KEY}.{RUN_FIX_IT_CAPS_MEMBER}"
+    else:
+        try:
+            data = json.loads(project_file.read_text(encoding="utf-8"))
+            if isinstance(data, dict) and RUN_FIX_IT_CAPS_MEMBER in data:
+                raw = data.get(RUN_FIX_IT_CAPS_MEMBER)
+                where = RUN_FIX_IT_CAPS_MEMBER
+        except (OSError, ValueError):
+            return default_result
+
+    if raw is None:
+        return default_result
+
+    if not isinstance(raw, dict):
+        _emit(
+            f"WARNING: {where} in {project_file} is {raw!r}, which is not a mapping. "
+            f"Falling back to default fix-it caps."
+        )
+        return default_result
+
+    result: Dict[str, int] = dict(default_result)
+    for key, val in raw.items():
+        if key not in FIX_IT_CAPS_DEFAULTS:
+            _emit(
+                f"WARNING: unknown member {key!r} with value {val!r} in {where} in {project_file}. "
+                f"Dropping it."
+            )
+            continue
+        if isinstance(val, int) and not isinstance(val, bool) and val >= 0:
+            result[key] = val
+        else:
+            _emit(
+                f"WARNING: {where}.{key} in {project_file} is {val!r}, which is not a non-negative integer. "
+                f"Falling back to default ({default_result[key]})."
+            )
+            result[key] = default_result[key]
+
+    return result
 
 
 # --------------------------------------------------------------------------------------

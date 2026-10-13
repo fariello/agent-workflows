@@ -196,6 +196,7 @@ from agent_workflows.render_stream import (
     # literal spelled at N sites is how a reader and a writer drift apart (r2i1b1 F-4).
     record_refusal,
     record_integration_refusal as render_record_integration_refusal,
+    refusal_of_item,
     render_run_summary_table,
     # runnerlayer Order 02 (`1f7xno`), backlog `cnwy8g`: the two renderers the re-homed
     # `report_run_spec_edits` closes over. They are ADDED TO THE EXISTING `render_stream` statement
@@ -8489,6 +8490,7 @@ class FinalizeRetryDecision(NamedTuple):
     attempts: int
     budget: int
     lock_contention: bool = False
+    cap: FixItCapDecision | None = None
 
 
 def finalize_retry_decision(
@@ -8598,6 +8600,17 @@ def finalize_retry_decision(
             f"`V-*` bookkeeping), so the item is being handed back to the same agent with the gate's "
             f"findings; correction attempt {used + 1} of {budget}"
         )
+    cap_dec = fix_it_cap_decision(item, state)
+    if cap_dec.reached:
+        return FinalizeRetryDecision(
+            retry=False,
+            exhausted=True,
+            reason=cap_dec.reason,
+            attempts=used,
+            budget=budget,
+            lock_contention=False,
+            cap=cap_dec,
+        )
     return FinalizeRetryDecision(
         retry=True,
         exhausted=False,
@@ -8605,6 +8618,7 @@ def finalize_retry_decision(
         attempts=used,
         budget=budget,
         lock_contention=False,
+        cap=None,
     )
 
 
@@ -8691,6 +8705,9 @@ def handle_finalize_refusal(
             lock_contention=decision.lock_contention,
         ),
     )
+    if decision.cap is not None:
+        record_fix_it_cap_stop(item, decision.cap, host_labels, run_dir=run_dir)
+        attempt["fix_it_cap"] = decision.cap._asdict()
 
     save_state(run_dir, state)
     refused_event: dict[str, Any] = {
@@ -9214,6 +9231,7 @@ class TurnRetryDecision(NamedTuple):
     attempts: int
     budget: int
     key: str
+    cap: FixItCapDecision | None = None
 
 
 def turn_retry_decision(
@@ -9287,6 +9305,17 @@ def turn_retry_decision(
             budget=budget,
             key=key,
         )
+    cap_dec = fix_it_cap_decision(item, state)
+    if cap_dec.reached:
+        return TurnRetryDecision(
+            retry=False,
+            exhausted=True,
+            reason=cap_dec.reason,
+            attempts=used,
+            budget=budget,
+            key=key,
+            cap=cap_dec,
+        )
     return TurnRetryDecision(
         retry=True,
         exhausted=False,
@@ -9298,6 +9327,7 @@ def turn_retry_decision(
         attempts=used,
         budget=budget,
         key=key,
+        cap=None,
     )
 
 
@@ -9921,6 +9951,10 @@ def handle_turn_failure_retry(
             host_labels, str(item.get("id6") or "?"), retry=decision.retry
         ),
     )
+    if decision.cap is not None:
+        record_fix_it_cap_stop(item, decision.cap, host_labels, run_dir=run_dir)
+        attempt["fix_it_cap"] = decision.cap._asdict()
+
     save_state(run_dir, state)
     append_jsonl(
         run_dir / "events.jsonl",
@@ -10432,6 +10466,7 @@ class ZeroWorkRetryDecision(NamedTuple):
     attempts: int
     budget: int
     verdict: ZeroWorkVerdict
+    cap: FixItCapDecision | None = None
 
 
 def zero_work_retry_decision(
@@ -10481,6 +10516,17 @@ def zero_work_retry_decision(
             budget=budget,
             verdict=verdict,
         )
+    cap_dec = fix_it_cap_decision(item, state)
+    if cap_dec.reached:
+        return ZeroWorkRetryDecision(
+            retry=False,
+            exhausted=True,
+            reason=cap_dec.reason,
+            attempts=used,
+            budget=budget,
+            verdict=verdict,
+            cap=cap_dec,
+        )
     return ZeroWorkRetryDecision(
         retry=True,
         exhausted=False,
@@ -10491,6 +10537,7 @@ def zero_work_retry_decision(
         attempts=used,
         budget=budget,
         verdict=verdict,
+        cap=None,
     )
 
 
@@ -10582,14 +10629,18 @@ def handle_zero_work_retry(
             "facts": dict(verdict.facts),
         }
         if decision.exhausted:
-            record_refusal(
-                item,
-                code="zero-work-retry",
-                reason=decision.reason,
-                remedy=zero_work_retry_remedy(
-                    host_labels, str(item.get("id6") or "?"), retry=False
-                ),
-            )
+            if decision.cap is not None:
+                record_fix_it_cap_stop(item, decision.cap, host_labels, run_dir=run_dir)
+                attempt["fix_it_cap"] = decision.cap._asdict()
+            else:
+                record_refusal(
+                    item,
+                    code="zero-work-retry",
+                    reason=decision.reason,
+                    remedy=zero_work_retry_remedy(
+                        host_labels, str(item.get("id6") or "?"), retry=False
+                    ),
+                )
             print(
                 pal(
                     f"  ! IPD {item['id6']} provably attempted nothing but the zero-work retry "
@@ -24863,6 +24914,7 @@ class VerificationRetryDecision(NamedTuple):
     attempts: int
     budget: int
     key: str
+    cap: FixItCapDecision | None = None
 
 
 def verification_retry_decision(
@@ -24911,6 +24963,17 @@ def verification_retry_decision(
             budget=budget,
             key=key,
         )
+    cap_dec = fix_it_cap_decision(item, state)
+    if cap_dec.reached:
+        return VerificationRetryDecision(
+            retry=False,
+            exhausted=True,
+            reason=cap_dec.reason,
+            attempts=used,
+            budget=budget,
+            key=key,
+            cap=cap_dec,
+        )
     return VerificationRetryDecision(
         retry=True,
         exhausted=False,
@@ -24921,6 +24984,7 @@ def verification_retry_decision(
         attempts=used,
         budget=budget,
         key=key,
+        cap=None,
     )
 
 
@@ -25047,7 +25111,10 @@ def handle_verification_refusal(
         # When budget is 0, no retry was ever permitted; preserve the underlying verifier refusal
         # on the item (as E-05 (3) and test_verifier_gate require). When retries were spent and exhausted,
         # record the retry-exhausted refusal.
-        if decision.budget > 0 and decision.attempts > 0:
+        if decision.cap is not None:
+            record_fix_it_cap_stop(item, decision.cap, host_labels, run_dir=run_dir)
+            attempt["fix_it_cap"] = decision.cap._asdict()
+        elif decision.budget > 0 and decision.attempts > 0:
             record_refusal(
                 item,
                 code=VERIFICATION_RETRY_EXHAUSTED_CODE,
@@ -25075,8 +25142,13 @@ def handle_verification_refusal(
         )
         print(
             pal(
-                f"  ! IPD {item['id6']} verification FAILED: correction budget exhausted "
-                f"({decision.attempts} of {decision.budget} spent); the plan did NOT land",
+                f"  ! IPD {item['id6']} verification FAILED: "
+                + (
+                    f"fix-it cap reached ({decision.cap.reason}); "
+                    if decision.cap is not None
+                    else f"correction budget exhausted ({decision.attempts} of {decision.budget} spent); "
+                )
+                + "the plan did NOT land",
                 "red",
             ),
             file=sys.stderr,
@@ -25136,6 +25208,7 @@ class ProductionSetRetryDecision(NamedTuple):
     attempts: int
     budget: int
     key: str
+    cap: FixItCapDecision | None = None
 
 
 def production_set_findings_are_retryable(
@@ -25204,6 +25277,17 @@ def production_set_retry_decision(
             budget=budget,
             key=key,
         )
+    cap_dec = fix_it_cap_decision(item, state)
+    if cap_dec.reached:
+        return ProductionSetRetryDecision(
+            retry=False,
+            exhausted=True,
+            reason=cap_dec.reason,
+            attempts=used,
+            budget=budget,
+            key=key,
+            cap=cap_dec,
+        )
     return ProductionSetRetryDecision(
         retry=True,
         exhausted=False,
@@ -25249,6 +25333,7 @@ class ReviewOrchestratorRetryDecision(NamedTuple):
     attempts: int
     budget: int
     key: str
+    cap: FixItCapDecision | None = None
 
 
 def review_orchestrator_retry_decision(
@@ -25285,6 +25370,17 @@ def review_orchestrator_retry_decision(
             budget=budget,
             key=key,
         )
+    cap_dec = fix_it_cap_decision(item, state)
+    if cap_dec.reached:
+        return ReviewOrchestratorRetryDecision(
+            retry=False,
+            exhausted=True,
+            reason=cap_dec.reason,
+            attempts=used,
+            budget=budget,
+            key=key,
+            cap=cap_dec,
+        )
     return ReviewOrchestratorRetryDecision(
         retry=True,
         exhausted=False,
@@ -25296,6 +25392,279 @@ def review_orchestrator_retry_decision(
         budget=budget,
         key=key,
     )
+
+
+# ==================================================================================================
+# fixitcaps (c0oysi / 38hwvk): GLOBAL FIX-IT TURN CAPS PER ARTIFACT, PER SET, AND PER RUN
+# ==================================================================================================
+
+#: Retry count key for gate answer follow-up attempts.
+GATE_ANSWER_RETRY_COUNT_KEY: str = "gate_answer_retry_attempts"
+
+#: Refusal code when any global fix-it turn cap is reached.
+FIX_IT_CAP_REFUSAL_CODE: str = "fix-it-cap-reached"
+
+#: All 13 active fix-it retry count keys across runner mechanisms.
+FIX_IT_COUNT_KEYS: tuple[str, ...] = (
+    MERGE_CONFLICT_RETRY_COUNT_KEY,
+    FINALIZE_RETRY_COUNT_KEY,
+    HOOK_FINALIZE_RETRY_COUNT_KEY,
+    HOOK_INTEGRATION_RETRY_COUNT_KEY,
+    COMBINED_RED_RETRY_COUNT_KEY,
+    UNTOOLED_STATUS_RETRY_COUNT_KEY,
+    HOOK_BYPASS_RETRY_COUNT_KEY,
+    TURN_RETRY_COUNT_KEY,
+    ZERO_WORK_RETRY_COUNT_KEY,
+    VERIFICATION_RETRY_COUNT_KEY,
+    PRODUCTION_SET_RETRY_COUNT_KEY,
+    REVIEW_ORCHESTRATOR_RETRY_COUNT_KEY,
+    GATE_ANSWER_RETRY_COUNT_KEY,
+)
+
+
+def frozen_fix_it_caps(state: Mapping[str, Any]) -> dict[str, int]:
+    """Extract options.fix_it_caps from state, falling back to FIX_IT_CAPS_DEFAULTS."""
+    from agent_workflows import config as _config
+
+    raw = (state.get("options") or {}).get("fix_it_caps")
+    result = dict(_config.FIX_IT_CAPS_DEFAULTS)
+    if isinstance(raw, dict):
+        for k, v in raw.items():
+            if (
+                k in result
+                and isinstance(v, int)
+                and not isinstance(v, bool)
+                and v >= 0
+            ):
+                result[k] = v
+    return result
+
+
+def fix_it_turns_spent(item: Mapping[str, Any]) -> int:
+    """Sum all per-kind fix-it counters and gate-answer re-runs spent by this item."""
+    total = 0
+    for k in FIX_IT_COUNT_KEYS:
+        val = item.get(k, 0)
+        if isinstance(val, int) and not isinstance(val, bool) and val > 0:
+            total += val
+    return total
+
+
+def fix_it_cap_limits(
+    item: Mapping[str, Any], state: Mapping[str, Any]
+) -> tuple[int, int | None, int]:
+    """Calculate (per_artifact_limit, per_set_limit, per_run_limit) from frozen caps and queue."""
+    caps = frozen_fix_it_caps(state)
+    per_art_limit = caps["per_artifact"]
+
+    raw_queue = [q for q in (state.get("queue") or []) if isinstance(q, Mapping)]
+    dispatchable = [q for q in raw_queue if q.get("action") != "skip"]
+
+    item_id6 = item.get("id6")
+    in_dispatchable = any(
+        (q is item) or (item_id6 and q.get("id6") == item_id6) for q in dispatchable
+    )
+    all_dispatchable = list(dispatchable)
+    if not in_dispatchable and item.get("action") != "skip" and not raw_queue:
+        all_dispatchable.append(item)
+
+    item_setid = str(item.get("setid") or "").strip()
+    if item_setid:
+        set_members = sum(
+            1
+            for q in all_dispatchable
+            if str(q.get("setid") or "").strip() == item_setid
+        )
+        per_set_limit: int | None = max(
+            caps["per_set_floor"], caps["per_set_per_member"] * set_members
+        )
+    else:
+        per_set_limit = None
+
+    distinct_sets = {
+        str(q.get("setid") or "").strip()
+        for q in all_dispatchable
+        if str(q.get("setid") or "").strip()
+    }
+    set_limits = [
+        max(
+            caps["per_set_floor"],
+            caps["per_set_per_member"]
+            * sum(
+                1 for q in all_dispatchable if str(q.get("setid") or "").strip() == s
+            ),
+        )
+        for s in distinct_sets
+    ]
+    largest_set_limit = max(set_limits, default=0)
+    per_run_limit = max(
+        caps["per_run_floor"],
+        largest_set_limit,
+        caps["per_run_per_artifact"] * len(all_dispatchable),
+    )
+
+    return (per_art_limit, per_set_limit, per_run_limit)
+
+
+class FixItCapDecision(NamedTuple):
+    """What to do about global fix-it turn caps. DECIDES ONLY.
+
+    reached: True if any of the three caps is reached (spent >= limit).
+    cap:     "per-artifact" | "per-set" | "per-run" | "".
+    limit:   active cap limit in the limiting scope.
+    spent:   turns spent in the limiting scope.
+    reason:  human-readable explanation when reached, or "" when not reached.
+    """
+
+    reached: bool
+    cap: str
+    limit: int
+    spent: int
+    reason: str
+
+
+def fix_it_cap_decision(
+    item: Mapping[str, Any],
+    state: Mapping[str, Any],
+    *,
+    extra_spent: int = 0,
+) -> FixItCapDecision:
+    """Decide if any global fix-it turn cap has been reached (spec 5.5, IPD c0oysi)."""
+    art_limit, set_limit, run_limit = fix_it_cap_limits(item, state)
+
+    art_spent = fix_it_turns_spent(item) + max(0, int(extra_spent))
+
+    # Priority check: per-artifact, per-set, per-run
+    if art_spent >= art_limit:
+        return FixItCapDecision(
+            reached=True,
+            cap="per-artifact",
+            limit=art_limit,
+            spent=art_spent,
+            reason=(
+                f"global fix-it cap reached ({FIX_IT_CAP_REFUSAL_CODE}): per-artifact spent {art_spent} reached limit {art_limit} "
+                f"(configured by run.fix_it_caps.per_artifact)"
+            ),
+        )
+
+    queue = state.get("queue") or []
+    item_id6 = item.get("id6")
+    item_setid = str(item.get("setid") or "").strip()
+
+    seen_item = False
+    set_spent = 0
+    run_spent = 0
+
+    for q in queue:
+        if not isinstance(q, Mapping):
+            continue
+        is_current = (q is item) or bool(item_id6 and q.get("id6") == item_id6)
+        if is_current:
+            seen_item = True
+            q_spent = art_spent
+        else:
+            q_spent = fix_it_turns_spent(q)
+
+        run_spent += q_spent
+        if item_setid and str(q.get("setid") or "").strip() == item_setid:
+            set_spent += q_spent
+
+    if not seen_item:
+        run_spent += art_spent
+        if item_setid:
+            set_spent += art_spent
+
+    if set_limit is not None and set_spent >= set_limit:
+        return FixItCapDecision(
+            reached=True,
+            cap="per-set",
+            limit=set_limit,
+            spent=set_spent,
+            reason=(
+                f"global fix-it cap reached ({FIX_IT_CAP_REFUSAL_CODE}): per-set spent {set_spent} reached limit {set_limit} "
+                f"(configured by run.fix_it_caps.per_set_floor / per_set_per_member)"
+            ),
+        )
+
+    if run_spent >= run_limit:
+        return FixItCapDecision(
+            reached=True,
+            cap="per-run",
+            limit=run_limit,
+            spent=run_spent,
+            reason=(
+                f"global fix-it cap reached ({FIX_IT_CAP_REFUSAL_CODE}): per-run spent {run_spent} reached limit {run_limit} "
+                f"(configured by run.fix_it_caps.per_run_floor / per_run_per_artifact)"
+            ),
+        )
+
+    return FixItCapDecision(
+        reached=False,
+        cap="",
+        limit=0,
+        spent=0,
+        reason="",
+    )
+
+
+def record_fix_it_cap_stop(
+    item: MutableMapping[str, Any],
+    decision: FixItCapDecision,
+    host_labels: "HostLabels | None",
+    *,
+    run_dir: Path | None = None,
+    preserved_remedy: str | None = None,
+) -> None:
+    """Record a halt due to global fix-it cap on item and in events.jsonl."""
+    item[NEEDS_INPUT_KEY] = True
+    item["fix_it_cap_stop"] = decision._asdict()
+
+    policy_member = (
+        "run.fix_it_caps.per_artifact"
+        if decision.cap == "per-artifact"
+        else (
+            "run.fix_it_caps.per_set_floor or run.fix_it_caps.per_set_per_member"
+            if decision.cap == "per-set"
+            else "run.fix_it_caps.per_run_floor or run.fix_it_caps.per_run_per_artifact"
+        )
+    )
+    default_remedy = (
+        f"inspect the attempts with `aw runs show <run-id>` first to see why fix-it turns were spent. "
+        f"Fix-it caps are frozen for this run, so raising {policy_member} in `.aw/config/project.json` "
+        f"takes effect only in a new run (do not use `resume --retry-incomplete`, which retains frozen caps "
+        f"and accumulated counters)."
+    )
+
+    if preserved_remedy is None and REFUSAL_KEY in item:
+        existing = item.get(REFUSAL_KEY)
+        if isinstance(existing, Mapping) and existing.get("remedy"):
+            preserved_remedy = str(existing["remedy"])
+
+    if preserved_remedy and preserved_remedy not in default_remedy:
+        remedy = f"{default_remedy}\n\n{preserved_remedy}"
+    else:
+        remedy = default_remedy
+
+    record_refusal(
+        item,
+        code=FIX_IT_CAP_REFUSAL_CODE,
+        reason=decision.reason,
+        remedy=remedy,
+    )
+
+    if run_dir is not None:
+        append_jsonl(
+            run_dir / "events.jsonl",
+            {
+                "at": utc_now(),
+                "event": "fix-it-cap-reached",
+                "id6": item.get("id6"),
+                "setid": item.get("setid"),
+                "cap": decision.cap,
+                "limit": decision.limit,
+                "spent": decision.spent,
+            },
+        )
 
 
 def build_production_set_correction_prompt(
@@ -25592,6 +25961,10 @@ def handle_review_orchestrator_readiness(
             )
 
         if not rev_dec.retry:
+            if rev_dec.cap is not None:
+                record_fix_it_cap_stop(item, rev_dec.cap, host_labels, run_dir=run_dir)
+                if isinstance(attempt, MutableMapping):
+                    attempt["fix_it_cap"] = rev_dec.cap._asdict()
             # On exhaustion or budget 0
             return ReviewOrchestratorResult("fail-gate", evaluated=True, refused=True)
 
@@ -26845,6 +27218,8 @@ class GateAnswerOutcome(NamedTuple):
     suite_result: Any = None
     #: The validated verdict, for a caller that needs the tri-state rather than the record.
     verdict: GateAnswerVerdict | None = None
+    #: Cap decision if capped during re-run loops.
+    cap: FixItCapDecision | None = None
 
 
 def perform_gate_answer(
@@ -26861,6 +27236,7 @@ def perform_gate_answer(
     integration_signal: str = INTEGRATION_REFUSED_SUITE_FAILED,
     ask_reason: str = "",
     baseline: SuiteBaseline | None = None,
+    cap_reached: Callable[[int], FixItCapDecision] | None = None,
 ) -> GateAnswerOutcome:
     """Ask the question, read the answer, and act on it. Returns a :class:`GateAnswerOutcome`.
 
@@ -26913,6 +27289,7 @@ def perform_gate_answer(
     verdict = GateAnswerVerdict("", "", "no answer was requested")
     violation = ""
     unverified_repair = ""
+    gate_cap: FixItCapDecision | None = None
 
     while True:
         prompt = gate_answer_question(
@@ -26936,18 +27313,43 @@ def perform_gate_answer(
 
         if not verdict.earns_recheck:
             break
-        if rerun_suite is None or attempts >= budget:
+        cap_val = cap_reached(attempts) if cap_reached is not None else None
+        if isinstance(cap_val, FixItCapDecision):
+            cap_dec = cap_val
+        elif isinstance(cap_val, bool):
+            cap_dec = (
+                FixItCapDecision(
+                    reached=cap_val,
+                    cap="per-artifact",
+                    limit=1,
+                    spent=1,
+                    reason="global fix-it cap reached",
+                )
+                if cap_val
+                else None
+            )
+        else:
+            cap_dec = None
+        if (
+            rerun_suite is None
+            or attempts >= budget
+            or (cap_dec is not None and cap_dec.reached)
+        ):
             # A `fixed` claim THIS RUN CANNOT VERIFY is not a release, and the reason is recorded
             # SEPARATELY from `violation`: the answer itself was well formed, so calling it a
             # violation would misattribute a budget exhaustion to the agent.
-            unverified_repair = (
-                f"{GATE_ANSWER_FIXED} was claimed but the repair was NOT verified: "
-                + (
-                    "no suite re-run was available to this run"
-                    if rerun_suite is None
-                    else f"the run's retry budget of {budget} is spent after {attempts} re-run(s)"
+            if cap_dec is not None and cap_dec.reached:
+                gate_cap = cap_dec
+                unverified_repair = f"{GATE_ANSWER_FIXED} was claimed but the repair was NOT verified: {cap_dec.reason}"
+            else:
+                unverified_repair = (
+                    f"{GATE_ANSWER_FIXED} was claimed but the repair was NOT verified: "
+                    + (
+                        "no suite re-run was available to this run"
+                        if rerun_suite is None
+                        else f"the run's retry budget of {budget} is spent after {attempts} re-run(s)"
+                    )
                 )
-            )
             break
         attempts += 1
         latest_suite = rerun_suite()
@@ -26998,11 +27400,14 @@ def perform_gate_answer(
         baseline=baseline,
         released=release,
     )
+    if gate_cap is not None:
+        record["fix_it_cap"] = gate_cap._asdict()
     return GateAnswerOutcome(
         release=release,
         record=record,
         suite_result=latest_suite,
         verdict=verdict,
+        cap=gate_cap,
     )
 
 
@@ -30399,6 +30804,42 @@ def write_report(
             lines.append(
                 f"- `{c_id6}`: {c_count} correction turn{'s' if c_count != 1 else ''}"
             )
+
+    cap_stopped_items = []
+    for q_item in state.get("queue", []):
+        if not isinstance(q_item, Mapping):
+            continue
+        info = q_item.get("fix_it_cap_stop")
+        if not info and q_item.get("attempts"):
+            last_att = q_item["attempts"][-1]
+            if isinstance(last_att, Mapping) and last_att.get("fix_it_cap"):
+                info = last_att["fix_it_cap"]
+        if info:
+            cap_stopped_items.append((q_item, info))
+
+    if cap_stopped_items:
+        caps = frozen_fix_it_caps(state)
+        lines.extend(
+            [
+                "",
+                "## Fix-it caps",
+                "",
+                (
+                    f"Frozen caps: per-artifact={caps['per_artifact']}, "
+                    f"per-set-floor={caps['per_set_floor']}, "
+                    f"per-set-per-member={caps['per_set_per_member']}, "
+                    f"per-run-floor={caps['per_run_floor']}, "
+                    f"per-run-per-artifact={caps['per_run_per_artifact']}"
+                ),
+                "",
+            ]
+        )
+        for q_item, info in cap_stopped_items:
+            lines.append(
+                f"- `{q_item.get('id6')}`: stopped by {info.get('cap')} cap "
+                f"(limit: {info.get('limit')}, spent: {info.get('spent')})"
+            )
+
     lines.extend(
         [
             "",
@@ -38176,6 +38617,9 @@ def execute_item_core(
                     # That absence is the maintainer's 2026-09-08 ruling in executable form; see
                     # `SUITE_BASELINE_SUBDIR` for the four reasons a gate on it would be wrong.
                     baseline=suite_baseline,
+                    cap_reached=lambda inflight_attempts: fix_it_cap_decision(
+                        item, state, extra_spent=inflight_attempts
+                    ),
                 )
             except (KeyboardInterrupt, StallTimeout):
                 # An interrupted follow-up leaves the refusal STANDING, which is the fail-closed
@@ -38199,6 +38643,16 @@ def execute_item_core(
                 )
             attempt[GATE_ANSWER_RECORD_KEY] = gate_outcome.record
             item[GATE_ANSWER_RECORD_KEY] = gate_outcome.record
+            rechecks = int(gate_outcome.record.get("recheck_attempts", 0) or 0)
+            if rechecks > 0:
+                item[GATE_ANSWER_RETRY_COUNT_KEY] = (
+                    int(item.get(GATE_ANSWER_RETRY_COUNT_KEY, 0) or 0) + rechecks
+                )
+            if gate_outcome.cap is not None:
+                attempt["fix_it_cap"] = gate_outcome.cap._asdict()
+                record_fix_it_cap_stop(
+                    item, gate_outcome.cap, host_labels, run_dir=run_dir
+                )
             if gate_outcome.suite_result is not None and gate_outcome.record.get(
                 "recheck_attempts"
             ):
@@ -38797,6 +39251,7 @@ def execute_item_core(
                     )
 
             # Production correction turn loop (nnsa2o E-02)
+            prod_dec: ProductionSetRetryDecision | None = None
             while findings:
                 used_turns = production_set_retry_attempts(item)
                 prod_dec = production_set_retry_decision(
@@ -39043,6 +39498,11 @@ def execute_item_core(
                         reason=reason_msg,
                         remedy=f"{host_labels.command} {item['id6']}",
                     )
+                if prod_dec is not None and prod_dec.cap is not None:
+                    record_fix_it_cap_stop(
+                        item, prod_dec.cap, host_labels, run_dir=run_dir
+                    )
+                    attempt["fix_it_cap"] = prod_dec.cap._asdict()
                 if wt_handle is not None:
                     lane_containment.record_lane_preserved(
                         run_dir=run_dir,
@@ -39408,6 +39868,7 @@ def execute_item_core(
                     pass
 
             # Production correction turn loop (nnsa2o E-02)
+            prod_dec: ProductionSetRetryDecision | None = None
             while findings:
                 used_turns = production_set_retry_attempts(item)
                 prod_dec = production_set_retry_decision(
@@ -39658,6 +40119,11 @@ def execute_item_core(
                         reason=reason_msg,
                         remedy=f"{host_labels.command} {item['id6']}",
                     )
+                if prod_dec is not None and prod_dec.cap is not None:
+                    record_fix_it_cap_stop(
+                        item, prod_dec.cap, host_labels, run_dir=run_dir
+                    )
+                    attempt["fix_it_cap"] = prod_dec.cap._asdict()
                 if wt_handle is not None:
                     lane_containment.record_lane_preserved(
                         run_dir=run_dir,
@@ -40247,6 +40713,7 @@ def execute_item_core(
                             == INTEGRATION_CAUSE_GIT_CONFLICT
                             and int(item.get(MERGE_CONFLICT_RETRY_COUNT_KEY, 0) or 0)
                             < conflict_budget
+                            and not fix_it_cap_decision(item, state).reached
                         ):
                             current_conflict_count = int(
                                 item.get(MERGE_CONFLICT_RETRY_COUNT_KEY, 0) or 0
@@ -40449,6 +40916,7 @@ def execute_item_core(
                             and attempt.get("session_id")
                             and int(item.get(HOOK_INTEGRATION_RETRY_COUNT_KEY, 0) or 0)
                             < hook_integ_budget
+                            and not fix_it_cap_decision(item, state).reached
                         ):
                             current_hook_count = int(
                                 item.get(HOOK_INTEGRATION_RETRY_COUNT_KEY, 0) or 0
@@ -40588,6 +41056,7 @@ def execute_item_core(
                             and attempt.get("session_id")
                             and int(item.get(COMBINED_RED_RETRY_COUNT_KEY, 0) or 0)
                             < combined_red_budget
+                            and not fix_it_cap_decision(item, state).reached
                         ):
                             current_red_count = int(
                                 item.get(COMBINED_RED_RETRY_COUNT_KEY, 0) or 0
@@ -40820,6 +41289,38 @@ def execute_item_core(
                                     )
                             cause, _, _ = read_integration_cause(integ_reason)
                             budget = frozen_retry_budget(state)
+                            cap_dec = fix_it_cap_decision(item, state)
+                            if cap_dec.reached:
+                                stopped_by_cap = False
+                                if cause == INTEGRATION_CAUSE_GIT_CONFLICT:
+                                    stopped_by_cap = (
+                                        int(
+                                            item.get(MERGE_CONFLICT_RETRY_COUNT_KEY, 0)
+                                            or 0
+                                        )
+                                        < budget
+                                    )
+                                elif cause == INTEGRATION_CAUSE_HOOK_REFUSED:
+                                    stopped_by_cap = (
+                                        int(
+                                            item.get(
+                                                HOOK_INTEGRATION_RETRY_COUNT_KEY, 0
+                                            )
+                                            or 0
+                                        )
+                                        < budget
+                                    )
+                                elif cause == INTEGRATION_CAUSE_GATE_COMBINED_RED:
+                                    stopped_by_cap = (
+                                        int(
+                                            item.get(COMBINED_RED_RETRY_COUNT_KEY, 0)
+                                            or 0
+                                        )
+                                        < budget
+                                    )
+                                if stopped_by_cap:
+                                    attempt["fix_it_cap"] = cap_dec._asdict()
+
                             if cause == INTEGRATION_CAUSE_HOOK_REFUSED:
                                 used = int(
                                     item.get(HOOK_INTEGRATION_RETRY_COUNT_KEY, 0) or 0
@@ -40863,6 +41364,32 @@ def execute_item_core(
                                 reason=read_integration_cause(recorded_reason)[2],
                                 branch=wt_handle.branch if wt_handle else None,
                             )
+                            if attempt.get("fix_it_cap"):
+                                cap_info = attempt["fix_it_cap"]
+                                cap_decision_obj = FixItCapDecision(
+                                    reached=cap_info["reached"],
+                                    cap=cap_info["cap"],
+                                    limit=cap_info["limit"],
+                                    spent=cap_info["spent"],
+                                    reason=cap_info["reason"],
+                                )
+                                existing_refusal = refusal_of_item(item)
+                                existing_remedy = (
+                                    existing_refusal.remedy
+                                    if hasattr(existing_refusal, "remedy")
+                                    else (
+                                        existing_refusal.get("remedy")
+                                        if isinstance(existing_refusal, Mapping)
+                                        else None
+                                    )
+                                )
+                                record_fix_it_cap_stop(
+                                    item,
+                                    cap_decision_obj,
+                                    host_labels,
+                                    run_dir=run_dir,
+                                    preserved_remedy=existing_remedy,
+                                )
                             lane_branch = wt_handle.branch if wt_handle else "(none)"
                             print(
                                 pal(

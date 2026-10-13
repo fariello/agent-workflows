@@ -1375,6 +1375,15 @@ Retry budget precedence is:
 
 `N` must be an integer from 0 through 10 inclusive. It counts correction attempts after the initial attempt, separately for each action. `0` means the first failed deterministic check or retryable host attempt immediately fails the item; no correction packet is issued. The frozen budget cannot be raised on resume. A new run may choose a different policy. This section is the single normative home where the correction-budget bound and its three-tier precedence are defined; every other mention in this specification is an informational pointer here, following the convention stated in this specification's preamble that "The convention is stated once, here, because it governs all three equally and a rule attached to one paragraph while its neighbors decay is a fourth thing to maintain rather than a fix."
 
+#### Global fix-it caps
+
+In addition to per-action retry budgets, the runner enforces three global fix-it turn caps across all fix-it mechanisms (including gate-answer re-runs and integration conflict/hook/revalidation loops; first attempts are never fix-it turns and are not counted):
+- **Per-artifact cap**: default `20`. Bounds the total fix-it turns spent on a single artifact across all mechanisms in the run.
+- **Per-Set cap**: formula `max(per_set_floor, per_set_per_member * set_members)`, defaults `per_set_floor = 20`, `per_set_per_member = 15`. `set_members` counts dispatchable members of the Set present in this run's queue (excluding skipped actions). Bounds the sum of fix-it turns spent across all members of that Set in this run.
+- **Per-run cap**: formula `max(per_run_floor, largest_set_limit, per_run_per_artifact * queue_size)`, defaults `per_run_floor = 40`, `per_run_per_artifact = 10`. `queue_size` counts dispatchable queue items (excluding skipped actions). Bounds total fix-it turns spent across the entire run.
+
+Global caps are configured by repository policy under `run.fix_it_caps` in `.aw/config/project.json` (`per_artifact`, `per_set_floor`, `per_set_per_member`, `per_run_floor`, `per_run_per_artifact`) with a warn-and-default posture on malformed values or unknown keys. Caps are frozen at queue build into run state and cannot change on resume. When any of the three caps is reached, the item stops as needs-human with refusal code `fix-it-cap-reached` and exits 3, preserving any underlying lane worktree and integration branch warnings.
+
 Every failure belongs to one of three groups:
 
 (a) Failures that get a fix-it turn under `--retry-budget` (12 members):
@@ -1401,7 +1410,7 @@ Every failure belongs to one of three groups:
 - unknown or non-idempotent external outcome;
 - identity or type ambiguity;
 - changed frozen requirements, EXCEPT an additive scope widening as defined in Section 5.5a;
-- fix-it budget exhausted.
+- fix-it budget exhausted, or a global fix-it cap reached (needs-human).
 
 (c) Failures that abort the run (1 member):
 
@@ -1439,7 +1448,7 @@ The normative mapping between the retry classes above and the runner's dispositi
 | unknown or non-idempotent external outcome | `unknown_outcome` | `turn_failure_is_retryable` | No | Non-idempotent external side effect at unknown state. Item stopped; independent items continue. Shipped. |
 | identity or type ambiguity | `failed` / `type_or_status_not_runnable` | queue builder / dependency preflight | No | Ambiguity in identity or type stops item (or refuses run if preflight). Independent items continue. Shipped. |
 | changed frozen requirements, EXCEPT an additive scope widening as defined in Section 5.5a | `fail-gate` | `turn_failure_is_retryable` / finalize gate | No | Frozen requirement violation (except Section 5.5a accept). Item stopped; independent items continue. Shipped. |
-| fix-it budget exhausted | `fail-gate`, `budget_exhausted` | runner loop / retry controller | No | All allowed fix-it attempts spent without resolution. Item stopped; independent items continue. Shipped. |
+| fix-it budget exhausted, or a global fix-it cap reached (needs-human) | `fail-gate`, `budget_exhausted` | runner loop / retry controller | No | All allowed fix-it attempts spent without resolution, or a global fix-it cap reached (refusal code `fix-it-cap-reached`, needs-human). Item stopped; independent items continue. Shipped. |
 | corrupt run ledger only | `fail-gate`, `interrupted` | `turn_failure_is_retryable` / ledger validator | No | Ledger hash/sequence/reference corruption makes all queue state untrustworthy. Aborts run. Shipped. |
 
 #### 5.5a Additive scope widening is a finalize-time accept, not a retry
@@ -1718,6 +1727,7 @@ This example demonstrates the revised guarantees: `all` is safely bounded; depen
 
 ## Workflow history
 
+- 2026-10-13 note (aw specs): amendment (c0oysi): Section 5.5 adds global fix-it caps per artifact, per Set and per run (backlog 38hwvk)
 - 2026-10-13 note (aw specs): amended Sections 2.6 and 3.3 for implementing spec re-plan turn (plan 2hgxi1)
 - 2026-10-11 note (aw specs): amendment (opencode its_direct/pt3-claude-opus-5.5-1m-us): Section 5.2 records the maintainer's 2026-10-11 decision to stop host-granular egress filtering (Set netnsfilter) and leave the push-denial host requirement open by decision.
 - 2026-10-10 note (aw specs): amendment (opencode its_direct/pt3-claude-opus-5.5-1m-us): Section 5.7 scope-target dispatch gate now states that a declared move pair (missing entry whose resolved location is also declared) is not stale; maintainer-directed fix for backlog dparot.
