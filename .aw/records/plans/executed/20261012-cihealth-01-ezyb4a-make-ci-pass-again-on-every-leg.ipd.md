@@ -6,7 +6,7 @@
 - Scope: Make every job in `tests.yml` pass on main, on every OS and Python leg it declares, without removing a leg and without weakening a gate. Fix the code, the tests and the records; do not skip tests, lower a gate's severity, or loosen the type gate to get there. If one leg's failure needs a maintainer decision (for example dropping Python 3.9 support), stop that item and ask, because that changes the published support contract.
 - Scope-Paths: pyproject.toml, tests, agent_workflows, .aw/records/plans, .aw/records/backlog, .github/workflows/tests.yml, conftest.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: high
@@ -17,9 +17,9 @@
 - Highest E allocated: 07
 - Author: opencode model=its_direct/pt3-claude-opus-5.5-1m-us
 - Id: ezyb4a
-- Approval: 2026-10-13, human ("approved"): Approved by maintainer via Antigravity turn
 
 ## Workflow history
+- 2026-10-13 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: ezyb4a verified (set cihealth, attempt 1). [Scope reconciliation - widened-scope conftest.py: declared in Scope-Paths during execution because the approved work required it (additive widening, auto-reconciled by aw agy run); in-scope-unmodified pyproject.toml: declared-but-unmodified (auto-acknowledged by aw agy run)]
 - 2026-10-13 approved (aw set, --by-human): Approved by maintainer via Antigravity turn
 - 2026-10-13 reviewed (aw set): plan-review done
 - 2026-10-12 /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-008
