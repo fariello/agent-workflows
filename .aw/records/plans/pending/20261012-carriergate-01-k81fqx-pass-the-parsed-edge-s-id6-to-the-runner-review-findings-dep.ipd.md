@@ -37,24 +37,24 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: Fix the call site
 
-- [ ] E-01 In `runner_shared.dependency_status_detailed`, replace `target = dependency_target_id6(edge) or dep` with `target = edge.id6` (the edge is already parsed and non-None at that point, guarded by the `if edge is None: ... continue` branch above it), and rewrite the adjacent comment so it states what the code now does and why the raw token must never reach `_findings_block_reason`. Do NOT change `dependency_target_id6`'s signature or its other callers (`dependency_target_id6(str(dep))` sites elsewhere in the module are correct and stay as they are).
+- [x] E-01 In `runner_shared.dependency_status_detailed`, replace `target = dependency_target_id6(edge) or dep` with `target = edge.id6` (the edge is already parsed and non-None at that point, guarded by the `if edge is None: ... continue` branch above it), and rewrite the adjacent comment so it states what the code now does and why the raw token must never reach `_findings_block_reason`. Do NOT change `dependency_target_id6`'s signature or its other callers (`dependency_target_id6(str(dep))` sites elsewhere in the module are correct and stay as they are).
   - Depends on: none
   - Expected outcome: `dependency_status_detailed` passes the bare target id6 to `_findings_block_reason`; the `or dep` raw-token fallback is gone; the comment no longer claims behavior the code lacks.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: Behavioral regression tests
 
-- [ ] E-02 Add `tests/test_runner_findings_dependency_gate.py` that builds a temp repo (a `.aw/records/plans/executed/` IPD `- Id: dep001`, `- Status: executed`, plus a `.aw/records/reviews/` record `- Subject-Id: dep001` whose `## Round 1` carries a `### Findings` heading above the findings table, because `review_findings.parse_review_text` attributes table rows to Findings only under that heading and a table without it parses to ZERO findings, which would make every blocked case vacuously pass as satisfied; prefer writing the record through `review_findings.render_review`/`write_review` so the fixture cannot drift from the parser) and calls `runner_shared.dependency_status_detailed` directly, asserting on its returned `(satisfied, unsatisfied, reasons)`. Test names are non-binding pointers; the bar is the behavior each case pins. Cases: (a) OUT-OF-QUEUE execute item, dependency `executed:dep001`, HIGH finding decided OPEN -> `satisfied` False, `unsatisfied == ['executed:dep001']`, and the reason names `dep001` and the finding id; (b) the same with the dependency declared as the bare id6 `dep001` -> blocked, with `unsatisfied == ['dep001']` (a CHARACTERIZATION case: it already blocks before E-01, because the `or dep` fallback hands over the raw token, which for a bare id6 IS the id6; it pins that E-01 does not regress the bare form); (c) IN-QUEUE dependency (queue entry `dep001` with run status `executed`) -> blocked identically, proving the gate is not evadable by queue membership; (d) the same finding decided FIXED -> satisfied; (e) the dependent's `action` is `review` -> satisfied (review items are deliberately not findings-gated); (f) a LOW finding OPEN under the default `high` threshold -> satisfied; (g) no review record at all -> satisfied. Every case asserts on returned values only; no test reads source, inspects AST, or pins comment text.
+- [x] E-02 Add `tests/test_runner_findings_dependency_gate.py` that builds a temp repo (a `.aw/records/plans/executed/` IPD `- Id: dep001`, `- Status: executed`, plus a `.aw/records/reviews/` record `- Subject-Id: dep001` whose `## Round 1` carries a `### Findings` heading above the findings table, because `review_findings.parse_review_text` attributes table rows to Findings only under that heading and a table without it parses to ZERO findings, which would make every blocked case vacuously pass as satisfied; prefer writing the record through `review_findings.render_review`/`write_review` so the fixture cannot drift from the parser) and calls `runner_shared.dependency_status_detailed` directly, asserting on its returned `(satisfied, unsatisfied, reasons)`. Test names are non-binding pointers; the bar is the behavior each case pins. Cases: (a) OUT-OF-QUEUE execute item, dependency `executed:dep001`, HIGH finding decided OPEN -> `satisfied` False, `unsatisfied == ['executed:dep001']`, and the reason names `dep001` and the finding id; (b) the same with the dependency declared as the bare id6 `dep001` -> blocked, with `unsatisfied == ['dep001']` (a CHARACTERIZATION case: it already blocks before E-01, because the `or dep` fallback hands over the raw token, which for a bare id6 IS the id6; it pins that E-01 does not regress the bare form); (c) IN-QUEUE dependency (queue entry `dep001` with run status `executed`) -> blocked identically, proving the gate is not evadable by queue membership; (d) the same finding decided FIXED -> satisfied; (e) the dependent's `action` is `review` -> satisfied (review items are deliberately not findings-gated); (f) a LOW finding OPEN under the default `high` threshold -> satisfied; (g) no review record at all -> satisfied. Every case asserts on returned values only; no test reads source, inspects AST, or pins comment text.
   - Depends on: E-01
   - Expected outcome: the module exists, cases (a) and (c) FAIL on the pre-fix code (shown by reverting E-01 locally and re-running before restoring it) while (b) passes both before and after, and all seven PASS with E-01 applied. A fixture sanity assertion (`review_findings.subject_gating_blocks(repo, 'dep001')` non-empty in the blocked cases) guards against the vacuous-pass trap described above.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: Corpus impact check
 
-- [ ] E-03 Re-measure on this repository, after E-01, how many pending/approved plans the now-live gate newly blocks: enumerate every `.review.md` subject with a non-empty `review_findings.subject_gating_blocks(repo, id6)` and every pending plan whose `- Item-Dependencies:` names one of them. Record both counts and the list in the plan's Findings drift note. If the plan list is non-empty, do not weaken the gate: record the affected plans by id6 so the maintainer sees which dependents are now (correctly) held.
+- [x] E-03 Re-measure on this repository, after E-01, how many pending/approved plans the now-live gate newly blocks: enumerate every `.review.md` subject with a non-empty `review_findings.subject_gating_blocks(repo, id6)` and every pending plan whose `- Item-Dependencies:` names one of them. Record both counts and the list in the plan's Findings drift note. If the plan list is non-empty, do not weaken the gate: record the affected plans by id6 so the maintainer sees which dependents are now (correctly) held.
   - Depends on: E-01
   - Expected outcome: a pasted count of gating subjects and of newly blocked pending dependents, re-derived at execution (authoring and review measurement: 10 and 0, see F-05; that number is context, not the bar).
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -73,7 +73,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 | F-02 | **THE GATE NEVER FIRES, END TO END.** With a temp repo carrying an executed IPD `dep001` and a review record `- Subject-Id: dep001` with a HIGH OPEN finding: `subject_gating_blocks(repo, "dep001")` returns one `GatingBlock(finding_id='PR-001', severity='high', decision='open', ...)`; `subject_gating_blocks(repo, "executed:dep001")` returns `()`; and `dependency_status_detailed(item, state)` for an execute item depending on `executed:dep001` returns `(True, [], {})`, i.e. ADMITTED. | Script run on this lane at authoring time; output pasted verbatim in the three preceding clauses. |
 | F-03 | **THE COMMENT ASSERTS THE OPPOSITE OF THE CODE.** The comment directly above the call reads "Uses the parsed edge's target id6, not the raw token", while the code falls back to the raw token on every edge. | Read of `runner_shared.dependency_status_detailed`, the revgate block after `edge_satisfied`. |
 | F-04 | **ONE DEFINITION, BOTH HOSTS.** `rg "def dependency_status_detailed" agent_workflows` finds only `runner_shared.py`; `oc_runipd` and `agy_runipd` import it as `dependency_status_detailed as dependency_status_detailed`. Other `dependency_target_id6` callers in the module pass `str(dep)` and are correct. | `rg -n "dependency_target_id6\(" agent_workflows/runner_shared.py` lists the faulty call plus two `dependency_target_id6(str(dep))` calls. |
-| F-05 | **BLAST RADIUS IS SMALL TODAY.** Of 927 `.review.md` records (923 distinct subjects), 10 subjects currently return a non-empty `subject_gating_blocks` (`2j4pd0`, `32ij2j`, `62pkkg`, `9iiqmm`, `a6i03f`, `d5ntkj`, `g1w58u`, `obyhrm`, `p47qfu`, `xtklpd`), and 0 pending plans declare an `- Item-Dependencies:` edge to any of them. Turning the gate on therefore newly blocks nothing in the current queue; E-03 re-measures at execution time because the corpus moves. | Script over `review_findings.iter_review_files(repo)` and `.aw/records/plans/pending/*.ipd.md` on this lane at authoring time. |
+| F-05 | **BLAST RADIUS IS SMALL TODAY.** Of 927 `.review.md` records (923 distinct subjects), 10 subjects currently return a non-empty `subject_gating_blocks` (`2j4pd0`, `32ij2j`, `62pkkg`, `9iiqmm`, `a6i03f`, `d5ntkj`, `g1w58u`, `obyhrm`, `p47qfu`, `xtklpd`), and 0 pending plans declare an `- Item-Dependencies:` edge to any of them. Turning the gate on therefore newly blocks nothing in the current queue; E-03 re-measures at execution time because the corpus moves. Re-measured at execution (2026-10-13): 1025 review files (1021 distinct subjects), 10 gating subjects (`2j4pd0`, `32ij2j`, `62pkkg`, `9iiqmm`, `a6i03f`, `d5ntkj`, `g1w58u`, `obyhrm`, `p47qfu`, `xtklpd`), 0 newly blocked pending plans. | Script over `review_findings.iter_review_files(repo)` and `.aw/records/plans/pending/*.ipd.md` on this lane at authoring time; re-measured at execution via E-03 script. |
 | F-06 | **NO EXISTING TEST COVERS THE FIRING CASE.** `rg "_findings_block_reason\|subject_gating_blocks" tests/*.py` finds only `tests/test_spec_review_attestation.py` (the empty-repo case) and render tests in `tests/test_dependency_block_reporting.py` that synthesize a `GatingBlock` reason directly rather than producing one through `dependency_status_detailed`. That is why the dead gate went unnoticed. | The `rg` named, run on this lane. |
 | F-08 | **ADDED AT REVIEW: THE BARE-ID6 FORM ALREADY BLOCKS, AND A HEADING-LESS FIXTURE PASSES VACUOUSLY.** Re-driven at review HEAD `559173a5c` against a temp repo: with a review record lacking `### Findings`, `subject_gating_blocks(repo, 'dep001')` returned `()` and every case read satisfied. With the heading: `subject_gating_blocks(repo,'dep001')` -> one `GatingBlock(finding_id='PR-001', severity='high', decision='open')`; pre-fix `dependency_status_detailed` returned `(True, [], {})` for `executed:dep001` out of queue AND in queue, but `(False, ['dep001'], {'dep001': 'dep001: review finding PR-001 is high/open and unresolved'})` for bare `dep001`; with `edge.id6` substituted all three block and a `review` item stays `(True, [], {})`. | Review probe in this lane, monkeypatching `dependency_target_id6` to return `edge.id6`. |
 | F-07 | **NO AST-PINNING FIXTURE BLOCKS THE EDIT.** `tests/fixtures/runnerlayer_rehomed_premove_fingerprints.json` contains a fingerprint for `dependency_status_detailed`, but no test or module references that fixture by name (`rg -n "runnerlayer_rehomed_premove" agent_workflows tests --glob '!*.json'` is empty), so it is a retained historical record and not a live assertion. | The `rg` named, run on this lane. |
@@ -118,18 +118,96 @@ None. The only judgement call (whether to harden `dependency_target_id6` instead
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: the pasted `git diff` of `agent_workflows/runner_shared.py` showing the call site now reads `edge.id6` with no `or dep` raw-token fallback and the comment rewritten; plus a pasted direct call `dependency_status_detailed(item, state)` against the F-02 temp-repo fixture returning `satisfied=False` with `unsatisfied == ['executed:dep001']` (observation produced by `runner_shared.dependency_status_detailed`, the function E-01 edits).
   - Observed evidence:
-  - Result: pending
-- [ ] V-02 validates E-02
+    `git diff agent_workflows/runner_shared.py`:
+    ```diff
+    diff --git a/agent_workflows/runner_shared.py b/agent_workflows/runner_shared.py
+    index a69755eb1..f3904963b 100644
+    --- a/agent_workflows/runner_shared.py
+    +++ b/agent_workflows/runner_shared.py
+    @@ -43873,9 +43873,12 @@ def dependency_status_detailed(
+                 _block(dep, reason or f"{dep}: dependency not satisfied")
+                 continue
+             # revgate: the edge is satisfied structurally; for an execute-action dependency ALSO refuse
+    -        # on unresolved gating findings. Uses the parsed edge's target id6, not the raw token.
+    +        # on unresolved gating findings. Pass the parsed edge's target id6 (edge.id6) directly to
+    +        # _findings_block_reason. The raw token (such as "executed:<id6>") must never reach
+    +        # _findings_block_reason because review records are keyed by bare subject id6; passing the
+    +        # raw token causes subject_gating_blocks to miss the review record and wrongly admit the item.
+             if is_exec:
+    -            target = dependency_target_id6(edge) or dep
+    +            target = edge.id6
+                 why = _findings_block_reason(repo, target)
+                 if why:
+                     _block(dep, why)
+    ```
+    Direct call against F-02 fixture:
+    ```
+    satisfied = False
+    unsatisfied = ['executed:dep001']
+    reasons = {'executed:dep001': 'dep001: review finding PR-001 is high/open and unresolved'}
+    ```
+  - Result: pass
+- [x] V-02 validates E-02
   - Required evidence: pasted output of `python3 -m pytest -o addopts="" tests/test_runner_findings_dependency_gate.py -v` showing all seven cases (a)-(g) passing by name; pasted output of the same run with E-01 reverted showing cases (a) and (c) FAILING and (b) passing, then `git diff --stat` after restoring E-01 showing no residue; pasted output of the existing-consumer test files listed under Required tests passing; and the pasted summary line of a bare `python3 -m pytest` with no failures beyond the executor's re-derived baseline.
   - Observed evidence:
-  - Result: pending
-- [ ] V-03 validates E-03
+    `python3 -m pytest -o addopts="" tests/test_runner_findings_dependency_gate.py -v`:
+    ```
+    tests/test_runner_findings_dependency_gate.py::test_case_a_out_of_queue_execute_blocked_by_high_open_finding PASSED [ 14%]
+    tests/test_runner_findings_dependency_gate.py::test_case_f_low_finding_satisfied_under_default_threshold PASSED [ 28%]
+    tests/test_runner_findings_dependency_gate.py::test_case_d_execute_satisfied_when_finding_fixed PASSED [ 42%]
+    tests/test_runner_findings_dependency_gate.py::test_case_g_satisfied_when_no_review_record_exists PASSED [ 57%]
+    tests/test_runner_findings_dependency_gate.py::test_case_e_review_action_admitted_despite_open_finding PASSED [ 71%]
+    tests/test_runner_findings_dependency_gate.py::test_case_c_in_queue_execute_blocked_by_high_open_finding PASSED [ 85%]
+    tests/test_runner_findings_dependency_gate.py::test_case_b_bare_id6_blocked_characterization PASSED [100%]
+    ============================== 7 passed in 2.41s ===============================
+    ```
+    Output with E-01 reverted:
+    ```
+    tests/test_runner_findings_dependency_gate.py::test_case_a_out_of_queue_execute_blocked_by_high_open_finding FAILED [ 14%]
+    tests/test_runner_findings_dependency_gate.py::test_case_f_low_finding_satisfied_under_default_threshold PASSED [ 28%]
+    tests/test_runner_findings_dependency_gate.py::test_case_g_satisfied_when_no_review_record_exists PASSED [ 42%]
+    tests/test_runner_findings_dependency_gate.py::test_case_d_execute_satisfied_when_finding_fixed PASSED [ 57%]
+    tests/test_runner_findings_dependency_gate.py::test_case_c_in_queue_execute_blocked_by_high_open_finding FAILED [ 71%]
+    tests/test_runner_findings_dependency_gate.py::test_case_e_review_action_admitted_despite_open_finding PASSED [ 85%]
+    tests/test_runner_findings_dependency_gate.py::test_case_b_bare_id6_blocked_characterization PASSED [100%]
+    ========================= 2 failed, 5 passed in 0.63s ==========================
+    ```
+    `git diff --stat agent_workflows/runner_shared.py`:
+    ```
+     agent_workflows/runner_shared.py | 7 +++++--
+     1 file changed, 5 insertions(+), 2 deletions(-)
+    ```
+    Existing-consumer test files:
+    ```
+    tests/test_oc_runipd.py ................................................ [ 15%]
+    ........................................................................ [ 37%]
+    ..............................................................           [ 57%]
+    tests/test_hostcapgate_execute_requirement.py ..........                 [ 60%]
+    tests/test_orchestrator_retirement.py .................................. [ 71%]
+    ..........                                                               [ 74%]
+    tests/test_agy_runipd_cli.py ........................................... [ 88%]
+    ..................                                                       [ 93%]
+    tests/test_dependency_block_reporting.py ...................             [100%]
+    ======================= 316 passed in 262.32s (0:04:22) ========================
+    ```
+    Bare `python3 -m pytest` summary line (post-change vs baseline 8245 passed):
+    `8252 passed, 4 skipped, 18 xfailed, 3 warnings in 557.26s (0:09:17)`
+  - Result: pass
+- [x] V-03 validates E-03
   - Required evidence: the pasted output of the corpus measurement script showing the count of gating subjects, the count of pending plans with an edge to one, and the id6 list of any such plans.
   - Observed evidence:
-  - Result: pending
+    ```
+    Total review files: 1025
+    Distinct review subjects: 1021
+    Gating subjects count: 10
+    Gating subjects list: ['2j4pd0', '32ij2j', '62pkkg', '9iiqmm', 'a6i03f', 'd5ntkj', 'g1w58u', 'obyhrm', 'p47qfu', 'xtklpd']
+    Newly blocked pending plans count: 0
+    Newly blocked pending plans list: []
+    ```
+  - Result: pass
 
 ## Approval and execution gate
 
