@@ -6,7 +6,7 @@
 - Scope: IN: (1) re-measure the seven and the parser census at the executing HEAD, as a gate (E-01); (2) add ONE shared usage-refusal emitter that builds a schema-valid `kind: error` `outcome: cannot-run` `exit: 2` record with a `next` of `aw <leaf> --help` (E-02); (3) make `_AwArgumentParser.error` sniff the output mode from the raw argv it is parsing and, under `--agent` or `--json`/`--format json`, write that record to stdout while keeping the existing stderr diagnostic (E-03); (4) route the three handler-level missing-required refusals the sweep hits through the same emitter (E-04); (5) a behavioral sweep test over EVERY leaf with a required argument, driven from the live parser tree rather than a hand list (E-05); (6) remove the seven `owned_elsewhere` `91pjax` exemptions from `MUTATION_EXEMPTION_REGISTRY` so those leaves enter the mutation conformance universe (E-06); (7) a `CHANGELOG.md` `Fixed:` line and a doc note in Section 11.4 naming the parse-time path (E-07). OUT: the OTHER early refusals in those same handlers (`specs new --date` malformed, `backlog new` unsafe `--summary`, `ipd_authoring.run_scaffold`'s human `print` to stdout for an empty `--title`), filed at authoring as backlog `mmpjti`; the family-root (subcommand-less group) case, already owned by `_show_family_help` and closed under `lbbo9s`; the `aw config exclude` human-line case (`o8cz48`) and the `aw sanitize` branches (`k84fqu`), each owned by its own open item.
 - Scope-Paths: agent_workflows/cli.py, agent_workflows/renderers.py, agent_workflows/backlog.py, agent_workflows/specs.py, agent_workflows/prompts.py, tests/test_usage_refusal_agent_record.py, tests/conformance_matrix.py, docs/cli-output-contract.md, CHANGELOG.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: low
@@ -17,9 +17,9 @@
 - Highest E allocated: 07
 - Author: opencode
 - Id: 0z7ds3
-- Approval: 2026-10-12, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-13 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: 0z7ds3 verified (set 91pjax, attempt 1).
 - 2026-10-12 approved (aw set): status set to approved
 - 2026-10-12 reviewed (aw set): /plan-review APPROVE WITH REVISIONS APPLIED; PR-001..PR-005 fixed
 
