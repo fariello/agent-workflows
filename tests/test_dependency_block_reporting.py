@@ -156,6 +156,36 @@ def test_frozen_record_no_duplicate_parenthetical_or_blocked() -> None:
     assert "(blocked)" not in out
 
 
+@pytest.mark.parametrize(
+    "non_dict_reasons",
+    [
+        ["executed:aaa111"],
+        "executed:aaa111",
+    ],
+)
+def test_non_dict_reasons_fallback_renders_bare_tokens(non_dict_reasons: Any) -> None:
+    """Non-dict reasons containing the dependency token fall back to bare token rendering without TypeError."""
+    queue = [
+        {
+            "position": 1,
+            "id6": "eee555",
+            "setid": "test",
+            "action": "execute",
+            "status": "dependency-blocked",
+            "unsatisfied_dependencies": ["executed:aaa111"],
+            "unsatisfied_dependency_reasons": non_dict_reasons,
+        }
+    ]
+    state: dict[str, Any] = {"queue": queue, "run_id": "run-non-dict-fallback"}
+    out = render_run_summary_table(state, pal=Palette(False))
+    diags = _diag_lines(out)
+
+    assert len(diags) == 1
+    assert "• eee555: dependency-blocked (executed:aaa111)" in diags[0]
+    assert "(blocked)" not in out
+    assert "((" not in diags[0]
+
+
 def test_drain_and_cascade_mapped_reasons_rendered_once(tmp_path: Path) -> None:
     """Case (c): drain-shaped and post-E-01 cascade items render mapped reason exactly once."""
     # Synthesize a pending plan under tmp_path so the dependency resolves against
