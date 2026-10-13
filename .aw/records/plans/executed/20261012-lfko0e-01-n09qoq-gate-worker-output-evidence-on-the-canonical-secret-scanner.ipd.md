@@ -6,7 +6,7 @@
 - Scope: Add a stage 3 to `check_evidence_redaction` that runs the canonical secret scanner's REGEX `secret`-category rules (no entropy heuristic, no PII rules) over the key-redacted text and fails closed (refuse, not mask) on any finding; fail closed when the scanner cannot be loaded; make the scanner loader also find the copy shipped in the wheel; add outcome tests; correct the boundary 4 prose in `docs/security.md`, the `security_hardening` module docstring, and the `host_runner` REDACTION bullet.
 - Scope-Paths: agent_workflows/security_hardening.py, agent_workflows/host_runner.py, tests/test_security_hardening.py, tests/test_host_runner_redaction.py, docs/security.md
 - Item-Dependencies: executed:0ev8cz
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: security
 - Priority: medium
@@ -16,9 +16,9 @@
 - Highest E allocated: 06
 - Author: opencode
 - Id: n09qoq
-- Approval: 2026-10-12, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-13 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: n09qoq verified (set lfko0e, attempt 1).
 - 2026-10-12 approved (aw set): status set to approved
 
 - 2026-10-12 reviewed (opencode/its_direct/pt3-claude-opus-5.5-1m-us): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-001..PR-005 fixed. Re-verified at 548700461: run-path probes admit AWS-shaped and bearer stdout today; scanner regex-only flags them (generic-secret-env/aws-access-key-id/bearer-token), not sha digests or email+IPv4; baseline 11 passed; scan_secrets.py is git-tracked under the force-included .aw/system.
