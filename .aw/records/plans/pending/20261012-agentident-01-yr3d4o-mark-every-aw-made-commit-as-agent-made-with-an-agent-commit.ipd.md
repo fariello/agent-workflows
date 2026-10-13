@@ -161,6 +161,13 @@ No spec governs commit identity or the `AW-Runner` trailer, so none is amended. 
 - Owner: plan author
 - Resolution or deferral rationale: Resolved by the author as an INFERENCE, not a maintainer ruling: the maintainer said (2026-10-11) that almost all work is agent-driven and that corrections are made by telling an agent, so `aw commit` is in practice the agent's commit path. A human committing by hand uses plain `git commit`, which E-05 (f) proves is unchanged. Reversible and cheap to change: if the maintainer wants a human-run `aw commit` to keep the user as committer, the helper needs a way to tell the two apart (e.g. an explicit `--as-human` flag), and that is the review's call.
 
+### OQ-03: Do the git wrappers need an `env=` keyword to carry the committer identity?
+
+- Blocking: no
+- Status: open
+- Owner: plan-review
+- Resolution or deferral rationale: RAISED 2026-10-12 while recovering stranded lane `aw/lane/aluots` (run `run-20261012T005641Z-2321995`, commit `adbd1202a`, not merged: it conflicts with this reviewed text). That lane's graduation check found that neither `git_commit_helper._git(repo_root, args)` nor `runner_shared._run_git(repo, args, *, timeout, input)` accepts an environment, so "the env is passed by the commit and merge call sites" (E-03) and "only these call sites pass the env" (E-07) have no mechanism for any site that goes through a wrapper. Its proposed fix: add ONE optional keyword `env: Mapping[str, str] | None = None` to both wrappers, merged over `os.environ` when given, `None` byte-identical to today; raw `subprocess.run` sites pass `env=` directly. The rest of that revision (seven driver commit sites, `worktree_lease.snapshot_lane_dirty_work`, `engine.prompt_and_run_commit`, excluding `materialize_merge_result`) is already in this plan from `/plan-review`. Review should decide whether to adopt the env keyword (and amend E-03/E-07 and F-08) before execution; the wrapper statements as written cannot be executed literally.
+
 ## Validation and cross-check (verify before reporting done)
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
