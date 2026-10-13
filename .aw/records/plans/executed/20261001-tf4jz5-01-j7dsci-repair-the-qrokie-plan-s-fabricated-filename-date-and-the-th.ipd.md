@@ -6,7 +6,7 @@
 - Scope: IN: correct the plan's malformed `- Date:` to the parseable `2026-07-23` so the tooled rename can read it (measured mandatory, F-04); rename the record to `20260723-instsafe-07-qrokie-...` through `aw group plans --rename --apply`; rewrite the FOUR tool-reachable live citations the preview names; HAND-correct the THREE citations the rewriter structurally cannot reach (F-06); (REVIEW 2026-10-02: the fixture entry no longer needs re-keying, because `rlcq7g` EXECUTED and the fixture is now keyed by id6 (`"qrokie": "executed"`), so a rename cannot drop it; and the tooled `aw group plans --rename` route NO LONGER EXISTS, because `949enf` EXECUTED and its filename-first `plans_refs._preserved_date` reproduces `20260101` from the current name. The rename is therefore a `git mv` plus the shipped rewriter `artifact_refs.plan_reference_rewrites_with_warnings`/`apply_reference_rewrites` driven from Python, per OQ-03's pre-authorized fallback.) OUT: every code path (`plans_refs._plan_date` is `949enf`; `plans_archive._plan_date` is `dkfthf`; the lint gap is `fqcax0`/`5h8u3z`; filename-versus-metadata detection is `mt6j1p`); the facet-less-stem blindness in `artifact_refs` this plan WORKS AROUND BY HAND rather than fixes (F-06, OQ-02); any other record's name, date, or body; the `20260101` constant itself; and every citation this plan classifies LEAVE (fenced evidence transcripts and historical `.agents/` paths).
 - Scope-Paths: .aw/records/plans/executed/20260101-instsafe-07-qrokie-clean-delta-and-tracking-modes-design-spec.ipd.md, .aw/records/plans/executed/20260723-instsafe-07-qrokie-clean-delta-and-tracking-modes-design-spec.ipd.md, DECISIONS.md, .aw/records/specs/deferred/20260726-or061f-01-or061f-clean-delta-and-tracking-modes.spec.md, .aw/records/research/20260726-0054-aw-delivery-and-clean-delta-research/README.md, .aw/records/backlog/done/20260901-historder-01-tk1gqo-lifecycle-history-order-mismatch.backlog.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -16,9 +16,9 @@
 - Highest E allocated: 07
 - Author: opencode/its_direct/pt3-claude-opus-5-1m-us
 - Id: j7dsci
-- Approval: 2026-10-03, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-13 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: j7dsci verified (set tf4jz5, attempt 1).
 - 2026-10-09 note (opencode its_direct/pt3-claude-opus-5.5-1m-us): path-only correction: the spec this plan edits was renamed by h8e3sm (49db00887) from `20260726-1239-01-...` to `20260726-or061f-01-or061f-...`; 3 references updated (Scope-Paths, E-05, the spec-sync note). The rename-destination dispatch refusal it hit (backlog dparot) is fixed separately.
 - 2026-10-03 approved (aw set): status set to approved
 - 2026-10-02 reviewed (aw set): status set to reviewed
