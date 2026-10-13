@@ -13,6 +13,7 @@ from pathlib import Path
 
 from agent_workflows import docs_check as dc
 from agent_workflows import release_readiness as rr
+from tests.test_release_readiness_producers import setup_minimal_workflows_tree
 
 
 def _setup_go_fixture(repo_root: Path) -> Path:
@@ -27,6 +28,7 @@ def _setup_go_fixture(repo_root: Path) -> Path:
     (docs_dir / "index.md").write_text(
         "# Documentation\nClean text with ASCII hyphen.\n", encoding="utf-8"
     )
+    setup_minimal_workflows_tree(repo_root)
     return docs_dir
 
 
