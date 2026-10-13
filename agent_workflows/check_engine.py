@@ -336,6 +336,15 @@ RULE_REGISTRY: Dict[str, RuleSpec] = {
     "check.test-citation-dangling": RuleSpec(
         "error", ASSURANCE_REPOSITORY, DET_DETERMINISTIC, ""
     ),
+    # IPD ml7b9e (backlog j7daih): a shipped non-test source file citing a `tests/test_*.py` path that
+    # does not exist on disk. Scoped to shipped non-test source (`agent_workflows/`, `tools/`).
+    # Severity is `info` (advisory) because the measured live baseline would start the rule red, which
+    # the backlog item explicitly sequences after cleanup; `artifact_core.drift_exit_code` ignores `info`
+    # so no caller's exit contract changes. Promotion to `error` is a one-line change once the live count
+    # reaches zero.
+    "check.source-test-citation-dangling": RuleSpec(
+        "info", ASSURANCE_REPOSITORY, DET_DETERMINISTIC, ""
+    ),
     # setidhard Order bwgyum (spec 4w7d6s G3/G5): the FORWARD half of the graduation link - a source
     # (backlog item or spec) whose `- Graduated-To:` names a plan Set that does not exist. Same severity
     # (`error`), same assurance class, and the SAME invariant I-07 as its `From-Backlog` back-link twin
@@ -4781,6 +4790,15 @@ def check_types(
             drift.extend(check_scope_path_target_stale(repo_root))
         except Exception:
             pass
+        # IPD ml7b9e (backlog j7daih) E-04: shipped-source comments citing nonexistent test files.
+        # Rides this full-sweep seam beside check_scope_path_target_stale. Its OWN try/except matching
+        # its neighbours (a failure must not suppress another scan). NOTE the seam runs only in this
+        # `collisions` branch (`types == ["all"]`), so this rule fires on `aw check all` and NOT on a
+        # type-scoped run, exactly like its siblings on that seam.
+        try:
+            drift.extend(check_source_test_citations(repo_root))
+        except Exception:
+            pass
         # setidhard bwgyum E-03: the FORWARD graduation link (`- Graduated-To:` on a source naming the
         # plan Set it became) is the same class of cross-tree ref check as the two back-link scans
         # above, so it rides the same once-per-full-sweep seam. Its OWN try/except, for the same stated
@@ -8793,6 +8811,100 @@ def check_spec_test_citations(repo_root: Path) -> List[_core.Drift]:
     drift: List[_core.Drift] = []
     for path, text in _iter_spec_records(repo_root):
         drift.extend(check_spec_test_citations_for_text(repo_root, path, text))
+    return drift
+
+
+_SOURCE_TEST_CITATION_DANGLING_RULE = "check.source-test-citation-dangling"
+_SOURCE_TEST_CITATION_DETAIL = "comment cites a test file that does not exist"
+_SOURCE_TEST_CITATION_PLACEHOLDERS: frozenset[str] = frozenset(
+    {
+        "tests/test_x.py",
+        "tests/test_foo.py",
+        "tests/test_extra.py",
+        "tests/test_secret.py",
+    }
+)
+_SOURCE_TEST_CITATION_RETIRED_RE = _re.compile(
+    r"(?i)\b(?:deleted|retired|removed)\b.{0,80}\b(?=[0-9a-fA-F]*[0-9])[0-9a-fA-F]{7,40}\b"
+)
+
+
+def check_source_test_citations(
+    repo_root: Path,
+    scan_roots: Tuple[str, ...] = ("agent_workflows", "tools"),
+) -> List[_core.Drift]:
+    """Flag comments/docstrings in shipped source citing nonexistent test files (IPD ml7b9e).
+
+    Walks non-test *.py under scan_roots, skipping ignored directories, and reports
+    dangling tests/test_*.py citations. Exempts illustrative placeholders and
+    retirement statements naming a deleting commit hash.
+    """
+    repo_root = Path(repo_root)
+    drift: List[_core.Drift] = []
+    ignored_dirs = _core.get_ignored_dirs(repo_root)
+
+    for root_rel in scan_roots:
+        p = repo_root / root_rel
+        if p.is_dir():
+            files = sorted(p.rglob("*.py"))
+        elif p.is_file() and p.suffix == ".py":
+            files = [p]
+        else:
+            files = []
+
+        for f in files:
+            if _core.is_ignored_path(f, repo_root, ignored_dirs):
+                continue
+            if f.name.startswith("test_") or f.name.endswith("_test.py"):
+                continue
+            try:
+                text = f.read_text(encoding="utf-8")
+            except Exception:
+                continue
+            if "tests/test_" not in text:
+                continue
+
+            try:
+                rel_path = f.relative_to(repo_root).as_posix()
+            except ValueError:
+                try:
+                    rel_path = f.resolve().relative_to(repo_root.resolve()).as_posix()
+                except (ValueError, OSError):
+                    rel_path = f.as_posix()
+
+            lines = text.splitlines()
+            seen_file_cited: Dict[str, int] = {}
+
+            for idx, line in enumerate(lines):
+                for m in _TEST_PATH_RE.finditer(line):
+                    cited = m.group(0)
+                    if (repo_root / cited).is_file():
+                        continue
+                    if cited in _SOURCE_TEST_CITATION_PLACEHOLDERS:
+                        continue
+                    next_line = lines[idx + 1] if idx + 1 < len(lines) else ""
+                    window = f"{line} {next_line}"
+                    if _SOURCE_TEST_CITATION_RETIRED_RE.search(window):
+                        continue
+                    line_num = idx + 1
+                    if cited not in seen_file_cited:
+                        seen_file_cited[cited] = line_num
+
+            for cited, line_num in seen_file_cited.items():
+                drift.append(
+                    enrich_drift(
+                        _core.Drift(
+                            f"{rel_path}:{line_num}",
+                            _SOURCE_TEST_CITATION_DANGLING_RULE,
+                            _SOURCE_TEST_CITATION_DETAIL,
+                            severity="info",
+                        ),
+                        observed=f"Source comment cites nonexistent {cited}",
+                        required=f"{cited} must exist on disk, or citation must be repointed or retired",
+                        recovery="repoint the citation, or rewrite it as a retirement statement naming the deleting commit",
+                    )
+                )
+
     return drift
 
 
