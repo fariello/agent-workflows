@@ -35,32 +35,32 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: Reproduce, then fix
 
-- [ ] E-01 Add `tests/test_redaction_key_casefold.py` with outcome tests that call `RedactionPolicy.redact` (and `security_hardening.default_redaction_policy().redact`) on payloads keyed `TOKEN`, `Authorization`, `Api_Key`, nested `{'outer': {'PASSWORD': ...}}`, and list `{'items': [{'Secret': ...}]}`, asserting the secret value is replaced by the mask, `was_redacted` is True, the ORIGINAL key spelling is preserved in the output, a non-sensitive key (`stdout`) is untouched, a policy constructed with an uppercase configured key (`sensitive_keys=['X-Api-Key']`) masks a lowercase payload key `x-api-key`, a payload with an int key (`{3: 'v'}`) is returned unchanged without raising, and a list value under a mixed-case sensitive key (`{'Token': ['a', 'b']}`) is masked whole. Run it against unmodified code and record the failures.
+- [x] E-01 Add `tests/test_redaction_key_casefold.py` with outcome tests that call `RedactionPolicy.redact` (and `security_hardening.default_redaction_policy().redact`) on payloads keyed `TOKEN`, `Authorization`, `Api_Key`, nested `{'outer': {'PASSWORD': ...}}`, and list `{'items': [{'Secret': ...}]}`, asserting the secret value is replaced by the mask, `was_redacted` is True, the ORIGINAL key spelling is preserved in the output, a non-sensitive key (`stdout`) is untouched, a policy constructed with an uppercase configured key (`sensitive_keys=['X-Api-Key']`) masks a lowercase payload key `x-api-key`, a payload with an int key (`{3: 'v'}`) is returned unchanged without raising, and a list value under a mixed-case sensitive key (`{'Token': ['a', 'b']}`) is masked whole. Run it against unmodified code and record the failures.
   - Depends on: none
   - Expected outcome: new test file exists; the mixed-case cases fail on unmodified code (reproducing the defect) while the lowercase control, the non-sensitive-key case and the int-key case pass.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 In the same test module, add one END-TO-END ledger test: a `run_ledger_store.RunLedgerStore` in `tmp_path` constructed with `security_hardening.default_redaction_policy()`, append a schema-valid `kind: run` seed record (the shape `tests/test_capture_command_contract.py::test_capture_command_persistence_clean_in_real_store` uses: `schema_version`, `kind`, `run_id`, `actor`, `parent`, `workflow_digest`, `requirement_digest`, `repo`, `head`) with an extra top-level key `'Authorization': 'Bearer s3cr3t'` (an extra top-level key passes schema validation; measured at review), then assert the ledger FILE text does not contain `s3cr3t` and `read_records()` shows the mask. Run it against unmodified code and record the failure.
+- [x] E-05 In the same test module, add one END-TO-END ledger test: a `run_ledger_store.RunLedgerStore` in `tmp_path` constructed with `security_hardening.default_redaction_policy()`, append a schema-valid `kind: run` seed record (the shape `tests/test_capture_command_contract.py::test_capture_command_persistence_clean_in_real_store` uses: `schema_version`, `kind`, `run_id`, `actor`, `parent`, `workflow_digest`, `requirement_digest`, `repo`, `head`) with an extra top-level key `'Authorization': 'Bearer s3cr3t'` (an extra top-level key passes schema validation; measured at review), then assert the ledger FILE text does not contain `s3cr3t` and `read_records()` shows the mask. Run it against unmodified code and record the failure.
   - Depends on: E-01
   - Expected outcome: the ledger test fails on unmodified code (the ledger file contains `s3cr3t`, F-7) and passes after E-02.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 In `agent_workflows/run_ledger_store.py`, change `RedactionPolicy.__init__` to store `self.sensitive_keys = frozenset(k.casefold() for k in sensitive_keys)` (configured keys are typed `Sequence[str]`; a non-string configured key now raises `AttributeError` at construction, which is the correct loud failure for a misconfigured policy, and every in-tree constructor passes strings: `security_hardening.default_redaction_policy` and tests only) and change `RedactionPolicy._redact_value` so the check reads `isinstance(parent_key, str) and parent_key.casefold() in self.sensitive_keys`. Do not rename payload keys and do not alter pattern, list, dict, or custom-hook handling.
+- [x] E-02 In `agent_workflows/run_ledger_store.py`, change `RedactionPolicy.__init__` to store `self.sensitive_keys = frozenset(k.casefold() for k in sensitive_keys)` (configured keys are typed `Sequence[str]`; a non-string configured key now raises `AttributeError` at construction, which is the correct loud failure for a misconfigured policy, and every in-tree constructor passes strings: `security_hardening.default_redaction_policy` and tests only) and change `RedactionPolicy._redact_value` so the check reads `isinstance(parent_key, str) and parent_key.casefold() in self.sensitive_keys`. Do not rename payload keys and do not alter pattern, list, dict, or custom-hook handling.
   - Depends on: E-01, E-05
   - Expected outcome: the E-01 and E-05 tests pass; output dicts keep their original key spellings; a non-string PAYLOAD key (e.g. int `3`) is still not matched and does not raise (the `isinstance` guard is what keeps the new `.casefold()` call from raising on it; the old membership test never raised either). Probe at review applying exactly these two edits: `{'TOKEN','Authorization','outer':{'PASSWORD'},'items':[{'Secret'}]}` all masked, `stdout` and `3` untouched, `X-Api-Key` configured masks `x-api-key`.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: Regression and documentation
 
-- [ ] E-03 Run the existing redaction-adjacent suites (`tests/test_security_hardening.py`, `tests/test_host_runner_redaction.py`, `tests/test_host_capability_registry.py`, plus every test module that exercises `RunLedgerStore`, found at execution time with `grep -ln RunLedgerStore tests/`) and then the full fast suite bare (`python3 -m pytest`).
+- [x] E-03 Run the existing redaction-adjacent suites (`tests/test_security_hardening.py`, `tests/test_host_runner_redaction.py`, `tests/test_host_capability_registry.py`, plus every test module that exercises `RunLedgerStore`, found at execution time with `grep -ln RunLedgerStore tests/`) and then the full fast suite bare (`python3 -m pytest`).
   - Depends on: E-02
   - Expected outcome: the named suites pass; the bare suite shows no failure by test name that is absent from a same-session baseline taken on the base commit before E-02.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 Document the behavior: add a CHANGELOG.md entry under the top `## 2.0.0 (pending)` section stating sensitive-key matching is now case-insensitive (security fix, backlog go20fk), and amend the `## Redaction` paragraph of `docs/evidence.md` to say sensitive keys are matched case-insensitively. No em or en dashes in this user-facing prose.
+- [x] E-04 Document the behavior: add a CHANGELOG.md entry under the top `## 2.0.0 (pending)` section stating sensitive-key matching is now case-insensitive (security fix, backlog go20fk), and amend the `## Redaction` paragraph of `docs/evidence.md` to say sensitive keys are matched case-insensitively. No em or en dashes in this user-facing prose.
   - Depends on: E-02
   - Expected outcome: both files carry the new sentence; `aw sanitize --agent` reports no new leak finding.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -129,30 +129,273 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: pasted pytest output of `tests/test_redaction_key_casefold.py` run on unmodified `run_ledger_store.py` showing the mixed-case cases FAILED and the lowercase, non-sensitive and int-key controls passed.
   - Observed evidence:
-  - Result: pending
+    ```
+    $ python3 -m pytest -o addopts="" tests/test_redaction_key_casefold.py
+    ============================= test session starts ==============================
+    platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0
+    Using --randomly-seed=2007411452
+    rootdir: .
+    configfile: pyproject.toml
+    plugins: anyio-4.14.1, randomly-4.1.0, cov-7.1.0, xdist-3.8.0
+    collecting ... collected 9 items
 
-- [ ] V-05 validates E-05
+    tests/test_redaction_key_casefold.py F..FFFF.F                           [100%]
+
+    =================================== FAILURES ===================================
+    _ RedactionKeyCasefoldTests.test_default_policy_redacts_mixed_case_sensitive_keys _
+
+    self = <tests.test_redaction_key_casefold.RedactionKeyCasefoldTests testMethod=test_default_policy_redacts_mixed_case_sensitive_keys>
+
+        def test_default_policy_redacts_mixed_case_sensitive_keys(self) -> None:
+            """Call security_hardening.default_redaction_policy().redact on payloads keyed TOKEN, Authorization, Api_Key."""
+            policy = security_hardening.default_redaction_policy()
+            payload = {
+                "TOKEN": "tok123",
+                "Authorization": "Bearer auth123",
+                "Api_Key": "key123",
+            }
+            redacted, was_redacted = policy.redact(payload)
+    >       self.assertTrue(was_redacted)
+    E       AssertionError: False is not true
+
+    tests/test_redaction_key_casefold.py:34: AssertionError
+    _____ RedactionKeyCasefoldTests.test_list_nested_mixed_case_sensitive_keys _____
+
+    self = <tests.test_redaction_key_casefold.RedactionKeyCasefoldTests testMethod=test_list_nested_mixed_case_sensitive_keys>
+
+        def test_list_nested_mixed_case_sensitive_keys(self) -> None:
+            """List with {'items': [{'Secret': ...}]} is redacted."""
+            policy = security_hardening.default_redaction_policy()
+            payload = {"items": [{"Secret": "sec123"}]}
+            redacted, was_redacted = policy.redact(payload)
+    >       self.assertTrue(was_redacted)
+    E       AssertionError: False is not true
+
+    tests/test_redaction_key_casefold.py:57: AssertionError
+    _______ RedactionKeyCasefoldTests.test_nested_mixed_case_sensitive_keys ________
+
+    self = <tests.test_redaction_key_casefold.RedactionKeyCasefoldTests testMethod=test_nested_mixed_case_sensitive_keys>
+
+        def test_nested_mixed_case_sensitive_keys(self) -> None:
+            """Nested dict with {'outer': {'PASSWORD': ...}} is redacted."""
+            policy = security_hardening.default_redaction_policy()
+            payload = {"outer": {"PASSWORD": "pwd123"}}
+            redacted, was_redacted = policy.redact(payload)
+    >       self.assertTrue(was_redacted)
+    E       AssertionError: False is not true
+
+    tests/test_redaction_key_casefold.py:48: AssertionError
+    _ RedactionKeyCasefoldTests.test_end_to_end_ledger_redacts_mixed_case_authorization _
+
+    self = <tests.test_redaction_key_casefold.RedactionKeyCasefoldTests testMethod=test_end_to_end_ledger_redacts_mixed_case_authorization>
+
+        def test_end_to_end_ledger_redacts_mixed_case_authorization(self) -> None:
+            """E-05: RunLedgerStore in tmp_path with default_redaction_policy masks mixed-case key."""
+            with tempfile.TemporaryDirectory() as tmpdir:
+                ledger_path = Path(tmpdir) / "ledger.jsonl"
+                policy = security_hardening.default_redaction_policy()
+                store = RunLedgerStore(ledger_path, redaction_policy=policy)
+
+                seed = {
+                    "schema_version": 2,
+                    "kind": "run",
+                    "run_id": "run-abc123ff",
+                    "actor": "executor",
+                    "parent": "",
+                    "workflow_digest": "0" * 64,
+                    "requirement_digest": "1" * 64,
+                    "repo": "test-repo",
+                    "head": "a" * 40,
+                    "Authorization": "Bearer s3cr3t",
+                }
+                store.append(seed)
+
+                # Assert the ledger file text does not contain s3cr3t
+                ledger_text = ledger_path.read_text(encoding="utf-8")
+    >           self.assertNotIn(
+                    "s3cr3t",
+                    ledger_text,
+                    f"Ledger file leaked raw secret: {ledger_text}",
+                )
+    E           AssertionError: 's3cr3t' unexpectedly found in '{"Authorization":"Bearer s3cr3t","actor":"executor","head":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","kind":"run","parent":"","prev_hash":"0000000000000000000000000000000000000000000000000000000000000000","repo":"test-repo","requirement_digest":"1111111111111111111111111111111111111111111111111111111111111111","run_id":"run-abc123ff","schema_version":2,"seq":0,"timestamp":"2026-10-13T15:04:03Z","workflow_digest":"0000000000000000000000000000000000000000000000000000000000000000"}\n' : Ledger file leaked raw secret: {"Authorization":"Bearer s3cr3t","actor":"executor","head":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","kind":"run","parent":"","prev_hash":"0000000000000000000000000000000000000000000000000000000000000000","repo":"test-repo","requirement_digest":"1111111111111111111111111111111111111111111111111111111111111111","run_id":"run-abc123ff","schema_version":2,"seq":0,"timestamp":"2026-10-13T15:04:03Z","workflow_digest":"0000000000000000000000000000000000000000000000000000000000000000"}
+
+    tests/test_redaction_key_casefold.py:127: AssertionError
+    __ RedactionKeyCasefoldTests.test_mixed_case_key_with_list_value_masked_whole __
+
+    self = <tests.test_redaction_key_casefold.RedactionKeyCasefoldTests testMethod=test_mixed_case_key_with_list_value_masked_whole>
+
+        def test_mixed_case_key_with_list_value_masked_whole(self) -> None:
+            """A list value under a mixed-case sensitive key ({'Token': ['a', 'b']}) is masked whole."""
+            policy = security_hardening.default_redaction_policy()
+            payload = {"Token": ["a", "b"]}
+            redacted, was_redacted = policy.redact(payload)
+    >       self.assertTrue(was_redacted)
+    E       AssertionError: False is not true
+
+    tests/test_redaction_key_casefold.py:66: AssertionError
+    _ RedactionKeyCasefoldTests.test_uppercase_configured_key_masks_lowercase_payload_key _
+
+    self = <tests.test_redaction_key_casefold.RedactionKeyCasefoldTests testMethod=test_uppercase_configured_key_masks_lowercase_payload_key>
+
+        def test_uppercase_configured_key_masks_lowercase_payload_key(self) -> None:
+            """A policy constructed with uppercase configured key masks lowercase payload key."""
+            policy = RedactionPolicy(sensitive_keys=["X-Api-Key"])
+            payload = {"x-api-key": "xkey123"}
+            redacted, was_redacted = policy.redact(payload)
+    >       self.assertTrue(was_redacted)
+    E       AssertionError: False is not true
+
+    tests/test_redaction_key_casefold.py:75: AssertionError
+    =========================== short test summary info ============================
+    FAILED tests/test_redaction_key_casefold.py::RedactionKeyCasefoldTests::test_default_policy_redacts_mixed_case_sensitive_keys
+    FAILED tests/test_redaction_key_casefold.py::RedactionKeyCasefoldTests::test_list_nested_mixed_case_sensitive_keys
+    FAILED tests/test_redaction_key_casefold.py::RedactionKeyCasefoldTests::test_nested_mixed_case_sensitive_keys
+    FAILED tests/test_redaction_key_casefold.py::RedactionKeyCasefoldTests::test_end_to_end_ledger_redacts_mixed_case_authorization
+    FAILED tests/test_redaction_key_casefold.py::RedactionKeyCasefoldTests::test_mixed_case_key_with_list_value_masked_whole
+    FAILED tests/test_redaction_key_casefold.py::RedactionKeyCasefoldTests::test_uppercase_configured_key_masks_lowercase_payload_key
+    ========================= 6 failed, 3 passed in 0.42s ==========================
+    ```
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: pasted pytest output of the E-05 ledger test FAILING on unmodified `run_ledger_store.py` (assertion showing `s3cr3t` present in the ledger file text), then passing after E-02. Runtime path: `RunLedgerStore.append` -> `append_held` -> `RedactionPolicy.redact` (shipped code), so the observation is reachable.
   - Observed evidence:
-  - Result: pending
+    Failing on unmodified code (from V-01 run above):
+    ```
+    FAILED tests/test_redaction_key_casefold.py::RedactionKeyCasefoldTests::test_end_to_end_ledger_redacts_mixed_case_authorization
+    ...
+    E AssertionError: 's3cr3t' unexpectedly found in '{"Authorization":"Bearer s3cr3t","actor":"executor","head":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","kind":"run","parent":"","prev_hash":"0000000000000000000000000000000000000000000000000000000000000000","repo":"test-repo","requirement_digest":"1111111111111111111111111111111111111111111111111111111111111111","run_id":"run-abc123ff","schema_version":2,"seq":0,"timestamp":"2026-10-13T15:04:03Z","workflow_digest":"0000000000000000000000000000000000000000000000000000000000000000"}\n' : Ledger file leaked raw secret: {"Authorization":"Bearer s3cr3t","actor":"executor","head":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","kind":"run","parent":"","prev_hash":"0000000000000000000000000000000000000000000000000000000000000000","repo":"test-repo","requirement_digest":"1111111111111111111111111111111111111111111111111111111111111111","run_id":"run-abc123ff","schema_version":2,"seq":0,"timestamp":"2026-10-13T15:04:03Z","workflow_digest":"0000000000000000000000000000000000000000000000000000000000000000"}
+    ```
+    Passing after E-02:
+    ```
+    $ python3 -m pytest -o addopts="" tests/test_redaction_key_casefold.py -k test_end_to_end_ledger_redacts_mixed_case_authorization
+    ============================= test session starts ==============================
+    platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0
+    rootdir: .
+    configfile: pyproject.toml
+    plugins: anyio-4.14.1, randomly-4.1.0, cov-7.1.0, xdist-3.8.0
+    collected 9 items / 8 deselected / 1 selected
 
-- [ ] V-02 validates E-02
+    tests/test_redaction_key_casefold.py .                                   [100%]
+
+    ======================= 1 passed, 8 deselected in 0.32s ========================
+    ```
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: `git diff agent_workflows/run_ledger_store.py` pasted showing only the casefold changes in `__init__` and `_redact_value`, plus pasted pytest output showing every test in `tests/test_redaction_key_casefold.py` (E-01 and E-05 cases) passed.
   - Observed evidence:
-  - Result: pending
+    Pasted `git diff agent_workflows/run_ledger_store.py`:
+    ```diff
+    diff --git a/agent_workflows/run_ledger_store.py b/agent_workflows/run_ledger_store.py
+    index 99fe23b83..ceb0eaeef 100644
+    --- a/agent_workflows/run_ledger_store.py
+    +++ b/agent_workflows/run_ledger_store.py
+    @@ -241,14 +241,14 @@ class RedactionPolicy:
+                 else:
+                     compiled_patterns.append(p)
+             self.patterns = tuple(compiled_patterns)
+    -        self.sensitive_keys = frozenset(sensitive_keys)
+    +        self.sensitive_keys = frozenset(k.casefold() for k in sensitive_keys)
+             self.mask = mask
+             self.custom_hook = custom_hook
 
-- [ ] V-03 validates E-03
+         def _redact_value(
+             self, val: Any, parent_key: Optional[str] = None
+         ) -> Tuple[Any, bool]:
+    -        if parent_key in self.sensitive_keys:
+    +        if isinstance(parent_key, str) and parent_key.casefold() in self.sensitive_keys:
+                 return self.mask, True
+
+             if isinstance(val, str):
+    ```
+    Pasted pytest output:
+    ```
+    $ python3 -m pytest -o addopts="" tests/test_redaction_key_casefold.py
+    ============================= test session starts ==============================
+    platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0
+    Using --randomly-seed=1112896620
+    rootdir: .
+    configfile: pyproject.toml
+    plugins: anyio-4.14.1, randomly-4.1.0, cov-7.1.0, xdist-3.8.0
+    collecting ... collected 9 items
+
+    tests/test_redaction_key_casefold.py .........                           [100%]
+
+    ============================== 9 passed in 0.42s ===============================
+    ```
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: pasted pytest summary lines for the named suites and the `RunLedgerStore` modules (with the `grep -ln` listing that found them), all passing; and the bare `python3 -m pytest` summary lines from the baseline and after E-02, with any failing test names listed side by side showing none is new.
   - Observed evidence:
-  - Result: pending
+    RunLedgerStore modules:
+    ```
+    $ grep -ln "RunLedgerStore" tests/*.py
+    tests/test_capture_command_contract.py
+    tests/test_run_cli_corruption_exit.py
+    tests/test_run_cli_declarations.py
+    tests/test_run_recovery_cli.py
+    tests/test_runs_subdir_root.py
+    ```
+    Named suites + RunLedgerStore modules summary:
+    ```
+    $ python3 -m pytest -o addopts="" tests/test_security_hardening.py tests/test_host_runner_redaction.py tests/test_host_capability_registry.py tests/test_capture_command_contract.py tests/test_run_cli_corruption_exit.py tests/test_run_cli_declarations.py tests/test_run_recovery_cli.py tests/test_runs_subdir_root.py
+    ============================= 127 passed in 26.67s =============================
+    ```
+    Bare `python3 -m pytest` baseline:
+    ```
+    8073 passed, 4 skipped, 18 xfailed, 3 warnings in 1131.20s (0:18:51)
+    ```
+    Bare `python3 -m pytest` after E-02:
+    ```
+    8082 passed, 4 skipped, 18 xfailed, 3 warnings in 472.24s (0:07:52)
+    ```
+    Failing tests comparison:
+    Baseline: none (0 failed)
+    After E-02: none (0 failed)
+    Delta: 0 new failures; +9 new tests passed.
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: pasted `git diff CHANGELOG.md docs/evidence.md` showing the case-insensitive sentence in each, and pasted `aw sanitize --agent` result record with no fail.
   - Observed evidence:
-  - Result: pending
+    Pasted `git diff CHANGELOG.md docs/evidence.md`:
+    ```diff
+    diff --git a/CHANGELOG.md b/CHANGELOG.md
+    index 6fdfecceb..c35474681 100644
+    --- a/CHANGELOG.md
+    +++ b/CHANGELOG.md
+    @@ -24,6 +24,7 @@ The direction of the 2.x line (in progress, not all shipped in this entry):
+
+     Major storage-layout boundary. The logical model (D126-D129) was superseded by the PHYSICAL `.aw/` hierarchy specified in `20260810-1447-01-physical-aw-hierarchy-placement-and-migration.spec.md` (D130, D134-D137), which the framework now implements and has migrated its own repository onto:
+
+    +- Fixed: `RedactionPolicy` sensitive-key matching is now case-insensitive (security fix, backlog go20fk).
+     - Added: research document companion directory convention (`<doc-stem>.data/`) for non-Markdown companion files. `aw research index` lists companions in `INDEX.json` and flags orphaned companions via `check.research-companion-orphaned`, `aw research mv` and `set-assign` rename companion directories with collision refusal, `aw research promote` and `aw archive` carry companion directories to shards, all research walks skip companion contents, and `aw attention` excludes companion files from artifact status checks.
+     - Fixed: the workflow history block bounding rule is now shared, so aw backlog set no longer suppresses a same-status record against an indented line it cannot preserve, and closing a decision item no longer duplicates wrapped history records.
+     - Fixed: the color_depth pin now also governs general command styling (outcome words, paths, badges, severity labels), so none removes all color from those surfaces and 16 uses basic ANSI colors, and a terminal detected as 16-color (for example TERM=vt100 or TERM=linux) now gets basic ANSI colors there too instead of 256-color codes.
+    diff --git a/docs/evidence.md b/docs/evidence.md
+    index 28df8f2bb..d803d2948 100644
+    --- a/docs/evidence.md
+    +++ b/docs/evidence.md
+    @@ -20,7 +20,7 @@ keys never land verbatim.
+
+     ## Redaction
+
+    -`RedactionPolicy` masks sensitive keys and patterns BEFORE a record is appended. If a required
+    +`RedactionPolicy` masks sensitive keys and patterns BEFORE a record is appended. Sensitive keys are matched case-insensitively. If a required
+     verification payload is redacted such that the check cannot be conclusively made, validation
+     fails closed (`EV-REDACTION-CONFLICT`) rather than passing on masked data. See
+     [security.md](security.md) for the evidence-redaction boundary.
+    ```
+    Pasted `aw sanitize --agent` result record:
+    ```json
+    {"schema":"aw.agent/v1","kind":"result","cmd":"check-local-leaks","outcome":"clean","exit":0,"verified":true,"complete":true,"checked":4939,"findings":0,"evidence":["leak-scan"],"next":null}
+    ```
+  - Result: pass
 
 ## Approval and execution gate
 
