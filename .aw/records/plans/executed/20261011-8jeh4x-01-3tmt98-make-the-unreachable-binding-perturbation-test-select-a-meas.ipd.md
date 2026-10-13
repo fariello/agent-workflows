@@ -8,7 +8,7 @@
 - Scope: IN: (1) rewrite the perturbation test so the unreachable predicate it injects is SELECTED AT RUNTIME by asking the real prover, and the reachable one in the mixed arm likewise, with an explicit precondition assertion naming the chosen predicate and its verdict, so the test can no longer silently test the wrong thing; (2) correct the stale "known consequence 2" sentence in the `prove_predicate_reachability` docstring to describe the measured behavior (the `claim` false edge is an instance of consequence 1). OUT: changing the prover's name-keyed algorithm (deliberate per its docstring and `f7z10q`; tightening it is a design change, not this test's repair); changing `RUN-BASELINE-OWNERSHIP`'s predicate list (it stays BOUND through the reachable `run_evidence.dirty_within`; `worktree_lease.assert_worker_scope` is `unreachable` at HEAD, measured at review, so the false `claim` edge does not change its validated outcome); the other `wc5c5e` nodes (separately carried).
 - Scope-Paths: tests/test_run_finding_reachability.py, agent_workflows/run_evidence.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -19,9 +19,9 @@
 - Highest E allocated: 05
 - Author: opencode
 - Id: 3tmt98
-- Approval: 2026-10-12, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-13 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: 3tmt98 verified (set 8jeh4x, attempt 1).
 - 2026-10-12 approved (aw set): status set to approved
 - 2026-10-12 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-001..PR-006
 
