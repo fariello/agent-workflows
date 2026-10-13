@@ -36,25 +36,25 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: Confirm the source state
 
-- [ ] E-01 Re-read the `for d in report.all_drift:` loop in `doctor.inspect_repo` and confirm the `Diagnostic(...)` call passes `severity=getattr(d, "severity", "") or check_engine.rule_spec(d.rule).severity or "error"`; if a hardcoded `severity="error"` is found instead (for example after a revert), replace it with exactly that expression in `agent_workflows/doctor.py`.
+- [x] E-01 Re-read the `for d in report.all_drift:` loop in `doctor.inspect_repo` and confirm the `Diagnostic(...)` call passes `severity=getattr(d, "severity", "") or check_engine.rule_spec(d.rule).severity or "error"`; if a hardcoded `severity="error"` is found instead (for example after a revert), replace it with exactly that expression in `agent_workflows/doctor.py`.
   - Depends on: none
   - Expected outcome: `grep -n 'severity="error"' agent_workflows/doctor.py` returns no match inside `inspect_repo`, and the fallback chain expression is present.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: Regression tests
 
-- [ ] E-02 Create `tests/test_doctor_diagnostic_severity.py` with a test that monkeypatches `doctor.run_doctor` (the seam `inspect_repo` already honors via the `_RUN_DOCTOR_CODE` check) to return four drifts: one with explicit `severity="info"`, one with explicit `severity="warning"`, one with empty severity on the registered info rule `doctor.dangling-doc-reference`, and one with empty severity on an unregistered rule id; call `doctor.inspect_repo(repo)` on a `tests.support.init_repo` fixture under `tmp_path` and assert the resulting diagnostics' severities are `info`, `warning`, `info`, `error` respectively, matched by rule/location.
+- [x] E-02 Create `tests/test_doctor_diagnostic_severity.py` with a test that monkeypatches `doctor.run_doctor` (the seam `inspect_repo` already honors via the `_RUN_DOCTOR_CODE` check) to return four drifts: one with explicit `severity="info"`, one with explicit `severity="warning"`, one with empty severity on the registered info rule `doctor.dangling-doc-reference`, and one with empty severity on an unregistered rule id; call `doctor.inspect_repo(repo)` on a `tests.support.init_repo` fixture under `tmp_path` and assert the resulting diagnostics' severities are `info`, `warning`, `info`, `error` respectively, matched by rule/location.
   - Depends on: E-01
   - Expected outcome: test passes against the current source and would fail if the construction hardcoded `error`.
-  - Execution state: pending
-- [ ] E-03 In the same file add a test that monkeypatches `doctor.run_doctor` to return only `info`-severity drifts and asserts `inspect_repo` still reports the info severities while the exit-code contract is honored (`artifact_core.drift_exit_code` on the drifts is 0 and the result's status is `clean`), proving severity preservation does not move the exit code.
+  - Execution state: performed
+- [x] E-03 In the same file add a test that monkeypatches `doctor.run_doctor` to return only `info`-severity drifts and asserts `inspect_repo` still reports the info severities while the exit-code contract is honored (`artifact_core.drift_exit_code` on the drifts is 0 and the result's status is `clean`), proving severity preservation does not move the exit code.
   - Depends on: E-01
   - Expected outcome: test passes; info-only findings yield a clean exit with `info` diagnostics.
-  - Execution state: pending
-- [ ] E-04 In the same file add an end-to-end CLI test. In an `init_repo` fixture under `tmp_path`, write an `AGENTS.md` whose `<!-- aw:block -->` ... `<!-- /aw:block -->` region backticks a missing path (e.g. `` `docs/missing-thing.md` ``), so `doctor.probe_installed_doc_references` yields a `doctor.dangling-doc-reference` drift with severity `info`. Also create one untracked file. Run `tests.support.run_cli("doctor", "--agent", "--verbose", cwd=repo)`, take the `aw.agent/v1` `result` record, and run `tests.support.run_cli("doctor", "--json", cwd=repo)` too. On BOTH surfaces assert: every diagnostic carries a severity in `{"error", "warning", "info"}`; the `doctor.dangling-doc-reference` diagnostic is `info`, which is the DISCRIMINATING assertion because a hardcoded `error` turns it red; and the `doctor.git-untracked` diagnostic equals `check_engine.rule_spec("doctor.git-untracked").severity`. `--verbose` is REQUIRED for the agent surface: compact `--agent` emits diagnostics as `{location, rule}` only (`result_types.CommandResult.to_agent_record`, the `else` arm of `if is_verbose:` under `# Diagnostics (omitted in compact if clean)`), so a bare `--agent` record has no severity to assert. Note that the registry fallback is not discriminating at the CLI: `doctor.git-untracked` is unregistered and resolves to the default `error`, which a hardcoded `error` would also produce. The seam test (E-02) is what pins the fallback chain.
+  - Execution state: performed
+- [x] E-04 In the same file add an end-to-end CLI test. In an `init_repo` fixture under `tmp_path`, write an `AGENTS.md` whose `<!-- aw:block -->` ... `<!-- /aw:block -->` region backticks a missing path (e.g. `` `docs/missing-thing.md` ``), so `doctor.probe_installed_doc_references` yields a `doctor.dangling-doc-reference` drift with severity `info`. Also create one untracked file. Run `tests.support.run_cli("doctor", "--agent", "--verbose", cwd=repo)`, take the `aw.agent/v1` `result` record, and run `tests.support.run_cli("doctor", "--json", cwd=repo)` too. On BOTH surfaces assert: every diagnostic carries a severity in `{"error", "warning", "info"}`; the `doctor.dangling-doc-reference` diagnostic is `info`, which is the DISCRIMINATING assertion because a hardcoded `error` turns it red; and the `doctor.git-untracked` diagnostic equals `check_engine.rule_spec("doctor.git-untracked").severity`. `--verbose` is REQUIRED for the agent surface: compact `--agent` emits diagnostics as `{location, rule}` only (`result_types.CommandResult.to_agent_record`, the `else` arm of `if is_verbose:` under `# Diagnostics (omitted in compact if clean)`), so a bare `--agent` record has no severity to assert. Note that the registry fallback is not discriminating at the CLI: `doctor.git-untracked` is unregistered and resolves to the default `error`, which a hardcoded `error` would also produce. The seam test (E-02) is what pins the fallback chain.
   - Depends on: E-01
   - Expected outcome: test passes; both machine surfaces report `doctor.dangling-doc-reference` as `info` beside `error` diagnostics (measured at review on HEAD `6aa8c3441`: `[('doctor.version-not-installed', 'error'), ('doctor.dangling-doc-reference', 'info'), ('doctor.git-untracked', 'error')]` on `--agent --verbose` and on `--json`, exit 1).
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -114,22 +114,107 @@ N/A: no spec or user-facing doc describes doctor's per-diagnostic severity mappi
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: pasted output of `grep -n 'or check_engine.rule_spec(d.rule).severity' agent_workflows/doctor.py` showing the line inside `inspect_repo`, plus `git diff agent_workflows/doctor.py` (empty if no regression was found).
   - Observed evidence:
-  - Result: pending
-- [ ] V-02 validates E-02
+    ```
+    $ grep -n 'or check_engine.rule_spec(d.rule).severity' agent_workflows/doctor.py
+    2230:                or check_engine.rule_spec(d.rule).severity
+    $ git diff agent_workflows/doctor.py
+    ```
+  - Result: pass
+- [x] V-02 validates E-02
   - Required evidence: pasted pytest output for the seam-level preservation test showing it passed, with the test asserting `info`, `warning`, `info`, `error` for the four drifts. Then a MUTATION run: temporarily replace the fallback-chain expression in `doctor.inspect_repo` with `severity="error"`, re-run the test file, and paste the FAILED output naming this test (and E-04's test); restore it, and paste an empty `git diff agent_workflows/doctor.py`.
   - Observed evidence:
-  - Result: pending
-- [ ] V-03 validates E-03
+    Pass run:
+    ```
+    ============================= test session starts ==============================
+    platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0
+    cachedir: .pytest_cache
+    Using --randomly-seed=4014160928
+    rootdir: <repo-root>
+    configfile: pyproject.toml
+    plugins: anyio-4.14.1, randomly-4.1.0, cov-7.1.0, xdist-3.8.0
+    collecting ... collected 1 item
+
+    tests/test_doctor_diagnostic_severity.py::test_doctor_inspect_repo_preserves_diagnostic_severity_seam PASSED [100%]
+
+    ============================== 1 passed in 0.90s ===============================
+    ```
+    Mutation run (with `severity="error"` in `doctor.inspect_repo`):
+    ```
+    ============================= test session starts ==============================
+    platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0
+    cachedir: .pytest_cache
+    Using --randomly-seed=2897174303
+    rootdir: <repo-root>
+    configfile: pyproject.toml
+    plugins: anyio-4.14.1, randomly-4.1.0, cov-7.1.0, xdist-3.8.0
+    collecting ... collecting 3 items                                                             collected 3 items
+
+    tests/test_doctor_diagnostic_severity.py::test_doctor_inspect_repo_info_only_exit_code_and_status FAILED [ 33%]
+    tests/test_doctor_diagnostic_severity.py::test_doctor_inspect_repo_preserves_diagnostic_severity_seam FAILED [ 66%]
+    tests/test_doctor_diagnostic_severity.py::test_doctor_cli_preserves_diagnostic_severity_e2e FAILED [100%]
+
+    =================================== FAILURES ===================================
+    ...
+    tests/test_doctor_diagnostic_severity.py:67: AssertionError: assert 'error' == 'info'
+    ...
+    tests/test_doctor_diagnostic_severity.py:148: AssertionError: agent: doctor.dangling-doc-reference diagnostic severity must be 'info', got 'error'
+    =========================== short test summary info ============================
+    FAILED tests/test_doctor_diagnostic_severity.py::test_doctor_inspect_repo_info_only_exit_code_and_status
+    FAILED tests/test_doctor_diagnostic_severity.py::test_doctor_inspect_repo_preserves_diagnostic_severity_seam
+    FAILED tests/test_doctor_diagnostic_severity.py::test_doctor_cli_preserves_diagnostic_severity_e2e
+    ============================== 3 failed in 5.26s ===============================
+    ```
+    Restored and verified diff:
+    ```
+    $ git checkout agent_workflows/doctor.py && git diff agent_workflows/doctor.py
+    ```
+  - Result: pass
+- [x] V-03 validates E-03
   - Required evidence: pasted pytest output for the info-only exit-code test showing it passed.
   - Observed evidence:
-  - Result: pending
-- [ ] V-04 validates E-04
+    ```
+    ============================= test session starts ==============================
+    platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0
+    cachedir: .pytest_cache
+    Using --randomly-seed=2609233144
+    rootdir: <repo-root>
+    configfile: pyproject.toml
+    plugins: anyio-4.14.1, randomly-4.1.0, cov-7.1.0, xdist-3.8.0
+    collecting ... collected 1 item                                                              collected 1 item
+
+    tests/test_doctor_diagnostic_severity.py::test_doctor_inspect_repo_info_only_exit_code_and_status PASSED [100%]
+
+    ============================== 1 passed in 1.15s ===============================
+    ```
+  - Result: pass
+- [x] V-04 validates E-04
   - Required evidence: pasted pytest output for the CLI end-to-end test showing it passed (the observation is produced by `aw doctor --agent --verbose` and `aw doctor --json` via `doctor.inspect_repo`), the V-02 mutation run showing this test also went red, and the pasted summary line of a bare `python3 -m pytest` full-suite run with no new failures (any failure shown as pre-existing by re-running it at the base commit).
   - Observed evidence:
-  - Result: pending
+    CLI end-to-end test run:
+    ```
+    ============================= test session starts ==============================
+    platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0
+    cachedir: .pytest_cache
+    Using --randomly-seed=22809411
+    rootdir: <repo-root>
+    configfile: pyproject.toml
+    plugins: anyio-4.14.1, randomly-4.1.0, cov-7.1.0, xdist-3.8.0
+    collecting ... collected 1 item                                                              collected 1 item
+
+    tests/test_doctor_diagnostic_severity.py::test_doctor_cli_preserves_diagnostic_severity_e2e PASSED [100%]
+
+    ============================== 1 passed in 4.09s ===============================
+    ```
+    Mutation run failure:
+    Demonstrated in V-02 mutation run above where `tests/test_doctor_diagnostic_severity.py::test_doctor_cli_preserves_diagnostic_severity_e2e` failed with `AssertionError: agent: doctor.dangling-doc-reference diagnostic severity must be 'info', got 'error'`.
+    Full suite summary line:
+    ```
+    7590 passed, 2 skipped, 3 warnings in 1092.96s (0:18:12)
+    ```
+  - Result: pass
 
 ## Approval and execution gate
 
