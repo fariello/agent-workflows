@@ -1,7 +1,7 @@
 ---
 id: q65sz3
 created: 20260831
-set: cross-platform-agent-write-confinement
+set: writeconfine
 order: 00
 topic: [agent execution isolation]
 model:

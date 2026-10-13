@@ -1,7 +1,7 @@
 ---
 id: ti73qs
 created: 20260905
-set: skill-authoring-best-practice
+set: skillauthor
 order: 00
 topic: [skills, authoring, prompt-design]
 model:
