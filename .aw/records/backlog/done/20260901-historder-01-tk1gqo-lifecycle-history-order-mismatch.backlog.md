@@ -42,7 +42,7 @@ transition runs backwards. Measured on the wslayout orchestrator:
 
 THE PLANS ARE NOT AT FAULT; THE ASSUMPTION IS THE SUSPECT PART. The repositorys ACTUAL practice is
 OLDEST-FIRST. Sampled from `executed/` (i.e. a plan that completed the whole lifecycle),
-`20260101-instsafe-07-qrokie-clean-delta-and-tracking-modes-design-spec.ipd.md` records
+`20260723-instsafe-07-qrokie-clean-delta-and-tracking-modes-design-spec.ipd.md` records
 2026-07-23 draft -> 2026-07-25 reframed -> 2026-07-26 executed, oldest first. The `wslayout` plans follow
 that same order. So they conform to practice and fail only against the parsers undocumented
 expectation.

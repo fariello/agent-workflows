@@ -136,5 +136,5 @@ This spec builds nothing. The build is a sequence of separate IPDs, each with it
 
 ## Workflow history
 
-- 2026-08-08 migrated (aw specs): normalized status to `deferred` (was: draft spec (evidence-gated; build deferred to per-phase IPDs); produced by IPD `20260101-instsafe-07-qrokie-clean-delta-and-tracking-modes-design-spec`)
+- 2026-08-08 migrated (aw specs): normalized status to `deferred` (was: draft spec (evidence-gated; build deferred to per-phase IPDs); produced by IPD `20260723-instsafe-07-qrokie-clean-delta-and-tracking-modes-design-spec`)
 - 2026-09-18 deferred (aw specs): IPD diof9n E-03: repointed the dangling gate off the retired TODO.md work surface onto backlog item m15n3k, created by this plan because the spec's awaited condition (its Section 11 build phases, gated on the Phase 0 conformance harness) had no carrier at all. Gate-Kind changed artifact->todo because an id6 survives the item moving between backlog lifecycle directories while a path does not. No other field of this spec changed.
