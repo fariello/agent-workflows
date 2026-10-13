@@ -1,5 +1,5 @@
 - Id: 0rnvj6
-- Status: graduated
+- Status: done
 - Graduated-To: uonrjgcite
 - Set: uonrjgcite
 - Priority: low
@@ -7,6 +7,7 @@
 - Summary: Decide whether uonrjg criterion A5 should extend to a committed lifecycle golden-output corpus
 
 ## Workflow history
+- 2026-10-13 done (aw backlog): closed by aw agy run: IPD mq715m executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20261011-uonrjgcite-02-mq715m-give-uonrjg-criterion-a5-s-golden-output-clause-a-committed.ipd.md); evidence .aw/records/plans/executed/20261011-uonrjgcite-02-mq715m-give-uonrjg-criterion-a5-s-golden-output-clause-a-committed.ipd.md
 - 2026-10-12 graduated (aw backlog): graduated by run run-20261012T005641Z-2321995: mq715m
 - 2026-10-02 created (aw backlog): Decide whether uonrjg criterion A5 should extend to a committed lifecycle golden-output corpus
 
