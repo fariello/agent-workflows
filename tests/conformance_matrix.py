@@ -553,6 +553,29 @@ MUTATION_EXEMPTION_REGISTRY: Dict[str, Exemption] = {
 }
 
 # --------------------------------------------------------------------------------------------------
+# Family-root exemption registry (0qdl9e E-03)
+# --------------------------------------------------------------------------------------------------
+# THE REGISTRY IS A CEILING, NOT A CONVENIENCE. Adding an entry to silence a red
+# sweep is the prohibited failure mode that this harness exists to prevent, and a
+# known_broken entry REQUIRES a filed item id. There is no catch-all, wildcard, or
+# default-skip permitted; every exempted root must be individually enumerated with
+# a valid typed reason and resolvable citation.
+# Allowed reason_kind is "known_broken" only. Citations must resolve to a live backlog item.
+
+FAMILY_ROOT_EXEMPTION_REGISTRY: Dict[str, Exemption] = {
+    "config exclude": Exemption(
+        reason_kind="known_broken",
+        citation="o8cz48",
+        reason="human refusal 'FAIL     Usage: aw config exclude {add|list|rm} ...' with no aw.agent/v1 envelope",
+    ),
+    "runs": Exemption(
+        reason_kind="known_broken",
+        citation="l5dq92",
+        reason='bare payload {"runs": []} with no aw.agent/v1 envelope',
+    ),
+}
+
+# --------------------------------------------------------------------------------------------------
 # Declared unreachable command allow-set (declabsent Order 01 gm9baj E-02)
 # --------------------------------------------------------------------------------------------------
 # THE ALLOW-SET IS A CEILING, NOT A CONVENIENCE. Every entry requires an open

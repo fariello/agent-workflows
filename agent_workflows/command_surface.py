@@ -2522,6 +2522,43 @@ def discover_parser_leaves(
     return leaves
 
 
+def discover_parser_roots(
+    parser: argparse.ArgumentParser, prefix: str = ""
+) -> Set[str]:
+    """Recursively extract all CANONICAL root command paths from an argparse parser tree.
+
+    A parser root is any parser node that HAS at least one ``argparse._SubParsersAction``,
+    excluding the top-level parser itself (empty prefix).
+
+    This is the inversion of ``discover_parser_leaves``: the two sets partition the non-empty
+    nodes of the canonical parser tree and are disjoint by construction.
+
+    ALIASES ARE EXCLUDED using the same first-key-by-identity rule as
+    ``discover_parser_leaves``: only the first choice mapping to a given subparser object
+    is traversed or reported.
+    """
+    roots: Set[str] = set()
+    subparsers_actions = [
+        a for a in parser._actions if isinstance(a, argparse._SubParsersAction)
+    ]
+    if not subparsers_actions:
+        return roots
+
+    name = prefix.strip()
+    if name:
+        roots.add(name)
+
+    for sa in subparsers_actions:
+        seen_subparsers: list[tuple[str, argparse.ArgumentParser]] = []
+        for choice_name, subparser in sa.choices.items():
+            if any(subparser is prior for _, prior in seen_subparsers):
+                continue
+            seen_subparsers.append((choice_name, subparser))
+            full_name = f"{prefix} {choice_name}".strip()
+            roots.update(discover_parser_roots(subparser, full_name))
+    return roots
+
+
 def find_undeclared_leaves(parser: argparse.ArgumentParser) -> Set[str]:
     """Return any parser leaves that lack a contract declaration in COMMAND_INVENTORY."""
     parser_leaves = discover_parser_leaves(parser)
