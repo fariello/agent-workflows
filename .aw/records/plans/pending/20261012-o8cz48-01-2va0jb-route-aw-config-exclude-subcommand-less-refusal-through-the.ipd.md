@@ -109,6 +109,7 @@ Alternatives considered and rejected: (i) fix ONLY the root, as the item's "like
   - Carrier-Declined: no defect is left behind; E-05 covers both leaves with an isolated config, and the mutation-sweep fixture design is a harness choice, not an owed fix.
 - The family-root sweep: owned by `0qdl9e`.
   - Carrier: 0qdl9e
+  - Carrier-Evidence: .aw/records/plans/executed/20261012-o7wwop-01-0qdl9e-family-root-agent-conformance-gate-for-every-cli-subparser-r.ipd.md
 - `_show_family_help` resolving nested `cmd_name` only against the root parser (affects `ipd dependencies` today, whose human bare invocation prints the root help): a human-guidance defect with no machine-surface effect; this plan sidesteps it for `config exclude` with a scoped human branch (OQ-02) and does not change the shared helper.
   - Carrier-Declined: not filed here; reported to the maintainer in the 2026-10-12 review report, and the `ipd dependencies` human output is pre-existing and outside this item.
 
