@@ -943,14 +943,26 @@ RULE_IDS: FrozenSet[str] = frozenset(
     )
 )
 
-# Historical escaping policy for the detail field (tab/newline/backslash), originally
-# preventing line splits in the retired single-line TSV agent record. Kept for caller
-# compatibility across attention and spec checkers until retired in a unified pass.
+# Escaping policy for untrusted, non-repr'd values rendered on single-line human surfaces
+# (tab/newline/carriage-return/backslash), preventing line splits in the human `location: rule: detail`
+# output, board gate-ref suffixes, and spec history lines. The name _AGENT_ESCAPES is historical:
+# the retired TSV wire form is gone, and modern agent surfaces (aw.agent/v1, --json) JSON-encode
+# `detail` so they need no escaping. Values already passed through repr must NOT be passed through
+# escape_detail (repr already escapes control characters and backslashes, so re-escaping doubles them).
 _AGENT_ESCAPES = (("\\", "\\\\"), ("\t", "\\t"), ("\n", "\\n"), ("\r", "\\r"))
 
 
 def escape_detail(detail: str) -> str:
-    """Escape a drift ``detail`` for the single-line ``location<TAB>rule<TAB>detail`` agent record."""
+    """Keep an untrusted, non-repr'd value on one line of a human-rendered surface.
+
+    Replaces backslash, tab, newline, and carriage return with their two-character escape
+    sequences so an unescaped value cannot split a single-line human output (such as
+    `location: rule: detail` checks, board gate-ref suffixes, or spec history records).
+
+    Machine-readable surfaces (aw.agent/v1, --json) JSON-encode `detail` and require no escaping.
+    Callers formatting values with `repr` must NOT pass them through `escape_detail`, as repr
+    already escapes control bytes and backslashes.
+    """
 
     out = detail
     for raw, rep in _AGENT_ESCAPES:

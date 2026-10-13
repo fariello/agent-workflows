@@ -763,9 +763,7 @@ def check_drift(
                     Drift(
                         e.path,
                         "attention.unsafe-field",
-                        A.escape_detail(
-                            "Summary is over-length or has control chars/newlines"
-                        ),
+                        "Summary is over-length or has control chars/newlines",
                     )
                 )
             )
@@ -776,9 +774,7 @@ def check_drift(
                         Drift(
                             e.path,
                             "attention.unsafe-field",
-                            A.escape_detail(
-                                "Topic is over-length or has control chars/newlines"
-                            ),
+                            "Topic is over-length or has control chars/newlines",
                         )
                     )
                 )
@@ -789,9 +785,7 @@ def check_drift(
                         Drift(
                             e.path,
                             "attention.unsafe-field",
-                            A.escape_detail(
-                                "Consumed-by is over-length or has control chars/newlines"
-                            ),
+                            "Consumed-by is over-length or has control chars/newlines",
                         )
                     )
                 )

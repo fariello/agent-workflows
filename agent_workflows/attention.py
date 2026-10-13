@@ -1225,7 +1225,7 @@ def _prompts_record(
             core.Drift(
                 rel,
                 "attention.unknown-status",
-                A.escape_detail(f"prompt disposition {disp!r}"),
+                f"prompt disposition {disp!r}",
             )
         )
         return None, drift
@@ -1268,7 +1268,7 @@ def _release_record(
             core.Drift(
                 rel,
                 "attention.unknown-status",
-                A.escape_detail(f"release status {status!r}"),
+                f"release status {status!r}",
             )
         )
         return None, drift
@@ -1372,7 +1372,7 @@ def _plans_record(
             core.Drift(
                 rel,
                 "attention.unknown-status",
-                A.escape_detail(f"plan status {status!r}"),
+                f"plan status {status!r}",
             )
         )
         return None, drift
@@ -1393,7 +1393,7 @@ def _plans_record(
             core.Drift(
                 rel,
                 "attention.disposition-mismatch",
-                A.escape_detail(f"dir {disp} vs status {status}"),
+                f"dir {disp} vs status {status}",
             )
         )
     pid = _plans_id(text)
@@ -1477,7 +1477,7 @@ def _research_record(
                 core.Drift(
                     rel,
                     "attention.unknown-status",
-                    A.escape_detail(f"research status {raw_status_str!r}"),
+                    f"research status {raw_status_str!r}",
                 )
             )
             return None, drift
@@ -1537,7 +1537,7 @@ def _backlog_record(
             core.Drift(
                 rel,
                 "attention.unknown-status",
-                A.escape_detail(f"backlog status {status!r}"),
+                f"backlog status {status!r}",
             )
         )
         return None, drift
