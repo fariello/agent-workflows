@@ -1082,7 +1082,10 @@ def validate_release_exempt_flags(
 
 def run_new(args) -> int:
     from agent_workflows.project_context import resolve_verb_repo_root
+    from agent_workflows.renderers import emit_usage_refusal
+    from agent_workflows.result_types import select_output
 
+    ctx = select_output(args)
     repo_root = resolve_verb_repo_root(getattr(args, "dir", None))
     status = getattr(args, "status", None) or "open"
     if status not in STATUSES:
@@ -1136,10 +1139,17 @@ def run_new(args) -> int:
         if not value
     ]
     if _missing:
-        sys.stderr.write(
+        err_msg = (
             f"aw backlog new: {' and '.join(_missing)} required: decide the item's priority "
             f"({' | '.join(sorted(PRIORITIES))}) and work kind ({' | '.join(sorted(KINDS))}) "
             "when you file it; a plan graduated from this item inherits both\n"
+        )
+        sys.stderr.write(err_msg)
+        emit_usage_refusal(
+            "backlog new",
+            err_msg.strip(),
+            "aw backlog new --help",
+            ctx,
         )
         return 2
     item.summary = (getattr(args, "summary", None) or "").strip()
@@ -1156,7 +1166,14 @@ def run_new(args) -> int:
         )
         return 2
     if not (item.summary or "").strip():
-        sys.stderr.write("aw backlog new: --summary is required\n")
+        err_msg = "aw backlog new: --summary is required\n"
+        sys.stderr.write(err_msg)
+        emit_usage_refusal(
+            "backlog new",
+            err_msg.strip(),
+            "aw backlog new --help",
+            ctx,
+        )
         return 2
 
     raw_summary = getattr(args, "summary", None)

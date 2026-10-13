@@ -484,7 +484,7 @@ def run_new(args) -> int:
     """
 
     from agent_workflows.project_context import resolve_verb_repo_root
-    from agent_workflows.renderers import get_renderer
+    from agent_workflows.renderers import emit_usage_refusal, get_renderer
     from agent_workflows.result_types import (
         Change,
         CommandResult,
@@ -496,7 +496,14 @@ def run_new(args) -> int:
 
     slug_arg = (getattr(args, "slug", None) or "").strip()
     if not slug_arg:
-        sys.stderr.write("aw prompts new: --slug is required\n")
+        err_msg = "aw prompts new: --slug is required\n"
+        sys.stderr.write(err_msg)
+        emit_usage_refusal(
+            "prompts new",
+            err_msg.strip(),
+            "aw prompts new --help",
+            ctx,
+        )
         return 2
     slug = core.kebab(slug_arg)[:60].strip("-")
     if not slug:

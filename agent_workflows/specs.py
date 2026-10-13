@@ -1035,7 +1035,7 @@ def run_new(args) -> int:
     """
     from agent_workflows.project_context import resolve_verb_repo_root
     from agent_workflows import artifact_naming as _naming
-    from agent_workflows.renderers import get_renderer
+    from agent_workflows.renderers import emit_usage_refusal, get_renderer
     from agent_workflows.result_types import (
         Change,
         CommandResult,
@@ -1049,7 +1049,14 @@ def run_new(args) -> int:
     ctx = select_output(args)
 
     if not title:
-        sys.stderr.write("aw specs new: --title is required\n")
+        err_msg = "aw specs new: --title is required\n"
+        sys.stderr.write(err_msg)
+        emit_usage_refusal(
+            "specs new",
+            err_msg.strip(),
+            "aw specs new --help",
+            ctx,
+        )
         return 2
 
     # E-02 (IPD uz05bl): Refuse unsafe descriptive values for --title and --summary before minting an id6.

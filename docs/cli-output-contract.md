@@ -464,7 +464,7 @@ When a query, find, search, or list verb matches zero records or produces an emp
 - **Usage / Cannot-Run Errors (`exit: 2`)**:
   - Missing mandatory arguments, unknown subcommands, or invalid selectors MUST exit `2`.
   - Human TTY: prints diagnostic message and usage help to `stderr`.
-  - Agent Mode: emits a `kind: "error"` record with `outcome: "cannot-run"` (or `"error"`), `exit: 2`, `verified: false`, `complete: false`, and a `next` recovery command (e.g. `aw <cmd> --help`). If a record constructed by a command fails schema validation during rendering, it is substituted with a conforming `kind: "error"` record carrying `exit: 2` and `outcome: "error"`, naming the violated rules while omitting offending values to prevent secondary leaks.
+  - Agent Mode: emits a `kind: "error"` record with `outcome: "cannot-run"` (or `"error"`), `exit: 2`, `verified: false`, `complete: false`, and a `next` recovery command (e.g. `aw <cmd> --help`). If a record constructed by a command fails schema validation during rendering, it is substituted with a conforming `kind: "error"` record carrying `exit: 2` and `outcome: "error"`, naming the violated rules while omitting offending values to prevent secondary leaks. This agent-mode cannot-run record also applies to refusals raised while parsing arguments, before any command runs, while the human stderr text remains unchanged.
 - **Domain Findings / Violations (`exit: 1`)**:
   - Verification failures, policy drift, or schema nonconformance MUST exit `1`.
   - Emits diagnostic findings with actionable `Fix:` hints and appropriate follow-up `next` actions.

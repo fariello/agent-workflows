@@ -17,6 +17,7 @@ from agent_workflows import agent_schema as _schema
 from agent_workflows import term as _term
 from agent_workflows.result_types import (
     CommandResult,
+    NextAction,
     OutputContext,
     OutputMode,
 )
@@ -378,3 +379,31 @@ def get_renderer(context: OutputContext) -> BaseRenderer:
     if context.is_agent:
         return AgentRenderer()
     return HumanRenderer()
+
+
+def emit_usage_refusal(
+    cmd: str,
+    message: str,
+    next_cmd: str,
+    context: Optional[OutputContext] = None,
+) -> int:
+    """Emit a cannot-run usage refusal record on stdout under --agent or --json.
+
+    For HUMAN context, writes nothing to stdout and returns 2, leaving the human
+    diagnostic to the caller's stderr stream (CLI output contract Section 7 and 11.4).
+    """
+    ctx = context or OutputContext()
+    if not (ctx.is_agent or ctx.is_json):
+        return 2
+
+    redacted_message = _schema.redact_home_paths(message)
+    res = CommandResult(
+        command=cmd,
+        status="cannot-run",
+        exit_code=2,
+        summary=redacted_message,
+        next_actions=[NextAction(command=next_cmd)],
+        verified=False,
+        complete=False,
+    )
+    return get_renderer(ctx).emit(res, ctx)
