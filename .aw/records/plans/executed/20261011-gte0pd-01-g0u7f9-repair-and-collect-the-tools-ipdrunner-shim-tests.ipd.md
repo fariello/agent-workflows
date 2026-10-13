@@ -6,7 +6,7 @@
 - Scope: Move the module into `tests/` (so every existing gate collects it with zero gate-config change), repair the 10 drifted tests against the CURRENT shipped behavior without weakening any behavioral assertion, update the in-code comments that cite the old path, and prove the bare suite now collects and passes it. No runner behavior changes.
 - Scope-Paths: tools/ipdrunner/test_runagy.py, tests/test_ipdrunner_runagy_shim.py, agent_workflows/agy_runipd.py, agent_workflows/oc_runipd.py, tests/test_uncollected_test_modules.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: medium
@@ -16,9 +16,9 @@
 - Highest E allocated: 07
 - Author: opencode
 - Id: g0u7f9
-- Approval: 2026-10-12, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-13 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: g0u7f9 verified (set gte0pd, attempt 1).
 - 2026-10-12 approved (aw set): status set to approved
 - 2026-10-12 /plan-review (opencode model=its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-009 fixed (review record 20261011-gte0pd-01-g0u7f9). Coordination note: sibling `5s31xp` seeds an EXEMPT entry for `tools/ipdrunner/test_runagy.py`; this plan's E-07 removes it if present.
 - 2026-10-12 reviewed (aw set): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-001..PR-009
