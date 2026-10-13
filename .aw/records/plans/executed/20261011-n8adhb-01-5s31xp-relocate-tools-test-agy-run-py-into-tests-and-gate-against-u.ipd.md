@@ -6,7 +6,7 @@
 - Scope: IN: (a) `git mv tools/test_agy_run.py tests/test_agy_run.py` and repoint its `TOOLS_DIR` at the repo's `tools/` directory so the `antigravity_execute_ipd` compat-shim tests still resolve; (b) a new guard test `tests/test_uncollected_test_modules.py` that FAILS when a tracked pytest-discoverable file (`test_*.py` / `*_test.py`) is not collected by a bare `pytest`, with an explicit, reasoned, self-pruning exemption list; (c) correct the now-stale `tools/test_agy_run.py` citation in the `tests/test_spec_path_citations.py` docstring. OUT: fixing or relocating `tools/ipdrunner/test_runagy.py` (10 failing, owned by backlog `3rj8wr`) and `tools/awphysical/test_awphysical_tools.py` (1 failing, owned by backlog `byz9pj`), which the guard exempts by those ids; changing `testpaths`, CI, or `Makefile`; any change to `agent_workflows/agy_run.py` behavior.
 - Scope-Paths: tools/test_agy_run.py, tests/test_agy_run.py, tests/test_uncollected_test_modules.py, tests/test_spec_path_citations.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: medium
@@ -16,9 +16,9 @@
 - Highest E allocated: 03
 - Author: opencode model=claude-opus
 - Id: 5s31xp
-- Approval: 2026-10-12, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-13 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: 5s31xp verified (set n8adhb, attempt 1). [Scope reconciliation - in-scope-unmodified tools/test_agy_run.py: declared-but-unmodified (auto-acknowledged by aw agy run)]
 - 2026-10-12 approved (aw set): status set to approved
 - 2026-10-12 /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005 (all fixed; guard would have been red on arrival via uncollected `tests/test_lift_drift_scan.py`, now exempted; `.aw/` prefix exclusion; record `.aw/records/reviews/20261011-n8adhb-01-5s31xp-relocate-tools-test-agy-run-py-into-tests-and-gate-against-u.review.md`)
 - 2026-10-12 reviewed (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-005 fixed
