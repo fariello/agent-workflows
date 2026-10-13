@@ -6,7 +6,7 @@
 - Scope: IN: a new default-collected module `tests/test_live_conformance_sweep.py` that drives the help, usage-error and no-color scenarios per leaf (parametrized, one subprocess per case) over the CHEAP subset of `LIVE_SAFE_LEAVES`; a reintroduced human-banner extractor in `tests/conformance_matrix.py` whose recognized shapes are measured, plus a curated `FACT_PARITY_LEAVES` population that is asserted NON-VACUOUS (every member must yield an outcome family, or the test fails); splitting the live exit-membership gate so its cheap leaves run default-collected per leaf while the measured-heavy leaves (`doctor`, `attention`, `status`) stay `slow`. OUT: changing any CLI renderer or command behavior; adding members to `LIVE_SAFE_LEAVES`; mutation leaves (owned by executed plan `vfv2db`); flipping the CI advisory step's `continue-on-error` (owned by the backlog items that step's comment names); making `doctor` fast.
 - Scope-Paths: tests/test_live_conformance_sweep.py, tests/conformance_matrix.py, tests/test_exit_contract_conformance.py, CONTRIBUTING.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -16,9 +16,9 @@
 - Highest E allocated: 07
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: 34iwyp
-- Approval: 2026-10-12, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-13 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: 34iwyp verified (set livesweep, attempt 1).
 - 2026-10-12 approved (aw set): status set to approved
 - 2026-10-12 /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005, PR-006, PR-007 (all fixed; pipe-based NO_COLOR proven vacuous at review, new E-07 pty transport; parity leaves isolated from machine-local state; record `.aw/records/reviews/20261011-livesweep-01-34iwyp-make-the-live-per-leaf-conformance-sweep-a-non-vacuous-fact.review.md`)
 - 2026-10-12 reviewed (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-007 fixed
