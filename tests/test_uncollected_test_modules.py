@@ -19,9 +19,6 @@ from typing import Container, Iterable, Mapping, Sequence
 # Explicit, reasoned, self-pruning exemption list.
 # Every entry must name an owning backlog item or plan and a justification.
 EXEMPT: dict[str, str] = {
-    "tools/ipdrunner/test_runagy.py": (
-        "owned by backlog 3rj8wr: 10 failing tests; triage and repair/relocation out of scope"
-    ),
     "tools/awphysical/test_awphysical_tools.py": (
         "owned by backlog byz9pj: 1 failing binding test; requires updating scenario token bindings"
     ),
