@@ -1,5 +1,5 @@
 - Id: ki1uqk
-- Status: graduated
+- Status: done
 - Graduated-To: ki1uqk
 - Blocks-Release: next
 - Set: ki1uqk
@@ -8,6 +8,7 @@
 - Summary: artifact_core.git_mv swallows git's own 'outside repository' refusal and moves the file anyway with shutil.move, leaving the index inconsistent; measured 2026-10-02 while authoring plb8jx
 
 ## Workflow history
+- 2026-10-13 done (aw backlog): closed by aw agy run: IPD 7sy2gm executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20261012-ki1uqk-01-7sy2gm-refuse-out-of-repository-destinations-in-the-shared-git-mv-f.ipd.md); evidence .aw/records/plans/executed/20261012-ki1uqk-01-7sy2gm-refuse-out-of-repository-destinations-in-the-shared-git-mv-f.ipd.md
 - 2026-10-12 graduated (aw backlog): graduated by run run-20261012T005650Z-2322198: 7sy2gm
 - 2026-10-02 created (aw backlog): artifact_core.git_mv swallows git's own 'outside repository' refusal and moves the file anyway with shutil.move, leaving the index inconsistent; measured 2026-10-02 while authoring plb8jx
 
