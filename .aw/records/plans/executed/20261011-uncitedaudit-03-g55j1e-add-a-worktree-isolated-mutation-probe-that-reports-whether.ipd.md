@@ -6,7 +6,7 @@
 - Scope: IN: a new `tools/mutation_probe.py` that, given a production target `agent_workflows/<module>.py::<qualname>`, a mutation operator, and a test selection (pytest args; default the bare suite's own selection, `-m 'not slow and not livecorpus'`), creates a detached worktree of `HEAD` under a temp dir, runs the selection UNMUTATED to record the baseline failing node set, applies the mutant, reruns, confirms each newly failing node against the unmutated tree (flaky nodes excluded), and reports `killed` (a non-collection node that passed at baseline now fails or errors), `killed-by-import` (only collection errors are new: the mutant broke import, not counted as a guard), `survived` (no such node), `invalid` (mutant did not apply), `timeout`, or `error` (baseline unusable, or the worktree copy is not what the interpreter imports); optional `--extra-test <commit>:<path>` writes the blob at `<commit>^` into the worktree so a replayed deleted test can serve as the POSITIVE CONTROL; always removes the worktree (`git worktree remove --force` plus `git worktree prune`). Operators: `return-none`, `return-true`, `return-false`, `negate-return` (wrap each `return <expr>` of the function itself as `return not (<expr>)`), `raise` (body becomes `raise RuntimeError("mutant")`). Behavioral tests over a synthesized repo. `tools/README.md` section. OUT: choosing which targets to mutate (Order 07); a general mutation framework; any change to production code.
 - Scope-Paths: tools/mutation_probe.py, tests/test_mutation_probe.py, tools/README.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -16,9 +16,9 @@
 - Highest E allocated: 04
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: g55j1e
-- Approval: 2026-10-12, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-13 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: g55j1e verified (set uncitedaudit, attempt 1).
 - 2026-10-12 approved (aw set): status set to approved
 - 2026-10-12 reviewed (opencode its_direct/pt3-claude-opus-5.5-1m-us): /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005, PR-006, PR-007, PR-008, PR-009. Reviewed at HEAD 131f01291. Added --continue-on-collection-errors (import-break no longer aborts the session) and flaky-kill confirmation; new E-04 pure apply_operator splice; isolation preflight; status-change warns not refuses; V-01 gains a demonstrated positive control; noop dropped; gate itemized. Record: .aw/records/reviews/20261011-uncitedaudit-03-g55j1e-add-a-worktree-isolated-mutation-probe-that-reports-whether.review.md.
 - 2026-10-12 draft (opencode its_direct/pt3-claude-opus-5.5-1m-us): created.
