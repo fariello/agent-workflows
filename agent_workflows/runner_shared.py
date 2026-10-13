@@ -34778,6 +34778,327 @@ def runner_action_contract_class(action: str) -> str | None:
     return RUNNER_ACTION_TO_CONTRACT_ACTION.get(action, NO_CAPABILITY_POLICY)
 
 
+def _close_already_complete_backlog_item(
+    repo: Path,
+    item: dict[str, Any],
+    state: dict[str, Any],
+    run_dir: Path,
+    comp: BacklogAlreadyCompleteResult,
+    *,
+    wt_handle: Any = None,
+    isolate: bool = True,
+    run_checked: Callable[..., str],
+    host_labels: HostLabels,
+    save_state: Callable[[Path, dict[str, Any]], None],
+    allocate_isolation_worktree: Callable[..., Any] | None = None,
+    integrate_review_lane_branch: Callable[..., Any] | None = None,
+    attempt_no: int = 1,
+    attempt: dict[str, Any] | None = None,
+) -> bool:
+    """Close an already-complete backlog item done without dispatching an agent (0owirm E-03, E-04).
+
+    Used at two sites:
+    (1) Dispatch time: when an open backlog item is already complete before prompt building / agent spawn.
+    (2) Post-turn success: when a production turn wrote no new plans and the item is already complete.
+
+    In isolated mode, writes and commits only in the allocated lane and merges to main under the
+    repository integration lock, keeping the shared checkout clean mid-run.
+    In non-isolated mode (--no-isolate-worktree), writes and commits directly in repo via commit_backlog_close.
+    """
+    from agent_workflows import lane_containment
+    from agent_workflows.render_stream import record_refusal
+
+    alloc_fn = allocate_isolation_worktree or globals().get(
+        "allocate_isolation_worktree"
+    )
+    integ_fn = integrate_review_lane_branch or globals().get(
+        "integrate_review_lane_branch"
+    )
+    save_fn = save_state or globals().get("save_state")
+
+    options = state.get("options", {}) or {}
+    r_model, r_source = launch_model_for_role(options, role="plan")
+    started = utc_now()
+    created_attempt = False
+    if attempt is None:
+        created_attempt = True
+        attempt = {
+            "number": attempt_no,
+            "started_at": started,
+            "ended_at": started,
+            "action": item.get("action", "plan"),
+            "model": r_model,
+            "model_source": r_source,
+        }
+
+    attempt_wt_base = None
+    if isolate:
+        if wt_handle is None:
+            try:
+                wt_handle = alloc_fn(repo, item["id6"])
+            except Exception as exc:
+                ended = utc_now()
+                attempt["ended_at"] = ended
+                attempt["disposition"] = "fail-gate"
+                attempt[NEEDS_INPUT_KEY] = True
+                if created_attempt:
+                    item.setdefault("attempts", []).append(attempt)
+                item["status"] = "fail-gate"
+                item[NEEDS_INPUT_KEY] = True
+                record_refusal(
+                    item,
+                    code="WORKTREE-ALLOCATION-FAILED",
+                    reason=f"Failed to allocate isolation worktree: {exc}",
+                    remedy=f"{host_labels.command} {item['id6']}",
+                )
+                save_fn(run_dir, state)
+                return False
+        lane_root = Path(str(wt_handle.path))
+        attempt_wt_base = getattr(wt_handle, "base_commit", None)
+        if attempt_wt_base:
+            attempt["worktree_base"] = attempt_wt_base
+    else:
+        lane_root = repo
+
+    item_path = resolve_backlog_item(lane_root, item["id6"])
+    if item_path is None:
+        ended = utc_now()
+        attempt["ended_at"] = ended
+        attempt["disposition"] = "fail-gate"
+        attempt[NEEDS_INPUT_KEY] = True
+        if created_attempt:
+            item.setdefault("attempts", []).append(attempt)
+        item["status"] = "fail-gate"
+        item[NEEDS_INPUT_KEY] = True
+        refusal_msg = f"backlog item {item['id6']} not found in target tree"
+        record_refusal(
+            item,
+            code="BACKLOG-ITEM-MISSING",
+            reason=refusal_msg,
+            remedy=f"{host_labels.command} {item['id6']}",
+        )
+        if wt_handle is not None:
+            lane_containment.record_lane_preserved(
+                run_dir=run_dir,
+                item=item,
+                handle=wt_handle,
+                reason=refusal_msg,
+                reason_codes=("backlog-item-missing",),
+            )
+        save_fn(run_dir, state)
+        return False
+
+    run_id_val = str(state.get("run_id") or "") or None
+    evidence = comp.evidence or ""
+
+    # If the backlog item carries a release gate, only pass evidence if the carrier carries the same gate.
+    # An un-gated carrier cannot be cited as release-gate evidence to avoid bypassing evaluate_blocking_close.
+    try:
+        from agent_workflows import check_engine as _ce
+
+        item_text = item_path.read_text(encoding="utf-8")
+        item_gate = _ce._read_blocks_release(item_text)
+        if item_gate:
+            carrier_path = repo / evidence
+            carrier_gate = (
+                _ce._read_blocks_release(carrier_path.read_text(encoding="utf-8"))
+                if carrier_path.is_file()
+                else None
+            )
+            if not _ce._same_release(repo, carrier_gate, item_gate):
+                evidence = ""
+    except Exception:
+        pass
+
+    message = (
+        f"closed by run {run_id_val}: every carrier executed ({', '.join(comp.carriers)})"
+        if run_id_val
+        else f"closed: every carrier executed ({', '.join(comp.carriers)})"
+    )
+    close_kw: dict[str, Any] = {}
+    if isolate and wt_handle is not None:
+        close_kw["gate_root"] = repo
+
+    rc, out = close_backlog_item(
+        lane_root,
+        item_path,
+        item["id6"],
+        evidence,
+        message,
+        run_checked=run_checked,
+        **close_kw,
+    )
+    if rc != 0:
+        ended = utc_now()
+        attempt["ended_at"] = ended
+        attempt["disposition"] = "fail-gate"
+        attempt[NEEDS_INPUT_KEY] = True
+        if created_attempt:
+            item.setdefault("attempts", []).append(attempt)
+        item["status"] = "fail-gate"
+        item[NEEDS_INPUT_KEY] = True
+        record_refusal(
+            item,
+            code="BACKLOG-CLOSE-REFUSED",
+            reason=f"Backlog setter close refused: {out}",
+            remedy=f"{host_labels.command} {item['id6']}",
+        )
+        if wt_handle is not None:
+            lane_containment.record_lane_preserved(
+                run_dir=run_dir,
+                item=item,
+                handle=wt_handle,
+                reason=f"backlog setter close refused: {out}",
+                reason_codes=("backlog-close-refused",),
+            )
+        save_fn(run_dir, state)
+        append_jsonl(
+            run_dir / "events.jsonl",
+            {
+                "at": ended,
+                "event": "backlog-close-refused",
+                "id6": item["id6"],
+                "detail": out,
+            },
+        )
+        return False
+
+    if isolate and wt_handle is not None:
+        bkl_trans_commit, _ = commit_backlog_transition_output(
+            lane_root,
+            item["id6"],
+            status_label="done",
+            run_id=run_id_val,
+        )
+        if bkl_trans_commit:
+            attempt["backlog_transition_commit"] = bkl_trans_commit
+            append_jsonl(
+                run_dir / "events.jsonl",
+                {
+                    "at": utc_now(),
+                    "event": "backlog-transition-committed",
+                    "id6": item["id6"],
+                    "attempt": attempt_no,
+                    "commit": bkl_trans_commit,
+                },
+            )
+
+        prod_integrated, prod_reason, prod_kind = integrate_under_repository_lock(
+            repo,
+            item,
+            wt_handle,
+            state=state,
+            holder_label=integration_lock_holder_label(state),
+            integrate=lambda _item, _handle: (integ_fn(repo, _handle, _item["id6"])),
+            progress=integration_lock_progress_reporter(),
+            run_checked=run_checked,
+        )
+        attempt["prod_integrated"] = prod_integrated
+        attempt["prod_integration_reason"] = prod_reason
+        attempt["prod_integration_kind"] = prod_kind
+        item["prod_integrated"] = prod_integrated
+
+        if not prod_integrated:
+            ended = utc_now()
+            attempt["ended_at"] = ended
+            attempt["disposition"] = "fail-gate"
+            attempt[NEEDS_INPUT_KEY] = True
+            if created_attempt:
+                item.setdefault("attempts", []).append(attempt)
+            item["status"] = "fail-gate"
+            item[NEEDS_INPUT_KEY] = True
+            record_refusal(
+                item,
+                code="BACKLOG-INTEGRATION-REFUSED",
+                reason=prod_reason,
+                remedy=f"{host_labels.command} {item['id6']}",
+            )
+            lane_containment.record_lane_preserved(
+                run_dir=run_dir,
+                item=item,
+                handle=wt_handle,
+                reason=prod_reason,
+                reason_codes=("backlog-integration-refused",),
+            )
+            save_fn(run_dir, state)
+            return False
+
+        decision = lane_containment.teardown_lane_if_classified(
+            repo=repo,
+            handle=wt_handle,
+            run_dir=run_dir,
+            item=item,
+        )
+        if not decision.torn_down:
+            lane_containment.record_lane_preserved(
+                run_dir=run_dir,
+                handle=wt_handle,
+                reason=f"teardown refused: {decision.why}",
+                reason_codes=decision.reason_codes,
+            )
+    else:
+        # Non-isolated path (--no-isolate-worktree)
+        bkl_trans_commit = commit_backlog_close(
+            repo,
+            item["id6"],
+            message,
+            run_id=run_id_val,
+            plan_id6=item.get("id6"),
+            run_checked=run_checked,
+        )
+        if bkl_trans_commit:
+            attempt["backlog_transition_commit"] = bkl_trans_commit
+            append_jsonl(
+                run_dir / "events.jsonl",
+                {
+                    "at": utc_now(),
+                    "event": "backlog-transition-committed",
+                    "id6": item["id6"],
+                    "attempt": attempt_no,
+                    "commit": bkl_trans_commit,
+                },
+            )
+        prod_integrated = True
+        prod_reason = "shared-tree"
+        prod_kind = "shared-tree"
+        attempt["prod_integrated"] = prod_integrated
+        attempt["prod_integration_reason"] = prod_reason
+        attempt["prod_integration_kind"] = prod_kind
+        item["prod_integrated"] = prod_integrated
+
+    ended = utc_now()
+    attempt["ended_at"] = ended
+    attempt["disposition"] = "executed"
+    if created_attempt:
+        item.setdefault("attempts", []).append(attempt)
+    item["status"] = "executed"
+    item["backlog_close"] = {
+        "item": item["id6"],
+        "closed": True,
+        "reason": comp.reason,
+        "evidence": comp.evidence,
+    }
+    append_jsonl(
+        run_dir / "events.jsonl",
+        {
+            "at": ended,
+            "event": "backlog-already-complete",
+            "id6": item["id6"],
+            "carriers": list(comp.carriers),
+            "evidence": comp.evidence,
+        },
+    )
+    save_fn(run_dir, state)
+    pal = Palette(should_color(sys.stdout))
+    print(
+        pal(
+            f"  \u2713 backlog item {item['id6']} is already complete ({comp.reason}); closed done",
+            "green",
+        )
+    )
+    return True
+
+
 def execute_item_core(
     run_dir: Path,
     state: dict[str, Any],
@@ -35025,6 +35346,29 @@ def execute_item_core(
                 return
         except Exception as ex:
             scope_target_check_error = str(ex)
+
+    # 0owirm E-03: Close an open backlog item whose carriers are already complete instead of dispatching
+    if is_backlog_production:
+        comp = backlog_item_already_complete(repo, item["id6"])
+        if comp.status == BACKLOG_COMPLETE:
+            options = state.get("options", {}) or {}
+            isolate = isolation_for_action(options, "plan")
+            _close_already_complete_backlog_item(
+                repo=repo,
+                item=item,
+                state=state,
+                run_dir=run_dir,
+                comp=comp,
+                wt_handle=None,
+                isolate=isolate,
+                run_checked=run_checked,
+                host_labels=host_labels,
+                save_state=save_state,
+                allocate_isolation_worktree=allocate_isolation_worktree,
+                integrate_review_lane_branch=integrate_review_lane_branch,
+                attempt_no=attempt_no,
+            )
+            return
 
     # Host-capability preflight (iot7hc, spec 25kzda 5.2/5.4/5.7). Item-local dispatch refusal
     # when the host descriptor cannot positively prove every capability required by the action.
@@ -38801,6 +39145,39 @@ def execute_item_core(
                             reason_codes=("backlog-status-precondition-failed",),
                         )
                 else:
+                    # 0owirm E-04 (b): if predicate is COMPLETE and turn produced no plan,
+                    # close through the SAME helper instead of graduating!
+                    target_comp = backlog_item_already_complete(
+                        target_tree, item["id6"]
+                    )
+                    if (
+                        target_comp.status != BACKLOG_COMPLETE
+                        and target_tree.resolve() != repo.resolve()
+                    ):
+                        target_comp = backlog_item_already_complete(repo, item["id6"])
+
+                    if (
+                        target_comp.status == BACKLOG_COMPLETE
+                        and not all_verified_plans
+                    ):
+                        _close_already_complete_backlog_item(
+                            repo=repo,
+                            item=item,
+                            state=state,
+                            run_dir=run_dir,
+                            comp=target_comp,
+                            wt_handle=wt_handle,
+                            isolate=isolate,
+                            run_checked=run_checked,
+                            host_labels=host_labels,
+                            save_state=save_state,
+                            allocate_isolation_worktree=allocate_isolation_worktree,
+                            integrate_review_lane_branch=integrate_review_lane_branch,
+                            attempt_no=attempt_no,
+                            attempt=attempt,
+                        )
+                        return
+
                     produced_ids_str = ", ".join(
                         sorted(p_id for p_id, _p in all_verified_plans)
                     )
@@ -40484,13 +40861,17 @@ def close_backlog_item(
         item_id6,
         "--status",
         "done",
-        "--evidence",
-        evidence,
-        "--message",
-        message,
-        "--dir",
-        str(repo),
     ]
+    if evidence:
+        argv.extend(["--evidence", str(evidence)])
+    argv.extend(
+        [
+            "--message",
+            message,
+            "--dir",
+            str(repo),
+        ]
+    )
     if gate_root is not None:
         argv.extend(["--gate-dir", str(gate_root)])
     if lane_carrier_ref is not None:
@@ -42483,6 +42864,149 @@ def resolve_backlog_item(repo: Path, item_id6: str) -> Path | None:
     return None
 
 
+BACKLOG_COMPLETE = "COMPLETE"
+BACKLOG_NOT_COMPLETE = "NOT_COMPLETE"
+BACKLOG_NO_IPD_CARRIER = "NO_IPD_CARRIER"
+
+
+class BacklogAlreadyCompleteResult(NamedTuple):
+    """The decision about whether a backlog item is ALREADY COMPLETE, and why (IPD 0owirm E-02).
+
+    status:   'COMPLETE' | 'NOT_COMPLETE' | 'NO_IPD_CARRIER'
+    reason:   the human-readable justification.
+    carriers: tuple of all repo-relative carrier paths discovered.
+    evidence: the executed IPD carrier path to cite as close evidence when COMPLETE, else None.
+    """
+
+    status: str
+    reason: str
+    carriers: tuple[str, ...] = ()
+    evidence: str | None = None
+
+    def __eq__(self, other: object) -> bool:
+        if isinstance(other, str):
+            return self.status == other
+        if isinstance(other, tuple):
+            return tuple(self) == other
+        return False
+
+    @property
+    def is_complete(self) -> bool:
+        return self.status == BACKLOG_COMPLETE
+
+
+class _BacklogCarrierClassification(NamedTuple):
+    item_path: Path | None
+    error: str | None
+    ipds: list[Path]
+    others: list[Path]
+    unexecuted_ipds: list[str]
+    unimplemented_specs: list[str]
+    rel_carriers: list[str]
+    cited_evidence: str | None
+
+
+def _classify_backlog_carriers(
+    repo: Path,
+    item_id6: str,
+    *,
+    executed_overrides: Mapping[str, str] | None = None,
+) -> _BacklogCarrierClassification:
+    """Classify all carriers of a backlog item, shared by evaluate_backlog_close and backlog_item_already_complete (E-02).
+
+    Factors the carrier discovery, IPD vs non-IPD partitioning, plan_bucket terminal status check,
+    and check_engine._carrier_is_executed spec check into ONE shared lookup so the two cannot diverge.
+    """
+    from agent_workflows import check_engine as _ce
+
+    overrides = dict(executed_overrides or {})
+
+    try:
+        item_path = resolve_backlog_item(repo, item_id6)
+    except Exception as exc:  # fail closed: an unreadable backlog tree closes nothing
+        return _BacklogCarrierClassification(
+            None, f"backlog item lookup failed: {exc}", [], [], [], [], [], None
+        )
+    if item_path is None:
+        return _BacklogCarrierClassification(
+            None,
+            f"no backlog item resolves to id6 {item_id6}",
+            [],
+            [],
+            [],
+            [],
+            [],
+            None,
+        )
+    status = item_path.parent.name
+    if status == "done":
+        return _BacklogCarrierClassification(
+            item_path, "item is already done", [], [], [], [], [], None
+        )
+
+    try:
+        carriers = [
+            Path(p) for p, _br in _ce.find_from_backlog_artifacts(repo, item_id6)
+        ]
+    except Exception as exc:  # fail closed
+        return _BacklogCarrierClassification(
+            item_path, f"carrier lookup failed: {exc}", [], [], [], [], [], None
+        )
+
+    def _rel(path: Path) -> str:
+        try:
+            return str(path.resolve().relative_to(Path(repo).resolve()))
+        except ValueError:
+            return str(path)
+
+    def _cited(path: Path) -> str:
+        return overrides.get(_rel(path), _rel(path))
+
+    rel_carriers = [_rel(p) for p in carriers]
+    ipds = [p for p in carriers if _carrier_kind(p) == CARRIER_KIND_IPD]
+    others = [p for p in carriers if _carrier_kind(p) == CARRIER_KIND_OTHER]
+
+    unexecuted: list[str] = []
+    for plan in ipds:
+        if _rel(plan) in overrides:
+            continue
+        try:
+            bucket = plan_bucket(plan)
+        except Exception as exc:  # fail closed
+            return _BacklogCarrierClassification(
+                item_path,
+                f"terminal-state read failed for {_rel(plan)}: {exc}",
+                ipds,
+                others,
+                [],
+                [],
+                rel_carriers,
+                None,
+            )
+        if bucket != "executed":
+            unexecuted.append(_rel(plan))
+
+    unimplemented_specs: list[str] = []
+    for other in others:
+        if _rel(other) in overrides:
+            continue
+        if not _ce._carrier_is_executed(other):
+            unimplemented_specs.append(_rel(other))
+
+    evidence = _cited(ipds[0]) if ipds else None
+
+    return _BacklogCarrierClassification(
+        item_path=item_path,
+        error=None,
+        ipds=ipds,
+        others=others,
+        unexecuted_ipds=unexecuted,
+        unimplemented_specs=unimplemented_specs,
+        rel_carriers=rel_carriers,
+        cited_evidence=evidence,
+    )
+
+
 def evaluate_backlog_close(
     repo: Path,
     item_id6: str,
@@ -42527,35 +43051,16 @@ def evaluate_backlog_close(
     verified override (`lane_carrier_ref` / `lane_carrier_path`, verified against the git ref via
     `git ls-tree` and never trusted), so the two are separate mechanisms.
     """
-    from agent_workflows import check_engine as _ce
-
     overrides = dict(executed_overrides or {})
     earned = {p for p in earned_paths if p}
 
-    try:
-        item_path = resolve_backlog_item(repo, item_id6)
-    except Exception as exc:  # fail closed: an unreadable backlog tree closes nothing
-        return BacklogCloseVerdict(
-            False, f"backlog item lookup failed: {exc}", None, None
-        )
-    if item_path is None:
-        return BacklogCloseVerdict(
-            False, f"no backlog item resolves to id6 {item_id6}", None, None
-        )
-    status = item_path.parent.name
-    if status == "done":
-        return BacklogCloseVerdict(False, "item is already done", None, None)
+    cls = _classify_backlog_carriers(
+        repo, item_id6, executed_overrides=executed_overrides
+    )
+    if cls.error:
+        return BacklogCloseVerdict(False, cls.error, None, None)
 
-    # THE ONE SHARED LOOKUP (E-02). `find_from_backlog_artifacts` already returns every PLAN and
-    # SPEC carrying the link, plans first. A second implementation here would be the same divergence
-    # defect this repository keeps hitting, so there is deliberately no local scan.
-    try:
-        carriers = [
-            Path(p) for p, _br in _ce.find_from_backlog_artifacts(repo, item_id6)
-        ]
-    except Exception as exc:  # fail closed
-        return BacklogCloseVerdict(False, f"carrier lookup failed: {exc}", None, None)
-    if not carriers:
+    if not cls.ipds and not cls.others:
         return BacklogCloseVerdict(
             False,
             f"no plan or spec carries From-Backlog: {item_id6}, so no carrier proves the work",
@@ -42570,63 +43075,20 @@ def evaluate_backlog_close(
             return str(path)
 
     def _cited(path: Path) -> str:
-        """The path to CITE for a carrier: its overridden (real) location if one was supplied.
-
-        The distinction matters because the citation becomes the `--evidence` argument, and
-        `check_engine.resolve_evidence_artifact` must be able to RESOLVE it (F-11). Citing main's
-        stale `pending/` path for a plan that actually sits in `executed/` would be a false citation
-        of a file that does not exist where the claim says it does.
-        """
         return overrides.get(_rel(path), _rel(path))
 
-    ipds = [p for p in carriers if _carrier_kind(p) == CARRIER_KIND_IPD]
-    others = [p for p in carriers if _carrier_kind(p) == CARRIER_KIND_OTHER]
-
-    if ipds:
-        # THE IPD RULE (E-02). The item promised code, so every IPD carrier must be terminal
-        # `executed`; one unexecuted sibling is enough to hold the item open. This is why closing on
-        # "my plan executed" is wrong: measured at authoring, `dh0uno` has TWO carriers, so that rule
-        # would have closed it while half its work was unwritten.
-        unexecuted: list[str] = []
-        for plan in ipds:
-            # dirtygates-03 (`9iq461`) E-03: the caller's OWN just-finalized plan is asserted
-            # executed, because at this point in the run its move exists only on the lane branch and
-            # `repo` still shows it in `pending/`. EVERY OTHER CARRIER IS READ FROM `repo` WITH NO
-            # OVERRIDE, which is the whole point: main's view is the only one that sees a sibling's
-            # true bucket, and a lane-side scan would see this plan executed and answer more
-            # permissively than main would.
-            if _rel(plan) in overrides:
-                continue
-            try:
-                bucket = plan_bucket(plan)
-            except Exception as exc:  # fail closed
-                return BacklogCloseVerdict(
-                    False,
-                    f"terminal-state read failed for {_rel(plan)}: {exc}",
-                    None,
-                    None,
-                )
-            if bucket != "executed":
-                unexecuted.append(_rel(plan))
-        # 5eygjt E-02: in the mixed case, every non-IPD carrier must also be terminal.
-        # Judge a spec with check_engine._carrier_is_executed (the shipped authority for specs).
-        unimplemented_specs: list[str] = []
-        for other in others:
-            if _rel(other) in overrides:
-                continue
-            if not _ce._carrier_is_executed(other):
-                unimplemented_specs.append(_rel(other))
-
-        if unexecuted or unimplemented_specs:
+    if cls.ipds:
+        if cls.unexecuted_ipds or cls.unimplemented_specs:
             clauses: list[str] = []
-            if unexecuted:
+            if cls.unexecuted_ipds:
                 clauses.append(
-                    "IPD carrier(s) not executed: " + ", ".join(sorted(unexecuted))
+                    "IPD carrier(s) not executed: "
+                    + ", ".join(sorted(cls.unexecuted_ipds))
                 )
-            if unimplemented_specs:
+            if cls.unimplemented_specs:
                 clauses.append(
                     "spec carrier(s) not implemented: "
-                    + ", ".join(sorted(unimplemented_specs))
+                    + ", ".join(sorted(cls.unimplemented_specs))
                 )
             return BacklogCloseVerdict(
                 False,
@@ -42634,12 +43096,8 @@ def evaluate_backlog_close(
                 None,
                 None,
             )
-        # E-04: the run must have EARNED it. The deciding carrier has to be one this run produced,
-        # not one it found already finished. BOTH spellings of an overridden carrier's path count as
-        # earned: `collect_earned_paths` derives its set from `git diff`, which reports the LANE's
-        # post-move `executed/` path, while the carrier scan found the same plan at main's `pending/`
-        # path. Testing only one spelling would refuse a close the run demonstrably earned.
-        earned_ipds = [p for p in ipds if _rel(p) in earned or _cited(p) in earned]
+
+        earned_ipds = [p for p in cls.ipds if _rel(p) in earned or _cited(p) in earned]
         if not earned_ipds:
             return BacklogCloseVerdict(
                 False,
@@ -42656,10 +43114,7 @@ def evaluate_backlog_close(
             CARRIER_KIND_IPD,
         )
 
-    # THE NON-IPD RULE (E-03). No IPD carrier means the item's requested output IS the artifact, so
-    # existence is the whole test. Spec STATUS is not read here on purpose: a `draft`/`to-review`
-    # spec still satisfies "create the spec", and its approval belongs to `aw specs`.
-    existing = [p for p in others if p.is_file()]
+    existing = [p for p in cls.others if p.is_file()]
     if not existing:
         return BacklogCloseVerdict(
             False, "no non-IPD carrier artifact exists on disk", None, None
@@ -42680,6 +43135,75 @@ def evaluate_backlog_close(
         + " (no IPD carrier, so approval is not required)",
         _rel(earned_others[0]),
         CARRIER_KIND_OTHER,
+    )
+
+
+def backlog_item_already_complete(
+    repo: Path,
+    item_id6: str,
+    *,
+    executed_overrides: Mapping[str, str] | None = None,
+) -> BacklogAlreadyCompleteResult:
+    """Decide whether backlog item ``item_id6`` is already complete on disk (IPD 0owirm E-02).
+
+    Returns a typed result:
+    - COMPLETE: every IPD carrier executed, every spec carrier implemented, at least one IPD carrier.
+    - NOT_COMPLETE: lookup/read error, item already done, or carriers not finished or retired.
+    - NO_IPD_CARRIER: no carrier at all, or only non-IPD (e.g. spec) carriers.
+
+    Differs from `evaluate_backlog_close` in exactly two ways, both recorded here (D-1, D-3):
+    1. It does NOT require the run to have earned the close: any item whose IPD carriers
+       are all executed and whose spec carriers are all implemented is COMPLETE, even
+       if they finished in a prior run (D-1).
+    2. An item with no IPD carrier (no carrier at all, or only non-IPD carriers like specs)
+       is NO_IPD_CARRIER, never COMPLETE (D-3).
+
+    A carrier under `superseded/` or `not-executed/` is not done. An item whose carriers are all
+    retired, or any mix that includes a retired or pending carrier, is NOT_COMPLETE, because
+    deciding that work is abandoned is a human act (OQ-01).
+
+    Fails closed: any lookup or read error returns NOT_COMPLETE with the error as its reason,
+    never COMPLETE.
+    """
+    cls = _classify_backlog_carriers(
+        repo, item_id6, executed_overrides=executed_overrides
+    )
+    if cls.error:
+        return BacklogAlreadyCompleteResult(
+            BACKLOG_NOT_COMPLETE, cls.error, tuple(cls.rel_carriers), None
+        )
+
+    if not cls.ipds:
+        reason = (
+            f"no plan or spec carries From-Backlog: {item_id6}"
+            if not cls.others
+            else f"backlog item {item_id6} has only non-IPD carrier(s): {', '.join(sorted(cls.rel_carriers))}"
+        )
+        return BacklogAlreadyCompleteResult(
+            BACKLOG_NO_IPD_CARRIER, reason, tuple(cls.rel_carriers), None
+        )
+
+    if cls.unexecuted_ipds or cls.unimplemented_specs:
+        clauses: list[str] = []
+        if cls.unexecuted_ipds:
+            clauses.append(
+                "IPD carrier(s) not executed: " + ", ".join(sorted(cls.unexecuted_ipds))
+            )
+        if cls.unimplemented_specs:
+            clauses.append(
+                "spec carrier(s) not implemented: "
+                + ", ".join(sorted(cls.unimplemented_specs))
+            )
+        return BacklogAlreadyCompleteResult(
+            BACKLOG_NOT_COMPLETE, "; ".join(clauses), tuple(cls.rel_carriers), None
+        )
+
+    reason = (
+        f"every IPD carrier is executed and every spec carrier is implemented "
+        f"({', '.join(sorted(cls.rel_carriers))})"
+    )
+    return BacklogAlreadyCompleteResult(
+        BACKLOG_COMPLETE, reason, tuple(cls.rel_carriers), cls.cited_evidence
     )
 
 
