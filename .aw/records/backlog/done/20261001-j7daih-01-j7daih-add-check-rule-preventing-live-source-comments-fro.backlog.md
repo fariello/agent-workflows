@@ -1,5 +1,5 @@
 - Id: j7daih
-- Status: graduated
+- Status: done
 - Graduated-To: j7daih
 - Set: j7daih
 - Priority: low
@@ -7,6 +7,7 @@
 - Summary: Add check rule preventing live source comments from citing nonexistent test files
 
 ## Workflow history
+- 2026-10-13 done (aw backlog): closed by aw agy run: IPD ml7b9e executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20261011-j7daih-01-ml7b9e-add-an-advisory-check-rule-flagging-shipped-source-comments.ipd.md); evidence .aw/records/plans/executed/20261011-j7daih-01-ml7b9e-add-an-advisory-check-rule-flagging-shipped-source-comments.ipd.md
 - 2026-10-12 graduated (aw backlog): graduated by run run-20261012T005641Z-2321995: ml7b9e
 - 2026-10-01 created (aw backlog): Add check rule preventing live source comments from citing nonexistent test files
 
