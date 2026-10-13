@@ -61,6 +61,7 @@ def _drive_execute_turn(
     validate: bool = True,
     current_status: str = "queued",
     freeze_host_capabilities: bool = True,
+    expect_verify: bool = True,
 ) -> tuple[dict[str, Any], dict[str, Any], Path]:
     """Drive the real runner_shared.execute_item_core pipeline."""
     run_dir = root / ".aw/runs/run-test"
@@ -172,6 +173,25 @@ def _drive_execute_turn(
         process_backlog_close=lambda *a, **k: None,
         driver_module=driver_module,
     )
+    if expect_verify and "verification_status" not in item:
+        latest_attempt = (item.get("attempts") or [{}])[-1]
+        early = {
+            k: latest_attempt[k]
+            for k in (
+                "host_capability_unavailable",
+                "scope_target_refused",
+                "clean_base_refused",
+                "begin_refused",
+            )
+            if isinstance(latest_attempt, dict) and k in latest_attempt
+        }
+        raise AssertionError(
+            f"execute_item_core returned before the verify stage: "
+            f"status={item.get('status')!r} "
+            f"refusal={item.get('refusal')!r} "
+            f"worktree_error={item.get('worktree_error')!r} "
+            f"early={early!r}"
+        )
     return state, item, run_dir
 
 
@@ -517,6 +537,7 @@ def test_disabled_distinct_session_guard_refuses_execute_preflight(
         driver_module=oc_runipd,
         host_labels=runner_shared.OC_HOST_LABELS,
         freeze_host_capabilities=False,
+        expect_verify=False,
     )
 
     assert item["status"] == "fail-gate"
