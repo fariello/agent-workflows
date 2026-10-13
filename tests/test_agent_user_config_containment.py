@@ -281,8 +281,11 @@ exit 0
                 for line in events_path.read_text().splitlines()
                 if line.strip()
             ]
-            assert len(lines) == 1
-            ev1 = lines[0]
+            discard_lines = [
+                ev for ev in lines if ev.get("event") == "agent-user-config-discarded"
+            ]
+            assert len(discard_lines) == 1
+            ev1 = discard_lines[0]
             assert ev1["event"] == "agent-user-config-discarded"
             assert ev1["id6"] == "9y27t2"
             assert ev1["file"] == "config.json"
@@ -329,11 +332,17 @@ exit 0
                 for line in events_path.read_text().splitlines()
                 if line.strip()
             ]
+            discard_lines_after = [
+                ev
+                for ev in lines_after
+                if ev.get("event") == "agent-user-config-discarded"
+            ]
             assert (
-                len(lines_after) == 3
+                len(discard_lines_after) == 3
             )  # oc attempt 1, agy attempt 1, oc attempt 1 verify
             assert all(
-                ev["event"] == "agent-user-config-discarded" for ev in lines_after
+                ev["event"] == "agent-user-config-discarded"
+                for ev in discard_lines_after
             )
 
 

@@ -12,6 +12,7 @@
 
 ## Workflow history
 
+- 2026-10-13 note (aw specs): AMENDED 2026-10-13 (4xtpvg-02 thzrpo): R4.1d and A8d added to specify question-only denial and partial-denial posture on non-isolated unattended opencode turns (backlog 8ctu3u, research 7so8uz)
 - 2026-10-13 note (aw specs): CORRECTION (79d4ix / o58r3r): the 2026-09-25 statusvocab note's 'no longer written by the runner' does not hold for failed-safely, which the runner still writes for contained host/driver failures by design; see spec 25kzda Section 5.5 'Live legacy-spelled token: failed-safely'.
 - 2026-10-12 note (aw specs): AMENDED 2026-10-12 (4xtpvg-02 15db4k): R4.4 and R4.4(a)/R4.4b/R4.4c, A10/A10b/A10c/A10e amended on the maintainer's DELETE ruling for backlog e6zeta; the permission bound is removed and MAX_TURN_TIMEOUT is the single R4.4 turn bound
 - 2026-10-09 note (aw specs): AMENDED 2026-10-09 by lifegate Order 02 (e25iy9): R4.5 and A11 amended to restate that driver-owned lifecycle verbs refuse for a worker-labelled caller, and that for any other caller refusal is conditioned on a live run holding the plan, anywhere, not on location.
@@ -317,6 +318,12 @@ R4.1b Adding a real denial posture to a host that lacks one is OUT OF SCOPE (see
 requires honest reporting of the gap, not its closure. Recorded as a requirement number only so R4.1a's
 "unenforced-at-the-host" outcome cannot be read as a defect this spec left unaddressed.
 
+R4.1d An unattended NON-isolated opencode turn MUST run with the interactive-question class denied,
+supplied through the same runner-owned runtime config, merged per R4.3, observed per R4.2, and recorded per
+R4.1a as a PARTIAL denial (`partial-denial`). It MUST NOT have `external_directory` denied, because its ordinary
+work is in the main checkout. Its prompt stays byte-identical per R1.3. (Research `7so8uz` Finding 5, backlog `8ctu3u`,
+plan `thzrpo`).
+
 R4.2 The driver MUST OBSERVE the effective policy rather than assume its request won, and MUST record
 either the observed values or an explicit unverified marker with its reason. Host configuration
 precedence can place a managed source above the runner's, so a run that only SETS the policy can believe
@@ -612,6 +619,10 @@ re-flag it as a traceability gap.
   `--dangerously-skip-permissions`. This is a REGRESSION GUARD in the opposite direction from every other
   criterion here: it fails if work tracing to this spec "hardens" the host into the interactive posture
   that was measured to deadlock. (R4.1c)
+- A8d. NON-ISOLATED OPENCODE POSTURE. Decode the child environment for an unattended non-isolated opencode
+  turn and show `question` denied (`{"permission": {"question": "deny"}}`) and `external_directory` absent
+  from the request, and show its attempt record says `partial-denial` and never `denied`.
+  (R4.1d, R4.1a, R4.2, R4.3; research `7so8uz` Finding 5, backlog `8ctu3u`, plan `thzrpo`)
 - A9. With an operator-supplied value already set for the policy variable, the resulting child environment
   either merges it verifiably or overrides it with an explicit loud record. A silent overwrite fails this
   criterion. (R4.3)
