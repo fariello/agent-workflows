@@ -9,29 +9,21 @@ import textwrap
 import unittest
 from pathlib import Path
 
-# Add tool directory to sys.path before importing driver
-sys.path.insert(0, str(Path(__file__).parent.resolve()))
+from agent_workflows import render_stream
+from tests import support
+from tests.support import REPO_ROOT
+from tests.test_oc_runipd import _CONFORMING_PLAN
 
-import runagy as driver  # noqa: E402
-
-# streamfmt (mm6wuz) E-11: the SHARED prefix grammar, imported from its owner rather than reached
-# through the shim, because the shim re-exports the driver's own attributes and `agy_runipd` imports
-# individual names from `render_stream` (it does not bind the module).
-from agent_workflows import render_stream  # noqa: E402
+driver = support.load_module(
+    "ipdrunner_runagy_shim_under_test",
+    REPO_ROOT / "tools" / "ipdrunner" / "runagy.py",
+)
 
 
 class AgyEventRenderTests(unittest.TestCase):
     """Renderer assertions for `render_agy_event`, driven through the `runagy.py` re-export shim.
 
-    THIS MODULE IS OUTSIDE THE BARE SUITE. `pyproject.toml` sets `testpaths = ["tests"]`, so a bare
-    `python3 -m pytest` never collects `tools/`, and a green bare run is NOT evidence for anything
-    here. Run it explicitly:
-
-        python3 -m pytest tools/ipdrunner/test_runagy.py -o addopts="" -q -k AgyEventRender
-
-    Note also that `AgyExecutionLifecycleTests` in this same file is ALREADY RED at HEAD for reasons
-    unrelated to rendering (measured `10 failed, 10 passed` whole-module), so a whole-module run
-    cannot distinguish a rendering regression from that pre-existing failure. Narrow with `-k`.
+    This module drives the runner through the tools/ipdrunner/runagy.py shim on purpose.
     """
 
     def setUp(self):
@@ -273,56 +265,99 @@ class AgyParserAndDiscoveryTests(unittest.TestCase):
         # Legacy Dependencies: parsing was retired by 72bb113e7; Item-Dependencies parsing is covered in tests/.
 
     def test_dependency_status_execution_vs_review(self):
-        state = {
-            "repo": "/nonexistent",
-            "queue": [
-                {
-                    "id6": "dep001",
-                    "status": "reviewed",
-                    "action": "review",
-                },
-                {
-                    "id6": "dep002",
-                    "status": "approved",
-                    "action": "execute",
-                },
-                {
-                    "id6": "dep003",
-                    "status": "executed",
-                    "action": "execute",
-                },
-            ],
-        }
+        with tempfile.TemporaryDirectory() as td:
+            repo = Path(td)
+            pending_dir = repo / ".aw" / "records" / "plans" / "pending"
+            executed_dir = repo / ".aw" / "records" / "plans" / "executed"
+            pending_dir.mkdir(parents=True)
+            executed_dir.mkdir(parents=True)
 
-        # Execution item depending on 'reviewed' plan -> blocked
-        exec_item_1 = {
-            "id6": "tgt001",
-            "action": "execute",
-            "dependencies": ["dep001"],
-        }
-        sat, missing = driver.dependency_status(exec_item_1, state)
-        self.assertFalse(sat)
-        self.assertEqual(missing, ["dep001"])
+            p_dep001 = pending_dir / "20260828-demo-01-dep001-demo.ipd.md"
+            p_dep001.write_text(
+                _CONFORMING_PLAN.format(id6="dep001").replace(
+                    "- Status: approved", "- Status: reviewed"
+                ),
+                encoding="utf-8",
+            )
 
-        # Execution item depending on 'executed' plan -> satisfied
-        exec_item_3 = {
-            "id6": "tgt003",
-            "action": "execute",
-            "dependencies": ["dep003"],
-        }
-        sat, missing = driver.dependency_status(exec_item_3, state)
-        self.assertTrue(sat)
-        self.assertEqual(missing, [])
+            p_dep003 = executed_dir / "20260828-demo-01-dep003-demo.ipd.md"
+            p_dep003.write_text(
+                _CONFORMING_PLAN.format(id6="dep003"),
+                encoding="utf-8",
+            )
 
-        # Review item depending on 'reviewed' plan -> satisfied
-        rev_item_1 = {
-            "id6": "tgt004",
-            "action": "review",
-            "dependencies": ["dep001"],
-        }
-        sat, missing = driver.dependency_status(rev_item_1, state)
-        self.assertTrue(sat)
-        self.assertEqual(missing, [])
+            p_dep004 = pending_dir / "20260828-demo-01-dep004-demo.ipd.md"
+            p_dep004.write_text(
+                _CONFORMING_PLAN.format(id6="dep004"),
+                encoding="utf-8",
+            )
+
+            state = {
+                "repo": os.fspath(repo),
+                "queue": [
+                    {
+                        "id6": "dep001",
+                        "status": "reviewed",
+                        "action": "review",
+                    },
+                    {
+                        "id6": "dep002",
+                        "status": "approved",
+                        "action": "execute",
+                    },
+                    {
+                        "id6": "dep003",
+                        "status": "executed",
+                        "action": "execute",
+                    },
+                    {
+                        "id6": "dep004",
+                        "status": "executed",
+                        "action": "execute",
+                    },
+                ],
+            }
+
+            # Execution item depending on 'reviewed' plan -> blocked
+            exec_item_1 = {
+                "id6": "tgt001",
+                "action": "execute",
+                "dependencies": ["dep001"],
+            }
+            sat, missing = driver.dependency_status(exec_item_1, state)
+            self.assertFalse(sat)
+            self.assertEqual(missing, ["dep001"])
+
+            # Execution item depending on 'executed' plan -> satisfied
+            exec_item_3 = {
+                "id6": "tgt003",
+                "action": "execute",
+                "dependencies": ["dep003"],
+            }
+            sat, missing = driver.dependency_status(exec_item_3, state)
+            self.assertTrue(sat)
+            self.assertEqual(missing, [])
+
+            # Review item depending on 'reviewed' plan -> satisfied
+            rev_item_1 = {
+                "id6": "tgt004",
+                "action": "review",
+                "dependencies": ["dep001"],
+            }
+            sat, missing = driver.dependency_status(rev_item_1, state)
+            self.assertTrue(sat)
+            self.assertEqual(missing, [])
+
+            # Disk-authority negative case: in-queue item whose run status is 'executed'
+            # but whose file is still in pending/ does NOT satisfy an execute edge
+            exec_item_4 = {
+                "id6": "tgt005",
+                "action": "execute",
+                "dependencies": ["dep004"],
+            }
+            sat, missing = driver.dependency_status(exec_item_4, state)
+            self.assertFalse(sat)
+            self.assertEqual(missing, ["dep004"])
 
     def test_validate_manifest(self):
         valid = {
@@ -409,33 +444,18 @@ class AgyExecutionLifecycleTests(unittest.TestCase):
             cwd=repo,
             check=True,
         )
+        (repo / ".gitignore").write_text(
+            ".aw/state/\n.aw/worktrees/\n.aw/records/runs/\n", encoding="utf-8"
+        )
 
         plans_pending = repo / ".aw" / "records" / "plans" / "pending"
         plans_pending.mkdir(parents=True)
 
-        plan1 = plans_pending / "20260824-demo-01-a1b2c3-implement-first-feature.ipd.md"
-        plan1.write_text(
-            textwrap.dedent(
-                """
-            # IPD: First Feature
+        plan1 = plans_pending / "20260828-demo-01-a1b2c3-demo.ipd.md"
+        plan1.write_text(_CONFORMING_PLAN.format(id6="a1b2c3"), encoding="utf-8")
 
-            - Date: 2026-08-24
-            - Kind: child
-            - Status: approved
-            - Set: demo
-            - Order: 1
-            - Author: Antigravity
-            - Id: a1b2c3
-
-            ## Workflow history
-            - 2026-08-24 approved (Human): ready
-
-            ## Goal
-            Goal 1
-            """
-            ),
-            encoding="utf-8",
-        )
+        test_ok = repo / "test_ok.py"
+        test_ok.write_text("def test_ok():\n    pass\n", encoding="utf-8")
 
         dummy = repo / "README.md"
         dummy.write_text("# Repo\n", encoding="utf-8")
@@ -476,7 +496,7 @@ class AgyExecutionLifecycleTests(unittest.TestCase):
                         if "{behavior}" == "verify_blocked":
                             out_p.write_text(json.dumps({{"schema_version":1,"id6":"a1b2c3","verdict":"BLOCKED","summary":"Defects found"}}))
                         else:
-                            out_p.write_text(json.dumps({{"schema_version":1,"id6":"a1b2c3","verdict":"VERIFIED","summary":"Clean audit"}}))
+                            out_p.write_text(json.dumps({{"schema_version":1,"id6":"a1b2c3","verdict":"VERIFIED","summary":"Clean audit","tests_run":["pytest"]}}))
                     print(json.dumps({{"event":"result","result":{{"status":"SUCCESS","conversation_id":verify_session,"response":"Verification done"}}}}))
                     sys.exit(0)
                 elif prompt.startswith("/plan-review"):
@@ -574,7 +594,7 @@ class AgyExecutionLifecycleTests(unittest.TestCase):
 
             # Confirm both execution session log and verification session log exist
             exec_log = run_dir / "sessions" / "01-a1b2c3-attempt-1.jsonl"
-            verify_log = run_dir / "sessions" / "01-a1b2c3-verify-attempt-1.jsonl"
+            verify_log = run_dir / "sessions" / "01-a1b2c3-attempt-1-verify.jsonl"
             self.assertTrue(exec_log.is_file())
             self.assertTrue(verify_log.is_file())
 
@@ -628,7 +648,22 @@ class AgyExecutionLifecycleTests(unittest.TestCase):
                 stderr=subprocess.PIPE,
             )
             self.assertEqual(result.returncode, 0, result.stderr)
-            self.assertIn("01 a1b2c3 demo", result.stdout)
+            self.assertIn("Run order (1 item(s)): 01 a1b2c3", result.stdout)
+            self.assertIn("Run ID:", result.stdout)
+
+            run_id = next(
+                line.split(": ", 1)[1].split()[0]
+                for line in result.stdout.splitlines()
+                if line.startswith("Run ID:")
+            )
+            run_dir = repo / ".aw" / "records" / "runs" / run_id
+            state_file = run_dir / "state.json"
+            self.assertTrue(state_file.is_file())
+            state = json.loads(state_file.read_text(encoding="utf-8"))
+            self.assertEqual(len(state["queue"]), 1)
+            self.assertEqual(state["queue"][0]["status"], "queued")
+            session_logs = list((run_dir / "sessions").glob("*.jsonl"))
+            self.assertEqual(session_logs, [])
 
     def test_explicit_run_id(self):
         with tempfile.TemporaryDirectory() as temp:
@@ -690,10 +725,10 @@ class AgyExecutionLifecycleTests(unittest.TestCase):
                 if line.startswith("Run ID:")
             )
             run_dir = repo / ".aw" / "records" / "runs" / run_id
-            verify_log = run_dir / "sessions" / "01-a1b2c3-verify-attempt-1.jsonl"
+            verify_log = run_dir / "sessions" / "01-a1b2c3-attempt-1-verify.jsonl"
             self.assertFalse(verify_log.exists())
 
-    def test_verification_blocked_sets_disposition_partial(self):
+    def test_verification_blocked_sets_status_fail_verify(self):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
             repo = self._create_mock_repo(root)
@@ -724,7 +759,7 @@ class AgyExecutionLifecycleTests(unittest.TestCase):
             )
             run_dir = repo / ".aw" / "records" / "runs" / run_id
             state = json.loads((run_dir / "state.json").read_text(encoding="utf-8"))
-            self.assertEqual(state["queue"][0]["status"], "partial")
+            self.assertEqual(state["queue"][0]["status"], "fail-verify")
             self.assertEqual(state["queue"][0]["verification_status"], "blocked")
 
     def test_stall_timeout_and_resume_recovery(self):
@@ -912,22 +947,31 @@ class AgyExecutionLifecycleTests(unittest.TestCase):
         self.assertNotIn("resume", hint)
 
     def test_concurrent_work_statement_in_prompts(self):
-        item = {"position": 1, "id6": "a1b2c3", "setid": "testset"}
-        state = {"run_id": "run-test-12345"}
-        exec_prompt = driver.build_prompt(
-            item, state, Path("/tmp/run"), Path("/tmp/plan.md"), recovery=False
-        )
-        verify_prompt = driver.build_verifier_prompt(
-            item, state, Path("/tmp/run"), Path("/tmp/plan.md")
-        )
-        expected = (
-            "## Concurrent Work\n\n"
-            "Other agents may modify this repository concurrently. Work only on files required for your task. Ignore unrelated changes, commits, and untracked files.\n\n"
-            "Do not alter, revert, stage, or commit another agent’s work. Stage only your files; never use `git add .` or `git add -A`.\n\n"
-            "Stop only if another agent changes a file you are editing or must edit and the changes cannot be safely combined. Never discard their work."
-        )
-        self.assertIn(expected, exec_prompt)
-        self.assertIn(expected, verify_prompt)
+        with tempfile.TemporaryDirectory() as td:
+            run_dir = Path(td)
+            item = {"position": 1, "id6": "a1b2c3", "setid": "testset"}
+            state = {"run_id": "run-test-12345"}
+            exec_prompt = driver.build_prompt(
+                item, state, run_dir, run_dir / "plan.md", recovery=False
+            )
+            verify_prompt = driver.build_verifier_prompt(
+                item, state, run_dir, run_dir / "plan.md"
+            )
+
+        self.assertIn("## Concurrent Work", exec_prompt)
+        self.assertIn("## Concurrent Work", verify_prompt)
+
+        start_marker = "## Concurrent Work"
+        end_marker = "Never discard their work."
+
+        def extract_concurrent_block(prompt: str) -> str:
+            start = prompt.index(start_marker)
+            end = prompt.index(end_marker, start) + len(end_marker)
+            return prompt[start:end]
+
+        exec_block = extract_concurrent_block(exec_prompt)
+        verify_block = extract_concurrent_block(verify_prompt)
+        self.assertEqual(exec_block, verify_block)
 
 
 if __name__ == "__main__":

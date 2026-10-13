@@ -853,7 +853,7 @@ from agent_workflows.runner_shared import (
 # declared in `__all__`, providing an export mechanism that ruff honors without a noqa directive.
 # In contrast, `agy_runipd` has no `__all__` and retains a noqa F401 directive.
 # Consumer asymmetry: `agy_runipd._read_id` has a live caller via `tools/ipdrunner/runagy.py`
-# consumed in `tools/ipdrunner/test_runagy.py`; `oc_runipd._read_id` has no local caller, but is
+# consumed in `tests/test_ipdrunner_runagy_shim.py::AgyParserAndDiscoveryTests::test_read_deps_and_set`; `oc_runipd._read_id` has no local caller, but is
 # retained for cross-host symmetry and guarded by `tests/test_runner_shared.py::CrossHostReadIdReExportTests`.
 # Sznlsf E-01's execution census measured these callers at HEAD, and E-02's conditional gate confirmed retention.
 # (Note: `_read_status` is exposed on neither host; status reading is done via `selectors`.)
