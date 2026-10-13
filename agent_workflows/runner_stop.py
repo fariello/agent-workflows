@@ -1863,25 +1863,74 @@ def prompt_interrupt_action(
     3. Clean up and exit?
     4. Exit, leaving a mess?
     """
+    from agent_workflows import render_stream, term
+
     in_stream = stdin if stdin is not None else sys.stdin
     out_stream = stream if stream is not None else sys.stderr
 
-    prompt_text = (
-        "\nStopped on Ctrl-C. Choose an action:\n\n"
-        "1. Resume?\n"
-        "2. Finish current item, clean up, and exit?\n"
-        "3. Clean up and exit?\n"
-        "4. Exit, leaving a mess?\n\n"
-        "Choice [1-4]: "
+    is_color = term.should_color(out_stream)
+    use_unicode = term.should_unicode(out_stream)
+    pal = render_stream.Palette(is_color, use_unicode=use_unicode)
+
+    inner_w = 60
+    title = "Stopped on Ctrl-C. Choose an action:"
+    header_label = f" {title} "
+
+    if use_unicode:
+        tl, tr = "╭─", "╮"
+        bl, br = "╰", "╯"
+        v = "│"
+        h = "─"
+    else:
+        tl, tr = "+-", "+"
+        bl, br = "+", "+"
+        v = "|"
+        h = "-"
+
+    dashes = inner_w - len(header_label) - 1
+    top = (
+        pal(tl, "yellow")
+        + pal(header_label, "bold yellow")
+        + pal(h * dashes, "yellow")
+        + pal(tr, "yellow")
     )
-    out_stream.write(prompt_text)
+
+    options = [
+        ("1.", "Resume?", "green"),
+        ("2.", "Finish current item, clean up, and exit?", "yellow"),
+        ("3.", "Clean up and exit?", "magenta"),
+        ("4.", "Exit, leaving a mess?", "red"),
+    ]
+
+    rows = []
+    for num, text, color in options:
+        prefix = f"  {num} "
+        pad = inner_w - len(prefix) - len(text)
+        row = (
+            pal(v, "yellow")
+            + "  "
+            + pal(num, "bold cyan")
+            + " "
+            + pal(text, color)
+            + (" " * pad)
+            + pal(v, "yellow")
+        )
+        rows.append(row)
+
+    bot = pal(bl, "yellow") + pal(h * inner_w, "yellow") + pal(br, "yellow")
+    prompt_box = "\n".join(
+        ["", top, *rows, bot, " " + pal("Choice [1-4]: ", "bold cyan")]
+    )
+    out_stream.write(prompt_box)
     out_stream.flush()
 
     while True:
         try:
             line = in_stream.readline()
             if not line:
-                out_stream.write("\n(EOF received; cleaning up and terminating)\n")
+                out_stream.write(
+                    "\n" + pal("(EOF received; cleaning up and terminating)\n", "dim")
+                )
                 out_stream.flush()
                 return INTERRUPT_ACTION_CLEANUP
             choice = line.strip()
@@ -1893,10 +1942,13 @@ def prompt_interrupt_action(
                 return INTERRUPT_ACTION_CLEANUP
             if choice == "4":
                 return INTERRUPT_ACTION_TERMINATE_NO_CLEANUP
-            out_stream.write("Please enter 1, 2, 3, or 4: ")
+            out_stream.write(" " + pal("Please enter 1, 2, 3, or 4: ", "bold yellow"))
             out_stream.flush()
         except KeyboardInterrupt:
-            out_stream.write("\n(Repeated Ctrl-C; cleaning up and terminating)\n")
+            out_stream.write(
+                "\n"
+                + pal("(Repeated Ctrl-C; cleaning up and terminating)\n", "bold red")
+            )
             out_stream.flush()
             return INTERRUPT_ACTION_CLEANUP
         except Exception:
@@ -1908,6 +1960,7 @@ def handle_interactive_interrupt(
     requester: str = "",
     stdin: TextIO | None = None,
     stream: TextIO | None = None,
+    on_action: Callable[[int], None] | None = None,
 ) -> int:
     """Handle interactive SIGINT: pause children and statusline, prompt user, and resolve choice."""
     from agent_workflows import render_stream, runner_shutdown
@@ -1915,29 +1968,38 @@ def handle_interactive_interrupt(
     paused_children = pause_live_children()
     render_stream.pause_active_statusline()
 
+    out = stream if stream is not None else sys.stderr
+
     try:
         action = prompt_interrupt_action(stdin=stdin, stream=stream)
     except Exception:
         action = INTERRUPT_ACTION_CLEANUP
 
     if action == INTERRUPT_ACTION_RESUME:
-        resume_live_children(paused_children)
-        render_stream.resume_active_statusline()
-        out = stream if stream is not None else sys.stderr
         out.write("\nResuming...\n")
         out.flush()
+        if on_action is not None:
+            with contextlib.suppress(Exception):
+                on_action(action)
+        resume_live_children(paused_children)
+        render_stream.resume_active_statusline()
         return INTERRUPT_ACTION_RESUME
 
     if action == INTERRUPT_ACTION_FINISH_CURRENT:
-        resume_live_children(paused_children)
-        render_stream.resume_active_statusline()
-        out = stream if stream is not None else sys.stderr
         out.write("\nFinishing current item before stopping...\n")
         out.flush()
+        if on_action is not None:
+            with contextlib.suppress(Exception):
+                on_action(action)
+        resume_live_children(paused_children)
+        render_stream.resume_active_statusline()
         return INTERRUPT_ACTION_FINISH_CURRENT
 
     resume_live_children(paused_children)
     render_stream.pause_active_statusline()
+    if on_action is not None:
+        with contextlib.suppress(Exception):
+            on_action(action)
     for p in paused_children:
         with contextlib.suppress(Exception):
             runner_shutdown.clean_shutdown(
@@ -2010,20 +2072,26 @@ def install_stop_signal_handlers(
         # `interrupt_menu_is_safe` for the measured incident this guard exists to prevent. When the
         # menu is not safe, fall through to the SIGINT_LADDER below, which needs no answer.
         if interrupt_menu_is_safe(stream=stream):
+
+            def _on_interrupt_action(act: int) -> None:
+                if act == INTERRUPT_ACTION_FINISH_CURRENT:
+                    _record(LEVEL_AFTER_CALL)
+                elif act in (
+                    INTERRUPT_ACTION_CLEANUP,
+                    INTERRUPT_ACTION_TERMINATE_NO_CLEANUP,
+                ):
+                    _record(LEVEL_NOW_FORCE)
+
             action = handle_interactive_interrupt(
                 run_dir=_HANDLER_RUN_DIR or run_dir,
                 requester=requester,
                 stream=stream,
+                on_action=_on_interrupt_action,
             )
-            if action == INTERRUPT_ACTION_RESUME:
-                return
-            if action == INTERRUPT_ACTION_FINISH_CURRENT:
-                _record(LEVEL_AFTER_CALL)
+            if action in (INTERRUPT_ACTION_RESUME, INTERRUPT_ACTION_FINISH_CURRENT):
                 return
             if action == INTERRUPT_ACTION_TERMINATE_NO_CLEANUP:
-                _record(LEVEL_NOW_FORCE)
                 raise KeyboardInterrupt("just-terminate-no-cleanup")
-            _record(LEVEL_NOW_FORCE)
             raise KeyboardInterrupt("clean-up-and-terminate")
 
         index = min(_SIGINT_PRESSES, len(SIGINT_LADDER)) - 1

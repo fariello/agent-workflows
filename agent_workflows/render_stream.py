@@ -408,7 +408,11 @@ def format_event_prefix(
     return pal(label, style) + tail
 
 
-def _one_line(text: str, limit: int = 200) -> str:
+def _one_line(
+    text: str,
+    limit: int | None = 350,
+    ellipsis: str = "\u2026",
+) -> str:
     """Collapse whitespace/newlines to a single line and clip to ``limit`` VISIBLE columns.
 
     THE CLIP WAS SEVERING VARIATION SELECTORS (spec Section 9.4 bullet 1, criterion A15). It was
@@ -422,9 +426,10 @@ def _one_line(text: str, limit: int = 200) -> str:
     a zero-width code point from its base, measures in visible columns, and appends the ellipsis
     itself. The rendered result is unchanged for the ASCII-only payloads that are the common case.
     """
-
     collapsed = " ".join(text.split())
-    return _T.truncate_visible(collapsed, limit, ellipsis="\u2026")
+    if limit is None or limit <= 0:
+        return collapsed
+    return _T.truncate_visible(collapsed, limit, ellipsis=ellipsis)
 
 
 def format_tokens(n: float) -> str:
@@ -872,12 +877,13 @@ def render_event(  # type: ignore[return]  # checker-limitation: intentional fal
     line = raw_line.rstrip("\n")
     if not line.strip():
         return None
+    trunc_ellipsis = "[\u2026]" if use_unicode else "[...]"
     try:
         event = json.loads(line)
     except json.JSONDecodeError:
         if not strip_system_protocol_prefix(line):
             return None
-        return pal(_one_line(line), "dim")
+        return pal(_one_line(line, 350, ellipsis=trunc_ellipsis), "dim")
     etype = event.get("type")
     part = event.get("part") or {}
     if etype == "text":
@@ -929,7 +935,11 @@ def render_event(  # type: ignore[return]  # checker-limitation: intentional fal
                     if isinstance(diff, dict) and isinstance(diff.get("patch"), str):
                         for hunk in diff["patch"].splitlines():
                             extra_lines.append(
-                                pal("      " + _one_line(hunk, 200), "dim")
+                                pal(
+                                    "      "
+                                    + _one_line(hunk, 350, ellipsis=trunc_ellipsis),
+                                    "dim",
+                                )
                             )
         elif tool == "write":
             payload = format_write_payload(state, repo_root)
@@ -957,10 +967,12 @@ def render_event(  # type: ignore[return]  # checker-limitation: intentional fal
             if not title:
                 inp = state.get("input")
                 if isinstance(inp, dict):
-                    title = _one_line(json.dumps(inp, sort_keys=True), 120)
-            payload = _one_line(title, 160)
+                    title = _one_line(
+                        json.dumps(inp, sort_keys=True), 350, ellipsis=trunc_ellipsis
+                    )
+            payload = _one_line(title, 350, ellipsis=trunc_ellipsis)
         else:
-            payload = _one_line(payload, 200)
+            payload = _one_line(payload, 350, ellipsis=trunc_ellipsis)
 
         if kind == "tool":
             if payload:

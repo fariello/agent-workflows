@@ -1032,6 +1032,7 @@ def render_agy_event(
     that shim must keep working unchanged.
     """
     line = raw_line.rstrip("\n")
+    trunc_ellipsis = "[\u2026]" if use_unicode else "[...]"
     if not line.strip():
         return None
     try:
@@ -1039,7 +1040,7 @@ def render_agy_event(
     except json.JSONDecodeError:
         if not strip_system_protocol_prefix(line):
             return None
-        return pal("  " + _one_line(line), "dim")
+        return pal("  " + _one_line(line, 350, ellipsis=trunc_ellipsis), "dim")
 
     event_type = event.get("event")
     if event_type == "init":
@@ -1190,10 +1191,16 @@ def render_agy_event(
             # When no informative detail is extractable at default verbosity (and not in an
             # error/failed state), suppress the uninformative bare tool event.
             if kind in ("bash", "edit", "write", "read", "find"):
-                summary = _one_line(cmd, 120) if cmd else str(tool_name)
+                summary = (
+                    _one_line(cmd, 350, ellipsis=trunc_ellipsis)
+                    if cmd
+                    else str(tool_name)
+                )
             else:
                 if cmd:
-                    summary = f"{tool_name}: {_one_line(cmd, 120)}"
+                    summary = (
+                        f"{tool_name}: {_one_line(cmd, 350, ellipsis=trunc_ellipsis)}"
+                    )
                 elif verbosity < 1 and _AGY_STATE_TO_STATUS.get(state, "") not in (
                     "error",
                     "failed",
@@ -1224,7 +1231,11 @@ def render_agy_event(
                 # Pyright entries are simply NOT REACHABLE here; the raw parameters are.
                 head += "\n" + pal(
                     "      "
-                    + _one_line(json.dumps(params, sort_keys=True, default=str), 200),
+                    + _one_line(
+                        json.dumps(params, sort_keys=True, default=str),
+                        350,
+                        ellipsis=trunc_ellipsis,
+                    ),
                     "dim",
                 )
             return head
@@ -1241,7 +1252,7 @@ def render_agy_event(
             if rec:
                 raw_text = rec.get("thinking") or rec.get("content") or ""
                 text = strip_system_protocol_prefix(raw_text)
-                text = _one_line(text.strip(), 400)
+                text = _one_line(text.strip(), limit=None)
                 if text:
                     prefix = format_event_prefix(
                         "think", pal, use_unicode, style="cyan"
