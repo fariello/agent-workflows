@@ -6,7 +6,8 @@
 - Scope: IN: comment and docstring prose at the 19 sites in Findings, in those six files. Each site is dispositioned REPOINT, RETIRE-PIN or RETIRE-UNGUARDED (definitions in Project conventions), preserving each comment's design reason. OUT: any executable change; restoring any test; the sites in these files owned by other plans (`3tov52`/`65d5zf` for `test_review_findings_cascade.py`/`test_runner_stop_triggers.py`/`test_orchestrator_probe_cache.py`, `046nys`/`dtelfb`, `yf1p8y` for `test_runner_backlog_close.py`), excluded by the measurement regex; the `__all__`/re-export rework (`fh8x8k`/`vzk1iw`); filing backlog for unguarded properties (Order 04 `ellenm`).
 - Scope-Paths: agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, agent_workflows/ipd_lint.py, agent_workflows/runner_shutdown.py, agent_workflows/run_viewer.py, agent_workflows/artifact_audit.py, .aw/records/plans/pending/20261011-iosmvn-02-9rthek-retire-or-repoint-the-dangling-test-citations-in-the-host-dr.ipd.md
 - Item-Dependencies: none
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
 - From-Backlog: iosmvn
@@ -17,6 +18,7 @@
 - Id: 9rthek
 
 ## Workflow history
+- 2026-10-13 reviewed (opencode its_direct/pt3-claude-opus-5.5-1m-us): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-001..PR-005 fixed.
 
 - 2026-10-12 draft (opencode its_direct/pt3-claude-opus-5.5-1m-us): created.
 - 2026-10-12 to-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): authored review-ready from backlog `iosmvn`; 19 sites measured at HEAD `8538be828`.
@@ -38,19 +40,19 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 - [ ] E-02 For each site, decide REPOINT / RETIRE-PIN / RETIRE-UNGUARDED and record a `Site | Disposition | Evidence` table appended to Findings, with evidence of the same kinds as the Set conventions require (live `rg -n` hit in `tests/` for REPOINT; the deleted test's form via `git show 19313eed^:<path>` for RETIRE-PIN; an empty `rg` over `tests/` for RETIRE-UNGUARDED).
   - Depends on: E-01
-  - Expected outcome: 19 (plus deltas) dispositioned rows, each with evidence.
+  - Expected outcome: exactly one dispositioned row per E-01 hit (re-derived at execution; 19 at authoring and at review HEAD `3e328494b` is context, not the bar), each with evidence. S-14 is recorded RETIRE-UNGUARDED unless E-02 finds a live test asserting `agy_runipd.build_parser()` defaults `dangerously_skip_permissions` to True (review found none; see Findings note).
   - Execution state: pending
 
 ### Task group 2: Edit
 
-- [ ] E-03 Apply the dispositions as comment/docstring edits, keeping each design reason and, for both RETIRE forms, placing `19313eed` within three lines of the citation using the existing `oc_runipd.py` wording ("deleted in `19313eed`; no live guard currently asserts this"). Where an `oc_runipd`/`agy_runipd` twin comment exists (S-02/S-03 vs S-09/S-10/S-13), edit both identically so the drivers do not contradict each other.
+- [ ] E-03 Apply the dispositions as comment/docstring edits (no statement, constant, signature, or identifier changes), keeping each design reason and, for both RETIRE forms, placing `19313eed` within three lines of the citation using the existing `oc_runipd.py` wording ("deleted in `19313eed`; no live guard currently asserts this"). Where an `oc_runipd`/`agy_runipd` twin comment exists (S-02/S-03 vs S-09/S-10/S-13), edit both identically so the drivers do not contradict each other. At S-18 also correct the same sentence's claim that `tests/test_artifact_audit.py` asserts object identity (see Findings note on S-18). Keep S-14's "Do NOT harden" instruction and its R4.1c reason; only the enforcement claim changes.
   - Depends on: E-02
-  - Expected outcome: measurement over the six files prints `UNRETIRED 0`.
+  - Expected outcome: measurement over the six files prints `UNRETIRED 0`, and every edited passage reads as a true statement about HEAD (the measurement only proves `19313eed` is nearby, not that the claim is true).
   - Execution state: pending
 
 - [ ] E-04 Prove prose-only and regression-free: run the AST-equivalence command against the E-01 HEAD over the six source files, and the bare suite `python3 -m pytest`.
   - Depends on: E-03
-  - Expected outcome: `AST-DIFFER []`; suite summary with no failures.
+  - Expected outcome: `AST-DIFFER []`; suite summary with no failures, or any failure shown to pre-exist by re-running the failing test ids at the E-01 HEAD in a scratch `git worktree` (a prose-only change cannot cause one).
   - Execution state: pending
 
 ## Project conventions discovered (Step 0)
@@ -63,7 +65,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ## Findings
 
-Measured at HEAD `8538be828`.
+Measured at HEAD `8538be828`; re-measured at review HEAD `3e328494b` with the identical 19 hits (same files, symbols, and cited paths).
 
 | Site | File | Enclosing symbol | Cited path |
 |---|---|---|---|
@@ -88,7 +90,8 @@ Measured at HEAD `8538be828`.
 | S-19 | `artifact_audit.py` | module docstring | `tests/test_runner_refork_guard.py` |
 
 Note on S-04: the comment cites a bare line range (585 to 609) into the deleted `tests/test_lane_tool_identity.py`; whatever the disposition, the line range is removed.
-Note on S-14: the comment says the test "PINS the default and will fail if it is flipped"; that is a load-bearing safety claim (a guard against hardening an agy permission default), so E-02 must check whether any live test asserts that default before retiring it, and if none does it is a RETIRE-UNGUARDED row for `ellenm` to file.
+Note on S-18 (found at review): the same sentence also says the names are "asserted by object identity in `tests/test_artifact_audit.py`". That file is live, so the measurement does not flag it, but the identity test it meant (`test_run_viewer_audit_type_is_the_shared_module_object`, `assertIs(run_viewer.StepArtifactAudit, artifact_audit.ArtifactAudit)`) was removed from it by `19313eed` (`git show 19313eed7 -- tests/test_artifact_audit.py`), and the live file never imports `run_viewer`. E-02/E-03 disposition that claim together with S-18.
+Note on S-14: the comment says the test "PINS the default and will fail if it is flipped"; that is a load-bearing safety claim (a guard against hardening an agy permission default), so E-02 must check whether any live test asserts that default before retiring it, and if none does it is a RETIRE-UNGUARDED row for `ellenm` to file. Review at `3e328494b`: the deleted guard was behavioral (`TestAntigravitySkipPermissionsDefaultIsPinned.test_option_still_defaults_to_true_on_the_parser` in `git show 19313eed^:tests/test_lane_permission_posture.py`), and `rg -n dangerously_skip_permissions tests/` returns nothing, so no live test asserts the default.
 
 ## Proposed changes (ordered, validatable)
 
@@ -146,12 +149,12 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Result: pending
 
 - [ ] V-03 validates E-03
-  - Required evidence: pasted post-edit measurement ending `UNRETIRED 0` and `git diff --stat` over the six files.
+  - Required evidence: pasted post-edit measurement ending `UNRETIRED 0`, `git diff --stat` over the six files, and each edited passage quoted after the edit (including the S-18 `test_artifact_audit.py` sentence and both halves of every twin pair).
   - Observed evidence:
   - Result: pending
 
 - [ ] V-04 validates E-04
-  - Required evidence: pasted `AST-DIFFER []` and the bare `python3 -m pytest` summary line.
+  - Required evidence: pasted `AST-DIFFER []` with the `<rev>` used, and the bare `python3 -m pytest` summary line (stated run with no added flags); for any failure, the pasted pre-existence re-run at E-01 HEAD.
   - Observed evidence:
   - Result: pending
 
@@ -160,4 +163,8 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 - Size assessment: standard
 - Cohesion rationale: not required
 
-Execute only after human approval. Commit through `aw commit 9rthek -- <paths>` limited to the declared Scope-Paths; never push. Move to `executed/` only via `aw ipd finalize` after `aw ipd lint --phase pre-transition` conforms and every `V-*` is `pass` with pasted evidence.
+Execute only after explicit human approval recorded through `aw ipd set approved`. OQ-01 is resolved; no open question remains.
+
+EXECUTION CONTRACT. Scope fence: the declared Scope-Paths; an out-of-scope edit is made and then justified at finalize (`--scope-reason`), not a stop. Commit only those paths through `aw commit 9rthek -- <paths>`; never `git add -A`, bare, or `-a`, never `--no-verify`, never push; verify `git diff --cached --name-only` before committing. You MUST paste the actual command output for every measurement, AST check, and suite claim; never claim a result you did not run. Sibling plans `65d5zf`, `dtelfb` and `vzk1iw` edit other passages of these files; if a site here was concurrently changed in a way that cannot be safely combined, stop and report.
+
+POST-GATE LIFECYCLE MOVE. After every `V-*` is `pass` with pasted evidence and `aw ipd lint --phase pre-transition` conforms: under `aw oc run`/`aw agy run` the runner performs `aw ipd begin`/`aw ipd finalize`; in a manual run use `aw ipd finalize <plan> --actor <agent/model> --message <summary> --apply`. Never `git mv` the plan or hand-edit `- Status:`. Backlog `iosmvn` carries no `- Blocks-Release:` to inherit.
