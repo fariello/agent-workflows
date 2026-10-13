@@ -287,9 +287,10 @@ def test_must_not_refuse_matrix(temp_git_repo: Path):
       In selectors.resolve_for_mutation: (a) repo-relative path, (b) absolute path, (c) id6 all resolve.
       In CLI aw rename research: (c) id6 reaches rename preview (rc=0).
     For plans:
+      (a) repo-relative path reaches rename preview (rc=0)
+      (b) absolute path reaches rename preview (rc=0)
       (c) id6 reaches rename preview (rc=0)
-      (a) repo-relative path -> rc=2, 'no plan has Id' (pins pre-existing refusal for Order 02)
-      (b) absolute path -> rc=2, 'no plan has Id' (pins pre-existing refusal for Order 02)
+      (now that Order 02 (87m438) routes plans through the shared selector resolver)
     """
     repo = temp_git_repo
 
