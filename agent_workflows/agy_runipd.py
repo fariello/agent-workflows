@@ -92,8 +92,8 @@ from agent_workflows.render_stream import (
     statusline_action_for_item,
     # orchprobe (r2i1b1) E-01/E-02: the ONE refusal record (reason AND remedy), imported from
     # `render_stream` and NEVER from `oc_runipd`, so this shared symbol does not deepen the
-    # oc-to-agy coupling that backlog `cnwy8g` tracks. Same object in both hosts, asserted by
-    # object identity in `tests/test_refusal_surfacing.py`.
+    # oc-to-agy coupling that backlog `cnwy8g` tracks. Same object in both hosts (`tests/test_refusal_surfacing.py`
+    # was deleted in `19313eed`; no live guard currently asserts this object-identity property).
     REFUSAL_KEY as REFUSAL_KEY,
     Refusal as Refusal,
     record_integration_refusal as record_integration_refusal,
@@ -580,8 +580,8 @@ from agent_workflows.runner_shared import (
 # it never called `parse_dependency_token`, so it used the raw token as an id6 and reported
 # "no plan resolves to this id6 in the repo" for a perfectly valid `executed:<id6>`; and it had
 # no `orchestrate` clause, so an orchestrator item bypassed `decide_orchestrator_dispatch` on
-# that path. `tests/test_runner_item_dependencies.py`'s `_SHARED_NAMES` now pins this name, so
-# the copy cannot come back silently.
+# that path. `tests/test_runner_item_dependencies.py`'s `_SHARED_NAMES` pinned this name (deleted
+# in `19313eed`; no live guard currently asserts this), so the copy cannot come back silently.
 from agent_workflows.runner_shared import (
     DEPENDENCY_FATAL_RULES as DEPENDENCY_FATAL_RULES,
     _artifact_owners as _artifact_owners,
@@ -839,8 +839,8 @@ LANE_PROMPT_TIMEOUT = runner_shared.LANE_PROMPT_TIMEOUT
 # identical note in `oc_runipd`. The canonical field NAME comes from
 # `ipd_schema.META_ITEM_DEPENDENCIES` and its GRAMMAR from `ipd_schema.parse_item_dependencies`; the
 # dependency API objects below are IMPORTED (never re-declared), so the two drivers cannot drift apart
-# again. Re-adding a dependency regex here is a regression guarded by
-# tests/test_runner_item_dependencies.py.
+# again. Re-adding a dependency regex here was guarded by
+# `tests/test_runner_item_dependencies.py` (deleted in `19313eed`; no live guard currently asserts this).
 
 # The ANSI SGR codes and the status->color map are IMPORTED from `render_stream` (see the
 # import block near the top of this module), not defined here. They used to be byte-identical
@@ -1937,7 +1937,7 @@ def validate_manifest(manifest: dict[str, Any]) -> None:
 # second was LIFTED to `runner_shared.plan_kind_from_file` / `resolve_manifest_kind` - given to BOTH
 # hosts rather than kept here, because oc lacked it entirely and the two hosts therefore DISAGREED
 # about a correctness gate in oc's disfavor (`sy7uwh` OQ-03, resolved by the maintainer 2026-09-16).
-# `tests/test_rununify_record.py` covers that fallback on both hosts for the first time.
+# `tests/test_rununify_record.py` was deleted in `19313eed`; no live guard currently asserts this fallback.
 
 
 def expand_selectors(
@@ -2199,8 +2199,9 @@ def save_state(run_dir: Path, state: dict[str, Any]) -> None:
 # returned the FIRST non-empty hit, and the shared reader adopts oc's whole-file scan with a
 # `ses_`-prefix preference, so a log carrying a `conversation_id` EARLY and a `ses_` value LATER now
 # resolves to the `ses_` value. That is decision `06-ct4w0a-D1`, it occurred in 0 of 627 real logs, and
-# `tests/test_rununify_conflicts.py` pins it. The dead `fallback` local this body carried (initialized
-# to None, returned at the end, unreachable because every assigning branch returned first) is gone.
+# `tests/test_rununify_conflicts.py` (deleted in `19313eed`; no live guard currently asserts this conflict
+# case) pinned it. The dead `fallback` local this body carried (initialized to None, returned at the
+# end, unreachable because every assigning branch returned first) is gone.
 
 
 # `_findings_block_reason` is now defined ONCE in `runner_shared` and imported above (rununify 03 `i3d6ml`).
@@ -2208,9 +2209,8 @@ def save_state(run_dir: Path, state: dict[str, Any]) -> None:
 
 # NEITHER `dependency_status` NOR `dependency_status_detailed` IS DEFINED HERE. Both are RE-EXPORTED
 # from `oc_runipd` in the import block above, so both drivers bind the SAME objects and the runtime
-# satisfaction semantics exist exactly ONCE (asserted by
-# tests/test_runner_item_dependencies.py::test_the_implementation_is_shared_not_copied, whose
-# `_SHARED_NAMES` list now names both).
+# satisfaction semantics exist exactly ONCE (`tests/test_runner_item_dependencies.py::test_the_implementation_is_shared_not_copied`,
+# whose `_SHARED_NAMES` list named both, was deleted in `19313eed`; no live guard currently asserts this).
 #
 # THE HISTORY IS WHY THIS COMMENT IS EMPHATIC, because the same defect recurred here twice. The merge
 # of revgate 7nkcgp and 8guhs0 briefly produced BOTH a re-export and a local copy of
@@ -2502,9 +2502,9 @@ def run_agy_turn(
     # (`--no-dangerously-skip-permissions`) requires INTERACTIVE permissions an unattended turn has no
     # answerer for, and running without it was measured to fail or deadlock repeatedly. That is a
     # DECIDED CONSTRAINT this spec adopts (R4.1c), not a defect it tolerates, and R4.1b puts closing
-    # it out of scope. Do NOT "harden" it: `tests/test_lane_permission_posture.py` PINS the default
-    # and will fail if it is flipped (E-05), a guard running in the OPPOSITE direction from every
-    # other check in this Set.
+    # it out of scope. Do NOT "harden" it: `tests/test_lane_permission_posture.py` was deleted in
+    # `19313eed`; no live guard currently asserts this default, but running without it remains
+    # unsupported by design.
     #
     # CONSEQUENCE, which is why R4.1a requires it be RECORDED and not glossed: on this host the host
     # layer contributes NOTHING to containment, so the guarantee rests ENTIRELY on R1 (the prompt
@@ -4063,9 +4063,9 @@ AUTOMATIC STATUS ROUTING:
     runner_shared.add_integrate_parser(sub, command=_detect_driver_command())
 
     # reverify-01 (`mp289j`) E-05: the OUT-OF-BAND `audit` verb, DECLARED here through the same shared
-    # helper so the two hosts keep registering the same subparser set (pinned by
-    # `tests/test_rununify_build_parser.py`), and so `aw agy run audit --help` documents the verb
-    # rather than reporting it does not exist.
+    # helper so the two hosts keep registering the same subparser set (`tests/test_rununify_build_parser.py`
+    # was deleted in `19313eed`; no live guard currently asserts this), and so `aw agy run audit --help`
+    # documents the verb rather than reporting it does not exist.
     #
     # DECLARED ON BOTH HOSTS, IMPLEMENTED ON ONE, DELIBERATELY. Plan `mp289j` excludes wiring a second
     # host launch path ("a second host surface doubles the review burden for a verb whose value is
