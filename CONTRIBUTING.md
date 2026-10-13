@@ -246,14 +246,14 @@ and an undeclared leaf fails CI):
    catch `BrokenPipeError` and exit cleanly.
 6. If the leaf is safe to run read-only in the repo, add it to `LIVE_SAFE_LEAVES` in
    `tests/conformance_matrix.py` so the harness exercises it. Currently, membership exercises
-   exit-code parity via `tests/test_exit_contract_conformance.py::test_live_safe_leaves_exit_contract_membership`
-   (marked `slow`, which runs in CI under `continue-on-error: true`). Renderer-level ANSI-free
-   agent streams and fact-parity are enforced by `tests/test_cli_quality_gates.py`, with live
-   agent output also verified across read/check leaves by `tests/test_agent_surface_conformance.py`.
+   exit-code parity via `tests/test_exit_contract_conformance.py::test_live_safe_leaves_exit_contract_membership_cheap`
+   (default-collected) and `test_live_safe_leaves_exit_contract_membership_heavy`
+   (marked `slow`, which runs in CI under `continue-on-error: true`). Per-leaf `--help`, usage-error,
+   `--no-color`, and non-vacuous fact parity are enforced by `tests/test_live_conformance_sweep.py`.
+   Renderer-level ANSI-free agent streams and fact-parity are enforced by `tests/test_cli_quality_gates.py`,
+   with live agent output also verified across read/check leaves by `tests/test_agent_surface_conformance.py`.
    Tree-wide `--help` and usage-error floors are asserted in-process by
-   `tests/test_exit_contract_conformance.py`. The remaining per-leaf live scenarios (per-leaf
-   `--help`, usage error, `--no-color`, live ANSI stream, and live fact-parity) are unexecuted
-   and tracked under carrier `2wowfy`.
+   `tests/test_exit_contract_conformance.py`.
 7. Docs. If the leaf introduces a new output shape, note it in the
    [Human TTY guide](docs/cli-human-guide.md) and the
    [Agent protocol reference](docs/cli-agent-protocol.md); the contract itself is in

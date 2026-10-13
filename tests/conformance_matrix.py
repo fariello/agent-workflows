@@ -11,6 +11,9 @@ Stdlib only (Python 3.9+). This module is the shared harness consumed by:
 - ``test_conformance_matrix_structure.py``: structural and alias gate asserting
   zero undeclared leaves, complete required scenario coverage, pinned declared-absent
   declarations, live-safe leaf rows, and alias byte-equivalence (IPD dq9bj9).
+- ``test_live_conformance_sweep.py``: drives the per-leaf --help, usage-error,
+  and --no-color scenario sweeps over safe leaves, color contrast verification,
+  and non-vacuous human-agent fact parity (IPD 34iwyp).
 
 Design notes
 ------------
@@ -113,6 +116,26 @@ LIVE_SAFE_LEAVES: Dict[str, List[str]] = {
     "workflow validate": [],
     "workflow check-generated": [],
 }
+
+# Leaves whose invocation wall time is too heavy for the default test suite.
+# Partition decided in IPD 34iwyp: doctor, attention, status.
+# Measured at execution (high concurrency baseline):
+# - doctor: human 598.970s, agent 359.733s, no_color 262.383s (per-invocation ~407.0s)
+# - attention: human 48.411s, agent 48.577s, no_color 48.658s (per-invocation ~48.5s)
+# - status: human 43.852s, agent 35.515s, no_color 33.626s (per-invocation ~37.7s)
+LIVE_HEAVY_LEAVES: frozenset[str] = frozenset(
+    {
+        "doctor",
+        "attention",
+        "status",
+    }
+)
+
+
+def live_cheap_leaves() -> List[str]:
+    """Return LIVE_SAFE_LEAVES members minus LIVE_HEAVY_LEAVES in sorted order."""
+    return sorted(set(LIVE_SAFE_LEAVES.keys()) - LIVE_HEAVY_LEAVES)
+
 
 # Table mapping a leaf to extra argv needed to make it runnable and read-only
 # (e.g. providing required positional arguments in a safe read-only manner).
@@ -662,6 +685,65 @@ def run_cli(
     )
 
 
+def run_cli_tty(
+    argv: Sequence[str],
+    *,
+    no_color: bool = False,
+    cwd: Optional[Path | str] = None,
+    env_overrides: Optional[Dict[str, str]] = None,
+) -> RunResult:
+    """Run ``python -m agent_workflows <argv>`` attached to a POSIX pseudo-terminal (pty).
+
+    stdout and stderr are attached to the pty slave, enabling TTY color emission detection.
+    On Windows (sys.platform == "win32"), callers must skip since pty is unavailable (IPD 34iwyp E-07).
+    """
+    if sys.platform == "win32":
+        import pytest
+
+        pytest.skip(
+            "run_cli_tty requires pty support (unavailable on Windows; IPD 34iwyp E-07)"
+        )
+
+    import pty
+
+    master_fd, slave_fd = pty.openpty()
+    cmd = [sys.executable, "-m", "agent_workflows", *argv]
+    effective_cwd = str(REPO_ROOT) if cwd is None else str(cwd)
+    env = _pinned_env(no_color=no_color, env_overrides=env_overrides)
+    try:
+        proc = subprocess.Popen(
+            cmd,
+            cwd=effective_cwd,
+            stdin=subprocess.DEVNULL,
+            stdout=slave_fd,
+            stderr=slave_fd,
+            env=env,
+            close_fds=True,
+        )
+    finally:
+        os.close(slave_fd)
+
+    out_chunks: List[bytes] = []
+    while True:
+        try:
+            chunk = os.read(master_fd, 8192)
+            if not chunk:
+                break
+            out_chunks.append(chunk)
+        except OSError:
+            # On Linux, EIO is raised when the slave fd is closed by the child.
+            break
+    os.close(master_fd)
+    proc.wait()
+    combined = b"".join(out_chunks).decode("utf-8", errors="replace")
+    return RunResult(
+        argv=list(argv),
+        returncode=proc.returncode,
+        stdout=combined,
+        stderr="",
+    )
+
+
 # --------------------------------------------------------------------------------------------------
 # Isolated project fixture and clone helpers (vfv2db E-01)
 # --------------------------------------------------------------------------------------------------
@@ -833,6 +915,77 @@ def semantic_facts_from_agent(stdout: str) -> Dict[str, object]:
                 "findings": rec.get("findings", rec.get("total")),
             }
     return facts
+
+
+_HUMAN_OUTCOME_WORDS = {
+    "conforms": "clean",
+    "clean": "clean",
+    "ok": "clean",
+    "findings": "findings",
+    "fail": "fail",
+    "failed": "fail",
+    "error": "error",
+    "preview": "preview",
+    "stale": "stale",
+}
+
+
+def outcome_family(agent_outcome: object) -> Optional[str]:
+    """Map an agent outcome to the coarse human family for parity comparison."""
+    if agent_outcome is None:
+        return None
+    key = str(agent_outcome).lower()
+    return _HUMAN_OUTCOME_WORDS.get(key, key)
+
+
+def semantic_facts_from_human(stdout: str) -> Dict[str, object]:
+    """Extract the outcome family from the standard HumanRenderer outcome banner.
+
+    Recognizes two measured banner forms (IPD 34iwyp E-04):
+    (a) An 'AW <command>' title line followed by a '<glyph> <STATUS>' banner line.
+    (b) A first line that is itself '<glyph> <STATUS> ...'.
+
+    In both shapes, the banner line must be exactly '<glyph> <STATUS> ...', where
+    <glyph> is in agent_workflows.term.GLYPHS or ASCII_GLYPHS, and <STATUS> is an
+    uppercase token looked up in _HUMAN_OUTCOME_WORDS.
+    Table, board, and rich renders return {'outcome_family': None}.
+    """
+    import agent_workflows.term as term
+
+    all_glyphs = set(term.GLYPHS.values()) | set(term.ASCII_GLYPHS.values())
+    plain = ANSI_RE.sub("", stdout)
+    nonempty = [ln.strip() for ln in plain.splitlines() if ln.strip()]
+    if not nonempty:
+        return {"outcome_family": None}
+
+    def _extract_banner(line: str) -> Optional[str]:
+        toks = line.split()
+        if len(toks) >= 2 and toks[0] in all_glyphs and toks[1] == toks[1].upper():
+            key = toks[1].lower()
+            if key in _HUMAN_OUTCOME_WORDS:
+                return _HUMAN_OUTCOME_WORDS[key]
+        return None
+
+    # Shape (a): 'AW <command>' title line followed by banner line
+    if nonempty[0].startswith("AW "):
+        if len(nonempty) >= 2:
+            family = _extract_banner(nonempty[1])
+            if family is not None:
+                return {"outcome_family": family}
+        return {"outcome_family": None}
+
+    # Shape (b): First line is itself the banner
+    family = _extract_banner(nonempty[0])
+    return {"outcome_family": family}
+
+
+# Curated leaves that emit a human outcome banner and have an agent surface.
+# Must be executed in an isolated environment with pinned HOME/XDG_CONFIG_HOME/AW_HOME.
+FACT_PARITY_LEAVES: Dict[str, List[str]] = {
+    "runs query": ["schema"],
+    "list-repos": [],
+    "record-history": ["f36de0"],
+}
 
 
 # --------------------------------------------------------------------------------------------------
