@@ -299,4 +299,10 @@ python3 tools/lost_guard_census.py --dedupe
 
 # Run all sections:
 python3 tools/lost_guard_census.py --all
+
+# Print inventory of uncited deleted files with per-file facts:
+python3 tools/lost_guard_census.py --uncited
+
+# Output uncited inventory as JSON for --from-json consumers:
+python3 tools/lost_guard_census.py --uncited --format json
 ```

@@ -41,6 +41,7 @@ from __future__ import annotations
 import argparse
 import ast
 import collections
+import json
 import os
 from pathlib import Path
 import re
@@ -169,6 +170,8 @@ def compute_commit_census(repo_root: Path, commit: str) -> CommitCensus:
         if len(parts) != 2:
             continue
         status, p = parts
+        if not p.startswith("tests/"):
+            continue
         if status == "D":
             deleted_paths.append(p)
         elif status == "M":
@@ -588,6 +591,127 @@ def annotate_candidate_file(
     )
 
 
+def git_object_exists(repo_root: Path, rev_and_path: str) -> bool:
+    """Check whether a git object or path exists at a given revision."""
+    try:
+        res = subprocess.run(
+            ["git", "cat-file", "-e", rev_and_path],
+            cwd=repo_root,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            check=False,
+        )
+        return res.returncode == 0
+    except Exception:
+        return False
+
+
+def is_historical_module(
+    repo_root: Path,
+    commit: str,
+    name: str,
+    cache: dict[tuple[str, str], bool] | None = None,
+) -> bool:
+    """Check if <commit>^:agent_workflows/N.py or <commit>^:agent_workflows/N/__init__.py exists."""
+    key = (commit, name)
+    if cache is not None and key in cache:
+        return cache[key]
+    exists = git_object_exists(
+        repo_root, f"{commit}^:agent_workflows/{name}.py"
+    ) or git_object_exists(repo_root, f"{commit}^:agent_workflows/{name}/__init__.py")
+    if cache is not None:
+        cache[key] = exists
+    return exists
+
+
+def extract_historical_blob_imports(
+    repo_root: Path,
+    commit: str,
+    src: str,
+    cache: dict[tuple[str, str], bool] | None = None,
+) -> list[str]:
+    """Parse top-level agent_workflows submodule imports from a historical test blob using AST.
+
+    Rule (pinned by IPD 1ub8ex):
+    - Walk every AST node (ast.walk), so function-local imports count.
+    - For ast.Import: agent_workflows.X[.Y...] contributes X.
+    - For ast.ImportFrom with level == 0:
+      - from agent_workflows.X[.Y...] import ... contributes X.
+      - from agent_workflows import N contributes N only when <commit>^:agent_workflows/N.py
+        or <commit>^:agent_workflows/N/__init__.py exists (git cat-file -e).
+    - Bare import agent_workflows and relative imports contribute nothing.
+    - Unparsable blob yields [].
+    """
+    try:
+        tree = ast.parse(src)
+    except Exception:
+        return []
+
+    modules: set[str] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            for alias in node.names:
+                parts = alias.name.split(".")
+                if parts[0] == "agent_workflows" and len(parts) > 1:
+                    modules.add(parts[1])
+        elif isinstance(node, ast.ImportFrom):
+            if node.level == 0 and node.module:
+                parts = node.module.split(".")
+                if parts[0] == "agent_workflows":
+                    if len(parts) > 1:
+                        modules.add(parts[1])
+                    else:
+                        for alias in node.names:
+                            if is_historical_module(
+                                repo_root, commit, alias.name, cache
+                            ):
+                                modules.add(alias.name)
+    return sorted(modules)
+
+
+def compute_uncited_inventory(
+    repo_root: Path,
+    commit: str,
+    cited_paths: Sequence[str] | set[str],
+) -> list[dict]:
+    """Compute per-file inventory of uncited deleted files for a commit."""
+    cited_set = set(cited_paths)
+    census = compute_commit_census(repo_root, commit)
+    uncited_paths = sorted([p for p in census.deleted_paths if p not in cited_set])
+
+    git_cache: dict[tuple[str, str], bool] = {}
+    records: list[dict] = []
+    for p in uncited_paths:
+        src = git_show(repo_root, f"{commit}^:{p}")
+        removed_funcs = len(extract_test_functions(src))
+        ann = annotate_candidate_file(repo_root, commit, p)
+        imports = extract_historical_blob_imports(repo_root, commit, src, git_cache)
+        missing_imports = [
+            m
+            for m in imports
+            if not (
+                (repo_root / "agent_workflows" / f"{m}.py").is_file()
+                or (repo_root / "agent_workflows" / m).is_dir()
+            )
+        ]
+        recreated = (repo_root / p).is_file()
+
+        records.append(
+            {
+                "commit": commit,
+                "path": p,
+                "removed_funcs": removed_funcs,
+                "pin_funcs": ann.pin_funcs,
+                "behavioral_funcs": ann.behavioral_funcs,
+                "pin_names": ann.pin_names,
+                "imports": imports,
+                "missing_imports": missing_imports,
+                "recreated_at_head": recreated,
+            }
+        )
+    return records
+
+
 # ------------------------------------------------------------------------------
 # Printing functions
 # ------------------------------------------------------------------------------
@@ -884,6 +1008,40 @@ def print_dedupe_and_triage(
         print(f"    -> Match basis: {row.match_basis}")
 
 
+def print_uncited_inventory(
+    repo_root: Path,
+    commits: Sequence[str] = DEFAULT_TRIM_COMMITS,
+    cited_paths: Sequence[str] | set[str] | None = None,
+) -> None:
+    """Print uncited deleted file inventory report for given commits."""
+    if cited_paths is None:
+        axis_a_res = scan_axis_a(repo_root, commits)
+        cited_paths = axis_a_res.cited_paths
+
+    for commit in commits:
+        records = compute_uncited_inventory(repo_root, commit, cited_paths)
+        print("=" * 78)
+        print(f"UNCITED DELETED FILES ({commit}) - RULE: {RULE_D_ONLY_ALL_DEFS}")
+        print("=" * 78)
+
+        for r in records:
+            rec_str = "recreated=True" if r["recreated_at_head"] else "recreated=False"
+            missing_str = (
+                f"missing={r['missing_imports']}"
+                if r["missing_imports"]
+                else "missing=[]"
+            )
+            print(
+                f"  {r['path']}: {r['removed_funcs']} removed ({r['pin_funcs']} pin, {r['behavioral_funcs']} behavioral) {rec_str} {missing_str}"
+            )
+
+        total_files = len(records)
+        total_funcs = sum(r["removed_funcs"] for r in records)
+        print(
+            f"\nUncited deleted files: {total_files} files holding {total_funcs} removed functions ({RULE_D_ONLY_ALL_DEFS})"
+        )
+
+
 # ------------------------------------------------------------------------------
 # Main CLI entrypoint
 # ------------------------------------------------------------------------------
@@ -939,12 +1097,26 @@ def main(argv: Sequence[str] | None = None) -> int:
         help="Run candidate triage with annotations",
     )
     parser.add_argument(
+        "--uncited",
+        action="store_true",
+        help="Print inventory of uncited deleted files with per-file facts",
+    )
+    parser.add_argument(
+        "--format",
+        choices=["text", "json"],
+        default="text",
+        help="Output format (default: text; json supported with --uncited)",
+    )
+    parser.add_argument(
         "--all",
         action="store_true",
         help="Run all census, axis, classifier, and triage sections",
     )
 
     args = parser.parse_args(argv)
+
+    if args.format == "json" and not args.uncited:
+        parser.error("--format json requires --uncited")
 
     # Determine actions
     do_all = args.all or (
@@ -955,6 +1127,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         and not args.classifier
         and not args.dedupe
         and not args.triage
+        and not args.uncited
     )
 
     do_summary = args.summary or do_all
@@ -962,12 +1135,23 @@ def main(argv: Sequence[str] | None = None) -> int:
     do_axis_b = args.axis_b or (args.axis in ("b", "all")) or do_all
     do_classifier = args.classifier or do_all
     do_dedupe = args.dedupe or args.triage or do_all
+    do_uncited = args.uncited
 
     repo_root = Path.cwd()
 
     axis_a_res: AxisAResult | None = None
-    if do_axis_a or do_summary or do_dedupe:
+    if do_axis_a or do_summary or do_dedupe or do_uncited:
         axis_a_res = scan_axis_a(repo_root, args.commits)
+
+    if do_uncited and args.format == "json":
+        assert axis_a_res is not None
+        records: list[dict] = []
+        for c in args.commits:
+            records.extend(
+                compute_uncited_inventory(repo_root, c, axis_a_res.cited_paths)
+            )
+        print(json.dumps(records, indent=2, sort_keys=True))
+        return 0
 
     if do_summary:
         print_summary(repo_root, args.commits, axis_a_res=axis_a_res)
@@ -986,6 +1170,12 @@ def main(argv: Sequence[str] | None = None) -> int:
     if do_dedupe:
         assert axis_a_res is not None
         print_dedupe_and_triage(repo_root, axis_a_res)
+
+    if do_uncited:
+        assert axis_a_res is not None
+        print_uncited_inventory(
+            repo_root, args.commits, cited_paths=axis_a_res.cited_paths
+        )
 
     return 0
 
