@@ -65,6 +65,78 @@ class TestFrozenFixItCaps(unittest.TestCase):
         caps = runner_shared.frozen_fix_it_caps(state)
         self.assertEqual(caps, frozen_vals)
 
+    def test_initialize_run_core_freezes_fix_it_caps(self) -> None:
+        """initialize_run_core freezes resolved caps into state['options']['fix_it_caps']."""
+        import argparse
+
+        with tempfile.TemporaryDirectory() as td:
+            repo = pathlib.Path(td)
+            subprocess.run(["git", "init", "-q"], cwd=repo, check=True)
+            for cmd in (
+                ["git", "config", "user.email", "test@example.invalid"],
+                ["git", "config", "user.name", "Test"],
+            ):
+                subprocess.run(cmd, cwd=repo, check=True)
+            cfg_dir = repo / ".aw" / "config"
+            cfg_dir.mkdir(parents=True)
+            (cfg_dir / "project.json").write_text(
+                json.dumps({"run": {"fix_it_caps": {"per_artifact": 7}}}),
+                encoding="utf-8",
+            )
+            pending = repo / ".aw" / "records" / "plans" / "pending"
+            pending.mkdir(parents=True, exist_ok=True)
+            plan_file = pending / "20261003-test-01-tst001-sample.ipd.md"
+            plan_file.write_text(
+                _CONFORMING_PLAN.format(id6="tst001"), encoding="utf-8"
+            )
+            subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
+            subprocess.run(["git", "commit", "-qm", "initial"], cwd=repo, check=True)
+
+            args = argparse.Namespace(
+                repo=str(repo),
+                selectors=["all"],
+                full_auto=False,
+                output_mode="clean",
+                verbosity=0,
+                stall_timeout=600.0,
+                session=None,
+                self_finalize=True,
+                isolate_worktree=True,
+                max_items_per_session=4,
+                prepare_only=True,
+                action=None,
+                run_id="run-test-caps-freeze",
+                manifest=None,
+                runbook=None,
+                types=None,
+                allow_mixed=False,
+                allow_drafts=False,
+                allow_unverifiable=False,
+                allow_dirty_base=False,
+                allow_concurrent_driver=False,
+                allow_uncovered_orchestrator_work=False,
+                retry_budget=None,
+                integration_retry_limit=None,
+                on_integration_blocked=None,
+                on_conflict=None,
+            )
+            run_dir = runner_shared.initialize_run_core(
+                args,
+                host="oc",
+                driver_path=pathlib.Path(__file__),
+                host_options={},
+                labels=runner_shared.OC_HOST_LABELS,
+                expand_selectors_fn=lambda manifest, selectors, **kw: ["tst001"],
+                enforce_dependency_preflight_fn=lambda *a, **kw: None,
+                announce_run_order_fn=lambda rdir, st: None,
+                run_order_rationale_fn=lambda queue, sel: "test rationale",
+                write_report_fn=lambda rdir, st: None,
+            )
+            state = runner_shared.load_json(run_dir / "state.json")
+            self.assertIn("fix_it_caps", state["options"])
+            self.assertEqual(state["options"]["fix_it_caps"]["per_artifact"], 7)
+            self.assertEqual(state["options"]["fix_it_caps"]["per_set_floor"], 20)
+
 
 class TestFixItTurnsSpent(unittest.TestCase):
     """Unit tests for fix_it_turns_spent and counter accumulation (E-03 / V-03)."""

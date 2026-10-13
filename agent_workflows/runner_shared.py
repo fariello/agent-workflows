@@ -32050,6 +32050,7 @@ def initialize_run_core(
         caps = _hsp.HostSandboxCapabilities()
         caps.probe_notes["initialization_probe_error"] = f"{type(exc).__name__}: {exc}"
 
+    from agent_workflows import config as _config
     from agent_workflows.loaded_code import loaded_code_record
 
     loaded_code_rec = loaded_code_record(repo)
@@ -32105,6 +32106,7 @@ def initialize_run_core(
             # while every unit test stays green, which is what `test_the_production_call_sites_pass_a_repo_root`
             # exists to catch.
             **freeze_run_policy_flags(args, repo=repo),
+            "fix_it_caps": _config.policy_fix_it_caps(repo),
             **host_options,
         },
         "driver": {
