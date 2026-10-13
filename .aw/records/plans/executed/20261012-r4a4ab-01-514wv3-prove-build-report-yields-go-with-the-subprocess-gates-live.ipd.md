@@ -6,7 +6,7 @@
 - Scope: Add hermetic behavioral tests to `tests/test_release_readiness.py` that build a synthetic clean repository in `tmp_path`, call `build_report` with `run_subprocess_gates=True`, and assert GO; then add one nonconforming pending plan to the same synthetic tree and assert the verdict flips to NO-GO with `failing_gates() == ["ipd_lint"]`. The live tree's lint state is NOT touched and NOT asserted on: whether it is red or green at any moment is a property of other agents' pending plans (livecorpus hazard).
 - Scope-Paths: tests/test_release_readiness.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: medium
@@ -16,9 +16,9 @@
 - Highest E allocated: 04
 - Author: opencode/its_direct/pt3-claude-opus-5.5-1m-us
 - Id: 514wv3
-- Approval: 2026-10-12, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-13 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: 514wv3 verified (set r4a4ab, attempt 1).
 - 2026-10-12 approved (aw set): status set to approved
 - 2026-10-12 reviewed (aw set): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-001..PR-004
 
