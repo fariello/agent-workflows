@@ -6,7 +6,7 @@
 - Scope: In `agent_workflows/partition.py`: (1) treat Set membership as a clustering edge, so an orchestrator and every UNFINISHED child of its Set land in ONE shard; (2) before partitioning, classify every Set that has a selected member AND an orchestrator on disk, and REFUSE (exit 2, no commands emitted) when such a Set cannot finish in this batch, naming each blocking child, its status, and the exact command that fixes it; (3) add one opt-in flag, `--allow-partial-sets`, under which the RUNNABLE children of such a Set are emitted and its orchestrator is still never emitted; (4) render every refusal and warning in color through the existing `Term`; (5) make a SETID selector skip the Set's already-finished members instead of erroring, so "select the Set by its setid" is a usable fix. Plus tests, the command's help text, and a CHANGELOG entry. No change to the runners, to retirement, or to non-plan types; Sets with no orchestrator partition exactly as today.
 - Scope-Paths: agent_workflows/partition.py, agent_workflows/cli.py, tests/test_partition.py, tests/test_partition_set_cohesion.py, CHANGELOG.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: high
@@ -17,9 +17,9 @@
 - Highest E allocated: 08
 - Author: opencode model=its_direct/pt3-claude-opus-5.5-1m-us
 - Id: 8t28wj
-- Approval: 2026-10-12, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-13 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: 8t28wj verified (set partset, attempt 1). [Scope reconciliation - in-scope-unmodified tests/test_partition.py: declared-but-unmodified (auto-acknowledged by aw agy run)]
 - 2026-10-12 approved (aw set): status set to approved
 - 2026-10-12 reviewed (aw set): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-001..PR-010
 - 2026-10-12 /plan-review (opencode model=its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-010 fixed (review record 20261010-partset-01-8t28wj)
