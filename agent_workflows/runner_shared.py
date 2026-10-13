@@ -39964,7 +39964,7 @@ def execute_item_core(
                     pass
 
             # Production correction turn loop (nnsa2o E-02)
-            prod_dec: ProductionSetRetryDecision | None = None
+            prod_dec = None
             while findings:
                 used_turns = production_set_retry_attempts(item)
                 prod_dec = production_set_retry_decision(

@@ -859,9 +859,9 @@ def check_drift(
             ]
             companion_dirs = [d for d in dirnames if d.endswith(R.COMPANION_SUFFIX)]
             dirnames[:] = [d for d in dirnames if not d.endswith(R.COMPANION_SUFFIX)]
-            for d in sorted(companion_dirs):
-                data_dir = Path(dirpath) / d
-                stem = d[: -len(R.COMPANION_SUFFIX)]
+            for cdir in sorted(companion_dirs):
+                data_dir = Path(dirpath) / cdir
+                stem = cdir[: -len(R.COMPANION_SUFFIX)]
                 parsed, _ = R.parse_name(stem + ".md", repo_root=repo_root)
                 if parsed is None:
                     continue

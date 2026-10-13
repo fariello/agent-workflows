@@ -71,6 +71,7 @@ Stdlib only.
 
 from __future__ import annotations
 
+import functools
 import hashlib
 import os
 import platform
@@ -688,6 +689,7 @@ def _utc_now(clock: Callable[[], float] | None = None) -> str:
 
 
 # --- Node identity -----------------------------------------------------------------------------
+@functools.lru_cache(maxsize=1)
 def node_identity_input() -> str:
     """Assemble the raw machine-identity string that :func:`node_pseudonym` hashes.
 
@@ -697,7 +699,7 @@ def node_identity_input() -> str:
     """
 
     parts: list[str] = []
-    for probe in (socket.getfqdn, socket.gethostname, platform.node):
+    for probe in (socket.gethostname, platform.node):
         try:
             value = probe()
         except Exception:  # noqa: BLE001 - identity assembly must never raise

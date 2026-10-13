@@ -36,6 +36,7 @@ Exit code (CLI): 0 = clean, 1 = fail-severity leak(s), 2 = usage/environment err
 
 from __future__ import annotations
 
+import functools
 import os
 import re
 import shlex
@@ -443,6 +444,14 @@ def write_user_hints(tokens: list[str], patterns: list[str]) -> Path:
     return _atomic_write(_config_dir() / USER_HINTS_FILENAME, payload, private=True)
 
 
+@functools.lru_cache(maxsize=1)
+def _cached_getfqdn() -> str | None:
+    try:
+        return socket.getfqdn() or None
+    except Exception:
+        return None
+
+
 def derive_warn_tokens(repo_root: Path) -> dict[str, str]:
     """Auto-derive advisory (warn-only) personal tokens from the environment.
 
@@ -482,7 +491,7 @@ def derive_warn_tokens(repo_root: Path) -> dict[str, str]:
     except Exception:
         pass
     try:
-        fqdn = socket.getfqdn() or None
+        fqdn = _cached_getfqdn()
         add(fqdn, "fqdn")
         if fqdn and "." in fqdn:
             add(fqdn.split(".", 1)[0] or None, "hostname short label")
