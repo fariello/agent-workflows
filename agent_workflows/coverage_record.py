@@ -15,7 +15,6 @@ All first-party imports are function-local.
 
 from __future__ import annotations
 
-import datetime
 from pathlib import Path
 import re
 import subprocess
@@ -155,7 +154,9 @@ def write(
     from agent_workflows.runner_shared import probe_cache_digest
 
     fingerprint = probe_cache_digest(plan_text)
-    today = datetime.date.today().isoformat()
+    from agent_workflows import artifact_core as _core
+
+    today = _core.utc_history_date()
 
     raw_model = (model or "").strip()
     if not raw_model or raw_model in ("host-default", "by host-default"):
