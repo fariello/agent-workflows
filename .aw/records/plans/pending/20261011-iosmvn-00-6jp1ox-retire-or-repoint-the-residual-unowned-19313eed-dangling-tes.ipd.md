@@ -91,6 +91,7 @@ Orders 01, 02 and 03 touch disjoint files and are mutually independent.
   - Carrier-Evidence: .aw/records/plans/executed/20261011-3tov52-01-65d5zf-retire-dangling-citations-of-deleted-code-pin-tests-in-runne.ipd.md
 - The sibling-owned `runner_shared` module-level import-pin citation of `test_orchestrator_probe_cache.py` named in Concern.
   - Carrier: dtelfb
+  - Carrier-Evidence: .aw/records/plans/executed/20261011-046nys-01-dtelfb-record-retirement-of-the-runner-shared-module-level-import-p.ipd.md
 - The sibling-owned `test_runner_backlog_close.py` and `test_runner_layering.py` citations named in Concern.
   - Carrier: z2ugxc
 - The `test_run_flag_surface.py` citations named in Concern.

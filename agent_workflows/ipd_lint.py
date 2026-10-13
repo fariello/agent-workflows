@@ -1791,10 +1791,12 @@ def check_item_dependencies(
 #
 # WHY IT LIVES HERE rather than in a new shared module (this plan's OQ-01, resolved from repository
 # evidence). `runner_shared` keeps EXACTLY `{render_stream, runner_profiles}` as its module-level
-# first-party imports and `tests/test_orchestrator_probe_cache.py::
-# test_no_new_module_level_first_party_import_in_runner_shared` asserts that by SET EQUALITY, so the
-# import a new module would need there breaks a shipped test. `runner_shared` already reaches
-# `ipd_lint` through function-local imports in four places, which is how a runner reaches this.
+# first-party imports by convention. The former pin `tests/test_orchestrator_probe_cache.py::
+# test_no_new_module_level_first_party_import_in_runner_shared` was a code pin retired under
+# `GUIDING_PRINCIPLES` P16 in `80db6750c` and will not return; the convention is held by review
+# rather than by a test, so adding a new module import in `runner_shared` would violate that reviewed
+# convention. `runner_shared` already reaches `ipd_lint` through function-local imports in four places,
+# which is how a runner reaches this.
 #
 # EVERY FIRST-PARTY IMPORT THIS SECTION NEEDS IS FUNCTION-LOCAL, AND THAT IS REQUIRED RATHER THAN
 # STYLISTIC: `ipd_set_plan` imports `ipd_lint` AT MODULE LEVEL, so a module-level import of it here

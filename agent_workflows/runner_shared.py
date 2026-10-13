@@ -163,12 +163,13 @@ from agent_workflows import runner_profiles
 # hostdedup Order 01 (`li44r9`): `runner_shutdown` and `platform_lock` are reached through
 # FUNCTION-LOCAL imports in the lock/reaper bodies below, NOT at module scope, even though both are
 # provably cycle-free from here (their own top-level first-party imports are stdlib plus
-# `platform_lock`). The reason is a standing repository constraint rather than a cycle:
+# `platform_lock`). The reason is an established convention rather than a cycle, because an import
+# added here changes the import graph for EVERY host driver. The former pin
 # `tests/test_orchestrator_probe_cache.py::test_no_new_module_level_first_party_import_in_runner_shared`
-# pins this module's module-level first-party imports to EXACTLY `render_stream` + `runner_profiles`,
-# because an import added here changes the import graph for EVERY host driver. The function-local form
-# is this module's own convention in twenty-plus places, so the lift needs no new precedent and no
-# guard re-base.
+# was a code pin retired under `GUIDING_PRINCIPLES` P16 in `80db6750c` and will not return, so the
+# convention of restricting module-level first-party imports to `render_stream` + `runner_profiles`
+# is held by review rather than by a test. The function-local form is this module's own convention
+# in twenty-plus places, so the lift needs no new precedent.
 from agent_workflows.render_stream import (
     GATE_ANSWER_NEEDS_HUMAN_CODE as _render_gate_answer_needs_human_code,
     Palette,
@@ -198,11 +199,13 @@ from agent_workflows.render_stream import (
     render_run_summary_table,
     # runnerlayer Order 02 (`1f7xno`), backlog `cnwy8g`: the two renderers the re-homed
     # `report_run_spec_edits` closes over. They are ADDED TO THE EXISTING `render_stream` statement
-    # rather than imported from a new module, deliberately: the shipped guard
+    # rather than imported from a new module, deliberately: by convention, this module restricts its
+    # module-level first-party imports to EXACTLY `render_stream` + `runner_profiles`. The former pin
     # `tests/test_orchestrator_probe_cache.py::test_no_new_module_level_first_party_import_in_runner_shared`
-    # pins this module's module-level first-party imports to EXACTLY `render_stream` +
-    # `runner_profiles`, and that guard constrains the MODULE SET, not the name count, so extending
-    # a statement that already names `render_stream` leaves the pinned set unchanged.
+    # was a code pin retired under `GUIDING_PRINCIPLES` P16 in `80db6750c` and will not return, so
+    # this convention is held by review rather than by a test. The convention constrains the MODULE
+    # SET, not the name count, so extending a statement that already names `render_stream` leaves the
+    # module set unchanged.
     #
     # THIS IS THE CASE-(c) CALLEE HAZARD THE PLAN'S E-02 PREDICTED, resolved the RIGHT way. Both
     # names live in `render_stream`, which imports no first-party module, so this closes no cycle.
@@ -212,8 +215,8 @@ from agent_workflows.render_stream import (
     format_spec_edit_report,
     format_spec_impact_failure,
     # The two renderers `announce_run_order` closes over, added by the same batch and under the same
-    # rule: extending a statement that already names `render_stream` leaves the pinned MODULE SET
-    # unchanged.
+    # rule: extending a statement that already names `render_stream` leaves the module SET unchanged
+    # under the convention.
     format_run_order_announcement,
     format_spec_impact_announcement,
     # strandexit (`entv1d`) E-02: predicate answering whether an item's work failed to land.
@@ -357,7 +360,8 @@ def should_color(stream: TextIO | None = None) -> bool:
     convention for a first-party dependency (`ipd_lint`/`ipd_schema`/`ipd_lifecycle`/`worktree_lease`
     all arrive that way), kept here as a convention (the historical guard
     `tests/test_orchestrator_probe_cache.py::test_no_new_module_level_first_party_import_in_runner_shared`
-    was deleted in `19313eed`, so no live guard currently enforces this).
+    was a code pin retired under `GUIDING_PRINCIPLES` P16 in `80db6750c`, with the file deleted in
+    `19313eed7`, and will not return; no live guard currently enforces this).
     """
     from agent_workflows import term
 
@@ -1851,10 +1855,12 @@ def lane_plan_is_terminal(repo: Path, lane: Mapping[str, Any]) -> Optional[bool]
         # answered "no". Asked through `plan_bucket` because it is the one path inspector for this
         # layout; its result is otherwise unused here (see below).
         return None
-    # FUNCTION-LOCAL, per this module's own convention: its module-level first-party imports are PINNED
-    # to exactly `render_stream` + `runner_profiles` by
-    # `tests/test_orchestrator_probe_cache.py::test_no_new_module_level_first_party_import_in_runner_shared`,
-    # because an import added here changes the import graph for EVERY host driver.
+    # FUNCTION-LOCAL, per this module's own convention: an import added at module scope changes the
+    # import graph for EVERY host driver. The former pin
+    # `tests/test_orchestrator_probe_cache.py::test_no_new_module_level_first_party_import_in_runner_shared`
+    # was a code pin retired under `GUIDING_PRINCIPLES` P16 in `80db6750c` and will not return, so the
+    # convention of restricting module-level first-party imports to exactly `render_stream` +
+    # `runner_profiles` is held by review rather than by a test.
     from agent_workflows import run_selection_policy as _rsp
 
     # THE SHIPPED PREDICATE DECIDES, NOT A COMPARISON AGAINST THE SEGMENT TUPLE. Measured while writing
@@ -14268,15 +14274,17 @@ def sweep_review_candidates_for_types(
 
 #: `--type`'s accepted vocabulary: spec 2.2's seven canonical type names.
 #:
-#: SPELLED HERE RATHER THAN IMPORTED, and the reason is a standing repository constraint rather than a
-#: preference: `tests/test_orchestrator_probe_cache.py::
-#: test_no_new_module_level_first_party_import_in_runner_shared` pins this module's module-level
-#: first-party imports to EXACTLY `render_stream` + `runner_profiles`, so
-#: `run_selection_policy.SPEC_TYPE_ORDER` cannot be read at module scope. A function-local import
-#: cannot build a module-level tuple either. So the values are written out AND TIED TO THEIR
-#: AUTHORITY BY TEST: `test_the_type_vocabulary_is_the_policy_modules_own` asserts this tuple EQUALS
-#: `run_selection_policy.SPEC_TYPE_ORDER`, which makes a divergence a test failure rather than a
-#: silent second definition. That is the same trade the `--on-integration-blocked` choices make.
+#: SPELLED HERE RATHER THAN IMPORTED, and the reason is an established repository convention rather than a
+#: preference: an import added at module scope changes the import graph for EVERY host driver. The former
+#: pin `tests/test_orchestrator_probe_cache.py::
+#: test_no_new_module_level_first_party_import_in_runner_shared` was a code pin retired under
+#: `GUIDING_PRINCIPLES` P16 in `80db6750c` and will not return, so the convention of restricting
+#: module-level first-party imports to EXACTLY `render_stream` + `runner_profiles` is held by review
+#: rather than by a test; `run_selection_policy.SPEC_TYPE_ORDER` cannot be read at module scope, and a
+#: function-local import cannot build a module-level tuple either. The values are written out here and
+#: the equality with `run_selection_policy.SPEC_TYPE_ORDER` is maintained by hand (measured equal; no
+#: test currently asserts it, as the former test `test_the_type_vocabulary_is_the_policy_modules_own`
+#: was deleted in `19313eed7`).
 RUN_TYPE_CHOICES: tuple[str, ...] = (
     "ipd",
     "spec",
@@ -18578,10 +18586,13 @@ SET_RETIREMENT_DONE_STATUS = "executed"
 #: the success-only value for anything meaning "landed".
 #:
 #: COMPUTED LAZILY THROUGH A FUNCTION, not at import time, because `ipd_schema` is first-party and this
-#: module must not carry a module-level first-party import:
+#: module avoids adding module-level first-party imports that alter the import graph for host drivers.
+#: The former pin
 #: `tests/test_orchestrator_probe_cache.py::test_no_new_module_level_first_party_import_in_runner_shared`
-#: pins that set to `render_stream` plus `runner_profiles`. Every other first-party dependency here
-#: arrives function-locally, so this follows the module's existing route rather than widening the pin.
+#: was a code pin retired under `GUIDING_PRINCIPLES` P16 in `80db6750c` and will not return, so the
+#: convention of restricting module-level first-party imports to `render_stream` plus `runner_profiles`
+#: is held by review rather than by a test. Every other first-party dependency here arrives
+#: function-locally, so this follows the module's existing route.
 def set_retirement_terminal_statuses() -> frozenset[str]:
     """Every child `Status:` that ENDS its participation in a Set, so the Set may retire.
 
@@ -43049,11 +43060,13 @@ def edge_satisfied(
         # THE READER IS IMPORTED FUNCTION-LOCALLY, in the same form its two sibling uses in this module
         # already take (`reconcile_disposition` and the lane predicate both do exactly this). In
         # `oc_runipd` this body resolved a MODULE-LEVEL `_read_status`; `runner_shared` has no such
-        # global, and a module-level first-party import here is REFUSED by
-        # `tests/test_orchestrator_probe_cache.py::test_no_new_module_level_first_party_import_in_runner_shared`,
-        # which pins this module's module-level first-party imports to exactly `render_stream` plus
-        # `runner_profiles`. The function-local form is this module's documented route for a
-        # first-party dependency.
+        # global, and an import added at module scope changes the import graph for every host driver.
+        # The former pin
+        # `tests/test_orchestrator_probe_cache.py::test_no_new_module_level_first_party_import_in_runner_shared`
+        # was a code pin retired under `GUIDING_PRINCIPLES` P16 in `80db6750c` and will not return, so
+        # the convention of restricting module-level first-party imports to exactly `render_stream` plus
+        # `runner_profiles` is held by review rather than by a test. The function-local form is this
+        # module's documented route for a first-party dependency.
         #
         # IT IS THE SAME OBJECT BOTH HOSTS ALREADY BIND, which is what the comment above requires:
         # `selectors.read_front_matter_status` is the shared PERMISSIVE reader, and
