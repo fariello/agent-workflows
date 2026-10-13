@@ -82,6 +82,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 - The other 15 mypy errors in other modules (F-03): not part of backlog `2rm0gz`, which names render_stream.py only. Plan `ezyb4a` (Set `cihealth`) E-05 owns them.
   - Carrier: ezyb4a
+  - Carrier-Evidence: .aw/records/plans/executed/20261012-cihealth-01-ezyb4a-make-ci-pass-again-on-every-leg.ipd.md
 - No test that shells out to mypy: it would be slow and pin the whole-package baseline; the gate itself is the check, captured as V-01 evidence.
   - Carrier-Declined: a design choice, not deferred work; the CI type gate runs mypy on every push.
 
