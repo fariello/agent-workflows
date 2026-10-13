@@ -6,7 +6,7 @@
 - Scope: Coordinates four children. Order 01 makes CI pass again. Order 02 adds a periodic checkup (every N main commits, default 100) that reads CI's result and runs slow checks, shown by `aw attention` and `aw doctor`. Order 03 makes runs refuse to start new work when CI has not passed in N commits, with an override. Order 04 refuses to merge a lane that makes a spec line pointer stale, replacing `l85xvi`'s CI step.
 - Scope-Paths: .aw/records/plans/pending/20261012-cihealth-00-cntxsm-see-ci-fail-again-and-keep-it-from-going-unseen.ipd.md
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Coverage: pass
 - Coverage-Fingerprint: 19c82327d4c18f7cf5d867b27cf28b64d438e9ab65f16e94399570f670ae6253
@@ -20,8 +20,10 @@
 - Highest E allocated: 04
 - Author: opencode model=its_direct/pt3-claude-opus-5.5-1m-us
 - Id: cntxsm
+- Approval: 2026-10-13, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-13 approved (aw set): status set to approved
 - 2026-10-13 reviewed (opencode/its_direct/pt3-claude-opus-5.5-1m-us): plan-review: APPROVE WITH REVISIONS APPLIED
 - 2026-10-12 coverage pass (aw oc run): fingerprint 19c82327d4c1, model uri/its_direct/pt3-claude-opus-5.5-1m-us
 - 2026-10-13 /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004. Verified at HEAD fbb2e3799: last tests.yml success is f69ad318a (2026-09-27) and the latest ten completed runs failed; child table ids, Orders and edges match the four children (all reviewed); fz3i3m approved with executed deps; l85xvi superseded; aw ipd coverage ready. Gate now carries the execution contract; E-02 dependency aligned to the table; V-01 requires the green run to contain ezyb4a; exemption mechanism named.
