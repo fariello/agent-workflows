@@ -780,6 +780,7 @@ from agent_workflows.runner_shared import (
     queue_with_plan_paths as queue_with_plan_paths,
     record_item_spec_edits as record_item_spec_edits,
     report_driver_committed_reviews as report_driver_committed_reviews,
+    report_discarded_user_config as report_discarded_user_config,
     report_run_spec_edits as report_run_spec_edits,
     spec_edit_record as spec_edit_record,
     spec_edit_summary as spec_edit_summary,
@@ -2479,6 +2480,17 @@ def run_agy_turn(
         child_env[_gch.ITEM_ID6_ENV] = str(item["id6"])
     else:
         child_env.pop(_gch.ITEM_ID6_ENV, None)
+
+    # userconfig (9y27t2) E-04: contain agent writes to user config via per-turn sandbox.
+    from agent_workflows import config as _config
+
+    user_config_handle = runner_shared.prepare_agent_user_config(
+        run_dir, item, attempt_no, suffix=log_suffix
+    )
+    if user_config_handle is not None:
+        child_env[_config.CONFIG_DIR_ENV] = str(user_config_handle.path)
+    else:
+        child_env.pop(_config.CONFIG_DIR_ENV, None)
     popen_kwargs["env"] = child_env
 
     # lanectn Order 03 (`lhmrhx`) E-06, spec R4.1a/R4.1b/R4.1c: the SANCTIONED ASYMMETRY with the oc
@@ -2546,262 +2558,285 @@ def run_agy_turn(
         phase=telemetry_phase,
         host="agy",
     )
-    with (
-        runner_shared.turn_telemetry(
-            run_dir,
-            telemetry_identity,
-            repo=state.get("repo"),
-            extra_context={"model": options.get("model")},
-        ),
-        log_path.open("w", encoding="utf-8") as log,
-    ):
-        # Track the child so a clean shutdown at ANY layer can reap it even when this frame is
-        # gone (spec `c4gd2h` R1: no descendant left alive or reparented to init).
-        process = runner_shutdown.track_child(subprocess.Popen(argv, **popen_kwargs))
-        if process.stdout is None:
-            terminate_process(process)
-            raise DriverError("Failed to open child agy stdout stream")
+    try:
+        with (
+            runner_shared.turn_telemetry(
+                run_dir,
+                telemetry_identity,
+                repo=state.get("repo"),
+                extra_context={"model": options.get("model")},
+            ),
+            log_path.open("w", encoding="utf-8") as log,
+        ):
+            # Track the child so a clean shutdown at ANY layer can reap it even when this frame is
+            # gone (spec `c4gd2h` R1: no descendant left alive or reparented to init).
+            process = runner_shutdown.track_child(
+                subprocess.Popen(argv, **popen_kwargs)
+            )
+            if process.stdout is None:
+                terminate_process(process)
+                raise DriverError("Failed to open child agy stdout stream")
 
-        statusline = Statusline(
-            pal=pal,
-            stream=sys.stdout,
-            tracker=tracker,
-            interval=1.0 if is_tty and output_mode == "clean" else 0.0,
-            current_idx=current_idx,
-            total_items=total_items or 1,
-            setid=item.get("setid", ""),
-            id6=item.get("id6", ""),
-            run_start_mono=run_start_mono,
-            action=statusline_action_for_item(item),
-            artifact_kind=item.get("kind", item.get("type", "ipd")),
-            # lifeglyph (`qdd5jq`) E-03, spec Section 7.1: the live activity, derived from the
-            # field that CARRIES it (`verification_status`, `integration_signal`, the retry state)
-            # rather than from `action` alone, which only knows `review`/`execute`. `None` when the
-            # entry signals nothing, which renders no activity cell rather than a guessed one.
-            activity=activity_for_item(item),
-            runner="agy",
-            model=options.get("model"),
-            variant=options.get("variant"),
-            run_dir=run_dir,
-            state=state,
-        )
-        # stallfp: Observe transcript and task log updates when background tasks are active.
-        # When background tasks run (e.g. pytest in background or schedule timers), the root
-        # agent goes idle and reactive wakeups emit steps directly to transcript.jsonl with
-        # stdout staying silent. The observer polls transcript.jsonl and task-*.log files
-        # so active background work keeps the watchdog alive.
-        observer = stall_progress.AgyTranscriptProgressObserver(
-            conversation_id=session_id,
-            session_log_path=log_path,
-        )
-        watchdog = StallWatchdog(
-            process, timeout=stall_timeout, progress_checker=observer.poll
-        )
-        # stallfp kaga7s (display parity): show the countdown from the clock that kills.
-        statusline.watchdog = watchdog
+            statusline = Statusline(
+                pal=pal,
+                stream=sys.stdout,
+                tracker=tracker,
+                interval=1.0 if is_tty and output_mode == "clean" else 0.0,
+                current_idx=current_idx,
+                total_items=total_items or 1,
+                setid=item.get("setid", ""),
+                id6=item.get("id6", ""),
+                run_start_mono=run_start_mono,
+                action=statusline_action_for_item(item),
+                artifact_kind=item.get("kind", item.get("type", "ipd")),
+                # lifeglyph (`qdd5jq`) E-03, spec Section 7.1: the live activity, derived from the
+                # field that CARRIES it (`verification_status`, `integration_signal`, the retry state)
+                # rather than from `action` alone, which only knows `review`/`execute`. `None` when the
+                # entry signals nothing, which renders no activity cell rather than a guessed one.
+                activity=activity_for_item(item),
+                runner="agy",
+                model=options.get("model"),
+                variant=options.get("variant"),
+                run_dir=run_dir,
+                state=state,
+            )
+            # stallfp: Observe transcript and task log updates when background tasks are active.
+            # When background tasks run (e.g. pytest in background or schedule timers), the root
+            # agent goes idle and reactive wakeups emit steps directly to transcript.jsonl with
+            # stdout staying silent. The observer polls transcript.jsonl and task-*.log files
+            # so active background work keeps the watchdog alive.
+            observer = stall_progress.AgyTranscriptProgressObserver(
+                conversation_id=session_id,
+                session_log_path=log_path,
+            )
+            watchdog = StallWatchdog(
+                process, timeout=stall_timeout, progress_checker=observer.poll
+            )
+            # stallfp kaga7s (display parity): show the countdown from the clock that kills.
+            statusline.watchdog = watchdog
 
-        def _task_progress() -> None:
-            watchdog.touch()
-            source = getattr(observer, "last_progress_source", "task") or "task"
-            statusline.touch(source)
+            def _task_progress() -> None:
+                watchdog.touch()
+                source = getattr(observer, "last_progress_source", "task") or "task"
+                statusline.touch(source)
 
-        poll_interval = (
-            min(1.0, max(0.05, stall_timeout / 4.0)) if stall_timeout else 1.0
-        )
-        poller = stall_progress.ProgressPoller(
-            observer, touch_callbacks=(_task_progress,), interval=poll_interval
-        )
-        # runstop foi1b3 (level 3): the OBSERVED safe-checkpoint tracker. NOTE the detector: agy's
-        # completion signal is `step_update` with `state == "DONE"`, NOT oc's `tool_use` +
-        # `part.state.status == "completed"`. The two drivers share the SEMANTICS through one helper
-        # module (orchestrator CID-3) while each reads its OWN schema; assuming one schema across
-        # both would make this silently never fire here.
-        checkpoint_observer = runner_stop.CheckpointObserver(
-            detector=runner_stop.is_agy_safe_checkpoint
-        )
-        breach_watch: runner_stop.BudgetBreachWatch | None = None
-        # runstop m0z0ti (level 4, E-01): the out-of-band observer, identical in purpose and shape to
-        # the `oc_runipd` one (orchestrator CID-3). `for raw_line in process.stdout` BLOCKS, so an
-        # in-loop poll alone would make "immediately" mean "whenever the child next speaks".
-        forced: dict[str, Any] = {}
+            poll_interval = (
+                min(1.0, max(0.05, stall_timeout / 4.0)) if stall_timeout else 1.0
+            )
+            poller = stall_progress.ProgressPoller(
+                observer, touch_callbacks=(_task_progress,), interval=poll_interval
+            )
+            # runstop foi1b3 (level 3): the OBSERVED safe-checkpoint tracker. NOTE the detector: agy's
+            # completion signal is `step_update` with `state == "DONE"`, NOT oc's `tool_use` +
+            # `part.state.status == "completed"`. The two drivers share the SEMANTICS through one helper
+            # module (orchestrator CID-3) while each reads its OWN schema; assuming one schema across
+            # both would make this silently never fire here.
+            checkpoint_observer = runner_stop.CheckpointObserver(
+                detector=runner_stop.is_agy_safe_checkpoint
+            )
+            breach_watch: runner_stop.BudgetBreachWatch | None = None
+            # runstop m0z0ti (level 4, E-01): the out-of-band observer, identical in purpose and shape to
+            # the `oc_runipd` one (orchestrator CID-3). `for raw_line in process.stdout` BLOCKS, so an
+            # in-loop poll alone would make "immediately" mean "whenever the child next speaks".
+            forced: dict[str, Any] = {}
 
-        def _note_force(level: int, requester: str) -> None:
-            """Record the level-4 request and INTERRUPT the turn through the SHARED reaper.
+            def _note_force(level: int, requester: str) -> None:
+                """Record the level-4 request and INTERRUPT the turn through the SHARED reaper.
 
-            Reaping here is what unblocks the main thread's blocking read on a silent child (the
-            `StallWatchdog._run` precedent). It goes through `runner_shutdown.clean_shutdown`, the ONE
-            shared routine and its ONE process-group escalation (spec R5): never a bare kill.
-            """
+                Reaping here is what unblocks the main thread's blocking read on a silent child (the
+                `StallWatchdog._run` precedent). It goes through `runner_shutdown.clean_shutdown`, the ONE
+                shared routine and its ONE process-group escalation (spec R5): never a bare kill.
+                """
 
-            if forced:
-                return
-            forced["level"] = level
-            forced["requester"] = requester
-            report = runner_shutdown.clean_shutdown(process, run_dir=run_dir)
-            if not report.all_satisfied:
-                print(report.render(), file=sys.stderr)
+                if forced:
+                    return
+                forced["level"] = level
+                forced["requester"] = requester
+                report = runner_shutdown.clean_shutdown(process, run_dir=run_dir)
+                if not report.all_satisfied:
+                    print(report.render(), file=sys.stderr)
 
-        force_watch = runner_stop.ForceStopWatch(
-            run_dir,
-            on_force=_note_force,
-            is_alive=lambda: process.poll() is None,
-        )
-        # runstop 71vjbn (E-06, spec R11/A7): ENFORCE the wind-down budget Phase 3 only RECORDED. The
-        # exact counterpart of the `oc_runipd` site. Armed for the WHOLE turn (not only once a
-        # level-3 stop is seen) so a level-1/2 wind-down deadline expiring during this turn is also
-        # bounded, and out-of-band because `for raw_line in process.stdout` BLOCKS on a silent child.
-        # It only RAISES the durable level; the escalated level is honored by the existing poll,
-        # `force_watch`, and the ONE shared `clean_shutdown` (spec R5).
-        escalation_watch = runner_stop.EscalationWatch(
-            run_dir,
-            on_escalate=_escalation_recorder(run_dir, item),
-            is_alive=lambda: process.poll() is None,
-        )
-
-        def _raise_if_forced() -> None:
-            """Cut the turn NOW if a level-4 request has been observed (spec R7 level 4)."""
-
-            if not forced:
-                return
-            raise runner_stop.StopNowForce(
-                level=forced.get("level", runner_stop.LEVEL_NOW_FORCE),
-                requester=forced.get("requester", ""),
-                events_seen=checkpoint_observer.events_seen,
-                prior_completed_index=checkpoint_observer.last_checkpoint_index,
-                prior_completed_label=checkpoint_observer.last_checkpoint_label,
+            force_watch = runner_stop.ForceStopWatch(
+                run_dir,
+                on_force=_note_force,
+                is_alive=lambda: process.poll() is None,
+            )
+            # runstop 71vjbn (E-06, spec R11/A7): ENFORCE the wind-down budget Phase 3 only RECORDED. The
+            # exact counterpart of the `oc_runipd` site. Armed for the WHOLE turn (not only once a
+            # level-3 stop is seen) so a level-1/2 wind-down deadline expiring during this turn is also
+            # bounded, and out-of-band because `for raw_line in process.stdout` BLOCKS on a silent child.
+            # It only RAISES the durable level; the escalated level is honored by the existing poll,
+            # `force_watch`, and the ONE shared `clean_shutdown` (spec R5).
+            escalation_watch = runner_stop.EscalationWatch(
+                run_dir,
+                on_escalate=_escalation_recorder(run_dir, item),
+                is_alive=lambda: process.poll() is None,
             )
 
-        # lanectn Order 03 (`lhmrhx`) E-04/E-06, spec R4.4/R4.4a/R4.4d: the SAME host-neutral bounds
-        # the oc twin arms, wired here rather than reimplemented (spec R2.6 forbids a second copy).
-        # Armed for EVERY unattended turn, isolated or not (R4.4a).
-        #
-        # R4.4d, THE OVERLAP THIS HOST HAS AND THE OC HOST DOES NOT. Antigravity ALREADY enforces a
-        # per-turn ceiling: `DEFAULT_TIMEOUT` is "240m" and is passed to the child as
-        # `--print-timeout`, so the HOST kills the turn at nominally 4 hours - numerically identical
-        # to `MAX_TURN_TIMEOUT`'s default. Two timers with the same value and different owners is
-        # precisely the duplication that leaves a post-mortem unable to say which one killed a turn.
-        # RESOLUTION, spec option (ii): the DRIVER bound is deliberately OFFSET to fire FIRST (see
-        # `lane_containment.driver_bound_for_host`), so a termination is attributable to the driver,
-        # which RECORDS WHICH BOUND FIRED, rather than to an opaque host timeout. WHICH IS EXPECTED
-        # TO WIN: the driver's. The host's `--print-timeout` remains the BACKSTOP for the case where
-        # the driver's own supervision thread dies.
-        turn_bounds = lane_containment.TurnBoundWatch(
-            reap=lane_containment.bound_expiry_reaper(process, run_dir, item),
-            is_alive=lambda: process.poll() is None,
-            max_turn_timeout=lane_containment.driver_bound_for_host(
-                # PARSED, not passed raw: `--print-timeout` is written `"240m"`, so reading it as bare
-                # seconds would pull the driver ceiling to 4 MINUTES and kill every turn.
-                lane_containment.parse_host_ceiling_seconds(timeout)
-            ),
-        )
+            def _raise_if_forced() -> None:
+                """Cut the turn NOW if a level-4 request has been observed (spec R7 level 4)."""
 
-        # lanectn Order 04 (`y5od1h`) E-06, spec R3.1/R3.2/R3.5: the missing-input
-        # REPORT-AND-REFUSE cycle, WIRED rather than reimplemented (spec R2.6 forbids a second copy,
-        # CID-3 makes a rule present in one driver only a DEFECT). The observer object, the reject
-        # rules, and the record SHAPE are identical to the oc twin's because both construct the SAME
-        # host-neutral class; only this construction line is per-host.
-        #
-        # NO SANCTIONED ASYMMETRY HERE, unlike R4.1's permission posture: a worker on this host
-        # reports a missing input exactly as it does on the other, so the cycle is genuinely uniform.
-        missing_input = lane_containment.MissingInputObserver(state["repo"])
+                if not forced:
+                    return
+                raise runner_stop.StopNowForce(
+                    level=forced.get("level", runner_stop.LEVEL_NOW_FORCE),
+                    requester=forced.get("requester", ""),
+                    events_seen=checkpoint_observer.events_seen,
+                    prior_completed_index=checkpoint_observer.last_checkpoint_index,
+                    prior_completed_label=checkpoint_observer.last_checkpoint_label,
+                )
 
-        # reaskscore Order 02 (`ty7w6o`) E-02/E-03: the per-turn observer for THE HOST'S OWN
-        # TRUNCATION ADMISSION, constructed here beside `MissingInputObserver` for the same reason and
-        # fed at the same every-line seam below.
-        #
-        # THE ASYMMETRY IS DELIBERATE AND MUST NOT BE "FIXED" BY COPYING IT TO THE OC LAUNCHER. Only
-        # the agy CLI emits these lines; opencode emits nothing resembling them, so an oc-side copy
-        # could never fire. The CLASSIFIER is host-neutral and shared (spec R2.6,
-        # `lane_containment.classify_host_turn_line`); only this construction and the feed are per-host.
-        # See `ty7w6o` OQ-02/OQ-05, which record that judgement so a reviewer can challenge it.
-        host_truncation = lane_containment.HostTruncationObserver()
+            # lanectn Order 03 (`lhmrhx`) E-04/E-06, spec R4.4/R4.4a/R4.4d: the SAME host-neutral bounds
+            # the oc twin arms, wired here rather than reimplemented (spec R2.6 forbids a second copy).
+            # Armed for EVERY unattended turn, isolated or not (R4.4a).
+            #
+            # R4.4d, THE OVERLAP THIS HOST HAS AND THE OC HOST DOES NOT. Antigravity ALREADY enforces a
+            # per-turn ceiling: `DEFAULT_TIMEOUT` is "240m" and is passed to the child as
+            # `--print-timeout`, so the HOST kills the turn at nominally 4 hours - numerically identical
+            # to `MAX_TURN_TIMEOUT`'s default. Two timers with the same value and different owners is
+            # precisely the duplication that leaves a post-mortem unable to say which one killed a turn.
+            # RESOLUTION, spec option (ii): the DRIVER bound is deliberately OFFSET to fire FIRST (see
+            # `lane_containment.driver_bound_for_host`), so a termination is attributable to the driver,
+            # which RECORDS WHICH BOUND FIRED, rather than to an opaque host timeout. WHICH IS EXPECTED
+            # TO WIN: the driver's. The host's `--print-timeout` remains the BACKSTOP for the case where
+            # the driver's own supervision thread dies.
+            turn_bounds = lane_containment.TurnBoundWatch(
+                reap=lane_containment.bound_expiry_reaper(process, run_dir, item),
+                is_alive=lambda: process.poll() is None,
+                max_turn_timeout=lane_containment.driver_bound_for_host(
+                    # PARSED, not passed raw: `--print-timeout` is written `"240m"`, so reading it as bare
+                    # seconds would pull the driver ceiling to 4 MINUTES and kill every turn.
+                    lane_containment.parse_host_ceiling_seconds(timeout)
+                ),
+            )
 
-        try:
-            # `escalation_watch` (runstop 71vjbn) joins the turn's scope for the same reason
-            # `force_watch` does: it must be armed for exactly the turn's lifetime, no longer.
-            # `turn_bounds` (lanectn lhmrhx) joins it too: `__enter__` starts `MAX_TURN_TIMEOUT`'s
-            # clock, so entering here means it measures from child start.
-            with (
-                statusline,
-                watchdog,
-                poller,
-                force_watch,
-                escalation_watch,
-                turn_bounds,
-            ):
-                for raw_line in process.stdout:
-                    log.write(raw_line)
-                    log.flush()
-                    statusline.touch("stdout")
-                    watchdog.touch()
-                    observer.note_stdout_line(raw_line)
-                    # runstop gq6m2u: the IN-TURN cooperative checkpoint (spec `c4gd2h` R7); the
-                    # exact counterpart of the `oc_runipd` site. Side-effect free: it REPORTS the
-                    # requested level, and acting on a level belongs to the later phases.
-                    level = runner_stop.poll_stop(run_dir)
-                    # lanectn y5od1h E-06: the exact counterpart of the `oc_runipd` site, at the SAME
-                    # relative point (immediately after the poll) and independent of `output_mode`, so
-                    # the two hosts cannot drift on WHEN a report is noticed (CID-3).
-                    missing_input.note_line(raw_line, run_dir, item, attempt_no)
-                    # reaskscore ty7w6o E-03: the host's truncation admission, observed HERE for
-                    # EVERY raw line and independently of `output_mode`. NOT inside the rendering
-                    # branches below: a signal parsed inside one is silently inert under `raw` and
-                    # `quiet`, which is a mistake this very loop already records having made and
-                    # fixed (see the `y5od1h` note above and the `foi1b3` note below). Observing
-                    # only: `note_line` never raises, blocks, or terminates.
-                    host_truncation.note_line(raw_line)
-                    # runstop m0z0ti (level 4, spec R7/A2): checked FIRST and BEFORE the line is
-                    # classified, because level 4 must NOT wait for a checkpoint. The counterpart of
-                    # the `oc_runipd` site (orchestrator CID-3: identical semantics on both hosts).
-                    if level is not None and level >= runner_stop.LEVEL_NOW_FORCE:
-                        _note_force(
-                            level,
-                            (lambda r: r.requester if r is not None else "unknown")(
-                                runner_stop.read_stop_request(run_dir)
-                            ),
-                        )
-                    _raise_if_forced()
-                    # runstop foi1b3 (level 3, spec R10/A3): stop the TURN at the next OBSERVED safe
-                    # checkpoint. Parsed here, for EVERY line, independently of `output_mode` - not in
-                    # the `clean` branch below via `render_agy_event`, which would make the feature
-                    # silently inert under `raw` and `quiet`.
-                    if level is not None and level >= runner_stop.LEVEL_NOW:
-                        if not checkpoint_observer.pending:
-                            request = runner_stop.read_stop_request(run_dir)
-                            checkpoint_observer.request(
+            # lanectn Order 04 (`y5od1h`) E-06, spec R3.1/R3.2/R3.5: the missing-input
+            # REPORT-AND-REFUSE cycle, WIRED rather than reimplemented (spec R2.6 forbids a second copy,
+            # CID-3 makes a rule present in one driver only a DEFECT). The observer object, the reject
+            # rules, and the record SHAPE are identical to the oc twin's because both construct the SAME
+            # host-neutral class; only this construction line is per-host.
+            #
+            # NO SANCTIONED ASYMMETRY HERE, unlike R4.1's permission posture: a worker on this host
+            # reports a missing input exactly as it does on the other, so the cycle is genuinely uniform.
+            missing_input = lane_containment.MissingInputObserver(state["repo"])
+
+            # reaskscore Order 02 (`ty7w6o`) E-02/E-03: the per-turn observer for THE HOST'S OWN
+            # TRUNCATION ADMISSION, constructed here beside `MissingInputObserver` for the same reason and
+            # fed at the same every-line seam below.
+            #
+            # THE ASYMMETRY IS DELIBERATE AND MUST NOT BE "FIXED" BY COPYING IT TO THE OC LAUNCHER. Only
+            # the agy CLI emits these lines; opencode emits nothing resembling them, so an oc-side copy
+            # could never fire. The CLASSIFIER is host-neutral and shared (spec R2.6,
+            # `lane_containment.classify_host_turn_line`); only this construction and the feed are per-host.
+            # See `ty7w6o` OQ-02/OQ-05, which record that judgement so a reviewer can challenge it.
+            host_truncation = lane_containment.HostTruncationObserver()
+
+            try:
+                # `escalation_watch` (runstop 71vjbn) joins the turn's scope for the same reason
+                # `force_watch` does: it must be armed for exactly the turn's lifetime, no longer.
+                # `turn_bounds` (lanectn lhmrhx) joins it too: `__enter__` starts `MAX_TURN_TIMEOUT`'s
+                # clock, so entering here means it measures from child start.
+                with (
+                    statusline,
+                    watchdog,
+                    poller,
+                    force_watch,
+                    escalation_watch,
+                    turn_bounds,
+                ):
+                    for raw_line in process.stdout:
+                        log.write(raw_line)
+                        log.flush()
+                        statusline.touch("stdout")
+                        watchdog.touch()
+                        observer.note_stdout_line(raw_line)
+                        # runstop gq6m2u: the IN-TURN cooperative checkpoint (spec `c4gd2h` R7); the
+                        # exact counterpart of the `oc_runipd` site. Side-effect free: it REPORTS the
+                        # requested level, and acting on a level belongs to the later phases.
+                        level = runner_stop.poll_stop(run_dir)
+                        # lanectn y5od1h E-06: the exact counterpart of the `oc_runipd` site, at the SAME
+                        # relative point (immediately after the poll) and independent of `output_mode`, so
+                        # the two hosts cannot drift on WHEN a report is noticed (CID-3).
+                        missing_input.note_line(raw_line, run_dir, item, attempt_no)
+                        # reaskscore ty7w6o E-03: the host's truncation admission, observed HERE for
+                        # EVERY raw line and independently of `output_mode`. NOT inside the rendering
+                        # branches below: a signal parsed inside one is silently inert under `raw` and
+                        # `quiet`, which is a mistake this very loop already records having made and
+                        # fixed (see the `y5od1h` note above and the `foi1b3` note below). Observing
+                        # only: `note_line` never raises, blocks, or terminates.
+                        host_truncation.note_line(raw_line)
+                        # runstop m0z0ti (level 4, spec R7/A2): checked FIRST and BEFORE the line is
+                        # classified, because level 4 must NOT wait for a checkpoint. The counterpart of
+                        # the `oc_runipd` site (orchestrator CID-3: identical semantics on both hosts).
+                        if level is not None and level >= runner_stop.LEVEL_NOW_FORCE:
+                            _note_force(
                                 level,
-                                request.requester if request is not None else "unknown",
+                                (lambda r: r.requester if r is not None else "unknown")(
+                                    runner_stop.read_stop_request(run_dir)
+                                ),
                             )
-                            print(
-                                f"stop requested: level {level} "
-                                f"({runner_stop.LEVEL_NAMES.get(level, 'unknown')}); "
-                                f"the current turn will stop at its next observed safe checkpoint",
-                                file=sys.stderr,
-                            )
-                            # runstop foi1b3 (E-04, spec R11): the BOUNDED wait, armed out-of-band
-                            # because `for raw_line in process.stdout` BLOCKS on a silent child and
-                            # so can never notice a deadline itself. R10 stands: the checkpoint is
-                            # still defined only by an observed event; this is the GIVE-UP bound.
-                            if request is not None:
-                                remaining = runner_stop.deadline_seconds_remaining(
-                                    request
+                        _raise_if_forced()
+                        # runstop foi1b3 (level 3, spec R10/A3): stop the TURN at the next OBSERVED safe
+                        # checkpoint. Parsed here, for EVERY line, independently of `output_mode` - not in
+                        # the `clean` branch below via `render_agy_event`, which would make the feature
+                        # silently inert under `raw` and `quiet`.
+                        if level is not None and level >= runner_stop.LEVEL_NOW:
+                            if not checkpoint_observer.pending:
+                                request = runner_stop.read_stop_request(run_dir)
+                                checkpoint_observer.request(
+                                    level,
+                                    request.requester
+                                    if request is not None
+                                    else "unknown",
                                 )
-                                breach_watch = runner_stop.BudgetBreachWatch(
-                                    deadline_monotonic=time.monotonic()
-                                    + max(0.0, remaining),
-                                    on_breach=_budget_breach_recorder(
-                                        run_dir, item, request, checkpoint_observer
-                                    ),
-                                    is_alive=lambda: process.poll() is None,
+                                print(
+                                    f"stop requested: level {level} "
+                                    f"({runner_stop.LEVEL_NAMES.get(level, 'unknown')}); "
+                                    f"the current turn will stop at its next observed safe checkpoint",
+                                    file=sys.stderr,
                                 )
-                                breach_watch.__enter__()
-                    if checkpoint_observer.observe(raw_line):
-                        raise runner_stop.StopAtCheckpoint(checkpoint_observer)
+                                # runstop foi1b3 (E-04, spec R11): the BOUNDED wait, armed out-of-band
+                                # because `for raw_line in process.stdout` BLOCKS on a silent child and
+                                # so can never notice a deadline itself. R10 stands: the checkpoint is
+                                # still defined only by an observed event; this is the GIVE-UP bound.
+                                if request is not None:
+                                    remaining = runner_stop.deadline_seconds_remaining(
+                                        request
+                                    )
+                                    breach_watch = runner_stop.BudgetBreachWatch(
+                                        deadline_monotonic=time.monotonic()
+                                        + max(0.0, remaining),
+                                        on_breach=_budget_breach_recorder(
+                                            run_dir, item, request, checkpoint_observer
+                                        ),
+                                        is_alive=lambda: process.poll() is None,
+                                    )
+                                    breach_watch.__enter__()
+                        if checkpoint_observer.observe(raw_line):
+                            raise runner_stop.StopAtCheckpoint(checkpoint_observer)
 
-                    if output_mode == "raw":
-                        sys.stdout.write(raw_line)
-                        sys.stdout.flush()
-                        if tracker is not None:
+                        if output_mode == "raw":
+                            sys.stdout.write(raw_line)
+                            sys.stdout.flush()
+                            if tracker is not None:
+                                render_agy_event(
+                                    raw_line,
+                                    pal,
+                                    verbosity=verbosity,
+                                    repo_root=agent_dir,
+                                    tracker=tracker,
+                                )
+                        elif output_mode == "clean":
+                            rendered = render_agy_event(
+                                raw_line,
+                                pal,
+                                verbosity=verbosity,
+                                repo_root=agent_dir,
+                                tracker=tracker,
+                            )
+                            if rendered is not None:
+                                statusline.write_event(rendered)
+                        elif tracker is not None:
                             render_agy_event(
                                 raw_line,
                                 pal,
@@ -2809,109 +2844,109 @@ def run_agy_turn(
                                 repo_root=agent_dir,
                                 tracker=tracker,
                             )
-                    elif output_mode == "clean":
-                        rendered = render_agy_event(
-                            raw_line,
-                            pal,
-                            verbosity=verbosity,
-                            repo_root=agent_dir,
-                            tracker=tracker,
+                    # runstop m0z0ti (level 4): the stream also ENDS when `force_watch` reaped a silent
+                    # child (that reap is what unblocks the read at all), so re-check here rather than
+                    # falling through to a normal `process.wait()` and reporting an ordinary exit code.
+                    _raise_if_forced()
+            except BaseException:
+                if breach_watch is not None:
+                    breach_watch.__exit__(None, None, None)
+                # runstop foi1b3: route the stop through the SHARED reaper (spec R5), not a local
+                # `terminate_process`. The child is a one-shot subprocess with no cooperative stop
+                # channel, so stopping it IS termination at an observation-chosen instant; levels 3 and 4
+                # share that mechanism and differ only in timing.
+                #
+                # runstop m0z0ti (level 4): the SAME endpoint, deliberately. Spec c4gd2h section 3 states
+                # the only difference between levels 3 and 4 is outcome CERTAINTY, not cleanliness.
+                report = runner_shutdown.clean_shutdown(process, run_dir=run_dir)
+                if not report.all_satisfied:
+                    print(report.render(), file=sys.stderr)
+                log.flush()
+                with contextlib.suppress(OSError):
+                    os.fsync(log.fileno())
+                if watchdog.stalled:
+                    timeout_val = int(watchdog.timeout) if watchdog.timeout else 0
+                    raise StallTimeout(
+                        f"Antigravity child turn stalled: no output for {timeout_val}s"
+                    ) from None
+                raise
+            finally:
+                if breach_watch is not None:
+                    breach_watch.__exit__(None, None, None)
+                # reaskscore ty7w6o E-04: RECORD the host's truncation durably, so a turn the host cut is
+                # distinguishable afterwards from one that finished rather than only in scrollback.
+                #
+                # IN THE `finally` ON PURPOSE: the loop above leaves by five paths (normal exhaustion,
+                # `StopNowForce`, `StopAtCheckpoint`, `StallTimeout`, `KeyboardInterrupt`), and a host that
+                # truncated the work did so whichever one was taken.
+                #
+                # IT CHANGES NO FATE. `record_host_truncation` writes `attempt["host_truncation"]` and one
+                # `host-truncated-turn` event and touches NEITHER `exit_code`, `disposition`, nor
+                # `item["status"]`: this plan produces the SIGNAL and `dy9ymn` decides what to do with it.
+                #
+                # WHY IT WRITES THROUGH `item["attempts"][-1]` RATHER THAN RETURNING THE RECORD. This
+                # launcher's return is a FIXED 4-tuple whose shape is TYPED in
+                # `runner_shared.execute_item_core`'s `spawn_executor`/`spawn_verifier` parameters and
+                # SHARED with the oc twin, so widening it would edit a cross-host contract. `item` is
+                # already a parameter here, and `execute_item_core` appends this turn's attempt to
+                # `item["attempts"]` BEFORE it spawns, so `[-1]` IS this attempt; the `save_state` calls
+                # that follow the spawn's return persist the mutation with no new call site.
+                #
+                # THE ASYMMETRY IS REAL AND IS STATED RATHER THAN HIDDEN. `run_agy_turn` did NO state
+                # writing at all before this (zero `save_state`, zero `append_jsonl`, zero `item[...]`
+                # assignments), so this adds a responsibility to a launcher that had none, and the oc twin
+                # will NOT have it. That is accepted because only the agy CLI emits these lines and an
+                # oc-side copy could never fire - so do NOT "fix" the asymmetry by copying this write into
+                # the oc launcher. The host-neutral alternative is to own the observer in
+                # `execute_item_core`, which `ty7w6o` OQ-05 records for a plan that declares that file.
+                if host_truncation.truncated:
+                    with contextlib.suppress(Exception):
+                        lane_containment.record_host_truncation(
+                            run_dir, item, attempt_no, host_truncation
                         )
-                        if rendered is not None:
-                            statusline.write_event(rendered)
-                    elif tracker is not None:
-                        render_agy_event(
-                            raw_line,
-                            pal,
-                            verbosity=verbosity,
-                            repo_root=agent_dir,
-                            tracker=tracker,
+                    # ONE short warning, at the time, because a turn whose work was killed is something
+                    # the operator should see now rather than discover in a post-mortem.
+                    with contextlib.suppress(Exception):
+                        print(
+                            pal(
+                                f"  ! IPD {item.get('id6', '')} turn TRUNCATED BY ITS HOST: "
+                                f"{host_truncation.describe()}",
+                                "yellow",
+                            ),
+                            file=sys.stderr,
                         )
-                # runstop m0z0ti (level 4): the stream also ENDS when `force_watch` reaped a silent
-                # child (that reap is what unblocks the read at all), so re-check here rather than
-                # falling through to a normal `process.wait()` and reporting an ordinary exit code.
-                _raise_if_forced()
-        except BaseException:
-            if breach_watch is not None:
-                breach_watch.__exit__(None, None, None)
-            # runstop foi1b3: route the stop through the SHARED reaper (spec R5), not a local
-            # `terminate_process`. The child is a one-shot subprocess with no cooperative stop
-            # channel, so stopping it IS termination at an observation-chosen instant; levels 3 and 4
-            # share that mechanism and differ only in timing.
-            #
-            # runstop m0z0ti (level 4): the SAME endpoint, deliberately. Spec c4gd2h section 3 states
-            # the only difference between levels 3 and 4 is outcome CERTAINTY, not cleanliness.
-            report = runner_shutdown.clean_shutdown(process, run_dir=run_dir)
-            if not report.all_satisfied:
-                print(report.render(), file=sys.stderr)
-            log.flush()
-            with contextlib.suppress(OSError):
-                os.fsync(log.fileno())
+
             if watchdog.stalled:
+                log.flush()
+                with contextlib.suppress(OSError):
+                    os.fsync(log.fileno())
                 timeout_val = int(watchdog.timeout) if watchdog.timeout else 0
                 raise StallTimeout(
                     f"Antigravity child turn stalled: no output for {timeout_val}s"
-                ) from None
-            raise
-        finally:
-            if breach_watch is not None:
-                breach_watch.__exit__(None, None, None)
-            # reaskscore ty7w6o E-04: RECORD the host's truncation durably, so a turn the host cut is
-            # distinguishable afterwards from one that finished rather than only in scrollback.
-            #
-            # IN THE `finally` ON PURPOSE: the loop above leaves by five paths (normal exhaustion,
-            # `StopNowForce`, `StopAtCheckpoint`, `StallTimeout`, `KeyboardInterrupt`), and a host that
-            # truncated the work did so whichever one was taken.
-            #
-            # IT CHANGES NO FATE. `record_host_truncation` writes `attempt["host_truncation"]` and one
-            # `host-truncated-turn` event and touches NEITHER `exit_code`, `disposition`, nor
-            # `item["status"]`: this plan produces the SIGNAL and `dy9ymn` decides what to do with it.
-            #
-            # WHY IT WRITES THROUGH `item["attempts"][-1]` RATHER THAN RETURNING THE RECORD. This
-            # launcher's return is a FIXED 4-tuple whose shape is TYPED in
-            # `runner_shared.execute_item_core`'s `spawn_executor`/`spawn_verifier` parameters and
-            # SHARED with the oc twin, so widening it would edit a cross-host contract. `item` is
-            # already a parameter here, and `execute_item_core` appends this turn's attempt to
-            # `item["attempts"]` BEFORE it spawns, so `[-1]` IS this attempt; the `save_state` calls
-            # that follow the spawn's return persist the mutation with no new call site.
-            #
-            # THE ASYMMETRY IS REAL AND IS STATED RATHER THAN HIDDEN. `run_agy_turn` did NO state
-            # writing at all before this (zero `save_state`, zero `append_jsonl`, zero `item[...]`
-            # assignments), so this adds a responsibility to a launcher that had none, and the oc twin
-            # will NOT have it. That is accepted because only the agy CLI emits these lines and an
-            # oc-side copy could never fire - so do NOT "fix" the asymmetry by copying this write into
-            # the oc launcher. The host-neutral alternative is to own the observer in
-            # `execute_item_core`, which `ty7w6o` OQ-05 records for a plan that declares that file.
-            if host_truncation.truncated:
-                with contextlib.suppress(Exception):
-                    lane_containment.record_host_truncation(
-                        run_dir, item, attempt_no, host_truncation
-                    )
-                # ONE short warning, at the time, because a turn whose work was killed is something
-                # the operator should see now rather than discover in a post-mortem.
-                with contextlib.suppress(Exception):
-                    print(
-                        pal(
-                            f"  ! IPD {item.get('id6', '')} turn TRUNCATED BY ITS HOST: "
-                            f"{host_truncation.describe()}",
-                            "yellow",
-                        ),
-                        file=sys.stderr,
-                    )
+                )
 
-        if watchdog.stalled:
+            rc = process.wait()
             log.flush()
             with contextlib.suppress(OSError):
                 os.fsync(log.fileno())
-            timeout_val = int(watchdog.timeout) if watchdog.timeout else 0
-            raise StallTimeout(
-                f"Antigravity child turn stalled: no output for {timeout_val}s"
+    finally:
+        if user_config_handle is not None:
+            discarded_records = runner_shared.reconcile_agent_user_config(
+                user_config_handle, run_dir, item
             )
-
-        rc = process.wait()
-        log.flush()
-        with contextlib.suppress(OSError):
-            os.fsync(log.fileno())
+            err_pal = runner_shared.Palette(runner_shared.should_color(sys.stderr))
+            for rec in discarded_records:
+                rec_id6 = rec.get("id6", item.get("id6", "unknown"))
+                rec_file = rec.get("file", "unknown")
+                rec_keys = rec.get("keys")
+                rec_keys_str = (
+                    ", ".join(rec_keys) if rec_keys else rec.get("change", "modified")
+                )
+                warning_line = (
+                    f"  ! IPD {rec_id6}: agent changed user config {rec_file} "
+                    f"({rec_keys_str}); change DISCARDED, your config is unchanged"
+                )
+                print(err_pal(warning_line, "yellow"), file=sys.stderr)
 
     captured_conv_id = extract_session_id(log_path) or session_id
     if captured_conv_id:
@@ -3627,6 +3662,7 @@ def run_queue(
     # defined once (in `oc_runipd`/`render_stream`); only the SITE is per-driver.
     report_run_spec_edits(state)
     report_driver_committed_reviews(state)
+    report_discarded_user_config(run_dir)
     # runnoop Order 03 (`bsc457`) E-03: THE CLOSING DISPOSITION SUMMARY, the exact mirror of the oc
     # twin and printed UNCONDITIONALLY, including for a run that acted on nothing - the case that
     # previously closed with a sentence reading as a failed launch beneath a table saying COMPLETED.

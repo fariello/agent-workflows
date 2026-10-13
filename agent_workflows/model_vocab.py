@@ -40,6 +40,11 @@ def _user_config_dir() -> Path:
 
         return _config.config_dir()
     except Exception:
+        raw_override = os.environ.get("AW_CONFIG_DIR")
+        if raw_override and raw_override.strip():
+            candidate = Path(raw_override.strip()).expanduser()
+            if candidate.is_absolute() and candidate != Path.home():
+                return candidate
         base = os.environ.get("XDG_CONFIG_HOME") or str(Path.home() / ".config")
         return Path(base).expanduser() / "agent-workflows"
 

@@ -126,6 +126,7 @@ from __future__ import annotations
 
 import argparse
 import contextlib
+from dataclasses import dataclass
 import datetime as dt
 import functools
 import hashlib
@@ -44390,6 +44391,260 @@ def report_driver_committed_reviews(
             )
     except Exception as exc:
         lines.append(f"error: failed to summarize driver-committed reviews: {exc}")
+    for line in lines:
+        print(line, file=out)
+    return lines
+
+
+# --- user config containment (9y27t2) ------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class AgentUserConfig:
+    """Per-turn sandbox handle for operator aw user config (E-03)."""
+
+    path: Path
+    seed_hashes: dict[str, str]
+    seed_json: dict[str, dict[str, Any]]
+    attempt: int
+    id6: str
+    suffix: str = ""
+
+
+def prepare_agent_user_config(
+    run_dir: Path | str,
+    item: dict[str, Any],
+    attempt_no: int,
+    suffix: str = "",
+    source_dir: Path | None = None,
+) -> Optional[AgentUserConfig]:
+    """Prepare a per-turn seeded copy of the operator's aw user config (E-03).
+
+    Resolves the operator's real directory via ``config.config_dir()`` (or source_dir),
+    creates ``<run_dir>/agent-user-config/<NN>-<id6>-attempt-<N>[-<suffix>]/`` with mode
+    0o700, and copies every regular top-level file preserving mode.
+    Records SHA-256 and parsed JSON object for each seeded file.
+
+    Fails open: returns None and prints a warning on failure (never aborts a run).
+    """
+    try:
+        from agent_workflows import config as _config
+
+        real_dir = Path(source_dir) if source_dir is not None else _config.config_dir()
+        pos = int(item.get("position", 1))
+        id6 = str(item.get("id6", "unknown"))
+        tag = f"-{suffix}" if suffix else ""
+        turn_key = f"{pos:02d}-{id6}-attempt-{attempt_no}{tag}"
+        sandbox_dir = Path(run_dir) / "agent-user-config" / turn_key
+
+        if sandbox_dir.exists():
+            shutil.rmtree(sandbox_dir, ignore_errors=True)
+        sandbox_dir.mkdir(parents=True, exist_ok=True, mode=0o700)
+        with contextlib.suppress(OSError):
+            os.chmod(sandbox_dir, 0o700)
+
+        seed_hashes: dict[str, str] = {}
+        seed_json: dict[str, dict[str, Any]] = {}
+        if real_dir.is_dir():
+            for child in real_dir.iterdir():
+                if child.is_file():
+                    dest = sandbox_dir / child.name
+                    shutil.copy2(child, dest)
+                    seed_hashes[child.name] = sha256_file(dest)
+                    try:
+                        with dest.open("r", encoding="utf-8") as f:
+                            parsed = json.load(f)
+                            if isinstance(parsed, dict):
+                                seed_json[child.name] = parsed
+                    except Exception:
+                        pass
+
+        return AgentUserConfig(
+            path=sandbox_dir,
+            seed_hashes=seed_hashes,
+            seed_json=seed_json,
+            attempt=attempt_no,
+            id6=id6,
+            suffix=suffix,
+        )
+    except Exception as exc:
+        sys.stderr.write(
+            f"  ! Warning: failed to seed agent user-config sandbox: {exc}\n"
+        )
+        return None
+
+
+def reconcile_agent_user_config(
+    handle: Optional[AgentUserConfig],
+    run_dir: Path | str,
+    item: dict[str, Any],
+) -> list[dict[str, Any]]:
+    """Reconcile the agent's user-config sandbox against its seed (E-03).
+
+    Compares every regular file under the sandbox against the seed.
+    For each added, removed, or modified file, emits a record:
+      {
+        "at": utc_now(),
+        "event": "agent-user-config-discarded",
+        "id6": <id6>,
+        "attempt": <attempt>,
+        "file": <rel_path>,
+        "change": "added" | "removed" | "modified",
+        "keys": [...] # top-level JSON keys if both sides parse as JSON objects
+      }
+    Values are NEVER recorded.
+    Appends records to <run_dir>/events.jsonl via append_jsonl.
+    Deletes the sandbox directory (best effort, also on failure).
+    Fails open with a printed warning and records agent-user-config-reconcile-failed.
+    """
+    if handle is None:
+        return []
+
+    records: list[dict[str, Any]] = []
+    sandbox_dir = handle.path
+    attempt_no = handle.attempt
+    id6 = str(item.get("id6", handle.id6))
+    run_dir_path = Path(run_dir)
+
+    try:
+        if sandbox_dir.is_dir():
+            sandbox_files: set[str] = set()
+            for p in sandbox_dir.rglob("*"):
+                if p.is_file():
+                    sandbox_files.add(str(p.relative_to(sandbox_dir)))
+
+            seed_files = set(handle.seed_hashes.keys())
+
+            for rel in sorted(sandbox_files - seed_files):
+                records.append(
+                    {
+                        "at": utc_now(),
+                        "event": "agent-user-config-discarded",
+                        "id6": id6,
+                        "attempt": attempt_no,
+                        "file": rel,
+                        "change": "added",
+                    }
+                )
+
+            for rel in sorted(seed_files - sandbox_files):
+                records.append(
+                    {
+                        "at": utc_now(),
+                        "event": "agent-user-config-discarded",
+                        "id6": id6,
+                        "attempt": attempt_no,
+                        "file": rel,
+                        "change": "removed",
+                    }
+                )
+
+            for rel in sorted(sandbox_files & seed_files):
+                file_path = sandbox_dir / rel
+                current_sha = sha256_file(file_path)
+                if current_sha != handle.seed_hashes[rel]:
+                    rec: dict[str, Any] = {
+                        "at": utc_now(),
+                        "event": "agent-user-config-discarded",
+                        "id6": id6,
+                        "attempt": attempt_no,
+                        "file": rel,
+                        "change": "modified",
+                    }
+                    if rel in handle.seed_json:
+                        orig_obj = handle.seed_json[rel]
+                        try:
+                            with file_path.open("r", encoding="utf-8") as f:
+                                curr_obj = json.load(f)
+                            if isinstance(curr_obj, dict):
+                                all_keys = sorted(
+                                    set(orig_obj.keys()) | set(curr_obj.keys())
+                                )
+                                diff_keys = [
+                                    k
+                                    for k in all_keys
+                                    if orig_obj.get(k) != curr_obj.get(k)
+                                ]
+                                rec["keys"] = diff_keys
+                        except Exception:
+                            pass
+                    records.append(rec)
+
+        events_file = run_dir_path / "events.jsonl"
+        for rec in records:
+            append_jsonl(events_file, rec)
+
+        return records
+    except Exception as exc:
+        sys.stderr.write(f"  ! Warning: failed to reconcile agent user config: {exc}\n")
+        fail_event = {
+            "at": utc_now(),
+            "event": "agent-user-config-reconcile-failed",
+            "id6": id6,
+            "attempt": attempt_no,
+            "error": str(exc),
+        }
+        with contextlib.suppress(Exception):
+            append_jsonl(run_dir_path / "events.jsonl", fail_event)
+        return []
+    finally:
+        with contextlib.suppress(Exception):
+            if sandbox_dir.exists():
+                shutil.rmtree(sandbox_dir, ignore_errors=True)
+
+
+def report_discarded_user_config(
+    run_dir: Any,
+    *,
+    stream: Any = None,
+) -> list[str]:
+    """Print summary of discarded user-config changes at run end (E-05).
+
+    Reads `agent-user-config-discarded` events from `<run_dir>/events.jsonl` and prints:
+      Agent user-config changes discarded: <n> (<id6>: <file> <keys>; ...)
+    or nothing when there are none. Advisory posture: never raises.
+    """
+    out = stream if stream is not None else sys.stdout
+    lines: list[str] = []
+    try:
+        if isinstance(run_dir, dict):
+            run_dir_path = Path(run_dir.get("run_dir") or run_dir.get("repo") or ".")
+        else:
+            run_dir_path = Path(run_dir)
+        events_path = run_dir_path / "events.jsonl"
+        events: list[dict[str, Any]] = []
+        if events_path.is_file():
+            with events_path.open("r", encoding="utf-8") as handle:
+                for line in handle:
+                    line = line.strip()
+                    if not line:
+                        continue
+                    try:
+                        data = json.loads(line)
+                        if (
+                            isinstance(data, dict)
+                            and data.get("event") == "agent-user-config-discarded"
+                        ):
+                            events.append(data)
+                    except Exception:
+                        continue
+        if events:
+            count = len(events)
+            details = []
+            for ev in events:
+                id6 = ev.get("id6", "unknown")
+                f = ev.get("file", "unknown")
+                keys = ev.get("keys")
+                if keys:
+                    details.append(f"{id6}: {f} {keys}")
+                else:
+                    details.append(f"{id6}: {f}")
+            details_str = "; ".join(details)
+            lines.append(
+                f"Agent user-config changes discarded: {count} ({details_str})"
+            )
+    except Exception as exc:
+        lines.append(f"error: failed to summarize discarded user-config changes: {exc}")
     for line in lines:
         print(line, file=out)
     return lines
