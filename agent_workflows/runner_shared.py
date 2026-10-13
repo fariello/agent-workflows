@@ -3849,8 +3849,9 @@ def commit_spec_transition_output(
     spec_path: Path,
     *,
     run_id: str | None = None,
+    is_note: bool = False,
 ) -> tuple[str | None, tuple[str, ...]]:
-    """Commit the spec transition to implementing (path-scoped) (E-05)."""
+    """Commit the spec transition to implementing (or stage note) (path-scoped) (E-05)."""
     wt = Path(target_dir)
     rc, out, _err = _run_git(wt, ["status", "--porcelain", "--untracked-files=all"])
     if rc != 0 or not out.strip():
@@ -3876,11 +3877,18 @@ def commit_spec_transition_output(
         return None, ()
     from agent_workflows import git_commit_helper as _gch
 
-    subject = f"transition(spec): move {spec_id6} -> implementing"
-    body = (
-        f"Spec {spec_id6} transitioned to implementing after conformant plan production. "
-        "Path-scoped to the spec file; hooks ran normally."
-    )
+    if is_note:
+        subject = f"note(spec): record planned stage for {spec_id6}"
+        body = (
+            f"Spec {spec_id6} recorded planned stage in workflow history. "
+            "Path-scoped to the spec file; hooks ran normally."
+        )
+    else:
+        subject = f"transition(spec): move {spec_id6} -> implementing"
+        body = (
+            f"Spec {spec_id6} transitioned to implementing after conformant plan production. "
+            "Path-scoped to the spec file; hooks ran normally."
+        )
     trailers = [*_gch.run_item_trailers(run_id, spec_id6), "AW-Committed-By: driver"]
     message_body = _gch.compose_message_with_trailers(body, trailers)
     rc, _out, _err = _run_git(
@@ -14673,7 +14681,13 @@ def expand_selectors(
             from agent_workflows import run_selection_policy as _policy
 
             for id6, s_info in manifest.get("specs", {}).items():
-                act = _policy.runner_action("spec", s_info.get("status", ""))
+                st = s_info.get("status", "")
+                uncited = (
+                    _policy.implementing_spec_needs_plan(effective_repo, id6)
+                    if st == "implementing"
+                    else None
+                )
+                act = _policy.runner_action("spec", st, uncited_trace_ids=uncited)
                 if act != "skip" and id6 not in seen:
                     expanded.append(id6)
                     seen.add(id6)
@@ -16479,7 +16493,12 @@ def closure_target_admission(
         current_status = item_info.get("status") or (
             "to-review" if atype == "spec" else "open"
         )
-        action = _policy.runner_action(atype, current_status)
+        uncited = (
+            _policy.implementing_spec_needs_plan(repo, edge.id6)
+            if atype == "spec" and current_status == "implementing"
+            else None
+        )
+        action = _policy.runner_action(atype, current_status, uncited_trace_ids=uncited)
         can_satisfy, bridge_reason = action_can_satisfy_edge(
             edge, atype, current_status, action=action
         )
@@ -28123,6 +28142,53 @@ def build_spec_production_prompt(
         rel_spec = str(spec_path).replace("\\", "/")
 
     spec_id6 = str(item.get("id6") or "").strip()
+    from agent_workflows import status_set as _status_set
+    from agent_workflows import production_checks as _pc
+
+    spec_status = None
+    try:
+        rec = _status_set.read_artifact_record(spec_path, root)
+        if rec and rec.status:
+            spec_status = rec.status.strip().lower()
+    except Exception:
+        pass
+    if spec_status is None:
+        spec_status = str(item.get("initial_status") or "").strip().lower()
+
+    if spec_status == "implementing":
+        uncited = _pc.spec_uncited_trace_ids(root, spec_id6)
+        uncited_str = ", ".join(uncited) if uncited else "none"
+        lines = [
+            f"# Plan production from implementing spec: {rel_spec}",
+            "",
+            f"You are authoring implementation plan(s) (IPDs) for a later stage of already approved spec `{spec_id6}` at `{rel_spec}`.",
+            "",
+            "## Production Contract",
+            "1. Author one or more review-ready plans under `.aw/records/plans/pending/` using `aw ipd scaffold`.",
+            "2. Every produced plan must have `- Status: to-review` (never `draft`).",
+            f"3. Every produced plan must carry `- From-Spec: {spec_id6}`.",
+            "4. If the spec has a `- Blocks-Release:` gate, copy it exactly to each produced plan. If the spec has none, do not invent one.",
+            "5. Every produced plan must have concrete `- Scope-Paths:` (not empty, not TODO, not grandfathered) and resolved `- Item-Dependencies:` (not unresolved).",
+            "6. Every produced plan must lint conforming via `aw ipd lint`.",
+            "7. Do NOT modify the approved spec's requirements.",
+            f"8. Mandatory uncited requirement and acceptance items awaiting coverage: {uncited_str}. "
+            f"Each must be cited qualified with the spec id6 (for example `{spec_id6} R-2`) in an E-* (requirement) or V-* (acceptance) item, per spec 89xjll 6.2b.",
+        ]
+        _append_continue_handoff_section(lines, root, "spec", spec_id6)
+        lines.extend(_ORCHESTRATOR_PLANS_SECTION)
+        lines.extend(
+            [
+                "",
+                "## Prohibitions",
+                "1. Do NOT change the spec's `- Status:` (the spec remains implementing; the runner records the planned stage in workflow history).",
+                "2. Do NOT execute any plan you write (this turn is authoring only).",
+            ]
+        )
+        if lane_root is not None:
+            lines.append("")
+            lines.append(lane_containment.isolation_notice(lane_root))
+        return "\n".join(lines)
+
     lines = [
         f"# Plan production from approved spec: {rel_spec}",
         "",
@@ -29873,7 +29939,8 @@ def enforce_requested_action(
         if action == "plan":
             raise DriverError(
                 f"--action plan is illegal for {len(illegal)} selected item(s): {detail}. "
-                "Plan is the next legal action only for an approved spec; a to-review or draft plan "
+                "Plan is the next legal action only for an approved spec, an implementing spec with "
+                "uncited non-deferred TRACE ids, or an open backlog item; a to-review or draft plan "
                 "would REVIEW, which is not what 'plan' asks for. No run was started and no session "
                 f"launched. To plan an approved spec instead, run: {labels.command} --action plan <selector>"
             )
@@ -31052,7 +31119,14 @@ def initialize_run_core(
                 st = item_info.get("status") or (
                     "to-review" if atype == "spec" else "open"
                 )
-                act = _policy.runner_action(atype, st, for_legality=True)
+                uncited = (
+                    _policy.implementing_spec_needs_plan(repo, id6)
+                    if atype == "spec" and st == "implementing"
+                    else None
+                )
+                act = _policy.runner_action(
+                    atype, st, for_legality=True, uncited_trace_ids=uncited
+                )
             preflight_items.append((id6, st, act))
         action_labels = (
             labels
@@ -31179,7 +31253,12 @@ def initialize_run_core(
                 set_sessions[setid] = initial_session
             from agent_workflows import run_selection_policy as _policy
 
-            action = _policy.runner_action(atype, status)
+            uncited = (
+                _policy.implementing_spec_needs_plan(repo, id6)
+                if atype == "spec" and status == "implementing"
+                else None
+            )
+            action = _policy.runner_action(atype, status, uncited_trace_ids=uncited)
             queue.append(
                 {
                     "position": position,
@@ -38560,24 +38639,52 @@ def execute_item_core(
                 produced_ids_str = ", ".join(
                     sorted(p_id for p_id, _p in all_verified_plans)
                 )
-                trans_msg = (
-                    f"produced by run {run_id_val}: {produced_ids_str}"
-                    if run_id_val
-                    else f"produced: {produced_ids_str}"
+
+                from agent_workflows import status_set as _status_set
+
+                spec_rec = _status_set.read_artifact_record(
+                    target_spec_path, target_tree
+                )
+                curr_status = (
+                    (spec_rec.status or "").strip().lower() if spec_rec else ""
+                )
+                is_implementing_source = (curr_status == "implementing") or (
+                    item.get("initial_status") == "implementing"
                 )
 
-                cmd = pinned_module_argv(
-                    [
-                        "specs",
-                        "set",
-                        rel_spec_str,
-                        "--status",
-                        "implementing",
-                        "--message",
-                        trans_msg,
-                        "--no-commit",
-                    ]
-                )
+                if is_implementing_source:
+                    note_msg = (
+                        f"stage planned by run {run_id_val}: {produced_ids_str}"
+                        if run_id_val
+                        else f"stage planned: {produced_ids_str}"
+                    )
+                    cmd = pinned_module_argv(
+                        [
+                            "specs",
+                            "note",
+                            rel_spec_str,
+                            "--message",
+                            note_msg,
+                        ]
+                    )
+                else:
+                    trans_msg = (
+                        f"produced by run {run_id_val}: {produced_ids_str}"
+                        if run_id_val
+                        else f"produced: {produced_ids_str}"
+                    )
+                    cmd = pinned_module_argv(
+                        [
+                            "specs",
+                            "set",
+                            rel_spec_str,
+                            "--status",
+                            "implementing",
+                            "--message",
+                            trans_msg,
+                            "--no-commit",
+                        ]
+                    )
                 try:
                     run_checked(cmd, cwd=target_tree)
                     spec_trans_commit, _ = commit_spec_transition_output(
@@ -38585,25 +38692,50 @@ def execute_item_core(
                         item["id6"],
                         target_spec_path,
                         run_id=run_id_val or None,
+                        is_note=is_implementing_source,
                     )
                     if spec_trans_commit:
-                        attempt["spec_transition_commit"] = spec_trans_commit
-                        append_jsonl(
-                            run_dir / "events.jsonl",
-                            {
-                                "at": utc_now(),
-                                "event": "spec-transition-committed",
-                                "id6": item["id6"],
-                                "attempt": attempt_no,
-                                "commit": spec_trans_commit,
-                            },
-                        )
+                        if is_implementing_source:
+                            attempt["spec_stage_commit"] = spec_trans_commit
+                            attempt["spec_transition_commit"] = spec_trans_commit
+                            append_jsonl(
+                                run_dir / "events.jsonl",
+                                {
+                                    "at": utc_now(),
+                                    "event": "spec-stage-planned",
+                                    "id6": item["id6"],
+                                    "attempt": attempt_no,
+                                    "commit": spec_trans_commit,
+                                },
+                            )
+                        else:
+                            attempt["spec_transition_commit"] = spec_trans_commit
+                            append_jsonl(
+                                run_dir / "events.jsonl",
+                                {
+                                    "at": utc_now(),
+                                    "event": "spec-transition-committed",
+                                    "id6": item["id6"],
+                                    "attempt": attempt_no,
+                                    "commit": spec_trans_commit,
+                                },
+                            )
                 except Exception as exc:
                     disposition = "fail-gate"
+                    err_code = (
+                        "SPEC-NOTE-FAILED"
+                        if is_implementing_source
+                        else "SPEC-TRANSITION-FAILED"
+                    )
+                    err_desc = (
+                        "record planned stage for"
+                        if is_implementing_source
+                        else "transition"
+                    )
                     record_refusal(
                         item,
-                        code="SPEC-TRANSITION-FAILED",
-                        reason=f"Failed to transition spec to implementing: {exc}",
+                        code=err_code,
+                        reason=f"Failed to {err_desc} spec: {exc}",
                         remedy=f"{host_labels.command} {item['id6']}",
                     )
                     print(

@@ -511,7 +511,7 @@ The machine-local verdict store is RETIRED by Set `gradcover`: no consumer reads
 Overrides narrow behavior; they never relax invariants.
 
 - `--action review` permits an explicit re-review of a complete `reviewed` IPD or spec. The result remains `reviewed`, with a new tool-authored history receipt.
-- `--action plan` is legal only for an `approved` spec or `open` backlog item.
+- `--action plan` is legal only for an `approved` spec, an `implementing` spec meeting 3.3's re-plan condition, or an `open` backlog item.
 - `--action execute` is legal only for `approved`, `auto-approved`, or `reusable` IPDs.
 - Newly generated IPDs are ALWAYS reported as generated next actions and never join the frozen run (the frozen queue is what resume reads, and no producer exists; see plan `hzdq8y`).
 - `--with-dependencies` changes selection, not satisfaction semantics. Every declared dependency is enforced whether or not its target was selected.
@@ -728,7 +728,8 @@ A status setter that refuses under Section 2.5d is a state gate, not a retryable
 | `reviewed`, default | Ask the human to approve, reject, or stop. On approval, write a human approval receipt, tool-set `approved`, and redispatch. | Stop `needs_input`, including under `--full-auto`. | Any synthesized or automated approval. |
 | `reviewed`, `--action review` | Re-review; keep `reviewed`; append a review receipt. | Re-review; keep `reviewed`; append a review receipt. | Approval. |
 | `approved` | Author one or more conformant IPDs linked by `From-Spec` (an orchestrated Set when the design decomposes into ordered phases); preserve `Blocks-Release` on each; tool-set spec to `implementing`; verify. Every produced orchestrator plan must pass Section 2.5d before the source is tool-set (`SPEC-PLAN-SET` / `BACKLOG-GRADUATE-SET`); when it does not, the source stays where it was. A source whose previously produced plans are unfinished is CONTINUED, not re-produced: the action is handed the existing plans and their findings, and `SPEC-PLAN-COUNT` / `BACKLOG-GRADUATE-COUNT` count them as this action's output. | Same. Report generated IPDs as next actions; do not run them in the same run. | Modifying the approved requirements while authoring. |
-| `implementing` | Resolve all `From-Spec` IPDs. Dispatch their legal actions as child queue items, subject to their own approval gates. When all are verified `executed`, tool-set spec to `implemented` with resolvable evidence. | Same, except genuine human gates stop `needs_input`. | Marking `implemented` from model prose, a pending plan, or an unresolved citation. |
+| `implementing`, post-cutover with a mandatory non-`[Deferred]` TRACE id cited by no pooled plan (`89xjll` 6.1) | Author the remaining plans as the `approved` row does, verified by the same codes including `SPEC-PLAN-TRACE` over the pooled set; keep the spec `implementing`; record the stage with a history note; report the plans as next actions. | Same. Report generated IPDs as next actions; do not run them in the same run. | Modifying the approved requirements while authoring. |
+| `implementing`, otherwise | Resolve all `From-Spec` IPDs. Dispatch their legal actions as child queue items, subject to their own approval gates. When all are verified `executed`, tool-set spec to `implemented` with resolvable evidence. | Same, except genuine human gates stop `needs_input`. | Marking `implemented` from model prose, a pending plan, or an unresolved citation. |
 | `implemented` | Yellow skip; validate evidence links and structure. | Same. | Reimplementation or leaving the terminal state implicitly. |
 | `deferred` | Yellow skip and display `Gate-Kind`/`Gate-Ref`. | Same. | Ignoring the gate. |
 | `parked` | Yellow skip. | Same. | Review, approval, planning, or implementation. |
@@ -1717,6 +1718,7 @@ This example demonstrates the revised guarantees: `all` is safely bounded; depen
 
 ## Workflow history
 
+- 2026-10-13 note (aw specs): amended Sections 2.6 and 3.3 for implementing spec re-plan turn (plan 2hgxi1)
 - 2026-10-11 note (aw specs): amendment (opencode its_direct/pt3-claude-opus-5.5-1m-us): Section 5.2 records the maintainer's 2026-10-11 decision to stop host-granular egress filtering (Set netnsfilter) and leave the push-denial host requirement open by decision.
 - 2026-10-10 note (aw specs): amendment (opencode its_direct/pt3-claude-opus-5.5-1m-us): Section 5.7 scope-target dispatch gate now states that a declared move pair (missing entry whose resolved location is also declared) is not stale; maintainer-directed fix for backlog dparot.
 - 2026-10-09 note (aw specs): AMENDED (plan wzhe4n, Set denypush): Section 5.2 amended in place to name backlog sv9ce4 as the carrier for the remaining half of the push-denial requirement (host-granular network filtering)

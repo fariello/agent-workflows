@@ -154,8 +154,8 @@ _SPEC_ACTIONS: Mapping[str, str] = {
     # `reviewed` absent: default is the human approval gate (needs input, not a runnable action);
     # only `--action review` makes it a review (spec 3.3).
     "approved": ACTION_PLAN,  # author conformant IPDs linked by From-Spec
-    # `implementing` absent: it dispatches its From-Spec children as child queue items rather than
-    # taking one action of its own (spec 3.3).
+    # `implementing` absent: a post-cutover spec with uncited non-deferred TRACE ids is refined to
+    # `plan` by `runner_action` (spec `25kzda` 3.3, `89xjll` OQ-08); otherwise it stays undetermined.
     "implemented": ACTION_SKIP,
     "deferred": ACTION_SKIP,
     "parked": ACTION_SKIP,
@@ -371,6 +371,7 @@ def runner_action(
     authoring_complete: Optional[bool] = None,
     full_auto: bool = False,
     for_legality: bool = False,
+    uncited_trace_ids: Optional[bool] = None,
 ) -> str:
     """Derive the runner-side queue action by layering runner-only inputs over the public table reader.
 
@@ -386,9 +387,11 @@ def runner_action(
     (ii) IPD `reviewed` -> `execute` (spec `25kzda` 3.2: the runner dispatches `reviewed` under
         `--full-auto` or freezes it as `needs_input=True` pending human approval).
     (iii) For `kind == "orchestrator"`, an answer of `execute` becomes `orchestrate` (spec `z7nbn1` 2.2).
+    (iv) Spec `implementing` -> `plan` when `uncited_trace_ids` is True (spec `25kzda` 3.3, `89xjll` OQ-08);
+        otherwise it stays undetermined.
 
-    THE THREE REFINEMENTS ARE ORDERED, NOT A SET:
-    Apply (i) and (ii) FIRST, then (iii) LAST over their result.
+    THE REFINEMENTS ARE ORDERED, NOT A SET:
+    Apply (i), (ii), and (iv) FIRST, then (iii) LAST over their result.
     Order is load-bearing for the `reviewed` orchestrator row: reaching `orchestrate` requires the
     chain table(`reviewed`)='undetermined' -> (ii) 'execute' -> (iii) 'orchestrate'. Applying (iii)
     before (ii) would see 'undetermined', leave it untouched, and silently demote a reviewed orchestrator
@@ -421,6 +424,11 @@ def runner_action(
     # Refinement (ii): IPD reviewed -> execute
     elif norm_type == "ipd" and norm_status == "reviewed":
         action = ACTION_EXECUTE
+
+    # Refinement (iv): Spec implementing -> plan when uncited_trace_ids is True
+    elif norm_type == "spec" and norm_status == "implementing":
+        if uncited_trace_ids is True:
+            action = ACTION_PLAN
 
     # Refinement (iii) applied LAST: orchestrator Kind refinement over execute
     if norm_kind == "orchestrator" and action == ACTION_EXECUTE:
@@ -461,12 +469,21 @@ def classify_paths(
         elif spec_type is not None:
             rec = _status_set.read_artifact_record(p, repo_root)
             status = rec.status if rec is not None else None
+        action = (
+            runner_action(
+                spec_type,
+                status,
+                uncited_trace_ids=implementing_spec_needs_plan(repo_root, p),
+            )
+            if (spec_type == "spec" and status == "implementing")
+            else _action_for(spec_type, status)
+        )
         item = ClassifiedItem(
             path=p,
             spec_type=spec_type,
             resolver_type=resolver_type,
             status=status,
-            action=_action_for(spec_type, status),
+            action=action,
         )
         items.append(item)
         if spec_type is None:
@@ -628,6 +645,29 @@ def review_depends_on_completeness(
     if norm != "draft":
         return False
     return spec_type in _ACTION_TABLES
+
+
+def implementing_spec_needs_plan(repo_root: Path | str, id6: str | Path) -> bool:
+    """True when an implementing spec has uncited non-deferred TRACE ids and needs a plan turn.
+
+    Fails safe to False on any exception or unreadable spec.
+    """
+    try:
+        from agent_workflows import production_checks as _pc
+
+        id6_str = str(id6).strip()
+        if "/" in id6_str or id6_str.endswith(".md"):
+            p = Path(id6_str)
+            abs_p = p if p.is_absolute() else Path(repo_root) / p
+            rec = _status_set.read_artifact_record(abs_p, Path(repo_root))
+            if rec and rec.id6:
+                id6_str = rec.id6
+            else:
+                id6_str = p.stem
+        uncited = _pc.spec_uncited_trace_ids(Path(repo_root), id6_str)
+        return bool(uncited)
+    except Exception:
+        return False
 
 
 def needs_review(

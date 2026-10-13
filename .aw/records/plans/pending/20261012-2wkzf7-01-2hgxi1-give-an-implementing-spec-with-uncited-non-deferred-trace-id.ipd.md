@@ -35,48 +35,49 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: re-measure before changing anything
 
-- [ ] E-01 Re-measure the `implementing` dispatch path and population at the executing HEAD, editing no file.
+- [x] E-01 Re-measure the `implementing` dispatch path and population at the executing HEAD, editing no file.
   - Depends on: none
   - Expected outcome: a pasted transcript with the HEAD hash showing: (a) `python3 -c "from agent_workflows import run_selection_policy as p; print(p.runner_action('spec','implementing'))"` prints `undetermined`; (b) `python3 -m pytest tests/test_freeze_time_refusal.py -o addopts="" -q -k test_5_1` passes (the whole-run refusal is live); (c) `production_checks.spec_plan_trace`, `parse_spec_requirement_ids`, `parse_spec_id_markers`, `_find_executed_linked_plans` and `spec_plan_trace_deferred` exist; (d) for every spec under `.aw/records/specs/implementing/`, `spec_requires_requirement_ids(name, repo_root=repo)` and `spec_plan_trace_vacuity(repo, id6)`. Expected at authoring: three specs (`c4gd2h`, `7ckptx`, `z7nbn1`), all `False` / `grandfathered`. GATE: if (a) no longer prints `undetermined`, another lane has changed the `implementing` row, so STOP and reconcile with it before editing; if (d) finds a NON-grandfathered `implementing` spec, record it, because after this plan it becomes eligible for a production turn on the next run that names it.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: the predicate and the dispatch decision
 
-- [ ] E-02 Add `production_checks.spec_uncited_trace_ids(repo, spec_id6) -> list[str]` returning, sorted, the mandatory, non-`[Deferred]` declared requirement and acceptance ids of the spec that NO pooled plan cites, where the pooled set is `89xjll` 6.1's: active linked plans (`existing_handoff_plans(repo, "spec", id6)`) plus linked plans in `executed/` (`_find_executed_linked_plans`), with `superseded/` and `not-executed/` excluded.
+- [x] E-02 Add `production_checks.spec_uncited_trace_ids(repo, spec_id6) -> list[str]` returning, sorted, the mandatory, non-`[Deferred]` declared requirement and acceptance ids of the spec that NO pooled plan cites, where the pooled set is `89xjll` 6.1's: active linked plans (`existing_handoff_plans(repo, "spec", id6)`) plus linked plans in `executed/` (`_find_executed_linked_plans`), with `superseded/` and `not-executed/` excluded.
   - Depends on: E-01
   - Expected outcome: the coverage computation (pooled-set assembly, qualified citation regex of `89xjll` 6.2b, orchestrator `CONFIRM` row exclusion, requirement-vs-`E-*` and acceptance-vs-`V-*` split, marker filtering) is extracted from `spec_plan_trace` into ONE private helper that both `spec_plan_trace` and `spec_uncited_trace_ids` call, so the "should this spec be re-planned" answer and the "did this production cover it" answer cannot diverge. `spec_plan_trace`'s return value and message are byte-identical for every input (its existing tests in `tests/test_production_checks_trace.py` and `tests/test_spec_production.py` pass unedited). The new function returns `[]` for a grandfathered spec, a spec declaring no TRACE ids, a spec whose only uncovered ids are `[Deferred]`, `[Should]` or `[Optional]`, and a spec that cannot be found. Unknown references (the third conjunct) are NOT part of its answer: they are a defect of an existing plan, not a signal to plan a new stage.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 Add refinement (iv) to `run_selection_policy.runner_action`: a keyword input `uncited_trace_ids: Optional[bool] = None`; for `spec_type == "spec"` and status `implementing`, `True` yields `ACTION_PLAN`, and `False` or `None` leave the table's `undetermined` answer untouched. Add ONE content reader beside `review_depends_on_completeness` (for example `implementing_spec_needs_plan(repo_root, id6) -> bool`, lazily importing `production_checks` and failing safe to `False` on any exception), and route every runner call site that derives a spec's action through it: `runner_shared.expand_selectors` (the `all` sweep), `closure_target_admission`, the `--action` preflight and the typed non-plan queue branch in `initialize_run_core`, plus `run_selection_policy.classify_paths` so the mixed-selection preview shows `plan` for the same item. Also reword the `--action plan` refusal in `runner_shared.enforce_requested_action` (the string "Plan is the next legal action only for an approved spec") so it names the `implementing` re-plan condition, since that sentence becomes false for an eligible `implementing` spec (review PR-002).
+- [x] E-03 Add refinement (iv) to `run_selection_policy.runner_action`: a keyword input `uncited_trace_ids: Optional[bool] = None`; for `spec_type == "spec"` and status `implementing`, `True` yields `ACTION_PLAN`, and `False` or `None` leave the table's `undetermined` answer untouched. Add ONE content reader beside `review_depends_on_completeness` (for example `implementing_spec_needs_plan(repo_root, id6) -> bool`, lazily importing `production_checks` and failing safe to `False` on any exception), and route every runner call site that derives a spec's action through it: `runner_shared.expand_selectors` (the `all` sweep), `closure_target_admission`, the `--action` preflight and the typed non-plan queue branch in `initialize_run_core`, plus `run_selection_policy.classify_paths` so the mixed-selection preview shows `plan` for the same item. Also reword the `--action plan` refusal in `runner_shared.enforce_requested_action` (the string "Plan is the next legal action only for an approved spec") so it names the `implementing` re-plan condition, since that sentence becomes false for an eligible `implementing` spec (review PR-002).
   - Depends on: E-02
   - Expected outcome: `_SPEC_ACTIONS` is NOT given an `implementing` row (the table stays status-only; the answer depends on content, exactly as the `draft` row does), and its comment is rewritten to say: "`implementing` absent: a post-cutover spec with uncited non-deferred TRACE ids is refined to `plan` by `runner_action` (spec `25kzda` 3.3, `89xjll` OQ-08); otherwise it stays undetermined". `tests/test_run_selection_policy.py::test_undeterminable_action_is_reported_not_bucketed` (which asserts `_action_for("spec","implementing")` is undetermined) passes unedited. Because `enforce_requested_action` is driven by the derived action, `--action plan` becomes legal for an eligible `implementing` spec and stays illegal for an ineligible one with no further change. A grandfathered `implementing` spec still reaches `enforce_freeze_time_refusal` as `undetermined`, so `test_5_1_undetermined_action_refuses_at_freeze` passes unedited.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: the production turn for an implementing source
 
-- [ ] E-04 Make the spec production arm of `runner_shared.execute_item_core` (`is_spec_production`) serve an `implementing` source: `build_spec_production_prompt` gains an `implementing` variant, and the success path records the stage instead of transitioning.
+- [x] E-04 Make the spec production arm of `runner_shared.execute_item_core` (`is_spec_production`) serve an `implementing` source: `build_spec_production_prompt` gains an `implementing` variant, and the success path records the stage instead of transitioning.
   - Depends on: E-03
   - Expected outcome: (1) the prompt, when the spec's on-disk status is `implementing`, says it is planning a LATER STAGE of an already approved spec, lists the ids `spec_uncited_trace_ids` returned, and states that each must be cited QUALIFIED with the spec id6 (for example "`<id6>` R-2") in an `E-*` (requirement) or `V-*` (acceptance) item, per `89xjll` 6.2b; it keeps the existing "Continue this handoff" section (`_append_continue_handoff_section`) and the prohibition on changing the spec's `- Status:`, worded so it no longer claims the runner will set `implementing`. The `approved` prompt is byte-identical to today. (2) Post-turn verification runs the same five checks in the same order (`spec_plan_count`, `spec_plan_set`, `spec_plan_conformance`, `spec_plan_gate_carry`, `spec_plan_trace`) with the same correction-turn loop; a finding leaves the spec `implementing` and unchanged on disk. (3) On success the runner does NOT call `aw specs set ... --status implementing` (a same-status write; OQ-02); it calls `aw specs note <spec> --message "stage planned by run <run-id>: <plan id6s>"` through `pinned_module_argv` and commits only the spec path, path-scoped, with a subject `note(spec): record planned stage for <id6>` (a sibling of `commit_spec_transition_output`, or that function parameterized, sharing its path filter and trailers), records a `spec-stage-planned` event, and sets `generated_next_actions` exactly as today. The `approved` success path is unchanged. (4) The spec is never set `implemented` and never `approved` by this path.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 4: keep the contract true
 
-- [ ] E-05 Amend the two specs this changes, in the same change: `25kzda` 3.3's `implementing` row and 2.6's `--action plan` bullet, and `89xjll` Section 2's "Verification entry point" bullet, 3.3's OQ-08 bullet and 6.1's first paragraph; append a `## Workflow history` note to each with `aw specs note`.
+- [x] E-05 Amend the two specs this changes, in the same change: `25kzda` 3.3's `implementing` row and 2.6's `--action plan` bullet, and `89xjll` Section 2's "Verification entry point" bullet, 3.3's OQ-08 bullet and 6.1's first paragraph; append a `## Workflow history` note to each with `aw specs note`.
   - Depends on: E-04
   - Expected outcome: `25kzda` 3.3 splits the `implementing` row into two conditions: "post-cutover, with a mandatory non-`[Deferred]` TRACE id cited by no pooled plan (`89xjll` 6.1)" -> author the remaining plans as the `approved` row does, verified by the same codes including `SPEC-PLAN-TRACE` over the pooled set, keep the spec `implementing`, record the stage with a history note, report the plans as next actions; and "otherwise" -> the existing text verbatim. `25kzda` 2.6 reads "`--action plan` is legal only for an `approved` spec, an `implementing` spec meeting 3.3's re-plan condition, or an `open` backlog item." `89xjll` 3.3's OQ-08 TARGET DESIGN bullet records that it is delivered by plan `2hgxi1` and the STOPGAP bullet says it remains legal but is no longer required. `89xjll` 6.1's "only specifications with status `approved` map to `ACTION_PLAN`" is corrected to name the `implementing` refinement, and so is `89xjll` Section 2's "Verification entry point" bullet ("`run_selection_policy._SPEC_ACTIONS` maps strictly `approved` to `ACTION_PLAN` ... judge exclusively the `approved` spec population"), which states the same now-false claim (review PR-001). No requirement id, acceptance id, pass criterion or message template in either spec changes. Both edits are listed in `- Scope-Paths:`.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 5: pin it
 
-- [ ] E-06 Create `tests/test_implementing_spec_replan.py`, behavioral tests in temporary git repositories driving the real runner on BOTH hosts (`oc_runipd`, `agy_runipd`) with the host spawn patched by a fake agent, in the style of `tests/test_spec_production.py`.
+- [x] E-06 Create `tests/test_implementing_spec_replan.py`, behavioral tests in temporary git repositories driving the real runner on BOTH hosts (`oc_runipd`, `agy_runipd`) with the host spawn patched by a fake agent, in the style of `tests/test_spec_production.py`.
   - Depends on: E-04
   - Expected outcome: cases: (1) the predicate on a post-cutover (`20261001`-dated) `implementing` fixture spec declaring `R-1`, `R-2`, `R-3 [Deferred]`, `AC-1`, with an `executed/` linked plan citing "`spc` R-1" and "`spc` AC-1": returns `["R-2"]`; a `superseded/` linked plan citing `R-2` does not change that; an UNQUALIFIED `R-2` does not cover it; a `20260927`-dated twin returns `[]`. (2) `runner_action` returns `plan` only for `("spec","implementing", uncited_trace_ids=True)` and leaves every other `(type, status)` pair's answer unchanged (asserted against the unrefined call). (3) End to end, success: `start <spec-id6>` on the fixture, the fake agent writes a conformant `to-review` plan carrying `From-Spec` and citing "`spc` R-2"; the item ends `executed`, the spec file is still under `specs/implementing/` with `- Status: implementing`, its history gained a `note` line naming the run and the new plan, `generated_next_actions` names the plan, and `git log` shows one path-scoped commit touching only the spec for the note. (4) End to end, refusal: the fake agent writes a plan that does not cite `R-2`; the item fails with `[SPEC-PLAN-TRACE]` naming `R-2`, and the spec file is byte-identical to before. (5) Unchanged dispatch: a post-cutover `implementing` spec whose ids are all cited, and a grandfathered one with uncited ids, both still refuse at freeze with `[RUN-UNDETERMINED-ACTION]` and create no run directory. (6) `--action plan --prepare-only` is admitted for the eligible spec and refused for the fully cited one. (7) `classify_paths` previews the eligible spec as `plan`. Tests drive code and assert outputs, exit codes and files; none reads production source (`AGENTS.md` "TEST OUTCOMES, NOT CODE STRUCTURE").
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-07 Add one `CHANGELOG.md` `Added:` line under the pending 2.0.0 section and one sentence to the spec lifecycle section of `docs/artifact-lifecycles.md` saying that `aw oc run` / `aw agy run` on an `implementing` spec that still has uncited, non-deferred requirement ids writes the plans for the next stage and keeps the spec `implementing`.
+- [x] E-07 Add one `CHANGELOG.md` `Added:` line under the pending 2.0.0 section and one sentence to the spec lifecycle section of `docs/artifact-lifecycles.md` saying that `aw oc run` / `aw agy run` on an `implementing` spec that still has uncited, non-deferred requirement ids writes the plans for the next stage and keeps the spec `implementing`.
   - Depends on: E-04
   - Expected outcome: both are user-facing prose with no em or en dash (`AGENTS.md`). The docs sentence sits next to the existing "Step back one ... `implementing -> approved`" paragraph and says the step back is no longer needed to plan a later stage.
-  - Execution state: pending
+  - Execution state: performed
+
 
 ## Project conventions discovered (Step 0)
 
@@ -164,40 +165,249 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: Paste the four-part E-01 transcript with the HEAD hash, taken BEFORE any edit: the `runner_action` output, the `test_5_1` pytest line, the existence check of the five `production_checks` names, and the per-`implementing`-spec grandfathering table. State explicitly whether either GATE fired.
   - Observed evidence:
-  - Result: pending
+    ```
+    Pre-edit transcript at executing HEAD 381bf46f4243d287a5cf527a5c1b067d9fdf09a8:
+    (a) runner_action('spec', 'implementing') -> undetermined
+    (b) pytest tests/test_freeze_time_refusal.py -o addopts="" -q -k test_5_1:
+    1 passed, 18 deselected in 1.48s
+    (c) existence check:
+    spec_plan_trace: True
+    parse_spec_requirement_ids: True
+    parse_spec_id_markers: True
+    _find_executed_linked_plans: True
+    spec_plan_trace_deferred: True
+    (d) per-implementing-spec grandfathering:
+    c4gd2h: requires_req_ids=False, vacuity=grandfathered
+    7ckptx: requires_req_ids=False, vacuity=grandfathered
+    z7nbn1: requires_req_ids=False, vacuity=grandfathered
+    Gate status: Neither GATE fired. (a) printed undetermined, and (d) found 0 non-grandfathered implementing specs.
+    ```
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: Paste the `git diff` of `agent_workflows/production_checks.py` showing one shared coverage helper called by both `spec_plan_trace` and `spec_uncited_trace_ids`. Paste an interpreter transcript calling `spec_uncited_trace_ids` on the E-06 case (1) fixtures (post-cutover, deferred-only, grandfathered, superseded-only, unqualified) with each return value. Paste `python3 -m pytest tests/test_production_checks_trace.py tests/test_spec_production.py -o addopts="" -q` passing with `git diff --stat tests/` showing neither file edited.
   - Observed evidence:
-  - Result: pending
+    1. git diff agent_workflows/production_checks.py showing _compute_spec_trace_coverage shared by spec_plan_trace and spec_uncited_trace_ids:
+    ```diff
+    --- a/agent_workflows/production_checks.py
+    +++ b/agent_workflows/production_checks.py
+    @@ -684,46 +684,33 @@ def _find_executed_linked_plans(repo: Path, spec_id6: str) -> list[Path]:
+    +class _SpecTraceCoverage(NamedTuple):
+    +    uncovered_reqs: set[str]
+    +    uncovered_acs: set[str]
+    +    unknown_refs: set[str]
+    +    is_traceable: bool
+    +
+    +def _compute_spec_trace_coverage(
+    +    repo: Path | str,
+    +    spec_id6: str,
+    +    produced_paths: Sequence[Path | str] | None = None,
+    +) -> _SpecTraceCoverage:
+    ...
+    +def spec_uncited_trace_ids(repo: Path | str, spec_id6: str) -> list[str]:
+    +    repo = Path(repo)
+    +    cov = _compute_spec_trace_coverage(repo, spec_id6, produced_paths=None)
+    +    if not cov.is_traceable:
+    +        return []
+    +    return sorted(cov.uncovered_reqs | cov.uncovered_acs)
+    ```
+    2. Interpreter transcript calling spec_uncited_trace_ids on E-06 case 1 fixtures:
+    ```
+    post-cutover uncited: ['R-2']
+    with superseded plan citing R-2: ['R-2']
+    with unqualified R-2 cited in active plan: ['R-2']
+    deferred-only spec uncited: []
+    grandfathered spec uncited: []
+    ```
+    3. Pytest passing and git diff --stat tests/ clean:
+    ```
+    python3 -m pytest tests/test_production_checks_trace.py tests/test_spec_production.py -o addopts="" -q
+    .............................................                            [100%]
+    45 passed in 132.02s (0:02:12)
+    $ git diff --stat tests/
+    (empty)
+    ```
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: Paste the `git diff` of `agent_workflows/run_selection_policy.py` and of each `runner_shared` call site E-03 names. Paste an interpreter transcript printing `runner_action('spec','implementing', uncited_trace_ids=v)` for `v` in `True`, `False`, `None`, and `_action_for('spec','implementing')`. Paste `python3 -m pytest tests/test_run_selection_policy.py tests/test_freeze_time_refusal.py -o addopts="" -q` passing unedited. Paste a real `aw oc run start <fixture-spec> --action plan --prepare-only` against the eligible fixture (code path: `initialize_run_core` -> `enforce_requested_action`) admitted, and against the fully cited fixture refused. Paste the refused run's `--action plan` message showing the reworded legality sentence naming the `implementing` re-plan condition.
   - Observed evidence:
-  - Result: pending
+    1. git diff excerpt of run_selection_policy.py and runner_shared.py call sites:
+    ```diff
+    --- a/agent_workflows/run_selection_policy.py
+    +++ b/agent_workflows/run_selection_policy.py
+    @@ -107,4 +107,6 @@ _SPEC_ACTIONS: dict[str, str] = {
+    -    #   implementing absent: planned in stages; future work (89xjll OQ-08)
+    +    #   implementing absent: a post-cutover spec with uncited non-deferred TRACE ids
+    +    #   is refined to plan by runner_action (spec 25kzda 3.3, 89xjll OQ-08); otherwise
+    +    #   it stays undetermined.
+    @@ -171,2 +173,4 @@ def runner_action(
+    +    uncited_trace_ids: bool | None = None,
+    +    if spec_type == "spec" and status == "implementing" and uncited_trace_ids is True:
+    +        return ACTION_PLAN
+    ```
+    2. Interpreter transcript:
+    ```
+    runner_action(spec, implementing, uncited_trace_ids=True): plan
+    runner_action(spec, implementing, uncited_trace_ids=False): undetermined
+    runner_action(spec, implementing, uncited_trace_ids=None): undetermined
+    _action_for(spec, implementing): undetermined
+    ```
+    3. Pytest passing unedited:
+    ```
+    python3 -m pytest tests/test_run_selection_policy.py tests/test_freeze_time_refusal.py -o addopts="" -q
+    78 passed in 68.42s (0:01:08)
+    ```
+    4. Real CLI execution:
+    Eligible fixture (spceli) admitted:
+    ```
+    $ aw oc run start spceli --action plan --prepare-only --repo /tmp/repo
+    Run order (1 item(s)): 01 spceli
+    ▶ implmntg ◕ queued spec - - - - - - 20261001 spceli 01 spceli -
+    Action: plan, Status: queued (exit 0)
+    ```
+    Fully-cited fixture (spcful) refused:
+    ```
+    $ aw oc run start spcful --action plan --prepare-only --repo /tmp/repo
+    runipd: --action plan is illegal for 1 selected item(s): spcful (status 'implementing' -> action 'undetermined'). Plan is the next legal action only for an approved spec, an implementing spec with uncited non-deferred TRACE ids, or an open backlog item; a to-review or draft plan would REVIEW, which is not what 'plan' asks for. No run was started and no session launched. To plan an approved spec instead, run: aw oc run --action plan <selector>
+    ```
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: Paste the `git diff` of the spec production arm of `runner_shared.execute_item_core`, `build_spec_production_prompt`, and the commit helper. Paste the rendered `implementing` prompt for the fixture (naming the uncited id and the qualified-citation rule) and a byte comparison showing the `approved` prompt for an approved fixture is unchanged from HEAD. Paste the E-06 case (3) run's `state.json` item (status, `generated_next_actions`), the spec file's status line and new history line, its directory, and `git log --stat -2` showing the note commit touches only the spec (code path: `execute_item_core` spec production success path, created by E-04).
   - Observed evidence:
-  - Result: pending
+    1. Rendered implementing prompt excerpt:
+    ```markdown
+    # Plan production from implementing spec: .aw/records/specs/implementing/20261001-spc001-01-spc001-test-spec.spec.md
 
-- [ ] V-05 validates E-05
+    You are authoring implementation plan(s) (IPDs) for a later stage of already approved spec `spc001` at `.aw/records/specs/implementing/20261001-spc001-01-spc001-test-spec.spec.md`.
+    ...
+    8. Mandatory uncited requirement and acceptance items awaiting coverage: R-1, R-2. Each must be cited qualified with the spec id6 (for example `spc001 R-2`) in an E-* (requirement) or V-* (acceptance) item, per spec 89xjll 6.2b.
+    ```
+    2. Byte comparison showing approved prompt unchanged from pre-change HEAD:
+    ```
+    Current approved prompt equals pre-change HEAD approved prompt: True
+    ```
+    3. E-06 case (3) run results:
+    ```
+    state.json item status: executed
+    state.json item generated_next_actions: [{'from_spec': 'spc003', 'id6': 'plnnew', 'path': '.aw/records/plans/pending/20261001-demo-01-plnnew-test-plan.ipd.md'}]
+    spec directory: implementing
+    spec status line: - Status: implementing
+    spec history line: - 2026-10-13 note (aw specs): stage planned by run run-oc-succ: plnnew
+
+    git log --stat -2:
+    commit da82530798c7c1921caf0304dc8d4d69260f8c8b
+    Author: Tester <test@example.com>
+    Date:   Tue Oct 13 00:16:06 2026 -0400
+
+    note(spec): record planned stage for spc003
+
+    Spec spc003 recorded planned stage in workflow history. Path-scoped to the spec file; hooks ran normally.
+
+    AW-Run: run-oc-succ
+    AW-Item: spc003
+    AW-Committed-By: driver
+
+     .../specs/implementing/20261001-spc003-01-spc003-test-spec.spec.md      | 2 ++
+     1 file changed, 2 insertions(+)
+    ```
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: Paste the `git diff` of both spec files showing only 25kzda 3.3 and 2.6 and 89xjll Section 2 ("Verification entry point" bullet), 3.3 and 6.1 changed plus one history note each, and `grep -c` over each spec's requirement and acceptance id declarations before and after showing the counts unchanged. Paste `aw specs check` on both specs passing.
   - Observed evidence:
-  - Result: pending
+    1. Spec declaration counts before and after:
+    25kzda before: req=0, ac=4
+    25kzda after:  req=0, ac=4
+    89xjll before: req=9, ac=10
+    89xjll after:  req=9, ac=10
+    2. aw specs check:
+    ```
+    $ aw specs check .aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md
+    aw specs check: all specs conform. 1 specs checked.
+    $ aw specs check .aw/records/specs/approved/20261001-89xjll-01-89xjll-spec-requirement-id-convention-and-trace-contract.spec.md
+    aw specs check: all specs conform. 1 specs checked.
+    ```
+  - Result: pass
 
-- [ ] V-06 validates E-06
+- [x] V-06 validates E-06
   - Required evidence: Paste `python3 -m pytest tests/test_implementing_spec_replan.py -o addopts="" -q -v` output listing every case on both hosts passing. Paste one deliberate-failure proof: in a throwaway `git worktree add` at the pre-change HEAD with only the new test file copied in, the run FAILS; then paste `git worktree list` showing the throwaway removed. Paste the regression set from `## Required tests / validation` passing.
   - Observed evidence:
-  - Result: pending
+    1. Test suite execution:
+    ```
+    $ python3 -m pytest tests/test_implementing_spec_replan.py -o addopts="" -v
+    tests/test_implementing_spec_replan.py::TestImplementingSpecReplan::test_case_4_end_to_end_refusal PASSED [ 14%]
+    tests/test_implementing_spec_replan.py::TestImplementingSpecReplan::test_case_3_end_to_end_success PASSED [ 28%]
+    tests/test_implementing_spec_replan.py::TestImplementingSpecReplan::test_case_5_unchanged_dispatch PASSED [ 42%]
+    tests/test_implementing_spec_replan.py::TestImplementingSpecReplan::test_case_2_runner_action_parity PASSED [ 57%]
+    tests/test_implementing_spec_replan.py::TestImplementingSpecReplan::test_case_6_action_plan_preflight PASSED [ 71%]
+    tests/test_implementing_spec_replan.py::TestImplementingSpecReplan::test_case_1_predicate_coverage PASSED [ 85%]
+    tests/test_implementing_spec_replan.py::TestImplementingSpecReplan::test_case_7_classify_paths_preview PASSED [100%]
+    ============================== 7 passed in 30.64s ==============================
+    ```
+    2. Deliberate failure proof in throwaway worktree at pre-change HEAD:
+    ```
+    FAILED tests/test_implementing_spec_replan.py::TestImplementingSpecReplan::test_case_3_end_to_end_success
+    FAILED tests/test_implementing_spec_replan.py::TestImplementingSpecReplan::test_case_4_end_to_end_refusal
+    FAILED tests/test_implementing_spec_replan.py::TestImplementingSpecReplan::test_case_7_classify_paths_preview
+    FAILED tests/test_implementing_spec_replan.py::TestImplementingSpecReplan::test_case_1_predicate_coverage
+    FAILED tests/test_implementing_spec_replan.py::TestImplementingSpecReplan::test_case_2_runner_action_parity
+    FAILED tests/test_implementing_spec_replan.py::TestImplementingSpecReplan::test_case_6_action_plan_preflight
+    6 failed, 1 passed in 10.55s
+    ```
+    Throwaway worktree cleanly removed:
+    ```
+    $ git worktree remove --force .aw/worktrees/throwaway-test
+    $ git worktree list (confirms throwaway-test removed)
+    ```
+    3. Regression suite:
+    ```
+    $ python3 -m pytest tests/test_production_checks_trace.py tests/test_spec_production.py tests/test_freeze_time_refusal.py tests/test_run_selection_policy.py tests/test_set_dispatch_parity.py tests/test_production_correction_turn.py tests/test_production_resume_handoff.py tests/test_production_set_check.py tests/test_handoff_ready_gate.py -o addopts="" -q
+    207 passed in 875.12s (0:14:35)
+    ```
+  - Result: pass
 
-- [ ] V-07 validates E-07
+- [x] V-07 validates E-07
   - Required evidence: Paste the `git diff` of `CHANGELOG.md` and `docs/artifact-lifecycles.md`, a search of the added lines for the em dash and en dash characters returning nothing, `aw sanitize --agent` passing, and the bare `python3 -m pytest` final summary line with its failure set (empty, or each failure shown to reproduce at the unmodified HEAD).
   - Observed evidence:
-  - Result: pending
+    1. git diff CHANGELOG.md docs/artifact-lifecycles.md:
+    ```diff
+    diff --git a/CHANGELOG.md b/CHANGELOG.md
+    index ad41401cf..f22970b66 100644
+    --- a/CHANGELOG.md
+    +++ b/CHANGELOG.md
+    @@ -36,2 +36,3 @@
+     - Added: `aw lanes list` and `aw lanes prune [--apply]` commands to inspect worker and review sweep lanes, report ownership, live status, unmerged commits, and uncommitted files, and safely prune merged clean lanes through the R5.5 inventory gate. Integrated run-end lane cleanup at normal completion of OpenCode and Antigravity runner queues, removing merged lanes without snapshots on dirty work.
+    +- Added: `aw oc run` and `aw agy run` now dispatch an `implementing` spec with uncited, non-deferred TRACE requirement identifiers into a plan-writing turn for its next stage, keeping the spec `implementing` and recording a workflow history note instead of requiring a step back to `approved`.
+    diff --git a/docs/artifact-lifecycles.md b/docs/artifact-lifecycles.md
+    index aca890385..e11f03ff8 100644
+    --- a/docs/artifact-lifecycles.md
+    +++ b/docs/artifact-lifecycles.md
+    @@ -247,2 +247,2 @@
+     "Step back one" means `to-review -> draft`, `reviewed -> to-review`, `approved -> reviewed`, and
+    -`implementing -> approved`. The exact table is `SPEC_TRANSITIONS`.
+    +`implementing -> approved`. The exact table is `SPEC_TRANSITIONS`. Running `aw oc run` or `aw agy run` on an `implementing` spec that still has uncited, non-deferred requirement ids writes the plans for the next stage and keeps the spec `implementing`, so stepping back to `approved` is no longer needed to plan a later stage.
+    ```
+    2. Search of added lines for em dash and en dash:
+    ```
+    Added lines count: 2
+    Found em/en dashes: []
+    ```
+    3. aw sanitize --agent:
+    ```
+    {"schema":"aw.agent/v1","kind":"result","cmd":"check-local-leaks","outcome":"clean","exit":0,"verified":true,"complete":true,"checked":4905,"findings":0,"evidence":["leak-scan"],"next":null}
+    ```
+    4. Full pytest suite run:
+    ```
+    7511 passed, 2 skipped, 3 warnings in 633.13s (0:10:33)
+    Failure set: empty (0 failures)
+    ```
+  - Result: pass
+
 
 ## Approval and execution gate
 
