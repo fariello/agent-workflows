@@ -3880,9 +3880,11 @@ def commit_spec_transition_output(
     if not allowed:
         return None, ()
 
-    rc, _out, _err = _run_git(wt, ["add", "--", *allowed])
-    if rc != 0:
-        return None, ()
+    add_paths = [p for p in allowed if (wt / p).exists()]
+    if add_paths:
+        rc, _out, _err = _run_git(wt, ["add", "--", *add_paths])
+        if rc != 0:
+            return None, ()
     from agent_workflows import git_commit_helper as _gch
 
     if is_note:
@@ -36032,15 +36034,6 @@ def execute_item_core(
     status_before: str | None = None
     continued_plan_ids: set[str] = set()
     existing_before: list[Any] = []
-    if is_spec_production or is_backlog_production:
-        from agent_workflows import check_engine as _ce
-        from agent_workflows import production_checks as _pc
-
-        for p, text in _ce._iter_plan_ipds(repo):
-            baseline_plan_ids.add(_pc._extract_plan_id(p, text))
-        src_type = "spec" if is_spec_production else "backlog"
-        existing_before = _pc.existing_handoff_plans(repo, src_type, item["id6"])
-        continued_plan_ids = {p.id6 for p in existing_before}
     if is_backlog_production:
         from agent_workflows import backlog as _backlog
 
@@ -36585,6 +36578,19 @@ def execute_item_core(
                 file=sys.stderr,
             )
             return
+
+    if is_spec_production or is_backlog_production:
+        from agent_workflows import check_engine as _ce
+        from agent_workflows import production_checks as _pc
+
+        baseline_tree = Path(work_dir) if (wt_handle is not None and work_dir) else repo
+        for p, text in _ce._iter_plan_ipds(baseline_tree):
+            baseline_plan_ids.add(_pc._extract_plan_id(p, text))
+        src_type = "spec" if is_spec_production else "backlog"
+        existing_before = _pc.existing_handoff_plans(
+            baseline_tree, src_type, item["id6"]
+        )
+        continued_plan_ids = {p.id6 for p in existing_before}
 
     if (
         (is_spec_production or is_backlog_production)

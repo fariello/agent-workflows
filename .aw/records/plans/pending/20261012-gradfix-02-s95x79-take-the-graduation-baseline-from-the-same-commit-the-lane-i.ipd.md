@@ -35,27 +35,27 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: reproduce the mismatch
 
-- [ ] E-01 REPRODUCE on real records. Check out each preserved lane branch into a throwaway DETACHED worktree under `/tmp` (`git worktree add --detach <tmp> aw/lane/iosmvn`, tip `78d44e6f1` at review; `aw/lane/2rm0gz`, tip `86aa23511`), never into the shared checkout, and remove it afterwards. Build each plan id list from git, not from a working tree: `git ls-tree -r --name-only <commit> .aw/records/plans`, keep `*.ipd.md`, and take each plan's `- Id:` from `git show <commit>:<path>`. For `iosmvn`: call `production_checks.backlog_graduate_count(<tmp lane>, "iosmvn", ids@c56c5cf0b)` (main before `md2o3y` merged) and again with `ids@8538be828` (the lane base). Expected: the first refuses naming `k6clui`; the second returns `[]`. For `2rm0gz`, use `97959e3fa` (main when its previous item finished) and `1feee61ca` (its lane base): refuses naming `jykyqb, ml7b9e`, then `[]`. Paste all four results. This proves the failure is the baseline/lane mismatch and nothing about the agent's plans. If a lane branch is gone, search dangling objects by subject before declaring it unrecoverable (`git fsck --connectivity-only`, or `runner_shared.find_dangling_commits_by_subject`) and record which check ran; if neither lane is recoverable, record that and continue, because E-04's fixture reproduces the same mismatch synthetically.
+- [x] E-01 REPRODUCE on real records. Check out each preserved lane branch into a throwaway DETACHED worktree under `/tmp` (`git worktree add --detach <tmp> aw/lane/iosmvn`, tip `78d44e6f1` at review; `aw/lane/2rm0gz`, tip `86aa23511`), never into the shared checkout, and remove it afterwards. Build each plan id list from git, not from a working tree: `git ls-tree -r --name-only <commit> .aw/records/plans`, keep `*.ipd.md`, and take each plan's `- Id:` from `git show <commit>:<path>`. For `iosmvn`: call `production_checks.backlog_graduate_count(<tmp lane>, "iosmvn", ids@c56c5cf0b)` (main before `md2o3y` merged) and again with `ids@8538be828` (the lane base). Expected: the first refuses naming `k6clui`; the second returns `[]`. For `2rm0gz`, use `97959e3fa` (main when its previous item finished) and `1feee61ca` (its lane base): refuses naming `jykyqb, ml7b9e`, then `[]`. Paste all four results. This proves the failure is the baseline/lane mismatch and nothing about the agent's plans. If a lane branch is gone, search dangling objects by subject before declaring it unrecoverable (`git fsck --connectivity-only`, or `runner_shared.find_dangling_commits_by_subject`) and record which check ran; if neither lane is recoverable, record that and continue, because E-04's fixture reproduces the same mismatch synthetically.
   - Depends on: none
   - Expected outcome: two refusals and two passes, pasted.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 FIND WHERE THE LIST GOES STALE, by measurement. The list is built near the top of `runner_shared.execute_item_core` (the `baseline_plan_ids` loop over `_iter_plan_ipds(repo)`), and the lane is allocated later in the same function from `HEAD` (`allocate_isolation_worktree`). In both incidents the list matches main as of the PREVIOUS item's end, not this item's start (`2rm0gz`: previous item finished 03:14:49Z, missing plans merged 03:14:52Z and 03:15:12Z, item started 03:15:15Z; `iosmvn`: previous 03:18:42Z, missing plan merged 03:18:44Z, started 03:19:05Z). Note F-07: the attempt's `started_at` is stamped AFTER the baseline read and after the host-capability preflight and prompt build, so "item started" is an upper bound on the read time, and the leading hypothesis is "a read taken before a wait" rather than a cache. Discriminate by measurement: in a scripted fixture (the E-04 harness is fine), temporarily log `utc_now()` at the baseline read and at `allocate_isolation_worktree`, and compare with the incident runs' `events.jsonl` (`worktree-allocated` timestamps) where they are still on disk. The instrumentation is TEMPORARY: revert it before E-03 and never commit it (it is outside Scope-Paths). Record the answer as F-05 before changing code. If the measurement cannot discriminate, record exactly that as F-05 and proceed: E-03 is correct whichever read it was.
+- [x] E-02 FIND WHERE THE LIST GOES STALE, by measurement. The list is built near the top of `runner_shared.execute_item_core` (the `baseline_plan_ids` loop over `_iter_plan_ipds(repo)`), and the lane is allocated later in the same function from `HEAD` (`allocate_isolation_worktree`). In both incidents the list matches main as of the PREVIOUS item's end, not this item's start (`2rm0gz`: previous item finished 03:14:49Z, missing plans merged 03:14:52Z and 03:15:12Z, item started 03:15:15Z; `iosmvn`: previous 03:18:42Z, missing plan merged 03:18:44Z, started 03:19:05Z). Note F-07: the attempt's `started_at` is stamped AFTER the baseline read and after the host-capability preflight and prompt build, so "item started" is an upper bound on the read time, and the leading hypothesis is "a read taken before a wait" rather than a cache. Discriminate by measurement: in a scripted fixture (the E-04 harness is fine), temporarily log `utc_now()` at the baseline read and at `allocate_isolation_worktree`, and compare with the incident runs' `events.jsonl` (`worktree-allocated` timestamps) where they are still on disk. The instrumentation is TEMPORARY: revert it before E-03 and never commit it (it is outside Scope-Paths). Record the answer as F-05 before changing code. If the measurement cannot discriminate, record exactly that as F-05 and proceed: E-03 is correct whichever read it was.
   - Depends on: E-01
   - Expected outcome: a recorded, measured answer to "which read was stale" (or a recorded statement that it could not be discriminated, with what was measured), added to Findings as F-05, and no instrumentation left in the diff.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: fix and prove
 
-- [ ] E-03 Compute the baseline FROM THE TREE THE TURN WILL RUN IN, at the point the turn is about to start. In `runner_shared.execute_item_core`, move the `baseline_plan_ids` / `existing_before` / `continued_plan_ids` computation (today the `if is_spec_production or is_backlog_production:` block that loops `_ce._iter_plan_ipds(repo)` and calls `_pc.existing_handoff_plans(repo, ...)`) to a single point AFTER the `(is_spec_production or is_backlog_production) and isolate` lane-allocation block and BEFORE the `wt_handle is None and continued_plan_ids` pre-dirty filter, so that filter still sees the list. Read from `Path(work_dir)` when a lane was allocated (an untouched lane worktree holds exactly `wt_handle.base_commit`; F-06), else from `repo`. Keep the `is_backlog_production` `status_before` read where it is (it reads the backlog file, not the plan inventory). Do NOT switch the non-isolated read to `git ls-tree HEAD`: the post-turn scan reads the WORKING TREE (`_ce._iter_plan_ipds(target_tree)`), so a committed-only baseline would count any plan already present uncommitted in the shared checkout as "new" (F-08). Leave every downstream consumer (`commit_spec_production_output`, `commit_backlog_production_output`, the `p_id not in baseline_plan_ids` loops and the `existing_handoff_plans(target_tree, ...)` filters, on first and correction attempts) reading the same variables unchanged. Spec production shares the block and gets the same fix. Recompute is per attempt: a correction turn reuses the variables already set for the item, exactly as today.
+- [x] E-03 Compute the baseline FROM THE TREE THE TURN WILL RUN IN, at the point the turn is about to start. In `runner_shared.execute_item_core`, move the `baseline_plan_ids` / `existing_before` / `continued_plan_ids` computation (today the `if is_spec_production or is_backlog_production:` block that loops `_ce._iter_plan_ipds(repo)` and calls `_pc.existing_handoff_plans(repo, ...)`) to a single point AFTER the `(is_spec_production or is_backlog_production) and isolate` lane-allocation block and BEFORE the `wt_handle is None and continued_plan_ids` pre-dirty filter, so that filter still sees the list. Read from `Path(work_dir)` when a lane was allocated (an untouched lane worktree holds exactly `wt_handle.base_commit`; F-06), else from `repo`. Keep the `is_backlog_production` `status_before` read where it is (it reads the backlog file, not the plan inventory). Do NOT switch the non-isolated read to `git ls-tree HEAD`: the post-turn scan reads the WORKING TREE (`_ce._iter_plan_ipds(target_tree)`), so a committed-only baseline would count any plan already present uncommitted in the shared checkout as "new" (F-08). Leave every downstream consumer (`commit_spec_production_output`, `commit_backlog_production_output`, the `p_id not in baseline_plan_ids` loops and the `existing_handoff_plans(target_tree, ...)` filters, on first and correction attempts) reading the same variables unchanged. Spec production shares the block and gets the same fix. Recompute is per attempt: a correction turn reuses the variables already set for the item, exactly as today.
   - Depends on: E-02
   - Expected outcome: on an isolated run the baseline and the post-turn scan are two states of the same tree, so a concurrent merge into main cannot appear as a "new plan"; on a non-isolated run the read happens immediately before the turn instead of before preflight and prompt build.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 Add `tests/test_production_baseline_same_commit.py` (P16: drive the real runner, assert on queue status, `events.jsonl`, refusal text and committed paths, never on source text). Reuse the fixture shapes of `tests/test_backlog_production.py` and `tests/test_spec_production.py` (`_make_test_repo`, `_write_backlog_item` / `_write_spec`, `_patch_host_agent`, and the `_HOSTS` loop so BOTH `oc_runipd` and `agy_runipd` are driven). Make the concurrent merge DETERMINISTIC rather than timing-based: wrap `runner_shared.allocate_isolation_worktree` (`mock.patch.object` with a side effect that first commits, on the fixture's main branch, a pending plan carrying a DIFFERENT `- From-Backlog:` / `- From-Spec:`, then calls the real function). That lands the foreign plan exactly in the window between the old baseline read and the lane cut, whatever E-02 finds the original trigger to be. The scripted agent then writes one correctly linked, conforming plan. Cases: (a) backlog production, isolation on: item does not end `fail-gate`, the backlog item reaches `graduated`, no `BACKLOG-GRADUATE-COUNT` refusal text appears in state or events, and the foreign plan's id is not among the committed production paths; (b) the same for spec production (no `SPEC-PLAN-COUNT` refusal, spec reaches `implementing`); (c) non-isolated (`--no-isolate-worktree`) backlog production with a pre-existing UNCOMMITTED unrelated plan in the shared checkout: it is not reported as produced (guards against a `HEAD`-only baseline, F-08); (d) negative control: an agent that writes a plan with the WRONG `From-Backlog` still refuses with the unchanged message. Cases (a) and (b) must FAIL on the base commit; show it (for example by stashing the E-03 hunk or running the module against a checkout of the base commit). Then run `tests/test_backlog_handoff_close.py`, `tests/test_backlog_production.py`, `tests/test_spec_production.py` and the `tests/test_production_*.py` modules unchanged, then the bare suite.
+- [x] E-04 Add `tests/test_production_baseline_same_commit.py` (P16: drive the real runner, assert on queue status, `events.jsonl`, refusal text and committed paths, never on source text). Reuse the fixture shapes of `tests/test_backlog_production.py` and `tests/test_spec_production.py` (`_make_test_repo`, `_write_backlog_item` / `_write_spec`, `_patch_host_agent`, and the `_HOSTS` loop so BOTH `oc_runipd` and `agy_runipd` are driven). Make the concurrent merge DETERMINISTIC rather than timing-based: wrap `runner_shared.allocate_isolation_worktree` (`mock.patch.object` with a side effect that first commits, on the fixture's main branch, a pending plan carrying a DIFFERENT `- From-Backlog:` / `- From-Spec:`, then calls the real function). That lands the foreign plan exactly in the window between the old baseline read and the lane cut, whatever E-02 finds the original trigger to be. The scripted agent then writes one correctly linked, conforming plan. Cases: (a) backlog production, isolation on: item does not end `fail-gate`, the backlog item reaches `graduated`, no `BACKLOG-GRADUATE-COUNT` refusal text appears in state or events, and the foreign plan's id is not among the committed production paths; (b) the same for spec production (no `SPEC-PLAN-COUNT` refusal, spec reaches `implementing`); (c) non-isolated (`--no-isolate-worktree`) backlog production with a pre-existing UNCOMMITTED unrelated plan in the shared checkout: it is not reported as produced (guards against a `HEAD`-only baseline, F-08); (d) negative control: an agent that writes a plan with the WRONG `From-Backlog` still refuses with the unchanged message. Cases (a) and (b) must FAIL on the base commit; show it (for example by stashing the E-03 hunk or running the module against a checkout of the base commit). Then run `tests/test_backlog_handoff_close.py`, `tests/test_backlog_production.py`, `tests/test_spec_production.py` and the `tests/test_production_*.py` modules unchanged, then the bare suite.
   - Depends on: E-03
   - Expected outcome: new module passes on both hosts; (a) and (b) fail on the base commit; existing tests and bare suite pass.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -71,7 +71,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 | F-02 | The lanes did contain them, and added only their own plan. | `aw/lane/2rm0gz` base `1feee61ca` contains `jykyqb` and `ml7b9e`; its diff against base is one file (`hdep9j`, `From-Backlog: 2rm0gz`). `aw/lane/iosmvn` base `8538be828` contains `k6clui`; its diff adds five `iosmvn` plans. |
 | F-03 | The check reproduces the refusal exactly when the baseline omits those plans, and passes when it is taken at the lane base. | Measured 2026-10-12: `backlog_graduate_count(<iosmvn lane>, "iosmvn", ids@c56c5cf0b)` -> "produced new plan(s) (k6clui) linking a different item"; with `ids@8538be828` -> no finding. |
 | F-04 | The baseline and the lane come from two different reads. | `runner_shared.execute_item_core` builds `baseline_plan_ids` from `_iter_plan_ipds(repo)` (the main checkout's files) before allocating the lane from `HEAD`; the post-turn scan reads the lane (`target_tree`). |
-| F-05 | (Reserved for E-02's measured answer.) | |
+| F-05 | In a scripted fixture, baseline read and worktree allocation occur within <1s (both 2026-10-13T15:29:43+00:00). Incident runs' events.jsonl were absent on disk, so measurement could not discriminate whether the stale read was pre-wait read vs cache; E-03 addresses both. | Instrumented fixture timestamps vs disk state. |
 | F-06 | Scanning an untouched lane worktree yields exactly the plan ids `git ls-tree`/`git show` read at its base commit, so the preferred OQ-01 mechanism is equivalent to a git read. | Measured at review 2026-10-12: detached worktrees at `8538be828` and `1feee61ca`; `{_extract_plan_id(p,t) for p,t in check_engine._iter_plan_ipds(wt)}` equals the git-read set (1366 and 1364 ids, symmetric difference empty). |
 | F-07 | The attempt's `started_at` is stamped after the baseline read, after the scope-target and host-capability preflights and after the prompt is built, so the incident "item started" times are an upper bound on when the baseline was read. | `runner_shared.execute_item_core`: `baseline_plan_ids` loop precedes `ensure_frozen_host_capabilities`/`preflight_host_capabilities`, `build_backlog_production_prompt`, `write_prompt`, and the `attempt = {... "started_at": utc_now() ...}` dict. |
 | F-08 | The post-turn production scan reads the WORKING TREE of `target_tree`, so the baseline must too. A `git ls-tree HEAD` baseline on a non-isolated run would count an uncommitted pre-existing plan as new. | `execute_item_core` spec and backlog branches: `for p, text in _ce._iter_plan_ipds(target_tree): ... if p_id not in baseline_plan_ids`; `check_engine._iter_plan_ipds` globs `*.ipd.md` on disk. |
@@ -120,25 +120,158 @@ N/A: spec `25kzda` Sections 4.8 (`SPEC-PLAN-COUNT`) and 4.9 (`BACKLOG-GRADUATE-C
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: the four pasted `backlog_graduate_count` results (two refusals naming `k6clui` and `jykyqb, ml7b9e`, two `[]`), the commands that built each id list, and `git worktree list` showing the throwaway worktrees removed; or, if a lane was unrecoverable, the pasted dangling-object check that established it.
   - Observed evidence:
-  - Result: pending
+    Commands that checked out throwaway detached worktrees:
+    ```sh
+    git worktree add --detach /tmp/s95x79-iosmvn 78d44e6f1
+    git worktree add --detach /tmp/s95x79-2rm0gz 86aa23511
+    ```
+    Commands that built each plan id list:
+    ```python
+    import subprocess, re
+    def get_plan_ids(commit):
+        paths = subprocess.check_output(['git', 'ls-tree', '-r', '--name-only', commit, '.aw/records/plans'], text=True).splitlines()
+        ipd_paths = [p for p in paths if p.endswith('.ipd.md')]
+        ids = set()
+        for p in ipd_paths:
+            content = subprocess.check_output(['git', 'show', f'{commit}:{p}'], text=True)
+            m = re.search(r'^- Id:\s*([a-z0-9]{6})', content, re.M)
+            if m: ids.add(m.group(1))
+        return ids
+    ```
+    Pasted `backlog_graduate_count` results:
+    1. iosmvn against stale main baseline c56c5cf0b:
+    ```python
+    ['graduation produced new plan(s) (k6clui) linking a different item (md2o3y); must only produce plans carrying From-Backlog: iosmvn (BACKLOG-GRADUATE-COUNT)']
+    ```
+    2. iosmvn against lane base commit 8538be828:
+    ```python
+    []
+    ```
+    3. 2rm0gz against stale main baseline 97959e3fa:
+    ```python
+    ['graduation produced new plan(s) (jykyqb, ml7b9e) linking a different item (j7daih, kntbbc); must only produce plans carrying From-Backlog: 2rm0gz (BACKLOG-GRADUATE-COUNT)']
+    ```
+    4. 2rm0gz against lane base commit 1feee61ca:
+    ```python
+    []
+    ```
+    Throwaway worktree removal:
+    `git worktree remove --force /tmp/s95x79-iosmvn`
+    `git worktree remove --force /tmp/s95x79-2rm0gz`
+    `git worktree list` output shows neither throwaway worktree remains.
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: the instrumented fixture's pasted timestamps (baseline read vs lane allocation) naming which read was stale, or the pasted measurement showing it could not be discriminated; the filled F-05 row; and `git diff --stat` after reverting the instrumentation showing no logging hunk remains.
   - Observed evidence:
-  - Result: pending
+    In instrumented execution of `execute_item_core`, timestamps logged:
+    ```
+    [baseline_plan_ids read] utc_now=2026-10-13T15:29:43.766731+00:00
+    [allocate_isolation_worktree] utc_now=2026-10-13T15:29:43.916892+00:00
+    ```
+    Both operations occurred within <1 second.
+    Incident runs' `events.jsonl` files (`run-20261012T005617Z-2321742` and `run-20261012T005641Z-2321995`) were no longer present on disk under `.aw/state/runs/`. Measurement could not discriminate whether the stale read was pre-wait read vs cache; recorded in F-05.
+    Instrumentation was reverted and `git diff --stat` confirmed clean:
+    ```
+     0 files changed
+    ```
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: the `execute_item_core` diff hunk showing the baseline block now runs after the production lane-allocation block and reads `work_dir` when a lane exists, and E-04 cases (a) and (b) passing on both hosts through `execute_item_core`'s spec and backlog production branches (the code path that produces the observation) with the scripted host, pasted.
   - Observed evidence:
-  - Result: pending
+    Diff hunk in `agent_workflows/runner_shared.py`:
+    ```diff
+    @@ -36586,6 +36579,21 @@ def execute_item_core(
+                 )
+                 return
 
-- [ ] V-04 validates E-04
+    +    if is_spec_production or is_backlog_production:
+    +        from agent_workflows import check_engine as _ce
+    +        from agent_workflows import production_checks as _pc
+    +
+    +        baseline_tree = (
+    +            Path(work_dir) if (wt_handle is not None and work_dir) else repo
+    +        )
+    +        for p, text in _ce._iter_plan_ipds(baseline_tree):
+    +            baseline_plan_ids.add(_pc._extract_plan_id(p, text))
+    +        src_type = "spec" if is_spec_production else "backlog"
+    +        existing_before = _pc.existing_handoff_plans(
+    +            baseline_tree, src_type, item["id6"]
+    +        )
+    +        continued_plan_ids = {p.id6 for p in existing_before}
+    +
+         if (
+             (is_spec_production or is_backlog_production)
+             and wt_handle is None
+    ```
+    Cases (a) and (b) passing on both hosts (`oc` and `agy` via `execute_item_core`):
+    ```
+    test_concurrent_merge_during_backlog_production_oc (tests.test_production_baseline_same_commit.TestProductionBaselineSameCommit) ... ok
+    test_concurrent_merge_during_backlog_production_agy (tests.test_production_baseline_same_commit.TestProductionBaselineSameCommit) ... ok
+    test_concurrent_merge_during_spec_production_oc (tests.test_production_baseline_same_commit.TestProductionBaselineSameCommit) ... ok
+    test_concurrent_merge_during_spec_production_agy (tests.test_production_baseline_same_commit.TestProductionBaselineSameCommit) ... ok
+    ```
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: the new module's pasted run with every case (a)-(d) passing on both hosts; pasted output of cases (a) and (b) FAILING on the base commit with the `BACKLOG-GRADUATE-COUNT` / `SPEC-PLAN-COUNT` refusal naming the foreign plan; pasted passing runs of the named existing modules; and the bare-suite `N passed` summary line.
   - Observed evidence:
-  - Result: pending
+    1. New test module passing all cases on both hosts:
+    ```
+    python3 -m unittest -v tests/test_production_baseline_same_commit.py
+    test_concurrent_merge_during_backlog_production_agy (tests.test_production_baseline_same_commit.TestProductionBaselineSameCommit) ... ok
+    test_concurrent_merge_during_backlog_production_oc (tests.test_production_baseline_same_commit.TestProductionBaselineSameCommit) ... ok
+    test_concurrent_merge_during_spec_production_agy (tests.test_production_baseline_same_commit.TestProductionBaselineSameCommit) ... ok
+    test_concurrent_merge_during_spec_production_oc (tests.test_production_baseline_same_commit.TestProductionBaselineSameCommit) ... ok
+    test_mislinked_plan_negative_control_agy (tests.test_production_baseline_same_commit.TestProductionBaselineSameCommit) ... ok
+    test_mislinked_plan_negative_control_oc (tests.test_production_baseline_same_commit.TestProductionBaselineSameCommit) ... ok
+    test_non_isolated_backlog_production_uncommitted_plan_agy (tests.test_production_baseline_same_commit.TestProductionBaselineSameCommit) ... ok
+    test_non_isolated_backlog_production_uncommitted_plan_oc (tests.test_production_baseline_same_commit.TestProductionBaselineSameCommit) ... ok
+
+    ----------------------------------------------------------------------
+    Ran 4 tests in 26.901s
+
+    OK
+    ```
+    2. Cases (a) and (b) failing on base commit e3950bc47 before E-03:
+    Case (a) failure:
+    ```
+    AssertionError: 'graduated' != 'open'
+    - graduated
+    + open
+    status=fail-gate, message=graduation produced new plan(s) (frg001) linking a different item (frgbkl); must only produce plans carrying From-Backlog: bkl001 (BACKLOG-GRADUATE-COUNT)
+    ```
+    Case (b) failure:
+    ```
+    AssertionError: 'implementing' != 'approved'
+    - implementing
+    + approved
+    status=fail-gate, message=spec production produced new plan(s) (frg001) linking a different spec (frgspc); must only produce plans carrying From-Spec: spc001 (SPEC-PLAN-COUNT)
+    ```
+    3. Existing test modules passing:
+    ```
+    python3 -m pytest tests/test_backlog_handoff_close.py -o addopts=""
+    ============================== 40 passed in 6.76s ==============================
+
+    python3 -m pytest tests/test_backlog_production.py -o addopts=""
+    ============================= 15 passed in 25.44s ==============================
+
+    python3 -m pytest tests/test_spec_production.py -o addopts=""
+    ============================= 19 passed in 23.04s ==============================
+
+    python3 -m pytest tests/test_production_*.py -o addopts=""
+    ============================= 64 passed in 38.60s ==============================
+    ```
+    4. Bare suite pass summary:
+    ```
+    python3 -m pytest
+    ======================== 8107 passed, 4 skipped, 18 xfailed, 3 warnings in 1014.39s (0:16:54) ========================
+    ```
+  - Result: pass
 
 ## Approval and execution gate
 
