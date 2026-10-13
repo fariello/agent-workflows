@@ -1,5 +1,5 @@
 - Id: mlcbk9
-- Status: graduated
+- Status: done
 - Graduated-To: mlcbk9
 - Blocks-Release: next
 - Set: mlcbk9
@@ -8,6 +8,7 @@
 - Summary: Make agy_run.resolve_ipd recursive so sharded plans resolve
 
 ## Workflow history
+- 2026-10-13 done (aw backlog): closed by aw agy run: IPD m734rl executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20261011-mlcbk9-01-m734rl-make-agy-run-resolve-ipd-recursive-so-sharded-plans-resolve.ipd.md); evidence .aw/records/plans/executed/20261011-mlcbk9-01-m734rl-make-agy-run-resolve-ipd-recursive-so-sharded-plans-resolve.ipd.md
 - 2026-10-12 graduated (aw backlog): graduated by run run-20261012T005606Z-2321569: m734rl
 - 2026-10-01 created (aw backlog): Make agy_run.resolve_ipd recursive so sharded plans resolve
 
