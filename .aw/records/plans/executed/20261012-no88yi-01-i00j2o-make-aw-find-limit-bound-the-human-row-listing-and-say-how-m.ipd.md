@@ -6,7 +6,7 @@
 - Scope: Make `--limit N` bound the HUMAN row listing and the `--paths` listing of `aw find` to the first `N` matched rows, in the same order the unbounded listing prints and the same order `--agent` already bounds (measured identical, F-03). On the human surface, when rows were omitted, print one notice stating how many of how many were shown and a `Next` continuation command that reproduces the query unbounded. On `--paths`, keep stdout pure paths and write that notice to stderr. Does NOT change: which artifacts match, row format, the unflagged human output, the unflagged `--paths` output, the `--agent` stream (already correct), the `--json` payload, exit codes, the existing non-positive `--limit` refusal, the empty-result rendering, the `find.id6-collision` warning, or `--limit` on any other verb.
 - Scope-Paths: agent_workflows/cli.py, tests/test_find_human_limit.py, docs/cli-output-contract.md, CHANGELOG.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: low
@@ -17,9 +17,9 @@
 - Highest E allocated: 06
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: i00j2o
-- Approval: 2026-10-12, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-13 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: i00j2o verified (set no88yi, attempt 1).
 - 2026-10-12 approved (aw set): status set to approved
 
 - 2026-10-12 reviewed (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004
