@@ -6,7 +6,7 @@
 - Scope: Make the test's isolation from the capability probe explicit and asserted (rather than an incidental side effect of a fixture key), make the mutated run's failure mode diagnosable, and add a behavioral regression proving the probe genuinely detects the same mutation. Test-only change; no production code changes.
 - Scope-Paths: tests/test_runwire_verifier_authority.py, .aw/records/plans/pending/20261012-4dktme-01-jo55oo-make-the-collision-guard-mutation-test-independent-of-the-fr.ipd.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -17,9 +17,9 @@
 - Highest E allocated: 03
 - Author: opencode
 - Id: jo55oo
-- Approval: 2026-10-12, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-13 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: jo55oo verified (set 4dktme, attempt 1).
 - 2026-10-12 approved (aw set): status set to approved
 - 2026-10-12 reviewed (aw set): /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003
 
@@ -36,22 +36,22 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: Decouple the mutation test from the capability probe
 
-- [ ] E-01 In `tests/test_runwire_verifier_authority.py`, make the mutated run in `test_collision_guard_bites_by_mutation` explicitly hold the fresh-verifier capability constant across the mutation: wrap BOTH `_drive_execute_turn` calls in `host_sandbox_profile.forced_runner_safety_verdicts({host_sandbox_profile.CAP_FRESH_VERIFIER_SESSION: (True, "4dktme: isolate verify-site guard from probe")})`, and add a comment on the `host_capabilities` key in `_drive_execute_turn` stating it is the frozen descriptor that keeps the preflight from re-probing (citing backlog `4dktme`). Sibling `a8yn86` (backlog `qkzet8`) adds a comment on the same key and a `freeze_host_capabilities` parameter to the same helper: if it has landed first, extend its comment to cite both backlogs rather than adding a second one, and keep its parameter.
+- [x] E-01 In `tests/test_runwire_verifier_authority.py`, make the mutated run in `test_collision_guard_bites_by_mutation` explicitly hold the fresh-verifier capability constant across the mutation: wrap BOTH `_drive_execute_turn` calls in `host_sandbox_profile.forced_runner_safety_verdicts({host_sandbox_profile.CAP_FRESH_VERIFIER_SESSION: (True, "4dktme: isolate verify-site guard from probe")})`, and add a comment on the `host_capabilities` key in `_drive_execute_turn` stating it is the frozen descriptor that keeps the preflight from re-probing (citing backlog `4dktme`). Sibling `a8yn86` (backlog `qkzet8`) adds a comment on the same key and a `freeze_host_capabilities` parameter to the same helper: if it has landed first, extend its comment to cite both backlogs rather than adding a second one, and keep its parameter.
   - Depends on: none
   - Expected outcome: the test no longer relies solely on the incidental `host_capabilities` fixture key added by commit `163874fcc` (psgyzw); removing that key no longer reintroduces the `KeyError`.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 In the same test, before reading `verification_status`, assert the mutated item was NOT refused by the preflight: no attempt carries a `host_capability_unavailable` key, and `render_stream.refusal_of_item(item_mutated)` is either None or has a `.code` other than `run_selection_policy.SKIP_HOST_CAPABILITY_UNAVAILABLE`. Give the assertion a message naming backlog `4dktme`, and read `verification_status` via `.get()` so a regression surfaces as a clear assertion rather than `KeyError`. Do NOT assert on `item_mutated["status"]`: in this fixture the mutated item ends `status == "fail-gate"` EVEN WHEN it reached and passed verification, from a later lifecycle gate (measured at review, F-6), so `status != "fail-gate"` would fail the test on its normal path.
+- [x] E-02 In the same test, before reading `verification_status`, assert the mutated item was NOT refused by the preflight: no attempt carries a `host_capability_unavailable` key, and `render_stream.refusal_of_item(item_mutated)` is either None or has a `.code` other than `run_selection_policy.SKIP_HOST_CAPABILITY_UNAVAILABLE`. Give the assertion a message naming backlog `4dktme`, and read `verification_status` via `.get()` so a regression surfaces as a clear assertion rather than `KeyError`. Do NOT assert on `item_mutated["status"]`: in this fixture the mutated item ends `status == "fail-gate"` EVEN WHEN it reached and passed verification, from a later lifecycle gate (measured at review, F-6), so `status != "fail-gate"` would fail the test on its normal path.
   - Depends on: E-01
   - Expected outcome: if the coupling ever returns, the failure names the preflight refusal instead of `KeyError: 'verification_status'`.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: Pin the probe's own fail-closed behavior
 
-- [ ] E-03 Add `test_fresh_verifier_probe_detects_disabled_distinct_session_guard` to `tests/test_runwire_verifier_authority.py`: with `monkeypatch.setattr(agy_verifier, "assert_distinct_sessions", lambda e, v: None)`, call `host_sandbox_profile.probe_runner_safety_capabilities()` (unforced) and assert `verdicts[CAP_FRESH_VERIFIER_SESSION] is False` with a note containing `ACCEPTED a reused session identity`; without the mutation assert it is `True`.
+- [x] E-03 Add `test_fresh_verifier_probe_detects_disabled_distinct_session_guard` to `tests/test_runwire_verifier_authority.py`: with `monkeypatch.setattr(agy_verifier, "assert_distinct_sessions", lambda e, v: None)`, call `host_sandbox_profile.probe_runner_safety_capabilities()` (unforced) and assert `verdicts[CAP_FRESH_VERIFIER_SESSION] is False` with a note containing `ACCEPTED a reused session identity`; without the mutation assert it is `True`.
   - Depends on: none
   - Expected outcome: the interaction that caused this bug is now an asserted, intended behavior (the probe fails closed when the guard is disabled), not a hidden trap.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -114,20 +114,120 @@ N/A: test-only change; no spec or user-facing documentation describes this test'
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: pasted output of `python3 -m pytest -o addopts="" tests/test_runwire_verifier_authority.py -q -k collision_guard_bites` passing BOTH as committed AND with the `host_capabilities` key temporarily removed from `_drive_execute_turn` (paste both runs and the `git diff` of the temporary removal, then `git diff --stat` showing it reverted).
   - Observed evidence:
-  - Result: pending
+    Passing as committed:
+    ```
+    .                                                                        [100%]
+    NOTE: 14 tests were deselected by -m/-k and did not run (no marker filter was active; deselected by -k/--deselect)
+    1 passed, 14 deselected in 2.72s
+    ```
+    Diff of temporary removal of `host_capabilities`:
+    ```diff
+    diff --git a/tests/test_runwire_verifier_authority.py b/tests/test_runwire_verifier_authority.py
+    --- a/tests/test_runwire_verifier_authority.py
+    +++ b/tests/test_runwire_verifier_authority.py
+    @@ -100,12 +100,7 @@ def _drive_execute_turn(
+         if freeze_host_capabilities:
+             # Backlogs qkzet8 and 4dktme: frozen descriptor keeps the preflight
+             # from re-probing on demand under a mutated guard.
+    -        state["host_capabilities"] = {
+    -            "descriptor": {
+    -                "supports_fresh_verifier_session": True,
+    -                "supports_session_resume": True,
+    -            }
+    -        }
+    +        pass
 
-- [ ] V-02 validates E-02
+         def spawn_executor(
+             prompt_path: Path,
+    ```
+    Passing with `host_capabilities` temporarily removed:
+    ```
+    .                                                                        [100%]
+    NOTE: 14 tests were deselected by -m/-k and did not run (no marker filter was active; deselected by -k/--deselect)
+    1 passed, 14 deselected in 3.75s
+    ```
+    Reverted via `git diff --stat`:
+    ```
+     tests/test_runwire_verifier_authority.py | 100 +++++++++++++++++++++++--------
+     1 file changed, 74 insertions(+), 26 deletions(-)
+    ```
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: pasted diff hunk showing the preflight-refusal assertion and the `.get()` read, plus pasted output of a run with E-01's forced verdict temporarily removed AND the `host_capabilities` key removed, showing the failure message names `4dktme`/preflight refusal rather than `KeyError`.
   - Observed evidence:
-  - Result: pending
+    Diff hunk showing preflight assertions and `.get()` read:
+    ```diff
+    @@ -472,13 +472,25 @@ def test_collision_guard_bites_by_mutation(
+    +        for attempt in item_mutated.get("attempts", []):
+    +            assert "host_capability_unavailable" not in attempt, (
+    +                "4dktme: mutated item unexpectedly refused by host capability preflight"
+    +            )
+    +        refusal = render_stream.refusal_of_item(item_mutated)
+    +        assert (
+    +            refusal is None
+    +            or refusal.code != run_selection_policy.SKIP_HOST_CAPABILITY_UNAVAILABLE
+    +        ), f"4dktme: mutated item refused by preflight: {refusal}"
+    +
+    +        # Under mutation, the guard does NOT bite and the item incorrectly passes as verified!
+    +        assert item_mutated.get("verification_status") == runner_shared.VERIFY_DISP_VERIFIED
+    +        assert item_mutated["attempts"][-1].get("verification_refused") is None
+    ```
+    Failure output with forced verdict removed and `host_capabilities` removed:
+    ```
+    F                                                                        [100%]
+    =================================== FAILURES ===================================
+    ____________________ test_collision_guard_bites_by_mutation ____________________
 
-- [ ] V-03 validates E-03
+    tmp_path = PosixPath('/tmp/pytest-of-<user>/pytest-10030/test_collision_guard_bites_by_0')
+    monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x75d20efe2b10>
+
+        def test_collision_guard_bites_by_mutation(
+            tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+        ):
+            ...
+            for attempt in item_mutated.get("attempts", []):
+    >           assert "host_capability_unavailable" not in attempt, (
+                    "4dktme: mutated item unexpectedly refused by host capability preflight"
+                )
+    E           AssertionError: 4dktme: mutated item unexpectedly refused by host capability preflight
+    E           assert 'host_capability_unavailable' not in {'action': 'execute', 'disposition': 'fail-gate', 'ended_at': '2026-10-13T10:07:44+00:00', 'host_capability_unavailabl...ed for this item. Choose a capable host or enable and re-probe that capability, then run: aw opencode run tst001', ...}
+
+    tests/test_runwire_verifier_authority.py:466: AssertionError
+    ----------------------------- Captured stdout call -----------------------------
+    ▶ IPD 01/1 tst001  set=test  action=execute  attempt 1
+      plan: /tmp/pytest-of-<user>/pytest-10030/test_collision_guard_bites_by_0/.aw/records/plans/pending/20260101-test-01-tst001-test.ipd.md
+      ▶ Verifying tst001 (/tmp/pytest-of-<user>/pytest-10030/test_collision_guard_bites_by_0/.aw/records/plans/pending/20260101-test-01-tst001-test.ipd.md)...
+    ✘ IPD 01/1 tst001 (execute) -> fail-verify  (exit 0)
+
+    ----------------------------- Captured stderr call -----------------------------
+      ! IPD tst001 the verifier turn reused the execution turn's session identity ('mut-sess'): verification was not independent, so this turn is recorded NOT VERIFIED and was not integrated
+        -> re-run verification for this item with an independent verifier session (ensure fresh_session=True or omit --session). The lane is PRESERVED and nothing was merged, so do NOT re-run the plan from scratch - that would discard work already done
+    ✗ IPD tst001 host capability refused: [RUN-HOST-CAPABILITY] Host opencode cannot enforce supports_fresh_verifier_session required by tst001 action execute. No work started for this item. Choose a capable host or enable and re-probe that capability, then run: aw opencode run tst001
+    NOTE: 14 tests were deselected by -m/-k and did not run (no marker filter was active; deselected by -k/--deselect)
+    =========================== short test summary info ============================
+    FAILED tests/test_runwire_verifier_authority.py::test_collision_guard_bites_by_mutation
+    1 failed, 14 deselected in 3.34s
+    ```
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: pasted passing output of `python3 -m pytest -o addopts="" tests/test_runwire_verifier_authority.py -q -k fresh_verifier_probe_detects`, plus pasted output of the full bare `python3 -m pytest` summary line showing no new failures.
   - Observed evidence:
-  - Result: pending
+    Passing test output:
+    ```
+    .                                                                        [100%]
+    NOTE: 14 tests were deselected by -m/-k and did not run (no marker filter was active; deselected by -k/--deselect)
+    1 passed, 14 deselected in 1.97s
+    ```
+    Full bare suite summary line:
+    ```
+    7932 passed, 4 skipped, 18 xfailed, 3 warnings in 941.42s (0:15:41)
+    ```
+  - Result: pass
 
 ## Approval and execution gate
 
