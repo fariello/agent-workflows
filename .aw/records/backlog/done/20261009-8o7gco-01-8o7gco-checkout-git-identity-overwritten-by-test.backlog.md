@@ -1,5 +1,5 @@
 - Id: 8o7gco
-- Status: graduated
+- Status: done
 - Graduated-To: 8o7gco
 - Blocks-Release: next
 - Set: 8o7gco
@@ -8,6 +8,7 @@
 - Summary: Checkout-local git identity was overwritten to Test <test@example.com>; 317 real commits since 2026-10-08 01:31 carry the test identity
 
 ## Workflow history
+- 2026-10-13 done (aw backlog): closed by aw agy run: IPD lp1zkb executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20261012-8o7gco-01-lp1zkb-guard-the-real-checkout-s-git-config-against-test-identity-l.ipd.md); evidence .aw/records/plans/executed/20261012-8o7gco-01-lp1zkb-guard-the-real-checkout-s-git-config-against-test-identity-l.ipd.md
 - 2026-10-12 graduated (aw backlog): graduated by run run-20261012T005641Z-2321995: lp1zkb
 - 2026-10-09 note (aw backlog): Correction 2026-10-09: the claimed effect on tests/test_attempt_lane_facts.py::test_case_2 was WRONG; bisect shows it was broken by w9nvq4 (72c4f3666), whose new red-merge fix-it turn re-ran the fake agent, and is fixed separately. The git identity overwrite itself stands as measured.
 - 2026-10-09 created (aw backlog): Checkout-local git identity was overwritten to Test <test@example.com>; 317 real commits since 2026-10-08 01:31 carry the test identity
