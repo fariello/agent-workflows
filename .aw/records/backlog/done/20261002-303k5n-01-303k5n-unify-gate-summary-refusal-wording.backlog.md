@@ -1,5 +1,5 @@
 - Id: 303k5n
-- Status: graduated
+- Status: done
 - Graduated-To: 303k5n
 - Set: 303k5n
 - Priority: low
@@ -7,6 +7,7 @@
 - Summary: Decide whether specs.run_set's inline --gate-summary refusal should adopt the shared descriptive-refusal vocabulary, which changes a shipped user-facing message and the non-regression test pinning it verbatim
 
 ## Workflow history
+- 2026-10-13 done (aw backlog): closed by aw agy run: IPD vql6j0 executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20261012-303k5n-01-vql6j0-settle-the-gate-summary-refusal-wording-on-the-shared-descri.ipd.md); evidence .aw/records/plans/executed/20261012-303k5n-01-vql6j0-settle-the-gate-summary-refusal-wording-on-the-shared-descri.ipd.md
 - 2026-10-12 graduated (aw backlog): graduated by run run-20261012T005650Z-2322198: vql6j0
 - 2026-10-02 created (aw backlog): Decide whether specs.run_set's inline --gate-summary refusal should adopt the shared descriptive-refusal vocabulary, which changes a shipped user-facing message and the non-regression test pinning it verbatim
 
