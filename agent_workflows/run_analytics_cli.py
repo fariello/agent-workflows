@@ -255,19 +255,16 @@ def _emit_query_agent(result: query_mod.QueryResult, args: argparse.Namespace) -
     renderer = AgentRenderer()
     parts = [renderer.render_item(row, "runs query", ctx) for row in rows]
     total = max(result.total, result.emitted)
-    # THE SUMMARY IS RENDERED WITHOUT THE FIELD PROJECTION, DELIBERATELY, TO PRESERVE PAGINATION.
+    # THE SUMMARY IS RENDERED FROM THE ENGINE'S COUNTS AND ITS CALL IS KEPT AS SHIPPED.
     #
-    # The summary takes no field projection because `next` is not in `agent_schema._PRESERVED_FIELDS`,
-    # so projecting this record could drop the paging continuation and emit a truncated answer
-    # (`complete: false` with `omitted > 0`) that tells the caller nothing about how to get the rest,
-    # which is the one field on this record a caller cannot reconstruct.
+    # A `--fields` projection is now a no-op on this record, because `agent_schema._PRESERVED_FIELDS`
+    # retains `total`/`emitted`/`omitted` and `next` (plan `6rcby1`, backlog `kkjrqr`), and
+    # `AgentRenderer.render_summary` retains `next` on a summary regardless.
     #
-    # The counts are NOT the reason: `_PRESERVED_FIELDS` retains `total`/`emitted`/`omitted` through
-    # any projection, so they are safe either way.
+    # The call shape is justified by the counts reason given in the `THE SUMMARY CARRIES THE QUERY'S
+    # COUNTS, NOT THE STREAM'S` block above, pointing to that block rather than repeating it.
     #
-    # History: a defect where passing `ctx` crashed with a missing required field under `--fields`
-    # previously forced this shape as well, but that defect was fixed in plan `gygujf` (backlog
-    # `3f4ayi`) and no longer applies here.
+    # History: earlier versions of this call worked around a crash (`gygujf`/`3f4ayi`) and then a dropped `next` (`6rcby1`/`kkjrqr`), both fixed.
     parts.append(
         renderer.render_summary(
             "runs query",

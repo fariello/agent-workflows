@@ -35,23 +35,23 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: baseline, then rewrite the comment
 
-- [ ] E-03 Record the BEFORE baseline that E-02 compares against, with the tree still unedited (perform this FIRST; it carries the higher id only because it was added at review). (1) Capture `aw runs query overview --agent --fields cmd` and `aw runs query overview --agent` stdout to files under the gitignored `.aw/state/`. (2) Run `python3 -m pytest -o addopts="" -q tests/test_run_analytics_cli.py` and record its summary line. This file holds the outcome pin for this exact call path (F-05: `test_emit_query_agent_bounded_preserves_next_under_fields_projection` drives `_emit_query_agent` with `--fields cmd` and a `next`), which the `overview` captures do not reach, because in a repo without an analytics cache `overview` emits a summary with no `next`. (3) Run the bare suite `python3 -m pytest` and record its summary line and the named FAILURE SET.
+- [x] E-03 Record the BEFORE baseline that E-02 compares against, with the tree still unedited (perform this FIRST; it carries the higher id only because it was added at review). (1) Capture `aw runs query overview --agent --fields cmd` and `aw runs query overview --agent` stdout to files under the gitignored `.aw/state/`. (2) Run `python3 -m pytest -o addopts="" -q tests/test_run_analytics_cli.py` and record its summary line. This file holds the outcome pin for this exact call path (F-05: `test_emit_query_agent_bounded_preserves_next_under_fields_projection` drives `_emit_query_agent` with `--fields cmd` and a `next`), which the `overview` captures do not reach, because in a repo without an analytics cache `overview` emits a summary with no `next`. (3) Run the bare suite `python3 -m pytest` and record its summary line and the named FAILURE SET.
   - Depends on: none
   - Expected outcome: two saved captures, the targeted-file summary line, and the bare-suite summary with its named failure set, all taken before any edit.
-  - Execution state: pending
+  - Execution state: performed
 
 
-- [ ] E-01 Replace the comment block in `run_analytics_cli._emit_query_agent` that begins `# THE SUMMARY IS RENDERED WITHOUT THE FIELD PROJECTION, DELIBERATELY, TO PRESERVE PAGINATION.` and ends immediately above `parts.append(` with a block that: (a) leads with a capitalized claim line in the file's existing style stating the summary is rendered from the engine's counts and its call is kept as shipped; (b) states that a `--fields` projection is now a no-op on this record, because `agent_schema._PRESERVED_FIELDS` retains `total`/`emitted`/`omitted` and `next` (plan `6rcby1`, backlog `kkjrqr`) and `AgentRenderer.render_summary` retains `next` on a summary regardless; (c) says the shape is justified by the counts reason given in the `THE SUMMARY CARRIES THE QUERY'S COUNTS, NOT THE STREAM'S` block above, by pointing at it rather than repeating it; (d) keeps a one-line history note that earlier versions of this call worked around a crash (`gygujf`/`3f4ayi`) and then a dropped `next` (`6rcby1`/`kkjrqr`), both fixed. Before editing, RE-MEASURE F-02 (the projection-equivalence probe in Findings); if any projection now changes the record, STOP and report instead of writing (b), because the rationale would be false. Do not touch the `render_summary` call, its arguments, or any other line.
+- [x] E-01 Replace the comment block in `run_analytics_cli._emit_query_agent` that begins `# THE SUMMARY IS RENDERED WITHOUT THE FIELD PROJECTION, DELIBERATELY, TO PRESERVE PAGINATION.` and ends immediately above `parts.append(` with a block that: (a) leads with a capitalized claim line in the file's existing style stating the summary is rendered from the engine's counts and its call is kept as shipped; (b) states that a `--fields` projection is now a no-op on this record, because `agent_schema._PRESERVED_FIELDS` retains `total`/`emitted`/`omitted` and `next` (plan `6rcby1`, backlog `kkjrqr`) and `AgentRenderer.render_summary` retains `next` on a summary regardless; (c) says the shape is justified by the counts reason given in the `THE SUMMARY CARRIES THE QUERY'S COUNTS, NOT THE STREAM'S` block above, by pointing at it rather than repeating it; (d) keeps a one-line history note that earlier versions of this call worked around a crash (`gygujf`/`3f4ayi`) and then a dropped `next` (`6rcby1`/`kkjrqr`), both fixed. Before editing, RE-MEASURE F-02 (the projection-equivalence probe in Findings); if any projection now changes the record, STOP and report instead of writing (b), because the rationale would be false. Do not touch the `render_summary` call, its arguments, or any other line.
   - Depends on: E-03
   - Expected outcome: The block no longer contains the phrase "`next` is not in `agent_schema._PRESERVED_FIELDS`" or any claim that projecting could drop the paging continuation; it states (a)-(d); `git diff -- agent_workflows/run_analytics_cli.py` contains only comment or blank `+`/`-` lines.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: prove inertness
 
-- [ ] E-02 Prove the change is behavior-neutral as the last act before commit, against the E-03 baseline. FIRST, re-capture `aw runs query overview --agent --fields cmd` and `aw runs query overview --agent` after E-01 and `diff` each against its E-03 capture. SECOND, re-run `python3 -m pytest -o addopts="" -q tests/test_run_analytics_cli.py` and require the same summary as E-03. THIRD, run the suite BARE as `python3 -m pytest` after E-01, record its summary line and the named FAILURE SET; the bar is that it equals E-03's failure set (do NOT require green, do NOT fix or `TZ`-mask any pre-existing failure, which belongs to other parties). FOURTH, mechanically confirm every `+`/`-` line in `git diff -- agent_workflows/run_analytics_cli.py` matches `^[+-]\s*#` or `^[+-]\s*$`, and that `git diff --stat` names no other source file.
+- [x] E-02 Prove the change is behavior-neutral as the last act before commit, against the E-03 baseline. FIRST, re-capture `aw runs query overview --agent --fields cmd` and `aw runs query overview --agent` after E-01 and `diff` each against its E-03 capture. SECOND, re-run `python3 -m pytest -o addopts="" -q tests/test_run_analytics_cli.py` and require the same summary as E-03. THIRD, run the suite BARE as `python3 -m pytest` after E-01, record its summary line and the named FAILURE SET; the bar is that it equals E-03's failure set (do NOT require green, do NOT fix or `TZ`-mask any pre-existing failure, which belongs to other parties). FOURTH, mechanically confirm every `+`/`-` line in `git diff -- agent_workflows/run_analytics_cli.py` matches `^[+-]\s*#` or `^[+-]\s*$`, and that `git diff --stat` names no other source file.
   - Depends on: E-01, E-03
   - Expected outcome: Both command-output pairs byte-identical; the targeted file's summary unchanged; identical named failure sets before and after; a comment-only diff touching only `agent_workflows/run_analytics_cli.py`.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -110,20 +110,144 @@ N/A. No spec governs an internal code comment and no user-facing document descri
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: Paste the full new comment block from its lead line to `parts.append(` and quote the sentence satisfying each of (a)-(d) in E-01; confirm by quoting that the strings "`next` is not in" and "could drop the paging continuation" are absent. Paste `git diff -- agent_workflows/run_analytics_cli.py` in full. Paste the output of the F-02 probe re-run at commit time (code path: `agent_workflows.renderers.AgentRenderer.render_summary`; `OutputContext` and `OutputMode` import from `agent_workflows.result_types`) showing `True` for each projection.
   - Observed evidence:
-  - Result: pending
+    Full new comment block in `agent_workflows/run_analytics_cli.py` (_emit_query_agent):
+    ```python
+    # THE SUMMARY IS RENDERED FROM THE ENGINE'S COUNTS AND ITS CALL IS KEPT AS SHIPPED.
+    #
+    # A `--fields` projection is now a no-op on this record, because `agent_schema._PRESERVED_FIELDS`
+    # retains `total`/`emitted`/`omitted` and `next` (plan `6rcby1`, backlog `kkjrqr`), and
+    # `AgentRenderer.render_summary` retains `next` on a summary regardless.
+    #
+    # The call shape is justified by the counts reason given in the `THE SUMMARY CARRIES THE QUERY'S
+    # COUNTS, NOT THE STREAM'S` block above, pointing to that block rather than repeating it.
+    #
+    # History: earlier versions of this call worked around a crash (`gygujf`/`3f4ayi`) and then a dropped `next` (`6rcby1`/`kkjrqr`), both fixed.
+    parts.append(
+    ```
 
-- [ ] V-02 validates E-02
+    Quoted sentences satisfying (a)-(d) in E-01:
+    - (a) Capitalized claim line: `# THE SUMMARY IS RENDERED FROM THE ENGINE'S COUNTS AND ITS CALL IS KEPT AS SHIPPED.`
+    - (b) Projection is a no-op: `A `--fields` projection is now a no-op on this record, because `agent_schema._PRESERVED_FIELDS` retains `total`/`emitted`/`omitted` and `next` (plan `6rcby1`, backlog `kkjrqr`), and `AgentRenderer.render_summary` retains `next` on a summary regardless.`
+    - (c) Justified by counts reason: `The call shape is justified by the counts reason given in the `THE SUMMARY CARRIES THE QUERY'S COUNTS, NOT THE STREAM'S` block above, pointing to that block rather than repeating it.`
+    - (d) History note: `# History: earlier versions of this call worked around a crash (`gygujf`/`3f4ayi`) and then a dropped `next` (`6rcby1`/`kkjrqr`), both fixed.`
+
+    Absence check:
+    - String "`next` is not in": confirmed absent via grep (exit 1).
+    - String "could drop the paging continuation": confirmed absent via grep (exit 1).
+
+    Full `git diff -- agent_workflows/run_analytics_cli.py`:
+    ```diff
+    diff --git a/agent_workflows/run_analytics_cli.py b/agent_workflows/run_analytics_cli.py
+    index 74e9945e1..c66c6ec8f 100644
+    --- a/agent_workflows/run_analytics_cli.py
+    +++ b/agent_workflows/run_analytics_cli.py
+    @@ -255,19 +255,16 @@ def _emit_query_agent(result: query_mod.QueryResult, args: argparse.Namespace) -
+         renderer = AgentRenderer()
+         parts = [renderer.render_item(row, "runs query", ctx) for row in rows]
+         total = max(result.total, result.emitted)
+    -    # THE SUMMARY IS RENDERED WITHOUT THE FIELD PROJECTION, DELIBERATELY, TO PRESERVE PAGINATION.
+    +    # THE SUMMARY IS RENDERED FROM THE ENGINE'S COUNTS AND ITS CALL IS KEPT AS SHIPPED.
+         #
+    -    # The summary takes no field projection because `next` is not in `agent_schema._PRESERVED_FIELDS`,
+    -    # so projecting this record could drop the paging continuation and emit a truncated answer
+    -    # (`complete: false` with `omitted > 0`) that tells the caller nothing about how to get the rest,
+    -    # which is the one field on this record a caller cannot reconstruct.
+    +    # A `--fields` projection is now a no-op on this record, because `agent_schema._PRESERVED_FIELDS`
+    +    # retains `total`/`emitted`/`omitted` and `next` (plan `6rcby1`, backlog `kkjrqr`), and
+    +    # `AgentRenderer.render_summary` retains `next` on a summary regardless.
+         #
+    -    # The counts are NOT the reason: `_PRESERVED_FIELDS` retains `total`/`emitted`/`omitted` through
+    -    # any projection, so they are safe either way.
+    +    # The call shape is justified by the counts reason given in the `THE SUMMARY CARRIES THE QUERY'S
+    +    # COUNTS, NOT THE STREAM'S` block above, pointing to that block rather than repeating it.
+         #
+    -    # History: a defect where passing `ctx` crashed with a missing required field under `--fields`
+    -    # previously forced this shape as well, but that defect was fixed in plan `gygujf` (backlog
+    -    # `3f4ayi`) and no longer applies here.
+    +    # History: earlier versions of this call worked around a crash (`gygujf`/`3f4ayi`) and then a dropped `next` (`6rcby1`/`kkjrqr`), both fixed.
+         parts.append(
+             renderer.render_summary(
+                 "runs query",
+    ```
+
+    Output of F-02 probe re-run at commit time:
+    ```
+    ['cmd'] True
+    ['total'] True
+    ['outcome'] True
+    ['a'] True
+    ```
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: Paste the after captures of `aw runs query overview --agent --fields cmd` and `aw runs query overview --agent` and the `diff` exit status against each E-03 capture (code path: `run_analytics_cli._emit_query_agent`, produced by E-02's captures). Paste the after summary line of `tests/test_run_analytics_cli.py` beside E-03's. Paste the after bare `python3 -m pytest` summary line with its named failure set and state it equals E-03's. Paste the output of the comment-only check (e.g. `git diff -U0 -- agent_workflows/run_analytics_cli.py | grep -E '^[+-]' | grep -vE '^(\+\+\+|---)' | grep -vE '^[+-]\s*(#|$)'` returning nothing, with its exit status) and `git diff --stat`.
   - Observed evidence:
-  - Result: pending
+    After capture: `aw runs query overview --agent --fields cmd`
+    ```json
+    {"schema":"aw.agent/v1","kind":"item","cmd":"runs query"}
+    {"schema":"aw.agent/v1","kind":"item","cmd":"runs query"}
+    {"schema":"aw.agent/v1","kind":"summary","cmd":"runs query","outcome":"clean","exit":0,"total":0,"emitted":0,"omitted":0,"complete":true}
+    ```
 
-- [ ] V-03 validates E-03
+    After capture: `aw runs query overview --agent`
+    ```json
+    {"schema":"aw.agent/v1","kind":"item","cmd":"runs query","payload":{"cached_runs":0,"complete_runs":0,"incomplete_runs":0,"unreadable_entries":0,"quality_flag_counts":{},"required_analyses":4,"refused_analyses":4,"cache_schema_version":1,"analytics_root_exists":false}}
+    {"schema":"aw.agent/v1","kind":"item","cmd":"runs query","caveats":["a refused analysis is a measured power judgement from Order 06, not a query error"]}
+    {"schema":"aw.agent/v1","kind":"summary","cmd":"runs query","outcome":"clean","exit":0,"total":0,"emitted":0,"omitted":0,"complete":true}
+    ```
+
+    Diff exit status against E-03 captures:
+    - `diff -u .aw/state/before_overview_fields_cmd.txt .aw/state/after_overview_fields_cmd.txt`: exit 0
+    - `diff -u .aw/state/before_overview.txt .aw/state/after_overview.txt`: exit 0
+    Both command-output pairs are byte-identical.
+
+    Targeted test summary (`tests/test_run_analytics_cli.py`):
+    - BEFORE (E-03): `11 passed in 8.13s`
+    - AFTER (E-02): `11 passed in 5.43s`
+    Summary is identical: 11 passed.
+
+    Bare `python3 -m pytest` test summary and named failure set:
+    - BEFORE (E-03): `7921 passed, 4 skipped, 18 xfailed, 3 warnings in 1026.04s (0:17:06)`; failure set: empty (0 failed).
+    - AFTER (E-02): `7921 passed, 4 skipped, 18 xfailed, 3 warnings in 1034.14s (0:17:14)`; failure set: empty (0 failed).
+    Failure set is identical (0 failed).
+
+    Comment-only diff check:
+    ```sh
+    git diff -U0 -- agent_workflows/run_analytics_cli.py | grep -E '^[+-]' | grep -vE '^(\+\+\+|---)' | grep -vE '^[+-]\s*(#|$)'
+    ```
+    Output: empty (exit status 1: no non-comment, non-empty additions or deletions).
+
+    Git diff stat:
+    ```
+    agent_workflows/run_analytics_cli.py | 17 +++++++----------
+    1 file changed, 7 insertions(+), 10 deletions(-)
+    ```
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: Paste the two BEFORE captures (or their paths under `.aw/state/` plus their first and last lines), the BEFORE `tests/test_run_analytics_cli.py` summary line, and the BEFORE bare `python3 -m pytest` summary line with its named failure set, plus `git status --short -- agent_workflows/run_analytics_cli.py` returning nothing at that moment, showing they were taken on the unedited tree.
   - Observed evidence:
-  - Result: pending
+    Status before edit:
+    `git status --short -- agent_workflows/run_analytics_cli.py` returned nothing (clean unedited tree).
+
+    Two BEFORE captures:
+    - Path `.aw/state/before_overview_fields_cmd.txt`:
+      First line: `{"schema":"aw.agent/v1","kind":"item","cmd":"runs query"}`
+      Last line: `{"schema":"aw.agent/v1","kind":"summary","cmd":"runs query","outcome":"clean","exit":0,"total":0,"emitted":0,"omitted":0,"complete":true}`
+    - Path `.aw/state/before_overview.txt`:
+      First line: `{"schema":"aw.agent/v1","kind":"item","cmd":"runs query","payload":{"cached_runs":0,"complete_runs":0,"incomplete_runs":0,"unreadable_entries":0,"quality_flag_counts":{},"required_analyses":4,"refused_analyses":4,"cache_schema_version":1,"analytics_root_exists":false}}`
+      Last line: `{"schema":"aw.agent/v1","kind":"summary","cmd":"runs query","outcome":"clean","exit":0,"total":0,"emitted":0,"omitted":0,"complete":true}`
+
+    BEFORE `tests/test_run_analytics_cli.py` summary line:
+    `11 passed in 8.13s`
+
+    BEFORE bare `python3 -m pytest` summary line and named failure set:
+    `7921 passed, 4 skipped, 18 xfailed, 3 warnings in 1026.04s (0:17:06)`
+    Failure set: empty (0 failed).
+  - Result: pass
 
 ## Approval and execution gate
 
