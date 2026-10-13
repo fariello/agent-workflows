@@ -36,24 +36,24 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: consume the shared validator at creation
 
-- [ ] E-01 FIRST, before any edit, run the bare suite `python3 -m pytest` at the execution HEAD and save its summary line and failing-test names as the baseline V-01 compares against. Then, in `backlog.run_new`, immediately after the existing presence check that emits `"aw backlog new: a blocked item requires --gate-kind and --gate-ref"`, add: when `status == "blocked"`, call `A.validate_gate_flags("aw backlog new", item.gate_kind, item.gate_ref)`, and on a non-None result write it to stderr and return 2. Keep the existing presence message unchanged (it is pinned by `tests/test_backlog.py` `test_new_blocked_requires_gate` only on rc, but the message is user-facing and needs no change). Do not touch any other branch.
+- [x] E-01 FIRST, before any edit, run the bare suite `python3 -m pytest` at the execution HEAD and save its summary line and failing-test names as the baseline V-01 compares against. Then, in `backlog.run_new`, immediately after the existing presence check that emits `"aw backlog new: a blocked item requires --gate-kind and --gate-ref"`, add: when `status == "blocked"`, call `A.validate_gate_flags("aw backlog new", item.gate_kind, item.gate_ref)`, and on a non-None result write it to stderr and return 2. Keep the existing presence message unchanged (it is pinned by `tests/test_backlog.py` `test_new_blocked_requires_gate` only on rc, but the message is user-facing and needs no change). Do not touch any other branch.
   - Depends on: none
   - Expected outcome: `aw backlog new --status blocked --gate-kind bogus-kind --gate-ref x ... --apply` exits 2 with `aw backlog new: --gate-kind must be one of ['artifact', 'date', 'decision', 'external', 'issue', 'todo']` and writes no file; `--gate-kind date --gate-ref notadate` exits 2 with `aw backlog new: --gate-ref is invalid for kind 'date': 'notadate'` and writes no file; `--gate-kind todo --gate-ref TODO.md` still exits 0 and writes the item.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: pin the behavior
 
-- [ ] E-02 Create `tests/test_backlog_new_gate_vocabulary.py` with outcome tests that drive `agent_workflows.cli.main` (`backlog new ... --dir <tmp> --apply`) in a temp git repo and assert on rc, stderr, and the files present under the backlog tree: (a) out-of-vocabulary kind refused, rc 2, stderr names `--gate-kind`, zero backlog files written; (b) valid kind with malformed ref (`date`/`notadate`) refused, rc 2, stderr names `--gate-ref`, zero files; (c) one valid pair per kind in `GATE_KINDS` (for example `artifact docs/x.md`, `date 2026-12-01`, `decision D12`, `external vendor-fix`, `issue https://example.com/i/1`, `todo TODO.md`) succeeds with rc 0 and the written file carries the exact `- Gate-Kind:`/`- Gate-Ref:` lines; (d) a created valid blocked item passes `aw backlog check` (rc 0), proving create and check now agree; use a `date` pair for this case so the verdict cannot depend on whether an `artifact`/`todo` ref resolves to a real file in the scratch repo; (e) `--status open` with an invalid `--gate-kind`/`--gate-ref` writes NO `- Gate-Kind:` or `- Gate-Ref:` line, asserting the at-rest safety property only and NOT the rc, so the test does not freeze the current silent discard of those flags as desired behavior. Locate written files from the path in the verb's `wrote` line (a scratch repo without `.aw/` resolves to the legacy `.agents/backlog/` root, measured at review), not from a hard-coded root. No test reads production source.
+- [x] E-02 Create `tests/test_backlog_new_gate_vocabulary.py` with outcome tests that drive `agent_workflows.cli.main` (`backlog new ... --dir <tmp> --apply`) in a temp git repo and assert on rc, stderr, and the files present under the backlog tree: (a) out-of-vocabulary kind refused, rc 2, stderr names `--gate-kind`, zero backlog files written; (b) valid kind with malformed ref (`date`/`notadate`) refused, rc 2, stderr names `--gate-ref`, zero files; (c) one valid pair per kind in `GATE_KINDS` (for example `artifact docs/x.md`, `date 2026-12-01`, `decision D12`, `external vendor-fix`, `issue https://example.com/i/1`, `todo TODO.md`) succeeds with rc 0 and the written file carries the exact `- Gate-Kind:`/`- Gate-Ref:` lines; (d) a created valid blocked item passes `aw backlog check` (rc 0), proving create and check now agree; use a `date` pair for this case so the verdict cannot depend on whether an `artifact`/`todo` ref resolves to a real file in the scratch repo; (e) `--status open` with an invalid `--gate-kind`/`--gate-ref` writes NO `- Gate-Kind:` or `- Gate-Ref:` line, asserting the at-rest safety property only and NOT the rc, so the test does not freeze the current silent discard of those flags as desired behavior. Locate written files from the path in the verb's `wrote` line (a scratch repo without `.aw/` resolves to the legacy `.agents/backlog/` root, measured at review), not from a hard-coded root. No test reads production source.
   - Depends on: E-01
   - Expected outcome: the new module passes with E-01 applied, and cases (a) and (b) fail when E-01 is reverted.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: document
 
-- [ ] E-03 Add one `- Fixed:` line to the pending `## 2.0.0 (pending)` section of `CHANGELOG.md`, beside the existing ju3rhs entry beginning "Fixed: `aw specs set`, `aw backlog set`, and `aw set` now refuse a Gate-Kind outside the documented vocabulary", stating that `aw backlog new --status blocked` now refuses the same invalid kinds and refs instead of writing a record the checker later reports. User-facing prose: no em or en dashes.
+- [x] E-03 Add one `- Fixed:` line to the pending `## 2.0.0 (pending)` section of `CHANGELOG.md`, beside the existing ju3rhs entry beginning "Fixed: `aw specs set`, `aw backlog set`, and `aw set` now refuse a Gate-Kind outside the documented vocabulary", stating that `aw backlog new --status blocked` now refuses the same invalid kinds and refs instead of writing a record the checker later reports. User-facing prose: no em or en dashes.
   - Depends on: E-01
   - Expected outcome: `CHANGELOG.md` diff is exactly one added line in the pending section.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -125,18 +125,209 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste (1) the `git diff agent_workflows/backlog.py` showing only the added guarded `A.validate_gate_flags` call in `run_new`; (2) the actual CLI transcript, produced by `backlog.run_new` via `python3 -m agent_workflows backlog new --dir <scratch> ... --apply`, for `bogus-kind x` (rc 2, `--gate-kind must be one of` message), `date notadate` (rc 2, `--gate-ref is invalid` message), and `todo TODO.md` (rc 0, `wrote`), plus a listing of the scratch backlog tree showing only the valid item exists; (3) the tail of the bare `python3 -m pytest` run including its `N passed` summary, with any failure compared against a baseline run at the same HEAD before E-01.
   - Observed evidence:
-  - Result: pending
-- [ ] V-02 validates E-02
+    (1) `git diff agent_workflows/backlog.py`:
+    ```diff
+    diff --git a/agent_workflows/backlog.py b/agent_workflows/backlog.py
+    index f1e4143b6..b2c1c0387 100644
+    --- a/agent_workflows/backlog.py
+    +++ b/agent_workflows/backlog.py
+    @@ -1204,6 +1204,14 @@ def run_new(args) -> int:
+             )
+             return 2
+
+    +    if status == "blocked":
+    +        _gate_err = A.validate_gate_flags(
+    +            "aw backlog new", item.gate_kind, item.gate_ref
+    +        )
+    +        if _gate_err:
+    +            sys.stderr.write(f"{_gate_err}\n")
+    +            return 2
+    +
+         rel_exempt_kind = getattr(args, "release_exempt_kind", None)
+         rel_exempt_ref = getattr(args, "release_exempt_ref", None)
+         _exempt_err = validate_release_exempt_flags(
+    ```
+    (2) CLI transcript on scratch repo:
+    ```
+    $ python3 -m agent_workflows backlog new --dir <scratch> --summary item1 --status blocked --gate-kind bogus-kind --gate-ref x --priority low --work-kind chore --apply
+    aw backlog new: --gate-kind must be one of ['artifact', 'date', 'decision', 'external', 'issue', 'todo']
+    [exit 2]
+
+    $ python3 -m agent_workflows backlog new --dir <scratch> --summary item2 --status blocked --gate-kind date --gate-ref notadate --priority low --work-kind chore --apply
+    aw backlog new: --gate-ref is invalid for kind 'date': 'notadate'
+    [exit 2]
+
+    $ python3 -m agent_workflows backlog new --dir <scratch> --summary item3 --status blocked --gate-kind todo --gate-ref TODO.md --priority low --work-kind chore --apply
+    aw backlog new: no duplicate candidates detected.
+      ADVISORY ONLY: this silence means nothing matched the signal, not that the defect is definitely new.
+      What it can and cannot tell you:
+        - exact identifier and token overlap: DETECTABLE - items sharing distinctive identifiers (e.g. test node ids, function names, environment variables) or distinctive summary tokens are reported
+        - paraphrased defect descriptions: PARTLY DETECTABLE - defects described with entirely different vocabulary and no shared distinctive identifiers cannot be matched mechanically
+        - distinct issues referencing the same test or symbol: NOT DETECTABLE - items citing the same test or symbol may be distinct concerns (e.g. different assertions or triage lists); human review is required
+      Searched: BACKLOG ITEMS across all statuses (open, graduated, blocked, parked, done), matched by distinctive token overlap and co-occurrence. Items outside the backlog tree or using disjoint vocabulary are not indexed.
+    aw backlog new: wrote /tmp/tmpv9wubov5/.agents/backlog/blocked/20261013-uy2lhn-01-uy2lhn-item3.backlog.md
+    [exit 0]
+
+    $ find <scratch> -type f -name "*.md"
+    .agents/backlog/blocked/20261013-uy2lhn-01-uy2lhn-item3.backlog.md
+    ```
+    (3) pytest baseline vs post-change run comparison:
+    Pre-change baseline at execution HEAD 043e7192b04099dd624f782e83c7ee3e48bcfa14:
+    ```
+    NOTE: 291 tests were deselected by -m/-k and did not run (this run's marker filter skips 'slow' and 'livecorpus'); run everything with: make test-all
+    7715 passed, 4 skipped, 3 warnings in 796.99s (0:13:16)
+    ```
+    Post-change run:
+    ```
+    NOTE: 291 tests were deselected by -m/-k and did not run (this run's marker filter skips 'slow' and 'livecorpus'); run everything with: make test-all
+    7720 passed, 4 skipped, 3 warnings in 641.27s (0:10:41)
+    ```
+    Zero failures in both runs. Exactly +5 tests passed corresponding to the 5 tests in the new `tests/test_backlog_new_gate_vocabulary.py`.
+  - Result: pass
+- [x] V-02 validates E-02
   - Required evidence: paste the actual runner output of `python3 -m pytest -o addopts="" tests/test_backlog_new_gate_vocabulary.py -v` showing every case passing, AND the output of the same command with E-01 temporarily reverted showing cases (a) and (b) failing (then restore E-01 and paste `git diff --stat` proving it is back).
   - Observed evidence:
-  - Result: pending
-- [ ] V-03 validates E-03
+    Passing test run with E-01 applied:
+    ```
+    ============================= test session starts ==============================
+    platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0 -- <venv>/bin/python3
+    cachedir: .pytest_cache
+    Using --randomly-seed=1870509680
+    rootdir: <repo>
+    configfile: pyproject.toml
+    plugins: anyio-4.14.1, randomly-4.1.0, cov-7.1.0, xdist-3.8.0
+    collecting ... collecting 5 items                                                             collected 5 items
+
+    tests/test_backlog_new_gate_vocabulary.py::BacklogNewGateVocabularyTests::test_open_status_with_invalid_gate_flags_writes_no_gate_lines PASSED [ 20%]
+    tests/test_backlog_new_gate_vocabulary.py::BacklogNewGateVocabularyTests::test_created_valid_blocked_item_passes_check PASSED [ 40%]
+    tests/test_backlog_new_gate_vocabulary.py::BacklogNewGateVocabularyTests::test_out_of_vocabulary_kind_refused PASSED [ 60%]
+    tests/test_backlog_new_gate_vocabulary.py::BacklogNewGateVocabularyTests::test_every_valid_gate_kind_succeeds PASSED [ 80%]
+    tests/test_backlog_new_gate_vocabulary.py::BacklogNewGateVocabularyTests::test_malformed_gate_ref_refused PASSED [100%]
+
+    ============================== 5 passed in 5.99s ===============================
+    ```
+    Failure output with E-01 temporarily reverted (cases a and b failing):
+    ```
+    ============================= test session starts ==============================
+    platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0 -- <venv>/bin/python3
+    cachedir: .pytest_cache
+    Using --randomly-seed=2101822375
+    rootdir: <repo>
+    configfile: pyproject.toml
+    plugins: anyio-4.14.1, randomly-4.1.0, cov-7.1.0, xdist-3.8.0
+    collecting ... collecting 5 items                                                             collected 5 items
+
+    tests/test_backlog_new_gate_vocabulary.py::BacklogNewGateVocabularyTests::test_malformed_gate_ref_refused FAILED [ 20%]
+    tests/test_backlog_new_gate_vocabulary.py::BacklogNewGateVocabularyTests::test_created_valid_blocked_item_passes_check PASSED [ 40%]
+    tests/test_backlog_new_gate_vocabulary.py::BacklogNewGateVocabularyTests::test_out_of_vocabulary_kind_refused FAILED [ 60%]
+    tests/test_backlog_new_gate_vocabulary.py::BacklogNewGateVocabularyTests::test_every_valid_gate_kind_succeeds PASSED [ 80%]
+    tests/test_backlog_new_gate_vocabulary.py::BacklogNewGateVocabularyTests::test_open_status_with_invalid_gate_flags_writes_no_gate_lines PASSED [100%]
+
+    =================================== FAILURES ===================================
+    ________ BacklogNewGateVocabularyTests.test_malformed_gate_ref_refused _________
+
+    self = <tests.test_backlog_new_gate_vocabulary.BacklogNewGateVocabularyTests testMethod=test_malformed_gate_ref_refused>
+
+        def test_malformed_gate_ref_refused(self):
+            """(b) valid kind with malformed ref refused, rc 2, stderr names --gate-ref, zero files."""
+            with tempfile.TemporaryDirectory() as tmp:
+                repo = _setup_repo(Path(tmp))
+                out, err = io.StringIO(), io.StringIO()
+                with redirect_stdout(out), redirect_stderr(err):
+                    rc = cli.main(
+                        [
+                            "backlog",
+                            "new",
+                            "--dir",
+                            str(repo),
+                            "--summary",
+                            "item bad ref",
+                            "--status",
+                            "blocked",
+                            "--gate-kind",
+                            "date",
+                            "--gate-ref",
+                            "notadate",
+                            "--priority",
+                            "low",
+                            "--work-kind",
+                            "chore",
+                            "--apply",
+                        ]
+                    )
+    >           self.assertEqual(rc, 2)
+    E           AssertionError: 0 != 2
+
+    tests/test_backlog_new_gate_vocabulary.py:95: AssertionError
+    ______ BacklogNewGateVocabularyTests.test_out_of_vocabulary_kind_refused _______
+
+    self = <tests.test_backlog_new_gate_vocabulary.BacklogNewGateVocabularyTests testMethod=test_out_of_vocabulary_kind_refused>
+
+        def test_out_of_vocabulary_kind_refused(self):
+            """(a) out-of-vocabulary kind refused, rc 2, stderr names --gate-kind, zero files."""
+            with tempfile.TemporaryDirectory() as tmp:
+                repo = _setup_repo(Path(tmp))
+                out, err = io.StringIO(), io.StringIO()
+                with redirect_stdout(out), redirect_stderr(err):
+                    rc = cli.main(
+                        [
+                            "backlog",
+                            "new",
+                            "--dir",
+                            str(repo),
+                            "--summary",
+                            "item bad kind",
+                            "--status",
+                            "blocked",
+                            "--gate-kind",
+                            "bogus-kind",
+                            "--gate-ref",
+                            "x",
+                            "--priority",
+                            "low",
+                            "--work-kind",
+                            "chore",
+                            "--apply",
+                        ]
+                    )
+    >           self.assertEqual(rc, 2)
+    E           AssertionError: 0 != 2
+
+    tests/test_backlog_new_gate_vocabulary.py:64: AssertionError
+    =========================== short test summary info ============================
+    FAILED tests/test_backlog_new_gate_vocabulary.py::BacklogNewGateVocabularyTests::test_malformed_gate_ref_refused
+    FAILED tests/test_backlog_new_gate_vocabulary.py::BacklogNewGateVocabularyTests::test_out_of_vocabulary_kind_refused
+    ========================= 2 failed, 3 passed in 5.75s ==========================
+    ```
+    Restored `git diff --stat`:
+    ```
+     agent_workflows/backlog.py | 8 ++++++++
+     1 file changed, 8 insertions(+)
+    ```
+  - Result: pass
+- [x] V-03 validates E-03
   - Required evidence: paste `git diff CHANGELOG.md` showing exactly one added `- Fixed:` line in the `## 2.0.0 (pending)` section that names `aw backlog new` and contains no em or en dash.
   - Observed evidence:
-  - Result: pending
+    `git diff CHANGELOG.md`:
+    ```diff
+    diff --git a/CHANGELOG.md b/CHANGELOG.md
+    index 9211d822b..3df6e5cc7 100644
+    --- a/CHANGELOG.md
+    +++ b/CHANGELOG.md
+    @@ -55,6 +55,7 @@ Major storage-layout boundary. The logical model (D126-D129) was superseded by t
+     - Added: `check.lifecycle-transition-unvalidated` companion rule (info severity) in `aw check plans` to report when the lifecycle gate examined a plan carrying two or more distinct forward statuses but validated zero transitions because date variation was removed, making gate coverage loss observable; this visibility does not restore lost transition enforcement, which requires spec 2vev8j Section 4.3 explicit per-artifact seq.
+     - Fixed: the runner's backlog close predicate now requires a mixed item's spec carriers to be implemented before closing the item.
+     - Fixed: `aw specs set`, `aw backlog set`, and `aw set` now refuse a Gate-Kind outside the documented vocabulary (artifact, date, decision, external, issue, todo) or a Gate-Ref that does not match its kind, whichever spelling is used, instead of writing an invalid gate record that the checker later reports.
+    +- Fixed: `aw backlog new --status blocked` now refuses a Gate-Kind outside the documented vocabulary or a malformed Gate-Ref instead of writing a record the checker later reports.
+     - Fixed: positional evidence-satisfied backlog closes now persist their citation portably, so aw check release-gates no longer reports a legitimate close as a dropped release gate.
+     - Fixed: repeated same-status re-assertions on aw backlog set --status now deduplicate against the newest existing record instead of appending redundant history records, matching the behavior of the positional spelling.
+     - Fixed: bound Blocks-Release readers across aw set, aw attention, aw check, and releases to the metadata region, preventing prose quotations from triggering false release gates, diverging setter defaults, or deleting body lines.
+    ```
+    The added line contains only hyphens and no em or en dashes.
+  - Result: pass
 
 ## Approval and execution gate
 
