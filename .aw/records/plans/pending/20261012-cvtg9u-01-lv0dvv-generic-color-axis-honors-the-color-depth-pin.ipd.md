@@ -38,34 +38,34 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: confirm the ruling and capture a baseline
 
-- [ ] E-01 CONFIRM THE MAINTAINER'S SCOPE RULING BEFORE CHANGING ANYTHING. Read this plan's `## Open questions`. Proceed ONLY if OQ-01 reads `- Status: resolved` with a ruling, attributed to the maintainer, that `color_depth` governs the generic axis (reading B), AND this plan's `- Status:` is `approved` with a `- Approval:` line. Also confirm backlog `cvtg9u` (`.aw/records/backlog/graduated/20261008-cvtg9u-01-cvtg9u-generic-color-depth-pin-divergence.backlog.md`) still carries `- Work-Kind: bug` and `- Blocks-Release: next` (the maintainer reclassified it in commit `b76d48d38`, measured at review). Reclassifying is the human's act, not this item's job, so only RECORD whether this plan's `- Work-Kind:`/`- Blocks-Release:` match the item's, and report any mismatch. If OQ-01 is open or resolved to reading A (lifecycle-only), mark this item `blocked`, change no file, and report that the ruling belongs to the maintainer.
+- [x] E-01 CONFIRM THE MAINTAINER'S SCOPE RULING BEFORE CHANGING ANYTHING. Read this plan's `## Open questions`. Proceed ONLY if OQ-01 reads `- Status: resolved` with a ruling, attributed to the maintainer, that `color_depth` governs the generic axis (reading B), AND this plan's `- Status:` is `approved` with a `- Approval:` line. Also confirm backlog `cvtg9u` (`.aw/records/backlog/graduated/20261008-cvtg9u-01-cvtg9u-generic-color-depth-pin-divergence.backlog.md`) still carries `- Work-Kind: bug` and `- Blocks-Release: next` (the maintainer reclassified it in commit `b76d48d38`, measured at review). Reclassifying is the human's act, not this item's job, so only RECORD whether this plan's `- Work-Kind:`/`- Blocks-Release:` match the item's, and report any mismatch. If OQ-01 is open or resolved to reading A (lifecycle-only), mark this item `blocked`, change no file, and report that the ruling belongs to the maintainer.
   - Depends on: none
   - Expected outcome: the quoted resolved OQ-01 ruling, the `- Status: approved` and `- Approval:` lines, and the recorded Work-Kind/Blocks-Release comparison; or a `blocked` item with no file changed.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 CAPTURE THE BASELINE: run the bare suite `python3 -m pytest` BEFORE the first edit and record its summary line and the failing node ids. (Measured at authoring in this lane: `39 failed, 7180 passed, 2 skipped`, every failure in no-project / outside-project tests such as `tests/test_no_project_exit_is_cannot_run.py` and `tests/test_validator_nonsurveyable_dir.py`, which fail identically with this plan's change reverted, i.e. they are lane-environment failures unrelated to color. That count is context only: the failing set is environment- and corpus-dependent, so RE-DERIVE it here; re-measured at review, the corpus test `tests/test_ipd_lint.py::ContinuationSubfieldOutcomeTests::test_corpus_verdict_neutrality_delta` and `tests/test_attention.py::NoProjectAgentEnvelopeTests::test_no_project_agent_envelope` already fail at HEAD without any change.) The post-change bar is "no node id fails that did not fail here".
+- [x] E-02 CAPTURE THE BASELINE: run the bare suite `python3 -m pytest` BEFORE the first edit and record its summary line and the failing node ids. (Measured at authoring in this lane: `39 failed, 7180 passed, 2 skipped`, every failure in no-project / outside-project tests such as `tests/test_no_project_exit_is_cannot_run.py` and `tests/test_validator_nonsurveyable_dir.py`, which fail identically with this plan's change reverted, i.e. they are lane-environment failures unrelated to color. That count is context only: the failing set is environment- and corpus-dependent, so RE-DERIVE it here; re-measured at review, the corpus test `tests/test_ipd_lint.py::ContinuationSubfieldOutcomeTests::test_corpus_verdict_neutrality_delta` and `tests/test_attention.py::NoProjectAgentEnvelopeTests::test_no_project_agent_envelope` already fail at HEAD without any change.) The post-change bar is "no node id fails that did not fail here".
   - Depends on: E-01
   - Expected outcome: a recorded baseline summary line and failing-node-id list.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: the fix
 
-- [ ] E-03 In `agent_workflows/term.py`, make the two generic emitters consult the resolved tier. In `Term.colorize`, after the existing `if not self.color or not styles: return text` guard, add `if self.lifecycle_depth() == DEPTH_NONE: return text`. In `Term.color256`, after the existing `if not self.color: return text` guard, resolve `tier = self.lifecycle_depth()`; return `text` unchanged at `DEPTH_NONE`; at `DEPTH_16` return `f"\033[{prefix}{sgr}m{text}{_RESET}"` where `sgr` is produced by a new module-level pure function `color_16_for_index(code: int) -> int` (below); at `DEPTH_256` keep today's exact `38;5;N` output. `color_16_for_index` maps an xterm-256 index to one of the named SGR foreground codes already defined in the module (`_SGR_RED` .. `_SGR_BRIGHT_CYAN`, plus `_SGR_BRIGHT_BLACK` for the grays) by this EXACT, deterministic reduction (review PR-002; a bare "nearest color" is underspecified and, measured at review, sends the salmon-red 203 that `status_set.py` uses for its bold `[gate]` label to gray 90): (1) convert the index to RGB with the standard xterm table (0-15 the xterm system colors, 16-231 the 6x6x6 cube with levels `0,95,135,175,215,255`, 232-255 the gray ramp `8+10*(i-232)`); (2) candidates are the twelve module codes `_SGR_RED`..`_SGR_BRIGHT_CYAN` with their xterm RGB (31 `205,0,0`, 32 `0,205,0`, 33 `205,205,0`, 34 `0,0,238`, 35 `205,0,205`, 36 `0,205,205`, 37 `229,229,229`, 90 `127,127,127`, 92 `0,255,0`, 93 `255,255,0`, 95 `255,0,255`, 96 `0,255,255`); (3) CHROMA GUARD: when the source RGB's `max-min >= 64`, drop the two neutrals (37, 90) from the candidates, so a saturated color never maps to gray; (4) pick the minimum squared RGB distance, ties broken by the lower SGR code. Measured at review with exactly this rule, the live generic indices map to: 196 -> 31, 203 -> 31, 46 -> 92, 40 -> 32, 226 -> 93, 220 -> 93, 214 -> 33, 208 -> 33, 39 -> 36, 33 -> 36, 36 -> 36, 44 -> 36, 207 -> 95, 244 -> 90, 245 -> 90, 250 -> 37, 255 -> 37; so failure is red, success green, warn yellow, info/paths cyan, neutrals gray or white. Its docstring states WHY a derived mapping is acceptable here although R9.3a.3 forbids one for lifecycle stages: the generic role palette carries no ready/done-style separations that a merge could destroy, every generic outcome already prints a WORD (docs/cli-human-guide.md "Color and accessibility"), and the authored-table obligation is scoped by spec `uonrjg` to the twenty lifecycle stages. Update the `color256` docstring (it currently says escapes are gated only by `should_color`) and the `colorize` docstring to name the depth rung. Do NOT change `lifecycle_depth`, `resolve_color_depth`, `should_color`, or any lifecycle method. Do NOT memoize: measured at authoring, an unmemoized `lifecycle_depth()` per call costs about 490us in isolation (re-measured at review: about 62us with a warm config file), yet `aw find backlog --color` (about 5.8k escapes) ran in 0.93/0.88/0.91 s with the prototype versus 1.09/0.96/0.97 s at baseline, i.e. no end-to-end regression a user could perceive, so a cache would add invalidation risk for no measured gain.
+- [x] E-03 In `agent_workflows/term.py`, make the two generic emitters consult the resolved tier. In `Term.colorize`, after the existing `if not self.color or not styles: return text` guard, add `if self.lifecycle_depth() == DEPTH_NONE: return text`. In `Term.color256`, after the existing `if not self.color: return text` guard, resolve `tier = self.lifecycle_depth()`; return `text` unchanged at `DEPTH_NONE`; at `DEPTH_16` return `f"\033[{prefix}{sgr}m{text}{_RESET}"` where `sgr` is produced by a new module-level pure function `color_16_for_index(code: int) -> int` (below); at `DEPTH_256` keep today's exact `38;5;N` output. `color_16_for_index` maps an xterm-256 index to one of the named SGR foreground codes already defined in the module (`_SGR_RED` .. `_SGR_BRIGHT_CYAN`, plus `_SGR_BRIGHT_BLACK` for the grays) by this EXACT, deterministic reduction (review PR-002; a bare "nearest color" is underspecified and, measured at review, sends the salmon-red 203 that `status_set.py` uses for its bold `[gate]` label to gray 90): (1) convert the index to RGB with the standard xterm table (0-15 the xterm system colors, 16-231 the 6x6x6 cube with levels `0,95,135,175,215,255`, 232-255 the gray ramp `8+10*(i-232)`); (2) candidates are the twelve module codes `_SGR_RED`..`_SGR_BRIGHT_CYAN` with their xterm RGB (31 `205,0,0`, 32 `0,205,0`, 33 `205,205,0`, 34 `0,0,238`, 35 `205,0,205`, 36 `0,205,205`, 37 `229,229,229`, 90 `127,127,127`, 92 `0,255,0`, 93 `255,255,0`, 95 `255,0,255`, 96 `0,255,255`); (3) CHROMA GUARD: when the source RGB's `max-min >= 64`, drop the two neutrals (37, 90) from the candidates, so a saturated color never maps to gray; (4) pick the minimum squared RGB distance, ties broken by the lower SGR code. Measured at review with exactly this rule, the live generic indices map to: 196 -> 31, 203 -> 31, 46 -> 92, 40 -> 32, 226 -> 93, 220 -> 93, 214 -> 33, 208 -> 33, 39 -> 36, 33 -> 36, 36 -> 36, 44 -> 36, 207 -> 95, 244 -> 90, 245 -> 90, 250 -> 37, 255 -> 37; so failure is red, success green, warn yellow, info/paths cyan, neutrals gray or white. Its docstring states WHY a derived mapping is acceptable here although R9.3a.3 forbids one for lifecycle stages: the generic role palette carries no ready/done-style separations that a merge could destroy, every generic outcome already prints a WORD (docs/cli-human-guide.md "Color and accessibility"), and the authored-table obligation is scoped by spec `uonrjg` to the twenty lifecycle stages. Update the `color256` docstring (it currently says escapes are gated only by `should_color`) and the `colorize` docstring to name the depth rung. Do NOT change `lifecycle_depth`, `resolve_color_depth`, `should_color`, or any lifecycle method. Do NOT memoize: measured at authoring, an unmemoized `lifecycle_depth()` per call costs about 490us in isolation (re-measured at review: about 62us with a warm config file), yet `aw find backlog --color` (about 5.8k escapes) ran in 0.93/0.88/0.91 s with the prototype versus 1.09/0.96/0.97 s at baseline, i.e. no end-to-end regression a user could perceive, so a cache would add invalidation risk for no measured gain.
   - Depends on: E-02
   - Expected outcome: at pin `none` on a capable TTY, `Term.status_256`, `Term.path`, `Term.badge`, `Term.colorize`, `Term.severity_label` return plain text; at pin `16` they return escapes containing no `38;5;`; at pin `256`, and unpinned on a terminal that resolves to 256, they are byte-identical to HEAD; `color_16_for_index` returns the review-measured mapping listed above for the seventeen live indices.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: tests and changelog
 
-- [ ] E-04 Add `tests/test_generic_color_depth.py`, a behavioral test file (no source reading, per P16). Reuse the isolation pattern of `tests/test_term.py`'s `_DepthTestBase` (point `XDG_CONFIG_HOME` at a temp dir, clear `NO_COLOR`/`FORCE_COLOR`/`COLORTERM`, set `TERM=xterm-256color`, clear the override, pin via `config.set_config_value("color_depth", ...)`). Cells: (a) pin `none`, fake TTY: each of `status_256("up to date")`, `path("a/b")`, `badge("x","error")`, `colorize("x","bold")`, `severity_label("error")`, `format_fix("do it")` contains no `\x1b`, and the WORD is still present; (b) pin `16`: each is styled (contains `\x1b`) and contains no `38;5;`, and `status_256("error")` and `status_256("up to date")` render DIFFERENT SGR codes (failure is not success); (c) pin `256`: `status_256("up to date") == '\x1b[1;38;5;46mup to date\x1b[0m'` and `path("a/b") == '\x1b[38;5;33ma/b\x1b[0m'` (today's bytes); (d) `NO_COLOR=1` with pin `256` still yields plain text (NO_COLOR outranks the pin, R9.3a.2); (e) `Term(stream=<fake pipe>, color=True)` with pin `16` styles at 16 rather than collapsing to none (the `override=True` behavior `lifecycle_depth` already has); (f) `color_16_for_index` returns a code in the twelve-code candidate set of E-03 for every index 0-255, AND returns the E-03 mapping for each of the seventeen live indices (in particular 203 -> 31 and 207 -> 95, the two the chroma guard exists for); (g) END TO END: in a synthesized `git init` fixture repo containing `.aw/records/plans/pending/` (REQUIRED: measured at review, `index plans` raises `FileNotFoundError` writing `INDEX.json` without it) and one backlog item, with an isolated `XDG_CONFIG_HOME` and `AW_HOME` under the test's temp dir, `AW_NO_REEXEC=1`, `TERM=xterm-256color`, `NO_COLOR`/`FORCE_COLOR`/`COLORTERM` cleared and `PYTHONPATH` at this checkout, run `python -m agent_workflows index plans --color` and `python -m agent_workflows check --color` as subprocesses at each pin and assert exit 0 and: pin `none` stdout contains no `\x1b`; pin `16` contains `\x1b` and no `38;5;`; pin `256` contains `38;5;`. (Review PR-003: `find backlog` is NOT a valid red cell, measured at HEAD with E-03 absent it already emits 0 escapes at `none` and 0 `38;5;` at `16`, because its only escapes are lifecycle tokens; `index plans` and `check` emit generic `38;5;` at every pin at HEAD and 0 escapes at `none` / 0 `38;5;` at `16` with a prototype of E-03, measured at review.) (h) UNPINNED 16 DETECTION: with no pin and `TERM=vt100`, fake TTY, `status_256("up to date")` contains `\x1b` and no `38;5;` (PR-005). Reference the new mapping as the module attribute `term.color_16_for_index` INSIDE cell (f), never via a module-level `from agent_workflows.term import color_16_for_index`: otherwise the negative control below dies at collection with an `ImportError` and proves nothing per cell (review PR-004). Do NOT edit `tests/test_term.py` (not in Scope-Paths); its two now-stale "generic axis ignores the depth pin per F-08" docstring caveats are carried by backlog `y11p5u` (see Deferred).
+- [x] E-04 Add `tests/test_generic_color_depth.py`, a behavioral test file (no source reading, per P16). Reuse the isolation pattern of `tests/test_term.py`'s `_DepthTestBase` (point `XDG_CONFIG_HOME` at a temp dir, clear `NO_COLOR`/`FORCE_COLOR`/`COLORTERM`, set `TERM=xterm-256color`, clear the override, pin via `config.set_config_value("color_depth", ...)`). Cells: (a) pin `none`, fake TTY: each of `status_256("up to date")`, `path("a/b")`, `badge("x","error")`, `colorize("x","bold")`, `severity_label("error")`, `format_fix("do it")` contains no `\x1b`, and the WORD is still present; (b) pin `16`: each is styled (contains `\x1b`) and contains no `38;5;`, and `status_256("error")` and `status_256("up to date")` render DIFFERENT SGR codes (failure is not success); (c) pin `256`: `status_256("up to date") == '\x1b[1;38;5;46mup to date\x1b[0m'` and `path("a/b") == '\x1b[38;5;33ma/b\x1b[0m'` (today's bytes); (d) `NO_COLOR=1` with pin `256` still yields plain text (NO_COLOR outranks the pin, R9.3a.2); (e) `Term(stream=<fake pipe>, color=True)` with pin `16` styles at 16 rather than collapsing to none (the `override=True` behavior `lifecycle_depth` already has); (f) `color_16_for_index` returns a code in the twelve-code candidate set of E-03 for every index 0-255, AND returns the E-03 mapping for each of the seventeen live indices (in particular 203 -> 31 and 207 -> 95, the two the chroma guard exists for); (g) END TO END: in a synthesized `git init` fixture repo containing `.aw/records/plans/pending/` (REQUIRED: measured at review, `index plans` raises `FileNotFoundError` writing `INDEX.json` without it) and one backlog item, with an isolated `XDG_CONFIG_HOME` and `AW_HOME` under the test's temp dir, `AW_NO_REEXEC=1`, `TERM=xterm-256color`, `NO_COLOR`/`FORCE_COLOR`/`COLORTERM` cleared and `PYTHONPATH` at this checkout, run `python -m agent_workflows index plans --color` and `python -m agent_workflows check --color` as subprocesses at each pin and assert exit 0 and: pin `none` stdout contains no `\x1b`; pin `16` contains `\x1b` and no `38;5;`; pin `256` contains `38;5;`. (Review PR-003: `find backlog` is NOT a valid red cell, measured at HEAD with E-03 absent it already emits 0 escapes at `none` and 0 `38;5;` at `16`, because its only escapes are lifecycle tokens; `index plans` and `check` emit generic `38;5;` at every pin at HEAD and 0 escapes at `none` / 0 `38;5;` at `16` with a prototype of E-03, measured at review.) (h) UNPINNED 16 DETECTION: with no pin and `TERM=vt100`, fake TTY, `status_256("up to date")` contains `\x1b` and no `38;5;` (PR-005). Reference the new mapping as the module attribute `term.color_16_for_index` INSIDE cell (f), never via a module-level `from agent_workflows.term import color_16_for_index`: otherwise the negative control below dies at collection with an `ImportError` and proves nothing per cell (review PR-004). Do NOT edit `tests/test_term.py` (not in Scope-Paths); its two now-stale "generic axis ignores the depth pin per F-08" docstring caveats are carried by backlog `y11p5u` (see Deferred).
   - Depends on: E-03
   - Expected outcome: the new file passes with E-03 applied, and with E-03 reverted the file still COLLECTS while cells (a), (b), (f), (g) and (h) FAIL individually (demonstrated once, see V-04).
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 Add one `- Fixed:` bullet at the top of the `## 2.0.0 (pending)` change list in `CHANGELOG.md`: the `color_depth` pin now also governs general command styling (outcome words, paths, badges, severity labels), so `none` removes all color from those surfaces and `16` uses basic ANSI colors, and a terminal detected as 16-color (for example `TERM=vt100` or `TERM=linux`) now gets basic ANSI colors there too instead of 256-color codes; no em or en dashes (user-facing prose rule).
+- [x] E-05 Add one `- Fixed:` bullet at the top of the `## 2.0.0 (pending)` change list in `CHANGELOG.md`: the `color_depth` pin now also governs general command styling (outcome words, paths, badges, severity labels), so `none` removes all color from those surfaces and `16` uses basic ANSI colors, and a terminal detected as 16-color (for example `TERM=vt100` or `TERM=linux`) now gets basic ANSI colors there too instead of 256-color codes; no em or en dashes (user-facing prose rule).
   - Depends on: E-03
   - Expected outcome: one new bullet, no other CHANGELOG line changed.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -146,30 +146,281 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: the pasted OQ-01 block showing `- Status: resolved` with a maintainer-attributed reading-B ruling, plus the plan's `- Status: approved` and `- Approval:` lines, plus the item's and plan's `- Work-Kind:`/`- Blocks-Release:` lines side by side (or, if blocked, the pasted open OQ-01 and `git status --short` showing no change).
   - Observed evidence:
-  - Result: pending
+    OQ-01 block from this plan:
+    ```markdown
+    ### OQ-01: Does the `color_depth` pin govern the generic (non-lifecycle) styling axis?
 
-- [ ] V-02 validates E-02
+    - Blocking: no
+    - Status: resolved
+    - Owner: maintainer
+    - Carrier: cvtg9u
+    - Resolution or deferral rationale: RESOLVED 2026-10-12 BY THE MAINTAINER to READING B (the pin governs ALL styling). Evidence: commit `b76d48d38` (authored by the maintainer, 2026-10-12) records "Maintainer ruling 2026-10-12: color_depth=none must turn off ALL color (OQ-01 reading B); reclassified bug" in backlog `cvtg9u`'s workflow history, sets that item to `- Work-Kind: bug` / `- Blocks-Release: next`, mirrors both fields on this plan, and appends "pin none must disable all color (reading B)" to this plan's history. The review only TRANSCRIBED that ruling here (review PR-001); it did not make it. Approval remains the maintainer's separate act: `aw ipd set approved lv0dvv --by-human --message ...`. Background kept for readers: READING A (lifecycle-only) rested on spec `uonrjg` Section 3's non-goal and R10.3 ("Generic `Term` outcomes ... are outside this spec"); READING B on DECISIONS D42's general ladder and `config.CONFIG_SCHEMA`'s unqualified description. The spec is not contradicted by B: R10.3 exempts generic outcomes from being REPLACED by lifecycle styling, which this plan does not do.
+    ```
+
+    Plan status and approval lines:
+    ```markdown
+    - Status: approved
+    - Approval: 2026-10-12, recorded via aw ipd set: status set to approved
+    ```
+
+    Side-by-side Work-Kind and Blocks-Release comparison:
+    Backlog item cvtg9u:
+    ```markdown
+    - Work-Kind: bug
+    - Blocks-Release: next
+    ```
+    Plan lv0dvv:
+    ```markdown
+    - Work-Kind: bug
+    - Blocks-Release: next
+    ```
+    Both Work-Kind and Blocks-Release match identically.
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: the pasted final summary line of the bare `python3 -m pytest` baseline run and its `FAILED` node-id list.
   - Observed evidence:
-  - Result: pending
+    Final summary line of baseline bare `python3 -m pytest`:
+    ```
+    7957 passed, 4 skipped, 18 xfailed, 3 warnings in 739.83s (0:12:19)
+    ```
+    FAILED node-id list:
+    None (0 failed).
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: `git diff agent_workflows/term.py` pasted, showing changes confined to `Term.colorize`, `Term.color256`, their docstrings, and the new `color_16_for_index`; plus pasted output of a `python3 -c` probe (fake-TTY stream, isolated `XDG_CONFIG_HOME`, `TERM=xterm-256color`) printing `repr()` of `status_256("up to date")`, `path("a/b")`, `badge("x","error")` at pins `none`, `16`, `256`: no `\x1b` at `none`, no `38;5;` at `16`, and exactly `'\x1b[1;38;5;46mup to date\x1b[0m'` / `'\x1b[38;5;33ma/b\x1b[0m'` at `256`. The code path producing the observation is `Term.color256` -> `Term.lifecycle_depth` -> `term.resolve_color_depth` (E-03).
   - Observed evidence:
-  - Result: pending
+    `git diff agent_workflows/term.py`:
+    ```diff
+    diff --git a/agent_workflows/term.py b/agent_workflows/term.py
+    index 0a53f07bb..71a3ef147 100644
+    --- a/agent_workflows/term.py
+    +++ b/agent_workflows/term.py
+    @@ -805,6 +805,86 @@ def color_16_for_stage(stage: str) -> int:
+         return STAGE_COLOR_16[stage]
 
-- [ ] V-04 validates E-04
+
+    +_XTERM_SYSTEM_RGB: Tuple[Tuple[int, int, int], ...] = (
+    +    (0, 0, 0),
+    +    (205, 0, 0),
+    +    (0, 205, 0),
+    +    (205, 205, 0),
+    +    (0, 0, 238),
+    +    (205, 0, 205),
+    +    (0, 205, 205),
+    +    (229, 229, 229),
+    +    (127, 127, 127),
+    +    (255, 0, 0),
+    +    (0, 255, 0),
+    +    (255, 255, 0),
+    +    (92, 92, 255),
+    +    (255, 0, 255),
+    +    (0, 255, 255),
+    +    (255, 255, 255),
+    +)
+    +
+    +_XTERM_CUBE_LEVELS: Tuple[int, ...] = (0, 95, 135, 175, 215, 255)
+    +
+    +_CANDIDATE_16_RGB: Tuple[Tuple[int, Tuple[int, int, int]], ...] = (
+    +    (_SGR_RED, (205, 0, 0)),
+    +    (_SGR_GREEN, (0, 205, 0)),
+    +    (_SGR_YELLOW, (205, 205, 0)),
+    +    (_SGR_BLUE, (0, 0, 238)),
+    +    (_SGR_MAGENTA, (205, 0, 205)),
+    +    (_SGR_CYAN, (0, 205, 205)),
+    +    (_SGR_WHITE, (229, 229, 229)),
+    +    (_SGR_BRIGHT_BLACK, (127, 127, 127)),
+    +    (_SGR_BRIGHT_GREEN, (0, 255, 0)),
+    +    (_SGR_BRIGHT_YELLOW, (255, 255, 0)),
+    +    (_SGR_BRIGHT_MAGENTA, (255, 0, 255)),
+    +    (_SGR_BRIGHT_CYAN, (0, 255, 255)),
+    +)
+    +
+    +
+    +def color_16_for_index(code: int) -> int:
+    +    """Map an xterm-256 palette index to an authored 16-color SGR foreground code.
+    +
+    +    A derived mapping is acceptable here although R9.3a.3 forbids one for lifecycle stages:
+    +    the generic role palette carries no ready/done-style separations that a merge could destroy,
+    +    every generic outcome already prints a WORD (docs/cli-human-guide.md "Color and accessibility"),
+    +    and the authored-table obligation is scoped by spec `uonrjg` to the twenty lifecycle stages.
+    +
+    +    Deterministic reduction:
+    +    1. Convert the index to RGB using standard xterm definitions:
+    +       0-15 standard system colors, 16-231 the 6x6x6 color cube (levels 0, 95, 135, 175, 215, 255),
+    +       and 232-255 the gray ramp (8 + 10 * (i - 232)).
+    +    2. Candidates are the twelve named module SGR codes (_SGR_RED.._SGR_BRIGHT_CYAN and _SGR_BRIGHT_BLACK).
+    +    3. Chroma guard: when source max(RGB) - min(RGB) >= 64, drop neutrals (37, 90) so saturated colors never map to gray.
+    +    4. Pick minimum squared RGB distance, breaking ties by lower SGR code.
+    +    """
+    +    n = max(0, min(255, int(code)))
+    +    if n < 16:
+        r, g, b = _XTERM_SYSTEM_RGB[n]
+    elif n < 232:
+        c = n - 16
+        r = _XTERM_CUBE_LEVELS[c // 36]
+        g = _XTERM_CUBE_LEVELS[(c % 36) // 6]
+        b = _XTERM_CUBE_LEVELS[c % 6]
+    else:
+        r = g = b = 8 + 10 * (n - 232)
+
+    chroma_saturated = (max(r, g, b) - min(r, g, b)) >= 64
+
+    best_sgr = _SGR_BRIGHT_BLACK
+    min_dist = float("inf")
+    for sgr, (cr, cg, cb) in _CANDIDATE_16_RGB:
+        if chroma_saturated and sgr in (_SGR_WHITE, _SGR_BRIGHT_BLACK):
+            continue
+        dist = (r - cr) ** 2 + (g - cg) ** 2 + (b - cb) ** 2
+        if dist < min_dist:
+            min_dist = dist
+            best_sgr = sgr
+
+    return best_sgr
+    +
+    +
+    +
+     # ======================================================================================
+     # The GENERIC command-outcome and formatting role palette (NOT lifecycle)
+     # ======================================================================================
+    @@ -1046,28 +1126,36 @@ class Term:
+             return GLYPHS.get(k, k)
+
+         def colorize(self, text: str, *styles: str) -> str:
+    -        """Wrap ``text`` in the named styles when color is enabled, else return it plain."""
+    +        """Wrap ``text`` in the named styles when color is enabled and depth is not none, else return it plain."""
+
+             if not self.color or not styles:
+                 return text
+    +        if self.lifecycle_depth() == DEPTH_NONE:
+    +            return text
+             codes = ";".join(_CODES[s] for s in styles if s in _CODES)
+             if not codes:
+                 return text
+             return f"\033[{codes}m{text}{_RESET}"
+
+         def color256(self, text: str, code: int, *, bold: bool = False) -> str:
+    -        """Wrap ``text`` in an xterm-256 foreground color (SGR 38;5;N) when color is on.
+    +        """Wrap ``text`` in an xterm-256 foreground color (SGR 38;5;N) or 16-color SGR when color is on.
+
+    -        ``code`` is a 0-255 xterm-256 palette index. Returns plain text when color is
+    -        disabled (NO_COLOR / non-TTY / TERM=dumb), so meaning must never depend on it.
+    -        Every 256-color virtually all terminals of the last two decades support; the
+    -        NO_COLOR/isatty/TERM gating in ``should_color`` still fully applies.
+    +        ``code`` is a 0-255 xterm-256 palette index. Gated by color capability and the
+    +        resolved color depth rung (DEPTH_256 emits 38;5;N, DEPTH_16 maps to a basic ANSI SGR code
+    +        via color_16_for_index, and DEPTH_NONE returns plain text). Returns plain text when color is
+    +        disabled (NO_COLOR / non-TTY / TERM=dumb / color_depth=none), so meaning must never depend on it.
+             """
+
+             if not self.color:
+                 return text
+    +        tier = self.lifecycle_depth()
+    +        if tier == DEPTH_NONE:
+    +            return text
+             n = max(0, min(255, int(code)))
+             prefix = "1;" if bold else ""
+    +        if tier == DEPTH_16:
+    +            sgr = color_16_for_index(n)
+    +            return f"\033[{prefix}{sgr}m{text}{_RESET}"
+             return f"\033[{prefix}38;5;{n}m{text}{_RESET}"
+
+         def status_256(self, status: str, *, width: int = 0) -> str:
+    ```
+
+    Python probe output (`python3 -c` with fake TTY, isolated `XDG_CONFIG_HOME`, `TERM=xterm-256color`):
+    ```
+    PIN none:
+      status_256: 'up to date'
+      path:       'a/b'
+      badge:      '[x]'
+    PIN 16:
+      status_256: '\x1b[1;92mup to date\x1b[0m'
+      path:       '\x1b[36ma/b\x1b[0m'
+      badge:      '[\x1b[1;31mx\x1b[0m]'
+    PIN 256:
+      status_256: '\x1b[1;38;5;46mup to date\x1b[0m'
+      path:       '\x1b[38;5;33ma/b\x1b[0m'
+      badge:      '[\x1b[1;38;5;196mx\x1b[0m]'
+    ```
+    Observation confirms: no `\x1b` at `none`, no `38;5;` at `16`, and byte-identical `'\x1b[1;38;5;46mup to date\x1b[0m'` and `'\x1b[38;5;33ma/b\x1b[0m'` at `256`.
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: pasted pytest output of `python3 -m pytest tests/test_generic_color_depth.py tests/test_term.py -o addopts=""` showing all passed; pasted output of the new file run once with E-03 temporarily reverted showing the file collected and cells (a), (b), (f), (g), (h) FAILED (then restored, with `git diff --stat agent_workflows/term.py` pasted to show the fix is back); pasted bare `python3 -m pytest` summary line and a statement, backed by the pasted `FAILED` list, that no node id fails that was absent from the V-02 baseline; and the two stale `tests/test_term.py` docstring locations named (quoted strings).
   - Observed evidence:
-  - Result: pending
+    Output of `python3 -m pytest tests/test_generic_color_depth.py tests/test_term.py -o addopts=""`:
+    ```
+    ============================= test session starts ==============================
+    platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0
+    Using --randomly-seed=1141960038
+    rootdir: .
+    configfile: pyproject.toml
+    plugins: anyio-4.14.1, randomly-4.1.0, cov-7.1.0, xdist-3.8.0
+    collecting ... collected 40 items
 
-- [ ] V-05 validates E-05
+    tests/test_generic_color_depth.py ........                               [ 20%]
+    tests/test_term.py ................................                      [100%]
+
+    ============================= 40 passed in 21.45s ==============================
+    ```
+
+    Output of `python3 -m pytest tests/test_generic_color_depth.py -o addopts=""` with E-03 temporarily reverted:
+    ```
+    =========================== short test summary info ============================
+    FAILED tests/test_generic_color_depth.py::GenericColorDepthTests::test_cell_f_color_16_for_index_mapping
+    FAILED tests/test_generic_color_depth.py::GenericColorDepthTests::test_cell_g_subprocess_end_to_end
+    FAILED tests/test_generic_color_depth.py::GenericColorDepthTests::test_cell_b_pin_16_fake_tty
+    FAILED tests/test_generic_color_depth.py::GenericColorDepthTests::test_cell_h_unpinned_16_detection
+    FAILED tests/test_generic_color_depth.py::GenericColorDepthTests::test_cell_a_pin_none_fake_tty
+    ========================= 5 failed, 3 passed in 1.23s ==========================
+    ```
+
+    Restoration confirmation via `git diff --stat agent_workflows/term.py`:
+    ```
+     agent_workflows/term.py | 100 +++++++++++++++++++++++++++++++++++++++++++++---
+     1 file changed, 94 insertions(+), 6 deletions(-)
+    ```
+
+    Post-change bare `python3 -m pytest` summary line:
+    ```
+    7965 passed, 4 skipped, 18 xfailed, 3 warnings in 840.05s (0:14:00)
+    ```
+    FAILED list: None (0 failed). No node id failed that was absent from the V-02 baseline.
+
+    The two stale docstring locations in `tests/test_term.py`:
+    1. Location 1 (`LifecycleColorDepthSeamSweepTests` docstring, lines 1580-1582):
+       "1. Covers the LIFECYCLE axis only: the generic color axis (colorize, color256, status_256, badge, format_path) ignores the depth pin entirely per finding F-08, tracked in carrier backlog item cvtg9u."
+    2. Location 2 (`LifecycleColorDepthCrossSurfaceCliTests` docstring, lines 1686-1689):
+       "1. Covers the LIFECYCLE axis only: generic color output (paths, badges, status) ignores color_depth per F-08 (tracked in backlog item cvtg9u), so assertions on the 'none' tier are scoped strictly to lifecycle tokens rather than blanket escape absence."
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: `git diff CHANGELOG.md` pasted showing exactly one added `- Fixed:` line under `## 2.0.0 (pending)`, and `grep -nP '[\x{2013}\x{2014}]'` over that line returning nothing.
   - Observed evidence:
-  - Result: pending
+    `git diff CHANGELOG.md`:
+    ```diff
+    diff --git a/CHANGELOG.md b/CHANGELOG.md
+    index d650735d9..45558320b 100644
+    --- a/CHANGELOG.md
+    +++ b/CHANGELOG.md
+    @@ -24,6 +24,7 @@ now under way. The direction of the 2.x line (in progress, not all shipped in th
+
+     Major storage-layout boundary. The logical model (D126-D129) was superseded by the PHYSICAL `.aw/` hierarchy specified in `20260810-1447-01-physical-aw-hierarchy-placement-and-migration.spec.md` (D130, D134-D137), which the framework now implements and has migrated its own repository onto:
+
+    +- Fixed: the color_depth pin now also governs general command styling (outcome words, paths, badges, severity labels), so none removes all color from those surfaces and 16 uses basic ANSI colors, and a terminal detected as 16-color (for example TERM=vt100 or TERM=linux) now gets basic ANSI colors there too instead of 256-color codes.
+     - Added: `aw attention` now lists graduated backlog items whose plan and spec carriers have all finished, with the command that closes them.
+     - Added: `aw partition -t plans` now keeps each Set's orchestrator in the same shard as its unfinished children, and refuses incomplete Sets by default (exit 2) when a member cannot run in the batch, naming blocking plans and fix commands. Added `--allow-partial-sets` to schedule ready plans while holding back orchestrators, and updated setid selection to skip finished members.
+     - Fixed: agents run by aw oc run and aw agy run can no longer change your aw user configuration; attempted changes are discarded and reported.
+    ```
+
+    `git diff CHANGELOG.md | grep -nP '[\x{2013}\x{2014}]'` output:
+    (empty, exit code 1)
+  - Result: pass
 
 ## Approval and execution gate
 
