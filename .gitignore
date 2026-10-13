@@ -47,6 +47,7 @@ tmp/
 # Session-recovery transcripts / dumps: machine-local, may contain personal paths
 # and session ids; never track (D92).
 opencode-recovery/
+opencode-recovery.tgz
 
 # agent-workflows working material (local-only; may contain sensitive local context, home paths, or session detail; do not commit)
 workflow-artifacts/
