@@ -6,9 +6,10 @@
 - Scope: Coordinates four children. Order 01 makes CI pass again. Order 02 adds a periodic checkup (every N main commits, default 100) that reads CI's result and runs slow checks, shown by `aw attention` and `aw doctor`. Order 03 makes runs refuse to start new work when CI has not passed in N commits, with an override. Order 04 refuses to merge a lane that makes a spec line pointer stale, replacing `l85xvi`'s CI step.
 - Scope-Paths: .aw/records/plans/pending/20261012-cihealth-00-cntxsm-see-ci-fail-again-and-keep-it-from-going-unseen.ipd.md
 - Item-Dependencies: none
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
 - Coverage: pass
-- Coverage-Fingerprint: dff6b6f0823dd2d14d98fbc6a9842ec515921900e761b8e06bdd5257f43753ea
+- Coverage-Fingerprint: 19c82327d4c18f7cf5d867b27cf28b64d438e9ab65f16e94399570f670ae6253
 - Coverage-Checked: 2026-10-12 by uri/its_direct/pt3-claude-opus-5.5-1m-us
 - Work-Kind: bug
 - Priority: high
@@ -21,6 +22,9 @@
 - Id: cntxsm
 
 ## Workflow history
+- 2026-10-13 reviewed (opencode/its_direct/pt3-claude-opus-5.5-1m-us): plan-review: APPROVE WITH REVISIONS APPLIED
+- 2026-10-12 coverage pass (aw oc run): fingerprint 19c82327d4c1, model uri/its_direct/pt3-claude-opus-5.5-1m-us
+- 2026-10-13 /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004. Verified at HEAD fbb2e3799: last tests.yml success is f69ad318a (2026-09-27) and the latest ten completed runs failed; child table ids, Orders and edges match the four children (all reviewed); fz3i3m approved with executed deps; l85xvi superseded; aw ipd coverage ready. Gate now carries the execution contract; E-02 dependency aligned to the table; V-01 requires the green run to contain ezyb4a; exemption mechanism named.
 - 2026-10-12 coverage pass (aw oc run): fingerprint dff6b6f0823d, model uri/its_direct/pt3-claude-opus-5.5-1m-us
 - 2026-10-12 coverage pass (aw oc run): fingerprint 42fdec4fde44, model uri/its_direct/pt3-claude-opus-5.5-1m-us
 - 2026-10-12 to-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): authored during /plan-review of Set gradfix, from the maintainer's design ruling of 2026-10-12 (periodic checkup every 100 commits, shown in aw attention/doctor, overridable hard stop, stale pointers gated at the runner merge check).
@@ -39,11 +43,11 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 - [ ] E-01 CONFIRM ezyb4a REACHED executed
   - Depends on: none
   Confirm child 01 (`ezyb4a`, make CI pass again) reached `executed`, with a green `tests.yml` run on main.
-  - Expected outcome: `ezyb4a` is under `plans/executed/`; `gh run list --workflow tests.yml` shows a `success` run for a main commit at or after its merge.
+  - Expected outcome: `ezyb4a` is under `plans/executed/`; `gh run list --workflow tests.yml` shows a `success` run whose head commit contains `ezyb4a`'s commits (the same containment check `ezyb4a` V-06 demands).
   - Execution state: pending
 
 - [ ] E-02 CONFIRM n7xlhm REACHED executed
-  - Depends on: E-01
+  - Depends on: none
   Confirm child 02 (`n7xlhm`, periodic checkup) reached `executed`.
   - Expected outcome: `n7xlhm` is under `plans/executed/`; `aw attention` prints a checkup line.
   - Execution state: pending
@@ -81,7 +85,7 @@ Order 04 waits on `fz3i3m` (Set `sbh1o1`), which makes the detector accurate. Or
 ## Cross-IPD validation
 
 - ONE NUMBER, ONE PLACE. Orders 02 and 03 read the same setting (`ci_checkup_interval_commits` in `.aw/config/project.json`, default 100) and the same saved checkup record. Order 03 does not read GitHub itself. OWNER: `s4z5n8` V-items demonstrate it.
-- THE STOP CANNOT BLOCK ITS OWN FIX. Order 03's always-allowed set includes this Set's plans. OWNER: `s4z5n8`.
+- THE STOP CANNOT BLOCK ITS OWN FIX. Order 03's always-allowed set is the project setting `ci_red_exempt_sets`, which Order 03 sets to `["cihealth"]` in `.aw/config/project.json` (its OQ resolving the exemption), so this Set's plans always run. OWNER: `s4z5n8`.
 
 ## Deferred / out of scope (with reason)
 
@@ -115,7 +119,7 @@ N/A here; each child records its own.
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'.
 
 - [ ] V-01 validates E-01
-  - Required evidence: the pasted `- Status: executed` line of `ezyb4a` and the `gh run list` row showing `success` for a main commit.
+  - Required evidence: the pasted `- Status: executed` line of `ezyb4a`, the pasted `gh run list --workflow tests.yml` row showing `success`, and the pasted `git merge-base --is-ancestor <ezyb4a's last commit> <that run's headSha>` exit status 0. FAILS if the green run predates `ezyb4a`.
   - Observed evidence:
   - Result: pending
 
@@ -139,4 +143,6 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 - Size assessment: standard
 - Cohesion rationale: not required
 
-Order 01 first; Order 03 after Orders 01 and 02; Order 04 is independent of the others. This plan is retired by the runner once all four children are `executed`.
+Sequencing is the child table's `Depends on` column: Orders 01, 02 and 04 have no edge to each other (Order 04 waits only on `fz3i3m`); Order 03 waits on 01 and 02. Each child needs its own human approval. Open questions: OQ-01 is `resolved` and not blocking.
+
+Execution contract: this plan writes no code, test or record of its own; commit only through `aw commit` and never push; paste the ACTUAL `aw find plans`, `gh run list` and `git merge-base` output for every `V-*` item and never claim a child executed from memory. Lifecycle: under `aw oc run` / `aw agy run` the runner retires this orchestrator once every child is `executed`; executing by hand, confirm each child and finish with `aw ipd finalize <plan> --actor <agent/model> --message <summary> --apply`, never a hand `git mv`.
