@@ -36,20 +36,21 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: Reproduce, fix, verify
 
-- [ ] E-01 REPRODUCE THE FAILURE before changing anything: run `aw research index --check` and capture its exit code and the `frontmatter-invalid` line naming `20261001-4xtpvg-00-7so8uz-permission-ask-observability.assessment.md` with `outcome must be one of ['adopted', 'informational', 'none-yet', 'rejected']`. If the line is ABSENT (someone already fixed it), record that; E-02 then performs as a recorded no-op (see E-02), and E-03 still runs.
+- [x] E-01 REPRODUCE THE FAILURE before changing anything: run `aw research index --check` and capture its exit code and the `frontmatter-invalid` line naming `20261001-4xtpvg-00-7so8uz-permission-ask-observability.assessment.md` with `outcome must be one of ['adopted', 'informational', 'none-yet', 'rejected']`. If the line is ABSENT (someone already fixed it), record that; E-02 then performs as a recorded no-op (see E-02), and E-03 still runs.
   - Depends on: none
   - Expected outcome: the failing exit code (1) and the exact `frontmatter-invalid` diagnostic for `7so8uz` are recorded, or its absence is recorded.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 APPLY THE FIX WITH THE TOOLED VERB, not a hand edit: `aw research set-outcome 7so8uz --to adopted --consumed-by 0b7fic --apply`. Then confirm with `git diff` that the ONLY change to the record is the single line `-outcome: answered` / `+outcome: adopted` (the `consumed-by: [0b7fic]`, `status: active`, body, and every other field unchanged). Commit via `aw commit kdje34 -- <record path> <this plan path>` and record the resulting commit hash. If E-01 found the line already absent, do NOT run the verb or commit: paste `grep -n '^outcome:\|^consumed-by:' <record path>` showing `outcome: adopted` and `consumed-by: [0b7fic]` and mark E-02 performed as a no-op.
+- [x] E-02 APPLY THE FIX WITH THE TOOLED VERB, not a hand edit: `aw research set-outcome 7so8uz --to adopted --consumed-by 0b7fic --apply`. Then confirm with `git diff` that the ONLY change to the record is the single line `-outcome: answered` / `+outcome: adopted` (the `consumed-by: [0b7fic]`, `status: active`, body, and every other field unchanged). Commit via `aw commit kdje34 -- <record path> <this plan path>` and record the resulting commit hash. If E-01 found the line already absent, do NOT run the verb or commit: paste `grep -n '^outcome:\|^consumed-by:' <record path>` showing `outcome: adopted` and `consumed-by: [0b7fic]` and mark E-02 performed as a no-op.
   - Depends on: E-01
   - Expected outcome: the record reads `outcome: adopted` with `consumed-by: [0b7fic]`; the diff is exactly one changed line in that file.
-  - Execution state: pending
+  - Execution state: performed
+  - Commit hash: 025a3fd648247abeb4a68e60c21dcde810a77ff9
 
-- [ ] E-03 RE-RUN THE GATE: `aw research index --check` and confirm exit 0 and zero `frontmatter-invalid` lines; also run `aw research index` (regenerates the GITIGNORED `INDEX.json`/`INDEX.md`, which must NOT be staged) and `python3 -m pytest tests/test_research_index.py -o addopts=""` to confirm no research-index regression.
+- [x] E-03 RE-RUN THE GATE: `aw research index --check` and confirm exit 0 and zero `frontmatter-invalid` lines; also run `aw research index` (regenerates the GITIGNORED `INDEX.json`/`INDEX.md`, which must NOT be staged) and `python3 -m pytest tests/test_research_index.py -o addopts=""` to confirm no research-index regression.
   - Depends on: E-02
   - Expected outcome: `aw research index --check` exits 0 with no `frontmatter-invalid` finding (remaining `info`-severity findings such as `dangling-citation` and `adopted-without-consumer` do not affect the exit code); the research-index tests pass.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -115,20 +116,67 @@ N/A: the outcome vocabulary is unchanged and already documented (`docs/artifact-
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste the actual pre-fix `aw research index --check` exit code and the `frontmatter-invalid` line for `7so8uz` (or the pasted output proving it was already absent).
   - Observed evidence:
-  - Result: pending
+```
+$ aw research index --check
+EXIT_CODE=1
+20261001-4xtpvg-00-7so8uz-permission-ask-observability.assessment.md: frontmatter-invalid: outcome: outcome must be one of ['adopted', 'informational', 'none-yet', 'rejected']
+```
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: paste `git show --stat <E-02 commit>` and the `git show <E-02 commit> -- <record path>` hunk (the hash E-02 recorded, not a bare `HEAD`, which a later commit may move) proving the only change is `-outcome: answered` / `+outcome: adopted`, with `consumed-by: [0b7fic]` present in the resulting file. In the E-01 already-fixed branch, paste instead the `grep` output E-02 recorded and `git log --oneline -1 -- <record path>` naming the commit that fixed it.
   - Observed evidence:
-  - Result: pending
+```
+$ git show --stat 025a3fd648247abeb4a68e60c21dcde810a77ff9
+commit 025a3fd648247abeb4a68e60c21dcde810a77ff9 (HEAD -> aw/lane/kdje34)
+Author: Gabriele Fariello <gabriele.fariello@gmail.com>
+Date:   Tue Oct 13 07:11:35 2026 -0400
 
-- [ ] V-03 validates E-03
+    work(kdje34): Correct research record 7so8uz outcome from invalid answered to adopted so aw research index passes
+
+    AW-Run: run-20261013T014119Z-1382357
+    AW-Item: kdje34
+
+ ...20261001-4xtpvg-00-7so8uz-permission-ask-observability.assessment.md | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+$ git show 025a3fd648247abeb4a68e60c21dcde810a77ff9 -- .aw/records/research/20261001-4xtpvg-00-7so8uz-permission-ask-observability.assessment.md
+diff --git a/.aw/records/research/20261001-4xtpvg-00-7so8uz-permission-ask-observability.assessment.md b/.aw/records/research/20261001-4xtpvg-00-7so8uz-permission-ask-observability.assessment.md
+index 7502f578a..16e607d02 100644
+--- a/.aw/records/research/20261001-4xtpvg-00-7so8uz-permission-ask-observability.assessment.md
++++ b/.aw/records/research/20261001-4xtpvg-00-7so8uz-permission-ask-observability.assessment.md
+@@ -7,7 +7,7 @@ topic: [turn-bounds, lane-containment, permission-deadlock]
+ model:
+ kind: assessment
+ status: active
+-outcome: answered
++outcome: adopted
+ summary: Measured: an opencode permission ask never reaches the driver's stdout stream, so A10c option (i) is unsatisfiable there; the log is the only carrier and the 2026-09-05 deny posture already closed the isolated-turn case
+ consumed-by: [0b7fic]
+ priority: medium
+```
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: paste the post-fix `aw research index --check` exit code (must be 0) with a count of `frontmatter-invalid` lines (must be 0), plus the actual pytest summary line for `tests/test_research_index.py`; paste `git status --short` showing no `INDEX.json`/`INDEX.md` staged.
   - Observed evidence:
-  - Result: pending
+```
+$ aw research index --check
+EXIT_CODE=0
+
+$ aw research index --check 2>&1 | grep -c "frontmatter-invalid"
+0
+
+$ python3 -m pytest tests/test_research_index.py -o addopts=""
+============================== 51 passed in 1.73s ==============================
+
+$ git status --short
+# (no output, clean working tree; INDEX.json and INDEX.md are gitignored and not staged)
+```
+  - Result: pass
 
 ## Approval and execution gate
 
