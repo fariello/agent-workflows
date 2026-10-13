@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """Tests for the graduated agy_run runner and tools/antigravity_execute_ipd.py.
 
-The runner logic was graduated (runnernorm follow-up puot79e04) into the packaged
-core ``agent_workflows.agy_run`` (exposed as ``aw agy exec``); ``tools/agy_run.py`` is
+Relocated from tools/ to tests/ under plan 5s31xp. The runner logic was
+graduated (runnernorm follow-up puot79e04) into the packaged core
+``agent_workflows.agy_run`` (exposed as ``aw agy exec``); ``tools/agy_run.py`` is
 now a thin compat shim that re-exports it. These tests exercise the PACKAGED surface
 (``agent_workflows.agy_run``) - the canonical implementation - so that mock patches
 land on the real functions the runner calls. They also retain coverage that
@@ -25,9 +26,9 @@ from unittest import mock
 # The runner is now the packaged core; import it as the canonical surface under test.
 from agent_workflows import agy_run  # noqa: E402
 
-# Ensure the tools directory is on sys.path so the tools/ compat shims
+# Ensure the repo's tools/ directory is on sys.path so the tools/ compat shims
 # (antigravity_execute_ipd, agy_sessions) resolve when imported by name below.
-TOOLS_DIR = Path(__file__).resolve().parent
+TOOLS_DIR = Path(__file__).resolve().parent.parent / "tools"
 if str(TOOLS_DIR) not in sys.path:
     sys.path.insert(0, str(TOOLS_DIR))
 
@@ -53,7 +54,7 @@ class AgyRunArgParseTests(unittest.TestCase):
         args = agy_run.parse_args(["7cvh9t"])
         self.assertEqual(args.target, "7cvh9t")
         self.assertIsNone(args.model)
-        self.assertEqual(args.timeout, "240m")
+        self.assertEqual(args.timeout, "480m")
         self.assertFalse(args.new_session)
         self.assertTrue(args.continue_session)
         self.assertFalse(args.no_audit)

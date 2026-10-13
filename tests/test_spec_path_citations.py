@@ -10,14 +10,13 @@ marker so that it runs in the default test suite. This boundary is necessary and
 justified by three repository facts:
 (i) `tests/` holds paths that are deliberate `tmp_path` fixture names which MUST NOT
     resolve in the real tree (for example, the string `.aw/records/specs/x.spec.md` in
-    `tests/test_scope_match.py`, line 31; and `.aw/records/specs/draft/20260925-1111-01-test.spec.md`
-    in `tests/test_doctor.py`, line 553), so scanning `tests/` would assert a falsehood.
+    `tests/test_scope_match.py`, line 31; `.aw/records/specs/draft/20260925-1111-01-test.spec.md`
+    in `tests/test_doctor.py`, line 553; and `tests/test_agy_run.py` cites fixture specs),
+    so scanning `tests/` would assert a falsehood.
 (ii) The record trees hold hundreds of such paths that are IMMUTABLE HISTORY, correct as
      of writing, so failing on them would demand forbidden edits.
 (iii) `tools/` holds zero full-path `.aw/records/specs/...spec.md` citations in shipped
-      scripts, but holds test files whose spec citations are deliberately unresolvable
-      fixture names (`tools/test_agy_run.py` cites fixture specs), so scanning `tools/`
-      adds no coverage while introducing false-positive risk.
+      scripts, so scanning `tools/` adds no coverage while introducing false-positive risk.
 """
 
 from __future__ import annotations

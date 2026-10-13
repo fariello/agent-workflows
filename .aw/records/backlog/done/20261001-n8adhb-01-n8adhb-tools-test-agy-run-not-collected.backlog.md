@@ -1,5 +1,5 @@
 - Id: n8adhb
-- Status: graduated
+- Status: done
 - Graduated-To: n8adhb
 - Set: n8adhb
 - Priority: medium
@@ -7,6 +7,7 @@
 - Summary: tools/test_agy_run.py is not collected by any gate
 
 ## Workflow history
+- 2026-10-13 done (aw backlog): closed by aw agy run: IPD 5s31xp executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20261011-n8adhb-01-5s31xp-relocate-tools-test-agy-run-py-into-tests-and-gate-against-u.ipd.md); evidence .aw/records/plans/executed/20261011-n8adhb-01-5s31xp-relocate-tools-test-agy-run-py-into-tests-and-gate-against-u.ipd.md
 - 2026-10-12 graduated (aw backlog): graduated by run run-20261012T005641Z-2321995: 5s31xp
 - 2026-10-01 created (aw backlog): tools/test_agy_run.py is not collected by any gate
 
