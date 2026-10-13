@@ -6,7 +6,7 @@
 - Scope: IN: (a) repoint the one genuine stale citation; (b) make the census honor its declared fixture/placeholder/historical exclusions through an explicit, keyed, reviewable exemption table, reported as a separate count so nothing is hidden; (c) a behavioral test of the exemption over a synthetic git repo; (d) document the new class in `tools/README.md`. OUT: the 75 paths attributable to `19313eed` (owned by backlog `iosmvn` and its sibling items); `CHANGELOG.md`/`DECISIONS.md` (already out of scope as append-only history); `.aw/records/` (immutable); restoring any deleted test.
 - Scope-Paths: tools/lost_guard_census.py, tests/test_lost_guard_census.py, tests/test_lift_drift_scan.py, tools/README.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -16,9 +16,9 @@
 - Highest E allocated: 05
 - Author: opencode
 - Id: l4lc6p
-- Approval: 2026-10-12, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-13 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: l4lc6p verified (set 9vfxhn, attempt 1).
 - 2026-10-12 approved (aw set): status set to approved
 - 2026-10-12 reviewed (aw set): /plan-review (opencode/its_direct-pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005, PR-006. Re-verified at HEAD ca5521479: E-01 command reproduces the 24-row table; census scans itself, so self-acknowledgement added.
 
