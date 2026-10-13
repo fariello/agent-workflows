@@ -7,7 +7,7 @@ topic: [turn-bounds, lane-containment, permission-deadlock]
 model: 
 kind: assessment
 status: active
-outcome: answered
+outcome: adopted
 summary: Measured: an opencode permission ask never reaches the driver's stdout stream, so A10c option (i) is unsatisfiable there; the log is the only carrier and the 2026-09-05 deny posture already closed the isolated-turn case
 consumed-by: [0b7fic]
 priority: medium
