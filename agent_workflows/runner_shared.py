@@ -13568,8 +13568,9 @@ def parse_plan_file(path: Path, repo: Path) -> PlanRecord | None:
     WHY THE `selectors` IMPORT IS FUNCTION-LOCAL, since a module-level one would read more naturally.
     `runner_shared` keeps exactly ONE module-level first-party import (`render_stream`) plus the
     designated peer `runner_profiles`, and reaches `ipd_lint`/`ipd_schema`/`selectors` from inside the
-    functions that need them - a rule enforced by
-    `tests/test_orchestrator_probe_cache.py::TheRowWalkIsSharedWithTheRetirementGate`, because a
+    functions that need them. No live test enforces this function-local convention (the historically cited
+    `tests/test_orchestrator_probe_cache.py::TheRowWalkIsSharedWithTheRetirementGate`, deleted in `19313eed7`,
+    was a row-walk spy test and never enforced imports), because a
     module-level import here changes the import graph for BOTH host drivers and for the twelve other
     modules that import this one. Measured: five of those (`attention`, `completion`, `ipd_lifecycle`,
     `ipd_set_plan`, `runner_shutdown`) do NOT currently reach `selectors` at all, so a module-level
@@ -23711,9 +23712,11 @@ def _findings_block_reason(repo: Path, dep: str) -> str | None:
     both docstrings said the same thing about why: "this wrapper exists only because neither runner
     imports the other (the duplication the in-flight `rununify` Set exists to fix)". That reason is
     now discharged - the wrapper lives in the shared module both runners already import, so there is
-    one wrapper in front of one predicate. `agy_runipd` keeps the NAME bound (a re-export) because
-    `tests/test_review_findings_cascade.py::SharedPredicateTests` asserts the attribute exists on that
-    module and that its source names `subject_gating_blocks`; the import line satisfies both.
+    one wrapper in front of one predicate. `agy_runipd` keeps the NAME bound (a re-export) for
+    compatibility so both hosts still call one shared predicate. The contract test
+    (`tests/test_review_findings_cascade.py::SharedPredicateTests`, a source-substring code pin) was
+    deleted in `19313eed7` and will not return under P16, and nothing currently requires the name to stay
+    bound.
 
     Fail-open on import/IO error: a crashing gate is a disabled gate, and this must never wedge a run.
     """
@@ -28292,8 +28295,10 @@ def resolve_prior_lane(
     `from agent_workflows.oc_runipd import resolve_prior_lane as _shared; return _shared(item)`, i.e.
     the antigravity driver reached into the opencode driver at call time. There was already only one
     implementation; what changes is WHERE it lives, and the shared module is a place agy may import
-    without `tests/test_review_findings_cascade.py::test_no_runner_to_runner_import` having to be
-    satisfied on a technicality.
+    without a runner-to-runner import. The substring guard
+    (`tests/test_review_findings_cascade.py::test_no_runner_to_runner_import`) was retired (`d27e5eac8`
+    folded it into `SharedPredicateTests`, deleted in `19313eed7`), so the no-runner-to-runner-import
+    rule is now held by review.
     """
     lane_id = item.get("preserved_lane_id")
     if lane_id:

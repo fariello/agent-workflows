@@ -1872,7 +1872,8 @@ class AgyVerbosityFlagTests(unittest.TestCase):
     The property under test is PARITY, so every case here mirrors
     `tests/test_oc_runipd_cli.py::VerbosityFlagTests`. A leading `-v` used to be swallowed by the
     implicit-start `subcommands` set in this driver too; both drivers' sets were changed together
-    because `tests/test_runner_stop_triggers.py` regexes both source files.
+    to keep the drivers identical (the regexing guard `tests/test_runner_stop_triggers.py` was
+    deleted in `19313eed7`).
     """
 
     def _parse(self, argv):
