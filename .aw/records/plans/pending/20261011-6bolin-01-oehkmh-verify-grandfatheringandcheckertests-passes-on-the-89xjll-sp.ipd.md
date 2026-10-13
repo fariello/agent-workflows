@@ -85,6 +85,7 @@ In the expected case this plan changes no source or test file; its deliverable i
 
 - Closing `md2o3y`: a separate backlog item with its own lifecycle; this plan only records the shared evidence (F-6).
   - Carrier: k6clui
+  - Carrier-Evidence: .aw/records/plans/executed/20261011-md2o3y-01-k6clui-verify-specs-validate-spec-accepts-spec-89xjll-and-close-the.ipd.md
 - Editing the approved `89xjll` spec body: forbidden as a way to pass the check, and unnecessary because the prose bound already accepts it.
   - Carrier-Declined: a forbidden shortcut, not owed work
 
