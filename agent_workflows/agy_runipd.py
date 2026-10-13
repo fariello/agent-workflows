@@ -624,9 +624,10 @@ from agent_workflows.runner_shared import (
 # AND THE ONE DEFINITION REALLY IS ONE NOW, which it was not before. `runner_shared` already carried a
 # byte-identical copy of each, so `oc.ToolIdentityError is runner_shared.ToolIdentityError` measured
 # FALSE and a tool-identity mismatch raised through the shared path was caught only by the broader
-# `except DriverError` this module documents as ITEM-LOCAL, losing the ABORT-RUN escalation spec
-# 25kzda 1.4/A1 reserves for the identity class. Filed as `232wcg`; oc's duplicate is deleted in the
-# same commit, so the `except ToolIdentityError` below now catches a raise from either path.
+# `except DriverError` which both hosts handle as generic `failed-safely`. The dedicated arm exists to
+# label the item `fail-gate` with a named refusal rather than the generic `failed-safely` (spec 25kzda
+# 4.1, tb6lw3 OQ-02 Option B, backlog 03y5g6). Filed as `232wcg`; oc's duplicate is deleted in the same
+# commit, so the `except ToolIdentityError` below now catches a raise from either path.
 from agent_workflows.runner_shared import (
     ToolIdentityError,
     assert_child_tool_identity as assert_child_tool_identity,  # noqa: F401
@@ -3514,13 +3515,21 @@ def run_queue(
         previous_id6 = runnable["id6"]
         try:
             execute_item(run_dir, state, runnable, recovery=recovery, tracker=tracker)
-        except ToolIdentityError:
-            # lanetruth Order 01 (af7i6p) E-04 / OQ-02: RUN-FATAL. Must precede the item-local
-            # `except DriverError` (ToolIdentityError subclasses it), or the abort would be
-            # downgraded to one item marked `failed-safely` while later items ran under the same
-            # wrong tooling. Mirrors oc_runipd.
-            save_state(run_dir, state)
-            raise
+        except ToolIdentityError as exc:
+            # tb6lw3 OQ-02 Option B, backlog 03y5g6, plan s2tn4q: a tool-identity mismatch fails ONLY
+            # the item (fail-gate with named refusal `tool-identity-mismatch`) instead of aborting the
+            # whole run. Must precede the generic item-local `except DriverError` below
+            # (ToolIdentityError subclasses DriverError) so the dedicated handler labels the item
+            # `fail-gate` rather than `failed-safely`. Independent items continue. Mirrors oc_runipd.
+            runner_shared.fail_item_on_tool_identity(
+                run_dir,
+                state,
+                runnable,
+                exc,
+                save_state=save_state,
+                append_jsonl=append_jsonl,
+                host_labels=runner_shared.AGY_HOST_LABELS,
+            )
         except KeyboardInterrupt:
             # laneorphan-01 (`zwnjp3`) E-05: PRESERVE-AND-RECORD before the interrupt propagates,
             # so the run does not leak lanes (which wedged the next run at allocation) and does not

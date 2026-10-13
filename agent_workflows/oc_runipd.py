@@ -382,12 +382,12 @@ from agent_workflows.runner_shared import (
 #
 # THAT DIVERGENCE WAS A REAL DEFECT AND IS FILED AS `232wcg`. `runner_shared.assert_child_tool_identity`
 # raises `runner_shared.ToolIdentityError`, which is NOT the class either host's `except
-# ToolIdentityError` names, so a run-fatal tool-identity mismatch raised through the shared path was
-# caught only by the broader `except DriverError` - which both hosts document as ITEM-LOCAL. The
-# ABORT-RUN escalation spec 25kzda 1.4/A1 reserves for the identity class was therefore lost, and the
-# run would have continued under tooling the runner is not. This is exactly the two-distinct-classes
-# defect `818uru` fixed for `DriverError`, reintroduced one subclass down; deleting this module's copy
-# is what makes the two agree.
+# ToolIdentityError` names, so a tool-identity mismatch raised through the shared path was
+# caught only by the broader `except DriverError` which both hosts handle as generic `failed-safely`.
+# The dedicated arm exists to label the item `fail-gate` with a named refusal rather than the generic
+# `failed-safely` (spec 25kzda 4.1, tb6lw3 OQ-02 Option B, backlog 03y5g6). This is exactly the
+# two-distinct-classes defect `818uru` fixed for `DriverError`, reintroduced one subclass down; deleting
+# this module's copy is what makes the two agree.
 #
 # THE PRIVATE NAMES COME TOO, and not for tidiness: `assert_child_tool_identity` closes over
 # `_AW_PIN_PROBE` and `_TOOL_IDENTITY_VERIFIED` (its memo), `pinned_child_env` over
@@ -4202,14 +4202,21 @@ def run_queue(
         previous_id6 = runnable["id6"]
         try:
             execute_item(run_dir, state, runnable, recovery=recovery, tracker=tracker)
-        except ToolIdentityError:
-            # lanetruth Order 01 (af7i6p) E-04 / OQ-02: RUN-FATAL, so it must NOT be caught by the
-            # item-local `except DriverError` below (ToolIdentityError subclasses DriverError, so
-            # without this clause the abort would be silently downgraded to one item marked
-            # `failed-safely` while the remaining items kept running under the same wrong tooling
-            # -- exactly the misleading outcome OQ-02 rejects). Re-raise to abort the whole run.
-            save_state(run_dir, state)
-            raise
+        except ToolIdentityError as exc:
+            # tb6lw3 OQ-02 Option B, backlog 03y5g6, plan s2tn4q: a tool-identity mismatch fails ONLY
+            # the item (fail-gate with named refusal `tool-identity-mismatch`) instead of aborting the
+            # whole run. Must precede the generic item-local `except DriverError` below
+            # (ToolIdentityError subclasses DriverError) so the dedicated handler labels the item
+            # `fail-gate` rather than `failed-safely`. Independent items continue.
+            runner_shared.fail_item_on_tool_identity(
+                run_dir,
+                state,
+                runnable,
+                exc,
+                save_state=save_state,
+                append_jsonl=append_jsonl,
+                host_labels=runner_shared.OC_HOST_LABELS,
+            )
         except KeyboardInterrupt:
             # laneorphan-01 (`zwnjp3`) E-05: PRESERVE-AND-RECORD before the interrupt propagates,
             # so the run does not leak lanes (which wedged the next run at allocation) and does not

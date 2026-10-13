@@ -1731,6 +1731,7 @@ This example demonstrates the revised guarantees: `all` is safely bounded; depen
 
 ## Workflow history
 
+- 2026-10-13 note (aw specs): Code conformed to the 4.1 abort set by plan s2tn4q (backlog 03y5g6): a runner tool-identity mismatch now fails only the item (fail-gate, refusal tool-identity-mismatch); the shipped run abort named as a divergence by Set fixfirst is removed
 - 2026-10-13 note (aw specs): CORRECTION (79d4ix / o58r3r): the 2026-09-25 statusvocab note's 'no longer written by the runner' does not hold for failed-safely, which the runner still writes for contained host/driver failures by design; see spec 25kzda Section 5.5 'Live legacy-spelled token: failed-safely'.
 - 2026-10-13 note (aw specs): amendment (c0oysi): Section 5.5 adds global fix-it caps per artifact, per Set and per run (backlog 38hwvk)
 - 2026-10-13 note (aw specs): amended Sections 2.6 and 3.3 for implementing spec re-plan turn (plan 2hgxi1)
