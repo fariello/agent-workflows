@@ -13963,6 +13963,50 @@ def find_selector_match_facts(
     )
 
 
+def _build_find_continuation_parts(
+    repo_root: Path,
+    norm: str,
+    raw_type: Optional[str],
+    selectors: Sequence[str],
+    args: argparse.Namespace,
+    *,
+    escape_braces: bool = False,
+) -> List[str]:
+    """Build shared query-preserving argument list for aw find continuations (IPD i00j2o E-02)."""
+    import shlex
+    from agent_workflows import agent_schema as _schema
+
+    def _sanitize(val: str) -> str:
+        norm_val = (
+            _schema.normalize_repo_path(val, repo_root)
+            if ("/" in val or "\\" in val)
+            else val
+        )
+        quoted = shlex.quote(norm_val)
+        if escape_braces:
+            return quoted.replace("{", "{{").replace("}", "}}")
+        return quoted
+
+    parts = ["aw", "find"]
+    if norm != "all":
+        parts.append(norm)
+    elif raw_type == "all":
+        parts.append("all")
+    for s in selectors:
+        parts.append(_sanitize(s))
+    if getattr(args, "id", None):
+        parts.append(f"--id {_sanitize(args.id)}")
+    if getattr(args, "set", None):
+        parts.append(f"--set {_sanitize(args.set)}")
+    if getattr(args, "status", None):
+        parts.append(f"--status {_sanitize(args.status)}")
+    if getattr(args, "topic", None):
+        parts.append(f"--topic {_sanitize(args.topic)}")
+    if getattr(args, "disposition", None):
+        parts.append(f"--disposition {_sanitize(args.disposition)}")
+    return parts
+
+
 def _run_find(
     args: argparse.Namespace, term: Term, context: Optional[Any] = None
 ) -> int:
@@ -14243,48 +14287,42 @@ def _run_find(
         return 2
 
     if getattr(args, "paths", False):
-        # IPD zyj8io E-06: --paths unifies with other surfaces.
+        # IPD zyj8io E-06 / IPD i00j2o E-04: --paths bounds output when ctx.limit is set.
         # Zero matches for refusable selectors exit 2 above with message on stderr and stdout empty.
         # Standing vocabulary queries matching zero paths or empty trees exit 0 with stdout empty.
         # Matching queries print paths and exit 0.
-        for p in all_paths:
+        limit = ctx.limit
+        total = len(all_paths)
+        bounded = limit is not None and limit < total
+        paths_to_print = all_paths[:limit] if bounded else all_paths
+        for p in paths_to_print:
             print(p)
+        if bounded:
+            omitted = total - len(paths_to_print)
+            err_term = Term(stream=sys.stderr, color=term.color, unicode=term.unicode)
+            err_term.status(
+                "info",
+                f"showing {len(paths_to_print)} of {total} matches ({omitted} omitted)",
+            )
+            next_parts = _build_find_continuation_parts(
+                repo_root, norm, raw_type, selectors, args, escape_braces=False
+            )
+            next_parts.append("--paths")
+            next_parts.append(f"--limit {total}")
+            err_term.next_action(" ".join(next_parts), "list every match")
         return 0
 
     if ctx.is_agent:
-        # IPD okiso1 E-03 / E-04 / D-3: --agent ALWAYS emits the stream (one item per match, followed
+        # IPD okiso1 E-03 / E-04 / D-3 / IPD i00j2o E-02: --agent ALWAYS emits the stream (one item per match, followed
         # by a summary record; or a lone summary record on zero matches).
         # Build query-preserving next_template sanitized against home paths (F-08) and braces (E-04).
         import shlex
         from agent_workflows import agent_schema as _schema
         from agent_workflows.renderers import AgentRenderer
 
-        def _sanitize_for_next(val: str) -> str:
-            norm_val = (
-                _schema.normalize_repo_path(val, repo_root)
-                if ("/" in val or "\\" in val)
-                else val
-            )
-            quoted = shlex.quote(norm_val)
-            return quoted.replace("{", "{{").replace("}", "}}")
-
-        next_parts = ["aw", "find"]
-        if norm != "all":
-            next_parts.append(norm)
-        elif raw_type == "all":
-            next_parts.append("all")
-        for s in selectors:
-            next_parts.append(_sanitize_for_next(s))
-        if getattr(args, "id", None):
-            next_parts.append(f"--id {_sanitize_for_next(args.id)}")
-        if getattr(args, "set", None):
-            next_parts.append(f"--set {_sanitize_for_next(args.set)}")
-        if getattr(args, "status", None):
-            next_parts.append(f"--status {_sanitize_for_next(args.status)}")
-        if getattr(args, "topic", None):
-            next_parts.append(f"--topic {_sanitize_for_next(args.topic)}")
-        if getattr(args, "disposition", None):
-            next_parts.append(f"--disposition {_sanitize_for_next(args.disposition)}")
+        next_parts = _build_find_continuation_parts(
+            repo_root, norm, raw_type, selectors, args, escape_braces=True
+        )
         if getattr(args, "fields", None):
             raw_fields_arg = str(args.fields)
             next_parts.append(
@@ -14404,10 +14442,32 @@ def _run_find(
         )
         return 0
 
-    for line in all_lines:
+    limit = ctx.limit
+    total = len(all_lines)
+    bounded = limit is not None and limit < total
+    lines_to_print = all_lines[:limit] if bounded else all_lines
+
+    # IPD i00j2o E-03: --agent and human bound the same first N rows in matching order.
+    for line in lines_to_print:
         term.line(line)
+
+    if bounded:
+        omitted = total - len(lines_to_print)
+        term.line("")
+        term.status(
+            "info",
+            f"showing {len(lines_to_print)} of {total} matches ({omitted} omitted)",
+        )
+        next_parts = _build_find_continuation_parts(
+            repo_root, norm, raw_type, selectors, args, escape_braces=False
+        )
+        next_parts.append(f"--limit {total}")
+        term.next_action(" ".join(next_parts), "list every match")
+
     # EVERY MATCHING ROW IS PRINTED FIRST AND THE WARNING FOLLOWS (IPD paw8so E-03). The warning
     # ADDS a line; it never removes, reorders or suppresses a result, and the exit code stays 0.
+    # IPD i00j2o E-03 / OQ-02: Collisions are not bounded with rows because a collision among
+    # omitted rows is still a fact about the query, matching --agent summary diagnostics.
     for coll in collisions:
         term.line("")
         term.line(_id6_collision_message(coll))
