@@ -24,6 +24,8 @@ now under way. The direction of the 2.x line (in progress, not all shipped in th
 
 Major storage-layout boundary. The logical model (D126-D129) was superseded by the PHYSICAL `.aw/` hierarchy specified in `20260810-1447-01-physical-aw-hierarchy-placement-and-migration.spec.md` (D130, D134-D137), which the framework now implements and has migrated its own repository onto:
 
+- Fixed: aw specs set <status> <path> run from outside the repository now writes the same history-sidecar record as aw specs set <path> --status <status> (F-06).
+
 - Fixed: aw sanitize and aw check-local-leaks under --agent and --json now emit structured records on stdout for the --fix branch and for cannot-run errors, and refuse un-attested machine --fix calls with an error record instead of prompting on stdout.
 - Fixed: usage errors such as a missing required argument or an invalid choice now emit an aw.agent/v1 cannot-run error record on stdout under --agent and --json.
 - Changed: `aw backlog set <setid> --status <status>` now updates every item matching the setid rather than only the first match, requires `--yes` for machine-readable callers (`--agent` or `--json`), and refuses direct calls with invalid `--work-kind` or `--priority` enums with exit code 2. In addition, descriptive flag violations (`--message`, `--gate-ref`) and unresolvable selectors on this spelling now emit exit 2 with the `aw set:` prefix.

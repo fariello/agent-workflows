@@ -27,6 +27,7 @@ from __future__ import annotations
 
 import argparse
 import io
+import os
 import re
 import subprocess
 import tempfile
@@ -37,8 +38,8 @@ from unittest.mock import patch
 
 from agent_workflows import attention as att
 from agent_workflows import attention_contract as ac
-from agent_workflows import backlog, cli, status_set
-
+from agent_workflows import backlog, cli, specs, status_set
+from tests import support
 
 # =============================================================================
 # NORMALIZATION HELPERS (E-01)
@@ -1307,41 +1308,44 @@ class TestSpecsSetDispatchParity(unittest.TestCase):
                 )
                 before_bytes = spec.read_bytes()
                 out, err = io.StringIO(), io.StringIO()
-                with patch(
-                    "agent_workflows.term.stdin_is_interactive", return_value=False
+                with (
+                    patch(
+                        "agent_workflows.term.stdin_is_interactive", return_value=False
+                    ),
+                    redirect_stdout(out),
+                    redirect_stderr(err),
                 ):
-                    with redirect_stdout(out), redirect_stderr(err):
-                        if spelling == "status":
-                            rc = cli.main(
-                                [
-                                    "specs",
-                                    "set",
-                                    str(spec),
-                                    "--status",
-                                    "approved",
-                                    "--message",
-                                    "human approval",
-                                    "--yes",
-                                    "--no-commit",
-                                    "--dir",
-                                    str(repo),
-                                ]
-                            )
-                        else:
-                            rc = cli.main(
-                                [
-                                    "specs",
-                                    "set",
-                                    "approved",
-                                    "sp0001",
-                                    "--message",
-                                    "human approval",
-                                    "--yes",
-                                    "--no-commit",
-                                    "--dir",
-                                    str(repo),
-                                ]
-                            )
+                    if spelling == "status":
+                        rc = cli.main(
+                            [
+                                "specs",
+                                "set",
+                                str(spec),
+                                "--status",
+                                "approved",
+                                "--message",
+                                "human approval",
+                                "--yes",
+                                "--no-commit",
+                                "--dir",
+                                str(repo),
+                            ]
+                        )
+                    else:
+                        rc = cli.main(
+                            [
+                                "specs",
+                                "set",
+                                "approved",
+                                "sp0001",
+                                "--message",
+                                "human approval",
+                                "--yes",
+                                "--no-commit",
+                                "--dir",
+                                str(repo),
+                            ]
+                        )
                 self.assertEqual(rc, 1)
                 spec_after = _find_spec(repo, "sp0001")
                 self.assertEqual(spec_after.parent.name, "reviewed")
@@ -1909,6 +1913,809 @@ class TestSetDispatchExpectedDifferences(unittest.TestCase):
             self.assertEqual(
                 item.read_bytes(), before_bytes, "file must remain unchanged"
             )
+
+
+# =============================================================================
+# TASK GROUP 3: ENTRY CONVERGENCE ASSERTIONS (E-04 / V-04)
+# =============================================================================
+
+
+class TestSetEntryConvergence(unittest.TestCase):
+    """Pin the entry fork collapse and behavioral convergence for backlog set and specs set.
+
+    Governed by IPD 19fch9 (Set setdispfork, Order 01).
+    Outcome testing only: drives CLI surfaces via cli.main (and direct adapter calls for
+    the hand-built Namespace fallback).
+    """
+
+    def _get_newest_inline_record(self, p: Path) -> str:
+        if not p.exists():
+            return ""
+        text = p.read_text(encoding="utf-8")
+        if "## Workflow history" not in text:
+            return ""
+        after = support.final_section(text, "## Workflow history", next_marker="## ")
+        for line in after.splitlines():
+            line = line.strip()
+            if line.startswith("- "):
+                return line
+        return ""
+
+    def _get_sidecar_records(self, repo: Path) -> list[str]:
+        sc = repo / ".aw" / "records" / "history.jsonl"
+        if not sc.exists():
+            return []
+        return [
+            line.strip()
+            for line in sc.read_text(encoding="utf-8").splitlines()
+            if line.strip()
+        ]
+
+    # -------------------------------------------------------------------------
+    # Case (1): The property itself (mock wrapper on backlog.run_set / specs.run_set)
+    # -------------------------------------------------------------------------
+
+    def test_backlog_set_entry_convergence_property(self) -> None:
+        """(1) Both spellings of aw backlog set invoke backlog.run_set via cli.main."""
+        with patch.object(backlog, "run_set", wraps=backlog.run_set) as mock_run_set:
+            # Flag spelling
+            with tempfile.TemporaryDirectory() as tmp:
+                repo = _setup_repo(Path(tmp))
+                item = _create_backlog_item(repo, status="open", item_id="bk0001")
+                out, err = io.StringIO(), io.StringIO()
+                with redirect_stdout(out), redirect_stderr(err):
+                    rc = cli.main(
+                        [
+                            "backlog",
+                            "set",
+                            str(item),
+                            "--status",
+                            "done",
+                            "--message",
+                            "test flag",
+                            "--yes",
+                            "--no-commit",
+                            "--dir",
+                            str(repo),
+                        ]
+                    )
+                self.assertEqual(rc, 0)
+                self.assertEqual(mock_run_set.call_count, 1)
+                moved = _find_backlog_item(repo, "bk0001")
+                self.assertEqual(moved.parent.name, "done")
+
+            mock_run_set.reset_mock()
+
+            # Positional spelling
+            with tempfile.TemporaryDirectory() as tmp:
+                repo = _setup_repo(Path(tmp))
+                item = _create_backlog_item(repo, status="open", item_id="bk0001")
+                out, err = io.StringIO(), io.StringIO()
+                with redirect_stdout(out), redirect_stderr(err):
+                    rc = cli.main(
+                        [
+                            "backlog",
+                            "set",
+                            "done",
+                            str(item),
+                            "--message",
+                            "test positional",
+                            "--yes",
+                            "--no-commit",
+                            "--dir",
+                            str(repo),
+                        ]
+                    )
+                self.assertEqual(rc, 0)
+                self.assertEqual(mock_run_set.call_count, 1)
+                moved = _find_backlog_item(repo, "bk0001")
+                self.assertEqual(moved.parent.name, "done")
+
+    def test_specs_set_entry_convergence_property(self) -> None:
+        """(1) Both spellings of aw specs set invoke specs.run_set via cli.main."""
+        with patch.object(specs, "run_set", wraps=specs.run_set) as mock_run_set:
+            # Flag spelling
+            with tempfile.TemporaryDirectory() as tmp:
+                repo = _setup_repo(Path(tmp))
+                spec = _create_spec(repo, status="draft", spec_id="sp0001")
+                out, err = io.StringIO(), io.StringIO()
+                with redirect_stdout(out), redirect_stderr(err):
+                    rc = cli.main(
+                        [
+                            "specs",
+                            "set",
+                            str(spec),
+                            "--status",
+                            "to-review",
+                            "--message",
+                            "test flag",
+                            "--yes",
+                            "--no-commit",
+                            "--dir",
+                            str(repo),
+                        ]
+                    )
+                self.assertEqual(rc, 0)
+                self.assertEqual(mock_run_set.call_count, 1)
+                moved = _find_spec(repo, "sp0001")
+                self.assertEqual(moved.parent.name, "to-review")
+
+            mock_run_set.reset_mock()
+
+            # Positional spelling
+            with tempfile.TemporaryDirectory() as tmp:
+                repo = _setup_repo(Path(tmp))
+                spec = _create_spec(repo, status="draft", spec_id="sp0001")
+                out, err = io.StringIO(), io.StringIO()
+                with redirect_stdout(out), redirect_stderr(err):
+                    rc = cli.main(
+                        [
+                            "specs",
+                            "set",
+                            "to-review",
+                            str(spec),
+                            "--message",
+                            "test positional",
+                            "--yes",
+                            "--no-commit",
+                            "--dir",
+                            str(repo),
+                        ]
+                    )
+                self.assertEqual(rc, 0)
+                self.assertEqual(mock_run_set.call_count, 1)
+                moved = _find_spec(repo, "sp0001")
+                self.assertEqual(moved.parent.name, "to-review")
+
+    # -------------------------------------------------------------------------
+    # Case (2): E-01 cases (a) to (e) outcomes asserted
+    # -------------------------------------------------------------------------
+
+    def test_case_a_plain_transition_with_dir(self) -> None:
+        """(2a) Plain transition with --dir for both spellings of both verbs."""
+        # Backlog
+        with (
+            tempfile.TemporaryDirectory() as tmp_f,
+            tempfile.TemporaryDirectory() as tmp_p,
+        ):
+            repo_f, repo_p = _setup_repo(Path(tmp_f)), _setup_repo(Path(tmp_p))
+            item_f = _create_backlog_item(repo_f, status="open", item_id="bk0001")
+            item_p = _create_backlog_item(repo_p, status="open", item_id="bk0001")
+
+            out_f, err_f = io.StringIO(), io.StringIO()
+            with redirect_stdout(out_f), redirect_stderr(err_f):
+                rc_f = cli.main(
+                    [
+                        "backlog",
+                        "set",
+                        str(item_f),
+                        "--status",
+                        "done",
+                        "--dir",
+                        str(repo_f),
+                        "--message",
+                        "case a msg",
+                        "--yes",
+                        "--no-commit",
+                    ]
+                )
+            out_p, err_p = io.StringIO(), io.StringIO()
+            with redirect_stdout(out_p), redirect_stderr(err_p):
+                rc_p = cli.main(
+                    [
+                        "backlog",
+                        "set",
+                        "done",
+                        str(item_p),
+                        "--dir",
+                        str(repo_p),
+                        "--message",
+                        "case a msg",
+                        "--yes",
+                        "--no-commit",
+                    ]
+                )
+
+            self.assertEqual(rc_f, 0)
+            self.assertEqual(rc_p, 0)
+            moved_f, moved_p = (
+                _find_backlog_item(repo_f, "bk0001"),
+                _find_backlog_item(repo_p, "bk0001"),
+            )
+            self.assertEqual(moved_f.relative_to(repo_f), moved_p.relative_to(repo_p))
+            self.assertEqual(moved_f.parent.name, "done")
+
+            inline_f = self._get_newest_inline_record(moved_f)
+            inline_p = self._get_newest_inline_record(moved_p)
+            self.assertIn("(aw backlog)", inline_f)
+            self.assertIn("(aw set)", inline_p)
+            self.assertEqual(
+                normalize_history_line(inline_f), normalize_history_line(inline_p)
+            )
+
+            sc_f = self._get_sidecar_records(repo_f)
+            sc_p = self._get_sidecar_records(repo_p)
+            self.assertEqual(sc_f, sc_p)
+            self.assertEqual(len(sc_f), 1)
+
+        # Specs
+        with (
+            tempfile.TemporaryDirectory() as tmp_f,
+            tempfile.TemporaryDirectory() as tmp_p,
+        ):
+            repo_f, repo_p = _setup_repo(Path(tmp_f)), _setup_repo(Path(tmp_p))
+            spec_f = _create_spec(repo_f, status="draft", spec_id="sp0001")
+            spec_p = _create_spec(repo_p, status="draft", spec_id="sp0001")
+
+            out_f, err_f = io.StringIO(), io.StringIO()
+            with redirect_stdout(out_f), redirect_stderr(err_f):
+                rc_f = cli.main(
+                    [
+                        "specs",
+                        "set",
+                        str(spec_f),
+                        "--status",
+                        "to-review",
+                        "--dir",
+                        str(repo_f),
+                        "--message",
+                        "case a msg",
+                        "--yes",
+                        "--no-commit",
+                    ]
+                )
+            out_p, err_p = io.StringIO(), io.StringIO()
+            with redirect_stdout(out_p), redirect_stderr(err_p):
+                rc_p = cli.main(
+                    [
+                        "specs",
+                        "set",
+                        "to-review",
+                        str(spec_p),
+                        "--dir",
+                        str(repo_p),
+                        "--message",
+                        "case a msg",
+                        "--yes",
+                        "--no-commit",
+                    ]
+                )
+
+            self.assertEqual(rc_f, 0)
+            self.assertEqual(rc_p, 0)
+            moved_f, moved_p = (
+                _find_spec(repo_f, "sp0001"),
+                _find_spec(repo_p, "sp0001"),
+            )
+            self.assertEqual(moved_f.relative_to(repo_f), moved_p.relative_to(repo_p))
+            self.assertEqual(moved_f.parent.name, "to-review")
+
+            inline_f = self._get_newest_inline_record(moved_f)
+            inline_p = self._get_newest_inline_record(moved_p)
+            self.assertIn("(aw specs)", inline_f)
+            self.assertIn("(aw set)", inline_p)
+            self.assertEqual(
+                normalize_history_line(inline_f), normalize_history_line(inline_p)
+            )
+
+            sc_f = self._get_sidecar_records(repo_f)
+            sc_p = self._get_sidecar_records(repo_p)
+            self.assertEqual(sc_f, sc_p)
+            self.assertEqual(len(sc_f), 1)
+
+    def test_case_b_subdirectory_id6_selector(self) -> None:
+        """(2b) Subdirectory id6 selector with no --dir for both spellings of both verbs."""
+        orig_cwd = os.getcwd()
+        # Backlog
+        with (
+            tempfile.TemporaryDirectory() as tmp_f,
+            tempfile.TemporaryDirectory() as tmp_p,
+        ):
+            repo_f, repo_p = _setup_repo(Path(tmp_f)), _setup_repo(Path(tmp_p))
+            _create_backlog_item(repo_f, status="open", item_id="bk0001")
+            _create_backlog_item(repo_p, status="open", item_id="bk0001")
+            sub_f, sub_p = repo_f / "sub_f", repo_p / "sub_p"
+            sub_f.mkdir()
+            sub_p.mkdir()
+
+            try:
+                os.chdir(str(sub_f))
+                out_f, err_f = io.StringIO(), io.StringIO()
+                with redirect_stdout(out_f), redirect_stderr(err_f):
+                    rc_f = cli.main(
+                        [
+                            "backlog",
+                            "set",
+                            "bk0001",
+                            "--status",
+                            "done",
+                            "--message",
+                            "case b msg",
+                            "--yes",
+                            "--no-commit",
+                        ]
+                    )
+
+                os.chdir(str(sub_p))
+                out_p, err_p = io.StringIO(), io.StringIO()
+                with redirect_stdout(out_p), redirect_stderr(err_p):
+                    rc_p = cli.main(
+                        [
+                            "backlog",
+                            "set",
+                            "done",
+                            "bk0001",
+                            "--message",
+                            "case b msg",
+                            "--yes",
+                            "--no-commit",
+                        ]
+                    )
+            finally:
+                os.chdir(orig_cwd)
+
+            self.assertEqual(rc_f, 0)
+            self.assertEqual(rc_p, 0)
+            moved_f, moved_p = (
+                _find_backlog_item(repo_f, "bk0001"),
+                _find_backlog_item(repo_p, "bk0001"),
+            )
+            self.assertEqual(moved_f.relative_to(repo_f), moved_p.relative_to(repo_p))
+            self.assertEqual(moved_f.parent.name, "done")
+
+            inline_f = self._get_newest_inline_record(moved_f)
+            inline_p = self._get_newest_inline_record(moved_p)
+            self.assertIn("(aw backlog)", inline_f)
+            self.assertIn("(aw set)", inline_p)
+            self.assertEqual(
+                normalize_history_line(inline_f), normalize_history_line(inline_p)
+            )
+
+            sc_f = self._get_sidecar_records(repo_f)
+            sc_p = self._get_sidecar_records(repo_p)
+            self.assertEqual(sc_f, sc_p)
+            self.assertEqual(len(sc_f), 1)
+
+        # Specs
+        with (
+            tempfile.TemporaryDirectory() as tmp_f,
+            tempfile.TemporaryDirectory() as tmp_p,
+        ):
+            repo_f, repo_p = _setup_repo(Path(tmp_f)), _setup_repo(Path(tmp_p))
+            _create_spec(repo_f, status="draft", spec_id="sp0001")
+            _create_spec(repo_p, status="draft", spec_id="sp0001")
+            sub_f, sub_p = repo_f / "sub_f", repo_p / "sub_p"
+            sub_f.mkdir()
+            sub_p.mkdir()
+
+            try:
+                os.chdir(str(sub_f))
+                out_f, err_f = io.StringIO(), io.StringIO()
+                with redirect_stdout(out_f), redirect_stderr(err_f):
+                    rc_f = cli.main(
+                        [
+                            "specs",
+                            "set",
+                            "sp0001",
+                            "--status",
+                            "to-review",
+                            "--message",
+                            "case b msg",
+                            "--yes",
+                            "--no-commit",
+                        ]
+                    )
+
+                os.chdir(str(sub_p))
+                out_p, err_p = io.StringIO(), io.StringIO()
+                with redirect_stdout(out_p), redirect_stderr(err_p):
+                    rc_p = cli.main(
+                        [
+                            "specs",
+                            "set",
+                            "to-review",
+                            "sp0001",
+                            "--message",
+                            "case b msg",
+                            "--yes",
+                            "--no-commit",
+                        ]
+                    )
+            finally:
+                os.chdir(orig_cwd)
+
+            self.assertEqual(rc_f, 0)
+            self.assertEqual(rc_p, 0)
+            moved_f, moved_p = (
+                _find_spec(repo_f, "sp0001"),
+                _find_spec(repo_p, "sp0001"),
+            )
+            self.assertEqual(moved_f.relative_to(repo_f), moved_p.relative_to(repo_p))
+            self.assertEqual(moved_f.parent.name, "to-review")
+
+            inline_f = self._get_newest_inline_record(moved_f)
+            inline_p = self._get_newest_inline_record(moved_p)
+            self.assertIn("(aw specs)", inline_f)
+            self.assertIn("(aw set)", inline_p)
+            self.assertEqual(
+                normalize_history_line(inline_f), normalize_history_line(inline_p)
+            )
+
+            sc_f = self._get_sidecar_records(repo_f)
+            sc_p = self._get_sidecar_records(repo_p)
+            self.assertEqual(sc_f, sc_p)
+            self.assertEqual(len(sc_f), 1)
+
+    def test_case_c_unrelated_cwd_absolute_path_selector(self) -> None:
+        """(2c) Absolute path selector from unrelated cwd with no --dir."""
+        orig_cwd = os.getcwd()
+        # Backlog
+        with (
+            tempfile.TemporaryDirectory() as tmp_f,
+            tempfile.TemporaryDirectory() as tmp_p,
+            tempfile.TemporaryDirectory() as unrel,
+        ):
+            repo_f, repo_p = _setup_repo(Path(tmp_f)), _setup_repo(Path(tmp_p))
+            item_f = _create_backlog_item(repo_f, status="open", item_id="bk0001")
+            item_p = _create_backlog_item(repo_p, status="open", item_id="bk0001")
+
+            try:
+                os.chdir(unrel)
+                out_f, err_f = io.StringIO(), io.StringIO()
+                with redirect_stdout(out_f), redirect_stderr(err_f):
+                    rc_f = cli.main(
+                        [
+                            "backlog",
+                            "set",
+                            str(item_f.resolve()),
+                            "--status",
+                            "done",
+                            "--message",
+                            "case c msg",
+                            "--yes",
+                            "--no-commit",
+                        ]
+                    )
+
+                out_p, err_p = io.StringIO(), io.StringIO()
+                with redirect_stdout(out_p), redirect_stderr(err_p):
+                    rc_p = cli.main(
+                        [
+                            "backlog",
+                            "set",
+                            "done",
+                            str(item_p.resolve()),
+                            "--message",
+                            "case c msg",
+                            "--yes",
+                            "--no-commit",
+                        ]
+                    )
+            finally:
+                os.chdir(orig_cwd)
+
+            self.assertEqual(rc_f, 0)
+            self.assertEqual(rc_p, 0)
+            moved_f, moved_p = (
+                _find_backlog_item(repo_f, "bk0001"),
+                _find_backlog_item(repo_p, "bk0001"),
+            )
+            self.assertEqual(moved_f.relative_to(repo_f), moved_p.relative_to(repo_p))
+            self.assertEqual(moved_f.parent.name, "done")
+
+            inline_f = self._get_newest_inline_record(moved_f)
+            inline_p = self._get_newest_inline_record(moved_p)
+            self.assertIn("(aw backlog)", inline_f)
+            self.assertIn("(aw set)", inline_p)
+            self.assertEqual(
+                normalize_history_line(inline_f), normalize_history_line(inline_p)
+            )
+
+            sc_f = self._get_sidecar_records(repo_f)
+            sc_p = self._get_sidecar_records(repo_p)
+            self.assertEqual(sc_f, [])
+            self.assertEqual(sc_p, [])
+
+        # Specs (converged F-06)
+        with (
+            tempfile.TemporaryDirectory() as tmp_f,
+            tempfile.TemporaryDirectory() as tmp_p,
+            tempfile.TemporaryDirectory() as unrel,
+        ):
+            repo_f, repo_p = _setup_repo(Path(tmp_f)), _setup_repo(Path(tmp_p))
+            spec_f = _create_spec(repo_f, status="draft", spec_id="sp0001")
+            spec_p = _create_spec(repo_p, status="draft", spec_id="sp0001")
+
+            try:
+                os.chdir(unrel)
+                out_f, err_f = io.StringIO(), io.StringIO()
+                with redirect_stdout(out_f), redirect_stderr(err_f):
+                    rc_f = cli.main(
+                        [
+                            "specs",
+                            "set",
+                            str(spec_f.resolve()),
+                            "--status",
+                            "to-review",
+                            "--message",
+                            "case c msg",
+                            "--yes",
+                            "--no-commit",
+                        ]
+                    )
+
+                out_p, err_p = io.StringIO(), io.StringIO()
+                with redirect_stdout(out_p), redirect_stderr(err_p):
+                    rc_p = cli.main(
+                        [
+                            "specs",
+                            "set",
+                            "to-review",
+                            str(spec_p.resolve()),
+                            "--message",
+                            "case c msg",
+                            "--yes",
+                            "--no-commit",
+                        ]
+                    )
+            finally:
+                os.chdir(orig_cwd)
+
+            self.assertEqual(rc_f, 0)
+            self.assertEqual(rc_p, 0)
+            moved_f, moved_p = (
+                _find_spec(repo_f, "sp0001"),
+                _find_spec(repo_p, "sp0001"),
+            )
+            self.assertEqual(moved_f.relative_to(repo_f), moved_p.relative_to(repo_p))
+            self.assertEqual(moved_f.parent.name, "to-review")
+
+            inline_f = self._get_newest_inline_record(moved_f)
+            inline_p = self._get_newest_inline_record(moved_p)
+            self.assertIn("(aw specs)", inline_f)
+            self.assertIn("(aw set)", inline_p)
+            self.assertEqual(
+                normalize_history_line(inline_f), normalize_history_line(inline_p)
+            )
+
+            sc_f = self._get_sidecar_records(repo_f)
+            sc_p = self._get_sidecar_records(repo_p)
+            self.assertEqual(sc_f, sc_p)
+            self.assertEqual(len(sc_f), 1)
+
+    def test_case_d_embedded_newline_refusal(self) -> None:
+        """(2d) Embedded-newline --message refusal on both spellings of both verbs."""
+        for verb, target_status, create_fn, find_fn, initial_status in (
+            ("backlog", "done", _create_backlog_item, _find_backlog_item, "open"),
+            ("specs", "to-review", _create_spec, _find_spec, "draft"),
+        ):
+            for spelling in ("flag", "positional"):
+                with tempfile.TemporaryDirectory() as tmp:
+                    repo = _setup_repo(Path(tmp))
+                    item = create_fn(repo, status=initial_status)
+                    before_bytes = item.read_bytes()
+
+                    if spelling == "flag":
+                        cmd = [
+                            verb,
+                            "set",
+                            str(item),
+                            "--status",
+                            target_status,
+                            "--dir",
+                            str(repo),
+                            "--message",
+                            "line1\nline2",
+                            "--yes",
+                            "--no-commit",
+                        ]
+                    else:
+                        cmd = [
+                            verb,
+                            "set",
+                            target_status,
+                            str(item),
+                            "--dir",
+                            str(repo),
+                            "--message",
+                            "line1\nline2",
+                            "--yes",
+                            "--no-commit",
+                        ]
+
+                    out, err = io.StringIO(), io.StringIO()
+                    with redirect_stdout(out), redirect_stderr(err):
+                        rc = cli.main(cmd)
+
+                    self.assertEqual(rc, 2)
+                    self.assertIn(
+                        "aw set: --message must not contain embedded newlines",
+                        err.getvalue(),
+                    )
+                    item_after = find_fn(
+                        repo, "bk0001" if verb == "backlog" else "sp0001"
+                    )
+                    self.assertEqual(item_after.parent.name, initial_status)
+                    self.assertEqual(item_after.read_bytes(), before_bytes)
+                    self.assertEqual(self._get_sidecar_records(repo), [])
+
+    def test_case_e_dry_run(self) -> None:
+        """(2e) --dry-run writes nothing on both spellings of both verbs."""
+        for verb, target_status, create_fn, find_fn, initial_status in (
+            ("backlog", "done", _create_backlog_item, _find_backlog_item, "open"),
+            ("specs", "to-review", _create_spec, _find_spec, "draft"),
+        ):
+            for spelling in ("flag", "positional"):
+                with tempfile.TemporaryDirectory() as tmp:
+                    repo = _setup_repo(Path(tmp))
+                    item = create_fn(repo, status=initial_status)
+                    before_bytes = item.read_bytes()
+
+                    if spelling == "flag":
+                        cmd = [
+                            verb,
+                            "set",
+                            str(item),
+                            "--status",
+                            target_status,
+                            "--dir",
+                            str(repo),
+                            "--message",
+                            "dry run test",
+                            "--dry-run",
+                            "--yes",
+                            "--no-commit",
+                        ]
+                    else:
+                        cmd = [
+                            verb,
+                            "set",
+                            target_status,
+                            str(item),
+                            "--dir",
+                            str(repo),
+                            "--message",
+                            "dry run test",
+                            "--dry-run",
+                            "--yes",
+                            "--no-commit",
+                        ]
+
+                    out, err = io.StringIO(), io.StringIO()
+                    with redirect_stdout(out), redirect_stderr(err):
+                        rc = cli.main(cmd)
+
+                    self.assertEqual(rc, 0)
+                    item_after = find_fn(
+                        repo, "bk0001" if verb == "backlog" else "sp0001"
+                    )
+                    self.assertEqual(item_after.parent.name, initial_status)
+                    self.assertEqual(item_after.read_bytes(), before_bytes)
+                    self.assertEqual(self._get_sidecar_records(repo), [])
+
+    # -------------------------------------------------------------------------
+    # Case (3): Specific F-06 regression pin for aw specs set <status> <abs-path>
+    # -------------------------------------------------------------------------
+
+    def test_specs_case_c_f06_sidecar_written_from_unrelated_cwd(self) -> None:
+        """(3) aw specs set <status> <abs-path> from unrelated cwd writes sidecar (F-06)."""
+        orig_cwd = os.getcwd()
+        with (
+            tempfile.TemporaryDirectory() as tmp,
+            tempfile.TemporaryDirectory() as unrel,
+        ):
+            repo = _setup_repo(Path(tmp))
+            spec = _create_spec(repo, status="draft", spec_id="sp0001")
+            abs_spec = str(spec.resolve())
+
+            # First get the reference record written by the flag spelling
+            with tempfile.TemporaryDirectory() as tmp_ref:
+                repo_ref = _setup_repo(Path(tmp_ref))
+                spec_ref = _create_spec(repo_ref, status="draft", spec_id="sp0001")
+                try:
+                    os.chdir(unrel)
+                    out_ref, err_ref = io.StringIO(), io.StringIO()
+                    with redirect_stdout(out_ref), redirect_stderr(err_ref):
+                        rc_ref = cli.main(
+                            [
+                                "specs",
+                                "set",
+                                str(spec_ref.resolve()),
+                                "--status",
+                                "to-review",
+                                "--message",
+                                "f06 test message",
+                                "--yes",
+                                "--no-commit",
+                            ]
+                        )
+                finally:
+                    os.chdir(orig_cwd)
+                self.assertEqual(rc_ref, 0)
+                ref_sidecar = self._get_sidecar_records(repo_ref)
+                self.assertEqual(len(ref_sidecar), 1)
+
+            # Now drive the positional spelling from the unrelated cwd
+            try:
+                os.chdir(unrel)
+                out, err = io.StringIO(), io.StringIO()
+                with redirect_stdout(out), redirect_stderr(err):
+                    rc = cli.main(
+                        [
+                            "specs",
+                            "set",
+                            "to-review",
+                            abs_spec,
+                            "--message",
+                            "f06 test message",
+                            "--yes",
+                            "--no-commit",
+                        ]
+                    )
+
+                # Assert nothing created under unrelated cwd
+                unrel_files = [f for f in Path(unrel).rglob("*") if f.is_file()]
+                self.assertEqual(
+                    unrel_files,
+                    [],
+                    f"Expected nothing created in unrelated cwd, found: {unrel_files}",
+                )
+            finally:
+                os.chdir(orig_cwd)
+
+            self.assertEqual(rc, 0)
+            moved = _find_spec(repo, "sp0001")
+            self.assertEqual(moved.parent.name, "to-review")
+
+            pos_sidecar = self._get_sidecar_records(repo)
+            self.assertEqual(
+                len(pos_sidecar),
+                1,
+                "Fixture repo must gain the history.jsonl sidecar record (F-06)",
+            )
+            self.assertEqual(pos_sidecar, ref_sidecar)
+
+    # -------------------------------------------------------------------------
+    # Case (4): Hand-built argparse.Namespace(path=..., status=...) fallback pin
+    # -------------------------------------------------------------------------
+
+    def test_hand_built_namespace_shape_path_attribute(self) -> None:
+        """(4) Direct adapter calls with Namespace(path=..., status=...) still transition."""
+        # Backlog adapter
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = _setup_repo(Path(tmp))
+            item = _create_backlog_item(repo, status="open", item_id="bk0001")
+            ns = argparse.Namespace(
+                path=str(item),
+                status="done",
+                dir=str(repo),
+                yes=True,
+                no_commit=True,
+                message="hand-built namespace test",
+            )
+            rc = backlog.run_set(ns)
+            self.assertEqual(rc, 0)
+            moved = _find_backlog_item(repo, "bk0001")
+            self.assertEqual(moved.parent.name, "done")
+            self.assertIn("- Status: done", moved.read_text(encoding="utf-8"))
+
+        # Specs adapter
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = _setup_repo(Path(tmp))
+            spec = _create_spec(repo, status="draft", spec_id="sp0001")
+            ns = argparse.Namespace(
+                path=str(spec),
+                status="to-review",
+                dir=str(repo),
+                yes=True,
+                no_commit=True,
+                message="hand-built namespace test",
+            )
+            rc = specs.run_set(ns)
+            self.assertEqual(rc, 0)
+            moved = _find_spec(repo, "sp0001")
+            self.assertEqual(moved.parent.name, "to-review")
+            self.assertIn("- Status: to-review", moved.read_text(encoding="utf-8"))
 
 
 if __name__ == "__main__":

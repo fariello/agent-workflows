@@ -773,18 +773,31 @@ def run_set(args, term=None) -> int:
 
     # 2. Derive repo_root if not provided
     repo_dir = getattr(args, "dir", None)
-    if repo_dir:
-        repo_root = Path(repo_dir)
-    elif selectors:
-        repo_root = _repo_root_of(Path(selectors[0]))
+    if status is not None:
+        if repo_dir:
+            repo_root = Path(repo_dir)
+        elif selectors:
+            repo_root = _repo_root_of(Path(selectors[0]))
+        else:
+            repo_root = Path.cwd()
     else:
-        repo_root = Path.cwd()
+        if repo_dir:
+            repo_root = Path(repo_dir)
+        else:
+            from agent_workflows.project_context import resolve_verb_repo_root
+
+            sel = raw_args[1] if raw_args and len(raw_args) > 1 else None
+            if sel and Path(sel).exists():
+                repo_root = _repo_root_of(Path(sel))
+            else:
+                repo_root = resolve_verb_repo_root(None)
 
     # 3. Set default actor and verb label if not specified (E-07 c)
-    if getattr(args, "actor", None) is None:
-        setattr(args, "actor", "aw specs")
-    if getattr(args, "_verb_label", None) is None:
-        setattr(args, "_verb_label", "aw specs set")
+    if status is not None:
+        if getattr(args, "actor", None) is None:
+            setattr(args, "actor", "aw specs")
+        if getattr(args, "_verb_label", None) is None:
+            setattr(args, "_verb_label", "aw specs set")
 
     return _status_set.run_set_command(
         cmd_args,

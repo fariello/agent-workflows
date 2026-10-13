@@ -1501,10 +1501,11 @@ def run_set(args, term=None) -> int:
     repo_root = resolve_verb_repo_root(getattr(args, "dir", None))
 
     # 3. Set default actor and verb label if not specified
-    if getattr(args, "actor", None) is None:
-        setattr(args, "actor", "aw backlog")
-    if getattr(args, "_verb_label", None) is None:
-        setattr(args, "_verb_label", "aw backlog set")
+    if status is not None:
+        if getattr(args, "actor", None) is None:
+            setattr(args, "actor", "aw backlog")
+        if getattr(args, "_verb_label", None) is None:
+            setattr(args, "_verb_label", "aw backlog set")
 
     # 4. Extract gate-dir and lane-carrier parameters if provided
     gate_dir_arg = getattr(args, "gate_dir", None)
