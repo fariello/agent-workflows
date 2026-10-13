@@ -457,13 +457,12 @@ from agent_workflows.runner_shared import (
 )
 
 # rununify 03 (`i3d6ml`) E-02: host-neutral helpers this module used to define itself.
-# `_findings_block_reason` is bound HERE ON PURPOSE and not merely reachable: the cross-driver
-# API-symmetry contract asserted by `tests/test_review_findings_cascade.py::SharedPredicateTests`
-# requires this module to CARRY the attribute, which the aliased import satisfies. That test's second
-# half, which read this module's SOURCE for the name of the shared predicate
-# (`review_findings.subject_gating_blocks`), was RE-BASED onto `runner_shared` in the same change,
-# because that is where the wrapper now lives; it was not weakened, and it still refuses a runner that
-# reimplements the severity comparison.
+# `_findings_block_reason` is bound HERE ON PURPOSE as a harmless compatibility re-export so both
+# drivers carry the attribute. The historical cross-driver API-symmetry contract asserted by
+# `tests/test_review_findings_cascade.py::SharedPredicateTests` (which read this module's source for
+# `subject_gating_blocks`) was a source-substring code pin deleted in `19313eed7` that will not return
+# under P16; no live test requires this module to carry the attribute, but keeping the re-export
+# preserves backward compatibility without reimplementing the severity comparison.
 from agent_workflows.runner_shared import (
     _findings_block_reason as _findings_block_reason,
 )
@@ -1851,9 +1850,10 @@ def enforce_dependency_preflight(
     # enforce_dependency_preflight`, and it carried a long note explaining that the SYMBOL-LEVEL
     # spelling was chosen over the module-alias spelling so revgate's substring guard
     # (tests/test_review_findings_cascade.py::test_no_runner_to_runner_import) stayed meaningful for
-    # the blanket-dependency case it targets. That note was an accommodation to a coupling that no
-    # longer exists: the preflight is DEFINED in `runner_shared` now, so this import crosses no
-    # host-to-host boundary and the spelling carries no significance beyond style.
+    # the blanket-dependency case it targets. That guard no longer exists (retired in `d27e5eac8` and
+    # `19313eed7`). That note was an accommodation to a coupling that no longer exists: the preflight
+    # is DEFINED in `runner_shared` now, so this import crosses no host-to-host boundary and the
+    # spelling carries no significance beyond style.
     from agent_workflows.runner_shared import (
         enforce_dependency_preflight as _oc_enforce_dependency_preflight,
     )
@@ -1897,11 +1897,13 @@ def enforce_dependency_preflight(
 # assertion in `tests/test_orchestrator_retirement.py`), each now citing `sy7uwh`.
 # THE THREE READERS COME FROM `runner_shared` NOW, NOT FROM `oc_runipd`. They moved with
 # `parse_plan_file`, which closes over them, and the redirection REDUCES the oc-to-agy import coupling
-# backlog `cnwy8g` tracks by three (56 -> 53, re-measured in
-# `tests/test_orchestrator_probe_cache.py`). `_read_kind`'s old import comment here said the reader had
-# to stay in `oc_runipd` "because moving it means moving `_KIND_RE` and the whole front-matter reader
-# family with it, which is `cnwy8g`'s job"; moving `parse_plan_file` required exactly that, so it was
-# done, and `_KIND_RE`/`_PLAN_FILENAME_RE` moved too rather than being left as duplicate constants.
+# backlog `cnwy8g` tracks by three (56 -> 53; the re-measuring test in
+# `tests/test_orchestrator_probe_cache.py` was an exact oc-to-agy import-count baseline deleted with that
+# file in `19313eed7`, so the count is a historical measurement, not a live assertion). `_read_kind`'s
+# old import comment here said the reader had to stay in `oc_runipd` "because moving it means moving
+# `_KIND_RE` and the whole front-matter reader family with it, which is `cnwy8g`'s job"; moving
+# `parse_plan_file` required exactly that, so it was done, and `_KIND_RE`/`_PLAN_FILENAME_RE` moved
+# too rather than being left as duplicate constants.
 # (The import itself is hoisted to the top-of-file shared-import block, per E402.)
 
 
@@ -4117,22 +4119,27 @@ def main(argv: list[str] | None = None) -> int:
     # `main()` and NOT in `build_parser()`, so adding the `stop` subparser alone does not cover it -
     # `stop <run-id> --now` would be rewritten to `start stop <run-id> --now`, i.e. it would LAUNCH a
     # run with the literal selector `stop`. That is a silent misfire in the exact opposite direction
-    # of the operator's intent, so a test asserts the bare form is not rewritten (in both drivers).
+    # of the operator's intent. The behavioral `stop` not-rewritten tests were deleted in `19313eed7`;
+    # restoring that coverage is tracked by backlog `2ohbkj`.
     #
     # streamfmt (mm6wuz) E-06 / OQ-02 (resolved): `"-v"` and `"--version"` USED TO BE LISTED HERE and
     # were REMOVED, in lockstep with the oc twin. `-v` now means `--verbose`, and while it sat in this
     # set a LEADING `-v` was treated as a subcommand and never prefixed with `start`. The removed
-    # `--version` entry guarded a flag NEITHER driver registers. THE TWO DRIVERS' SETS MUST STAY
-    # IDENTICAL: `tests/test_runner_stop_triggers.py` regexes `subcommands = \{(.*?)\}` out of BOTH
-    # source files, so a one-sided edit here is exactly the divergence that guard exists to catch.
+    # `--version` entry guarded a flag NEITHER driver registers. THE TWO DRIVERS' SETS MUST STILL STAY
+    # IDENTICAL and every hazardous verb MUST still be listed. The structural guard that read this set
+    # from source (`tests/test_runner_stop_triggers.py`) was a code pin deleted in `19313eed7` that will
+    # not return under P16; until behavioral coverage returns under `2ohbkj`, lockstep of the two sets
+    # is held by review.
     # integpath-04 (`rl67b0`) E-02: `"integrate"` MUST be listed here for the SAME reason `stop` must -
     # an unregistered first token becomes `start <token>`, so `integrate <id6>` would LAUNCH A RUN with
-    # `integrate` as a selector. Added in lockstep with the oc twin and with the inline copy in
-    # `tests/test_runner_stop_triggers.py`, which pins all three equal.
+    # `integrate` as a selector. Added in lockstep with the oc twin. Unlike `stop` and `audit`, `integrate`
+    # alone is still driven through the real `main` in this driver's tests (`tests/test_agy_runipd_cli.py`,
+    # the `agy_runipd.main(["integrate", ...])` calls), which exercises its not-rewritten path, while
+    # `stop` and `audit` have no such coverage.
     # reverify-01 (`mp289j`) E-05: `"audit"` MUST be listed here for the SAME measured reason `stop` and
-    # `integrate` must, and it must match the oc copy token for token (a test pins the two sets against
-    # each other). An unregistered first token is rewritten into `start <token>`, so `audit <id6>` would
-    # LAUNCH A RUN with `audit` as a selector.
+    # `integrate` must, and it must match the oc copy token for token. An unregistered first token is
+    # rewritten into `start <token>`, so `audit <id6>` would LAUNCH A RUN with `audit` as a selector.
+    # Restoring coverage for `stop` and `audit` is tracked by backlog `2ohbkj`.
     subcommands = {
         "start",
         "resume",
