@@ -6,7 +6,7 @@
 - Scope: IN: remove `A.escape_detail` from the 17 drift-detail call sites F-03 and F-04 classify (8 repr-wrapped, 9 provable identity) in `attention.py`, `specs.py`, `research_index.py` and `releases.py`; rewrite the `_AGENT_ESCAPES` comment and the `escape_detail` docstring in `attention_contract.py` so they state the helper's REMAINING purpose (keep an untrusted value on one line of a human-rendered surface) instead of a deleted wire form; add a behavioral test module; amend spec Section 8.8's stale `--agent` TSV escaping clause; add a CHANGELOG line. OUT: the 9 call sites F-05 keeps (`attention.scan` duplicate-id, `attention.stranded_lane_drift`, the four board gate-ref renders, the `cli.py` gate-ref render, and the two `specs.run_migrate` history-message writes); deleting or renaming `escape_detail` or `_AGENT_ESCAPES`; `tests/test_attention_contract.py::test_detail_escaping_keeps_one_line`; any change to `_CONTROL_CHAR_RE`, `is_safe_descriptive`, `neutralize_control_characters` or `escape_markdown_inline`.
 - Scope-Paths: agent_workflows/attention.py, agent_workflows/specs.py, agent_workflows/research_index.py, agent_workflows/releases.py, agent_workflows/attention_contract.py, tests/test_drift_detail_escaping.py, .aw/records/specs/implemented/20260808-1945-01-attention-registry-and-cross-tree-status.spec.md, CHANGELOG.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -16,9 +16,9 @@
 - Highest E allocated: 06
 - Author: opencode
 - Id: 8cu5ml
-- Approval: 2026-10-12, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-13 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: 8cu5ml verified (set 4ep6mp, attempt 1).
 - 2026-10-12 approved (aw set): status set to approved
 - 2026-10-12 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-001..PR-004
 
