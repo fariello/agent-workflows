@@ -1,5 +1,5 @@
 - Id: o7wwop
-- Status: graduated
+- Status: done
 - Graduated-To: o7wwop
 - Set: o7wwop
 - Priority: low
@@ -7,6 +7,7 @@
 - Summary: no conformance gate asserts that every CLI family root emits a schema-valid agent record under --agent
 
 ## Workflow history
+- 2026-10-13 done (aw backlog): closed by aw agy run: IPD 0qdl9e executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20261012-o7wwop-01-0qdl9e-family-root-agent-conformance-gate-for-every-cli-subparser-r.ipd.md); evidence .aw/records/plans/executed/20261012-o7wwop-01-0qdl9e-family-root-agent-conformance-gate-for-every-cli-subparser-r.ipd.md
 - 2026-10-12 graduated (aw backlog): graduated by run run-20261012T005650Z-2322198: 0qdl9e
 - 2026-10-02 created (aw backlog): no conformance gate asserts that every CLI family root emits a schema-valid agent record under --agent
 
