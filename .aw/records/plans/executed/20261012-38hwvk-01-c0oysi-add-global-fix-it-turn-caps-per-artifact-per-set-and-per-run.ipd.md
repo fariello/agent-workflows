@@ -6,7 +6,7 @@
 - Scope: Keep the per-kind budget unchanged. Add three GLOBAL fix-it caps, each configurable through repository policy `run.fix_it_caps` in `.aw/config/project.json` and frozen into run state at queue build: per artifact (default 20 fix-it turns across all kinds), per Set (default `max(20, 15 * members)`), per run (default `max(40, largest per-Set cap, 10 * artifacts)`). Every fix-it send-back site consults one shared predicate before spending a unit; when a cap is reached the item stops as needs-human (refusal code `fix-it-cap-reached`, `NEEDS_INPUT_KEY` set) with the cap, its limit and its spend named in the run summary and in `execution-report.md`. Amend spec `25kzda` 5.5 to state the caps. EXCLUDES: changing the per-kind default or the 0..10 bound of `--retry-budget`; a new CLI flag for the caps (OQ-02); capping FIRST attempts (only fix-it turns are capped, OQ-01); integration RE-ATTEMPTS under `--integration-retry-limit` (they spend no agent turn); the orchestrator-readiness probe's own retries (`orchestrator_readiness.review_readiness` `retry_budget=`), which are model probes, not fix-it turns; the structurally one-shot defect re-ask and carrier-verification follow-ups (see Deferred).
 - Scope-Paths: agent_workflows/config.py, agent_workflows/runner_shared.py, agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, tests/test_fix_it_global_caps.py, tests/test_config.py, .aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md, CHANGELOG.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: feature
 - Priority: low
@@ -16,9 +16,9 @@
 - Highest E allocated: 10
 - Author: opencode
 - Id: c0oysi
-- Approval: 2026-10-12, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-13 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: c0oysi verified (set 38hwvk, attempt 1). [Scope reconciliation - in-scope-unmodified agent_workflows/agy_runipd.py: declared-but-unmodified (auto-acknowledged by aw agy run); in-scope-unmodified agent_workflows/oc_runipd.py: declared-but-unmodified (auto-acknowledged by aw agy run)]
 - 2026-10-12 approved (aw set): status set to approved
 - 2026-10-12 reviewed (aw set): /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-007 fixed; review record .aw/records/reviews/20261012-38hwvk-01-c0oysi-add-global-fix-it-turn-caps-per-artifact-per-set-and-per-run.review.md
 
