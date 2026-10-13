@@ -901,6 +901,12 @@ def backlog_graduate_count(
 
     # Condition (a): after the turn there is no active plan linking the item at all
     if not all_linked:
+        if not new_linked and not unlinked_new_plans:
+            from agent_workflows import runner_shared as _rs
+
+            comp = _rs.backlog_item_already_complete(repo, item_id6)
+            if comp.status == _rs.BACKLOG_COMPLETE:
+                return []
         msg = (
             f"[BACKLOG-GRADUATE-COUNT] Backlog {item_id6} produced 0 linked IPDs; "
             "expected at least one, each carrying From-Backlog. Quarantine the action, "

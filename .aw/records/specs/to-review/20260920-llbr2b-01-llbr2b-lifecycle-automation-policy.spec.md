@@ -158,6 +158,20 @@ NOTE the `isolated` parameter selects WHICH baseline condition (6) measures, and
 | On failure | Records `backlog-item-left-open` WITH THE REASON and proceeds. Every lookup is wrapped to fail closed: "a missing item, an unreadable tree, or a raising helper yields `close=False` plus a recorded reason" (`oc_runipd.py:1484-1487`) |
 | Automated actor may perform it | YES, via the GATED `aw backlog set <id6> --status done` spelling, chosen deliberately over the positional one, which "cannot even accept `--evidence`" (`oc_runipd.py:1718-1725`) |
 
+DISPATCH-TIME AND POST-TURN CLOSE FOR ALREADY-COMPLETE ITEMS (IPD `0owirm`, Set `gradfix`).
+A second automated close route operates at dispatch time in `runner_shared.execute_item_core` (before
+`build_prompt`/`write_prompt` and agent spawn) and on the post-turn success branch when a turn produced no
+new plans. Decided by `runner_shared.backlog_item_already_complete(repo, item_id6)`.
+Conditions: the item is `open`, has at least one IPD carrier, every IPD carrier is `executed`, every spec
+carrier is `implemented`, and the release-gate predicate clears.
+This is the ONE automated close that does NOT require the run to have earned it: the runner has already
+selected the item to act on, all work is provably finished on disk, and demanding an earned carrier from
+the current run would strand finished items and fail correct agents indefinitely (review decision D-1).
+On success, it closes the item `done` through the gated setter without an agent turn (writing in the lane
+and integrating under the repository lock when isolated) and appends a `backlog-already-complete` event to
+`events.jsonl` (beside `backlog-item-left-open`). On refusal (such as an unsatisfied release gate), it records
+a refusal with `fail-gate` and `needs_input=True`.
+
 ### 3.5 The backlog release-gate close predicate
 
 | Fact | Value |
