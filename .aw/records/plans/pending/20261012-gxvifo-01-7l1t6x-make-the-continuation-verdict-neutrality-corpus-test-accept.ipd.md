@@ -36,24 +36,24 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: Baseline
 
-- [ ] E-01 Record the pre-change failure: run `python3 -m pytest -o addopts="" -q -m livecorpus "tests/test_ipd_lint.py::ContinuationSubfieldOutcomeTests::test_corpus_verdict_neutrality_delta"` and capture the summary line and the mismatch count.
+- [x] E-01 Record the pre-change failure: run `python3 -m pytest -o addopts="" -q -m livecorpus "tests/test_ipd_lint.py::ContinuationSubfieldOutcomeTests::test_corpus_verdict_neutrality_delta"` and capture the summary line and the mismatch count.
   - Depends on: none
   - Expected outcome: the test FAILS with `continuation read changed verdict on N plan/checkpoint pairs` (N was 552 at authoring), proving the defect reproduces before the edit.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: Correct the exemption predicate
 
-- [ ] E-02 In `ContinuationSubfieldOutcomeTests.test_corpus_verdict_neutrality_delta`, replace the exemption condition (currently: widened disposition is `S.DISPOSITION_CONFORMING` AND widened has zero diagnostics AND one-line messages equal the evidence-emptiness set) with a MULTISET comparison of the two message lists (`collections.Counter`), so a changed count of a repeated message is a change: with `added = Counter(widened) - Counter(oneline)` and `removed = Counter(oneline) - Counter(widened)`, require (a) `added` is empty (nothing ADDED), (b) every message in `removed` contains `requires nonempty Observed evidence` or `empty Observed evidence at pre-transition` (only evidence-emptiness REMOVED), and (c) the widened disposition EQUALS the one-line disposition or is `S.DISPOSITION_CONFORMING`. There is NO warning disposition: `ipd_schema.DISPOSITIONS` is exactly `conforming`, `quarantined`, `legacy/not evaluated`, `error`, so do not invent a severity order. Any pair failing (a), (b) or (c) is still appended to `mismatches`. Rewrite BOTH the inline comment and the test DOCSTRING to state this property (the docstring's "equals the pair" sentence is what is being corrected), and render at most the first 10 mismatches in the assertion message so a failure stays readable.
+- [x] E-02 In `ContinuationSubfieldOutcomeTests.test_corpus_verdict_neutrality_delta`, replace the exemption condition (currently: widened disposition is `S.DISPOSITION_CONFORMING` AND widened has zero diagnostics AND one-line messages equal the evidence-emptiness set) with a MULTISET comparison of the two message lists (`collections.Counter`), so a changed count of a repeated message is a change: with `added = Counter(widened) - Counter(oneline)` and `removed = Counter(oneline) - Counter(widened)`, require (a) `added` is empty (nothing ADDED), (b) every message in `removed` contains `requires nonempty Observed evidence` or `empty Observed evidence at pre-transition` (only evidence-emptiness REMOVED), and (c) the widened disposition EQUALS the one-line disposition or is `S.DISPOSITION_CONFORMING`. There is NO warning disposition: `ipd_schema.DISPOSITIONS` is exactly `conforming`, `quarantined`, `legacy/not evaluated`, `error`, so do not invent a severity order. Any pair failing (a), (b) or (c) is still appended to `mismatches`. Rewrite BOTH the inline comment and the test DOCSTRING to state this property (the docstring's "equals the pair" sentence is what is being corrected), and render at most the first 10 mismatches in the assertion message so a failure stays readable.
   - Depends on: E-01
   - Expected outcome: the test asserts "continuation read only removes evidence-emptiness diagnostics and never adds a diagnostic or worsens a disposition", which is the docstring's property, and no longer requires an unrelated diagnostic (for example `status 'executed' is incompatible with checkpoint 'author'`) to be absent.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: Prove it still catches a real regression
 
-- [ ] E-03 Verify the predicate still refuses a genuine verdict change, without adding a code-pinning test: temporarily (uncommitted, reverted before commit) make `agent_workflows/ipd_lint.py` `_CONTINUATION_SUBFIELDS` also include `Execution state` (the narrowness-control field of row (e)), run the test, observe it FAIL with a nonzero mismatch count, then revert with `git checkout -- agent_workflows/ipd_lint.py` and confirm. PRECONDITION: before mutating, `git diff --name-only -- agent_workflows/ipd_lint.py` must print nothing, so the revert cannot discard anyone else's edit; if it prints the path, mutate in memory instead (a scratch script that `mock.patch`es `_CONTINUATION_SUBFIELDS` for the widened read and replicates the predicate) and record that. Confirm `git diff --name-only` lists only `tests/test_ipd_lint.py`. Measured at review (HEAD `fee276097`, in-memory `mock.patch` equivalent): this mutation DOES produce a delta that fails predicate (a), e.g. `20260810-awphysical-12-pszk6x-...` at `author` ADDS `E-06: unknown execution state 'performed - Execution note ...'` and `V-06: validation 'pass' requires execution state 'performed'`. If at execution it produces no delta, use instead a temporary mutation that adds a diagnostic under widened parsing and record which mutation was used.
+- [x] E-03 Verify the predicate still refuses a genuine verdict change, without adding a code-pinning test: temporarily (uncommitted, reverted before commit) make `agent_workflows/ipd_lint.py` `_CONTINUATION_SUBFIELDS` also include `Execution state` (the narrowness-control field of row (e)), run the test, observe it FAIL with a nonzero mismatch count, then revert with `git checkout -- agent_workflows/ipd_lint.py` and confirm. PRECONDITION: before mutating, `git diff --name-only -- agent_workflows/ipd_lint.py` must print nothing, so the revert cannot discard anyone else's edit; if it prints the path, mutate in memory instead (a scratch script that `mock.patch`es `_CONTINUATION_SUBFIELDS` for the widened read and replicates the predicate) and record that. Confirm `git diff --name-only` lists only `tests/test_ipd_lint.py`. Measured at review (HEAD `fee276097`, in-memory `mock.patch` equivalent): this mutation DOES produce a delta that fails predicate (a), e.g. `20260810-awphysical-12-pszk6x-...` at `author` ADDS `E-06: unknown execution state 'performed - Execution note ...'` and `V-06: validation 'pass' requires execution state 'performed'`. If at execution it produces no delta, use instead a temporary mutation that adds a diagnostic under widened parsing and record which mutation was used.
   - Depends on: E-02
   - Expected outcome: a deliberately broken continuation reader turns the test red; the production file is unchanged afterwards.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -115,20 +115,174 @@ N/A: no spec governs this test's predicate and no user-facing behavior changes.
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: pasted pytest output of the pre-change targeted livecorpus run showing `1 failed` and the `continuation read changed verdict on N plan/checkpoint pairs` message, with the HEAD commit hash it ran at.
   - Observed evidence:
-  - Result: pending
+    Ran at HEAD commit `6bca0b4241cfe93f73e43d9330007f22b3ee3b4d`:
+    ```
+    $ python3 -m pytest -o addopts="" -q -m livecorpus "tests/test_ipd_lint.py::ContinuationSubfieldOutcomeTests::test_corpus_verdict_neutrality_delta"
+    F                                                                        [100%]
+    =================================== FAILURES ===================================
+    ____ ContinuationSubfieldOutcomeTests.test_corpus_verdict_neutrality_delta _____
 
-- [ ] V-02 validates E-02
+    self = <tests.test_ipd_lint.ContinuationSubfieldOutcomeTests testMethod=test_corpus_verdict_neutrality_delta>
+    ...
+    >       self.assertEqual(
+                mismatches,
+                [],
+                f"continuation read changed verdict on {len(mismatches)} plan/checkpoint pairs",
+            )
+    E       AssertionError: Lists differ: [('20260929-ct1n04-01-xs557y-group-the-che[411688 chars]']))] != []
+    E
+    E       First list contains 601 additional elements.
+    E       ...
+    E       Diff is 451577 characters long. Set self.maxDiff to None to see it. : continuation read changed verdict on 601 plan/checkpoint pairs
+
+    tests/test_ipd_lint.py:4168: AssertionError
+    =========================== short test summary info ============================
+    FAILED tests/test_ipd_lint.py::ContinuationSubfieldOutcomeTests::test_corpus_verdict_neutrality_delta
+    1 failed in 108.51s (0:01:48)
+    ```
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: pasted `git diff tests/test_ipd_lint.py` showing the new multiset predicate, the (c) equal-or-conforming disposition check, and the rewritten docstring; pasted output of the post-change targeted livecorpus run showing `1 passed`; pasted output of the `-k ContinuationSubfieldOutcomeTests` run showing all passed; pasted summary lines of pre-change and post-change bare `python3 -m pytest` runs with their failing node-id sets compared (post-change set is a subset of pre-change set).
   - Observed evidence:
-  - Result: pending
+    1. Diff of `tests/test_ipd_lint.py`:
+    ```diff
+    diff --git a/tests/test_ipd_lint.py b/tests/test_ipd_lint.py
+    index fb60af3b1..adb6ccb1c 100644
+    --- a/tests/test_ipd_lint.py
+    +++ b/tests/test_ipd_lint.py
+    @@ -4109,13 +4109,15 @@ class ContinuationSubfieldOutcomeTests(unittest.TestCase):
+         @pytest.mark.livecorpus
+         @pytest.mark.timeout(180)
+         def test_corpus_verdict_neutrality_delta(self):
+    -        """E-03: asserting the PROPERTY that continuation read changes no tracked plan's verdict.
+    +        """Asserts the property that continuation read changes no tracked plan's verdict.
 
-- [ ] V-03 validates E-03
+             Asserts delta neutrality across (author, review-finalize, pre-transition) checkpoints:
+    -        for every tracked plan, (disposition, diagnostics) with continuation read equals
+    -        the pair computed with one-line read (narrowly monkeypatching _CONTINUATION_SUBFIELDS to empty).
+    -        Does NOT assert absolute absence of empty Observed evidence (188+ plans report it legitimately).
+    -        """
+    +        for every tracked plan, continuation read only removes evidence-emptiness diagnostics
+    +        and never adds a diagnostic or worsens a disposition compared with one-line read
+    +        (narrowly monkeypatching _CONTINUATION_SUBFIELDS to empty). Does NOT assert absolute
+    +        absence of empty Observed evidence (188+ plans report it legitimately).
+    +        """
+    +        from collections import Counter
+             from unittest import mock
+
+             plans = sorted((REPO_ROOT / SOURCE_PLANS).rglob("*.ipd.md"))
+    @@ -4147,28 +4149,35 @@ class ContinuationSubfieldOutcomeTests(unittest.TestCase):
+                         [d.message for d in res_oneline.diagnostics],
+                     )
+                     if pair_widened != pair_oneline:
+    -                    # Legitimate adoption of continuation parsing: a plan whose one-line
+    -                    # read failed strictly due to missing evidence on pass rows, and whose
+    -                    # continuation read satisfies all evidence requirements (conforming).
+    -                    expected_baseline_msgs = {
+    -                        d.message
+    -                        for d in res_oneline.diagnostics
+    -                        if "requires nonempty Observed evidence" in d.message
+    -                        or "empty Observed evidence at pre-transition" in d.message
+    -                    }
+    +                    # Legitimate adoption of continuation parsing: continuation read only
+    +                    # removes evidence-emptiness diagnostics and never adds a diagnostic or
+    +                    # worsens a disposition.
+    +                    added = Counter(pair_widened[1]) - Counter(pair_oneline[1])
+    +                    removed = Counter(pair_oneline[1]) - Counter(pair_widened[1])
+                         if (
+    -                        res_widened.disposition == S.DISPOSITION_CONFORMING
+    -                        and len(res_widened.diagnostics) == 0
+    -                        and set(d.message for d in res_oneline.diagnostics)
+    -                        == expected_baseline_msgs
+    +                        not added
+    +                        and all(
+    +                            "requires nonempty Observed evidence" in msg
+    +                            or "empty Observed evidence at pre-transition" in msg
+    +                            for msg in removed
+    +                        )
+    +                        and (
+    +                            res_widened.disposition == res_oneline.disposition
+    +                            or res_widened.disposition == S.DISPOSITION_CONFORMING
+    +                        )
+                         ):
+                             continue
+                         mismatches.append((plan.name, cp, pair_widened, pair_oneline))
+
+    +        rendered = "\n".join(
+    +            f"  {name} ({cp}):\n    widened: {pw}\n    oneline: {po}"
+    +            for name, cp, pw, po in mismatches[:10]
+    +        )
+             self.assertEqual(
+                 mismatches,
+                 [],
+    -            f"continuation read changed verdict on {len(mismatches)} plan/checkpoint pairs",
+    +            f"continuation read changed verdict on {len(mismatches)} plan/checkpoint pairs"
+    +            + (f" (first {min(len(mismatches), 10)}):\n{rendered}" if mismatches else ""),
+             )
+    ```
+
+    2. Post-change targeted livecorpus run:
+    ```
+    $ python3 -m pytest -o addopts="" -q -m livecorpus "tests/test_ipd_lint.py::ContinuationSubfieldOutcomeTests::test_corpus_verdict_neutrality_delta"
+    .                                                                        [100%]
+    1 passed in 45.03s
+    ```
+
+    3. ContinuationSubfieldOutcomeTests run:
+    ```
+    $ python3 -m pytest -o addopts="" -q tests/test_ipd_lint.py -k ContinuationSubfieldOutcomeTests
+    ..........                                                               [100%]
+    NOTE: 66 tests were deselected by -m/-k and did not run (no marker filter was active; deselected by -k/--deselect)
+    10 passed, 66 deselected in 53.85s
+    ```
+
+    4. Bare pytest runs pre-change vs post-change:
+    Pre-change summary:
+    `7598 passed, 2 skipped, 3 warnings in 897.68s (0:14:57)`
+    Failing node-id set: empty `set()`
+
+    Post-change summary:
+    `7598 passed, 2 skipped, 3 warnings in 809.27s (0:13:29)`
+    Failing node-id set: empty `set()`
+
+    Comparison: post-change failing node-id set `set()` is a subset of pre-change failing node-id set `set()`. Zero new failures.
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: pasted output of the targeted livecorpus run under the transient mutation showing `1 failed` with a nonzero mismatch count, the mutation used, and pasted `git diff --name-only` after revert listing only `tests/test_ipd_lint.py`.
   - Observed evidence:
-  - Result: pending
+    1. Transient mutation in `agent_workflows/ipd_lint.py`:
+    ```python
+    _CONTINUATION_SUBFIELDS: FrozenSet[str] = frozenset(
+        ("Observed evidence", "Execution note", "Execution state")
+    )
+    ```
+
+    2. Output of targeted livecorpus run under the transient mutation:
+    ```
+    $ python3 -m pytest -o addopts="" -q -m livecorpus "tests/test_ipd_lint.py::ContinuationSubfieldOutcomeTests::test_corpus_verdict_neutrality_delta"
+    F                                                                        [100%]
+    =================================== FAILURES ===================================
+    ____ ContinuationSubfieldOutcomeTests.test_corpus_verdict_neutrality_delta _____
+    ...
+    E       Diff is 750612 characters long. Set self.maxDiff to None to see it. : continuation read changed verdict on 156 plan/checkpoint pairs (first 10):
+    ...
+    =========================== short test summary info ============================
+    FAILED tests/test_ipd_lint.py::ContinuationSubfieldOutcomeTests::test_corpus_verdict_neutrality_delta
+    1 failed in 57.98s
+    ```
+
+    3. Revert and git diff --name-only check:
+    ```
+    $ git checkout -- agent_workflows/ipd_lint.py
+    $ git diff --name-only
+    tests/test_ipd_lint.py
+    ```
+  - Result: pass
 
 ## Approval and execution gate
 

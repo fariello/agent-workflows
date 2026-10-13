@@ -4109,13 +4109,15 @@ class ContinuationSubfieldOutcomeTests(unittest.TestCase):
     @pytest.mark.livecorpus
     @pytest.mark.timeout(180)
     def test_corpus_verdict_neutrality_delta(self):
-        """E-03: asserting the PROPERTY that continuation read changes no tracked plan's verdict.
+        """Asserts the property that continuation read changes no tracked plan's verdict.
 
         Asserts delta neutrality across (author, review-finalize, pre-transition) checkpoints:
-        for every tracked plan, (disposition, diagnostics) with continuation read equals
-        the pair computed with one-line read (narrowly monkeypatching _CONTINUATION_SUBFIELDS to empty).
-        Does NOT assert absolute absence of empty Observed evidence (188+ plans report it legitimately).
+        for every tracked plan, continuation read only removes evidence-emptiness diagnostics
+        and never adds a diagnostic or worsens a disposition compared with one-line read
+        (narrowly monkeypatching _CONTINUATION_SUBFIELDS to empty). Does NOT assert absolute
+        absence of empty Observed evidence (188+ plans report it legitimately).
         """
+        from collections import Counter
         from unittest import mock
 
         plans = sorted((REPO_ROOT / SOURCE_PLANS).rglob("*.ipd.md"))
@@ -4147,28 +4149,39 @@ class ContinuationSubfieldOutcomeTests(unittest.TestCase):
                     [d.message for d in res_oneline.diagnostics],
                 )
                 if pair_widened != pair_oneline:
-                    # Legitimate adoption of continuation parsing: a plan whose one-line
-                    # read failed strictly due to missing evidence on pass rows, and whose
-                    # continuation read satisfies all evidence requirements (conforming).
-                    expected_baseline_msgs = {
-                        d.message
-                        for d in res_oneline.diagnostics
-                        if "requires nonempty Observed evidence" in d.message
-                        or "empty Observed evidence at pre-transition" in d.message
-                    }
+                    # Legitimate adoption of continuation parsing: continuation read only
+                    # removes evidence-emptiness diagnostics and never adds a diagnostic or
+                    # worsens a disposition.
+                    added = Counter(pair_widened[1]) - Counter(pair_oneline[1])
+                    removed = Counter(pair_oneline[1]) - Counter(pair_widened[1])
                     if (
-                        res_widened.disposition == S.DISPOSITION_CONFORMING
-                        and len(res_widened.diagnostics) == 0
-                        and set(d.message for d in res_oneline.diagnostics)
-                        == expected_baseline_msgs
+                        not added
+                        and all(
+                            "requires nonempty Observed evidence" in msg
+                            or "empty Observed evidence at pre-transition" in msg
+                            for msg in removed
+                        )
+                        and (
+                            res_widened.disposition == res_oneline.disposition
+                            or res_widened.disposition == S.DISPOSITION_CONFORMING
+                        )
                     ):
                         continue
                     mismatches.append((plan.name, cp, pair_widened, pair_oneline))
 
+        rendered = "\n".join(
+            f"  {name} ({cp}):\n    widened: {pw}\n    oneline: {po}"
+            for name, cp, pw, po in mismatches[:10]
+        )
         self.assertEqual(
             mismatches,
             [],
-            f"continuation read changed verdict on {len(mismatches)} plan/checkpoint pairs",
+            f"continuation read changed verdict on {len(mismatches)} plan/checkpoint pairs"
+            + (
+                f" (first {min(len(mismatches), 10)}):\n{rendered}"
+                if mismatches
+                else ""
+            ),
         )
 
 
