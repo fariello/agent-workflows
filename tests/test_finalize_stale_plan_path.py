@@ -4,6 +4,8 @@ Tests outcomes, not code structure (no inspect/ast/regex on production source,
 and no reading from gitignored .aw/records/runs/).
 """
 
+from __future__ import annotations
+
 import json
 import subprocess
 import tempfile

@@ -476,7 +476,7 @@ def run_list(args: argparse.Namespace) -> int:
     if as_agent:
         _emit_agent_record(
             cmd="lanes list",
-            outcome="ok" if rows else "empty",
+            outcome="ok",
             exit_code=0,
             verified=True,
             complete=True,

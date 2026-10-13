@@ -17,6 +17,8 @@ prevent silent option mutation, NOT a regression, and must be resolved by fixing
 the parent inheritance or option names rather than reaching for 'resolve'.
 """
 
+from __future__ import annotations
+
 import argparse
 from typing import Callable, Dict
 

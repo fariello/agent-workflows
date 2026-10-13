@@ -6,6 +6,8 @@ Covers:
 - E-12: Queue-shape seam cases (F-11 birth status/exit code, F-12 conflict table, E-09 item-local refusal).
 """
 
+from __future__ import annotations
+
 import contextlib
 import io
 import json

@@ -58,9 +58,10 @@ def _discover_required_arg_leaves() -> list[str]:
 
     def has_required_arg(p: argparse.ArgumentParser) -> bool:
         for action in p._actions:
-            if action.required:
-                return True
-            if not action.option_strings:
+            if action.option_strings:
+                if action.required:
+                    return True
+            else:
                 if action.nargs not in ("?", "*", argparse.REMAINDER):
                     return True
         return False

@@ -12,6 +12,8 @@ The direction rule enforces two invariants:
    baseline value turns a pass into a refusal across green, red, or unmeasured suites).
 """
 
+from __future__ import annotations
+
 from typing import Any, Mapping
 
 from agent_workflows import runner_shared

@@ -34813,13 +34813,17 @@ def _close_already_complete_backlog_item(
     from agent_workflows import lane_containment
     from agent_workflows.render_stream import record_refusal
 
-    alloc_fn = allocate_isolation_worktree or globals().get(
-        "allocate_isolation_worktree"
+    alloc_fn = (
+        allocate_isolation_worktree
+        if allocate_isolation_worktree is not None
+        else globals().get("allocate_isolation_worktree")
     )
-    integ_fn = integrate_review_lane_branch or globals().get(
-        "integrate_review_lane_branch"
+    integ_fn = (
+        integrate_review_lane_branch
+        if integrate_review_lane_branch is not None
+        else globals().get("integrate_review_lane_branch")
     )
-    save_fn = save_state or globals().get("save_state")
+    save_fn = save_state if save_state is not None else globals().get("save_state")
 
     options = state.get("options", {}) or {}
     r_model, r_source = launch_model_for_role(options, role="plan")
@@ -35037,6 +35041,7 @@ def _close_already_complete_backlog_item(
         if not decision.torn_down:
             lane_containment.record_lane_preserved(
                 run_dir=run_dir,
+                item=item,
                 handle=wt_handle,
                 reason=f"teardown refused: {decision.why}",
                 reason_codes=decision.reason_codes,
