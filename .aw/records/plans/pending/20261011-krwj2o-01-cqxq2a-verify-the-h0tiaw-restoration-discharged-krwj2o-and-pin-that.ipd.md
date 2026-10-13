@@ -38,7 +38,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: re-measure the discharge
 
-- [ ] E-01 RE-MEASURE F-04 AT EXECUTION HEAD. Confirm both revived modules exist and are default-collected
+- [x] E-01 RE-MEASURE F-04 AT EXECUTION HEAD. Confirm both revived modules exist and are default-collected
   (no `pytestmark = pytest.mark.slow`), and that they pass under a bare run of just those two files:
   `python3 -m pytest tests/test_cli_quality_gates.py tests/test_conformance_matrix_structure.py` (measured at review
   HEAD `66401aeb1`: `22 passed`). Confirm
@@ -53,9 +53,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Depends on: none
   - Expected outcome: both modules present, unmarked, and passing; each named symbol has a test importer; the
     bare-suite baseline is recorded.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 RE-MEASURE F-05 AT EXECUTION HEAD. Show that `check_findings.human.golden` carries the live
+- [x] E-02 RE-MEASURE F-05 AT EXECUTION HEAD. Show that `check_findings.human.golden` carries the live
   remediation strings (`grep -n 'Fix:' tests/fixtures/conformance_goldens/check_findings.human.golden`
   shows `--to-id6 --apply` and `--rename --apply`) AND that it matches today's render, which is what
   `DeterministicByteGoldenTests.test_human_plain_goldens_stable` asserts; run it with
@@ -64,11 +64,11 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   makes the assertion compare a render against itself. Do NOT edit any golden in this plan.
   - Depends on: E-01
   - Expected outcome: both strings present; the three golden tests pass with the update variable unset.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: pin the reader bijection
 
-- [ ] E-03 ADD `GoldenInventoryTests.test_every_committed_golden_is_read_and_every_read_golden_exists` to
+- [x] E-03 ADD `GoldenInventoryTests.test_every_committed_golden_is_read_and_every_read_golden_exists` to
   `tests/test_cli_quality_gates.py`. It computes the EXPECTED set as `{_golden_path(name, suffix).name for
   name in _fixtures() for suffix in ("agent", "human", "json")}` (the same `_golden_path` helper and the same
   three suffixes the `DeterministicByteGoldenTests` methods use, so the expected set is derived from what the
@@ -85,9 +85,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   P16. Leave the module default-collected (no `slow` marker).
   - Depends on: E-02
   - Expected outcome: the new test exists in the module and passes against the twelve committed goldens.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 PROVE THE NEW TEST IS SENSITIVE, then run the suite. With a THROWAWAY probe, reverted before
+- [x] E-04 PROVE THE NEW TEST IS SENSITIVE, then run the suite. With a THROWAWAY probe, reverted before
   commit: (a) `touch tests/fixtures/conformance_goldens/zzz_orphan.human.golden`, run the module, and confirm
   the new test FAILS naming `zzz_orphan.human.golden`; delete the probe. (b) Temporarily `mv
   tests/fixtures/conformance_goldens/read_clean.json.golden` to a path OUTSIDE `tests/fixtures/` (e.g. a gitignored
@@ -99,7 +99,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Depends on: E-03
   - Expected outcome: both probes fail red, the fixture directory is clean afterwards, and the bare suite
     introduces no new failure.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -194,38 +194,178 @@ the regeneration instruction the module docstring already states.
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: the pasted pre-edit bare-suite baseline summary line with its failing-test names (or
     none), the pasted pytest summary line (`N passed`) for the two-module run, a pasted
     `grep -n pytestmark` over both modules showing no `slow` marker, and the pasted per-symbol `rg -lw`
     output showing at least one test importer for each of `ANSI_RE`, `GOLDEN_DIR`, `build_matrix`,
     `required_scenarios`, `USAGE_ERROR_FLAG`.
   - Observed evidence:
-  - Result: pending
+    Pre-edit bare-suite baseline summary line (`python3 -m pytest`):
+    ```
+    7705 passed, 4 skipped, 3 warnings in 781.60s (0:13:01)
+    ```
+    Failing-test names: none (0 failed).
 
-- [ ] V-02 validates E-02
+    Pytest summary line for two-module run (`python3 -m pytest tests/test_cli_quality_gates.py tests/test_conformance_matrix_structure.py`):
+    ```
+    22 passed in 10.27s
+    ```
+
+    Pasted `grep -n pytestmark` over both modules showing no `slow` marker:
+    ```
+    $ grep -n pytestmark tests/test_cli_quality_gates.py tests/test_conformance_matrix_structure.py
+    (exit code 1, empty output)
+    ```
+
+    Pasted per-symbol `rg -lw` output showing at least one test importer for each of `ANSI_RE`, `GOLDEN_DIR`, `build_matrix`, `required_scenarios`, `USAGE_ERROR_FLAG`:
+    ```
+    === ANSI_RE ===
+    tests/test_cli_quality_gates.py
+    tests/test_conformance_matrix_structure.py
+    tests/test_live_conformance_sweep.py
+    === GOLDEN_DIR ===
+    tests/test_cli_quality_gates.py
+    === build_matrix ===
+    tests/test_conformance_matrix_structure.py
+    === required_scenarios ===
+    tests/test_conformance_matrix_structure.py
+    === USAGE_ERROR_FLAG ===
+    tests/test_live_conformance_sweep.py
+    tests/test_conformance_matrix_structure.py
+    ```
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: the pasted `grep -n 'Fix:'` output over `check_findings.human.golden` containing both
     `--to-id6 --apply` and `--rename --apply`, and the pasted pytest summary for
     `DeterministicByteGoldenTests` run under `env -u AW_CONFORMANCE_UPDATE_GOLDENS`, plus `git status --short
     tests/fixtures/` pasted EMPTY afterwards (proving the run did not rewrite a golden).
   - Observed evidence:
-  - Result: pending
+    Pasted `grep -n 'Fix:'` output over `check_findings.human.golden`:
+    ```
+    7:    Fix: a.md does not carry a clustered identity prefix; run 'aw rename plans a.md --to-id6 --apply' or rename to match 'YYYYMMDD-<setid>-NN-<id6>-<slug>.<type>.md'.
+    11:    Fix: another record of the SAME type uses this Set ID with a different descriptive; run 'aw group plans b.md --set <new-set-id> --rename --apply' to regroup this record, or align the two descriptives. Sharing a Set ID with a different record type is correct and is not reported.
+    ```
 
-- [ ] V-03 validates E-03
+    Pasted pytest summary for `DeterministicByteGoldenTests` (`env -u AW_CONFORMANCE_UPDATE_GOLDENS python3 -m pytest 'tests/test_cli_quality_gates.py::DeterministicByteGoldenTests'`):
+    ```
+    3 passed in 4.06s
+    ```
+
+    Pasted `git status --short tests/fixtures/` EMPTY afterwards:
+    ```
+    $ git status --short tests/fixtures/
+    (empty output)
+    ```
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: the pasted `git diff tests/test_cli_quality_gates.py` showing the new test deriving its
     expected set from `_fixtures()` and `_golden_path` (not a hand-written list of twelve names), and the pasted
     passing pytest line for `GoldenInventoryTests`.
   - Observed evidence:
-  - Result: pending
+    Pasted `git diff tests/test_cli_quality_gates.py`:
+    ```diff
+    diff --git a/tests/test_cli_quality_gates.py b/tests/test_cli_quality_gates.py
+    index 159f9357a..1fc855f73 100644
+    --- a/tests/test_cli_quality_gates.py
+    +++ b/tests/test_cli_quality_gates.py
+    @@ -219,6 +219,30 @@ class DeterministicByteGoldenTests(unittest.TestCase):
+                     self.assertEqual(j1, golden, f"{name}: json golden drift")
 
-- [ ] V-04 validates E-04
+
+    +class GoldenInventoryTests(unittest.TestCase):
+    +    """Inventory bijection: every committed golden is read; every read golden exists."""
+    +
+    +    def test_every_committed_golden_is_read_and_every_read_golden_exists(self):
+    +        expected = {
+    +            _golden_path(name, suffix).name
+    +            for name in _fixtures()
+    +            for suffix in ("agent", "human", "json")
+    +        }
+    +        present = {p.name for p in GOLDEN_DIR.glob("*.golden")}
+    +        extra = sorted(present - expected)
+    +        missing = sorted(expected - present)
+    +        self.assertEqual(
+    +            present,
+    +            expected,
+    +            (
+    +                "Conformance golden inventory mismatch. "
+    +                f"Extra files (unread: delete them or add a fixture): {extra}. "
+    +                f"Missing files (regenerate with AW_CONFORMANCE_UPDATE_GOLDENS=1 to write them "
+    +                f"and review the diff before committing): {missing}."
+    +            ),
+    +        )
+    +
+    +
+     class AccessibilityGateTests(unittest.TestCase):
+         """ASCII-glyph fallback: with AW_ASCII_ONLY the human render has no non-ASCII bytes."""
+
+    ```
+
+    Pasted passing pytest line for `GoldenInventoryTests` (`python3 -m pytest tests/test_cli_quality_gates.py::GoldenInventoryTests`):
+    ```
+    1 passed in 3.53s
+    ```
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: the pasted FAILING pytest output for the orphan probe naming `zzz_orphan.human.golden`,
     the pasted failing output for the removed-golden probe naming `read_clean.json.golden`, `git status --short
     tests/fixtures/` pasted EMPTY after both, the pasted bare `python3 -m pytest` summary line and failing-test
     names compared against the E-01 baseline showing no new name, the pasted `aw sanitize --agent` record, and the commit hash from
     `aw commit`.
   - Observed evidence:
-  - Result: pending
+    Pasted FAILING pytest output for the orphan probe naming `zzz_orphan.human.golden`:
+    ```
+    =================================== FAILURES ===================================
+    _ GoldenInventoryTests.test_every_committed_golden_is_read_and_every_read_golden_exists _
+    [gw5] linux -- Python 3.14.6 <venv>/bin/python3
+    ...
+    E       AssertionError: Items in the first set but not the second:
+    E       'zzz_orphan.human.golden' : Conformance golden inventory mismatch. Extra files (unread: delete them or add a fixture): ['zzz_orphan.human.golden']. Missing files (regenerate with AW_CONFORMANCE_UPDATE_GOLDENS=1 to write them and review the diff before committing): [].
+    =========================== short test summary info ============================
+    FAILED tests/test_cli_quality_gates.py::GoldenInventoryTests::test_every_committed_golden_is_read_and_every_read_golden_exists
+    1 failed in 3.61s
+    ```
+
+    Pasted failing output for the removed-golden probe naming `read_clean.json.golden`:
+    ```
+    =================================== FAILURES ===================================
+    _ GoldenInventoryTests.test_every_committed_golden_is_read_and_every_read_golden_exists _
+    [gw5] linux -- Python 3.14.6 <venv>/bin/python3
+    ...
+    E       AssertionError: Items in the second set but not the first:
+    E       'read_clean.json.golden' : Conformance golden inventory mismatch. Extra files (unread: delete them or add a fixture): []. Missing files (regenerate with AW_CONFORMANCE_UPDATE_GOLDENS=1 to write them and review the diff before committing): ['read_clean.json.golden'].
+    ____________ DeterministicByteGoldenTests.test_json_goldens_stable _____________
+    [gw4] linux -- Python 3.14.6 <venv>/bin/python3
+    ...
+    E           FileNotFoundError: Golden file does not exist: <repo-root>/tests/fixtures/conformance_goldens/read_clean.json.golden. Regenerate intentionally by running with AW_CONFORMANCE_UPDATE_GOLDENS=1 and review the diff before committing.
+    =========================== short test summary info ============================
+    FAILED tests/test_cli_quality_gates.py::GoldenInventoryTests::test_every_committed_golden_is_read_and_every_read_golden_exists
+    FAILED tests/test_cli_quality_gates.py::DeterministicByteGoldenTests::test_json_goldens_stable
+    2 failed in 3.53s
+    ```
+
+    `git status --short tests/fixtures/` pasted EMPTY after both:
+    ```
+    $ git status --short tests/fixtures/
+    (empty output)
+    ```
+
+    Pasted bare `python3 -m pytest` summary line and failing-test names compared against E-01 baseline:
+    Baseline: `7705 passed, 4 skipped, 3 warnings in 781.60s (0:13:01)` with 0 failures
+    Post-change: `7706 passed, 4 skipped, 3 warnings in 742.36s (0:12:22)` with 0 failures (1 additional test passed: `GoldenInventoryTests.test_every_committed_golden_is_read_and_every_read_golden_exists`). Zero failing test names introduced.
+
+    Pasted `aw sanitize --agent` record:
+    ```json
+    {"schema":"aw.agent/v1","kind":"result","cmd":"check-local-leaks","outcome":"clean","exit":0,"verified":true,"complete":true,"checked":4915,"findings":0,"evidence":["leak-scan"],"next":null}
+    ```
+
+    The commit hash from `aw commit`:
+    Recorded in the commit created by `aw commit cqxq2a -- tests/test_cli_quality_gates.py <plan>`.
+  - Result: pass
 
 ## Approval and execution gate
 

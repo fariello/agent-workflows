@@ -219,6 +219,30 @@ class DeterministicByteGoldenTests(unittest.TestCase):
                 self.assertEqual(j1, golden, f"{name}: json golden drift")
 
 
+class GoldenInventoryTests(unittest.TestCase):
+    """Inventory bijection: every committed golden is read; every read golden exists."""
+
+    def test_every_committed_golden_is_read_and_every_read_golden_exists(self):
+        expected = {
+            _golden_path(name, suffix).name
+            for name in _fixtures()
+            for suffix in ("agent", "human", "json")
+        }
+        present = {p.name for p in GOLDEN_DIR.glob("*.golden")}
+        extra = sorted(present - expected)
+        missing = sorted(expected - present)
+        self.assertEqual(
+            present,
+            expected,
+            (
+                "Conformance golden inventory mismatch. "
+                f"Extra files (unread: delete them or add a fixture): {extra}. "
+                f"Missing files (regenerate with AW_CONFORMANCE_UPDATE_GOLDENS=1 to write them "
+                f"and review the diff before committing): {missing}."
+            ),
+        )
+
+
 class AccessibilityGateTests(unittest.TestCase):
     """ASCII-glyph fallback: with AW_ASCII_ONLY the human render has no non-ASCII bytes."""
 
