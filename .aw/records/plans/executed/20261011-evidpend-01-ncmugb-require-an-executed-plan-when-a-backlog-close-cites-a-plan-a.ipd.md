@@ -6,7 +6,7 @@
 - Scope: In the backlog close predicate's SATISFIED arm only, refuse a citation that resolves to a PLAN (a path inside a plans tree) unless the plan is in an `executed` disposition directory (the top-level disposition under the plans root, read relative to the repo root; equivalent to `check_engine._carrier_is_executed`'s IPD rule for every in-repo plan, F-09). Non-plan records artifacts (reviews, releases, walkthroughs, research, specs, backlog) stay resolvable exactly as today. The shared `resolve_evidence_artifact` keeps its behavior (its other callers are out of scope, see Deferred); its docstring is corrected. Give the refusal a specific reason, add behavioral tests on both setter spellings and the at-rest checker, and update the release-gate prose and CHANGELOG.
 - Scope-Paths: agent_workflows/check_engine.py, tests/test_backlog_close_evidence_plan_disposition.py, AGENTS.md, .aw/records/backlog/README.md, CHANGELOG.md, DECISIONS.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -17,9 +17,9 @@
 - Highest E allocated: 05
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: ncmugb
-- Approval: 2026-10-12, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-13 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: ncmugb verified (set evidpend, attempt 2).
 - 2026-10-12 approved (aw set): status set to approved
 - 2026-10-12 reviewed (opencode its_direct/pt3-claude-opus-5.5-1m-us): /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005, PR-006. Reviewed at HEAD bd555fd74. Close-Evidence census corrected (52 gated done items: 48 executed plans, 4 walkthrough, 0 non-executed plans); helper disposition test made repo-relative (absolute 'executed' segment not containment-safe); at-rest case requires a dated history line and names the rule; refusal hints reworded and case (h) added; base suite run moved to E-01; gate itemized. Record: .aw/records/reviews/20261011-evidpend-01-ncmugb-require-an-executed-plan-when-a-backlog-close-cites-a-plan-a.review.md.
 - 2026-10-12 to-review (aw set): authored from backlog 7lfe87 at HEAD 319da03a9; defect re-measured (pending-plan citation dry-run returns outcome clean, exit 0); resolver blast radius measured; follow-up bkprhk filed for the Carrier-Evidence caller
