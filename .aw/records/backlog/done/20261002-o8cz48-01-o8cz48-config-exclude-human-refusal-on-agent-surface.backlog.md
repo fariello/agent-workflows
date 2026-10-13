@@ -1,5 +1,5 @@
 - Id: o8cz48
-- Status: graduated
+- Status: done
 - Graduated-To: o8cz48
 - Blocks-Release: next
 - Set: o8cz48
@@ -8,6 +8,7 @@
 - Summary: aw config exclude with no subcommand prints a human FAIL status line to stdout under --agent instead of an aw.agent/v1 record
 
 ## Workflow history
+- 2026-10-13 done (aw backlog): closed by aw agy run: IPD 2va0jb executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20261012-o8cz48-01-2va0jb-route-aw-config-exclude-subcommand-less-refusal-through-the.ipd.md); evidence .aw/records/plans/executed/20261012-o8cz48-01-2va0jb-route-aw-config-exclude-subcommand-less-refusal-through-the.ipd.md
 - 2026-10-12 graduated (aw backlog): graduated by run run-20261012T005641Z-2321995: 2va0jb
 - 2026-10-02 created (aw backlog): aw config exclude with no subcommand prints a human FAIL status line to stdout under --agent instead of an aw.agent/v1 record
 
