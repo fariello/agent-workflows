@@ -6,7 +6,7 @@
 - Scope: IN: one shared renderer in `agent_workflows/artifact_core.py` whose fallback policy is "relativize against the root, else truncate at a records segment, else the bare file name, never an absolute path"; make the four named helpers delegate to it (keeping each helper's name and signature so no caller changes); and one behavioral test file pinning the policy and the four callers' agreement. OUT: the other repo-relative helpers grep finds (`ipd_lifecycle._repo_relative`, `attention._rel_posix`, `layout_inventory._repo_relative`, the inline relativization in `doctor.probe_artifacts`, `check_engine.finding_dict`'s `location` relativization), whose contracts differ on purpose and are filed separately as backlog `rd6ei9`; `agent_schema.normalize_repo_path` (executed scope of `9yd6tx`); any change to which findings fire or to any message structure beyond the path form.
 - Scope-Paths: agent_workflows/artifact_core.py, agent_workflows/specs.py, agent_workflows/check_engine.py, agent_workflows/artifact_rename.py, agent_workflows/doctor.py, tests/test_repo_relative_posix.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -16,9 +16,9 @@
 - Highest E allocated: 06
 - Author: OpenCode Claude Opus
 - Id: amt9fs
-- Approval: 2026-10-12, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-13 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: amt9fs verified (set qv0fi1, attempt 1).
 - 2026-10-12 approved (aw set): status set to approved
 - 2026-10-12 reviewed (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004
 
@@ -35,39 +35,39 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: the shared renderer
 
-- [ ] E-01 Add a public function `repo_relative_posix(path, repo_root=None) -> str` to `agent_workflows/artifact_core.py` (stdlib-only, Python 3.9 compatible, so no `Path.is_relative_to`; use `relative_to` in a `try`). Policy, applied in order: (1) an empty value, or a `<...>` sentinel such as `<repo>`, is returned unchanged (the case `doctor._normalize_rel_path` guards today); (2) when `repo_root` is given, join a relative path onto the root and LEXICALLY normalize it (`os.path.normpath`, which collapses `./` and `..` without touching the disk); return the relative POSIX string if that is inside the root's lexical spelling OR inside the RESOLVED root; else resolve ONLY THE PARENT directory (keeping the final component as spelled) and retry against the resolved root. Never resolve the final path component: resolving it renders an in-root symlinked FILE as its target (or, when the target is outside the root, as a bare name), which changes in-root output (F-10). Existence of the file is not required (as `_finding_rel_path`'s docstring requires, since `check_scope_path_target_stale` reasons about vanished paths); (3) otherwise, if the POSIX text contains a records segment (`.aw/records/` or `.agents/`, moving `specs._RECORDS_SEGMENTS` here as the single definition), return the text from that segment on; (4) otherwise, if the path is absolute, or is relative but escaped the root in step 2, return the bare file name; (5) otherwise return the path's POSIX text unchanged. Accept `str` or `Path`; step 1 tests the `str` form, so `Path("")` (whose text is `.`) still flows through and returns `.` exactly as `specs.drift_location` does today. Catch `ValueError`, `OSError` and `RuntimeError` around the resolution and fall through to steps 3-5. The docstring states the policy, why the fallback is name-only (cite `docs/cli-output-contract.md` "Path Sanitization and Leak Posture"), and that with `repo_root=None` the function is pure and cwd-independent (the `specs.drift_location` contract).
+- [x] E-01 Add a public function `repo_relative_posix(path, repo_root=None) -> str` to `agent_workflows/artifact_core.py` (stdlib-only, Python 3.9 compatible, so no `Path.is_relative_to`; use `relative_to` in a `try`). Policy, applied in order: (1) an empty value, or a `<...>` sentinel such as `<repo>`, is returned unchanged (the case `doctor._normalize_rel_path` guards today); (2) when `repo_root` is given, join a relative path onto the root and LEXICALLY normalize it (`os.path.normpath`, which collapses `./` and `..` without touching the disk); return the relative POSIX string if that is inside the root's lexical spelling OR inside the RESOLVED root; else resolve ONLY THE PARENT directory (keeping the final component as spelled) and retry against the resolved root. Never resolve the final path component: resolving it renders an in-root symlinked FILE as its target (or, when the target is outside the root, as a bare name), which changes in-root output (F-10). Existence of the file is not required (as `_finding_rel_path`'s docstring requires, since `check_scope_path_target_stale` reasons about vanished paths); (3) otherwise, if the POSIX text contains a records segment (`.aw/records/` or `.agents/`, moving `specs._RECORDS_SEGMENTS` here as the single definition), return the text from that segment on; (4) otherwise, if the path is absolute, or is relative but escaped the root in step 2, return the bare file name; (5) otherwise return the path's POSIX text unchanged. Accept `str` or `Path`; step 1 tests the `str` form, so `Path("")` (whose text is `.`) still flows through and returns `.` exactly as `specs.drift_location` does today. Catch `ValueError`, `OSError` and `RuntimeError` around the resolution and fall through to steps 3-5. The docstring states the policy, why the fallback is name-only (cite `docs/cli-output-contract.md` "Path Sanitization and Leak Posture"), and that with `repo_root=None` the function is pure and cwd-independent (the `specs.drift_location` contract).
   - Depends on: none
   - Expected outcome: the function exists in `artifact_core`, nothing calls it yet, and the bare suite is unchanged.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: delegate the four helpers
 
-- [ ] E-02 Make `specs.drift_location(path)` return `artifact_core.repo_relative_posix(path)` (no root), and have `specs` import the segment tuple from `artifact_core` instead of defining `_RECORDS_SEGMENTS` itself. Keep its docstring's rationale (pure, cwd-independent, why truncation instead of relativization) and add one line pointing at the shared renderer. `backlog.drift_location` already delegates to `specs.drift_location` and needs no edit.
+- [x] E-02 Make `specs.drift_location(path)` return `artifact_core.repo_relative_posix(path)` (no root), and have `specs` import the segment tuple from `artifact_core` instead of defining `_RECORDS_SEGMENTS` itself. Keep its docstring's rationale (pure, cwd-independent, why truncation instead of relativization) and add one line pointing at the shared renderer. `backlog.drift_location` already delegates to `specs.drift_location` and needs no edit.
   - Depends on: E-01
   - Expected outcome: `specs.drift_location` output is byte-identical to today on every input (the no-root path of E-01 is exactly its current algorithm), so `tests/test_attention.py::SpecDriftLocationIsRepoRelativeTests` stays green unmodified.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 Make `check_engine._finding_rel_path(repo_root, path)` return `_core.repo_relative_posix(path, repo_root)`, keeping its name, its argument order, and its docstring's statement of which fields it serves (shortened to point at the shared policy).
+- [x] E-03 Make `check_engine._finding_rel_path(repo_root, path)` return `_core.repo_relative_posix(path, repo_root)`, keeping its name, its argument order, and its docstring's statement of which fields it serves (shortened to point at the shared policy).
   - Depends on: E-01
   - Expected outcome: `tests/test_check_finding_path_relativity.py` stays green unmodified. Two observable deltas, both in fallback or link cases: an out-of-root path sitting under a records segment now renders from that segment rather than as the bare name (more informative, still leak-free); and an in-root symlinked file now renders as the spelling the caller passed rather than its resolved target (F-10), matching `doctor` today and the path the finding is actually about.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 Make `artifact_rename._rel_to_repo(path, repo_root)` return `_core.repo_relative_posix(path, repo_root)`, and update its one-line docstring, which today says "falls back to the raw posix path".
+- [x] E-04 Make `artifact_rename._rel_to_repo(path, repo_root)` return `_core.repo_relative_posix(path, repo_root)`, and update its one-line docstring, which today says "falls back to the raw posix path".
   - Depends on: E-01
   - Expected outcome: in-root paths render exactly as today (`tests/test_mutation_result_facts.py` stays green, it asserts `old_path == ".aw/records/plans/..."`); an out-of-root path no longer reaches `MutationTarget.old_path`/`new_path` or the touched-path list as an absolute path; an in-root symlinked file now renders as the link spelling, which is the path `_core.git_mv` is given (it relativizes `src`/`dst` lexically with `relative_to`), rather than its target (F-10).
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 Make `doctor._normalize_rel_path(loc, repo_root)` return `core.repo_relative_posix(loc, repo_root)`. Its sentinel and empty-string guard move into the shared renderer's step 1, so behavior on those inputs is unchanged; keep the broad `except Exception: return loc` only if the shared renderer can raise on a non-path string (it should not, since it catches the resolution errors), and otherwise drop it.
+- [x] E-05 Make `doctor._normalize_rel_path(loc, repo_root)` return `core.repo_relative_posix(loc, repo_root)`. Its sentinel and empty-string guard move into the shared renderer's step 1, so behavior on those inputs is unchanged; keep the broad `except Exception: return loc` only if the shared renderer can raise on a non-path string (it should not, since it catches the resolution errors), and otherwise drop it.
   - Depends on: E-01
   - Expected outcome: `doctor.build_remediation(...).file_path` for an absolute out-of-root `Drift.location` is the bare file name (today it is the absolute path, F-02), and for an in-root path reached through a symlinked root spelling it is the repo-relative path (today it is the absolute real path, F-03); `tests/test_doctor.py` and `tests/test_backlog_metadata_duplicate_and_gate_summary.py` stay green.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: pin the policy
 
-- [ ] E-06 Add `tests/test_repo_relative_posix.py`, behavioral only (no `inspect`/`ast`/source reading, per the repo's no-code-pinning rule). Build every fixture under `tempfile.mkdtemp()` and assert by comparing against the derived temp root, never a literal home path (the `local-leaks` hook convention cited in `2eubdn`). Cases, each asserting the exact returned string: in-root absolute path; in-root relative path (including a `./` prefix); in-root path that does not exist; out-of-root absolute path with no records segment (bare name); out-of-root absolute path under a records segment (truncated); relative path escaping the root (bare name); root given as a symlink while the path uses the real spelling (relative); root given by its real spelling while the path uses the symlinked spelling (relative); an in-root symlinked FILE pointing at another in-root file (the LINK's relative path, not the target's) and pointing outside the root (the link's relative path, not the bare name; F-10); `<repo>` sentinel and empty string (unchanged); and, with `repo_root=None`, the three `specs.drift_location` cases (segment truncation of a relative and an absolute path, unchanged relative path). Then a PARITY test driving the four real callers on the same in-root, out-of-root and symlink inputs: `check_engine._finding_rel_path`, `artifact_rename._rel_to_repo`, `doctor.build_remediation(Drift(...)).file_path` (the public route to `_normalize_rel_path`), and, for the root-less inputs, `specs.validate_spec(...)[*].location`; assert they all agree and that no output contains the temp root string. Every symlink fixture is created in a helper that raises `unittest.SkipTest` when `os.symlink` raises `OSError` or `NotImplementedError`, because CI runs this suite on `windows-latest` (`.github/workflows/tests.yml` matrix), where creating a symlink needs privilege; the non-symlink cases must still run there.
+- [x] E-06 Add `tests/test_repo_relative_posix.py`, behavioral only (no `inspect`/`ast`/source reading, per the repo's no-code-pinning rule). Build every fixture under `tempfile.mkdtemp()` and assert by comparing against the derived temp root, never a literal home path (the `local-leaks` hook convention cited in `2eubdn`). Cases, each asserting the exact returned string: in-root absolute path; in-root relative path (including a `./` prefix); in-root path that does not exist; out-of-root absolute path with no records segment (bare name); out-of-root absolute path under a records segment (truncated); relative path escaping the root (bare name); root given as a symlink while the path uses the real spelling (relative); root given by its real spelling while the path uses the symlinked spelling (relative); an in-root symlinked FILE pointing at another in-root file (the LINK's relative path, not the target's) and pointing outside the root (the link's relative path, not the bare name; F-10); `<repo>` sentinel and empty string (unchanged); and, with `repo_root=None`, the three `specs.drift_location` cases (segment truncation of a relative and an absolute path, unchanged relative path). Then a PARITY test driving the four real callers on the same in-root, out-of-root and symlink inputs: `check_engine._finding_rel_path`, `artifact_rename._rel_to_repo`, `doctor.build_remediation(Drift(...)).file_path` (the public route to `_normalize_rel_path`), and, for the root-less inputs, `specs.validate_spec(...)[*].location`; assert they all agree and that no output contains the temp root string. Every symlink fixture is created in a helper that raises `unittest.SkipTest` when `os.symlink` raises `OSError` or `NotImplementedError`, because CI runs this suite on `windows-latest` (`.github/workflows/tests.yml` matrix), where creating a symlink needs privilege; the non-symlink cases must still run there.
   - Depends on: E-02, E-03, E-04, E-05
   - Expected outcome: the new file passes; the out-of-root and symlink-root cases for `artifact_rename` and `doctor` FAIL when E-04/E-05 are reverted (they witness F-01..F-03), and the in-root symlinked-file cases for `check_engine` and `artifact_rename` FAIL when E-03/E-04 are reverted (they witness F-10), so the test is not vacuous.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -146,35 +146,292 @@ N/A: no spec describes these private helpers' fallback, and `docs/cli-output-con
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: The pasted diff of `agent_workflows/artifact_core.py` showing `repo_relative_posix` and the records-segment tuple, plus pasted output of a `python3 -c` call (observation produced by E-01's function) on these inputs with the printed results: in-root absolute, out-of-root absolute, out-of-root under `.aw/records/`, `../x.md` with a root, `<repo>`, and `sub/.aw/records/specs/x.md` with no root; expected respectively the relative path, the bare name, the truncated segment path, `x.md`, `<repo>`, `.aw/records/specs/x.md`.
   - Observed evidence:
-  - Result: pending
+    Pasted diff of `agent_workflows/artifact_core.py`:
+    ```diff
+    diff --git a/agent_workflows/artifact_core.py b/agent_workflows/artifact_core.py
+    index 44cd35985..0efb0ff24 100644
+    --- a/agent_workflows/artifact_core.py
+    +++ b/agent_workflows/artifact_core.py
+    @@ -462,6 +462,101 @@ def git_mv(repo_root: Path, src_rel: str, dst_rel: str) -> None:
 
-- [ ] V-02 validates E-02
+             shutil.move(str(Path(repo_root) / src_rel), str(Path(repo_root) / dst_rel))
+
+    +# --------------------------------------------------------------------------------------
+    +# Repository-relative POSIX path rendering (IPD amt9fs)
+    +# --------------------------------------------------------------------------------------
+    +
+    +RECORDS_SEGMENTS = (".aw/records/", ".agents/")
+    +_RECORDS_SEGMENTS = RECORDS_SEGMENTS
+    +
+    +
+    +def repo_relative_posix(
+    +    path: Path | str, repo_root: Optional[Path | str] = None
+    +) -> str:
+    ```
+    Pasted `python3 -c` observation output:
+    ```
+    1. in-root absolute: a/b.md
+    2. out-of-root absolute: x.md
+    3. out-of-root under .aw/records/: .aw/records/specs/x.spec.md
+    4. ../x.md with root: x.md
+    5. <repo>: <repo>
+    6. sub/.aw/records/specs/x.md with no root: .aw/records/specs/x.md
+    ```
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: The pasted diff of `agent_workflows/specs.py` showing `drift_location` delegating and `_RECORDS_SEGMENTS` no longer defined there, and the pasted runner output of `python3 -m pytest "tests/test_attention.py::SpecDriftLocationIsRepoRelativeTests" -o addopts=""` passing with the test file unmodified (`git diff --stat tests/test_attention.py` empty).
   - Observed evidence:
-  - Result: pending
+    Pasted diff of `agent_workflows/specs.py`:
+    ```diff
+    diff --git a/agent_workflows/specs.py b/agent_workflows/specs.py
+    index 147f4a59c..ca6374e58 100644
+    --- a/agent_workflows/specs.py
+    +++ b/agent_workflows/specs.py
+    @@ -315,12 +315,14 @@ def _history_lines(lines: List[str]) -> List[str]:
+     # --------------------------------------------------------------------------------------
 
-- [ ] V-03 validates E-03
+
+    -_RECORDS_SEGMENTS = (".aw/records/", ".agents/")
+    +_RECORDS_SEGMENTS = core.RECORDS_SEGMENTS
+
+
+     def drift_location(path: Path) -> str:
+         """The REPO-RELATIVE POSIX location to put in a Drift record for ``path``.
+
+    +    Delegates to :func:`agent_workflows.artifact_core.repo_relative_posix` with no root (IPD amt9fs).
+    +
+         attcor `rkn8ya` E-02: `validate_spec` used to emit ``str(path)`` verbatim, and its two callers
+         pass an ABSOLUTE path (`attention._spec_record` and `run_check`'s `_spec_files` list), so a
+         machine-local absolute path leaked into `aw attention --check`'s human line and into the JSON
+    @@ -343,15 +345,7 @@ def drift_location(path: Path) -> str:
+         file the operator just named on the command line. A path that is already relative is returned
+         unchanged, so a caller passing `Path("s.md")` is unaffected.
+         """
+    -
+    -    posix = Path(path).as_posix()
+    -    for seg in _RECORDS_SEGMENTS:
+    -        idx = posix.find(seg)
+    -        if idx != -1:
+    -            return posix[idx:]
+    -    if Path(path).is_absolute():
+    -        return Path(path).name
+    -    return posix
+    +    return core.repo_relative_posix(path)
+    ```
+    Runner output:
+    ```
+    ============================= test session starts ==============================
+    platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0
+    Using --randomly-seed=949067841
+    rootdir: <repo-root>
+    configfile: pyproject.toml
+    plugins: anyio-4.14.1, randomly-4.1.0, cov-7.1.0, xdist-3.8.0
+    collecting ... collecting 0 items                                                             collected 1 item
+
+    tests/test_attention.py .                                                [100%]
+
+    ============================== 1 passed in 1.31s ===============================
+    ```
+    `git diff --stat tests/test_attention.py`: empty.
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: The pasted diff of `check_engine._finding_rel_path` delegating, and the pasted runner output of `python3 -m pytest tests/test_check_finding_path_relativity.py tests/test_check_recovery_fidelity.py -o addopts=""` passing unmodified.
   - Observed evidence:
-  - Result: pending
+    Pasted diff of `check_engine._finding_rel_path`:
+    ```diff
+    diff --git a/agent_workflows/check_engine.py b/agent_workflows/check_engine.py
+    index ee6397714..199349a8d 100644
+    --- a/agent_workflows/check_engine.py
+    +++ b/agent_workflows/check_engine.py
+    @@ -1125,22 +1125,14 @@ def finding_dict(
+     def _finding_rel_path(repo_root: Path, path: Path | str) -> str:
+         """Render ONE path as repo-relative POSIX text for interpolation into finding prose.
 
-- [ ] V-04 validates E-04
+    -    Takes ``(repo_root, path)`` and returns the relative POSIX string, falling back to the file
+    -    name (never the absolute path) when the path is outside the root or unresolvable.
+    +    Delegates to :func:`agent_workflows.artifact_core.repo_relative_posix` (IPD amt9fs).
+
+         This helper exists for the finding fields that :func:`finding_dict` does not relativize
+         (``detail``, ``observed``, ``required``, ``recovery``) and for a composite ``location`` that
+         ``agent_schema.normalize_repo_path`` cannot relativize because that function takes a whole
+    -    path value. The fallback to the bare file name is modeled on :func:`specs.drift_location` as
+    -    the leak-free choice.
+    +    path value.
+         """
+    -    p = Path(path)
+    -    try:
+    -        resolved_root = Path(repo_root).resolve()
+    -        resolved_p = p.resolve() if p.is_absolute() else (resolved_root / p).resolve()
+    -        return resolved_p.relative_to(resolved_root).as_posix()
+    -    except (ValueError, OSError, RuntimeError):
+    -        return p.name
+    +    return _core.repo_relative_posix(path, repo_root)
+    ```
+    Runner output:
+    ```
+    ============================= test session starts ==============================
+    platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0
+    Using --randomly-seed=3969004803
+    rootdir: <repo-root>
+    configfile: pyproject.toml
+    plugins: anyio-4.14.1, randomly-4.1.0, cov-7.1.0, xdist-3.8.0
+    collecting ... collecting 0 items                                                             collecting 7 items                                                             collected 7 items
+
+    tests/test_check_recovery_fidelity.py ...                                [ 42%]
+    tests/test_check_finding_path_relativity.py ....                         [100%]
+
+    ============================== 7 passed in 18.09s ==============================
+    ```
+    `git diff --stat tests/test_check_finding_path_relativity.py tests/test_check_recovery_fidelity.py`: empty.
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: The pasted diff of `artifact_rename._rel_to_repo` delegating with its docstring updated, the pasted `python3 -c` output (E-04's helper) showing `_rel_to_repo(<out-of-root abs>, root)` now returns the bare name where F-01 measured the absolute path, and the pasted runner output of `python3 -m pytest tests/test_mutation_result_facts.py -o addopts=""` passing unmodified.
   - Observed evidence:
-  - Result: pending
+    Pasted diff of `artifact_rename._rel_to_repo`:
+    ```diff
+    diff --git a/agent_workflows/artifact_rename.py b/agent_workflows/artifact_rename.py
+    index 2b6412cae..716b4dee0 100644
+    --- a/agent_workflows/artifact_rename.py
+    +++ b/agent_workflows/artifact_rename.py
+    @@ -47,11 +47,8 @@ def _resolve_repo_root(args: argparse.Namespace) -> Path:
 
-- [ ] V-05 validates E-05
+
+     def _rel_to_repo(path: Path, repo_root: Path) -> str:
+    -    """Repo-relative POSIX string for ``path`` (falls back to the raw posix path)."""
+    -    try:
+    -        return path.resolve().relative_to(repo_root.resolve()).as_posix()
+    -    except ValueError:
+    -        return path.as_posix()
+    +    """Repo-relative POSIX string for ``path`` (delegates to :func:`artifact_core.repo_relative_posix`)."""
+    +    return _core.repo_relative_posix(path, repo_root)
+    ```
+    Pasted `python3 -c` observation:
+    ```
+    result: x.spec.md
+    ```
+    Runner output:
+    ```
+    ============================= test session starts ==============================
+    platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0
+    Using --randomly-seed=2508270345
+    rootdir: <repo-root>
+    configfile: pyproject.toml
+    plugins: anyio-4.14.1, randomly-4.1.0, cov-7.1.0, xdist-3.8.0
+    collecting ... collecting 8 items                                                             collected 8 items
+
+    tests/test_mutation_result_facts.py ........                             [100%]
+
+    ============================== 8 passed in 16.38s ==============================
+    ```
+    `git diff --stat tests/test_mutation_result_facts.py`: empty.
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: The pasted diff of `doctor._normalize_rel_path` delegating, the pasted `python3 -c` output (E-05's helper reached through `doctor.build_remediation`) showing `file_path` is the bare name for F-02's out-of-root input and `.aw/records/plans/pending/a.ipd.md` for F-03's symlinked-root input, and the pasted runner output of `python3 -m pytest tests/test_doctor.py tests/test_backlog_metadata_duplicate_and_gate_summary.py -o addopts=""` passing unmodified.
   - Observed evidence:
-  - Result: pending
+    Pasted diff of `doctor._normalize_rel_path`:
+    ```diff
+    diff --git a/agent_workflows/doctor.py b/agent_workflows/doctor.py
+    index 192e30896..07e1d6b67 100644
+    --- a/agent_workflows/doctor.py
+    +++ b/agent_workflows/doctor.py
+    @@ -1278,15 +1278,7 @@ def _infer_artifact_type(path_str: str) -> Optional[str]:
 
-- [ ] V-06 validates E-06
+     def _normalize_rel_path(loc: str, repo_root: Path) -> str:
+         """Normalize a drift location to a clean repo-relative POSIX path."""
+    -    if not loc or (loc.startswith("<") and loc.endswith(">")):
+    -        return loc
+    -    try:
+-        p = Path(loc)
+    -        if p.is_absolute() and p.is_relative_to(repo_root):
+    -            return p.relative_to(repo_root).as_posix()
+    -        return p.as_posix()
+    -    except Exception:
+    -        return loc
+    +    return core.repo_relative_posix(loc, repo_root)
+    ```
+    Pasted `python3 -c` observation:
+    ```
+    F-02 file_path: x.spec.md
+    F-03 file_path: .aw/records/plans/pending/a.ipd.md
+    ```
+    Runner output:
+    ```
+    ============================= test session starts ==============================
+    platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0
+    Using --randomly-seed=3229104773
+    rootdir: <repo-root>
+    configfile: pyproject.toml
+    plugins: anyio-4.14.1, randomly-4.1.0, cov-7.1.0, xdist-3.8.0
+    collecting ... collecting 0 items                                                             collecting 12 items                                                            collected 46 items
+
+    tests/test_doctor.py ......................................              [ 82%]
+    tests/test_backlog_metadata_duplicate_and_gate_summary.py ........       [100%]
+
+    ============================= 46 passed in 15.98s ==============================
+    ```
+    `git diff --stat tests/test_doctor.py tests/test_backlog_metadata_duplicate_and_gate_summary.py`: empty.
+  - Result: pass
+
+- [x] V-06 validates E-06
   - Required evidence: The pasted runner output of `python3 -m pytest tests/test_repo_relative_posix.py -o addopts=""` passing; then, with ONLY `agent_workflows/artifact_rename.py`, `agent_workflows/doctor.py` and `agent_workflows/check_engine.py` temporarily reverted to HEAD by copying the working files to an untracked scratch location, writing `git show HEAD:<path> > <path>` for each, running, and copying the saved files back (NOT `git stash`: `refs/stash` is shared by every worktree of this repository, so a concurrent agent's stash operation can pop or drop yours), the pasted output of the same command showing the out-of-root and symlink-root cases for `artifact_rename` and `doctor`, and the in-root symlinked-file cases for `check_engine` and `artifact_rename`, FAILING, proving the test witnesses F-01..F-03 and F-10; plus `git diff --stat` before and after the revert showing the working tree restored identically. Then the pasted tail of the BARE `python3 -m pytest` run showing the `N passed` summary line with zero failures, and the `aw check all` exit status and finding count before and after the change (equal), both measured in the same execution session on the same tree (a count measured at authoring is not the bar, because live records move).
   - Observed evidence:
-  - Result: pending
+    Passing runner output of `tests/test_repo_relative_posix.py`:
+    ```
+    ============================= test session starts ==============================
+    platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0
+    Using --randomly-seed=4161369104
+    rootdir: <repo-root>
+    configfile: pyproject.toml
+    plugins: anyio-4.14.1, randomly-4.1.0, cov-7.1.0, xdist-3.8.0
+    collecting ... collecting 11 items                                                            collected 17 items
+
+    tests/test_repo_relative_posix.py .................                      [100%]
+
+    ============================== 17 passed in 1.87s ==============================
+    ```
+    Failing runner output with callers reverted to HEAD:
+    ```
+    ============================= test session starts ==============================
+    platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0
+    Using --randomly-seed=2918994178
+    rootdir: <repo-root>
+    configfile: pyproject.toml
+    plugins: anyio-4.14.1, randomly-4.1.0, cov-7.1.0, xdist-3.8.0
+    collecting ... collecting 0 items                                                             collecting 11 items                                                            collected 17 items
+
+    tests/test_repo_relative_posix.py ...........FFFF..                      [100%]
+
+    =========================== short test summary info ============================
+    FAILED tests/test_repo_relative_posix.py::RepoRelativePosixParityTests::test_parity_out_of_root_path
+    FAILED tests/test_repo_relative_posix.py::RepoRelativePosixParityTests::test_parity_in_root_symlinked_file_pointing_outside
+    FAILED tests/test_repo_relative_posix.py::RepoRelativePosixParityTests::test_parity_symlink_root_input
+    FAILED tests/test_repo_relative_posix.py::RepoRelativePosixParityTests::test_parity_in_root_symlinked_file
+    ========================= 4 failed, 13 passed in 2.56s =========================
+    ```
+    `git diff --stat` before and after revert restored identically:
+    ```
+     agent_workflows/artifact_core.py   | 95 ++++++++++++++++++++++++++++++++++++++
+     agent_workflows/artifact_rename.py |  7 +--
+     agent_workflows/check_engine.py    | 14 ++----
+     agent_workflows/doctor.py          | 10 +---
+     agent_workflows/specs.py           | 14 ++----
+     5 files changed, 105 insertions(+), 35 deletions(-)
+    ```
+    Bare `python3 -m pytest` pass tail:
+    ```
+    7652 passed, 4 skipped, 3 warnings in 719.11s (0:11:59)
+    ```
+    `aw check all` exit status and finding count:
+    - Before: exit status 1, errors 3, warnings 4, info 112 (total 119 findings).
+    - After: exit status 1, errors 3, warnings 4, info 112 (total 119 findings).
+  - Result: pass
 
 ## Approval and execution gate
 

@@ -47,11 +47,8 @@ def _resolve_repo_root(args: argparse.Namespace) -> Path:
 
 
 def _rel_to_repo(path: Path, repo_root: Path) -> str:
-    """Repo-relative POSIX string for ``path`` (falls back to the raw posix path)."""
-    try:
-        return path.resolve().relative_to(repo_root.resolve()).as_posix()
-    except ValueError:
-        return path.as_posix()
+    """Repo-relative POSIX string for ``path`` (delegates to :func:`artifact_core.repo_relative_posix`)."""
+    return _core.repo_relative_posix(path, repo_root)
 
 
 def _dedup(items: List[str]) -> Tuple[str, ...]:

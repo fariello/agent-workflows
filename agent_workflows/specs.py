@@ -315,11 +315,13 @@ def _history_lines(lines: List[str]) -> List[str]:
 # --------------------------------------------------------------------------------------
 
 
-_RECORDS_SEGMENTS = (".aw/records/", ".agents/")
+_RECORDS_SEGMENTS = core.RECORDS_SEGMENTS
 
 
 def drift_location(path: Path) -> str:
     """The REPO-RELATIVE POSIX location to put in a Drift record for ``path``.
+
+    Delegates to :func:`agent_workflows.artifact_core.repo_relative_posix` with no root (IPD amt9fs).
 
     attcor `rkn8ya` E-02: `validate_spec` used to emit ``str(path)`` verbatim, and its two callers
     pass an ABSOLUTE path (`attention._spec_record` and `run_check`'s `_spec_files` list), so a
@@ -343,15 +345,7 @@ def drift_location(path: Path) -> str:
     file the operator just named on the command line. A path that is already relative is returned
     unchanged, so a caller passing `Path("s.md")` is unaffected.
     """
-
-    posix = Path(path).as_posix()
-    for seg in _RECORDS_SEGMENTS:
-        idx = posix.find(seg)
-        if idx != -1:
-            return posix[idx:]
-    if Path(path).is_absolute():
-        return Path(path).name
-    return posix
+    return core.repo_relative_posix(path)
 
 
 def validate_spec(path: Path, text: str) -> List[core.Drift]:

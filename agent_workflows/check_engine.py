@@ -1125,22 +1125,14 @@ def finding_dict(
 def _finding_rel_path(repo_root: Path, path: Path | str) -> str:
     """Render ONE path as repo-relative POSIX text for interpolation into finding prose.
 
-    Takes ``(repo_root, path)`` and returns the relative POSIX string, falling back to the file
-    name (never the absolute path) when the path is outside the root or unresolvable.
+    Delegates to :func:`agent_workflows.artifact_core.repo_relative_posix` (IPD amt9fs).
 
     This helper exists for the finding fields that :func:`finding_dict` does not relativize
     (``detail``, ``observed``, ``required``, ``recovery``) and for a composite ``location`` that
     ``agent_schema.normalize_repo_path`` cannot relativize because that function takes a whole
-    path value. The fallback to the bare file name is modeled on :func:`specs.drift_location` as
-    the leak-free choice.
+    path value.
     """
-    p = Path(path)
-    try:
-        resolved_root = Path(repo_root).resolve()
-        resolved_p = p.resolve() if p.is_absolute() else (resolved_root / p).resolve()
-        return resolved_p.relative_to(resolved_root).as_posix()
-    except (ValueError, OSError, RuntimeError):
-        return p.name
+    return _core.repo_relative_posix(path, repo_root)
 
 
 _SKIP_NAMES = {"README.md", "INDEX.md", "STATUS.md"}
