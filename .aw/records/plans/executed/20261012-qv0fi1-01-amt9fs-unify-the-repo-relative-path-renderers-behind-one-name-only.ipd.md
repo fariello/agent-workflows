@@ -6,7 +6,7 @@
 - Scope: IN: one shared renderer in `agent_workflows/artifact_core.py` whose fallback policy is "relativize against the root, else truncate at a records segment, else the bare file name, never an absolute path"; make the four named helpers delegate to it (keeping each helper's name and signature so no caller changes); and one behavioral test file pinning the policy and the four callers' agreement. OUT: the other repo-relative helpers grep finds (`ipd_lifecycle._repo_relative`, `attention._rel_posix`, `layout_inventory._repo_relative`, the inline relativization in `doctor.probe_artifacts`, `check_engine.finding_dict`'s `location` relativization), whose contracts differ on purpose and are filed separately as backlog `rd6ei9`; `agent_schema.normalize_repo_path` (executed scope of `9yd6tx`); any change to which findings fire or to any message structure beyond the path form.
 - Scope-Paths: agent_workflows/artifact_core.py, agent_workflows/specs.py, agent_workflows/check_engine.py, agent_workflows/artifact_rename.py, agent_workflows/doctor.py, tests/test_repo_relative_posix.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -16,9 +16,9 @@
 - Highest E allocated: 06
 - Author: OpenCode Claude Opus
 - Id: amt9fs
-- Approval: 2026-10-12, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-13 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: amt9fs verified (set qv0fi1, attempt 1).
 - 2026-10-12 approved (aw set): status set to approved
 - 2026-10-12 reviewed (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004
 
