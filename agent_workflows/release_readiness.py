@@ -284,7 +284,7 @@ def gate_generated_drift(
                 evidence={"packages_checked": 0, "drift_files": []},
             )
 
-        drift: List[str] = []
+        drift = []
         for yp in yaml_paths:
             pkg_dir = yp.parent
             pkg_name = pkg_dir.name
@@ -492,7 +492,7 @@ def gate_capability_freshness(
         reg = hcr.HostCapabilityRegistry()
         reg.migrate_from_static_matrix(data)
 
-        stale: List[str] = []
+        stale = []
         claims_checked = 0
         hosts_dict = data.get("hosts", {}) if isinstance(data, dict) else {}
         for host in sorted(hosts_dict.keys()):

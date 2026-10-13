@@ -54,6 +54,24 @@ pytest_plugins = [
 ]
 os.environ.setdefault("AW_IN_TEST_SESSION", "1")
 
+# --------------------------------------------------------------------------------------
+# Pytest traceback formatting guard: prevent worker crash when tb_lineno is None.
+# --------------------------------------------------------------------------------------
+try:
+    import _pytest._code.code as _pytest_code
+
+    _orig_tb_entry_lineno_fget = _pytest_code.TracebackEntry.lineno.fget
+
+    def _safe_tb_entry_lineno(self: object) -> int:
+        tb_lineno = getattr(getattr(self, "_rawentry", None), "tb_lineno", None)
+        if tb_lineno is None:
+            return 0
+        return _orig_tb_entry_lineno_fget(self)
+
+    _pytest_code.TracebackEntry.lineno = property(_safe_tb_entry_lineno)
+except Exception:
+    pass
+
 
 def _available_cpus() -> int:
     """Return available CPU count, respecting sched_getaffinity if available."""

@@ -5,7 +5,7 @@
 - Concern: Nothing mechanically detects that a machine-output flag declared ONCE on the shared `common` argparse parent (`--json`, `--fields`) is accepted by a subcommand's parser yet silently not honored by its handler. That is the defect CLASS behind `xym8g8`, where `aw sanitize --json` exited 0 with zero stdout bytes, and it shipped because every existing surface test either inspects parser DECLARATION (`tests/test_fields_flag_reach.py`, `tests/test_verbose_flag_reach.py`) or drives only `--agent` (`tests/test_agent_surface_conformance.py`). Authoring swept the existing conformance universes at HEAD `85184f648` and measured the class is LIVE beyond `xym8g8`: five leaves emit no parseable JSON under `--json` (filed as `jfdk7p`) and nine leaves ignore `--fields` under `--agent` (filed as `aws1tg`). Any detector must encode `docs/cli-output-contract.md` Section 1.3's exemption for the verbatim-forwarding driver leaves (`aw oc run`, `aw agy run`, the `review`/`integrate` aliases, `aw run as`, `aw run ipd`, `aw agy sessions|view|exec`), where `--agent`/`--json` are deliberately NOT provided, or it fires on each of them.
 - Scope: Add ONE new behavioral test module, `tests/test_shared_flag_honored.py`, that runs every leaf in the two existing conformance universes (`test_agent_surface_conformance.UNIVERSE` and `MUTATION_UNIVERSE`) as a real subprocess under (a) `--json`, asserting stdout parses as one JSON value, and (b) `--agent --fields cmd`, asserting no terminal record carries a key outside the preserved envelope plus `cmd`. It encodes the Section 1.3 exemption by DERIVATION (a leaf whose parser does not declare `--json` is outside the universe) and pins that derivation against the documented forwarded-leaf list so the exemption cannot silently widen. Measured-broken leaves are registered in a strict-xfail `KNOWN_BROKEN` ceiling, each citing a resolvable backlog id, so the gate turns red both when a NEW leaf regresses and when a broken leaf is FIXED without its entry being removed. Add one sentence to `docs/cli-output-contract.md` Section 1.3 naming the new gate. EXCLUDES fixing any of the measured-broken leaves (owned by `jfdk7p`, `aws1tg`, `k84fqu`), any `aw check` rule in `check_engine` (OQ-01), any `--verbose` reach assertion (OQ-02), and any change to the forwarded driver leaves.
 - Scope-Paths: tests/test_shared_flag_honored.py, docs/cli-output-contract.md, .aw/records/plans/pending/20261012-uxq5mg-01-cgsrnb-behaviorally-gate-that-every-leaf-declaring-a-shared-common.ipd.md
-- Scope-Exceeded: .aw/records/backlog/open/20261013-4y614a-01-4y614a-fields-flag-unhonored-in-parser-usage-refusal-for-.backlog.md (E-01 newly measured broken leaves filed in backlog)
+- Scope-Exceeded: .aw/records/backlog/open/20261013-4y614a-01-4y614a-fields-flag-unhonored-in-parser-usage-refusal.backlog.md (E-01 newly measured broken leaves filed in backlog)
 - Item-Dependencies: none
 - Status: executed
 - Readiness: go-pending-approval
@@ -19,7 +19,7 @@
 - Id: cgsrnb
 
 ## Workflow history
-- 2026-10-13 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: cgsrnb verified (set uxq5mg, attempt 1). [Scope reconciliation - out-of-scope .aw/records/backlog/open/20261013-4y614a-01-4y614a-fields-flag-unhonored-in-parser-usage-refusal-for-.backlog.md: E-01 newly measured broken leaves filed in backlog]
+- 2026-10-13 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: cgsrnb verified (set uxq5mg, attempt 1). [Scope reconciliation - out-of-scope .aw/records/backlog/open/20261013-4y614a-01-4y614a-fields-flag-unhonored-in-parser-usage-refusal.backlog.md: E-01 newly measured broken leaves filed in backlog]
 - 2026-10-12 approved (aw set): status set to approved
 - 2026-10-12 reviewed (aw set): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-001..PR-005
 - 2026-10-12 /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005
@@ -198,7 +198,7 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
     $ python3 -m agent_workflows find backlog aws1tg
     ◕  open          aws1tg  .aw/records/backlog/open/20261012-aws1tg-01-aws1tg-fields-flag-unhonored-on-agent-leaves.backlog.md
     $ python3 -m agent_workflows find backlog 4y614a
-    ◕  open          4y614a  .aw/records/backlog/open/20261013-4y614a-01-4y614a-fields-flag-unhonored-in-parser-usage-refusal-for-.backlog.md
+    ◕  open          4y614a  .aw/records/backlog/open/20261013-4y614a-01-4y614a-fields-flag-unhonored-in-parser-usage-refusal.backlog.md
   - Result: pass
 
 - [x] V-02 validates E-02
