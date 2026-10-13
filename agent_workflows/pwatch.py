@@ -1034,8 +1034,9 @@ def main(argv: list[str] | None = None) -> int:
     # so replacing the whole expression with a bare call would SILENTLY DELETE the flag; measured on
     # a real pty 2026-09-19, that naive replacement returns True with `--no-color` passed. The two
     # shipped tests that pass `--no-color` run through a PIPE, where `isatty()` is already False, so
-    # they keep passing with the flag entirely removed and cannot detect the loss - hence the
-    # pty-based case in `tests/test_pwatch.py`.
+    # they keep passing with the flag entirely removed and cannot detect the loss - hence the former
+    # pty-based case in `tests/test_pwatch.py` (deleted in `19313eed`; no live guard currently asserts
+    # this pty behavior).
     #
     # WHAT DELEGATING CHANGED: this module previously reimplemented the decision and IGNORED
     # `FORCE_COLOR` completely, so `FORCE_COLOR=1 aw pwatch | cat` was plain while every other

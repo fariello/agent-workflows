@@ -4156,8 +4156,9 @@ def check_scope_drift(
     drifts a threshold would preserve. The paths are NEVER dropped, because a plan genuinely touching
     three undeclared files must still say WHICH three; only their repetition as separate findings is.
     ``(rule, location)`` is unchanged by construction - the location was already the plan file - which
-    is what ``tests/test_ci_check_parity.py`` compares, and ``recovery`` stays populated because the
-    opt-in pre-commit gate prints that field verbatim as its teaching message.
+    is what ``tests/test_ci_check_parity.py`` (deleted in ``19313eed``; no live guard currently
+    asserts this parity) compared, and ``recovery`` stays populated because the opt-in pre-commit
+    gate prints that field verbatim as its teaching message.
     """
     from agent_workflows import ipd_lifecycle as _life
     from agent_workflows import worktree_lease as _lease
@@ -6457,8 +6458,9 @@ def check_release_gate_consistency(
     release for reasons its originating item never knew, and punishing it for being better informed
     than its own provenance would be wrong. Today that direction is additionally unreachable by
     construction (the `item_gate` map below is populated only for an item that HAS a gate), which is
-    exactly why `tests/test_bug_gate_check.py` pins the zero-finding direction explicitly: without
-    that test a refactor could silently make the rule symmetric and nothing would notice.
+    why `tests/test_bug_gate_check.py` (deleted in `19313eed`; no live guard currently asserts
+    this directly) pinned the zero-finding direction explicitly: without that test a refactor could
+    silently make the rule symmetric and nothing would notice.
 
     Terminal classification uses the shipped `is_retired` predicate rather than a fresh path test,
     per the ruling. `is_retired` is chosen over the narrower `_EXECUTED_SEGMENT` literal because the
@@ -8141,7 +8143,7 @@ def check_spec_review_attestation(repo_root: Path) -> List[_core.Drift]:
                 # Deliberately describes the record by its FIELDS, not by a reviews-tree path. A path
                 # string here would be a second hardcoded reviews location (the anti-duplication guard
                 # `tests/test_review_findings.py::test_no_hardcoded_reviews_path_in_check_engine`
-                # enforces its absence, and it cannot distinguish prose from a resolution path). The
+                # was a code pin removed in `80db6750c` under P16; the file was deleted in `19313eed`). The
                 # authority for WHERE reviews live stays `review_findings.review_dirs`.
                 required=(
                     "a `*.review.md` in the repository's reviews tree that PARSES and carries "
@@ -10119,8 +10121,9 @@ def evaluate_durable_carrier(
     `aw check` (via :func:`check_durable_carrier`) and `aw ipd lint --phase pre-transition` (via
     ``ipd_lint._merge_durable_carrier``) both call THIS function, so the sweep and the checkpoint gate
     cannot drift apart in what counts as carried. That single-predicate property is the stated design
-    intent of the nearest precedent (:func:`evaluate_review_finding_escalation`) and is asserted
-    directly by ``tests/test_durable_capture.py``.
+    intent of the nearest precedent (:func:`evaluate_review_finding_escalation`) and was asserted
+    directly by ``tests/test_durable_capture.py`` (deleted in ``19313eed``; no live guard
+    currently asserts this).
 
     Returns AT MOST ONE Drift per plan per rule (at most two: finished unverified at `info`, and
     uncarried/abandoned at `error`), enumerating grouped offending locators selected by descriptive
@@ -10579,11 +10582,12 @@ def check_ipd_lint_reach(
     ``check_lifecycle_transitions``, and the rule behind `check.review-decision-unescalated`.
 
     NOTE ON CITING THAT LAST ONE BY RULE ID RATHER THAN BY SYMBOL, since it looks inconsistent: its
-    test (`tests/test_review_decisions.py`) asserts wiring-exactly-once by COUNTING that symbol's
-    occurrences in this file's source text, so a prose mention here would read as a second call site and
-    fail it. That brittleness is a known and documented pattern in this repository (see
-    `tests/test_durable_capture.py`, which removed its own two `inspect.getsource` pins for the same
-    reason); citing the rule id sidesteps it without weakening anyone's test.
+    former test (`tests/test_review_decisions.py`) asserted wiring-exactly-once by counting that symbol's
+    occurrences in this file's source text (a code pin removed in `80db6750c` under P16; the file was
+    deleted in `19313eed`). That brittleness was a known pattern in this repository (see
+    `tests/test_durable_capture.py`, deleted in `19313eed`, which removed its own two `inspect.getsource`
+    pins for the same reason); citing the rule id was chosen to sidestep it. While the constraint no
+    longer binds, citing by rule id is kept for historical continuity.
     """
     drift: List[_core.Drift] = []
     from agent_workflows import ipd_lint as _lint

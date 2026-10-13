@@ -715,8 +715,9 @@ def scan(
 # AUTHORITY for this purpose. A prefix reading is needed at all because `parse_clustered` anchors at
 # the tail with a CLOSED facet enum and therefore rejects a research name like
 # `...-<id6>-<slug>.gpt5.survey.md` whose PREFIX is nonetheless perfectly parseable. (Re-encoding that
-# prefix here would have re-created the very duplication this item removes, and
-# `tests/test_naming_authority_single_source.py` correctly refuses it.)
+# prefix here would have re-created the very duplication this item removes, which
+# `tests/test_naming_authority_single_source.py` (deleted in `19313eed`; no live guard currently
+# asserts this structural property) formerly refused.)
 #
 # MEASURED AFTER THE FIX on this tree: 0 disagreements with `parse_clustered` across all 1148
 # clustered-conformant items, and 127 items that previously sorted as absent now sort under their true

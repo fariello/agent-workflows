@@ -1254,9 +1254,10 @@ def _build_parser() -> argparse.ArgumentParser:
     # `aw` itself handles. The forwarded leaves deliberately do NOT get it: `aw` cannot implement a
     # mode it never renders, and on `aw oc run start` a downstream `--agent` is an OpenCode AGENT
     # NAME rather than a machine-output flag, so declaring it here would advertise a flag whose
-    # meaning differs from the one the driver applies. `tests/test_run_dispatch.py` independently
-    # asserts that a forwarded route owns no flag the host parser should own, which is what caught
-    # an earlier version of this change that gave every leaf all four.
+    # meaning differs from the one the driver applies. `tests/test_run_dispatch.py` (deleted in
+    # `19313eed`; no live guard currently asserts this) independently asserted that a forwarded route
+    # owns no flag the host parser should own, which is what caught an earlier version of this change
+    # that gave every leaf all four.
     presentation = _AwArgumentParser(add_help=False)
     # MUTUAL EXCLUSION IS STRUCTURAL, NOT HAND-CHECKED, and the refusal is argparse's own usage
     # error with exit 2 (OQ-02). A "last flag wins" rule would make a scripted invocation's
@@ -6377,8 +6378,9 @@ def _build_parser() -> argparse.ArgumentParser:
     # emits `backlog.priority-invalid` / `backlog.kind-invalid` on an absent value), so a `-` would
     # manufacture an item `aw check backlog` reports as an error. A required field may be RETARGETED
     # here, never emptied. The choices are DERIVED from the shared vocabularies rather than typed, so
-    # this registration cannot drift from what `aw check` validates (pinned by
-    # tests/test_work_kind.py::test_the_cli_choices_match_the_shared_vocab).
+    # this registration cannot drift from what `aw check` validates (formerly pinned by
+    # `tests/test_work_kind.py::test_the_cli_choices_match_the_shared_vocab`, deleted in `19313eed`;
+    # no live guard currently asserts this).
     #
     # READ THE VOCABULARY FROM ITS ONE DEFINITION, following the `RUNS_VIEWER_LEAF_NAMES` precedent
     # above: a function-local import inside the parser builder, so importing `cli` does not eagerly

@@ -652,10 +652,11 @@ def approval_refusals(
        deferral, while refusing it here would be an un-overridable lockout on a human's own approval.
        The ORDER is shared; only that extra requirement is not, and the difference is a risk choice.
     2. THE TYPED REVIEW ARTIFACT, via ``review_findings.subject_gating_blocks``, reused UNCHANGED so the
-       one severity comparison (``review_findings.is_gating``) is not forked - there is an explicit
-       anti-fork guard test at ``tests/test_review_findings_gate.py``. An ABSENT review artifact is
-       SILENT, not blocking, which is that function's documented contract and is required for safety
-       rather than laziness: only 34 ``.review.md`` files exist against 400+ plans.
+       one severity comparison (``review_findings.is_gating``) is not forked; an anti-fork source guard
+       at ``tests/test_review_findings_gate.py`` was removed in ``80db6750c`` under P16 (the file was
+       deleted in ``19313eed``). An ABSENT review artifact is SILENT, not blocking, which is that
+       function's documented contract and is required for safety rather than laziness: only 34
+       ``.review.md`` files exist against 400+ plans.
     3. UNRESOLVED BLOCKING OPEN QUESTIONS, via :func:`has_unresolved_blocking_question`, the SHIPPED
        predicate rather than a third copy. Note it is STRICTER than ``ipd_lint``'s checkpoint form
        (``Status != "resolved"`` versus ``Status == "open"``) and fails closed on an unparseable
@@ -857,7 +858,8 @@ def recheck_conditions(
     IT FORKS NOTHING. Condition 1 is :func:`has_unresolved_blocking_question`, condition 2 is
     ``review_findings.subject_gating_blocks``, condition 3 is :func:`newest_verdict`; each is the
     shipped predicate :func:`approval_refusals` itself composes, called here rather than copied.
-    ``tests/test_review_findings_gate.py`` carries an explicit anti-fork guard for the second.
+    The former anti-fork guard in ``tests/test_review_findings_gate.py`` was removed in ``80db6750c``
+    under P16 (the file was deleted in ``19313eed``).
 
     CONDITION 1 IS BLOCKING-ONLY, AND THAT IS A DELIBERATE DEPARTURE recorded as the maintainer's
     2026-09-10 ruling on this plan's OQ-01: a NON-BLOCKING open question does NOT make a plan

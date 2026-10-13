@@ -17,7 +17,8 @@ ONE DELIBERATE BEHAVIOR CHANGE, per the maintainer's UNION ruling (2026-09-01, s
 `reviews` is now an ACCEPTED type noun, because it is a real record tree that `RecordClass` already
 carries. It was previously rejected (`aw check reviews` exited 2 with "unknown artifact type"). It is
 deliberately NOT a `TYPE_BACKENDS` key and has no status lifecycle, so it stays out of
-`selectors.KNOWN_PRIMARY_TYPES` and out of `aw set`. See `tests/test_awcmdsurf_vocab_and_parsers.py`.
+`selectors.KNOWN_PRIMARY_TYPES` and out of `aw set` (`tests/test_awcmdsurf_vocab_and_parsers.py` was
+deleted in `19313eed`; no live guard currently asserts this).
 """
 
 from __future__ import annotations
