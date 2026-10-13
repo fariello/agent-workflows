@@ -71,7 +71,6 @@ class TestTerminalStatusVocabularyDefinitions(unittest.TestCase):
         self.assertEqual(
             runner_shared.TERMINAL_STATES_CANONICAL, EXPECTED_CANONICAL_STATES
         )
-        self.assertEqual(len(runner_shared.TERMINAL_STATES_CANONICAL), 14)
 
     def test_terminal_status_aliases_map(self):
         """TERMINAL_STATUS_ALIASES maps all legacy tokens to canonical members."""

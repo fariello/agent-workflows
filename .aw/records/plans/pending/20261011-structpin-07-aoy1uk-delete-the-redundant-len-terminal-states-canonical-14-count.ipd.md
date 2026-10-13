@@ -37,10 +37,10 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: the one count literal
 
-- [ ] E-01 DELETE THE SINGLE STATEMENT `self.assertEqual(len(runner_shared.TERMINAL_STATES_CANONICAL), 14)` FROM `tests/test_terminal_status_vocabulary.py::TestTerminalStatusVocabularyDefinitions::test_canonical_terminal_states_set`, ADDING NO REPLACEMENT. Keep the preceding `self.assertEqual(runner_shared.TERMINAL_STATES_CANONICAL, EXPECTED_CANONICAL_STATES)` verbatim, keep the docstring ("TERMINAL_STATES_CANONICAL contains exactly the 14 canonical states."), and touch no other line. DO NOT substitute a range, a floor, a `>=` bound, or `len(EXPECTED_CANONICAL_STATES)`: the quantity is not the invariant, and comparing two lengths of sets already proven equal is the same tautology in a different spelling. STOP CONDITION BEFORE DELETING: run the test by name and confirm it PASSES (not skipped, not deselected), and confirm the preceding assertion still compares the module attribute against the hand-written `EXPECTED_CANONICAL_STATES` table; if that equality has been removed, weakened to a subset check, or rebased onto a value derived from `runner_shared` itself, DO NOT DELETE and report, because then the count would no longer be redundant.
+- [x] E-01 DELETE THE SINGLE STATEMENT `self.assertEqual(len(runner_shared.TERMINAL_STATES_CANONICAL), 14)` FROM `tests/test_terminal_status_vocabulary.py::TestTerminalStatusVocabularyDefinitions::test_canonical_terminal_states_set`, ADDING NO REPLACEMENT. Keep the preceding `self.assertEqual(runner_shared.TERMINAL_STATES_CANONICAL, EXPECTED_CANONICAL_STATES)` verbatim, keep the docstring ("TERMINAL_STATES_CANONICAL contains exactly the 14 canonical states."), and touch no other line. DO NOT substitute a range, a floor, a `>=` bound, or `len(EXPECTED_CANONICAL_STATES)`: the quantity is not the invariant, and comparing two lengths of sets already proven equal is the same tautology in a different spelling. STOP CONDITION BEFORE DELETING: run the test by name and confirm it PASSES (not skipped, not deselected), and confirm the preceding assertion still compares the module attribute against the hand-written `EXPECTED_CANONICAL_STATES` table; if that equality has been removed, weakened to a subset check, or rebased onto a value derived from `runner_shared` itself, DO NOT DELETE and report, because then the count would no longer be redundant.
   - Depends on: none
   - Expected outcome: `rg -n "len\(runner_shared.TERMINAL_STATES_CANONICAL\)" tests/test_terminal_status_vocabulary.py` returns no match; `git diff -- tests/test_terminal_status_vocabulary.py` shows exactly one removed line and no added line; the file's collected test count is unchanged (16 at authoring) and all pass; the name-level equality still turns RED under an in-memory growth and shrink of the canonical set.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -111,10 +111,135 @@ N/A with reason: deleting one redundant test assertion changes no behavior, CLI 
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: (a) STOP CONDITION, pasted BEFORE the edit: the by-name run of `test_canonical_terminal_states_set` showing `PASSED` and `1 passed`, plus a quoted excerpt of the test body showing the equality against `EXPECTED_CANONICAL_STATES`; a skipped, missing, or weakened equality is a STOP (mark `blocked`, do not delete). (b) `rg` for `len(runner_shared.TERMINAL_STATES_CANONICAL)` in the file returning no match, pasted. (c) `git diff -- tests/test_terminal_status_vocabulary.py` pasted, showing exactly one removed line and no added line. (d) `python3 -m pytest tests/test_terminal_status_vocabulary.py -o addopts="" -q` pasted before and after with the same collected count, all passing. (e) MUTATION after the edit, pasted: the in-process growth probe and shrink probe (the code path is `pytest.main` driving the edited test with `runner_shared.TERMINAL_STATES_CANONICAL` rebound, as in F-02) each showing `1 failed` with the injected or removed token named. (f) Bare `python3 -m pytest` summary lines before and after, with the failing-test set identical by name and the passed count not lower. (g) `git status --short` showing only the one test file modified and no scratch file.
   - Observed evidence:
-  - Result: pending
+    (a) STOP CONDITION BEFORE EDIT:
+    ```
+    $ python3 -m pytest "tests/test_terminal_status_vocabulary.py::TestTerminalStatusVocabularyDefinitions::test_canonical_terminal_states_set" -o addopts="" -v
+    ============================= test session starts ==============================
+    platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0 -- <venv>/bin/python3
+    cachedir: .pytest_cache
+    Using --randomly-seed=2068174033
+    rootdir: <repo-root>
+    configfile: pyproject.toml
+    plugins: anyio-4.14.1, randomly-4.1.0, cov-7.1.0, xdist-3.8.0
+    collecting ... collecting 1 item                                                              collected 1 item
+
+    tests/test_terminal_status_vocabulary.py::TestTerminalStatusVocabularyDefinitions::test_canonical_terminal_states_set PASSED [100%]
+
+    ============================== 1 passed in 2.56s ===============================
+    ```
+    Test body excerpt before edit:
+    ```python
+        def test_canonical_terminal_states_set(self):
+            """TERMINAL_STATES_CANONICAL contains exactly the 14 canonical states."""
+            self.assertEqual(
+                runner_shared.TERMINAL_STATES_CANONICAL, EXPECTED_CANONICAL_STATES
+            )
+            self.assertEqual(len(runner_shared.TERMINAL_STATES_CANONICAL), 14)
+    ```
+    The equality compares runner_shared.TERMINAL_STATES_CANONICAL directly against the module-level hand-written EXPECTED_CANONICAL_STATES frozenset table of 14 string literals.
+
+    (b) rg search for len(runner_shared.TERMINAL_STATES_CANONICAL) in tests/test_terminal_status_vocabulary.py:
+    ```
+    $ rg -n "len\(runner_shared.TERMINAL_STATES_CANONICAL\)" tests/test_terminal_status_vocabulary.py
+    (exit 1, no match)
+    ```
+
+    (c) git diff -- tests/test_terminal_status_vocabulary.py:
+    ```diff
+    diff --git a/tests/test_terminal_status_vocabulary.py b/tests/test_terminal_status_vocabulary.py
+    index 2e5cde0ca..b3c17524d 100644
+    --- a/tests/test_terminal_status_vocabulary.py
+    +++ b/tests/test_terminal_status_vocabulary.py
+    @@ -71,7 +71,6 @@ class TestTerminalStatusVocabularyDefinitions(unittest.TestCase):
+             self.assertEqual(
+                 runner_shared.TERMINAL_STATES_CANONICAL, EXPECTED_CANONICAL_STATES
+             )
+    -        self.assertEqual(len(runner_shared.TERMINAL_STATES_CANONICAL), 14)
+
+         def test_terminal_status_aliases_map(self):
+             """TERMINAL_STATUS_ALIASES maps all legacy tokens to canonical members."""
+    ```
+
+    (d) python3 -m pytest tests/test_terminal_status_vocabulary.py -o addopts="" -q:
+    BEFORE:
+    ```
+    ................                                                         [100%]
+    16 passed in 0.80s
+    ```
+    AFTER:
+    ```
+    ................                                                         [100%]
+    16 passed in 0.49s
+    ```
+
+    (e) In-process mutation probes driving the edited test with rebound runner_shared.TERMINAL_STATES_CANONICAL via pytest.main:
+    GROWTH (added 'probe-15th-state', len 15):
+    ```
+    == growth 15
+    F                                                                        [100%]
+    =================================== FAILURES ===================================
+    __ TestTerminalStatusVocabularyDefinitions.test_canonical_terminal_states_set __
+
+    self = <tests.test_terminal_status_vocabulary.TestTerminalStatusVocabularyDefinitions testMethod=test_canonical_terminal_states_set>
+
+        def test_canonical_terminal_states_set(self):
+            """TERMINAL_STATES_CANONICAL contains exactly the 14 canonical states."""
+    >       self.assertEqual(
+                runner_shared.TERMINAL_STATES_CANONICAL, EXPECTED_CANONICAL_STATES
+            )
+    E       AssertionError: Items in the first set but not the second:
+    E       'probe-15th-state'
+
+    tests/test_terminal_status_vocabulary.py:71: AssertionError
+    =========================== short test summary info ============================
+    FAILED tests/test_terminal_status_vocabulary.py::TestTerminalStatusVocabularyDefinitions::test_canonical_terminal_states_set
+    1 failed in 0.25s
+    ```
+    SHRINK (removed 'retired', len 13):
+    ```
+    == shrink 13
+    F                                                                        [100%]
+    =================================== FAILURES ===================================
+    __ TestTerminalStatusVocabularyDefinitions.test_canonical_terminal_states_set __
+
+    self = <tests.test_terminal_status_vocabulary.TestTerminalStatusVocabularyDefinitions testMethod=test_canonical_terminal_states_set>
+
+        def test_canonical_terminal_states_set(self):
+            """TERMINAL_STATES_CANONICAL contains exactly the 14 canonical states."""
+    >       self.assertEqual(
+                runner_shared.TERMINAL_STATES_CANONICAL, EXPECTED_CANONICAL_STATES
+            )
+    E       AssertionError: Items in the second set but not the first:
+    E       'retired'
+
+    tests/test_terminal_status_vocabulary.py:71: AssertionError
+    =========================== short test summary info ============================
+    FAILED tests/test_terminal_status_vocabulary.py::TestTerminalStatusVocabularyDefinitions::test_canonical_terminal_states_set
+    1 failed in 0.08s
+    ```
+
+    (f) Bare python3 -m pytest summary lines before and after:
+    BEFORE:
+    ```
+    NOTE: 291 tests were deselected by -m/-k and did not run (this run's marker filter skips 'slow' and 'livecorpus'); run everything with: make test-all
+    7688 passed, 4 skipped, 3 warnings in 573.01s (0:09:33)
+    ```
+    AFTER:
+    ```
+    NOTE: 291 tests were deselected by -m/-k and did not run (this run's marker filter skips 'slow' and 'livecorpus'); run everything with: make test-all
+    7688 passed, 4 skipped, 3 warnings in 501.65s (0:08:21)
+    ```
+    Failed count is 0 before and 0 after; passed count is identical (7688 passed).
+
+    (g) git status --short:
+    ```
+     M tests/test_terminal_status_vocabulary.py
+    ```
+    Only tests/test_terminal_status_vocabulary.py was modified; no scratch file remained.
+  - Result: pass
 
 ## Approval and execution gate
 
