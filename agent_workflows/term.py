@@ -1119,7 +1119,11 @@ class Term:
         return resolve_color_depth(self.stream, override=True)
 
     def style_lifecycle_text(
-        self, text: str, resolved: lifecycle_style.Resolved
+        self,
+        text: str,
+        resolved: lifecycle_style.Resolved,
+        *,
+        bold: Optional[bool] = None,
     ) -> str:
         """Apply ``resolved``'s color and bold flag to ``text`` (R10.2, the third helper).
 
@@ -1131,18 +1135,22 @@ class Term:
         Both colored tiers are served here because the tier is a rendering decision and this is the
         rendering boundary: 256 uses ``lifecycle_style``'s index, 16 uses the authored
         :data:`STAGE_COLOR_16` palette. Neither table is defined in this method.
+
+        Pass ``bold=False`` to suppress bolding (useful for Unicode symbols/glyphs which may
+        suffer from synthetic bold distortion in terminal emulators), while preserving color.
         """
 
         tier = self.lifecycle_depth()
         if tier == DEPTH_NONE or not text:
             return text
         style = resolved.style
+        is_bold = style.bold if bold is None else bold
         if tier == DEPTH_16:
             code = color_16_for_stage(resolved.stage)
-            prefix = "1;" if style.bold else ""
+            prefix = "1;" if is_bold else ""
             return f"\033[{prefix}{code}m{text}{_RESET}"
         n = max(0, min(255, int(style.color)))
-        prefix = "1;" if style.bold else ""
+        prefix = "1;" if is_bold else ""
         return f"\033[{prefix}38;5;{n}m{text}{_RESET}"
 
     def format_lifecycle_marker(
@@ -1151,6 +1159,7 @@ class Term:
         *,
         width: int = 0,
         style: bool = True,
+        bold: bool = False,
     ) -> str:
         """Return the lifecycle GLYPH in this stream's tier, styled and optionally padded.
 
@@ -1163,10 +1172,15 @@ class Term:
         are 2 code points and 1 column, so a `len()`-based pad leaves their column one short of
         every other row's. Measured before this landed, `status_256('⚠︎', width=4)` produced 3
         rendered columns while `status_256('◕', width=4)` produced 4.
+
+        By default, ``bold=False`` is used to suppress bold on symbols/glyphs, preventing terminal
+        font distortion while preserving stage color.
         """
 
         glyph = lifecycle_style.glyph_for(resolved.stage, unicode=self.unicode)
-        painted = self.style_lifecycle_text(glyph, resolved) if style else glyph
+        painted = (
+            self.style_lifecycle_text(glyph, resolved, bold=bold) if style else glyph
+        )
         pad = width - visible_width(glyph)
         if pad > 0:
             return painted + (" " * pad)
@@ -1181,16 +1195,17 @@ class Term:
     ) -> str:
         """Return Section 9.2's compact ``GLYPH id6`` form, glyph and id6 styled together.
 
-        The glyph and id6 share the same lifecycle color and weight (Section 9.2: "styled together"),
+        The glyph and id6 share the same lifecycle color (Section 9.2: "styled together"),
         emitted as separate SGR spans so terminal text shapers (such as HarfBuzz / xterm.js /
         mintty) do not coalesce font fallback metrics across the glyph boundary and squish
-        ambiguous-width glyphs (like ◕). Pass ``word=True`` to append the native word when it fits,
-        which the section invites ("If a status word fits, include it").
+        ambiguous-width glyphs (like ◕). The glyph is unbolded to avoid synthetic bold distortion.
+        Pass ``word=True`` to append the native word when it fits, which the section invites
+        ("If a status word fits, include it").
         """
 
         glyph = lifecycle_style.glyph_for(resolved.stage, unicode=self.unicode)
         marker = (
-            f"{self.style_lifecycle_text(glyph, resolved)} "
+            f"{self.style_lifecycle_text(glyph, resolved, bold=False)} "
             f"{self.style_lifecycle_text(id6, resolved)}"
         )
         if word:
@@ -1282,7 +1297,9 @@ class Term:
                 stage=stage, style=style, family=lifecycle_style.FAMILY_PLANS
             )
             shown = style.unicode if self.unicode else style.ascii
-            marker = pad_visible(self.style_lifecycle_text(shown, resolved), 2)
+            marker = pad_visible(
+                self.style_lifecycle_text(shown, resolved, bold=False), 2
+            )
             if both_forms and self.unicode:
                 rows.append(f"{marker} {style.ascii}  {stage}")
             else:

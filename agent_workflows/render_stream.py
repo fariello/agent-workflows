@@ -251,12 +251,20 @@ class Palette:
                 )
         return self._term
 
-    def lifecycle(self, resolved: _LS.Resolved, text: str | None = None) -> str:
+    def lifecycle(
+        self,
+        resolved: _LS.Resolved,
+        text: str | None = None,
+        *,
+        bold: bool | None = None,
+    ) -> str:
         """Style ``text`` (default: the native word) with ``resolved``'s lifecycle color and weight."""
 
         term = self.lifecycle_term()
         return term.style_lifecycle_text(
-            _T.lifecycle_word(resolved) if text is None else text, resolved
+            _T.lifecycle_word(resolved) if text is None else text,
+            resolved,
+            bold=bold,
         )
 
     def lifecycle_glyph(self, resolved: _LS.Resolved, *, width: int = 0) -> str:
@@ -1226,7 +1234,7 @@ def format_activity_cell(
     plain = f"{glyph}{label}"
     if pal is None or not pal.enabled:
         return plain, _T.visible_width(plain)
-    styled = pal.lifecycle(resolved, glyph) + pal.lifecycle(resolved, label)
+    styled = pal.lifecycle(resolved, glyph, bold=False) + pal.lifecycle(resolved, label)
     return styled, _T.visible_width(plain)
 
 

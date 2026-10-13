@@ -181,7 +181,7 @@ class ScanTests(unittest.TestCase):
 
             colored = att.render_board(sample_items, [], term=T.Term(color=True))
             self.assertIn("\033[1;38;5;220mactive\033[0m", colored)
-            self.assertIn("\033[1;38;5;208m\u26a0\ufe0e\033[0m", colored)
+            self.assertIn("\033[38;5;208m\u26a0\ufe0e\033[0m", colored)
             self.assertNotIn("\u26a0\ufe0f", colored)
 
 
@@ -699,7 +699,7 @@ class AttentionTableFormattingAndSortingTests(unittest.TestCase):
         self.assertIn("\033[1;38;5;45m20260903\033[0m", colored_out)
         self.assertIn("\033[1;38;5;45mrunnerlayer\033[0m", colored_out)
         self.assertIn("\033[1;38;5;45mcnwy8g\033[0m", colored_out)
-        self.assertIn("\033[1;38;5;45m◕\033[0m \033[1;38;5;45mopen\033[0m", colored_out)
+        self.assertIn("\033[38;5;45m◕\033[0m \033[1;38;5;45mopen\033[0m", colored_out)
         self.assertIn("open\033[0m     backlog   ", colored_out)
         self.assertNotIn("\033[1;38;5;33m", colored_out)
 
@@ -2415,8 +2415,9 @@ class SharedLifecycleResolverTests(unittest.TestCase):
         resolved = self._LS.resolve(self._LS.FAMILY_PLANS, "approved")
         code = resolved.style.color
         prefix = f"\033[1;38;5;{code}m"
+        glyph_prefix = f"\033[38;5;{code}m"
         glyph = self._LS.style_for(resolved.stage).unicode
-        self.assertIn(f"{prefix}{glyph}\033[0m", row)
+        self.assertIn(f"{glyph_prefix}{glyph}\033[0m", row)
         self.assertIn(f"{prefix}approved\033[0m", row)
         self.assertIn(f"{prefix}aaa111\033[0m", row)
         self.assertIn("approved\033[0m plan ", row)
@@ -2433,8 +2434,7 @@ class SharedLifecycleResolverTests(unittest.TestCase):
             item = self._item(tree, status, f".aw/records/{tree}/x.md")
             row = self._row(item)
             style = resolved.style
-            bold = "1;" if style.bold else ""
-            self.assertIn(f"\033[{bold}38;5;{style.color}m{style.unicode}\033[0m", row)
+            self.assertIn(f"\033[38;5;{style.color}m{style.unicode}\033[0m", row)
 
         with self.assertRaises(A.UnknownNativeStatus):
             A.class_of("plans", "bogus-status")

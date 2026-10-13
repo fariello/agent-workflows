@@ -1126,9 +1126,11 @@ class FullRowStylingTests(unittest.TestCase):
         codes = _ANSI.findall(row)
         opens = [c for c in codes if c != "\033[0m"]
         self.assertEqual(len(opens), 3)
-        self.assertEqual(len(set(opens)), 1)
-        expected = f"\033[1;38;5;{LS.style_for(LS.BLOCKED).color}m"
-        self.assertEqual(opens[0], expected)
+        glyph_expected = f"\033[38;5;{LS.style_for(LS.BLOCKED).color}m"
+        text_expected = f"\033[1;38;5;{LS.style_for(LS.BLOCKED).color}m"
+        self.assertEqual(opens[0], glyph_expected)
+        self.assertEqual(opens[1], text_expected)
+        self.assertEqual(opens[2], text_expected)
 
         for neutral in ("BACKLOG", "Short title", "a/b.md"):
             idx = row.index(neutral)
@@ -1182,7 +1184,7 @@ class CompactFormAndLegendTests(unittest.TestCase):
     def test_lifecycle_compact_and_legend(self):
         resolved = T.resolve_lifecycle("backlog", "blocked")
         out = self.term.format_lifecycle_compact("abc123", resolved)
-        expected = f"\033[1;38;5;208m{_VS_BLOCKED}\033[0m \033[1;38;5;208mabc123\033[0m"
+        expected = f"\033[38;5;208m{_VS_BLOCKED}\033[0m \033[1;38;5;208mabc123\033[0m"
         self.assertEqual(out, expected)
 
         plain = T.Term(color=False, unicode=True)

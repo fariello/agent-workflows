@@ -1933,7 +1933,8 @@ class SharedLifecycleRenderingTests(TestCase):
         for status, glyph, sgr in cases:
             with self.subTest(status=status):
                 line = run_viewer.format_step_line(self._step(status), term)
-                self.assertIn(f"\033[{sgr}m{glyph}\033[0m", line)
+                glyph_sgr = sgr.removeprefix("1;")
+                self.assertIn(f"\033[{glyph_sgr}m{glyph}\033[0m", line)
                 self.assertIn(f"\033[{sgr}m{status}\033[0m", line)
 
         # ran and unknown_outcome are never styled as success (green 46)
@@ -1990,15 +1991,15 @@ class SharedLifecycleRenderingTests(TestCase):
         term = self._term()
         # action-aware activity
         rev = run_viewer.format_step_line(self._step("running", action="review"), term)
-        self.assertIn("\033[1;38;5;220m\u25ce\033[0m", rev)
+        self.assertIn("\033[38;5;220m\u25ce\033[0m", rev)
         exe = run_viewer.format_step_line(self._step("running", action="execute"), term)
-        self.assertIn("\033[1;38;5;220m\u25b6\033[0m", exe)
+        self.assertIn("\033[38;5;220m\u25b6\033[0m", exe)
 
         # unmapped action falls back to active
         plan_line = run_viewer.format_step_line(
             self._step("running", action="plan"), term
         )
-        self.assertIn("\033[1;38;5;220m\u25cf\033[0m", plan_line)
+        self.assertIn("\033[38;5;220m\u25cf\033[0m", plan_line)
 
         # artifact type word carries no escape
         line_type = run_viewer.format_step_line(self._step("executed"), term)
