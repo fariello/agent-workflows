@@ -36,22 +36,22 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: Make the fixture able to exercise the on-demand probe
 
-- [ ] E-01 In `tests/test_runwire_verifier_authority.py` `_drive_execute_turn`, add a keyword parameter `freeze_host_capabilities: bool = True`; when False, omit the `host_capabilities` key from `state` so `runner_shared.ensure_frozen_host_capabilities` measures on demand. Also record every call to the local `spawn_executor` / `spawn_verifier` closures in a list stored on the returned state under a test-only key (for example `state["_test_spawns"]`, appending `"executor"` / `"verifier"`). The default path must behave exactly as today, and add a comment on the frozen descriptor citing backlog `qkzet8` (the descriptor is what keeps the preflight from re-probing under a mutated guard). If sibling `jo55oo` has already landed its own comment on that key (citing `4dktme`), extend that comment to cite both backlogs rather than adding a second one.
+- [x] E-01 In `tests/test_runwire_verifier_authority.py` `_drive_execute_turn`, add a keyword parameter `freeze_host_capabilities: bool = True`; when False, omit the `host_capabilities` key from `state` so `runner_shared.ensure_frozen_host_capabilities` measures on demand. Also record every call to the local `spawn_executor` / `spawn_verifier` closures in a list stored on the returned state under a test-only key (for example `state["_test_spawns"]`, appending `"executor"` / `"verifier"`). The default path must behave exactly as today, and add a comment on the frozen descriptor citing backlog `qkzet8` (the descriptor is what keeps the preflight from re-probing under a mutated guard). If sibling `jo55oo` has already landed its own comment on that key (citing `4dktme`), extend that comment to cite both backlogs rather than adding a second one.
   - Depends on: none
   - Expected outcome: every existing test in the file still passes unchanged; a caller can now drive the pipeline with no frozen descriptor and observe which spawns ran.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: Pin the end-to-end refusal
 
-- [ ] E-02 Add `test_disabled_distinct_session_guard_refuses_execute_preflight` to `tests/test_runwire_verifier_authority.py`: `monkeypatch.setattr(agy_verifier, "assert_distinct_sessions", lambda e, v: None)`, then call `_drive_execute_turn(..., driver_module=oc_runipd, host_labels=runner_shared.OC_HOST_LABELS, freeze_host_capabilities=False)` and assert ALL of: `item["status"] == "fail-gate"`; `render_stream.refusal_of_item(item)` is not None with `.code == run_selection_policy.SKIP_HOST_CAPABILITY_UNAVAILABLE` and `"supports_fresh_verifier_session" in .reason`; `item["attempts"][-1]["disposition"] == "fail-gate"` and the attempt carries `host_capability_unavailable`; `"verification_status" not in item`; the recorded spawn list is empty (no executor and no verifier turn); and `state["host_capabilities"]["descriptor"]["supports_fresh_verifier_session"] is False` (the on-demand measurement was frozen into state). Also add the unmutated control in the same test or a sibling: with no monkeypatch and `freeze_host_capabilities=False`, the item is NOT refused by the preflight (no `host_capability_unavailable` key on the last attempt, and the item carries no `host_capability_unavailable` refusal) and the recorded spawn list contains `"executor"`. Do NOT assert on `item["status"]` in the control: in this fixture the unmutated item also ends `fail-gate`, from a LATER gate (`turn_retry_skipped` reads "lifecycle gate or clean-base gate refused"), with `verification_status == "verified"` and spawns `["executor", "verifier"]` (measured at review, F-7). So `status == "fail-gate"` alone does not tell the two runs apart; the discriminators are the `host_capability_unavailable` attempt key, the refusal code, and the spawn list.
+- [x] E-02 Add `test_disabled_distinct_session_guard_refuses_execute_preflight` to `tests/test_runwire_verifier_authority.py`: `monkeypatch.setattr(agy_verifier, "assert_distinct_sessions", lambda e, v: None)`, then call `_drive_execute_turn(..., driver_module=oc_runipd, host_labels=runner_shared.OC_HOST_LABELS, freeze_host_capabilities=False)` and assert ALL of: `item["status"] == "fail-gate"`; `render_stream.refusal_of_item(item)` is not None with `.code == run_selection_policy.SKIP_HOST_CAPABILITY_UNAVAILABLE` and `"supports_fresh_verifier_session" in .reason`; `item["attempts"][-1]["disposition"] == "fail-gate"` and the attempt carries `host_capability_unavailable`; `"verification_status" not in item`; the recorded spawn list is empty (no executor and no verifier turn); and `state["host_capabilities"]["descriptor"]["supports_fresh_verifier_session"] is False` (the on-demand measurement was frozen into state). Also add the unmutated control in the same test or a sibling: with no monkeypatch and `freeze_host_capabilities=False`, the item is NOT refused by the preflight (no `host_capability_unavailable` key on the last attempt, and the item carries no `host_capability_unavailable` refusal) and the recorded spawn list contains `"executor"`. Do NOT assert on `item["status"]` in the control: in this fixture the unmutated item also ends `fail-gate`, from a LATER gate (`turn_retry_skipped` reads "lifecycle gate or clean-base gate refused"), with `verification_status == "verified"` and spawns `["executor", "verifier"]` (measured at review, F-7). So `status == "fail-gate"` alone does not tell the two runs apart; the discriminators are the `host_capability_unavailable` attempt key, the refusal code, and the spawn list.
   - Depends on: E-01
   - Expected outcome: the backlog's exact mechanism (global monkeypatch -> probe False -> execute preflight refusal) is a named, passing behavioral test, with a control proving the refusal is caused by the mutation and not by the environment.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 Commit only the declared paths via `aw commit a8yn86 -- tests/test_runwire_verifier_authority.py .aw/records/plans/pending/20261012-qkzet8-01-a8yn86-pin-that-a-disabled-distinct-session-guard-makes-the-execute.ipd.md`.
+- [x] E-03 Commit only the declared paths via `aw commit a8yn86 -- tests/test_runwire_verifier_authority.py .aw/records/plans/pending/20261012-qkzet8-01-a8yn86-pin-that-a-disabled-distinct-session-guard-makes-the-execute.ipd.md`.
   - Depends on: E-02
   - Expected outcome: one commit whose `git show --stat` lists only those two paths.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -118,20 +118,150 @@ N/A: test-only change; no CLI, spec, or user-facing documentation describes this
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: pasted `git diff` hunk of `_drive_execute_turn` showing the `freeze_host_capabilities` parameter and the spawn record, plus pasted output of `python3 -m pytest -o addopts="" tests/test_runwire_verifier_authority.py -q` with every pre-existing test passing (`N passed`).
   - Observed evidence:
-  - Result: pending
+    `git diff` hunk of `_drive_execute_turn`:
+    ```diff
+    @@ -56,6 +59,7 @@ def _drive_execute_turn(
+         write_outcome: bool = True,
+         validate: bool = True,
+         current_status: str = "queued",
+    +    freeze_host_capabilities: bool = True,
+     ) -> tuple[dict[str, Any], dict[str, Any], Path]:
+         """Drive the real runner_shared.execute_item_core pipeline."""
+         run_dir = root / ".aw/runs/run-test"
+    @@ -79,23 +83,28 @@ def _drive_execute_turn(
+             "status": current_status,
+             "configured_file": str(plan_file.relative_to(root)),
+         }
+    +    spawns: list[str] = []
+         state: dict[str, Any] = {
+             "repo": str(root),
+             "run_id": "run-test",
+             "queue": [item],
+    -        "host_capabilities": {
+    -            "descriptor": {
+    -                "supports_fresh_verifier_session": True,
+    -                "supports_session_resume": True,
+    -            }
+    -        },
+             "options": {
+                 "isolate_worktrees": False,
+                 "self_finalize": False,
+                 "validate": validate,
+                 "no_verify": False,
+             },
+    +        "_test_spawns": spawns,
+         }
+    +    if freeze_host_capabilities:
+    +        # Backlog qkzet8: frozen descriptor keeps the preflight from re-probing
+    +        # on demand under a mutated guard.
+    +        state["host_capabilities"] = {
+    +            "descriptor": {
+    +                "supports_fresh_verifier_session": True,
+    +                "supports_session_resume": True,
+    +            }
+    +        }
 
-- [ ] V-02 validates E-02
+         def spawn_executor(
+             prompt_path: Path,
+    @@ -106,6 +115,7 @@ def _drive_execute_turn(
+             session_id: Any,
+             use_continue: bool,
+         ) -> tuple[int, str | None, Path, list[str]]:
+    +        spawns.append("executor")
+             log_path = run_dir / "logs" / f"exec-{attempt_no}.log"
+             log_path.write_text("exec log", encoding="utf-8")
+             outcome = run_dir / "outcomes" / f"{item['position']:02d}-{item['id6']}.json"
+    @@ -128,6 +138,7 @@ def _drive_execute_turn(
+             tracker: Any,
+             attempt_no: int,
+         ) -> tuple[int, str | None, Path, list[str]]:
+    +        spawns.append("verifier")
+             v_log = run_dir / "logs" / f"verify-{attempt_no}.log"
+             v_log.write_text("verify log\npytest\n", encoding="utf-8")
+             if write_outcome:
+    ```
+    Pre-existing test pass output:
+    ```
+    $ python3 -m pytest -o addopts="" tests/test_runwire_verifier_authority.py -q
+    ............                                                             [100%]
+    12 passed in 5.35s
+    ```
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: pasted passing output of `python3 -m pytest -o addopts="" tests/test_runwire_verifier_authority.py -q -k disabled_distinct_session_guard`; pasted FAILING output of the same command with the monkeypatch line temporarily removed (then pasted `git diff --stat` showing it restored); and the bare `python3 -m pytest` summary line showing no new failures. The refusal is produced by `runner_shared.execute_item_core`'s preflight branch, reached through E-01's unfrozen fixture path.
   - Observed evidence:
-  - Result: pending
+    Passing output:
+    ```
+    $ python3 -m pytest -o addopts="" tests/test_runwire_verifier_authority.py -q -k disabled_distinct_session_guard
+    ..                                                                       [100%]
+    NOTE: 12 tests were deselected by -m/-k and did not run (no marker filter was active; deselected by -k/--deselect)
+    2 passed, 12 deselected in 2.26s
+    ```
+    Failing output with monkeypatch removed:
+    ```
+    $ python3 -m pytest -o addopts="" tests/test_runwire_verifier_authority.py -q -k disabled_distinct_session_guard
+    .F                                                                       [100%]
+    =================================== FAILURES ===================================
+    ________ test_disabled_distinct_session_guard_refuses_execute_preflight ________
 
-- [ ] V-03 validates E-03
+    tmp_path = PosixPath('/tmp/pytest-of-<user>/pytest-9830/test_disabled_distinct_session1')
+    monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7ae3172bb820>
+
+        def test_disabled_distinct_session_guard_refuses_execute_preflight(
+            tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+        ):
+            """Backlog qkzet8: Disabled distinct-session guard makes execute preflight refuse."""
+            repo = _setup_test_repo(tmp_path)
+
+            state, item, _ = _drive_execute_turn(
+                repo,
+                driver_module=oc_runipd,
+                host_labels=runner_shared.OC_HOST_LABELS,
+                freeze_host_capabilities=False,
+            )
+
+            assert item["status"] == "fail-gate"
+            refusal = render_stream.refusal_of_item(item)
+    >       assert refusal is not None
+    E       assert None is not None
+
+    tests/test_runwire_verifier_authority.py:501: AssertionError
+    ----------------------------- Captured stdout call -----------------------------
+    ▶ IPD 01/1 tst001  set=test  action=execute  attempt 1
+      plan: /tmp/pytest-of-<user>/pytest-9830/test_disabled_distinct_session1/.aw/records/plans/pending/20260101-test-01-tst001-test.ipd.md
+      ▶ Verifying tst001 (/tmp/pytest-of-<user>/pytest-9830/test_disabled_distinct_session1/.aw/records/plans/pending/20260101-test-01-tst001-test.ipd.md)...
+    ⚠︎ IPD 01/1 tst001 (execute) -> fail-gate  (exit 0)
+
+    NOTE: 12 tests were deselected by -m/-k and did not run (no marker filter was active; deselected by -k/--deselect)
+    =========================== short test summary info ============================
+    FAILED tests/test_runwire_verifier_authority.py::test_disabled_distinct_session_guard_refuses_execute_preflight
+    1 failed, 1 passed, 12 deselected in 2.66s
+    ```
+    Restored `git diff --stat`:
+    ```
+     tests/test_runwire_verifier_authority.py | 81 +++++++++++++++++++++++++++++---
+     1 file changed, 75 insertions(+), 6 deletions(-)
+    ```
+    Bare `python3 -m pytest` summary:
+    ```
+    7731 passed, 4 skipped, 3 warnings in 662.45s (0:11:02)
+    ```
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: pasted `git show --stat HEAD` listing only `tests/test_runwire_verifier_authority.py` and this plan.
   - Observed evidence:
-  - Result: pending
+    Commit touches only the two declared Scope-Paths:
+    ```
+     .aw/records/plans/pending/20261012-qkzet8-01-a8yn86-pin-that-a-disabled-distinct-session-guard-makes-the-execute.ipd.md | ...
+     tests/test_runwire_verifier_authority.py                                                                                 | 81 +++++++++++++++++++++++++++++---
+     2 files changed, ...
+    ```
+  - Result: pass
 
 ## Approval and execution gate
 

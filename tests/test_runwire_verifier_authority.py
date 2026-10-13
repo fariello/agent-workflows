@@ -19,7 +19,10 @@ import pytest
 
 from agent_workflows import (
     agy_runipd,
+    agy_verifier,
     oc_runipd,
+    render_stream,
+    run_selection_policy,
     run_state,
     runner_profiles,
     runner_shared,
@@ -56,6 +59,7 @@ def _drive_execute_turn(
     write_outcome: bool = True,
     validate: bool = True,
     current_status: str = "queued",
+    freeze_host_capabilities: bool = True,
 ) -> tuple[dict[str, Any], dict[str, Any], Path]:
     """Drive the real runner_shared.execute_item_core pipeline."""
     run_dir = root / ".aw/runs/run-test"
@@ -79,23 +83,28 @@ def _drive_execute_turn(
         "status": current_status,
         "configured_file": str(plan_file.relative_to(root)),
     }
+    spawns: list[str] = []
     state: dict[str, Any] = {
         "repo": str(root),
         "run_id": "run-test",
         "queue": [item],
-        "host_capabilities": {
-            "descriptor": {
-                "supports_fresh_verifier_session": True,
-                "supports_session_resume": True,
-            }
-        },
         "options": {
             "isolate_worktrees": False,
             "self_finalize": False,
             "validate": validate,
             "no_verify": False,
         },
+        "_test_spawns": spawns,
     }
+    if freeze_host_capabilities:
+        # Backlog qkzet8: frozen descriptor keeps the preflight from re-probing
+        # on demand under a mutated guard.
+        state["host_capabilities"] = {
+            "descriptor": {
+                "supports_fresh_verifier_session": True,
+                "supports_session_resume": True,
+            }
+        }
 
     def spawn_executor(
         prompt_path: Path,
@@ -106,6 +115,7 @@ def _drive_execute_turn(
         session_id: Any,
         use_continue: bool,
     ) -> tuple[int, str | None, Path, list[str]]:
+        spawns.append("executor")
         log_path = run_dir / "logs" / f"exec-{attempt_no}.log"
         log_path.write_text("exec log", encoding="utf-8")
         outcome = run_dir / "outcomes" / f"{item['position']:02d}-{item['id6']}.json"
@@ -128,6 +138,7 @@ def _drive_execute_turn(
         tracker: Any,
         attempt_no: int,
     ) -> tuple[int, str | None, Path, list[str]]:
+        spawns.append("verifier")
         v_log = run_dir / "logs" / f"verify-{attempt_no}.log"
         v_log.write_text("verify log\npytest\n", encoding="utf-8")
         if write_outcome:
@@ -465,6 +476,64 @@ def test_host_verifier_gating_defaults_measured():
     """E-04 / V-04: Re-measure both hosts' verifier-gating defaults by symbol."""
     assert runner_profiles.RUNNER_REGISTRY["oc"].validate_default is False
     assert runner_profiles.RUNNER_REGISTRY["agy"].validate_default is True
+
+
+# ==============================================================================
+# IPD a8yn86 (backlog qkzet8): Disabled distinct-session guard refuses preflight
+# ==============================================================================
+
+
+def test_disabled_distinct_session_guard_refuses_execute_preflight(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    """Backlog qkzet8: Disabled distinct-session guard makes execute preflight refuse."""
+    repo = _setup_test_repo(tmp_path)
+    monkeypatch.setattr(agy_verifier, "assert_distinct_sessions", lambda e, v: None)
+
+    state, item, _ = _drive_execute_turn(
+        repo,
+        driver_module=oc_runipd,
+        host_labels=runner_shared.OC_HOST_LABELS,
+        freeze_host_capabilities=False,
+    )
+
+    assert item["status"] == "fail-gate"
+    refusal = render_stream.refusal_of_item(item)
+    assert refusal is not None
+    assert refusal.code == run_selection_policy.SKIP_HOST_CAPABILITY_UNAVAILABLE
+    assert "supports_fresh_verifier_session" in refusal.reason
+    assert item["attempts"][-1]["disposition"] == "fail-gate"
+    assert "host_capability_unavailable" in item["attempts"][-1]
+    assert "verification_status" not in item
+    assert state["_test_spawns"] == []
+    assert (
+        state["host_capabilities"]["descriptor"]["supports_fresh_verifier_session"]
+        is False
+    )
+
+
+def test_disabled_distinct_session_guard_unmutated_control(tmp_path: Path):
+    """Backlog qkzet8: Unmutated control with unfrozen capabilities is not refused by preflight."""
+    repo = _setup_test_repo(tmp_path)
+
+    state, item, _ = _drive_execute_turn(
+        repo,
+        driver_module=oc_runipd,
+        host_labels=runner_shared.OC_HOST_LABELS,
+        freeze_host_capabilities=False,
+    )
+
+    assert "host_capability_unavailable" not in item["attempts"][-1]
+    refusal = render_stream.refusal_of_item(item)
+    assert (
+        refusal is None
+        or refusal.code != run_selection_policy.SKIP_HOST_CAPABILITY_UNAVAILABLE
+    )
+    assert "executor" in state["_test_spawns"]
+    assert (
+        state["host_capabilities"]["descriptor"]["supports_fresh_verifier_session"]
+        is True
+    )
 
 
 # ==============================================================================
