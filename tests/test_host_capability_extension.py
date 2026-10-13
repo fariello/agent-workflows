@@ -28,10 +28,11 @@ import json
 import shutil
 import subprocess
 import sys
+import tempfile
 import unittest
 from contextlib import contextmanager, redirect_stdout
 
-from agent_workflows import host_cmd, run_evidence
+from agent_workflows import host_cmd, lane_containment, run_evidence, runner_shared
 from agent_workflows import host_sandbox_profile as hsp
 from agent_workflows.host_sandbox_profile import (
     ACTION_CAPABILITY_REQUIREMENTS,
@@ -48,6 +49,7 @@ from agent_workflows.host_sandbox_profile import (
     RUNNER_SAFETY_CAPABILITIES,
     UNREPRESENTED_SPEC_CAPABILITIES,
     ActionRequirement,
+    HardModeUnavailableError,
     HostSandboxCapabilities,
     UnknownActionError,
     check_action_capabilities,
@@ -56,6 +58,7 @@ from agent_workflows.host_sandbox_profile import (
     format_host_capability_finding,
     preflight_host_capabilities,
     probe_runner_safety_capabilities,
+    select_execution_profile,
 )
 
 #: The spec's VERBATIM message (spec 25kzda Section 4.2, RUN-HOST-CAPABILITY), transcribed here so the test
@@ -1081,6 +1084,47 @@ class GuaranteeRowEnforcementStatusTests(unittest.TestCase):
 
         # Not in RUNNER_SAFETY_CAPABILITIES
         self.assertNotIn("hook_preserving_commit", RUNNER_SAFETY_CAPABILITIES)
+
+
+class GuaranteeRow4EnforcementStatusTests(unittest.TestCase):
+    """Invariant: spec 25kzda 5.2 guarantee row 4's mechanisms partly run, but no descriptor field
+    proves the guarantee, so an artifact reporting it as host-enforced is drift.
+
+    Leg A (nothing proves it): each of isolated_worktree, path_policy, timeout_cancel
+    is a key of UNREPRESENTED_SPEC_CAPABILITIES, is in
+    ACTION_CAPABILITY_REQUIREMENTS[ACTION_EXECUTE].unrepresented, and neither it nor
+    supports_<name> is in HostSandboxCapabilities fields.
+
+    Leg B (the mechanism still runs, so the cell must not be cut down to 'absent'):
+    runner_shared.resolve_isolation defaults to execute=True, review=True when no project
+    config overrides it, and isolate_worktree=False sets both False; lane_containment.MAX_TURN_TIMEOUT > 0;
+    and select_execution_profile('hardened', HostSandboxCapabilities()) raises HardModeUnavailableError
+    because path policy is opt-in and fails closed rather than degrading.
+    """
+
+    def test_row_4_leg_a_no_descriptor_field_proves_guarantee(self):
+        field_names = {f.name for f in dataclasses.fields(HostSandboxCapabilities)}
+        for name in ("isolated_worktree", "path_policy", "timeout_cancel"):
+            self.assertIn(name, UNREPRESENTED_SPEC_CAPABILITIES)
+            self.assertIn(
+                name, ACTION_CAPABILITY_REQUIREMENTS[ACTION_EXECUTE].unrepresented
+            )
+            self.assertNotIn(name, field_names)
+            self.assertNotIn(f"supports_{name}", field_names)
+
+    def test_row_4_leg_b_mechanisms_partly_run_and_fail_closed(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            iso_default = runner_shared.resolve_isolation(argparse.Namespace(), tmp)
+            self.assertEqual(iso_default, {"execute": True, "review": True})
+            iso_opt_out = runner_shared.resolve_isolation(
+                argparse.Namespace(isolate_worktree=False), tmp
+            )
+            self.assertEqual(iso_opt_out, {"execute": False, "review": False})
+
+        self.assertGreater(lane_containment.MAX_TURN_TIMEOUT, 0)
+
+        with self.assertRaises(HardModeUnavailableError):
+            select_execution_profile("hardened", HostSandboxCapabilities())
 
 
 if __name__ == "__main__":
