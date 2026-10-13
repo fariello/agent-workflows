@@ -24,6 +24,7 @@ now under way. The direction of the 2.x line (in progress, not all shipped in th
 
 Major storage-layout boundary. The logical model (D126-D129) was superseded by the PHYSICAL `.aw/` hierarchy specified in `20260810-1447-01-physical-aw-hierarchy-placement-and-migration.spec.md` (D130, D134-D137), which the framework now implements and has migrated its own repository onto:
 
+- Added: merge-time stale spec line-anchor citation gate refuses integration of lanes that introduce new stale spec line citations (cause spec-anchor-new-stale) before the merge-and-revalidate gate, with bounded fix-it retry turns and fail-open behavior on unknown detector errors.
 - Added: `backlog.validate_item` and `aw backlog check` now report rule `backlog.history-empty` when a backlog item lacks a `## Workflow history` heading or its block contains no column-zero records.
 - Fixed: runs with verification on no longer start a background test-suite baseline they never read.
 - Fixed: attention, check and readiness readers now share the history bounding rule, so a quoted indented history line can no longer attest a review.

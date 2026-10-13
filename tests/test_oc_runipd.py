@@ -4734,7 +4734,7 @@ class TestIsolatedTurnPromptPointsAtTheLane(unittest.TestCase):
             state = {"run_id": "run-x", "repo": str(repo), "options": {}}
 
             # The lane-aware resolution the driver performs for the VERIFIER turn already exists
-            # (oc_runipd.py:4823 `plan_repo = Path(work_dir) if work_dir else repo`). The EXECUTOR
+            # (`runner_shared.execute_item_core`: `plan_repo = Path(work_dir) if work_dir else repo`). The EXECUTOR
             # turn must do the same, otherwise it hands the agent main's path.
             lane_plan = driver.resolve_plan_path(lane, rel, "aaaaaa")
             self.assertTrue(str(lane_plan).startswith(str(lane)))

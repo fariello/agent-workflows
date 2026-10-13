@@ -453,7 +453,7 @@ def _read_status(text: str) -> str | None:
 # contract change, not a cleanup. Hence a separate permissive pattern here, leaving selector
 # matching byte-for-byte unchanged.
 #
-# The permissive spelling is also the one the WRITER uses: `status_set.py:132-133`, which is what
+# The permissive spelling is also the one the WRITER uses: `status_set`'s `_ID_RE`/`_STATUS_RE`, which is what
 # actually rewrites these bullets, matches on `^-\s*Id:`/`^-\s*Status:`, as do
 # `check_engine`/`backlog`/`research_index` (via `[ \t]*`). Tolerating the loose form on READ is
 # therefore consistent with the rest of the toolkit, and it fails safe: a missed `- Status:` read

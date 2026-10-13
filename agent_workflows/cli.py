@@ -15336,17 +15336,7 @@ def _run_check(
         from agent_workflows import spec_citations
         from agent_workflows.result_types import OutputMode
 
-        scan_paths = [
-            p
-            for p in [
-                repo_root / "agent_workflows",
-                repo_root / "tools",
-                repo_root / "tests",
-            ]
-            if p.exists()
-        ]
-        if not scan_paths:
-            scan_paths = [repo_root]
+        scan_paths = spec_citations.default_scan_roots(repo_root)
 
         findings = spec_citations.stale_spec_anchors(repo_root, scan_paths)
         summary = (

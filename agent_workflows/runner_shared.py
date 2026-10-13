@@ -5235,6 +5235,8 @@ INTEGRATION_CAUSE_HOOK_REFUSED = "hook-refused"
 #: more than one lifecycle location. Produced by integrate_lane_branch's pre-merge placement arm.
 INTEGRATION_CAUSE_LIFECYCLE_DUPLICATE = "lifecycle-duplicate-placement"
 INTEGRATION_CAUSE_LIFECYCLE_DUPLICATE_PLACEMENT = INTEGRATION_CAUSE_LIFECYCLE_DUPLICATE
+#: cihealth Order 04 (`mnwkqu`) E-02: refuse a merge that introduces new stale spec line-anchor citations.
+INTEGRATION_CAUSE_SPEC_ANCHOR_NEW_STALE = "spec-anchor-new-stale"
 
 
 #: What an OLD record (or an unrecognized gate status) reads as. Routing an unknown cause to today's
@@ -7570,6 +7572,7 @@ def integrate_lane_branch(
     host_label: str,
     run_checked: Callable[..., str],
     action_kind: str,
+    run_dir: Path | None = None,
 ) -> tuple[bool, str, str]:
     """Integrate a verified lane branch back to main behind the REUSED integration gate, failing
     closed on a contaminated base or a non-passing gate result.
@@ -7790,6 +7793,41 @@ def integrate_lane_branch(
     # steps carry the ff-only-then-no-ff sequence, the capture-conflicted-paths-BEFORE-abort ordering,
     # and the `host_label` merge subject, all of which a second implementation would have to duplicate.
     if action_kind == INTEGRATION_ACTION_EXECUTE:
+        # cihealth Order 04 (`mnwkqu`) E-02: BEFORE running the expensive gate, check for new stale spec anchors.
+        from agent_workflows import spec_citations
+
+        anchor_res = spec_citations.new_stale_anchors(
+            repo, handle.branch, handle.base_commit
+        )
+        if anchor_res.status == "new":
+            return (
+                False,
+                tag_integration_cause(
+                    INTEGRATION_CAUSE_SPEC_ANCHOR_NEW_STALE,
+                    anchor_res.reason,
+                ),
+                INTEGRATION_REFUSAL_CONFLICT,
+            )
+        elif anchor_res.status == "unknown":
+            events_file = run_dir / "events.jsonl" if run_dir else None
+            if events_file is None:
+                runs_dir = repo / ".aw" / "records" / "runs"
+                if runs_dir.is_dir():
+                    candidates = [d for d in runs_dir.iterdir() if d.is_dir()]
+                    if len(candidates) == 1:
+                        events_file = candidates[0] / "events.jsonl"
+            if events_file is not None and events_file.parent.is_dir():
+                with contextlib.suppress(Exception):
+                    append_jsonl(
+                        events_file,
+                        {
+                            "at": utc_now(),
+                            "event": "spec-anchor-check-unknown",
+                            "id6": id6,
+                            "reason": anchor_res.reason,
+                        },
+                    )
+
         result = orchestrate_isolation.execute_merge_and_revalidate_gate(
             integration_base_commit=handle.base_commit,
             lane_outcomes=[lane],
@@ -8227,6 +8265,8 @@ FINALIZE_RETRY_COUNT_KEY: str = "finalize_retry_attempts"
 HOOK_FINALIZE_RETRY_COUNT_KEY: str = "hook_finalize_retry_attempts"
 HOOK_INTEGRATION_RETRY_COUNT_KEY: str = "hook_integration_retry_attempts"
 COMBINED_RED_RETRY_COUNT_KEY: str = "combined_red_retry_attempts"
+#: cihealth Order 04 (`mnwkqu`) E-05: retry counter for new stale spec anchor citation send-backs.
+SPEC_ANCHOR_RETRY_COUNT_KEY: str = "spec_anchor_retry_attempts"
 #: fixfirst Order 07 (`62sdwr`) E-02/E-03: per-kind retry counters against frozen_retry_budget.
 UNTOOLED_STATUS_RETRY_COUNT_KEY: str = "untooled_status_retry_attempts"
 HOOK_BYPASS_RETRY_COUNT_KEY: str = "hook_bypass_retry_attempts"
@@ -11107,6 +11147,11 @@ def terminal_refusal_verdict(integ_kind: str, cause: str) -> str:
             "verified, main is UNTOUCHED, and the lane's work is preserved on its branch. See the "
             "recorded integration_ladder.cause and integration_deferral for the conflicting paths"
         ),
+        INTEGRATION_CAUSE_SPEC_ANCHOR_NEW_STALE: (
+            f"integration refusal kind {integ_kind!r}: the run's fix-it budget was spent: the lane introduced "
+            "new stale spec line-anchor citations, so it asserts a real failure of the work and repetition alone "
+            "cannot clear it. See the recorded integration_ladder.cause and integration_deferral for the findings"
+        ),
     }
     if cause in known:
         return known[cause]
@@ -13318,7 +13363,8 @@ def plan_audit_target(
       * ``operator``  - a ``--base`` revision the operator named, which wins because they said it;
       * ``receipt``   - a surviving `aw ipd begin` receipt's ``base_head``, correct but RARE (measured
                         2026-09-20: 17 of 561 executed plans, because a clean finalize consumes the
-                        receipt at `ipd_lifecycle.py:3989`);
+                        receipt at the "Consume the begin receipt" step in
+                        `ipd_lifecycle._complete_after_commit`);
       * ``none``      - no baseline at all, which is the COMMON case and is NOT an error.
 
     ``none`` IS A FIRST-CLASS ANSWER, not a degraded one, and that is the design decision this
@@ -14131,7 +14177,7 @@ def discover_plans(
 # reviews path. A second "where do specs live" mechanism is the drift GUIDING_PRINCIPLES P8 forbids.
 #
 # WHY NOT `aw find specs --status` (`5slbpi` DECISION D4). Because it is BROKEN and silently so:
-# `cli._find_type_records`'s "All other types" branch (`cli.py:8487-8512`) never consults
+# `cli._find_type_records`'s "All other types" branch never consults
 # `explicit_flags.status`, unlike the `plans` and `research` branches which both call a `query(...)`
 # helper. Re-verified at implementation: `aw find specs --status draft`, `--status to-review`, and
 # unfiltered `aw find specs` each return all 27 specs. This plan AVOIDS the filter rather than fixing
@@ -36009,6 +36055,7 @@ def execute_item_core(
             host_label=host_labels.command,
             run_checked=run_checked,
             action_kind="execute",
+            run_dir=run_dir,
         ),
     )
     integrate_review_lane_branch = getattr(
@@ -41348,6 +41395,194 @@ def execute_item_core(
                                 )
                             )
 
+                        # cihealth Order 04 (`mnwkqu`) E-05: send spec-anchor-new-stale refusal back to the agent in its lane
+                        spec_anchor_records: list[dict[str, Any]] = list(
+                            attempt.get("spec_anchor_sendback") or []
+                        )
+                        spec_anchor_budget = frozen_retry_budget(state)
+                        while (
+                            not integrated
+                            and wt_handle is not None
+                            and integ_kind == INTEGRATION_REFUSAL_CONFLICT
+                            and read_integration_cause(integ_reason)[0]
+                            == INTEGRATION_CAUSE_SPEC_ANCHOR_NEW_STALE
+                            and attempt.get("session_id")
+                            and int(item.get(SPEC_ANCHOR_RETRY_COUNT_KEY, 0) or 0)
+                            < spec_anchor_budget
+                            and not fix_it_cap_decision(item, state).reached
+                        ):
+                            current_anchor_count = int(
+                                item.get(SPEC_ANCHOR_RETRY_COUNT_KEY, 0) or 0
+                            )
+                            item[SPEC_ANCHOR_RETRY_COUNT_KEY] = current_anchor_count + 1
+                            save_state(run_dir, state)
+
+                            append_jsonl(
+                                run_dir / "events.jsonl",
+                                {
+                                    "at": utc_now(),
+                                    "event": "spec-anchor-sent-back",
+                                    "id6": item["id6"],
+                                    "attempt": attempt_no,
+                                    "retry_attempt": item[SPEC_ANCHOR_RETRY_COUNT_KEY],
+                                    "retry_budget": spec_anchor_budget,
+                                },
+                            )
+
+                            _, _, op_msg = read_integration_cause(integ_reason)
+                            ev_parts = [
+                                op_msg,
+                                "",
+                                "Remedy: cite by section heading or quoted string (spec ipd-structure-and-linting Section 10.2), never by a new bare line number.",
+                            ]
+                            anchor_prompt_text = build_fix_it_notice(
+                                "spec-anchor-new-stale",
+                                "\n".join(ev_parts),
+                                attempt_no,
+                                spec_anchor_budget,
+                                recovery=True,
+                            )
+                            anchor_session = attempt.get("session_id")
+                            interrupted = False
+                            pre_turn_head = git_head(wt_handle.path)
+                            try:
+                                if host_labels == OC_HOST_LABELS:
+                                    resume_via_launcher(
+                                        raw_launcher,
+                                        (
+                                            state,
+                                            run_dir,
+                                            item,
+                                            plan_path,
+                                            write_prompt(
+                                                run_dir,
+                                                item,
+                                                anchor_prompt_text,
+                                                attempt_no,
+                                                suffix="spec-anchor",
+                                            ),
+                                            attempt_no,
+                                        ),
+                                        {
+                                            "log_suffix": "spec-anchor",
+                                            "label_suffix": "spec-anchor",
+                                            "tracker": tracker,
+                                            "work_dir": work_dir,
+                                            "resume_session": anchor_session,
+                                        },
+                                    )
+                                else:
+                                    resume_via_launcher(
+                                        raw_launcher,
+                                        (
+                                            state,
+                                            run_dir,
+                                            item,
+                                            write_prompt(
+                                                run_dir,
+                                                item,
+                                                anchor_prompt_text,
+                                                attempt_no,
+                                                suffix="spec-anchor",
+                                            ),
+                                            attempt_no,
+                                        ),
+                                        {
+                                            "session_id": anchor_session,
+                                            "use_continue": False,
+                                            "log_suffix": "spec-anchor",
+                                            "label_suffix": "spec-anchor",
+                                            "work_dir": work_dir,
+                                            "tracker": tracker,
+                                        },
+                                    )
+                            except (KeyboardInterrupt, StallTimeout):
+                                interrupted = True
+
+                            if work_dir:
+                                with contextlib.suppress(OSError):
+                                    lane_containment.collect_lane_submissions(
+                                        run_dir=run_dir,
+                                        item=item,
+                                        run_id=state["run_id"],
+                                        lane_root=Path(work_dir),
+                                        plan_path=plan_path,
+                                        attempt=attempt_no,
+                                    )
+
+                            post_turn_head = git_head(wt_handle.path)
+                            changed_paths: list[str] = []
+                            undeclared_paths: list[str] = []
+                            if (
+                                pre_turn_head
+                                and post_turn_head
+                                and pre_turn_head != post_turn_head
+                            ):
+                                rc_diff, out_diff, _ = _run_git(
+                                    wt_handle.path,
+                                    [
+                                        "diff",
+                                        "--name-only",
+                                        pre_turn_head,
+                                        post_turn_head,
+                                    ],
+                                )
+                                if rc_diff == 0:
+                                    changed_paths = [
+                                        line.strip()
+                                        for line in out_diff.splitlines()
+                                        if line.strip()
+                                    ]
+                                try:
+                                    from agent_workflows.ipd_lifecycle import (
+                                        _frozen_scope_paths,
+                                        _scope_match,
+                                    )
+
+                                    plan_txt = plan_path.read_text(encoding="utf-8")
+                                    scope_pats = _frozen_scope_paths(plan_txt)
+                                    for p in changed_paths:
+                                        if not any(
+                                            _scope_match(p, pat) for pat in scope_pats
+                                        ):
+                                            undeclared_paths.append(p)
+                                except Exception:
+                                    pass
+
+                            sendback_entry = {
+                                "attempt": attempt_no,
+                                "retry_attempt": item[SPEC_ANCHOR_RETRY_COUNT_KEY],
+                                "changed_paths": changed_paths,
+                            }
+                            if undeclared_paths:
+                                warn_line = (
+                                    f"warning: fix commit modified path(s) outside declared Scope-Paths: "
+                                    f"{', '.join(undeclared_paths)}"
+                                )
+                                sendback_entry["warning"] = warn_line
+                                print(
+                                    pal(f"  ! {warn_line}", "yellow"), file=sys.stderr
+                                )
+                            spec_anchor_records.append(sendback_entry)
+                            attempt["spec_anchor_sendback"] = spec_anchor_records
+                            save_state(run_dir, state)
+
+                            if interrupted:
+                                break
+
+                            integrated, integ_reason, integ_kind = (
+                                integrate_under_repository_lock(
+                                    repo,
+                                    item,
+                                    wt_handle,
+                                    state=state,
+                                    holder_label=integration_lock_holder_label(state),
+                                    integrate=_publish,
+                                    progress=integration_lock_progress_reporter(),
+                                    run_checked=globals()["run_checked"],
+                                )
+                            )
+
                         # Ensure lane is integrable by existing human path on terminal arm
                         if not integrated and wt_handle is not None:
                             if merge_in_progress(wt_handle.path):
@@ -41414,6 +41649,14 @@ def execute_item_core(
                                         )
                                         < budget
                                     )
+                                elif cause == INTEGRATION_CAUSE_SPEC_ANCHOR_NEW_STALE:
+                                    stopped_by_cap = (
+                                        int(
+                                            item.get(SPEC_ANCHOR_RETRY_COUNT_KEY, 0)
+                                            or 0
+                                        )
+                                        < budget
+                                    )
                                 if stopped_by_cap:
                                     attempt["fix_it_cap"] = cap_dec._asdict()
 
@@ -41436,6 +41679,17 @@ def execute_item_core(
                                 recorded_reason = tag_integration_cause(
                                     cause,
                                     f"the post-merge revalidation measured the merged tree and it was RED "
+                                    f"and the run's correction budget is exhausted ({used} of {budget} retr"
+                                    f"{'y' if budget == 1 else 'ies'} spent): {op_msg}",
+                                )
+                            elif cause == INTEGRATION_CAUSE_SPEC_ANCHOR_NEW_STALE:
+                                used = int(
+                                    item.get(SPEC_ANCHOR_RETRY_COUNT_KEY, 0) or 0
+                                )
+                                _, _, op_msg = read_integration_cause(integ_reason)
+                                recorded_reason = tag_integration_cause(
+                                    cause,
+                                    f"the lane introduced new stale spec line-anchor citations "
                                     f"and the run's correction budget is exhausted ({used} of {budget} retr"
                                     f"{'y' if budget == 1 else 'ies'} spent): {op_msg}",
                                 )
