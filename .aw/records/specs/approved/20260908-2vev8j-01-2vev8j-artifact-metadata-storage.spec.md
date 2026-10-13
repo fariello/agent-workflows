@@ -187,6 +187,23 @@ The UTC-versus-local defect (`tk1gqo`'s second defect) is INDEPENDENT and needs 
 alone leaves timestamps still claiming an evening action happened tomorrow. Every writer, tool and
 human-facing helper alike, records UTC; local time is a RENDER-TIME concern only.
 
+READERS ARE BOUND TOO, BY THE CLOCK OF THEIR STORED OPERAND (amended 2026-10-13 by plan `hinpcf`,
+backlog `6ly144`). Any code that compares a stored date against "today" (an age, staleness,
+retention or sweep computation) MUST compute today on the SAME clock that wrote the stored value:
+a date this section rules UTC (a `## Workflow history` or journal date) is compared against a UTC
+today, and a date minted on the LOCAL clock (a filename date prefix or workflow-artifacts RUN_ID, which
+`DECISIONS.md` D55 rules LOCAL, and the `- Date:` and `created` front-matter dates the same
+writers stamp beside those names) is compared against a LOCAL today. A reader does
+NOT adopt UTC by default: "local time is a RENDER-TIME concern" governs DISPLAY, not comparison,
+and converting a LOCAL-operand reader to UTC introduces the very mixed-clock error this rule
+prevents. Motivation, measured: plan `840y6i` F-01 found ten live artifacts whose staleness
+verdict flipped with the reader's timezone because `attention._age_marker` compared a UTC history
+date against a local today. Under this rule `attention._age_marker` reads UTC, while
+`plans_archive._age_days`, `research_archive._age_days` and
+`workflow_artifacts_prune._calculate_run_age` correctly read LOCAL. A reader whose stored operand
+has no ruled clock must be given one before it may compare. Guarded by
+`tests/test_date_reader_clock_parity.py`.
+
 ### 4.5 Exactly ONE inline history line remains, as a pure cache
 
 The reports SPLIT here and this spec settles it. `xn6f6u` and `takpys` say strip the block entirely;
@@ -320,6 +337,7 @@ Both are real and neither is a storage decision. They must NOT be absorbed silen
 
 ## Workflow history
 
+- 2026-10-13 note (aw specs): amend Section 4.4: bind date readers to the clock of their stored operand (IPD hinpcf, backlog 6ly144)
 - 2026-10-08 approved (aw specs, --by-human): amend Section 7 write-order bullet (IPD ulepef E-05)
 - 2026-09-09 approved (aw set, --by-human): status set to approved
 

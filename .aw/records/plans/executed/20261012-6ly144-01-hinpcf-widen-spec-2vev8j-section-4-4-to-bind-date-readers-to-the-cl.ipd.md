@@ -6,7 +6,7 @@
 - Scope: IN: re-derive the census of every date-comparing READER in `agent_workflows/` with its stored operand's clock, so the amendment is written against the tree as it is at execution and not against `840y6i`'s 2026-10-02 snapshot; add one behavioral test module asserting the invariant on the four known readers under two always-skewed timezones, including a negative control proving the test can see a mixed-clock pairing; amend spec `2vev8j` Section 4.4 by APPENDING a reader paragraph (the heading and the existing writer sentence are left byte-unchanged, because three test modules quote the heading text "One timezone for every writer" and others cite "2vev8j 4.4"); record the amendment in the spec's `## Workflow history` with `aw specs note`. OUT, each with a reason under "Deferred": converting or otherwise editing any reader or writer (none is wrong at authoring, measured below); `DECISIONS.md` D55 (its scope is human-facing NAMES and needs no change for readers to follow it); re-approving the spec or writing any approval attestation; the per-artifact journal migration the spec itself specifies; closing the backlog item (the runner sets `graduated`).
 - Scope-Paths: .aw/records/specs/approved/20260908-2vev8j-01-2vev8j-artifact-metadata-storage.spec.md, tests/test_date_reader_clock_parity.py, .aw/records/plans/pending/20261012-6ly144-01-hinpcf-widen-spec-2vev8j-section-4-4-to-bind-date-readers-to-the-cl.ipd.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: followup
 - Priority: low
@@ -17,9 +17,9 @@
 - Highest E allocated: 04
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: hinpcf
-- Approval: 2026-10-12, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-13 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: hinpcf verified (set 6ly144, attempt 1).
 - 2026-10-12 approved (aw set): status set to approved
 - 2026-10-12 reviewed (aw set): /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005
 
@@ -36,21 +36,21 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: re-derive the reader census the amendment is written against
 
-- [ ] E-01 Record a baseline and re-derive the READER census at your own execution HEAD before any edit. Run the bare suite (`python3 -m pytest`) and record the FAILURE SET by node id (not only counts; the suite drifts), plus `aw specs check` on the spec and `aw check` finding sets. Then enumerate candidate date calls with `git grep -n -E "(today\(\)|now\(|fromtimestamp\()" agent_workflows/` (250 raw hits at authoring, most of them writers, timers or display) and narrow to READERS, meaning a site whose result is SUBTRACTED FROM or COMPARED WITH a stored date (age, staleness, retention, sweep). For each reader record: site by symbol, the stored operand and where it is minted, that operand's ruled clock (UTC per `2vev8j` 4.4 for `## Workflow history`/journal dates; LOCAL per `DECISIONS.md` D55 for filename prefixes, `- Date:`/`created` front matter, workflow-artifacts RUN_IDs), the reader's own clock, and MATCH or MISMATCH. Re-confirm, rather than trust, the four rows `840y6i` E-04 recorded (`attention._age_marker` UTC; `plans_archive._age_days`, `research_archive._age_days`, `workflow_artifacts_prune._calculate_run_age` LOCAL). If a MISMATCH reader is found, do NOT fix it here (outside `- Scope-Paths:`): file it with `aw backlog new --work-kind bug` carrying `--blocks-release next` per the AGENTS.md release-gate rule, cite the new id6 in the table, and still name it in E-03's paragraph only as a known exception with that id6.
+- [x] E-01 Record a baseline and re-derive the READER census at your own execution HEAD before any edit. Run the bare suite (`python3 -m pytest`) and record the FAILURE SET by node id (not only counts; the suite drifts), plus `aw specs check` on the spec and `aw check` finding sets. Then enumerate candidate date calls with `git grep -n -E "(today\(\)|now\(|fromtimestamp\()" agent_workflows/` (250 raw hits at authoring, most of them writers, timers or display) and narrow to READERS, meaning a site whose result is SUBTRACTED FROM or COMPARED WITH a stored date (age, staleness, retention, sweep). For each reader record: site by symbol, the stored operand and where it is minted, that operand's ruled clock (UTC per `2vev8j` 4.4 for `## Workflow history`/journal dates; LOCAL per `DECISIONS.md` D55 for filename prefixes, `- Date:`/`created` front matter, workflow-artifacts RUN_IDs), the reader's own clock, and MATCH or MISMATCH. Re-confirm, rather than trust, the four rows `840y6i` E-04 recorded (`attention._age_marker` UTC; `plans_archive._age_days`, `research_archive._age_days`, `workflow_artifacts_prune._calculate_run_age` LOCAL). If a MISMATCH reader is found, do NOT fix it here (outside `- Scope-Paths:`): file it with `aw backlog new --work-kind bug` carrying `--blocks-release next` per the AGENTS.md release-gate rule, cite the new id6 in the table, and still name it in E-03's paragraph only as a known exception with that id6.
   - Depends on: none
   - Expected outcome: the baseline failure set and check findings recorded; a reader table (one row per reader site) with operand, operand clock, reader clock and MATCH/MISMATCH; the enumeration command recorded so the census is reproducible; any MISMATCH filed as a gated bug with its id6.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: make the invariant checkable
 
-- [ ] E-02 Create `tests/test_date_reader_clock_parity.py`, a behavioral test that a value minted by a real writer and read back by its reader has age ZERO under a timezone in which the local and UTC dates differ. Run every case in a CHILD process (`subprocess.run([sys.executable, "-c", ...], env=...)`) whose env sets `TZ`, `AW_NO_REEXEC=1`, and `PYTHONPATH` with the repository root PREPENDED, the shape `tests/test_history_date_clock_readers.py._run_in_subprocess` uses, so the pytest worker's process-global time state is never mutated under xdist. Use the two always-skewed POSIX zones `tests/test_scaffold_history_clock.py` established, `XXX-24` (local always one day ahead of UTC) and `XXX+23:59` (behind except in the final UTC minute), and in each child first assert the precondition that `date.today()` differs from the UTC date, so a non-skewed run fails loudly rather than passing vacuously. Cases, each parameterized over both zones: (a) UTC operand: `artifact_core.utc_history_date()` read by `attention._age_marker(value, "plans")` returns `''`, AND a BOUNDARY history date where the clock decides the verdict returns the UTC-correct marker: under `XXX-24` a history date 30 days before the UTC today gives `''` (with a LOCAL today it would be `'!'`), and under `XXX+23:59` a date 31 days before the UTC today gives `'!'` (with a LOCAL today it would be `''`) (measured at review, F-06). A fresh date alone cannot discriminate, because `_age_marker` returns `''` for an age of 0 and of plus or minus 1 alike; (b) LOCAL plan operand: a plan scaffolded with `aw ipd scaffold --kind child --title x --set xset --order 1 --author probe --priority low --work-kind chore --apply` (CLI subprocess in a temp repo with `.aw/config/project.json` and a `pending/` dir, as `tests/test_scaffold_history_clock.py._setup_repo` builds; every one of those flags is required, and there is no `--slug`, measured at review) has its date resolved by `plans_archive._resolve_plan_date(name, text)` and `plans_archive._age_days(...)` returns `0.0`; (c) LOCAL research operand: a doc written by `aw research new --kind finding --slug probe-x --apply` in a temp repo, with `HOME` and `XDG_CONFIG_HOME` pointed into the test's temp dir (as `tests/test_research_date_containment.py` does), because with a real HOME the doc is written OUT OF TREE under `~/.aw/projects/<slug>/records/research/` (measured at review, F-06), which would both pollute the user's home and miss the file; locate the written doc from the command's `wrote <path>` stdout line, and read its front-matter `created` and `research_archive._age_days(created)` returns `0.0`; (d) NEGATIVE CONTROL, driven THROUGH the readers' own `today` seams so it exercises the same code as (a) to (c): `attention._age_marker(boundary_date, "plans", today=<LOCAL today>)` returns the OPPOSITE marker from case (a)'s boundary assertion, and `plans_archive._age_days(plan_date, today=<UTC today>)` and `research_archive._age_days(created, today=<UTC today>)` are NONZERO (measured `-1.0` east and `1.0` west for the plan). This proves the cases above would see a clock mismatch. Every assertion is on a returned value from calling the code; no source reading, `inspect`, `ast`, or text matching against production modules. `workflow_artifacts_prune._calculate_run_age` is covered by E-01's census row rather than here, because its LOCAL RUN_ID operand is minted by the workflow-artifacts protocol, not by a callable writer this test can drive.
+- [x] E-02 Create `tests/test_date_reader_clock_parity.py`, a behavioral test that a value minted by a real writer and read back by its reader has age ZERO under a timezone in which the local and UTC dates differ. Run every case in a CHILD process (`subprocess.run([sys.executable, "-c", ...], env=...)`) whose env sets `TZ`, `AW_NO_REEXEC=1`, and `PYTHONPATH` with the repository root PREPENDED, the shape `tests/test_history_date_clock_readers.py._run_in_subprocess` uses, so the pytest worker's process-global time state is never mutated under xdist. Use the two always-skewed POSIX zones `tests/test_scaffold_history_clock.py` established, `XXX-24` (local always one day ahead of UTC) and `XXX+23:59` (behind except in the final UTC minute), and in each child first assert the precondition that `date.today()` differs from the UTC date, so a non-skewed run fails loudly rather than passing vacuously. Cases, each parameterized over both zones: (a) UTC operand: `artifact_core.utc_history_date()` read by `attention._age_marker(value, "plans")` returns `''`, AND a BOUNDARY history date where the clock decides the verdict returns the UTC-correct marker: under `XXX-24` a history date 30 days before the UTC today gives `''` (with a LOCAL today it would be `'!'`), and under `XXX+23:59` a date 31 days before the UTC today gives `'!'` (with a LOCAL today it would be `''`) (measured at review, F-06). A fresh date alone cannot discriminate, because `_age_marker` returns `''` for an age of 0 and of plus or minus 1 alike; (b) LOCAL plan operand: a plan scaffolded with `aw ipd scaffold --kind child --title x --set xset --order 1 --author probe --priority low --work-kind chore --apply` (CLI subprocess in a temp repo with `.aw/config/project.json` and a `pending/` dir, as `tests/test_scaffold_history_clock.py._setup_repo` builds; every one of those flags is required, and there is no `--slug`, measured at review) has its date resolved by `plans_archive._resolve_plan_date(name, text)` and `plans_archive._age_days(...)` returns `0.0`; (c) LOCAL research operand: a doc written by `aw research new --kind finding --slug probe-x --apply` in a temp repo, with `HOME` and `XDG_CONFIG_HOME` pointed into the test's temp dir (as `tests/test_research_date_containment.py` does), because with a real HOME the doc is written OUT OF TREE under `~/.aw/projects/<slug>/records/research/` (measured at review, F-06), which would both pollute the user's home and miss the file; locate the written doc from the command's `wrote <path>` stdout line, and read its front-matter `created` and `research_archive._age_days(created)` returns `0.0`; (d) NEGATIVE CONTROL, driven THROUGH the readers' own `today` seams so it exercises the same code as (a) to (c): `attention._age_marker(boundary_date, "plans", today=<LOCAL today>)` returns the OPPOSITE marker from case (a)'s boundary assertion, and `plans_archive._age_days(plan_date, today=<UTC today>)` and `research_archive._age_days(created, today=<UTC today>)` are NONZERO (measured `-1.0` east and `1.0` west for the plan). This proves the cases above would see a clock mismatch. Every assertion is on a returned value from calling the code; no source reading, `inspect`, `ast`, or text matching against production modules. `workflow_artifacts_prune._calculate_run_age` is covered by E-01's census row rather than here, because its LOCAL RUN_ID operand is minted by the workflow-artifacts protocol, not by a callable writer this test can drive.
   - Depends on: E-01
   - Expected outcome: the new module exists, every case passes at execution HEAD (the readers already match, measured at authoring), and the negative control demonstrates nonzero mixed-clock ages; running it with `python3 -m pytest tests/test_date_reader_clock_parity.py -o addopts=""` reports the per-case counts.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: amend the contract
 
-- [ ] E-03 Amend spec `2vev8j` Section 4.4 by APPENDING one paragraph after the existing writer sentence, leaving the heading `### 4.4 One timezone for every writer` and the existing paragraph byte-unchanged (three test modules quote that heading and more cite "2vev8j 4.4"; renaming it would orphan those citations). Use this text, substituting the execution date and adjusting the reader list ONLY if E-01's census differs from authoring:
+- [x] E-03 Amend spec `2vev8j` Section 4.4 by APPENDING one paragraph after the existing writer sentence, leaving the heading `### 4.4 One timezone for every writer` and the existing paragraph byte-unchanged (three test modules quote that heading and more cite "2vev8j 4.4"; renaming it would orphan those citations). Use this text, substituting the execution date and adjusting the reader list ONLY if E-01's census differs from authoring:
 
       READERS ARE BOUND TOO, BY THE CLOCK OF THEIR STORED OPERAND (amended YYYY-MM-DD by plan `hinpcf`,
       backlog `6ly144`). Any code that compares a stored date against "today" (an age, staleness,
@@ -72,12 +72,12 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   Do NOT touch any other section, the front matter, `- Status:`, C1-C8, or any acceptance criterion.
   - Depends on: E-02
   - Expected outcome: `git diff` of the spec shows only added lines inside Section 4.4, after the existing paragraph and before `### 4.5`; heading and prior paragraph unchanged.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 Record the amendment in the spec's `## Workflow history` through the tool, with `aw specs note .aw/records/specs/approved/20260908-2vev8j-01-2vev8j-artifact-metadata-storage.spec.md --message "amend Section 4.4: bind date readers to the clock of their stored operand (IPD hinpcf, backlog 6ly144)"`. Do NOT use `aw specs set ... --by-human` and do NOT write any approval attestation: the spec stays `approved` on its existing attestation, and the maintainer's approval of THIS plan is the ruling. Then run `aw specs check` and `aw check` and compare finding sets against E-01's baseline.
+- [x] E-04 Record the amendment in the spec's `## Workflow history` through the tool, with `aw specs note .aw/records/specs/approved/20260908-2vev8j-01-2vev8j-artifact-metadata-storage.spec.md --message "amend Section 4.4: bind date readers to the clock of their stored operand (IPD hinpcf, backlog 6ly144)"`. Do NOT use `aw specs set ... --by-human` and do NOT write any approval attestation: the spec stays `approved` on its existing attestation, and the maintainer's approval of THIS plan is the ruling. Then run `aw specs check` and `aw check` and compare finding sets against E-01's baseline.
   - Depends on: E-03
   - Expected outcome: a new `note (aw specs)` line in the spec's history; `aw specs check` reports the spec conforms; `aw check` shows no finding absent from the E-01 baseline.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -157,25 +157,160 @@ ONE SPEC FILE IS EDITED AND IT IS DECLARED: `.aw/records/specs/approved/20260908
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: the pasted bare-suite summary line and failure set by node id at execution HEAD; `aw specs check` and `aw check` output; the exact enumeration command; the full reader table with one row per reader site (symbol, stored operand, operand clock with its authority, reader clock, MATCH/MISMATCH), explicitly including rows for `attention._age_marker`, `plans_archive._age_days`, `research_archive._age_days` and `workflow_artifacts_prune._calculate_run_age`; and either the statement that no MISMATCH reader exists or the id6 of each filed bug with `aw backlog` output showing `- Blocks-Release: next`.
   - Observed evidence:
-  - Result: pending
+    1. Bare-suite summary line and failure set by node id at execution HEAD (`5e6a8b13f`):
+       ```
+       FAILED tests/test_host_capability_extension.py::InspectionVerbTests::test_the_verbs_write_nothing_to_the_repository
+       1 failed, 7733 passed, 4 skipped, 3 warnings in 974.29s (0:16:14)
+       ```
+    2. `aw specs check` baseline output:
+       ```
+       aw specs check: all specs conform. 40 specs checked.
+       aw specs check: all specs conform. 1 specs checked.
+       ```
+    3. `aw check` baseline findings:
+       ```
+       AW check  all                                                           90042 ms
+       ✗ FINDINGS  112 finding(s) detected across 2790 all
+       Evidence
+         plans  99   specs  21   prompts  2   research  100   backlog  117   walkthroughs  26   roadmaps  1   comms  1   releases  1   reviews  1025   other  1397
+         errors  3   warnings  4   info  105
+       ```
+    4. Exact date enumeration command:
+       `git grep -n -E "(today\(\)|now\(|fromtimestamp\()" agent_workflows/`
+       Narrowed via AST analysis to date comparison/subtraction sites.
+    5. Reader table:
+       | Symbol | Stored Operand | Where Minted | Operand Ruled Clock & Authority | Reader Clock | Match/Mismatch |
+       |---|---|---|---|---|---|
+       | `agent_workflows.attention._age_marker` | `last_history_at` from `## Workflow history` | `artifact_core.utc_history_date()` / lifecycle writers | UTC per spec `2vev8j` Section 4.4 | UTC (`datetime.now(timezone.utc).date()`) | MATCH |
+       | `agent_workflows.plans_archive._age_days` | `plan_date` from `- Date:` or `YYYYMMDD` filename | `aw ipd scaffold` (`ipd_authoring.py`) | LOCAL per `DECISIONS.md` D55 and spec `2vev8j` 4.4 | LOCAL (`date.today()`) | MATCH |
+       | `agent_workflows.research_archive._age_days` | `created` from front matter or `YYYYMMDD` filename | `aw research new` (`research_cmd.py:265`) | LOCAL per `DECISIONS.md` D55 / `research_cmd.py` | LOCAL (`date.today()`) | MATCH |
+       | `agent_workflows.workflow_artifacts_prune._calculate_run_age` | leading `YYYYMMDD` from `run_id` or fallback `mtime` | Workflow runner (`run_id` format) / filesystem | LOCAL per `DECISIONS.md` D55 / filesystem mtime | LOCAL (`datetime.date.today()`) | MATCH |
+    6. Mismatch finding: No MISMATCH reader exists. All four readers match the clock of their stored operand.
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: pasted output of `python3 -m pytest tests/test_date_reader_clock_parity.py -o addopts=""` showing every case passing for both `XXX-24` and `XXX+23:59`; the negative-control assertions' observed nonzero mixed-clock ages printed or asserted in the output; and a demonstration that the test can FAIL: temporarily invert one reader's clock in a scratch copy or by passing a `today` on the wrong clock through the reader's `today` seam inside the test run, show the failing assertion, then show the committed file passing. Also paste evidence that the research case wrote its doc under the test's temp `HOME`, not the real one. Confirm by `git diff --name-only` that no `agent_workflows/` file changed.
   - Observed evidence:
-  - Result: pending
+    1. Pasted output of `python3 -m pytest tests/test_date_reader_clock_parity.py -o addopts="" -v -s`:
+       ```
+       tests/test_date_reader_clock_parity.py::TestDateReaderClockParity::test_local_research_operand_west [XXX+23:59] Research doc written under temp isolation: /tmp/test_research_reader_fdp8tnzg/repo/.aw/records/research/20261012-probe-x-01-1uvs2f-probe-x.findings.md
+       [XXX+23:59] Research created: 20261012, age: 0.0
+       PASSED
+       tests/test_date_reader_clock_parity.py::TestDateReaderClockParity::test_negative_control_west [XXX+23:59] Negative control attention: UTC verdict='!' vs mixed=''
+       [XXX+23:59] Negative control plan: local age=0.0 vs mixed age=1.0
+       [XXX+23:59] Negative control research: local age=0.0 vs mixed age=1.0
+       PASSED
+       tests/test_date_reader_clock_parity.py::TestDateReaderClockParity::test_local_plan_operand_west [XXX+23:59] Plan scaffold date: 20261012, age: 0.0
+       PASSED
+       tests/test_date_reader_clock_parity.py::TestDateReaderClockParity::test_utc_operand_east [XXX-24] UTC boundary 30d verdict: '' (correctly recent)
+       PASSED
+       tests/test_date_reader_clock_parity.py::TestDateReaderClockParity::test_utc_operand_west [XXX+23:59] UTC boundary 31d verdict: '!' (correctly stale)
+       PASSED
+       tests/test_date_reader_clock_parity.py::TestDateReaderClockParity::test_negative_control_east [XXX-24] Negative control attention: UTC verdict='' vs mixed='!'
+       [XXX-24] Negative control plan: local age=0.0 vs mixed age=-1.0
+       [XXX-24] Negative control research: local age=0.0 vs mixed age=-1.0
+       PASSED
+       tests/test_date_reader_clock_parity.py::TestDateReaderClockParity::test_local_plan_operand_east [XXX-24] Plan scaffold date: 20261014, age: 0.0
+       PASSED
+       tests/test_date_reader_clock_parity.py::TestDateReaderClockParity::test_local_research_operand_east [XXX-24] Research doc written under temp isolation: /tmp/test_research_reader_wiw6i2wi/repo/.aw/records/research/20261014-probe-x-01-bwqxeq-probe-x.findings.md
+       [XXX-24] Research created: 20261014, age: 0.0
+       PASSED
 
-- [ ] V-03 validates E-03
+       ============================== 8 passed in 4.55s ===============================
+       ```
+    2. Negative control observed nonzero mixed-clock ages:
+       - East (`XXX-24`): `attention._age_marker` verdict with `today=local_today` inverted to `'!'` (UTC verdict was `''`); `plans_archive._age_days` with `today=utc_today` was `-1.0` (local age was `0.0`); `research_archive._age_days` with `today=utc_today` was `-1.0` (local age was `0.0`).
+       - West (`XXX+23:59`): `attention._age_marker` verdict with `today=local_today` inverted to `''` (UTC verdict was `'!'`); `plans_archive._age_days` with `today=utc_today` was `1.0` (local age was `0.0`); `research_archive._age_days` with `today=utc_today` was `1.0` (local age was `0.0`).
+    3. Failure demonstration:
+       - Inverted plan reader clock in scratch copy `tests/test_date_reader_clock_parity_fail_demo.py` (`today=utc_today` under `XXX-24`):
+         ```
+         FAILED tests/test_date_reader_clock_parity_fail_demo.py::TestDateReaderClockParity::test_local_plan_operand_east
+         AssertionError: Expected plan age 0.0, got -1.0
+         ======================= 1 failed, 7 deselected in 0.73s ========================
+         ```
+       - Committed file passes: `python3 -m pytest tests/test_date_reader_clock_parity.py -o addopts=""` -> `8 passed in 4.56s`.
+    4. Research doc isolation:
+       - Output shows docs written to `/tmp/test_research_reader_fdp8tnzg/repo/...` and `/tmp/test_research_reader_wiw6i2wi/repo/...`. Asserted in test that path is relative to test temp dir and does not leak to `~/.aw`.
+    5. Confirmed by `git diff --name-only` that no `agent_workflows/` file changed.
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: the pasted `git diff` of the spec file showing ONLY added lines, all between the existing 4.4 paragraph and `### 4.5`, with the heading line and the existing writer sentence unchanged; the reader list in the added text matching V-01's table.
   - Observed evidence:
-  - Result: pending
+    `git diff .aw/records/specs/approved/20260908-2vev8j-01-2vev8j-artifact-metadata-storage.spec.md`:
+    ```diff
+    diff --git a/.aw/records/specs/approved/20260908-2vev8j-01-2vev8j-artifact-metadata-storage.spec.md b/.aw/records/specs/approved/20260908-2vev8j-01-2vev8j-artifact-metadata-storage.spec.md
+    index 85de02bc4..b08d8d84f 100644
+    --- a/.aw/records/specs/approved/20260908-2vev8j-01-2vev8j-artifact-metadata-storage.spec.md
+    +++ b/.aw/records/specs/approved/20260908-2vev8j-01-2vev8j-artifact-metadata-storage.spec.md
+    @@ -187,6 +187,23 @@ The UTC-versus-local defect (`tk1gqo`'s second defect) is INDEPENDENT and needs
+     alone leaves timestamps still claiming an evening action happened tomorrow. Every writer, tool and
+     human-facing helper alike, records UTC; local time is a RENDER-TIME concern only.
 
-- [ ] V-04 validates E-04
+    +READERS ARE BOUND TOO, BY THE CLOCK OF THEIR STORED OPERAND (amended 2026-10-13 by plan `hinpcf`,
+    +backlog `6ly144`). Any code that compares a stored date against "today" (an age, staleness,
+    +retention or sweep computation) MUST compute today on the SAME clock that wrote the stored value:
+    +a date this section rules UTC (a `## Workflow history` or journal date) is compared against a UTC
+    +today, and a date minted on the LOCAL clock (a filename date prefix or workflow-artifacts RUN_ID, which
+    +`DECISIONS.md` D55 rules LOCAL, and the `- Date:` and `created` front-matter dates the same
+    +writers stamp beside those names) is compared against a LOCAL today. A reader does
+    +NOT adopt UTC by default: "local time is a RENDER-TIME concern" governs DISPLAY, not comparison,
+    +and converting a LOCAL-operand reader to UTC introduces the very mixed-clock error this rule
+    +prevents. Motivation, measured: plan `840y6i` F-01 found ten live artifacts whose staleness
+    +verdict flipped with the reader's timezone because `attention._age_marker` compared a UTC history
+    +date against a local today. Under this rule `attention._age_marker` reads UTC, while
+    +`plans_archive._age_days`, `research_archive._age_days` and
+    +`workflow_artifacts_prune._calculate_run_age` correctly read LOCAL. A reader whose stored operand
+    +has no ruled clock must be given one before it may compare. Guarded by
+    +`tests/test_date_reader_clock_parity.py`.
+    +
+     ### 4.5 Exactly ONE inline history line remains, as a pure cache
+
+     The reports SPLIT here and this spec settles it. `xn6f6u` and `takpys` say strip the block entirely;
+    ```
+    Heading line `### 4.4 One timezone for every writer` and existing writer sentence left byte-unchanged; only additions between 4.4 and 4.5; reader list matches V-01.
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: the pasted `aw specs note` output and the new history line in the spec; `aw specs check` reporting the spec conforms; `aw check` finding set compared to V-01's baseline with no new finding; the seven clock/archive suites listed under "Required tests / validation" run individually with their pasted pass lines; the bare-suite summary line with no failure absent from the baseline; and `git diff --cached --name-only` before the commit listing only the two declared paths plus this plan.
   - Observed evidence:
-  - Result: pending
+    1. `aw specs note` output:
+       `aw specs note: appended a history record to .aw/records/specs/approved/20260908-2vev8j-01-2vev8j-artifact-metadata-storage.spec.md`
+       New history line in spec:
+       `- 2026-10-13 note (aw specs): amend Section 4.4: bind date readers to the clock of their stored operand (IPD hinpcf, backlog 6ly144)`
+    2. `aw specs check` output:
+       `aw specs check: all specs conform. 1 specs checked.`
+       `aw specs check: all specs conform. 40 specs checked.`
+    3. `aw check` output compared to baseline:
+       `112 finding(s) detected across 2790 all` (errors: 3, warnings: 4, info: 105).
+       Identical finding set to baseline; 0 new findings.
+    4. Seven clock/archive suites run individually:
+       - `python3 -m pytest tests/test_history_date_clock.py -o addopts=""`:
+         `5 passed in 7.27s`
+       - `python3 -m pytest tests/test_history_date_clock_parity.py -o addopts=""`:
+         `6 passed in 14.33s`
+       - `python3 -m pytest tests/test_history_date_clock_readers.py -o addopts=""`:
+         `3 passed in 3.49s`
+       - `python3 -m pytest tests/test_history_date_clock_sidecar.py -o addopts=""`:
+         `4 passed in 1.39s`
+       - `python3 -m pytest tests/test_scaffold_history_clock.py -o addopts=""`:
+         `8 passed in 0.42s`
+       - `python3 -m pytest tests/test_plans_archive.py -o addopts=""`:
+         `15 passed in 0.44s`
+       - `python3 -m pytest tests/test_research_archive.py -o addopts=""`:
+         `26 passed in 1.21s`
+    5. Bare-suite summary line:
+       ```
+       FAILED tests/test_host_capability_extension.py::InspectionVerbTests::test_the_verbs_write_nothing_to_the_repository
+       1 failed, 7741 passed, 4 skipped, 3 warnings in 774.08s (0:12:54)
+       ```
+       No new failures; exactly 8 additional tests passed corresponding to the 8 cases in `tests/test_date_reader_clock_parity.py`.
+    6. `git diff --cached --name-only` confirmed before commit:
+       Lists only the two declared paths plus this plan.
+  - Result: pass
 
 ## Approval and execution gate
 
