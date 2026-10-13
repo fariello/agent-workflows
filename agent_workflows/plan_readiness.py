@@ -22,8 +22,8 @@ bug the plan was written to fix.
    "Append" and ``.aw/records/plans/README.md`` said "an appended, dated line"; both were corrected
    to say newest-first (E-07) precisely so a future reader does not "fix" this back into the bug.
 
-   The bounding and the record grammar are REUSED, not re-implemented: ``attention._history_section_lines``
-   already bounds the section at the next ``## `` heading and ``attention_contract.HISTORY_RECORD_RE``
+   The bounding and the record grammar are REUSED, not re-implemented: ``attention_contract.history_block``
+   already bounds the section canonically and ``attention_contract.HISTORY_RECORD_RE``
    already defines the ``- YYYY-MM-DD <text>`` record grammar. A fourth hand-rolled history parser
    would have been the wrong move.
 
@@ -77,9 +77,9 @@ from pathlib import Path
 from typing import Dict, List, NamedTuple, Optional, Sequence, Tuple
 
 from agent_workflows import ipd_schema as _schema
-from agent_workflows.attention import _history_section_lines
-from agent_workflows.attention_contract import HISTORY_RECORD_RE
 from agent_workflows.attention_contract import (
+    HISTORY_RECORD_RE,
+    history_block,
     newest_history_record as _newest_history_record,
 )
 
@@ -274,16 +274,14 @@ def extract_newest_history_entry(text: str) -> Optional[str]:
     the disagreement was a live bug on 534 artifacts; see that function for the measurement and for
     why the rule is deliberately POSITIONAL rather than greatest-by-date.
 
-    The section is BOUNDED at the next ``## `` heading (via the existing
-    ``attention._history_section_lines``), so a bullet in a later section can never be returned, and
+    The section is BOUNDED at the next ``## `` heading or non-record block boundary (via
+    ``attention_contract.history_block``), so a bullet in a later section can never be returned, and
     a bullet must match the ``- YYYY-MM-DD ...`` record grammar (``HISTORY_RECORD_RE``) to count, so
     an undated stray bullet inside the section is skipped rather than returned.
 
     Pure. Returns the record with surrounding whitespace stripped.
     """
-    return _newest_history_record(
-        [line.strip() for line in _history_section_lines(text)]
-    )
+    return _newest_history_record(history_block(text or "").records)
 
 
 def history_verdict_approves(entry: Optional[str]) -> bool:
@@ -575,8 +573,7 @@ def history_has_review_record(text: str) -> bool:
 
     Pure. False for text with no history section, which is the fail-closed answer.
     """
-    for line in _history_section_lines(text or ""):
-        candidate = line.strip()
+    for candidate in history_block(text or "").records:
         if not HISTORY_RECORD_RE.match(candidate):
             continue
         if is_review_history_entry(candidate):
@@ -615,8 +612,7 @@ def newest_verdict(text: str) -> Tuple[Optional[str], str]:
 
     Pure; takes whole plan text.
     """
-    for line in _history_section_lines(text or ""):
-        candidate = line.strip()
+    for candidate in history_block(text or "").records:
         if not HISTORY_RECORD_RE.match(candidate):
             continue
         if not is_review_history_entry(candidate):
