@@ -13,6 +13,7 @@ Per E-06, P16, and the project conventions:
 
 from __future__ import annotations
 
+import json
 import pathlib
 import subprocess
 import sys
@@ -24,6 +25,7 @@ from tools.lost_guard_census import (
     annotate_candidate_file,
     classify_function,
     compute_commit_census,
+    compute_uncited_inventory,
     scan_axis_a,
     scan_axis_b,
 )
@@ -228,6 +230,176 @@ class LostGuardCensusSyntheticRepoTests(unittest.TestCase):
         self.assertIn(
             "REACH PARTITION", proc.stdout, "Summary must print reach partition"
         )
+
+    def _setup_inventory_repo(self) -> tuple[pathlib.Path, str, str]:
+        repo = self.temp_dir
+        subprocess.run(
+            ["git", "init", "-b", "main"], cwd=repo, check=True, capture_output=True
+        )
+        subprocess.run(["git", "config", "user.name", "Test"], cwd=repo, check=True)
+        subprocess.run(
+            ["git", "config", "user.email", "test@example.com"], cwd=repo, check=True
+        )
+
+        # Commit 1: Before state
+        (repo / "tests").mkdir(parents=True, exist_ok=True)
+        (repo / "agent_workflows").mkdir(parents=True, exist_ok=True)
+
+        (repo / "agent_workflows/present_mod.py").write_text(
+            "# present\n", encoding="utf-8"
+        )
+        (repo / "agent_workflows/gone_mod.py").write_text("# gone\n", encoding="utf-8")
+
+        # Shipped file citing tests/test_cited.py
+        (repo / "README.md").write_text(
+            "Mentions tests/test_cited.py\n", encoding="utf-8"
+        )
+
+        # Four deleted files with distinct authored test function counts:
+        # 1. tests/test_cited.py (cited, 1 func)
+        (repo / "tests/test_cited.py").write_text(
+            "def test_c1(): pass\n", encoding="utf-8"
+        )
+        # 2. tests/test_present.py (imports present_mod at module level, 2 funcs)
+        (repo / "tests/test_present.py").write_text(
+            "import agent_workflows.present_mod\ndef test_p1(): pass\ndef test_p2(): pass\n",
+            encoding="utf-8",
+        )
+        # 3. tests/test_gone.py (imports gone_mod INSIDE a test function, 3 funcs)
+        (repo / "tests/test_gone.py").write_text(
+            "def test_g1():\n    from agent_workflows import gone_mod\n    pass\ndef test_g2(): pass\ndef test_g3(): pass\n",
+            encoding="utf-8",
+        )
+        # 4. tests/test_recreated.py (imports nothing from agent_workflows, 4 funcs)
+        (repo / "tests/test_recreated.py").write_text(
+            "def test_r1(): pass\ndef test_r2(): pass\ndef test_r3(): pass\ndef test_r4(): pass\n",
+            encoding="utf-8",
+        )
+
+        subprocess.run(["git", "add", "."], cwd=repo, check=True)
+        subprocess.run(["git", "commit", "-m", "before tree"], cwd=repo, check=True)
+        before_sha = subprocess.check_output(
+            ["git", "rev-parse", "HEAD"], cwd=repo, text=True
+        ).strip()
+
+        # Commit 2: Trim commit deleting all four test files and agent_workflows/gone_mod.py
+        (repo / "tests/test_cited.py").unlink()
+        (repo / "tests/test_present.py").unlink()
+        (repo / "tests/test_gone.py").unlink()
+        (repo / "tests/test_recreated.py").unlink()
+        (repo / "agent_workflows/gone_mod.py").unlink()
+
+        subprocess.run(["git", "add", "."], cwd=repo, check=True)
+        subprocess.run(["git", "commit", "-m", "trim commit"], cwd=repo, check=True)
+        trim_sha = subprocess.check_output(
+            ["git", "rev-parse", "HEAD"], cwd=repo, text=True
+        ).strip()
+
+        # Commit 3: Re-add tests/test_recreated.py
+        (repo / "tests/test_recreated.py").write_text(
+            "def test_recreated_new(): pass\n", encoding="utf-8"
+        )
+        subprocess.run(["git", "add", "."], cwd=repo, check=True)
+        subprocess.run(
+            ["git", "commit", "-m", "recreate test_recreated.py"], cwd=repo, check=True
+        )
+
+        return repo, before_sha, trim_sha
+
+    def test_uncited_inventory_and_cli(self) -> None:
+        """Assert compute_uncited_inventory and CLI behavior on synthetic repository."""
+        repo, before_sha, trim_sha = self._setup_inventory_repo()
+
+        axis_a = scan_axis_a(repo, [trim_sha])
+        inv = compute_uncited_inventory(repo, trim_sha, axis_a.cited_paths)
+
+        # Exactly 3 uncited paths in sorted order: test_gone.py, test_present.py, test_recreated.py
+        expected_paths = [
+            "tests/test_gone.py",
+            "tests/test_present.py",
+            "tests/test_recreated.py",
+        ]
+        self.assertEqual([r["path"] for r in inv], expected_paths)
+
+        # Authored removed_funcs: 3, 2, 4
+        self.assertEqual([r["removed_funcs"] for r in inv], [3, 2, 4])
+
+        # Imports: ["gone_mod"], ["present_mod"], []
+        self.assertEqual(
+            [r["imports"] for r in inv], [["gone_mod"], ["present_mod"], []]
+        )
+
+        # Missing imports: ["gone_mod"], [], []
+        self.assertEqual([r["missing_imports"] for r in inv], [["gone_mod"], [], []])
+
+        # Recreated at head: False, False, True
+        self.assertEqual([r["recreated_at_head"] for r in inv], [False, False, True])
+
+        tool_path = (
+            pathlib.Path(__file__).resolve().parent.parent
+            / "tools"
+            / "lost_guard_census.py"
+        )
+
+        # CLI --uncited --format json trim_sha
+        proc_json = subprocess.run(
+            [sys.executable, str(tool_path), "--uncited", "--format", "json", trim_sha],
+            cwd=repo,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        self.assertEqual(
+            proc_json.returncode,
+            0,
+            f"CLI exited with {proc_json.returncode}: {proc_json.stderr}",
+        )
+        loaded = json.loads(proc_json.stdout)
+        self.assertEqual(loaded, inv)
+
+        # CLI --uncited (no --format)
+        proc_text = subprocess.run(
+            [sys.executable, str(tool_path), "--uncited", trim_sha],
+            cwd=repo,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        self.assertEqual(
+            proc_text.returncode,
+            0,
+            f"CLI exited with {proc_text.returncode}: {proc_text.stderr}",
+        )
+        sum_funcs = sum(r["removed_funcs"] for r in inv)
+        self.assertIn(
+            f"Uncited deleted files: 3 files holding {sum_funcs} removed functions",
+            proc_text.stdout,
+        )
+        self.assertIn(RULE_D_ONLY_ALL_DEFS, proc_text.stdout)
+
+        # Summary reach line reports the same two numbers
+        proc_sum = subprocess.run(
+            [sys.executable, str(tool_path), "--summary", trim_sha],
+            cwd=repo,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        self.assertEqual(proc_sum.returncode, 0)
+        self.assertIn(
+            f"Uncited deleted files: 3 files holding {sum_funcs} removed functions",
+            proc_sum.stdout,
+        )
+
+        # --format json without --uncited exits 2
+        proc_err = subprocess.run(
+            [sys.executable, str(tool_path), "--format", "json", trim_sha],
+            cwd=repo,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        self.assertEqual(proc_err.returncode, 2)
 
 
 def census_paths(repo: pathlib.Path, commit: str) -> set[str]:
