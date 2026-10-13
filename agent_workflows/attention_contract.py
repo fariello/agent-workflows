@@ -733,7 +733,7 @@ def validate_gate_flags(
 
     Enforces that both flags are provided together, kind is in GATE_KINDS,
     ref is valid for that kind under validate_gate_ref, and summary (if supplied)
-    is safe descriptive text.
+    is safe descriptive text using the shared Section 8.8 vocabulary.
     Returns an error message string if invalid, or None if valid.
     """
     if not kind or not ref:
@@ -742,8 +742,10 @@ def validate_gate_flags(
         return f"{verb}: --gate-kind must be one of {sorted(GATE_KINDS)}"
     if not validate_gate_ref(kind, ref):
         return f"{verb}: --gate-ref is invalid for kind {kind!r}: {ref!r}"
-    if summary is not None and not is_safe_descriptive(summary):
-        return f"{verb}: --gate-summary must be a bounded single control-char-free line"
+    if summary is not None:
+        refusal = refuse_unsafe_descriptive(verb, "--gate-summary", summary)
+        if refusal is not None:
+            return refusal
     return None
 
 

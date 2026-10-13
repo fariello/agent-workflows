@@ -654,7 +654,7 @@ class SpecsReleasesDescriptiveSafetyTests(unittest.TestCase):
         """E-06 non-regression (e): already-validated run_set flags preserve existing refusals and exit codes."""
         spec_path = self._create_conforming_spec("Flags Spec", "flags-spec")
 
-        # --gate-summary must be bounded single control-char-free line (exit 2)
+        # Pins the shared Section 8.8 wording (must not contain embedded newlines, rc 2) by design per backlog 303k5n
         rc_gs, out_gs, err_gs = _run_cli(
             [
                 "specs",
