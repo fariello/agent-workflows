@@ -24,6 +24,7 @@ now under way. The direction of the 2.x line (in progress, not all shipped in th
 
 Major storage-layout boundary. The logical model (D126-D129) was superseded by the PHYSICAL `.aw/` hierarchy specified in `20260810-1447-01-physical-aw-hierarchy-placement-and-migration.spec.md` (D130, D134-D137), which the framework now implements and has migrated its own repository onto:
 
+- Fixed: the color_depth pin now also governs general command styling (outcome words, paths, badges, severity labels), so none removes all color from those surfaces and 16 uses basic ANSI colors, and a terminal detected as 16-color (for example TERM=vt100 or TERM=linux) now gets basic ANSI colors there too instead of 256-color codes.
 - Added: `aw attention` now lists graduated backlog items whose plan and spec carriers have all finished, with the command that closes them.
 - Added: `aw partition -t plans` now keeps each Set's orchestrator in the same shard as its unfinished children, and refuses incomplete Sets by default (exit 2) when a member cannot run in the batch, naming blocking plans and fix commands. Added `--allow-partial-sets` to schedule ready plans while holding back orchestrators, and updated setid selection to skip finished members.
 - Added: global fix-it turn caps across all fix-it mechanisms per artifact (default 20), per Set (floor 20, 15 per member), and per run (floor 40, 10 per artifact) configured by run.fix_it_caps in project.json; reaching any cap stops the item for a human with the cap named in the run report.
