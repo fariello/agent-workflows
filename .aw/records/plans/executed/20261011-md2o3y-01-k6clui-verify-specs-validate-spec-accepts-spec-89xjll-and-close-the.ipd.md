@@ -6,7 +6,7 @@
 - Scope: Confirm on current main that `specs.validate_spec` returns no drift for `89xjll` and for every real spec, that `aw specs check` reports no `attention.unsafe-field`, and that the prose length class guard tests pass; fix forward in the validator or bound only if a re-run fails.
 - Scope-Paths: agent_workflows/specs.py, agent_workflows/attention_contract.py, tests/test_descriptive_length_classes.py, tests/test_spec_review_attestation.py, .aw/records/specs/implemented/20260808-1945-01-attention-registry-and-cross-tree-status.spec.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -17,9 +17,9 @@
 - Highest E allocated: 03
 - Author: opencode model=its_direct/pt3-claude-opus-5.5-1m-us
 - Id: k6clui
-- Approval: 2026-10-12, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-13 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: k6clui verified (set md2o3y, attempt 1). [Scope reconciliation - in-scope-unmodified .aw/records/specs/implemented/20260808-1945-01-attention-registry-and-cross-tree-status.spec.md: declared-but-unmodified (auto-acknowledged by aw agy run); in-scope-unmodified agent_workflows/attention_contract.py: declared-but-unmodified (auto-acknowledged by aw agy run); in-scope-unmodified agent_workflows/specs.py: declared-but-unmodified (auto-acknowledged by aw agy run); in-scope-unmodified tests/test_descriptive_length_classes.py: declared-but-unmodified (auto-acknowledged by aw agy run); in-scope-unmodified tests/test_spec_review_attestation.py: declared-but-unmodified (auto-acknowledged by aw agy run)] [Scope delta - no declared Scope-Paths were modified since the frozen base (5 declared path(s) unmodified; work may have landed before the begin baseline or not at all): .aw/records/specs/implemented/20260808-1945-01-attention-registry-and-cross-tree-status.spec.md, agent_workflows/attention_contract.py, agent_workflows/specs.py, tests/test_descriptive_length_classes.py, tests/test_spec_review_attestation.py]
 - 2026-10-12 approved (aw set): status set to approved
 - 2026-10-12 /plan-review (opencode model=its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-005 fixed (review record 20261011-md2o3y-01-k6clui)
 - 2026-10-12 reviewed (aw set): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-001..PR-005
