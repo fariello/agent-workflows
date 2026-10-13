@@ -35,32 +35,32 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: the declared table and the ladder that reads it
 
-- [ ] E-01 Add a module-level constant `RUN_OUTCOME_CLASS_BY_STATUS: Mapping[str, str]` to `agent_workflows/render_stream.py`, beside `STRANDED_OUTCOME` / `NO_WORK_OUTCOME`, mapping EVERY token in `runner_shared.TERMINAL_STATES` (the 24 tokens listed in Findings F-02) to exactly one class string among five module constants defined with it: `OUTCOME_CLASS_SUCCESS`, `OUTCOME_CLASS_FAILED`, `OUTCOME_CLASS_BLOCKED`, `OUTCOME_CLASS_INTERRUPTED`, `OUTCOME_CLASS_NONE` (none = contributes no class, so the item reaches only the `PARTIAL`/`QUEUED` tail as today). The assignment MUST reproduce today's ladder exactly: success = `executed`, `reviewed`, `approved`, `substantially-complete`; failed = `failed`, `failed-safely`, `fail-lane`, `fail-verify`, `fail-merge`, `integration-blocked`, `merge-conflict`, `merge-needs-human`, `merge-refused`; blocked = `blocked`, `dependency-blocked`, `fail-gate`, `fail-begin`, `fail-depend`, `not-run`; interrupted = `interrupted`; none = `partial`, `not-attempted`, `retired`, `already-landed`. Define it with literal strings in this module, NOT by importing `runner_shared` at module level: `runner_shared` imports `render_stream` at module level, so a module-level reverse import cycles (the reason `INTEGRATION_EARNED_SIGNALS` is a mirrored copy and the reason `render_run_summary_table` imports `canonical_terminal_status` function-locally). Wrap it in `types.MappingProxyType` so it is read-only at runtime.
+- [x] E-01 Add a module-level constant `RUN_OUTCOME_CLASS_BY_STATUS: Mapping[str, str]` to `agent_workflows/render_stream.py`, beside `STRANDED_OUTCOME` / `NO_WORK_OUTCOME`, mapping EVERY token in `runner_shared.TERMINAL_STATES` (the 24 tokens listed in Findings F-02) to exactly one class string among five module constants defined with it: `OUTCOME_CLASS_SUCCESS`, `OUTCOME_CLASS_FAILED`, `OUTCOME_CLASS_BLOCKED`, `OUTCOME_CLASS_INTERRUPTED`, `OUTCOME_CLASS_NONE` (none = contributes no class, so the item reaches only the `PARTIAL`/`QUEUED` tail as today). The assignment MUST reproduce today's ladder exactly: success = `executed`, `reviewed`, `approved`, `substantially-complete`; failed = `failed`, `failed-safely`, `fail-lane`, `fail-verify`, `fail-merge`, `integration-blocked`, `merge-conflict`, `merge-needs-human`, `merge-refused`; blocked = `blocked`, `dependency-blocked`, `fail-gate`, `fail-begin`, `fail-depend`, `not-run`; interrupted = `interrupted`; none = `partial`, `not-attempted`, `retired`, `already-landed`. Define it with literal strings in this module, NOT by importing `runner_shared` at module level: `runner_shared` imports `render_stream` at module level, so a module-level reverse import cycles (the reason `INTEGRATION_EARNED_SIGNALS` is a mirrored copy and the reason `render_run_summary_table` imports `canonical_terminal_status` function-locally). Wrap it in `types.MappingProxyType` so it is read-only at runtime.
   - Depends on: none
   - Expected outcome: `python3 -c "import agent_workflows.render_stream as r; print(len(r.RUN_OUTCOME_CLASS_BY_STATUS))"` prints `24` and exits 0 (no import cycle); the table's class for each token equals the Findings F-02 class.
-  - Execution state: pending
-- [ ] E-02 Add, beside the table, `DECLARED_OUTCOME_ALIAS_DIVERGENCES: Mapping[str, str]` mapping each legacy alias whose class DIFFERS from its canonical token's class to a one-line reason that cites the record establishing it. Exactly four entries, from Findings F-03: `failed-safely` (FAILED vs canonical `fail-gate` BLOCKED: the alias is lossy, `failed-safely` meant a nonzero-exit or retry-exhausted turn, and it is STILL WRITTEN today by `runner_shared.FINALIZE_RETRY_EXHAUSTED_STATUS`, `runner_shared.TURN_RETRY_EXHAUSTED_STATUS`, `lane_containment.BOUND_EXPIRY_DISPOSITION` and both hosts' `except DriverError` handlers (`oc_runipd.run_queue`, `agy_runipd.run_queue`: `runnable["status"] = "failed-safely"`), and the comment on `FINALIZE_RETRY_EXHAUSTED_STATUS` chose it because it "is already rendered `FAILED` by the summary"; cite `fr19jr` F-08 and backlog `79d4ix`); `substantially-complete` (success vs BLOCKED: pinned `COMPLETED` by plan `4po0sc`, and its non-landing case is caught by the `refusal_of_item` / `work_did_not_land` guards rather than by the status; cite `zzcrlo`, `ys1dor`, `4po0sc`); `partial` (none vs canonical `fail-verify` FAILED: a historical `partial` meant exit 0 with incomplete work and renders `PARTIAL`; cite `qvfd4l` OQ-03, which made the same raw-first call for `run_dashboard._outcome`); `not-attempted` (none vs canonical `not-run` BLOCKED: pinned `QUEUED` by plan `4po0sc`'s E-02 placement shapes; note spec `uonrjg` 7.2 puts BOTH spellings in stage `abandoned`, so this divergence rests on `4po0sc`, not on the spec). Add a comment block above both constants stating the RULE in prose: a legacy alias is classified by what its spelling MEANT when it was written, because `TERMINAL_STATUS_ALIASES` is lossy (three distinct historical meanings fold into `fail-gate`) and a run summary must be reproducible from the run's own record without re-labelling history; the canonical `fail-gate` is `BLOCKED` per OQ-01.
+  - Execution state: performed
+- [x] E-02 Add, beside the table, `DECLARED_OUTCOME_ALIAS_DIVERGENCES: Mapping[str, str]` mapping each legacy alias whose class DIFFERS from its canonical token's class to a one-line reason that cites the record establishing it. Exactly four entries, from Findings F-03: `failed-safely` (FAILED vs canonical `fail-gate` BLOCKED: the alias is lossy, `failed-safely` meant a nonzero-exit or retry-exhausted turn, and it is STILL WRITTEN today by `runner_shared.FINALIZE_RETRY_EXHAUSTED_STATUS`, `runner_shared.TURN_RETRY_EXHAUSTED_STATUS`, `lane_containment.BOUND_EXPIRY_DISPOSITION` and both hosts' `except DriverError` handlers (`oc_runipd.run_queue`, `agy_runipd.run_queue`: `runnable["status"] = "failed-safely"`), and the comment on `FINALIZE_RETRY_EXHAUSTED_STATUS` chose it because it "is already rendered `FAILED` by the summary"; cite `fr19jr` F-08 and backlog `79d4ix`); `substantially-complete` (success vs BLOCKED: pinned `COMPLETED` by plan `4po0sc`, and its non-landing case is caught by the `refusal_of_item` / `work_did_not_land` guards rather than by the status; cite `zzcrlo`, `ys1dor`, `4po0sc`); `partial` (none vs canonical `fail-verify` FAILED: a historical `partial` meant exit 0 with incomplete work and renders `PARTIAL`; cite `qvfd4l` OQ-03, which made the same raw-first call for `run_dashboard._outcome`); `not-attempted` (none vs canonical `not-run` BLOCKED: pinned `QUEUED` by plan `4po0sc`'s E-02 placement shapes; note spec `uonrjg` 7.2 puts BOTH spellings in stage `abandoned`, so this divergence rests on `4po0sc`, not on the spec). Add a comment block above both constants stating the RULE in prose: a legacy alias is classified by what its spelling MEANT when it was written, because `TERMINAL_STATUS_ALIASES` is lossy (three distinct historical meanings fold into `fail-gate`) and a run summary must be reproducible from the run's own record without re-labelling history; the canonical `fail-gate` is `BLOCKED` per OQ-01.
   - Depends on: E-01
   - Expected outcome: `DECLARED_OUTCOME_ALIAS_DIVERGENCES` has exactly the four keys `failed-safely`, `substantially-complete`, `partial`, `not-attempted`, each with a non-empty reason naming at least one id6.
-  - Execution state: pending
-- [ ] E-03 Rewrite the four status tests of the outcome-word ladder inside `render_stream.render_run_summary_table` (the `interrupted` arm, the `FAILED` arm, the `BLOCKED` arm, and the two success-tuple membership tests in the `COMPLETED` and `NO WORK PERFORMED` arms) to read `RUN_OUTCOME_CLASS_BY_STATUS.get(it.get("status"))` against the class constants instead of literal tuples. Preserve the arm ORDER and every non-status guard exactly as they are (`exit_reason` first, `total_items > 0`, `refusal_of_item`, `work_did_not_land`, `queue_performed_no_work`, and the placement comments explaining why each guard sits where it does). A status absent from the table (an unknown future token) must behave as today's literal tuples do for an unknown token, which is class none. Do NOT touch the progress-count canonicalization, the per-row Status cell, the outcome COLOR selection, or the diagnostics block.
+  - Execution state: performed
+- [x] E-03 Rewrite the four status tests of the outcome-word ladder inside `render_stream.render_run_summary_table` (the `interrupted` arm, the `FAILED` arm, the `BLOCKED` arm, and the two success-tuple membership tests in the `COMPLETED` and `NO WORK PERFORMED` arms) to read `RUN_OUTCOME_CLASS_BY_STATUS.get(it.get("status"))` against the class constants instead of literal tuples. Preserve the arm ORDER and every non-status guard exactly as they are (`exit_reason` first, `total_items > 0`, `refusal_of_item`, `work_did_not_land`, `queue_performed_no_work`, and the placement comments explaining why each guard sits where it does). A status absent from the table (an unknown future token) must behave as today's literal tuples do for an unknown token, which is class none. Do NOT touch the progress-count canonicalization, the per-row Status cell, the outcome COLOR selection, or the diagnostics block.
   - Depends on: E-01
   - Expected outcome: For every token in `runner_shared.TERMINAL_STATES`, with and without one attempt and with and without a recorded refusal, the rendered `Outcome:` word is IDENTICAL before and after the change; the existing suites `tests/test_zero_dispatch_outcome.py` and `tests/test_run_summary_table.py` pass unmodified.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: the behavioral guard
 
-- [ ] E-04 Create `tests/test_outcome_word_ladder.py` exercising the REAL `render_stream.render_run_summary_table` on synthesized one-item `state` dicts (same shape as `tests/test_zero_dispatch_outcome.py`'s `_item`/`_state` helpers, rebuilt locally rather than imported from another test module) and parsing the `Outcome:` word from the plain rendered text. Four test cases: (a) WORD TABLE: for every token in `runner_shared.TERMINAL_STATES`, at zero attempts (`attempts=[]`) and at one attempt (`attempts=[{"number": 1}]`; `attempts` is a LIST, an int raises `TypeError` in the renderer), each without and with a recorded refusal (`render_stream.record_refusal`), the rendered word equals a literal expected-word table written in the test (from Findings F-02: four words per token; note `reviewed` at zero attempts is `NO WORK PERFORMED` without a refusal and `QUEUED` with one, and every success-class token renders `PARTIAL` once a refusal is recorded); (b) TOTALITY: `set(runner_shared.TERMINAL_STATES) <= set(render_stream.RUN_OUTCOME_CLASS_BY_STATUS)`, so a token added to the vocabulary without a declared class fails here instead of silently rendering `PARTIAL`; (c) ALIAS AGREEMENT: for every `(legacy, canonical)` in `runner_shared.TERMINAL_STATUS_ALIASES`, the rendered word for `legacy` equals the rendered word for `canonical` UNLESS `legacy` is a key of `render_stream.DECLARED_OUTCOME_ALIAS_DIVERGENCES`, and every key of that mapping is a real alias whose word DOES differ (so a stale divergence entry fails too); (d) CANONICAL FAIL-GATE: a `fail-gate` item renders `BLOCKED` with and without a recorded refusal and with and without attempts, beside `failed-safely` rendering `FAILED`, so OQ-01's decision is asserted directly. Do NOT read production source text, `inspect`, or `ast` (GUIDING_PRINCIPLES P16); cases (b) and (c) read production DATA constants, the precedent being `runner_shared.INTENTIONALLY_UNMAPPED_DRIVER_STATUSES`, kept "beside the table as production data so totality tests read the production decision".
+- [x] E-04 Create `tests/test_outcome_word_ladder.py` exercising the REAL `render_stream.render_run_summary_table` on synthesized one-item `state` dicts (same shape as `tests/test_zero_dispatch_outcome.py`'s `_item`/`_state` helpers, rebuilt locally rather than imported from another test module) and parsing the `Outcome:` word from the plain rendered text. Four test cases: (a) WORD TABLE: for every token in `runner_shared.TERMINAL_STATES`, at zero attempts (`attempts=[]`) and at one attempt (`attempts=[{"number": 1}]`; `attempts` is a LIST, an int raises `TypeError` in the renderer), each without and with a recorded refusal (`render_stream.record_refusal`), the rendered word equals a literal expected-word table written in the test (from Findings F-02: four words per token; note `reviewed` at zero attempts is `NO WORK PERFORMED` without a refusal and `QUEUED` with one, and every success-class token renders `PARTIAL` once a refusal is recorded); (b) TOTALITY: `set(runner_shared.TERMINAL_STATES) <= set(render_stream.RUN_OUTCOME_CLASS_BY_STATUS)`, so a token added to the vocabulary without a declared class fails here instead of silently rendering `PARTIAL`; (c) ALIAS AGREEMENT: for every `(legacy, canonical)` in `runner_shared.TERMINAL_STATUS_ALIASES`, the rendered word for `legacy` equals the rendered word for `canonical` UNLESS `legacy` is a key of `render_stream.DECLARED_OUTCOME_ALIAS_DIVERGENCES`, and every key of that mapping is a real alias whose word DOES differ (so a stale divergence entry fails too); (d) CANONICAL FAIL-GATE: a `fail-gate` item renders `BLOCKED` with and without a recorded refusal and with and without attempts, beside `failed-safely` rendering `FAILED`, so OQ-01's decision is asserted directly. Do NOT read production source text, `inspect`, or `ast` (GUIDING_PRINCIPLES P16); cases (b) and (c) read production DATA constants, the precedent being `runner_shared.INTENTIONALLY_UNMAPPED_DRIVER_STATUSES`, kept "beside the table as production data so totality tests read the production decision".
   - Depends on: E-02, E-03
   - Expected outcome: `python3 -m pytest -o addopts="" tests/test_outcome_word_ladder.py -q` reports all cases passed; mutating the table (moving `fail-gate` to the failed class) turns cases (a), (c) and (d) red; deleting one divergence entry turns case (c) red; adding a token to a local copy of the vocabulary absent from the table turns case (b) red.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: hand-off of the adjacent defects
 
-- [ ] E-05 File two backlog items with `aw backlog new --apply` (never hand-written), both `--work-kind followup --priority low`, each body citing this plan `064awu` and the measurement: (i) "Discriminate a live `fail-gate` written for a nonzero-exit turn from one written for a gate refusal in the run summary outcome word" (Findings F-05: since `cyamvi`, `reconcile_disposition`'s nonzero-exit fallback and its executed-claim-not-moved branch write `fail-gate` where they wrote `failed-safely` / `substantially-complete`, so such a run now reads `BLOCKED` where it read `FAILED` / `COMPLETED`); (ii) "Give the BLOCKED outcome word its own color instead of the cyan else-branch" (Findings F-06). Do not set `--blocks-release`: neither is filed `bug` (see F-05 and F-06 for the severity reasoning).
+- [x] E-05 File two backlog items with `aw backlog new --apply` (never hand-written), both `--work-kind followup --priority low`, each body citing this plan `064awu` and the measurement: (i) "Discriminate a live `fail-gate` written for a nonzero-exit turn from one written for a gate refusal in the run summary outcome word" (Findings F-05: since `cyamvi`, `reconcile_disposition`'s nonzero-exit fallback and its executed-claim-not-moved branch write `fail-gate` where they wrote `failed-safely` / `substantially-complete`, so such a run now reads `BLOCKED` where it read `FAILED` / `COMPLETED`); (ii) "Give the BLOCKED outcome word its own color instead of the cyan else-branch" (Findings F-06). Do not set `--blocks-release`: neither is filed `bug` (see F-05 and F-06 for the severity reasoning).
   - Depends on: none
   - Expected outcome: two new files under `.aw/records/backlog/open/`, both reported conforming by `aw backlog check`.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -93,11 +93,16 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ## Deferred / out of scope (with reason)
 
-- Changing any rendered word, including making canonical `fail-gate` read `FAILED`: rejected by OQ-01 (contradicts spec `uonrjg` 7.2 and two shipped tests, and would relabel every gate refusal).
-- Discriminating a nonzero-exit `fail-gate` from a gate-refusal `fail-gate` (F-05): needs a recorded-field design; filed by E-05.
-- `BLOCKED`'s cyan color (F-06): presentation, governed by spec `uonrjg`; filed by E-05.
-- Migrating the live `failed-safely` writers: already owned by backlog `79d4ix`.
-- `run_dashboard._outcome` and `run_viewer` filters: separate surfaces with their own recorded decisions (`qvfd4l` OQ-03).
+- Changing any rendered word, including making canonical `fail-gate` read `FAILED`:
+  - Carrier-Declined: rejected by OQ-01 (contradicts spec `uonrjg` 7.2 and two shipped tests, and would relabel every gate refusal).
+- Discriminating a nonzero-exit `fail-gate` from a gate-refusal `fail-gate` (F-05):
+  - Carrier: 1h98o3
+- `BLOCKED`'s cyan color (F-06):
+  - Carrier: pyezbc
+- Migrating the live `failed-safely` writers:
+  - Carrier: 79d4ix
+- `run_dashboard._outcome` and `run_viewer` filters:
+  - Carrier-Declined: separate surfaces with their own recorded decisions (`qvfd4l` OQ-03).
 
 ## Scope check
 
@@ -129,26 +134,287 @@ N/A, checked rather than assumed. No `.spec.md` is in `- Scope-Paths:` because n
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste the actual output of `python3 -c "import agent_workflows.render_stream as r, agent_workflows.runner_shared as s; print(len(r.RUN_OUTCOME_CLASS_BY_STATUS)); print(sorted(set(s.TERMINAL_STATES) - set(r.RUN_OUTCOME_CLASS_BY_STATUS))); print(sorted(r.RUN_OUTCOME_CLASS_BY_STATUS.items()))"`, which must print `24`, `[]`, and a mapping whose classes equal Findings F-02; and paste the `git diff` hunk adding the table, showing it is a `MappingProxyType` and imports nothing from `runner_shared` at module level.
   - Observed evidence:
-  - Result: pending
-- [ ] V-02 validates E-02
+    Actual command output:
+    ```
+    24
+    []
+    [('already-landed', 'none'), ('approved', 'success'), ('blocked', 'blocked'), ('dependency-blocked', 'blocked'), ('executed', 'success'), ('fail-begin', 'blocked'), ('fail-depend', 'blocked'), ('fail-gate', 'blocked'), ('fail-lane', 'failed'), ('fail-merge', 'failed'), ('fail-verify', 'failed'), ('failed', 'failed'), ('failed-safely', 'failed'), ('integration-blocked', 'failed'), ('interrupted', 'interrupted'), ('merge-conflict', 'failed'), ('merge-needs-human', 'failed'), ('merge-refused', 'failed'), ('not-attempted', 'none'), ('not-run', 'blocked'), ('partial', 'none'), ('retired', 'none'), ('reviewed', 'success'), ('substantially-complete', 'success')]
+    ```
+    Git diff hunk showing MappingProxyType and standard library types import:
+    ```diff
+    @@ -34,6 +34,7 @@ import signal
+     import sys
+     import threading
+     import time
+    +import types
+     from collections.abc import Mapping, Sequence
+     from dataclasses import dataclass
+     from pathlib import Path
+    @@ -3025,6 +3026,88 @@ MALFORMED_ENTRY_TOKEN = "malformed-entry"
+     #: Placeholder marker in summary table cells for fields that could not be read from a non-mapping queue entry.
+     UNREADABLE_MARKER = "(unreadable)"
+
+    +#: Outcome classes used by :func:`render_run_summary_table`'s outcome-word ladder.
+    +OUTCOME_CLASS_SUCCESS: str = "success"
+    +OUTCOME_CLASS_FAILED: str = "failed"
+    +OUTCOME_CLASS_BLOCKED: str = "blocked"
+    +OUTCOME_CLASS_INTERRUPTED: str = "interrupted"
+    +OUTCOME_CLASS_NONE: str = "none"
+    +
+    +# --------------------------------------------------------------------------------------------------
+    +# Outcome-word ladder status classification (IPD 064awu)
+    +#
+    +# RULE: A legacy alias is classified by what its spelling MEANT when it was written,
+    +# because TERMINAL_STATUS_ALIASES is lossy (three distinct historical meanings fold
+    +# into fail-gate) and a run summary must be reproducible from the run's own record
+    +# without re-labelling history; the canonical fail-gate is BLOCKED per OQ-01.
+    +# --------------------------------------------------------------------------------------------------
+    +
+    +#: Total mapping of every terminal runner status token in runner_shared.TERMINAL_STATES
+    +#: to exactly one outcome class. Defined with literal strings here rather than importing
+    +#: runner_shared at module level to avoid an import cycle (runner_shared imports render_stream
+    +#: at module level).
+    +RUN_OUTCOME_CLASS_BY_STATUS: Mapping[str, str] = types.MappingProxyType(
+    +    {
+    +        # Success class: executed, reviewed, approved, substantially-complete
+    +        "executed": OUTCOME_CLASS_SUCCESS,
+    +        "reviewed": OUTCOME_CLASS_SUCCESS,
+    +        "approved": OUTCOME_CLASS_SUCCESS,
+    +        "substantially-complete": OUTCOME_CLASS_SUCCESS,
+    +        # Failed class: failed, failed-safely, fail-lane, fail-verify, fail-merge,
+    +        # integration-blocked, merge-conflict, merge-needs-human, merge-refused
+    +        "failed": OUTCOME_CLASS_FAILED,
+    +        "failed-safely": OUTCOME_CLASS_FAILED,
+    +        "fail-lane": OUTCOME_CLASS_FAILED,
+    +        "fail-verify": OUTCOME_CLASS_FAILED,
+    +        "fail-merge": OUTCOME_CLASS_FAILED,
+    +        "integration-blocked": OUTCOME_CLASS_FAILED,
+    +        "merge-conflict": OUTCOME_CLASS_FAILED,
+    +        "merge-needs-human": OUTCOME_CLASS_FAILED,
+    +        "merge-refused": OUTCOME_CLASS_FAILED,
+    +        # Blocked class: blocked, dependency-blocked, fail-gate, fail-begin, fail-depend, not-run
+    +        "blocked": OUTCOME_CLASS_BLOCKED,
+    +        "dependency-blocked": OUTCOME_CLASS_BLOCKED,
+    +        "fail-gate": OUTCOME_CLASS_BLOCKED,
+    +        "fail-begin": OUTCOME_CLASS_BLOCKED,
+    +        "fail-depend": OUTCOME_CLASS_BLOCKED,
+    +        "not-run": OUTCOME_CLASS_BLOCKED,
+    +        # Interrupted class: interrupted
+    +        "interrupted": OUTCOME_CLASS_INTERRUPTED,
+    +        # None class (contributes no class, reaches PARTIAL/QUEUED tail):
+    +        # partial, not-attempted, retired, already-landed
+    +        "partial": OUTCOME_CLASS_NONE,
+    +        "not-attempted": OUTCOME_CLASS_NONE,
+    +        "retired": OUTCOME_CLASS_NONE,
+    +        "already-landed": OUTCOME_CLASS_NONE,
+    +    }
+    +)
+    ```
+  - Result: pass
+- [x] V-02 validates E-02
   - Required evidence: paste the actual output of `python3 -c "import agent_workflows.render_stream as r; [print(k, '->', v) for k, v in sorted(r.DECLARED_OUTCOME_ALIAS_DIVERGENCES.items())]"`, which must list exactly `failed-safely`, `not-attempted`, `partial`, `substantially-complete`, each reason naming at least one id6; and paste the comment block stating the rule.
   - Observed evidence:
-  - Result: pending
-- [ ] V-03 validates E-03
+    Actual command output:
+    ```
+    failed-safely -> FAILED vs canonical fail-gate BLOCKED: the alias is lossy, failed-safely meant a nonzero-exit or retry-exhausted turn, and it is still written today by retry and error handlers (cite fr19jr F-08 and backlog 79d4ix)
+    not-attempted -> none vs canonical not-run BLOCKED: pinned QUEUED by plan 4po0sc's E-02 placement shapes (note spec uonrjg 7.2 puts both spellings in stage abandoned, so this divergence rests on 4po0sc, not on the spec)
+    partial -> none vs canonical fail-verify FAILED: a historical partial meant exit 0 with incomplete work and renders PARTIAL (cite qvfd4l OQ-03 raw-first precedent)
+    substantially-complete -> success vs canonical fail-gate BLOCKED: pinned COMPLETED by plan 4po0sc, and its non-landing case is caught by the refusal_of_item / work_did_not_land guards rather than by the status (cite zzcrlo, ys1dor, 4po0sc)
+    ```
+    Comment block stating the rule:
+    ```python
+    # --------------------------------------------------------------------------------------------------
+    # Outcome-word ladder status classification (IPD 064awu)
+    #
+    # RULE: A legacy alias is classified by what its spelling MEANT when it was written,
+    # because TERMINAL_STATUS_ALIASES is lossy (three distinct historical meanings fold
+    # into fail-gate) and a run summary must be reproducible from the run's own record
+    # without re-labelling history; the canonical fail-gate is BLOCKED per OQ-01.
+    # --------------------------------------------------------------------------------------------------
+    ```
+  - Result: pass
+- [x] V-03 validates E-03
   - Required evidence: paste a BEFORE/AFTER word table produced by one script run twice, once against the pre-change base commit (via a temporary `git worktree add` of the base, never `git stash`) and once against the post-change tree, rendering every `runner_shared.TERMINAL_STATES` token at `attempts=[]` and `attempts=[{"number": 1}]`, with and without `record_refusal` (96 words); run each time with `PYTHONPATH=<that tree>` and `AW_NO_REEXEC=1`, and paste the script's first output line printing `agent_workflows.__file__` for BOTH runs showing two DIFFERENT trees (measured at review: a script run from outside the tree without `PYTHONPATH` imports the editable-installed main-checkout package, so both runs would measure the same code and the diff would be trivially empty); the two tables must be identical line for line (a `diff` of the two outputs printing nothing is sufficient evidence if the diff command and its empty output are pasted). Also paste the `git diff` of the ladder showing arm order and the `exit_reason`, `total_items > 0`, `refusal_of_item`, `work_did_not_land`, `queue_performed_no_work` guards unchanged, and the actual `python3 -m pytest -o addopts="" tests/test_zero_dispatch_outcome.py tests/test_run_summary_table.py -q` summary line with those files unmodified (`git diff --stat` on them empty).
   - Observed evidence:
-  - Result: pending
-- [ ] V-04 validates E-04
+    Base tree first output line:
+    ```
+    /tmp/wt-064awu-base/agent_workflows/__init__.py
+    ```
+    Post-change tree first output line:
+    ```
+    .aw/worktrees/064awu/agent_workflows/__init__.py
+    ```
+    Diff of 96 outcome words:
+    ```
+    $ diff <(tail -n +2 /tmp/words_base.txt) <(tail -n +2 /tmp/words_post.txt)
+    ```
+    (empty output, exit code 0)
+
+    Ladder git diff showing arm order and guards preserved:
+    ```diff
+    @@ -3881,45 +3964,31 @@ def render_run_summary_table(
+         if exit_reason:
+             outcome_str = exit_reason
+         elif any(
+    -        isinstance(it, Mapping) and it.get("status") == "interrupted" for it in queue
+    +        isinstance(it, Mapping)
+    +        and RUN_OUTCOME_CLASS_BY_STATUS.get(it.get("status"))
+    +        == OUTCOME_CLASS_INTERRUPTED
+    +        for it in queue
+         ):
+             outcome_str = "INTERRUPTED"
+         elif any(
+             isinstance(it, Mapping)
+    -        and it.get("status")
+    -        in (
+    -            "failed",
+    -            "failed-safely",
+    -            "fail-lane",
+    -            "fail-verify",
+    -            "fail-merge",
+    -            "integration-blocked",
+    -            "merge-conflict",
+    -            "merge-needs-human",
+    -            "merge-refused",
+    -        )
+    +        and RUN_OUTCOME_CLASS_BY_STATUS.get(it.get("status"))
+    +        == OUTCOME_CLASS_FAILED
+             for it in queue
+         ):
+             outcome_str = "FAILED"
+         elif any(
+             isinstance(it, Mapping)
+    -        and it.get("status")
+    -        in (
+    -            "blocked",
+    -            "dependency-blocked",
+    -            "fail-gate",
+    -            "fail-begin",
+    -            "fail-depend",
+    -            "not-run",
+    -        )
+    +        and RUN_OUTCOME_CLASS_BY_STATUS.get(it.get("status"))
+    +        == OUTCOME_CLASS_BLOCKED
+             for it in queue
+         ):
+             outcome_str = "BLOCKED"
+         elif (
+             all(
+                 isinstance(it, Mapping)
+    -            and it.get("status")
+    -            in ("executed", "reviewed", "approved", "substantially-complete")
+    +            and RUN_OUTCOME_CLASS_BY_STATUS.get(it.get("status"))
+    +            == OUTCOME_CLASS_SUCCESS
+                 for it in queue
+             )
+             and total_items > 0
+    @@ -3971,8 +4040,8 @@ def render_run_summary_table(
+         elif (
+             all(
+                 isinstance(it, Mapping)
+    -            and it.get("status")
+    -            in ("executed", "reviewed", "approved", "substantially-complete")
+    +            and RUN_OUTCOME_CLASS_BY_STATUS.get(it.get("status"))
+    +            == OUTCOME_CLASS_SUCCESS
+                 for it in queue
+             )
+             and total_items > 0
+    ```
+
+    `git diff --stat tests/test_zero_dispatch_outcome.py tests/test_run_summary_table.py` is empty (unmodified).
+    Actual test summary:
+    ```
+    ...............................                                          [100%]
+    31 passed in 2.42s
+    ```
+  - Result: pass
+- [x] V-04 validates E-04
   - Required evidence: paste the actual `python3 -m pytest -o addopts="" tests/test_outcome_word_ladder.py -q` output with its `N passed` line; then paste the three MUTATION runs, each a red run followed by revert: (1) `fail-gate` moved to the failed class -> cases (a), (c), (d) fail; (2) the `partial` divergence entry deleted -> case (c) fails; (3) one token removed from `RUN_OUTCOME_CLASS_BY_STATUS` -> case (b) fails. Paste `git diff --stat` after reverting showing only the intended changes remain. Paste `rg -n "^\s*(import|from) (inspect|ast)\b|read_text\(|getsource" tests/test_outcome_word_ladder.py` returning nothing (no production-source reading; the pattern is anchored so a docstring mentioning the word does not false-positive).
   - Observed evidence:
-  - Result: pending
-- [ ] V-05 validates E-05
+    Passing test run:
+    ```
+    ....                                                                     [100%]
+    4 passed in 0.59s
+    ```
+
+    Mutation 1: `fail-gate` moved to failed class:
+    ```
+    FAILED tests/test_outcome_word_ladder.py::OutcomeWordLadderBehavioralFenceTests::test_case_c_alias_agreement
+    FAILED tests/test_outcome_word_ladder.py::OutcomeWordLadderBehavioralFenceTests::test_case_a_word_table
+    FAILED tests/test_outcome_word_ladder.py::OutcomeWordLadderBehavioralFenceTests::test_case_d_canonical_fail_gate
+    3 failed, 1 passed in 0.27s
+    ```
+
+    Mutation 2: `partial` divergence entry deleted:
+    ```
+    FAILED tests/test_outcome_word_ladder.py::OutcomeWordLadderBehavioralFenceTests::test_case_c_alias_agreement
+    1 failed, 3 passed in 0.31s
+    ```
+
+    Mutation 3: `not-attempted` removed from `RUN_OUTCOME_CLASS_BY_STATUS`:
+    ```
+    FAILED tests/test_outcome_word_ladder.py::OutcomeWordLadderBehavioralFenceTests::test_case_b_totality
+    1 failed, 3 passed in 0.86s
+    ```
+
+    `git diff --stat` after reverting mutations:
+    ```
+     agent_workflows/render_stream.py | 121 ++++++++++++++++++++++++++++++---------
+     1 file changed, 95 insertions(+), 26 deletions(-)
+    ```
+
+    Source inspection pattern check:
+    ```
+    $ rg -n "^\s*(import|from) (inspect|ast)\b|read_text\(|getsource" tests/test_outcome_word_ladder.py
+    (empty output, exit code 1)
+    ```
+  - Result: pass
+- [x] V-05 validates E-05
   - Required evidence: paste the two `aw backlog new ... --apply` invocations and their output naming the written files, the first ten lines of each file showing `- Work-Kind: followup`, no `- Blocks-Release:`, and a body citing `064awu`; and paste `aw backlog check` reporting conforming.
   - Observed evidence:
-  - Result: pending
+    Invocations and outputs:
+    ```
+    $ aw backlog new --work-kind followup --priority low --summary "Discriminate a live fail-gate written for a nonzero-exit turn from one written for a gate refusal in the run summary outcome word" --body "..." --apply
+    aw backlog new: wrote .aw/records/backlog/open/20261012-1h98o3-01-1h98o3-discriminate-a-live-fail-gate-written-for-a-nonzer.backlog.md
+
+    $ aw backlog new --work-kind followup --priority low --summary "Give the BLOCKED outcome word its own color instead of the cyan else-branch" --body "..." --apply
+    aw backlog new: wrote .aw/records/backlog/open/20261012-pyezbc-01-pyezbc-give-the-blocked-outcome-word-its-own-color-instea.backlog.md
+    ```
+
+    First ten lines of `.aw/records/backlog/open/20261012-1h98o3-01-1h98o3-discriminate-a-live-fail-gate-written-for-a-nonzer.backlog.md`:
+    ```markdown
+    - Id: 1h98o3
+    - Status: open
+    - Set: 1h98o3
+    - Priority: low
+    - Work-Kind: followup
+    - Summary: Discriminate a live fail-gate written for a nonzero-exit turn from one written for a gate refusal in the run summary outcome word
+
+    ## Workflow history
+    - 2026-10-13 created (aw backlog): Discriminate a live fail-gate written for a nonzero-exit turn from one written for a gate refusal in the run summary outcome word
+    ```
+
+    First ten lines of `.aw/records/backlog/open/20261012-pyezbc-01-pyezbc-give-the-blocked-outcome-word-its-own-color-instea.backlog.md`:
+    ```markdown
+    - Id: pyezbc
+    - Status: open
+    - Set: pyezbc
+    - Priority: low
+    - Work-Kind: followup
+    - Summary: Give the BLOCKED outcome word its own color instead of the cyan else-branch
+
+    ## Workflow history
+    - 2026-10-13 created (aw backlog): Give the BLOCKED outcome word its own color instead of the cyan else-branch
+    ```
+
+    `aw backlog check`:
+    ```
+    aw backlog check: all backlog items conform. 988 backlog items checked.
+    ```
+  - Result: pass
 
 ## Approval and execution gate
 

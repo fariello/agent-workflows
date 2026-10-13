@@ -34,6 +34,7 @@ import signal
 import sys
 import threading
 import time
+import types
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
@@ -3025,6 +3026,88 @@ MALFORMED_ENTRY_TOKEN = "malformed-entry"
 #: Placeholder marker in summary table cells for fields that could not be read from a non-mapping queue entry.
 UNREADABLE_MARKER = "(unreadable)"
 
+#: Outcome classes used by :func:`render_run_summary_table`'s outcome-word ladder.
+OUTCOME_CLASS_SUCCESS: str = "success"
+OUTCOME_CLASS_FAILED: str = "failed"
+OUTCOME_CLASS_BLOCKED: str = "blocked"
+OUTCOME_CLASS_INTERRUPTED: str = "interrupted"
+OUTCOME_CLASS_NONE: str = "none"
+
+# --------------------------------------------------------------------------------------------------
+# Outcome-word ladder status classification (IPD 064awu)
+#
+# RULE: A legacy alias is classified by what its spelling MEANT when it was written,
+# because TERMINAL_STATUS_ALIASES is lossy (three distinct historical meanings fold
+# into fail-gate) and a run summary must be reproducible from the run's own record
+# without re-labelling history; the canonical fail-gate is BLOCKED per OQ-01.
+# --------------------------------------------------------------------------------------------------
+
+#: Total mapping of every terminal runner status token in runner_shared.TERMINAL_STATES
+#: to exactly one outcome class. Defined with literal strings here rather than importing
+#: runner_shared at module level to avoid an import cycle (runner_shared imports render_stream
+#: at module level).
+RUN_OUTCOME_CLASS_BY_STATUS: Mapping[str, str] = types.MappingProxyType(
+    {
+        # Success class: executed, reviewed, approved, substantially-complete
+        "executed": OUTCOME_CLASS_SUCCESS,
+        "reviewed": OUTCOME_CLASS_SUCCESS,
+        "approved": OUTCOME_CLASS_SUCCESS,
+        "substantially-complete": OUTCOME_CLASS_SUCCESS,
+        # Failed class: failed, failed-safely, fail-lane, fail-verify, fail-merge,
+        # integration-blocked, merge-conflict, merge-needs-human, merge-refused
+        "failed": OUTCOME_CLASS_FAILED,
+        "failed-safely": OUTCOME_CLASS_FAILED,
+        "fail-lane": OUTCOME_CLASS_FAILED,
+        "fail-verify": OUTCOME_CLASS_FAILED,
+        "fail-merge": OUTCOME_CLASS_FAILED,
+        "integration-blocked": OUTCOME_CLASS_FAILED,
+        "merge-conflict": OUTCOME_CLASS_FAILED,
+        "merge-needs-human": OUTCOME_CLASS_FAILED,
+        "merge-refused": OUTCOME_CLASS_FAILED,
+        # Blocked class: blocked, dependency-blocked, fail-gate, fail-begin, fail-depend, not-run
+        "blocked": OUTCOME_CLASS_BLOCKED,
+        "dependency-blocked": OUTCOME_CLASS_BLOCKED,
+        "fail-gate": OUTCOME_CLASS_BLOCKED,
+        "fail-begin": OUTCOME_CLASS_BLOCKED,
+        "fail-depend": OUTCOME_CLASS_BLOCKED,
+        "not-run": OUTCOME_CLASS_BLOCKED,
+        # Interrupted class: interrupted
+        "interrupted": OUTCOME_CLASS_INTERRUPTED,
+        # None class (contributes no class, reaches PARTIAL/QUEUED tail):
+        # partial, not-attempted, retired, already-landed
+        "partial": OUTCOME_CLASS_NONE,
+        "not-attempted": OUTCOME_CLASS_NONE,
+        "retired": OUTCOME_CLASS_NONE,
+        "already-landed": OUTCOME_CLASS_NONE,
+    }
+)
+
+#: Declared legacy alias divergences whose outcome class deliberately differs from its canonical
+#: token's class. Each reason cites the record establishing the decision.
+DECLARED_OUTCOME_ALIAS_DIVERGENCES: Mapping[str, str] = types.MappingProxyType(
+    {
+        "failed-safely": (
+            "FAILED vs canonical fail-gate BLOCKED: the alias is lossy, failed-safely meant a "
+            "nonzero-exit or retry-exhausted turn, and it is still written today by retry and error "
+            "handlers (cite fr19jr F-08 and backlog 79d4ix)"
+        ),
+        "not-attempted": (
+            "none vs canonical not-run BLOCKED: pinned QUEUED by plan 4po0sc's E-02 placement "
+            "shapes (note spec uonrjg 7.2 puts both spellings in stage abandoned, so this divergence "
+            "rests on 4po0sc, not on the spec)"
+        ),
+        "partial": (
+            "none vs canonical fail-verify FAILED: a historical partial meant exit 0 with "
+            "incomplete work and renders PARTIAL (cite qvfd4l OQ-03 raw-first precedent)"
+        ),
+        "substantially-complete": (
+            "success vs canonical fail-gate BLOCKED: pinned COMPLETED by plan 4po0sc, and its "
+            "non-landing case is caught by the refusal_of_item / work_did_not_land guards rather "
+            "than by the status (cite zzcrlo, ys1dor, 4po0sc)"
+        ),
+    }
+)
+
 
 def queue_performed_no_work(queue: Sequence[Mapping[str, Any]]) -> bool:
     """True when this run dispatched nothing AND at least one artifact carries an actionable remedy.
@@ -3881,45 +3964,29 @@ def render_run_summary_table(
     if exit_reason:
         outcome_str = exit_reason
     elif any(
-        isinstance(it, Mapping) and it.get("status") == "interrupted" for it in queue
+        isinstance(it, Mapping)
+        and RUN_OUTCOME_CLASS_BY_STATUS.get(it.get("status"))
+        == OUTCOME_CLASS_INTERRUPTED
+        for it in queue
     ):
         outcome_str = "INTERRUPTED"
     elif any(
         isinstance(it, Mapping)
-        and it.get("status")
-        in (
-            "failed",
-            "failed-safely",
-            "fail-lane",
-            "fail-verify",
-            "fail-merge",
-            "integration-blocked",
-            "merge-conflict",
-            "merge-needs-human",
-            "merge-refused",
-        )
+        and RUN_OUTCOME_CLASS_BY_STATUS.get(it.get("status")) == OUTCOME_CLASS_FAILED
         for it in queue
     ):
         outcome_str = "FAILED"
     elif any(
         isinstance(it, Mapping)
-        and it.get("status")
-        in (
-            "blocked",
-            "dependency-blocked",
-            "fail-gate",
-            "fail-begin",
-            "fail-depend",
-            "not-run",
-        )
+        and RUN_OUTCOME_CLASS_BY_STATUS.get(it.get("status")) == OUTCOME_CLASS_BLOCKED
         for it in queue
     ):
         outcome_str = "BLOCKED"
     elif (
         all(
             isinstance(it, Mapping)
-            and it.get("status")
-            in ("executed", "reviewed", "approved", "substantially-complete")
+            and RUN_OUTCOME_CLASS_BY_STATUS.get(it.get("status"))
+            == OUTCOME_CLASS_SUCCESS
             for it in queue
         )
         and total_items > 0
@@ -3971,8 +4038,8 @@ def render_run_summary_table(
     elif (
         all(
             isinstance(it, Mapping)
-            and it.get("status")
-            in ("executed", "reviewed", "approved", "substantially-complete")
+            and RUN_OUTCOME_CLASS_BY_STATUS.get(it.get("status"))
+            == OUTCOME_CLASS_SUCCESS
             for it in queue
         )
         and total_items > 0
