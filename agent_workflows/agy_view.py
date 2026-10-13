@@ -6,8 +6,11 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+from collections.abc import Mapping
 from pathlib import Path
 from typing import Any, Iterable, TextIO
+
+from agent_workflows.verifier_corroboration import agy_tool_name
 
 
 def compact(value: Any, limit: int = 180) -> str:
@@ -49,8 +52,9 @@ def format_record(line_number: int, record: dict[str, Any]) -> str:
     state = update.get("state", "")
     prefix = f"{line_number:04d} {step:>5} {kind:<14} {state:<6}"
     if kind == "TOOL":
-        info = update.get("tool_info") or {}
-        name = update.get("tool_name") or info.get("name") or "tool"
+        raw_info = update.get("tool_info")
+        info = raw_info if isinstance(raw_info, (dict, Mapping)) else {}
+        name = agy_tool_name(update) or "tool"
         parts = [str(name)]
         if info.get("parameters") is not None:
             parts.append(compact(info["parameters"]))

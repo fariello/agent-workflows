@@ -241,14 +241,14 @@ class RedactionPolicy:
             else:
                 compiled_patterns.append(p)
         self.patterns = tuple(compiled_patterns)
-        self.sensitive_keys = frozenset(sensitive_keys)
+        self.sensitive_keys = frozenset(k.casefold() for k in sensitive_keys)
         self.mask = mask
         self.custom_hook = custom_hook
 
     def _redact_value(
         self, val: Any, parent_key: Optional[str] = None
     ) -> Tuple[Any, bool]:
-        if parent_key in self.sensitive_keys:
+        if isinstance(parent_key, str) and parent_key.casefold() in self.sensitive_keys:
             return self.mask, True
 
         if isinstance(val, str):

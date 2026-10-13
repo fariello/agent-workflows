@@ -20,7 +20,7 @@ keys never land verbatim.
 
 ## Redaction
 
-`RedactionPolicy` masks sensitive keys and patterns BEFORE a record is appended. If a required
+`RedactionPolicy` masks sensitive keys and patterns BEFORE a record is appended. Sensitive keys are matched case-insensitively. If a required
 verification payload is redacted such that the check cannot be conclusively made, validation
 fails closed (`EV-REDACTION-CONFLICT`) rather than passing on masked data. See
 [security.md](security.md) for the evidence-redaction boundary.

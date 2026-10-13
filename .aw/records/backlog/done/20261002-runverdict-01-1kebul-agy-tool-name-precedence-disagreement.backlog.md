@@ -1,5 +1,5 @@
 - Id: 1kebul
-- Status: graduated
+- Status: done
 - Graduated-To: runverdict
 - Blocks-Release: next
 - Set: runverdict
@@ -8,6 +8,7 @@
 - Summary: Three agy session-log readers use three different tool-name precedences, so one step can be a delegation to one reader and a shell command to another
 
 ## Workflow history
+- 2026-10-13 done (aw backlog): closed by aw agy run: IPD n8we3u executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20261011-runverdict-12-n8we3u-resolve-the-antigravity-tool-name-through-one-shared-precede.ipd.md); evidence .aw/records/plans/executed/20261011-runverdict-12-n8we3u-resolve-the-antigravity-tool-name-through-one-shared-precede.ipd.md
 - 2026-10-12 graduated (aw backlog): graduated by run run-20261012T005606Z-2321569: n8we3u
 - 2026-10-02 created (aw backlog): Three agy session-log readers use three different tool-name precedences, so one step can be a delegation to one reader and a shell command to another
 

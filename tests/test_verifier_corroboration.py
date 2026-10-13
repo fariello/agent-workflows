@@ -1198,3 +1198,62 @@ class TestSharedToolCallExtraction:
             res = vc.extract_session_commands(f.name)
             assert len(res.commands) == 1
             assert res.commands[0].command == "python3 -m pytest"
+
+    def test_agy_conflict_and_reverse_conflict_delegation_verdict(self) -> None:
+        """E-10 (n8we3u): CONFLICT and REVERSE-CONFLICT logs yield indeterminate delegation-present."""
+        conflict_ev = {
+            "event": "step_update",
+            "step_update": {
+                "step_index": 1,
+                "step_type": "tool",
+                "state": "DONE",
+                "tool_name": "run_command",
+                "tool_info": {
+                    "name": "browser_subagent",
+                    "parameters": {"CommandLine": "python3 -m pytest tests/x.py"},
+                },
+            },
+        }
+        reverse_conflict_ev = {
+            "event": "step_update",
+            "step_update": {
+                "step_index": 1,
+                "step_type": "tool",
+                "state": "DONE",
+                "tool_name": "browser_subagent",
+                "tool_info": {
+                    "name": "run_command",
+                    "parameters": {"CommandLine": "python3 -m pytest tests/x.py"},
+                },
+            },
+        }
+
+        for ev in (conflict_ev, reverse_conflict_ev):
+            with tempfile.NamedTemporaryFile("w+", suffix=".jsonl") as f:
+                f.write(json.dumps(ev) + "\n")
+                f.flush()
+                res = vc.corroborate_verifier_turn(f.name, ["make test"])
+                assert res.verdict == vc.INDETERMINATE
+                assert res.reason_code == vc.INDETERMINATE_DELEGATION
+                assert res.delegation_count == 1
+
+    def test_agy_info_only_matching_claim_corroborated(self) -> None:
+        """E-10 (n8we3u): INFO-ONLY log with matching claim yields corroborated."""
+        info_only_ev = {
+            "event": "step_update",
+            "step_update": {
+                "step_index": 1,
+                "step_type": "tool",
+                "state": "DONE",
+                "tool_info": {
+                    "name": "run_command",
+                    "parameters": {"CommandLine": "python3 -m pytest tests/x.py"},
+                },
+            },
+        }
+        with tempfile.NamedTemporaryFile("w+", suffix=".jsonl") as f:
+            f.write(json.dumps(info_only_ev) + "\n")
+            f.flush()
+            res = vc.corroborate_verifier_turn(f.name, ["python3 -m pytest tests/x.py"])
+            assert res.verdict == vc.CORROBORATED
+            assert res.reason_code == vc.CORROBORATED

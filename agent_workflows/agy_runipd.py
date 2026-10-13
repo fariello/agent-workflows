@@ -36,6 +36,7 @@ from typing import Any, Callable, Iterable, Optional
 # introducing a partial `__all__` that would understate the rest of the public surface.
 from agent_workflows.render_stream import Heartbeat as Heartbeat
 from agent_workflows import runner_shutdown, stall_progress
+from agent_workflows.verifier_corroboration import agy_tool_name
 
 # runnoop Order 02 (`m85gxh`): the pure PER-ARTIFACT DISPOSITION renderer, imported from its OWNING
 # module and NOT from `oc_runipd`. This module already imports 48 names from that driver and zero flow
@@ -1096,8 +1097,11 @@ def render_agy_event(
             # the line is rendered once when the tool reaches a terminal state (DONE/ERROR/FAILED).
             if state not in ("DONE", "ERROR", "FAILED"):
                 return None
-            tool_info = step.get("tool_info") or {}
-            tool_name = tool_info.get("name") or step.get("tool_name") or "tool"
+            raw_tool_info = step.get("tool_info")
+            tool_info = (
+                raw_tool_info if isinstance(raw_tool_info, (dict, Mapping)) else {}
+            )
+            tool_name = agy_tool_name(step) or "tool"
             params = tool_info.get("parameters") or {}
             kind = agy_prefix_kind(str(tool_name), params)
             if tracker is not None and state == "DONE":

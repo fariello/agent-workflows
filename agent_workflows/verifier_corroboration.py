@@ -93,6 +93,7 @@ __all__ = [
     "ObservedCommand",
     "SessionReadResult",
     "ToolCall",
+    "agy_tool_name",
     "check_verifier_corroboration",
     "compute_verifier_corroboration",
     "corroborate_verifier_turn",
@@ -303,6 +304,45 @@ def _to_float(v: Any) -> float:
     return 0.0
 
 
+def agy_tool_name(step_update: Any) -> str:
+    """Resolve the tool name of an Antigravity step update using canonical precedence.
+
+    PRECEDENCE DECISION (D163):
+    Given a step_update mapping (anything else returns ""), return
+    str(tool_info["name"]).strip() when tool_info is a Mapping whose name is a non-blank
+    string, else str(step_update["tool_name"]).strip() when that is a non-blank string,
+    else "". Never raises (non-Mapping tool_info, non-string names, None all degrade to
+    the next candidate).
+
+    Three reasons establish tool_info.name as the primary key (F-05):
+    (1) Antigravity's own headless stream documentation, as summarised in the in-tree
+        research report 20260810-gemini-actually-validate-playbook-00-6zf5av-actually-validate-in-agy-research-report.md
+        ("Completed tool steps contain tool_name and tool_info, including canonical tool name"),
+        names tool_info as the canonical record.
+    (2) It is the precedence the two runtime-critical readers already use (render_agy_event,
+        the live operator stream, and runner_stop.event_label, the interrupt ledger), so
+        choosing it moves the fewest operator-visible surfaces.
+    (3) It is the only name key the shipped tests and the executed host-capability probe
+        (dwbm7a, host_sandbox_profile._probe_structured_tool_events's Antigravity case)
+        construct, so the analytics readers are the outliers.
+    """
+    if not isinstance(step_update, (dict, Mapping)):
+        return ""
+    tool_info = step_update.get("tool_info")
+    if isinstance(tool_info, (dict, Mapping)):
+        raw_name = tool_info.get("name")
+        if isinstance(raw_name, str):
+            s_name = raw_name.strip()
+            if s_name:
+                return s_name
+    raw_tool = step_update.get("tool_name")
+    if isinstance(raw_tool, str):
+        s_tool = raw_tool.strip()
+        if s_tool:
+            return s_tool
+    return ""
+
+
 def tool_call_from_event(obj: Any) -> ToolCall | None:
     """Extract a normalized ToolCall record from a single session event object.
 
@@ -343,6 +383,18 @@ def tool_call_from_event(obj: Any) -> ToolCall | None:
        - 'subagent' has no in-tree occurrence outside SUBAGENT_TOOLS and CATEGORY_ORDER.
        - Neither appears in committed fixtures, which use only 'task' and
          'browser_subagent'. This is a consistency fix backed by one in-tree reference.
+
+    4. Antigravity Tool Name and Fail-Open Delegation (n8we3u, resolving 1kebul):
+       The tool name is resolved via agy_tool_name (tool_info.name first, then
+       tool_name fallback). When either candidate name is in SUBAGENT_TOOLS,
+       delegation is set to True (fail open).
+       Rationale:
+       (a) As declared in the module header, every unknown, missing, unreadable,
+           delegated, or unresolved case resolves to indeterminate, never to
+           uncorroborated.
+       (b) A step where tool_info.name and tool_name conflict and one of them is
+           a subagent is ambiguous; failing open prevents accusing a verifier of
+           failing to run claimed tests.
     """
     if not isinstance(obj, (dict, Mapping)):
         return None
@@ -355,12 +407,18 @@ def tool_call_from_event(obj: Any) -> ToolCall | None:
         stype = su.get("step_type")
         if (state != "DONE" and state != "ERROR") or stype != "tool":
             return None
-        tool_name = str(su.get("tool_name") or "").strip()
+        tool_name = agy_tool_name(su)
         is_error = state == "ERROR"
-        is_delegation = tool_name in SUBAGENT_TOOLS
-        secs = _to_float(su.get("duration_seconds"))
         info = su.get("tool_info")
         info_dict = info if isinstance(info, (dict, Mapping)) else {}
+        raw_info_name = str(info_dict.get("name") or "").strip()
+        raw_step_name = str(su.get("tool_name") or "").strip()
+        is_delegation = bool(
+            tool_name in SUBAGENT_TOOLS
+            or raw_info_name in SUBAGENT_TOOLS
+            or raw_step_name in SUBAGENT_TOOLS
+        )
+        secs = _to_float(su.get("duration_seconds"))
         params = info_dict.get("parameters")
         params_dict = params if isinstance(params, (dict, Mapping)) else {}
 
