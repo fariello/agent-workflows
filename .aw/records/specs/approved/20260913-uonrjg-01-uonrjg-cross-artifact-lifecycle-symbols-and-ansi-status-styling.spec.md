@@ -175,7 +175,7 @@ glyph, id6, and status word when those elements are styled. No other SGR attribu
 |---|---:|---:|---:|:---:|---|
 | formative | `○` | `D` | 245 | no | Draft, incomplete, or not yet admitted |
 | review-queued | `◔` | `Q` | 39 | no | Awaiting review |
-| authority-queued | `◑` | `A` | 135 | no | Reviewed and awaiting approval or authority |
+| authority-queued | `◑` | `A` | 147 | no | Reviewed and awaiting approval or authority |
 | ready | `◕` | `>` | 45 | yes | Approved, planned, open, pending, or otherwise actionable |
 | reviewing | `◎` | `R` | 220 | yes | A review turn is active |
 | executing | `▶` | `E` | 220 | yes | Implementation or execution is active |

@@ -151,7 +151,7 @@ _STAGE_ROWS: Tuple[StageStyle, ...] = (
         AUTHORITY_QUEUED,
         "◑",
         "A",
-        135,
+        147,
         False,
         "Reviewed and awaiting approval or authority",
     ),

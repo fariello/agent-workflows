@@ -660,8 +660,8 @@ STAGE_COLOR_16: Dict[str, int] = {
     # --- The formative / queued / ready progression -----------------------------------
     "formative": _SGR_BRIGHT_BLACK,  # gray collapse member (245 at 256)
     "review-queued": _SGR_BLUE,  # 39 at 256, the cool "awaiting review" color
-    # 135 at 256 is a purple, so bright magenta is its 16-color kin. NOT plain magenta, which
-    # `blocked` takes below: these two stages are 135 and 208 at 256 (a purple and an orange, nowhere
+    # 147 at 256 is a periwinkle, so bright magenta is its 16-color kin. NOT plain magenta, which
+    # `blocked` takes below: these two stages are 147 and 208 at 256 (a periwinkle and an orange, nowhere
     # near each other), so collapsing them into one color would be an UNNAMED merge, and R9.3a.3
     # names every collapse it considers acceptable. `test_the_palette_merges_no_unnamed_pair` refuses
     # any such merge, which is what caught this one.
@@ -772,7 +772,7 @@ def validate_16_color_palette() -> None:
     # EVERY MERGE MUST BE A NAMED ONE. R9.3a.3 lists the collapses it considers acceptable, which
     # means a merge it does NOT list is an unreviewed loss of a distinction, not a free one. This
     # check is what makes the requirement total rather than spot-checked, and it earned its place
-    # immediately: it caught `authority-queued` (135, a purple) sharing plain magenta with `blocked`
+    # immediately: it caught `authority-queued` (147, a periwinkle) sharing plain magenta with `blocked`
     # (208, an orange) in this table's first draft, a pair no requirement permits merging and one
     # that the three REQUIRED_16_COLOR_SEPARATIONS do not cover.
     _collapse_members = {
