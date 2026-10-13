@@ -82,6 +82,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Callable, NamedTuple, Optional
 
+from . import artifact_core
 from . import versioning as _VERSIONING
 from . import manifest as manifest_mod
 from . import reporting_contract
@@ -2850,16 +2851,7 @@ def update_agents_pointer(
 
 def _git_mv(repo_root: Path, src: str, dst: str) -> None:
     """git mv with parent creation; falls back to filesystem move if needed."""
-
-    (repo_root / dst).parent.mkdir(parents=True, exist_ok=True)
-    result = subprocess.run(
-        ["git", "-C", str(repo_root), "mv", "--", src, dst],
-        capture_output=True,
-        text=True,
-    )
-    if result.returncode != 0:
-        # untracked or partially-tracked: fall back to filesystem move + stage
-        shutil.move(str(repo_root / src), str(repo_root / dst))
+    artifact_core.git_mv(repo_root, src, dst)
 
 
 def _remove_path(
