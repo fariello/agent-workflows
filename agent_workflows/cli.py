@@ -4756,6 +4756,12 @@ def _build_parser() -> argparse.ArgumentParser:
                 action="store_true",
                 help="Scan source files for spec line-anchor citations and report enclosing headings (opt-in, advisory info; runs across source regardless of positional record type).",
             )
+            _p.add_argument(
+                "--source-offsets",
+                dest="source_offsets",
+                action="store_true",
+                help="Scan Python comments and docstrings for <file>.py:<line> citations that point past end of file, at a blank line, or at a punctuation-only line (opt-in, advisory info; never changes the exit status). Not combined with --source-citations or --source-anchors; when given together the first of those runs.",
+            )
             _p.formatter_class = _AlphaHelpFormatter
             _p.epilog = (
                 "AVAILABLE TYPES\n"
@@ -14560,6 +14566,7 @@ def _build_check_continuation(
     *,
     is_source_citations: bool = False,
     is_source_anchors: bool = False,
+    is_source_offsets: bool = False,
     include_retired: bool = False,
 ) -> str:
     """Construct runnable continuation command for check (E-04)."""
@@ -14567,6 +14574,8 @@ def _build_check_continuation(
         return f"aw check --source-citations --agent --limit {total}"
     if is_source_anchors:
         return f"aw check --source-anchors --agent --limit {total}"
+    if is_source_offsets:
+        return f"aw check --source-offsets --agent --limit {total}"
     parts = ["aw", "check", target]
     if include_retired:
         parts.append("--all")
@@ -15392,6 +15401,110 @@ def _run_check(
         )
         continuation_cmd = _build_check_continuation(
             "source-anchors", len(diagnostics), is_source_anchors=True
+        )
+        return _emit_bounded_agent_record(
+            result,
+            ctx,
+            payload_key="diagnostics",
+            continuation_cmd=continuation_cmd,
+            repo_root=repo_root,
+        )
+
+    if getattr(args, "source_offsets", False):
+        from agent_workflows import agent_schema as _schema
+        from agent_workflows import source_offsets
+
+        scan_paths = [
+            p
+            for p in [
+                repo_root / "agent_workflows",
+                repo_root / "tools",
+                repo_root / "tests",
+            ]
+            if p.exists()
+        ]
+        if not scan_paths:
+            scan_paths = [repo_root]
+
+        findings = source_offsets.stale_source_offsets(repo_root, scan_paths)
+        summary = (
+            "0 stale source offset findings detected across source"
+            if len(findings) == 0
+            else f"{len(findings)} stale source offset citation finding(s) detected across source"
+        )
+
+        lines: list[str] = []  # type: ignore[no-redef]  # benign re-annotation in disjoint branch
+        for f in findings:
+            try:
+                rel = f.file.relative_to(repo_root).as_posix()
+            except ValueError:
+                rel = f.file.as_posix()
+            lines.append(f"{rel}:{f.line}: {f.cited} -> {f.validity}")
+
+        human_rendered = "\n".join(lines) + ("\n" if lines else "")
+
+        rule_sev = ce.rule_spec("check.source-offset-stale").severity
+
+        diagnostics = []
+        for f in findings:
+            try:
+                target_rel = f.target.relative_to(repo_root).as_posix()
+            except ValueError:
+                target_rel = f.target.as_posix()
+            diagnostics.append(
+                Diagnostic(
+                    location=f"{_schema.normalize_repo_path(f.file, repo_root)}:{f.line}",
+                    rule="check.source-offset-stale",
+                    detail=(
+                        f"Source citation '{f.cited}' to '{target_rel}:{f.offset}' is invalid ({f.validity})"
+                    ),
+                    severity=rule_sev,
+                )
+            )
+
+        exit_code = 1 if any(d.severity != "info" for d in diagnostics) else 0
+        if len(findings) == 0:
+            status = "clean"
+        elif exit_code == 0:
+            status = "conforms"
+        else:
+            status = "findings"
+
+        err_cnt = sum(1 for d in diagnostics if d.severity not in ("warning", "info"))
+        warn_cnt = sum(1 for d in diagnostics if d.severity == "warning")
+        info_cnt = sum(1 for d in diagnostics if d.severity == "info")
+
+        evidence = [
+            Evidence(
+                key="source_offsets",
+                value={"findings_count": len(findings)},
+                status=status,
+            ),
+            Evidence(
+                key="rules",
+                value={"errors": err_cnt, "warnings": warn_cnt, "info": info_cnt},
+                status=status,
+            ),
+        ]
+
+        result = CommandResult(
+            command="check",
+            status=status,
+            exit_code=exit_code,
+            summary=summary,
+            diagnostics=diagnostics,
+            evidence=evidence,
+            data={
+                "target": "source-offsets",
+                "repo_root": repo_root,
+                "human_rendered": human_rendered,
+                "findings_count": len(findings),
+            },
+            verified=True,
+            complete=True,
+        )
+        continuation_cmd = _build_check_continuation(
+            "source-offsets", len(diagnostics), is_source_offsets=True
         )
         return _emit_bounded_agent_record(
             result,

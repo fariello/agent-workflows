@@ -272,6 +272,16 @@ RULE_REGISTRY: Dict[str, RuleSpec] = {
     "check.spec-anchor-stale": RuleSpec(
         "info", ASSURANCE_REPOSITORY, DET_DETERMINISTIC, ""
     ),
+    # IPD pyuw4v (backlog 7jl2bf): advisory opt-in report of Python comment and docstring citations
+    # pointing past end of file, at a blank line, or at a punctuation-only line.
+    # Advisory by design (`info` severity) because it is a heuristic over prose, and spec
+    # `ipd-structure-and-linting` Section 10.2 records that "a gate that false-positives trains
+    # authors to bypass it" (OQ-01).
+    # Claims invariant `""` matching `check.spec-anchor-stale`: no catalog invariant governs
+    # citation freshness, and inventing one is out of scope.
+    "check.source-offset-stale": RuleSpec(
+        "info", ASSURANCE_REPOSITORY, DET_DETERMINISTIC, ""
+    ),
     # IPD 0ykozn (backlog 1zknu7), amended by IPD jm27py: advisory pending-scoped nudge flagging a
     # pending plan whose front-matter bullets cite a resolvable spec id6 while carrying neither a valid
     # `- From-Spec:` link, an explicit "no spec source" sentinel (`none` or `-`), nor an edit of that

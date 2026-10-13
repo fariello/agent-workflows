@@ -35,39 +35,39 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: Baseline
 
-- [ ] E-01 RECORD THE BASELINE before any edit. Run and paste the bare suite `python3 -m pytest` summary line plus the SET of failing test ids (E-06 compares against it). Confirm `agent_workflows/source_offsets.py` and `tests/test_source_offsets.py` do not exist and that `aw check --help` lists no `--source-offsets` flag (paste the `ls` error and a `aw check --help | grep -c source-offsets` of 0). Confirm `spec_citations._resolve_offset` still takes `(lines, headings, in_fence, offset)` and returns `(enclosing_heading, validity)` with verdicts `past_eof`/`in_fence`/`blank_line`/`valid` (paste its signature line); if pending plan `fz3i3m` has changed that contract, adapt E-02 to the new one and record the adaptation.
+- [x] E-01 RECORD THE BASELINE before any edit. Run and paste the bare suite `python3 -m pytest` summary line plus the SET of failing test ids (E-06 compares against it). Confirm `agent_workflows/source_offsets.py` and `tests/test_source_offsets.py` do not exist and that `aw check --help` lists no `--source-offsets` flag (paste the `ls` error and a `aw check --help | grep -c source-offsets` of 0). Confirm `spec_citations._resolve_offset` still takes `(lines, headings, in_fence, offset)` and returns `(enclosing_heading, validity)` with verdicts `past_eof`/`in_fence`/`blank_line`/`valid` (paste its signature line); if pending plan `fz3i3m` has changed that contract, adapt E-02 to the new one and record the adaptation.
   - Depends on: none
   - Expected outcome: pasted suite baseline, pasted absence proofs, pasted `_resolve_offset` signature.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: Detector and rule
 
-- [ ] E-02 WRITE THE PURE DETECTOR `agent_workflows/source_offsets.py`. Module docstring names this plan and backlog `7jl2bf` and states it is pure and cwd-independent (takes `repo_root` and paths explicitly, never imports `check_engine`), matching `spec_citations`. Provide a frozen dataclass `StaleSourceOffset(file: Path, line: int, cited: str, target: Path, offset: int, validity: str)` and `stale_source_offsets(repo_root, paths) -> List[StaleSourceOffset]`. Behavior: (a) TARGET INDEX: walk `repo_root` for `.py` files skipping `artifact_core.is_ignored_path` (with `artifact_core.get_ignored_dirs`), indexed by repo-relative POSIX path and by basename. (b) SCAN: for each `.py` file under `paths` (walk directories as `stale_spec_anchors` does), skip it outright when the citation regex `\b([A-Za-z_][\w/.]*\.py):(\d+)(?:-(\d+))?\b` does not match the raw text (a cheap prefilter, measured at authoring to halve wall time), otherwise tokenize it with `tokenize.generate_tokens` and examine only `COMMENT` tokens and DOCSTRING `STRING` tokens (a string token that is a statement by itself: the previous significant token is absent or is `NEWLINE`/`INDENT`/`DEDENT`), mapping each physical line of a multi-line docstring to its own line number. A file that fails to tokenize is skipped, never raised. (c) RESOLVE the cited name: an exact repo-relative path in the index wins; else a file of that basename in the citing file's own directory; else the basename when it is UNIQUE in the index; otherwise the citation is UNRESOLVABLE and is not reported (dangling file names are `--source-citations`' subject, not this one's). (d) VERDICT: call `spec_citations._resolve_offset(lines, [], [False] * (len(lines) + 1), offset)` for the start offset, mapping `past_eof` and `blank_line` straight through; when it returns `valid`, report `punct_only` if the target line's stripped text consists only of brackets, commas, colons or semicolons (for example a bare `)` or `),`); for a range, also report `past_eof` when the END offset exceeds the file length. (e) HISTORICAL EXEMPTION (OQ-02): skip a citation whose citing physical line contains a token of 7 to 40 lowercase hex characters carrying at least one digit and at least one letter (a commit hash). Return findings sorted by `(file, line, offset)`.
+- [x] E-02 WRITE THE PURE DETECTOR `agent_workflows/source_offsets.py`. Module docstring names this plan and backlog `7jl2bf` and states it is pure and cwd-independent (takes `repo_root` and paths explicitly, never imports `check_engine`), matching `spec_citations`. Provide a frozen dataclass `StaleSourceOffset(file: Path, line: int, cited: str, target: Path, offset: int, validity: str)` and `stale_source_offsets(repo_root, paths) -> List[StaleSourceOffset]`. Behavior: (a) TARGET INDEX: walk `repo_root` for `.py` files skipping `artifact_core.is_ignored_path` (with `artifact_core.get_ignored_dirs`), indexed by repo-relative POSIX path and by basename. (b) SCAN: for each `.py` file under `paths` (walk directories as `stale_spec_anchors` does), skip it outright when the citation regex `\b([A-Za-z_][\w/.]*\.py):(\d+)(?:-(\d+))?\b` does not match the raw text (a cheap prefilter, measured at authoring to halve wall time), otherwise tokenize it with `tokenize.generate_tokens` and examine only `COMMENT` tokens and DOCSTRING `STRING` tokens (a string token that is a statement by itself: the previous significant token is absent or is `NEWLINE`/`INDENT`/`DEDENT`), mapping each physical line of a multi-line docstring to its own line number. A file that fails to tokenize is skipped, never raised. (c) RESOLVE the cited name: an exact repo-relative path in the index wins; else a file of that basename in the citing file's own directory; else the basename when it is UNIQUE in the index; otherwise the citation is UNRESOLVABLE and is not reported (dangling file names are `--source-citations`' subject, not this one's). (d) VERDICT: call `spec_citations._resolve_offset(lines, [], [False] * (len(lines) + 1), offset)` for the start offset, mapping `past_eof` and `blank_line` straight through; when it returns `valid`, report `punct_only` if the target line's stripped text consists only of brackets, commas, colons or semicolons (for example a bare `)` or `),`); for a range, also report `past_eof` when the END offset exceeds the file length. (e) HISTORICAL EXEMPTION (OQ-02): skip a citation whose citing physical line contains a token of 7 to 40 lowercase hex characters carrying at least one digit and at least one letter (a commit hash). Return findings sorted by `(file, line, offset)`.
   - Depends on: E-01
   - Expected outcome: `stale_source_offsets` returns one finding per defective offset on a fixture, and none for valid, string-literal, unresolvable or hash-qualified citations.
-  - Execution state: pending
-- [ ] E-03 REGISTER THE RULE. Add `"check.source-offset-stale": RuleSpec("info", ASSURANCE_REPOSITORY, DET_DETERMINISTIC, "")` to `check_engine.RULE_REGISTRY` beside `check.spec-anchor-stale`, with a comment naming this plan and backlog `7jl2bf` and giving the reason it is `info` (OQ-01): it is a heuristic over prose, and spec `ipd-structure-and-linting` Section 10.2 records that "a gate that false-positives trains authors to bypass it"; invariant `""` for the same reason the `check.spec-anchor-stale` comment gives (no catalog invariant governs citation freshness).
+  - Execution state: performed
+- [x] E-03 REGISTER THE RULE. Add `"check.source-offset-stale": RuleSpec("info", ASSURANCE_REPOSITORY, DET_DETERMINISTIC, "")` to `check_engine.RULE_REGISTRY` beside `check.spec-anchor-stale`, with a comment naming this plan and backlog `7jl2bf` and giving the reason it is `info` (OQ-01): it is a heuristic over prose, and spec `ipd-structure-and-linting` Section 10.2 records that "a gate that false-positives trains authors to bypass it"; invariant `""` for the same reason the `check.spec-anchor-stale` comment gives (no catalog invariant governs citation freshness).
   - Depends on: E-01
   - Expected outcome: `check_engine.rule_spec("check.source-offset-stale").severity` returns `info`.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: CLI surface
 
-- [ ] E-04 ADD `aw check --source-offsets`. In `cli._build_parser`, beside the `--source-anchors` argument, add `--source-offsets` (`dest="source_offsets"`, `store_true`) with help text "Scan Python comments and docstrings for <file>.py:<line> citations that point past end of file, at a blank line, or at a punctuation-only line (opt-in, advisory info; never changes the exit status)." In `cli._run_check`, add an `if getattr(args, "source_offsets", False):` branch modelled on the `--source-anchors` branch (same scan roots `agent_workflows`, `tools`, `tests`), with these differences: build each `Diagnostic` with `rule="check.source-offset-stale"`, `location` `<citing file>:<line>`, a detail naming the cited text, the resolved target path, the offset and the validity, and `severity=check_engine.rule_spec("check.source-offset-stale").severity`; derive `exit_code` as 1 when any diagnostic severity is not `info`, else 0; set `status = "conforms" if exit_code == 0 else "findings"` (never the hardcoded `exit_code = 0` beside `status = "findings"` pairing that backlog `g3ropl` records as crashing the `aw.agent/v1` validator); count the `rules` evidence by severity; render human lines as `<file>:<line>: <cited> -> <validity>`. Place the new branch AFTER the `--source-anchors` branch, so the existing first-match precedence among the opt-in scan flags (`--source-citations`, then `--source-anchors`) is unchanged, and append to the help text "Not combined with --source-citations or --source-anchors; when given together the first of those runs." so the precedence is not silent. Extend `cli._build_check_continuation` with an `is_source_offsets` keyword returning `aw check --source-offsets --agent --limit <n>`. Do NOT touch the `--source-anchors` branch.
+- [x] E-04 ADD `aw check --source-offsets`. In `cli._build_parser`, beside the `--source-anchors` argument, add `--source-offsets` (`dest="source_offsets"`, `store_true`) with help text "Scan Python comments and docstrings for <file>.py:<line> citations that point past end of file, at a blank line, or at a punctuation-only line (opt-in, advisory info; never changes the exit status)." In `cli._run_check`, add an `if getattr(args, "source_offsets", False):` branch modelled on the `--source-anchors` branch (same scan roots `agent_workflows`, `tools`, `tests`), with these differences: build each `Diagnostic` with `rule="check.source-offset-stale"`, `location` `<citing file>:<line>`, a detail naming the cited text, the resolved target path, the offset and the validity, and `severity=check_engine.rule_spec("check.source-offset-stale").severity`; derive `exit_code` as 1 when any diagnostic severity is not `info`, else 0; set `status = "conforms" if exit_code == 0 else "findings"` (never the hardcoded `exit_code = 0` beside `status = "findings"` pairing that backlog `g3ropl` records as crashing the `aw.agent/v1` validator); count the `rules` evidence by severity; render human lines as `<file>:<line>: <cited> -> <validity>`. Place the new branch AFTER the `--source-anchors` branch, so the existing first-match precedence among the opt-in scan flags (`--source-citations`, then `--source-anchors`) is unchanged, and append to the help text "Not combined with --source-citations or --source-anchors; when given together the first of those runs." so the precedence is not silent. Extend `cli._build_check_continuation` with an `is_source_offsets` keyword returning `aw check --source-offsets --agent --limit <n>`. Do NOT touch the `--source-anchors` branch.
   - Depends on: E-02, E-03
   - Expected outcome: `aw check --source-offsets` and `aw check --source-offsets --agent` both exit 0 on a fixture with findings, print the findings, and emit no traceback; bare `aw check` does not run the detector.
-  - Execution state: pending
-- [ ] E-05 RECORD THE USER-VISIBLE CHANGE. Add one `CHANGELOG.md` line under the pending 2.0.0 section, plain prose with no em or en dashes (user-facing): "Added: `aw check --source-offsets` reports Python comment and docstring citations of the form `file.py:LINE` that point past the end of the file, at a blank line, or at a line holding only punctuation. It is opt-in and advisory, so it never changes the exit status, and a citation that names a commit hash is treated as historical and skipped."
+  - Execution state: performed
+- [x] E-05 RECORD THE USER-VISIBLE CHANGE. Add one `CHANGELOG.md` line under the pending 2.0.0 section, plain prose with no em or en dashes (user-facing): "Added: `aw check --source-offsets` reports Python comment and docstring citations of the form `file.py:LINE` that point past the end of the file, at a blank line, or at a line holding only punctuation. It is opt-in and advisory, so it never changes the exit status, and a citation that names a commit hash is treated as historical and skipped."
   - Depends on: E-04
   - Expected outcome: the CHANGELOG carries the line.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 4: Tests
 
-- [ ] E-06 ADD BEHAVIORAL TESTS in a new `tests/test_source_offsets.py`, over self-written `tmp_path` fixtures only and never the live tree census (P16: call the function and drive the CLI, assert on returned findings, printed output, JSON records and exit codes). Cases: (a) a comment citing `target.py:999` against a 5-line `target.py` yields one `past_eof`; (b) a docstring line citing an offset that lands on a blank line yields one `blank_line` with the docstring's physical line number; (c) a citation landing on a bare `)` yields one `punct_only`; (d) a citation landing on real code yields none; (e) the same past-EOF citation inside an ordinary string literal assignment yields none; (f) a citation naming a file that does not exist yields none; (g) a past-EOF citation whose line also carries `at 6e299712f` yields none; (h) a range `target.py:2-999` yields one `past_eof`; (i) a basename citation resolves to the sibling file in the citing directory when two same-named files exist elsewhere; (j) `cli.main(["check", "--source-offsets", "--dir", <fixture>])` returns 0 and prints the finding; (k) `aw check --source-offsets --agent --dir <fixture>` run as a subprocess (`sys.executable -m agent_workflows`, with `PYTHONPATH` at the checkout, `AW_NO_REEXEC=1`, and `HOME`/`XDG_CONFIG_HOME` in `tmp_path`, so the subprocess imports THIS checkout's package and not an installed one) exits 0, writes no traceback to stderr, and its first JSON record carries outcome `conforms` and a `check.source-offset-stale` diagnostic with severity `info`; (l) a clean fixture through the same `--agent` command exits 0 with no diagnostic. Then run the bare suite and compare with the E-01 baseline.
+- [x] E-06 ADD BEHAVIORAL TESTS in a new `tests/test_source_offsets.py`, over self-written `tmp_path` fixtures only and never the live tree census (P16: call the function and drive the CLI, assert on returned findings, printed output, JSON records and exit codes). Cases: (a) a comment citing `target.py:999` against a 5-line `target.py` yields one `past_eof`; (b) a docstring line citing an offset that lands on a blank line yields one `blank_line` with the docstring's physical line number; (c) a citation landing on a bare `)` yields one `punct_only`; (d) a citation landing on real code yields none; (e) the same past-EOF citation inside an ordinary string literal assignment yields none; (f) a citation naming a file that does not exist yields none; (g) a past-EOF citation whose line also carries `at 6e299712f` yields none; (h) a range `target.py:2-999` yields one `past_eof`; (i) a basename citation resolves to the sibling file in the citing directory when two same-named files exist elsewhere; (j) `cli.main(["check", "--source-offsets", "--dir", <fixture>])` returns 0 and prints the finding; (k) `aw check --source-offsets --agent --dir <fixture>` run as a subprocess (`sys.executable -m agent_workflows`, with `PYTHONPATH` at the checkout, `AW_NO_REEXEC=1`, and `HOME`/`XDG_CONFIG_HOME` in `tmp_path`, so the subprocess imports THIS checkout's package and not an installed one) exits 0, writes no traceback to stderr, and its first JSON record carries outcome `conforms` and a `check.source-offset-stale` diagnostic with severity `info`; (l) a clean fixture through the same `--agent` command exits 0 with no diagnostic. Then run the bare suite and compare with the E-01 baseline.
   - Depends on: E-02, E-03, E-04
   - Expected outcome: every test in the new file passes; the bare suite shows no new failures relative to E-01.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -156,30 +156,125 @@ N/A for specs: no spec governs citations inside Python source. Spec `ipd-structu
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: the pasted bare-suite summary line and failing-id set, the pasted absence proofs for both new files and the flag, and the pasted `_resolve_offset` signature line.
   - Observed evidence:
-  - Result: pending
-- [ ] V-02 validates E-02
+    Bare suite baseline:
+    ```
+    8156 passed, 4 skipped, 18 xfailed, 3 warnings in 1085.37s (0:18:05)
+    ```
+    Failing-id set: empty (`set()`, 0 failed).
+
+    Absence proofs:
+    ```
+    ls: cannot access 'agent_workflows/source_offsets.py': No such file or directory
+    ls: cannot access 'tests/test_source_offsets.py': No such file or directory
+    0
+    ```
+    (`aw check --help | grep -c source-offsets` -> 0).
+
+    `spec_citations._resolve_offset` signature:
+    ```
+    (lines: 'List[str]', headings: 'List[Tuple[int, str]]', in_fence: 'List[bool]', offset: 'int') -> 'Tuple[str, str]'
+    ```
+    Returns `(enclosing_heading, validity)` with verdicts `past_eof`/`in_fence`/`blank_line`/`valid`.
+  - Result: pass
+- [x] V-02 validates E-02
   - Required evidence: pasted output of a one-off `python3 -c` call of `source_offsets.stale_source_offsets` on the real tree (roots `agent_workflows`, `tools`, `tests`) listing each finding as `file:line cited validity`, compared line by line against the 8 sites in F-02 (any difference explained by commits since `59fddefa2`), plus the passing output of E-06 cases (a) through (i).
   - Observed evidence:
-  - Result: pending
-- [ ] V-03 validates E-03
+    One-off `python3 -c` call output on real tree:
+    ```
+    agent_workflows/agy_runipd.py:3313 oc_runipd.py:8766 past_eof
+    agent_workflows/agy_runipd.py:3314 oc_runipd.py:8645 past_eof
+    agent_workflows/agy_runipd.py:3369 oc_runipd.py:8834 past_eof
+    agent_workflows/review_findings.py:957 status_set.py:532-538 blank_line
+    agent_workflows/runner_shared.py:13321 ipd_lifecycle.py:3989 blank_line
+    agent_workflows/selectors.py:455 status_set.py:132-133 punct_only
+    ```
+    Comparison with F-02:
+    - `agent_workflows/agy_runipd.py` at 3313, 3314, 3369 citing `oc_runipd.py` at 8766, 8645, 8834 remain past EOF.
+    - `agent_workflows/runner_shared.py:13321` citing `ipd_lifecycle.py:3989` remains blank_line.
+    - `agent_workflows/selectors.py:455` citing `status_set.py:132-133` remains punct_only (bare closing brace `}`).
+    - `agent_workflows/review_findings.py:957` citing `status_set.py:532-538` reports blank_line on line 532; its citing line carries 6-character id6 `d7bnhc` which is not exempt under the 7-to-40 commit hash rule.
+    - Differences from F-02 due to code movement since `59fddefa2`: `tests/test_oc_runipd.py` citing `oc_runipd.py:4823` now lands on code (`resume.add_argument(`); `runner_shared.py` citing `cli.py:8487` now lands on code (`term.status(`); `tests/test_runner_shared.py` citing `agy_runipd.py:2190` now lands on code (`def save_state(`).
+    Cases (a) through (i) all passed in `tests/test_source_offsets.py`.
+  - Result: pass
+- [x] V-03 validates E-03
   - Required evidence: pasted output of `python3 -c "from agent_workflows import check_engine; print(check_engine.rule_spec('check.source-offset-stale'))"` showing severity `info`, and the passing output of `python3 -m pytest tests/test_severity_tier_contract.py`.
   - Observed evidence:
-  - Result: pending
-- [ ] V-04 validates E-04
+    `check_engine.rule_spec`:
+    ```
+    RuleSpec(severity='info', assurance='repository', determinism='deterministic', invariant='')
+    ```
+    `python3 -m pytest tests/test_severity_tier_contract.py`:
+    ```
+    9 passed in 4.57s
+    ```
+  - Result: pass
+- [x] V-04 validates E-04
   - Required evidence: pasted real-tree output of `aw check --source-offsets` with its `echo $?` of 0, and the pasted first JSON record of `aw check --source-offsets --agent` showing outcome `conforms`, exit 0 and `check.source-offset-stale` diagnostics, with nothing on stderr (produced by `cli._run_check`'s new `--source-offsets` branch); plus a pasted `aw check --help` excerpt showing the flag.
   - Observed evidence:
-  - Result: pending
-- [ ] V-05 validates E-05
+    `aw check --source-offsets`:
+    ```
+    agent_workflows/agy_runipd.py:3313: oc_runipd.py:8766 -> past_eof
+    agent_workflows/agy_runipd.py:3314: oc_runipd.py:8645 -> past_eof
+    agent_workflows/agy_runipd.py:3369: oc_runipd.py:8834 -> past_eof
+    agent_workflows/review_findings.py:957: status_set.py:532-538 -> blank_line
+    agent_workflows/runner_shared.py:13321: ipd_lifecycle.py:3989 -> blank_line
+    agent_workflows/selectors.py:455: status_set.py:132-133 -> punct_only
+    EXIT: 0
+    ```
+
+    `aw check --source-offsets --agent` first JSON record:
+    ```json
+    {"schema":"aw.agent/v1","kind":"result","cmd":"check","outcome":"conforms","exit":0,"verified":true,"complete":true,"target":"source-offsets","findings":6,"evidence":["source_offsets","rules"],"diagnostics":[{"location":"agent_workflows/agy_runipd.py:3313","rule":"check.source-offset-stale"},{"location":"agent_workflows/agy_runipd.py:3314","rule":"check.source-offset-stale"},{"location":"agent_workflows/agy_runipd.py:3369","rule":"check.source-offset-stale"},{"location":"agent_workflows/review_findings.py:957","rule":"check.source-offset-stale"},{"location":"agent_workflows/runner_shared.py:13321","rule":"check.source-offset-stale"},{"location":"agent_workflows/selectors.py:455","rule":"check.source-offset-stale"}],"next":null}
+    ```
+    (Exit 0, nothing on stderr).
+
+    `aw check --help` excerpt:
+    ```
+      --source-offsets      Scan Python comments and docstrings for <file>.py:<line>
+                            citations that point past end of file, at a blank line,
+                            or at a punctuation-only line (opt-in, advisory info;
+                            never changes the exit status). Not combined with
+                            --source-citations or --source-anchors; when given
+                            together the first of those runs.
+    ```
+  - Result: pass
+- [x] V-05 validates E-05
   - Required evidence: the pasted `git diff CHANGELOG.md` showing the single added line, containing no em or en dash.
   - Observed evidence:
-  - Result: pending
-- [ ] V-06 validates E-06
+    ```diff
+    diff --git a/CHANGELOG.md b/CHANGELOG.md
+    index de2fd2f46..2b650be9d 100644
+    --- a/CHANGELOG.md
+    +++ b/CHANGELOG.md
+    @@ -27,6 +27,7 @@ Major storage-layout boundary. The logical model (D126-D129) was superseded by t
+     - Fixed: aw runs and aw run human output now masks tokens (such as ghp_ tokens and Bearer credentials) the same way --agent and --json already did.
+     - Fixed: closing a release-blocking backlog item with --evidence now refuses a cited plan that has not been executed, on both setter spellings.
+     - Added: advisory check rule `check.source-test-citation-dangling` flags comments and docstrings in shipped source (`agent_workflows/` and `tools/`) citing nonexistent `tests/test_*.py` files. The rule runs during `aw check all` at `info` severity without altering the exit code, and deliberate historical citations can be silenced by naming the deleting commit hash.
+    +- Added: `aw check --source-offsets` reports Python comment and docstring citations of the form `file.py:LINE` that point past the end of the file, at a blank line, or at a line holding only punctuation. It is opt-in and advisory, so it never changes the exit status, and a citation that names a commit hash is treated as historical and skipped.
+     - Fixed: `RedactionPolicy` sensitive-key matching is now case-insensitive (security fix, backlog go20fk).
+     - Fixed: setting a record's Priority, Work-Kind, From-Backlog, From-Spec, Item-Dependencies or Graduated-To line no longer deletes a matching line quoted in the record's body.
+     - Added: research document companion directory convention (`<doc-stem>.data/`) for non-Markdown companion files. `aw research index` lists companions in `INDEX.json` and flags orphaned companions via `check.research-companion-orphaned`, `aw research mv` and `set-assign` rename companion directories with collision refusal, `aw research promote` and `aw archive` carry companion directories to shards, all research walks skip companion contents, and `aw attention` excludes companion files from artifact status checks.
+    ```
+    No em or en dashes present.
+  - Result: pass
+- [x] V-06 validates E-06
   - Required evidence: the pasted runner output of `python3 -m pytest tests/test_source_offsets.py` with every test passing, and the pasted bare-suite summary line with its failing-id set compared against E-01 (no new failures).
   - Observed evidence:
-  - Result: pending
+    `python3 -m pytest tests/test_source_offsets.py`:
+    ```
+    ............                                                             [100%]
+    12 passed in 3.46s
+    ```
+    Bare-suite summary line:
+    ```
+    8168 passed, 4 skipped, 18 xfailed, 3 warnings in 709.71s (0:11:49)
+    ```
+    Comparison with E-01 baseline (`8156 passed, 4 skipped, 18 xfailed, 3 warnings in 1085.37s (0:18:05)`):
+    12 newly passed tests corresponding to `tests/test_source_offsets.py`, failing-id set remains empty (`set()`, 0 failed). No new failures.
+  - Result: pass
 
 ## Approval and execution gate
 
