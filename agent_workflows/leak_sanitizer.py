@@ -38,6 +38,7 @@ from __future__ import annotations
 
 import os
 import re
+import shlex
 import socket
 import subprocess
 import sys
@@ -1100,17 +1101,116 @@ def main(
     repo_root = Path(args.dir).resolve()
     wheel = Path(args.wheel).resolve() if args.wheel else None
 
+    from agent_workflows.renderers import get_renderer
+    from agent_workflows.result_types import (
+        Change,
+        CommandResult,
+        Diagnostic,
+        Evidence,
+        NextAction,
+        OutputContext,
+        select_output,
+    )
+
+    # Threaded OutputContext (IPD wyy09f) avoids dropping machine flags (--json, --fields)
+    # between CLI dispatch and the engine. If context was not provided (e.g. direct argv
+    # invocation), resolve it from parsed args as before.
+    ctx = context or select_output(args)
+
+    def _emit_error(ctx: OutputContext, summary: str) -> int:
+        if ctx.is_agent or ctx.is_json:
+            res = CommandResult(
+                command="check-local-leaks",
+                status="cannot-run",
+                exit_code=2,
+                summary=summary,
+                verified=False,
+                complete=False,
+                next_actions=[NextAction(command="aw sanitize --help")],
+            )
+            return get_renderer(ctx).emit(res, ctx)
+        print(f"check-local-leaks: {summary}", file=sys.stderr)
+        return 2
+
     if args.fix:
+        if ctx.is_agent or ctx.is_json:
+            # Backlog k84fqu: a machine caller must never be prompted because input() writes
+            # its prompt to stdout, which would corrupt the machine JSON/JSONL stream.
+            if not args.assume_yes and not args.dry_run:
+                target_arg = shlex.quote(args.dir if args.dir is not None else ".")
+                res = CommandResult(
+                    command="check-local-leaks",
+                    status="cannot-run",
+                    exit_code=2,
+                    summary="--fix under --agent/--json requires --yes (to apply) or --dry-run (to preview)",
+                    verified=False,
+                    complete=False,
+                    next_actions=[
+                        NextAction(command=f"aw sanitize {target_arg} --fix --dry-run")
+                    ],
+                )
+                return get_renderer(ctx).emit(res, ctx)
+
         try:
             changed, unfixable = fix_working_tree(
                 repo_root, assume_yes=args.assume_yes, dry_run=args.dry_run
             )
         except subprocess.CalledProcessError:
-            print(
-                "check-local-leaks: not a git repository or git unavailable",
-                file=sys.stderr,
+            return _emit_error(ctx, "not a git repository or git unavailable")
+
+        if ctx.is_agent or ctx.is_json:
+            applied = None
+            next_actions = []
+            if unfixable:
+                exit_code = 1
+                status = "findings"
+                summary = f"{len(unfixable)} unfixable finding(s) require manual edit"
+                if changed:
+                    applied = not args.dry_run
+            elif args.dry_run and changed:
+                exit_code = 0
+                status = "preview"
+                applied = False
+                summary = f"Would rewrite {len(changed)} file(s)"
+                target_arg = shlex.quote(args.dir if args.dir is not None else ".")
+                next_actions = [
+                    NextAction(command=f"aw sanitize {target_arg} --fix --yes")
+                ]
+            elif changed:
+                exit_code = 0
+                status = "ok"
+                applied = True
+                summary = f"Rewrote {len(changed)} file(s)"
+            else:
+                exit_code = 0
+                status = "clean"
+                summary = "No auto-fixable local leaks found."
+
+            diagnostics = [
+                Diagnostic(
+                    location=f.location,
+                    rule=f.rule,
+                    detail=f.snippet,
+                    severity="error" if f.severity == "fail" else "warning",
+                )
+                for f in unfixable
+            ]
+            changes = [
+                Change(path=rel, kind="modify", applied=not args.dry_run)
+                for rel in changed
+            ]
+            res = CommandResult(
+                command="check-local-leaks",
+                status=status,
+                exit_code=exit_code,
+                summary=summary,
+                diagnostics=diagnostics,
+                changes=changes,
+                next_actions=next_actions,
+                applied=applied,
             )
-            return 2
+            return get_renderer(ctx).emit(res, ctx)
+
         verb = "would rewrite" if args.dry_run else "rewrote"
         for rel in changed:
             print(f"{verb}: {rel}", file=sys.stderr)
@@ -1135,27 +1235,10 @@ def main(
             include_warn=args.warn,
         )
     except subprocess.CalledProcessError:
-        print(
-            "check-local-leaks: not a git repository or git unavailable",
-            file=sys.stderr,
-        )
-        return 2
+        return _emit_error(ctx, "not a git repository or git unavailable")
     except (OSError, zipfile.BadZipFile) as exc:
-        print(f"check-local-leaks: {exc}", file=sys.stderr)
-        return 2
+        return _emit_error(ctx, str(exc))
 
-    from agent_workflows.renderers import get_renderer
-    from agent_workflows.result_types import (
-        CommandResult,
-        Diagnostic,
-        Evidence,
-        select_output,
-    )
-
-    # Threaded OutputContext (IPD wyy09f) avoids dropping machine flags (--json, --fields)
-    # between CLI dispatch and the engine. If context was not provided (e.g. direct argv
-    # invocation), resolve it from parsed args as before.
-    ctx = context or select_output(args)
     # rolswj/akhwp7: ONE count expression read by the human AND machine branches.
     exit_code = 1 if fails else 0
     status = "clean" if not fails else "findings"
