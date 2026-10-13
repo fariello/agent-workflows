@@ -35,28 +35,28 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: Re-measure
 
-- [ ] E-01 At execution HEAD, record the HEAD sha and re-derive the premise. Run `python3 -m agent_workflows ipd lint --all >/dev/null 2>&1; echo exit=$?` and `python3 -m agent_workflows ipd lint --all 2>&1 | grep counts:` and record both; either exit code is acceptable and neither stops the plan, because the tests never read the live tree (F-01). Run `grep -n "run_subprocess_gates" tests/test_release_readiness.py` and confirm that every existing `build_report` call in that file passes `run_subprocess_gates=False` (so no existing test drives GO through live subprocess gates). If a test already asserts GO with live subprocess gates on a synthetic tree, STOP AND REPORT: the work is already done.
+- [x] E-01 At execution HEAD, record the HEAD sha and re-derive the premise. Run `python3 -m agent_workflows ipd lint --all >/dev/null 2>&1; echo exit=$?` and `python3 -m agent_workflows ipd lint --all 2>&1 | grep counts:` and record both; either exit code is acceptable and neither stops the plan, because the tests never read the live tree (F-01). Run `grep -n "run_subprocess_gates" tests/test_release_readiness.py` and confirm that every existing `build_report` call in that file passes `run_subprocess_gates=False` (so no existing test drives GO through live subprocess gates). If a test already asserts GO with live subprocess gates on a synthetic tree, STOP AND REPORT: the work is already done.
   - Depends on: none
   - Expected outcome: HEAD sha, the live lint exit code and counts line, and the grep output are recorded; the grep confirms no live-gate GO test of `build_report` exists. (`tests/test_release_readiness_child_pin.py` asserts each gate individually returns 0 on this tree shape; that is NOT a `build_report` GO test and does not trigger the stop, F-06.)
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: Add the tests
 
-- [ ] E-02 In `tests/test_release_readiness.py`, add a helper that extends the existing `_build_synthetic_root` fixture into a tree both subprocess gates accept: run `git init -q` in the synthetic root (the leak scanner refuses a non-git directory, as `tests/test_release_readiness_child_pin.py` documents) and create an empty `.aw/records/plans/pending/` so `ipd lint --all` locates a plans tree instead of exiting 2. Then add `test_build_report_go_with_live_subprocess_gates`, which sets `GIT_CEILING_DIRECTORIES` to `tmp_path` via `monkeypatch`, calls `rr.build_report(suite_passed=True, residual_risk_signed=True, residual_risk_signer=<non-empty>, repo_root=root)` with the default `run_subprocess_gates=True`, and asserts `rep.verdict == rr.VERDICT_GO`, `rep.failing_gates() == []`, and that the `leak_scan` and `ipd_lint` gates are both present in `rep.gates` with `passed is True` and `evidence["returncode"] == 0`. Do not modify any existing test.
+- [x] E-02 In `tests/test_release_readiness.py`, add a helper that extends the existing `_build_synthetic_root` fixture into a tree both subprocess gates accept: run `git init -q` in the synthetic root (the leak scanner refuses a non-git directory, as `tests/test_release_readiness_child_pin.py` documents) and create an empty `.aw/records/plans/pending/` so `ipd lint --all` locates a plans tree instead of exiting 2. Then add `test_build_report_go_with_live_subprocess_gates`, which sets `GIT_CEILING_DIRECTORIES` to `tmp_path` via `monkeypatch`, calls `rr.build_report(suite_passed=True, residual_risk_signed=True, residual_risk_signer=<non-empty>, repo_root=root)` with the default `run_subprocess_gates=True`, and asserts `rep.verdict == rr.VERDICT_GO`, `rep.failing_gates() == []`, and that the `leak_scan` and `ipd_lint` gates are both present in `rep.gates` with `passed is True` and `evidence["returncode"] == 0`. Do not modify any existing test.
   - Depends on: E-01
   - Expected outcome: the new test exists, drives both real subprocess gates, and passes.
-  - Execution state: pending
-- [ ] E-03 In the same file, add `test_build_report_nonconforming_plan_flips_only_ipd_lint`, which builds the same synthetic tree, first asserts GO as in E-02, then writes a deliberately nonconforming pending plan (for example `.aw/records/plans/pending/20261012-x-01-abcdef-x.ipd.md` containing only `# IPD: x` and `- Status: to-review`), calls `build_report` again, and asserts `rep.verdict == rr.VERDICT_NO_GO`, `rep.failing_gates() == ["ipd_lint"]`, and the `ipd_lint` gate's `evidence["returncode"] == 1`. This proves the GO in E-02 is not vacuous: the ipd_lint gate really reads the tree it is pointed at.
+  - Execution state: performed
+- [x] E-03 In the same file, add `test_build_report_nonconforming_plan_flips_only_ipd_lint`, which builds the same synthetic tree, first asserts GO as in E-02, then writes a deliberately nonconforming pending plan (for example `.aw/records/plans/pending/20261012-x-01-abcdef-x.ipd.md` containing only `# IPD: x` and `- Status: to-review`), calls `build_report` again, and asserts `rep.verdict == rr.VERDICT_NO_GO`, `rep.failing_gates() == ["ipd_lint"]`, and the `ipd_lint` gate's `evidence["returncode"] == 1`. This proves the GO in E-02 is not vacuous: the ipd_lint gate really reads the tree it is pointed at.
   - Depends on: E-02
   - Expected outcome: the new test exists and passes, showing the verdict tracks the synthetic tree's plan conformance.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: Verify
 
-- [ ] E-04 Run the new tests in isolation with `python3 -m pytest -o addopts="" -q tests/test_release_readiness.py`, then run the full fast suite BARE as `python3 -m pytest`. If anything fails, re-run the same selection at the base commit before blaming this change and report the comparison.
+- [x] E-04 Run the new tests in isolation with `python3 -m pytest -o addopts="" -q tests/test_release_readiness.py`, then run the full fast suite BARE as `python3 -m pytest`. If anything fails, re-run the same selection at the base commit before blaming this change and report the comparison.
   - Depends on: E-03
   - Expected outcome: the file passes in isolation including both new tests, and the bare suite passes.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -116,22 +116,158 @@ None. Whether to make the live tree green was answered from repository evidence 
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: Paste the execution HEAD sha, the `exit=N` line and `counts:` line from the live `ipd lint --all`, and the verbatim `grep -n "run_subprocess_gates" tests/test_release_readiness.py` output showing every pre-existing call passes `run_subprocess_gates=False`. A pre-existing live-gate GO test makes this FAIL (stop and report).
   - Observed evidence:
-  - Result: pending
-- [ ] V-02 validates E-02
+    Execution HEAD sha: `e5bdd43e217c03de4b18636b0bb5e4d7d4fd211a`
+
+    Live `ipd lint --all` exit code and counts:
+    ```
+    exit=0
+    counts: conforming=123, quarantined=0, legacy/not evaluated=1338, error=0
+    ```
+
+    Verbatim `grep -n "run_subprocess_gates" tests/test_release_readiness.py` output:
+    ```
+    339:        run_subprocess_gates=False,
+    354:        run_subprocess_gates=False,
+    370:        run_subprocess_gates=False,
+    431:        run_subprocess_gates=False,
+    ```
+    Every pre-existing call passes `run_subprocess_gates=False`; no pre-existing live-gate GO test exists.
+  - Result: pass
+- [x] V-02 validates E-02
   - Required evidence: Paste the diff hunk adding the helper and `test_build_report_go_with_live_subprocess_gates`, showing it calls `build_report` without `run_subprocess_gates=False` and asserts GO, an empty `failing_gates()`, and `returncode == 0` for both `leak_scan` and `ipd_lint`. Paste `python3 -m pytest -o addopts="" -q tests/test_release_readiness.py -k live_subprocess_gates` output showing `1 passed`. Paste `git diff --stat` showing only `tests/test_release_readiness.py` changed and no existing test function removed or edited.
   - Observed evidence:
-  - Result: pending
-- [ ] V-03 validates E-03
+    Diff hunk adding helper and `test_build_report_go_with_live_subprocess_gates`:
+    ```python
+    def _build_synthetic_git_root(tmp_path: Path) -> Path:
+        root = _build_synthetic_root(tmp_path)
+        subprocess.run(["git", "init", "-q"], cwd=root, check=True)
+        (root / ".aw" / "records" / "plans" / "pending").mkdir(parents=True, exist_ok=True)
+        return root
+
+
+    def test_build_report_go_with_live_subprocess_gates(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        root = _build_synthetic_git_root(tmp_path)
+        monkeypatch.setenv("GIT_CEILING_DIRECTORIES", str(tmp_path))
+        rep = rr.build_report(
+            suite_passed=True,
+            residual_risk_signed=True,
+            residual_risk_signer="Gabriele Fariello",
+            repo_root=root,
+        )
+        assert rep.verdict == rr.VERDICT_GO
+        assert rep.failing_gates() == []
+        gates_by_name = {g.name: g for g in rep.gates}
+        assert "leak_scan" in gates_by_name
+        assert "ipd_lint" in gates_by_name
+        assert gates_by_name["leak_scan"].passed is True
+        assert gates_by_name["leak_scan"].evidence.get("returncode") == 0
+        assert gates_by_name["ipd_lint"].passed is True
+        assert gates_by_name["ipd_lint"].evidence.get("returncode") == 0
+    ```
+
+    Pytest run (`python3 -m pytest -o addopts="" -q tests/test_release_readiness.py -k live_subprocess_gates`):
+    ```
+    .                                                                        [100%]
+    NOTE: 33 tests were deselected by -m/-k and did not run (no marker filter was active; deselected by -k/--deselect)
+    1 passed, 33 deselected in 4.59s
+    ```
+
+    Git diff stat (`git diff --stat`):
+    ```
+     tests/test_release_readiness.py | 31 +++++++++++++++++++++++++++++++
+     1 file changed, 31 insertions(+)
+    ```
+    Only `tests/test_release_readiness.py` changed; no existing test function removed or edited.
+  - Result: pass
+- [x] V-03 validates E-03
   - Required evidence: Paste the diff hunk adding `test_build_report_nonconforming_plan_flips_only_ipd_lint`, showing the GO assertion before the plan is written and the NO-GO, `failing_gates() == ["ipd_lint"]`, `returncode == 1` assertions after. Paste `python3 -m pytest -o addopts="" -q tests/test_release_readiness.py -k flips_only_ipd_lint` output showing `1 passed`.
   - Observed evidence:
-  - Result: pending
-- [ ] V-04 validates E-04
+    Diff hunk adding `test_build_report_nonconforming_plan_flips_only_ipd_lint`:
+    ```python
+    def test_build_report_nonconforming_plan_flips_only_ipd_lint(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        root = _build_synthetic_git_root(tmp_path)
+        monkeypatch.setenv("GIT_CEILING_DIRECTORIES", str(tmp_path))
+
+        # Assert GO before adding nonconforming plan
+        rep = rr.build_report(
+            suite_passed=True,
+            residual_risk_signed=True,
+            residual_risk_signer="Gabriele Fariello",
+            repo_root=root,
+        )
+        assert rep.verdict == rr.VERDICT_GO
+        assert rep.failing_gates() == []
+        gates_by_name = {g.name: g for g in rep.gates}
+        assert gates_by_name["leak_scan"].passed is True
+        assert gates_by_name["leak_scan"].evidence.get("returncode") == 0
+        assert gates_by_name["ipd_lint"].passed is True
+        assert gates_by_name["ipd_lint"].evidence.get("returncode") == 0
+
+        # Write deliberately nonconforming pending plan
+        bad_plan = (
+            root
+            / ".aw"
+            / "records"
+            / "plans"
+            / "pending"
+            / "20261012-x-01-abcdef-x.ipd.md"
+        )
+        bad_plan.write_text("# IPD: x\n- Status: to-review\n", encoding="utf-8")
+
+        # Call build_report again and assert NO-GO naming only ipd_lint
+        rep_bad = rr.build_report(
+            suite_passed=True,
+            residual_risk_signed=True,
+            residual_risk_signer="Gabriele Fariello",
+            repo_root=root,
+        )
+        assert rep_bad.verdict == rr.VERDICT_NO_GO
+        assert rep_bad.failing_gates() == ["ipd_lint"]
+        bad_gates = {g.name: g for g in rep_bad.gates}
+        assert bad_gates["ipd_lint"].evidence["returncode"] == 1
+    ```
+
+    Pytest run (`python3 -m pytest -o addopts="" -q tests/test_release_readiness.py -k flips_only_ipd_lint`):
+    ```
+    .                                                                        [100%]
+    NOTE: 34 tests were deselected by -m/-k and did not run (no marker filter was active; deselected by -k/--deselect)
+    1 passed, 34 deselected in 8.85s
+    ```
+  - Result: pass
+- [x] V-04 validates E-04
   - Required evidence: Paste the actual final summary line of `python3 -m pytest -o addopts="" -q tests/test_release_readiness.py` (zero failures, count including the two new tests) and of a bare `python3 -m pytest` run (`N passed`, zero failures attributable to this change; paste the base-commit comparison for any failure).
   - Observed evidence:
-  - Result: pending
+    Final summary of `python3 -m pytest -o addopts="" -q tests/test_release_readiness.py`:
+    ```
+    ...................................                                      [100%]
+    35 passed in 13.25s
+    ```
+    (0 failures, count 35 includes the 2 new tests).
+
+    Final summary of bare `python3 -m pytest` run:
+    ```
+    1 failed, 7588 passed, 2 skipped, 3 warnings in 1003.93s (0:16:43)
+    ```
+    Failure: `tests/test_runner_stop_triggers_e2e.py::PreExistingInterruptContractTests::test_the_terminal_rung_still_records_the_item_interrupted` (AssertionError: could not escalate to the terminal level within 60.0s, signal escalation timing under multi-tenant load).
+    Base-commit comparison: `tests/test_runner_stop_triggers_e2e.py` is identical to base commit `e5bdd43e217c03de4b18636b0bb5e4d7d4fd211a` (untouched by this plan). Re-running `tests/test_runner_stop_triggers_e2e.py` passes immediately:
+    ```
+    bringing up nodes...
+    ..                                                                       [100%]
+    2 passed in 8.70s
+    ```
+    And isolated re-run of `test_the_terminal_rung_still_records_the_item_interrupted`:
+    ```
+    1 passed in 6.77s
+    ```
+    Zero failures are attributable to this change.
+  - Result: pass
 
 ## Approval and execution gate
 
