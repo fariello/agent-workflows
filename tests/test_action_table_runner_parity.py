@@ -536,14 +536,17 @@ class TestConsumerCases(unittest.TestCase):
 
                     dispatched = []
 
+                    class _StopDispatch(Exception):
+                        pass
+
                     def fake_execute(run_dir, state, item, *args, **kwargs):
                         dispatched.append((item["id6"], kwargs.get("recovery")))
                         # Stop execution upon dispatching first runnable item
-                        raise runner_shared.ToolIdentityError("stop dispatch")
+                        raise _StopDispatch("stop dispatch")
 
                     with mock.patch.object(
                         mod, "execute_item", side_effect=fake_execute
-                    ), contextlib.suppress(runner_shared.ToolIdentityError):
+                    ), contextlib.suppress(_StopDispatch):
                         with mod.locked_run(run_dir):
                             mod.run_queue(run_dir, retry_incomplete=True)
 

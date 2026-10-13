@@ -32384,21 +32384,65 @@ def assert_child_tool_identity(
         if events_path is not None:
             append_jsonl(events_path, record)
         raise ToolIdentityError(
-            "ABORTING RUN: nested `aw` tool-identity mismatch. A nested `aw` would execute "
+            "nested `aw` tool-identity mismatch; failing this item. A nested `aw` would execute "
             "code OTHER than this runner's own installation, so every lifecycle transition "
             "this run performs would be gated by tooling the runner is not.\n"
             f"  expected module: {expected}\n"
             f"  child resolved : {child_file or '<no output>'}\n"
             f"  probe cwd      : {record['probe_cwd']}\n"
             f"  child version  : {child_version or '<unknown>'}\n"
-            "This is run-fatal by design (plan af7i6p OQ-02; spec 25kzda 1.4/A1 reserves "
-            "ABORT RUN for the identity/integrity class). Marking a single item blocked would "
-            "be misleading, since the remaining items would run under the same wrong tooling."
+            "The item is failed without a fix-it turn, its dependents are cascaded, "
+            "independent items continue, and the remedy is to fix the runner's installation "
+            "(or PYTHONPATH) and resume with `--retry-incomplete` (spec 25kzda 4.1, tb6lw3 OQ-02 Option B)."
         )
     if events_path is not None:
         append_jsonl(events_path, record)
     _TOOL_IDENTITY_VERIFIED.update(record)
     return record
+
+
+def fail_item_on_tool_identity(
+    run_dir: Path,
+    state: dict[str, Any],
+    item: dict[str, Any],
+    exc: BaseException,
+    *,
+    save_state: Callable[[Path, dict[str, Any]], None],
+    append_jsonl: Callable[[Path, dict[str, Any]], None],
+    host_labels: HostLabels,
+) -> None:
+    """Mark an item fail-gate on a nested tool identity mismatch and allow independent items to run."""
+    item["status"] = "fail-gate"
+    item["tool_identity_error"] = str(exc)
+    attempts = item.get("attempts")
+    if isinstance(attempts, list) and attempts:
+        last = attempts[-1]
+        if isinstance(last, dict) and not last.get("ended_at"):
+            last["ended_at"] = utc_now()
+            last["disposition"] = "fail-gate"
+    exc_str = str(exc)
+    first_line = exc_str.splitlines()[0] if exc_str.splitlines() else exc_str
+    remedy = (
+        f"fix the runner's installation (or PYTHONPATH) so a nested `aw` resolves this runner's "
+        f"own package, then re-queue with `{host_labels.command} resume --retry-incomplete <run-id>`"
+    )
+    record_refusal(
+        item, code="tool-identity-mismatch", reason=first_line, remedy=remedy
+    )
+    append_jsonl(
+        run_dir / "events.jsonl",
+        {
+            "at": utc_now(),
+            "event": "ipd-tool-identity-failed",
+            "id6": item.get("id6", ""),
+            "error": exc_str,
+        },
+    )
+    save_state(run_dir, state)
+    print(
+        f"IPD {item.get('id6', '')} tool-identity mismatch; independent items continue: {first_line}",
+        file=sys.stderr,
+    )
 
 
 # ---- rununify: constants and shared models -------------------------------------------------------

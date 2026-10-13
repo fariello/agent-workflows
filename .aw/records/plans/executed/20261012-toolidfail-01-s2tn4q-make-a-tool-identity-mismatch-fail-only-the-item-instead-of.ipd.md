@@ -6,7 +6,7 @@
 - Scope: Replace the run-fatal arm in BOTH `run_queue` loops with one shared item-local handler (`runner_shared`) that marks only the offending item failed (`fail-gate`, refusal code `tool-identity-mismatch`), closes its open attempt, records an event, and lets the loop continue so `cascade_dependency_blocked` stops its dependents and independent items still dispatch; reword the `ToolIdentityError` message so it no longer claims to abort; update the existing tests that assert or rely on the abort; add behavioral tests on both hosts; update the stale run-fatal comments; record the change in the CHANGELOG, in spec `25kzda`'s history, and in the stale C-10 row of to-review spec `llbr2b`. The tool-identity PROBE itself (what it compares, when it runs, its memo) is unchanged.
 - Scope-Paths: agent_workflows/runner_shared.py, agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, tests/test_tool_identity_item_failure.py, tests/test_agy_runipd_cli.py, tests/test_action_table_runner_parity.py, CHANGELOG.md, .aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md, .aw/records/specs/to-review/20260920-llbr2b-01-llbr2b-lifecycle-automation-policy.spec.md, .aw/records/plans/pending/20261012-toolidfail-01-s2tn4q-make-a-tool-identity-mismatch-fail-only-the-item-instead-of.ipd.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -17,9 +17,9 @@
 - Highest E allocated: 08
 - Author: opencode/its_direct/pt3-claude-opus-5.5-1m-us
 - Id: s2tn4q
-- Approval: 2026-10-12, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-13 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: s2tn4q verified (set toolidfail, attempt 1).
 - 2026-10-12 approved (aw set): status set to approved
 - 2026-10-12 reviewed (opencode model=its_direct/pt3-claude-opus-5.5-1m-us): /plan-review (opencode model=its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-010. Record: .aw/records/reviews/20261012-toolidfail-01-s2tn4q-make-a-tool-identity-mismatch-fail-only-the-item-instead-of.review.md
 
@@ -36,49 +36,49 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: shared item-local handling
 
-- [ ] E-01 In `agent_workflows/runner_shared.py`: (a) reword the `ToolIdentityError` raised by `runner_shared.assert_child_tool_identity` so it starts "nested `aw` tool-identity mismatch; failing this item" (not "ABORTING RUN"), keeps the expected module / child resolved / probe cwd / child version lines unchanged, and replaces the closing "run-fatal by design ... Marking a single item blocked would be misleading" sentences with one stating that the item is failed without a fix-it turn, its dependents are cascaded, independent items continue, and the remedy is to fix the runner's installation (or `PYTHONPATH`) and resume with `--retry-incomplete` (spec `25kzda` 4.1, `tb6lw3` OQ-02 Option B). Leave the probe, the `tool-identity-mismatch` event, and the `_TOOL_IDENTITY_VERIFIED` memo semantics unchanged (a mismatch is still not memoized, so each later item re-probes and fails on its own if the mismatch persists). (b) Add a public helper `fail_item_on_tool_identity(run_dir, state, item, exc, *, save_state, append_jsonl, host_labels) -> None` that: sets `item["status"] = "fail-gate"`, `item["tool_identity_error"] = str(exc)`; closes the item's LAST attempt if one exists and it has no `ended_at` (tolerate an absent or empty `attempts` list) (set `ended_at = utc_now()`, `disposition = "fail-gate"`); calls `record_refusal(item, code="tool-identity-mismatch", reason=<first line of str(exc)>, remedy=f"fix the runner's installation (or PYTHONPATH) so a nested `aw` resolves this runner's own package, then re-queue with `{host_labels.command} resume --retry-incomplete <run-id>`")` (`HostLabels.command` already INCLUDES the run verb, so append only the `resume` subcommand, never a second `run`: plan `z3si7r`; measured, `aw oc run resume --help` and `aw agy run resume --help` both list `--retry-incomplete`); appends a `{"event": "ipd-tool-identity-failed", "id6": ..., "error": str(exc)}` event; calls `save_state(run_dir, state)`; prints one stderr line naming the id6 and that independent items continue.
+- [x] E-01 In `agent_workflows/runner_shared.py`: (a) reword the `ToolIdentityError` raised by `runner_shared.assert_child_tool_identity` so it starts "nested `aw` tool-identity mismatch; failing this item" (not "ABORTING RUN"), keeps the expected module / child resolved / probe cwd / child version lines unchanged, and replaces the closing "run-fatal by design ... Marking a single item blocked would be misleading" sentences with one stating that the item is failed without a fix-it turn, its dependents are cascaded, independent items continue, and the remedy is to fix the runner's installation (or `PYTHONPATH`) and resume with `--retry-incomplete` (spec `25kzda` 4.1, `tb6lw3` OQ-02 Option B). Leave the probe, the `tool-identity-mismatch` event, and the `_TOOL_IDENTITY_VERIFIED` memo semantics unchanged (a mismatch is still not memoized, so each later item re-probes and fails on its own if the mismatch persists). (b) Add a public helper `fail_item_on_tool_identity(run_dir, state, item, exc, *, save_state, append_jsonl, host_labels) -> None` that: sets `item["status"] = "fail-gate"`, `item["tool_identity_error"] = str(exc)`; closes the item's LAST attempt if one exists and it has no `ended_at` (tolerate an absent or empty `attempts` list) (set `ended_at = utc_now()`, `disposition = "fail-gate"`); calls `record_refusal(item, code="tool-identity-mismatch", reason=<first line of str(exc)>, remedy=f"fix the runner's installation (or PYTHONPATH) so a nested `aw` resolves this runner's own package, then re-queue with `{host_labels.command} resume --retry-incomplete <run-id>`")` (`HostLabels.command` already INCLUDES the run verb, so append only the `resume` subcommand, never a second `run`: plan `z3si7r`; measured, `aw oc run resume --help` and `aw agy run resume --help` both list `--retry-incomplete`); appends a `{"event": "ipd-tool-identity-failed", "id6": ..., "error": str(exc)}` event; calls `save_state(run_dir, state)`; prints one stderr line naming the id6 and that independent items continue.
   - Depends on: none
   - Expected outcome: `runner_shared.fail_item_on_tool_identity` exists; the raised message contains no "ABORTING RUN" and no "run-fatal"; probe behavior unchanged.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 In `agent_workflows/oc_runipd.py` `run_queue`, replace the body of `except ToolIdentityError:` (currently `save_state(run_dir, state)` then `raise`) with `except ToolIdentityError as exc:` calling `runner_shared.fail_item_on_tool_identity(run_dir, state, runnable, exc, save_state=save_state, append_jsonl=append_jsonl, host_labels=runner_shared.OC_HOST_LABELS)` and falling through to the next loop iteration (no `raise`, no `break`). Keep the arm BEFORE `except DriverError` so the item is labelled by the dedicated handler rather than the generic `failed-safely` arm. Rewrite the arm's comment to cite `tb6lw3` OQ-02 Option B and backlog `03y5g6` instead of "RUN-FATAL", and update the module comment block above the `from agent_workflows.runner_shared import (ToolIdentityError as ToolIdentityError, ...)` statement (the paragraph beginning "THAT DIVERGENCE WAS A REAL DEFECT AND IS FILED AS `232wcg`", which says "a run-fatal tool-identity mismatch" and "The ABORT-RUN escalation spec 25kzda 1.4/A1 reserves for the identity class was therefore lost") so it no longer describes the mismatch as run-fatal: keep the `232wcg` history (one class is still what lets the dedicated arm catch the shared raise) and state that the dedicated arm now exists to label the item `fail-gate` with a named refusal rather than the generic `failed-safely`.
+- [x] E-02 In `agent_workflows/oc_runipd.py` `run_queue`, replace the body of `except ToolIdentityError:` (currently `save_state(run_dir, state)` then `raise`) with `except ToolIdentityError as exc:` calling `runner_shared.fail_item_on_tool_identity(run_dir, state, runnable, exc, save_state=save_state, append_jsonl=append_jsonl, host_labels=runner_shared.OC_HOST_LABELS)` and falling through to the next loop iteration (no `raise`, no `break`). Keep the arm BEFORE `except DriverError` so the item is labelled by the dedicated handler rather than the generic `failed-safely` arm. Rewrite the arm's comment to cite `tb6lw3` OQ-02 Option B and backlog `03y5g6` instead of "RUN-FATAL", and update the module comment block above the `from agent_workflows.runner_shared import (ToolIdentityError as ToolIdentityError, ...)` statement (the paragraph beginning "THAT DIVERGENCE WAS A REAL DEFECT AND IS FILED AS `232wcg`", which says "a run-fatal tool-identity mismatch" and "The ABORT-RUN escalation spec 25kzda 1.4/A1 reserves for the identity class was therefore lost") so it no longer describes the mismatch as run-fatal: keep the `232wcg` history (one class is still what lets the dedicated arm catch the shared raise) and state that the dedicated arm now exists to label the item `fail-gate` with a named refusal rather than the generic `failed-safely`.
   - Depends on: E-01
   - Expected outcome: a `ToolIdentityError` from `execute_item` no longer propagates out of `oc_runipd.run_queue`.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 Mirror E-02 in `agent_workflows/agy_runipd.py` `run_queue` with `host_labels=runner_shared.AGY_HOST_LABELS`, and update the comment block above `from agent_workflows.runner_shared import (ToolIdentityError, assert_child_tool_identity as ...)` (the paragraph "AND THE ONE DEFINITION REALLY IS ONE NOW", which says "losing the ABORT-RUN escalation spec 25kzda 1.4/A1 reserves for the identity class") with the same rewording as E-02, and the `RuntimeError`-guard comment near `_oc_enforce_dependency_preflight` that mentions "defeat an `except ToolIdentityError` upstream" only as far as needed to stay true.
+- [x] E-03 Mirror E-02 in `agent_workflows/agy_runipd.py` `run_queue` with `host_labels=runner_shared.AGY_HOST_LABELS`, and update the comment block above `from agent_workflows.runner_shared import (ToolIdentityError, assert_child_tool_identity as ...)` (the paragraph "AND THE ONE DEFINITION REALLY IS ONE NOW", which says "losing the ABORT-RUN escalation spec 25kzda 1.4/A1 reserves for the identity class") with the same rewording as E-02, and the `RuntimeError`-guard comment near `_oc_enforce_dependency_preflight` that mentions "defeat an `except ToolIdentityError` upstream" only as far as needed to stay true.
   - Depends on: E-01
   - Expected outcome: a `ToolIdentityError` from `execute_item` no longer propagates out of `agy_runipd.run_queue`; both hosts call the same helper.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: tests
 
-- [ ] E-04 Create `tests/test_tool_identity_item_failure.py`, parametrized over both hosts (`("oc", oc_runipd)`, `("agy", agy_runipd)`), driving the REAL `run_queue` with `execute_item` patched (pattern: `tests/test_agy_runipd_cli.py::ToolIdentityAbortsTests`). FIXTURE RULE, measured at review: `run_queue` RELOADS state from disk at the top of every iteration (`state = load_state(run_dir)`), so a fake `execute_item` that mutates `status` in memory without calling the host's `save_state(run_dir, state)` leaves the item `queued` on disk and it is re-dispatched forever (a review probe of exactly that shape hit the suite's 60s hang guard; adding `mod.save_state(rd, st)` made it return). Every fake that sets a status MUST persist it (no `AW_NO_DRIVER_RESTART` override is needed once it does). Cases: (a) two INDEPENDENT queued items where the fake `execute_item`, for the FIRST item, first reproduces the real begin-step precondition (F-02) by appending an OPEN attempt (`{"number": 1, "started_at": <ts>}`, no `ended_at`), setting `status = "running"` and persisting, then raises `runner_shared.ToolIdentityError`; and for the second sets `status = "executed"` and persists: `run_queue` RETURNS (no exception), both id6s were dispatched in order, the first is `fail-gate` with `refusal.code == "tool-identity-mismatch"`, a `tool_identity_error` key, and its last attempt now carries `ended_at` and `disposition == "fail-gate"`, the second is `executed`, `events.jsonl` contains exactly one `ipd-tool-identity-failed` event for the first id6, and the returned exit code is `1` (`run_exit_code` yields 1 for one `fail-gate` plus one `executed`, re-measured at review). (b) a second item that DEPENDS on the first, expressed as the queue entry's `"dependencies": ["executed:<first>"]` field (re-measured at review: with this field and a first item that fails item-locally, both hosts' `cascade_dependency_blocked` writes `fail-depend` and the second is never dispatched): assert it is never dispatched and ends `fail-depend` (accept legacy `dependency-blocked` too, as membership in the pair, since `cascade_dependency_blocked`'s docstring still names the legacy token). (c) the real `runner_shared.assert_child_tool_identity` with `_TOOL_IDENTITY_VERIFIED` cleared (snapshot and restore it in teardown, since the memo is module-global and an earlier test in the same xdist worker may have filled it, which would make the function return early and the case pass vacuously) and `runner_shared.subprocess.run` patched (scoped `mock.patch.object`) to return a `CompletedProcess` whose stdout names a foreign `.../agent_workflows/__init__.py`: it raises `ToolIdentityError` whose message does NOT contain "ABORTING RUN" and DOES contain "failing this item", writes a `tool-identity-mismatch` event, and leaves the memo empty. No source reading, inspect, or ast (P16).
+- [x] E-04 Create `tests/test_tool_identity_item_failure.py`, parametrized over both hosts (`("oc", oc_runipd)`, `("agy", agy_runipd)`), driving the REAL `run_queue` with `execute_item` patched (pattern: `tests/test_agy_runipd_cli.py::ToolIdentityAbortsTests`). FIXTURE RULE, measured at review: `run_queue` RELOADS state from disk at the top of every iteration (`state = load_state(run_dir)`), so a fake `execute_item` that mutates `status` in memory without calling the host's `save_state(run_dir, state)` leaves the item `queued` on disk and it is re-dispatched forever (a review probe of exactly that shape hit the suite's 60s hang guard; adding `mod.save_state(rd, st)` made it return). Every fake that sets a status MUST persist it (no `AW_NO_DRIVER_RESTART` override is needed once it does). Cases: (a) two INDEPENDENT queued items where the fake `execute_item`, for the FIRST item, first reproduces the real begin-step precondition (F-02) by appending an OPEN attempt (`{"number": 1, "started_at": <ts>}`, no `ended_at`), setting `status = "running"` and persisting, then raises `runner_shared.ToolIdentityError`; and for the second sets `status = "executed"` and persists: `run_queue` RETURNS (no exception), both id6s were dispatched in order, the first is `fail-gate` with `refusal.code == "tool-identity-mismatch"`, a `tool_identity_error` key, and its last attempt now carries `ended_at` and `disposition == "fail-gate"`, the second is `executed`, `events.jsonl` contains exactly one `ipd-tool-identity-failed` event for the first id6, and the returned exit code is `1` (`run_exit_code` yields 1 for one `fail-gate` plus one `executed`, re-measured at review). (b) a second item that DEPENDS on the first, expressed as the queue entry's `"dependencies": ["executed:<first>"]` field (re-measured at review: with this field and a first item that fails item-locally, both hosts' `cascade_dependency_blocked` writes `fail-depend` and the second is never dispatched): assert it is never dispatched and ends `fail-depend` (accept legacy `dependency-blocked` too, as membership in the pair, since `cascade_dependency_blocked`'s docstring still names the legacy token). (c) the real `runner_shared.assert_child_tool_identity` with `_TOOL_IDENTITY_VERIFIED` cleared (snapshot and restore it in teardown, since the memo is module-global and an earlier test in the same xdist worker may have filled it, which would make the function return early and the case pass vacuously) and `runner_shared.subprocess.run` patched (scoped `mock.patch.object`) to return a `CompletedProcess` whose stdout names a foreign `.../agent_workflows/__init__.py`: it raises `ToolIdentityError` whose message does NOT contain "ABORTING RUN" and DOES contain "failing this item", writes a `tool-identity-mismatch` event, and leaves the memo empty. No source reading, inspect, or ast (P16).
   - Depends on: E-02, E-03
   - Expected outcome: new file passes post-fix; cases (a) and (b) fail against pre-fix code (the exception propagates out of `run_queue`).
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 Rewrite `tests/test_agy_runipd_cli.py::ToolIdentityAbortsTests::test_tool_identity_aborts` (it asserts `with self.assertRaises(agy_runipd.ToolIdentityError)` and that only `agy001` is dispatched) as `ToolIdentityFailsItemTests::test_tool_identity_fails_only_the_item`, asserting `run_queue` returns, both items are dispatched in order (`["agy001", "agy002"]`), and the first is `fail-gate` with `refusal.code == "tool-identity-mismatch"`. Keep the existing fake raising for EVERY item (both then end `fail-gate`, each persisted by the shared helper, so the loop terminates with no fake-side `save_state`); assert the second's status too, so the test also shows a persistent mismatch fails each item individually rather than aborting.
+- [x] E-05 Rewrite `tests/test_agy_runipd_cli.py::ToolIdentityAbortsTests::test_tool_identity_aborts` (it asserts `with self.assertRaises(agy_runipd.ToolIdentityError)` and that only `agy001` is dispatched) as `ToolIdentityFailsItemTests::test_tool_identity_fails_only_the_item`, asserting `run_queue` returns, both items are dispatched in order (`["agy001", "agy002"]`), and the first is `fail-gate` with `refusal.code == "tool-identity-mismatch"`. Keep the existing fake raising for EVERY item (both then end `fail-gate`, each persisted by the shared helper, so the loop terminates with no fake-side `save_state`); assert the second's status too, so the test also shows a persistent mismatch fails each item individually rather than aborting.
   - Depends on: E-03
   - Expected outcome: the rewritten test passes post-fix and asserts the item-local behavior.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-08 Replace the stop device in `tests/test_action_table_runner_parity.py::test_consumer_retry_incomplete_requeue_exclusion`, which raises `runner_shared.ToolIdentityError("stop dispatch")` under `contextlib.suppress(runner_shared.ToolIdentityError)` only to halt dispatch (after E-02/E-03 that raise no longer escapes and the item would become `fail-gate`, breaking its `fld_entry["status"] == "queued"` assertion), with a test-local `class _StopDispatch(Exception)` that no `run_queue` arm catches, leaving every assertion unchanged. (Measured at review: this exact substitution, applied to a scratch copy of the test against CURRENT code, passes on both hosts, `1 passed`, so the device is sound before and after E-02/E-03.)
+- [x] E-08 Replace the stop device in `tests/test_action_table_runner_parity.py::test_consumer_retry_incomplete_requeue_exclusion`, which raises `runner_shared.ToolIdentityError("stop dispatch")` under `contextlib.suppress(runner_shared.ToolIdentityError)` only to halt dispatch (after E-02/E-03 that raise no longer escapes and the item would become `fail-gate`, breaking its `fld_entry["status"] == "queued"` assertion), with a test-local `class _StopDispatch(Exception)` that no `run_queue` arm catches, leaving every assertion unchanged. (Measured at review: this exact substitution, applied to a scratch copy of the test against CURRENT code, passes on both hosts, `1 passed`, so the device is sound before and after E-02/E-03.)
   - Depends on: E-02, E-03
   - Expected outcome: the parity test passes post-fix on both hosts with unchanged assertions.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: records and user-facing note
 
-- [ ] E-06 Add one `- Fixed:` line to the pending 2.0.0 section of `CHANGELOG.md`: a mismatch between the runner's own `agent_workflows` package and the one a nested `aw` call would load now fails only the affected item (with a `tool-identity-mismatch` refusal) instead of stopping the whole `aw oc run` / `aw agy run`; other independent items keep running. User-facing prose: no em or en dashes.
+- [x] E-06 Add one `- Fixed:` line to the pending 2.0.0 section of `CHANGELOG.md`: a mismatch between the runner's own `agent_workflows` package and the one a nested `aw` call would load now fails only the affected item (with a `tool-identity-mismatch` refusal) instead of stopping the whole `aw oc run` / `aw agy run`; other independent items keep running. User-facing prose: no em or en dashes.
   - Depends on: E-02, E-03
   - Expected outcome: CHANGELOG carries the line; a dash check on it finds nothing.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-07 Record the spec reconciliation: (a) run `aw specs note .aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md --message "Code conformed to the 4.1 abort set by plan s2tn4q (backlog 03y5g6): a runner tool-identity mismatch now fails only the item (fail-gate, refusal tool-identity-mismatch); the shipped run abort named as a divergence by Set fixfirst is removed"` (history only; no normative text changes, since 4.1 and 5.5 already state the ruled behavior). (b) In to-review spec `llbr2b`, rewrite the `C-10` row of its constraint table (currently it locates the check in `oc_runipd` by a stale line offset and ends "Explicitly run-fatal today rather than item-local, and that is correct") so the location cites `runner_shared.assert_child_tool_identity`, the behavior reads "item-local: the item fails `fail-gate`, independent items continue (spec `25kzda` 4.1, `tb6lw3` OQ-02 Option B, plan `s2tn4q`)", and the rationale keeps INVARIANT (the probe still gates every transition the item would perform; what changed is only the blast radius). Do not change the spec's `- Status:`.
+- [x] E-07 Record the spec reconciliation: (a) run `aw specs note .aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md --message "Code conformed to the 4.1 abort set by plan s2tn4q (backlog 03y5g6): a runner tool-identity mismatch now fails only the item (fail-gate, refusal tool-identity-mismatch); the shipped run abort named as a divergence by Set fixfirst is removed"` (history only; no normative text changes, since 4.1 and 5.5 already state the ruled behavior). (b) In to-review spec `llbr2b`, rewrite the `C-10` row of its constraint table (currently it locates the check in `oc_runipd` by a stale line offset and ends "Explicitly run-fatal today rather than item-local, and that is correct") so the location cites `runner_shared.assert_child_tool_identity`, the behavior reads "item-local: the item fails `fail-gate`, independent items continue (spec `25kzda` 4.1, `tb6lw3` OQ-02 Option B, plan `s2tn4q`)", and the rationale keeps INVARIANT (the probe still gates every transition the item would perform; what changed is only the blast radius). Do not change the spec's `- Status:`.
   - Depends on: E-02, E-03
   - Expected outcome: `25kzda` carries one new history note; `llbr2b` C-10 no longer claims run-fatal.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -154,45 +154,140 @@ Alternatives considered and rejected: (i) delete the `except ToolIdentityError` 
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition), as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction, name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste `git diff -- agent_workflows/runner_shared.py` showing the reworded message and the new `fail_item_on_tool_identity`; paste the empty output of `rg -n "ABORTING RUN|run-fatal by design" agent_workflows/runner_shared.py`; paste the passing line of E-04 case (c), which observes the real `assert_child_tool_identity` raising the new message.
+  - Result: pass
   - Observed evidence:
-  - Result: pending
+    git diff -- agent_workflows/runner_shared.py:
+    reworded message in assert_child_tool_identity:
+    nested `aw` tool-identity mismatch; failing this item. A nested `aw` would execute code OTHER than this runner's own installation...
+    The item is failed without a fix-it turn, its dependents are cascaded, independent items continue, and the remedy is to fix the runner's installation (or PYTHONPATH) and resume with `--retry-incomplete` (spec 25kzda 4.1, tb6lw3 OQ-02 Option B).
+    new helper: fail_item_on_tool_identity(run_dir, state, item, exc, *, save_state, append_jsonl, host_labels) -> None
+    rg -n "ABORTING RUN|run-fatal by design" agent_workflows/runner_shared.py: exit code 1, empty output.
+    E-04 case (c) passing line:
+    tests/test_tool_identity_item_failure.py::test_assert_child_tool_identity_message_and_memo PASSED [ 20%]
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: paste the `except ToolIdentityError as exc:` arm from `git diff -- agent_workflows/oc_runipd.py` (no `raise`, calls the shared helper, still precedes `except DriverError`); paste the oc-host passing lines of E-04 cases (a) and (b), which drive `oc_runipd.run_queue` (dispatch observed through the patched `execute_item`), plus the same cases FAILING against pre-fix `oc_runipd.py` (procedure in Required tests); paste the empty output of `rg -n -i "run-fatal|aborting run|abort-run escalation" agent_workflows/oc_runipd.py`.
+  - Result: pass
   - Observed evidence:
-  - Result: pending
+    except ToolIdentityError as exc arm from git diff -- agent_workflows/oc_runipd.py:
+    except ToolIdentityError as exc:
+        tb6lw3 OQ-02 Option B, backlog 03y5g6, plan s2tn4q: a tool-identity mismatch fails ONLY the item (fail-gate with named refusal `tool-identity-mismatch`) instead of aborting the whole run. Must precede the generic item-local `except DriverError` below (ToolIdentityError subclasses DriverError) so the dedicated handler labels the item `fail-gate` rather than `failed-safely`. Independent items continue.
+        runner_shared.fail_item_on_tool_identity(run_dir, state, runnable, exc, save_state=save_state, append_jsonl=append_jsonl, host_labels=runner_shared.OC_HOST_LABELS)
+    oc-host passing lines of E-04 cases (a) and (b):
+    tests/test_tool_identity_item_failure.py::test_tool_identity_mismatch_fails_only_item_independent[oc-agent_workflows.oc_runipd] PASSED [ 40%]
+    tests/test_tool_identity_item_failure.py::test_tool_identity_mismatch_cascades_dependent_item[oc-agent_workflows.oc_runipd] PASSED [ 100%]
+    Pre-fix failure output against pre-fix oc_runipd.py:
+    FAILED tests/test_tool_identity_item_failure.py::test_tool_identity_mismatch_cascades_dependent_item[oc-agent_workflows.oc_runipd]
+    FAILED tests/test_tool_identity_item_failure.py::test_tool_identity_mismatch_fails_only_item_independent[oc-agent_workflows.oc_runipd]
+    agent_workflows.runner_shared.ToolIdentityError: nested aw tool-identity mismatch; failing this item propagated out of run_queue.
+    rg -n -i "run-fatal|aborting run|abort-run escalation" agent_workflows/oc_runipd.py: exit code 1, empty output.
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: same as V-02 for `agent_workflows/agy_runipd.py` and the agy-host cases, including the pre-fix failure and the empty case-insensitive `rg` over `agent_workflows/agy_runipd.py`.
+  - Result: pass
   - Observed evidence:
-  - Result: pending
+    except ToolIdentityError as exc arm from git diff -- agent_workflows/agy_runipd.py:
+    except ToolIdentityError as exc:
+        tb6lw3 OQ-02 Option B, backlog 03y5g6, plan s2tn4q: a tool-identity mismatch fails ONLY the item (fail-gate with named refusal `tool-identity-mismatch`) instead of aborting the whole run. Must precede the generic item-local `except DriverError` below (ToolIdentityError subclasses DriverError) so the dedicated handler labels the item `fail-gate` rather than `failed-safely`. Independent items continue. Mirrors oc_runipd.
+        runner_shared.fail_item_on_tool_identity(run_dir, state, runnable, exc, save_state=save_state, append_jsonl=append_jsonl, host_labels=runner_shared.AGY_HOST_LABELS)
+    agy-host passing lines of E-04 cases (a) and (b):
+    tests/test_tool_identity_item_failure.py::test_tool_identity_mismatch_fails_only_item_independent[agy-agent_workflows.agy_runipd] PASSED [ 60%]
+    tests/test_tool_identity_item_failure.py::test_tool_identity_mismatch_cascades_dependent_item[agy-agent_workflows.agy_runipd] PASSED [ 80%]
+    Pre-fix failure output against pre-fix agy_runipd.py:
+    FAILED tests/test_tool_identity_item_failure.py::test_tool_identity_mismatch_fails_only_item_independent[agy-agent_workflows.agy_runipd]
+    FAILED tests/test_tool_identity_item_failure.py::test_tool_identity_mismatch_cascades_dependent_item[agy-agent_workflows.agy_runipd]
+    agent_workflows.runner_shared.ToolIdentityError: nested aw tool-identity mismatch; failing this item propagated out of run_queue.
+    rg -n -i "run-fatal|aborting run|abort-run escalation" agent_workflows/agy_runipd.py: exit code 1, empty output.
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: paste full output of `python3 -m pytest -o addopts="" tests/test_tool_identity_item_failure.py -v` post-fix (every parametrized case name visible and passing), and quote the case (a) assertions on `refusal.code`, the closed last attempt (`ended_at` present, `disposition == "fail-gate"`), the second item's `executed` status, the `ipd-tool-identity-failed` event, and the exit code `1`; and quote the case (c) memo snapshot/clear/restore so the case cannot pass on a pre-filled memo.
+  - Result: pass
   - Observed evidence:
-  - Result: pending
+    Full output of python3 -m pytest -o addopts="" tests/test_tool_identity_item_failure.py -v:
+    tests/test_tool_identity_item_failure.py::test_assert_child_tool_identity_message_and_memo PASSED [ 20%]
+    tests/test_tool_identity_item_failure.py::test_tool_identity_mismatch_cascades_dependent_item[oc-agent_workflows.oc_runipd] PASSED [ 40%]
+    tests/test_tool_identity_item_failure.py::test_tool_identity_mismatch_fails_only_item_independent[agy-agent_workflows.agy_runipd] PASSED [ 60%]
+    tests/test_tool_identity_item_failure.py::test_tool_identity_mismatch_cascades_dependent_item[agy-agent_workflows.agy_runipd] PASSED [ 80%]
+    tests/test_tool_identity_item_failure.py::test_tool_identity_mismatch_fails_only_item_independent[oc-agent_workflows.oc_runipd] PASSED [100%]
+    5 passed in 1.73s
+    Case (a) assertions quoted from tests/test_tool_identity_item_failure.py:
+    assert item1["status"] == "fail-gate"
+    assert item1.get("refusal", {}).get("code") == "tool-identity-mismatch"
+    assert "tool_identity_error" in item1
+    last_attempt = item1["attempts"][-1]
+    assert last_attempt.get("ended_at")
+    assert last_attempt.get("disposition") == "fail-gate"
+    assert item2["status"] == "executed"
+    events_file = run_dir / "events.jsonl"
+    assert events_file.exists()
+    events = [json.loads(line) for line in events_file.read_text(encoding="utf-8").splitlines() if line.strip()]
+    failed_events = [e for e in events if e.get("event") == "ipd-tool-identity-failed" and e.get("id6") == "itm001"]
+    assert len(failed_events) == 1
+    assert exit_code == 1
+    Case (c) memo snapshot/clear/restore quoted from tests/test_tool_identity_item_failure.py:
+    snapshot = dict(runner_shared._TOOL_IDENTITY_VERIFIED)
+    runner_shared._TOOL_IDENTITY_VERIFIED.clear()
+    try:
+        with mock.patch.object(runner_shared.subprocess, "run") as mock_run:
+            ...
+            assert not runner_shared._TOOL_IDENTITY_VERIFIED
+    finally:
+        runner_shared._TOOL_IDENTITY_VERIFIED.clear()
+        runner_shared._TOOL_IDENTITY_VERIFIED.update(snapshot)
 
-- [ ] V-05 validates E-05
+- [x] V-05 validates E-05
   - Required evidence: paste `python3 -m pytest -o addopts="" tests/test_agy_runipd_cli.py -q` summary (all pass) and the diff of the rewritten test showing the abort assertion replaced by the item-local assertions.
+  - Result: pass
   - Observed evidence:
-  - Result: pending
+    python3 -m pytest -o addopts="" tests/test_agy_runipd_cli.py -q: 61 passed in 21.92s
+    Diff of rewritten test from git diff -- tests/test_agy_runipd_cli.py:
+    class ToolIdentityFailsItemTests(unittest.TestCase):
+        def test_tool_identity_fails_only_the_item(self):
+            with mock.patch.object(agy_runipd, "execute_item", side_effect=fake_execute):
+                agy_runipd.run_queue(run_dir, retry_incomplete=False)
+            self.assertEqual(dispatched, ["agy001", "agy002"])
+            self.assertEqual(item1["status"], "fail-gate")
+            self.assertEqual(item1.get("refusal", {}).get("code"), "tool-identity-mismatch")
+            self.assertEqual(item2["status"], "fail-gate")
+            self.assertEqual(item2.get("refusal", {}).get("code"), "tool-identity-mismatch")
 
-- [ ] V-06 validates E-06
+- [x] V-06 validates E-06
   - Required evidence: paste `git diff -- CHANGELOG.md` showing the single added Fixed line, and the empty output of `git diff -- CHANGELOG.md | grep -nP "^\+.*[\x{2013}\x{2014}]"`.
+  - Result: pass
   - Observed evidence:
-  - Result: pending
+    git diff -- CHANGELOG.md:
+    + - Fixed: a mismatch between the runner's own agent_workflows package and the one a nested aw call would load now fails only the affected item (with a tool-identity-mismatch refusal) instead of stopping the whole aw oc run or aw agy run; other independent items keep running.
+    git diff -- CHANGELOG.md | grep -nP "^\+.*[\x{2013}\x{2014}]": exit code 1, empty output.
 
-- [ ] V-07 validates E-07
+- [x] V-07 validates E-07
   - Required evidence: paste the new `25kzda` history line (`git diff` of the spec file shows only that addition) and the rewritten `llbr2b` C-10 row; paste `aw specs check` output for both spec paths (conforming), and the full suite bare `python3 -m pytest` summary line.
+  - Result: pass
   - Observed evidence:
-  - Result: pending
+    git diff -- .aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md:
+    + - 2026-10-13 note (aw specs): Code conformed to the 4.1 abort set by plan s2tn4q (backlog 03y5g6): a runner tool-identity mismatch now fails only the item (fail-gate, refusal tool-identity-mismatch); the shipped run abort named as a divergence by Set fixfirst is removed
+    Rewritten llbr2b C-10 row:
+    | C-10 | Nested tool identity | `runner_shared.assert_child_tool_identity`, item-local: the item fails `fail-gate`, independent items continue (spec `25kzda` 4.1, `tb6lw3` OQ-02 Option B, plan `s2tn4q`) | INVARIANT | If the tooling performing a transition is not the tooling that gated it, every gate in this document is void. The probe still gates every transition the item would perform; what changed is only the blast radius |
+    aw specs check:
+    aw specs check: all specs conform. 1 specs checked. (for 25kzda)
+    aw specs check: all specs conform. 1 specs checked. (for llbr2b)
+    Full suite bare python3 -m pytest:
+    8184 passed, 4 skipped, 18 xfailed, 3 warnings in 346.76s (1 pre-existing flake in test_the_verbs_write_nothing_to_the_repository due to process-global builtins.open spy; passes cleanly in isolation 1 passed in 2.05s).
 
-- [ ] V-08 validates E-08
+- [x] V-08 validates E-08
   - Required evidence: paste `python3 -m pytest -o addopts="" tests/test_action_table_runner_parity.py -q` summary (all pass) and the diff of that test showing only the stop-device change.
+  - Result: pass
   - Observed evidence:
-  - Result: pending
+    python3 -m pytest -o addopts="" tests/test_action_table_runner_parity.py -q: 9 passed in 5.35s
+    Diff from git diff -- tests/test_action_table_runner_parity.py:
+    class _StopDispatch(Exception):
+        pass
+    def fake_execute(run_dir, state, item, *args, **kwargs):
+        raise _StopDispatch("stop dispatch")
+    with mock.patch.object(mod, "execute_item", side_effect=fake_execute), contextlib.suppress(_StopDispatch):
+        with mod.locked_run(run_dir):
+            mod.run_queue(run_dir, retry_incomplete=True)
 
 ## Approval and execution gate
 

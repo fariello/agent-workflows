@@ -2527,11 +2527,11 @@ class AgyTelemetryWiringTests(unittest.TestCase):
                 self.assertEqual(event["set_id"], "agyset")
 
 
-class ToolIdentityAbortsTests(unittest.TestCase):
-    """Regression test for tool identity abort (hp9rot E-04 / BUG-02)."""
+class ToolIdentityFailsItemTests(unittest.TestCase):
+    """Regression test for tool identity item failure (s2tn4q / 03y5g6)."""
 
-    def test_tool_identity_aborts(self):
-        """E-04: Mismatched child tool identity raises ToolIdentityError and terminates run immediately."""
+    def test_tool_identity_fails_only_the_item(self):
+        """Mismatched child tool identity fails only the offending item and allows independent items to run."""
         with tempfile.TemporaryDirectory() as temp:
             repo = Path(temp) / "repo"
             plan = _init_repo_with_conforming_plan(repo, "agy001")
@@ -2580,13 +2580,23 @@ class ToolIdentityAbortsTests(unittest.TestCase):
             with mock.patch.object(
                 agy_runipd, "execute_item", side_effect=fake_execute
             ):
-                with self.assertRaises(agy_runipd.ToolIdentityError):
-                    agy_runipd.run_queue(run_dir, retry_incomplete=False)
+                agy_runipd.run_queue(run_dir, retry_incomplete=False)
 
             self.assertEqual(
                 dispatched,
-                ["agy001"],
-                "ToolIdentityError must abort immediately without dispatching subsequent items",
+                ["agy001", "agy002"],
+                "ToolIdentityError must fail only the item; independent items must be dispatched in order",
+            )
+            final_state = agy_runipd.load_state(run_dir)
+            item1 = final_state["queue"][0]
+            item2 = final_state["queue"][1]
+            self.assertEqual(item1["status"], "fail-gate")
+            self.assertEqual(
+                item1.get("refusal", {}).get("code"), "tool-identity-mismatch"
+            )
+            self.assertEqual(item2["status"], "fail-gate")
+            self.assertEqual(
+                item2.get("refusal", {}).get("code"), "tool-identity-mismatch"
             )
 
 
