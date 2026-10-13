@@ -1,5 +1,5 @@
 - Id: 2cqs11
-- Status: graduated
+- Status: done
 - Graduated-To: runexitvocab
 - Set: runexitvocab
 - Priority: medium
@@ -7,6 +7,7 @@
 - Summary: approved plan u28vqb E-05 directs a new docs/cli-output-contract.md section 3.1 that already exists (Severity Tier Contract), so the executor will collide or renumber a cross-referenced heading
 
 ## Workflow history
+- 2026-10-13 done (aw backlog): closed by aw agy run: IPD p1kbhl executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20261011-runexitvocab-02-p1kbhl-retarget-the-two-stale-severity-tier-citations-left-pointing.ipd.md); evidence .aw/records/plans/executed/20261011-runexitvocab-02-p1kbhl-retarget-the-two-stale-severity-tier-citations-left-pointing.ipd.md
 - 2026-10-12 graduated (aw backlog): graduated by run run-20261012T005617Z-2321742: p1kbhl
 - 2026-10-02 created (aw backlog): found while graduating h9kgjp; affects an already-approved sibling plan
 
