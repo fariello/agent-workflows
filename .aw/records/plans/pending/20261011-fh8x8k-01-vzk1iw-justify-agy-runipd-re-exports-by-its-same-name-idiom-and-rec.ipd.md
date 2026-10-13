@@ -107,6 +107,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Carrier-Declined: no demand recorded; `runner_shared.py` and `oc_runipd.py` carry zero `noqa: F401` at review, and other-rule directives are not re-export justifications.
 - The pre-existing failures in `tools/ipdrunner/test_runagy.py` recorded by `h0zk2g`: unrelated.
   - Carrier: g0u7f9
+  - Carrier-Evidence: .aw/records/plans/executed/20261011-gte0pd-01-g0u7f9-repair-and-collect-the-tools-ipdrunner-shim-tests.ipd.md
 
 ## Scope check
 
