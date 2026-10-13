@@ -36,6 +36,33 @@ import pytest
 
 pytest_plugins = ["tests.deselect_notice", "tests.livecorpus_notice"]
 
+
+def _available_cpus() -> int:
+    """Return available CPU count, respecting sched_getaffinity if available."""
+    if hasattr(os, "sched_getaffinity"):
+        try:
+            return len(os.sched_getaffinity(0))
+        except Exception:
+            pass
+    return os.cpu_count() or 2
+
+
+@pytest.hookimpl
+def pytest_xdist_auto_num_workers(config: pytest.Config) -> int:
+    """Cap -n auto to half the available CPU count to prevent CPU thrashing.
+
+    Respects PYTEST_XDIST_AUTO_NUM_WORKERS if explicitly set in the environment.
+    """
+    env_var = os.environ.get("PYTEST_XDIST_AUTO_NUM_WORKERS")
+    if env_var:
+        try:
+            return max(1, int(env_var))
+        except ValueError:
+            pass
+    cpus = _available_cpus()
+    return max(1, cpus // 2)
+
+
 # --------------------------------------------------------------------------------------
 # The test session is a COORDINATOR, never a managed worker lane (backlog `1uq1cu`).
 # --------------------------------------------------------------------------------------

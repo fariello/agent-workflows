@@ -196,7 +196,7 @@ markers = [
     "livecorpus: asserts a property over EVERY artifact in this repository's own .aw/records/ tree, so ANY agent writing a plan can turn it red. Deselected by default for one measured reason: a runner lane merges its work only if the full test suite passes, so a red test here blocks integration for every concurrent lane, not just the one whose plan is at fault. Measured 2026-09-19: one such test went red on three correctly-cleared plans and cost run run-20260919T194413Z-2056285 2h 10m and $55.02 with nothing integrated. These tests are VALUABLE and are not deleted (that one caught a real parser bug a made-up-data test could not), so they still run in `make test-all`, in release-review, and wherever a failure informs a human instead of halting a queue.",
 ]
 # Two dials, both always on in the default invocation:
-#  1) `-n auto` (pytest-xdist, one worker per CPU) so the suite NEVER runs serially.
+#  1) `-n auto` (pytest-xdist, bounded to half of available CPUs via conftest hook) so the suite NEVER runs serially.
 #     pytest-xdist is a required test dep (the `test` extra + the `dev` group), and the
 #     root conftest.py auto-installs it as a last resort if it is somehow missing.
 #     `--dist=worksteal` lets idle workers steal queued tests so one straggler cannot
