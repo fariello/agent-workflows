@@ -10,6 +10,7 @@ from __future__ import annotations
 import dataclasses
 import json
 from pathlib import Path
+import subprocess
 import pytest
 
 from agent_workflows import benchmark_thresholds as bt
@@ -372,6 +373,75 @@ def test_build_report_clean_tree_is_go(
     assert rep.verdict == rr.VERDICT_GO
     assert rep.is_go is True
     assert rep.failing_gates() == []
+
+
+def _build_synthetic_git_root(tmp_path: Path) -> Path:
+    root = _build_synthetic_root(tmp_path)
+    subprocess.run(["git", "init", "-q"], cwd=root, check=True)
+    (root / ".aw" / "records" / "plans" / "pending").mkdir(parents=True, exist_ok=True)
+    return root
+
+
+def test_build_report_go_with_live_subprocess_gates(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = _build_synthetic_git_root(tmp_path)
+    monkeypatch.setenv("GIT_CEILING_DIRECTORIES", str(tmp_path))
+    rep = rr.build_report(
+        suite_passed=True,
+        residual_risk_signed=True,
+        residual_risk_signer="Gabriele Fariello",
+        repo_root=root,
+    )
+    assert rep.verdict == rr.VERDICT_GO
+    assert rep.failing_gates() == []
+    gates_by_name = {g.name: g for g in rep.gates}
+    assert "leak_scan" in gates_by_name
+    assert "ipd_lint" in gates_by_name
+    assert gates_by_name["leak_scan"].passed is True
+    assert gates_by_name["leak_scan"].evidence.get("returncode") == 0
+    assert gates_by_name["ipd_lint"].passed is True
+    assert gates_by_name["ipd_lint"].evidence.get("returncode") == 0
+
+
+def test_build_report_nonconforming_plan_flips_only_ipd_lint(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = _build_synthetic_git_root(tmp_path)
+    monkeypatch.setenv("GIT_CEILING_DIRECTORIES", str(tmp_path))
+
+    # Assert GO before adding nonconforming plan
+    rep = rr.build_report(
+        suite_passed=True,
+        residual_risk_signed=True,
+        residual_risk_signer="Gabriele Fariello",
+        repo_root=root,
+    )
+    assert rep.verdict == rr.VERDICT_GO
+    assert rep.failing_gates() == []
+    gates_by_name = {g.name: g for g in rep.gates}
+    assert gates_by_name["leak_scan"].passed is True
+    assert gates_by_name["leak_scan"].evidence.get("returncode") == 0
+    assert gates_by_name["ipd_lint"].passed is True
+    assert gates_by_name["ipd_lint"].evidence.get("returncode") == 0
+
+    # Write deliberately nonconforming pending plan
+    bad_plan = (
+        root / ".aw" / "records" / "plans" / "pending" / "20261012-x-01-abcdef-x.ipd.md"
+    )
+    bad_plan.write_text("# IPD: x\n- Status: to-review\n", encoding="utf-8")
+
+    # Call build_report again and assert NO-GO naming only ipd_lint
+    rep_bad = rr.build_report(
+        suite_passed=True,
+        residual_risk_signed=True,
+        residual_risk_signer="Gabriele Fariello",
+        repo_root=root,
+    )
+    assert rep_bad.verdict == rr.VERDICT_NO_GO
+    assert rep_bad.failing_gates() == ["ipd_lint"]
+    bad_gates = {g.name: g for g in rep_bad.gates}
+    assert bad_gates["ipd_lint"].evidence["returncode"] == 1
 
 
 # ==================================================================================================
