@@ -6,7 +6,7 @@
 - Scope: IN: a machine-wide slot lock taken inside `suite_cache.run_full_suite` (Order 02) around every cache-MISS run, default `max(1, os.cpu_count() // 6)` slots, configurable by `AW_SUITE_SLOTS`; a bounded, loud wait (a progress line at least every 60s, matching `INTEGRATION_LOCK_PROGRESS_SECONDS`); a heartbeat file the waiter touches, keyed by the agent turn's run and item ids, which both hosts' stall watchdogs read as progress; an env marker so a pytest launched by a test does not re-enter the lock; tests; docs. OUT: cache hits (they take no slot); narrowed runs (never pass through `aw suite`); bounding DRIVER concurrency or warning on host load (separate defect, deferred); changing the stall timeout default.
 - Scope-Paths: agent_workflows/suite_cache.py, agent_workflows/runner_shared.py, agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, agent_workflows/stall_progress.py, tests/test_suite_slot_lock.py, docs/cli-human-guide.md, CHANGELOG.md
 - Item-Dependencies: executed:0o0wt2
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: high
@@ -17,8 +17,10 @@
 - Highest E allocated: 07
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: xvm6no
+- Approval: 2026-10-13, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-13 approved (aw set): status set to approved
 
 - 2026-10-13 /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001 to PR-010 (record `.aw/records/reviews/20261012-suiteeff-03-xvm6no-serialize-full-suites-machine-wide-with-a-lock-whose-wait-th.review.md`)
 - 2026-10-13 reviewed (aw set): plan-review: APPROVE WITH REVISIONS APPLIED; PR-001..PR-010

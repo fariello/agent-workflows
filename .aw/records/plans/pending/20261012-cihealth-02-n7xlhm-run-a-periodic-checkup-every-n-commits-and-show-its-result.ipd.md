@@ -6,7 +6,7 @@
 - Scope: (1) A setting `ci_checkup_interval_commits` in `.aw/config/project.json` (default 100; `0` disables). (2) A checkup that (a) asks GitHub, read-only, for the latest completed `tests.yml` run on main and the newest passing one, via the `gh` CLI, and (b) runs the slow checks (today exactly `check.spec-anchor-stale`, as `aw check --source-anchors` runs it; the list is one named tuple in `checkup.py`), then saves one record under `.aw/state/checkup/last.json`: the main commit it ran at, the time, CI's latest conclusion and commit, the last passing commit and how many first-parent main commits ago it was, and the slow-check finding counts. (3) Trigger: at the start of an `aw oc run` / `aw agy run`, if main has advanced at least N first-parent commits past the saved record (or no record exists), the run takes a non-blocking lock (`.aw/state/checkup/lock`); the run that gets it performs the checkup, every other run skips it and carries on. (4) `aw checkup` runs it on demand. (5) `aw attention` and `aw doctor` show the saved record as one line, read-only, never calling GitHub themselves.
 - Scope-Paths: agent_workflows/checkup.py, agent_workflows/cli.py, agent_workflows/command_surface.py, agent_workflows/runner_shared.py, agent_workflows/attention.py, agent_workflows/doctor.py, agent_workflows/config.py, tests/test_checkup.py, CHANGELOG.md, README.md
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: high
@@ -17,8 +17,10 @@
 - Highest E allocated: 07
 - Author: opencode model=its_direct/pt3-claude-opus-5.5-1m-us
 - Id: n7xlhm
+- Approval: 2026-10-13, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-13 approved (aw set): status set to approved
 - 2026-10-13 reviewed (aw set): plan-review done
 - 2026-10-12 /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-009
 - 2026-10-12 to-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): authored during /plan-review of Set gradfix from the maintainer's 2026-10-12 design ruling.
