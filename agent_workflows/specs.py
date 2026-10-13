@@ -384,7 +384,7 @@ def validate_spec(path: Path, text: str) -> List[core.Drift]:
                 core.Drift(
                     loc,
                     "spec.metadata-bullet-repeated",
-                    A.escape_detail(f"metadata bullet - {k}: appears {count} times"),
+                    f"metadata bullet - {k}: appears {count} times",
                 )
             )
 
@@ -401,7 +401,7 @@ def validate_spec(path: Path, text: str) -> List[core.Drift]:
             core.Drift(
                 loc,
                 "attention.unknown-status",
-                A.escape_detail(f"status {status!r} not in the spec enum"),
+                f"status {status!r} not in the spec enum",
             )
         )
 
@@ -422,7 +422,7 @@ def validate_spec(path: Path, text: str) -> List[core.Drift]:
                     core.Drift(
                         loc,
                         "attention.gate-malformed",
-                        A.escape_detail(f"unknown Gate-Kind {kind!r}"),
+                        f"unknown Gate-Kind {kind!r}",
                     )
                 )
             elif not A.validate_gate_ref(kind, ref):
@@ -430,7 +430,7 @@ def validate_spec(path: Path, text: str) -> List[core.Drift]:
                     core.Drift(
                         loc,
                         "attention.gate-malformed",
-                        A.escape_detail(f"invalid Gate-Ref for {kind}: {ref!r}"),
+                        f"invalid Gate-Ref for {kind}: {ref!r}",
                     )
                 )
         if summary is not None and not A.is_safe_descriptive(summary):
@@ -456,7 +456,7 @@ def validate_spec(path: Path, text: str) -> List[core.Drift]:
             core.Drift(
                 loc,
                 "attention.unsafe-field",
-                A.escape_detail("Scope is over-length or has control chars/newlines"),
+                "Scope is over-length or has control chars/newlines",
             )
         )
 
@@ -466,7 +466,7 @@ def validate_spec(path: Path, text: str) -> List[core.Drift]:
             core.Drift(
                 loc,
                 "attention.unsafe-field",
-                A.escape_detail("Summary is over-length or has control chars/newlines"),
+                "Summary is over-length or has control chars/newlines",
             )
         )
 

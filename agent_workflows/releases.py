@@ -136,9 +136,7 @@ def validate_release(path: Path, text: str) -> List[_core.Drift]:
                 _core.Drift(
                     loc,
                     "attention.unsafe-field",
-                    A.escape_detail(
-                        "Summary bullet is over-length or has control chars/newlines"
-                    ),
+                    "Summary bullet is over-length or has control chars/newlines",
                 )
             )
     else:
@@ -148,7 +146,7 @@ def validate_release(path: Path, text: str) -> List[_core.Drift]:
                 _core.Drift(
                     loc,
                     "attention.unsafe-field",
-                    A.escape_detail("Summary prose contains control characters"),
+                    "Summary prose contains control characters",
                 )
             )
 
