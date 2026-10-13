@@ -6,7 +6,7 @@
 - Scope: IN: (a) a new `check_engine` rule `check.source-test-citation-dangling` registered in `RULE_REGISTRY` at severity `info` (advisory, exit code unaffected), evaluated on the `aw check all` full-sweep seam in `check_engine.check_types`; (b) a keyed exemption for retirement statements (a citation whose sentence names it deleted/retired/removed together with a commit hash) and for an explicit placeholder set of illustrative names; (c) a behavioral test over synthesized fixture trees; (d) a CHANGELOG entry. OUT: fixing any existing dangling citation (owned by `iosmvn`, `3tov52`/`65d5zf`, `9vfxhn`/`l4lc6p` and siblings); promoting the rule to `error` (needs the baseline at zero first); `.aw/records/`, `docs/`, `CHANGELOG.md`/`DECISIONS.md` citation scanning (owned elsewhere or append-only history); test files themselves (fixture literals).
 - Scope-Paths: agent_workflows/check_engine.py, tests/test_check_engine_source_test_citation.py, CHANGELOG.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: feature
 - Priority: low
@@ -16,9 +16,9 @@
 - Highest E allocated: 07
 - Author: opencode
 - Id: ml7b9e
-- Approval: 2026-10-12, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-13 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: ml7b9e verified (set j7daih, attempt 1).
 - 2026-10-12 approved (aw set): status set to approved
 - 2026-10-12 reviewed (aw set): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-001..PR-008
 
