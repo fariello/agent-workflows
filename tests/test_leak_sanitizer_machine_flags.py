@@ -30,6 +30,7 @@ import unittest
 from pathlib import Path
 
 from agent_workflows import cli
+from agent_workflows import leak_sanitizer as ls
 
 
 def _init_repo(path: Path) -> Path:
@@ -227,3 +228,298 @@ class LeakSanitizerMachineFlagsTests(unittest.TestCase):
                     rec_full,
                     f"Expected 'evidence' key in full unprojected record for {spelling}",
                 )
+
+    def test_fix_machine_flags_and_human_controls(self):
+        spellings = ["check-local-leaks", "sanitize"]
+        human_fix_prose = (
+            "would rewrite:",
+            "rewrote:",
+            "Needs manual edit",
+            "No auto-fixable local leaks found.",
+        )
+
+        for spelling in spellings:
+            # (a) --fix --dry-run on a planted home path under --agent
+            with self.subTest(spelling=spelling, case="fix-dry-run-agent"):
+                repo = _init_repo(Path(self._tmp.name) / f"repo_fix_dry_{spelling}")
+                planted = "/home/" + "user_a" + "/path.txt\n"
+                _commit(repo, "planted.txt", planted, "commit leak")
+                code, stdout, stderr = _capture_cli_separate(
+                    [spelling, str(repo), "--fix", "--dry-run", "--agent"]
+                )
+                self.assertEqual(code, 0)
+                self.assertEqual(len(stdout.strip().splitlines()), 1)
+                rec = json.loads(stdout.strip())
+                self.assertEqual(rec.get("outcome"), "preview")
+                self.assertIs(rec.get("applied"), False)
+                self.assertEqual(rec.get("exit"), 0)
+                self.assertEqual(
+                    [c["path"] for c in rec.get("changes", [])], ["planted.txt"]
+                )
+                self.assertIsNotNone(rec.get("next"))
+                self.assertIn("--yes", rec.get("next"))
+                self.assertEqual(
+                    (repo / "planted.txt").read_text(encoding="utf-8"), planted
+                )
+                for prose in human_fix_prose:
+                    self.assertNotIn(prose, stderr)
+                if stderr.strip():
+                    with self.assertRaises(ValueError):
+                        json.loads(stderr)
+
+            # (b) --fix --yes on a planted home path under --agent
+            with self.subTest(spelling=spelling, case="fix-yes-agent"):
+                repo = _init_repo(Path(self._tmp.name) / f"repo_fix_yes_{spelling}")
+                planted = "/home/" + "user_b" + "/path.txt\n"
+                _commit(repo, "planted.txt", planted, "commit leak")
+                code, stdout, stderr = _capture_cli_separate(
+                    [spelling, str(repo), "--fix", "--yes", "--agent"]
+                )
+                self.assertEqual(code, 0)
+                self.assertEqual(len(stdout.strip().splitlines()), 1)
+                rec = json.loads(stdout.strip())
+                self.assertIs(rec.get("applied"), True)
+                self.assertEqual(rec.get("exit"), 0)
+                self.assertEqual(
+                    [c["path"] for c in rec.get("changes", [])], ["planted.txt"]
+                )
+                content = (repo / "planted.txt").read_text(encoding="utf-8")
+                self.assertNotIn("user_b", content)
+                for prose in human_fix_prose:
+                    self.assertNotIn(prose, stderr)
+                if stderr.strip():
+                    with self.assertRaises(ValueError):
+                        json.loads(stderr)
+
+            # (c) --fix --yes on a clean tree under --agent
+            with self.subTest(spelling=spelling, case="fix-yes-clean-agent"):
+                repo = _init_repo(Path(self._tmp.name) / f"repo_clean_{spelling}")
+                _commit(repo, "clean.txt", "clean content\n", "commit clean")
+                code, stdout, stderr = _capture_cli_separate(
+                    [spelling, str(repo), "--fix", "--yes", "--agent"]
+                )
+                self.assertEqual(code, 0)
+                self.assertEqual(len(stdout.strip().splitlines()), 1)
+                rec = json.loads(stdout.strip())
+                self.assertEqual(rec.get("exit"), 0)
+                self.assertEqual(rec.get("outcome"), "clean")
+                self.assertFalse(rec.get("changes"))
+                for prose in human_fix_prose:
+                    self.assertNotIn(prose, stderr)
+                if stderr.strip():
+                    with self.assertRaises(ValueError):
+                        json.loads(stderr)
+
+            # (d) --fix --yes on a private-repo identity token under --agent
+            with self.subTest(spelling=spelling, case="fix-yes-private-repo-agent"):
+                repo = _init_repo(Path(self._tmp.name) / f"repo_priv_{spelling}")
+                priv_content = "see " + ls._R1 + " repo\n"
+                _commit(repo, "priv.txt", priv_content, "commit priv")
+                code, stdout, stderr = _capture_cli_separate(
+                    [spelling, str(repo), "--fix", "--yes", "--agent"]
+                )
+                self.assertEqual(code, 1)
+                self.assertEqual(len(stdout.strip().splitlines()), 1)
+                rec = json.loads(stdout.strip())
+                self.assertEqual(rec.get("outcome"), "findings")
+                self.assertGreaterEqual(rec.get("findings", 0), 1)
+                self.assertTrue(
+                    any(
+                        d.get("rule") == "private-repo"
+                        for d in rec.get("diagnostics", [])
+                    )
+                )
+                self.assertEqual(
+                    (repo / "priv.txt").read_text(encoding="utf-8"), priv_content
+                )
+                for prose in human_fix_prose:
+                    self.assertNotIn(prose, stderr)
+                if stderr.strip():
+                    with self.assertRaises(ValueError):
+                        json.loads(stderr)
+
+            # (e) --fix with neither --yes nor --dry-run under --agent
+            with self.subTest(spelling=spelling, case="fix-no-attestation-agent"):
+                repo = _init_repo(Path(self._tmp.name) / f"repo_noattest_{spelling}")
+                planted = "/home/" + "user_e" + "/path.txt\n"
+                _commit(repo, "planted.txt", planted, "commit leak")
+                code, stdout, stderr = _capture_cli_separate(
+                    [spelling, str(repo), "--fix", "--agent"]
+                )
+                self.assertEqual(code, 2)
+                self.assertEqual(len(stdout.strip().splitlines()), 1)
+                rec = json.loads(stdout.strip())
+                self.assertEqual(rec.get("kind"), "error")
+                self.assertEqual(rec.get("outcome"), "cannot-run")
+                self.assertNotIn("[y/N]", stdout)
+                self.assertEqual(
+                    (repo / "planted.txt").read_text(encoding="utf-8"), planted
+                )
+                for prose in human_fix_prose:
+                    self.assertNotIn(prose, stderr)
+                if stderr.strip():
+                    with self.assertRaises(ValueError):
+                        json.loads(stderr)
+
+        # One --json row for (a) asserting CommandResult.to_dict key names
+        repo_json = _init_repo(Path(self._tmp.name) / "repo_fix_dry_json")
+        planted_json = "/home/" + "user_json" + "/path.txt\n"
+        _commit(repo_json, "planted.txt", planted_json, "commit leak")
+        code, stdout, stderr = _capture_cli_separate(
+            ["sanitize", str(repo_json), "--fix", "--dry-run", "--json"]
+        )
+        self.assertEqual(code, 0)
+        rec_json = json.loads(stdout)
+        self.assertEqual(rec_json.get("status"), "preview")
+        self.assertEqual(rec_json.get("exit_code"), 0)
+        changes = rec_json.get("changes", [])
+        self.assertTrue(changes)
+        self.assertEqual(changes[0].get("path"), "planted.txt")
+        self.assertEqual(
+            (repo_json / "planted.txt").read_text(encoding="utf-8"), planted_json
+        )
+        for prose in human_fix_prose:
+            self.assertNotIn(prose, stderr)
+        if stderr.strip():
+            with self.assertRaises(ValueError):
+                json.loads(stderr)
+
+        # HUMAN-path controls (no machine flag) on a fresh planted repo
+        # --fix --dry-run (stdout empty, stderr exactly `would rewrite: <rel>\n`, exit 0, file unchanged)
+        repo_h1 = _init_repo(Path(self._tmp.name) / "repo_human_dry")
+        planted_h1 = "/home/" + "user_h1" + "/path.txt\n"
+        _commit(repo_h1, "planted.txt", planted_h1, "commit leak")
+        code, stdout, stderr = _capture_cli_separate(
+            ["sanitize", str(repo_h1), "--fix", "--dry-run"]
+        )
+        self.assertEqual(code, 0)
+        self.assertEqual(stdout, "")
+        self.assertEqual(stderr, "would rewrite: planted.txt\n")
+        self.assertEqual(
+            (repo_h1 / "planted.txt").read_text(encoding="utf-8"), planted_h1
+        )
+
+        # --fix --yes (stdout empty, stderr exactly `rewrote: <rel>\n`, exit 0)
+        repo_h2 = _init_repo(Path(self._tmp.name) / "repo_human_yes")
+        planted_h2 = "/home/" + "user_h2" + "/path.txt\n"
+        _commit(repo_h2, "planted.txt", planted_h2, "commit leak")
+        code, stdout, stderr = _capture_cli_separate(
+            ["sanitize", str(repo_h2), "--fix", "--yes"]
+        )
+        self.assertEqual(code, 0)
+        self.assertEqual(stdout, "")
+        self.assertEqual(stderr, "rewrote: planted.txt\n")
+
+        # --fix --yes on a clean tree (stderr exactly `No auto-fixable local leaks found.\n`)
+        repo_h3 = _init_repo(Path(self._tmp.name) / "repo_human_clean")
+        _commit(repo_h3, "clean.txt", "clean content\n", "commit clean")
+        code, stdout, stderr = _capture_cli_separate(
+            ["sanitize", str(repo_h3), "--fix", "--yes"]
+        )
+        self.assertEqual(code, 0)
+        self.assertEqual(stdout, "")
+        self.assertEqual(stderr, "No auto-fixable local leaks found.\n")
+
+    def test_exit_2_error_coverage_and_human_controls(self):
+        non_git_dir = Path(self._tmp.name) / "not_a_git_repo"
+        non_git_dir.mkdir(parents=True, exist_ok=True)
+        old_ceiling = os.environ.get("GIT_CEILING_DIRECTORIES")
+        os.environ["GIT_CEILING_DIRECTORIES"] = str(non_git_dir.parent)
+
+        def _restore_ceiling():
+            if old_ceiling is None:
+                os.environ.pop("GIT_CEILING_DIRECTORIES", None)
+            else:
+                os.environ["GIT_CEILING_DIRECTORIES"] = old_ceiling
+
+        self.addCleanup(_restore_ceiling)
+
+        spellings = ["check-local-leaks", "sanitize"]
+        for spelling in spellings:
+            # Plain scan outside git repo under --agent
+            with self.subTest(spelling=spelling, case="non-git-scan-agent"):
+                code, stdout, stderr = _capture_cli_separate(
+                    [spelling, str(non_git_dir), "--agent"]
+                )
+                self.assertEqual(code, 2)
+                self.assertEqual(len(stdout.strip().splitlines()), 1)
+                rec = json.loads(stdout.strip())
+                self.assertEqual(rec.get("kind"), "error")
+                self.assertEqual(rec.get("outcome"), "cannot-run")
+                self.assertEqual(rec.get("exit"), 2)
+                self.assertIs(rec.get("verified"), False)
+                self.assertIs(rec.get("complete"), False)
+                self.assertEqual(rec.get("next"), "aw sanitize --help")
+                self.assertEqual(stderr, "")
+
+            # --fix --yes outside git repo under --agent
+            with self.subTest(spelling=spelling, case="non-git-fix-yes-agent"):
+                code, stdout, stderr = _capture_cli_separate(
+                    [spelling, str(non_git_dir), "--fix", "--yes", "--agent"]
+                )
+                self.assertEqual(code, 2)
+                self.assertEqual(len(stdout.strip().splitlines()), 1)
+                rec = json.loads(stdout.strip())
+                self.assertEqual(rec.get("kind"), "error")
+                self.assertEqual(rec.get("outcome"), "cannot-run")
+                self.assertEqual(rec.get("exit"), 2)
+                self.assertIs(rec.get("verified"), False)
+                self.assertIs(rec.get("complete"), False)
+                self.assertEqual(rec.get("next"), "aw sanitize --help")
+                self.assertEqual(stderr, "")
+
+        # Non-git scan under --json
+        code, stdout, stderr = _capture_cli_separate(
+            ["sanitize", str(non_git_dir), "--json"]
+        )
+        self.assertEqual(code, 2)
+        rec = json.loads(stdout)
+        self.assertEqual(rec.get("exit_code"), 2)
+        self.assertEqual(rec.get("status"), "cannot-run")
+        self.assertIn("not a git repository", rec.get("summary", ""))
+        self.assertEqual(stderr, "")
+
+        # OSError branch with --wheel <missing-path> against valid repo
+        valid_repo = _init_repo(Path(self._tmp.name) / "repo_oserror")
+        missing_wheel = str(valid_repo / "nonexistent.whl")
+        code, stdout, stderr = _capture_cli_separate(
+            ["sanitize", str(valid_repo), "--wheel", missing_wheel, "--agent"]
+        )
+        self.assertEqual(code, 2)
+        self.assertEqual(len(stdout.strip().splitlines()), 1)
+        rec = json.loads(stdout.strip())
+        self.assertEqual(rec.get("kind"), "error")
+        self.assertEqual(rec.get("outcome"), "cannot-run")
+        self.assertEqual(rec.get("exit"), 2)
+        self.assertIs(rec.get("verified"), False)
+        self.assertIs(rec.get("complete"), False)
+        self.assertEqual(rec.get("next"), "aw sanitize --help")
+        self.assertEqual(stderr, "")
+
+        # HUMAN-path controls (no machine flag)
+        # Non-git scan
+        code, stdout, stderr = _capture_cli_separate(["sanitize", str(non_git_dir)])
+        self.assertEqual(code, 2)
+        self.assertEqual(stdout, "")
+        self.assertEqual(
+            stderr, "check-local-leaks: not a git repository or git unavailable\n"
+        )
+
+        # Non-git --fix --yes
+        code, stdout, stderr = _capture_cli_separate(
+            ["sanitize", str(non_git_dir), "--fix", "--yes"]
+        )
+        self.assertEqual(code, 2)
+        self.assertEqual(stdout, "")
+        self.assertEqual(
+            stderr, "check-local-leaks: not a git repository or git unavailable\n"
+        )
+
+        # OSError human control
+        code, stdout, stderr = _capture_cli_separate(
+            ["sanitize", str(valid_repo), "--wheel", missing_wheel]
+        )
+        self.assertEqual(code, 2)
+        self.assertEqual(stdout, "")
+        self.assertTrue(stderr.startswith("check-local-leaks: [Errno 2]"))
+        self.assertIn(missing_wheel, stderr)

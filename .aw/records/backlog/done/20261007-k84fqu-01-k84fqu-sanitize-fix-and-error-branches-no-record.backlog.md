@@ -1,5 +1,5 @@
 - Id: k84fqu
-- Status: graduated
+- Status: done
 - Graduated-To: k84fqu
 - Blocks-Release: next
 - Set: k84fqu
@@ -8,6 +8,7 @@
 - Summary: aw sanitize --agent/--json writes nothing to stdout on the --fix branch and on its exit-2 error branches (not a git repo, OSError)
 
 ## Workflow history
+- 2026-10-13 done (aw backlog): closed by aw agy run: IPD 0e41gc executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20261012-k84fqu-01-0e41gc-emit-a-structured-record-from-aw-sanitize-s-fix-branch-and-i.ipd.md); evidence .aw/records/plans/executed/20261012-k84fqu-01-0e41gc-emit-a-structured-record-from-aw-sanitize-s-fix-branch-and-i.ipd.md
 - 2026-10-12 graduated (aw backlog): graduated by run run-20261012T005650Z-2322198: 0e41gc
 - 2026-10-07 created (aw backlog): aw sanitize --agent/--json writes nothing to stdout on the --fix branch and on its exit-2 error branches (not a git repo, OSError)
 
