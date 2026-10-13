@@ -6,7 +6,7 @@
 - Scope: After each execute turn and before finalize or integration, check the lane's commits since the turn began for (a) plan status or lifecycle-directory changes with no matching tool-written history line or, for `executed`, no `lifecycle(<id6>): finalize` commit in the range, reusing the predicates behind `check_status_untooled` and `executed_transition_gate`, and (b) lane changes the repository's pre-commit hooks would refuse, by re-running those hooks over the lane's net change in a disposable worktree; send any finding back as a fix-it turn (Order 03) with the specific undo-and-redo instruction; stop trusting a plan's directory alone in `outcome_precedence_disposition` and `finalize_already_done`. EXCLUDES push detection (Set `denypush`) and making the local hooks mandatory.
 - Scope-Paths: agent_workflows/runner_shared.py, agent_workflows/check_engine.py, agent_workflows/run_evidence.py, tests/test_lane_rule_break_detection.py, tests/test_host_capability_extension.py, tests/test_ipd_exec_finding_codes.py, tests/test_inlane_retirement_lands.py
 - Item-Dependencies: executed:mcbph5
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: high
@@ -18,9 +18,9 @@
 - Highest E allocated: 05
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: 62sdwr
-- Approval: 2026-10-12, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-13 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: 62sdwr verified (set fixfirst, attempt 1). [Scope reconciliation - in-scope-unmodified tests/test_host_capability_extension.py: declared-but-unmodified (auto-acknowledged by aw agy run); in-scope-unmodified tests/test_ipd_exec_finding_codes.py: declared-but-unmodified (auto-acknowledged by aw agy run)]
 - 2026-10-12 approved (aw set): status set to approved
 - 2026-10-11 reviewed (opencode/its_direct/pt3-claude-opus-5.5-1m-us): /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-900, PR-901, PR-902, PR-903, PR-904, PR-905, PR-906. Reviewed at HEAD 2284049fa. Hook re-run moved to one net-change pass in a disposable worktree (the lane --from-ref form measured checking the wrong content, missing staged gates and mutating the lane); executed evidence is the finalize commit, not the deleted journal; tooled retirement kept legitimate; RUN-COMMIT-GATEWAY stays unbound (OQ-02). Record: .aw/records/reviews/20261007-fixfirst-07-62sdwr-detect-untooled-status-changes-and-hook-skipping-commits-in.review.md.
 - 2026-10-07 to-review (aw set): authored review-ready from backlog coivul (maintainer rulings 2026-10-07)
