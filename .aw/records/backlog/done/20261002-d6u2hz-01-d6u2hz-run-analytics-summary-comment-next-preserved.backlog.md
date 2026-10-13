@@ -1,5 +1,5 @@
 - Id: d6u2hz
-- Status: graduated
+- Status: done
 - Graduated-To: d6u2hz
 - Set: d6u2hz
 - Priority: low
@@ -7,6 +7,7 @@
 - Summary: refresh the run_analytics_cli query-summary comment once a --fields projection preserves next, since its stated reason becomes false
 
 ## Workflow history
+- 2026-10-13 done (aw backlog): closed by aw agy run: IPD gbizqt executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20261012-d6u2hz-01-gbizqt-refresh-the-run-analytics-cli-query-summary-comment-now-that.ipd.md); evidence .aw/records/plans/executed/20261012-d6u2hz-01-gbizqt-refresh-the-run-analytics-cli-query-summary-comment-now-that.ipd.md
 - 2026-10-12 graduated (aw backlog): graduated by run run-20261012T005641Z-2321995: gbizqt
 - 2026-10-02 created (aw backlog): refresh the run_analytics_cli query-summary comment once a --fields projection preserves next, since its stated reason becomes false
 
