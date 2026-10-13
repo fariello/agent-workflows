@@ -6,7 +6,7 @@
 - Scope: IN: route the two residual HISTORY-record date writers (`coverage_record.write`'s workflow-history line and its `- Coverage-Checked:` date, and the proposal-fallback backlog record's `created` history line) through the existing `artifact_core.utc_history_date()`; add timezone-parameterized behavioral tests that drive both writers under a zone east and west of UTC and assert the UTC date; re-run the `date.today()`-class census over `agent_workflows/` and record a verdict for every site so no HISTORY writer is left unaccounted for. OUT, each with a reason under "Deferred": FILENAME date prefixes (D55 rules them LOCAL); the walkthrough `- Date:` front matter in `set_records.render_walkthrough` (front matter, not a history record); the `setdisp` dispatch unification; closing the backlog item (the runner sets `graduated`).
 - Scope-Paths: agent_workflows/coverage_record.py, agent_workflows/runner_shared.py, tests/test_history_date_clock_residual.py, CHANGELOG.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -18,9 +18,9 @@
 - Highest E allocated: 05
 - Author: opencode/its_direct/pt3-claude-opus-5.5-1m-us
 - Id: 8chbn9
-- Approval: 2026-10-12, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-13 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: 8chbn9 verified (set auf552, attempt 1).
 - 2026-10-12 approved (aw set): status set to approved
 - 2026-10-12 /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005 (all fixed; both writers re-driven local-dated under Honolulu at review; child-process tests now pin PYTHONPATH and drop the ambient worker role; record `.aw/records/reviews/20261011-auf552-01-8chbn9-put-the-coverage-record-and-proposal-fallback-history-writer.review.md`)
 - 2026-10-12 reviewed (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-005 fixed
