@@ -5,8 +5,9 @@
 - Concern: Two of the ten fail-gate items (`2rm0gz`, `iosmvn`) did their job correctly, writing plans that each carried the right `From-Backlog:`, and were still failed with "produced new plan(s) (...) linking a different item or none". The plans named (`jykyqb`, `ml7b9e`, `k6clui`) were not theirs: other runs running at the same time had just merged them into main. The check decides which plans a turn "produced" by comparing the lane's plans after the turn against a list of plans taken BEFORE the turn, and that list missed plans that the lane did contain, so other runs' plans looked new.
 - Scope: On an isolated run, compute the pre-turn plan list (and the continued-plan list) from the lane worktree right after it is allocated and before the agent turn, instead of from an earlier read of the main checkout, so the comparison is between two states of the same tree and a concurrent merge cannot fall between them. On a non-isolated run, keep reading the shared checkout's working tree but move the read to the same point (immediately before the turn), which narrows the window and does not close it (see Deferred). Use the same fix for spec production, which uses the same comparison. No change to which plans count as linked, or to the checks' messages.
 - Scope-Paths: agent_workflows/runner_shared.py, tests/test_production_baseline_same_commit.py
+- Scope-Exceeded: .aw/records/backlog/open/20261013-pex4pv-01-pex4pv-commit-spec-transition-output-fails-git-add-on-ren.backlog.md (Defect backlog item pex4pv filed for commit_spec_transition_output failure)
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: high
@@ -16,9 +17,9 @@
 - Highest E allocated: 04
 - Author: opencode model=its_direct/pt3-claude-opus-5.5-1m-us
 - Id: s95x79
-- Approval: 2026-10-12, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-13 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: s95x79 verified (set gradfix, attempt 1). [Scope reconciliation - out-of-scope .aw/records/backlog/open/20261013-pex4pv-01-pex4pv-commit-spec-transition-output-fails-git-add-on-ren.backlog.md: Defect backlog item pex4pv filed for commit_spec_transition_output failure]
 - 2026-10-12 approved (aw set): status set to approved
 - 2026-10-12 reviewed (aw set): /plan-review (opencode model=its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-008. Record: .aw/records/reviews/20261012-gradfix-02-s95x79-take-the-graduation-baseline-from-the-same-commit-the-lane-i.review.md Round 1
 - 2026-10-12 to-review (aw set): authored to fix the 2026-10-12 fail-gate cluster (Set gradfix)
