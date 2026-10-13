@@ -2,22 +2,25 @@
 
 - Date: 2026-10-12
 - Kind: child
-- Concern: Every `tests.yml` run since 2026-09-27 has failed. In the last completed run (`38168033704`, commit `3468cabbd`, 2026-10-11) four separate causes fail the jobs: (1) every Python 3.9 leg fails at `pip install -e ".[test]"`, because the `test` extra pins `filelock>=4` and filelock 4.x requires Python >=3.10 (`ResolutionImpossible`), while `requires-python = ">=3.9"`; (2) the unit-test legs that do install report 20 failed and 2 errors, among them tests using 3.11+ only APIs (`typing.Self` in `tests/test_egress_policy.py`, `contextlib.chdir` in `tests/test_run_dir_outcomes_parent_is_guaranteed.py`), tests that need the `agy` binary on PATH, a sandbox probe that needs user namespaces, and tests sensitive to an interactive terminal; (3) the static type gate reports 15 mypy errors in 8 files; (4) the `attention + specs contract check` job fails on `aw check plans --agent` with 15 findings, i.e. committed plan records that do not conform.
+- Concern: Every `tests.yml` run since 2026-09-27 has failed. In the last completed run (`38168033704`, commit `3468cabbd`, 2026-10-11) five separate causes fail the jobs: (1) every Python 3.9 leg fails at `pip install -e ".[test]"`, because the `test` extra pins `filelock>=4` and filelock 4.x requires Python >=3.10 (`ResolutionImpossible`), while `requires-python = ">=3.9"`; (2) the unit-test legs that do install report 20 failed and 2 errors, among them 3.11+ only APIs (`typing.Self` imported by production module `agent_workflows/egress_policy.py`, which `tests/test_egress_policy.py` imports; `contextlib.chdir` in `tests/test_run_dir_outcomes_parent_is_guaranteed.py`), tests that need the `agy` binary on PATH, a sandbox probe that needs user namespaces, and tests sensitive to an interactive terminal; (3) the static type gate reports 15 mypy errors in 8 files; (4) the `attention + specs contract check` job fails on `aw check plans --agent` (exit 1), i.e. committed plan records that do not conform; (5) the same job's later `aw check backlog --agent` step also exits 1 (two backlog filenames off the naming grammar), masked today because the earlier step fails first. A sixth cause is latent behind the 3.9 install failure: `tests/test_check_engine_spec_criteria.py` does not compile on 3.9 (a backslash inside an f-string expression).
 - Scope: Make every job in `tests.yml` pass on main, on every OS and Python leg it declares, without removing a leg and without weakening a gate. Fix the code, the tests and the records; do not skip tests, lower a gate's severity, or loosen the type gate to get there. If one leg's failure needs a maintainer decision (for example dropping Python 3.9 support), stop that item and ask, because that changes the published support contract.
 - Scope-Paths: pyproject.toml, tests, agent_workflows, .aw/records/plans, .aw/records/backlog, .github/workflows/tests.yml
 - Item-Dependencies: none
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: high
 - From-Backlog: 5st6e5
 - Blocks-Release: next
 - Set: cihealth
 - Order: 1
-- Highest E allocated: 06
+- Highest E allocated: 07
 - Author: opencode model=its_direct/pt3-claude-opus-5.5-1m-us
 - Id: ezyb4a
 
 ## Workflow history
+- 2026-10-13 reviewed (aw set): plan-review done
+- 2026-10-12 /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-008
 - 2026-10-12 to-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): authored during /plan-review of Set gradfix; failures measured from run 38168033704 job logs.
 - 2026-10-12 draft (opencode model=its_direct/pt3-claude-opus-5.5-1m-us): created.
 
@@ -31,37 +34,42 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: re-measure
 
-- [ ] E-01 RE-MEASURE the failures at execution HEAD. Failures drift, so the review-time list in Findings is context, not the bar. Fetch the latest completed `tests.yml` run (`gh run list --workflow tests.yml`, then `gh run view <id> --json jobs` and `gh api repos/<owner>/<repo>/actions/jobs/<job>/logs`) and record, per failing job: the job name, the failing step, and each failing test id or error line. Also run, locally: the bare suite (`python3 -m pytest`), the type gate exactly as `tests.yml` runs it, and `python -m agent_workflows check plans --agent`. Paste a table grouping every failure under one of: install, Python-version API, missing external binary, environment-dependent (sandbox, terminal), real defect, type error, record conformance.
+- [ ] E-01 RE-MEASURE the failures at execution HEAD. Failures drift, so the review-time list in Findings is context, not the bar. Fetch the latest completed `tests.yml` run (`gh run list --workflow tests.yml`, then `gh run view <id> --json jobs` and `gh api repos/<owner>/<repo>/actions/jobs/<job>/logs`) and record, per failing job: the job name, the failing step, and each failing test id or error line. Also run, locally: the bare suite (`python3 -m pytest`); the bare suite again under a Python 3.9 interpreter in a throwaway venv (for example `uv venv -p 3.9 /tmp/<dir>` then `pip install -e ".[test]"` once E-02 lets it resolve, or `python3.9 -m py_compile` over `tests/` and an import of every `agent_workflows` module before that), because the maintainer machine runs 3.14 and every version-specific failure is invisible there; the bare suite once with `agy` removed from PATH, because the maintainer machine has it and CI does not; the type gate exactly as `tests.yml` runs it (on 3.12, `python -m mypy agent_workflows`, recording the resolved mypy version, since `mypy>=1.18,<3` floats); and EVERY step of the `attention + specs contract check` job, not only `check plans` (a failing step hides the steps after it). Paste a table grouping every failure under one of: install, Python-version API, missing external binary, environment-dependent (sandbox, terminal), real defect, type error, record conformance.
   - Depends on: none
   - Expected outcome: a pasted, grouped failure table naming the run id and HEAD.
   - Execution state: pending
 
 ### Task group 2: fix by group
 
-- [ ] E-02 Fix the 3.9 install. The `test` extra and the `dev` group pin `filelock>=4`, which needs Python >=3.10. Use an environment marker so 3.9 resolves a 3.x filelock and 3.10+ keeps the >=4 floor (for example `"filelock>=4; python_version >= '3.10'"` plus `"filelock>=3; python_version < '3.10'"`), and keep the shipped runtime dependency `filelock>=3` unchanged. If the type gate's baseline depends on filelock 4 (see the `pyproject.toml` E-07 comment), confirm the type gate job installs on 3.10+ only and still passes. Prove it with `pip install -e ".[test]"` resolving under a 3.9 interpreter (or `pip install --dry-run --python-version 3.9 --only-binary=:all:` against the extra), and paste the output.
+- [ ] E-02 Fix the 3.9 install. The `test` extra and the `dev` group pin `filelock>=4`, which needs Python >=3.10. Use an environment marker so 3.9 resolves a 3.x filelock and 3.10+ keeps the >=4 floor (for example `"filelock>=4; python_version >= '3.10'"` plus `"filelock>=3; python_version < '3.10'"`), and keep the shipped runtime dependency `filelock>=3` unchanged. If the type gate's baseline depends on filelock 4 (see the `pyproject.toml` E-07 comment), confirm the type gate job installs on 3.10+ only and still passes. Change the `test` extra and the `dev` group identically (they are kept in sync), and update the `ENVIRONMENT PIN FOR filelock (E-07)` comment block above them to say the >=4 floor applies on 3.10+ only. The runtime already tolerates filelock 3 (`platform_lock._supports_preserve_lock_file` gates the 4.0-only keyword), so no code change follows. Review demonstrated the marker resolves: `uv pip compile --python-version 3.9` over `filelock>=4; python_version >= "3.10"`, `filelock>=3; python_version < "3.10"`, `mypy>=1.18,<3` gave `filelock==3.19.1`, `mypy==1.19.1`; with `--python-version 3.12` it gave `filelock==4.1.1`, `mypy==2.4.0`. Prove it on the real `pyproject.toml` with `pip install -e ".[test]"` under a 3.9 interpreter and under 3.10+, and paste the output.
   - Depends on: E-01
   - Expected outcome: `pip install -e ".[test]"` resolves on 3.9 and on 3.10+.
   - Execution state: pending
 
-- [ ] E-03 Fix the Python-version API failures. Replace 3.11+ only APIs in tests and code with forms available on 3.9 (for example `typing_extensions.Self` or a quoted annotation instead of `typing.Self`; an explicit `os.chdir` with `try`/`finally` instead of `contextlib.chdir`), and fix any other version-specific failure E-01 found. Do not mark a test skipped by version unless the behavior under test genuinely does not exist on that version, and say why where you do.
+- [ ] E-03 Fix the Python-version API failures. Replace newer-only APIs and syntax in tests and code with forms available on 3.9, and fix any other version-specific failure E-01 found. Known at review: (a) `agent_workflows/egress_policy.py` imports `Self` from `typing` (3.11+) for `EgressBroker.__enter__`; the module already has `from __future__ import annotations`, so annotate `-> "EgressBroker"` or import `Self` under `typing.TYPE_CHECKING` only; do NOT add a `typing_extensions` runtime dependency (`dependencies` is `filelock>=3` alone, and adding one is a published contract change); (b) `contextlib.chdir` (3.11+) in `tests/test_run_dir_outcomes_parent_is_guaranteed.py`: use `os.chdir` in `try`/`finally`; (c) `tests/test_check_engine_spec_criteria.py` (`test_sentinel_links_treated_as_absent`) puts `'\"-'` inside an f-string expression, a `SyntaxError` before 3.12 that fails collection of the whole 3.9 to 3.11 legs: hoist the expression into a local variable. Do not mark a test skipped by version unless the behavior under test genuinely does not exist on that version, and say why where you do.
   - Depends on: E-01
   - Expected outcome: no collection error or `AttributeError`/`ImportError` from a missing API on any leg.
   - Execution state: pending
 
-- [ ] E-04 Fix the environment-dependent failures. A test that needs the `agy` binary, user namespaces, or an interactive terminal must not depend on the CI machine having them: give it the fake binary or seam the neighbouring tests already use (for example the scripted host), or detect the missing capability and skip with the reason, choosing per test and recording which and why. Fix every real defect E-01 found (for example `lanes list` emitting empty stdout under `--agent`, the completion-offer tests) in the code, not in the test.
+- [ ] E-04 Fix the environment-dependent failures. A test that needs the `agy` binary, user namespaces, or an interactive terminal must not depend on the CI machine having them: give it the fake binary or seam the neighbouring tests already use (for example the scripted host), or detect the missing capability and skip with the reason, choosing per test and recording which and why. Reproduce each one locally first (E-01's run with `agy` off PATH), because a test that passes on the maintainer machine only because `agy` is installed is the failure, not a pass. Fix every real defect E-01 found (for example `lanes list` emitting empty stdout under `--agent`, the completion-offer tests) in the code, not in the test.
   - Depends on: E-01
   - Expected outcome: every unit-test leg passes, with each skip carrying a stated reason.
   - Execution state: pending
 
-- [ ] E-05 Fix the type errors and the record findings. Resolve each mypy error the type gate reports (15 at review: `Unsupported left operand type for + ("None")` in `specs.py`, `backlog.py`, `releases.py`, `cli.py`, `research_refs.py`, `research_archive.py`, `attention.py`, and two `Incompatible return value type ... ScopeReconciliation` in `runner_shared.py`) in the code, without adding `type: ignore` unless a line genuinely cannot be typed, and say why where you do. Resolve each `aw check plans` finding (15 at review, across `check.lifecycle-transition-unvalidated`, `check.ipd-carrier-ungated`, `check.ipd-uncarried-obligation` and others) by fixing the record through the shipped tooling (`aw ipd set`, `aw ipd sync`, adding a `Carrier`), never by editing a plan already in `executed/` beyond a dated `## Workflow history` note.
+- [ ] E-05 Fix the type errors. Resolve each mypy error the type gate reports (15 at review: `Unsupported left operand type for + ("None")` in `specs.py`, `backlog.py`, `releases.py`, `cli.py`, `research_refs.py`, `research_archive.py`, `attention.py`, and two `Incompatible return value type ... ScopeReconciliation` in `runner_shared.py`) in the code, without adding `type: ignore` unless a line genuinely cannot be typed, and say why where you do. Run the gate in the CI environment (3.12, the mypy version `.[test]` resolves there), because the error set depends on the resolved mypy and filelock versions (see the `STATIC TYPE GATE CONFIGURATION` comment in `pyproject.toml`).
+  - Depends on: E-01, E-02
+  - Expected outcome: `python -m mypy agent_workflows` exits 0 under 3.12 with the `.[test]` resolution.
+  - Execution state: pending
+
+- [ ] E-07 Fix the record findings. Make every step of the `attention + specs contract check` job exit 0. Only `error` and `warning` findings fail a step (`artifact_core.drift_exit_code` exempts only `info`), so fix those and leave `info` advisories alone. At review (re-derive at execution; the population grows as plans are authored): `aw check plans` reported `check.ipd-uncarried-obligation` [ERROR] on about 45 pending plans and `check.review-decision-unescalated` [WARNING] on one review record (`usggph-02` D-1), and `aw check backlog` reported two filename-grammar errors (`m88gwh`, `upkghw`). Fix each record through the shipped tooling: a `- Carrier: <id6>` (or `- Carrier-Declined:` with a reason) on each uncarried row, a judged `Reversible` value on the decision row, `aw rename` for the misnamed backlog files; never by editing a plan already in `executed/` beyond a dated `## Workflow history` note, and never by lowering a rule's severity.
   - Depends on: E-01
-  - Expected outcome: the type gate and `aw check plans --agent` both exit 0 locally, as CI runs them.
+  - Expected outcome: each step of the job (`specs check`, `attention --check`, `check plans`, `check releases`, `check backlog`, `check release-gates`, the ruff F811 check, the dead status token scan) exits 0 locally.
   - Execution state: pending
 
 ### Task group 3: prove on CI
 
-- [ ] E-06 Prove it on CI. Run the bare suite locally and paste the summary line. After integration to main, wait for the `tests.yml` run on that commit (`gh run watch <id>` or poll `gh run list`) and paste every job's conclusion. If any job still fails, fix it under the group it belongs to and repeat; do not report this plan done on a red run.
-  - Depends on: E-02, E-03, E-04, E-05
+- [ ] E-06 Prove it on CI. Run the bare suite locally and paste the summary line. After integration to main, wait for the `tests.yml` run on that commit (`gh run watch <id>` or poll `gh run list`) and paste every job's conclusion. The run must be for a commit that contains this plan's commits (show `git merge-base --is-ancestor <last plan commit> <run head sha>` exiting 0); a green run on an earlier commit is not evidence. If any job still fails, fix it under the group it belongs to and repeat; do not report this plan done on a red run.
+  - Depends on: E-02, E-03, E-04, E-05, E-07
   - Expected outcome: a `tests.yml` run on main with every job `success`.
   - Execution state: pending
 
@@ -78,14 +86,16 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 |----|---------|----------|
 | F-01 | CI red since 2026-09-27; 1,623 first-parent main commits since the last green run. | `gh run list --workflow tests.yml`: last `success` 2026-09-27 at `f69ad318a`; `git log --first-parent f69ad318a..main` = 1623 (2026-10-12). |
 | F-02 | Every 3.9 leg fails at install. | Job `unittest (windows-latest, py3.9)` log: "agent-workflows[test] ... depends on filelock>=4" with "ResolutionImpossible"; filelock 4.0.0 `requires_python >=3.10` (PyPI JSON). |
-| F-03 | 3.10 leg: 20 failed, 2 errors, 7146 passed. | Job `unittest (ubuntu-latest, py3.10)`: `ImportError: cannot import name 'Self' from 'typing'`; `AttributeError: module 'contextlib' has no attribute 'chdir'`; `Cannot find 'agy' on PATH`; `unshare: write failed /proc/self/uid_map: Operation not permitted`; `Leaf 'lanes list' emitted EMPTY stdout under --agent`; completion and interactivity assertions. |
+| F-03 | 3.10 leg: 20 failed, 2 errors, 7146 passed. | Job `unittest (ubuntu-latest, py3.10)`: `ImportError: cannot import name 'Self' from 'typing'` (source: `agent_workflows/egress_policy.py` `from typing import Any, Callable, Self`, for `EgressBroker.__enter__`); `AttributeError: module 'contextlib' has no attribute 'chdir'`; `Cannot find 'agy' on PATH`; `unshare: write failed /proc/self/uid_map: Operation not permitted`; `Leaf 'lanes list' emitted EMPTY stdout under --agent`; completion and interactivity assertions. |
 | F-04 | Type gate: 15 errors in 8 files. | Job `static type gate (fail-closed)`: "Found 15 errors in 8 files (checked 193 source files)". |
-| F-05 | Records job fails on `aw check plans`. | Job `attention + specs contract check (fail-closed)`: `check plans --agent` -> `"findings":15`, exit 1. |
+| F-05 | Records job fails on `aw check plans`. | Job `attention + specs contract check (fail-closed)`: `check plans --agent` -> `"findings":15`, exit 1. At review HEAD `3e328494b`: 173 findings, exit 1; the failing ones are `check.ipd-uncarried-obligation` [ERROR] and `check.review-decision-unescalated` [WARNING]; the rest are `info` and do not fail. |
+| F-06 | The same job's `check backlog` step would also fail. | At review HEAD: `python -m agent_workflows check backlog --agent` exit 1, "Filename does not match artifact naming grammar" on `20261001-m88gwh-01-...` and `20261008-upkghw-01-...`. `specs check`, `attention --check`, `check releases`, `check release-gates` and the dead status token scan exit 0. |
+| F-07 | A 3.9 syntax error waits behind the install failure. | `python3.9 -m py_compile tests/test_check_engine_spec_criteria.py`: line 237 "SyntaxError: f-string expression part cannot include a backslash". |
 
 ## Proposed changes (ordered, validatable)
 
 1. Re-measure (E-01).
-2. Install, version APIs, environment, types and records, one group per item (E-02..E-05).
+2. Install, version APIs, environment, types, and records, one group per item (E-02..E-05, E-07).
 3. Prove on CI (E-06).
 
 ## Deferred / out of scope (with reason)
@@ -101,7 +111,8 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 ## Required tests / validation
 
 - The bare suite locally.
-- The type gate and `aw check plans --agent` locally, as CI runs them.
+- The type gate (3.12) and every step of the records job locally, as CI runs them.
+- The previously failing tests under a 3.9 interpreter.
 - A green `tests.yml` run on main (E-06).
 
 ## Spec / documentation sync
@@ -142,12 +153,17 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Result: pending
 
 - [ ] V-05 validates E-05
-  - Required evidence: the type gate's pasted "Success" line and `aw check plans --agent` with `"findings":0` and exit 0.
+  - Required evidence: the diff, the resolved mypy version, and the type gate's pasted "Success: no issues found" line under 3.12.
   - Observed evidence:
   - Result: pending
 
 - [ ] V-06 validates E-06
-  - Required evidence: the bare-suite summary line and the pasted job list of the main `tests.yml` run, every job `success`.
+  - Required evidence: the bare-suite summary line, the pasted job list of the main `tests.yml` run with every job `success`, and the pasted `git merge-base --is-ancestor` check showing that run's head contains this plan's commits.
+  - Observed evidence:
+  - Result: pending
+
+- [ ] V-07 validates E-07
+  - Required evidence: the diff of the changed records, and each records-job step's pasted `aw.agent/v1` result line (or exit status for the non-`aw` steps) with exit 0. Remaining `info` findings are expected and are not a failure; `"findings":0` is NOT the bar (an `info` advisory such as `check.collisions-not-checked` is always emitted by a per-type run).
   - Observed evidence:
   - Result: pending
 
