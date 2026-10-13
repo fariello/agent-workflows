@@ -6,7 +6,7 @@
 - Scope: Verification-only. Re-measure the named test in isolation and in the full default suite, confirm the two existing fixes are present and behaving, and record the evidence in this plan so `cqgr7f` can be closed as satisfied by this plan's execution. No production or test code change.
 - Scope-Paths: .aw/records/plans/**
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -17,9 +17,9 @@
 - Highest E allocated: 04
 - Author: opencode
 - Id: d22iwu
-- Approval: 2026-10-12, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-13 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: d22iwu verified (set cqgr7f, attempt 1).
 - 2026-10-12 approved (aw set): status set to approved
 - 2026-10-12 reviewed (aw set): plan-review complete: APPROVE WITH REVISIONS APPLIED
 
