@@ -41833,6 +41833,8 @@ def perform_coordinator_proposal_file(
 {body_text}
 """
         else:
+            from agent_workflows import artifact_core as _core
+
             fallback_content = f"""- Id: {item_id6}
 - Status: open
 """
@@ -41844,7 +41846,7 @@ def perform_coordinator_proposal_file(
 - Summary: Proposal from {item_id6}: {clean_summary}
 
 ## Workflow history
-- {dt.date.today().strftime('%Y-%m-%d')} created (proposal fallback): Proposal from {item_id6}
+- {_core.utc_history_date()} created (proposal fallback): Proposal from {item_id6}
 
 {body_text}
 """
