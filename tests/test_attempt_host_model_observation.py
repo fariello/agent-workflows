@@ -550,11 +550,22 @@ class TestAttemptHostModelObservation(unittest.TestCase):
         self.assertEqual(rec["host_model"], "p1/m1")
         self.assertTrue(proc.terminated)
 
+    def test_test_environment_guard_blocks_real_host_spawn(self) -> None:
+        """Calling observe_host_model in a test without an injected launcher returns None without spawning."""
+        from unittest import mock
+
+        with mock.patch("subprocess.Popen") as mock_popen:
+            rec = oc_runipd.observe_host_model("ses_test_session")
+            self.assertIsNone(rec)
+            mock_popen.assert_not_called()
+
     @pytest.mark.slow
     def test_real_host_export_bounded_read(self) -> None:
         """Spawns the real opencode host binary on a known session if available."""
         if not shutil.which("opencode"):
             self.skipTest("opencode binary not installed")
         # Test nonexistent session returns None without raising
-        rec = oc_runipd.observe_host_model("ses_<nonexistent>")
+        rec = oc_runipd.observe_host_model(
+            "ses_<nonexistent>", options={"allow_real_host_export": True}
+        )
         self.assertIsNone(rec)

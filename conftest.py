@@ -35,6 +35,7 @@ import threading as _threading
 import pytest
 
 pytest_plugins = ["tests.deselect_notice", "tests.livecorpus_notice"]
+os.environ.setdefault("AW_IN_TEST_SESSION", "1")
 
 
 def _available_cpus() -> int:

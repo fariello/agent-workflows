@@ -3565,6 +3565,25 @@ def observe_host_model(
     if effective_repo and not is_host_model_observation_enabled(effective_repo):
         return None
 
+    if launcher is None:
+        launcher = opts.get("observe_host_model_launcher") or opts.get("launcher")
+
+    # Guard: never spawn a real host subprocess from inside a test suite unless
+    # explicitly permitted (e.g. opts['allow_real_host_export'] or AW_REAL_OPENCODE_SPAWN).
+    # Tests verifying observe_host_model must inject a mock launcher or double.
+    if launcher is None:
+        in_test = bool(
+            os.environ.get("PYTEST_CURRENT_TEST")
+            or os.environ.get("AW_IN_TEST_SESSION")
+            or os.environ.get("AW_TEST_ENV")
+        )
+        allow_spawn = bool(
+            opts.get("allow_real_host_export")
+            or os.environ.get("AW_REAL_OPENCODE_SPAWN")
+        )
+        if in_test and not allow_spawn:
+            return None
+
     # Resolves the binary from options.get("opencode") or "opencode", identical to
     # run_opencode's launch resolution, falling back to "opencode" when the key is absent.
     # This ensures custom host binaries pinned via --opencode are interrogated rather than

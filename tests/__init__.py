@@ -31,6 +31,11 @@ if not os.environ.get("AW_HOME"):
     os.environ.setdefault("XDG_CONFIG_HOME", os.path.join(_AW_TEST_HOME, "xdg-config"))
     atexit.register(shutil.rmtree, _AW_TEST_HOME, True)
 
+# Test-session guard: ensure runner functions know a test suite is executing,
+# preventing unintended external host subprocess spawns (e.g. opencode export)
+# when tests drive runner code without an injected launcher double.
+os.environ.setdefault("AW_IN_TEST_SESSION", "1")
+
 # Network/credential guard: a test may create a repo with a real remote (e.g. an
 # https://github.com/... origin) and then reach code that probes it (git ls-remote /
 # fetch). Without this, git blocks on an interactive credential prompt (the editor's
