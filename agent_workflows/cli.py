@@ -4375,7 +4375,9 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Partition artifacts into balanced runner shards while preserving dependencies.",
         description=(
             "Partition artifacts (plans, backlog, specs) into balanced runner shards while keeping "
-            "dependencies clustered together to prevent concurrent runner failures. Formats cut-and-paste "
+            "dependencies and Set members clustered together to prevent concurrent runner failures. "
+            "For plans, an orchestrator travels with its unfinished children, and incomplete Sets are "
+            "refused by default (exit 2) unless --allow-partial-sets is passed. Formats cut-and-paste "
             "`aw oc run` or `aw agy run` commands."
         ),
         formatter_class=_AlphaHelpFormatter,
@@ -4383,6 +4385,7 @@ def _build_parser() -> argparse.ArgumentParser:
             "EXAMPLES\n"
             "  aw partition -t plans approved            # split approved plans into 3 shards\n"
             "  aw partition -t plans -n 3 -s approved    # same with explicit shard count\n"
+            "  aw partition -t plans --allow-partial-sets # schedule ready plans, holding back orchestrators\n"
             "  aw partition -t backlog -s open -n 2 --max 100 # split 100 oldest open backlog items to plan\n"
             "  aw partition -t specs -s to-review -n 2   # partition specs needing review\n"
             "  aw partition -t plans --max 30 --run oc   # partition first 30 approved plans for OpenCode\n"
@@ -4484,6 +4487,13 @@ def _build_parser() -> argparse.ArgumentParser:
         action="store_true",
         default=False,
         help="Read artifact IDs explicitly from standard input.",
+    )
+    p_partition.add_argument(
+        "--allow-partial-sets",
+        dest="allow_partial_sets",
+        action="store_true",
+        default=False,
+        help="Schedule the ready plans of a Set that cannot finish in this batch. The Set's orchestrator is never scheduled until every child can run.",
     )
     p_partition.add_argument(
         "--dir", default=None, help="Repo root (default: current directory)."
