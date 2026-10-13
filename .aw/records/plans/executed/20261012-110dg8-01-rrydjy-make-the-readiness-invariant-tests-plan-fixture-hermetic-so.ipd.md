@@ -6,7 +6,7 @@
 - Scope: Replace the live-corpus subject selection used by properties 2-4 with the module's existing synthetic plan, keep property 1 (the genuine live-corpus partition, already marked `livecorpus`) unchanged, and update the module docstring to match.
 - Scope-Paths: tests/test_readiness_absence_invariant.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -17,9 +17,9 @@
 - Highest E allocated: 03
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: rrydjy
-- Approval: 2026-10-12, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-13 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: rrydjy verified (set 110dg8, attempt 1).
 - 2026-10-12 approved (aw set): status set to approved
 
 - 2026-10-12 reviewed (opencode its_direct/pt3-claude-opus-5.5-1m-us): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-001, PR-002 fixed.
