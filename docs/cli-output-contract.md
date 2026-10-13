@@ -139,6 +139,7 @@ for. Use the driver's own flags there.
 execution and behavioral dispatch, verifying flag acceptance on parsed commands, pre-dispatch consumption on
 forwarded driver commands without unrecognized argument errors, exit 2 mutual exclusion on both operator and
 parser backstop paths, and `--` token passthrough.
+`tests/test_shared_flag_honored.py` asserts every leaf declaring `--json`/`--fields` honors them observably and pins the forwarded-leaf exemption.
 
 ---
 
