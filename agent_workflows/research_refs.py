@@ -832,7 +832,7 @@ def run_check_refs(args: argparse.Namespace) -> int:
             return get_renderer(ctx).emit(res, ctx)
         import sys
 
-        sys.stderr.write(refusal.human_message + "\n")
+        sys.stderr.write((refusal.human_message or "") + "\n")
         return 2
 
     danglers, files_examined = find_dangling_citations_counted(repo_root)

@@ -92,8 +92,11 @@ Order is forced: 01 removes the largest pure waste and is independent; 02 create
 ## Deferred / out of scope (with reason)
 
 - The stall watchdog treating a long-running shell tool as idle in general (beyond suite-lock waits and suite runs, which `xvm6no` E-04 covers): a separate defect with its own blast radius. NOT YET TRACKED: no backlog item exists for it at review (2026-10-12); the maintainer should file it with `aw backlog new` (prose here is not a tracked work surface). Filing it is not this Set's deliverable and no child owns it.
+  - Carrier-Declined: deliberate non-goal or out of scope for this plan as described above
 - Limiting how many DRIVERS run at once or warning on host load: a separate defect; this Set bounds suites, not drivers. NOT YET TRACKED: no backlog item exists for it at review (2026-10-12); the maintainer should file it with `aw backlog new`.
+  - Carrier-Declined: deliberate non-goal or out of scope for this plan as described above
 - Sharing a cache across machines: the cache is local to the git common dir; a remote cache needs a trust model.
+  - Carrier-Declined: deliberate non-goal or out of scope for this plan as described above
 
 ## Scope check
 

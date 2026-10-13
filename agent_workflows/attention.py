@@ -4244,7 +4244,7 @@ def run(args) -> int:
                 next_actions=next_actions,
             )
             return get_renderer(ctx).emit(res, ctx)
-        sys.stderr.write(refusal.human_message + "\n")
+        sys.stderr.write((refusal.human_message or "") + "\n")
         return EXIT_CANNOT_RUN
 
     type_filters = parse_type_filters(getattr(args, "types", None))

@@ -85,7 +85,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 ## Deferred / out of scope (with reason)
 
 - Reconciling `ipd_lint._REVIEW_EVIDENCE_RE` (mention matcher) with `plan_readiness.is_review_history_entry` (structural classifier). The disagreement is real (F-02). It is a separate linter behavior question, and it is not needed to fix this test's environmental coupling.
+  - Carrier-Declined: deliberate non-goal or out of scope for this plan as described above
 - Property 1's own live-corpus failures (for example the `to-review` plans carrying `- Readiness:` recorded in `l56tyz` F-14). That test is correctly a corpus assertion under `livecorpus`, and its violations belong to the plans that cause them.
+  - Carrier-Declined: deliberate non-goal or out of scope for this plan as described above
 
 ## Scope check
 

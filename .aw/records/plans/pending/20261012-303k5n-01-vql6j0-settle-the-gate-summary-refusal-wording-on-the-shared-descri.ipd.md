@@ -86,8 +86,11 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 ## Deferred / out of scope (with reason)
 
 - The kind/ref messages of `validate_gate_flags` (`requires --gate-kind and --gate-ref`, `--gate-kind must be one of ...`, `--gate-ref is invalid for kind ...`): they are typed-gate validity refusals, not Section 8.8 descriptive refusals, and are pinned by `tests/test_gate_pair_validation_parity.py`; out of the backlog item's scope.
+  - Carrier-Declined: deliberate non-goal or out of scope for this plan as described above
 - `check`-time drift messages (`specs.validate_spec`'s "Gate-Summary is over-length or has control chars/newlines", `backlog.validate_item`'s "Gate-Summary not a single bounded control-char-free line"): these are stable named-rule diagnostics (`attention.unsafe-field`, `backlog.gate-descriptive-unsafe`) for already-written records, not CLI refusals of a flag, and the backlog item does not cover them.
+  - Carrier-Declined: deliberate non-goal or out of scope for this plan as described above
 - Removing the per-module `_refuse_unsafe_descriptive` wrappers: retained by `685iq8` deliberately for existing call sites.
+  - Carrier-Declined: deliberate non-goal or out of scope for this plan as described above
 
 ## Scope check
 

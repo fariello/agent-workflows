@@ -97,8 +97,11 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 ## Deferred / out of scope (with reason)
 
 - Caching in production (`aw host`, runner preflight): out of scope; the docstring's staleness rationale stands and the backlog item is about test suites only.
+  - Carrier-Declined: deliberate non-goal or out of scope for this plan as described above
 - A pytest-wide autouse fixture enabling the memo: rejected because it would silently cache inside probe-behavior tests; per-class opt-in keeps those tests honest.
+  - Carrier-Declined: deliberate non-goal or out of scope for this plan as described above
 - Reducing `_capture_turn_argv` or sandbox-ladder costs: separate concern, not named by the backlog item.
+  - Carrier-Declined: deliberate non-goal or out of scope for this plan as described above
 
 ## Scope check
 

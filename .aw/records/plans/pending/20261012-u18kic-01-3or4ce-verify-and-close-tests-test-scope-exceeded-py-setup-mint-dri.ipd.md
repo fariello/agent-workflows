@@ -80,7 +80,9 @@ The backlog item was filed the same day the fix landed and was never closed (its
 ## Deferred / out of scope (with reason)
 
 - `h3fnoc` (scope-reconciliation send-back misclassification) and `8o7gco` (checkout git identity overwritten), filed in the same commit 64b8c94f3, are separate backlog items with their own lifecycle; not touched here.
+  - Carrier-Declined: deliberate non-goal or out of scope for this plan as described above
 - Adding a test that pins absence of the symbol is out of scope: it would be a code-pinning test, which the repository forbids.
+  - Carrier-Declined: deliberate non-goal or out of scope for this plan as described above
 
 ## Scope check
 

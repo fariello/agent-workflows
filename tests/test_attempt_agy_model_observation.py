@@ -9,6 +9,7 @@ from __future__ import annotations
 import inspect
 import io
 import json
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -76,6 +77,7 @@ def _drive_execute_turn_agy(
     state["options"]["validate"] = False
     state["options"]["no_verify"] = True
     state["options"]["output_mode"] = "quiet"
+    state["options"].setdefault("agy", sys.executable)
 
     outcome = run_dir / f"outcomes/{item['position']:02d}-{item['id6']}.json"
     outcome.write_text(

@@ -114,6 +114,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 - A HOOK-REJECTED SELF-COMMIT is not changed: `offer_commit`'s non-success path resets `our_staged`, which can also unstage a rename after a rejected commit. That is `offer_commit`'s failure-path contract, shared by every caller, and is not the `--no-commit`/non-interactive skip this item reports.
   - Carrier-Declined: different code path and contract, not the reported defect
 - Spec `wy9aru` is not edited: AC-5 already states the property this plan makes true.
+  - Carrier-Declined: deliberate non-goal or out of scope for this plan as described above
 
 ## Scope check
 

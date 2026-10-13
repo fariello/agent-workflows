@@ -82,7 +82,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 ## Deferred / out of scope (with reason)
 
 - A mechanical `aw check` rule for flags dropped by argv reserialization stays with the follow-up that `xym8g8` filed. This plan removes one instance and does not add the rule.
+  - Carrier-Declined: deliberate non-goal or out of scope for this plan as described above
 - `setup-repo/tools/normalize_plan_names.py` and its own CLI `main(argv)` stay. The script is live, because `check_engine` and `ipd_lint` load it.
+  - Carrier-Declined: deliberate non-goal or out of scope for this plan as described above
 
 ## Scope check
 

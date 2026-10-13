@@ -97,8 +97,11 @@ Alternatives considered and rejected: (i) emit `kind: "result"` and re-declare `
 ## Deferred / out of scope (with reason)
 
 - Non-empty `--agent` stream (`--latest-only`, `--summary-only`, `--issues`, per-run lines, the bare `excluded_runs` line) and the bare `{"error": ..., "exit_code": 2}` flag-conflict / `--since` refusals: filed as backlog `4d3ynu`; choosing an item-record shape for `RunSummary` is a separate public-contract change for every `aw runs` consumer.
+  - Carrier-Declined: deliberate non-goal or out of scope for this plan as described above
 - Adding `runs list` to the agent conformance UNIVERSE: blocked on `4d3ynu` for the reason in alternative (i).
+  - Carrier-Declined: deliberate non-goal or out of scope for this plan as described above
 - `--issues` empty output under `--agent` (prints nothing at exit 0): reached by a different branch (`issues_only` excludes this one); belongs with `4d3ynu`'s stream decision.
+  - Carrier-Declined: deliberate non-goal or out of scope for this plan as described above
 
 ## Scope check
 

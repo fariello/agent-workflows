@@ -128,9 +128,13 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 ## Deferred / out of scope (with reason)
 
 - Denying `external_directory` on a non-isolated turn. Out of scope by design: backlog `8ctu3u` and F-2 establish that it would refuse the turn's ordinary work, which is the worse failure.
+  - Carrier-Declined: deliberate non-goal or out of scope for this plan as described above
 - Antigravity. Spec R4.1c forbids changing its posture, and it has no denial mechanism (R4.1b).
+  - Carrier-Declined: deliberate non-goal or out of scope for this plan as described above
 - Arming or deleting `PERMISSION_TIMEOUT`. Owned by backlog `e6zeta`.
+  - Carrier-Declined: deliberate non-goal or out of scope for this plan as described above
 - Re-measuring the host-log ask corpus after this change. The corpus is machine-local and unreachable from a lane (plan `0b7fic` E-01). Any future non-isolated deadlock is a `bug` to be filed with this plan as context, as the backlog item says.
+  - Carrier-Declined: deliberate non-goal or out of scope for this plan as described above
 
 ## Scope check
 

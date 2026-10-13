@@ -106,8 +106,11 @@ The census's own `EXCLUDED_CLASSES["tmp_path"]` claims fixture paths are exclude
 ## Deferred / out of scope (with reason)
 
 - The 75 `19313eed`-attributed paths: owned by backlog `iosmvn` and its dedicated sibling items; mixing them here would duplicate that work.
+  - Carrier-Declined: deliberate non-goal or out of scope for this plan as described above
 - `CHANGELOG.md`/`DECISIONS.md` history hits: append-only records, already reported separately by the census.
+  - Carrier-Declined: deliberate non-goal or out of scope for this plan as described above
 - Restoring any deleted suite: none of the 24 paths names lost behavioral coverage (F-01's behavior is pinned by `tests/test_liftaudit_stop_halts_run.py` per `96xtmi`).
+  - Carrier-Declined: deliberate non-goal or out of scope for this plan as described above
 
 ## Scope check
 

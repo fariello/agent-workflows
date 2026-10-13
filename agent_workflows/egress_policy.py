@@ -34,7 +34,7 @@ import types
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Callable, Self
+from typing import Any, Callable
 
 logger = logging.getLogger(__name__)
 
@@ -710,7 +710,7 @@ class EgressBroker:
         for w in workers:
             w.join(timeout=1.0)
 
-    def __enter__(self) -> Self:
+    def __enter__(self) -> EgressBroker:
         self.start()
         return self
 

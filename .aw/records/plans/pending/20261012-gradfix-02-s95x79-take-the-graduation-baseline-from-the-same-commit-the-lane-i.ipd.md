@@ -85,8 +85,11 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 ## Deferred / out of scope (with reason)
 
 - Serializing runs so nothing merges during an item's start: unnecessary on an isolated run once both reads come from one tree, and it would slow every parallel run.
+  - Carrier-Declined: deliberate non-goal or out of scope for this plan as described above
 - Closing the race fully on a NON-isolated run (`--no-isolate-worktree`). There, another run's integration advances the shared checkout's working tree during the agent turn itself, so any pre-turn baseline can be overtaken. E-03 only moves the read to immediately before the turn. Closing it would mean diffing against the turn's own commits or holding a lock across the turn, a design change with Medium functionality risk for a mode that is opt-out (isolation defaults ON). Both incidents were isolated runs. Consequence if left: a non-isolated graduation running beside another run can still be falsely refused; the remedy is to re-run, as today.
+  - Carrier-Declined: deliberate non-goal or out of scope for this plan as described above
 - Integrating or pruning the preserved `aw/lane/2rm0gz` and `aw/lane/iosmvn` lanes: a human choice (orchestrator `kht4vk` Goal). This plan only reads them in E-01.
+  - Carrier-Declined: deliberate non-goal or out of scope for this plan as described above
 
 ## Scope check
 

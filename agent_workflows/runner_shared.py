@@ -34336,7 +34336,12 @@ def record_item_spec_edits(
     plan_path: Path,
     item: MutableMapping[str, Any],
     *,
-    reconcile: Callable[[Path, Path], tuple[Mapping[str, str], Mapping[str, str]]],
+    reconcile: Callable[
+        [Path, Path],
+        ScopeReconciliation
+        | tuple[Mapping[str, str], Mapping[str, str]]
+        | tuple[Mapping[str, str], Mapping[str, str], Sequence[str]],
+    ],
 ) -> dict[str, Any]:
     """Store one item's spec reconciliation on the queue entry, and return what was stored.
 

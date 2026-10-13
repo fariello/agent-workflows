@@ -81,6 +81,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 ## Deferred / out of scope (with reason)
 
 - Production code in `host_sandbox_profile` / `runner_shared` is NOT changed: the probe failing closed under a disabled guard is correct behavior (F-1), and the frozen-descriptor design is intentional (bqtgmo).
+  - Carrier-Declined: deliberate non-goal or out of scope for this plan as described above
 - Backlog `qkzet8` is not modified by this plan: it is graduated separately through its own plan `a8yn86` (F-5).
   - Carrier: a8yn86
 

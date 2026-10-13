@@ -91,8 +91,11 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 ## Deferred / out of scope (with reason)
 
 - Changing the MEANING of `findings` (counting only non-info or only error diagnostics): a field-meaning change that the `## Stability` clause says requires `aw.agent/v2`; out of scope for an additive fix, see OQ-01.
+  - Carrier-Declined: deliberate non-goal or out of scope for this plan as described above
 - Converting plan qp8fn1's scalar inbox Evidence key into a warning Diagnostic: that is qp8fn1's own scope; this plan only removes the obstacle it named.
+  - Carrier-Declined: deliberate non-goal or out of scope for this plan as described above
 - Hand-built records that bypass `to_agent_record` (for example stream `summary` records): they do not derive `findings` from `Diagnostic` objects, so there is no severity to break down.
+  - Carrier-Declined: deliberate non-goal or out of scope for this plan as described above
 
 ## Scope check
 

@@ -98,7 +98,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 ## Deferred / out of scope (with reason)
 
 - Showing the classification in `aw runs`: the ledger fields from E-04 make it possible; the viewer change is separate.
+  - Carrier-Declined: deliberate non-goal or out of scope for this plan as described above
 - Items stranded before October: E-06 closes only the measured set; an `aw check` rule for "all carriers terminal but item not done" would find the rest and is a separate item.
+  - Carrier-Declined: deliberate non-goal or out of scope for this plan as described above
 
 ## Scope check
 

@@ -11,8 +11,8 @@ Pins all three classes of outcomes-parent handling by real outcome against bare 
 
 from __future__ import annotations
 
-import contextlib
 import json
+import os
 import tempfile
 import unittest
 from pathlib import Path
@@ -232,7 +232,11 @@ class RunDirOutcomesParentGuaranteedTests(unittest.TestCase):
                 plan_path=plan_path,
                 lane_root=lane_root,
             )
-            with contextlib.chdir(empty_cwd_dir):
+            old_cwd = os.getcwd()
+            try:
+                os.chdir(empty_cwd_dir)
                 self.assertEqual(list(Path.cwd().iterdir()), [])
                 lane_containment.prepare_lane_submission_dir(paths)
                 self.assertEqual(list(Path.cwd().iterdir()), [])
+            finally:
+                os.chdir(old_cwd)

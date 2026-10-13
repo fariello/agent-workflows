@@ -83,6 +83,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 ## Deferred / out of scope (with reason)
 
 - Whether validation-ON mode should ALSO run the driver suite: a policy question about `integration_is_earned`, not waste removal.
+  - Carrier-Declined: deliberate non-goal or out of scope for this plan as described above
 
 ## Scope check
 

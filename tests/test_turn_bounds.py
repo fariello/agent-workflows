@@ -296,6 +296,7 @@ def test_launcher_uniform_arming_opencode(tmp_path: Path) -> None:
 def test_launcher_uniform_arming_antigravity(tmp_path: Path) -> None:
     """E-04: agy launcher arms TurnBoundWatch uniformly for isolated and non-isolated turns."""
     state, run_dir, item, _, prompt_path = _setup_launcher_run_dir(tmp_path)
+    state["options"]["agy"] = sys.executable
     lane_dir = tmp_path / "lane"
     lane_dir.mkdir(parents=True, exist_ok=True)
 

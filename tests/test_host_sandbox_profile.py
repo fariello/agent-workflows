@@ -1301,6 +1301,8 @@ class EgressFilteringProbeTests(unittest.TestCase):
             ok, note = hsp._probe_egress_filtering()
         finally:
             hsp._EGRESS_PROBE_NS_ARGV = saved
+        if "Operation not permitted" in note or "permission denied" in note.lower():
+            self.skipTest(f"unshare -Ur unavailable in this environment: {note}")
         self.assertFalse(ok)
         self.assertIn("not enforced", note)
         self.assertIn("denied loopback TCP was reached", note)

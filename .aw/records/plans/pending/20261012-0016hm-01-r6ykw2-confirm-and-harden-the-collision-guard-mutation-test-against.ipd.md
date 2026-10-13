@@ -81,7 +81,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 ## Deferred / out of scope (with reason)
 
 - Changing `runner_shared.execute_item_core` to always write `verification_status` on early returns: out of scope. The early-return item shape is a runner contract consumed by `run_viewer` and others, and the defect lives in the test fixture, not the runner.
+  - Carrier-Declined: deliberate non-goal or out of scope for this plan as described above
 - Explaining why the live probe passed on the first drive and refused on the second: not needed. The fixture no longer probes, and E-02 surfaces any recurrence.
+  - Carrier-Declined: deliberate non-goal or out of scope for this plan as described above
 
 ## Scope check
 
@@ -107,6 +109,7 @@ N/A: this is a test-fixture change with no behavior, CLI, or spec contract chang
 - Status: deferred
 - Owner: plan author (trigger: a runner consumer needing the key on early returns)
 - Resolution or deferral rationale: Deferred (see Deferred section). The defect was fixture-side, and the runner's early-return item shape is an existing contract. File a separate backlog item if a consumer is found that needs the key.
+- Carrier-Declined: deliberate non-goal or out of scope for this plan as described above
 
 ## Validation and cross-check (verify before reporting done)
 

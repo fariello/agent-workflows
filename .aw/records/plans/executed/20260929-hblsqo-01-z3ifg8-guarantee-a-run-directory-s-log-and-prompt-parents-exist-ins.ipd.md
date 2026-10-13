@@ -19,7 +19,7 @@
 - Id: z3ifg8
 
 ## Workflow history
-- 2026-10-02 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: z3ifg8 verified (set hblsqo, attempt 1). [Scope reconciliation - out-of-scope .aw/records/backlog/open/20261001-6bolin-01-6bolin-grandfatheringandcheckertests-fails-on-89xjll-spec.backlog.md: changed by the plan's approved execution (auto-reconciled by aw agy run); out-of-scope .aw/records/backlog/open/20261001-m88gwh-01-m88gwh-danglingcommitsearchtests-test-07-real-corpus-arm-.backlog.md: changed by the plan's approved execution (auto-reconciled by aw agy run)]
+- 2026-10-02 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: z3ifg8 verified (set hblsqo, attempt 1). [Scope reconciliation - out-of-scope .aw/records/backlog/open/20261001-6bolin-01-6bolin-grandfatheringandcheckertests-fails-on-89xjll-spec.backlog.md: changed by the plan's approved execution (auto-reconciled by aw agy run); out-of-scope .aw/records/backlog/open/20261001-m88gwh-01-m88gwh-danglingcommitsearchtests-test-07-real-corpus-arm.backlog.md: changed by the plan's approved execution (auto-reconciled by aw agy run)]
 - 2026-09-30 approved (aw set): status set to approved
 - 2026-09-29 reviewed (opencode model=its_direct/pt3-claude-opus-5-1m-us): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-601..PR-605 all fixed; fix verified end to end
 

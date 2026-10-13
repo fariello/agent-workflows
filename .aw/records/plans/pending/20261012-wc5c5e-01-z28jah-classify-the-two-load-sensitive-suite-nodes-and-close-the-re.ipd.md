@@ -103,8 +103,11 @@ Conclusion for wc5c5e's "what needs deciding": neither node is in the default ga
 ## Deferred / out of scope (with reason)
 
 - Fixing the 15 mypy errors: a type regression across `cli.py`, `runner_shared.py`, `attention.py`, `research_refs.py`, `research_archive.py` and others is unrelated to test load-sensitivity and is far larger than this chore; it is tracked by the bug filed in E-04.
+  - Carrier-Declined: deliberate non-goal or out of scope for this plan as described above
 - Making the live-corpus sweep cheaper: the fast synthetic twin already covers the contract in the default suite (b018130a5), so optimizing the live sweep has no gate benefit.
+  - Carrier-Declined: deliberate non-goal or out of scope for this plan as described above
 - The three other failing nodes in the backlog text are already filed (6bolin, 8jeh4x, bxnhdj) and are not touched.
+  - Carrier-Declined: deliberate non-goal or out of scope for this plan as described above
 
 ## Scope check
 

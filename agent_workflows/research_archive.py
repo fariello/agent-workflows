@@ -939,7 +939,7 @@ def run_check_miscategorized(args: argparse.Namespace) -> int:
         "research check-miscategorized", repo_root, explicit_dir=explicit_dir
     )
     if not refusal.may_proceed:
-        sys.stderr.write(refusal.human_message + "\n")
+        sys.stderr.write((refusal.human_message or "") + "\n")
         return 2
 
     flagged = find_miscategorized(repo_root, research_root)

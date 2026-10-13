@@ -82,7 +82,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 ## Deferred / out of scope (with reason)
 
 - Registering explicit severities for doctor rules that are currently unregistered (for example `doctor.git-untracked`, whose text summary calls it informational): this changes exit-code behavior and is a policy decision outside the backlog item's requirement, which is only to preserve the real severity.
+  - Carrier-Declined: deliberate non-goal or out of scope for this plan as described above
 - Changes to `attention.py`: already fixed and tested by `nwcf8j`.
+  - Carrier-Declined: deliberate non-goal or out of scope for this plan as described above
 
 ## Scope check
 

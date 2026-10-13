@@ -89,9 +89,13 @@ Measured at HEAD `8538be828` in this lane.
 ## Deferred / out of scope (with reason)
 
 - Repairing and relocating `tools/ipdrunner/test_runagy.py`: 10 failures of three distinct shapes need triage (stale test vs product regression), a separate regression surface. Owned by backlog `3rj8wr`; exempted by id in E-02.
+  - Carrier-Declined: deliberate non-goal or out of scope for this plan as described above
 - Repairing and relocating `tools/awphysical/test_awphysical_tools.py`: its dotted name is referenced by `tools/awphysical/scenario-token-bindings.json` and its own binding test, so a move must rewrite those bindings. Owned by backlog `byz9pj`; exempted by id in E-02.
+  - Carrier-Declined: deliberate non-goal or out of scope for this plan as described above
 - Widening `testpaths` to include `tools/` instead of moving files: rejected because it would immediately make the default suite red with the F-03 failures, blocking every runner lane's merge gate (the cost the `livecorpus` marker comment in `pyproject.toml` documents).
+  - Carrier-Declined: deliberate non-goal or out of scope for this plan as described above
 - Rewriting historical `tools/test_agy_run.py` invocations inside `.aw/records/`: immutable history.
+  - Carrier-Declined: deliberate non-goal or out of scope for this plan as described above
 - Deleting the retired placeholder `tests/test_lift_drift_scan.py`: it belongs to plan `96xtmi`'s cleanup, not to this relocation; E-02 exempts it with that reason, and the self-pruning check will flag the entry if a later change deletes the file.
   - Carrier-Declined: an empty placeholder with zero tests loses no coverage; exempted with its reason and self-pruning, so nothing is left unowned
 

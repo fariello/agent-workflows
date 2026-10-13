@@ -89,7 +89,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 ## Deferred / out of scope (with reason)
 
 - The 39 pre-existing full-suite failures (F5) are unrelated to verifier mocks and belong to other work; this plan only proves it adds none.
+  - Carrier-Declined: deliberate non-goal or out of scope for this plan as described above
 - Other test modules that write `*-verification.json` (for example `tests/test_oc_runipd.py`, `tests/test_defect_report.py`) are not named by backlog 6r7zmw, which is scoped to "agy and stale plan path tests"; auditing them would broaden scope.
+  - Carrier-Declined: deliberate non-goal or out of scope for this plan as described above
 
 ## Scope check
 

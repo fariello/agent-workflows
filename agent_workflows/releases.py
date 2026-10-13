@@ -1210,7 +1210,7 @@ def run_list(args) -> int:
                 ),
             )
             return get_renderer(ctx).emit(res, ctx)
-        sys.stderr.write(refusal.human_message + "\n")
+        sys.stderr.write((refusal.human_message or "") + "\n")
         return 2
 
     records = list_releases(repo_root)
@@ -1313,7 +1313,7 @@ def run_show(args) -> int:
                 ),
             )
             return get_renderer(ctx).emit(res, ctx)
-        sys.stderr.write(refusal.human_message + "\n")
+        sys.stderr.write((refusal.human_message or "") + "\n")
         return 2
 
     selector = (getattr(args, "selector", None) or "next").strip()

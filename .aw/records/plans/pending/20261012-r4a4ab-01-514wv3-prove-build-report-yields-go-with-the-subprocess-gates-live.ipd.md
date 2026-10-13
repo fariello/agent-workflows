@@ -87,8 +87,11 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 ## Deferred / out of scope (with reason)
 
 - Resolving `15db4k` OQ-01 or any other plan's lint error to make the live tree green: maintainer-owned decision in another author's plan (F-02, F-03).
+  - Carrier-Declined: deliberate non-goal or out of scope for this plan as described above
 - A livecorpus test asserting GO on the live tree: it would be red today by a correct verdict, and any agent's plan could turn it red again (backlog `r4a4ab` "documented livecorpus hazard").
+  - Carrier-Declined: deliberate non-goal or out of scope for this plan as described above
 - Changing `gate_ipd_lint` semantics (for example ignoring `IPD-Q501`): that would let a release ship past a blocking open question, weakening the gate.
+  - Carrier-Declined: deliberate non-goal or out of scope for this plan as described above
 
 ## Scope check
 

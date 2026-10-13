@@ -234,7 +234,8 @@ class CheckEngineSpecCriteriaTests(unittest.TestCase):
             repo = _create_minimal_repo(Path(tmp))
             _create_spec(repo, "spc001", "- **A1** First\n- **A2** Second\n")
             for sentinel in ("-", "none", "unresolved", '"none"'):
-                _create_plan(repo, f"p_{sentinel.strip('\"-') or 'dash'}", sentinel)
+                suffix = sentinel.strip('"-') or "dash"
+                _create_plan(repo, f"p_{suffix}", sentinel)
             findings = check_engine.check_spec_criteria_uncovered(repo)
             self.assertEqual(findings, [])
 

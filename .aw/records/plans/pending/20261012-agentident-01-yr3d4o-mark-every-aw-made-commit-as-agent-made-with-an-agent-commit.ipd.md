@@ -126,8 +126,11 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 ## Deferred / out of scope (with reason)
 
 - Separate GitHub accounts, deploy keys, credential hiding, branch protection, PR requirements: considered with the maintainer on 2026-10-11 and declined; the toolkit must stay zero-setup.
+  - Carrier-Declined: deliberate non-goal or out of scope for this plan as described above
 - Rewriting existing history to add the identity: not requested. The maintainer asked for this change only (2026-10-11), after weighing a history rewrite for the 320 `Test` commits as low value.
+  - Carrier-Declined: deliberate non-goal or out of scope for this plan as described above
 - Preventing an agent from running raw `git commit` with the user's identity: not enforceable without a separate OS user; the label is accepted as sufficient.
+  - Carrier-Declined: deliberate non-goal or out of scope for this plan as described above
 
 ## Scope check
 
@@ -166,6 +169,7 @@ No spec governs commit identity or the `AW-Runner` trailer, so none is amended. 
 - Blocking: no
 - Status: open
 - Owner: plan-review
+- Carrier-Declined: to be settled during plan review before execution as described above
 - Resolution or deferral rationale: RAISED 2026-10-12 while recovering stranded lane `aw/lane/aluots` (run `run-20261012T005641Z-2321995`, commit `adbd1202a`, not merged: it conflicts with this reviewed text). That lane's graduation check found that neither `git_commit_helper._git(repo_root, args)` nor `runner_shared._run_git(repo, args, *, timeout, input)` accepts an environment, so "the env is passed by the commit and merge call sites" (E-03) and "only these call sites pass the env" (E-07) have no mechanism for any site that goes through a wrapper. Its proposed fix: add ONE optional keyword `env: Mapping[str, str] | None = None` to both wrappers, merged over `os.environ` when given, `None` byte-identical to today; raw `subprocess.run` sites pass `env=` directly. The rest of that revision (seven driver commit sites, `worktree_lease.snapshot_lane_dirty_work`, `engine.prompt_and_run_commit`, excluding `materialize_merge_result`) is already in this plan from `/plan-review`. Review should decide whether to adopt the env keyword (and amend E-03/E-07 and F-08) before execution; the wrapper statements as written cannot be executed literally.
 
 ## Validation and cross-check (verify before reporting done)

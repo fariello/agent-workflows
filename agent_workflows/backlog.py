@@ -1787,7 +1787,7 @@ def run_check(args) -> int:
                 ),
             )
             return get_renderer(ctx).emit(res, ctx)
-        sys.stderr.write(refusal.human_message + "\n")
+        sys.stderr.write((refusal.human_message or "") + "\n")
         return EXIT_CANNOT_RUN
 
     drift: List[core.Drift] = []

@@ -73,7 +73,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 ## Deferred / out of scope (with reason)
 
 - Auditing other tests in the repo for missing `livecorpus` markers: not requested by backlog m88gwh; would broaden scope.
+  - Carrier-Declined: deliberate non-goal or out of scope for this plan as described above
 - Changing the test's assertions or conditional skip logic: the backlog item asks only for the marker.
+  - Carrier-Declined: deliberate non-goal or out of scope for this plan as described above
 
 ## Scope check
 

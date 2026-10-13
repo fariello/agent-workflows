@@ -98,8 +98,11 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 ## Deferred / out of scope (with reason)
 
 - Tightening the name-keyed prover (for example ignoring local variables/keyword names): a design change to `f7z10q`'s deliberate over-approximation; not required to fix the test.
+  - Carrier-Declined: deliberate non-goal or out of scope for this plan as described above
 - Re-auditing `RUN-BASELINE-OWNERSHIP`'s predicate list: its outcome is unaffected (F-05).
+  - Carrier-Declined: deliberate non-goal or out of scope for this plan as described above
 - Other `wc5c5e` load-sensitive nodes: separately carried by `wc5c5e`.
+  - Carrier-Declined: deliberate non-goal or out of scope for this plan as described above
 
 ## Scope check
 

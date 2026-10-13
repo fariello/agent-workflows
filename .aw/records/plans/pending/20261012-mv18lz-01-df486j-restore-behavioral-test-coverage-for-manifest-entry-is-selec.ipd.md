@@ -88,8 +88,11 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 ## Deferred / out of scope (with reason)
 
 - Restoring the rest of the deleted `tests/test_runner_item_dependencies.py` (typed edges, ordering, cascade): not part of backlog `mv18lz`, which names only the executed-entry selectability property.
+  - Carrier-Declined: deliberate non-goal or out of scope for this plan as described above
 - Restoring source-scanning guards from that file: prohibited by the no-code-pinning-tests rule.
+  - Carrier-Declined: deliberate non-goal or out of scope for this plan as described above
 - Explicit-plan refusal message of a retired named plan: already a distinct behavior; may be asserted incidentally but is not required.
+  - Carrier-Declined: deliberate non-goal or out of scope for this plan as described above
 
 ## Scope check
 

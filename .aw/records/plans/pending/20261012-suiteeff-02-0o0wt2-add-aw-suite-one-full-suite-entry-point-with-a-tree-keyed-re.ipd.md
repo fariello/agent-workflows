@@ -119,8 +119,11 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 ## Deferred / out of scope (with reason)
 
 - Caching narrowed runs: quick checks are cheap and their selection is part of the key's complexity; not worth it.
+  - Carrier-Declined: deliberate non-goal or out of scope for this plan as described above
 - A cross-machine cache: needs a trust model (a stored PASS is an attestation).
+  - Carrier-Declined: deliberate non-goal or out of scope for this plan as described above
 - Enforcing that agents use `aw suite` (for example by shimming `pytest`): prompt guidance first; measure adoption in Order 04's data before adding enforcement.
+  - Carrier-Declined: deliberate non-goal or out of scope for this plan as described above
 
 ## Scope check
 

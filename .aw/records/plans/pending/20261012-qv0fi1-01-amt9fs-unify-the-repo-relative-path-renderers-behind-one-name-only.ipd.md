@@ -106,7 +106,9 @@ All measured in this lane by calling the real helpers (`AW_NO_REEXEC=1 python3 -
 ## Deferred / out of scope (with reason)
 
 - The sibling helpers in F-09 (`ipd_lifecycle._repo_relative`, `attention._rel_posix`, `layout_inventory._repo_relative`, `doctor.probe_artifacts`'s inline block) and `check_engine.finding_dict`'s `location` relativization: not named by `qv0fi1`, and each has a contract that a name-only fallback would change in a caller-visible way (a receipt field, a raised error used as a signal, a `None` signal, an `os.sep`-joined string). Carried by backlog `rd6ei9`, filed in this authoring turn so the deferral does not vanish (the exact failure that created `qv0fi1`).
+  - Carrier-Declined: deliberate non-goal or out of scope for this plan as described above
 - `agent_schema.normalize_repo_path`: a whole-path-value sanitizer with its own tail-keeping fallback, executed scope of `9yd6tx`; not a repo-relative renderer in this sense.
+  - Carrier-Declined: deliberate non-goal or out of scope for this plan as described above
 
 ## Scope check
 

@@ -116,10 +116,15 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 ## Deferred / out of scope (with reason)
 
 - `project_context` hard-coded config path: a separate pre-existing XDG bug with its own blast radius; backlog `m9dobx` (bug, Blocks-Release next).
+  - Carrier-Declined: deliberate non-goal or out of scope for this plan as described above
 - `AW_HOME` containment: redirecting it would break a `records_backend: home` project whose records the agent must write; needs measurement and a ruling; backlog `s4pys7`.
+  - Carrier-Declined: deliberate non-goal or out of scope for this plan as described above
 - `aw runs` display of discarded changes: the events are durable from this plan; surfacing them in the cross-run view is backlog `c4q9e8`.
+  - Carrier-Declined: deliberate non-goal or out of scope for this plan as described above
 - Redirecting `XDG_CONFIG_HOME`: rejected (F-04).
+  - Carrier-Declined: deliberate non-goal or out of scope for this plan as described above
 - OS-level enforcement: already offered by the hardened execution profile; unchanged.
+  - Carrier-Declined: deliberate non-goal or out of scope for this plan as described above
 
 ## Scope check
 

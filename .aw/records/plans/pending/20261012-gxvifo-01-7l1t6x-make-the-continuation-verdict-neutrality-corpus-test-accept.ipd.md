@@ -81,8 +81,11 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 ## Deferred / out of scope (with reason)
 
 - Any change to `agent_workflows/ipd_lint.py`: the parser behaves correctly (F-3); only the test's predicate is wrong.
+  - Carrier-Declined: deliberate non-goal or out of scope for this plan as described above
 - Re-linting or editing executed plans to make them conform at `author`: forbidden by the execution contract (executed plans' records are immutable) and unrelated to the property.
+  - Carrier-Declined: deliberate non-goal or out of scope for this plan as described above
 - Removing the `livecorpus` marker: the marker reasoning in `pyproject.toml` still holds.
+  - Carrier-Declined: deliberate non-goal or out of scope for this plan as described above
 
 ## Scope check
 

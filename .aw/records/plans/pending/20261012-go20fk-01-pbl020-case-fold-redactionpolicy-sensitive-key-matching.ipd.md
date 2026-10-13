@@ -91,9 +91,13 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 ## Deferred / out of scope (with reason)
 
 - Widening the default key list (e.g. adding `x-api-key`, `access_token`): a separate policy decision; folding addresses the reported defect. Not in backlog go20fk's ask.
+  - Carrier-Declined: deliberate non-goal or out of scope for this plan as described above
 - Normalizing separators (`api-key` vs `api_key`): different defect class, not reported; would change matching semantics beyond case.
+  - Carrier-Declined: deliberate non-goal or out of scope for this plan as described above
 - Free-text credential detection: tracked separately (backlog lfko0e per docs/security.md).
+  - Carrier-Declined: deliberate non-goal or out of scope for this plan as described above
 - Rewriting payload keys to lowercase: rejected; it would alter non-secret record structure for every ledger caller.
+  - Carrier-Declined: deliberate non-goal or out of scope for this plan as described above
 
 ## Scope check
 

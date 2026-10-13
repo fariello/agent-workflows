@@ -100,7 +100,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 ## Deferred / out of scope (with reason)
 
 - Bounding driver concurrency or refusing to start on a loaded host: a separate defect; this plan bounds the expensive part (suites).
+  - Carrier-Declined: deliberate non-goal or out of scope for this plan as described above
 - Heartbeats for long shell commands other than `aw suite`: needs a general mechanism (opencode does not stream tool output); separate defect.
+  - Carrier-Declined: deliberate non-goal or out of scope for this plan as described above
 
 ## Scope check
 

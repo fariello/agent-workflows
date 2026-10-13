@@ -72,8 +72,11 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 ## Deferred / out of scope (with reason)
 
 - Editing `u28vqb`'s F-01/F-15 text: forbidden for an executed plan (F-04).
+  - Carrier-Declined: deliberate non-goal or out of scope for this plan as described above
 - Adding a test that pins section numbers inside code comments: that would be a code-pinning test, which the repository's test policy forbids.
+  - Carrier-Declined: deliberate non-goal or out of scope for this plan as described above
 - Renaming or re-anchoring any `docs/cli-output-contract.md` heading: the doc is already correct and every link resolves (F-02).
+  - Carrier-Declined: deliberate non-goal or out of scope for this plan as described above
 
 ## Scope check
 

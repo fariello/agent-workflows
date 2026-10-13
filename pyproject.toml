@@ -100,7 +100,8 @@ dependencies = ["filelock>=3"]
 # filelock or a future mypy major may legitimately report a different set.
 # Specifically, F-13 measured platform_lock.py:429's preserve_lock_file keyword finding present under
 # filelock 3.29.7 and absent under filelock >=4.0. To keep the shipped runtime contract unchanged
-# (dependencies = ["filelock>=3"]), the >=4 floor is pinned in the test extra and dev group only.
+# (dependencies = ["filelock>=3"]), the >=4 floor is pinned in the test extra and dev group on Python 3.10+
+# only (filelock 4 dropped Python 3.9 support, which uses filelock>=3).
 [project.optional-dependencies]
 test = [
     "pytest>=8",
@@ -108,7 +109,8 @@ test = [
     "pytest-randomly>=3",
     "PyYAML>=6",
     "mypy>=1.18,<3",
-    "filelock>=4",
+    "filelock>=4; python_version >= '3.10'",
+    "filelock>=3; python_version < '3.10'",
 ]
 
 # PEP 735 dependency group so `pip install --group dev` (or `pip install -e . --group dev`)
@@ -121,7 +123,8 @@ dev = [
     "pytest-randomly>=3",
     "PyYAML>=6",
     "mypy>=1.18,<3",
-    "filelock>=4",
+    "filelock>=4; python_version >= '3.10'",
+    "filelock>=3; python_version < '3.10'",
 ]
 
 [project.urls]

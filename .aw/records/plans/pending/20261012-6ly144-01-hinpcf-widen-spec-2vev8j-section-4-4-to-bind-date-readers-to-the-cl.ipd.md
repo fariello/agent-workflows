@@ -111,10 +111,15 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 ## Deferred / out of scope (with reason)
 
 - Editing any reader or writer: F-03 measured none mismatched; a mismatch found by E-01 is filed as a gated bug, not fixed here.
+  - Carrier-Declined: deliberate non-goal or out of scope for this plan as described above
 - `DECISIONS.md` D55: scoped to names; the reader rule references it and needs no change to it.
+  - Carrier-Declined: deliberate non-goal or out of scope for this plan as described above
 - Re-approving the spec or writing `--by-human`: no fresh attestation was given to record; plan approval is the ruling and `aw specs note` records the edit.
+  - Carrier-Declined: deliberate non-goal or out of scope for this plan as described above
 - The journal migration, `seq`, and C5 work in the same spec: owned by `ms06pi` and other plans.
+  - Carrier-Declined: deliberate non-goal or out of scope for this plan as described above
 - Backlog status: the runner sets `graduated`.
+  - Carrier-Declined: deliberate non-goal or out of scope for this plan as described above
 
 ## Scope check
 

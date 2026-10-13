@@ -10812,7 +10812,7 @@ def _run_plans(
         # is to tell the operator what to run, and `aw plans` is NOT a registered command: it exits 2
         # from argparse as an invalid choice (measured). So the pre-change message misdirected the
         # operator from inside the help text.
-        sys.stderr.write(refusal.human_message + "\n")
+        sys.stderr.write((refusal.human_message or "") + "\n")
         return EXIT_CANNOT_RUN
 
     # Validate --status up front so a typo teaches the valid set instead of silently
@@ -12340,7 +12340,7 @@ def _run_record_history(
                 ),
             )
             return get_renderer(ctx).emit(res, ctx)
-        sys.stderr.write(refusal.human_message + "\n")
+        sys.stderr.write((refusal.human_message or "") + "\n")
         return EXIT_CANNOT_RUN
 
     id6 = args.id6
@@ -12445,7 +12445,7 @@ def _run_graduation(
                 ),
             )
             return get_renderer(ctx).emit(res, ctx)
-        sys.stderr.write(refusal.human_message + "\n")
+        sys.stderr.write((refusal.human_message or "") + "\n")
         return EXIT_CANNOT_RUN
 
     source = (getattr(args, "source", None) or "").strip()
@@ -13880,7 +13880,7 @@ def _run_find(
                 ),
             )
             return get_renderer(ctx).emit(res, ctx)
-        sys.stderr.write(refusal.human_message + "\n")
+        sys.stderr.write((refusal.human_message or "") + "\n")
         return EXIT_CANNOT_RUN
 
     types = at.ARTIFACT_TYPES if norm == "all" else (norm,)
@@ -14620,7 +14620,7 @@ def _run_search(
                 ),
             )
             return get_renderer(ctx).emit(res, ctx)
-        sys.stderr.write(refusal.human_message + "\n")
+        sys.stderr.write((refusal.human_message or "") + "\n")
         return EXIT_CANNOT_RUN
     types = [t for t in at.ARTIFACT_TYPES if t in types_set]
     status_filters = att.parse_status_filters(flag_status)
@@ -14984,7 +14984,7 @@ def _run_check(
                 ),
             )
             return get_renderer(ctx).emit(res, ctx)
-        sys.stderr.write(refusal.human_message + "\n")
+        sys.stderr.write((refusal.human_message or "") + "\n")
         return EXIT_CANNOT_RUN
     include_retired = bool(getattr(args, "all", False))
 
