@@ -6,7 +6,7 @@
 - Scope: Verification of the existing declarations and the test's enforcement in the bare suite and in the CI `output-conformance` job. Code edits are permitted ONLY if a regression is measured, and only to the declarations in `agent_workflows/command_surface.py`.
 - Scope-Paths: agent_workflows/command_surface.py, tests/test_command_surface_declarations.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -16,9 +16,9 @@
 - Highest E allocated: 03
 - Author: opencode Claude Opus
 - Id: 4mv9ul
-- Approval: 2026-10-12, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-13 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: 4mv9ul verified (set vxqtqm, attempt 1). [Scope reconciliation - in-scope-unmodified agent_workflows/command_surface.py: declared-but-unmodified (auto-acknowledged by aw agy run); in-scope-unmodified tests/test_command_surface_declarations.py: declared-but-unmodified (auto-acknowledged by aw agy run)] [Scope delta - no declared Scope-Paths were modified since the frozen base (2 declared path(s) unmodified; work may have landed before the begin baseline or not at all): agent_workflows/command_surface.py, tests/test_command_surface_declarations.py]
 - 2026-10-12 approved (aw set): status set to approved
 
 - 2026-10-12 reviewed (opencode/its_direct/pt3-claude-opus-5.5-1m-us): /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001 (MEDIUM, fixed: bars by named tests and node ids, not counts; collection under default addopts proven), PR-002 (LOW, fixed: execution contract and finalize ownership). F-1..F-3 re-measured at HEAD dbde69ccb. Record: .aw/records/reviews/20261011-vxqtqm-01-4mv9ul-verify-the-five-aw-oc-profile-leaves-stay-declared-and-the-w.review.md.
