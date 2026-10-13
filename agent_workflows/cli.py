@@ -17797,22 +17797,7 @@ def _dispatch(argv: Optional[Sequence[str]]) -> int:
         if backlog_cmd == "new":
             return backlog_mod.run_new(args)
         if backlog_cmd == "set":
-            if getattr(args, "status", None) is None:
-                from agent_workflows import status_set
-
-                return status_set.run_set_command(
-                    args.args,
-                    scoped_type="backlog",
-                    args=args,
-                    term=term,
-                )
-            else:
-                args.path = (
-                    args.args[0]
-                    if getattr(args, "args", None)
-                    else getattr(args, "path", None)
-                )
-                return backlog_mod.run_set(args, term=term)
+            return backlog_mod.run_set(args, term=term)
         if backlog_cmd == "note":
             return backlog_mod.run_note(args)
         if backlog_cmd == "check":
@@ -17849,24 +17834,9 @@ def _dispatch(argv: Optional[Sequence[str]]) -> int:
 
             return sp.run_new(args)
         if specs_cmd == "set":
-            if getattr(args, "status", None) is None:
-                from agent_workflows import status_set
+            from agent_workflows import specs as sp
 
-                return status_set.run_set_command(
-                    args.args,
-                    scoped_type="specs",
-                    args=args,
-                    term=term,
-                )
-            else:
-                from agent_workflows import specs as sp
-
-                args.path = (
-                    args.args[0]
-                    if getattr(args, "args", None)
-                    else getattr(args, "path", None)
-                )
-                return sp.run_set(args, term=term)
+            return sp.run_set(args, term=term)
         if specs_cmd == "note":
             from agent_workflows import specs as sp
 

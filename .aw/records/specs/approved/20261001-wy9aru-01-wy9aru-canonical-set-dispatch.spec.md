@@ -317,6 +317,8 @@ duplicated into `status_set`, so the contract is intact and only the cited locat
 
 This spec graduated into plan Set `setdisp` (orchestrator `63zo2f`, `approved`), all of whose plans carry `- From-Spec: wy9aru`: Order 01 `c6f6sj` (dedups, `executed`), 02 `afdmn6` (differential harness), 03 `m1jlwm` (positional gate bypasses), 04 `m94eht` (specs adapter, `state:spec:approved:wy9aru` gated, E-03 waits on OQ-1), 05 `vhiqo6` (backlog adapter), 06 `7zb4ny` (Set audit). Direction: those plans depend on this spec; this spec does not depend on them. NOTE FROM REVIEW (2026-10-08): `h4fiwa`/`fv4b6s` were closed in the shared engine by Set `setdispgate` (`wdyz5n`, `ju3rhs`), and Order 03 `m1jlwm` was already re-reviewed on 2026-10-07 to CONFIRM those fixes rather than re-implement them, then add the both-spellings parity tests AC-2 requires.
 
+2026-10-13: the `cli.main` entry fork named in E-1r is closed by plan `19fch9` (Set `setdispfork`, `From-Backlog: fcnz1r`): both spellings of `aw backlog set` and `aw specs set` now enter through their adapter, and the positional `aw specs set` derives its repo root from an existing-path selector, so it writes the 4.3 sidecar record from any cwd.
+
 ## 7. Out of scope, and filed separately
 
 Each row is an axis the two paths differ on that this spec deliberately does NOT close, with the
