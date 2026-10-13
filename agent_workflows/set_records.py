@@ -405,26 +405,15 @@ def close_on_answer(repo_root: Path, backlog_path: Path) -> Path:
 
 
 def _extract_body(text: str) -> str:
-    """Extract the prose body after the ``## Workflow history`` block (best-effort).
+    """Extract the prose body after the ``## Workflow history`` block.
 
+    Delegates to :func:`attention_contract.history_block` (F-06). Keeping the body boundary
+    identical to the prior-history boundary ensures wrapped records and following records are
+    not duplicated on reattach.
     The pre-history prose region is deliberately not this function's job;
     ``backlog._render_item(..., source_text=...)`` preserves and re-emits it.
     """
-    lines = text.splitlines()
-    out: List[str] = []
-    in_hist = False
-    hist_done = False
-    for ln in lines:
-        if ln.strip() == "## Workflow history":
-            in_hist = True
-            continue
-        if in_hist and not hist_done:
-            if ln.startswith("- ") or ln.strip() == "":
-                continue
-            hist_done = True
-        if hist_done:
-            out.append(ln)
-    return "\n".join(out).strip()
+    return _ac.history_block(text).body
 
 
 # --------------------------------------------------------------------------------------------------

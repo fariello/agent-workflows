@@ -24,6 +24,7 @@ now under way. The direction of the 2.x line (in progress, not all shipped in th
 
 Major storage-layout boundary. The logical model (D126-D129) was superseded by the PHYSICAL `.aw/` hierarchy specified in `20260810-1447-01-physical-aw-hierarchy-placement-and-migration.spec.md` (D130, D134-D137), which the framework now implements and has migrated its own repository onto:
 
+- Fixed: the workflow history block bounding rule is now shared, so aw backlog set no longer suppresses a same-status record against an indented line it cannot preserve, and closing a decision item no longer duplicates wrapped history records.
 - Added: `aw attention` now lists graduated backlog items whose plan and spec carriers have all finished, with the command that closes them.
 - Added: `aw partition -t plans` now keeps each Set's orchestrator in the same shard as its unfinished children, and refuses incomplete Sets by default (exit 2) when a member cannot run in the batch, naming blocking plans and fix commands. Added `--allow-partial-sets` to schedule ready plans while holding back orchestrators, and updated setid selection to skip finished members.
 - Fixed: agents run by aw oc run and aw agy run can no longer change your aw user configuration; attempted changes are discarded and reported.

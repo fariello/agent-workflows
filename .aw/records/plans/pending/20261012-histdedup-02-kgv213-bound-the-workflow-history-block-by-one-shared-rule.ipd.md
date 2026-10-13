@@ -35,39 +35,39 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: the shared reader
 
-- [ ] E-01 `agent_workflows/attention_contract.py`: add a pure function `history_block(text: str) -> HistoryBlock` (a `NamedTuple` with `records: List[str]`, `record_lines: List[str]` and `body: str`) implementing the F-04 rule exactly: locate the heading with `(?m)^## Workflow history[ \t]*$`; scan the following lines; the block ENDS at the next line starting `## `, or at the first non-blank line that starts at COLUMN ZERO and is not a `- ` bullet, or at an INDENTED non-blank line that does not directly continue a bullet (a blank line ends continuation, so a blank-separated indented quotation is NOT part of the block); a RECORD is a column-zero line inside the block matching `HISTORY_RECORD_RE` against `line.rstrip()` (never `strip()`), returned with trailing whitespace stripped, in file order (newest-first, unchanged positional semantics). `record_lines` is the flat, file-order list of every record line FOLLOWED BY its indented continuation lines (each `rstrip()`ed, indentation KEPT, blank lines dropped; a non-record bullet and its continuation are excluded), so `"\n".join(record_lines)` re-emits each record with its wrapped text and the block's lines are partitioned exactly between `record_lines`, dropped non-record bullets, blanks, and `body` (F-06). `body` is the remaining text from the terminating line on with LEADING BLANK LINES removed and trailing whitespace `rstrip()`ed, but the first line's indentation PRESERVED (never `.strip()`/`.lstrip()` the text: de-indenting a blank-separated indented quotation turns it into a column-zero record on the next rewrite, F-07); `""` when there is none. No heading yields `HistoryBlock([], [], "")`. Document the rule in the docstring with the F-01..F-07 measurements and the `tk1gqo` reason, and state that `newest_history_record(history_block(t).records)` is the canonical newest record.
+- [x] E-01 `agent_workflows/attention_contract.py`: add a pure function `history_block(text: str) -> HistoryBlock` (a `NamedTuple` with `records: List[str]`, `record_lines: List[str]` and `body: str`) implementing the F-04 rule exactly: locate the heading with `(?m)^## Workflow history[ \t]*$`; scan the following lines; the block ENDS at the next line starting `## `, or at the first non-blank line that starts at COLUMN ZERO and is not a `- ` bullet, or at an INDENTED non-blank line that does not directly continue a bullet (a blank line ends continuation, so a blank-separated indented quotation is NOT part of the block); a RECORD is a column-zero line inside the block matching `HISTORY_RECORD_RE` against `line.rstrip()` (never `strip()`), returned with trailing whitespace stripped, in file order (newest-first, unchanged positional semantics). `record_lines` is the flat, file-order list of every record line FOLLOWED BY its indented continuation lines (each `rstrip()`ed, indentation KEPT, blank lines dropped; a non-record bullet and its continuation are excluded), so `"\n".join(record_lines)` re-emits each record with its wrapped text and the block's lines are partitioned exactly between `record_lines`, dropped non-record bullets, blanks, and `body` (F-06). `body` is the remaining text from the terminating line on with LEADING BLANK LINES removed and trailing whitespace `rstrip()`ed, but the first line's indentation PRESERVED (never `.strip()`/`.lstrip()` the text: de-indenting a blank-separated indented quotation turns it into a column-zero record on the next rewrite, F-07); `""` when there is none. No heading yields `HistoryBlock([], [], "")`. Document the rule in the docstring with the F-01..F-07 measurements and the `tk1gqo` reason, and state that `newest_history_record(history_block(t).records)` is the canonical newest record.
   - Depends on: none
   - Expected outcome: `attention_contract.history_block` exists, is stdlib-only, and returns the records/record_lines/body triple described; `attention_contract` still imports nothing new from the package.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: migrate the two disagreeing readers
 
-- [ ] E-02 `agent_workflows/backlog.py`: reimplement `_prior_history_records(text)` as `A.history_block(text).record_lines` (NOT `.records`: it is the RESTORABLE source `_reattach_history` re-emits, so it must carry a wrapped record's continuation lines, F-06; its `[0]` is still the newest record line, which `production_checks` BACKLOG-GRADUATE-LEGITIMACY clause 2 reads) and `_strip_metadata_and_history(text)` as `A.history_block(text).body`, keeping both names and signatures (`_prior_history_records` callers: `_reattach_history`, `production_checks` clause 2; `_strip_metadata_and_history` has no production caller today and is kept as the body twin). Update the `_prior_history_records` docstring to say the rule now lives in `attention_contract.history_block`, why it returns `record_lines`, and keep its `tk1gqo` paragraph. Do not change `_reattach_history`'s assembly.
+- [x] E-02 `agent_workflows/backlog.py`: reimplement `_prior_history_records(text)` as `A.history_block(text).record_lines` (NOT `.records`: it is the RESTORABLE source `_reattach_history` re-emits, so it must carry a wrapped record's continuation lines, F-06; its `[0]` is still the newest record line, which `production_checks` BACKLOG-GRADUATE-LEGITIMACY clause 2 reads) and `_strip_metadata_and_history(text)` as `A.history_block(text).body`, keeping both names and signatures (`_prior_history_records` callers: `_reattach_history`, `production_checks` clause 2; `_strip_metadata_and_history` has no production caller today and is kept as the body twin). Update the `_prior_history_records` docstring to say the rule now lives in `attention_contract.history_block`, why it returns `record_lines`, and keep its `tk1gqo` paragraph. Do not change `_reattach_history`'s assembly.
   - Depends on: E-01
   - Expected outcome: both helpers delegate to the shared reader; their output is unchanged on every tracked backlog item (V-02 measures this; 0 differ was measured at review).
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-06 `agent_workflows/set_records.py` (`_extract_body`): reimplement as `_ac.history_block(text).body` (`set_records` already imports `attention_contract as _ac` at module top), keeping the name and signature, and update its docstring to name the shared reader. This is REQUIRED, not cleanup: `close_on_answer` feeds `_extract_body` into `_render_item` and then `_reattach_history`, which re-emits `_prior_history_records`; if the body boundary and the prior-record boundary disagree, a wrapped record's following records are emitted TWICE (once as records, once inside the body), measured at review (F-06).
+- [x] E-06 `agent_workflows/set_records.py` (`_extract_body`): reimplement as `_ac.history_block(text).body` (`set_records` already imports `attention_contract as _ac` at module top), keeping the name and signature, and update its docstring to name the shared reader. This is REQUIRED, not cleanup: `close_on_answer` feeds `_extract_body` into `_render_item` and then `_reattach_history`, which re-emits `_prior_history_records`; if the body boundary and the prior-record boundary disagree, a wrapped record's following records are emitted TWICE (once as records, once inside the body), measured at review (F-06).
   - Depends on: E-01
   - Expected outcome: `_extract_body` delegates to the shared reader; on the tracked backlog corpus its output changes ONLY for the two `done/` items F-08 names (a quoted `## Workflow history` line that the old reader dropped is now kept in the body); neither is `blocked`, so `close_on_answer` cannot reach them.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 `agent_workflows/status_set.py` (`same_status_message_is_duplicate`): replace the `_att._history_section_lines(text)` + `strip()` input with `_ac.history_block(text).records`, keeping `_ac.newest_history_record` and the `_readiness._HISTORY_RECORD_PARTS_RE` parse unchanged. Update the docstring to name the shared reader and the reason (the predicate must judge against exactly the records the writer will preserve).
+- [x] E-03 `agent_workflows/status_set.py` (`same_status_message_is_duplicate`): replace the `_att._history_section_lines(text)` + `strip()` input with `_ac.history_block(text).records`, keeping `_ac.newest_history_record` and the `_readiness._HISTORY_RECORD_PARTS_RE` parse unchanged. Update the docstring to name the shared reader and the reason (the predicate must judge against exactly the records the writer will preserve).
   - Depends on: E-01
   - Expected outcome: on the F-01 indented fixture the predicate returns False (no record to duplicate), so the shared engine writes the record; on every well-formed record its answer is unchanged.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: behavioral tests and changelog
 
-- [ ] E-04 `tests/test_history_block_bounding.py` (new): behavioral tests calling the real functions and the real CLI, asserting outputs and written file contents only (P16; no source inspection). Cases: (a) well-formed multi-record block returns all records newest-first and the body; (b) the F-01 indented-only fixture returns `records == []`; (c) the `tk1gqo` shape (column-zero records, blank line, prose, indented quoted records) returns only the column-zero records; (d) a WRAPPED record (column-zero record followed directly by indented continuation lines, the plan shape F-03 measures) keeps the following column-zero records inside the block, and `record_lines` carries the continuation lines with their indentation; (e) a blank-separated indented quotation directly under the block is excluded from `records` and `record_lines`, and `body` starts with that line's indentation intact; (e2) writer round-trip, F-06/F-07: for the (d) wrapped fixture and the (e) quoted fixture, written as a `blocked` decision item, call `set_records.close_on_answer` and assert on the written file that every original record occurs EXACTLY ONCE, the wrapped continuation line is still directly under its record, and `history_block(text).records` equals the new `done` record followed by the original records (so the quoted line was NOT promoted to a record); (f) end to end: write the F-01 fixture with the indented line dated with `artifact_core.utc_history_date()` (NEVER a literal date, see F-05), run `cli.main(["backlog","set",<item>,"--status","open","--message","metadata only","--no-commit","--dir",<root>])` AND the positional spelling `["backlog","set","open",<item>,...]`, and assert for each that the file now carries a column-zero `same-status` record and `attention_contract.history_block(text).records` is non-empty; (g) the predicate and `backlog._prior_history_records` agree (predicate True implies prior records non-empty) over every fixture in this module; (h) the specs path: a spec fixture whose only history-shaped line is indented and dated `utc_history_date()`, `cli.main(["specs","note",<spec>,"--message",<m>])` with the same message now appends a column-zero `note` record (the predicate's other callers, `specs.run_note` and the specs migrate path, inherit E-03).
+- [x] E-04 `tests/test_history_block_bounding.py` (new): behavioral tests calling the real functions and the real CLI, asserting outputs and written file contents only (P16; no source inspection). Cases: (a) well-formed multi-record block returns all records newest-first and the body; (b) the F-01 indented-only fixture returns `records == []`; (c) the `tk1gqo` shape (column-zero records, blank line, prose, indented quoted records) returns only the column-zero records; (d) a WRAPPED record (column-zero record followed directly by indented continuation lines, the plan shape F-03 measures) keeps the following column-zero records inside the block, and `record_lines` carries the continuation lines with their indentation; (e) a blank-separated indented quotation directly under the block is excluded from `records` and `record_lines`, and `body` starts with that line's indentation intact; (e2) writer round-trip, F-06/F-07: for the (d) wrapped fixture and the (e) quoted fixture, written as a `blocked` decision item, call `set_records.close_on_answer` and assert on the written file that every original record occurs EXACTLY ONCE, the wrapped continuation line is still directly under its record, and `history_block(text).records` equals the new `done` record followed by the original records (so the quoted line was NOT promoted to a record); (f) end to end: write the F-01 fixture with the indented line dated with `artifact_core.utc_history_date()` (NEVER a literal date, see F-05), run `cli.main(["backlog","set",<item>,"--status","open","--message","metadata only","--no-commit","--dir",<root>])` AND the positional spelling `["backlog","set","open",<item>,...]`, and assert for each that the file now carries a column-zero `same-status` record and `attention_contract.history_block(text).records` is non-empty; (g) the predicate and `backlog._prior_history_records` agree (predicate True implies prior records non-empty) over every fixture in this module; (h) the specs path: a spec fixture whose only history-shaped line is indented and dated `utc_history_date()`, `cli.main(["specs","note",<spec>,"--message",<m>])` with the same message now appends a column-zero `note` record (the predicate's other callers, `specs.run_note` and the specs migrate path, inherit E-03).
   - Depends on: E-02, E-03, E-06
   - Expected outcome: the new module passes, and cases (f) and (e2, wrapped fixture) FAIL when run against the base sha (proving it exercises the defect).
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 `CHANGELOG.md`: add one entry under the top pending section stating that the history-block bounding rule is now shared, so `aw backlog set` no longer suppresses a same-status record against an indented line it cannot preserve, and closing a decision item no longer duplicates wrapped history records.
+- [x] E-05 `CHANGELOG.md`: add one entry under the top pending section stating that the history-block bounding rule is now shared, so `aw backlog set` no longer suppresses a same-status record against an indented line it cannot preserve, and closing a decision item no longer duplicates wrapped history records.
   - Depends on: E-02, E-03, E-06
   - Expected outcome: one new CHANGELOG line, no em or en dashes (user-facing prose).
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -136,35 +136,396 @@ N/A. No spec states the history bounding rule; spec `20260818-1525-02` R2/AC1 re
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: PASTE the `git diff` of `agent_workflows/attention_contract.py` showing `history_block` and its docstring, and PASTE `grep -n "^from\|^import" agent_workflows/attention_contract.py` showing no new package import. PASTE the output of calling `history_block` on the E-04 (a)-(e) fixtures, printing `records`, `record_lines` and `repr(body)` (the (e) body must show its leading indentation).
   - Observed evidence:
-  - Result: pending
+```
+$ git diff agent_workflows/attention_contract.py
+diff --git a/agent_workflows/attention_contract.py b/agent_workflows/attention_contract.py
+index 6b548f08f..19de2f177 100644
+--- a/agent_workflows/attention_contract.py
++++ b/agent_workflows/attention_contract.py
+@@ -805,6 +805,115 @@ def refuse_unsafe_descriptive(
+ # ``last_history_at`` is the date of the NEWEST record, which is the FIRST one in file order because
+ # every writer PREPENDS (see :func:`newest_history_record` for the measured reason this is not "last").
+ HISTORY_RECORD_RE = re.compile(r"^- (?P<date>\d{4}-\d{2}-\d{2}) .+$")
++_WORKFLOW_HISTORY_HEADING_RE = re.compile(r"(?m)^## Workflow history[ \t]*$")
++
++
++class HistoryBlock(NamedTuple):
++    records: List[str]
++    record_lines: List[str]
++    body: str
++
++
++def history_block(text: str) -> HistoryBlock:
++    """The canonical, pure reader for an artifact's ``## Workflow history`` block.
++
++    States the bounding rule ONCE and returns a :class:`HistoryBlock` with:
++      - ``records``: column-zero records matching :data:`HISTORY_RECORD_RE` against ``line.rstrip()``
++        (never ``strip()``), returned with trailing whitespace stripped, in file order (newest-first).
++      - ``record_lines``: flat, file-order list of every record line FOLLOWED BY its indented
++        continuation lines (each ``rstrip()``ed, indentation KEPT, blank lines dropped; non-record
++        bullets and their continuations excluded). `"\n".join(record_lines)` re-emits each record
++        with its wrapped text.
++      - ``body``: remaining text from the terminating line on with leading blank lines removed and
++        trailing whitespace ``rstrip()``ed, but the first line's indentation PRESERVED (never
++        ``.strip()``/``.lstrip()``; ``""`` when there is none).
++
++    THE BOUNDING RULE (plan ``kgv213``, Set ``histdedup``):
++    1. Locate the heading with ``(?m)^## Workflow history[ \t]*$`` (missing heading yields
++       ``HistoryBlock([], [], "")``).
++    2. Scan subsequent lines. The block ENDS at:
++       - the next line starting with ``## ``, OR
++       - the first non-blank line starting at COLUMN ZERO that is not a ``- `` bullet, OR
++       - an INDENTED non-blank line that does not directly continue a bullet (a blank line ends
++         continuation, so a blank-separated indented quotation is NOT part of the block).
++    3. Inside the block, a record is a column-zero line matching :data:`HISTORY_RECORD_RE` against
++       ``line.rstrip()``. Any following indented line directly continuing it is part of ``record_lines``.
++       Non-record bullets and their continuations are dropped from both ``records`` and ``record_lines``.
++
++    CANONICAL NEWEST RECORD:
++    ``newest_history_record(history_block(t).records)`` is the canonical newest record.
++
++    WHY THIS RULE WAS CHOSEN (findings F-01..F-07):
++    - F-01: Disagreement between readers (`backlog._prior_history_records` ending at column zero
++      vs `attention._history_section_lines` ending only at `## `) caused `status_set` to judge an
++      indented-only line as a duplicate while the writer could not preserve it, suppressing writes.
++    - F-02..F-04: Strict bounding was wrong for plans wrapping records onto continuation lines (155 plans,
++      F-03), while loose bounding re-opened the `tk1gqo` defect where indented prose quotations in bodies
++      were counted as records (F-04). This rule agrees with today's answers across all 2489 tracked
++      artifacts carrying history, changing zero consumer answers.
++    - F-06: Writers need `record_lines` (not `records` alone) and a shared body boundary (`_extract_body`,
++      E-06) so wrapped records and their following records are not duplicated on reattachment.
++    - F-07: De-indenting a blank-separated indented quotation in `body` turns it into a column-zero record
++      on the next rewrite (`tk1gqo` defect by another route); preserving leading indentation prevents this.
++    """
++    m = _WORKFLOW_HISTORY_HEADING_RE.search(text)
++    if not m:
++        return HistoryBlock([], [], "")
++
++    after = text[m.end() :]
++    if after.startswith("\r\n"):
++        after = after[2:]
++    elif after.startswith("\n"):
++        after = after[1:]
++
+     lines = after.splitlines(keepends=True)
++    records: List[str] = []
++    record_lines: List[str] = []
++
++    continuing = False
++    current_bullet_is_record = False
++    terminating_idx: Optional[int] = None
++
++    for idx, raw_line in enumerate(lines):
++        line = raw_line.rstrip("\r\n")
++        if line.startswith("## "):
++            terminating_idx = idx
++            break
++        is_indented = line.startswith(" ") or line.startswith("\t")
++        is_blank = not line.strip()
++        if not is_blank and not is_indented and not line.startswith("- "):
++            terminating_idx = idx
++            break
++        if not is_blank and is_indented and not continuing:
++            terminating_idx = idx
++            break
++
++        if is_blank:
++            continuing = False
++            current_bullet_is_record = False
++        elif not is_indented and line.startswith("- "):
++            stripped_line = line.rstrip()
++            if HISTORY_RECORD_RE.match(stripped_line):
++                records.append(stripped_line)
++                record_lines.append(stripped_line)
++                continuing = True
++                current_bullet_is_record = True
++            else:
++                continuing = True
++                current_bullet_is_record = False
++        elif is_indented:
++            if current_bullet_is_record:
++                record_lines.append(line.rstrip())
++
++    if terminating_idx is None:
++        body = ""
++    else:
++        rem_lines = [l.rstrip("\r\n") for l in lines[terminating_idx:]]
++        while rem_lines and not rem_lines[0].strip():
++            rem_lines.pop(0)
++        body = "\n".join(rem_lines).rstrip()
++
++    return HistoryBlock(records, record_lines, body)
++
++
++def newest_history_record(history_lines: List[str]) -> Optional[str]:
++
++$ grep -n "^from\|^import" agent_workflows/attention_contract.py
++40:from __future__ import annotations
++42:import re
++43:from typing import Dict, FrozenSet, List, NamedTuple, Optional, Tuple
++45:from agent_workflows import lifecycle_dirs as _LD
++
++$ python3 -c "from agent_workflows.attention_contract import history_block; ..."
++=== Fixture (a) ===
++records: ['- 2026-10-12 second (tester): second note', '- 2026-10-11 first (tester): first note']
++record_lines: ['- 2026-10-12 second (tester): second note', '- 2026-10-11 first (tester): first note']
++repr(body): 'Prose body line 1\nProse body line 2'
++=== Fixture (b) ===
++records: []
++record_lines: []
++repr(body): '    - 2026-10-12 same-status (aw backlog): metadata only\n\nProse body'
++=== Fixture (c) ===
++records: ['- 2026-10-12 second (tester): second note', '- 2026-10-11 first (tester): first note']
++record_lines: ['- 2026-10-12 second (tester): second note', '- 2026-10-11 first (tester): first note']
++repr(body): 'Prose describing the issue:\n\n    - 2026-01-01 quoted (tester): example\n    - 2026-01-02 quoted (tester): another example'
++=== Fixture (d) ===
++records: ['- 2026-10-12 second (tester): second note', '- 2026-10-11 first (tester): first note']
++record_lines: ['- 2026-10-12 second (tester): second note', '  wrapped continuation line 1', '  wrapped continuation line 2', '- 2026-10-11 first (tester): first note']
++repr(body): 'Prose body'
++=== Fixture (e) ===
++records: ['- 2026-10-12 second (tester): second note']
++record_lines: ['- 2026-10-12 second (tester): second note']
++repr(body): '    - 2026-01-01 quoted (tester): example\n    further indented body'
+```
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: PASTE the `git diff` of `agent_workflows/backlog.py`. PASTE the output of a probe that saves, at the base sha, `_prior_history_records` and `_strip_metadata_and_history` for every tracked `.aw/records/backlog/**/*.backlog.md` (re-derive the item set at execution time) and, after E-02, prints the count of items whose output changed plus each changed item with old and new values. The bar is the PROPERTY: every changed item is listed and justified as a wrapped record or a quoted indented line (F-03/F-07); 0 changed was measured at review.
   - Observed evidence:
-  - Result: pending
+```
+$ git diff agent_workflows/backlog.py
+diff --git a/agent_workflows/backlog.py b/agent_workflows/backlog.py
+index b2c1c0387..bd665dacd 100644
+--- a/agent_workflows/backlog.py
++++ b/agent_workflows/backlog.py
+@@ -1646,30 +1646,20 @@ def run_note(args) -> int:
 
-- [ ] V-03 validates E-03
+
+ def _strip_metadata_and_history(text: str) -> str:
+-    """Return only the free prose body (after the `## Workflow history` section)."""
+-
+-    parts = text.split("\n## Workflow history", 1)
+-    if len(parts) < 2:
+-        return ""
+-    after = parts[1]
+-    # body is whatever follows the history block (the next paragraph after the history bullets)
+-    out_lines: List[str] = []
+-    in_hist = True
+-    for line in after.split("\n")[1:]:
+-        if in_hist and (line.startswith("- ") or not line.strip()):
+-            continue
+-        in_hist = False
+-        out_lines.append(line)
+-    return "\n".join(out_lines).strip()
++    """Return only the free prose body (after the `## Workflow history` section).
++
++    Twin of :func:`_prior_history_records`; delegates to :func:`attention_contract.history_block`.
++    """
++    return A.history_block(text).body
+
+
+ def _prior_history_records(text: str) -> List[str]:
+-    """The item's EXISTING inline history records, in file order (newest-first), or `[]`.
++    """The item's EXISTING inline history records and continuation lines, in file order (newest-first), or `[]`.
+
+-    BOUNDED EXACTLY AS `_strip_metadata_and_history` BOUNDS IT, and that is the whole subtlety. The
+-    history block ends at the first line that is neither blank nor a top-level `- ` bullet; everything
+-    after it is the PROSE BODY. Matching that same boundary is what keeps the two functions from
+-    disagreeing about which lines are records, because they partition the same file between them.
++    Delegates to :func:`attention_contract.history_block` and returns its ``record_lines``
++    (F-06: the restorable source :func:`_reattach_history` re-emits, carrying wrapped continuation lines;
++    its ``[0]`` is the newest record line read by production checks). The canonical bounding rule
++    now lives in :func:`attention_contract.history_block`.
+
+     THE BUG THIS SHAPE PREVENTS, measured on a real legacy item (`tk1gqo`) while implementing
+     `vhbvwz` E-08. An earlier version scanned the whole post-heading region for `HISTORY_RECORD_RE`
+@@ -1679,19 +1669,7 @@ def _prior_history_records(text: str) -> List[str]:
+     the item's own provenance. Hence two rules here: the block is BOUNDED as above, and a record must
+     start at column zero (`ln.startswith("- ")`) so an indented quotation is never mistaken for one.
+     """
+-
+-    if "\n## Workflow history" not in text:
+-        return []
+-    after = text.split("\n## Workflow history", 1)[1]
+-    out: List[str] = []
+-    for ln in after.split("\n")[1:]:
+-        if not ln.strip():
+-            continue
+-        if not ln.startswith("- "):
+-            break  # the prose body begins here; everything beyond is not history
+-        if A.HISTORY_RECORD_RE.match(ln.strip()):
+-            out.append(ln.rstrip())
+-    return out
++    return A.history_block(text).record_lines
+
+
+ def _reattach_history(
+
+Corpus probe across 990 tracked backlog items:
+Total tracked backlog items: 990
+Changed prior records: 0
+Changed stripped body: 0
+```
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: PASTE the `git diff` of `same_status_message_is_duplicate`. PASTE a direct call on the F-01 fixture dated with `utc_history_date()` returning False, and on a well-formed fixture whose newest record repeats the message returning True. Runtime path: `status_set.apply_status_change` (the `is_dup` computation) consumes it.
   - Observed evidence:
-  - Result: pending
+```
+$ git diff agent_workflows/status_set.py
+diff --git a/agent_workflows/status_set.py b/agent_workflows/status_set.py
+index 180e87e14..c1d99721a 100644
+--- a/agent_workflows/status_set.py
++++ b/agent_workflows/status_set.py
+@@ -995,6 +995,11 @@ def same_status_message_is_duplicate(
+     True when the artifact's NEWEST existing history record already carries the same status token
+     (or ``same-status`` tag), the same date, and a byte-identical message. Pure; ``text`` is whole artifact text.
 
-- [ ] V-04 validates E-04
++    THE NEWEST RECORD READS THROUGH :func:`attention_contract.history_block` (plan ``kgv213``, Set
++    ``histdedup``). The predicate must judge against exactly the records the writer will preserve;
++    reading through the shared reader prevents judging an indented-only line as a duplicate when the
++    writer cannot preserve it.
++
+     WHY THIS PREDICATE EXISTS (plan ``vhbvwz`` E-01, finding F-10; plan ``1i300e`` E-03, finding F-9).
+     Making a same-status write record its history - the ``x6tk1u`` fix - cannot key on message
+     PRESENCE alone or bypass defaulted messages, because that grows duplicate history on idempotent
+@@ -1009,13 +1014,10 @@ def same_status_message_is_duplicate(
+     different actor string is still the same note.
+     """
+
+-    from agent_workflows import attention as _att
+     from agent_workflows import attention_contract as _ac
+     from agent_workflows import plan_readiness as _readiness
+
+-    newest = _ac.newest_history_record(
+-        [line.strip() for line in _att._history_section_lines(text)]
+-    )
++    newest = _ac.newest_history_record(_ac.history_block(text).records)
+     if newest is None:
+         return False
+     # The SHARED record parser, not a second copy of the grammar: `plan_readiness` already owns it and
+
+Direct call results on F-01 fixture and well-formed fixture:
+F-01 fixture duplicate result: False
+Well-formed fixture duplicate result: True
+```
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: PASTE the pytest output of the new module passing. PASTE the output of running case (f) against the base sha (copy the new test file into a temporary `git worktree add` of the base sha and run it there; never stash the working checkout) showing it FAILS there, and the same for case (e2) on the wrapped fixture (it must fail at the base sha only if the base sha already duplicates; if it passes there, paste that and state it, since (e2) then fences the E-02/E-06 coupling rather than a base defect). Runtime path: `cli.main` -> `backlog.run_set` -> `status_set.run_set_command`.
   - Observed evidence:
-  - Result: pending
+```
+$ python3 -m pytest -o addopts="" -q tests/test_history_block_bounding.py
+.........                                                                [100%]
+9 passed in 2.02s
 
-- [ ] V-06 validates E-06
+Running case (f) against base sha (24b2bbca1) in detached worktree:
+$ python3 -m pytest -o addopts="" -q tests/test_history_block_bounding.py -k "test_f_end_to_end_backlog_set"
+F                                                                        [100%]
+=================================== FAILURES ===================================
+____ HistoryBlockBoundingTests.test_f_end_to_end_backlog_set_both_spellings ____
+...
+>       hb1 = ac.history_block(text1)
+E       AttributeError: module 'agent_workflows.attention_contract' has no attribute 'history_block'
+=========================== short test summary info ============================
+FAILED tests/test_history_block_bounding.py::HistoryBlockBoundingTests::test_f_end_to_end_backlog_set_both_spellings
+1 failed, 8 deselected in 5.37s
+
+Running case (e2) against base sha (24b2bbca1) in detached worktree:
+$ python3 -m pytest -o addopts="" -q tests/test_history_block_bounding.py -k "test_e2"
+F                                                                        [100%]
+=================================== FAILURES ===================================
+____ HistoryBlockBoundingTests.test_e2_writer_round_trip_wrapped_and_quoted ____
+...
+>       self.assertEqual(lines1[rec_idx + 1], "  wrapped continuation")
+E       AssertionError: '' != '  wrapped continuation'
+E       +   wrapped continuation
+=========================== short test summary info ============================
+FAILED tests/test_history_block_bounding.py::HistoryBlockBoundingTests::test_e2_writer_round_trip_wrapped_and_quoted
+1 failed, 8 deselected in 0.61s
+```
+  - Result: pass
+
+- [x] V-06 validates E-06
   - Required evidence: PASTE the `git diff` of `agent_workflows/set_records.py`. PASTE a base-sha vs after probe of `_extract_body` over every tracked backlog item (re-derived at execution time) listing each changed item with old and new values; each must be justified as a kept quoted `## Workflow history` body line (F-08) and be in a non-`blocked` disposition. PASTE the E-04 (e2) test result. Runtime path: `set_records.close_on_answer` -> `_extract_body` -> `backlog._render_item` -> `backlog._reattach_history`.
   - Observed evidence:
-  - Result: pending
+```
+$ git diff agent_workflows/set_records.py
+diff --git a/agent_workflows/set_records.py b/agent_workflows/set_records.py
+index 00ebfa71c..49bb533ef 100644
+--- a/agent_workflows/set_records.py
++++ b/agent_workflows/set_records.py
+@@ -405,26 +405,15 @@ def close_on_answer(repo_root: Path, backlog_path: Path) -> Path:
 
-- [ ] V-05 validates E-05
+
+ def _extract_body(text: str) -> str:
+-    """Extract the prose body after the ``## Workflow history`` block (best-effort)."""
++    """Extract the prose body after the ``## Workflow history`` block.
+
++    Delegates to :func:`attention_contract.history_block` (F-06). Keeping the body boundary
++    identical to the prior-history boundary ensures wrapped records and following records are
++    not duplicated on reattach.
+     The pre-history prose region is deliberately not this function's job;
+     ``backlog._render_item(..., source_text=...)`` preserves and re-emits it.
+     """
+-    lines = text.splitlines()
+-    out: List[str] = []
+-    in_hist = False
+-    hist_done = False
+-    for ln in lines:
+-        if ln.strip() == "## Workflow history":
+-            in_hist = True
+-            continue
+-        if in_hist and not hist_done:
+-            if ln.startswith("- ") or ln.strip() == "":
+-                continue
+-            hist_done = True
+-        if hist_done:
+-            out.append(ln)
+-    return "\n".join(out).strip()
++    return _ac.history_block(text).body
+
+
+ # --------------------------------------------------------------------------------------------------
+
+Base-sha vs after probe of _extract_body over 990 tracked backlog items:
+Total tracked backlog items: 990
+Changed _extract_body count: 2
+Item: .aw/records/backlog/done/20260910-bklghist-01-hg2oop-backlog-set-same-status-destroys-history.backlog.md
+  Disposition: done (non-blocked)
+  Diff: kept quoted column-zero '## Workflow history' line inside code fence in prose body (F-08)
+Item: .aw/records/backlog/done/20260930-histlabel-01-r74211-backlog-set-status-same-status-dedup-asymmetry.backlog.md
+  Disposition: done (non-blocked)
+  Diff: kept quoted indented '    ## Workflow history' line in prose body (F-08)
+
+$ python3 -m pytest -o addopts="" -q tests/test_history_block_bounding.py -k "test_e2"
+.                                                                        [100%]
+1 passed, 8 deselected in 0.96s
+```
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: PASTE the `git diff CHANGELOG.md` showing the single added entry with no em or en dash.
   - Observed evidence:
-  - Result: pending
+```
+$ git diff CHANGELOG.md
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index d650735d9..249055877 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -24,6 +24,7 @@ now under way. The direction of the 2.x line (in progress, not all shipped in th
+
+ Major storage-layout boundary. The logical model (D126-D129) was superseded by the PHYSICAL `.aw/` hierarchy specified in `20260810-1447-01-physical-aw-hierarchy-placement-and-migration.spec.md` (D130, D134-D137), which the framework now implements and has migrated its own repository onto:
+
++- Fixed: the workflow history block bounding rule is now shared, so aw backlog set no longer suppresses a same-status record against an indented line it cannot preserve, and closing a decision item no longer duplicates wrapped history records.
+ - Added: `aw attention` now lists graduated backlog items whose plan and spec carriers have all finished, with the command that closes them.
+ - Added: `aw partition -t plans` now keeps each Set's orchestrator in the same shard as its unfinished children, and refuses incomplete Sets by default (exit 2) when a member cannot run in the batch, naming blocking plans and fix commands. Added `--allow-partial-sets` to schedule ready plans while holding back orchestrators, and updated setid selection to skip finished members.
+ - Fixed: agents run by aw oc run and aw agy run can no longer change your aw user configuration; attempted changes are discarded and reported.
+```
+  - Result: pass
 
 ## Approval and execution gate
 

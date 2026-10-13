@@ -1646,30 +1646,20 @@ def run_note(args) -> int:
 
 
 def _strip_metadata_and_history(text: str) -> str:
-    """Return only the free prose body (after the `## Workflow history` section)."""
+    """Return only the free prose body (after the `## Workflow history` section).
 
-    parts = text.split("\n## Workflow history", 1)
-    if len(parts) < 2:
-        return ""
-    after = parts[1]
-    # body is whatever follows the history block (the next paragraph after the history bullets)
-    out_lines: List[str] = []
-    in_hist = True
-    for line in after.split("\n")[1:]:
-        if in_hist and (line.startswith("- ") or not line.strip()):
-            continue
-        in_hist = False
-        out_lines.append(line)
-    return "\n".join(out_lines).strip()
+    Twin of :func:`_prior_history_records`; delegates to :func:`attention_contract.history_block`.
+    """
+    return A.history_block(text).body
 
 
 def _prior_history_records(text: str) -> List[str]:
-    """The item's EXISTING inline history records, in file order (newest-first), or `[]`.
+    """The item's EXISTING inline history records and continuation lines, in file order (newest-first), or `[]`.
 
-    BOUNDED EXACTLY AS `_strip_metadata_and_history` BOUNDS IT, and that is the whole subtlety. The
-    history block ends at the first line that is neither blank nor a top-level `- ` bullet; everything
-    after it is the PROSE BODY. Matching that same boundary is what keeps the two functions from
-    disagreeing about which lines are records, because they partition the same file between them.
+    Delegates to :func:`attention_contract.history_block` and returns its ``record_lines``
+    (F-06: the restorable source :func:`_reattach_history` re-emits, carrying wrapped continuation lines;
+    its ``[0]`` is the newest record line read by production checks). The canonical bounding rule
+    now lives in :func:`attention_contract.history_block`.
 
     THE BUG THIS SHAPE PREVENTS, measured on a real legacy item (`tk1gqo`) while implementing
     `vhbvwz` E-08. An earlier version scanned the whole post-heading region for `HISTORY_RECORD_RE`
@@ -1679,19 +1669,7 @@ def _prior_history_records(text: str) -> List[str]:
     the item's own provenance. Hence two rules here: the block is BOUNDED as above, and a record must
     start at column zero (`ln.startswith("- ")`) so an indented quotation is never mistaken for one.
     """
-
-    if "\n## Workflow history" not in text:
-        return []
-    after = text.split("\n## Workflow history", 1)[1]
-    out: List[str] = []
-    for ln in after.split("\n")[1:]:
-        if not ln.strip():
-            continue
-        if not ln.startswith("- "):
-            break  # the prose body begins here; everything beyond is not history
-        if A.HISTORY_RECORD_RE.match(ln.strip()):
-            out.append(ln.rstrip())
-    return out
+    return A.history_block(text).record_lines
 
 
 def _reattach_history(
