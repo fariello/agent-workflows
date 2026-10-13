@@ -4070,10 +4070,13 @@ def commit_backlog_transition_output(
     if not allowed:
         return None, ()
 
-    rc, _out, _err = _run_git(wt, ["add", "--", *allowed])
-    if rc != 0:
-        return None, ()
     from agent_workflows import git_commit_helper as _gch
+
+    add_paths = [p for p in allowed if (wt / p).exists() or _gch._in_index(wt, p)]
+    if add_paths:
+        rc, _out, _err = _run_git(wt, ["add", "--", *add_paths])
+        if rc != 0:
+            return None, ()
 
     subject = f"transition(backlog): move {item_id6} -> {status_label}"
     body = (
@@ -35358,7 +35361,7 @@ def _close_already_complete_backlog_item(
                 run_dir=run_dir,
                 item=item,
                 handle=wt_handle,
-                reason=f"teardown refused: {decision.why}",
+                reason=f"teardown refused: {decision.reason}",
                 reason_codes=decision.reason_codes,
             )
     else:

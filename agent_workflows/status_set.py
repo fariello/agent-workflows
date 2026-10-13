@@ -2205,9 +2205,10 @@ def _offer_self_commit(
 
     paths = list(touched_paths)
     label = scoped_type_canonical or "records"
-    # jgcm68 D2: unstage exactly these touched paths first (a no-op for in-place set rewrites) so the
-    # helper cleanly re-stages them; scoped to the verb's own paths, never global.
-    _gch._git(repo_root, ["reset", "--quiet", "HEAD", "--", *paths])
+    # The touched paths are passed to git_commit_helper.offer_commit already staged by
+    # artifact_core.git_mv; offer_commit drops a staged rename's source from its git add set
+    # via _in_index and stages the rest itself, so no pre-reset is needed, and a pre-reset would
+    # unstage the rename whenever the commit is skipped (backlog r73v9i).
     outcome = _gch.offer_commit(
         repo_root,
         paths,

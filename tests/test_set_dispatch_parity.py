@@ -38,7 +38,7 @@ from unittest.mock import patch
 
 from agent_workflows import attention as att
 from agent_workflows import attention_contract as ac
-from agent_workflows import backlog, cli, specs, status_set
+from agent_workflows import backlog, cli, runner_shared, specs, status_set
 from tests import support
 
 # =============================================================================
@@ -1046,12 +1046,10 @@ class TestBacklogSetDispatchParity(unittest.TestCase):
                 self.assertEqual(item_after.read_bytes(), before_bytes)
 
     def test_backlog_relocation_porcelain_shape_agreement(self) -> None:
-        """Both spellings leave ' D <src>' plus '?? <dest>' in porcelain under --no-commit.
+        """Both spellings leave a single staged 'R' rename in porcelain under --no-commit.
 
-        Reclassified from E-04 (c): measured at review that status_set._offer_self_commit
-        runs 'git reset --quiet HEAD -- <paths>' after artifact_core.git_mv staged 'R',
-        unstaging the rename. Neither spelling produces wy9aru AC-5's canonical staged 'R'
-        rename today under --no-commit.
+        Governed by spec wy9aru AC-5 ("A relocation performed by either spelling appears in
+        git status --porcelain as a single R rename") and backlog r73v9i.
         """
         for spelling in ("status", "positional"):
             with tempfile.TemporaryDirectory() as tmp:
@@ -1095,8 +1093,353 @@ class TestBacklogSetDispatchParity(unittest.TestCase):
                         )
                 self.assertEqual(rc, 0)
                 porcelain = _git(repo, "status", "--porcelain")
-                self.assertIn(" D .aw/records/backlog/open/", porcelain)
-                self.assertIn("?? .aw/records/backlog/done/", porcelain)
+                lines = [
+                    line.strip() for line in porcelain.splitlines() if line.strip()
+                ]
+                r_lines = [
+                    entry
+                    for entry in lines
+                    if entry.startswith("R")
+                    and "backlog/open/" in entry
+                    and " -> " in entry
+                    and "backlog/done/" in entry
+                ]
+                self.assertEqual(
+                    len(r_lines),
+                    1,
+                    f"Expected 1 R rename line in porcelain:\n{porcelain}",
+                )
+                self.assertNotIn(" D .aw/records/backlog/open/", porcelain)
+                self.assertNotIn("?? .aw/records/backlog/done/", porcelain)
+
+    def test_backlog_relocation_noninteractive_default_porcelain_shape(self) -> None:
+        """Backlog relocation under non-interactive default (no commit flag, no --yes) stays a staged rename."""
+        with patch.dict(os.environ, {"AW_NONINTERACTIVE": "1"}):
+            for spelling in ("status", "positional"):
+                with tempfile.TemporaryDirectory() as tmp:
+                    repo = _setup_repo(Path(tmp))
+                    item = _create_backlog_item(repo, status="open", item_id="bk0001")
+                    _git(repo, "add", "-A")
+                    _git(repo, "commit", "-m", "track item")
+
+                    out, err = io.StringIO(), io.StringIO()
+                    with redirect_stdout(out), redirect_stderr(err):
+                        if spelling == "status":
+                            rc = cli.main(
+                                [
+                                    "backlog",
+                                    "set",
+                                    str(item),
+                                    "--status",
+                                    "done",
+                                    "--message",
+                                    "relocate",
+                                    "--dir",
+                                    str(repo),
+                                ]
+                            )
+                        else:
+                            rc = cli.main(
+                                [
+                                    "backlog",
+                                    "set",
+                                    "done",
+                                    "bk0001",
+                                    "--message",
+                                    "relocate",
+                                    "--dir",
+                                    str(repo),
+                                ]
+                            )
+                    self.assertEqual(rc, 0)
+                    porcelain = _git(repo, "status", "--porcelain")
+                    lines = [
+                        line.strip() for line in porcelain.splitlines() if line.strip()
+                    ]
+                    r_lines = [
+                        entry
+                        for entry in lines
+                        if entry.startswith("R")
+                        and "backlog/open/" in entry
+                        and " -> " in entry
+                        and "backlog/done/" in entry
+                    ]
+                    self.assertEqual(
+                        len(r_lines),
+                        1,
+                        f"Expected 1 R rename line in porcelain:\n{porcelain}",
+                    )
+
+    def test_spec_relocation_porcelain_shape(self) -> None:
+        """Spec relocation under --no-commit stays a single staged rename on both spellings."""
+        for spelling in ("status", "positional"):
+            with tempfile.TemporaryDirectory() as tmp:
+                repo = _setup_repo(Path(tmp))
+                spec = _create_spec(repo, status="draft", spec_id="sp0001")
+                _git(repo, "add", "-A")
+                _git(repo, "commit", "-m", "track spec")
+
+                out, err = io.StringIO(), io.StringIO()
+                with redirect_stdout(out), redirect_stderr(err):
+                    if spelling == "status":
+                        rc = cli.main(
+                            [
+                                "specs",
+                                "set",
+                                str(spec),
+                                "--status",
+                                "to-review",
+                                "--message",
+                                "ready to review",
+                                "--yes",
+                                "--no-commit",
+                                "--dir",
+                                str(repo),
+                            ]
+                        )
+                    else:
+                        rc = cli.main(
+                            [
+                                "specs",
+                                "set",
+                                "to-review",
+                                "sp0001",
+                                "--message",
+                                "ready to review",
+                                "--yes",
+                                "--no-commit",
+                                "--dir",
+                                str(repo),
+                            ]
+                        )
+                self.assertEqual(rc, 0)
+                porcelain = _git(repo, "status", "--porcelain")
+                lines = [
+                    line.strip() for line in porcelain.splitlines() if line.strip()
+                ]
+                r_lines = [
+                    entry
+                    for entry in lines
+                    if entry.startswith("R")
+                    and "specs/draft/" in entry
+                    and " -> " in entry
+                    and "specs/to-review/" in entry
+                ]
+                self.assertEqual(
+                    len(r_lines),
+                    1,
+                    f"Expected 1 R rename line in porcelain:\n{porcelain}",
+                )
+
+    def test_plan_relocation_porcelain_shape(self) -> None:
+        """Plan relocation under aw ipd set ... --no-commit stays a single staged rename."""
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = _setup_repo(Path(tmp))
+            plan = _write_conforming_plan(repo, id6="pl0002")
+            _git(repo, "add", "-A")
+            _git(repo, "commit", "-m", "track plan")
+
+            out, err = io.StringIO(), io.StringIO()
+            with redirect_stdout(out), redirect_stderr(err):
+                rc = cli.main(
+                    [
+                        "ipd",
+                        "set",
+                        "superseded",
+                        str(plan),
+                        "--message",
+                        "supersede plan",
+                        "--yes",
+                        "--no-commit",
+                        "--dir",
+                        str(repo),
+                    ]
+                )
+            self.assertEqual(rc, 0)
+            porcelain = _git(repo, "status", "--porcelain")
+            lines = [line.strip() for line in porcelain.splitlines() if line.strip()]
+            r_lines = [
+                entry
+                for entry in lines
+                if entry.startswith("R")
+                and "plans/pending/" in entry
+                and " -> " in entry
+                and "plans/superseded/" in entry
+            ]
+            self.assertEqual(
+                len(r_lines), 1, f"Expected 1 R rename line in porcelain:\n{porcelain}"
+            )
+
+    def test_backlog_relocation_commit_shape(self) -> None:
+        """Backlog relocation with --commit records a single rename in git show and clean tracked status."""
+        for spelling in ("status", "positional"):
+            with tempfile.TemporaryDirectory() as tmp:
+                repo = _setup_repo(Path(tmp))
+                item = _create_backlog_item(repo, status="open", item_id="bk0001")
+                _git(repo, "add", "-A")
+                _git(repo, "commit", "-m", "track item")
+
+                out, err = io.StringIO(), io.StringIO()
+                with redirect_stdout(out), redirect_stderr(err):
+                    if spelling == "status":
+                        rc = cli.main(
+                            [
+                                "backlog",
+                                "set",
+                                str(item),
+                                "--status",
+                                "done",
+                                "--message",
+                                "relocate",
+                                "--yes",
+                                "--commit",
+                                "--dir",
+                                str(repo),
+                            ]
+                        )
+                    else:
+                        rc = cli.main(
+                            [
+                                "backlog",
+                                "set",
+                                "done",
+                                "bk0001",
+                                "--message",
+                                "relocate",
+                                "--yes",
+                                "--commit",
+                                "--dir",
+                                str(repo),
+                            ]
+                        )
+                self.assertEqual(rc, 0)
+                show = _git(repo, "show", "--name-status", "-M", "--format=", "HEAD")
+                show_lines = [
+                    entry.strip() for entry in show.splitlines() if entry.strip()
+                ]
+                r_show = [
+                    entry
+                    for entry in show_lines
+                    if entry.startswith("R")
+                    and "backlog/open/" in entry
+                    and "backlog/done/" in entry
+                ]
+                self.assertEqual(
+                    len(r_show), 1, f"Expected 1 R line in git show:\n{show}"
+                )
+                porcelain = _git(repo, "status", "--porcelain")
+                tracked_lines = [
+                    entry
+                    for entry in porcelain.splitlines()
+                    if entry.strip() and not entry.startswith("??")
+                ]
+                self.assertEqual(
+                    tracked_lines,
+                    [],
+                    f"Expected no tracked entries in porcelain:\n{porcelain}",
+                )
+                self.assertNotIn("backlog/open/", porcelain)
+                self.assertNotIn("backlog/done/", porcelain)
+
+    def test_backlog_relocation_commit_preserves_unrelated_staged(self) -> None:
+        """An unrelated pre-staged file survives staged and uncommitted after a --commit relocation."""
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = _setup_repo(Path(tmp))
+            item = _create_backlog_item(repo, status="open", item_id="bk0001")
+            _git(repo, "add", "-A")
+            _git(repo, "commit", "-m", "track item")
+
+            unrelated = repo / "unrelated.txt"
+            unrelated.write_text("unrelated content\n", encoding="utf-8")
+            _git(repo, "add", "unrelated.txt")
+
+            out, err = io.StringIO(), io.StringIO()
+            with redirect_stdout(out), redirect_stderr(err):
+                rc = cli.main(
+                    [
+                        "backlog",
+                        "set",
+                        str(item),
+                        "--status",
+                        "done",
+                        "--message",
+                        "relocate",
+                        "--yes",
+                        "--commit",
+                        "--dir",
+                        str(repo),
+                    ]
+                )
+            self.assertEqual(rc, 0)
+            show = _git(repo, "show", "--name-status", "-M", "--format=", "HEAD")
+            self.assertNotIn("unrelated.txt", show)
+            porcelain = _git(repo, "status", "--porcelain")
+            lines = [entry.strip() for entry in porcelain.splitlines() if entry.strip()]
+            self.assertIn("A  unrelated.txt", lines)
+
+    def test_runner_commit_backlog_close_consumes_relocation(self) -> None:
+        """runner_shared.commit_backlog_close commits a single rename after aw backlog set ... --no-commit."""
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = _setup_repo(Path(tmp))
+            item = _create_backlog_item(repo, status="open", item_id="bk0001")
+            _git(repo, "add", "-A")
+            _git(repo, "commit", "-m", "track item")
+
+            out, err = io.StringIO(), io.StringIO()
+            with redirect_stdout(out), redirect_stderr(err):
+                rc = cli.main(
+                    [
+                        "backlog",
+                        "set",
+                        str(item),
+                        "--status",
+                        "done",
+                        "--message",
+                        "close backlog item",
+                        "--yes",
+                        "--no-commit",
+                        "--dir",
+                        str(repo),
+                    ]
+                )
+            self.assertEqual(rc, 0)
+
+            def run_checked(cmd: list[str], *, cwd: Path | None = None) -> str:
+                return subprocess.run(
+                    cmd,
+                    cwd=str(cwd) if cwd else str(repo),
+                    capture_output=True,
+                    text=True,
+                    check=True,
+                ).stdout.strip()
+
+            sha = runner_shared.commit_backlog_close(
+                repo, "bk0001", "close", run_checked=run_checked
+            )
+            self.assertIsNotNone(sha)
+            show = _git(repo, "show", "--name-status", "-M", "--format=", "HEAD")
+            show_lines = [entry.strip() for entry in show.splitlines() if entry.strip()]
+            r_show = [
+                entry
+                for entry in show_lines
+                if entry.startswith("R")
+                and "backlog/open/" in entry
+                and "backlog/done/" in entry
+            ]
+            self.assertEqual(len(r_show), 1, f"Expected 1 R line in git show:\n{show}")
+            porcelain = _git(repo, "status", "--porcelain")
+            tracked_lines = [
+                entry
+                for entry in porcelain.splitlines()
+                if entry.strip() and not entry.startswith("??")
+            ]
+            self.assertEqual(
+                tracked_lines,
+                [],
+                f"Expected no tracked entries in porcelain:\n{porcelain}",
+            )
+            self.assertNotIn("backlog/open/", porcelain)
+            self.assertNotIn("backlog/done/", porcelain)
 
     def test_backlog_substring_selector_ambiguity_refusal_agreement(self) -> None:
         """Both spellings refuse an ambiguous substring selector at rc 2 (from E-04 (e))."""
