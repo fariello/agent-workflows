@@ -1,5 +1,5 @@
 - Id: bh1cy5
-- Status: graduated
+- Status: done
 - Graduated-To: rescomp
 - Set: instbugs
 - Priority: low
@@ -7,6 +7,7 @@
 - Summary: Give research documents a companion convention for non-Markdown files (CSV, zip) that index, mv, set-assign, promote and archive carry along
 
 ## Workflow history
+- 2026-10-13 done (aw backlog): closed by aw agy run: IPD mtdxiu executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20261012-rescomp-01-mtdxiu-give-research-documents-a-companion-directory-that-index-mv.ipd.md); evidence .aw/records/plans/executed/20261012-rescomp-01-mtdxiu-give-research-documents-a-companion-directory-that-index-mv.ipd.md
 - 2026-10-12 graduated (aw backlog): graduated by run run-20261012T005641Z-2321995: mtdxiu
 - 2026-10-07 created (aw backlog): Give research documents a companion convention for non-Markdown files (CSV, zip) that index, mv, set-assign, promote and archive carry along
 
