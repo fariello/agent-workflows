@@ -286,11 +286,12 @@ RULE_REGISTRY: Dict[str, RuleSpec] = {
     # IPD wyk11f (backlog mt6j1p): advisory check comparing each clustered plan's filename date
     # against its own `- Date:` metadata.
     #
-    # WHY `info` AND NOT `warning`: `docs/cli-output-contract.md` Section 3.1 states that `warning`
-    # fails the exit-code gate exactly as an `error` does, and that `info` is the ONLY severity tier
-    # that does not contribute to exit 1. The violating population is measured empty, so a gating
-    # rule would fail CI on an unrelated future change before any true positive was evaluated. `info`
-    # ships the rule as an advisory tripwire without changing any exit code today.
+    # WHY `info` AND NOT `warning`: `docs/cli-output-contract.md` Section 3.2 (Severity Tier
+    # Contract and Gate Semantics) states that `warning` fails the exit-code gate exactly as an
+    # `error` does, and that `info` is the ONLY severity tier that does not contribute to exit 1.
+    # The violating population is measured empty, so a gating rule would fail CI on an unrelated
+    # future change before any true positive was evaluated. `info` ships the rule as an advisory
+    # tripwire without changing any exit code today.
     #
     # Invariant is `""`: no catalog invariant in spec `pqsx96` covers agreement between a filename
     # date and its own front-matter `- Date:` (I-09 is filename grammar shape; I-16/I-17 are setid
@@ -785,10 +786,11 @@ RULE_REGISTRY: Dict[str, RuleSpec] = {
     # asks for a tier that will not "turn `aw check` red for authors who did nothing wrong" and concludes
     # `warning`. That conclusion is falsified on evidence: `artifact_core.drift_exit_code` returns 1 for
     # every severity except `info` (error -> 1, warning -> 1, info -> 0; docs/cli-output-contract.md
-    # section 3.1: "to author a rule that reports diagnostics without ever failing any gate or check,
-    # register the rule with severity `info`"). A `warning` tier would exit 1 on 19 pending plans and
-    # fail CI (which enforces `aw check plans` fail-closed). Precedent: `_CARRIER_LEGACY_SEVERITY` in
-    # this same module ("MISSING -> `info`, the ONLY non-failing severity", citing `check.stale-index-missing`).
+    # Section 3.2 (Severity Tier Contract and Gate Semantics): "to author a rule that reports
+    # diagnostics without ever failing any gate or check, register the rule with severity `info`").
+    # A `warning` tier would exit 1 on 19 pending plans and fail CI (which enforces `aw check plans`
+    # fail-closed). Precedent: `_CARRIER_LEGACY_SEVERITY` in this same module ("MISSING -> `info`,
+    # the ONLY non-failing severity", citing `check.stale-index-missing`).
     #
     # Invariant `""` DELIBERATELY. Do not claim I-07 (release gating / uncarried obligations) or I-08
     # (cross-IPD dependency statements). This rule reports neither a broken gate nor a malformed statement:
