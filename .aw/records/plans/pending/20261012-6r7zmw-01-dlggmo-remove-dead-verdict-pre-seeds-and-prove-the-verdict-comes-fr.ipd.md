@@ -36,29 +36,29 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: agy runner tests
 
-- [ ] E-01 In `tests/test_agy_runipd_cli.py`, in `AgySelfFinalizeTests.test_finalize_fires_on_verified_and_marks_executed` and `AgySelfFinalizeTests.test_finalize_refusal_leaves_not_executed_and_not_forced`, delete the `(run_dir / "outcomes" / "01-agy001-verification.json").write_text(...)` pre-seed that runs before `execute_item`. Then reduce each `fake_agy` condition from `k.get("fresh_session") or k.get("log_suffix") == "verify"` to `k.get("log_suffix") == "verify"`.
+- [x] E-01 In `tests/test_agy_runipd_cli.py`, in `AgySelfFinalizeTests.test_finalize_fires_on_verified_and_marks_executed` and `AgySelfFinalizeTests.test_finalize_refusal_leaves_not_executed_and_not_forced`, delete the `(run_dir / "outcomes" / "01-agy001-verification.json").write_text(...)` pre-seed that runs before `execute_item`. Then reduce each `fake_agy` condition from `k.get("fresh_session") or k.get("log_suffix") == "verify"` to `k.get("log_suffix") == "verify"`.
   - Depends on: none
   - Expected outcome: the only write of `01-agy001-verification.json` in each test is inside the verifier branch of `fake_agy`; both tests still pass with their existing assertions (`executed`, and `fail-gate` respectively).
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 Add a test in `AgySelfFinalizeTests` (for example `test_preseeded_verdict_without_verifier_write_is_not_executed`) that writes a VERIFIED `01-agy001-verification.json` before the run (with the same `tests_run` evidence the positive tests use, `python3 -m unittest tests.test_from_backlog -v`, so the pre-seed would be ACCEPTED if it survived), uses a `run_agy_turn` fake whose verifier branch (`log_suffix == "verify"`) writes nothing, drives `agy_runipd.execute_item`, and asserts that `item["status"] == "fail-verify"`, that the item's refusal code (`render_stream.refusal_of_item(item).code`, or `item["refusal"]["code"]`) is `verification-never-recorded`, that `driver_finalize` was never called, and that the plan file is still at its pending path. Mirror the setup of `test_finalize_fires_on_verified_and_marks_executed`, including `state["options"]["no_verify"] = False` and the conforming executor outcome, and pin `state["options"]["retry_budget"] = 0` (REQUIRED, not conditional: measured at review, the default budget leaves the item `queued` with refusal `verification-sent-back`). The fake's verifier branch MUST return a session id DIFFERENT from the executor's (for example `"s_verify"` versus `"s"`, as the positive tests do): measured at review, returning the same `"s"` for both turns makes the item fail `verifier-session-collision`, so the test would pass for a reason unrelated to the stale verdict.
+- [x] E-02 Add a test in `AgySelfFinalizeTests` (for example `test_preseeded_verdict_without_verifier_write_is_not_executed`) that writes a VERIFIED `01-agy001-verification.json` before the run (with the same `tests_run` evidence the positive tests use, `python3 -m unittest tests.test_from_backlog -v`, so the pre-seed would be ACCEPTED if it survived), uses a `run_agy_turn` fake whose verifier branch (`log_suffix == "verify"`) writes nothing, drives `agy_runipd.execute_item`, and asserts that `item["status"] == "fail-verify"`, that the item's refusal code (`render_stream.refusal_of_item(item).code`, or `item["refusal"]["code"]`) is `verification-never-recorded`, that `driver_finalize` was never called, and that the plan file is still at its pending path. Mirror the setup of `test_finalize_fires_on_verified_and_marks_executed`, including `state["options"]["no_verify"] = False` and the conforming executor outcome, and pin `state["options"]["retry_budget"] = 0` (REQUIRED, not conditional: measured at review, the default budget leaves the item `queued` with refusal `verification-sent-back`). The fake's verifier branch MUST return a session id DIFFERENT from the executor's (for example `"s_verify"` versus `"s"`, as the positive tests do): measured at review, returning the same `"s"` for both turns makes the item fail `verifier-session-collision`, so the test would pass for a reason unrelated to the stale verdict.
   - Depends on: E-01
   - Expected outcome: the new test passes with `fail-verify` / `verification-never-recorded`, and it FAILS (the item reaches `executed` and `driver_finalize` is called once) when the verdict unlink in `_run_verifier_turn` is disabled. Run that mutation probe as an in-process monkeypatch (wrap `pathlib.Path.unlink` so it is a no-op for names ending `-verification.json`) or a temporary edit reverted before commit; never commit it. Both outcomes were reproduced at review with a scratch driver of this exact setup.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: stale plan path finalize tests
 
-- [ ] E-03 In `tests/test_finalize_stale_plan_path.py`, in `test_a1_lane_arm_refuses_when_finalize_re_resolution_fails` and `test_a2_non_lane_arm_refuses_when_finalize_re_resolution_fails`, delete the verification write (`outcomes/01-1fz001-verification.json` and `outcomes/01-1fz002-verification.json` respectively) from the EXECUTOR mock, and keep the write in `mock_verifier`.
+- [x] E-03 In `tests/test_finalize_stale_plan_path.py`, in `test_a1_lane_arm_refuses_when_finalize_re_resolution_fails` and `test_a2_non_lane_arm_refuses_when_finalize_re_resolution_fails`, delete the verification write (`outcomes/01-1fz001-verification.json` and `outcomes/01-1fz002-verification.json` respectively) from the EXECUTOR mock, and keep the write in `mock_verifier`.
   - Depends on: none
   - Expected outcome: each test writes its verification outcome only from `mock_verifier`, and both still pass with their existing refusal assertions unchanged.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: regression
 
-- [ ] E-04 Before the first edit, RE-DERIVE the baseline with a bare `python3 -m pytest` and record its summary line and FAILED node ids (F5's `39 failed` is authoring-time context, not the bar: it was measured with explicit flags in another state of the tree). After E-01..E-03, run the two touched modules, then the bare full suite, and compare the failing node ids against that re-derived baseline.
+- [x] E-04 Before the first edit, RE-DERIVE the baseline with a bare `python3 -m pytest` and record its summary line and FAILED node ids (F5's `39 failed` is authoring-time context, not the bar: it was measured with explicit flags in another state of the tree). After E-01..E-03, run the two touched modules, then the bare full suite, and compare the failing node ids against that re-derived baseline.
   - Depends on: E-01, E-02, E-03
   - Expected outcome: both touched modules pass in full, and the full suite reports no failure outside the pre-existing baseline set.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -121,25 +121,205 @@ N/A: test-only change. The runner contract the tests now mirror (clear the verdi
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste `git diff -- tests/test_agy_runipd_cli.py` showing the two pre-seed writes and the `fresh_session` conditions removed, plus `grep -n "verification.json\|fresh_session" tests/test_agy_runipd_cli.py` output showing no `01-agy001-verification.json` write outside a `log_suffix == "verify"` branch in `AgySelfFinalizeTests`; paste the actual pytest output for the two named tests passing.
   - Observed evidence:
-  - Result: pending
+```diff
+diff --git a/tests/test_agy_runipd_cli.py b/tests/test_agy_runipd_cli.py
+@@ -261,16 +261,6 @@ class AgySelfFinalizeTests(unittest.TestCase):
+                 ),
+                 encoding="utf-8",
+             )
+-            (run_dir / "outcomes" / "01-agy001-verification.json").write_text(
+-                json.dumps(
+-                    {
+-                        "verdict": "VERIFIED",
+-                        "tests_run": ["python3 -m unittest tests.test_from_backlog -v"],
+-                    }
+-                ),
+-                encoding="utf-8",
+-            )
+-
+             fin = []
 
-- [ ] V-02 validates E-02
+             def fake_finalize(r, p, i, a, m):
+@@ -283,7 +273,7 @@ class AgySelfFinalizeTests(unittest.TestCase):
+             v_outcome = run_dir / "outcomes" / "01-agy001-verification.json"
+
+             def fake_agy(*a, **k):
+-                if k.get("fresh_session") or k.get("log_suffix") == "verify":
++                if k.get("log_suffix") == "verify":
+                     v_outcome.write_text(
+                         json.dumps(
+                             {
+@@ -338,20 +328,10 @@ class AgySelfFinalizeTests(unittest.TestCase):
+                 ),
+                 encoding="utf-8",
+             )
+-            (run_dir / "outcomes" / "01-agy001-verification.json").write_text(
+-                json.dumps(
+-                    {
+-                        "verdict": "VERIFIED",
+-                        "tests_run": ["python3 -m unittest tests.test_from_backlog -v"],
+-                    }
+-                ),
+-                encoding="utf-8",
+-            )
+-
+             v_outcome = run_dir / "outcomes" / "01-agy001-verification.json"
+
+             def fake_agy(*a, **k):
+-                if k.get("fresh_session") or k.get("log_suffix") == "verify":
++                if k.get("log_suffix") == "verify":
+                     v_outcome.write_text(
+                         json.dumps(
+                             {
+```
+Grep output for `grep -n "verification.json\|fresh_session" tests/test_agy_runipd_cli.py`:
+```
+273:            v_outcome = run_dir / "outcomes" / "01-agy001-verification.json"
+331:            v_outcome = run_dir / "outcomes" / "01-agy001-verification.json"
+380:            (run_dir / "outcomes" / "01-agy001-verification.json").write_text(
+572:                    / f"{item['position']:02d}-{item['id6']}-verification.json"
+628:                        / f"{item['position']:02d}-{item['id6']}-verification.json"
+838:                    / f"{item['position']:02d}-{item['id6']}-verification.json"
+883:                    / f"{item['position']:02d}-{item['id6']}-verification.json"
+938:                    / f"{item['position']:02d}-{item['id6']}-verification.json"
+```
+In `AgySelfFinalizeTests`, lines 273 and 331 are inside `test_finalize_fires_on_verified_and_marks_executed` and `test_finalize_refusal_leaves_not_executed_and_not_forced` with no write outside `log_suffix == "verify"` (line 380 is the deliberate negative control pre-seed in E-02's `test_preseeded_verdict_without_verifier_write_is_not_executed`).
+
+Pytest output for the two named tests passing:
+```
+python3 -m pytest tests/test_agy_runipd_cli.py -k "test_finalize_fires_on_verified_and_marks_executed or test_finalize_refusal_leaves_not_executed_and_not_forced"
+bringing up nodes...
+..                                                                       [100%]
+NOTE: 58 tests were deselected by -m/-k and did not run (this run's marker filter skips 'slow' and 'livecorpus', and -k/--deselect also contributed); run everything with: make test-all
+2 passed in 3.99s
+```
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: paste the actual pytest output showing the new test passing, and the test's assertions on `fail-verify`, the `verification-never-recorded` refusal code, zero `driver_finalize` calls and the unmoved plan; then paste the pytest output showing it FAILING (the assertion message must show the item reached `executed` or finalize was called, NOT a collision or setup error) with the verdict unlink in `runner_shared.execute_item_core._run_verifier_turn` (the code path producing the observation) disabled, and `git diff --stat -- agent_workflows/` showing empty after the revert.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Pytest output showing new test passing:
+```
+python3 -m pytest tests/test_agy_runipd_cli.py -k "test_preseeded_verdict_without_verifier_write_is_not_executed"
+bringing up nodes...
+.                                                                        [100%]
+NOTE: 60 tests were deselected by -m/-k and did not run (this run's marker filter skips 'slow' and 'livecorpus', and -k/--deselect also contributed); run everything with: make test-all
+1 passed in 3.66s
+```
 
-- [ ] V-03 validates E-03
+Assertions in `test_preseeded_verdict_without_verifier_write_is_not_executed`:
+```python
+            self.assertEqual(len(fin), 0)
+            self.assertEqual(item["status"], "fail-verify")
+            refusal = render_stream.refusal_of_item(item)
+            self.assertIsNotNone(refusal)
+            self.assertEqual(refusal.code, "verification-never-recorded")
+            self.assertTrue(plan.is_file(), "plan must not move on verification failure")
+```
+
+Pytest output showing it FAILING with verdict unlink disabled:
+```
+FAILED tests/test_agy_runipd_cli.py::AgySelfFinalizeTests::test_preseeded_verdict_without_verifier_write_is_not_executed
+[gw5] linux -- Python 3.14.6 python3
+...
+>           self.assertEqual(len(fin), 0)
+E           AssertionError: 1 != 0
+
+tests/test_agy_runipd_cli.py:426: AssertionError
+----------------------------- Captured stdout call -----------------------------
+▶ IPD 01/1 agy001  set=demo  action=execute  attempt 1
+  plan: /tmp/tmpcwkehjts/repo/.aw/records/plans/pending/20260828-demo-01-agy001-demo.ipd.md
+      scope: demo scope.
+  ▶ Verifying agy001 (/tmp/tmpcwkehjts/repo/.aw/records/plans/pending/20260828-demo-01-agy001-demo.ipd.md)...
+✓ IPD 01/1 agy001 (execute) -> executed  (exit 0)
+
+NOTE: 60 tests were deselected by -m/-k and did not run (this run's marker filter skips 'slow' and 'livecorpus', and -k/--deselect also contributed); run everything with: make test-all
+=========================== short test summary info ============================
+FAILED tests/test_agy_runipd_cli.py::AgySelfFinalizeTests::test_preseeded_verdict_without_verifier_write_is_not_executed
+1 failed in 5.06s
+```
+
+`git diff --stat -- agent_workflows/` showing empty after revert:
+```
+git diff --stat -- agent_workflows/
+(empty)
+```
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: paste `git diff -- tests/test_finalize_stale_plan_path.py` showing the executor-mock verification writes removed and the `mock_verifier` writes retained, and the actual pytest output for `test_a1_lane_arm_refuses_when_finalize_re_resolution_fails` and `test_a2_non_lane_arm_refuses_when_finalize_re_resolution_fails` passing.
   - Observed evidence:
-  - Result: pending
+```diff
+diff --git a/tests/test_finalize_stale_plan_path.py b/tests/test_finalize_stale_plan_path.py
+index 90f8fa64b..3dd6c8e16 100644
+--- a/tests/test_finalize_stale_plan_path.py
++++ b/tests/test_finalize_stale_plan_path.py
+@@ -111,12 +111,6 @@ class TestFinalizeStalePlanPath(unittest.TestCase):
+                     ),
+                     encoding="utf-8",
+                 )
+-                (run_dir / "outcomes/01-1fz001-verification.json").write_text(
+-                    json.dumps(
+-                        {"verdict": "verified", "tests_run": ["python3 -m pytest"]}
+-                    ),
+-                    encoding="utf-8",
+-                )
+                 log_p = run_dir / "logs/test.log"
+                 log_p.write_text("test log", encoding="utf-8")
+                 return 0, "session-1", log_p, ["agent"]
+@@ -243,12 +237,6 @@ class TestFinalizeStalePlanPath(unittest.TestCase):
+                     ),
+                     encoding="utf-8",
+                 )
+-                (run_dir / "outcomes/01-1fz002-verification.json").write_text(
+-                    json.dumps(
+-                        {"verdict": "verified", "tests_run": ["python3 -m pytest"]}
+-                    ),
+-                    encoding="utf-8",
+-                )
+                 log_p = run_dir / "logs/test.log"
+                 log_p.write_text("test log", encoding="utf-8")
+                 return 0, "session-1", log_p, ["agent"]
+```
+Verification writes are retained only in `mock_verifier` (lines 122 and 248).
 
-- [ ] V-04 validates E-04
+Pytest output for `test_a1_lane_arm_refuses_when_finalize_re_resolution_fails` and `test_a2_non_lane_arm_refuses_when_finalize_re_resolution_fails`:
+```
+python3 -m pytest tests/test_finalize_stale_plan_path.py -k "test_a1_lane_arm_refuses_when_finalize_re_resolution_fails or test_a2_non_lane_arm_refuses_when_finalize_re_resolution_fails"
+bringing up nodes...
+..                                                                       [100%]
+NOTE: 5 tests were deselected by -m/-k and did not run (this run's marker filter skips 'slow' and 'livecorpus', and -k/--deselect also contributed); run everything with: make test-all
+2 passed in 4.60s
+```
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: paste the actual runner summary line for `python3 -m pytest tests/test_agy_runipd_cli.py tests/test_finalize_stale_plan_path.py` (0 failed) and for the bare `python3 -m pytest`, with the list of FAILED node ids shown to be a subset of the baseline re-derived at the start of execution (paste both lists).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Runner summary for touched modules:
+```
+python3 -m pytest tests/test_agy_runipd_cli.py tests/test_finalize_stale_plan_path.py
+....................................................................     [100%]
+68 passed in 14.99s
+```
+(0 failed)
+
+Baseline bare pytest summary (re-derived at execution start):
+```
+python3 -m pytest
+7920 passed, 4 skipped, 18 xfailed, 3 warnings in 969.80s (0:16:09)
+```
+Baseline FAILED node ids: None (`[]`).
+
+Post-change bare pytest summary:
+```
+python3 -m pytest
+7921 passed, 4 skipped, 18 xfailed, 3 warnings in 420.10s (0:07:00)
+```
+Post-change FAILED node ids: None (`[]`).
+The list of FAILED node ids (`[]`) is an exact subset of the baseline (`[]`).
+  - Result: pass
 
 ## Approval and execution gate
 

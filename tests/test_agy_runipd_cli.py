@@ -16,7 +16,7 @@ from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 from unittest import mock
 
-from agent_workflows import agy_runipd, cli, runner_shared
+from agent_workflows import agy_runipd, cli, render_stream, runner_shared
 from tests import support
 from tests.test_oc_runipd import _CONFORMING_PLAN
 
@@ -261,16 +261,6 @@ class AgySelfFinalizeTests(unittest.TestCase):
                 ),
                 encoding="utf-8",
             )
-            (run_dir / "outcomes" / "01-agy001-verification.json").write_text(
-                json.dumps(
-                    {
-                        "verdict": "VERIFIED",
-                        "tests_run": ["python3 -m unittest tests.test_from_backlog -v"],
-                    }
-                ),
-                encoding="utf-8",
-            )
-
             fin = []
 
             def fake_finalize(r, p, i, a, m):
@@ -283,7 +273,7 @@ class AgySelfFinalizeTests(unittest.TestCase):
             v_outcome = run_dir / "outcomes" / "01-agy001-verification.json"
 
             def fake_agy(*a, **k):
-                if k.get("fresh_session") or k.get("log_suffix") == "verify":
+                if k.get("log_suffix") == "verify":
                     v_outcome.write_text(
                         json.dumps(
                             {
@@ -338,20 +328,10 @@ class AgySelfFinalizeTests(unittest.TestCase):
                 ),
                 encoding="utf-8",
             )
-            (run_dir / "outcomes" / "01-agy001-verification.json").write_text(
-                json.dumps(
-                    {
-                        "verdict": "VERIFIED",
-                        "tests_run": ["python3 -m unittest tests.test_from_backlog -v"],
-                    }
-                ),
-                encoding="utf-8",
-            )
-
             v_outcome = run_dir / "outcomes" / "01-agy001-verification.json"
 
             def fake_agy(*a, **k):
-                if k.get("fresh_session") or k.get("log_suffix") == "verify":
+                if k.get("log_suffix") == "verify":
                     v_outcome.write_text(
                         json.dumps(
                             {
@@ -386,6 +366,71 @@ class AgySelfFinalizeTests(unittest.TestCase):
             self.assertEqual(item["status"], "fail-gate")
             self.assertIn("finalize_refusal", item)
             self.assertTrue(plan.is_file(), "plan must not move on finalize refusal")
+
+    def test_preseeded_verdict_without_verifier_write_is_not_executed(self):
+        with tempfile.TemporaryDirectory() as temp:
+            repo = Path(temp) / "repo"
+            plan = _init_repo_with_conforming_plan(repo, "agy001")
+            run_dir = self._mk_run_dir(repo)
+            state, item = self._state_and_item(repo, plan)
+            state["options"]["no_verify"] = False
+            state["options"]["retry_budget"] = 0
+
+            (run_dir / "outcomes" / "01-agy001.json").write_text(
+                json.dumps(
+                    {
+                        "disposition": "executed",
+                        "pushed": False,
+                        "defect_report": {"state": "none-found", "findings": []},
+                    }
+                ),
+                encoding="utf-8",
+            )
+            (run_dir / "outcomes" / "01-agy001-verification.json").write_text(
+                json.dumps(
+                    {
+                        "verdict": "VERIFIED",
+                        "tests_run": ["python3 -m unittest tests.test_from_backlog -v"],
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            fin = []
+
+            def fake_finalize(r, p, i, a, m):
+                fin.append((i, a, m))
+                executed = repo / ".aw" / "records" / "plans" / "executed" / plan.name
+                executed.parent.mkdir(parents=True, exist_ok=True)
+                plan.rename(executed)
+                return 0, "finalized"
+
+            def fake_agy(*a, **k):
+                if k.get("log_suffix") == "verify":
+                    return 0, "s_verify", str(run_dir / "l"), ["agy"]
+                return 0, "s", str(run_dir / "l"), ["agy"]
+
+            with (
+                mock.patch.object(
+                    agy_runipd, "driver_begin", lambda r, i, a: (0, "ok")
+                ),
+                mock.patch.object(
+                    agy_runipd,
+                    "run_agy_turn",
+                    fake_agy,
+                ),
+                mock.patch.object(agy_runipd, "driver_finalize", fake_finalize),
+            ):
+                agy_runipd.execute_item(run_dir, state, item, recovery=False)
+
+            self.assertEqual(len(fin), 0)
+            self.assertEqual(item["status"], "fail-verify")
+            refusal = render_stream.refusal_of_item(item)
+            self.assertIsNotNone(refusal)
+            self.assertEqual(refusal.code, "verification-never-recorded")
+            self.assertTrue(
+                plan.is_file(), "plan must not move on verification failure"
+            )
 
     def test_execute_item_spec_edits_report_parity_with_oc(self):
         # specrpt (9npssm) E-06: agy execute_item records spec_edits and reports them identically to oc.

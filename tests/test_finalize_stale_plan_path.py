@@ -111,12 +111,6 @@ class TestFinalizeStalePlanPath(unittest.TestCase):
                     ),
                     encoding="utf-8",
                 )
-                (run_dir / "outcomes/01-1fz001-verification.json").write_text(
-                    json.dumps(
-                        {"verdict": "verified", "tests_run": ["python3 -m pytest"]}
-                    ),
-                    encoding="utf-8",
-                )
                 log_p = run_dir / "logs/test.log"
                 log_p.write_text("test log", encoding="utf-8")
                 return 0, "session-1", log_p, ["agent"]
@@ -240,12 +234,6 @@ class TestFinalizeStalePlanPath(unittest.TestCase):
                             "defect_report": {"state": "none-found", "findings": []},
                             "pushed": False,
                         }
-                    ),
-                    encoding="utf-8",
-                )
-                (run_dir / "outcomes/01-1fz002-verification.json").write_text(
-                    json.dumps(
-                        {"verdict": "verified", "tests_run": ["python3 -m pytest"]}
                     ),
                     encoding="utf-8",
                 )
