@@ -6,7 +6,7 @@
 - Scope: IN: add ONE shared primitive `verifier_corroboration.agy_tool_name(step_update)` that resolves an Antigravity tool name with a single, documented precedence (`tool_info.name` first, then `tool_name`, both stripped, empty string when neither is a non-blank string); route `tool_call_from_event` onto it and make its delegation flag fail open on a conflicting step (delegation when EITHER raw name is in `SUBAGENT_TOOLS`); bump `run_dashboard.DASHBOARD_SCHEMA_VERSION` because cached per-file values change for unchanged log files; route `agy_runipd.render_agy_event`, `agy_view.format_record`, `runner_stop.event_label` and `agy_run._progress_messages` onto the same primitive while keeping each reader's own default label; add one cross-reader parity test file plus verdict-level and dashboard-level outcome tests; record the decision in `DECISIONS.md` with a `CHANGELOG.md` line. OUT, each with a reason in the Deferred section: the agy `FAILED` tool state (backlog `8fiybc`), the `step_type == "subagent"` delegation shape (backlog `iuhx9d`), the OpenCode tool-name key (one key, no disagreement), `stall_progress`'s raw substring scan for `"schedule"`/`"invoke_subagent"`/`"manage_task"` (key-agnostic, so precedence cannot disagree there), and any change to what a corroboration verdict DOES (D160: observational only).
 - Scope-Paths: agent_workflows/verifier_corroboration.py, agent_workflows/run_dashboard.py, agent_workflows/agy_runipd.py, agent_workflows/agy_view.py, agent_workflows/runner_stop.py, agent_workflows/agy_run.py, tests/test_verifier_corroboration.py, tests/test_run_dashboard.py, tests/test_agy_tool_name_precedence.py, DECISIONS.md, CHANGELOG.md
 - Item-Dependencies: executed:e08ssu
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -17,9 +17,9 @@
 - Highest E allocated: 12
 - Author: opencode/its_direct/pt3-claude-opus-5.5-1m-us
 - Id: n8we3u
-- Approval: 2026-10-12, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-13 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: n8we3u verified (set runverdict, attempt 1).
 - 2026-10-12 approved (aw set): status set to approved
 - 2026-10-12 reviewed (opencode/its_direct/pt3-claude-opus-5.5-1m-us): plan-review: APPROVE WITH REVISIONS APPLIED
 - 2026-10-12 /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005. Re-measured at HEAD 220239939: F-02 (conflict -> uncorroborated, dashboard commands={'test': 1}) and F-03 (info-only -> indeterminate missing-command-text) reproduce; added F-08 (renderer hides the name behind a command payload; degenerate shapes raise or diverge today) and reconciled E-05/E-06/E-07/E-08/E-09 and V-02/V-05/V-06/V-07; Deferred rows now carry Carrier/Carrier-Declined (check.ipd-uncarried-obligation was ERROR).
