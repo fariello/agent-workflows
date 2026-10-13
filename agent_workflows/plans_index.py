@@ -127,6 +127,32 @@ def plan_entry(
     return entry, drift
 
 
+def plan_files(
+    plans_dir: Path, *, ignored_dirs: Optional[set[str]] = None
+) -> List[Path]:
+    """Return sorted list of plan file Paths under ``plans_dir``.
+
+    This is THE canonical definition of which files are plans.
+    Recursion (`rglob`) and the ignored-path filter are COUPLED: a recursive walk without
+    the ignored-path filter returns box-local `untracked/` plans that are never committed.
+    (See backlog item `mlcbk9` and `specs._spec_files` docstring recording the same lesson.)
+
+    Skips `_EXCLUDE_NAMES` (`INDEX.json`, `INDEX.md`, `STATUS.md`, `README.md`) and any path
+    matching `_core.is_ignored_path(p, plans_dir, ignored_dirs)`.
+    For any returned plan `p`, its top-level lifecycle disposition is `p.relative_to(plans_dir).parts[0]`.
+    """
+    if not plans_dir.is_dir():
+        return []
+    if ignored_dirs is None:
+        ignored_dirs = _core.get_ignored_dirs(plans_dir)
+    return [
+        p
+        for p in sorted(plans_dir.rglob("*.md"))
+        if p.name not in _EXCLUDE_NAMES
+        and not _core.is_ignored_path(p, plans_dir, ignored_dirs)
+    ]
+
+
 def scan_plans(plans_dir: Path) -> Tuple[List[PlanEntry], List[_core.Drift]]:
     """Recursively scan every plan under ``plans_dir``; return (entries, drift).
 
@@ -141,7 +167,7 @@ def scan_plans(plans_dir: Path) -> Tuple[List[PlanEntry], List[_core.Drift]]:
     if not plans_dir.is_dir():
         return entries, drift
     ignored_dirs = _core.get_ignored_dirs(plans_dir)
-    for p in sorted(plans_dir.rglob("*.md")):
+    for p in plan_files(plans_dir, ignored_dirs=ignored_dirs):
         res = plan_entry(plans_dir, p, ignored_dirs=ignored_dirs)
         if res is not None:
             entry, item_drift = res
