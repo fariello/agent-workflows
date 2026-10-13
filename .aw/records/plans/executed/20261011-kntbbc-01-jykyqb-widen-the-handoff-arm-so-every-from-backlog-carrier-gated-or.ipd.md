@@ -6,7 +6,7 @@
 - Scope: IN: (a) in `check_engine.evaluate_blocking_close`'s HANDOFF arm, keep the existing ENTRY condition (at least one same-gate carrier must exist, so the gate is still provably handed to a carrier that inherited it) but require EVERY `From-Backlog` carrier of the item, whatever its gate, to be executed/implemented before HANDOFF returns legitimate; (b) make the not-shipped refusal name the carriers that actually block (including an ungated or differently gated sibling); (c) align `check_engine.release_gate_warnings`' `check.orphaned-live-blocker` `--status done` advice so it is emitted only when every From-Backlog PLAN of the item is executed (preserving its plans-only design); (d) add a third grandfathered cohort description in `check_engine.check_release_gate_consistency` for "same-gate carriers executed, a sibling carrier is not" so the advisory detail is not false; (e) behavioral tests for every case; (f) correct the five prose sites that state the HANDOFF rule as "EVERY same-gate carrier" (repo-local `AGENTS.md` paragraph, `.aw/records/backlog/README.md`, the two `engine.py` pre-commit template comments, the `cli.py` help description, the hook module docstring) plus a `CHANGELOG.md` line. OUT: SATISFIED and DE-GATED arms, the `graduated`/`parked`/priority-demote branches, the lane-carrier override mechanism, the runner (`runner_shared.evaluate_backlog_close` is the REFERENCE converged onto, not edited), `check.from-backlog-gate-mismatch` (unchanged), widening `release_gate_warnings` to spec carriers, and the SATISFIED-arm work owned by pending `ncmugb`.
 - Scope-Paths: agent_workflows/check_engine.py, agent_workflows/engine.py, agent_workflows/cli.py, agent_workflows/hooks/backlog_blocking_close_gate.py, tests/test_backlog_handoff_close.py, tests/test_check_engine_release_gate.py, AGENTS.md, .aw/records/backlog/README.md, CHANGELOG.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -16,9 +16,9 @@
 - Highest E allocated: 10
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: jykyqb
-- Approval: 2026-10-12, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-13 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: jykyqb verified (set kntbbc, attempt 1).
 - 2026-10-12 approved (aw set): status set to approved
 - 2026-10-12 reviewed (aw set): plan-review complete: APPROVE WITH REVISIONS APPLIED
 - 2026-10-12 /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003 (all fixed; divergence re-reproduced in a scratch repo (check_engine HANDOFF legitimate, runner refuses); corpus re-measured 479 gated items, 0 flips; retired-sibling semantics decided and pinned; unsatisfiable `aw check` 0-errors bar corrected).
