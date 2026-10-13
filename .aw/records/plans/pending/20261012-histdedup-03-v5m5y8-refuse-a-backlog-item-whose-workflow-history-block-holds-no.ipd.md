@@ -35,37 +35,37 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: the rule
 
-- [ ] E-01 `agent_workflows/backlog.py` (`validate_item`): before `return drift`, append `core.Drift(rel, "backlog.history-empty", <detail>)` when `A.history_block(text).records` is empty. The detail must distinguish "no `## Workflow history` heading" (test the heading with the same `(?m)^## Workflow history[ \t]*$` anchor `history_block` uses, so the two cannot disagree on whether a heading exists) from "heading present but no column-zero `- YYYY-MM-DD ...` record in the block", and name the remedy (restore the records from git history; an indented line is not a record). Do NOT add a `RULE_REGISTRY` entry: an unregistered rule resolves to `check_engine._DEFAULT_RULESPEC` (severity `error`), which is the intended fail-closed severity and matches every sibling `backlog.*` shape rule except the three registered in `RULE_REGISTRY`. Prerequisite check FIRST: `kgv213` must be in `.aw/records/plans/executed/` AND `attention_contract.history_block` must exist (at review HEAD `1134a92b6`, `kgv213` was `reviewed` in `pending/` and `history_block` was absent). If either fails, mark this item `blocked`, paste the check, and edit nothing.
+- [x] E-01 `agent_workflows/backlog.py` (`validate_item`): before `return drift`, append `core.Drift(rel, "backlog.history-empty", <detail>)` when `A.history_block(text).records` is empty. The detail must distinguish "no `## Workflow history` heading" (test the heading with the same `(?m)^## Workflow history[ \t]*$` anchor `history_block` uses, so the two cannot disagree on whether a heading exists) from "heading present but no column-zero `- YYYY-MM-DD ...` record in the block", and name the remedy (restore the records from git history; an indented line is not a record). Do NOT add a `RULE_REGISTRY` entry: an unregistered rule resolves to `check_engine._DEFAULT_RULESPEC` (severity `error`), which is the intended fail-closed severity and matches every sibling `backlog.*` shape rule except the three registered in `RULE_REGISTRY`. Prerequisite check FIRST: `kgv213` must be in `.aw/records/plans/executed/` AND `attention_contract.history_block` must exist (at review HEAD `1134a92b6`, `kgv213` was `reviewed` in `pending/` and `history_block` was absent). If either fails, mark this item `blocked`, paste the check, and edit nothing.
   - Depends on: none
   - Expected outcome: `validate_item` reports `backlog.history-empty` on both empty shapes, with distinct detail text, and nothing new on a conformant item. Accepted consequence, intended: every `validate_item` consumer (`aw backlog check`, `aw check` record type `backlog`, `set_records.promote`, the `runner_shared` run-structure preflight) now refuses such an item.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: tests and docs
 
-- [ ] E-02 `tests/test_backlog_history_empty_rule.py` (new): behavioral tests (P16) calling `backlog.validate_item` and the CLI. Cases: (a) a conformant item yields no `backlog.history-empty`; (b) heading with only an indented history-shaped line yields it with the "no column-zero record" detail; (c) heading with only blank lines then prose yields it; (d) no heading yields it with the "no heading" detail (assert the two details differ); (e) an item written by the real writer (`cli.main(["backlog","new",...,"--dir",<root>])`) yields no `backlog.history-empty`, fencing the Step 0 claim that every writer emits a record; (f) `cli.main(["backlog","check","--dir",<root>])` over a temp repo (laid out under `.aw/records/backlog/open/` as `tests/test_status_set.py` does, so `nonsurveyable_root_refusal` permits it) holding case (b) exits nonzero and names the rule in its output, and over a repo of conformant items exits 0; (g) `check_engine` record type `backlog` (drive `aw check backlog` via `cli.main` on the same temp repo) reports the rule for case (b).
+- [x] E-02 `tests/test_backlog_history_empty_rule.py` (new): behavioral tests (P16) calling `backlog.validate_item` and the CLI. Cases: (a) a conformant item yields no `backlog.history-empty`; (b) heading with only an indented history-shaped line yields it with the "no column-zero record" detail; (c) heading with only blank lines then prose yields it; (d) no heading yields it with the "no heading" detail (assert the two details differ); (e) an item written by the real writer (`cli.main(["backlog","new",...,"--dir",<root>])`) yields no `backlog.history-empty`, fencing the Step 0 claim that every writer emits a record; (f) `cli.main(["backlog","check","--dir",<root>])` over a temp repo (laid out under `.aw/records/backlog/open/` as `tests/test_status_set.py` does, so `nonsurveyable_root_refusal` permits it) holding case (b) exits nonzero and names the rule in its output, and over a repo of conformant items exits 0; (g) `check_engine` record type `backlog` (drive `aw check backlog` via `cli.main` on the same temp repo) reports the rule for case (b).
   - Depends on: E-01
   - Expected outcome: the new module passes, and each case asserts on returned drift, exit codes or captured output only (no source inspection).
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 `.aw/records/backlog/README.md`: extend the `aw backlog check [--agent]` bullet's parenthesized rule list with `at least one column-zero history record [backlog.history-empty]`, matching the existing `[backlog.<rule>]` style.
+- [x] E-03 `.aw/records/backlog/README.md`: extend the `aw backlog check [--agent]` bullet's parenthesized rule list with `at least one column-zero history record [backlog.history-empty]`, matching the existing `[backlog.<rule>]` style.
   - Depends on: E-01
   - Expected outcome: README names the rule; no em or en dashes.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 `CHANGELOG.md`: one entry under the top pending section for the new rule.
+- [x] E-04 `CHANGELOG.md`: one entry under the top pending section for the new rule.
   - Depends on: E-01
   - Expected outcome: one new line, no em or en dashes.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 `tests/test_check_engine.py`: give the backlog fixtures that carry no history a conformant `## Workflow history` block with one column-zero record (`\n## Workflow history\n\n- 2026-01-01 created (aw backlog): fixture\n`), so they keep testing what they were written to test (F-04): `LifecyclePlacementTests._BKLG_OPEN` and `_BKLG_DONE` (the row (e) expected rule set stays exactly `['check.id6-collision', 'check.lifecycle-placement-conflict']`), and the two backlog rows (`bkl111` open, `bkl222` done) in the `RetiredAndIgnoredScopeTests` artifact table (its "zero findings on a healthy tree" claim stays exactly zero). Do NOT add `backlog.history-empty` to any expected set and do NOT weaken an assertion. Then re-derive at execution whether any OTHER test fixture newly fails under the rule (the bare suite in V-05 answers this); repair each such fixture the same way and list it in V-05, or, if a failure is not a fixture lacking history, stop and report it.
+- [x] E-05 `tests/test_check_engine.py`: give the backlog fixtures that carry no history a conformant `## Workflow history` block with one column-zero record (`\n## Workflow history\n\n- 2026-01-01 created (aw backlog): fixture\n`), so they keep testing what they were written to test (F-04): `LifecyclePlacementTests._BKLG_OPEN` and `_BKLG_DONE` (the row (e) expected rule set stays exactly `['check.id6-collision', 'check.lifecycle-placement-conflict']`), and the two backlog rows (`bkl111` open, `bkl222` done) in the `RetiredAndIgnoredScopeTests` artifact table (its "zero findings on a healthy tree" claim stays exactly zero). Do NOT add `backlog.history-empty` to any expected set and do NOT weaken an assertion. Then re-derive at execution whether any OTHER test fixture newly fails under the rule (the bare suite in V-05 answers this); repair each such fixture the same way and list it in V-05, or, if a failure is not a fixture lacking history, stop and report it.
   - Depends on: E-01
   - Expected outcome: both named tests pass with their original expected sets unchanged.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-06 `agent_workflows/cli.py`: the `aw backlog check` parser description (the string listing "valid enums, status-mirrors-directory, gate present-and-valid iff blocked, unique id6, nonempty summary") gains "at least one Workflow history record", so `--help` names the new refusal.
+- [x] E-06 `agent_workflows/cli.py`: the `aw backlog check` parser description (the string listing "valid enums, status-mirrors-directory, gate present-and-valid iff blocked, unique id6, nonempty summary") gains "at least one Workflow history record", so `--help` names the new refusal.
   - Depends on: E-01
   - Expected outcome: `aw backlog check --help` mentions the history requirement.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -129,35 +129,238 @@ Invariants: (I-1) a conformant item yields no new drift (E-02 (a), (e)); (I-2) b
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: PASTE the prerequisite check (`ls .aw/records/plans/executed/ | grep kgv213` and `python3 -c "from agent_workflows import attention_contract as A; print(A.history_block)"`). PASTE the `git diff` of `validate_item`. PASTE `aw backlog check` and `aw check backlog` output on the live repository showing no `backlog.history-empty` finding, and direct `validate_item` calls on the F-01 fixture AND on a no-heading fixture showing the rule with its two distinct detail texts. Runtime path: `backlog.run_check` -> `validate_item`; `check_engine` record type `backlog` -> `_backlog.validate_item`.
   - Observed evidence:
-  - Result: pending
+    1. Prerequisite check:
+    ```sh
+    $ ls .aw/records/plans/executed/ | grep kgv213 && python3 -c "from agent_workflows import attention_contract as A; print(A.history_block)"
+    20261012-histdedup-02-kgv213-bound-the-workflow-history-block-by-one-shared-rule.ipd.md
+    <function history_block at 0x79708d257950>
+    ```
 
-- [ ] V-02 validates E-02
+    2. git diff of validate_item:
+    ```diff
+    diff --git a/agent_workflows/backlog.py b/agent_workflows/backlog.py
+    index bd665dacd..8b8ed1c8c 100644
+    --- a/agent_workflows/backlog.py
+    +++ b/agent_workflows/backlog.py
+    @@ -121,6 +121,7 @@ _RELEASE_EXEMPT_REF_RE = re.compile(
+         r"^- Release-Exempt-Ref:[ \t]*(?P<value>.+?)[ \t]*$"
+     )
+     _CLOSE_EVIDENCE_RE = re.compile(r"^- Close-Evidence:[ \t]*(?P<value>.+?)[ \t]*$")
+    +_WORKFLOW_HISTORY_HEADING_RE = re.compile(r"(?m)^## Workflow history[ \t]*$")
+     _TOP_KEY_RE = re.compile(r"^- ([A-Za-z0-9_-]+):(?:\s*(.*))?$")
+     _TEMPLATE_OWNED_KEYS = frozenset(
+         (
+    @@ -609,6 +610,20 @@ def validate_item(path: Path, text: str) -> List[core.Drift]:
+                 )
+             )
+
+    +    hist_block = A.history_block(text)
+    +    if not hist_block.records:
+    +        if not _WORKFLOW_HISTORY_HEADING_RE.search(text):
+    +            detail = (
+    +                "no ## Workflow history heading; restore the records from git history "
+    +                "(an indented line is not a record)"
+    +            )
+    +        else:
+    +            detail = (
+    +                "heading present but no column-zero '- YYYY-MM-DD ...' record in the block; "
+    +                "restore the records from git history (an indented line is not a record)"
+    +            )
+    +        drift.append(core.Drift(rel, "backlog.history-empty", detail))
+    +
+         return drift
+    ```
+
+    3. aw backlog check and aw check backlog output on live repository:
+    ```
+    $ python3 -m agent_workflows.cli backlog check && python3 -m agent_workflows.cli check backlog
+    aw backlog check: all backlog items conform. 992 backlog items checked.
+    AW check  backlog                                                        1861 ms
+    ✓ CONFORMS  76 backlog checked
+
+    Findings:
+      Issue: cross-tree collisions NOT checked by a per-type run [INFO]
+      - <collisions>
+        1. <collisions> [INFO]
+        Fix: aw check all
+
+
+    Evidence
+      checked  76
+      errors  0   warnings  0   info  1
+
+    Next  aw backlog check
+    Agent output: --agent
+    ```
+
+    4. Direct validate_item calls on F-01 fixture and no-heading fixture:
+    ```
+    F-01 fixture:
+      rule: backlog.history-empty
+      detail: heading present but no column-zero '- YYYY-MM-DD ...' record in the block; restore the records from git history (an indented line is not a record)
+
+    No heading fixture:
+      rule: backlog.history-empty
+      detail: no ## Workflow history heading; restore the records from git history (an indented line is not a record)
+    ```
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: PASTE the pytest output of the new module passing, and name, per E-02 case (a)-(g), the assertion that pins it (behaviour plus mechanism; a test function name is a pointer only, not the bar).
   - Observed evidence:
-  - Result: pending
+    Pytest runner output:
+    ```
+    $ python3 -m pytest -o addopts="" -q tests/test_backlog_history_empty_rule.py
+    .......                                                                  [100%]
+    7 passed in 0.82s
+    ```
 
-- [ ] V-03 validates E-03
+    Assertion pinning per case:
+    - Case (a): `assert history_rules == []` where `history_rules = [d.rule for d in drift if d.rule == "backlog.history-empty"]` validating that a conformant item yields zero history drift.
+    - Case (b): `assert len(history_drifts) == 1 and "no column-zero" in history_drifts[0].detail and "restore the records from git history (an indented line is not a record)" in history_drifts[0].detail` on an item whose heading only contains an indented line.
+    - Case (c): `assert len(history_drifts) == 1 and "no column-zero" in history_drifts[0].detail` on an item whose heading contains blank lines then prose without a record bullet.
+    - Case (d): `assert len(d_drifts) == 1 and "no ## Workflow history heading" in d_drifts[0].detail and d_drifts[0].detail != b_drifts[0].detail` asserting distinct detail messages between absent heading and empty records block.
+    - Case (e): `assert code == 0` for `cli.main(["backlog", "new", ..., "--apply"])` and `assert history_rules == []` for `backlog.validate_item(item_file, item_file.read_text())`, proving the production writer emits conformant history.
+    - Case (f): `assert code != 0 and ("backlog.history-empty" in out or "backlog.history-empty" in err)` for `cli.main(["backlog", "check", "--dir", ...])` on case (b), and `assert code_ok == 0` on conformant items.
+    - Case (g): `assert code != 0 and ("backlog.history-empty" in out or "backlog.history-empty" in err)` for `cli.main(["check", "backlog", "--dir", ...])` on case (b).
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: PASTE `git diff .aw/records/backlog/README.md`.
   - Observed evidence:
-  - Result: pending
+    ```diff
+    diff --git a/.aw/records/backlog/README.md b/.aw/records/backlog/README.md
+    index aee26c1a5..3a4b57e37 100644
+    --- a/.aw/records/backlog/README.md
+    +++ b/.aw/records/backlog/README.md
+    @@ -113,7 +113,8 @@ Portability limit: `DECISIONS.md` is this repository's own local log and is NOT
+       same-status `set` is a transition call doing an annotation's job, and history is what suffers.
+     - `aw backlog check [--agent]` validate the tree fail-closed (valid enums, status-mirrors-directory,
+       gate present-and-valid iff blocked, unique id6, nonempty summary, no repeated metadata bullets [backlog.metadata-bullet-repeated],
+    -  Gate-Summary present only when blocked [backlog.gate-summary-unexpected], safe bounded Gate-Summary [backlog.gate-descriptive-unsafe]).
+    +  Gate-Summary present only when blocked [backlog.gate-summary-unexpected], safe bounded Gate-Summary [backlog.gate-descriptive-unsafe],
+    +  at least one column-zero history record [backlog.history-empty]).
 
-- [ ] V-04 validates E-04
+     History is recorded INLINE in the item's `## Workflow history`, newest record first, and prior records
+     are kept. That inline block is the durable copy, because it is the one that is committed and therefore
+    ```
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: PASTE `git diff CHANGELOG.md`.
   - Observed evidence:
-  - Result: pending
+    ```diff
+    diff --git a/CHANGELOG.md b/CHANGELOG.md
+    index 760a7cf59..32bc0d790 100644
+    --- a/CHANGELOG.md
+    +++ b/CHANGELOG.md
+    @@ -24,6 +24,7 @@ now under way. The direction of the 2.x line (in progress, not all shipped in th
 
-- [ ] V-05 validates E-05
+     Major storage-layout boundary. The logical model (D126-D129) was superseded by the PHYSICAL `.aw/` hierarchy specified in `20260810-1447-01-physical-aw-hierarchy-placement-and-migration.spec.md` (D130, D134-D137), which the framework now implements and has migrated its own repository onto:
+
+    +- Added: `backlog.validate_item` and `aw backlog check` now report rule `backlog.history-empty` when a backlog item lacks a `## Workflow history` heading or its block contains no column-zero records.
+     - Fixed: runs with verification on no longer start a background test-suite baseline they never read.
+     - Fixed: attention, check and readiness readers now share the history bounding rule, so a quoted indented history line can no longer attest a review.
+     - Fixed: a mismatch between the runner's own agent_workflows package and the one a nested aw call would load now fails only the affected item (with a tool-identity-mismatch refusal) instead of stopping the whole aw oc run or aw agy run; other independent items keep running.
+    ```
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: PASTE `git diff tests/test_check_engine.py` showing only fixture text gained a history block and no expected rule set or assertion changed. PASTE `python3 -m pytest -o addopts="" -q tests/test_check_engine.py` passing. PASTE the bare-suite `python3 -m pytest` summary line, and list every other fixture repaired under E-05's re-derivation (or state none).
   - Observed evidence:
-  - Result: pending
+    1. git diff tests/test_check_engine.py:
+    ```diff
+    diff --git a/tests/test_check_engine.py b/tests/test_check_engine.py
+    index fddf22c6a..32bb5c202 100644
+    --- a/tests/test_check_engine.py
+    +++ b/tests/test_check_engine.py
+    @@ -805,6 +805,8 @@ class LifecyclePlacementTests(unittest.TestCase):
+             "- Priority: high\n"
+             "- Work-Kind: feature\n"
+             "- Summary: Open\n\n"
+    +        "## Workflow history\n\n"
+    +        "- 2026-01-01 created (aw backlog): fixture\n\n"
+             "## Detail\n\nx\n"
+         )
 
-- [ ] V-06 validates E-06
+    @@ -815,6 +817,8 @@ class LifecyclePlacementTests(unittest.TestCase):
+             "- Priority: high\n"
+             "- Work-Kind: feature\n"
+             "- Summary: Done\n\n"
+    +        "## Workflow history\n\n"
+    +        "- 2026-01-01 created (aw backlog): fixture\n\n"
+             "## Detail\n\nx\n"
+         )
+
+    @@ -1603,7 +1607,7 @@ class RetiredAndIgnoredScopeTests(unittest.TestCase):
+             (
+                 "a backlog item in open/",
+                 ".aw/records/backlog/open/20260101-bkl111-01-bkl111-open.backlog.md",
+    -            "- Id: bkl111\n- Status: open\n- Set: bkl111\n- Priority: high\n- Work-Kind: feature\n- Summary: Open\n\n## Detail\n\nx\n",
+    +            "- Id: bkl111\n- Status: open\n- Set: bkl111\n- Priority: high\n- Work-Kind: feature\n- Summary: Open\n\n## Workflow history\n\n- 2026-01-01 created (aw backlog): fixture\n\n## Detail\n\nx\n",
+                 False,
+                 "the active case for the third tree shape, whose disposition directories are STATUS "
+                 "names. `open/` must not be mistaken for a retirement segment",
+    @@ -1611,7 +1615,7 @@ class RetiredAndIgnoredScopeTests(unittest.TestCase):
+             (
+                 "a backlog item in done/",
+                 ".aw/records/backlog/done/20260101-bkl222-01-bkl222-done.backlog.md",
+    -            "- Id: bkl222\n- Status: done\n- Set: bkl222\n- Priority: high\n- Work-Kind: feature\n- Summary: Done\n\n## Detail\n\nx\n",
+    +            "- Id: bkl222\n- Status: done\n- Set: bkl222\n- Priority: high\n- Work-Kind: feature\n- Summary: Done\n\n## Workflow history\n\n- 2026-01-01 created (aw backlog): fixture\n\n## Detail\n\nx\n",
+                 True,
+                 "THE OVERLAP ROW: `done` is BOTH a directory segment and a status, so this path is "
+                 "retired by either mechanism. Kept because it is the shape most likely to be "
+    ```
+
+    2. test_check_engine.py passing:
+    ```
+    $ python3 -m pytest -o addopts="" -q tests/test_check_engine.py
+    ..................................................                       [100%]
+    50 passed in 8.62s
+    ```
+
+    3. Bare-suite python3 -m pytest summary line:
+    ```
+    8261 passed, 4 skipped, 18 xfailed, 3 warnings in 518.37s (0:08:38)
+    ```
+
+    4. Other fixtures repaired under E-05's re-derivation:
+    - `tests/test_generic_color_depth.py`: `GenericColorDepthTests.test_cell_g_subprocess_end_to_end` backlog fixture (`fixture_dir / ".aw" / "records" / "backlog" / "open" / "20261001-test01-01-test01-sample.backlog.md"`) gained a conformant `## Workflow history` block (`\n## Workflow history\n\n- 2026-01-01 created (aw backlog): fixture\n`).
+    - `tests/test_validator_nonsurveyable_dir.py`: `_BACKLOG_CONTENT` fixture used across `ValidatorNonsurveyableDirTests` gained a conformant `## Workflow history` block (`\n## Workflow history\n\n- 2026-01-01 created (aw backlog): fixture\n`).
+  - Result: pass
+
+- [x] V-06 validates E-06
   - Required evidence: PASTE `git diff agent_workflows/cli.py` and the `aw backlog check --help` description text showing the history requirement.
   - Observed evidence:
-  - Result: pending
+    1. git diff agent_workflows/cli.py:
+    ```diff
+    diff --git a/agent_workflows/cli.py b/agent_workflows/cli.py
+    index 3574c48b2..17dcac935 100644
+    --- a/agent_workflows/cli.py
+    +++ b/agent_workflows/cli.py
+    @@ -557,7 +557,8 @@ _DESCRIPTIONS = {
+         ),
+         "backlog check": (
+             "Validate the backlog tree against the contract and fail closed: valid enums, "
+    -        "status-mirrors-directory, gate present-and-valid iff blocked, unique id6, nonempty summary. "
+    +        "status-mirrors-directory, gate present-and-valid iff blocked, unique id6, nonempty summary, "
+    +        "at least one Workflow history record. "
+             "--agent emits tab-separated drift records."
+         ),
+         "specs": (
+    ```
+
+    2. aw backlog check --help description text:
+    ```
+    Validate the backlog tree against the contract and fail closed: valid enums,
+    status-mirrors-directory, gate present-and-valid iff blocked, unique id6,
+    nonempty summary, at least one Workflow history record. --agent emits tab-
+    separated drift records.
+    ```
+  - Result: pass
 
 ## Approval and execution gate
 

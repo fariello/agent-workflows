@@ -805,6 +805,8 @@ class LifecyclePlacementTests(unittest.TestCase):
         "- Priority: high\n"
         "- Work-Kind: feature\n"
         "- Summary: Open\n\n"
+        "## Workflow history\n\n"
+        "- 2026-01-01 created (aw backlog): fixture\n\n"
         "## Detail\n\nx\n"
     )
 
@@ -815,6 +817,8 @@ class LifecyclePlacementTests(unittest.TestCase):
         "- Priority: high\n"
         "- Work-Kind: feature\n"
         "- Summary: Done\n\n"
+        "## Workflow history\n\n"
+        "- 2026-01-01 created (aw backlog): fixture\n\n"
         "## Detail\n\nx\n"
     )
 
@@ -1603,7 +1607,7 @@ class RetiredAndIgnoredScopeTests(unittest.TestCase):
         (
             "a backlog item in open/",
             ".aw/records/backlog/open/20260101-bkl111-01-bkl111-open.backlog.md",
-            "- Id: bkl111\n- Status: open\n- Set: bkl111\n- Priority: high\n- Work-Kind: feature\n- Summary: Open\n\n## Detail\n\nx\n",
+            "- Id: bkl111\n- Status: open\n- Set: bkl111\n- Priority: high\n- Work-Kind: feature\n- Summary: Open\n\n## Workflow history\n\n- 2026-01-01 created (aw backlog): fixture\n\n## Detail\n\nx\n",
             False,
             "the active case for the third tree shape, whose disposition directories are STATUS "
             "names. `open/` must not be mistaken for a retirement segment",
@@ -1611,7 +1615,7 @@ class RetiredAndIgnoredScopeTests(unittest.TestCase):
         (
             "a backlog item in done/",
             ".aw/records/backlog/done/20260101-bkl222-01-bkl222-done.backlog.md",
-            "- Id: bkl222\n- Status: done\n- Set: bkl222\n- Priority: high\n- Work-Kind: feature\n- Summary: Done\n\n## Detail\n\nx\n",
+            "- Id: bkl222\n- Status: done\n- Set: bkl222\n- Priority: high\n- Work-Kind: feature\n- Summary: Done\n\n## Workflow history\n\n- 2026-01-01 created (aw backlog): fixture\n\n## Detail\n\nx\n",
             True,
             "THE OVERLAP ROW: `done` is BOTH a directory segment and a status, so this path is "
             "retired by either mechanism. Kept because it is the shape most likely to be "

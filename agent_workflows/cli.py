@@ -557,7 +557,8 @@ _DESCRIPTIONS = {
     ),
     "backlog check": (
         "Validate the backlog tree against the contract and fail closed: valid enums, "
-        "status-mirrors-directory, gate present-and-valid iff blocked, unique id6, nonempty summary. "
+        "status-mirrors-directory, gate present-and-valid iff blocked, unique id6, nonempty summary, "
+        "at least one Workflow history record. "
         "--agent emits tab-separated drift records."
     ),
     "specs": (

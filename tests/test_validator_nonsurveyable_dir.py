@@ -58,6 +58,10 @@ _BACKLOG_CONTENT = """# Backlog: Test Item
 - Work-Kind: bug
 - Summary: Test item summary
 
+## Workflow history
+
+- 2026-01-01 created (aw backlog): fixture
+
 ## Details
 Details text.
 """

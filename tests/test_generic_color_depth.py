@@ -230,7 +230,7 @@ class GenericColorDepthTests(_DepthTestBase):
             backlog_dir = Path(fixture_dir) / ".aw" / "records" / "backlog" / "open"
             backlog_dir.mkdir(parents=True, exist_ok=True)
             (backlog_dir / "20261001-test01-01-test01-sample.backlog.md").write_text(
-                "# Backlog: Sample\n\n- Id: test01\n- Status: open\n- Set: test01\n- Priority: low\n- Work-Kind: chore\n- Summary: Sample\n",
+                "# Backlog: Sample\n\n- Id: test01\n- Status: open\n- Set: test01\n- Priority: low\n- Work-Kind: chore\n- Summary: Sample\n\n## Workflow history\n\n- 2026-01-01 created (aw backlog): fixture\n",
                 encoding="utf-8",
             )
 

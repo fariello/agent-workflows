@@ -121,6 +121,7 @@ _RELEASE_EXEMPT_REF_RE = re.compile(
     r"^- Release-Exempt-Ref:[ \t]*(?P<value>.+?)[ \t]*$"
 )
 _CLOSE_EVIDENCE_RE = re.compile(r"^- Close-Evidence:[ \t]*(?P<value>.+?)[ \t]*$")
+_WORKFLOW_HISTORY_HEADING_RE = re.compile(r"(?m)^## Workflow history[ \t]*$")
 _TOP_KEY_RE = re.compile(r"^- ([A-Za-z0-9_-]+):(?:\s*(.*))?$")
 _TEMPLATE_OWNED_KEYS = frozenset(
     (
@@ -608,6 +609,20 @@ def validate_item(path: Path, text: str) -> List[core.Drift]:
                 "close evidence not a single bounded control-char-free line",
             )
         )
+
+    hist_block = A.history_block(text)
+    if not hist_block.records:
+        if not _WORKFLOW_HISTORY_HEADING_RE.search(text):
+            detail = (
+                "no ## Workflow history heading; restore the records from git history "
+                "(an indented line is not a record)"
+            )
+        else:
+            detail = (
+                "heading present but no column-zero '- YYYY-MM-DD ...' record in the block; "
+                "restore the records from git history (an indented line is not a record)"
+            )
+        drift.append(core.Drift(rel, "backlog.history-empty", detail))
 
     return drift
 
