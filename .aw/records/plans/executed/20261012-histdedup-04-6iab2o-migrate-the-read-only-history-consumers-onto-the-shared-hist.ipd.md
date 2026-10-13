@@ -6,7 +6,7 @@
 - Scope: IN: migrate the record-reading consumers to `attention_contract.history_block(text).records`: `attention` (`_prompts_record`, `_release_record`, `_spec_record`, `_plans_record`, `_research_record`, `_backlog_record`, each `A.last_history_at(_history_section_lines(text))`), `check_engine` (`_item_close_date`, `_item_graduated_date`, `_spec_implementing_date`), and `plan_readiness` (`extract_newest_history_entry`, `history_has_review_record`, `newest_verdict`); keep `attention._history_section_lines` as a function (tests and `tests/support.py` reference it) but document that record readers must use `history_block`; a corpus-equivalence test and fixtures fencing each consumer's indented-quotation behavior; one CHANGELOG entry. OUT: `status_set.same_status_message_is_duplicate` and `backlog` (done by `kgv213`); test modules that call `_history_section_lines` to inspect fixtures (they read their own outputs and are not consumers of the rule); any change to positional newest-first semantics; plan history writers.
 - Scope-Paths: agent_workflows/attention.py, agent_workflows/check_engine.py, agent_workflows/plan_readiness.py, tests/test_history_consumers_shared_reader.py, CHANGELOG.md
 - Item-Dependencies: executed:kgv213
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -16,9 +16,9 @@
 - Highest E allocated: 05
 - Author: opencode/its_direct/pt3-claude-opus-5.5-1m-us
 - Id: 6iab2o
-- Approval: 2026-10-12, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-13 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: 6iab2o verified (set histdedup, attempt 1).
 - 2026-10-12 approved (aw set): status set to approved
 - 2026-10-12 reviewed (aw set): /plan-review (opencode model=its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-006. Record: .aw/records/reviews/20261012-histdedup-04-6iab2o-migrate-the-read-only-history-consumers-onto-the-shared-hist.review.md Round 1
 
