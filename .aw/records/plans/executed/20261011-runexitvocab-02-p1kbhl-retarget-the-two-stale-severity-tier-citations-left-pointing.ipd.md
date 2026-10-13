@@ -6,7 +6,7 @@
 - Scope: IN: (1) retarget the two `check_engine.py` comments (the `check.plan-date-filename` rationale beginning "WHY `info` AND NOT `warning`" and the `check.ipd-carrier-ungated` rationale quoting "to author a rule that reports diagnostics without ever failing any gate or check") from Section 3.1 to Section 3.2 of `docs/cli-output-contract.md`, citing the section by its title as well as its number so the next renumber is detectable; (2) re-measure the whole tree at execution time for any other live reference to the severity contract by the old number, and retarget any found the same way (an edit outside Scope-Paths is made and then justified at finalize with `--scope-reason`, not a reason to stop). OUT: any change to `docs/cli-output-contract.md` headings or prose (already correct at HEAD); any edit to executed plan `u28vqb` (an executed record is never rewritten; F-04 here records its stale F-01 framing instead); any rule behavior or severity change.
 - Scope-Paths: agent_workflows/check_engine.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: medium
@@ -16,9 +16,9 @@
 - Highest E allocated: 03
 - Author: OpenCode Claude Opus
 - Id: p1kbhl
-- Approval: 2026-10-12, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-13 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: p1kbhl verified (set runexitvocab, attempt 2).
 - 2026-10-12 approved (aw set): status set to approved
 - 2026-10-12 reviewed (aw set): /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005
 
