@@ -6,9 +6,10 @@
 - Scope: Orchestrate four children: (01) stop launching a baseline nothing will collect; (02) one full-suite entry point, `aw suite`, with a tree-keyed result cache and a bounded xdist worker count, adopted by the runner's own suite seams and named in agent prompts; (03) a machine-wide full-suite lock whose wait emits progress the stall watchdog counts; (04) a measurement of coverage-based test selection on real `main` steps, adopted for agent iteration only if it pays. ORCHESTRATION ONLY: every deliverable belongs to a child. The full suite remains the integration authority in every child.
 - Scope-Paths: .aw/records/plans/pending/20261012-suiteeff-00-z3cqvz-stop-wasting-full-test-suites-one-cached-bounded-serialized.ipd.md
 - Item-Dependencies: none
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
 - Coverage: pass
-- Coverage-Fingerprint: 81cf22a883614f6e75827717d5178df5a5b0765d8ab06b49189e7f8a2bcb8862
+- Coverage-Fingerprint: 6867099fef6df2b3c6bf0c924a6ece40be7d6e76256927af2e05c34924b5f3ab
 - Coverage-Checked: 2026-10-12 by uri/its_direct/pt3-claude-opus-5.5-1m-us
 - Work-Kind: bug
 - Priority: high
@@ -22,6 +23,9 @@
 
 ## Workflow history
 
+- 2026-10-13 /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005, PR-006 (record `.aw/records/reviews/20261012-suiteeff-00-z3cqvz-stop-wasting-full-test-suites-one-cached-bounded-serialized.review.md`)
+- 2026-10-13 reviewed (aw set): plan-review: APPROVE WITH REVISIONS APPLIED; PR-001..PR-006
+- 2026-10-12 coverage pass (aw oc run): fingerprint 6867099fef6d, model uri/its_direct/pt3-claude-opus-5.5-1m-us
 - 2026-10-12 coverage pass (aw oc run): fingerprint 81cf22a88361, model uri/its_direct/pt3-claude-opus-5.5-1m-us
 - 2026-10-12 draft (opencode its_direct/pt3-claude-opus-5.5-1m-us): created.
 - 2026-10-12 to-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): authored from backlog `58x9mw` at the maintainer's instruction, with the measurements in the backlog item re-run from `.aw/records/runs/run-202610*` and the git object store.
@@ -45,16 +49,16 @@ THIS IS AN ORCHESTRATOR AND ITS ITEMS ARE ORCHESTRATION ONLY. Each item confirms
 
 - [ ] E-02 CONFIRM 0o0wt2 REACHED executed
   - Depends on: E-01
-  - Expected outcome: `0o0wt2` is in `executed/`, and its own V-items record a cache hit on an unchanged tree, a miss after a one-line edit, and the bounded worker count.
+  - Expected outcome: `0o0wt2` is in `executed/`, and its own V-items record a cache hit on an unchanged tree, a miss after a one-line edit, the bounded worker count, the runner's three suite seams routed through `run_full_suite`, and the `aw suite` instruction in the rendered execute and verify prompts.
   - Execution state: pending
 
 - [ ] E-03 CONFIRM xvm6no REACHED executed
   - Depends on: E-02
-  - Expected outcome: `xvm6no` is in `executed/`, and its own V-items record two concurrent full suites serialized with periodic wait lines and a stalled-looking waiter kept alive by them.
+  - Expected outcome: `xvm6no` is in `executed/`, and its own V-items record two concurrent full suites serialized with periodic wait lines, the heartbeat file advancing, and a stalled-looking waiter kept alive by it on both hosts.
   - Execution state: pending
 
 - [ ] E-04 CONFIRM 1qut7y REACHED executed
-  - Depends on: E-03
+  - Depends on: E-02
   - Expected outcome: `1qut7y` is in `executed/`, with its measurement recorded as research and its adopt-or-decline decision stated in its own V-items.
   - Execution state: pending
 
@@ -79,14 +83,14 @@ Order is forced: 01 removes the largest pure waste and is independent; 02 create
 
 ## Cross-IPD validation
 
-- THE FULL SUITE STAYS THE AUTHORITY. No child may let a cached, selected or skipped result stand in for the integration gate's verdict except an exact-key cache hit on a PASS (0o0wt2 E-03); selection (1qut7y) is for agent iteration only. Each child's own V-items carry this check: 0o0wt2 V-03 and 1qut7y V-04.
-- ONE ENTRY POINT. 03 and 04 add behavior inside `aw suite`, never a second wrapper; checked by xvm6no V-01 and 1qut7y V-04 against 0o0wt2's command.
-- NO SILENT WAIT. Any wait 03 adds emits progress the watchdog counts (xvm6no V-03), because a silent wait is exactly the stall this Set exists to stop.
+- THE FULL SUITE STAYS THE AUTHORITY. No child may let a cached, selected or skipped result stand in for the integration gate's verdict except an exact-key cache hit on a PASS (0o0wt2 E-03); selection (1qut7y) is for agent iteration only. Each child's own V-items carry this check: 0o0wt2 V-03 (an unconfirmed failure is never stored) and V-06 (a FAILURE at a seam is still a failure), and 1qut7y V-04 (`--select` never touches the full-suite cache).
+- ONE ENTRY POINT. 03 and 04 add behavior inside `aw suite`, never a second wrapper; checked by xvm6no V-02 (the slot is exercised through `aw suite`, code path `run_full_suite` -> `suite_slot`) and 1qut7y V-03/V-04 (`aw suite --select`) against 0o0wt2's command.
+- NO SILENT WAIT. Any wait 03 adds emits progress the watchdog counts (xvm6no V-04 and V-05), because a silent wait is exactly the stall this Set exists to stop.
 
 ## Deferred / out of scope (with reason)
 
-- The stall watchdog treating a long-running shell tool as idle in general (beyond suite-lock waits): a separate defect with its own blast radius, to be filed separately.
-- Limiting how many DRIVERS run at once or warning on host load: a separate defect, to be filed separately; this Set bounds suites, not drivers.
+- The stall watchdog treating a long-running shell tool as idle in general (beyond suite-lock waits and suite runs, which `xvm6no` E-04 covers): a separate defect with its own blast radius. NOT YET TRACKED: no backlog item exists for it at review (2026-10-12); the maintainer should file it with `aw backlog new` (prose here is not a tracked work surface). Filing it is not this Set's deliverable and no child owns it.
+- Limiting how many DRIVERS run at once or warning on host load: a separate defect; this Set bounds suites, not drivers. NOT YET TRACKED: no backlog item exists for it at review (2026-10-12); the maintainer should file it with `aw backlog new`.
 - Sharing a cache across machines: the cache is local to the git common dir; a remote cache needs a trust model.
 
 ## Scope check
@@ -104,25 +108,25 @@ None owed by this plan. Each child validates itself with its own bare-suite run 
 
 - Blocking: no
 - Status: resolved
-- Owner: none
-- Resolution or deferral rationale: RESOLVED to a configurable pool defaulting to `max(1, cpu_count // 6)` slots (2 on the 12-core host), carried by `xvm6no`. One slot serializes seven drivers behind a 216s-median, 622s-p90 suite and would starve them; an unbounded count is today's failure. Each slot's suite gets `-n` = `cpu_count // slots` from `0o0wt2`, so the machine's cores are divided rather than multiplied.
+- Owner: plan author
+- Resolution or deferral rationale: RESOLVED (by the plan author, not the maintainer) to a configurable pool defaulting to `max(1, cpu_count // 6)` slots (2 on the 12-core host), carried by `xvm6no`. One slot serializes seven drivers behind a 216s-median, 622s-p90 suite and would starve them; an unbounded count is today's failure. Each slot's suite gets `-n` = `max(2, cpu_count // slots)` from `0o0wt2` E-04, so the machine's cores are divided rather than multiplied.
 
 ## Validation and cross-check (verify before reporting the Set complete)
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
 - [ ] V-01 validates E-01
-  - Required evidence: the pasted `- Status: executed` line of `9ec94f` from `executed/` and its V-02 evidence quoted from its record.
+  - Required evidence: the pasted `- Status: executed` line of `9ec94f` from `executed/` and its V-02 (events from the validation-ON and validation-OFF cells) and V-03 (the cell failing with the condition reverted) evidence quoted from its record.
   - Observed evidence:
   - Result: pending
 
 - [ ] V-02 validates E-02
-  - Required evidence: the pasted `- Status: executed` line of `0o0wt2` and its V-02/V-03 evidence quoted from its record.
+  - Required evidence: the pasted `- Status: executed` line of `0o0wt2` and its V-02 (key sensitivity), V-04 (bounded `-n` and the cached second run), V-06 (seam records with `cached: true|false`) and V-07 (rendered prompts) evidence quoted from its record.
   - Observed evidence:
   - Result: pending
 
 - [ ] V-03 validates E-03
-  - Required evidence: the pasted `- Status: executed` line of `xvm6no` and its V-02/V-03 evidence quoted from its record.
+  - Required evidence: the pasted `- Status: executed` line of `xvm6no` and its V-02 (serialized runs with the waiting line), V-04 (heartbeat mtime advancing) and V-05 (end-to-end not-stalled cell on both hosts, failing with the wiring reverted) evidence quoted from its record.
   - Observed evidence:
   - Result: pending
 
@@ -136,4 +140,4 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 - Size assessment: standard
 - Cohesion rationale: not required
 
-Ready for `/plan-review` of the Set, then explicit human approval. Execute children in Order; `1qut7y`'s adoption half needs its own measurement to pass its stated threshold and otherwise records a decline, which still completes it. Inherits `- Blocks-Release: next` from backlog `58x9mw`.
+This plan requires explicit human approval before execution. Its open questions are resolved (OQ-01). It performs no work itself and its only declared path is itself, so any non-record edit made while executing it is out of scope and must be justified at finalize. Execute children in Order; `1qut7y`'s adoption half needs its own measurement to pass its stated threshold and otherwise records a decline, which still completes it. Under `aw oc run` / `aw agy run` the runner retires this plan once every child is `executed`; run by hand, the executor confirms each child in Order and stops at the first that has not reached `executed`, reporting which. The terminal transition is owned by the runner under a runner and by `aw ipd finalize` when run by hand; never hand-edit `- Status: executed` and never `git mv` the file. Every `V-*` MUST carry the actual pasted text quoted from the child's record, never a paraphrase or a claim. Commit only declared paths through `aw commit z3cqvz -- <paths>`; never push. Inherits `- Blocks-Release: next` from backlog `58x9mw`.
