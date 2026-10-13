@@ -156,6 +156,25 @@ def _find_anchors_on_line(
     return res
 
 
+def _find_unattributed_anchors_on_line(line: str) -> List[int]:
+    """Find bare offset citations on a comment or docstring line when no spec id6 is known."""
+    offsets: List[int] = []
+    # 1. Bare backtick `:\d+`, ONLY if line also contains the word 'spec' (case-insensitive)
+    if re.search(r"\bspec\b", line, re.IGNORECASE):
+        for m in re.finditer(r"`:\s*(\d+)`", line):
+            off = int(m.group(1))
+            if off not in offsets:
+                offsets.append(off)
+    # 2. Bare spec : \d+ or spec [N.N] : \d+
+    for m in re.finditer(
+        r"\bspec(?:\s+[0-9]+(?:\.[0-9]+)*)?\s+:(\d+)\b", line, re.IGNORECASE
+    ):
+        off = int(m.group(1))
+        if off not in offsets:
+            offsets.append(off)
+    return offsets
+
+
 def stale_spec_anchors(
     repo_root: Union[str, Path], paths: Iterable[Union[str, Path]]
 ) -> List[StaleSpecAnchor]:
@@ -198,7 +217,9 @@ def stale_spec_anchors(
 
         in_docstring: Optional[str] = None
         docstring_id6: Optional[str] = None
+        docstring_block_text: Optional[str] = None
         comment_id6: Optional[str] = None
+        comment_block_text: Optional[str] = None
 
         for lno, line in enumerate(flines, 1):
             stripped = line.strip()
@@ -218,16 +239,51 @@ def stale_spec_anchors(
                         anchors = _find_anchors_on_line(line, cur_id6, spec_cache)
                         for id6, off in anchors:
                             _evaluate_citation(
-                                fpath, lno, line, id6, off, spec_cache, findings
+                                fpath,
+                                lno,
+                                line,
+                                id6,
+                                off,
+                                spec_cache,
+                                findings,
+                                block_text=line,
                             )
+                        if cur_id6 is None:
+                            direct_offs = {a[1] for a in anchors}
+                            for off in _find_unattributed_anchors_on_line(line):
+                                if off not in direct_offs:
+                                    findings.append(
+                                        StaleSpecAnchor(
+                                            fpath, lno, "", off, "", "unattributed"
+                                        )
+                                    )
                         continue
                     else:
                         in_docstring = q
-                        docstring_id6 = None
                         line_docstring_start = True
+                        j = lno - 1
+                        doc_lines = [flines[j]]
+                        j += 1
+                        while j < len(flines):
+                            doc_lines.append(flines[j])
+                            if q in flines[j]:
+                                break
+                            j += 1
+                        docstring_block_text = "\n".join(doc_lines)
+                        doc_known_specs = [
+                            t
+                            for t in _ID6_RE.findall(docstring_block_text)
+                            if t in spec_cache
+                        ]
+                        docstring_id6 = doc_known_specs[0] if doc_known_specs else None
 
             active_id6: Optional[str] = None
+            block_text: str = ""
+            in_block = False
+
             if in_docstring:
+                in_block = True
+                block_text = docstring_block_text or ""
                 for token in _ID6_RE.findall(line):
                     if token in spec_cache:
                         docstring_id6 = token
@@ -235,13 +291,30 @@ def stale_spec_anchors(
                 if not line_docstring_start and in_docstring in line:
                     in_docstring = None
                     docstring_id6 = None
+                    docstring_block_text = None
             elif stripped.startswith("#"):
+                in_block = True
+                if comment_block_text is None:
+                    j = lno - 1
+                    comm_lines = []
+                    while j < len(flines) and flines[j].strip().startswith("#"):
+                        comm_lines.append(flines[j])
+                        j += 1
+                    comment_block_text = "\n".join(comm_lines)
+                    comm_known_specs = [
+                        t
+                        for t in _ID6_RE.findall(comment_block_text)
+                        if t in spec_cache
+                    ]
+                    comment_id6 = comm_known_specs[0] if comm_known_specs else None
+                block_text = comment_block_text or ""
                 for token in _ID6_RE.findall(line):
                     if token in spec_cache:
                         comment_id6 = token
                 active_id6 = comment_id6
             else:
                 comment_id6 = None
+                comment_block_text = None
                 for token in _ID6_RE.findall(line):
                     if token in spec_cache:
                         active_id6 = token
@@ -249,7 +322,24 @@ def stale_spec_anchors(
 
             anchors = _find_anchors_on_line(line, active_id6, spec_cache)
             for id6, off in anchors:
-                _evaluate_citation(fpath, lno, line, id6, off, spec_cache, findings)
+                _evaluate_citation(
+                    fpath,
+                    lno,
+                    line,
+                    id6,
+                    off,
+                    spec_cache,
+                    findings,
+                    block_text=block_text,
+                )
+
+            if in_block and active_id6 is None:
+                direct_offs = {a[1] for a in anchors}
+                for off in _find_unattributed_anchors_on_line(line):
+                    if off not in direct_offs:
+                        findings.append(
+                            StaleSpecAnchor(fpath, lno, "", off, "", "unattributed")
+                        )
 
     return findings
 
@@ -262,6 +352,7 @@ def _evaluate_citation(
     off: int,
     spec_cache: Dict,
     findings: List[StaleSpecAnchor],
+    block_text: str = "",
 ) -> None:
     if id6 not in spec_cache:
         return
@@ -271,6 +362,21 @@ def _evaluate_citation(
     if validity != "valid":
         findings.append(StaleSpecAnchor(fpath, lno, id6, off, enc_h, validity))
         return
+
+    # Table row check (E-03):
+    # when an offset resolves `valid` to a line whose stripped text starts with `|`,
+    # extract that row's first cell (strip pipes, backticks and whitespace, for example `I-07`)
+    # and treat the citation as valid when that token appears in the citing BLOCK:
+    # the contiguous run of `#` comment lines, or the docstring, containing the citing line.
+    target_line = lines[off - 1].strip()
+    if target_line.startswith("|"):
+        parts = target_line.split("|")
+        if len(parts) > 1:
+            first_cell = parts[1].replace("`", "").strip()
+            if first_cell and not set(first_cell).issubset({"-", ":", " "}):
+                search_text = block_text if block_text else line
+                if first_cell in search_text:
+                    return
 
     named_sec = _extract_named_section(line)
     if named_sec:

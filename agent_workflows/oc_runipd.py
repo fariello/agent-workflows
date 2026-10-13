@@ -4847,7 +4847,7 @@ LAUNCH IDENTITY (model / variant / agent):
     # That is the SHIPPED `--full-auto` pattern and it is what makes an OMITTED flag preserve the
     # frozen value: with `default=False`, resume could not tell "the operator passed `--no-X`" from
     # "the operator passed nothing" and would clobber frozen policy on every resume.
-    # `--retry-budget` is registered here too although it is REFUSED (spec `:131` freezes it), because
+    # `--retry-budget` is registered here too although it is REFUSED (spec `25kzda` Section 2.1 freezes it), because
     # refusing it needs argparse to accept it first; otherwise the operator is told the flag does not
     # exist instead of being told the frozen value cannot change.
     runner_shared.register_run_policy_flags(resume, resume=True)
@@ -5469,8 +5469,8 @@ def main(argv: list[str] | None = None) -> int:
             # and before apply_run_policy_flags_on_resume can flip unrelated options (F-11).
             runner_shared.refuse_contradictory_verification_flags(args)
             # runflags-01 (`uyeko5`) E-06: REFUSE a flag spec 2.1 freezes, before any state is loaded
-            # or written. Scoped to `--retry-budget`, the one flag spec `:131` explicitly freezes ("the
-            # frozen value cannot change on resume"). The blanket `:129` reading is NOT implemented,
+            # or written. Scoped to `--retry-budget`, the one flag spec `25kzda` Section 2.1 explicitly freezes ("the
+            # frozen value cannot change on resume"). The blanket Section 2.1 `--resume` reading is NOT implemented,
             # because the shipped `--full-auto` on resume OVERWRITES the frozen option rather than
             # refusing, so the spec's two sentences disagree and converting a shipped flag's behavior
             # is out of this plan's fence. The divergence is recorded, not papered over.

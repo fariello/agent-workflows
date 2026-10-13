@@ -15235,8 +15235,6 @@ def _run_check(
             scan_paths = [repo_root]
 
         findings = spec_citations.stale_spec_anchors(repo_root, scan_paths)
-        exit_code = 0
-        status = "clean" if len(findings) == 0 else "findings"
         summary = (
             "0 stale spec anchor findings detected across source"
             if len(findings) == 0
@@ -15250,36 +15248,54 @@ def _run_check(
             except ValueError:
                 rel = f.file.as_posix()
             lines.append(
-                f"{rel}:{f.line}: spec {f.id6} :{f.offset} -> {f.enclosing_heading or f.validity}"
+                f"{rel}:{f.line}: spec {f.id6 or '?'} :{f.offset} -> {f.enclosing_heading or f.validity}"
             )
 
         human_rendered = "\n".join(lines) + ("\n" if lines else "")
+
+        rule_sev = ce.rule_spec("check.spec-anchor-stale").severity
 
         diagnostics = [
             Diagnostic(
                 location=f"{_schema.normalize_repo_path(f.file, repo_root)}:{f.line}",
                 rule="check.spec-anchor-stale",
                 detail=(
-                    f"Spec line anchor ':{f.offset}' for spec '{f.id6}' encloses "
-                    f"'{f.enclosing_heading}' (validity: {f.validity})"
-                    if f.enclosing_heading
-                    else f"Spec line anchor ':{f.offset}' for spec '{f.id6}' is invalid ({f.validity})"
+                    f"Spec line anchor ':{f.offset}' is unattributed (validity: {f.validity})"
+                    if not f.id6
+                    else (
+                        f"Spec line anchor ':{f.offset}' for spec '{f.id6}' encloses "
+                        f"'{f.enclosing_heading}' (validity: {f.validity})"
+                        if f.enclosing_heading
+                        else f"Spec line anchor ':{f.offset}' for spec '{f.id6}' is invalid ({f.validity})"
+                    )
                 ),
-                severity="info",
+                severity=rule_sev,
             )
             for f in findings
         ]
+
+        exit_code = core.drift_exit_code(diagnostics)
+        if len(findings) == 0:
+            status = "clean"
+        elif exit_code == 0:
+            status = "conforms"
+        else:
+            status = "findings"
+
+        err_cnt = sum(1 for d in diagnostics if d.severity not in ("warning", "info"))
+        warn_cnt = sum(1 for d in diagnostics if d.severity == "warning")
+        info_cnt = sum(1 for d in diagnostics if d.severity == "info")
 
         evidence = [
             Evidence(
                 key="source_anchors",
                 value={"findings_count": len(findings)},
-                status="clean" if len(findings) == 0 else "findings",
+                status=status,
             ),
             Evidence(
                 key="rules",
-                value={"errors": 0, "warnings": 0, "info": len(findings)},
-                status="clean" if len(findings) == 0 else "findings",
+                value={"errors": err_cnt, "warnings": warn_cnt, "info": info_cnt},
+                status=status,
             ),
         ]
 

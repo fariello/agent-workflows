@@ -37,36 +37,36 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: Baseline
 
-- [ ] E-01 RECORD THE BASELINE before any edit. Run, and paste: `aw check specs --source-anchors` (human mode; expect the single `check_engine.py` `pqsx96` `:135` finding measured at authoring, or whatever it reports now), `aw check --source-anchors --agent` (expect the `ValueError: Invalid aw.agent/v1 record: Exit code mismatch` traceback and a nonzero exit, measured at authoring at `92a6f240d`), and the bare suite `python3 -m pytest` summary line plus the SET of failing test ids for E-06 to compare against. Also run this supplementary scan and paste its hits, since it is how authoring found the blind spot: `grep -rnE "\bspec\b( +(Section +)?[0-9]+(\.[0-9]+)*[a-z]?)? +\`?:[0-9]+\b" --include=*.py agent_workflows tools tests` (authoring found `agy_runipd.py` "refuse the flag spec \`:131\`", `oc_runipd.py` "(spec \`:131\` freezes it)", `oc_runipd.py` "the one flag spec \`:131\` explicitly freezes" with "The blanket \`:129\` reading" on the next line, plus two literal spellings in `tests/test_spec_citation_anchors.py`).
+- [x] E-01 RECORD THE BASELINE before any edit. Run, and paste: `aw check specs --source-anchors` (human mode; expect the single `check_engine.py` `pqsx96` `:135` finding measured at authoring, or whatever it reports now), `aw check --source-anchors --agent` (expect the `ValueError: Invalid aw.agent/v1 record: Exit code mismatch` traceback and a nonzero exit, measured at authoring at `92a6f240d`), and the bare suite `python3 -m pytest` summary line plus the SET of failing test ids for E-06 to compare against. Also run this supplementary scan and paste its hits, since it is how authoring found the blind spot: `grep -rnE "\bspec\b( +(Section +)?[0-9]+(\.[0-9]+)*[a-z]?)? +\`?:[0-9]+\b" --include=*.py agent_workflows tools tests` (authoring found `agy_runipd.py` "refuse the flag spec \`:131\`", `oc_runipd.py` "(spec \`:131\` freezes it)", `oc_runipd.py` "the one flag spec \`:131\` explicitly freezes" with "The blanket \`:129\` reading" on the next line, plus two literal spellings in `tests/test_spec_citation_anchors.py`).
   - Depends on: none
   - Expected outcome: pasted detector output, pasted crash, pasted suite baseline, pasted grep hits.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: Detector honesty
 
-- [ ] E-02 FIX THE `--agent` CRASH (backlog `g3ropl`). In `cli._run_check`'s `if getattr(args, "source_anchors", False):` branch, replace the hardcoded `exit_code = 0` and `status = "clean" if len(findings) == 0 else "findings"` with: build the diagnostics first with `severity=check_engine.rule_spec("check.spec-anchor-stale").severity` (instead of the literal `"info"`), then `exit_code = artifact_core.drift_exit_code(...)` over those severities (or the equivalent `1 if any(sev != "info") else 0`), and `status = "conforms" if exit_code == 0 else "findings"`, matching how `aw check specs` reports `CONFORMS` while carrying an `info` finding. Make the `rules` evidence count by severity rather than hardcoding `info`, and set both `Evidence.status` values from the same `exit_code` (`"clean"` when zero findings, `"conforms"` when only `info` findings, `"findings"` otherwise) so no record in the stream carries a negative status beside `exit` 0. Keep the zero-finding case reporting `clean` exactly as today. While the rule is `info` the exit stays 0, so no current behavior other than the crash changes; Order 04's one-line severity change then flips the exit with no further CLI edit.
+- [x] E-02 FIX THE `--agent` CRASH (backlog `g3ropl`). In `cli._run_check`'s `if getattr(args, "source_anchors", False):` branch, replace the hardcoded `exit_code = 0` and `status = "clean" if len(findings) == 0 else "findings"` with: build the diagnostics first with `severity=check_engine.rule_spec("check.spec-anchor-stale").severity` (instead of the literal `"info"`), then `exit_code = artifact_core.drift_exit_code(...)` over those severities (or the equivalent `1 if any(sev != "info") else 0`), and `status = "conforms" if exit_code == 0 else "findings"`, matching how `aw check specs` reports `CONFORMS` while carrying an `info` finding. Make the `rules` evidence count by severity rather than hardcoding `info`, and set both `Evidence.status` values from the same `exit_code` (`"clean"` when zero findings, `"conforms"` when only `info` findings, `"findings"` otherwise) so no record in the stream carries a negative status beside `exit` 0. Keep the zero-finding case reporting `clean` exactly as today. While the rule is `info` the exit stays 0, so no current behavior other than the crash changes; Order 04's one-line severity change then flips the exit with no further CLI edit.
   - Depends on: E-01
   - Expected outcome: `aw check --source-anchors --agent` emits a valid `aw.agent/v1` record with `outcome` `conforms` and `exit` 0 when the only findings are `info`, and no traceback; with zero findings it still reports `clean`/0.
-  - Execution state: pending
-- [ ] E-03 ACCEPT A TABLE-ROW ANCHOR. In `spec_citations`, when an offset resolves `valid` to a line whose stripped text starts with `|`, extract that row's first cell (strip pipes, backticks and whitespace, for example `I-07`) and treat the citation as valid when that token appears in the citing BLOCK: the contiguous run of `#` comment lines, or the docstring, containing the citing line (not only the citing line itself, because `check_engine.py`'s citation puts the path on one line and "I-07" on the lines either side). Track the block text in `stale_spec_anchors` alongside the existing `comment_id6`/`docstring_id6` state and pass it to `_evaluate_citation`. Do not change the heading-match rules for non-table lines.
+  - Execution state: performed
+- [x] E-03 ACCEPT A TABLE-ROW ANCHOR. In `spec_citations`, when an offset resolves `valid` to a line whose stripped text starts with `|`, extract that row's first cell (strip pipes, backticks and whitespace, for example `I-07`) and treat the citation as valid when that token appears in the citing BLOCK: the contiguous run of `#` comment lines, or the docstring, containing the citing line (not only the citing line itself, because `check_engine.py`'s citation puts the path on one line and "I-07" on the lines either side). Track the block text in `stale_spec_anchors` alongside the existing `comment_id6`/`docstring_id6` state and pass it to `_evaluate_citation`. Do not change the heading-match rules for non-table lines.
   - Depends on: E-01
   - Expected outcome: the `check_engine.py` `pqsx96` `:135` citation produces no finding; a fixture citing a table row whose key is ABSENT from the block still produces one.
-  - Execution state: pending
-- [ ] E-04 REPORT AN UNATTRIBUTED SPEC ANCHOR. In `spec_citations`, when a line inside a comment or docstring block matches the bare spellings `_find_anchors_on_line` already recognises in its step 2 (backtick `:\d+` or `spec [N.N] :\d+`) but the block names NO known spec id6 (so `active_id6` is None), emit a `StaleSpecAnchor` with `id6=""`, the cited offset, empty `enclosing_heading`, and `validity="unattributed"`. Limit the backtick spelling to lines that also contain the word `spec` (case-insensitive) so a self-file citation such as `runner_shared.py`'s "the suite-baseline comment at \`:16624\`" is NOT reported. Update the human rendering and the diagnostic detail so an unattributed finding reads as such (for example `spec ? :131 -> unattributed`) instead of printing an empty id6.
+  - Execution state: performed
+- [x] E-04 REPORT AN UNATTRIBUTED SPEC ANCHOR. In `spec_citations`, when a line inside a comment or docstring block matches the bare spellings `_find_anchors_on_line` already recognises in its step 2 (backtick `:\d+` or `spec [N.N] :\d+`) but the block names NO known spec id6 (so `active_id6` is None), emit a `StaleSpecAnchor` with `id6=""`, the cited offset, empty `enclosing_heading`, and `validity="unattributed"`. Limit the backtick spelling to lines that also contain the word `spec` (case-insensitive) so a self-file citation such as `runner_shared.py`'s "the suite-baseline comment at \`:16624\`" is NOT reported. Update the human rendering and the diagnostic detail so an unattributed finding reads as such (for example `spec ? :131 -> unattributed`) instead of printing an empty id6.
   - Depends on: E-01
   - Expected outcome: the three runner-file anchors E-01 found are reported as `unattributed`; the `runner_shared.py` `:16624` self-citation is not. At review a scratch prototype of this rule over `agent_workflows`, `tools` and `tests` reported exactly `agy_runipd.py 4189 ? 131 unattributed`, `oc_runipd.py 4779 ? 131 unattributed`, `oc_runipd.py 5398 ? 131 unattributed`, plus the pre-existing `check_engine.py` `pqsx96` `:135` finding that E-03 removes. With the rule also applied to the one-line docstring branch (re-run at review), it additionally reported `tests/test_spec_citation_anchors.py 124 ? 131 unattributed`. It did not report the `tests/test_spec_citation_anchors.py` docstring only because the prototype skipped the detector's ONE-LINE docstring branch in `stale_spec_anchors` (the branch that evaluates a line opening and closing a triple quote, then `continue`s). E-04 must apply the rule on that branch too, since a one-line docstring is a docstring; it will then report that test docstring, which is why E-05 rewords it. Re-derive this set at execution; it is context, not the bar.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: Tree sweep and tests
 
-- [ ] E-05 RETARGET THE EXPOSED ANCHORS. Rewrite the three runner-file comments onto the stable section token, keeping each quoted claim: `agy_runipd.py` "refuse the flag spec \`:131\` freezes" becomes "refuse the flag spec `25kzda` Section 2.1 freezes"; `oc_runipd.py` "(spec \`:131\` freezes it)" becomes "(spec `25kzda` Section 2.1 freezes it)"; `oc_runipd.py` "the one flag spec \`:131\` explicitly freezes" becomes "the one flag spec `25kzda` Section 2.1 explicitly freezes" and "The blanket \`:129\` reading" becomes "The blanket Section 2.1 `--resume` reading" (the cited sentences live in Section 2.1 Command grammar: "The frozen value cannot change on resume." and "`--resume` is mutually exclusive with a new selector and with flags that would change the frozen queue or policy."). Reword the docstring in `tests/test_spec_citation_anchors.py` `test_bare_backtick_spelling_detected_in_same_comment_block` so it no longer spells a literal bare anchor (the fixture STRING it writes is data and stays). Once E-04 covers one-line docstrings it reports that docstring as `unattributed`, so the reword is required for a zero census. Comment-only edits in the runner files: no code changes.
+- [x] E-05 RETARGET THE EXPOSED ANCHORS. Rewrite the three runner-file comments onto the stable section token, keeping each quoted claim: `agy_runipd.py` "refuse the flag spec \`:131\` freezes" becomes "refuse the flag spec `25kzda` Section 2.1 freezes"; `oc_runipd.py` "(spec \`:131\` freezes it)" becomes "(spec `25kzda` Section 2.1 freezes it)"; `oc_runipd.py` "the one flag spec \`:131\` explicitly freezes" becomes "the one flag spec `25kzda` Section 2.1 explicitly freezes" and "The blanket \`:129\` reading" becomes "The blanket Section 2.1 `--resume` reading" (the cited sentences live in Section 2.1 Command grammar: "The frozen value cannot change on resume." and "`--resume` is mutually exclusive with a new selector and with flags that would change the frozen queue or policy."). Reword the docstring in `tests/test_spec_citation_anchors.py` `test_bare_backtick_spelling_detected_in_same_comment_block` so it no longer spells a literal bare anchor (the fixture STRING it writes is data and stays). Once E-04 covers one-line docstrings it reports that docstring as `unattributed`, so the reword is required for a zero census. Comment-only edits in the runner files: no code changes.
   - Depends on: E-04
   - Expected outcome: `aw check specs --source-anchors` reports zero findings on the real tree.
-  - Execution state: pending
-- [ ] E-06 ADD BEHAVIORAL TESTS to `tests/test_spec_citation_anchors.py`, over self-written fixtures only (never the live tree census): (a) a table-row anchor whose key cell appears on a neighbouring comment line produces no finding; (b) the same anchor with the key absent from the block produces one finding; (c) an unattributed `# ... spec \`:11\`` in a block naming no id6 produces one finding with validity `unattributed`; (d) a `# see the comment at \`:11\`` line with no `spec` word produces none; (e) `aw check specs --source-anchors --agent --dir <fixture>` with a stale anchor exits 0, prints no traceback, every emitted line parses as JSON, and its result record has `outcome` `conforms`, `exit` 0, and a `check.spec-anchor-stale` diagnostic (the `g3ropl` regression; on the current code this exact command exits 1 with `ValueError: Invalid aw.agent/v1 record: Exit code mismatch`, so the test is red before E-02); (f) the same command with no stale anchor reports `outcome` `clean`, `exit` 0. Drive the CLI with `subprocess` as the existing `test_cli_check_specs_source_anchors_exits_zero_with_finding` does. Then run the bare suite and compare to the E-01 baseline.
+  - Execution state: performed
+- [x] E-06 ADD BEHAVIORAL TESTS to `tests/test_spec_citation_anchors.py`, over self-written fixtures only (never the live tree census): (a) a table-row anchor whose key cell appears on a neighbouring comment line produces no finding; (b) the same anchor with the key absent from the block produces one finding; (c) an unattributed `# ... spec \`:11\`` in a block naming no id6 produces one finding with validity `unattributed`; (d) a `# see the comment at \`:11\`` line with no `spec` word produces none; (e) `aw check specs --source-anchors --agent --dir <fixture>` with a stale anchor exits 0, prints no traceback, every emitted line parses as JSON, and its result record has `outcome` `conforms`, `exit` 0, and a `check.spec-anchor-stale` diagnostic (the `g3ropl` regression; on the current code this exact command exits 1 with `ValueError: Invalid aw.agent/v1 record: Exit code mismatch`, so the test is red before E-02); (f) the same command with no stale anchor reports `outcome` `clean`, `exit` 0. Drive the CLI with `subprocess` as the existing `test_cli_check_specs_source_anchors_exits_zero_with_finding` does. Then run the bare suite and compare to the E-01 baseline.
   - Depends on: E-02, E-03, E-04, E-05
   - Expected outcome: the new tests pass; the bare suite shows no new failures relative to the E-01 baseline.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -130,30 +130,195 @@ N/A for specs: no spec text changes; the detector is a check, and spec `25kzda` 
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: pasted output of the two detector commands (including the crash traceback), the pasted bare-suite summary line and failing-id set, and the pasted supplementary grep hits.
   - Observed evidence:
-  - Result: pending
-- [ ] V-02 validates E-02
+```
+$ aw check specs --source-anchors
+agent_workflows/check_engine.py:391: spec pqsx96 :135 -> ## 3. Invariant catalog
+
+$ aw check --source-anchors --agent
+Traceback (most recent call last):
+  File "<frozen runpy>", line 203, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "agent_workflows/__main__.py", line 8, in <module>
+    raise SystemExit(main())
+                     ~~~~^^
+  File "agent_workflows/cli.py", line 18146, in main
+    rc = _dispatch(argv)
+  File "agent_workflows/cli.py", line 17296, in _dispatch
+    return _run_noun_verb(args, term, context=context)
+  File "agent_workflows/cli.py", line 13118, in _run_noun_verb
+    return _run_check(args, term, context=context)
+  File "agent_workflows/cli.py", line 15305, in _run_check
+    return _emit_bounded_agent_record(
+        result,
+    ...<3 lines>...
+        repo_root=repo_root,
+    )
+  File "agent_workflows/cli.py", line 14538, in _emit_bounded_agent_record
+    rec = result.to_agent_record(clean_ctx)
+  File "agent_workflows/result_types.py", line 487, in to_agent_record
+    _schema.assert_valid_agent_record(rec)
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^
+  File "agent_workflows/agent_schema.py", line 389, in assert_valid_agent_record
+    raise ValueError(f"Invalid aw.agent/v1 record: {'; '.join(errs)}")
+ValueError: Invalid aw.agent/v1 record: Exit code mismatch: exit=0 incompatible with negative outcome 'findings'
+
+$ python3 -m pytest (baseline)
+NOTE: 291 tests were deselected by -m/-k and did not run (this run's marker filter skips 'slow' and 'livecorpus'); run everything with: make test-all
+7715 passed, 4 skipped, 3 warnings in 1003.79s (0:16:43)
+Failing test IDs: set()
+
+$ grep -rnE "\bspec\b( +(Section +)?[0-9]+(\.[0-9]+)*[a-z]?)? +\`?:[0-9]+\b" --include=*.py agent_workflows tools tests
+agent_workflows/agy_runipd.py:4257:            # runflags-01 (`uyeko5`) E-06, symmetric with `oc_runipd`: refuse the flag spec `:131`
+agent_workflows/oc_runipd.py:4850:    # `--retry-budget` is registered here too although it is REFUSED (spec `:131` freezes it), because
+agent_workflows/oc_runipd.py:5472:            # or written. Scoped to `--retry-budget`, the one flag spec `:131` explicitly freezes ("the
+tests/test_spec_citation_anchors.py:124:    """(d) The bare-backtick spelling (spec `:131`) is detected when preceding line attributes known id6."""
+tests/test_spec_citation_anchors.py:128:        "# As required by spec `:21`, verify grammar.\n",
+```
+  - Result: pass
+- [x] V-02 validates E-02
   - Required evidence: pasted result JSON record of `aw check --source-anchors --agent` on a fixture with a stale anchor, showing `"outcome":"conforms"`, `"exit":0`, a `check.spec-anchor-stale` diagnostic, and a pasted `echo $?` of 0 with no traceback on stderr (produced by `cli._run_check`'s `--source-anchors` branch); the same on a zero-finding fixture showing `"outcome":"clean"`; and the pasted passing output of E-06 tests (e) and (f).
   - Observed evidence:
-  - Result: pending
-- [ ] V-03 validates E-03
+```
+# Stale fixture:
+STDOUT: {"schema":"aw.agent/v1","kind":"result","cmd":"check","outcome":"conforms","exit":0,"verified":true,"complete":true,"target":"source-anchors","findings":1,"evidence":["source_anchors","rules"],"diagnostics":[{"location":"agent_workflows/mod.py:1","rule":"check.spec-anchor-stale"}],"next":null}
+STDERR:
+EXIT: 0
+
+# Clean zero-finding fixture:
+STDOUT: {"schema":"aw.agent/v1","kind":"result","cmd":"check","outcome":"clean","exit":0,"verified":true,"complete":true,"target":"source-anchors","findings":0,"evidence":["source_anchors","rules"],"next":null}
+STDERR:
+EXIT: 0
+
+# Passing output of E-06 tests (e) and (f):
+tests/test_spec_citation_anchors.py::test_e_cli_check_specs_source_anchors_agent_stale_anchor_conforms_exit_zero PASSED [ 76%]
+tests/test_spec_citation_anchors.py::test_f_cli_check_specs_source_anchors_agent_clean_reports_clean_exit_zero PASSED [ 61%]
+```
+  - Result: pass
+- [x] V-03 validates E-03
   - Required evidence: pasted real-tree `aw check specs --source-anchors` output showing no `check_engine.py` `pqsx96` finding, plus the passing output of E-06 tests (a) and (b).
   - Observed evidence:
-  - Result: pending
-- [ ] V-04 validates E-04
+```
+$ aw check specs --source-anchors
+(no findings emitted; check_engine.py pqsx96 :135 is eliminated)
+EXIT: 0
+
+# Passing output of E-06 tests (a) and (b):
+tests/test_spec_citation_anchors.py::test_a_table_row_anchor_key_cell_in_block_produces_no_finding PASSED [ 15%]
+tests/test_spec_citation_anchors.py::test_b_table_row_anchor_key_cell_absent_produces_one_finding PASSED [ 84%]
+```
+  - Result: pass
+- [x] V-04 validates E-04
   - Required evidence: pasted detector output taken BEFORE E-05 showing the three runner-file anchors reported as unattributed and the `runner_shared.py` `:16624` line absent, plus the passing output of E-06 tests (c) and (d).
   - Observed evidence:
-  - Result: pending
-- [ ] V-05 validates E-05
+```
+# Pre-E-05 detector output on real tree:
+$ aw check specs --source-anchors
+agent_workflows/agy_runipd.py:4257: spec ? :131 -> unattributed
+agent_workflows/oc_runipd.py:4850: spec ? :131 -> unattributed
+agent_workflows/oc_runipd.py:5472: spec ? :131 -> unattributed
+tests/test_spec_citation_anchors.py:124: spec ? :131 -> unattributed
+
+(runner_shared.py:16624 is absent; all 3 runner citations and the 1 test docstring are detected as unattributed)
+
+# Passing output of E-06 tests (c) and (d):
+tests/test_spec_citation_anchors.py::test_c_unattributed_spec_anchor_in_block_naming_no_id6_produces_finding PASSED [ 92%]
+tests/test_spec_citation_anchors.py::test_d_bare_backtick_offset_without_spec_word_produces_no_finding PASSED [ 69%]
+```
+  - Result: pass
+- [x] V-05 validates E-05
   - Required evidence: the pasted `git diff` of `oc_runipd.py` and `agy_runipd.py` showing comment-only changes, and pasted real-tree `aw check specs --source-anchors` output reporting zero findings with exit 0.
   - Observed evidence:
-  - Result: pending
-- [ ] V-06 validates E-06
+```diff
+$ git diff agent_workflows/oc_runipd.py agent_workflows/agy_runipd.py
+diff --git a/agent_workflows/agy_runipd.py b/agent_workflows/agy_runipd.py
+index dea821850..27128a26d 100755
+--- a/agent_workflows/agy_runipd.py
++++ b/agent_workflows/agy_runipd.py
+@@ -4254,7 +4254,7 @@ def main(argv: list[str] | None = None) -> int:
+             return 0
+
+         if args.command == "resume":
+-            # runflags-01 (`uyeko5`) E-06, symmetric with `oc_runipd`: refuse the flag spec `:131`
++            # runflags-01 (`uyeko5`) E-06, symmetric with `oc_runipd`: refuse the flag spec `25kzda` Section 2.1
+             # freezes (`--retry-budget`) before any state is loaded, then apply the flags the operator
+             # actually PASSED while leaving the omitted ones frozen. The shared helper SUBSUMES the
+             # hand-written `--full-auto` block that was here, preserving its shipped
+diff --git a/agent_workflows/oc_runipd.py b/agent_workflows/oc_runipd.py
+index d408f97f3..f5e779f9c 100755
+--- a/agent_workflows/oc_runipd.py
++++ b/agent_workflows/oc_runipd.py
+@@ -4847,7 +4847,7 @@ LAUNCH IDENTITY (model / variant / agent):
+     # That is the SHIPPED `--full-auto` pattern and it is what makes an OMITTED flag preserve the
+     # frozen value: with `default=False`, resume could not tell "the operator passed `--no-X`" from
+     # "the operator passed nothing" and would clobber frozen policy on every resume.
+-    # `--retry-budget` is registered here too although it is REFUSED (spec `:131` freezes it), because
++    # `--retry-budget` is registered here too although it is REFUSED (spec `25kzda` Section 2.1 freezes it), because
+     # refusing it needs argparse to accept it first; otherwise the operator is told the flag does not
+     # exist instead of being told the frozen value cannot change.
+     runner_shared.register_run_policy_flags(resume, resume=True)
+@@ -5469,8 +5469,8 @@ def main(argv: list[str] | None = None) -> int:
+             # and before apply_run_policy_flags_on_resume can flip unrelated options (F-11).
+             runner_shared.refuse_contradictory_verification_flags(args)
+             # runflags-01 (`uyeko5`) E-06: REFUSE a flag spec 2.1 freezes, before any state is loaded
+-            # or written. Scoped to `--retry-budget`, the one flag spec `:131` explicitly freezes ("the
+-            # frozen value cannot change on resume"). The blanket `:129` reading is NOT implemented,
++            # or written. Scoped to `--retry-budget`, the one flag spec `25kzda` Section 2.1 explicitly freezes ("the
++            # frozen value cannot change on resume"). The blanket Section 2.1 `--resume` reading is NOT implemented,
+             # because the shipped `--full-auto` on resume OVERWRITES the frozen option rather than
+             # refusing, so the spec's two sentences disagree and converting a shipped flag's behavior
+             # is out of this plan's fence. The divergence is recorded, not papered over.
+
+$ aw check specs --source-anchors
+EXIT: 0
+```
+  - Result: pass
+- [x] V-06 validates E-06
   - Required evidence: the pasted runner output of `python3 -m pytest -o addopts="" -v tests/test_spec_citation_anchors.py` with every test passing and tests (a) through (f) visible by name, and the pasted bare-suite summary line with its failing-id set compared against E-01 (no new failures).
   - Observed evidence:
-  - Result: pending
+```
+$ python3 -m pytest -o addopts="" -v tests/test_spec_citation_anchors.py
+============================= test session starts ==============================
+platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0
+cachedir: .pytest_cache
+Using --randomly-seed=529528573
+rootdir: .
+configfile: pyproject.toml
+plugins: anyio-4.14.1, randomly-4.1.0, cov-7.1.0, xdist-3.8.0
+collecting ... collected 13 items
+
+tests/test_spec_citation_anchors.py::test_cli_non_specs_positional_type_runs_anchor_report PASSED [  7%]
+tests/test_spec_citation_anchors.py::test_a_table_row_anchor_key_cell_in_block_produces_no_finding PASSED [ 15%]
+tests/test_spec_citation_anchors.py::test_citation_landing_under_named_heading_produces_no_finding PASSED [ 23%]
+tests/test_spec_citation_anchors.py::test_past_eof_and_in_fence_offsets_reported_as_invalid PASSED [ 30%]
+tests/test_spec_citation_anchors.py::test_cli_check_specs_source_anchors_exits_zero_with_finding PASSED [ 38%]
+tests/test_spec_citation_anchors.py::test_bare_backtick_spelling_detected_in_same_comment_block PASSED [ 46%]
+tests/test_spec_citation_anchors.py::test_citation_landing_under_different_heading_produces_one_finding PASSED [ 53%]
+tests/test_spec_citation_anchors.py::test_f_cli_check_specs_source_anchors_agent_clean_reports_clean_exit_zero PASSED [ 61%]
+tests/test_spec_citation_anchors.py::test_d_bare_backtick_offset_without_spec_word_produces_no_finding PASSED [ 69%]
+tests/test_spec_citation_anchors.py::test_e_cli_check_specs_source_anchors_agent_stale_anchor_conforms_exit_zero PASSED [ 76%]
+tests/test_spec_citation_anchors.py::test_b_table_row_anchor_key_cell_absent_produces_one_finding PASSED [ 84%]
+tests/test_spec_citation_anchors.py::test_c_unattributed_spec_anchor_in_block_naming_no_id6_produces_finding PASSED [ 92%]
+tests/test_spec_citation_anchors.py::test_cli_bare_check_specs_omits_finding PASSED [100%]
+
+============================== 13 passed in 2.98s ==============================
+
+Bare-suite summary line and failing-id set comparison:
+Baseline (E-01):
+NOTE: 291 tests were deselected by -m/-k and did not run (this run's marker filter skips 'slow' and 'livecorpus'); run everything with: make test-all
+7715 passed, 4 skipped, 3 warnings in 1003.79s (0:16:43)
+Failing test IDs: set()
+
+Post-edit run:
+NOTE: 291 tests were deselected by -m/-k and did not run (this run's marker filter skips 'slow' and 'livecorpus'); run everything with: make test-all
+7721 passed, 4 skipped, 3 warnings in 687.88s (0:11:27)
+Failing test IDs: set()
+
+Comparison: 7721 passed vs 7715 baseline (+6 new passing tests, corresponding to tests a-f), 0 new failures.
+```
+  - Result: pass
 
 ## Approval and execution gate
 

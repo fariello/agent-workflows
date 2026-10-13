@@ -4254,7 +4254,7 @@ def main(argv: list[str] | None = None) -> int:
             return 0
 
         if args.command == "resume":
-            # runflags-01 (`uyeko5`) E-06, symmetric with `oc_runipd`: refuse the flag spec `:131`
+            # runflags-01 (`uyeko5`) E-06, symmetric with `oc_runipd`: refuse the flag spec `25kzda` Section 2.1
             # freezes (`--retry-budget`) before any state is loaded, then apply the flags the operator
             # actually PASSED while leaving the omitted ones frozen. The shared helper SUBSUMES the
             # hand-written `--full-auto` block that was here, preserving its shipped
