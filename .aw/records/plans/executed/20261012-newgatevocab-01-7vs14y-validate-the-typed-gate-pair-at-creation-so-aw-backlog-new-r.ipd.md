@@ -6,7 +6,7 @@
 - Scope: IN: make `backlog.run_new` consume the existing shared validator `attention_contract.validate_gate_flags` for a `blocked` item, so an out-of-vocabulary kind or a kind-invalid ref is refused at the point of typing with rc 2 and no file written; pin that with behavioral tests driving the real CLI; record the fix in `CHANGELOG.md`. OUT (reasons under "Deferred"): adding a `--gate-summary` flag to `aw backlog new`; validating gate flags passed with a NON-blocked status (they are never rendered, so cannot reach disk); `aw specs new` and `aw ipd scaffold` (neither declares `--gate-kind`/`--gate-ref`, measured); any change to `GATE_KINDS` or a per-kind ref regex.
 - Scope-Paths: agent_workflows/backlog.py, tests/test_backlog_new_gate_vocabulary.py, CHANGELOG.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -17,9 +17,9 @@
 - Highest E allocated: 03
 - Author: opencode/its_direct/pt3-claude-opus-5.5-1m-us
 - Id: 7vs14y
-- Approval: 2026-10-12, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-13 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: 7vs14y verified (set newgatevocab, attempt 1).
 - 2026-10-12 approved (aw set): status set to approved
 - 2026-10-12 reviewed (aw set): /plan-review (opencode model=its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-004. Record: .aw/records/reviews/20261012-newgatevocab-01-7vs14y-validate-the-typed-gate-pair-at-creation-so-aw-backlog-new-r.review.md Round 1
 
