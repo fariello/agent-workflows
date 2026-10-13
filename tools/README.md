@@ -420,3 +420,50 @@ python3 tools/deleted_test_replay.py 19313eed --from-json uncited_inventory.json
 # Run with a custom per-file timeout:
 python3 tools/deleted_test_replay.py 19313eed tests/test_run_freeze.py --timeout 60
 ```
+
+## `replay_coverage_diff.py`
+
+`tools/replay_coverage_diff.py` computes production line coverage differentials between surviving tests and replayed deleted tests to mechanically identify functions and lines whose test guards were lost.
+
+### Purpose and Architecture
+
+When evaluating uncited deleted tests, the tool provides a mechanical way to determine what production behavior a deleted test exercised that surviving tests do not. It runs in two phases:
+1. `baseline`: runs surviving tests under `coverage run` with dynamic test contexts and subprocess tracing, producing a `baseline.json` mapping each production function to its covered body lines and reaching test contexts.
+2. `diff`: replays deleted test files in detached worktrees via `deleted_test_replay.py` under the same coverage instrumentation, comparing replayed line reach against the baseline to categorize covered lines into `exclusive_lines` and `shared_lines`.
+
+### In-Process vs Subprocess Narrowing
+
+Coverage dynamic contexts record the specific test function names that execute each line of code. For in-process test calls, narrowing mutation probe execution to only the reaching tests is sound: a test that never executes a function body cannot have its outcome altered by mutating that body.
+
+In contrast, reach through an external subprocess (such as CLI command invocations) executes in a separate process where pytest dynamic context tracking is unavailable, recording only the empty context. Functions covered only through child processes are flagged with `subprocess_only: true` in `baseline.json`. These functions cannot be narrowed safely and must be probed against the full selection.
+
+### Audit-Time Dependency and Temp-Dir Rule
+
+The script is an audit-time tool. The `coverage` package is not declared as a runtime or shipped test dependency. If `coverage` is not installed, the tool refuses execution with exit code 2 and prints an installation message.
+
+All coverage databases, process start files, and combined data are kept strictly in temporary directories outside the repository tree and cleaned up after execution. No `.coverage*` files are ever left in the repository.
+
+### Baseline Validation and Performance
+
+A baseline is valid only for the exact git `HEAD` commit it records. Because line numbers are only comparable on the same tree, `diff` refuses with exit code 2 if `baseline.json`'s `head` differs from current `HEAD`.
+
+In validation (V-01), computing the baseline over the surviving test selection with pytest-xdist completed in 1043.18 seconds (approximately 17.4 minutes), measuring 4136 production functions of which 115 were marked `subprocess_only`.
+
+### Usage
+
+```bash
+# Generate baseline coverage for the current tree:
+python3 tools/replay_coverage_diff.py baseline --out /tmp/base
+
+# Run baseline serially or pass targeted pytest arguments:
+python3 tools/replay_coverage_diff.py baseline --out /tmp/base -- -p no:xdist tests/test_m.py
+
+# Diff a deleted test file against the baseline:
+python3 tools/replay_coverage_diff.py diff 19313eed tests/test_run_freeze.py --baseline /tmp/base
+
+# Output machine-readable diff JSON:
+python3 tools/replay_coverage_diff.py diff 19313eed tests/test_run_freeze.py --baseline /tmp/base --format json
+
+# Diff an entire inventory list from lost_guard_census.py:
+python3 tools/replay_coverage_diff.py diff 19313eed --from-json uncited_inventory.json --baseline /tmp/base --format json
+```
