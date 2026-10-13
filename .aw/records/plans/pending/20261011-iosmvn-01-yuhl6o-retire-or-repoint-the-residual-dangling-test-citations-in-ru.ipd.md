@@ -6,7 +6,8 @@
 - Scope: IN: comment and docstring prose in `agent_workflows/runner_shared.py` only, at the 41 sites in Findings. Each site is dispositioned one of: REPOINT (a live test at HEAD asserts the same property; cite it), RETIRE-PIN (the deleted test read source or pinned structure; state that it was deleted in `19313eed` and will not return under `GUIDING_PRINCIPLES` P16), or RETIRE-UNGUARDED (the deleted test was behavioral and no live test asserts the property; state that it was deleted in `19313eed` and that no live guard currently asserts it). The design reasoning each comment carries is preserved. OUT: any executable change; restoring any test; the sites owned by other plans (`046nys`/`dtelfb`, `3tov52`/`65d5zf`, `yf1p8y`, executed `rcp8c4`), excluded by the measurement regex; filing backlog for unguarded properties (Order 04 `ellenm`).
 - Scope-Paths: agent_workflows/runner_shared.py, .aw/records/plans/pending/20261011-iosmvn-01-yuhl6o-retire-or-repoint-the-residual-dangling-test-citations-in-ru.ipd.md
 - Item-Dependencies: none
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
 - From-Backlog: iosmvn
@@ -17,6 +18,7 @@
 - Id: yuhl6o
 
 ## Workflow history
+- 2026-10-13 reviewed (opencode its_direct/pt3-claude-opus-5.5-1m-us): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-001..PR-005 fixed.
 
 - 2026-10-12 draft (opencode its_direct/pt3-claude-opus-5.5-1m-us): created.
 - 2026-10-12 to-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): authored review-ready from backlog `iosmvn`; 41 sites measured at HEAD `8538be828`.
@@ -36,21 +38,21 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Expected outcome: the recorded list equals Findings S-01..S-41 or each delta carries a recorded disposition.
   - Execution state: pending
 
-- [ ] E-02 For each site, decide its disposition and record it in a table appended to this plan's Findings (`Site | Disposition | Evidence`). Evidence for REPOINT is the live test id plus a pasted `rg -n` hit in `tests/`; for RETIRE-PIN, the deleted test's form from `git show 19313eed^:<path>` (e.g. `ast.parse`/`inspect.getsource`/source substring); for RETIRE-UNGUARDED, the empty `rg` over `tests/` for the property's symbol or behavior.
+- [ ] E-02 For each site, decide its disposition and record it in a table appended to this plan's Findings (`Site | Disposition | Evidence`). Evidence for REPOINT is the live test id plus a pasted `rg -n` hit in `tests/`; for RETIRE-PIN, the deleted test's form from `git show 19313eed^:<path>` (e.g. `ast.parse`/`inspect.getsource`/source substring); for RETIRE-UNGUARDED, the empty `rg` over `tests/` for the property's symbol or behavior. For EVERY site also record a `Removed-by` commit for the specific guard the comment describes. Find it with `git log --oneline -S'<test or class name>' -- tests/<file>`, or, when the comment names only a file, by reading the guard in `git show 80db6750c^:tests/<file>` and checking whether it survives in `git show 19313eed^:tests/<file>`. Several guards here were removed by `80db6750c` ("delete 366 tests that pinned code structure") before `19313eed` deleted the file; see Findings note F-01. For a guard removed by `80db6750c`, the RETIRE-PIN evidence is `git show 80db6750c -- tests/<file>`, since `19313eed^` no longer holds it.
   - Depends on: E-01
-  - Expected outcome: 41 (plus deltas) dispositioned rows, each with evidence.
+  - Expected outcome: exactly one dispositioned row per E-01 hit (re-derived at execution; 41 at authoring and at review HEAD `1406157ff` is context, not the bar), each with evidence and a `Removed-by` commit.
   - Execution state: pending
 
 ### Task group 2: Edit
 
-- [ ] E-03 Apply the dispositions as comment/docstring edits in `agent_workflows/runner_shared.py`. REPOINT replaces the path (and `::Symbol`) with the live one. RETIRE-PIN and RETIRE-UNGUARDED keep the sentence's design reason and replace the enforcement claim with the wording precedent already used in `oc_runipd.py` ("deleted in `19313eed`; no live guard currently asserts this") so that `19313eed` appears within three lines of the citation. Do not change any statement, constant, signature, or identifier.
+- [ ] E-03 Apply the dispositions as comment/docstring edits in `agent_workflows/runner_shared.py`. REPOINT replaces the path (and `::Symbol`) with the live one. RETIRE-PIN and RETIRE-UNGUARDED keep the sentence's design reason and replace the enforcement claim with the wording precedent already used in `oc_runipd.py` ("deleted in `19313eed`; no live guard currently asserts this") so that `19313eed` appears within three lines of the citation. Where E-02 recorded `Removed-by: 80db6750c`, the wording names that commit as the guard's removal and `19313eed` only as the later deletion of the file (for example "a code pin removed in `80db6750c` under P16; the file was deleted in `19313eed`"), following sibling `dtelfb`. Where a comment's instruction depended on the removed guard (S-02/S-19 "Keep the name qualified" because an AST guard forbade an `ast.Name` called `signal`; S-38..S-41 "may not" register a handler because guards forbade it), keep the reason as history and say plainly that the constraint is no longer mechanically enforced. Do not change any statement, constant, signature, or identifier.
   - Depends on: E-02
-  - Expected outcome: measurement command prints `UNRETIRED 0` for this file.
+  - Expected outcome: measurement command prints `UNRETIRED 0` for this file, and every edited passage is a true statement about HEAD that names the correct removing commit (the measurement only proves `19313eed` is nearby, not that the claim is true).
   - Execution state: pending
 
 - [ ] E-04 Prove the edit is prose-only and regression-free: run the AST-equivalence command (Project conventions) against the E-01 HEAD and run the bare suite `python3 -m pytest`.
   - Depends on: E-03
-  - Expected outcome: `AST-DIFFER []`; suite summary with no failures.
+  - Expected outcome: `AST-DIFFER []`; suite summary with no failures, or any failure shown to pre-exist by re-running the failing test ids at the E-01 HEAD in a scratch `git worktree` (a prose-only change cannot cause one).
   - Execution state: pending
 
 ## Project conventions discovered (Step 0)
@@ -121,7 +123,11 @@ Measured at HEAD `8538be828`. Enclosing symbol is the innermost `def`/`class`; "
 | S-40 | module (signal-handler note) | `tests/test_runner_stop_level3.py` |
 | S-41 | module (signal-handler note) | `tests/test_runner_stop_level4.py` |
 
-Observed shape at authoring (to guide, not to pre-decide, E-02): S-02/S-19 cite an `ast.Name` guard (RETIRE-PIN candidates); S-16/S-21 have a live sibling `tests/test_suite_baseline_direction.py` that may be a REPOINT for the direction property only; S-07/S-08 already mention the deletion further than 3 lines away and backlog `mv18lz` carries the lost coverage; S-18/S-22..S-24 cite a behavioral class (44 functions in `19313eed^:tests/test_suite_adjudication.py`), a likely RETIRE-UNGUARDED.
+Measured at authoring HEAD `8538be828`; re-measured at review HEAD `1406157ff` with the identical 41 hits.
+
+Observed shape at authoring (to guide, not to pre-decide, E-02): S-02/S-19 cite an `ast.Name` guard (RETIRE-PIN candidates; the guard survived to `19313eed^:tests/test_runner_telemetry_integration.py`); S-16/S-21 have a live sibling `tests/test_suite_baseline_direction.py` that may be a REPOINT for the direction property only, and the S-16 paragraph already cites that live file correctly; S-07/S-08 name no deletion commit anywhere nearby (corrected at review: no `19313eed` near either site), and backlog `mv18lz` (`graduated`) carries the lost coverage; S-18/S-22..S-24 cite a behavioral class (44 functions in `19313eed^:tests/test_suite_adjudication.py`), a likely RETIRE-UNGUARDED.
+
+F-01 (review at `1406157ff`): `git show 80db6750c -- tests/<file>` shows that some guards these comments describe were removed by `80db6750c`, not `19313eed`. Confirmed: S-38 (the `signal.signal(` forbid in `tests/test_lane_allocation_idempotent.py`: 2 hits at `80db6750c^`, 0 at `19313eed^`); S-36 (`test_neither_driver_tests_a_verdict_by_substring` in `tests/test_runner_refork_guard.py`); and S-12 (`test_neither_driver_defines_a_telemetry_symbol_of_its_own` and `test_the_agy_driver_reaches_telemetry_through_shared_not_through_oc`). Not confirmed but possible: S-35, S-37, and `80db6750c` removals in `test_rununify_record`, `test_rununify_lift`, `test_rununify_conflicts`, `test_lane_tool_identity`, `test_rununify_host_descriptor`, `test_suite_baseline` and `test_suite_adjudication`. Confirmed SURVIVING to `19313eed^`: the S-02/S-19 AST guard, S-06 `FrontMatterReaderBehaviorTests`, S-07/S-08 `InRunExecutedDependencyTests`, S-16..S-18/S-21..S-24 classes, S-28 `_SHARED_NAMES`, S-29 `TheExitCodeReflectsTheRealOutcome`, S-33 `test_stop_isolated_git_status`, and the S-39..S-41 signal forbids. E-02 records `Removed-by` per site.
 
 ## Proposed changes (ordered, validatable)
 
@@ -159,7 +165,7 @@ N/A: comment and docstring prose only; no spec describes these comments and no `
 
 - Blocking: no
 - Status: resolved
-- Owner: none
+- Owner: plan author
 - Resolution or deferral rationale: Rewrite, preserving the design reason. Executed plans `rcp8c4` and `gia5i7` set the precedent: the comment's reason is the valuable part, and deleting it loses why the code is shaped as it is.
 
 ## Validation and cross-check (verify before reporting done)
@@ -172,17 +178,17 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Result: pending
 
 - [ ] V-02 validates E-02
-  - Required evidence: the appended disposition table with one row per site and pasted `rg`/`git show` evidence for at least every REPOINT and every RETIRE-UNGUARDED row.
+  - Required evidence: the appended disposition table with one row per site and a `Removed-by` commit, with pasted `rg`/`git show` evidence for every REPOINT and every RETIRE-UNGUARDED row, and the pasted `git log -S` (or `git show`) output establishing each `Removed-by`.
   - Observed evidence:
   - Result: pending
 
 - [ ] V-03 validates E-03
-  - Required evidence: pasted post-edit measurement output ending `UNRETIRED 0`, and `git diff --stat agent_workflows/runner_shared.py`.
+  - Required evidence: pasted post-edit measurement output ending `UNRETIRED 0`, `git diff --stat agent_workflows/runner_shared.py`, and each edited passage quoted after the edit, with every `Removed-by: 80db6750c` site shown naming that commit.
   - Observed evidence:
   - Result: pending
 
 - [ ] V-04 validates E-04
-  - Required evidence: pasted `AST-DIFFER []` output and the bare `python3 -m pytest` summary line.
+  - Required evidence: pasted `AST-DIFFER []` output with the `<rev>` used, and the bare `python3 -m pytest` summary line (stated run with no added flags); for any failure, the pasted pre-existence re-run at E-01 HEAD.
   - Observed evidence:
   - Result: pending
 
@@ -191,4 +197,8 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 - Size assessment: standard
 - Cohesion rationale: not required
 
-Execute only after human approval. Commit through `aw commit yuhl6o -- <paths>` limited to the declared Scope-Paths; never push. Move to `executed/` only via `aw ipd finalize` after `aw ipd lint --phase pre-transition` conforms and every `V-*` is `pass` with pasted evidence.
+Execute only after explicit human approval recorded through `aw ipd set approved`. OQ-01 is resolved; no open question remains.
+
+EXECUTION CONTRACT. Scope fence: the declared Scope-Paths; an out-of-scope edit is made and then justified at finalize (`--scope-reason`), not a stop. Commit only those paths through `aw commit yuhl6o -- <paths>`; never `git add -A`, bare, or `-a`, never `--no-verify`, never push; verify `git diff --cached --name-only` before committing. You MUST paste the actual command output for every measurement, AST check, history lookup, and suite claim; never claim a result you did not run. Sibling plans `65d5zf`, `dtelfb` and `z2ugxc` (all approved) edit other passages of `runner_shared.py`; if a site here was concurrently changed in a way that cannot be safely combined, stop and report.
+
+POST-GATE LIFECYCLE MOVE. After every `V-*` is `pass` with pasted evidence and `aw ipd lint --phase pre-transition` conforms: under `aw oc run`/`aw agy run` the runner performs `aw ipd begin`/`aw ipd finalize`; in a manual run use `aw ipd finalize <plan> --actor <agent/model> --message <summary> --apply`. Never `git mv` the plan or hand-edit `- Status:`. Backlog `iosmvn` carries no `- Blocks-Release:` to inherit.
