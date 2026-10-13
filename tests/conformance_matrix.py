@@ -152,7 +152,7 @@ class Exemption:
 
 
 EXEMPTION_REGISTRY: Dict[str, Exemption] = {
-    # sanctioned_raw (7):
+    # sanctioned_raw (6):
     "find": Exemption(
         reason_kind="sanctioned_raw",
         citation="docs/cli-output-contract.md Section 12",
@@ -185,11 +185,6 @@ EXEMPTION_REGISTRY: Dict[str, Exemption] = {
         reason_kind="sanctioned_raw",
         citation="tools/completion.py",
         reason="Emits raw shell completion script for shell eval rather than an agent envelope.",
-    ),
-    "config exclude list": Exemption(
-        reason_kind="sanctioned_raw",
-        citation="agent_workflows/cli.py",
-        reason="Emits raw list of excluded configuration variable names.",
     ),
     "index": Exemption(
         reason_kind="sanctioned_raw",
@@ -563,11 +558,6 @@ MUTATION_EXEMPTION_REGISTRY: Dict[str, Exemption] = {
 # Allowed reason_kind is "known_broken" only. Citations must resolve to a live backlog item.
 
 FAMILY_ROOT_EXEMPTION_REGISTRY: Dict[str, Exemption] = {
-    "config exclude": Exemption(
-        reason_kind="known_broken",
-        citation="o8cz48",
-        reason="human refusal 'FAIL     Usage: aw config exclude {add|list|rm} ...' with no aw.agent/v1 envelope",
-    ),
     "runs": Exemption(
         reason_kind="known_broken",
         citation="l5dq92",

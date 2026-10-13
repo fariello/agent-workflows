@@ -336,3 +336,128 @@ def test_config_is_foreign_home_path_in_item_agent(tmp_path: Path) -> None:
     assert rec["present"] is False
     assert rec["item"] != foreign_arg
     assert FOREIGN_USER in rec["item"]
+
+
+# ==============================================================================
+# Case Class (f): config exclude family root and add/list/rm leaves (2va0jb / o8cz48)
+# ==============================================================================
+
+
+def _run_cli_raw(args: list[str], tmp_path: Path) -> subprocess.CompletedProcess[str]:
+    env = os.environ.copy()
+    env["XDG_CONFIG_HOME"] = str(tmp_path)
+    cmd = [sys.executable, "-m", "agent_workflows"] + args
+    return subprocess.run(
+        cmd,
+        env=env,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+
+
+def test_config_exclude_bare_root_agent(tmp_path: Path) -> None:
+    rc, rec = _run_cli_agent(["config", "exclude", "--agent"], tmp_path)
+    assert rc == 2
+    assert rec["kind"] == "error"
+    assert rec["outcome"] == "cannot-run"
+    assert rec["cmd"] == "config exclude"
+    assert rec["next"] == "aw config exclude list"
+
+
+def test_config_exclude_list_empty_agent(tmp_path: Path) -> None:
+    rc, rec = _run_cli_agent(["config", "exclude", "list", "--agent"], tmp_path)
+    assert rc == 0
+    assert rec["cmd"] == "config-exclude-list"
+    assert rec["outcome"] == "clean"
+    assert rec["entries"] == []
+    assert rec["count"] == 0
+    assert rec.get("next") == "aw config exclude add <path>"
+
+
+def test_config_exclude_add_and_rm_lifecycle_agent(tmp_path: Path) -> None:
+    target_path = str(tmp_path / "legacy")
+
+    # (c) add tmp/legacy --agent: rc 0, added is True, applied is True
+    rc, rec = _run_cli_agent(
+        ["config", "exclude", "add", target_path, "--agent"], tmp_path
+    )
+    assert rc == 0
+    assert rec["cmd"] == "config-exclude-add"
+    assert rec["outcome"] == "clean"
+    assert rec["added"] is True
+    assert rec["applied"] is True
+    assert "/home/" not in json.dumps(rec)
+    assert "/Users/" not in json.dumps(rec)
+
+    # (c) repeated add: rc 0, added is False, applied is False
+    rc, rec = _run_cli_agent(
+        ["config", "exclude", "add", target_path, "--agent"], tmp_path
+    )
+    assert rc == 0
+    assert rec["added"] is False
+    assert rec["applied"] is False
+
+    # (c) list --agent shows entry
+    rc, rec = _run_cli_agent(["config", "exclude", "list", "--agent"], tmp_path)
+    assert rc == 0
+    assert rec["count"] == 1
+    assert any("legacy" in e for e in rec["entries"])
+
+    # (d) rm tmp/nope --agent: rc 1, outcome == "findings", removed == [], applied is False
+    nope_path = str(tmp_path / "nope")
+    rc, rec = _run_cli_agent(
+        ["config", "exclude", "rm", nope_path, "--agent"], tmp_path
+    )
+    assert rc == 1
+    assert rec["cmd"] == "config-exclude-rm"
+    assert rec["outcome"] == "findings"
+    assert rec["verified"] is False
+    assert rec["removed"] == []
+    assert rec["applied"] is False
+
+    # (e) rm tmp/legacy --agent: rc 0, removed non-empty, applied is True
+    rc, rec = _run_cli_agent(
+        ["config", "exclude", "rm", target_path, "--agent"], tmp_path
+    )
+    assert rc == 0
+    assert rec["cmd"] == "config-exclude-rm"
+    assert rec["outcome"] == "clean"
+    assert len(rec["removed"]) > 0
+    assert rec["applied"] is True
+    assert "/home/" not in json.dumps(rec)
+    assert "/Users/" not in json.dumps(rec)
+
+    # (e) following list --agent shows count == 0
+    rc, rec = _run_cli_agent(["config", "exclude", "list", "--agent"], tmp_path)
+    assert rc == 0
+    assert rec["count"] == 0
+    assert rec["entries"] == []
+
+
+def test_config_exclude_json_arms(tmp_path: Path) -> None:
+    res = _run_cli_raw(["config", "exclude", "list", "--json"], tmp_path)
+    assert res.returncode == 0
+    data = json.loads(res.stdout)
+    assert "count" in data
+    assert "entries" in data
+    assert data["count"] == 0
+    assert data["entries"] == []
+
+    add_path = str(tmp_path / "legacy")
+    res = _run_cli_raw(["config", "exclude", "add", add_path, "--json"], tmp_path)
+    assert res.returncode == 0
+    data = json.loads(res.stdout)
+    assert data["added"] is True
+    assert data["applied"] is True
+    assert "entries" in data
+    assert "entry" in data
+
+
+def test_config_exclude_human_usage_hint(tmp_path: Path) -> None:
+    res = _run_cli_raw(["config", "exclude"], tmp_path)
+    assert res.returncode == 2
+    assert "FAIL     Usage:" not in res.stdout
+    assert "{add,list,rm}" in res.stdout
+    assert "Next  aw config exclude list" in res.stdout
+    assert "<command> ..." not in res.stdout
