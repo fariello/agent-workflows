@@ -206,13 +206,17 @@ def _read_json_object(path: Path) -> dict[str, Any]:
 def read_project_settings(repo_root: Path | str) -> dict[str, Any]:
     """The telemetry object from the COMMITTED project policy, or ``{}``."""
 
-    return _read_json_object(Path(repo_root).joinpath(".aw", *PROJECT_POLICY_REL))
+    from agent_workflows.project_context import project_config_dir
+
+    return _read_json_object(project_config_dir(repo_root) / "project.json")
 
 
 def read_local_settings(repo_root: Path | str) -> dict[str, Any]:
     """The telemetry object from the GITIGNORED machine binding, or ``{}``."""
 
-    return _read_json_object(Path(repo_root).joinpath(".aw", *LOCAL_BINDING_REL))
+    from agent_workflows.project_context import project_config_dir
+
+    return _read_json_object(project_config_dir(repo_root) / "local.json")
 
 
 def parse_telemetry_settings(

@@ -53,6 +53,8 @@ Every placement container uses this physical tail:
 
 `<container>` may be the target repository, `AW_HOME/projects/<project-id>`, or an attached companion directory. A class may resolve to a different container, but its physical tail is fixed. For example, external records resolve to `<companion>/.aw/records`, not an unrelated ad hoc records directory. A clean-target policy can therefore leave no target `.aw/` while still using the canonical physical shape outside the target.
 
+AMENDED 2026-10-12 (cleancfg p425hv): for `clean-delta` the installer writes `config/project.json`, `config/local.json` and `state/durable/` under `AW_HOME/projects/<project-id>/`. Readers locate config target-first then home (the `project_config_dir` rule), and an empty `project_id` is treated as absent. The remaining target writes (.aw/system/, .aw/records/, .aw/.gitignore, host adapters) remain open as Phase 3 work (backlog kvwwt0, spec or061f).
+
 The resolver returns each physical class separately: `system`, `config_project`, `config_local`, `state_durable`, `state_runtime`, and `records`. The four short root names remain human-facing group names only; they are not permission to collapse the six physical classes.
 
 ### 4.1 Exact ownership and filenames
@@ -245,6 +247,7 @@ The top-level `legacy_crosswalk` in the catalog is controlling. Every old ID 1 t
 
 ## Workflow history
 
+- 2026-10-12 note (aw specs): Amend Section 4 for clean-delta config and durable state placement under AW_HOME (IPD p425hv, backlog mbx0o4)
 - 2026-10-07 note (aw specs): Amend Section 6 preset table private-target Durable state to target ignored and Section 4.1 durable state rows with D92 ignore note (IPD gi1w75)
 - 2026-09-26 note (aw specs): Amend non-interactive default for install migrations to remove restricted to HEAD (o7k6lt)
 - 2026-09-25 note (aw specs): Amend Section 5 for repository-untracked backend (IPD lr0lln)

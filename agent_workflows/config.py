@@ -1400,6 +1400,34 @@ def _find_install_history_cutover(repo_root: Path, feature: str) -> Optional[str
                 break
 
     if not entries:
+        from agent_workflows.project_context import resolve_project_context
+
+        try:
+            ctx = resolve_project_context(target_repo=str(repo_root))
+            dur_class = ctx.physical_classes.get("state_durable")
+            if dur_class:
+                home_hist = Path(dur_class) / "history" / "installs.jsonl"
+                if home_hist.is_file():
+                    try:
+                        for line in home_hist.read_text(encoding="utf-8").splitlines():
+                            line = line.strip()
+                            if not line:
+                                continue
+                            try:
+                                record = json.loads(line)
+                                ts = record.get("timestamp") or record.get(
+                                    "last_installed_at"
+                                )
+                                if isinstance(ts, str) and ts.strip():
+                                    entries.append(ts.strip())
+                            except Exception:
+                                continue
+                    except OSError:
+                        pass
+        except Exception:
+            pass
+
+    if not entries:
         return None
 
     # Sort timestamps chronologically
@@ -1423,7 +1451,9 @@ def resolve_cutover_date(
     (3) fail-open `None`.
     """
     root = Path(repo_root)
-    project_file = root / ".aw" / "config" / "project.json"
+    from agent_workflows.project_context import project_config_dir
+
+    project_file = project_config_dir(root) / "project.json"
     data: Dict[str, Any] = {}
     if project_file.is_file():
         try:
@@ -1465,6 +1495,7 @@ def resolve_cutover_date(
 def sync_cutovers_on_install(
     repo_root: "os.PathLike[str] | str",
     install_timestamp: Optional[str] = None,
+    aw_home: Optional["os.PathLike[str] | str"] = None,
 ) -> Dict[str, str]:
     """Stamp missing cutover dates into `.aw/config/project.json` during install or update.
 
@@ -1472,7 +1503,9 @@ def sync_cutovers_on_install(
     cutover boundaries.
     """
     root = Path(repo_root)
-    project_file = root / ".aw" / "config" / "project.json"
+    from agent_workflows.project_context import project_config_dir
+
+    project_file = project_config_dir(root, aw_home=aw_home) / "project.json"
     data: Dict[str, Any] = {}
     if project_file.is_file():
         try:
@@ -1540,7 +1573,9 @@ def read_dependency_schema_cutover(
     Fail-open: any read/parse error, a missing file, or a missing key returns None (no cutover ->
     grandfather everything). Pure read; never writes.
     """
-    project_file = Path(repo_root) / ".aw" / "config" / "project.json"
+    from agent_workflows.project_context import project_config_dir
+
+    project_file = project_config_dir(repo_root) / "project.json"
     try:
         data = json.loads(project_file.read_text(encoding="utf-8"))
     except (OSError, ValueError):
@@ -1610,7 +1645,9 @@ def read_review_findings_gate(
     applies :data:`REVIEW_GATE_DEFAULT`). A bare string is tolerated and normalized to
     ``{"block_at": <string>}``.
     """
-    project_file = Path(repo_root) / ".aw" / "config" / "project.json"
+    from agent_workflows.project_context import project_config_dir
+
+    project_file = project_config_dir(repo_root) / "project.json"
     try:
         data = json.loads(project_file.read_text(encoding="utf-8"))
     except (OSError, ValueError):
@@ -1702,7 +1739,9 @@ def release_gate_work_kinds(
         else:
             warn(message)
 
-    project_file = Path(repo_root) / ".aw" / "config" / "project.json"
+    from agent_workflows.project_context import project_config_dir
+
+    project_file = project_config_dir(repo_root) / "project.json"
     try:
         data = json.loads(project_file.read_text(encoding="utf-8"))
     except (OSError, ValueError):
@@ -1870,7 +1909,9 @@ def read_run_policy(
     Never raises: a missing file, unparseable JSON, a non-object document, or a missing key returns
     None (the caller then applies its own default). Pure read; never writes.
     """
-    project_file = Path(repo_root) / ".aw" / "config" / "project.json"
+    from agent_workflows.project_context import project_config_dir
+
+    project_file = project_config_dir(repo_root) / "project.json"
     try:
         data = json.loads(project_file.read_text(encoding="utf-8"))
     except (OSError, ValueError):
@@ -1911,7 +1952,9 @@ def policy_retry_budget(
         else:
             warn(message)
 
-    project_file = Path(repo_root) / ".aw" / "config" / "project.json"
+    from agent_workflows.project_context import project_config_dir
+
+    project_file = project_config_dir(repo_root) / "project.json"
     run_policy = read_run_policy(repo_root)
     if run_policy is not None and RUN_RETRY_BUDGET_MEMBER in run_policy:
         raw = run_policy.get(RUN_RETRY_BUDGET_MEMBER)
@@ -1963,7 +2006,9 @@ def policy_on_conflict(
         else:
             warn(message)
 
-    project_file = Path(repo_root) / ".aw" / "config" / "project.json"
+    from agent_workflows.project_context import project_config_dir
+
+    project_file = project_config_dir(repo_root) / "project.json"
     run_policy = read_run_policy(repo_root)
     raw = None
     where = None
@@ -2060,7 +2105,9 @@ def policy_isolation(
     if not repo_root:
         return default_result
 
-    project_file = Path(repo_root) / ".aw" / "config" / "project.json"
+    from agent_workflows.project_context import project_config_dir
+
+    project_file = project_config_dir(repo_root) / "project.json"
     run_policy = read_run_policy(repo_root)
     raw = None
     where = None
@@ -2133,7 +2180,9 @@ def policy_fix_it_caps(
     if not repo_root:
         return default_result
 
-    project_file = Path(repo_root) / ".aw" / "config" / "project.json"
+    from agent_workflows.project_context import project_config_dir
+
+    project_file = project_config_dir(repo_root) / "project.json"
     run_policy = read_run_policy(repo_root)
     raw = None
     where = None
@@ -2276,7 +2325,9 @@ def read_setid_policy_object(
     Never raises: a missing file, unparseable JSON, a non-object document, or a missing key returns
     None (the caller then applies the documented defaults). Pure read; never writes.
     """
-    project_file = Path(repo_root) / ".aw" / "config" / "project.json"
+    from agent_workflows.project_context import project_config_dir
+
+    project_file = project_config_dir(repo_root) / "project.json"
     try:
         data = json.loads(project_file.read_text(encoding="utf-8"))
     except (OSError, ValueError):

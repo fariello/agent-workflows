@@ -246,6 +246,46 @@ def _read_json_file(path_str: str) -> Optional[Dict[str, Any]]:
     return None
 
 
+def _resolve_effective_aw_home(
+    aw_home: Optional[str | Path] = None,
+    user_config_dir: Optional[str | Path] = None,
+) -> tuple[str, PrecedenceLevel, str]:
+    """Determine effective AW_HOME and its provenance (pure, side-effect-free)."""
+    if aw_home:
+        aw_home_abs = _check_path_security(str(aw_home), "aw_home")
+        return (
+            aw_home_abs,
+            PrecedenceLevel.EXPLICIT_FLAGS,
+            f"--aw-home flag ({aw_home})",
+        )
+    if os.environ.get("AW_HOME"):
+        aw_home_abs = _check_path_security(os.environ["AW_HOME"], "AW_HOME env")
+        return (
+            aw_home_abs,
+            PrecedenceLevel.MACHINE_LOCAL_BINDING,
+            "AW_HOME environment variable",
+        )
+    user_cfg_path = (
+        str(user_config_dir)
+        if user_config_dir
+        else os.path.expanduser("~/.config/agent-workflows")
+    )
+    user_cfg = _read_json_file(os.path.join(user_cfg_path, "config.json"))
+    if user_cfg and user_cfg.get("aw_home"):
+        aw_home_abs = _check_path_security(str(user_cfg["aw_home"]), "user_cfg aw_home")
+        return (
+            aw_home_abs,
+            PrecedenceLevel.GLOBAL_DEFAULTS,
+            f"global config ({user_cfg_path}/config.json)",
+        )
+    aw_home_abs = get_default_aw_home()
+    return (
+        aw_home_abs,
+        PrecedenceLevel.BUILTIN_DEFAULTS,
+        "platform default path",
+    )
+
+
 def _is_repos_schema_mapping(value: Dict[str, Any]) -> bool:
     """True when a dict-valued user-config ``repos`` is the schema mapping, not a binding table.
 
@@ -701,6 +741,53 @@ def nonsurveyable_root_refusal(
     )
 
 
+def _derive_project_id(target_repo: str) -> str:
+    """Derive deterministic project ID from target_repo path."""
+    repo_name = Path(target_repo).name or "project"
+    clean_slug = re.sub(r"[^a-zA-Z0-9_-]", "-", repo_name).strip("-").lower()
+    import hashlib
+
+    path_hash = hashlib.sha256(target_repo.encode("utf-8")).hexdigest()[:6]
+    return f"{clean_slug}-{path_hash}"
+
+
+def project_config_dir(
+    repo_root: str | Path,
+    aw_home: Optional[str | Path] = None,
+) -> Path:
+    """Return the configuration directory for a repository.
+
+    Pure and side-effect free (spec 20260810-1447-01 Section 7).
+
+    Rules, in order:
+    1. If <repo>/.aw/config/project.json or <repo>/.aw/config/local.json
+       (or legacy config.json / policy.json) exists, return <repo>/.aw/config.
+    2. Else compute aw_home (explicit, AW_HOME env, user config aw_home,
+       or default) and, if <aw_home>/projects/<project_id>/config/project.json
+       exists, return that directory.
+    3. Else return <repo>/.aw/config.
+    """
+    repo = Path(repo_root)
+    target_config = repo / ".aw" / "config"
+    for candidate in (
+        target_config / "project.json",
+        target_config / "local.json",
+        target_config / "config.json",
+        target_config / "policy.json",
+    ):
+        if candidate.exists():
+            return target_config
+
+    repo_abs = _canonical_path(repo)
+    eff_aw_home, _, _ = _resolve_effective_aw_home(aw_home=aw_home)
+    project_id = _derive_project_id(repo_abs)
+    home_config = Path(eff_aw_home) / "projects" / project_id / "config"
+    if (home_config / "project.json").exists():
+        return home_config
+
+    return target_config
+
+
 def read_project_identity(repo_root: str | Path) -> Dict[str, Optional[str]]:
     """Return ``{"preset": ..., "records_backend": ...}`` as RECORDED IN THE REPOSITORY.
 
@@ -732,10 +819,11 @@ def read_project_identity(repo_root: str | Path) -> Dict[str, Optional[str]]:
     """
 
     root = Path(repo_root)
+    cfg_dir = project_config_dir(root)
     resolved: Dict[str, Optional[str]] = {"preset": None, "records_backend": None}
     for candidate in (
-        root / ".aw" / "config" / "project.json",
-        root / ".aw" / "config" / "config.json",
+        cfg_dir / "project.json",
+        cfg_dir / "config.json",
         root / ".agents" / "config.json",
     ):
         data = _read_json_file(str(candidate))
@@ -747,16 +835,6 @@ def read_project_identity(repo_root: str | Path) -> Dict[str, Optional[str]]:
                 if isinstance(value, str) and value:
                     resolved[key] = value
     return resolved
-
-
-def _derive_project_id(target_repo: str) -> str:
-    """Derive deterministic project ID from target_repo path."""
-    repo_name = Path(target_repo).name or "project"
-    clean_slug = re.sub(r"[^a-zA-Z0-9_-]", "-", repo_name).strip("-").lower()
-    import hashlib
-
-    path_hash = hashlib.sha256(target_repo.encode("utf-8")).hexdigest()[:6]
-    return f"{clean_slug}-{path_hash}"
 
 
 def redact_public_context(ctx_dict: Dict[str, Any]) -> Dict[str, Any]:
@@ -841,37 +919,13 @@ def resolve_project_context(
         )
 
     # 2. AW_HOME Resolution
-    if aw_home:
-        aw_home_abs = _check_path_security(aw_home, "aw_home")
-        provenance_map["effective_aw_home"] = Provenance(
-            source=PrecedenceLevel.EXPLICIT_FLAGS.value,
-            detail=f"--aw-home flag ({aw_home})",
-        )
-    elif os.environ.get("AW_HOME"):
-        aw_home_abs = _check_path_security(os.environ["AW_HOME"], "AW_HOME env")
-        provenance_map["effective_aw_home"] = Provenance(
-            source=PrecedenceLevel.MACHINE_LOCAL_BINDING.value,
-            detail="AW_HOME environment variable",
-        )
-    else:
-        user_cfg_path = (
-            user_config_dir
-            if user_config_dir
-            else os.path.expanduser("~/.config/agent-workflows")
-        )
-        user_cfg = _read_json_file(os.path.join(user_cfg_path, "config.json"))
-        if user_cfg and user_cfg.get("aw_home"):
-            aw_home_abs = _check_path_security(user_cfg["aw_home"], "user_cfg aw_home")
-            provenance_map["effective_aw_home"] = Provenance(
-                source=PrecedenceLevel.GLOBAL_DEFAULTS.value,
-                detail=f"global config ({user_cfg_path}/config.json)",
-            )
-        else:
-            aw_home_abs = get_default_aw_home()
-            provenance_map["effective_aw_home"] = Provenance(
-                source=PrecedenceLevel.BUILTIN_DEFAULTS.value,
-                detail="platform default path",
-            )
+    aw_home_abs, aw_home_prec, aw_home_detail = _resolve_effective_aw_home(
+        aw_home=aw_home, user_config_dir=user_config_dir
+    )
+    provenance_map["effective_aw_home"] = Provenance(
+        source=aw_home_prec.value,
+        detail=aw_home_detail,
+    )
 
     # Read configuration layers
     user_cfg_dir_effective = (
@@ -882,8 +936,10 @@ def resolve_project_context(
     user_cfg_file = os.path.join(user_cfg_dir_effective, "config.json")
     user_cfg_data = _read_json_file(user_cfg_file) or {}
 
+    cfg_dir = project_config_dir(repo_abs, aw_home=aw_home_abs)
+
     # Level 2: Machine-local binding per-repo (.aw/config/local.json or user config repo section)
-    local_binding_file = os.path.join(repo_abs, ".aw", "config", "local.json")
+    local_binding_file = str(cfg_dir / "local.json")
     local_binding_data = _read_json_file(local_binding_file) or {}
 
     # `repos` in the USER config (config_version 2) is the schema mapping of repository
@@ -911,9 +967,9 @@ def resolve_project_context(
     merged_local_binding.update(local_binding_data)
 
     # Level 3: Project durable config (.aw/config/project.json or legacy config.json / policy.json)
-    project_policy_file = os.path.join(repo_abs, ".aw", "config", "project.json")
-    legacy_config_file = os.path.join(repo_abs, ".aw", "config", "config.json")
-    legacy_policy_file = os.path.join(repo_abs, ".aw", "config", "policy.json")
+    project_policy_file = str(cfg_dir / "project.json")
+    legacy_config_file = str(cfg_dir / "config.json")
+    legacy_policy_file = str(cfg_dir / "policy.json")
 
     is_configured = False
     project_policy_data: Dict[str, Any] = {}
@@ -1131,20 +1187,20 @@ def resolve_project_context(
         )
 
     # 6. Project ID Resolution
-    project_id = merged_local_binding.get(
-        "project_id",
-        project_policy_data.get("project_id", _derive_project_id(repo_abs)),
-    )
+    local_pid = merged_local_binding.get("project_id")
+    policy_pid = project_policy_data.get("project_id")
+    if isinstance(local_pid, str) and local_pid.strip():
+        project_id = local_pid.strip()
+        pid_source = PrecedenceLevel.MACHINE_LOCAL_BINDING.value
+    elif isinstance(policy_pid, str) and policy_pid.strip():
+        project_id = policy_pid.strip()
+        pid_source = PrecedenceLevel.PROJECT_DURABLE_CONFIG.value
+    else:
+        project_id = _derive_project_id(repo_abs)
+        pid_source = PrecedenceLevel.BUILTIN_DEFAULTS.value
+
     provenance_map["project_id"] = Provenance(
-        source=(
-            PrecedenceLevel.MACHINE_LOCAL_BINDING.value
-            if "project_id" in merged_local_binding
-            else (
-                PrecedenceLevel.PROJECT_DURABLE_CONFIG.value
-                if "project_id" in project_policy_data
-                else PrecedenceLevel.BUILTIN_DEFAULTS.value
-            )
-        ),
+        source=pid_source,
         detail=f"project identity ({project_id})",
     )
     provenance_map["is_configured"] = Provenance(

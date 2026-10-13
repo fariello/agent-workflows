@@ -469,7 +469,7 @@ def render_pre_write_plan(
     lines.append(term.colorize("Expected Deltas:", "bold"))
     if policy.delivery_mode == DeliveryMode.CLEAN_DELTA.value:
         lines.append(
-            "  Target Delta:     ZERO AW-owned target files created (clean-target)."
+            "  Target Delta:     Project config, local config and install state are written only under the AW_HOME paths listed above; workflow files, records scaffolding and host adapters are still written into the target (tracked by backlog kvwwt0)."
         )
     else:
         lines.append(
@@ -518,9 +518,12 @@ def render_pre_write_plan(
 def resolve_existing_policy(repo_path: str) -> Optional[ProjectPolicy]:
     """Attempt to load existing policy from repository context (spec Section 11.2)."""
     p_repo = Path(repo_path)
-    proj_json = p_repo / ".aw" / "config" / "project.json"
-    local_json = p_repo / ".aw" / "config" / "local.json"
-    legacy_json = p_repo / ".aw" / "config" / "config.json"
+    from agent_workflows.project_context import project_config_dir
+
+    cfg_dir = project_config_dir(p_repo)
+    proj_json = cfg_dir / "project.json"
+    local_json = cfg_dir / "local.json"
+    legacy_json = cfg_dir / "config.json"
     agents_dir = p_repo / ".agents"
 
     if not (
@@ -920,17 +923,33 @@ def persist_project_policy(
     dry_run: bool = False,
     replace_config: bool = False,
 ) -> Dict[str, Any]:
-    """Persist confirmed policy atomically to .aw/config/project.json and local.json (E-05)."""
-    p_repo = Path(repo_path)
-    config_dir = p_repo / ".aw" / "config"
+    """Persist confirmed policy atomically to project.json and local.json (E-03)."""
     if dry_run:
         res = policy.to_dict()
         res["written_paths"] = []
         return res
 
-    config_dir.mkdir(parents=True, exist_ok=True)
+    from agent_workflows.project_context import resolve_project_context
 
-    # 1. Write portable project policy (.aw/config/project.json)
+    ctx = resolve_project_context(
+        target_repo=repo_path,
+        aw_home=policy.aw_home,
+        delivery_mode=policy.delivery_mode,
+        records_backend=policy.records_backend,
+        preset=policy.preset,
+        role=policy.role,
+        companion_dir=policy.companion_dir,
+    )
+
+    proj_json = Path(ctx.physical_classes["config_project"])
+    local_json = Path(ctx.physical_classes["config_local"])
+
+    config_dir = proj_json.parent
+    config_dir.mkdir(parents=True, exist_ok=True)
+    if local_json.parent != config_dir:
+        local_json.parent.mkdir(parents=True, exist_ok=True)
+
+    # 1. Write portable project policy
     proj_schema = ProjectPolicySchema(
         schema_version=2,
         preset=policy.preset,
@@ -942,19 +961,18 @@ def persist_project_policy(
         delivery_mode=policy.delivery_mode,
         records_backend=policy.records_backend,
     )
-    proj_json = config_dir / "project.json"
     tmp_proj = config_dir / ".tmp_project.json"
     with open(tmp_proj, "w", encoding="utf-8") as f:
         json.dump(proj_schema.to_dict(), f, indent=2)
     os.replace(tmp_proj, proj_json)
 
-    # 2. Write machine-local binding (.aw/config/local.json)
+    # 2. Write machine-local binding
     local_schema = LocalBindingSchema(
         schema_version=2,
+        project_id=ctx.project_id,
         companion_dir=policy.companion_dir,
     )
-    local_json = config_dir / "local.json"
-    tmp_local = config_dir / ".tmp_local.json"
+    tmp_local = local_json.parent / ".tmp_local.json"
     with open(tmp_local, "w", encoding="utf-8") as f:
         json.dump(local_schema.to_dict(), f, indent=2)
     os.replace(tmp_local, local_json)
@@ -962,8 +980,17 @@ def persist_project_policy(
     # 3. Synchronize cutover dates into project.json
     from agent_workflows import config as _config
 
-    _config.sync_cutovers_on_install(repo_path)
+    _config.sync_cutovers_on_install(repo_path, aw_home=policy.aw_home)
+
+    p_repo = Path(repo_path).resolve()
+    written_paths: List[str] = []
+    for p in (proj_json, local_json):
+        try:
+            rel = p.resolve().relative_to(p_repo)
+            written_paths.append(rel.as_posix())
+        except ValueError:
+            written_paths.append(str(p))
 
     res = policy.to_dict()
-    res["written_paths"] = list(WIZARD_WRITTEN_PATHS)
+    res["written_paths"] = written_paths
     return res
