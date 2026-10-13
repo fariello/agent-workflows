@@ -1278,15 +1278,7 @@ def _infer_artifact_type(path_str: str) -> Optional[str]:
 
 def _normalize_rel_path(loc: str, repo_root: Path) -> str:
     """Normalize a drift location to a clean repo-relative POSIX path."""
-    if not loc or (loc.startswith("<") and loc.endswith(">")):
-        return loc
-    try:
-        p = Path(loc)
-        if p.is_absolute() and p.is_relative_to(repo_root):
-            return p.relative_to(repo_root).as_posix()
-        return p.as_posix()
-    except Exception:
-        return loc
+    return core.repo_relative_posix(loc, repo_root)
 
 
 def _extract_record_id6(loc: str, repo_root: Path) -> Optional[str]:

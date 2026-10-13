@@ -464,6 +464,102 @@ def git_mv(repo_root: Path, src_rel: str, dst_rel: str) -> None:
 
 
 # --------------------------------------------------------------------------------------
+# Repository-relative POSIX path rendering (IPD amt9fs)
+# --------------------------------------------------------------------------------------
+
+RECORDS_SEGMENTS = (".aw/records/", ".agents/")
+_RECORDS_SEGMENTS = RECORDS_SEGMENTS
+
+
+def repo_relative_posix(
+    path: Path | str, repo_root: Optional[Path | str] = None
+) -> str:
+    """Render ONE path as repo-relative POSIX text with a leak-free fallback.
+
+    Policy, applied in order:
+    (1) an empty value (empty str) or a '<...>' sentinel (such as '<repo>') is returned unchanged;
+    (2) when `repo_root` is given, join a relative path onto the root and LEXICALLY normalize it
+        (`os.path.normpath`, which collapses './' and '..' without touching the disk); return the
+        relative POSIX string if that is inside the root's lexical spelling OR inside the RESOLVED
+        root; else resolve ONLY THE PARENT directory (keeping the final component as spelled) and
+        retry against the resolved root. Never resolve the final path component: resolving it
+        renders an in-root symlinked FILE as its target (or, when the target is outside the root,
+        as a bare name), which changes in-root output (F-10). Existence of the file is not required
+        (as `_finding_rel_path`'s docstring requires, since `check_scope_path_target_stale` reasons
+        about vanished paths);
+    (3) otherwise, if the POSIX text contains a records segment ('.aw/records/' or '.agents/',
+        defined once in :data:`RECORDS_SEGMENTS`), return the text from that segment on;
+    (4) otherwise, if the path is absolute, or is relative but escaped the root in step 2,
+        return the bare file name;
+    (5) otherwise return the path's POSIX text unchanged.
+
+    Accepts `str` or `Path`; step 1 tests the `str` form, so `Path("")` (whose text is '.')
+    still flows through and returns '.' exactly as `specs.drift_location` does today.
+    Catches `ValueError`, `OSError` and `RuntimeError` around the resolution and falls through
+    to steps 3-5.
+
+    The fallback to the bare file name (never an absolute path) complies with
+    `docs/cli-output-contract.md` ("Path Sanitization and Leak Posture"), which forbids
+    absolute machine-local paths on every output surface. With `repo_root=None`, this function
+    is pure and cwd-independent (the `specs.drift_location` contract).
+    """
+    if isinstance(path, str):
+        if not path or (path.startswith("<") and path.endswith(">")):
+            return path
+    elif str(path).startswith("<") and str(path).endswith(">"):
+        return str(path)
+
+    p = Path(path)
+    escaped_root = False
+
+    if repo_root is not None:
+        r = Path(repo_root)
+        is_rel = not p.is_absolute()
+        if is_rel:
+            lexical_str = os.path.normpath(os.path.join(str(r), str(p)))
+        else:
+            lexical_str = os.path.normpath(str(p))
+        lexical_p = Path(lexical_str)
+
+        try:
+            return lexical_p.relative_to(r).as_posix()
+        except ValueError:
+            pass
+
+        try:
+            resolved_root = r.resolve()
+            try:
+                return lexical_p.relative_to(resolved_root).as_posix()
+            except ValueError:
+                pass
+
+            try:
+                parent = lexical_p.parent
+                name = lexical_p.name
+                resolved_parent = parent.resolve()
+                candidate = resolved_parent / name
+                return candidate.relative_to(resolved_root).as_posix()
+            except ValueError:
+                pass
+        except (ValueError, OSError, RuntimeError):
+            pass
+
+        if is_rel:
+            escaped_root = True
+
+    posix = p.as_posix()
+    for seg in RECORDS_SEGMENTS:
+        idx = posix.find(seg)
+        if idx != -1:
+            return posix[idx:]
+
+    if p.is_absolute() or escaped_root:
+        return p.name
+
+    return posix
+
+
+# --------------------------------------------------------------------------------------
 # Tracked-text scan root (the places that cite artifacts)
 # --------------------------------------------------------------------------------------
 
