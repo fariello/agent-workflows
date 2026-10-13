@@ -377,6 +377,11 @@ def _apply_renames(
         if renames
         else ([], [])
     )
+    # IPD 69pxm5 E-03: never rewrite citations inside an in-flight plan (live begin receipt).
+    ref_edits, _in_flight_notes = _refs.filter_in_flight_plan_edits(
+        repo_root, ref_edits
+    )
+    warnings = list(warnings) + _in_flight_notes
     notes_list: List[str] = list(notes)
     if not apply:
         for w in warnings:

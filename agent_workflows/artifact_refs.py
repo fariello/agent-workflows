@@ -623,6 +623,80 @@ def classify_citing_plans_for_rewrite(
     return rewritable, must_skip
 
 
+_PLAN_TREE_PREFIXES: Tuple[Tuple[str, ...], ...] = (
+    (".aw", "records", "plans"),
+    (".agents", "plans"),
+)
+
+# The reason `classify_citing_plans_for_rewrite` reports for a plan with no `- Id:` bullet.
+_CLASSIFY_MISSING_ID_REASON = "missing - Id:"
+
+
+def filter_in_flight_plan_edits(
+    repo_root: Path, edits: "Iterable[Any]"
+) -> Tuple[List[Any], List[str]]:
+    """Drop every planned citation rewrite whose target is an IN-FLIGHT plan (IPD 69pxm5 E-02).
+
+    A rename/regroup rewrites citations anywhere in a citing file, and a plan holding a begin receipt
+    has its `Scope-Paths` AND its E/V action blocks frozen, so a rewrite there stales the receipt and
+    strands the lane at finalize. Generic over any edit object exposing a `.file` path (both
+    `artifact_refs.RefEdit` and `research_refs.RefEdit`). Liveness is decided ONLY by
+    `classify_citing_plans_for_rewrite` (the 5h3qyy predicate), never re-implemented here.
+
+    The WHOLE file is skipped (all its edits), not only `Scope-Paths` edits, because the frozen region
+    also covers E/V action text. Non-plan files and plan files without a receipt are kept in their
+    original order; with no receipts present the input is returned unchanged and no notes.
+
+    Returns (kept_edits, skip_notes), one note per skipped file.
+    """
+    edit_list = list(edits)
+    if not edit_list:
+        return edit_list, []
+    root = repo_root.resolve()
+
+    def _resolved(f: Any) -> Path:
+        p = Path(f)
+        if not p.is_absolute():
+            p = repo_root / p
+        return p.resolve()
+
+    plan_files: Dict[Path, Path] = {}
+    for e in edit_list:
+        res = _resolved(e.file)
+        if res in plan_files:
+            continue
+        try:
+            rel = res.relative_to(root)
+        except ValueError:
+            continue
+        if not res.name.endswith(".ipd.md"):
+            continue
+        if any(rel.parts[: len(pre)] == pre for pre in _PLAN_TREE_PREFIXES):
+            plan_files[res] = rel
+    if not plan_files:
+        return edit_list, []
+
+    _, must_skip = classify_citing_plans_for_rewrite(repo_root, list(plan_files))
+    if not must_skip:
+        return edit_list, []
+    skip_reasons: Dict[Path, str] = {}
+    for path, reason in must_skip:
+        # A plan with no `- Id:` cannot hold a receipt (`ipd_lifecycle.begin` refuses to bind one to a
+        # plan lacking a valid id6), so it cannot be in flight here. The 5h3qyy predicate fails closed
+        # on it for the status setters; a rename must keep rewriting such a citing file as it always has.
+        if reason == _CLASSIFY_MISSING_ID_REASON:
+            continue
+        skip_reasons.setdefault(path.resolve(), reason)
+
+    kept = [e for e in edit_list if _resolved(e.file) not in skip_reasons]
+    notes = [
+        f"--- SKIPPED citation rewrite in {plan_files[p].as_posix()}: {reason} "
+        "(in-flight plan; fix the citation after it finalizes) ---"
+        for p, reason in skip_reasons.items()
+    ]
+    return kept, notes
+
+
 def plan_scope_path_reference_rewrites(
     repo_root: Path,
     path_map: Dict[str, str],
