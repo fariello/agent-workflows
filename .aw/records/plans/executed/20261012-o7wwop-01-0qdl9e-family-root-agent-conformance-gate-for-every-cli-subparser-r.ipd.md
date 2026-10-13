@@ -6,7 +6,7 @@
 - Scope: IN: (1) re-measure the root census and per-root behavior at the executing HEAD, as a gate (E-01); (2) add `command_surface.discover_parser_roots`, the alias-excluding inversion of `discover_parser_leaves`, beside it (E-02); (3) add a typed, citation-required `FAMILY_ROOT_EXEMPTION_REGISTRY` in `tests/conformance_matrix.py` holding ONLY roots still non-conforming at execution, each citing its live backlog item (E-03); (4) a new behavioral test module sweeping every non-exempt root as a real subprocess, plus a registry contract test that refuses stale or unresolvable entries (E-04); (5) run the full suite (E-05). OUT: fixing `aw runs` (owned by `l5dq92`) or `aw config exclude` (owned by `o8cz48`); any change to `cli.py`, `_show_family_help`, `agent_schema`, or any production emit path; any change to `tests/test_agent_surface_conformance.py` or its `UNIVERSE`; `--json` parity for roots; adding roots to `COMMAND_INVENTORY` (which declares leaves only, per `7pnneh` F-rows).
 - Scope-Paths: agent_workflows/command_surface.py, tests/conformance_matrix.py, tests/test_family_root_agent_conformance.py, .aw/records/backlog/open/
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: followup
 - Priority: low
@@ -16,9 +16,9 @@
 - Highest E allocated: 05
 - Author: opencode
 - Id: 0qdl9e
-- Approval: 2026-10-12, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-13 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: 0qdl9e verified (set o7wwop, attempt 1). [Scope reconciliation - in-scope-unmodified .aw/records/backlog/open/: declared-but-unmodified (auto-acknowledged by aw agy run)]
 - 2026-10-12 approved (aw set): status set to approved
 - 2026-10-12 reviewed (aw set): /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-004. Re-measured at HEAD 9ff0658da: 23 roots, BAD = config exclude, runs; cited items now graduated.
 
