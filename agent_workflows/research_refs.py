@@ -116,6 +116,8 @@ def _current_id6s(research_root: Path) -> set:
         for p in research_root.rglob("*.md"):
             if _core.is_ignored_path(p, research_root, ignored_dirs):
                 continue
+            if R.companion_owner_stem(p, research_root) is not None:
+                continue
             parsed, _err = R.parse_name(p.name)
             if parsed is not None:
                 ids.add(parsed.id6)
@@ -367,6 +369,29 @@ def _refuse_uncontained_destination(
     return None
 
 
+def _refuse_destination_companion_collision(
+    repo_root: Path, plans: List[RenamePlan]
+) -> Optional[str]:
+    """Refuse any planned rename where a companion directory already exists at destination or escapes research root."""
+    research_root = R.resolve_research_root(repo_root)
+    resolved_root = research_root.resolve()
+    for p in plans:
+        old_comp = R.companion_dir_for(p.old_path)
+        if not old_comp.is_dir():
+            continue
+        new_comp = R.companion_dir_for(p.new_path)
+        try:
+            resolved_dest = new_comp.resolve()
+            resolved_dest.relative_to(resolved_root)
+            if resolved_dest == resolved_root:
+                raise ValueError("destination matches records root")
+        except ValueError:
+            return f"destination companion {new_comp} escapes research tree {research_root}"
+        if new_comp.exists() and new_comp.resolve() != old_comp.resolve():
+            return f"destination companion directory already exists: {new_comp}"
+    return None
+
+
 def _apply_renames(
     repo_root: Path,
     plans: List[RenamePlan],
@@ -385,6 +410,12 @@ def _apply_renames(
     if containment_err:
         if emit_human:
             print(f"error: {containment_err}")
+        return None
+
+    collision_err = _refuse_destination_companion_collision(repo_root, plans)
+    if collision_err:
+        if emit_human:
+            print(f"error: {collision_err}")
         return None
 
     renames = {
@@ -423,6 +454,22 @@ def _apply_renames(
                     detail=f"-> {p.new_path.name}",
                 )
             )
+            old_comp = R.companion_dir_for(p.old_path)
+            if old_comp.is_dir():
+                new_comp = R.companion_dir_for(p.new_path)
+                if emit_human:
+                    print(f"--- would rename {old_comp} -> {new_comp.name} ---")
+                src_comp_rel = old_comp.relative_to(repo_root).as_posix()
+                dst_comp_rel = new_comp.relative_to(repo_root).as_posix()
+                targets.append(
+                    MutationTarget(
+                        old_path=src_comp_rel,
+                        new_path=dst_comp_rel,
+                        id6=target_id6,
+                        kind="rename",
+                        detail=f"-> {new_comp.name}",
+                    )
+                )
             if parsed is None:
                 msg = f"warning: destination '{p.new_path.name}' is not a conformant research document: {parse_err}"
                 if emit_human:
@@ -496,6 +543,24 @@ def _apply_renames(
                 detail=f"-> {p.new_path.name}",
             )
         )
+        old_comp = R.companion_dir_for(p.old_path)
+        has_comp = old_comp.is_dir()
+        if has_comp:
+            new_comp = R.companion_dir_for(p.new_path)
+            src_comp_rel = old_comp.relative_to(repo_root).as_posix()
+            dst_comp_rel = new_comp.relative_to(repo_root).as_posix()
+            _git_mv(repo_root, src_comp_rel, dst_comp_rel)
+            if emit_human:
+                print(f"renamed {src_comp_rel} -> {dst_comp_rel}")
+            targets_applied.append(
+                MutationTarget(
+                    old_path=src_comp_rel,
+                    new_path=dst_comp_rel,
+                    id6=target_id6,
+                    kind="rename",
+                    detail=f"-> {new_comp.name}",
+                )
+            )
         if parsed is None:
             msg = f"warning: destination '{p.new_path.name}' is not a conformant research document: {parse_err}"
             if emit_human:
@@ -535,6 +600,12 @@ def _apply_renames(
         )
         touched.append(src_rel)
         touched.append(dst_rel)
+        if has_comp:
+            for f in new_comp.rglob("*"):
+                if f.is_file():
+                    sub = f.relative_to(new_comp).as_posix()
+                    touched.append(f"{src_comp_rel}/{sub}")
+                    touched.append(f"{dst_comp_rel}/{sub}")
     for w in warnings:
         if emit_human:
             print(w)
@@ -721,13 +792,16 @@ def run_set_assign(
     )
     if res is None:
         containment_err = _refuse_uncontained_destination(repo_root, plans or [])
-        msg = f"error: {containment_err}"
+        collision_err = _refuse_destination_companion_collision(repo_root, plans or [])
+        err_msg = containment_err or collision_err or "operation refused"
+        rule = "containment-refusal" if containment_err else "companion-collision"
+        msg = f"error: {err_msg}"
         return MutationResult(
             2,
             diagnostics=(
                 MutationDiagnostic(
                     location="destination",
-                    rule="containment-refusal",
+                    rule=rule,
                     detail=msg,
                     severity="error",
                 ),
@@ -778,13 +852,18 @@ def run_mv(
         containment_err = _refuse_uncontained_destination(
             repo_root, [plan] if plan else []
         )
-        msg = f"error: {containment_err}"
+        collision_err = _refuse_destination_companion_collision(
+            repo_root, [plan] if plan else []
+        )
+        err_msg = containment_err or collision_err or "operation refused"
+        rule = "containment-refusal" if containment_err else "companion-collision"
+        msg = f"error: {err_msg}"
         return MutationResult(
             2,
             diagnostics=(
                 MutationDiagnostic(
                     location="destination",
-                    rule="containment-refusal",
+                    rule=rule,
                     detail=msg,
                     severity="error",
                 ),

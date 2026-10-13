@@ -289,6 +289,11 @@ def inventory_all_artifacts(
             for p in d.rglob("*.md"):
                 if p.name in _sel._SKIP_NAMES:
                     continue
+                if rtype == "research":
+                    from agent_workflows import research_contract as _rc
+
+                    if _rc.companion_owner_stem(p, d) is not None:
+                        continue
                 rp = p.as_posix()
                 if rp in seen:
                     continue

@@ -1039,6 +1039,11 @@ RULE_REGISTRY: Dict[str, RuleSpec] = {
     "research.frontmatter-key-repeated": RuleSpec(
         "error", ASSURANCE_REPOSITORY, DET_DETERMINISTIC, ""
     ),
+    # rescomp Order 01 (mtdxiu E-03): orphaned companion directory under research root.
+    # Registered `warning` severity (so --check fails on it), repository assurance, deterministic.
+    "check.research-companion-orphaned": RuleSpec(
+        "warning", ASSURANCE_REPOSITORY, DET_DETERMINISTIC, ""
+    ),
     # gradcover Order 03 (qs00nc E-06, spec 25kzda 2.5d): review-readiness check over
     # pending orchestrators heading for review/approval (`to-review`, `reviewed`, `approved`,
     # `auto-approved`). Registered `error` severity, repository assurance, deterministic.
@@ -1252,6 +1257,11 @@ def _iter_type_files(
                 p, repo_root, ignored_dirs, include_untracked=include_untracked
             ):
                 continue
+            if record_type == "research":
+                from agent_workflows import research_contract as _rc
+
+                if _rc.companion_owner_stem(p, d) is not None:
+                    continue
             if not include_retired and is_retired(p, record_type):
                 continue
             try:

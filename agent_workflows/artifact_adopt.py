@@ -275,6 +275,8 @@ def find_already_adopted(
     want_title = _first_heading(text)
     title_match: Optional[AlreadyAdopted] = None
     for p in sorted(Path(root).rglob("*.md")):
+        if _R.companion_owner_stem(p, root) is not None:
+            continue
         parsed, _err = _R.parse_name(p.name)
         if parsed is None:
             continue

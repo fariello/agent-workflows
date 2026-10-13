@@ -620,6 +620,11 @@ def entity_id6_candidates(
     for d in dirs:
         try:
             for p in d.rglob("*.md"):
+                if record_type == "research":
+                    from agent_workflows import research_contract as _rc
+
+                    if _rc.companion_owner_stem(p, d) is not None:
+                        continue
                 i = _id6_of_path(p)
                 if i:
                     out.append(i)

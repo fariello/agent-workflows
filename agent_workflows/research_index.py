@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 from pathlib import Path
 from typing import Dict, List, NamedTuple, Optional, Tuple
@@ -55,6 +56,7 @@ class DocEntry(NamedTuple):
     # construction elsewhere stays valid; carried into INDEX.json via `_asdict()`.
     priority: str = ""
     has_body: bool = False
+    companion: str = ""
 
 
 # The generic drift record is the shared core's (plans-adopter Order 01); re-export it.
@@ -80,6 +82,7 @@ def _doc_entry(
         p.name in (INDEX_MD,)
         or p.name == "README.md"
         or _core.is_ignored_path(p, research_root, ignored_dirs)
+        or R.companion_owner_stem(p, research_root) is not None
     ):
         return None, []
     try:
@@ -184,6 +187,10 @@ def _doc_entry(
                 body_text = "\n".join(lines[idx + 1 :]).strip()
                 has_body = bool(body_text)
                 break
+    comp_dir = R.companion_dir_for(p)
+    comp_rel = (
+        comp_dir.relative_to(research_root).as_posix() if comp_dir.is_dir() else ""
+    )
     entry = DocEntry(
         id6=parsed.id6,
         path=rel,
@@ -200,6 +207,7 @@ def _doc_entry(
         consumed_by=consumed_list,
         priority=str(fm.get("priority", "") or ""),
         has_body=has_body,
+        companion=comp_rel,
     )
     return entry, drift
 
@@ -217,6 +225,8 @@ def _scan_docs(
         return entries, drift
     ignored_dirs = _core.get_ignored_dirs(research_root)
     for p in sorted(research_root.rglob("*.md")):
+        if R.companion_owner_stem(p, research_root) is not None:
+            continue
         entry, item_drift = _doc_entry(
             research_root, p, ignored_dirs=ignored_dirs, repo_root=repo_root
         )
@@ -572,6 +582,7 @@ ADOPTED_NO_CONSUMER_RULE = "adopted-without-consumer"
 UNRECOGNIZED_MODEL_RULE = "unrecognized-model"
 FRONTMATTER_KEY_REPEATED_RULE = "research.frontmatter-key-repeated"
 STATUS_TIER_MISMATCH_RULE = "status-tier-mismatch"
+RESEARCH_COMPANION_ORPHANED_RULE = "check.research-companion-orphaned"
 
 
 def check_drift(
@@ -832,6 +843,54 @@ def check_drift(
                         recovery=f"aw research promote {e.id6} --to {st}",
                     )
                 )
+
+    # Orphaned companion directories (Set rescomp / IPD mtdxiu E-03).
+    # Emitted for every *.data directory under research_root (outside ignored dirs) whose owning stem
+    # names no document in the SAME directory.
+    if research_root.is_dir():
+        ignored_dirs = _core.get_ignored_dirs(research_root)
+        for dirpath, dirnames, _ in os.walk(research_root):
+            dirnames[:] = [
+                d
+                for d in dirnames
+                if not _core.is_ignored_path(
+                    Path(dirpath) / d, research_root, ignored_dirs
+                )
+            ]
+            companion_dirs = [d for d in dirnames if d.endswith(R.COMPANION_SUFFIX)]
+            dirnames[:] = [d for d in dirnames if not d.endswith(R.COMPANION_SUFFIX)]
+            for d in sorted(companion_dirs):
+                data_dir = Path(dirpath) / d
+                stem = d[: -len(R.COMPANION_SUFFIX)]
+                parsed, _ = R.parse_name(stem + ".md", repo_root=repo_root)
+                if parsed is None:
+                    continue
+                doc_path = Path(dirpath) / f"{stem}.md"
+                if not doc_path.is_file():
+                    rel_companion = data_dir.relative_to(research_root).as_posix()
+                    matches = [e for e in entries if e.id6 == parsed.id6]
+                    if matches:
+                        target = matches[0]
+                        detail = f"owning doc sits at '{target.path}'"
+                        expected = (
+                            R.companion_dir_for(research_root / target.path)
+                            .relative_to(research_root)
+                            .as_posix()
+                        )
+                        rec = f"mv {rel_companion} {expected}"
+                    else:
+                        detail = f"owning doc '{stem}.md' not found"
+                        rec = f"rm -rf {rel_companion}"
+                    drift.append(
+                        _ce.enrich_drift(
+                            Drift(
+                                rel_companion,
+                                RESEARCH_COMPANION_ORPHANED_RULE,
+                                f"orphaned companion directory; {detail}",
+                            ),
+                            recovery=rec,
+                        )
+                    )
 
     return drift
 

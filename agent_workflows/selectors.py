@@ -722,12 +722,22 @@ def _iter_md(base: Path, max_depth: Optional[int] = None):
     `max_depth`, when given, limits how many directory levels below `base` are descended
     (0 = only `base` itself).
     """
+    from agent_workflows import research_contract as _rc
+
     if max_depth is None:
         max_depth = _MAX_DEPTH
     base_depth = len(base.parts)
     for dirpath, dirnames, filenames in os.walk(base):
         if not _INCLUDE_IGNORED_DIRS:
-            dirnames[:] = [d for d in dirnames if d not in EXCLUDED_RECORD_DIRS]
+            dirnames[:] = [
+                d
+                for d in dirnames
+                if d not in EXCLUDED_RECORD_DIRS
+                and not (
+                    d.endswith(_rc.COMPANION_SUFFIX)
+                    and _rc.companion_owner_stem(Path(dirpath) / d) is not None
+                )
+            ]
         if max_depth is not None:
             if len(Path(dirpath).parts) - base_depth >= max_depth:
                 dirnames[:] = []

@@ -3972,10 +3972,12 @@ RETIRED_RECORDS_ROOT_README_HASHES: frozenset[str] = frozenset(
     }
 )
 
-# Pinned historical research README template hashes (closed census of 7 commits, 6 distinct hashes; jbnkkh E-06).
+# Pinned historical research README template hashes (closed census of 8 commits, 7 distinct hashes; jbnkkh E-06, mtdxiu E-07).
 # Hashed via manifest.normalize_for_hash (manifest.hash_content) under the M13 invariant.
 RETIRED_RESEARCH_README_HASHES: frozenset[str] = frozenset(
     {
+        # 1039ce1e (2026-10-12): removed retired paths, statuses and naming rules; pre-rescomp
+        "50767164fd3ace059d138c34f4f30cae14056ad9e3bfd72e9558f21688b70385",
         # f4322ea2 (2026-09-30): corrected dangling spec citations; still had intake and weekly shards
         "28af2a1b5bc6ead0f982eba1161b843263c8d368727a3fd81a2bf75346ac4761",
         # 0bc46618 (2026-09-09): stated generated INDEX manifests are gitignored local views

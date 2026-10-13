@@ -553,6 +553,15 @@ def scan(
         if A.is_nonartifact_name(Path(rel).name):
             continue
 
+        # IPD mtdxiu E-06 (Set rescomp): companion files belonging to a research document
+        # companion directory (<doc-stem>.data/) are not artifacts and are not tracked by
+        # attention (an orphaned companion is policed by check.research-companion-orphaned).
+        if pol.name == "research":
+            from agent_workflows import research_contract as _rc
+
+            if _rc.companion_owner_stem(f, repo_root) is not None:
+                continue
+
         try:
             text = f.read_text(encoding="utf-8")
         except (OSError, UnicodeDecodeError):

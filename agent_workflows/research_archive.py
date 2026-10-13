@@ -67,6 +67,8 @@ def _all_docs(
     for p in sorted(research_root.rglob("*.md")):
         if p.name in (RI.INDEX_MD,) or p.name == "README.md":
             continue
+        if R.companion_owner_stem(p, research_root) is not None:
+            continue
         parsed, _err = R.parse_name(p.name)
         if parsed is None:
             continue
@@ -359,6 +361,16 @@ def apply_moves(repo_root: Path, research_root: Path, moves: List[Move]) -> List
     INDEX) for the self-commit offer (selfcommit jgcm68 E-02). The caller drives the offer."""
     """Apply status transitions: rewrite status, git mv into the shard, update references."""
 
+    # Refuse before the first move if any destination companion directory already exists (E-05).
+    for m in moves:
+        comp = R.companion_dir_for(m.old_path)
+        if comp.is_dir():
+            comp_dst = R.companion_dir_for(m.new_path)
+            if comp_dst.exists() and comp_dst.resolve() != comp.resolve():
+                raise RuntimeError(
+                    f"destination companion directory already exists: {comp_dst}"
+                )
+
     renames: Dict[str, str] = {}
     touched: List[str] = []
     for m in moves:
@@ -369,6 +381,18 @@ def apply_moves(repo_root: Path, research_root: Path, moves: List[Move]) -> List
         src_rel = m.old_path.relative_to(repo_root).as_posix()
         dst_rel = m.new_path.relative_to(repo_root).as_posix()
         RF._git_mv(repo_root, src_rel, dst_rel)
+        # Move companion directory if present (E-05).
+        comp = R.companion_dir_for(m.old_path)
+        if comp.is_dir():
+            comp_dst = R.companion_dir_for(m.new_path)
+            src_comp_rel = comp.relative_to(repo_root).as_posix()
+            dst_comp_rel = comp_dst.relative_to(repo_root).as_posix()
+            RF._git_mv(repo_root, src_comp_rel, dst_comp_rel)
+            for f in comp_dst.rglob("*"):
+                if f.is_file():
+                    sub = f.relative_to(comp_dst).as_posix()
+                    touched.append(f"{src_comp_rel}/{sub}")
+                    touched.append(f"{dst_comp_rel}/{sub}")
         # The basename is unchanged by an archival move (only the directory changes), so
         # name-based references do not need rewriting; but if a full-path cite exists it is caught
         # by the dangling detector. Record for completeness.
@@ -563,6 +587,23 @@ def run_archive(args: argparse.Namespace) -> int:
 
         if not apply:
             if is_agent_or_json:
+                preview_moves = []
+                for m in moves:
+                    entry = {
+                        "id6": m.id6,
+                        "source": m.old_path.relative_to(research_root).as_posix(),
+                        "destination": m.new_path.relative_to(research_root).as_posix(),
+                    }
+                    comp = R.companion_dir_for(m.old_path)
+                    if comp.is_dir():
+                        comp_dst = R.companion_dir_for(m.new_path)
+                        entry["companion"] = {
+                            "source": comp.relative_to(research_root).as_posix(),
+                            "destination": comp_dst.relative_to(
+                                research_root
+                            ).as_posix(),
+                        }
+                    preview_moves.append(entry)
                 res = CommandResult(
                     status="preview",
                     summary=f"{len(moves)} doc(s) to archive",
@@ -575,18 +616,39 @@ def run_archive(args: argparse.Namespace) -> int:
                             description="apply archive moves",
                         )
                     ],
+                    data={"moves": preview_moves},
                 )
                 return get_renderer(ctx).emit(res, ctx)
             for m in moves:
                 print(
                     f"--- would archive {m.old_path.name} -> {m.new_path.parent.name}/ ---"
                 )
+                comp = R.companion_dir_for(m.old_path)
+                if comp.is_dir():
+                    comp_dst = R.companion_dir_for(m.new_path)
+                    print(
+                        f"--- would archive {comp.name} -> {comp_dst.parent.name}/ ---"
+                    )
             if already_archived:
                 print(
                     f"note: {len(already_archived)} document(s) already in archive shelf"
                 )
             return 0
-        touched = apply_moves(repo_root, research_root, moves)
+        try:
+            touched = apply_moves(repo_root, research_root, moves)
+        except RuntimeError as e:
+            if is_agent_or_json:
+                res = CommandResult(
+                    status="cannot-run",
+                    summary=str(e),
+                    command="archive",
+                    exit_code=2,
+                    verified=False,
+                    complete=False,
+                )
+                return get_renderer(ctx).emit(res, ctx)
+            print(f"error: {e}")
+            return 2
         if is_agent_or_json:
             res = CommandResult(
                 status="ok",
@@ -684,7 +746,21 @@ def run_archive(args: argparse.Namespace) -> int:
             print(f"error: {err}")
             return 2
         moves.append(mv)
-    touched = apply_moves(repo_root, research_root, moves)
+    try:
+        touched = apply_moves(repo_root, research_root, moves)
+    except RuntimeError as e:
+        if is_agent_or_json:
+            res = CommandResult(
+                status="cannot-run",
+                summary=str(e),
+                command="archive",
+                exit_code=2,
+                verified=False,
+                complete=False,
+            )
+            return get_renderer(ctx).emit(res, ctx)
+        print(f"error: {e}")
+        return 2
     if is_agent_or_json:
         res = CommandResult(
             status="ok",
@@ -825,6 +901,24 @@ def run_promote(args: argparse.Namespace) -> int:
             return 0
         if not apply:
             if is_agent_or_json:
+                preview_moves = []
+                for m in moves:
+                    entry = {
+                        "id6": m.id6,
+                        "status": m.new_status,
+                        "source": m.old_path.relative_to(research_root).as_posix(),
+                        "destination": m.new_path.relative_to(research_root).as_posix(),
+                    }
+                    comp = R.companion_dir_for(m.old_path)
+                    if comp.is_dir():
+                        comp_dst = R.companion_dir_for(m.new_path)
+                        entry["companion"] = {
+                            "source": comp.relative_to(research_root).as_posix(),
+                            "destination": comp_dst.relative_to(
+                                research_root
+                            ).as_posix(),
+                        }
+                    preview_moves.append(entry)
                 res = CommandResult(
                     status="preview",
                     summary=f"{len(moves)} stale research doc(s) to triage",
@@ -837,15 +931,36 @@ def run_promote(args: argparse.Namespace) -> int:
                             description="apply suggested triage moves",
                         )
                     ],
+                    data={"moves": preview_moves},
                 )
                 return get_renderer(ctx).emit(res, ctx)
             for m in moves:
                 print(
                     f"--- would set {m.id6} status={m.new_status} and move to {m.new_path.relative_to(research_root).as_posix()} ---"
                 )
+                comp = R.companion_dir_for(m.old_path)
+                if comp.is_dir():
+                    comp_dst = R.companion_dir_for(m.new_path)
+                    print(
+                        f"--- would move companion {comp.relative_to(research_root).as_posix()} -> {comp_dst.relative_to(research_root).as_posix()} ---"
+                    )
             print("preview only; re-run with --suggest --apply to move")
             return 0
-        apply_moves(repo_root, research_root, moves)
+        try:
+            apply_moves(repo_root, research_root, moves)
+        except RuntimeError as e:
+            if is_agent_or_json:
+                res = CommandResult(
+                    status="cannot-run",
+                    summary=str(e),
+                    command="research promote",
+                    exit_code=2,
+                    verified=False,
+                    complete=False,
+                )
+                return get_renderer(ctx).emit(res, ctx)
+            print(f"error: {e}")
+            return 2
         if is_agent_or_json:
             res = CommandResult(
                 status="ok",
@@ -892,8 +1007,17 @@ def run_promote(args: argparse.Namespace) -> int:
         print(f"error: {err}")
         return 2
     if not apply:
+        comp = R.companion_dir_for(mv.old_path)
+        has_comp = comp.is_dir()
+        comp_dst = R.companion_dir_for(mv.new_path) if has_comp else None
         if is_agent_or_json:
             target_id = getattr(args, "id", "")
+            data_dict = {}
+            if has_comp and comp_dst:
+                data_dict["companion"] = {
+                    "source": comp.relative_to(research_root).as_posix(),
+                    "destination": comp_dst.relative_to(research_root).as_posix(),
+                }
             res = CommandResult(
                 status="preview",
                 summary=f"would set {mv.id6} status={mv.new_status}",
@@ -906,13 +1030,32 @@ def run_promote(args: argparse.Namespace) -> int:
                         description="apply promotion",
                     )
                 ],
+                data=data_dict if data_dict else None,
             )
             return get_renderer(ctx).emit(res, ctx)
         print(
             f"--- would set {mv.id6} status={mv.new_status} and move to {mv.new_path.relative_to(research_root).as_posix()} ---"
         )
+        if has_comp and comp_dst:
+            print(
+                f"--- would move companion {comp.relative_to(research_root).as_posix()} -> {comp_dst.relative_to(research_root).as_posix()} ---"
+            )
         return 0
-    apply_moves(repo_root, research_root, [mv])
+    try:
+        apply_moves(repo_root, research_root, [mv])
+    except RuntimeError as e:
+        if is_agent_or_json:
+            res = CommandResult(
+                status="cannot-run",
+                summary=str(e),
+                command="research promote",
+                exit_code=2,
+                verified=False,
+                complete=False,
+            )
+            return get_renderer(ctx).emit(res, ctx)
+        print(f"error: {e}")
+        return 2
     if is_agent_or_json:
         res = CommandResult(
             status="ok",

@@ -426,6 +426,52 @@ shard_dirname = _core.shard_dirname
 is_valid_shard_dirname = _core.is_valid_shard_dirname
 shard_for_date = _core.shard_for_date
 
+# --------------------------------------------------------------------------------------
+# Companion directory convention (IPD mtdxiu, Set rescomp)
+# --------------------------------------------------------------------------------------
+
+COMPANION_SUFFIX = ".data"
+
+
+def companion_dir_for(doc_path: Union[str, Path]) -> Path:
+    """Return the sibling companion directory Path for the research document at ``doc_path``."""
+    p = Path(doc_path)
+    stem = p.name[:-3] if p.name.endswith(".md") else p.name
+    return p.parent / f"{stem}{COMPANION_SUFFIX}"
+
+
+def companion_owner_stem(
+    path: Union[str, Path],
+    research_root: Optional[Union[str, Path]] = None,
+) -> Optional[str]:
+    """Return the owning doc stem when ``path`` is a companion directory or lies inside one.
+
+    Matches any path component ending in ``.data`` whose stem parses with ``parse_name(stem + ".md")``.
+    When ``research_root`` is given and ``path`` is absolute, confines the check to paths under
+    ``research_root``.
+    """
+    p = Path(path)
+    rel = p
+    if research_root is not None:
+        rr = Path(research_root)
+        try:
+            rel = p.resolve().relative_to(rr.resolve())
+        except (ValueError, OSError):
+            try:
+                rel = p.relative_to(rr)
+            except ValueError:
+                if p.is_absolute() and rr.is_absolute():
+                    return None
+                rel = p
+
+    for part in rel.parts:
+        if part.endswith(COMPANION_SUFFIX):
+            candidate_stem = part[: -len(COMPANION_SUFFIX)]
+            parsed, _err = parse_name(candidate_stem + ".md")
+            if parsed is not None:
+                return candidate_stem
+    return None
+
 
 # --------------------------------------------------------------------------------------
 # Frontmatter schema (spec 5.8)

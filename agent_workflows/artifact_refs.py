@@ -448,6 +448,8 @@ def dead_filename_citations(
             for p in d.rglob("*.md"):
                 if p.name in _SKIP_NAMES:
                     continue
+                if rt == "research" and _rc.companion_owner_stem(p, d) is not None:
+                    continue
                 existing.add(p.name)
                 existing.add(p.name[:-3])  # stem form (citation may drop the .md)
 

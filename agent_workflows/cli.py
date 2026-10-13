@@ -14885,6 +14885,11 @@ def _run_search(
             if not base.is_dir():
                 continue
             for p in sorted(base.rglob("*.md")):
+                if t == "research":
+                    from agent_workflows import research_contract as _rc
+
+                    if _rc.companion_owner_stem(p, base) is not None:
+                        continue
                 resolved_p = p.resolve()
                 if resolved_p in seen_files:
                     continue

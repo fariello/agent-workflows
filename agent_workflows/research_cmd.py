@@ -34,6 +34,8 @@ def _existing_id6s(research_root: Path) -> set:
     if not research_root.is_dir():
         return found
     for p in research_root.rglob("*.md"):
+        if R.companion_owner_stem(p, research_root) is not None:
+            continue
         parsed, err = R.parse_name(p.name)
         if parsed is not None:
             found.add(parsed.id6)
@@ -126,6 +128,8 @@ def _next_order_for_set(research_root: Path, set_id: str, kind: str = "") -> int
         return 0 if kind == "research-prompt" else 1
     orders = []
     for p in research_root.rglob("*.md"):
+        if R.companion_owner_stem(p, research_root) is not None:
+            continue
         parsed, err = R.parse_name(p.name)
         if parsed is not None and parsed.set_id == set_id:
             orders.append(int(parsed.order))
@@ -138,6 +142,8 @@ def _set_date_for_set(research_root: Path, set_id: str, default: str) -> str:
     if not research_root.is_dir():
         return default
     for p in sorted(research_root.rglob("*.md")):
+        if R.companion_owner_stem(p, research_root) is not None:
+            continue
         parsed, err = R.parse_name(p.name)
         if parsed is not None and parsed.set_id == set_id:
             return parsed.date
@@ -273,6 +279,8 @@ def plan_new(
             return None, f"--order must be between 0 and 99 (got {order})"
         if research_root.is_dir():
             for p in sorted(research_root.rglob("*.md")):
+                if R.companion_owner_stem(p, research_root) is not None:
+                    continue
                 parsed, _ = R.parse_name(p.name)
                 if parsed is not None and parsed.set_id == derived_set:
                     if int(parsed.order) == order_int:
