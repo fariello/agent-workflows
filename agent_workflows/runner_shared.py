@@ -41748,8 +41748,10 @@ def run_suite_check(
             run_id,
             list(SUITE_CHECK_ARGV),
             cwd=repo_dir,
-            evidence_kind="tests",
-            actor="driver",
+            # Both values must stay inside run_ledger_schema.ROLES / EVIDENCE_KINDS
+            # (backlog 1g8lbe, decision in OQ-01 of plan 1rozt5).
+            evidence_kind="test_report",
+            actor="runtime",
             timeout=timeout,
             max_output_bytes=512_000,
         )
