@@ -247,7 +247,7 @@ stateDiagram-v2
 ```
 
 "Step back one" means `to-review -> draft`, `reviewed -> to-review`, `approved -> reviewed`, and
-`implementing -> approved`. The exact table is `SPEC_TRANSITIONS`.
+`implementing -> approved`. The exact table is `SPEC_TRANSITIONS`. Running `aw oc run` or `aw agy run` on an `implementing` spec that still has uncited, non-deferred requirement ids writes the plans for the next stage and keeps the spec `implementing`, so stepping back to `approved` is no longer needed to plan a later stage.
 
 ### Gates on the key moves
 

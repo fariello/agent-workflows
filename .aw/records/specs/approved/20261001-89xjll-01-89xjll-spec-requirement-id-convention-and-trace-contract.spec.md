@@ -9,6 +9,8 @@
 - Scope: Requirement-ID convention for new specs, acceptance-criterion namespace, declaration-site rule, retrofit policy via stamped cutover, and SPEC-PLAN-TRACE verification contract (scope pooled over linked plans, qualified-citation grammar, severity, grandfathering behavior, `[Deferred]` marker and its `implemented` gate, and citation-not-implementation limit).
 
 ## Workflow history
+
+- 2026-10-13 note (aw specs): amended Sections 2, 3.3 and 6.1 for implementing spec re-plan turn (plan 2hgxi1)
 - 2026-10-09 approved (aw set, --by-human): status set to approved
 
 - 2026-10-09 note (aw specs): /spec-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; round 2: SR-002, SR-003 FIXED on maintainer rulings OQ-05/OQ-04; SR-011, SR-012 (OQ-08 asked and resolved), SR-013 FIXED
@@ -73,7 +75,7 @@ At execution HEAD `f279e326`, recursive census of `.aw/records/specs/` demonstra
 - Approved specs acceptance status (corrected at review, SR-006): 6 of 12 `approved` specs carry acceptance-criterion IDs (`7ckptx` 36, `6kwd2e` 49, `uonrjg` 25, `w15vzb` 12, `6m4kow` 11, `2vev8j` 11). 4 carry an acceptance heading with no IDs (`5tapom`, `kw5y2s`, `2lcqno`, `r07vma`), and 2 carry no acceptance heading (`25kzda`, `77tr3o`). `25kzda`'s `| A1:` .. `| A4:` rows are NOT acceptance criteria: they sit in `### 1.4 Resolution of the required revisions` and label resolved revisions. They are nonetheless matched by the declaration-site rule of Section 4.1 as written, which is harmless only because `25kzda` is grandfathered (Section 5); it is recorded here as evidence that the rule is section-blind (see OQ-04).
 - Prefix-letter semantics are NOT uniform across the corpus (measured at review): `N` declares NORMATIVE items in `2lcqno` (`- **N1 (setid is a grouping label ...)**`, under `## 3. The normative model`) but NON-GOALS in `2vev8j` (`- N1 NOT a rewrite ...`, under `## 3a. Non-goals`). `2vev8j` also declares `E1`..`E4` evidence items and `uonrjg`/`6m4kow` declare `D*` decisions; `E` and `D` are not admitted families, so those are correctly not requirements.
 - Census re-measured at review HEAD `81cb4f85`: 40 specs (this spec is the 40th; `to-review` now holds 3). Every other figure above reproduced.
-- Verification entry point: `run_selection_policy._SPEC_ACTIONS` maps strictly `approved` to `ACTION_PLAN` (all other statuses map to `skip` or `review`). Thus, spec production and `SPEC-PLAN-TRACE` judge exclusively the `approved` spec population and the plans newly produced from it.
+- Verification entry point: `run_selection_policy._SPEC_ACTIONS` maps `approved` to `ACTION_PLAN`, and `runner_action` refines post-cutover `implementing` specs with uncited non-deferred TRACE ids to `plan` (`25kzda` 3.3, OQ-08; all other statuses map to `skip` or `review`). Thus, spec production and `SPEC-PLAN-TRACE` judge exclusively the `approved` and re-planned `implementing` spec population and the plans newly produced from it.
 
 ## 3. Requirement and Acceptance Namespaces
 
@@ -131,8 +133,8 @@ Rules:
 - `(optional)` or "deferred" in running prose is NOT a marker. Only the bracketed token at the declaration site counts.
 - Removing `[Deferred]` is an ordinary spec edit. Whoever removes it is responsible for the id being planned; TRACE on the next production of the spec enforces that.
 - HOW A LATER STAGE IS STARTED (decided by the maintainer 2026-10-08, OQ-08). A spec being planned in stages STAYS `implementing` between stages; it is not sent back to `approved`, because its scope, including the deferred ids, was already approved.
-  - TARGET DESIGN: when the runner dispatches an `implementing` spec that declares at least one mandatory, non-`[Deferred]` TRACE id cited by no pooled plan (6.1), it gives the spec a plan-writing turn, checked by TRACE over the pooled set, before running its child plans; when every such id is cited, it runs the child plans exactly as today. Removing a `[Deferred]` marker is therefore the signal to plan the next stage. This changes `25kzda`'s `implementing` dispatch rule (`run_selection_policy._SPEC_ACTIONS`: "`implementing` ... dispatches its From-Spec children"), so it is DELIVERED BY A SEPARATE PLAN carrying that `25kzda` amendment (backlog `2wkzf7`), not by this spec's implementing plan `rtvdak`. Grandfathered specs declare no TRACE ids, so their dispatch is unchanged.
-  - STOPGAP until that plan ships: a human moves the spec `implementing -> approved` with `aw spec set approved <id6> --by-human` (already legal in `attention_contract`, and already human-attested like every `->approved` edge), and the next run produces the remaining plans, pooled with the earlier ones, and returns the spec to `implementing` on a pass.
+  - TARGET DESIGN: when the runner dispatches an `implementing` spec that declares at least one mandatory, non-`[Deferred]` TRACE id cited by no pooled plan (6.1), it gives the spec a plan-writing turn, checked by TRACE over the pooled set, before running its child plans; when every such id is cited, it runs the child plans exactly as today. Removing a `[Deferred]` marker is therefore the signal to plan the next stage. This changes `25kzda`'s `implementing` dispatch rule (`run_selection_policy._SPEC_ACTIONS`: "`implementing` ... dispatches its From-Spec children"), delivered by plan `2hgxi1` (backlog `2wkzf7`). Grandfathered specs declare no TRACE ids, so their dispatch is unchanged.
+  - STOPGAP: a human moving the spec `implementing -> approved` with `aw spec set approved <id6> --by-human` remains legal in `attention_contract`, but is no longer required to plan a later stage.
 
 ## 4. Declaration-Site Rule and Addressing Rationale
 
@@ -180,7 +182,7 @@ As documented in `vkub9o` Option B, the accepted cost of per-spec grandfathering
 
 ### 6.1 Check Scope
 
-`SPEC-PLAN-TRACE` runs exclusively as a post-generation gate during the spec production action (`aw <host> run <spec-id6>`). As measured in `run_selection_policy._SPEC_ACTIONS`, only specifications with status `approved` map to `ACTION_PLAN`. It is wired at the SPEC production block only, not the near-identical backlog production block. It does NOT inspect the repository corpus; it judges ONE producing spec.
+`SPEC-PLAN-TRACE` runs exclusively as a post-generation gate during the spec production action (`aw <host> run <spec-id6>`). As measured in `run_selection_policy`, specifications with status `approved` map to `ACTION_PLAN`, as do post-cutover `implementing` specs with uncited non-deferred TRACE ids via `runner_action` (`25kzda` 3.3). It is wired at the SPEC production block only, not the near-identical backlog production block. It does NOT inspect the repository corpus; it judges ONE producing spec.
 
 COVERAGE IS EVALUATED ACROSS EVERY ACTIVE PLAN LINKED TO THE PRODUCING SPEC (decided by the maintainer 2026-10-08, OQ-06; this replaces the draft's "newly produced plans" scope). The pooled set is the plans already linked to the spec by `- From-Spec:` before this production plus the plans this production newly wrote. The runner's spec production block already assembles a near-identical set for its sibling checks: `existing_linked_plans` (from `production_checks.existing_handoff_plans(target_tree, "spec", <id6>)`) plus `new_produced_plans`, combined as `all_verified_plans`; TRACE uses that set PLUS executed linked plans (below). Consequences:
 - One production may write several plans or several Sets; a requirement cited in any of them is covered.

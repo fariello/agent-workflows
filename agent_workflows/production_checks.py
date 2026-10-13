@@ -684,46 +684,33 @@ def _find_executed_linked_plans(repo: Path, spec_id6: str) -> list[Path]:
     return plans
 
 
-def spec_plan_trace(
-    repo: Path,
+class _SpecTraceCoverage(NamedTuple):
+    uncovered_reqs: set[str]
+    uncovered_acs: set[str]
+    unknown_refs: set[str]
+    is_traceable: bool
+
+
+def _compute_spec_trace_coverage(
+    repo: Path | str,
     spec_id6: str,
-    produced_paths: Sequence[Path | str],
-    *,
-    host: str = "<host>",
-    run_id: str = "<run-id>",
-    continued_ids: Container[str] | None = None,
-) -> list[tuple[str, str, str]]:
-    """Verify SPEC-PLAN-TRACE: every mandatory spec requirement maps to at least one E item
-    and every acceptance criterion maps to at least one V item; there are no unknown references.
-
-    Pass criterion (25kzda 4.8):
-      Every mandatory spec requirement maps to at least one E item and every acceptance criterion
-      maps to at least one V item; there are no unknown references
-
-    Citation-not-implementation limit (spec 89xjll Section 6.4):
-      A trace check proves only that a plan step CITES a requirement or acceptance identifier;
-      it does NOT prove that the plan correctly, completely, or safely implements the requirement.
-      SPEC-PLAN-TRACE is a structural citation gate, never a semantic proof of implementation.
-      A produced plan verified by this check may be described as trace-verified against declared
-      identifiers, but MUST NOT be described as having verified the semantic correctness of the
-      implementation. A PASS produced by the grandfathered or zero-id path of Section 6.3 is
-      VACUOUS and MUST NOT be described as trace-verified at all.
-    """
+    produced_paths: Sequence[Path | str] | None = None,
+) -> _SpecTraceCoverage:
     repo = Path(repo)
     spec_path, spec_text = _find_spec_text_and_path(repo, spec_id6)
     if not spec_path or not spec_text:
-        return []
+        return _SpecTraceCoverage(set(), set(), set(), False)
 
     # Check grandfathering per spec filename date
     if not spec_requires_requirement_ids(spec_path.name, repo_root=repo):
-        return []
+        return _SpecTraceCoverage(set(), set(), set(), False)
 
     req_ids, ac_ids = parse_spec_requirement_ids(spec_text)
     markers = parse_spec_id_markers(spec_text)
 
     # A spec declaring no traceable IDs passes vacuously
     if not req_ids and not ac_ids:
-        return []
+        return _SpecTraceCoverage(set(), set(), set(), False)
 
     mandatory_reqs = {
         r for r in req_ids if markers.get(r) not in ("Should", "Optional", "Deferred")
@@ -731,10 +718,19 @@ def spec_plan_trace(
     mandatory_acs = {a for a in ac_ids if markers.get(a) != "Deferred"}
     declared_all = req_ids | ac_ids
 
-    # Assemble pooled plan set: passed produced_paths plus executed linked plans
+    # Assemble pooled plan set: passed produced_paths (or active linked plans) plus executed linked plans
     pooled_paths: list[Path] = []
     seen_paths: set[Path] = set()
-    for p_raw in produced_paths:
+
+    active_paths: Sequence[Path | str]
+    if produced_paths is not None:
+        active_paths = produced_paths
+    else:
+        active_paths = [
+            hp.path for hp in existing_handoff_plans(repo, "spec", spec_id6)
+        ]
+
+    for p_raw in active_paths:
         p = Path(p_raw)
         if not p.is_absolute():
             p = repo / p
@@ -793,7 +789,56 @@ def spec_plan_trace(
     uncovered_reqs = mandatory_reqs - cited_reqs
     uncovered_acs = mandatory_acs - cited_acs
 
-    missing_or_unknown = sorted(uncovered_reqs | uncovered_acs | unknown_refs)
+    return _SpecTraceCoverage(
+        uncovered_reqs=uncovered_reqs,
+        uncovered_acs=uncovered_acs,
+        unknown_refs=unknown_refs,
+        is_traceable=True,
+    )
+
+
+def spec_uncited_trace_ids(repo: Path | str, spec_id6: str) -> list[str]:
+    """Return sorted mandatory non-[Deferred] declared TRACE ids not cited by any pooled plan."""
+    repo = Path(repo)
+    cov = _compute_spec_trace_coverage(repo, spec_id6, produced_paths=None)
+    if not cov.is_traceable:
+        return []
+    return sorted(cov.uncovered_reqs | cov.uncovered_acs)
+
+
+def spec_plan_trace(
+    repo: Path,
+    spec_id6: str,
+    produced_paths: Sequence[Path | str],
+    *,
+    host: str = "<host>",
+    run_id: str = "<run-id>",
+    continued_ids: Container[str] | None = None,
+) -> list[tuple[str, str, str]]:
+    """Verify SPEC-PLAN-TRACE: every mandatory spec requirement maps to at least one E item
+    and every acceptance criterion maps to at least one V item; there are no unknown references.
+
+    Pass criterion (25kzda 4.8):
+      Every mandatory spec requirement maps to at least one E item and every acceptance criterion
+      maps to at least one V item; there are no unknown references
+
+    Citation-not-implementation limit (spec 89xjll Section 6.4):
+      A trace check proves only that a plan step CITES a requirement or acceptance identifier;
+      it does NOT prove that the plan correctly, completely, or safely implements the requirement.
+      SPEC-PLAN-TRACE is a structural citation gate, never a semantic proof of implementation.
+      A produced plan verified by this check may be described as trace-verified against declared
+      identifiers, but MUST NOT be described as having verified the semantic correctness of the
+      implementation. A PASS produced by the grandfathered or zero-id path of Section 6.3 is
+      VACUOUS and MUST NOT be described as trace-verified at all.
+    """
+    repo = Path(repo)
+    cov = _compute_spec_trace_coverage(repo, spec_id6, produced_paths=produced_paths)
+    if not cov.is_traceable:
+        return []
+
+    missing_or_unknown = sorted(
+        cov.uncovered_reqs | cov.uncovered_acs | cov.unknown_refs
+    )
     if not missing_or_unknown:
         return []
 
