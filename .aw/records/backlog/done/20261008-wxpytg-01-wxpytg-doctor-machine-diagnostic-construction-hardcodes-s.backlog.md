@@ -1,5 +1,5 @@
 - Id: wxpytg
-- Status: graduated
+- Status: done
 - Graduated-To: wxpytg
 - Blocks-Release: next
 - Set: wxpytg
@@ -8,6 +8,7 @@
 - Summary: Doctor machine diagnostic construction hardcodes severity error for every drift
 
 ## Workflow history
+- 2026-10-13 done (aw backlog): closed by aw agy run: IPD 2t9l37 executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20261012-wxpytg-01-2t9l37-pin-doctor-machine-diagnostic-severity-preservation-with-reg.ipd.md); evidence .aw/records/plans/executed/20261012-wxpytg-01-2t9l37-pin-doctor-machine-diagnostic-severity-preservation-with-reg.ipd.md
 - 2026-10-12 graduated (aw backlog): graduated by run run-20261012T005641Z-2321995: 2t9l37
 - 2026-10-08 created (aw backlog): Doctor machine diagnostic construction hardcodes severity error for every drift
 
