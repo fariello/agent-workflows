@@ -21,6 +21,7 @@ import shutil
 import subprocess
 import tempfile
 import unittest
+import unittest.mock
 from pathlib import Path
 
 from agent_workflows import engine
@@ -504,6 +505,13 @@ class EvidenceRedactionTests(unittest.TestCase):
 
     #: The leak is assembled from fragments at runtime with a lowercase alphanumeric probe user.
     PLANTED_HOME_LEAK = "/home/" + "hardeningprobe" + "/proj/notes.md"
+    _AWS_PREFIX = "".join(chr(c) for c in (65, 75, 73, 65))
+    PLANTED_AWS_SECRET = (
+        f"aws_secret_access_key = {_AWS_PREFIX}IOSFODNN7EXAMPLE{_AWS_PREFIX}IOSFODNN7"
+    )
+    PLANTED_BEARER_TOKEN = "Authorization: Bearer " + "".join(
+        chr(c) for c in (65 + (i % 26) for i in range(30))
+    )
 
     PAYLOADS = (
         (
@@ -532,6 +540,42 @@ class EvidenceRedactionTests(unittest.TestCase):
             "",
             "home-path",
             "THE CONTROL ROW FOR STAGE 2: leak sanitizer detects home path under innocuous key.",
+        ),
+        (
+            "a sha256 digest and commit sha under an innocuous key",
+            {"stdout": "sha256: " + "a" * 64 + " commit: " + "b" * 40},
+            False,
+            True,
+            "",
+            "",
+            "Entropy heuristic must not trip because entropy is not consulted.",
+        ),
+        (
+            "contact email and IPv4 under an innocuous key",
+            {"stdout": "contact someone@example.com from 10.0.0.1"},
+            False,
+            True,
+            "",
+            "",
+            "PII rules must not trip because PII is not consulted.",
+        ),
+        (
+            "an AWS-shaped assignment under an innocuous key",
+            {"stdout": PLANTED_AWS_SECRET},
+            False,
+            False,
+            "",
+            "generic-secret-env",
+            "THE CONTROL ROW FOR STAGE 3: secret scanner detects credential under innocuous key.",
+        ),
+        (
+            "a bearer token under an innocuous key",
+            {"stdout": PLANTED_BEARER_TOKEN},
+            False,
+            False,
+            "",
+            "bearer-token",
+            "THE CONTROL ROW FOR STAGE 3: secret scanner detects bearer token under innocuous key.",
         ),
     )
 
@@ -608,6 +652,36 @@ class EvidenceRedactionTests(unittest.TestCase):
             f"check_evidence_redaction mishandled {len(wrong)} of {len(self.PAYLOADS)} "
             f"payloads.{note}\n" + "\n".join(wrong),
         )
+
+    def test_scanner_unavailable_fails_closed_when_loader_raises(self):
+        """When _load_scan_secrets raises FileNotFoundError, evidence is refused and no exception escapes."""
+        clean_payload = {"stdout": "ran ok", "exit_code": 0}
+        with unittest.mock.patch.object(
+            sh, "_load_scan_secrets", side_effect=FileNotFoundError("missing")
+        ):
+            res = sh.check_evidence_redaction(clean_payload)
+        self.assertFalse(res.ok)
+        self.assertEqual(
+            res.reason, "canonical secret scanner unavailable; evidence refused"
+        )
+        self.assertEqual(res.evidence, {"error": "FileNotFoundError"})
+        self.assertEqual(res.boundary, sh.BOUNDARY_EVIDENCE_REDACTION)
+
+    def test_scanner_unavailable_fails_closed_when_scan_text_raises(self):
+        """When scanner.scan_text raises RuntimeError, evidence is refused and no exception escapes."""
+        clean_payload = {"stdout": "ran ok", "exit_code": 0}
+        mock_scanner = unittest.mock.MagicMock()
+        mock_scanner.scan_text.side_effect = RuntimeError("scan failed")
+        with unittest.mock.patch.object(
+            sh, "_load_scan_secrets", return_value=mock_scanner
+        ):
+            res = sh.check_evidence_redaction(clean_payload)
+        self.assertFalse(res.ok)
+        self.assertEqual(
+            res.reason, "canonical secret scanner unavailable; evidence refused"
+        )
+        self.assertEqual(res.evidence, {"error": "RuntimeError"})
+        self.assertEqual(res.boundary, sh.BOUNDARY_EVIDENCE_REDACTION)
 
 
 class SkillLeastPrivilegeTests(unittest.TestCase):

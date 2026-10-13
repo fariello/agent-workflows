@@ -18,7 +18,8 @@ that returns a :class:`BoundaryResult` (``ok`` plus a machine-readable ``reason`
   3. ``check_skill_least_privilege`` - a skill entry point carries no inlined authority.
   4. ``check_evidence_redaction``    - evidence is redacted before it lands (reuses the
                                         run ledger RedactionPolicy) AND passes the
-                                        canonical leak/secret scanners.
+                                        canonical leak/secret scanners (regex credential
+                                        rules, no entropy/PII).
   5. ``check_real_home_excluded``    - host probes refuse the real HOME (reuses the
                                         capability-registry isolation guard).
   6. ``check_untrusted_text_isolated`` - repository/tool/inter-agent text is treated as
@@ -40,6 +41,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
+from agent_workflows import _compat
 from agent_workflows import host_adapters as ha
 from agent_workflows import host_capability_registry as hcr
 from agent_workflows import leak_sanitizer as ls
@@ -262,9 +264,11 @@ def check_evidence_redaction(
 ) -> BoundaryResult:
     """Evidence MUST be redacted before it lands AND MUST NOT leak secrets/identifiers.
 
-    Two-stage: (1) apply the ledger RedactionPolicy to the payload, then (2) run the CANONICAL
-    leak sanitizer (:func:`leak_sanitizer.scan_text`) over the redacted text. If the redacted
-    evidence still trips a leak rule, the boundary fails closed.
+    Three-stage: (1) apply the ledger RedactionPolicy to the payload, (2) run the CANONICAL
+    leak sanitizer (:func:`leak_sanitizer.scan_text`) over the redacted text, and (3) run the
+    canonical secret scanner's regex credential rules (no entropy/PII heuristics). If the redacted
+    evidence trips a leak or secret rule, or the secret scanner cannot be loaded, the boundary
+    fails closed.
     """
     pol = policy or default_redaction_policy()
     redacted, _ = pol.redact(payload)
@@ -279,6 +283,28 @@ def check_evidence_redaction(
             ok=False,
             reason="redacted evidence still trips the canonical leak sanitizer",
             evidence={"findings": [_finding_repr(f) for f in fail_findings]},
+        )
+    try:
+        scanner = _load_scan_secrets()
+        raw_secret_findings = scanner.scan_text(
+            text, "evidence", "evidence", use_entropy=False, use_pii=False
+        )
+    except Exception as exc:
+        return BoundaryResult(
+            boundary=BOUNDARY_EVIDENCE_REDACTION,
+            ok=False,
+            reason="canonical secret scanner unavailable; evidence refused",
+            evidence={"error": type(exc).__name__},
+        )
+    secret_findings = [
+        f for f in raw_secret_findings if getattr(f, "category", "") == "secret"
+    ]
+    if secret_findings:
+        return BoundaryResult(
+            boundary=BOUNDARY_EVIDENCE_REDACTION,
+            ok=False,
+            reason="redacted evidence still trips the canonical secret scanner",
+            evidence={"findings": [_finding_repr(f) for f in secret_findings]},
         )
     return BoundaryResult(
         boundary=BOUNDARY_EVIDENCE_REDACTION,
@@ -507,6 +533,12 @@ def _load_scan_secrets() -> Any:
         / "scan_secrets.py"
     )
     if not tool_path.is_file():
+        pkg_root = _compat.packaged_source_root()
+        if pkg_root is not None:
+            candidate = pkg_root / "workflows" / "assess" / "tools" / "scan_secrets.py"
+            if candidate.is_file():
+                tool_path = candidate
+    if not tool_path.is_file():
         raise FileNotFoundError(f"canonical secret scanner not found at {tool_path}")
     import sys
 
@@ -518,7 +550,11 @@ def _load_scan_secrets() -> Any:
     mod = importlib.util.module_from_spec(spec)
     # Register BEFORE exec so @dataclass in the tool can resolve cls.__module__ (Py3.12+/3.14).
     sys.modules[name] = mod
-    spec.loader.exec_module(mod)
+    try:
+        spec.loader.exec_module(mod)
+    except Exception:
+        sys.modules.pop(name, None)
+        raise
     return mod
 
 

@@ -11,6 +11,7 @@ Pins the behavior of the one production integration point of security_hardening:
 
 from __future__ import annotations
 
+import json
 import unittest
 from pathlib import Path
 
@@ -22,6 +23,10 @@ class HostRunnerRedactionTests(unittest.TestCase):
 
     # Built at runtime from fragments so no literal home path exists in source.
     PLANTED_HOME = "/ho" + "me/" + "probeuser42" + "/notes.txt"
+    _AWS_PREFIX = "".join(chr(c) for c in (65, 75, 73, 65))
+    PLANTED_SECRET = (
+        f"aws_secret_access_key = {_AWS_PREFIX}IOSFODNN7EXAMPLE{_AWS_PREFIX}IOSFODNN7"
+    )
 
     def test_redact_worker_output_detects_leaks_without_in_place_masking(self):
         """redact_worker_output detects leaks via BoundaryResult(ok=False) but preserves raw text.
@@ -125,6 +130,62 @@ class HostRunnerRedactionTests(unittest.TestCase):
         self.assertEqual(ws_clean, hr.WORKER_COMPLETED)
         self.assertEqual(env_clean.get("status"), "performed")
         self.assertEqual(red_clean.stdout, "clean execution output")
+
+    def test_run_task_refuses_worker_output_carrying_credential(self):
+        """run_task refuses worker output containing a credential and replaces it with [REDACTED-LEAK]."""
+        pkt = hr.TaskPacket(
+            run_id="run-test-secret-01",
+            step_id="step-test-secret-01",
+            lane_id="lane-test-secret-01",
+            argv=("test_command",),
+            cwd="/tmp",
+        )
+
+        def runner_secret(argv, cwd, timeout):
+            return (0, self.PLANTED_SECRET, "")
+
+        def diff_capturer(pkt):
+            return ("--- a\n+++ b", ("output.txt",))
+
+        repo_root = Path.cwd()
+        env, ws, red = hr.run_task(
+            pkt,
+            runner=runner_secret,
+            diff_capturer=diff_capturer,
+            repo_root=repo_root,
+        )
+        self.assertEqual(ws, hr.WORKER_FAILED_FINAL)
+        self.assertEqual(env.get("status"), "failed")
+        self.assertEqual(red.stdout, "[REDACTED-LEAK]")
+        self.assertEqual(red.stderr, "[REDACTED-LEAK]")
+        self.assertEqual(red.diff, "")
+        self.assertNotIn(self.PLANTED_SECRET, red.stdout)
+        self.assertNotIn(self.PLANTED_SECRET, red.stderr)
+        self.assertNotIn(self.PLANTED_SECRET, json.dumps(env))
+
+    def test_redact_worker_output_detects_credentials(self):
+        """redact_worker_output detects credentials via BoundaryResult(ok=False)."""
+        raw = hr.RawWorkerResult(
+            exit_code=0,
+            stdout=self.PLANTED_SECRET,
+            stderr="",
+            diff="--- a\n+++ b",
+            changed_files=("notes.txt",),
+            timed_out=False,
+            cancelled=False,
+            duration_ms=15.0,
+            truncated=False,
+        )
+        repo_root = Path.cwd()
+        redacted, boundary = hr.redact_worker_output(raw, repo_root=repo_root)
+        self.assertFalse(
+            boundary.ok, "BoundaryResult must be ok=False for planted secret"
+        )
+        findings = boundary.evidence.get("findings", [])
+        self.assertTrue(
+            any(f.startswith("generic-secret-env@") for f in findings),
+            f"Expected generic-secret-env finding in evidence, got: {findings!r}",
+        )
 
 
 if __name__ == "__main__":
