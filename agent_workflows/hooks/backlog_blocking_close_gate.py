@@ -16,8 +16,8 @@ diverge. Per OQ-01 the hook gates the fail-closed `done` case ONLY (blocking->pa
 WARNs are surfaced by `aw check`/`aw attention`, not at commit time).
 
 Commit-time legitimacy is reconstructed from PERSISTED state only (the predicate is called WITHOUT an
-`evidence=` arg): HANDOFF (EVERY same-gate `From-Backlog` carrier present in the staged tree with the
-same `Blocks-Release` must be executed or implemented) and DE-GATED (`Blocks-Release` absent from the
+`evidence=` arg): HANDOFF (a same-gate `From-Backlog` carrier present in the staged tree with the
+same `Blocks-Release` must exist and every `From-Backlog` carrier, gated or not, must be executed or implemented) and DE-GATED (`Blocks-Release` absent from the
 staged item) are decidable from the staged tree. A transient `--evidence` CLI arg is NOT visible to the
 hook, but the setter now durably persists the citation as a `- Close-Evidence:` bullet (gateatrest
 f7igdu, via `backlog.set_close_evidence_line`), so the SATISFIED path IS honored from persisted state.

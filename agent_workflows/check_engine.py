@@ -5615,7 +5615,7 @@ def evaluate_blocking_close(
 
     Transitions:
       -> done   : LEGITIMATE iff one of
-                    HANDOFF  - EVERY same-gate carrier (From-Backlog plan or spec with the same Blocks-Release) is executed/implemented, matching runner_shared.evaluate_backlog_close (backlog lsbd32, plan 2o5wka)
+                    HANDOFF  - at least one same-gate carrier exists AND every From-Backlog carrier, gated or not, is executed/implemented, matching runner_shared.evaluate_backlog_close (backlog kntbbc)
                     SATISFIED- a resolvable `evidence` artifact citation
                     DE-GATED - the (post-mutation) item no longer carries Blocks-Release
                   else ILLEGITIMATE (severity error, fail-closed).
@@ -5678,11 +5678,12 @@ def evaluate_blocking_close(
             return CloseVerdict(
                 True, "ok", "no release gate to preserve", (), "DE-GATED"
             )
-        # HANDOFF: EVERY From-Backlog PLAN or SPEC with the SAME Blocks-Release must be EXECUTED/IMPLEMENTED.
+        # HANDOFF: at least one same-gate carrier exists AND every From-Backlog carrier, gated or not,
+        # is executed/implemented, matching runner_shared.evaluate_backlog_close (backlog kntbbc).
         # Maintainer ruling 2026-09-26 (OQ-01, backlog rwhbci, closescope 2a6phj), tightened by
-        # anycarrier Order 1 (2o5wka, backlog lsbd32) to require all same-gate carriers executed,
-        # converging onto runner_shared.evaluate_backlog_close.
+        # anycarrier Order 1 (2o5wka, backlog lsbd32) and kntbbc Order 1 (jykyqb).
         same_gate_carriers: List[Path] = []
+        all_carriers: List[Path] = []
         if item_id6:
             release_cache: Dict[str, Optional[Path]] = {}
             carrier_items = (
@@ -5690,6 +5691,7 @@ def evaluate_blocking_close(
                 if carrier_index is not None
                 else find_from_backlog_artifacts(repo_root, item_id6)
             )
+            all_carriers = [p for p, _br in carrier_items]
             for _p, carrier_br in carrier_items:
                 if _same_release(
                     repo_root, carrier_br, blocks_release, cache=release_cache
@@ -5702,9 +5704,7 @@ def evaluate_blocking_close(
                         return True
                 return _carrier_is_executed(c)
 
-            if same_gate_carriers and all(
-                _carrier_eval(_c) for _c in same_gate_carriers
-            ):
+            if same_gate_carriers and all(_carrier_eval(_c) for _c in all_carriers):
                 return CloseVerdict(
                     True,
                     "ok",
@@ -5726,7 +5726,10 @@ def evaluate_blocking_close(
             )
         # If same-gate carriers exist but none is executed, give the graduated-first refusal (E-04).
         if same_gate_carriers:
-            carrier_list = ", ".join(p.name for p in same_gate_carriers)
+            non_terminal = [c for c in all_carriers if not _carrier_eval(c)]
+            carrier_list = ", ".join(
+                p.name for p in (non_terminal or same_gate_carriers)
+            )
             return CloseVerdict(
                 False,
                 "error",
@@ -6507,9 +6510,12 @@ def check_release_gate_consistency(
                             boundary_desc = "no cutover configured"
 
                         if same_gate_carriers:
-                            cohort_desc = (
-                                "same-gate carrier(s) present but not all executed"
-                            )
+                            if all(_carrier_is_executed(p) for p in same_gate_carriers):
+                                cohort_desc = "same-gate carrier(s) executed but a sibling carrier is not"
+                            else:
+                                cohort_desc = (
+                                    "same-gate carrier(s) present but not all executed"
+                                )
                         else:
                             cohort_desc = "no same-gate carrier"
 
@@ -6770,8 +6776,9 @@ def release_gate_warnings(repo_root: Path) -> List[_core.Drift]:
     # Note: this index is PLANS-ONLY (_iter_plan_ipds plus From-Backlog), so a spec
     # carrier produces no warning here. This asymmetry is deliberate (E-05): the predicate
     # is spec-aware, but widening this advisory is a separate behavior change.
-    # We record whether ALL same-gate plans are executed (closescope 2a6phj E-05, anycarrier 2o5wka E-05).
+    # We record whether ALL same-gate plans are executed and whether ALL plans are executed (closescope 2a6phj E-05, anycarrier 2o5wka E-05, kntbbc jykyqb E-05).
     plan_gates_by_backlog: Dict[str, Dict[str, bool]] = {}
+    all_plans_executed_by_backlog: Dict[str, bool] = {}
     for _p, text in _iter_plan_ipds(repo_root):
         backlog_id = _from_backlog_value(text)
         if not backlog_id:
@@ -6780,6 +6787,9 @@ def release_gate_warnings(repo_root: Path) -> List[_core.Drift]:
         is_exec = _carrier_is_executed(_p)
         gates_map = plan_gates_by_backlog.setdefault(backlog_id, {})
         gates_map[gate] = gates_map.get(gate, True) and is_exec
+        all_plans_executed_by_backlog[backlog_id] = (
+            all_plans_executed_by_backlog.get(backlog_id, True) and is_exec
+        )
 
     warnings: List[_core.Drift] = []
     for f in _backlog._iter_items(repo_root):
@@ -6794,8 +6804,9 @@ def release_gate_warnings(repo_root: Path) -> List[_core.Drift]:
         if not item_gate or not _id6:
             continue
         gates_map = plan_gates_by_backlog.get(_id6)
+        all_plans_exec = all_plans_executed_by_backlog.get(_id6, False)
         if gates_map is not None and item_gate in gates_map:
-            if gates_map[item_gate]:
+            if gates_map[item_gate] and all_plans_exec:
                 # Executed carrier: remedy advises closing done with the corrected --status spelling (F-9)
                 warnings.append(
                     _core.Drift(

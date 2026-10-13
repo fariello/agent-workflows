@@ -36,72 +36,72 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: baseline
 
-- [ ] E-01 REPRODUCE THE DIVERGENCE AND CAPTURE A SUITE BASELINE at the executing HEAD, before any edit. (a) On a `git init` scratch repo (a resolvable `next` release record, a `graduated` item gated `next`, one EXECUTED carrier gated `next`, one PENDING carrier with `- From-Backlog:` and NO `- Blocks-Release:` line), call `check_engine.evaluate_blocking_close(repo, item, "done")` and `runner_shared.evaluate_backlog_close(repo, item_id6, [])` and record both verdicts. (b) Run the full suite BARE (`python3 -m pytest`, no added flags) and save the sorted `FAILED` lines to a scratch file as the pre-edit failure set.
+- [x] E-01 REPRODUCE THE DIVERGENCE AND CAPTURE A SUITE BASELINE at the executing HEAD, before any edit. (a) On a `git init` scratch repo (a resolvable `next` release record, a `graduated` item gated `next`, one EXECUTED carrier gated `next`, one PENDING carrier with `- From-Backlog:` and NO `- Blocks-Release:` line), call `check_engine.evaluate_blocking_close(repo, item, "done")` and `runner_shared.evaluate_backlog_close(repo, item_id6, [])` and record both verdicts. (b) Run the full suite BARE (`python3 -m pytest`, no added flags) and save the sorted `FAILED` lines to a scratch file as the pre-edit failure set.
   - Depends on: none
   - Expected outcome: `evaluate_blocking_close` returns `legitimate=True, path='HANDOFF'`; `evaluate_backlog_close` returns `close=False` naming the pending carrier. A pre-edit failure set exists for E-10 to compare against.
   - STOP CONDITION: if the two verdicts already AGREE (both refuse), another change has landed the fix; report and stop rather than editing.
   - The baseline failure set is NOT expected to be empty. Measured at authoring (HEAD `f8452a0be`, this lane): `38 failed, 7181 passed, 2 skipped`, all 38 in modules unrelated to release gates (for example `tests/test_no_project_exit_is_cannot_run.py`, `tests/test_read_class_callers_refuse.py`, `tests/test_finalize_sendback.py`). The bar is "no NEW failure", not "green".
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: tests first (they must fail before the fix)
 
-- [ ] E-02 ADD HANDOFF-ARM CASES to `tests/test_backlog_handoff_close.py` (class `BacklogHandoffCloseBehaviorTests`, reusing `_write_backlog_item`, `_write_plan`, `_write_spec`, whose `blocks_release=None` already omits the line). Each case drives `cli.main(["backlog", "set", "item01", "--status", "done", "--dir", ..., "--message", "close"])` and/or `check_engine.evaluate_blocking_close`, asserting exit code, the item's resulting directory, stderr and `verdict.path`/`verdict.legitimate`: (1) executed same-gate plan + PENDING UNGATED plan -> refused rc 1, item still in `graduated/`, stderr names the ungated plan's id; and in the same case assert `runner_shared.evaluate_backlog_close(self.repo, "item01", [])` is `close=False`, so the convergence is pinned by outcome; (2) executed same-gate plan + EXECUTED UNGATED plan -> allowed rc 0, `path == "HANDOFF"`, item in `done/`; (3) executed same-gate plan + PENDING plan gated to a DIFFERENT release value -> refused; (4) executed same-gate plan + UNGATED spec in `approved/` with `- Status: approved` -> refused, and the same with `- Status: implemented` -> allowed; (5) ONLY an executed UNGATED plan, no same-gate carrier -> still refused (unchanged entry condition); (6) executed same-gate plan + UNGATED plan in `superseded/` (`_write_plan(..., bucket="superseded", status="superseded", blocks_release=None)`) -> refused, stderr names the superseded plan, and `aw backlog set done item01 --blocks-release - ...` (DE-GATED) on the same tree -> allowed rc 0. Case (6) pins the OQ-01(c) decision that a retired sibling counts as unfinished, exactly as a retired SAME-gate carrier already does today and as the runner does. Each docstring cites `kntbbc` and states that cases (1), (3), (4-refused) and (6-refused) deliberately tighten the `2o5wka` same-gate rule.
+- [x] E-02 ADD HANDOFF-ARM CASES to `tests/test_backlog_handoff_close.py` (class `BacklogHandoffCloseBehaviorTests`, reusing `_write_backlog_item`, `_write_plan`, `_write_spec`, whose `blocks_release=None` already omits the line). Each case drives `cli.main(["backlog", "set", "item01", "--status", "done", "--dir", ..., "--message", "close"])` and/or `check_engine.evaluate_blocking_close`, asserting exit code, the item's resulting directory, stderr and `verdict.path`/`verdict.legitimate`: (1) executed same-gate plan + PENDING UNGATED plan -> refused rc 1, item still in `graduated/`, stderr names the ungated plan's id; and in the same case assert `runner_shared.evaluate_backlog_close(self.repo, "item01", [])` is `close=False`, so the convergence is pinned by outcome; (2) executed same-gate plan + EXECUTED UNGATED plan -> allowed rc 0, `path == "HANDOFF"`, item in `done/`; (3) executed same-gate plan + PENDING plan gated to a DIFFERENT release value -> refused; (4) executed same-gate plan + UNGATED spec in `approved/` with `- Status: approved` -> refused, and the same with `- Status: implemented` -> allowed; (5) ONLY an executed UNGATED plan, no same-gate carrier -> still refused (unchanged entry condition); (6) executed same-gate plan + UNGATED plan in `superseded/` (`_write_plan(..., bucket="superseded", status="superseded", blocks_release=None)`) -> refused, stderr names the superseded plan, and `aw backlog set done item01 --blocks-release - ...` (DE-GATED) on the same tree -> allowed rc 0. Case (6) pins the OQ-01(c) decision that a retired sibling counts as unfinished, exactly as a retired SAME-gate carrier already does today and as the runner does. Each docstring cites `kntbbc` and states that cases (1), (3), (4-refused) and (6-refused) deliberately tighten the `2o5wka` same-gate rule.
   - Depends on: E-01
   - Expected outcome: run before E-04, cases (1), (3), (4-refused) and (6-refused) FAIL and cases (2), (4-allowed), (5) and (6-DE-GATED) PASS.
   - Case (3) needs no release record for the other value: `_same_release` falls back to string equality when a value does not resolve, so `blocks_release="other"` is a different gate.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 ADD ADVISORY CASES to `tests/test_check_engine_release_gate.py`. (a) Beside `test_release_gate_warnings_multi_carrier_all_executed_remedy`: an `open` item gated `next` with an EXECUTED plan gated `next` and a PENDING plan with no `- Blocks-Release:` -> `check_engine.release_gate_warnings(repo)` yields one `check.orphaned-live-blocker` whose detail contains `--status graduated` and not `--status done`. (b) Beside `test_rule_blocking_close_grandfathered_cohort_details` (the "heh05a E-05 case 8" test): a `done` item gated `next` with an EXECUTED same-gate plan and a PENDING ungated plan, under the same cutover config, -> `check_engine.check_release_gates(repo, grandfathered=True)` reports one `check.blocking-close-grandfathered` whose detail contains `cohort: same-gate carrier(s) executed but a sibling carrier is not`.
+- [x] E-03 ADD ADVISORY CASES to `tests/test_check_engine_release_gate.py`. (a) Beside `test_release_gate_warnings_multi_carrier_all_executed_remedy`: an `open` item gated `next` with an EXECUTED plan gated `next` and a PENDING plan with no `- Blocks-Release:` -> `check_engine.release_gate_warnings(repo)` yields one `check.orphaned-live-blocker` whose detail contains `--status graduated` and not `--status done`. (b) Beside `test_rule_blocking_close_grandfathered_cohort_details` (the "heh05a E-05 case 8" test): a `done` item gated `next` with an EXECUTED same-gate plan and a PENDING ungated plan, under the same cutover config, -> `check_engine.check_release_gates(repo, grandfathered=True)` reports one `check.blocking-close-grandfathered` whose detail contains `cohort: same-gate carrier(s) executed but a sibling carrier is not`.
   - Depends on: E-02
   - Expected outcome: before E-04/E-05/E-06, (a) FAILS (today the advice is `--status done`) and (b) FAILS (today no finding is emitted because the close is judged legitimate).
   - Do NOT change the existing case 8 assertions: the two existing cohort strings stay byte-identical (E-06).
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: the predicate and its two advisory consumers
 
-- [ ] E-04 WIDEN THE HANDOFF ARM in `check_engine.evaluate_blocking_close`. In the block under the comment `# HANDOFF: EVERY From-Backlog PLAN or SPEC with the SAME Blocks-Release must be EXECUTED/IMPLEMENTED.`, keep building `same_gate_carriers` exactly as today, additionally keep `all_carriers = [p for p, _br in carrier_items]`, and change the legitimacy test to `same_gate_carriers and all(_carrier_eval(c) for c in all_carriers)`. In the not-shipped refusal (the `if same_gate_carriers:` block), list the carriers that are NOT terminal (computed with the same `_carrier_eval`), not only the same-gate ones, and keep its three fixes unchanged. Update the docstring's `HANDOFF` line and the arm's comment to state: at least one same-gate carrier exists AND every From-Backlog carrier, gated or not, is executed/implemented, matching `runner_shared.evaluate_backlog_close` (backlog `kntbbc`).
+- [x] E-04 WIDEN THE HANDOFF ARM in `check_engine.evaluate_blocking_close`. In the block under the comment `# HANDOFF: EVERY From-Backlog PLAN or SPEC with the SAME Blocks-Release must be EXECUTED/IMPLEMENTED.`, keep building `same_gate_carriers` exactly as today, additionally keep `all_carriers = [p for p, _br in carrier_items]`, and change the legitimacy test to `same_gate_carriers and all(_carrier_eval(c) for c in all_carriers)`. In the not-shipped refusal (the `if same_gate_carriers:` block), list the carriers that are NOT terminal (computed with the same `_carrier_eval`), not only the same-gate ones, and keep its three fixes unchanged. Update the docstring's `HANDOFF` line and the arm's comment to state: at least one same-gate carrier exists AND every From-Backlog carrier, gated or not, is executed/implemented, matching `runner_shared.evaluate_backlog_close` (backlog `kntbbc`).
   - Depends on: E-03
   - Expected outcome: E-02's cases all pass. `carrier_items` is reused, so no new `find_from_backlog_artifacts` call is introduced (the single-item contract enforced by `tests/test_carrier_scan_single_item_contract.py` is untouched). The lane override still applies, because `_carrier_eval` is what iterates.
   - Do NOT change arm order (DE-GATED, HANDOFF, SATISFIED, refusals), `_same_release`, `_carrier_is_executed`, `_lane_carrier_is_executed`, or the verdict's `reason` string on the success path (`jf3j4q` recorded it as machine-consumed and deliberately left alone).
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 ALIGN `check_engine.release_gate_warnings`. Alongside `plan_gates_by_backlog`, accumulate per backlog id6 whether EVERY From-Backlog plan (any gate) is executed, and emit the `--status done` advice only when `gates_map[item_gate]` AND that all-plans flag are both true; otherwise emit the existing `--status graduated` advice. Keep the function plans-only and keep its single `_iter_plan_ipds` walk.
+- [x] E-05 ALIGN `check_engine.release_gate_warnings`. Alongside `plan_gates_by_backlog`, accumulate per backlog id6 whether EVERY From-Backlog plan (any gate) is executed, and emit the `--status done` advice only when `gates_map[item_gate]` AND that all-plans flag are both true; otherwise emit the existing `--status graduated` advice. Keep the function plans-only and keep its single `_iter_plan_ipds` walk.
   - Depends on: E-04
   - Expected outcome: E-03(a) passes; `test_release_gate_warnings_multi_carrier_all_executed_remedy` and every other existing warning test still pass.
   - WHY: without this, `aw check` would advise `aw backlog set <id6> --status done`, exactly the command E-04 now refuses, which is the "advises the route that refuses" defect `2o5wka` E-05 already fixed once in this function.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-06 ADD THE THIRD GRANDFATHERED COHORT in `check_engine.check_release_gate_consistency`'s grandfathered arm. Where `cohort_desc` is chosen, distinguish: no same-gate carrier -> existing `"no same-gate carrier"`; same-gate carriers present and not all executed -> existing `"same-gate carrier(s) present but not all executed"`; same-gate carriers all executed (so the refusal came from a sibling) -> new `"same-gate carrier(s) executed but a sibling carrier is not"`. Use `_carrier_is_executed`, reusing the `carrier_items` already read from `shared_carrier_idx`.
+- [x] E-06 ADD THE THIRD GRANDFATHERED COHORT in `check_engine.check_release_gate_consistency`'s grandfathered arm. Where `cohort_desc` is chosen, distinguish: no same-gate carrier -> existing `"no same-gate carrier"`; same-gate carriers present and not all executed -> existing `"same-gate carrier(s) present but not all executed"`; same-gate carriers all executed (so the refusal came from a sibling) -> new `"same-gate carrier(s) executed but a sibling carrier is not"`. Use `_carrier_is_executed`, reusing the `carrier_items` already read from `shared_carrier_idx`.
   - Depends on: E-05
   - Expected outcome: E-03(b) passes and the existing case 8 test still passes with its two strings unchanged.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 4: prose
 
-- [ ] E-07 UPDATE THE REPO-LOCAL RULE STATEMENTS. (a) `AGENTS.md`, the paragraph beginning "Close-legitimacy rule for a release-blocking backlog item" (BELOW `<!-- /aw:block -->`; anchor on that quoted string, not a line number, and make no edit inside any `<!-- aw:` block): fix (1) currently reads "HANDOFF, EVERY same-gate carrier (From-Backlog plan or spec) carrying `- From-Backlog: <this id6>` and the same `- Blocks-Release: <R>` must be executed or implemented"; restate it as: at least one carrier carrying `- From-Backlog: <this id6>` and the same `- Blocks-Release: <R>` must exist, and EVERY From-Backlog carrier of the item, whatever its gate, must be executed or implemented. Keep the "multi-carrier item stays `graduated`" clause. (b) `.aw/records/backlog/README.md`, the sentence containing "once every same-gate carrier executes": change it to "once every From-Backlog carrier, gated or not, executes". User-facing prose: no em or en dashes.
+- [x] E-07 UPDATE THE REPO-LOCAL RULE STATEMENTS. (a) `AGENTS.md`, the paragraph beginning "Close-legitimacy rule for a release-blocking backlog item" (BELOW `<!-- /aw:block -->`; anchor on that quoted string, not a line number, and make no edit inside any `<!-- aw:` block): fix (1) currently reads "HANDOFF, EVERY same-gate carrier (From-Backlog plan or spec) carrying `- From-Backlog: <this id6>` and the same `- Blocks-Release: <R>` must be executed or implemented"; restate it as: at least one carrier carrying `- From-Backlog: <this id6>` and the same `- Blocks-Release: <R>` must exist, and EVERY From-Backlog carrier of the item, whatever its gate, must be executed or implemented. Keep the "multi-carrier item stays `graduated`" clause. (b) `.aw/records/backlog/README.md`, the sentence containing "once every same-gate carrier executes": change it to "once every From-Backlog carrier, gated or not, executes". User-facing prose: no em or en dashes.
   - Depends on: E-06
   - Expected outcome: neither file contains the phrase "every same-gate carrier" / "EVERY same-gate carrier" any more; `git diff AGENTS.md` shows no line inside an `aw:` managed block changed.
   - CO-EDITOR: pending `ncmugb` (backlog `7lfe87`) declares `AGENTS.md` and `.aw/records/backlog/README.md` and edits the SATISFIED fix (2) wording. This item owns fix (1) only. If fix (2) has already been rewritten, that is `ncmugb` landing first: leave it.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-08 UPDATE THE SHIPPED AND INSTALLED PROSE SITES that say "EVERY same-gate": (a) both occurrences in `agent_workflows/engine.py` (`_BACKLOG_CLOSE_GATE_PRECOMMIT_TEMPLATE` and `_BACKLOG_CLOSE_GATE_PRECOMMIT_BLOCK`), changing "HANDOFF: EVERY same-gate From-Backlog carrier (plan or spec)" to "HANDOFF: a same-gate From-Backlog carrier exists and EVERY From-Backlog carrier (plan or spec), gated or not,"; (b) the `cli.py` `_DESCRIPTIONS["backlog-blocking-close-gate"]` text "HANDOFF: EVERY same-gate From-Backlog carrier executed or implemented" to "HANDOFF: a same-gate From-Backlog carrier exists and EVERY From-Backlog carrier, gated or not, is executed or implemented"; (c) the `agent_workflows/hooks/backlog_blocking_close_gate.py` module docstring clause "HANDOFF (EVERY same-gate `From-Backlog` carrier present in the staged tree with the same `Blocks-Release` must be executed or implemented)" to say a same-gate carrier must exist and every `From-Backlog` carrier, gated or not, must be executed or implemented. Change ONLY the HANDOFF clause in each site (the `jf3j4q` boundary: leave the surrounding attribution, delegation and limits sentences untouched).
+- [x] E-08 UPDATE THE SHIPPED AND INSTALLED PROSE SITES that say "EVERY same-gate": (a) both occurrences in `agent_workflows/engine.py` (`_BACKLOG_CLOSE_GATE_PRECOMMIT_TEMPLATE` and `_BACKLOG_CLOSE_GATE_PRECOMMIT_BLOCK`), changing "HANDOFF: EVERY same-gate From-Backlog carrier (plan or spec)" to "HANDOFF: a same-gate From-Backlog carrier exists and EVERY From-Backlog carrier (plan or spec), gated or not,"; (b) the `cli.py` `_DESCRIPTIONS["backlog-blocking-close-gate"]` text "HANDOFF: EVERY same-gate From-Backlog carrier executed or implemented" to "HANDOFF: a same-gate From-Backlog carrier exists and EVERY From-Backlog carrier, gated or not, is executed or implemented"; (c) the `agent_workflows/hooks/backlog_blocking_close_gate.py` module docstring clause "HANDOFF (EVERY same-gate `From-Backlog` carrier present in the staged tree with the same `Blocks-Release` must be executed or implemented)" to say a same-gate carrier must exist and every `From-Backlog` carrier, gated or not, must be executed or implemented. Change ONLY the HANDOFF clause in each site (the `jf3j4q` boundary: leave the surrounding attribution, delegation and limits sentences untouched).
   - Depends on: E-07
   - Expected outcome: `grep -rn "EVERY same-gate" agent_workflows` returns nothing; `tests/test_backlog_close_gate_prose.py` passes unchanged (its regexes `HANDOFF[^)]*\bEVERY\b[^)]*From-Backlog` and `HANDOFF:[^)]*\bEVERY\b[^)]*From-Backlog` still match because no `)` precedes `EVERY` in the new text).
   - INSTALL SURFACE: (a) is written into every managed target that opts into the hook, so keep the edit to the clause. The new wording must keep a `)`-free run from `HANDOFF` through `EVERY` to `From-Backlog`; re-run the prose test rather than assuming.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-09 ADD ONE `CHANGELOG.md` LINE under the pending `2.0.0` entry stating that `aw backlog set <item> --status done` on a release-gated item now also waits for any ungated or differently gated `From-Backlog` sibling plan or spec to execute, matching the runner's own close rule. User-facing prose: no em or en dashes.
+- [x] E-09 ADD ONE `CHANGELOG.md` LINE under the pending `2.0.0` entry stating that `aw backlog set <item> --status done` on a release-gated item now also waits for any ungated or differently gated `From-Backlog` sibling plan or spec to execute, matching the runner's own close rule. User-facing prose: no em or en dashes.
   - Depends on: E-08
   - Expected outcome: `git diff CHANGELOG.md` shows one added line in the pending section and nothing else.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 5: validate
 
-- [ ] E-10 RUN THE FULL SUITE BARE AND RE-MEASURE. (a) `python3 -m pytest` with no added flags; save its sorted `FAILED` lines and diff against E-01's set. (b) `aw check release-gates`, and `aw check --agent` before (at E-01) and after, compared as per-rule finding counts. (c) Re-run the corpus measurement: one pass over `backlog._iter_items` with `check_engine._from_backlog_carrier_index(repo)` built ONCE; for every item with a `- Blocks-Release:`, compute `old = bool(same) and all(_carrier_is_executed(p) for p in same)` and `new = bool(same) and all(_carrier_is_executed(p) for p, _ in carriers)` (where `same` filters by `_same_release`), and list items where `old != new`.
+- [x] E-10 RUN THE FULL SUITE BARE AND RE-MEASURE. (a) `python3 -m pytest` with no added flags; save its sorted `FAILED` lines and diff against E-01's set. (b) `aw check release-gates`, and `aw check --agent` before (at E-01) and after, compared as per-rule finding counts. (c) Re-run the corpus measurement: one pass over `backlog._iter_items` with `check_engine._from_backlog_carrier_index(repo)` built ONCE; for every item with a `- Blocks-Release:`, compute `old = bool(same) and all(_carrier_is_executed(p) for p in same)` and `new = bool(same) and all(_carrier_is_executed(p) for p, _ in carriers)` (where `same` filters by `_same_release`), and list items where `old != new`.
   - Depends on: E-09
   - Expected outcome: (a) the post-edit failure set equals or is a subset of the pre-edit set; (b) `aw check release-gates` CONFORMS with 0 errors, and `aw check` shows no rule of the release-gate family (`check.blocking-*`, `check.from-backlog-*`, `check.orphaned-live-blocker`) whose count rose. `aw check` as a whole is NOT expected to exit 0: at review it already reported `findings`, exit 1, 123 findings from unrelated rules (e.g. 72 `check.lifecycle-transition-unvalidated`); (c) zero items flip (the gated-item count is live: 473 at authoring, 479 at review, both 0 flips). Measured at authoring with a prototype of E-04 (reverted): the bare suite produced the identical 38-failure set before and after, and 0 of 473 gated items changed verdict (`done` 321 legitimate / 105 not, unchanged). The only gated items with an ungated carrier at all are `1f9m2j`, `hyx1dg`, `t156g1`, each `done` with a single EXECUTED ungated carrier and no same-gate carrier, whose verdict E-04 does not change.
   - STOP CONDITION: any NEW failing test, or any flipped historical verdict that `aw check release-gates` now reports as an error, means report rather than adjust tests.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -182,55 +182,405 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: PASTE the fixture script and both verdicts side by side (`evaluate_blocking_close` -> `legitimate=True path='HANDOFF'`, `evaluate_backlog_close` -> `close=False` with the pending carrier named), produced by the E-01 script calling those two functions. PASTE the pre-edit bare-suite summary line and the count of saved FAILED lines. Agreeing verdicts fail this item.
   - Observed evidence:
-  - Result: pending
+    ```python
+    import tempfile
+    from pathlib import Path
+    from agent_workflows import check_engine, runner_shared
+    from tests.test_backlog_handoff_close import _make_scratch_repo, _write_backlog_item, _write_plan
 
-- [ ] V-02 validates E-02
+    with tempfile.TemporaryDirectory() as tmp:
+    repo = _make_scratch_repo(Path(tmp))
+    # a graduated item gated next
+    item = _write_backlog_item(repo, "item01", status="graduated", blocks_release="next")
+    # one EXECUTED carrier gated next
+    p_exec = _write_plan(repo, "plan01", bucket="executed", status="executed", from_backlog="item01", blocks_release="next")
+    # one PENDING carrier with - From-Backlog: and NO - Blocks-Release: line
+    p_pend = _write_plan(repo, "plan02", bucket="pending", status="approved", from_backlog="item01", blocks_release=None)
+
+    v1 = check_engine.evaluate_blocking_close(repo, item, "done")
+    v2 = runner_shared.evaluate_backlog_close(repo, "item01", [])
+
+    print(f"evaluate_blocking_close -> legitimate={v1.legitimate} path={v1.path!r} reason={v1.reason!r}")
+    print(f"evaluate_backlog_close  -> close={v2.close} reason={v2.reason!r}")
+    ```
+    Output:
+    ```
+    evaluate_blocking_close -> legitimate=True path='HANDOFF' reason="gate 'next' handed off to a From-Backlog plan or spec"
+    evaluate_backlog_close  -> close=False reason='IPD carrier(s) not executed: .aw/records/plans/pending/20260926-testset-01-plan02-test-plan.ipd.md'
+    ```
+    Pre-edit bare suite summary line:
+    ```
+    7931 passed, 4 skipped, 18 xfailed, 3 warnings in 957.98s (0:15:57)
+    ```
+    Count of saved FAILED lines:
+    ```
+    0 /tmp/pytest_baseline_failed.txt
+    ```
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: PASTE `python3 -m pytest -o addopts="" tests/test_backlog_handoff_close.py -v` output run BEFORE E-04 showing cases (1), (3), (4-refused), (6-refused) failing and (2), (4-allowed), (5), (6-DE-GATED) passing; then the same command AFTER E-04 showing all passing. Paste the new test names.
   - Observed evidence:
-  - Result: pending
+    BEFORE E-04:
+    ```
+    tests/test_backlog_handoff_close.py::BacklogHandoffCloseBehaviorTests::test_kntbbc_case_6_refused_executed_same_gate_superseded_ungated_plan FAILED [ 12%]
+    tests/test_backlog_handoff_close.py::BacklogHandoffCloseBehaviorTests::test_kntbbc_case_1_executed_same_gate_pending_ungated_refused FAILED [ 25%]
+    tests/test_backlog_handoff_close.py::BacklogHandoffCloseBehaviorTests::test_kntbbc_case_4_refused_executed_same_gate_approved_ungated_spec FAILED [ 37%]
+    tests/test_backlog_handoff_close.py::BacklogHandoffCloseBehaviorTests::test_kntbbc_case_4_allowed_executed_same_gate_implemented_ungated_spec PASSED [ 50%]
+    tests/test_backlog_handoff_close.py::BacklogHandoffCloseBehaviorTests::test_kntbbc_case_2_executed_same_gate_executed_ungated_allowed PASSED [ 62%]
+    tests/test_backlog_handoff_close.py::BacklogHandoffCloseBehaviorTests::test_kntbbc_case_5_only_executed_ungated_plan_refused PASSED [ 75%]
+    tests/test_backlog_handoff_close.py::BacklogHandoffCloseBehaviorTests::test_kntbbc_case_6_degated_executed_same_gate_superseded_ungated_plan_allowed PASSED [ 87%]
+    tests/test_backlog_handoff_close.py::BacklogHandoffCloseBehaviorTests::test_kntbbc_case_3_executed_same_gate_pending_different_gate_refused FAILED [100%]
+    =========================== short test summary info ============================
+    FAILED tests/test_backlog_handoff_close.py::BacklogHandoffCloseBehaviorTests::test_kntbbc_case_6_refused_executed_same_gate_superseded_ungated_plan
+    FAILED tests/test_backlog_handoff_close.py::BacklogHandoffCloseBehaviorTests::test_kntbbc_case_1_executed_same_gate_pending_ungated_refused
+    FAILED tests/test_backlog_handoff_close.py::BacklogHandoffCloseBehaviorTests::test_kntbbc_case_4_refused_executed_same_gate_approved_ungated_spec
+    FAILED tests/test_backlog_handoff_close.py::BacklogHandoffCloseBehaviorTests::test_kntbbc_case_3_executed_same_gate_pending_different_gate_refused
+    ================== 4 failed, 4 passed, 32 deselected in 3.55s ==================
+    ```
+    AFTER E-04:
+    ```
+    tests/test_backlog_handoff_close.py::BacklogHandoffCloseBehaviorTests::test_kntbbc_case_2_executed_same_gate_executed_ungated_allowed PASSED [ 12%]
+    tests/test_backlog_handoff_close.py::BacklogHandoffCloseBehaviorTests::test_kntbbc_case_4_refused_executed_same_gate_approved_ungated_spec PASSED [ 25%]
+    tests/test_backlog_handoff_close.py::BacklogHandoffCloseBehaviorTests::test_kntbbc_case_4_allowed_executed_same_gate_implemented_ungated_spec PASSED [ 37%]
+    tests/test_backlog_handoff_close.py::BacklogHandoffCloseBehaviorTests::test_kntbbc_case_6_degated_executed_same_gate_superseded_ungated_plan_allowed PASSED [ 50%]
+    tests/test_backlog_handoff_close.py::BacklogHandoffCloseBehaviorTests::test_kntbbc_case_1_executed_same_gate_pending_ungated_refused PASSED [ 62%]
+    tests/test_backlog_handoff_close.py::BacklogHandoffCloseBehaviorTests::test_kntbbc_case_6_refused_executed_same_gate_superseded_ungated_plan PASSED [ 75%]
+    tests/test_backlog_handoff_close.py::BacklogHandoffCloseBehaviorTests::test_kntbbc_case_5_only_executed_ungated_plan_refused PASSED [ 87%]
+    tests/test_backlog_handoff_close.py::BacklogHandoffCloseBehaviorTests::test_kntbbc_case_3_executed_same_gate_pending_different_gate_refused PASSED [100%]
+    ======================= 8 passed, 32 deselected in 4.36s =======================
+    ```
+    New test names:
+    - test_kntbbc_case_1_executed_same_gate_pending_ungated_refused
+    - test_kntbbc_case_2_executed_same_gate_executed_ungated_allowed
+    - test_kntbbc_case_3_executed_same_gate_pending_different_gate_refused
+    - test_kntbbc_case_4_refused_executed_same_gate_approved_ungated_spec
+    - test_kntbbc_case_4_allowed_executed_same_gate_implemented_ungated_spec
+    - test_kntbbc_case_5_only_executed_ungated_plan_refused
+    - test_kntbbc_case_6_refused_executed_same_gate_superseded_ungated_plan
+    - test_kntbbc_case_6_degated_executed_same_gate_superseded_ungated_plan_allowed
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: PASTE `python3 -m pytest -o addopts="" tests/test_check_engine_release_gate.py -v -k "<new test names>"` BEFORE E-04 showing both new cases failing, and AFTER E-06 showing both passing.
   - Observed evidence:
-  - Result: pending
+    BEFORE E-04:
+    ```
+    FAILED tests/test_check_engine_release_gate.py::TestCheckEngineReleaseGate::test_release_gate_warnings_executed_same_gate_pending_ungated_advises_graduated
+    FAILED tests/test_check_engine_release_gate.py::TestCheckEngineReleaseGate::test_rule_blocking_close_grandfathered_cohort_sibling_not_executed
+    ======================= 2 failed, 50 deselected in 0.67s =======================
+    ```
+    AFTER E-06:
+    ```
+    tests/test_check_engine_release_gate.py::TestCheckEngineReleaseGate::test_rule_blocking_close_grandfathered_cohort_sibling_not_executed PASSED [ 50%]
+    tests/test_check_engine_release_gate.py::TestCheckEngineReleaseGate::test_release_gate_warnings_executed_same_gate_pending_ungated_advises_graduated PASSED [100%]
+    ======================= 2 passed, 50 deselected in 0.59s =======================
+    ```
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: PASTE the `git diff` hunk of `evaluate_blocking_close` showing the all-carrier legitimacy test, the unchanged same-gate entry condition, the refusal listing non-terminal carriers, and unchanged arm order. RE-RUN V-01's fixture script and paste both verdicts now AGREEING (`legitimate=False`, `close=False`). PASTE `python3 -m pytest -o addopts="" tests/test_carrier_scan_single_item_contract.py` passing.
   - Observed evidence:
-  - Result: pending
+    Diff hunk:
+    ```diff
+    @@ -5678,11 +5678,12 @@ def evaluate_blocking_close(
+             return CloseVerdict(
+                 True, "ok", "no release gate to preserve", (), "DE-GATED"
+             )
+    -        # HANDOFF: EVERY From-Backlog PLAN or SPEC with the SAME Blocks-Release must be EXECUTED/IMPLEMENTED.
+    +        # HANDOFF: at least one same-gate carrier exists AND every From-Backlog carrier, gated or not,
+    +        # is executed/implemented, matching runner_shared.evaluate_backlog_close (backlog kntbbc).
+         # Maintainer ruling 2026-09-26 (OQ-01, backlog rwhbci, closescope 2a6phj), tightened by
+    -        # anycarrier Order 1 (2o5wka, backlog lsbd32) to require all same-gate carriers executed,
+    -        # converging onto runner_shared.evaluate_backlog_close.
+    +        # anycarrier Order 1 (2o5wka, backlog lsbd32) and kntbbc Order 1 (jykyqb).
+         same_gate_carriers: List[Path] = []
+    +        all_carriers: List[Path] = []
+         if item_id6:
+             release_cache: Dict[str, Optional[Path]] = {}
+             carrier_items = (
+    @@ -5690,6 +5691,7 @@ def evaluate_blocking_close(
+                 if carrier_index is not None
+                 else find_from_backlog_artifacts(repo_root, item_id6)
+             )
+    +            all_carriers = [p for p, _br in carrier_items]
+             for _p, carrier_br in carrier_items:
+                 if _same_release(
+                     repo_root, carrier_br, blocks_release, cache=release_cache
+    @@ -5703,7 +5705,7 @@ def evaluate_blocking_close(
+                 return _carrier_is_executed(c)
 
-- [ ] V-05 validates E-05
+             if same_gate_carriers and all(
+    -                _carrier_eval(_c) for _c in same_gate_carriers
+    +                _carrier_eval(_c) for _c in all_carriers
+             ):
+                 return CloseVerdict(
+                     True,
+    @@ -5726,7 +5728,8 @@ def evaluate_blocking_close(
+             )
+         # If same-gate carriers exist but none is executed, give the graduated-first refusal (E-04).
+         if same_gate_carriers:
+    -            carrier_list = ", ".join(p.name for p in same_gate_carriers)
+    +            non_terminal = [c for c in all_carriers if not _carrier_eval(c)]
+    +            carrier_list = ", ".join(p.name for p in (non_terminal or same_gate_carriers))
+             return CloseVerdict(
+                 False,
+                 "error",
+    ```
+    Fixture script re-run (agreeing):
+    ```
+    evaluate_blocking_close -> legitimate=False path=None reason="gate 'next' is handed off to From-Backlog carrier(s) (20260926-testset-01-plan02-test-plan.ipd.md) but the work has not shipped (carrier is not executed/implemented)"
+    evaluate_backlog_close  -> close=False reason='IPD carrier(s) not executed: .aw/records/plans/pending/20260926-testset-01-plan02-test-plan.ipd.md'
+    ```
+    Single item contract test:
+    ```
+    ============================== 9 passed in 16.67s ==============================
+    ```
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: PASTE the `release_gate_warnings` diff hunk and the pytest output for every `release_gate_warnings` test in `tests/test_check_engine_release_gate.py` (`-k release_gate_warnings`), all passing.
   - Observed evidence:
-  - Result: pending
+    Diff hunk:
+    ```diff
+    @@ -6773,8 +6773,9 @@ def release_gate_warnings(repo_root: Path) -> List[_core.Drift]:
+     # Note: this index is PLANS-ONLY (_iter_plan_ipds plus From-Backlog), so a spec
+     # carrier produces no warning here. This asymmetry is deliberate (E-05): the predicate
+     # is spec-aware, but widening this advisory is a separate behavior change.
+    -    # We record whether ALL same-gate plans are executed (closescope 2a6phj E-05, anycarrier 2o5wka E-05).
+    +    # We record whether ALL same-gate plans are executed and whether ALL plans are executed (closescope 2a6phj E-05, anycarrier 2o5wka E-05, kntbbc jykyqb E-05).
+     plan_gates_by_backlog: Dict[str, Dict[str, bool]] = {}
+    +    all_plans_executed_by_backlog: Dict[str, bool] = {}
+     for _p, text in _iter_plan_ipds(repo_root):
+         backlog_id = _from_backlog_value(text)
+         if not backlog_id:
+    @@ -6782,6 +6782,9 @@ def release_gate_warnings(repo_root: Path) -> List[_core.Drift]:
+         is_exec = _carrier_is_executed(_p)
+         gates_map = plan_gates_by_backlog.setdefault(backlog_id, {})
+         gates_map[gate] = gates_map.get(gate, True) and is_exec
+    +        all_plans_executed_by_backlog[backlog_id] = (
+    +            all_plans_executed_by_backlog.get(backlog_id, True) and is_exec
+    +        )
 
-- [ ] V-06 validates E-06
+     warnings: List[_core.Drift] = []
+     for f in _backlog._iter_items(repo_root):
+    @@ -6795,8 +6795,9 @@ def release_gate_warnings(repo_root: Path) -> List[_core.Drift]:
+         if not item_gate or not _id6:
+             continue
+         gates_map = plan_gates_by_backlog.get(_id6)
+    +        all_plans_exec = all_plans_executed_by_backlog.get(_id6, False)
+         if gates_map is not None and item_gate in gates_map:
+    -            if gates_map[item_gate]:
+    +            if gates_map[item_gate] and all_plans_exec:
+                 # Executed carrier: remedy advises closing done with the corrected --status spelling (F-9)
+                 warnings.append(
+    ```
+    Pytest output:
+    ```
+    tests/test_check_engine_release_gate.py::TestCheckEngineReleaseGate::test_release_gate_warnings_orphaned_live_blocker_remedy PASSED [ 33%]
+    tests/test_check_engine_release_gate.py::TestCheckEngineReleaseGate::test_release_gate_warnings_multi_carrier_all_executed_remedy PASSED [ 66%]
+    tests/test_check_engine_release_gate.py::TestCheckEngineReleaseGate::test_release_gate_warnings_executed_same_gate_pending_ungated_advises_graduated PASSED [100%]
+    ======================= 3 passed, 49 deselected in 0.71s =======================
+    ```
+  - Result: pass
+
+- [x] V-06 validates E-06
   - Required evidence: PASTE the cohort diff hunk showing both existing strings unchanged and the new one added, and the pytest output for the existing case 8 test and the new E-03(b) test, both passing.
   - Observed evidence:
-  - Result: pending
+    Diff hunk:
+    ```diff
+    @@ -6510,9 +6510,14 @@ def check_release_gate_consistency(
+                             boundary_desc = "no cutover configured"
 
-- [ ] V-07 validates E-07
+                         if same_gate_carriers:
+    -                            cohort_desc = (
+    -                                "same-gate carrier(s) present but not all executed"
+    -                            )
+    +                            if all(_carrier_is_executed(p) for p in same_gate_carriers):
+    +                                cohort_desc = (
+    +                                    "same-gate carrier(s) executed but a sibling carrier is not"
+    +                                )
+    +                            else:
+    +                                cohort_desc = (
+    +                                    "same-gate carrier(s) present but not all executed"
+    +                                )
+                         else:
+                             cohort_desc = "no same-gate carrier"
+    ```
+    Pytest output:
+    ```
+    tests/test_check_engine_release_gate.py::TestCheckEngineReleaseGate::test_rule_blocking_close_grandfathered_cohort_details PASSED [ 50%]
+    tests/test_check_engine_release_gate.py::TestCheckEngineReleaseGate::test_rule_blocking_close_grandfathered_cohort_sibling_not_executed PASSED [100%]
+    ======================= 2 passed, 50 deselected in 0.70s =======================
+    ```
+  - Result: pass
+
+- [x] V-07 validates E-07
   - Required evidence: PASTE `git diff AGENTS.md .aw/records/backlog/README.md`, plus `grep -n "<!-- /aw:block -->" AGENTS.md` and the edited paragraph's line number showing the edit is below the marker, plus `grep -rni "every same-gate carrier" AGENTS.md .aw/records/backlog/README.md` returning nothing.
   - Observed evidence:
-  - Result: pending
+    ```diff
+    diff --git a/.aw/records/backlog/README.md b/.aw/records/backlog/README.md
+    index f9152e13e..25b97082a 100644
+    --- a/.aw/records/backlog/README.md
+    +++ b/.aw/records/backlog/README.md
+    @@ -154,7 +154,7 @@ For the full ruling, rationale, and limits, see DECISIONS.md entry D161.
 
-- [ ] V-08 validates E-08
+     When a backlog item becomes committed execution work, author an IPD under `.aw/records/plans/pending/`,
+     then transition the item to `graduated` via `aw backlog set <item> --status graduated` with a history
+    -line citing the plan id. Once the plan executes (or, for a multi-carrier item, once every same-gate carrier executes), the item can be closed `done` via
+    +line citing the plan id. Once the plan executes (or, for a multi-carrier item, once every From-Backlog carrier, gated or not, executes), the item can be closed `done` via
+     `aw backlog set <item> --status done`. The backlog captured the intent; the plan owns execution.
+
+     Record what the item became with `--graduated-to <setid>`, the FORWARD half of the graduation link:
+    diff --git a/AGENTS.md b/AGENTS.md
+    index a3a66663c..6ed4ec303 100644
+    --- a/AGENTS.md
+    +++ b/AGENTS.md
+    @@ -227,8 +227,9 @@ rule nudge when a pending plan cites a spec without carrying the link.
+     Close-legitimacy rule for a release-blocking backlog item: both spellings of `aw backlog set`
+     (positional `aw backlog set done <item>` and flag `aw backlog set <item> --status done`) on an item carrying
+     `- Blocks-Release: <R>` FAIL CLOSED unless the gate is provably preserved or released via one of three
+    -fixes: (1) HANDOFF, EVERY same-gate carrier (From-Backlog plan or spec) carrying `- From-Backlog: <this id6>` and
+    -the same `- Blocks-Release: <R>` must be executed or implemented (set with `aw ipd set ... --from-backlog <id6>`);
+    +fixes: (1) HANDOFF, at least one carrier carrying `- From-Backlog: <this id6>` and the same
+    +`- Blocks-Release: <R>` must exist, and EVERY From-Backlog carrier of the item, whatever its gate,
+    +must be executed or implemented (set with `aw ipd set ... --from-backlog <id6>`);
+     a multi-carrier item stays `graduated` until the last carrier executes; (2) SATISFIED, a resolvable in-tree artifact citation
+     `aw backlog set done <item> --evidence <path>`; (3) DE-GATED, clear the gate first (or in the same call)
+     with `aw backlog set done <item> --blocks-release -`. Parking a blocker or demoting its priority is
+    ```
+    Lines:
+    `grep -n "<!-- /aw:block -->" AGENTS.md`: 125
+    `grep -n "Close-legitimacy rule for a release-blocking backlog item" AGENTS.md`: 227 (below marker)
+    `grep -rni "every same-gate carrier" AGENTS.md .aw/records/backlog/README.md`: empty output.
+  - Result: pass
+
+- [x] V-08 validates E-08
   - Required evidence: PASTE `git diff agent_workflows/engine.py agent_workflows/cli.py agent_workflows/hooks/backlog_blocking_close_gate.py` (HANDOFF clause only), `grep -rn "EVERY same-gate" agent_workflows` returning nothing, and `python3 -m pytest -o addopts="" tests/test_backlog_close_gate_prose.py -v` passing.
   - Observed evidence:
-  - Result: pending
+    ```diff
+    diff --git a/agent_workflows/cli.py b/agent_workflows/cli.py
+    index 27f62b711..5c1476822 100644
+    --- a/agent_workflows/cli.py
+    +++ b/agent_workflows/cli.py
+    @@ -682,7 +682,7 @@ _DESCRIPTIONS = {
+         "bypass-catcher for a hand-edit that skips 'aw backlog set done'. Inspects the staged diff and "
+         "delegates to the shared 'check_engine.evaluate_blocking_close' predicate (via the commit-scoped "
+         "'check.blocking-item-closed-without-gate' rule), reconstructing legitimacy from PERSISTED state "
+    -        "(HANDOFF: EVERY same-gate From-Backlog carrier executed or implemented; DE-GATED: Blocks-Release cleared), so the hook, setter, "
+    +        "(HANDOFF: a same-gate From-Backlog carrier exists and EVERY From-Backlog carrier, gated or not, is executed or implemented; DE-GATED: Blocks-Release cleared), so the hook, setter, "
+         "and 'aw check' never diverge. Gates the 'done' case only (park/demote warns are surfaced by "
+         "'aw check'/'aw attention'). LOCAL best-effort, OPT-IN only (--no-verify bypasses it; the "
+         "portable authority is the 'aw check' rule + CI); commit-scoped (historical done items "
+    diff --git a/agent_workflows/engine.py b/agent_workflows/engine.py
+    index 86a3915c8..60a0f850c 100755
+    --- a/agent_workflows/engine.py
+    +++ b/agent_workflows/engine.py
+    @@ -5851,7 +5851,7 @@ _BACKLOG_CLOSE_GATE_PRECOMMIT_TEMPLATE = """\
+     # hook below into your existing .pre-commit-config.yaml instead of this file.
+     repos:
+       # OPT-IN local guard (bklggrad f1dhht): refuse committing a release-blocking backlog item closed to
+    -  # `- Status: done` without a preserved-or-satisfied gate (HANDOFF: EVERY same-gate From-Backlog carrier (plan or spec)
+    +  # `- Status: done` without a preserved-or-satisfied gate (HANDOFF: a same-gate From-Backlog carrier exists and EVERY From-Backlog carrier (plan or spec), gated or not,
+       # must be executed or implemented, DE-GATED, or a persisted evidence citation). Delegates to the shared close-legitimacy
+       # predicate. LOCAL best-effort only (--no-verify bypasses it); the portable authority is the `aw check` rule + CI.
+       - repo: local
+    @@ -5867,7 +5867,7 @@ repos:
+     # The hook block to hand a user (or append) when a .pre-commit-config.yaml already exists.
+     _BACKLOG_CLOSE_GATE_PRECOMMIT_BLOCK = """\
+       # OPT-IN local guard (bklggrad f1dhht): refuse committing a release-blocking backlog item closed to
+    -  # `- Status: done` without a preserved-or-satisfied gate (HANDOFF: EVERY same-gate From-Backlog carrier (plan or spec)
+    +  # `- Status: done` without a preserved-or-satisfied gate (HANDOFF: a same-gate From-Backlog carrier exists and EVERY From-Backlog carrier (plan or spec), gated or not,
+       # must be executed or implemented, DE-GATED, or a persisted evidence citation). Delegates to the shared close-legitimacy
+       # predicate. LOCAL best-effort only (--no-verify bypasses it); the portable authority is the `aw check` rule + CI.
+       - repo: local
+    diff --git a/agent_workflows/hooks/backlog_blocking_close_gate.py b/agent_workflows/hooks/backlog_blocking_close_gate.py
+    index 72897b4e8..9e66f0839 100644
+    --- a/agent_workflows/hooks/backlog_blocking_close_gate.py
+    +++ b/agent_workflows/hooks/backlog_blocking_close_gate.py
+    @@ -16,8 +16,8 @@ diverge. Per OQ-01 the hook gates the fail-closed `done` case ONLY (blocking->pa
+     WARNs are surfaced by `aw check`/`aw attention`, not at commit time).
 
-- [ ] V-09 validates E-09
+     Commit-time legitimacy is reconstructed from PERSISTED state only (the predicate is called WITHOUT an
+    -`evidence=` arg): HANDOFF (EVERY same-gate `From-Backlog` carrier present in the staged tree with the
+    -same `Blocks-Release` must be executed or implemented) and DE-GATED (`Blocks-Release` absent from the
+    +`evidence=` arg): HANDOFF (a same-gate `From-Backlog` carrier present in the staged tree with the
+    +same `Blocks-Release` must exist and every `From-Backlog` carrier, gated or not, must be executed or implemented) and DE-GATED (`Blocks-Release` absent from the
+     staged item) are decidable from the staged tree. A transient `--evidence` CLI arg is NOT visible to the
+     hook, but the setter now durably persists the citation as a `- Close-Evidence:` bullet (gateatrest
+     f7igdu, via `backlog.set_close_evidence_line`), so the SATISFIED path IS honored from persisted state.
+    ```
+    `grep -rn --exclude="*.pyc" "EVERY same-gate" agent_workflows` returns empty.
+    `python3 -m pytest -o addopts="" tests/test_backlog_close_gate_prose.py -v`:
+    `============================== 3 passed in 0.97s ===============================`
+  - Result: pass
+
+- [x] V-09 validates E-09
   - Required evidence: PASTE `git diff CHANGELOG.md` showing the single added line and confirm it contains no em or en dash.
   - Observed evidence:
-  - Result: pending
+    ```diff
+    diff --git a/CHANGELOG.md b/CHANGELOG.md
+    index 55be43f04..b5657f013 100644
+    --- a/CHANGELOG.md
+    +++ b/CHANGELOG.md
+    @@ -56,6 +56,7 @@ Major storage-layout boundary. The logical model (D126-D129) was superseded by t
+     - Added: `check.gate-ref-dangling` (error severity) to report well-formed artifact or todo gate references that resolve to neither an in-repo path nor an inventoried artifact id6, and `check.gate-ref-discharged` (warning severity) to detect gates whose targets have completed or parked, preventing gates from silently outliving their blockers.
+     - Added: `check.lifecycle-transition-unvalidated` companion rule (info severity) in `aw check plans` to report when the lifecycle gate examined a plan carrying two or more distinct forward statuses but validated zero transitions because date variation was removed, making gate coverage loss observable; this visibility does not restore lost transition enforcement, which requires spec 2vev8j Section 4.3 explicit per-artifact seq.
+     - Fixed: the runner's backlog close predicate now requires a mixed item's spec carriers to be implemented before closing the item.
+    +- Fixed: aw backlog set <item> --status done on a release-gated item now also waits for any ungated or differently gated From-Backlog sibling plan or spec to execute, matching the runner's own close rule.
+     - Fixed: `aw specs set`, `aw backlog set`, and `aw set` now refuse a Gate-Kind outside the documented vocabulary (artifact, date, decision, external, issue, todo) or a Gate-Ref that does not match its kind, whichever spelling is used, instead of writing an invalid gate record that the checker later reports.
+     - Fixed: `aw backlog new --status blocked` now refuses a Gate-Kind outside the documented vocabulary or a malformed Gate-Ref instead of writing a record the checker later reports.
+     - Fixed: positional evidence-satisfied backlog closes now persist their citation portably, so aw check release-gates no longer reports a legitimate close as a dropped release gate.
+    ```
+    No em or en dash confirmed.
+  - Result: pass
 
-- [ ] V-10 validates E-10
+- [x] V-10 validates E-10
   - Required evidence: PASTE the post-edit bare-suite summary line, the `comm -13 <baseline> <post>` output (new failures) which must be empty, `aw check release-gates` output with 0 errors, the before/after per-rule `aw check --agent` counts showing no release-gate-family rule rose (the whole `aw check` exiting 1 on unrelated rules is expected and is not a failure of this item), and the corpus re-measure script and its output listing flipped items (expected none).
   - Observed evidence:
-  - Result: pending
+    Post-edit bare-suite summary line:
+    ```
+    7941 passed, 4 skipped, 18 xfailed, 3 warnings in 998.10s (0:16:38)
+    ```
+    `comm -13 /tmp/pytest_baseline_failed.txt /tmp/pytest_post_failed.txt`:
+    ```
+    (empty - 0 new failures)
+    ```
+    `aw check release-gates`:
+    ```
+    AW check  release-gates                                                  3125 ms
+    ✓ CONFORMS  225 release-gates checked
+
+    Evidence
+      backlog  112   specs  21   plans  91   releases  1
+      errors  0   warnings  0   info  0
+
+    Next  aw releases list
+    Agent output: --agent
+    ```
+    Before/after per-rule `aw check --agent` counts:
+    ```
+    Rule comparison: baseline=105, post=104
+      check.gate-ref-discharged: 3 -> 3
+      check.graduated-to-dangling: 3 -> 3
+      check.ipd-carrier-finished-unverified: 10 -> 10
+      check.ipd-carrier-ungated: 2 -> 2
+      check.lifecycle-transition-unvalidated: 79 -> 79
+      check.name-nonconformant: 1 -> 1
+      check.plan-spec-link-missing: 4 -> 4
+      check.scope-drift: 1 -> 0 (-1)
+      check.spec-criteria-uncovered: 1 -> 1
+      check.system-layout-missing: 1 -> 1
+    ```
+    Corpus re-measure script output:
+    ```
+    Total gated items checked: 495
+    Flipped items count: 0
+    ```
+  - Result: pass
 
 ## Approval and execution gate
 
