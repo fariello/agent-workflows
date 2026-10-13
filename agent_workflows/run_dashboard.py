@@ -52,7 +52,7 @@ __all__ = [
     "render_dashboard",
 ]
 
-DASHBOARD_SCHEMA_VERSION = 3
+DASHBOARD_SCHEMA_VERSION = 4
 ASSETS_DIRNAME = "run_dashboard_assets"
 STATS_CACHE_FILENAME = "dashboard-session-stats.json"
 UNRECORDED = "(unrecorded)"

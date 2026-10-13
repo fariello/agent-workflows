@@ -44,6 +44,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable
 
+from agent_workflows.verifier_corroboration import agy_tool_name
+
 
 class ScriptError(RuntimeError):
     """A user-actionable script failure."""
@@ -534,7 +536,7 @@ def _progress_messages(event: dict[str, object], phase: str) -> list[tuple[str, 
 
     tool = step.get("tool_info")
     if isinstance(tool, dict):
-        name = _compact(tool.get("name", "tool"), 60)
+        name = _compact(agy_tool_name(step) or "tool", 60)
         parameters = tool.get("parameters")
         command = ""
         if isinstance(parameters, dict):
