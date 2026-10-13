@@ -27,7 +27,7 @@ Contract:
   * `--agent` and `--json` emit machine-readable output with NO ANSI; human mode is the default.
   * Read-only: the `aw runs` read leaves make no filesystem writes; the `aw run` writers append to
     the ledger, and `write_index` writes a rebuildable projection when called.
-  * Redacts sensitive values in both human and machine outputs.
+  * Redacts sensitive values in both human and machine outputs; `_print_human` serves as the human choke point.
 """
 
 from __future__ import annotations
@@ -102,7 +102,7 @@ def run_cli(args: argparse.Namespace) -> int:
         return _run_decisions(args)
     if sub == "questions":
         return _run_questions(args)
-    print(
+    _print_human(
         "usage: aw run {start|record|cancel|finalize} <run-id-or-path> "
         "[--agent|--json] [--dir <dir>]\n"
         "       aw runs {show|status|next|resume|evidence|verify-ledger|decisions|questions|list} "
@@ -131,10 +131,10 @@ def _run_decisions(args: argparse.Namespace) -> int:
     base = _projection_dir(args)
     path = base / set_records.DECISIONS_FILE
     if not path.is_file():
-        print("no decisions projection found for this run ({0})".format(path))
+        _print_human("no decisions projection found for this run ({0})".format(path))
         return 2
     text = path.read_text(encoding="utf-8")
-    print(text, end="" if text.endswith("\n") else "\n")
+    _print_human(text, end="" if text.endswith("\n") else "\n")
     return 1 if "_No autonomous decisions recorded._" in text else 0
 
 
@@ -145,10 +145,12 @@ def _run_questions(args: argparse.Namespace) -> int:
     base = _projection_dir(args)
     path = base / set_records.OPEN_QUESTIONS_FILE
     if not path.is_file():
-        print("no open-questions projection found for this run ({0})".format(path))
+        _print_human(
+            "no open-questions projection found for this run ({0})".format(path)
+        )
         return 2
     text = path.read_text(encoding="utf-8")
-    print(text, end="" if text.endswith("\n") else "\n")
+    _print_human(text, end="" if text.endswith("\n") else "\n")
     return 1 if "_No unresolved questions._" in text else 0
 
 
@@ -184,6 +186,12 @@ def _redact_output(data: Any) -> Any:
                 res[k] = _redact_output(v)
         return res
     return data
+
+
+def _print_human(*values: Any, sep: str = " ", end: str = "\n") -> None:
+    """Print human-mode output to stdout with sensitive values scrubbed via _redact_output."""
+    text = sep.join(str(v) for v in values)
+    print(_redact_output(text), end=end)
 
 
 def _emit_machine(args: argparse.Namespace, payload: Any) -> None:
@@ -228,7 +236,7 @@ def _emit_not_a_ledger(args: argparse.Namespace, exc: "store.NotALedgerError") -
             },
         )
     else:
-        print(err_msg)
+        _print_human(err_msg)
     return EXIT_NOT_A_LEDGER
 
 
@@ -525,14 +533,14 @@ def _run_show(args: argparse.Namespace) -> int:
                 },
             )
         else:
-            print(err_msg)
+            _print_human(err_msg)
         return EXIT_CORRUPTED_LEDGER
     except Exception as exc:
         err_msg = f"error: failed to read ledger: {exc}"
         if machine:
             _emit_machine(args, {"ok": False, "error": err_msg, "exit_code": 2})
         else:
-            print(err_msg)
+            _print_human(err_msg)
         return 2
 
     evaluation = evidence.evaluate_completion(records)
@@ -571,26 +579,26 @@ def _run_show(args: argparse.Namespace) -> int:
         }
         _emit_machine(args, payload)
     else:
-        print(f"Run: {run_id}")
+        _print_human(f"Run: {run_id}")
         if repo:
-            print(f"Repository: {repo}")
+            _print_human(f"Repository: {repo}")
         if head:
-            print(f"HEAD: {head}")
-        print(f"Ledger: {ledger_file} ({len(records)} records)")
-        print(f"Steps Attempted: {len(step_attempts)}")
-        print(f"Verifier Decisions: {len(verifier_decisions)}")
-        print(f"Evidence Envelopes: {len(evidence_envelopes)}")
-        print("\nCompletion Predicates:")
+            _print_human(f"HEAD: {head}")
+        _print_human(f"Ledger: {ledger_file} ({len(records)} records)")
+        _print_human(f"Steps Attempted: {len(step_attempts)}")
+        _print_human(f"Verifier Decisions: {len(verifier_decisions)}")
+        _print_human(f"Evidence Envelopes: {len(evidence_envelopes)}")
+        _print_human("\nCompletion Predicates:")
         for name, p in evaluation.predicates.items():
             status_tag = "PASS" if p.satisfied else "FAIL"
-            print(f"  [{status_tag}] {name}: {p.details}")
+            _print_human(f"  [{status_tag}] {name}: {p.details}")
 
         if evaluation.is_complete:
-            print("\nOutcome: COMPLETE (all predicates satisfied)")
+            _print_human("\nOutcome: COMPLETE (all predicates satisfied)")
         else:
-            print("\nOutcome: INCOMPLETE")
+            _print_human("\nOutcome: INCOMPLETE")
             for r in evaluation.reasons:
-                print(f"  - {r}")
+                _print_human(f"  - {r}")
 
     return 0 if evaluation.is_complete else 1
 
@@ -633,14 +641,14 @@ def _run_evidence(args: argparse.Namespace) -> int:
                 },
             )
         else:
-            print(err_msg)
+            _print_human(err_msg)
         return EXIT_CORRUPTED_LEDGER
     except Exception as exc:
         err_msg = f"error: failed to read ledger: {exc}"
         if machine:
             _emit_machine(args, {"ok": False, "error": err_msg, "exit_code": 2})
         else:
-            print(err_msg)
+            _print_human(err_msg)
         return 2
 
     evidence_records: List[Dict[str, Any]] = []
@@ -693,29 +701,31 @@ def _run_evidence(args: argparse.Namespace) -> int:
         }
         _emit_machine(args, payload)
     else:
-        print(f"Evidence for {ledger_file} ({len(evidence_records)} items):")
+        _print_human(f"Evidence for {ledger_file} ({len(evidence_records)} items):")
         if not evidence_records:
-            print("  No captured evidence envelopes or tool events found.")
+            _print_human("  No captured evidence envelopes or tool events found.")
         for item in evidence_records:
             status = "VALID" if item["valid"] else "INVALID"
             seq = item["seq"]
             kind = item["kind"]
-            print(f"\n[{status}] Seq {seq} ({kind})")
+            _print_human(f"\n[{status}] Seq {seq} ({kind})")
             if kind == "tool_event":
-                print(f"  Command: {item.get('argv')}")
-                print(f"  Exit Code: {item.get('exit_code')}")
-                print(f"  Stdout Hash: {item.get('stdout_sha256')}")
+                _print_human(f"  Command: {item.get('argv')}")
+                _print_human(f"  Exit Code: {item.get('exit_code')}")
+                _print_human(f"  Stdout Hash: {item.get('stdout_sha256')}")
             elif kind == "evidence_envelope":
-                print(f"  Kind: {item.get('evidence_kind')}")
-                print(f"  Binds: {item.get('binds')}")
-                print(f"  HEAD: {item.get('head')}")
+                _print_human(f"  Kind: {item.get('evidence_kind')}")
+                _print_human(f"  Binds: {item.get('binds')}")
+                _print_human(f"  HEAD: {item.get('head')}")
             elif kind == "artifact_ref":
-                print(f"  Path: {item.get('path')}")
-                print(f"  Hash: {item.get('sha256')}")
+                _print_human(f"  Path: {item.get('path')}")
+                _print_human(f"  Hash: {item.get('sha256')}")
 
             if not item["valid"]:
                 for f in item["findings"]:
-                    print(f"  Finding: {f['code']} ({f['where']}): {f['message']}")
+                    _print_human(
+                        f"  Finding: {f['code']} ({f['where']}): {f['message']}"
+                    )
 
     return 1 if any_invalid else 0
 
@@ -765,8 +775,8 @@ def _run_verify_ledger(args: argparse.Namespace) -> int:
                 },
             )
         else:
-            print(f"FAIL: Ledger verification failed for {ledger_file}")
-            print(f"  {err_details}")
+            _print_human(f"FAIL: Ledger verification failed for {ledger_file}")
+            _print_human(f"  {err_details}")
         return EXIT_CORRUPTED_LEDGER
 
     # Chain is clean, now verify evidence and completion predicates
@@ -796,27 +806,29 @@ def _run_verify_ledger(args: argparse.Namespace) -> int:
         }
         _emit_machine(args, payload)
     else:
-        print(f"Ledger: {ledger_file}")
-        print(f"Hash Chain: CLEAN ({chain_ver.count} records verified)")
-        print(f"Evidence Validity: {'CLEAN' if evidence_val.ok else 'INVALID'}")
-        print(
+        _print_human(f"Ledger: {ledger_file}")
+        _print_human(f"Hash Chain: CLEAN ({chain_ver.count} records verified)")
+        _print_human(f"Evidence Validity: {'CLEAN' if evidence_val.ok else 'INVALID'}")
+        _print_human(
             f"Completion Predicates: {'SATISFIED' if evaluation.is_complete else 'UNSATISFIED'}"
         )
 
         if not evidence_val.ok:
-            print("\nEvidence Findings:")
+            _print_human("\nEvidence Findings:")
             for f in evidence_val.findings:
-                print(f"  - {f.code} ({f.where}): {f.message}")
+                _print_human(f"  - {f.code} ({f.where}): {f.message}")
 
         if not evaluation.is_complete:
-            print("\nUnsatisfied Completion Criteria:")
+            _print_human("\nUnsatisfied Completion Criteria:")
             for r in evaluation.reasons:
-                print(f"  - {r}")
+                _print_human(f"  - {r}")
 
         if is_valid:
-            print("\nOverall Status: PASS (chain clean, evidence valid, run complete)")
+            _print_human(
+                "\nOverall Status: PASS (chain clean, evidence valid, run complete)"
+            )
         else:
-            print("\nOverall Status: FAIL")
+            _print_human("\nOverall Status: FAIL")
 
     if not evidence_val.ok or not evaluation.is_complete:
         return 1
@@ -861,7 +873,7 @@ def _emit_error(
             payload.update(extra)
         _emit_machine(args, payload)
     else:
-        print(f"error: {message}")
+        _print_human(f"error: {message}")
     return exit_code
 
 
@@ -1099,7 +1111,7 @@ def _run_start(args: argparse.Namespace) -> int:
         payload["started_step"] = step_id
         _emit_machine(args, payload)
     else:
-        print(f"Started step {step_id} (state: {snapshot.steps[step_id].state})")
+        _print_human(f"Started step {step_id} (state: {snapshot.steps[step_id].state})")
     return EXIT_OK
 
 
@@ -1136,15 +1148,15 @@ def _run_next(args: argparse.Namespace) -> int:
         )
     else:
         if terminal:
-            print(
+            _print_human(
                 f"Run {snapshot.run_id} is terminal ({snapshot.state}); no runnable steps."
             )
         elif runnable_ids:
-            print("Runnable steps:")
+            _print_human("Runnable steps:")
             for sid in runnable_ids:
-                print(f"  - {sid}")
+                _print_human(f"  - {sid}")
         else:
-            print(
+            _print_human(
                 "No runnable steps (waiting on dependencies, gates, or verification)."
             )
     if terminal:
@@ -1219,7 +1231,7 @@ def _run_record(args: argparse.Namespace) -> int:
         payload["recorded"] = {"step": step_id, "state": outcome}
         _emit_machine(args, payload)
     else:
-        print(f"Recorded attempt: {step_id} -> {outcome}")
+        _print_human(f"Recorded attempt: {step_id} -> {outcome}")
     # A recorded failure/blocked outcome is not a success; surface it as blocked.
     if outcome in (run_state.STATE_FAILED, run_state.STATE_BLOCKED):
         return EXIT_BLOCKED
@@ -1257,8 +1269,8 @@ def _run_resume(args: argparse.Namespace) -> int:
                 },
             )
         else:
-            print(f"error: {exc}")
-            print(f"  reconcile these steps before resuming: {list(unknown)}")
+            _print_human(f"error: {exc}")
+            _print_human(f"  reconcile these steps before resuming: {list(unknown)}")
         return EXIT_BLOCKED
     except store.LedgerCorruption as exc:
         return _emit_error(args, f"ledger corruption: {exc}", EXIT_CORRUPTED_LEDGER)
@@ -1275,15 +1287,15 @@ def _run_resume(args: argparse.Namespace) -> int:
             },
         )
     else:
-        print(f"Run {report.run_id} state: {report.run_state}")
+        _print_human(f"Run {report.run_id} state: {report.run_state}")
         if report.terminal:
-            print("Run is terminal; nothing to resume.")
+            _print_human("Run is terminal; nothing to resume.")
         elif report.resumable_steps:
-            print("Resumable steps:")
+            _print_human("Resumable steps:")
             for sid in report.resumable_steps:
-                print(f"  - {sid}")
+                _print_human(f"  - {sid}")
         else:
-            print(
+            _print_human(
                 "No resumable steps (waiting on dependencies, gates, or verification)."
             )
     return EXIT_OK
@@ -1321,7 +1333,7 @@ def _run_cancel(args: argparse.Namespace) -> int:
         payload["cancelled"] = True
         _emit_machine(args, payload)
     else:
-        print(f"Cancelled run {snapshot.run_id} (reason: {reason})")
+        _print_human(f"Cancelled run {snapshot.run_id} (reason: {reason})")
     return EXIT_OK
 
 
@@ -1345,14 +1357,14 @@ def _run_status(args: argparse.Namespace) -> int:
     if _machine(args):
         _emit_machine(args, _snapshot_payload(snapshot))
     else:
-        print(f"Run: {snapshot.run_id}")
-        print(f"State: {snapshot.state}")
-        print(f"Records: {snapshot.record_count}")
-        print("Steps:")
+        _print_human(f"Run: {snapshot.run_id}")
+        _print_human(f"State: {snapshot.state}")
+        _print_human(f"Records: {snapshot.record_count}")
+        _print_human("Steps:")
         for sid, st in sorted(snapshot.steps.items()):
-            print(f"  {sid}: {st.state} (attempts={st.attempts})")
+            _print_human(f"  {sid}: {st.state} (attempts={st.attempts})")
         if snapshot.cancellation_reason:
-            print(f"Cancellation: {snapshot.cancellation_reason}")
+            _print_human(f"Cancellation: {snapshot.cancellation_reason}")
 
     if snapshot.state == run_state.STATE_COMPLETE:
         return EXIT_OK
@@ -1402,9 +1414,9 @@ def _run_finalize(args: argparse.Namespace) -> int:
                 },
             )
         else:
-            print("error: captured evidence is invalid; refusing to finalize")
+            _print_human("error: captured evidence is invalid; refusing to finalize")
             for f in evidence_val.findings:
-                print(f"  - {f.code} ({f.where}): {f.message}")
+                _print_human(f"  - {f.code} ({f.where}): {f.message}")
         return EXIT_INVALID_EVIDENCE
 
     # 2. Completion predicate gate (Order-04 predicate over the ledger).
@@ -1425,9 +1437,9 @@ def _run_finalize(args: argparse.Namespace) -> int:
                 },
             )
         else:
-            print("error: run is incomplete; refusing to finalize")
+            _print_human("error: run is incomplete; refusing to finalize")
             for r in evaluation.reasons:
-                print(f"  - {r}")
+                _print_human(f"  - {r}")
         return EXIT_INCOMPLETE
 
     # 3. Record the terminal transaction through the engine (enforces verified -> complete + authority).
@@ -1455,5 +1467,5 @@ def _run_finalize(args: argparse.Namespace) -> int:
         payload["is_complete"] = True
         _emit_machine(args, payload)
     else:
-        print(f"Finalized run {snapshot.run_id}: COMPLETE")
+        _print_human(f"Finalized run {snapshot.run_id}: COMPLETE")
     return EXIT_OK

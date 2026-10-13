@@ -24,6 +24,7 @@ now under way. The direction of the 2.x line (in progress, not all shipped in th
 
 Major storage-layout boundary. The logical model (D126-D129) was superseded by the PHYSICAL `.aw/` hierarchy specified in `20260810-1447-01-physical-aw-hierarchy-placement-and-migration.spec.md` (D130, D134-D137), which the framework now implements and has migrated its own repository onto:
 
+- Fixed: aw runs and aw run human output now masks tokens (such as ghp_ tokens and Bearer credentials) the same way --agent and --json already did.
 - Fixed: closing a release-blocking backlog item with --evidence now refuses a cited plan that has not been executed, on both setter spellings.
 - Added: advisory check rule `check.source-test-citation-dangling` flags comments and docstrings in shipped source (`agent_workflows/` and `tools/`) citing nonexistent `tests/test_*.py` files. The rule runs during `aw check all` at `info` severity without altering the exit code, and deliberate historical citations can be silenced by naming the deleting commit hash.
 - Fixed: `RedactionPolicy` sensitive-key matching is now case-insensitive (security fix, backlog go20fk).

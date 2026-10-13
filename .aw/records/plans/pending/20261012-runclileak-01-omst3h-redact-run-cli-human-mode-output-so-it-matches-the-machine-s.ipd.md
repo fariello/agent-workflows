@@ -36,29 +36,29 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: single redacting human-output choke point
 
-- [ ] E-01 Add a module-private helper in `agent_workflows/run_cli.py` (suggested name `_print_human(*values, sep=" ", end="\n")`) that joins its values exactly as `print` would, passes the resulting string through `run_cli._redact_output`, and prints the result; then replace EVERY human-mode `print(` call in the module (the usage line in `run_cli.run_cli`, `_run_decisions`, `_run_questions`, `_emit_not_a_ledger`, the inline error prints in `_run_show`/`_run_evidence`/`_run_verify_ledger`/`_run_resume`/`_run_finalize`, `_emit_error`'s human branch, and every report line in show/evidence/verify-ledger/start/next/record/resume/cancel/status/finalize) with it. `_emit_machine` keeps calling `print` on already-redacted JSON. Keep the "Redacts sensitive values in both human and machine outputs" docstring bullet, and add one sentence beside it naming `_print_human` as the human choke point.
+- [x] E-01 Add a module-private helper in `agent_workflows/run_cli.py` (suggested name `_print_human(*values, sep=" ", end="\n")`) that joins its values exactly as `print` would, passes the resulting string through `run_cli._redact_output`, and prints the result; then replace EVERY human-mode `print(` call in the module (the usage line in `run_cli.run_cli`, `_run_decisions`, `_run_questions`, `_emit_not_a_ledger`, the inline error prints in `_run_show`/`_run_evidence`/`_run_verify_ledger`/`_run_resume`/`_run_finalize`, `_emit_error`'s human branch, and every report line in show/evidence/verify-ledger/start/next/record/resume/cancel/status/finalize) with it. `_emit_machine` keeps calling `print` on already-redacted JSON. Keep the "Redacts sensitive values in both human and machine outputs" docstring bullet, and add one sentence beside it naming `_print_human` as the human choke point.
   - Depends on: none
   - Expected outcome: `grep -n "print(" agent_workflows/run_cli.py` shows `print(` only inside `_print_human` and `_emit_machine`; behavior otherwise unchanged (same text, same exit codes) for inputs carrying no secret.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: behavioral regression tests
 
-- [ ] E-02 Create `tests/test_run_cli_human_redaction.py` that, via `subprocess.run([sys.executable, "-m", "agent_workflows", ...])`, drives each read leaf `runs show|status|next|resume|evidence|verify-ledger` with a missing target `<tmp_path>/ghp_<24 chars>` in HUMAN mode and asserts the literal token is absent from stdout+stderr and `[REDACTED]` is present, with the exit code unchanged from the `--agent` run of the same call (both 2, `run_cli.EXIT_INVALID_INVOCATION`). Also drive `runs decisions <token-run-id>` and `runs questions <token-run-id>` (whose "no ... projection found" line echoes the path) in BOTH human and `--agent` mode and assert the token is absent in both: these two leaves have no machine branch and print the same raw line under `--agent`, so they leak on the machine surface too (F-6). Also drive the four writer leaves `run start|record|cancel|finalize <token-path>` in human mode: each reaches the absent-ledger refusal with no extra arguments (exit 2, F-6), so they are REQUIRED cases, not optional. Every case asserts the exit code equals the pre-fix value (2) so the fix changes text only.
+- [x] E-02 Create `tests/test_run_cli_human_redaction.py` that, via `subprocess.run([sys.executable, "-m", "agent_workflows", ...])`, drives each read leaf `runs show|status|next|resume|evidence|verify-ledger` with a missing target `<tmp_path>/ghp_<24 chars>` in HUMAN mode and asserts the literal token is absent from stdout+stderr and `[REDACTED]` is present, with the exit code unchanged from the `--agent` run of the same call (both 2, `run_cli.EXIT_INVALID_INVOCATION`). Also drive `runs decisions <token-run-id>` and `runs questions <token-run-id>` (whose "no ... projection found" line echoes the path) in BOTH human and `--agent` mode and assert the token is absent in both: these two leaves have no machine branch and print the same raw line under `--agent`, so they leak on the machine surface too (F-6). Also drive the four writer leaves `run start|record|cancel|finalize <token-path>` in human mode: each reaches the absent-ledger refusal with no extra arguments (exit 2, F-6), so they are REQUIRED cases, not optional. Every case asserts the exit code equals the pre-fix value (2) so the fix changes text only.
   - Depends on: E-01
   - Expected outcome: test file exists; every parametrized case passes against the E-01 code and FAILS against the pre-E-01 code.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 In the same test file, build a real ledger with `run_ledger_store.RunLedgerStore.append` (a `run` record plus a `tool_event` whose `argv` contains `"Authorization: Bearer ghp_<24 chars>"`, fields per `run_ledger_schema._KIND_FIELDS["tool_event"]`; every record also carries the common fields `schema_version: 1`, `run_id` matching `run-<hex>`, a known actor role such as `runtime`, and `parent: ""`, and `stdout_sha256` is a bare 64-hex digest, the shape `tests/test_run_cli_declarations.py` `_create_valid_one_record_ledger` uses and the review rehearsal confirmed `append` accepts, F-7), then run `aw runs evidence <ledger>` in human mode and assert the token is absent and `[REDACTED]` present, and run it with `--agent` and assert the same (parity). Do NOT pass a `RedactionPolicy` to `append`, so the secret is genuinely present on disk and only the output layer masks it; assert the raw ledger file DOES contain the token so the test cannot pass vacuously.
+- [x] E-03 In the same test file, build a real ledger with `run_ledger_store.RunLedgerStore.append` (a `run` record plus a `tool_event` whose `argv` contains `"Authorization: Bearer ghp_<24 chars>"`, fields per `run_ledger_schema._KIND_FIELDS["tool_event"]`; every record also carries the common fields `schema_version: 1`, `run_id` matching `run-<hex>`, a known actor role such as `runtime`, and `parent: ""`, and `stdout_sha256` is a bare 64-hex digest, the shape `tests/test_run_cli_declarations.py` `_create_valid_one_record_ledger` uses and the review rehearsal confirmed `append` accepts, F-7), then run `aw runs evidence <ledger>` in human mode and assert the token is absent and `[REDACTED]` present, and run it with `--agent` and assert the same (parity). Do NOT pass a `RedactionPolicy` to `append`, so the secret is genuinely present on disk and only the output layer masks it; assert the raw ledger file DOES contain the token so the test cannot pass vacuously.
   - Depends on: E-01
   - Expected outcome: content-secret test passes post-fix and fails pre-fix; the on-disk precondition assertion holds.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: user-facing record
 
-- [ ] E-04 Add one `- Fixed:` line to the pending 2.0.0 section of `CHANGELOG.md` stating that `aw runs` and `aw run` human output now masks tokens (such as `ghp_` tokens and `Bearer` credentials) the same way `--agent` and `--json` already did. User-facing prose: no em or en dashes.
+- [x] E-04 Add one `- Fixed:` line to the pending 2.0.0 section of `CHANGELOG.md` stating that `aw runs` and `aw run` human output now masks tokens (such as `ghp_` tokens and `Bearer` credentials) the same way `--agent` and `--json` already did. User-facing prose: no em or en dashes.
   - Depends on: E-01
   - Expected outcome: CHANGELOG carries the line; `grep -nP "[\x{2013}\x{2014}]"` on the added line finds nothing.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -132,25 +132,120 @@ Alternative considered and rejected: wrapping `sys.stdout` with a redacting stre
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition), as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction, name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste `grep -n "print(" agent_workflows/run_cli.py` output showing `print(` only inside `_print_human` and `_emit_machine`; paste the post-fix re-run of the F-3 loop (human and `--agent` token counts per leaf for all twelve leaves: `runs show status evidence verify-ledger next resume decisions questions` and `run start record cancel finalize`), every count 0, with each exit code pasted and equal to 2. Code path observed: `run_cli.run_cli` dispatch into each `_run_*` handler, created by E-01.
   - Observed evidence:
-  - Result: pending
+    `grep -n "print(" agent_workflows/run_cli.py`:
+    ```
+    192:    print(_redact_output(text), end=end)
+    201:                print(
+    207:            print(
+    213:        print(json.dumps(sanitized, sort_keys=True, indent=2, ensure_ascii=False))
+    ```
+    Post-fix F-3 measurement loop:
+    ```
+    runs show (human): count=0 [REDACTED]=1 exit=2
+    runs show (--agent): count=0 [REDACTED]=1 exit=2
+    runs status (human): count=0 [REDACTED]=1 exit=2
+    runs status (--agent): count=0 [REDACTED]=1 exit=2
+    runs evidence (human): count=0 [REDACTED]=1 exit=2
+    runs evidence (--agent): count=0 [REDACTED]=1 exit=2
+    runs verify-ledger (human): count=0 [REDACTED]=1 exit=2
+    runs verify-ledger (--agent): count=0 [REDACTED]=1 exit=2
+    runs next (human): count=0 [REDACTED]=1 exit=2
+    runs next (--agent): count=0 [REDACTED]=1 exit=2
+    runs resume (human): count=0 [REDACTED]=1 exit=2
+    runs resume (--agent): count=0 [REDACTED]=1 exit=2
+    runs decisions (human): count=0 [REDACTED]=1 exit=2
+    runs decisions (--agent): count=0 [REDACTED]=1 exit=2
+    runs questions (human): count=0 [REDACTED]=1 exit=2
+    runs questions (--agent): count=0 [REDACTED]=1 exit=2
+    run start (human): count=0 [REDACTED]=1 exit=2
+    run start (--agent): count=0 [REDACTED]=1 exit=2
+    run record (human): count=0 [REDACTED]=1 exit=2
+    run record (--agent): count=0 [REDACTED]=1 exit=2
+    run cancel (human): count=0 [REDACTED]=1 exit=2
+    run cancel (--agent): count=0 [REDACTED]=1 exit=2
+    run finalize (human): count=0 [REDACTED]=1 exit=2
+    run finalize (--agent): count=0 [REDACTED]=1 exit=2
+    ```
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: paste the pytest output for `python3 -m pytest -o addopts="" tests/test_run_cli_human_redaction.py -v` post-fix (all pass, per-case names visible), AND the same command's output against pre-fix `run_cli.py` showing the E-02 cases failing.
   - Observed evidence:
-  - Result: pending
+    Pre-fix pytest output against baseline `run_cli.py`:
+    ```
+    =========================== short test summary info ============================
+    FAILED tests/test_run_cli_human_redaction.py::test_projection_leaves_path_secret_redacted[human-decisions]
+    FAILED tests/test_run_cli_human_redaction.py::test_writer_leaves_path_secret_redacted[cancel]
+    FAILED tests/test_run_cli_human_redaction.py::test_writer_leaves_path_secret_redacted[finalize]
+    FAILED tests/test_run_cli_human_redaction.py::test_writer_leaves_path_secret_redacted[record]
+    FAILED tests/test_run_cli_human_redaction.py::test_read_leaves_path_secret_redacted[evidence]
+    FAILED tests/test_run_cli_human_redaction.py::test_projection_leaves_path_secret_redacted[human-questions]
+    FAILED tests/test_run_cli_human_redaction.py::test_read_leaves_path_secret_redacted[resume]
+    FAILED tests/test_run_cli_human_redaction.py::test_runs_evidence_ledger_content_secret_redacted
+    FAILED tests/test_run_cli_human_redaction.py::test_projection_leaves_path_secret_redacted[--agent-decisions]
+    FAILED tests/test_run_cli_human_redaction.py::test_read_leaves_path_secret_redacted[status]
+    FAILED tests/test_run_cli_human_redaction.py::test_read_leaves_path_secret_redacted[show]
+    FAILED tests/test_run_cli_human_redaction.py::test_projection_leaves_path_secret_redacted[--agent-questions]
+    FAILED tests/test_run_cli_human_redaction.py::test_read_leaves_path_secret_redacted[verify-ledger]
+    FAILED tests/test_run_cli_human_redaction.py::test_read_leaves_path_secret_redacted[next]
+    FAILED tests/test_run_cli_human_redaction.py::test_writer_leaves_path_secret_redacted[start]
+    ============================= 15 failed in 24.76s ==============================
+    ```
+    Post-fix pytest output:
+    ```
+    tests/test_run_cli_human_redaction.py::test_read_leaves_path_secret_redacted[show] PASSED [  6%]
+    tests/test_run_cli_human_redaction.py::test_projection_leaves_path_secret_redacted[human-questions] PASSED [ 13%]
+    tests/test_run_cli_human_redaction.py::test_writer_leaves_path_secret_redacted[start] PASSED [ 20%]
+    tests/test_run_cli_human_redaction.py::test_projection_leaves_path_secret_redacted[human-decisions] PASSED [ 26%]
+    tests/test_run_cli_human_redaction.py::test_runs_evidence_ledger_content_secret_redacted PASSED [ 33%]
+    tests/test_run_cli_human_redaction.py::test_read_leaves_path_secret_redacted[resume] PASSED [ 40%]
+    tests/test_run_cli_human_redaction.py::test_read_leaves_path_secret_redacted[next] PASSED [ 46%]
+    tests/test_run_cli_human_redaction.py::test_writer_leaves_path_secret_redacted[record] PASSED [ 53%]
+    tests/test_run_cli_human_redaction.py::test_read_leaves_path_secret_redacted[evidence] PASSED [ 60%]
+    tests/test_run_cli_human_redaction.py::test_read_leaves_path_secret_redacted[verify-ledger] PASSED [ 66%]
+    tests/test_run_cli_human_redaction.py::test_read_leaves_path_secret_redacted[status] PASSED [ 73%]
+    tests/test_run_cli_human_redaction.py::test_writer_leaves_path_secret_redacted[finalize] PASSED [ 80%]
+    tests/test_run_cli_human_redaction.py::test_projection_leaves_path_secret_redacted[--agent-decisions] PASSED [ 86%]
+    tests/test_run_cli_human_redaction.py::test_writer_leaves_path_secret_redacted[cancel] PASSED [ 93%]
+    tests/test_run_cli_human_redaction.py::test_projection_leaves_path_secret_redacted[--agent-questions] PASSED [100%]
+    ============================= 15 passed in 23.33s ==============================
+    ```
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: paste the E-03 test's pass line post-fix and its failure line pre-fix (same two runs as V-02), and quote the test's assertion that the raw ledger file contains the token.
   - Observed evidence:
-  - Result: pending
+    Pre-fix failure line:
+    `FAILED tests/test_run_cli_human_redaction.py::test_runs_evidence_ledger_content_secret_redacted`
+    Post-fix pass line:
+    `tests/test_run_cli_human_redaction.py::test_runs_evidence_ledger_content_secret_redacted PASSED [ 33%]`
+    Test assertion that raw ledger file contains the token:
+    `assert token in ledger_file.read_text(encoding="utf-8")`
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: paste `git diff -- CHANGELOG.md` showing the single added Fixed line, and the empty output of a dash check on it.
   - Observed evidence:
-  - Result: pending
+    `git diff -- CHANGELOG.md`:
+    ```diff
+    diff --git a/CHANGELOG.md b/CHANGELOG.md
+    index 61245695c..de2fd2f46 100644
+    --- a/CHANGELOG.md
+    +++ b/CHANGELOG.md
+    @@ -24,6 +24,7 @@ now under way. The direction of the 2.x line (in progress, not all shipped in th
+
+     Major storage-layout boundary. The logical model (D126-D129) was superseded by the PHYSICAL `.aw/` hierarchy specified in `20260810-1447-01-physical-aw-hierarchy-placement-and-migration.spec.md` (D130, D134-D137), which the framework now implements and has migrated its own repository onto:
+
+    +- Fixed: aw runs and aw run human output now masks tokens (such as ghp_ tokens and Bearer credentials) the same way --agent and --json already did.
+     - Fixed: closing a release-blocking backlog item with --evidence now refuses a cited plan that has not been executed, on both setter spellings.
+     - Added: advisory check rule `check.source-test-citation-dangling` flags comments and docstrings in shipped source (`agent_workflows/` and `tools/`) citing nonexistent `tests/test_*.py` files. The rule runs during `aw check all` at `info` severity without altering the exit code, and deliberate historical citations can be silenced by naming the deleting commit hash.
+     - Fixed: `RedactionPolicy` sensitive-key matching is now case-insensitive (security fix, backlog go20fk).
+    ```
+    Dash check (`git diff -- CHANGELOG.md | grep -nP "[\x{2013}\x{2014}]"`): empty (no em or en dashes).
+  - Result: pass
 
 ## Approval and execution gate
 
