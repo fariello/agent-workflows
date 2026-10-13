@@ -5993,15 +5993,14 @@ def _from_backlog_carrier_index(
 def _item_close_date(item_text: str) -> Optional[str]:
     """Derive the close date (compact YYYYMMDD) for a backlog item from its workflow history (b24o3q E-02).
 
-    Reuses `attention._history_section_lines` to bound the history section and
+    Uses `attention_contract.history_block` to read history section records and
     `attention_contract.last_history_at` to extract the newest record date.
     Returns compact YYYYMMDD, or None if no parseable date is found.
     """
-    from agent_workflows import attention as _att
     from agent_workflows import attention_contract as _ac
 
-    lines = _att._history_section_lines(item_text)
-    date_str = _ac.last_history_at(lines)
+    records = _ac.history_block(item_text).records
+    date_str = _ac.last_history_at(records)
     if not date_str:
         return None
     compact = date_str.replace("-", "").strip()
@@ -6268,13 +6267,13 @@ _GRADUATED_LINE_RE = _re.compile(
 def _item_graduated_date(item_text: str) -> Optional[str]:
     """Derive the newest graduated date (compact YYYYMMDD) for a backlog item from its history.
 
-    Reuses `attention._history_section_lines` to bound the history section.
+    Uses `attention_contract.history_block` to read history section records.
     Returns compact YYYYMMDD, or None if no graduation record is found.
     """
-    from agent_workflows import attention as _att
+    from agent_workflows import attention_contract as _ac
 
-    lines = _att._history_section_lines(item_text)
-    for line in lines:
+    records = _ac.history_block(item_text).records
+    for line in records:
         m = _GRADUATED_LINE_RE.match(line)
         if m:
             compact = m.group("date").replace("-", "").strip()
@@ -6291,13 +6290,13 @@ _IMPLEMENTING_LINE_RE = _re.compile(
 def _spec_implementing_date(spec_text: str) -> Optional[str]:
     """Derive the newest implementing transition date (compact YYYYMMDD) for a spec from its history.
 
-    Reuses `attention._history_section_lines` to bound the history section.
+    Uses `attention_contract.history_block` to read history section records.
     Returns compact YYYYMMDD, or None if no implementing record is found.
     """
-    from agent_workflows import attention as _att
+    from agent_workflows import attention_contract as _ac
 
-    lines = _att._history_section_lines(spec_text)
-    for line in lines:
+    records = _ac.history_block(spec_text).records
+    for line in records:
         m = _IMPLEMENTING_LINE_RE.match(line)
         if m:
             compact = m.group("date").replace("-", "").strip()

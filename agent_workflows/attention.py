@@ -420,6 +420,13 @@ def _classify_tree(rel_posix: str) -> Optional[A.TreePolicy]:
 
 
 def _history_section_lines(text: str) -> List[str]:
+    """Return the raw heading-bounded lines of the '## Workflow history' section.
+
+    This function returns raw, unvalidated lines between the history heading and the
+    next top-level/second-level heading. Readers that parse history records must use
+    `attention_contract.history_block` to enforce canonical record bounding (column-zero
+    chronological records, omitting indented block quotes and prose).
+    """
     if "## Workflow history" not in text:
         return []
     m = re.search(r"(?m)^## Workflow history[ \t]*$", text)
@@ -1239,7 +1246,7 @@ def _prompts_record(
         )
         return None, drift
     id6 = prompts_mod.read_metadata_id6(text) or ""
-    lha = A.last_history_at(_history_section_lines(text))
+    lha = A.last_history_at(A.history_block(text).records)
     d_kind, d_text = _extract_detail(text)
     oqs, rqs = count_question_stats(text)
     return Item(
@@ -1282,7 +1289,7 @@ def _release_record(
         )
         return None, drift
     mid = _re.search(r"(?m)^- Id:\s*([0-9a-z]{6})\s*$", text)
-    lha = A.last_history_at(_history_section_lines(text))
+    lha = A.last_history_at(A.history_block(text).records)
     d_kind, d_text = _extract_detail(text)
     oqs, rqs = count_question_stats(text)
     return Item(
@@ -1314,7 +1321,7 @@ def _spec_record(
         gate = {"kind": kind, "ref": ref}
         if summary:
             gate["summary"] = summary
-    lha = A.last_history_at(_history_section_lines(text))
+    lha = A.last_history_at(A.history_block(text).records)
     # awdoctorfix Order 01: read Blocks-Release from the spec's front-matter so the board can surface it.
     br = specs_mod._read_blocks_release(lines)
     # xprio rp859c E-03: populate Item.priority from the spec's `- Priority:` line so the board LABELS
@@ -1406,7 +1413,7 @@ def _plans_record(
             )
         )
     pid = _plans_id(text)
-    lha = A.last_history_at(_history_section_lines(text))
+    lha = A.last_history_at(A.history_block(text).records)
     # IPD 7mw7m5 E-02: populate Item.blocks_release for a release-blocking plan so it renders with
     # the `>` glyph / `[blocking]` label like specs/backlog blockers (the release_blockers SET scan
     # already re-reads the file, so set-membership does not depend on this; display parity does).
@@ -1494,7 +1501,7 @@ def _research_record(
         cls = A.class_of("research", status)
 
     rid = str(data.get("id", "")) if data.get("id") else ""
-    lha = A.last_history_at(_history_section_lines(text))
+    lha = A.last_history_at(A.history_block(text).records)
     # xprio 6vgd0k E-04: populate Item.priority from the doc's `priority:` frontmatter key so the
     # board LABELS a research doc's priority via the existing renderer (absent = None = no label).
     # Shared sort key unchanged.
@@ -1553,7 +1560,7 @@ def _backlog_record(
     gate = None
     if status == "blocked" and item.gate_kind and item.gate_ref:
         gate = {"kind": item.gate_kind, "ref": item.gate_ref}
-    lha = A.last_history_at(_history_section_lines(text))
+    lha = A.last_history_at(A.history_block(text).records)
     d_kind, d_text = _extract_detail(text)
     rd = read_readiness(text)
     oqs, rqs = count_question_stats(text)

@@ -35,34 +35,34 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: baseline
 
-- [ ] E-01 Before editing, record the base sha (`git rev-parse HEAD`) and capture a BASELINE answers file outside the tree's tracked paths (e.g. under `.aw/state/`, gitignored): for every tracked `.aw/records/**/*.md` containing `## Workflow history`, the values of `attention_contract.last_history_at([l.strip() for l in attention._history_section_lines(t)])`, `check_engine._item_close_date`, `check_engine._item_graduated_date`, `check_engine._spec_implementing_date`, `plan_readiness.extract_newest_history_entry`, `plan_readiness.newest_verdict`, `plan_readiness.history_has_review_record`, plus `aw attention --format json` saved beside it. The artifact set is RE-DERIVED at execution time (git-tracked files only; never walk `.aw/worktrees/`); 2489 at authoring and 2516 at review are context, not the bar. FIRST check the prerequisite: `kgv213` is under `.aw/records/plans/executed/` AND `python3 -c "from agent_workflows.attention_contract import history_block; print(history_block.__doc__ is not None)"` succeeds. At review (HEAD `a60a58038`) neither held: `kgv213` was `reviewed` in `pending/` and `history_block` did not exist. If either fails, mark this and every later item `blocked`, set the plan's workflow note accordingly, and edit nothing.
+- [x] E-01 Before editing, record the base sha (`git rev-parse HEAD`) and capture a BASELINE answers file outside the tree's tracked paths (e.g. under `.aw/state/`, gitignored): for every tracked `.aw/records/**/*.md` containing `## Workflow history`, the values of `attention_contract.last_history_at([l.strip() for l in attention._history_section_lines(t)])`, `check_engine._item_close_date`, `check_engine._item_graduated_date`, `check_engine._spec_implementing_date`, `plan_readiness.extract_newest_history_entry`, `plan_readiness.newest_verdict`, `plan_readiness.history_has_review_record`, plus `aw attention --format json` saved beside it. The artifact set is RE-DERIVED at execution time (git-tracked files only; never walk `.aw/worktrees/`); 2489 at authoring and 2516 at review are context, not the bar. FIRST check the prerequisite: `kgv213` is under `.aw/records/plans/executed/` AND `python3 -c "from agent_workflows.attention_contract import history_block; print(history_block.__doc__ is not None)"` succeeds. At review (HEAD `a60a58038`) neither held: `kgv213` was `reviewed` in `pending/` and `history_block` did not exist. If either fails, mark this and every later item `blocked`, set the plan's workflow note accordingly, and edit nothing.
   - Depends on: none
   - Expected outcome: the prerequisite check pasted; a JSON baseline keyed by path, with its artifact count; the saved attention JSON.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: migrate
 
-- [ ] E-02 `agent_workflows/attention.py`: in the six `_*_record` builders replace `A.last_history_at(_history_section_lines(text))` with `A.last_history_at(A.history_block(text).records)`. Add to `_history_section_lines`'s docstring that it returns the RAW heading-bounded section and that record readers must use `attention_contract.history_block`.
+- [x] E-02 `agent_workflows/attention.py`: in the six `_*_record` builders replace `A.last_history_at(_history_section_lines(text))` with `A.last_history_at(A.history_block(text).records)`. Add to `_history_section_lines`'s docstring that it returns the RAW heading-bounded section and that record readers must use `attention_contract.history_block`.
   - Depends on: E-01
   - Expected outcome: no `_history_section_lines` call remains on a record-reading path in `attention.py`.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 `agent_workflows/check_engine.py`: in `_item_close_date`, `_item_graduated_date`, `_spec_implementing_date` read `_ac.history_block(text).records` (records are already rstripped, column-zero, so the `^- ` regexes match unchanged) and update each docstring's "Reuses `attention._history_section_lines`" sentence.
+- [x] E-03 `agent_workflows/check_engine.py`: in `_item_close_date`, `_item_graduated_date`, `_spec_implementing_date` read `_ac.history_block(text).records` (records are already rstripped, column-zero, so the `^- ` regexes match unchanged) and update each docstring's "Reuses `attention._history_section_lines`" sentence.
   - Depends on: E-01
   - Expected outcome: the three readers call the shared reader.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 `agent_workflows/plan_readiness.py`: in `extract_newest_history_entry`, `history_has_review_record`, `newest_verdict` iterate `history_block(text or "").records` instead of stripped `_history_section_lines` lines; drop the now-unused import only if nothing else in the module uses it; update the module docstring sentence that says the bounding is reused from `attention._history_section_lines`.
+- [x] E-04 `agent_workflows/plan_readiness.py`: in `extract_newest_history_entry`, `history_has_review_record`, `newest_verdict` iterate `history_block(text or "").records` instead of stripped `_history_section_lines` lines; drop the now-unused import only if nothing else in the module uses it; update the module docstring sentence that says the bounding is reused from `attention._history_section_lines`.
   - Depends on: E-01
   - Expected outcome: approval/verdict readers use the shared reader; their answers on the live corpus are unchanged (V-04 proves it).
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: tests and changelog
 
-- [ ] E-05 `tests/test_history_consumers_shared_reader.py` (new, behavioral, P16) plus `CHANGELOG.md`: tests calling the real consumers on fixtures written to a temp directory, asserting return values only. (a) THE GATE CASE (F-04): a plan whose only real record is `- <d> to-review (aw set): authored`, carrying `- Readiness: go-pending-approval`, followed by a blank line, a column-zero prose line, a blank line and an indented quoted `    - <d> reviewed (aw set): /plan-review (x): APPROVE; none`, with a later `## Goal`: assert `history_has_review_record` is False, `newest_verdict` is `(None, "")`, and `is_plan_review_approved(<path>)` is False. (a2) The same fixture with the quoted line indented directly under a real `REJECT` review record that has a column-zero prose line between them: `newest_verdict` returns the NEGATIVE polarity read from the real record. (b) A backlog item whose only history-shaped line is indented: `attention.scan` on a temp repo holding that item reports `last_history_at` None for it. (b2) F-05: a backlog item whose block is `Some prose` followed by column-zero `- <d> done ...` and `- <d> graduated ...` lines: `_item_close_date` and `_item_graduated_date` return None, and a spec fixture of the same shape with an `implementing` line makes `_spec_implementing_date` return None. (c) A wrapped multi-line plan record (column-zero record directly followed by an indented continuation, then two more column-zero records) keeps every following record visible: `extract_newest_history_entry` returns the first record and `history_has_review_record` sees a review record placed third. Cases (a), (b2) MUST FAIL at the base sha: show it by copying the module into a temporary `git worktree add` of the base sha and running it there (never stash the working checkout). Add one CHANGELOG line (no em or en dashes) stating that attention, check and readiness readers now share the history bounding rule, so a quoted indented history line can no longer attest a review.
+- [x] E-05 `tests/test_history_consumers_shared_reader.py` (new, behavioral, P16) plus `CHANGELOG.md`: tests calling the real consumers on fixtures written to a temp directory, asserting return values only. (a) THE GATE CASE (F-04): a plan whose only real record is `- <d> to-review (aw set): authored`, carrying `- Readiness: go-pending-approval`, followed by a blank line, a column-zero prose line, a blank line and an indented quoted `    - <d> reviewed (aw set): /plan-review (x): APPROVE; none`, with a later `## Goal`: assert `history_has_review_record` is False, `newest_verdict` is `(None, "")`, and `is_plan_review_approved(<path>)` is False. (a2) The same fixture with the quoted line indented directly under a real `REJECT` review record that has a column-zero prose line between them: `newest_verdict` returns the NEGATIVE polarity read from the real record. (b) A backlog item whose only history-shaped line is indented: `attention.scan` on a temp repo holding that item reports `last_history_at` None for it. (b2) F-05: a backlog item whose block is `Some prose` followed by column-zero `- <d> done ...` and `- <d> graduated ...` lines: `_item_close_date` and `_item_graduated_date` return None, and a spec fixture of the same shape with an `implementing` line makes `_spec_implementing_date` return None. (c) A wrapped multi-line plan record (column-zero record directly followed by an indented continuation, then two more column-zero records) keeps every following record visible: `extract_newest_history_entry` returns the first record and `history_has_review_record` sees a review record placed third. Cases (a), (b2) MUST FAIL at the base sha: show it by copying the module into a temporary `git worktree add` of the base sha and running it there (never stash the working checkout). Add one CHANGELOG line (no em or en dashes) stating that attention, check and readiness readers now share the history bounding rule, so a quoted indented history line can no longer attest a review.
   - Depends on: E-02, E-03, E-04
   - Expected outcome: new module passes; (a) and (b2) fail at the base sha; CHANGELOG has one new entry.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -121,30 +121,311 @@ N/A. No spec states the bounding rule; the attention spec (`.aw/records/specs/im
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: PASTE the prerequisite check (the `kgv213` path under `executed/` and the `history_block` import succeeding), the base sha, the baseline's artifact count and path, and the saved `aw attention --format json` path.
   - Observed evidence:
-  - Result: pending
+```
+Prerequisite check:
+$ test -f .aw/records/plans/executed/20261012-histdedup-02-kgv213-bound-the-workflow-history-block-by-one-shared-rule.ipd.md && echo "present" && python3 -c "from agent_workflows.attention_contract import history_block; print(history_block.__doc__ is not None)"
+present
+True
 
-- [ ] V-02 validates E-02
+Base sha: 7f8bfa47854c30fd0d7cefa1558a3f3711e93eb6
+Baseline artifact count: 2555 tracked artifacts with ## Workflow history
+Baseline answers path: .aw/state/baseline-6iab2o/baseline_answers.json
+Saved aw attention JSON path: .aw/state/baseline-6iab2o/attention_baseline.json
+```
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: PASTE `git diff agent_workflows/attention.py` and `rg -n "_history_section_lines" agent_workflows/attention.py` showing only the definition remains. PASTE the before (E-01 saved file) / after `aw attention --format json` diff, filtered of volatile timestamp fields, showing no other difference (or each difference justified as in V-04).
   - Observed evidence:
-  - Result: pending
+```
+$ rg -n "_history_section_lines" agent_workflows/attention.py
+422:def _history_section_lines(text: str) -> List[str]:
 
-- [ ] V-03 validates E-03
+$ git diff agent_workflows/attention.py
+diff --git a/agent_workflows/attention.py b/agent_workflows/attention.py
+index a15a51a8a..52431668e 100644
+--- a/agent_workflows/attention.py
++++ b/agent_workflows/attention.py
+@@ -420,6 +420,13 @@ def _match_tree_policy(rel_posix: str) -> Optional[TreePolicy]:
+
+
+ def _history_section_lines(text: str) -> List[str]:
++    """Return the raw heading-bounded lines of the '## Workflow history' section.
++
++    This function returns raw, unvalidated lines between the history heading and the
++    next top-level/second-level heading. Readers that parse history records must use
++    `attention_contract.history_block` to enforce canonical record bounding (column-zero
++    chronological records, omitting indented block quotes and prose).
++    """
+     if "## Workflow history" not in text:
+         return []
+     m = re.search(r"(?m)^## Workflow history[ \t]*$", text)
+@@ -1246,7 +1253,7 @@ def _prompts_record(
+         )
+         return None, drift
+     id6 = prompts_mod.read_metadata_id6(text) or ""
+-    lha = A.last_history_at(_history_section_lines(text))
++    lha = A.last_history_at(A.history_block(text).records)
+     d_kind, d_text = _extract_detail(text)
+     oqs, rqs = count_question_stats(text)
+     return Item(
+@@ -1288,7 +1295,7 @@ def _release_record(
+         )
+         return None, drift
+     mid = _re.search(r"(?m)^- Id:\s*([0-9a-z]{6})\s*$", text)
+-    lha = A.last_history_at(_history_section_lines(text))
++    lha = A.last_history_at(A.history_block(text).records)
+     d_kind, d_text = _extract_detail(text)
+     oqs, rqs = count_question_stats(text)
+     return Item(
+@@ -1319,7 +1326,7 @@ def _spec_record(
+         gate = {"kind": kind, "ref": ref}
+         if summary:
+             gate["summary"] = summary
+-    lha = A.last_history_at(_history_section_lines(text))
++    lha = A.last_history_at(A.history_block(text).records)
+     # awdoctorfix Order 01: read Blocks-Release from the spec's front-matter so the board can surface it.
+     br = specs_mod._read_blocks_release(lines)
+     # xprio rp859c E-03: populate Item.priority from the spec's `- Priority:` line so the board LABELS
+@@ -1410,7 +1417,7 @@ def _plans_record(
+             )
+         )
+     pid = _plans_id(text)
+-    lha = A.last_history_at(_history_section_lines(text))
++    lha = A.last_history_at(A.history_block(text).records)
+     # IPD 7mw7m5 E-02: populate Item.blocks_release for a release-blocking plan so it renders with
+     # the `>` glyph / `[blocking]` label like specs/backlog blockers (the release_blockers SET scan
+     # already re-reads the file, so set-membership does not depend on this; display parity does).
+@@ -1497,7 +1504,7 @@ def _research_record(
+         cls = A.class_of("research", status)
+
+     rid = str(data.get("id", "")) if data.get("id") else ""
+-    lha = A.last_history_at(_history_section_lines(text))
++    lha = A.last_history_at(A.history_block(text).records)
+     # xprio 6vgd0k E-04: populate Item.priority from the doc's `priority:` frontmatter key so the
+     # board LABELS a research doc's priority via the existing renderer (absent = None = no label).
+     # Shared sort key unchanged.
+@@ -1555,7 +1562,7 @@ def _backlog_record(
+     gate = None
+     if status == "blocked" and item.gate_kind and item.gate_ref:
+         gate = {"kind": item.gate_kind, "ref": item.gate_ref}
+-    lha = A.last_history_at(_history_section_lines(text))
++    lha = A.last_history_at(A.history_block(text).records)
+     d_kind, d_text = _extract_detail(text)
+     rd = read_readiness(text)
+     oqs, rqs = count_question_stats(text)
+
+aw attention --format json diff (before vs after):
+Unified diff lines: 0 (Identical!)
+```
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: PASTE `git diff agent_workflows/check_engine.py` and `aw check` output on the live repository with no new finding versus the base.
   - Observed evidence:
-  - Result: pending
+```
+$ git diff agent_workflows/check_engine.py
+diff --git a/agent_workflows/check_engine.py b/agent_workflows/check_engine.py
+index 78f6daed9..d0ecd9c62 100644
+--- a/agent_workflows/check_engine.py
++++ b/agent_workflows/check_engine.py
+@@ -5993,15 +5993,14 @@ def _from_backlog_carrier_index(
+ def _item_close_date(item_text: str) -> Optional[str]:
+     """Derive the close date (compact YYYYMMDD) for a backlog item from its workflow history (b24o3q E-02).
 
-- [ ] V-04 validates E-04
+-    Reuses `attention._history_section_lines` to bound the history section and
++    Uses `attention_contract.history_block` to read history section records and
+     `attention_contract.last_history_at` to extract the newest record date.
+     Returns compact YYYYMMDD, or None if no parseable date is found.
+     """
+-    from agent_workflows import attention as _att
+     from agent_workflows import attention_contract as _ac
+
+-    lines = _att._history_section_lines(item_text)
+-    date_str = _ac.last_history_at(lines)
++    records = _ac.history_block(item_text).records
++    date_str = _ac.last_history_at(records)
+     if not date_str:
+         return None
+     compact = date_str.replace("-", "").strip()
+@@ -6268,13 +6267,13 @@ _GRADUATED_LINE_RE = _re.compile(
+ def _item_graduated_date(item_text: str) -> Optional[str]:
+     """Derive the newest graduated date (compact YYYYMMDD) for a backlog item from its history.
+
+-    Reuses `attention._history_section_lines` to bound the history section.
++    Uses `attention_contract.history_block` to read history section records.
+     Returns compact YYYYMMDD, or None if no graduation record is found.
+     """
+-    from agent_workflows import attention as _att
++    from agent_workflows import attention_contract as _ac
+
+-    lines = _att._history_section_lines(item_text)
+-    for line in lines:
++    records = _ac.history_block(item_text).records
++    for line in records:
+         m = _GRADUATED_LINE_RE.match(line)
+         if m:
+             compact = m.group("date").replace("-", "").strip()
+@@ -6291,13 +6290,13 @@ _IMPLEMENTING_LINE_RE = _re.compile(
+ def _spec_implementing_date(spec_text: str) -> Optional[str]:
+     """Derive the newest implementing transition date (compact YYYYMMDD) for a spec from its history.
+
+-    Reuses `attention._history_section_lines` to bound the history section.
++    Uses `attention_contract.history_block` to read history section records.
+     Returns compact YYYYMMDD, or None if no implementing record is found.
+     """
+-    from agent_workflows import attention as _att
++    from agent_workflows import attention_contract as _ac
+
+-    lines = _att._history_section_lines(spec_text)
+-    for line in lines:
++    records = _ac.history_block(spec_text).records
++    for line in records:
+         m = _IMPLEMENTING_LINE_RE.match(line)
+         if m:
+             compact = m.group("date").replace("-", "").strip()
+
+aw check summary:
+Evidence
+  plans  51   specs  21   prompts  2   research  100   backlog  80   walkthroughs  26   roadmaps  1   comms  1   releases  1   reviews  1025   other  1312
+  errors  5   warnings  4   info  157
+(No new finding versus the base).
+```
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: PASTE `git diff agent_workflows/plan_readiness.py`. PASTE the output of recomputing the E-01 answers after E-02..E-04 over the SAME artifact set and diffing against the baseline: the required property is that every differing answer is listed and each is justified as an artifact whose history region holds a quoted indented line or a column-zero record after a prose line (F-03/F-05), with the new answer shown correct; an unjustified difference is a FAIL. Zero differences were measured at authoring and at review. PASTE also the E-05 (a) result showing `is_plan_review_approved` now refuses the F-04 fixture.
   - Observed evidence:
-  - Result: pending
+```
+$ git diff agent_workflows/plan_readiness.py
+diff --git a/agent_workflows/plan_readiness.py b/agent_workflows/plan_readiness.py
+index 117109d49..57df2d91d 100644
+--- a/agent_workflows/plan_readiness.py
++++ b/agent_workflows/plan_readiness.py
+@@ -22,8 +22,8 @@ bug the plan was written to fix.
+    "Append" and ``.aw/records/plans/README.md`` said "an appended, dated line"; both were corrected
+    to say newest-first (E-07) precisely so a future reader does not "fix" this back into the bug.
 
-- [ ] V-05 validates E-05
+-   The bounding and the record grammar are REUSED, not re-implemented: ``attention._history_section_lines``
+-   already bounds the section at the next ``## `` heading and ``attention_contract.HISTORY_RECORD_RE``
++   The bounding and the record grammar are REUSED, not re-implemented: ``attention_contract.history_block``
++   already bounds the section canonically and ``attention_contract.HISTORY_RECORD_RE``
+    already defines the ``- YYYY-MM-DD <text>`` record grammar. A fourth hand-rolled history parser
+    would have been the wrong move.
+
+@@ -77,9 +77,9 @@ from pathlib import Path
+ from typing import Dict, List, NamedTuple, Optional, Sequence, Tuple
+
+ from agent_workflows import ipd_schema as _schema
+-from agent_workflows.attention import _history_section_lines
+-from agent_workflows.attention_contract import HISTORY_RECORD_RE
+ from agent_workflows.attention_contract import (
++    HISTORY_RECORD_RE,
++    history_block,
+     newest_history_record as _newest_history_record,
+ )
+
+@@ -274,16 +274,14 @@ def extract_newest_history_entry(text: str) -> Optional[str]:
+     the disagreement was a live bug on 534 artifacts; see that function for the measurement and for
+     why the rule is deliberately POSITIONAL rather than greatest-by-date.
+
+-    The section is BOUNDED at the next ``## `` heading (via the existing
+-    ``attention._history_section_lines``), so a bullet in a later section can never be returned, and
++    The section is BOUNDED at the next ``## `` heading or non-record block boundary (via
++    ``attention_contract.history_block``), so a bullet in a later section can never be returned, and
+     a bullet must match the ``- YYYY-MM-DD ...`` record grammar (``HISTORY_RECORD_RE``) to count, so
+     an undated stray bullet inside the section is skipped rather than returned.
+
+     Pure. Returns the record with surrounding whitespace stripped.
+     """
+-    return _newest_history_record(
+-        [line.strip() for line in _history_section_lines(text)]
+-    )
++    return _newest_history_record(history_block(text or "").records)
+
+
+ def history_verdict_approves(entry: Optional[str]) -> bool:
+@@ -575,8 +573,7 @@ def history_has_review_record(text: str) -> bool:
+
+     Pure. False for text with no history section, which is the fail-closed answer.
+     """
+-    for line in _history_section_lines(text or ""):
+-        candidate = line.strip()
++    for candidate in history_block(text or "").records:
+         if not HISTORY_RECORD_RE.match(candidate):
+             continue
+         if is_review_history_entry(candidate):
+@@ -615,8 +612,7 @@ def newest_verdict(text: str) -> Tuple[Optional[str], str]:
+
+     Pure; takes whole plan text.
+     """
+-    for line in _history_section_lines(text or ""):
+-        candidate = line.strip()
++    for candidate in history_block(text or "").records:
+         if not HISTORY_RECORD_RE.match(candidate):
+             continue
+         if not is_review_history_entry(candidate):
+
+Recomputed corpus diff against baseline:
+Checked 2555 artifacts.
+Diffs count: 0
+diffs {}
+
+E-05 (a) result:
+plan_readiness.history_has_review_record(plan_text) -> False
+plan_readiness.newest_verdict(plan_text) -> (None, "")
+plan_readiness.is_plan_review_approved(plan_path) -> False
+```
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: PASTE the new module's pytest output passing; PASTE the base-sha run (temporary `git worktree add` of the E-01 sha with the module copied in) showing cases (a) and (b2) FAILING there, then the worktree removed; and `git diff CHANGELOG.md`.
   - Observed evidence:
-  - Result: pending
+```
+New module pytest output:
+$ python3 -m pytest tests/test_history_consumers_shared_reader.py
+.....                                                                    [100%]
+5 passed in 7.61s
+
+Base-sha run (temporary git worktree add):
+$ git worktree add --detach /tmp/base-worktree-6iab2o 7f8bfa47854c30fd0d7cefa1558a3f3711e93eb6
+$ cp tests/test_history_consumers_shared_reader.py /tmp/base-worktree-6iab2o/tests/test_history_consumers_shared_reader.py
+$ (cd /tmp/base-worktree-6iab2o && PYTHONPATH=. python3 -m pytest -o addopts="" -v tests/test_history_consumers_shared_reader.py)
+tests/test_history_consumers_shared_reader.py::TestHistoryConsumersSharedReader::test_gate_case_indented_quoted_review_under_real_reject PASSED [ 20%]
+tests/test_history_consumers_shared_reader.py::TestHistoryConsumersSharedReader::test_backlog_indented_history_ignored_by_attention_scan PASSED [ 40%]
+tests/test_history_consumers_shared_reader.py::TestHistoryConsumersSharedReader::test_prose_bounded_history_in_check_engine_date_readers FAILED [ 60%]
+tests/test_history_consumers_shared_reader.py::TestHistoryConsumersSharedReader::test_gate_case_indented_quoted_review_does_not_attest_readiness FAILED [ 80%]
+tests/test_history_consumers_shared_reader.py::TestHistoryConsumersSharedReader::test_multiline_wrapped_plan_record_preserves_subsequent_records PASSED [100%]
+
+=================================== FAILURES ===================================
+_ TestHistoryConsumersSharedReader.test_prose_bounded_history_in_check_engine_date_readers _
+>       self.assertIsNone(check_engine._item_close_date(b_text))
+E       AssertionError: '20261012' is not None
+_ TestHistoryConsumersSharedReader.test_gate_case_indented_quoted_review_does_not_attest_readiness _
+>           self.assertFalse(plan_readiness.history_has_review_record(plan_text))
+E           AssertionError: True is not false
+========================= 2 failed, 3 passed in 3.91s ==========================
+
+$ git worktree remove --force /tmp/base-worktree-6iab2o
+
+$ git diff CHANGELOG.md
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index d4e3c6032..438af5cd4 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -24,6 +24,7 @@ now under way. The direction of the 2.x line (in progress, not all shipped in th
+
+ Major storage-layout boundary. The logical model (D126-D129) was superseded by the PHYSICAL `.aw/` hierarchy specified in `20260810-1447-01-physical-aw-hierarchy-placement-and-migration.spec.md` (D130, D134-D137), which the framework now implements and has migrated its own repository onto:
+
++- Fixed: attention, check and readiness readers now share the history bounding rule, so a quoted indented history line can no longer attest a review.
+ - Fixed: a mismatch between the runner's own agent_workflows package and the one a nested aw call would load now fails only the affected item (with a tool-identity-mismatch refusal) instead of stopping the whole aw oc run or aw agy run; other independent items keep running.
+ - Fixed: aw runs and aw run human output now masks tokens (such as ghp_ tokens and Bearer credentials) the same way --agent and --json already did.
+ - Fixed: closing a release-blocking backlog item with --evidence now refuses a cited plan that has not been executed, on both setter spellings.
+```
+  - Result: pass
 
 ## Approval and execution gate
 
