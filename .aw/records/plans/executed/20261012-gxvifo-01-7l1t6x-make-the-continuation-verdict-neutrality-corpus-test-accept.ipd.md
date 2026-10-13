@@ -6,7 +6,7 @@
 - Scope: Correct the exemption predicate inside that one test so it accepts exactly the deltas continuation parsing is meant to produce (removal of evidence-emptiness diagnostics only, nothing added), and keep it refusing every other verdict change. No production code change.
 - Scope-Paths: tests/test_ipd_lint.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -17,9 +17,9 @@
 - Highest E allocated: 03
 - Author: opencode
 - Id: 7l1t6x
-- Approval: 2026-10-12, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-13 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: 7l1t6x verified (set gxvifo, attempt 1).
 - 2026-10-12 approved (aw set): status set to approved
 - 2026-10-12 reviewed (aw set): /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-005. Re-measured at HEAD fee276097: 555 deltas all removed-only-evidence, error->error; Execution-state mutation adds diagnostics.
 
