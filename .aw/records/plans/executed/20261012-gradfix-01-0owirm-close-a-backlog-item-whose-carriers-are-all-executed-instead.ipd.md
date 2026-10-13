@@ -6,7 +6,7 @@
 - Scope: (1) Before dispatching an `open` backlog item for graduation, if it is ALREADY COMPLETE (at least one IPD carrier, every IPD carrier `executed`, every spec carrier `implemented`), do not spend an agent turn: close the item `done` citing an executed carrier, through the existing gated setter and therefore `check_engine.evaluate_blocking_close`, inside the item's isolated lane so nothing is written to the shared checkout mid-run. (2) Make `backlog_graduate_count` accept a production turn that wrote no plan when the item is ALREADY COMPLETE, and route that post-turn case to the same close instead of to the `graduated` setter. (3) Amend the two specs that describe the `open` dispatch and the automated close. (4) Close the stranded items that are ALREADY COMPLETE at execution time. No change to how a live, unfinished item graduates.
 - Scope-Paths: agent_workflows/runner_shared.py, agent_workflows/production_checks.py, tests/test_backlog_already_complete.py, .aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md, .aw/records/specs/to-review/20260920-llbr2b-01-llbr2b-lifecycle-automation-policy.spec.md, .aw/records/backlog
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: high
@@ -16,9 +16,9 @@
 - Highest E allocated: 07
 - Author: opencode model=its_direct/pt3-claude-opus-5.5-1m-us
 - Id: 0owirm
-- Approval: 2026-10-12, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-13 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: 0owirm verified (set gradfix, attempt 1).
 - 2026-10-12 approved (aw set): status set to approved
 - 2026-10-12 reviewed (aw set): /plan-review (opencode model=its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-010. Record: .aw/records/reviews/20261012-gradfix-01-0owirm-close-a-backlog-item-whose-carriers-are-all-executed-instead.review.md Round 1
 - 2026-10-12 to-review (aw set): authored to fix the 2026-10-12 fail-gate cluster (Set gradfix)
