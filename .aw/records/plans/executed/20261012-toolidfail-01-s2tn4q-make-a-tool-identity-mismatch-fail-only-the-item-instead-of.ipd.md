@@ -6,7 +6,7 @@
 - Scope: Replace the run-fatal arm in BOTH `run_queue` loops with one shared item-local handler (`runner_shared`) that marks only the offending item failed (`fail-gate`, refusal code `tool-identity-mismatch`), closes its open attempt, records an event, and lets the loop continue so `cascade_dependency_blocked` stops its dependents and independent items still dispatch; reword the `ToolIdentityError` message so it no longer claims to abort; update the existing tests that assert or rely on the abort; add behavioral tests on both hosts; update the stale run-fatal comments; record the change in the CHANGELOG, in spec `25kzda`'s history, and in the stale C-10 row of to-review spec `llbr2b`. The tool-identity PROBE itself (what it compares, when it runs, its memo) is unchanged.
 - Scope-Paths: agent_workflows/runner_shared.py, agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, tests/test_tool_identity_item_failure.py, tests/test_agy_runipd_cli.py, tests/test_action_table_runner_parity.py, CHANGELOG.md, .aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md, .aw/records/specs/to-review/20260920-llbr2b-01-llbr2b-lifecycle-automation-policy.spec.md, .aw/records/plans/pending/20261012-toolidfail-01-s2tn4q-make-a-tool-identity-mismatch-fail-only-the-item-instead-of.ipd.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -17,9 +17,9 @@
 - Highest E allocated: 08
 - Author: opencode/its_direct/pt3-claude-opus-5.5-1m-us
 - Id: s2tn4q
-- Approval: 2026-10-12, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-13 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: s2tn4q verified (set toolidfail, attempt 1).
 - 2026-10-12 approved (aw set): status set to approved
 - 2026-10-12 reviewed (opencode model=its_direct/pt3-claude-opus-5.5-1m-us): /plan-review (opencode model=its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-010. Record: .aw/records/reviews/20261012-toolidfail-01-s2tn4q-make-a-tool-identity-mismatch-fail-only-the-item-instead-of.review.md
 
