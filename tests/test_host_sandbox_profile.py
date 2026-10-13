@@ -116,6 +116,13 @@ class CapabilityContractTests(unittest.TestCase):
 class CapabilityProbeTests(unittest.TestCase):
     """E-02: the probe must ATTEMPT, not inspect."""
 
+    @classmethod
+    def setUpClass(cls) -> None:
+        super().setUpClass()
+        cm = hsp.memoized_runner_safety_verdicts()
+        cm.__enter__()
+        cls.addClassCleanup(cm.__exit__, None, None, None)
+
     def setUp(self):
         self._saved_cache = hsp._SANDBOX_PROBE_CACHE
         self._saved_ladder = hsp._SANDBOX_LADDER
@@ -179,6 +186,13 @@ class ProbeMustProveDenialTests(unittest.TestCase):
     Both cases below are fail-OPEN, the direction x03wgn Section 8 Phase 6.3 forbids: they
     would GRANT hardened mode (and publish its guarantees) on a host with no real boundary.
     """
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        super().setUpClass()
+        cm = hsp.memoized_runner_safety_verdicts()
+        cm.__enter__()
+        cls.addClassCleanup(cm.__exit__, None, None, None)
 
     def setUp(self):
         self._saved_cache = hsp._SANDBOX_PROBE_CACHE
@@ -633,6 +647,13 @@ class ProfileDispatchTests(unittest.TestCase):
 class DiscoveryThenExecutionTests(unittest.TestCase):
     """E-07: read-only discovery, then write execution."""
 
+    @classmethod
+    def setUpClass(cls) -> None:
+        super().setUpClass()
+        cm = hsp.memoized_runner_safety_verdicts()
+        cm.__enter__()
+        cls.addClassCleanup(cm.__exit__, None, None, None)
+
     def test_discovery_then_execution_barrier(self):
         """V-07: no barrier is CLAIMED without the capability; with it, phase 1 is read-only."""
         with tempfile.TemporaryDirectory() as tmp:
@@ -752,6 +773,13 @@ class DiscoveryThenExecutionTests(unittest.TestCase):
 @unittest.skipIf(not _linux_userns_available(), _SANDBOX_REASON)
 class AdversarialOsDenialTests(unittest.TestCase):
     """E-08 / E-09: the OS - not policy - denies the write."""
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        super().setUpClass()
+        cm = hsp.memoized_runner_safety_verdicts()
+        cm.__enter__()
+        cls.addClassCleanup(cm.__exit__, None, None, None)
 
     def test_hardened_worker_write_to_control_main_sibling_denied_by_os(self):
         """V-08: control-root, main-worktree, and sibling-lane writes are OS-denied."""
@@ -987,6 +1015,13 @@ class LandlockBootstrapTests(unittest.TestCase):
 class SessionResumeProbeTests(unittest.TestCase):
     """qul11h E-02: verify supports_session_resume is probed for both runners and recorded."""
 
+    @classmethod
+    def setUpClass(cls) -> None:
+        super().setUpClass()
+        cm = hsp.memoized_runner_safety_verdicts()
+        cm.__enter__()
+        cls.addClassCleanup(cm.__exit__, None, None, None)
+
     def test_case_1_antigravity_supports_session_resume(self):
         caps = detect_host_capabilities("antigravity")
         self.assertTrue(caps.supports_session_resume)
@@ -1017,6 +1052,13 @@ class SessionResumeProbeTests(unittest.TestCase):
 
 class StructuredToolEventsProbeTests(unittest.TestCase):
     """dwbm7a E-02: verify emits_structured_tool_events is decided by an executed probe."""
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        super().setUpClass()
+        cm = hsp.memoized_runner_safety_verdicts()
+        cm.__enter__()
+        cls.addClassCleanup(cm.__exit__, None, None, None)
 
     def test_case_1_antigravity_emits_structured_tool_events(self):
         caps = detect_host_capabilities("antigravity")
