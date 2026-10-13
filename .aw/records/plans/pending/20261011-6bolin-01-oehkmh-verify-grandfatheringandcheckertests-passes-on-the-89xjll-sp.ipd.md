@@ -38,22 +38,22 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: Re-run the failing test and the corpus validator
 
-- [ ] E-01 Run `python3 -m pytest tests/test_spec_review_attestation.py -o addopts="" -k GrandfatheringAndCheckerTests -v` and record the per-test PASSED/FAILED lines and the summary line.
+- [x] E-01 Run `python3 -m pytest tests/test_spec_review_attestation.py -o addopts="" -k GrandfatheringAndCheckerTests -v` and record the per-test PASSED/FAILED lines and the summary line.
   - Depends on: none
   - Expected outcome: zero failed and zero errors, with `test_every_real_spec_in_this_repository_still_conforms` listed PASSED (it is the test that exercises `specs.validate_spec` over the real corpus, the behavior the defect broke). The selected-test count is context, not the bar (4 at review HEAD `bd8b8e993`); a filter that selects nothing is a failure of this item, not a pass.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 Locate the `89xjll` spec by id6 (`aw find specs 89xjll`; its directory moves with its status, and at review it is `.aw/records/specs/approved/20261001-89xjll-01-89xjll-spec-requirement-id-convention-and-trace-contract.spec.md`), call `specs.validate_spec(path, path.read_text())` on it printing the drift list, then run `aw specs check` and record its exit code and the count of `unsafe-field` lines in its output.
+- [x] E-02 Locate the `89xjll` spec by id6 (`aw find specs 89xjll`; its directory moves with its status, and at review it is `.aw/records/specs/approved/20261001-89xjll-01-89xjll-spec-requirement-id-convention-and-trace-contract.spec.md`), call `specs.validate_spec(path, path.read_text())` on it printing the drift list, then run `aw specs check` and record its exit code and the count of `unsafe-field` lines in its output.
   - Depends on: none
   - Expected outcome: `validate_spec` returns `[]` for `89xjll`; `aw specs check` exits 0 with zero `unsafe-field` lines. A drift on another spec whose rule is NOT `attention.unsafe-field` is outside this defect: record it and file it with `aw backlog new` rather than fixing it here.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: Confirm the regression guard and fix forward only if needed
 
-- [ ] E-03 Run `python3 -m pytest tests/test_descriptive_length_classes.py -o addopts=""` to confirm the fixture guard (400-char Scope clean, 4301-char Scope drifts) passes; if E-01, E-02, or this run fails with an `attention.unsafe-field` on Scope/Concern/Question, first take a bare `python3 -m pytest` baseline recording its FAILED node ids, then fix forward within Scope-Paths (repair the validator or bound; never edit the approved `89xjll` spec body to dodge the check). A change to either bound value or to which fields are prose-class is a contract change to Section 8.8 of spec `attention-registry-and-cross-tree-status`, so it MUST be made in that spec in the same commit (declared in Scope-Paths). Then re-run E-01, E-02, this file, and the bare suite, comparing its FAILED node ids to the baseline. Otherwise record that no change was required and capture `git diff --stat -- <Scope-Paths>`.
+- [x] E-03 Run `python3 -m pytest tests/test_descriptive_length_classes.py -o addopts=""` to confirm the fixture guard (400-char Scope clean, 4301-char Scope drifts) passes; if E-01, E-02, or this run fails with an `attention.unsafe-field` on Scope/Concern/Question, first take a bare `python3 -m pytest` baseline recording its FAILED node ids, then fix forward within Scope-Paths (repair the validator or bound; never edit the approved `89xjll` spec body to dodge the check). A change to either bound value or to which fields are prose-class is a contract change to Section 8.8 of spec `attention-registry-and-cross-tree-status`, so it MUST be made in that spec in the same commit (declared in Scope-Paths). Then re-run E-01, E-02, this file, and the bare suite, comparing its FAILED node ids to the baseline. Otherwise record that no change was required and capture `git diff --stat -- <Scope-Paths>`.
   - Depends on: E-01, E-02
   - Expected outcome: zero failed in `tests/test_descriptive_length_classes.py`, including `test_spec_validation_prose_and_oneline_fields`; either an empty Scope-Paths diff (expected case) or a fix confined to Scope-Paths with every re-run passing and no FAILED node id absent from the baseline.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -113,20 +113,58 @@ None. The root cause and the current state were resolved from repository evidenc
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: pasted `-v` output for `-k GrandfatheringAndCheckerTests` showing `test_every_real_spec_in_this_repository_still_conforms PASSED` and a summary line with zero failed and zero errors (and at least one selected test).
   - Observed evidence:
-  - Result: pending
+    ```
+    $ python3 -m pytest tests/test_spec_review_attestation.py -o addopts="" -k GrandfatheringAndCheckerTests -v
+    ============================= test session starts ==============================
+    platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0
+    cachedir: .pytest_cache
+    Using --randomly-seed=716948090
+    rootdir: <repo-root>
+    configfile: pyproject.toml
+    plugins: anyio-4.14.1, randomly-4.1.0, cov-7.1.0, xdist-3.8.0
+    collecting ... collecting 6 items                                                             collected 30 items / 26 deselected / 4 selected
 
-- [ ] V-02 validates E-02
+    tests/test_spec_review_attestation.py::GrandfatheringAndCheckerTests::test_plans_are_not_made_stricter PASSED [ 25%]
+    tests/test_spec_review_attestation.py::GrandfatheringAndCheckerTests::test_the_rule_is_registered_as_an_error_with_its_invariant PASSED [ 50%]
+    tests/test_spec_review_attestation.py::GrandfatheringAndCheckerTests::test_the_checker_fires_on_exactly_the_unattested_reviewed_cell PASSED [ 75%]
+    tests/test_spec_review_attestation.py::GrandfatheringAndCheckerTests::test_every_real_spec_in_this_repository_still_conforms PASSED [100%]
+
+    NOTE: 26 tests were deselected by -m/-k and did not run (no marker filter was active; deselected by -k/--deselect)
+    ======================= 4 passed, 26 deselected in 1.73s =======================
+    ```
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: pasted `aw find specs 89xjll` line, pasted output of the `specs.validate_spec` call on that file printing `[]`, and pasted `aw specs check` tail plus `exit=0` and the `unsafe-field` line count (0).
   - Observed evidence:
-  - Result: pending
+    ```
+    $ aw find specs 89xjll
+    ◕  approved      89xjll  .aw/records/specs/approved/20261001-89xjll-01-89xjll-spec-requirement-id-convention-and-trace-contract.spec.md
 
-- [ ] V-03 validates E-03
+    $ python3 -c "import pathlib, agent_workflows.specs as specs; p = pathlib.Path('.aw/records/specs/approved/20261001-89xjll-01-89xjll-spec-requirement-id-convention-and-trace-contract.spec.md'); print(specs.validate_spec(p, p.read_text()))"
+    []
+
+    $ aw specs check
+    aw specs check: all specs conform. 40 specs checked.
+    Exit code: 0 (exit=0)
+    Count of unsafe-field lines: 0
+    ```
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: pasted pytest summary line for `tests/test_descriptive_length_classes.py` showing zero failed, and `git diff --stat` for Scope-Paths (empty in the expected case); if non-empty, also the pre-edit and post-edit bare full-suite summary lines with FAILED node ids showing no new failure, and, if a bound or field class changed, the spec Section 8.8 diff.
   - Observed evidence:
-  - Result: pending
+    ```
+    $ python3 -m pytest tests/test_descriptive_length_classes.py -o addopts=""
+    ============================== 6 passed in 0.45s ===============================
+
+    $ git diff --stat -- tests/test_spec_review_attestation.py tests/test_descriptive_length_classes.py agent_workflows/specs.py agent_workflows/attention_contract.py .aw/records/specs/implemented/20260808-1945-01-attention-registry-and-cross-tree-status.spec.md
+    (empty)
+    ```
+  - Result: pass
 
 ## Approval and execution gate
 
