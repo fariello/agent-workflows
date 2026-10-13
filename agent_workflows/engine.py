@@ -5270,6 +5270,48 @@ def uninstall_repo(
                 _uninstall_remove(repo_root, rel, use_git)
                 _record_changed(rel)
                 actions.append(f"removed {rel}")
+    else:
+        from agent_workflows.project_context import project_config_dir
+
+        home_cfg = project_config_dir(repo_root)
+        if home_cfg.is_dir() and home_cfg != cfg_dir:
+            project_dir = home_cfg.parent
+            for fname in ("project.json", "local.json"):
+                fpath = home_cfg / fname
+                if fpath.is_file():
+                    try:
+                        fpath.unlink()
+                        actions.append(f"removed {fpath}")
+                    except OSError:
+                        pass
+            try:
+                home_cfg.rmdir()
+            except OSError:
+                pass
+
+            home_state = project_dir / "state"
+            if home_state.is_dir():
+                for p in sorted(home_state.rglob("*")):
+                    if p.is_file():
+                        try:
+                            p.unlink()
+                            actions.append(f"removed {p}")
+                        except OSError:
+                            pass
+                for p in sorted(home_state.rglob("*"), reverse=True):
+                    if p.is_dir():
+                        try:
+                            p.rmdir()
+                        except OSError:
+                            pass
+                try:
+                    home_state.rmdir()
+                except OSError:
+                    pass
+            try:
+                project_dir.rmdir()
+            except OSError:
+                pass
 
     state_dir = repo_root / ".aw" / "state"
     if state_dir.is_dir():

@@ -8255,7 +8255,9 @@ def _run_install(args: argparse.Namespace, term: Term) -> int:
                 )
 
             # Check for state_durable policy upgrade normalization (D92 leak containment; IPD gi1w75 E-04)
-            existing_proj = repo_root / ".aw" / "config" / "project.json"
+            from agent_workflows.project_context import project_config_dir
+
+            existing_proj = project_config_dir(repo_root) / "project.json"
             if existing_proj.is_file():
                 try:
                     with open(existing_proj, "r", encoding="utf-8") as f:
@@ -8954,6 +8956,26 @@ def _uninstall_dry_run_report(term: Term, repo_root: Path) -> int:
         print("  would remove the manifest last")
     else:
         print("  no manifest: would fall back to removing the framework namespace")
+    from agent_workflows.project_context import project_config_dir
+
+    if not (repo_root / ".aw" / "config").is_dir():
+        home_cfg = project_config_dir(repo_root)
+        if home_cfg.is_dir() and home_cfg != (repo_root / ".aw" / "config"):
+            project_dir = home_cfg.parent
+            home_files: list[Path] = []
+            for fname in ("project.json", "local.json"):
+                fp = home_cfg / fname
+                if fp.is_file():
+                    home_files.append(fp)
+            home_state = project_dir / "state"
+            if home_state.is_dir():
+                for p in sorted(home_state.rglob("*")):
+                    if p.is_file():
+                        home_files.append(p)
+            if home_files:
+                print(f"  would remove {len(home_files)} home config/state file(s):")
+                for hf in home_files:
+                    print(f"    - {hf}")
     deep = engine.plan_deep_cleanup(repo_root)
     if not deep.is_empty:
         print("  deeper cleanup (offered separately) WOULD remove:")
@@ -9093,6 +9115,10 @@ def _offer_deep_cleanup(
 
 def _run_uninstall(args: argparse.Namespace, term: Term) -> int:
     repo_root = Path(args.target).expanduser().resolve()
+    from agent_workflows.project_context import project_config_dir
+
+    home_cfg = project_config_dir(repo_root)
+    has_home_cfg = home_cfg.is_dir() and home_cfg != (repo_root / ".aw" / "config")
     has_footprint = (
         (repo_root / engine.AW_SYSTEM_WORKFLOWS_DIR).is_dir()
         or (repo_root / engine.WORKFLOWS_DIR).is_dir()
@@ -9101,6 +9127,7 @@ def _run_uninstall(args: argparse.Namespace, term: Term) -> int:
         or (repo_root / ".aw" / "records").is_dir()
         or (repo_root / ".aw" / "system").is_dir()
         or (repo_root / ".aw").is_dir()
+        or has_home_cfg
     )
     if not has_footprint:
         term.status(

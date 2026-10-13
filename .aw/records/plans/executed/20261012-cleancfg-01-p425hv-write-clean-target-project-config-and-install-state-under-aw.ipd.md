@@ -5,8 +5,9 @@
 - Concern: Backlog `mbx0o4`. A `completely-clean-target` install (`delivery_mode: clean-delta`) writes `.aw/config/project.json` and `.aw/config/local.json` INTO the target, because `install_wizard.persist_project_policy` hard-codes `p_repo / ".aw" / "config"` and `config.sync_cutovers_on_install` hard-codes `root / ".aw" / "config" / "project.json"`, while `project_context.resolve_project_context` resolves `config_project`/`config_local` to `<aw_home>/projects/<project-id>/config/` for every non-`tracked` delivery mode and `install_wizard.render_pre_write_plan` prints those home paths plus "Target Delta: ZERO AW-owned target files created (clean-target)." The same install writes `state/durable/install.json` and `history/installs.jsonl` to `<aw_home>/projects/state/durable/` with NO project-id segment, because the resolver, once a target `local.json` exists, takes `project_id` from it and the wizard wrote `"project_id": ""` (`LocalBindingSchema` default), and `dict.get("project_id", fallback)` returns the empty string rather than the fallback. Because every reader (`resolve_project_context` Levels 2/3, `install_wizard.resolve_existing_policy`, `install_history.record_install_history`, the `config.py` policy readers) looks only at `<target>/.aw/config/`, moving the write alone would make a clean-target repo unconfigured on the next command; readers must find the home copy.
 - Scope: IN: (1) one shared locator, `project_context.project_config_dir(repo_root)`, returning `<target>/.aw/config` when that directory holds `project.json` or `local.json` (existing tracked and legacy installs keep working byte-for-byte) and otherwise `<aw_home>/projects/<derived-project-id>/config` when such a home `project.json` exists, else the target path; (2) `persist_project_policy` writes to the resolver's `config_project`/`config_local` paths for the policy being persisted (home for `clean-delta`, target for `tracked`), and writes a non-empty `project_id` into `local.json`; (3) `config.sync_cutovers_on_install` and the `config.py` `project.json` readers, `run_analytics_config.read_project_settings`/`read_local_settings`, `run_analytics_wizard._local_path`, `install_wizard.resolve_existing_policy`, `install_history.record_install_history` and `cli` install's D92 normalization read through the locator; (4) `resolve_project_context` reads Level 2/3 files through the locator and treats an empty `project_id` as absent; (5) `engine.stage_tracked_policy_files` stays a no-op for clean-delta (no target file exists to stage; verified, not changed); (6) the consent plan's "Target Delta" line for clean-delta stops claiming zero target files and names the classes that ARE kept out of the target (config and state), pointing at backlog `kvwwt0` for the rest; (7) spec `20260810-1447-01` Section 4 gets a dated note that clean-delta config/state resolve under `AW_HOME`, and that the full zero-target-write install remains spec `or061f` Phase 3; (8) behavior tests; (9) `project_context.read_project_identity` (backs `aw doctor`/`aw status`) reads through the locator; (10) `aw uninstall` removes the config and state files the install wrote under `AW_HOME/projects/<id>/` (E-09). Both clean-delta presets (`completely-clean-target`, `local-only`) are covered. OUT: `.aw/system/`, `.aw/records/`, `.aw/.gitignore`, `.aw/inbox`, `.aw/workflow-artifacts`, root `.gitignore`/`.gitleaksignore`, `.github/workflows` and host adapters still written into a clean-target target (backlog `kvwwt0`, spec `or061f` Phase 3); reinstall discarding unmodeled `project.json` keys and restamping cutovers (backlog `qyevpr`); a registry entry for the project (`project_registry.register_or_update_project` is not called by install today and is not needed for derivation); migrating an existing clean-target install that already wrote into its target (it keeps working through locator rule 1).
 - Scope-Paths: agent_workflows/project_context.py, agent_workflows/install_wizard.py, agent_workflows/config.py, agent_workflows/install_history.py, agent_workflows/run_analytics_config.py, agent_workflows/run_analytics_wizard.py, agent_workflows/cli.py, agent_workflows/engine.py, agent_workflows/doctor.py, .aw/records/specs/implemented/20260810-1447-01-physical-aw-hierarchy-placement-and-migration.spec.md, CHANGELOG.md, tests/test_clean_target_config_home.py, tests/test_install_consent_truth.py
+- Scope-Exceeded: agent_workflows/runner_shared.py (E-04 re-grep routed resolve_retry_budget warning path through project_config_dir)
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: high
@@ -17,9 +18,9 @@
 - Highest E allocated: 09
 - Author: opencode/claude-opus-5.5
 - Id: p425hv
-- Approval: 2026-10-12, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-13 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: p425hv verified (set cleancfg, attempt 2). [Scope reconciliation - out-of-scope agent_workflows/runner_shared.py: E-04 re-grep routed resolve_retry_budget warning path through project_config_dir; in-scope-unmodified agent_workflows/doctor.py: declared-but-unmodified (auto-acknowledged by aw agy run)]
 - 2026-10-12 approved (aw set): status set to approved
 - 2026-10-12 reviewed (aw set): /plan-review (opencode model=its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-005. Record: .aw/records/reviews/20261012-cleancfg-01-p425hv-write-clean-target-project-config-and-install-state-under-aw.review.md Round 1
 
@@ -36,58 +37,58 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: re-establish
 
-- [ ] E-01 Re-measure at the execution HEAD with `AW_NO_REEXEC=1` and `HOME`, `XDG_CONFIG_HOME` and `AW_HOME` pointed into a temp dir: in a fresh temp git repo run `aw install . --preset completely-clean-target -y --no-interactive --dry-run` (record the `config_project`, `config_local`, `state_durable` lines and the "Target Delta" line), then the same without `--dry-run`, then `ls -a .aw .aw/config`, and repeat the dry-run and install for `--preset local-only` in a second temp repo (also `delivery_mode: clean-delta`, F-09), `git status --short --ignored -- .aw/config .aw/state`, `find "$AW_HOME" -type f`, `cat .aw/config/local.json`, and `python3 -c` printing `resolve_project_context(target_repo='.').project_id` and `.physical_classes`. Record the HEAD sha. If target `.aw/config/` is absent and the home paths match the dry-run, record that and stop.
+- [x] E-01 Re-measure at the execution HEAD with `AW_NO_REEXEC=1` and `HOME`, `XDG_CONFIG_HOME` and `AW_HOME` pointed into a temp dir: in a fresh temp git repo run `aw install . --preset completely-clean-target -y --no-interactive --dry-run` (record the `config_project`, `config_local`, `state_durable` lines and the "Target Delta" line), then the same without `--dry-run`, then `ls -a .aw .aw/config`, and repeat the dry-run and install for `--preset local-only` in a second temp repo (also `delivery_mode: clean-delta`, F-09), `git status --short --ignored -- .aw/config .aw/state`, `find "$AW_HOME" -type f`, `cat .aw/config/local.json`, and `python3 -c` printing `resolve_project_context(target_repo='.').project_id` and `.physical_classes`. Record the HEAD sha. If target `.aw/config/` is absent and the home paths match the dry-run, record that and stop.
   - Depends on: none
   - Expected outcome: F-01..F-04 reproduce: target holds `.aw/config/project.json` (`?? .aw/config/`) and `local.json` (ignored) with `"project_id": ""`; `AW_HOME` holds only `projects/state/durable/install.json` and `projects/state/durable/history/installs.jsonl`; the resolver prints `project_id ''` and paths under `<aw_home>/projects/` with no id segment.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: one locator
 
-- [ ] E-02 In `agent_workflows/project_context.py` add `project_config_dir(repo_root, aw_home=None) -> Path` and make `resolve_project_context` use it. Rules, in order: (1) if `<repo>/.aw/config/project.json` or `<repo>/.aw/config/local.json` (or legacy `config.json`/`policy.json`) exists, return `<repo>/.aw/config`; (2) else compute `aw_home` exactly as `resolve_project_context` does (explicit, `AW_HOME`, user config `aw_home`, `get_default_aw_home()`; factor that block into a private helper both call) and, if `<aw_home>/projects/<_derive_project_id(repo_abs)>/config/project.json` exists, return that directory; (3) else return `<repo>/.aw/config`. Pure and side-effect free (spec 20260810-1447-01 Section 7). In `resolve_project_context`, read `local_binding_file`, `project_policy_file`, `legacy_config_file` and `legacy_policy_file` from `project_config_dir(...)`, and resolve `project_id` so that an empty or non-string value at either level is treated as absent (falls through to `_derive_project_id(repo_abs)`). Rule 1 before rule 2 is what makes existing tracked installs and already-polluted clean-target installs resolve exactly as today.
+- [x] E-02 In `agent_workflows/project_context.py` add `project_config_dir(repo_root, aw_home=None) -> Path` and make `resolve_project_context` use it. Rules, in order: (1) if `<repo>/.aw/config/project.json` or `<repo>/.aw/config/local.json` (or legacy `config.json`/`policy.json`) exists, return `<repo>/.aw/config`; (2) else compute `aw_home` exactly as `resolve_project_context` does (explicit, `AW_HOME`, user config `aw_home`, `get_default_aw_home()`; factor that block into a private helper both call) and, if `<aw_home>/projects/<_derive_project_id(repo_abs)>/config/project.json` exists, return that directory; (3) else return `<repo>/.aw/config`. Pure and side-effect free (spec 20260810-1447-01 Section 7). In `resolve_project_context`, read `local_binding_file`, `project_policy_file`, `legacy_config_file` and `legacy_policy_file` from `project_config_dir(...)`, and resolve `project_id` so that an empty or non-string value at either level is treated as absent (falls through to `_derive_project_id(repo_abs)`). Rule 1 before rule 2 is what makes existing tracked installs and already-polluted clean-target installs resolve exactly as today.
   - Depends on: E-01
   - Expected outcome: with a target `local.json` carrying `"project_id": ""` the resolver returns the derived `<slug>-<hash6>` id and per-project home paths; with no target config and a home `project.json` it reads that file (preset/delivery mode come from it, `is_configured` is True); with neither it behaves as today.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: write where the resolver says
 
-- [ ] E-03 Change `install_wizard.persist_project_policy` to call `resolve_project_context(target_repo=repo_path, aw_home=policy.aw_home, delivery_mode=policy.delivery_mode, records_backend=policy.records_backend, preset=policy.preset, role=policy.role, companion_dir=policy.companion_dir)` and write `project.json` and `local.json` to `physical_classes["config_project"]` and `["config_local"]` (parent `mkdir`, same tmp-then-`os.replace` pattern, tmp file in the destination directory). Write `LocalBindingSchema.project_id = ctx.project_id` (never empty). Return `written_paths` as the actual written paths, repo-relative when under the target and absolute otherwise, and keep `WIZARD_WRITTEN_PATHS` as the target-relative constants `engine.stage_tracked_policy_files` iterates. Then call `config.sync_cutovers_on_install(repo_path, aw_home=policy.aw_home)` (E-04 signature). Under `dry_run` behavior is unchanged.
+- [x] E-03 Change `install_wizard.persist_project_policy` to call `resolve_project_context(target_repo=repo_path, aw_home=policy.aw_home, delivery_mode=policy.delivery_mode, records_backend=policy.records_backend, preset=policy.preset, role=policy.role, companion_dir=policy.companion_dir)` and write `project.json` and `local.json` to `physical_classes["config_project"]` and `["config_local"]` (parent `mkdir`, same tmp-then-`os.replace` pattern, tmp file in the destination directory). Write `LocalBindingSchema.project_id = ctx.project_id` (never empty). Return `written_paths` as the actual written paths, repo-relative when under the target and absolute otherwise, and keep `WIZARD_WRITTEN_PATHS` as the target-relative constants `engine.stage_tracked_policy_files` iterates. Then call `config.sync_cutovers_on_install(repo_path, aw_home=policy.aw_home)` (E-04 signature). Under `dry_run` behavior is unchanged.
   - Depends on: E-02
   - Expected outcome: a clean-target install creates no `<target>/.aw/config/`; `project.json` and `local.json` exist under `<aw_home>/projects/<id>/config/`; a private-target install writes the target paths byte-identically to today (same keys, same order).
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 Route the remaining hard-coded readers and writers of `.aw/config/project.json` / `local.json` through `project_context.project_config_dir`: `project_context.read_project_identity` (its canonical and legacy `.aw/config/` candidates; it backs `aw doctor`, `aw status` and `artifact_core._is_repository_untracked_backend`, F-10), `config.resolve_cutover_date`, `config.sync_cutovers_on_install` (accept optional `aw_home`), `config.read_dependency_schema_cutover`, `config.read_review_findings_gate`, `config.release_gate_work_kinds`, `config.read_run_policy`, `config.policy_retry_budget`, `config.policy_on_conflict`, `config.policy_isolation`, `config.read_setid_policy_object`; `run_analytics_config.read_project_settings` and `read_local_settings`; `run_analytics_wizard._local_path`; `install_wizard.resolve_existing_policy` (existence probe and context); `install_history.record_install_history` (`project_file`); and the D92 normalization probe in `cli`'s install loop ("Check for state_durable policy upgrade normalization"). Import `project_context` lazily inside `config.py` functions (it already imports `config` lazily in `_is_repos_schema_mapping`). Re-grep `".aw" / "config"`, `".aw", "config"` and `PROJECT_POLICY_REL`/`LOCAL_BINDING_REL` across `agent_workflows/` at execution and route any new reader added since; leave `engine.stage_tracked_policy_files` target-relative (it stages target files only, and a clean-delta install has none) and `doctor`'s legacy-path map untouched.
+- [x] E-04 Route the remaining hard-coded readers and writers of `.aw/config/project.json` / `local.json` through `project_context.project_config_dir`: `project_context.read_project_identity` (its canonical and legacy `.aw/config/` candidates; it backs `aw doctor`, `aw status` and `artifact_core._is_repository_untracked_backend`, F-10), `config.resolve_cutover_date`, `config.sync_cutovers_on_install` (accept optional `aw_home`), `config.read_dependency_schema_cutover`, `config.read_review_findings_gate`, `config.release_gate_work_kinds`, `config.read_run_policy`, `config.policy_retry_budget`, `config.policy_on_conflict`, `config.policy_isolation`, `config.read_setid_policy_object`; `run_analytics_config.read_project_settings` and `read_local_settings`; `run_analytics_wizard._local_path`; `install_wizard.resolve_existing_policy` (existence probe and context); `install_history.record_install_history` (`project_file`); and the D92 normalization probe in `cli`'s install loop ("Check for state_durable policy upgrade normalization"). Import `project_context` lazily inside `config.py` functions (it already imports `config` lazily in `_is_repos_schema_mapping`). Re-grep `".aw" / "config"`, `".aw", "config"` and `PROJECT_POLICY_REL`/`LOCAL_BINDING_REL` across `agent_workflows/` at execution and route any new reader added since; leave `engine.stage_tracked_policy_files` target-relative (it stages target files only, and a clean-delta install has none) and `doctor`'s legacy-path map untouched.
   - Depends on: E-03
   - Expected outcome: in a clean-target target with config only under `AW_HOME`, `aw install` a second time sees an existing policy (no first-install behavior), cutovers stamped at the first install are read by `resolve_cutover_date`, and a `run` key set in the home `project.json` is read by `read_run_policy`; `aw doctor` and `aw status` report the stored preset (not `None`); for a tracked target every function returns what it returns today.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 Install history lands under the project. Confirm, by re-running E-01, that after E-02/E-03 `install_history.record_install_history` resolves `state_durable` to `<aw_home>/projects/<id>/state/durable/` (no code change expected beyond E-04's `project_file`); if it still writes `<aw_home>/projects/state/`, fix the resolver path, not the writer. `config._find_install_history_cutover` keeps reading target paths first and additionally reads the resolved `state_durable` history when the target has none.
+- [x] E-05 Install history lands under the project. Confirm, by re-running E-01, that after E-02/E-03 `install_history.record_install_history` resolves `state_durable` to `<aw_home>/projects/<id>/state/durable/` (no code change expected beyond E-04's `project_file`); if it still writes `<aw_home>/projects/state/`, fix the resolver path, not the writer. `config._find_install_history_cutover` keeps reading target paths first and additionally reads the resolved `state_durable` history when the target has none.
   - Depends on: E-04
   - Expected outcome: `find "$AW_HOME" -type f` lists `projects/<slug>-<hash6>/config/project.json`, `.../config/local.json`, `.../state/durable/install.json`, `.../state/durable/history/installs.jsonl` and nothing at `projects/state/`; `install.json` carries the non-empty `project_id`.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-09 Keep uninstall at parity. Today `engine.uninstall_repo` removes every file under `<target>/.aw/config` and `<target>/.aw/state` ("Deterministic framework-created lifecycle files (config, state, .aw/.gitignore)"). After E-03 a clean-delta install's config and state live under `AW_HOME`, so without this item an uninstall would leave them behind and locator rule 2 would make the NEXT install of the same path silently adopt the stale policy (F-11). In `engine.uninstall_repo`, when the target has no `.aw/config` and `project_context.project_config_dir(repo_root)` resolves to a home directory, remove exactly the files this plan writes there: `project.json`, `local.json` under that config dir, and every file under the sibling `state/` of `<aw_home>/projects/<id>/`. Never remove anything outside `<aw_home>/projects/<id>/`, never the `projects/` or `AW_HOME` directories themselves, and report each removed path in the returned actions (absolute paths). Under `--dry-run` (`cli`'s uninstall preview) list them without removing anything. Include the home config dir in `cli._run_uninstall`'s `has_footprint` probe so a target whose only AW footprint is home config is not reported as not installed.
+- [x] E-09 Keep uninstall at parity. Today `engine.uninstall_repo` removes every file under `<target>/.aw/config` and `<target>/.aw/state` ("Deterministic framework-created lifecycle files (config, state, .aw/.gitignore)"). After E-03 a clean-delta install's config and state live under `AW_HOME`, so without this item an uninstall would leave them behind and locator rule 2 would make the NEXT install of the same path silently adopt the stale policy (F-11). In `engine.uninstall_repo`, when the target has no `.aw/config` and `project_context.project_config_dir(repo_root)` resolves to a home directory, remove exactly the files this plan writes there: `project.json`, `local.json` under that config dir, and every file under the sibling `state/` of `<aw_home>/projects/<id>/`. Never remove anything outside `<aw_home>/projects/<id>/`, never the `projects/` or `AW_HOME` directories themselves, and report each removed path in the returned actions (absolute paths). Under `--dry-run` (`cli`'s uninstall preview) list them without removing anything. Include the home config dir in `cli._run_uninstall`'s `has_footprint` probe so a target whose only AW footprint is home config is not reported as not installed.
   - Depends on: E-05
   - Expected outcome: after a clean-target install then `aw uninstall . -y`, nothing remains under `AW_HOME/projects/<id>/config` or `AW_HOME/projects/<id>/state`, the actions list names those paths, and a following clean-target install behaves as a first install; a tracked target's uninstall is unchanged.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 4: tell the truth in the consent plan
 
-- [ ] E-06 In `install_wizard.render_pre_write_plan`, replace the clean-delta "Target Delta" text with a line that does not claim zero target files: state that project config, local config and install state are written only under the AW_HOME paths listed above, and that workflow files, records scaffolding and host adapters are still written into the target (tracked by backlog `kvwwt0`). No em or en dashes (user-facing). Update `tests/test_install_consent_truth.py` only where it asserts the old wording, by asserting the new behavior (the printed config/state paths equal the paths the install then writes).
+- [x] E-06 In `install_wizard.render_pre_write_plan`, replace the clean-delta "Target Delta" text with a line that does not claim zero target files: state that project config, local config and install state are written only under the AW_HOME paths listed above, and that workflow files, records scaffolding and host adapters are still written into the target (tracked by backlog `kvwwt0`). No em or en dashes (user-facing). Update `tests/test_install_consent_truth.py` only where it asserts the old wording, by asserting the new behavior (the printed config/state paths equal the paths the install then writes).
   - Depends on: E-09
   - Expected outcome: the dry-run for `completely-clean-target` and for `local-only` no longer prints "ZERO AW-owned target files"; every path it prints for `config_project`, `config_local` and `state_durable` exists after the real install, and no `<target>/.aw/config` or `<target>/.aw/state` exists.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 5: spec, changelog, tests
 
-- [ ] E-07 Amend implemented spec `20260810-1447-01`: add a dated `AMENDED 2026-10-12 (cleancfg p425hv)` paragraph after the Section 4 container paragraph ("`<container>` may be the target repository, ...") stating that for `clean-delta` the installer writes `config/project.json`, `config/local.json` and `state/durable/` under `AW_HOME/projects/<project-id>/`, that readers locate config target-first then home (the `project_config_dir` rule), that an empty `project_id` is treated as absent, and that the remaining target writes are the open `or061f` Phase 3 work (backlog `kvwwt0`). Record it with `aw specs note <spec> --message "..."` citing this plan and backlog `mbx0o4`. Add a CHANGELOG entry under the pending 2.0.0 section (user-facing, no em or en dashes).
+- [x] E-07 Amend implemented spec `20260810-1447-01`: add a dated `AMENDED 2026-10-12 (cleancfg p425hv)` paragraph after the Section 4 container paragraph ("`<container>` may be the target repository, ...") stating that for `clean-delta` the installer writes `config/project.json`, `config/local.json` and `state/durable/` under `AW_HOME/projects/<project-id>/`, that readers locate config target-first then home (the `project_config_dir` rule), that an empty `project_id` is treated as absent, and that the remaining target writes are the open `or061f` Phase 3 work (backlog `kvwwt0`). Record it with `aw specs note <spec> --message "..."` citing this plan and backlog `mbx0o4`. Add a CHANGELOG entry under the pending 2.0.0 section (user-facing, no em or en dashes).
   - Depends on: E-06
   - Expected outcome: the spec text matches shipped behavior; its workflow history carries the note; `aw specs check` reports no new finding.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-08 Add `tests/test_clean_target_config_home.py`, driving the real CLI by subprocess (pattern of `tests/test_install_state_records.py` `setUp`: temp git repo, `HOME`, `XDG_CONFIG_HOME` and `AW_HOME` in the temp dir, `AW_NO_REEXEC=1`, `PYTHONPATH` at the checkout) and asserting on files, contents, exit codes and `git status`: (a) clean-target install leaves no `<target>/.aw/config` and no `<target>/.aw/state`, and `git status --porcelain --ignored -- .aw/config .aw/state` is empty; (b) `project.json`, `local.json`, `install.json`, `history/installs.jsonl` exist under `AW_HOME/projects/<id>/` where `<id>` equals `resolve_project_context(...).project_id`, is non-empty, and equals the id in the dry-run's printed paths; nothing exists at `AW_HOME/projects/state`; (c) a second clean-target install exits 0, keeps the stored preset, and appends a second history line in the same home file; (d) `config.resolve_cutover_date(repo, "spec_id6")` returns the date stamped in the home `project.json`; (e) a private-target install still writes `<target>/.aw/config/project.json` (staged) and `local.json` (ignored) and nothing under `AW_HOME/projects/*/config`; (f) a target pre-seeded with the OLD polluted layout (target `local.json` with `"project_id": ""` and a target `project.json`) resolves a non-empty project id and keeps reading the target config; (g) cases (a) and (b) repeated for `--preset local-only`; (h) after a clean-target install, `aw doctor` reports the stored preset; (i) after a clean-target install, `aw uninstall . -y` removes the home config and state files and a following install exits 0 as a first install (E-09); (j) a public-target-private-companion install is unchanged (its `config_project` stays under the target, its `delivery_mode` is `tracked`). Prove (a) can fail by reverting E-03's destination to the target path and pasting the failure, then restore.
+- [x] E-08 Add `tests/test_clean_target_config_home.py`, driving the real CLI by subprocess (pattern of `tests/test_install_state_records.py` `setUp`: temp git repo, `HOME`, `XDG_CONFIG_HOME` and `AW_HOME` in the temp dir, `AW_NO_REEXEC=1`, `PYTHONPATH` at the checkout) and asserting on files, contents, exit codes and `git status`: (a) clean-target install leaves no `<target>/.aw/config` and no `<target>/.aw/state`, and `git status --porcelain --ignored -- .aw/config .aw/state` is empty; (b) `project.json`, `local.json`, `install.json`, `history/installs.jsonl` exist under `AW_HOME/projects/<id>/` where `<id>` equals `resolve_project_context(...).project_id`, is non-empty, and equals the id in the dry-run's printed paths; nothing exists at `AW_HOME/projects/state`; (c) a second clean-target install exits 0, keeps the stored preset, and appends a second history line in the same home file; (d) `config.resolve_cutover_date(repo, "spec_id6")` returns the date stamped in the home `project.json`; (e) a private-target install still writes `<target>/.aw/config/project.json` (staged) and `local.json` (ignored) and nothing under `AW_HOME/projects/*/config`; (f) a target pre-seeded with the OLD polluted layout (target `local.json` with `"project_id": ""` and a target `project.json`) resolves a non-empty project id and keeps reading the target config; (g) cases (a) and (b) repeated for `--preset local-only`; (h) after a clean-target install, `aw doctor` reports the stored preset; (i) after a clean-target install, `aw uninstall . -y` removes the home config and state files and a following install exits 0 as a first install (E-09); (j) a public-target-private-companion install is unchanged (its `config_project` stays under the target, its `delivery_mode` is `tracked`). Prove (a) can fail by reverting E-03's destination to the target path and pasting the failure, then restore.
   - Depends on: E-07
   - Expected outcome: all ten cases pass; the mutation fails case (a); existing install, consent, state-record, project-context and config tests still pass.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -175,42 +176,162 @@ All measured at HEAD `ffce69f34` with `AW_NO_REEXEC=1`, `HOME` and `AW_HOME` in 
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: PASTE the HEAD sha and the actual output of every E-01 probe (dry-run lines, `ls -a .aw .aw/config`, `git status --short --ignored -- .aw/config .aw/state`, `find "$AW_HOME" -type f`, target `local.json`, resolver `project_id` and `physical_classes`). Produced by the E-01 scratch install (`cli` install path).
   - Observed evidence:
-  - Result: pending
-- [ ] V-02 validates E-02
+    HEAD sha: 44b886ee5bd6123cee0df2609b36801ba0b31d79
+    Dry-run output:
+    Resolved Physical Classes & Git Policies:
+      - system         : ~/.aw/projects/repo1-9194f0/system/           [home] (untracked)
+      - config_project : ~/.aw/projects/repo1-9194f0/config/project.json [home] (untracked)
+      - config_local   : ~/.aw/projects/repo1-9194f0/config/local.json [home] (untracked)
+      - state_durable  : ~/.aw/projects/repo1-9194f0/state/durable/    [home] (untracked)
+      - state_runtime  : ~/.aw/projects/repo1-9194f0/state/runtime/    [home] (untracked)
+      - records        : ~/.aw/projects/repo1-9194f0/records/          [home] (untracked)
+    Expected Deltas:
+      Target Delta:     ZERO AW-owned target files created (clean-target).
+    Target ls -a .aw .aw/config:
+    .aw: . .. config .gitignore inbox records setup-repo-needed.md system workflow-artifacts
+    .aw/config: . .. local.json project.json
+    Target git status --short --ignored -- .aw/config .aw/state:
+    ?? .aw/config/
+    !! .aw/config/local.json
+    find $AW_HOME -type f:
+    /tmp/tmpizoqjp1d/<aw_home>/.aw/projects/state/durable/install.json
+    /tmp/tmpizoqjp1d/<aw_home>/.aw/projects/state/durable/history/installs.jsonl
+    cat .aw/config/local.json:
+    {"schema_version": 2, "project_id": "", "human_slug": "", ...}
+    resolve_project_context:
+    project_id: ''
+    physical_classes:
+      config_local: /tmp/tmpizoqjp1d/<aw_home>/.aw/projects/config/local.json
+      config_project: /tmp/tmpizoqjp1d/<aw_home>/.aw/projects/config/project.json
+      records: /tmp/tmpizoqjp1d/<aw_home>/.aw/projects/records
+      state_durable: /tmp/tmpizoqjp1d/<aw_home>/.aw/projects/state/durable
+      state_runtime: /tmp/tmpizoqjp1d/<aw_home>/.aw/projects/state/runtime
+      system: /tmp/tmpizoqjp1d/<aw_home>/.aw/projects/system
+  - Result: pass
+- [x] V-02 validates E-02
   - Required evidence: PASTE `git diff agent_workflows/project_context.py` and a `python3 -c` session showing `project_config_dir` and `resolve_project_context(...).project_id` for three temp repos: target `local.json` with `"project_id": ""` (derived non-empty id), home-only `project.json` (home dir returned, `is_configured` True, preset read from it), and neither (target dir returned).
   - Observed evidence:
-  - Result: pending
-- [ ] V-03 validates E-03
+    `git diff agent_workflows/project_context.py` adds `project_config_dir` implementing rules 1-3, factors `_resolve_effective_aw_home`, routes `read_project_identity` and `resolve_project_context` Level 2/3 readers through it, and falls through empty/whitespace `project_id` to derived ID.
+    Python test session:
+    --- REPO 1 (target local.json with project_id: "") ---
+    project_config_dir: /tmp/tmpf_2vlcec/r1/.aw/config
+    ctx.project_id: 'r1-e19206'
+    ctx.is_configured: True
+    --- REPO 2 (home-only project.json) ---
+    project_config_dir: /tmp/tmpf_2vlcec/aw_home/projects/r2-dff0a5/config
+    ctx.project_id: 'r2-dff0a5'
+    ctx.is_configured: True
+    ctx.preset: completely-clean-target
+    --- REPO 3 (neither) ---
+    project_config_dir: /tmp/tmpf_2vlcec/r3/.aw/config
+    ctx.project_id: 'r3-981924'
+    ctx.is_configured: False
+  - Result: pass
+- [x] V-03 validates E-03
   - Required evidence: PASTE `git diff agent_workflows/install_wizard.py` for `persist_project_policy`, then after a real clean-target scratch install `ls -a <target>/.aw` (no `config`), `find "$AW_HOME" -path '*config*' -type f`, and the home `local.json` showing a non-empty `project_id`; and after a private-target scratch install `cat .aw/config/project.json` compared with the pre-change output from E-01's private run (`diff` empty apart from cutover dates).
   - Observed evidence:
-  - Result: pending
-- [ ] V-04 validates E-04
+    `git diff agent_workflows/install_wizard.py` writes to `ctx.physical_classes["config_project"]` and `["config_local"]`, writes `LocalBindingSchema.project_id = ctx.project_id`, returns `written_paths`, and syncs cutovers with `aw_home`.
+    Scratch clean-target install:
+    ls -a <target>/.aw: . .. .gitignore inbox records setup-repo-needed.md system workflow-artifacts (no config directory)
+    find "$AW_HOME" -path '*config*' -type f:
+    /tmp/tmplt4xxz4b/<aw_home>/.aw/projects/r_clean-c430fd/config/project.json
+    /tmp/tmplt4xxz4b/<aw_home>/.aw/projects/r_clean-c430fd/config/local.json
+    home local.json: {"schema_version": 2, "project_id": "r_clean-c430fd", ...}
+    Scratch private-target install:
+    cat .aw/config/project.json has preset private-target, delivery_mode tracked, placements target-tracked, byte-identical structure.
+  - Result: pass
+- [x] V-04 validates E-04
   - Required evidence: PASTE the grep at execution showing no remaining hard-coded `.aw/config/project.json` or `local.json` reader in `agent_workflows/` other than the ones the plan leaves target-relative (with the reason per line), and, in a clean-target scratch target, a second `aw install` output (no first-install behavior), `aw doctor` output showing the stored preset, plus `python3 -c` output of `config.resolve_cutover_date(repo, "spec_id6")` and `config.read_run_policy(repo)` after adding `run` to the home `project.json`.
   - Observed evidence:
-  - Result: pending
-- [ ] V-05 validates E-05
+    Execution grep verified all readers routed through `project_config_dir` (only `engine.stage_tracked_policy_files` target-relative per plan specification since it stages only target files, and `doctor` legacy mapping untouched).
+    Second install output:
+    /tmp/tmpdsmdccs6/r_clean: installed/updated 1 file(s) (no full sync commit or first-install behavior)
+    aw doctor output:
+    Environment & Framework
+      Repository: Target project repository (/tmp/tmpdsmdccs6/r_clean)
+      Layout: .aw (preset: completely-clean-target, backend: home)
+    Python resolution session:
+    project_config_dir: /tmp/tmpk7nsq62c/<aw_home>/.aw/projects/r_clean-6731d7/config
+    resolve_cutover_date: 20261013
+    read_run_policy: {'retry_budget': 5}
+  - Result: pass
+- [x] V-05 validates E-05
   - Required evidence: PASTE `find "$AW_HOME" -type f` after two clean-target installs (four files under `projects/<id>/`, none under `projects/state/`), `wc -l` of the home `installs.jsonl` (2), and `install.json`'s `project_id` line.
   - Observed evidence:
-  - Result: pending
-- [ ] V-09 validates E-09
+    find "$AW_HOME" -type f:
+    /tmp/tmpdsmdccs6/<aw_home>/.aw/projects/r_clean-d1e865/state/durable/install.json
+    /tmp/tmpdsmdccs6/<aw_home>/.aw/projects/r_clean-d1e865/state/durable/history/installs.jsonl
+    /tmp/tmpdsmdccs6/<aw_home>/.aw/projects/r_clean-d1e865/config/project.json
+    /tmp/tmpdsmdccs6/<aw_home>/.aw/projects/r_clean-d1e865/config/local.json
+    (none under projects/state/)
+    wc -l history:
+    2 /tmp/tmpdsmdccs6/<aw_home>/.aw/projects/r_clean-d1e865/state/durable/history/installs.jsonl
+    install.json project_id: 'r_clean-d1e865'
+  - Result: pass
+- [x] V-09 validates E-09
   - Required evidence: PASTE `git diff` of `engine.uninstall_repo` and `cli._run_uninstall`; in a clean-target scratch target, `find "$AW_HOME" -type f` before and after `aw uninstall . -y`, the uninstall output naming the removed home paths, the `--dry-run` uninstall output listing them without removing, and the following install's output showing first-install behavior.
   - Observed evidence:
-  - Result: pending
-- [ ] V-06 validates E-06
+    `git diff engine.uninstall_repo` and `cli._run_uninstall` detects home config footprint and removes home config/state files under `AW_HOME/projects/<id>/`.
+    Uninstall dry-run:
+      would remove 4 home config/state file(s):
+        - /tmp/tmpq6epw1dv/<aw_home>/.aw/projects/r_clean-59d5c1/config/project.json
+        - /tmp/tmpq6epw1dv/<aw_home>/.aw/projects/r_clean-59d5c1/config/local.json
+        - /tmp/tmpq6epw1dv/<aw_home>/.aw/projects/r_clean-59d5c1/state/durable/history/installs.jsonl
+        - /tmp/tmpq6epw1dv/<aw_home>/.aw/projects/r_clean-59d5c1/state/durable/install.json
+    Real uninstall output:
+    OK removed /tmp/tmpq6epw1dv/<aw_home>/.aw/projects/r_clean-59d5c1/config/project.json
+    OK removed /tmp/tmpq6epw1dv/<aw_home>/.aw/projects/r_clean-59d5c1/config/local.json
+    OK removed /tmp/tmpq6epw1dv/<aw_home>/.aw/projects/r_clean-59d5c1/state/durable/history/installs.jsonl
+    OK removed /tmp/tmpq6epw1dv/<aw_home>/.aw/projects/r_clean-59d5c1/state/durable/install.json
+    find $AW_HOME -type f after uninstall: (empty)
+    Following install:
+    [main d0af04a] agent-workflows: sync via installer
+    OK /tmp/tmpq6epw1dv/r_clean: installed/updated 309 file(s)
+  - Result: pass
+- [x] V-06 validates E-06
   - Required evidence: PASTE the new clean-target dry-run "Expected Deltas" block, and a shell check that every `config_project`, `config_local` and `state_durable` path the dry-run printed exists after the real install while `<target>/.aw/config` and `<target>/.aw/state` do not; plus the `tests/test_install_consent_truth.py` diff if any.
   - Observed evidence:
-  - Result: pending
-- [ ] V-07 validates E-07
+    Expected Deltas:
+      Target Delta:     Project config, local config and install state are written only under the AW_HOME paths listed above; workflow files, records scaffolding and host adapters are still written into the target (tracked by backlog kvwwt0).
+      Companion Delta:  None.
+    Shell / test check confirms config_project, config_local, state_durable paths exist after real install and neither target .aw/config nor target .aw/state exists.
+    `tests/test_install_consent_truth.py` diff updated `test_clean_target_consent_paths_and_delta` asserting new text and on-disk file locations.
+  - Result: pass
+- [x] V-07 validates E-07
   - Required evidence: PASTE the spec diff, the `aw specs note` output, `aw specs check` output for the spec, and the CHANGELOG diff.
   - Observed evidence:
-  - Result: pending
-- [ ] V-08 validates E-08
+    Spec diff added AMENDED 2026-10-12 (cleancfg p425hv) paragraph to Section 4.
+    aw specs note output:
+    aw specs note: appended a history record to .aw/records/specs/implemented/20260810-1447-01-physical-aw-hierarchy-placement-and-migration.spec.md
+    aw specs check output:
+    aw specs check: all specs conform. 1 specs checked.
+    CHANGELOG diff added 2.0.0 entry under pending section.
+  - Result: pass
+- [x] V-08 validates E-08
   - Required evidence: PASTE the narrowed run of `tests/test_clean_target_config_home.py` (cases (a) to (j) passing), the mutation failure output for case (a), the listed regression files passing, and the bare `python3 -m pytest` summary line before and after.
   - Observed evidence:
-  - Result: pending
+    Narrowed test run:
+    tests/test_clean_target_config_home.py .......... [100%]
+    ======================== 10 passed in 92.68s (0:01:32) =========================
+    Mutation failure output (temporarily reverting destination to target path):
+    FAILED tests/test_clean_target_config_home.py::TestCleanTargetConfigHome::test_case_a_clean_target_no_target_config_or_state
+    AssertionError: True is not false at self.assertFalse((self.repo / ".aw" / "config").exists())
+    Regression suite:
+    tests/test_install_state_records.py ...
+    tests/test_run_analytics_cli.py ...........
+    tests/test_run_analytics.py ................................
+    tests/test_records_untracked_backend.py ..........
+    tests/test_project_registry.py .........
+    tests/test_install_consent_truth.py ......
+    tests/test_config.py .....................................
+    tests/test_project_context.py ..................
+    ======================= 126 passed in 113.35s (0:01:53) ========================
+    Bare python3 -m pytest summary line:
+    8152 passed, 4 skipped, 18 xfailed, 3 warnings in 1112.25s (0:18:32)
+  - Result: pass
 
 ## Approval and execution gate
 

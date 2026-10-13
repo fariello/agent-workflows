@@ -124,7 +124,9 @@ class AnalyticsSettings:
 
 
 def _local_path(repo_root: Path | str) -> Path:
-    return Path(repo_root).joinpath(".aw", *LOCAL_BINDING_REL)
+    from agent_workflows.project_context import project_config_dir
+
+    return project_config_dir(repo_root) / "local.json"
 
 
 def _coerce_bool(value: Any, default: bool) -> bool:

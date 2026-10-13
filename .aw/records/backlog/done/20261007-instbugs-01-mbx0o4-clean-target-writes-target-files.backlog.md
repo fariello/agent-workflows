@@ -1,5 +1,5 @@
 - Id: mbx0o4
-- Status: graduated
+- Status: done
 - Graduated-To: cleancfg
 - Blocks-Release: next
 - Set: instbugs
@@ -8,6 +8,7 @@
 - Summary: completely-clean-target install writes .aw/config and .aw/state into the target despite promising zero AW-owned target files
 
 ## Workflow history
+- 2026-10-13 done (aw backlog): closed by aw agy run: IPD p425hv executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20261012-cleancfg-01-p425hv-write-clean-target-project-config-and-install-state-under-aw.ipd.md); evidence .aw/records/plans/executed/20261012-cleancfg-01-p425hv-write-clean-target-project-config-and-install-state-under-aw.ipd.md
 - 2026-10-12 graduated (aw backlog): graduated by run run-20261012T005641Z-2321995: p425hv
 - 2026-10-07 created (aw backlog): completely-clean-target install writes .aw/config and .aw/state into the target despite promising zero AW-owned target files
 

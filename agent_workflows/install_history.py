@@ -63,8 +63,9 @@ def record_install_history(
     history_name = layout.DURABLE_STATE_CLASSES.get("history", "history")
     history_dir = durable_root / history_name
     history_dir.mkdir(parents=True, exist_ok=True)
+    from agent_workflows.project_context import project_config_dir
 
-    project_file = Path(target_repo) / ".aw" / "config" / "project.json"
+    project_file = project_config_dir(target_repo) / "project.json"
     policy_summary: Optional[Dict[str, Any]] = None
     if project_file.is_file():
         try:

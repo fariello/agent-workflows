@@ -43,17 +43,23 @@ class TestInstallConsentTruth(unittest.TestCase):
     def _run_install(
         self, target_dir: Path, fake_home: Path, preset: str = "private-target"
     ) -> subprocess.CompletedProcess:
+        import sys
+
+        fake_aw_home = fake_home / ".aw"
+        fake_aw_home.mkdir(parents=True, exist_ok=True)
         env = dict(
             os.environ,
-            PYTHONPATH=self.repo_root,
+            PYTHONPATH=f"{self.repo_root}:{os.environ.get('PYTHONPATH', '')}",
             AW_NO_REEXEC="1",
             HOME=str(fake_home),
+            AW_HOME=str(fake_aw_home),
+            XDG_CONFIG_HOME=str(fake_home / ".config"),
         )
         return subprocess.run(
             [
-                "python3",
+                sys.executable,
                 "-m",
-                "agent_workflows",
+                "agent_workflows.cli",
                 "install",
                 ".",
                 "--preset",
@@ -262,6 +268,57 @@ class TestInstallConsentTruth(unittest.TestCase):
                 "Normalizing state_durable git policy from target-git to ignored",
                 combined_out2,
                 "Normalization announcement must not repeat on second install",
+            )
+
+    def test_clean_target_consent_paths_and_delta(self) -> None:
+        """Validate clean-target consent plan truth: no zero-target claim, and printed paths exist."""
+        from agent_workflows.install_wizard import get_preset_defaults
+
+        with tempfile.TemporaryDirectory() as td, tempfile.TemporaryDirectory() as fake_home:
+            repo_path = Path(td)
+            self._init_git_repo(repo_path)
+
+            for preset in (
+                Preset.COMPLETELY_CLEAN_TARGET.value,
+                Preset.LOCAL_ONLY.value,
+            ):
+                pls, gps, dm, rb, ds = get_preset_defaults(preset)
+                policy = ProjectPolicy(
+                    preset=preset,
+                    delivery_mode=dm,
+                    records_backend=rb,
+                    durability_state=ds,
+                )
+                plan = render_pre_write_plan(policy, str(repo_path), Term(color=False))
+
+                self.assertNotIn("ZERO AW-owned target files", plan)
+                self.assertIn(
+                    "Project config, local config and install state are written only under the AW_HOME paths listed above",
+                    plan,
+                )
+                self.assertIn("tracked by backlog kvwwt0", plan)
+
+            res = self._run_install(
+                repo_path, Path(fake_home), preset=Preset.COMPLETELY_CLEAN_TARGET.value
+            )
+            self.assertEqual(res.returncode, 0, f"Install failed: {res.stderr}")
+
+            # Verify no target .aw/config or .aw/state
+            self.assertFalse((repo_path / ".aw" / "config").exists())
+            self.assertFalse((repo_path / ".aw" / "state").exists())
+
+            fake_aw_home = str(Path(fake_home) / ".aw")
+            ctx_fake = resolve_project_context(
+                target_repo=str(repo_path),
+                aw_home=fake_aw_home,
+            )
+            self.assertEqual(ctx_fake.delivery_mode, "clean-delta")
+            self.assertTrue(Path(ctx_fake.physical_classes["config_project"]).is_file())
+            self.assertTrue(Path(ctx_fake.physical_classes["config_local"]).is_file())
+            self.assertTrue(
+                (
+                    Path(ctx_fake.physical_classes["state_durable"]) / "install.json"
+                ).is_file()
             )
 
 

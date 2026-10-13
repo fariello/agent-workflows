@@ -26,6 +26,7 @@ Major storage-layout boundary. The logical model (D126-D129) was superseded by t
 
 - Fixed: aw runs and aw run human output now masks tokens (such as ghp_ tokens and Bearer credentials) the same way --agent and --json already did.
 - Fixed: closing a release-blocking backlog item with --evidence now refuses a cited plan that has not been executed, on both setter spellings.
+- Fixed: clean-target installs (presets completely-clean-target and local-only) now place project config, local binding, and install state under AW_HOME/projects/<project-id>/ where the resolver places them, rather than writing config files into the target repository. Readers locate configuration target-first then home via project_config_dir, treating empty project IDs as absent, while aw uninstall cleans up home-placed config and state for clean-target repositories.
 - Added: advisory check rule `check.source-test-citation-dangling` flags comments and docstrings in shipped source (`agent_workflows/` and `tools/`) citing nonexistent `tests/test_*.py` files. The rule runs during `aw check all` at `info` severity without altering the exit code, and deliberate historical citations can be silenced by naming the deleting commit hash.
 - Fixed: `RedactionPolicy` sensitive-key matching is now case-insensitive (security fix, backlog go20fk).
 - Fixed: setting a record's Priority, Work-Kind, From-Backlog, From-Spec, Item-Dependencies or Graduated-To line no longer deletes a matching line quoted in the record's body.

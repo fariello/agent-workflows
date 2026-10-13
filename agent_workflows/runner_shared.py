@@ -16426,9 +16426,12 @@ def resolve_retry_budget(
             try:
                 return run_recovery.validate_retry_budget(policy_value)
             except run_recovery.InvalidRetryBudgetError as exc:
+                from agent_workflows.project_context import project_config_dir
+
+                cfg_file = project_config_dir(repo) / "project.json"
                 message = (
                     f"WARNING: {_config.RUN_POLICY_KEY}.{_config.RUN_RETRY_BUDGET_MEMBER} in "
-                    f"{Path(repo) / '.aw' / 'config' / 'project.json'} is out of range: {exc}. "
+                    f"{cfg_file} is out of range: {exc}. "
                     f"Ignoring it and using the default retry budget "
                     f"({run_recovery.DEFAULT_RETRY_LIMIT}) instead. Fix the value in that file to "
                     f"make the repository policy take effect."
