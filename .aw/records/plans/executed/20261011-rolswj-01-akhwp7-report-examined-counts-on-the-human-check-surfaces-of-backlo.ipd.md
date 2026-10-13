@@ -5,8 +5,9 @@
 - Concern: Backlog `rolswj` (the F-7 sweep filed by executed plan `121j2r`) records that four check commands, `aw backlog check`, `aw attention --check`, `aw research check-refs` and `aw sanitize` (alias of `aw check-local-leaks`), hand-write their human output and print a clean verdict with NO examined count, so a clean result over zero artifacts is indistinguishable from a clean result over thousands. This is the same defect `121j2r` fixed for `aw specs check`, and it violates `docs/cli-output-contract.md` Section 2 ("Both renderers expose identical facts (counts, paths, evidence, exit code) with zero domain drift"). Two of the four (`research check-refs`, `sanitize`) do not even COMPUTE an examined count today, so their machine surfaces lack it too.
 - Scope: IN: (1) `backlog.run_check` human branch prints the already-computed `items_count` on clean and drift paths; (2) `attention.run`'s `--check` human branch prints the already-computed `len(items)` on clean and drift paths, including the no-project climb branch; (3) `research_refs.run_check_refs` gains an examined-file count from a counted variant of `artifact_core.find_dangling_citations`, reported on all three surfaces; (4) `leak_sanitizer.main` gains a scanned-unit count from a counted variant of `leak_sanitizer.run`, reported on all three surfaces; (5) behavioral regression tests for each command at zero and nonzero; (6) one CHANGELOG line. OUT: adopting `HumanRenderer` for any of the four (OQ-01); `--fix` output of `sanitize`; `plans_index`'s use of the dangling detector; any change to which artifacts or files are examined; any exit code.
 - Scope-Paths: agent_workflows/backlog.py, agent_workflows/attention.py, agent_workflows/research_refs.py, agent_workflows/artifact_core.py, agent_workflows/leak_sanitizer.py, tests/test_agent_checked_count.py, tests/test_validator_nonsurveyable_dir.py, CHANGELOG.md
+- Scope-Exceeded: .aw/records/backlog/open/20261012-5tj8g4-01-5tj8g4-suite-tests-assuming-tempdirs-are-outside-any-aw-p.backlog.md (follow-up defect the executor found and filed instead of fixing out of scope)
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: followup
 - Priority: medium
@@ -16,9 +17,9 @@
 - Highest E allocated: 11
 - Author: opencode/its_direct/pt3-claude-opus-5.5-1m-us
 - Id: akhwp7
-- Approval: 2026-10-12, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-13 executed (opencode its_direct/pt3-claude-opus-5.5-1m-us): finalized during stranded-lane recovery 2026-10-12: the lane's suite_check failed only on host-environment tests later traced to a stray /tmp/.aw (backlog 5tj8g4); the merge of this lane onto current main re-ran green (69pxm5: 7296 passed; akhwp7: 7295 passed) [Scope reconciliation - out-of-scope .aw/records/backlog/open/20261012-5tj8g4-01-5tj8g4-suite-tests-assuming-tempdirs-are-outside-any-aw-p.backlog.md: follow-up defect the executor found and filed instead of fixing out of scope]
 - 2026-10-12 approved (aw set): status set to approved
 - 2026-10-12 reviewed (aw set): plan-review complete: APPROVE WITH REVISIONS APPLIED
 
@@ -36,68 +37,68 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: backlog check
 
-- [ ] E-01 In `backlog.run_check`, hoist the `exit_code` / `status` / `summary` computation (today inside `if ctx.is_agent or ctx.is_json:`, worded `f"{items_count} backlog items checked"` / `f"{len(drift)} finding(s) detected across {items_count} backlog items"`) above the branch so both branches read ONE expression, exactly as `121j2r` did for `specs.run_check`. Human clean path becomes `aw backlog check: all backlog items conform. {summary}.` (KEEP the existing sentence and APPEND the count, because `tests/test_validator_nonsurveyable_dir.py` asserts the substring `all backlog items conform.`). Human drift path keeps every `{location}: {rule}: {detail}` line and replaces the trailing `aw backlog check: {len(drift)} violation(s).` with `aw backlog check: {summary}.` (nothing pins the `violation(s)` wording, F-5). Keep the color handling and `return exit_code` (same value as `core.drift_exit_code(drift)`).
+- [x] E-01 In `backlog.run_check`, hoist the `exit_code` / `status` / `summary` computation (today inside `if ctx.is_agent or ctx.is_json:`, worded `f"{items_count} backlog items checked"` / `f"{len(drift)} finding(s) detected across {items_count} backlog items"`) above the branch so both branches read ONE expression, exactly as `121j2r` did for `specs.run_check`. Human clean path becomes `aw backlog check: all backlog items conform. {summary}.` (KEEP the existing sentence and APPEND the count, because `tests/test_validator_nonsurveyable_dir.py` asserts the substring `all backlog items conform.`). Human drift path keeps every `{location}: {rule}: {detail}` line and replaces the trailing `aw backlog check: {len(drift)} violation(s).` with `aw backlog check: {summary}.` (nothing pins the `violation(s)` wording, F-5). Keep the color handling and `return exit_code` (same value as `core.drift_exit_code(drift)`).
   - Depends on: none
   - Expected outcome: `aw backlog check --no-color` prints `... all backlog items conform. 0 backlog items checked.` in a repo with no items, the same N the `--agent` `checked` field reports in this repo, and `K finding(s) detected across N backlog items` on drift; exit codes stay 0 and 1.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 Update the one existing test that pins the countless backlog line (F-6): in `tests/test_validator_nonsurveyable_dir.py` `test_control_surveyable_root_reports_nonzero_artifacts`, the comment `# Backlog check human (countless success line preserved)` and `self.assertNotIn("0", proc_bl.stdout)` encode the OLD defect. Replace the `assertNotIn("0", ...)` with `self.assertIn("all backlog items conform. 1 backlog items checked.", proc_bl.stdout)` (mirroring the specs assertion two lines above it) and correct the comment; in the same file's `test_control_empty_but_real_project_clean`, strengthen the backlog assertion to `all backlog items conform. 0 backlog items checked.` (mirroring its specs line). Then add to `tests/test_agent_checked_count.py` two human-surface tests for `backlog check` (empty tree asserts `0 backlog items checked`; one-item control asserts `1 backlog items checked`), each fixture built per the fixture-anchoring convention below (`init_repo` PLUS `mkdir -p .aw/records/backlog/open` BEFORE any CLI call), the control item created with exactly `backlog new --summary "Probe item" --priority low --work-kind chore --apply` (`--priority` and `--work-kind` are REQUIRED; `--title` does not exist, F-10), driving the CLI through the file's `_run_cli_with_fallback` with `--no-color` and asserting on stdout.
+- [x] E-02 Update the one existing test that pins the countless backlog line (F-6): in `tests/test_validator_nonsurveyable_dir.py` `test_control_surveyable_root_reports_nonzero_artifacts`, the comment `# Backlog check human (countless success line preserved)` and `self.assertNotIn("0", proc_bl.stdout)` encode the OLD defect. Replace the `assertNotIn("0", ...)` with `self.assertIn("all backlog items conform. 1 backlog items checked.", proc_bl.stdout)` (mirroring the specs assertion two lines above it) and correct the comment; in the same file's `test_control_empty_but_real_project_clean`, strengthen the backlog assertion to `all backlog items conform. 0 backlog items checked.` (mirroring its specs line). Then add to `tests/test_agent_checked_count.py` two human-surface tests for `backlog check` (empty tree asserts `0 backlog items checked`; one-item control asserts `1 backlog items checked`), each fixture built per the fixture-anchoring convention below (`init_repo` PLUS `mkdir -p .aw/records/backlog/open` BEFORE any CLI call), the control item created with exactly `backlog new --summary "Probe item" --priority low --work-kind chore --apply` (`--priority` and `--work-kind` are REQUIRED; `--title` does not exist, F-10), driving the CLI through the file's `_run_cli_with_fallback` with `--no-color` and asserting on stdout.
   - Depends on: E-01
   - Expected outcome: the updated test and two new tests pass after E-01 and the two new tests FAIL against pre-E-01 code (stdout contains no `backlog items checked`).
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: attention --check
 
-- [ ] E-03 In `attention.run`'s `if check:` block, the `summary` is ALREADY hoisted above the agent branch (`f"{len(items)} items checked, 0 violations"` / `f"{len(drift)} finding(s) detected across {len(items)} items"`). Make the human branch print it: clean path `aw attention --check: the view is valid. {summary}.` (KEEP `the view is valid.`, which `tests/test_explicit_dir_non_project.py` and `tests/test_attention.py` assert), and on the drift path append `aw attention --check: {summary}.` after the existing per-drift lines. Keep the existing `if drift:` / `else:` branch condition unchanged (do not re-key it on `exit_code`): an info-only drift set (e.g. `attention.lane-superseded`, severity `info` in `check_engine`) still prints its drift lines and then the count line, whose `summary` already reads `... 0 violations` because `exit_code` is 0, which is accurate. In the no-project climb branch (`if check and not explicit_dir:` under `if not refusal.may_proceed:`), whose agent evidence already says `{"items": 0, "drift": 0}`, print `aw attention --check: the view is valid. 0 items checked, 0 violations.`, deriving the `0` from the same literal value the Evidence carries (one local) rather than a second literal; leave that branch's machine `summary` string unchanged. Do NOT touch the excluded-tree or selector-refusal paths (`_emit_excluded_tree_explanation`, `_emit_unresolved_selector_refusal`), whose tests assert the validity sentence is ABSENT.
+- [x] E-03 In `attention.run`'s `if check:` block, the `summary` is ALREADY hoisted above the agent branch (`f"{len(items)} items checked, 0 violations"` / `f"{len(drift)} finding(s) detected across {len(items)} items"`). Make the human branch print it: clean path `aw attention --check: the view is valid. {summary}.` (KEEP `the view is valid.`, which `tests/test_explicit_dir_non_project.py` and `tests/test_attention.py` assert), and on the drift path append `aw attention --check: {summary}.` after the existing per-drift lines. Keep the existing `if drift:` / `else:` branch condition unchanged (do not re-key it on `exit_code`): an info-only drift set (e.g. `attention.lane-superseded`, severity `info` in `check_engine`) still prints its drift lines and then the count line, whose `summary` already reads `... 0 violations` because `exit_code` is 0, which is accurate. In the no-project climb branch (`if check and not explicit_dir:` under `if not refusal.may_proceed:`), whose agent evidence already says `{"items": 0, "drift": 0}`, print `aw attention --check: the view is valid. 0 items checked, 0 violations.`, deriving the `0` from the same literal value the Evidence carries (one local) rather than a second literal; leave that branch's machine `summary` string unchanged. Do NOT touch the excluded-tree or selector-refusal paths (`_emit_excluded_tree_explanation`, `_emit_unresolved_selector_refusal`), whose tests assert the validity sentence is ABSENT.
   - Depends on: none
   - Expected outcome: `aw attention --check --no-color` prints `the view is valid. N items checked, 0 violations.` with N equal to the `--json` evidence `items` value on the same tree; a drift tree prints the drift lines plus the count line; exit codes unchanged.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 Add to `tests/test_agent_checked_count.py` two human-surface tests for `attention --check`: an empty repo (`init_repo` plus `mkdir -p .aw/records/backlog/open`, per the fixture-anchoring convention) asserts `0 items checked, 0 violations` and exit 0, and the same fixture plus one item created with `backlog new --summary "Probe item" --priority low --work-kind chore --apply` asserts `1 items checked, 0 violations` (measured at review on exactly this fixture: `--json` summary `1 items checked, 0 violations`, evidence `{'items': 1, 'drift': 0}`, F-9). In the nonzero test also run `attention --check --json` on the same tree and assert its `evidence[0]["value"]["items"]` equals the integer parsed from the human line, so the test pins cross-surface parity rather than a constant alone. Assert on subprocess stdout only.
+- [x] E-04 Add to `tests/test_agent_checked_count.py` two human-surface tests for `attention --check`: an empty repo (`init_repo` plus `mkdir -p .aw/records/backlog/open`, per the fixture-anchoring convention) asserts `0 items checked, 0 violations` and exit 0, and the same fixture plus one item created with `backlog new --summary "Probe item" --priority low --work-kind chore --apply` asserts `1 items checked, 0 violations` (measured at review on exactly this fixture: `--json` summary `1 items checked, 0 violations`, evidence `{'items': 1, 'drift': 0}`, F-9). In the nonzero test also run `attention --check --json` on the same tree and assert its `evidence[0]["value"]["items"]` equals the integer parsed from the human line, so the test pins cross-surface parity rather than a constant alone. Assert on subprocess stdout only.
   - Depends on: E-03
   - Expected outcome: two new tests pass after E-03 and fail against pre-E-03 code.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: research check-refs
 
-- [ ] E-05 Add `artifact_core.find_dangling_citations_counted(...)` taking the same arguments as `artifact_core.find_dangling_citations` and returning `(danglers, files_examined)`, where `files_examined` counts each file from `iter_scan_files` that was NOT skipped by `exclude_root` and was successfully read. Re-express `find_dangling_citations` as `find_dangling_citations_counted(...)[0]` so there is ONE scan loop (precedent: `leak_sanitizer.scan_working_tree` is `scan_working_tree_counted(...)[0]`). Add the matching `research_refs.find_dangling_citations_counted(repo_root, research_root=None)` wrapper beside `research_refs.find_dangling_citations`. The existing callers of the uncounted functions, `plans_index` (calls `_core.find_dangling_citations`) and `research_index` (calls `RF.find_dangling_citations`, i.e. `research_refs.find_dangling_citations`), are untouched and must behave identically.
+- [x] E-05 Add `artifact_core.find_dangling_citations_counted(...)` taking the same arguments as `artifact_core.find_dangling_citations` and returning `(danglers, files_examined)`, where `files_examined` counts each file from `iter_scan_files` that was NOT skipped by `exclude_root` and was successfully read. Re-express `find_dangling_citations` as `find_dangling_citations_counted(...)[0]` so there is ONE scan loop (precedent: `leak_sanitizer.scan_working_tree` is `scan_working_tree_counted(...)[0]`). Add the matching `research_refs.find_dangling_citations_counted(repo_root, research_root=None)` wrapper beside `research_refs.find_dangling_citations`. The existing callers of the uncounted functions, `plans_index` (calls `_core.find_dangling_citations`) and `research_index` (calls `RF.find_dangling_citations`, i.e. `research_refs.find_dangling_citations`), are untouched and must behave identically.
   - Depends on: none
   - Expected outcome: both functions exist; the uncounted function returns exactly what it returned before (proved by the unchanged existing suite, including `tests/test_read_class_callers_refuse.py`'s `dng999` case).
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-06 In `research_refs.run_check_refs`, call the counted wrapper once, and compute ONE `summary` above the agent branch: `f"no dangling citations across {n} files"` when clean (keeps the `no dangling citations` substring) and `f"detected {len(danglers)} dangling citation(s) across {n} files"` otherwise. Pass it to `CommandResult`, add `"checked": n` to `data` (so the `--agent` record gains `checked`, via `result_types.CommandResult.to_agent_record`'s existing `"checked" in self.data` test) and `"checked": n` to the `research-refs` Evidence value beside `dangling_count`. Human clean path prints `{summary}`; human drift path keeps every `{file}:{line}: dangling id6 ...` line and appends `research check-refs: {summary}`. Exit codes unchanged (0/1/2).
+- [x] E-06 In `research_refs.run_check_refs`, call the counted wrapper once, and compute ONE `summary` above the agent branch: `f"no dangling citations across {n} files"` when clean (keeps the `no dangling citations` substring) and `f"detected {len(danglers)} dangling citation(s) across {n} files"` otherwise. Pass it to `CommandResult`, add `"checked": n` to `data` (so the `--agent` record gains `checked`, via `result_types.CommandResult.to_agent_record`'s existing `"checked" in self.data` test) and `"checked": n` to the `research-refs` Evidence value beside `dangling_count`. Human clean path prints `{summary}`; human drift path keeps every `{file}:{line}: dangling id6 ...` line and appends `research check-refs: {summary}`. Exit codes unchanged (0/1/2).
   - Depends on: E-05
   - Expected outcome: human, `--agent` (`checked`) and `--json` (`data.checked`) report the same integer on one tree; a zero-scan-root repo reports `0 files`.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-07 Add to `tests/test_agent_checked_count.py` tests for `research check-refs`: an empty repo (`init_repo` plus `mkdir -p .aw/records/plans`, per the fixture-anchoring convention, so the scan root exists but holds no file), human stdout contains `across 0 files` and exit 0, and `--agent` record has `checked == 0`; a repo with one markdown file under `.aw/records/plans/` citing `RSCH-zzz999` exits 1, its human stdout names `zzz999` AND contains `across 1 files`, and `--agent` `checked == 1`.
+- [x] E-07 Add to `tests/test_agent_checked_count.py` tests for `research check-refs`: an empty repo (`init_repo` plus `mkdir -p .aw/records/plans`, per the fixture-anchoring convention, so the scan root exists but holds no file), human stdout contains `across 0 files` and exit 0, and `--agent` record has `checked == 0`; a repo with one markdown file under `.aw/records/plans/` citing `RSCH-zzz999` exits 1, its human stdout names `zzz999` AND contains `across 1 files`, and `--agent` `checked == 1`.
   - Depends on: E-06
   - Expected outcome: new tests pass after E-06 and fail against pre-E-06 code.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 4: sanitize (check-local-leaks)
 
-- [ ] E-08 Make each `leak_sanitizer` scan mode report how many units it examined, without changing the public `leak_sanitizer.run` signature or return shape (tests and `local_leaks` re-export call `run(...)` and unpack two values). Add `leak_sanitizer.run_counted(...)` with `run`'s parameters returning `(fails, warns, examined, unit)`, where working tree uses the existing `scan_working_tree_counted` (unit `files`), staged counts staged blobs actually scanned (unit `staged files`), history counts `commit ` header lines seen (unit `commits`), and wheel counts entries read (unit `wheel entries`); add `_counted` siblings for staged/history/wheel the same way `scan_working_tree_counted` is shaped, with the existing functions becoming `[0]` of them. Re-express `run` as `run_counted(...)[:2]` so there is one dispatch.
+- [x] E-08 Make each `leak_sanitizer` scan mode report how many units it examined, without changing the public `leak_sanitizer.run` signature or return shape (tests and `local_leaks` re-export call `run(...)` and unpack two values). Add `leak_sanitizer.run_counted(...)` with `run`'s parameters returning `(fails, warns, examined, unit)`, where working tree uses the existing `scan_working_tree_counted` (unit `files`), staged counts staged blobs actually scanned (unit `staged files`), history counts `commit ` header lines seen (unit `commits`), and wheel counts entries read (unit `wheel entries`); add `_counted` siblings for staged/history/wheel the same way `scan_working_tree_counted` is shaped, with the existing functions becoming `[0]` of them. Re-express `run` as `run_counted(...)[:2]` so there is one dispatch.
   - Depends on: none
   - Expected outcome: `run_counted` exists; `run` returns identical `(fails, warns)` to before (proved by the unchanged `tests/test_leak_sanitizer.py` and `tests/test_local_leaks.py`).
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-09 In `leak_sanitizer.main`'s scan path (not `--fix`), call `run_counted` and compute ONE `summary` above the machine branch: clean `f"No local leaks found. {examined} {unit} checked."` (keeps the `No local leaks found.` substring `tests/test_local_leaks.py` asserts), findings `f"{len(fails)} local leak(s) detected across {examined} {unit}"`. Use it as the `CommandResult.summary`, add `"checked": examined` to `data` and to the `leak-scan` Evidence value. Human clean path prints `summary` to stderr where it prints today; human fail path keeps the `Local-leak(s) found:` block and per-finding lines and adds one `{summary}.` line before the remediation paragraph. Stream choice and exit codes (0/1/2) unchanged.
+- [x] E-09 In `leak_sanitizer.main`'s scan path (not `--fix`), call `run_counted` and compute ONE `summary` above the machine branch: clean `f"No local leaks found. {examined} {unit} checked."` (keeps the `No local leaks found.` substring `tests/test_local_leaks.py` asserts), findings `f"{len(fails)} local leak(s) detected across {examined} {unit}"`. Use it as the `CommandResult.summary`, add `"checked": examined` to `data` and to the `leak-scan` Evidence value. Human clean path prints `summary` to stderr where it prints today; human fail path keeps the `Local-leak(s) found:` block and per-finding lines and adds one `{summary}.` line before the remediation paragraph. Stream choice and exit codes (0/1/2) unchanged.
   - Depends on: E-08
   - Expected outcome: `aw sanitize` in this repo prints `No local leaks found. N files checked.` with N equal to the `--agent` `checked` value; the pre-commit hook (`.pre-commit-config.yaml` `local-leaks`) still exits 0 on a clean tree.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-10 Add to `tests/test_agent_checked_count.py` tests for `check-local-leaks`, isolating user hints the way `tests/test_leak_sanitizer_machine_flags.py` does (XDG override) so the maintainer's machine cannot change the result. Set `XDG_CONFIG_HOME` in `os.environ` for the test's duration (setUp/addCleanup or `unittest.mock.patch.dict`), NOT via a `run_cli(env=...)` argument, because `_run_cli_with_fallback` accepts no `env` and its `AW_UNFIXED_TREE` branch copies `os.environ`, so only an `os.environ` override reaches both branches. Pass the repo as the positional `dir` argument (`check-local-leaks <repo> --no-color`), which `leak_sanitizer.main` honors with no project climb, so a bare `init_repo` fixture is correct here: a git repo with one committed harmless file prints `1 files checked` on the human surface (STDERR, where `leak_sanitizer.main` writes its human verdict) at exit 0 and reports `checked == 1` on `--agent` (stdout); the same repo with a second committed file containing `"/home/" + "someuser" + "/x"` exits 1 and its stderr names the rule `home-path` and contains `across 2 files`.
+- [x] E-10 Add to `tests/test_agent_checked_count.py` tests for `check-local-leaks`, isolating user hints the way `tests/test_leak_sanitizer_machine_flags.py` does (XDG override) so the maintainer's machine cannot change the result. Set `XDG_CONFIG_HOME` in `os.environ` for the test's duration (setUp/addCleanup or `unittest.mock.patch.dict`), NOT via a `run_cli(env=...)` argument, because `_run_cli_with_fallback` accepts no `env` and its `AW_UNFIXED_TREE` branch copies `os.environ`, so only an `os.environ` override reaches both branches. Pass the repo as the positional `dir` argument (`check-local-leaks <repo> --no-color`), which `leak_sanitizer.main` honors with no project climb, so a bare `init_repo` fixture is correct here: a git repo with one committed harmless file prints `1 files checked` on the human surface (STDERR, where `leak_sanitizer.main` writes its human verdict) at exit 0 and reports `checked == 1` on `--agent` (stdout); the same repo with a second committed file containing `"/home/" + "someuser" + "/x"` exits 1 and its stderr names the rule `home-path` and contains `across 2 files`.
   - Depends on: E-09
   - Expected outcome: new tests pass after E-09 and fail against pre-E-09 code.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 5: user-facing record and suite
 
-- [ ] E-11 Add ONE `- Fixed:` line under `## 2.0.0 (pending)` in `CHANGELOG.md`, in user-facing register with NO em or en dash: `aw backlog check`, `aw attention --check`, `aw research check-refs` and `aw sanitize` now report how many items or files they examined, so a clean result over nothing is distinguishable from a clean result over many. Run `python3 -m pytest` BARE before the first source edit and after the last, recording each summary line and FAILED set.
+- [x] E-11 Add ONE `- Fixed:` line under `## 2.0.0 (pending)` in `CHANGELOG.md`, in user-facing register with NO em or en dash: `aw backlog check`, `aw attention --check`, `aw research check-refs` and `aw sanitize` now report how many items or files they examined, so a clean result over nothing is distinguishable from a clean result over many. Run `python3 -m pytest` BARE before the first source edit and after the last, recording each summary line and FAILED set.
   - Depends on: E-02, E-04, E-07, E-10
   - Expected outcome: one CHANGELOG line; two bare-suite summary lines with identical (expected empty) FAILED sets, with the passed count higher by the number of tests added.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -173,60 +174,109 @@ No `.spec.md` governs how these four commands phrase their human output, so no s
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: the `backlog.run_check` diff; ACTUAL stdout and exit status of `aw backlog check --no-color` in (a) this repo, with `aw backlog check --agent`'s `checked` on the same tree showing the same integer (re-derive it, do not assume 948), (b) a throwaway repo with an empty `.aw/records/backlog/open/` showing `0 backlog items checked` and exit 0, (c) a throwaway repo with one malformed item showing the drift lines plus `finding(s) detected across 1 backlog items` and exit 1. Quote the single hoisted `summary` expression both branches read. Observations come from `backlog.run_check` via the CLI.
   - Observed evidence:
-  - Result: pending
+    `backlog.run_check` now computes `exit_code`/`status`/`summary` ONCE above `if ctx.is_agent or ctx.is_json:`:
+      summary = (f"{items_count} backlog items checked" if exit_code == 0
+                 else f"{len(drift)} finding(s) detected across {items_count} backlog items")
+    Human clean: `msg = f"aw backlog check: all backlog items conform. {summary}."`; drift: `sys.stdout.write(f"aw backlog check: {summary}.\n")`; `return exit_code`.
+    (a) this repo: `aw backlog check: all backlog items conform. 976 backlog items checked.` exit=0; `--agent`: `{"cmd":"backlog check","outcome":"clean","exit":0,...,"checked":976,...}`.
+    (b) /dev/shm throwaway with empty `.aw/records/backlog/open/`: `aw backlog check: all backlog items conform. 0 backlog items checked.` exit=0.
+    (c) one malformed item: five `...: backlog.id-invalid|priority-invalid|kind-invalid|set-missing|summary-missing: ...` lines then `aw backlog check: 5 finding(s) detected across 1 backlog items.` exit=1.
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: the diff of `tests/test_validator_nonsurveyable_dir.py` showing `assertNotIn("0", proc_bl.stdout)` replaced by a positive count assertion, the comment corrected, and the empty-project backlog assertion strengthened to `0 backlog items checked.`; the two new tests' fixture code showing `.aw/records/backlog/open` created before the first CLI call; names and source of the two new backlog tests; bare `python3 -m pytest tests/test_agent_checked_count.py tests/test_validator_nonsurveyable_dir.py` summary line; and the FAILURE output of the two new tests against pre-E-01 `backlog.py`.
   - Observed evidence:
-  - Result: pending
+    `tests/test_validator_nonsurveyable_dir.py`: comment now `# Backlog check human (nonzero examined count reported, rolswj/akhwp7)`; `self.assertNotIn("0", proc_bl.stdout)` replaced by `self.assertIn("all backlog items conform. 1 backlog items checked.", proc_bl.stdout)`; `test_control_empty_but_real_project_clean` now asserts `all backlog items conform. 0 backlog items checked.`.
+    New tests in `tests/test_agent_checked_count.py::HumanCheckedCountTests`: `test_backlog_check_human_emits_checked_zero_on_empty_tree`, `test_backlog_check_human_emits_checked_nonzero_control`; fixture `_anchored_repo(td, "backlog/open")` = `init_repo` + `mkdir -p .aw/records/<tree>` before any CLI call; item via `_new_backlog_item` (`backlog new --summary "Probe item" --priority low --work-kind chore --apply`).
+    Focused run (`python3 -m pytest -o addopts="" -q -p no:cacheprovider tests/test_agent_checked_count.py tests/test_validator_nonsurveyable_dir.py`): `5 failed, 21 passed in 33.21s`; the 5 failures (`test_specs_check_bare_no_project_refusal_human/agent`, `test_backlog_check_bare_no_project_refusal_human/agent`, `test_precondition_outside_is_not_project`) are in the PRE-CHANGE baseline FAILED set, caused by a stray `/tmp/.aw` on this host (`AssertionError: PosixPath('/tmp') is not None : outside_cwd must not be under an AW project`); every edited/new test passes.
+    Against pre-change code (`AW_UNFIXED_TREE` = `git archive 09cf2ec24 agent_workflows`):
+      E AssertionError: 'all backlog items conform. 0 backlog items checked.' not found in 'aw backlog check: all backlog items conform.\n'
+      E AssertionError: 'all backlog items conform. 1 backlog items checked.' not found in 'aw backlog check: all backlog items conform.\n'
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: the `attention.run` diff; ACTUAL stdout and exit status of `aw attention --check --no-color` in this repo with the `--json` `evidence[0].value.items` from the same tree showing the same integer; in an empty throwaway repo anchored per the fixture-anchoring convention (`0 items checked, 0 violations`); in a tree with at least one drift record (drift lines plus count line, exit 1; an anchored repo plus a status-less `.aw/records/plans/pending/x.md` produced `attention.missing-status` at review); and bare `aw attention --check` run from a directory for which `project_context.find_project_root()` returns `None` (paste that call's output from the same cwd FIRST; a temp dir under `/tmp` may climb to a stray `/tmp/.aw`, F-9, so choose e.g. a fresh dir under `/dev/shm`) showing the no-project branch line with `0 items checked`. Confirm in writing the excluded-tree and refusal paths were not edited. Observations come from `attention.run` via the CLI.
   - Observed evidence:
-  - Result: pending
+    `attention.run`: drift path appends `sys.stdout.write(f"aw attention --check: {summary}.\n")` after per-drift lines; clean path `f"aw attention --check: the view is valid. {summary}.\n"`; `if drift:`/`else:` unchanged. No-project branch: local `no_project_items = 0` feeds BOTH the Evidence value `{"items": no_project_items, "drift": 0}` and the human line `the view is valid. {no_project_items} items checked, 0 violations.`; machine summary unchanged. `_emit_excluded_tree_explanation` / `_emit_unresolved_selector_refusal` were not edited (diff touches only the two blocks above).
+    This repo: `aw attention --check: 6 finding(s) detected across 2605 items.` exit=1 (live lane-stranded drift); `--json`: `6 finding(s) detected across 2605 items {'items': 2605, 'drift': 6}`.
+    Anchored empty /dev/shm repo: `aw attention --check: the view is valid. 0 items checked, 0 violations.` exit=0; `--json`: `0 items checked, 0 violations {'items': 0, 'drift': 0}`.
+    Drift tree (status-less `.aw/records/plans/pending/x.md`): `.aw/records/plans/pending/x.md: attention.missing-status: no plan Status` then `aw attention --check: 1 finding(s) detected across 1 items.` exit=1.
+    No project: in a fresh `/dev/shm/.../np`, `find_project_root(Path.cwd())` printed `None`; `aw attention --check --no-color` printed `aw attention --check: the view is valid. 0 items checked, 0 violations.` exit=0.
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: names and source of the two new attention tests, the bare focused-run summary line, and their FAILURE output against pre-E-03 `attention.py`.
   - Observed evidence:
-  - Result: pending
+    New tests: `test_attention_check_human_emits_checked_zero_on_empty_tree` (asserts `the view is valid. 0 items checked, 0 violations.`, exit 0) and `test_attention_check_human_count_matches_json_evidence` (one backlog item; asserts `1 items checked, 0 violations`, parses the integer with `re.search(r"(\d+) items checked", ...)` and asserts it equals `--json` `evidence[0]["value"]["items"]`).
+    Passing in the post-change bare full run (`39 failed, 7182 passed`, neither test in the FAILED set). Against pre-change code:
+      E AssertionError: 'the view is valid. 0 items checked, 0 violations.' not found in 'aw attention --check: the view is valid.\n'
+      E AssertionError: 'the view is valid. 1 items checked, 0 violations.' not found in 'aw attention --check: the view is valid.\n'
+  - Result: pass
 
-- [ ] V-05 validates E-05
+- [x] V-05 validates E-05
   - Required evidence: the `artifact_core.py` and `research_refs.py` diff showing ONE scan loop with the uncounted function as `[0]` of the counted one; bare run of `tests/test_read_class_callers_refuse.py` and `tests/test_research_index.py` summary lines showing them still passing.
   - Observed evidence:
-  - Result: pending
+    `artifact_core.find_dangling_citations_counted(...)` holds the ONLY scan loop, incrementing `files_examined` after the `exclude_root` skip and successful `read_text`, returning `danglers, files_examined`; `find_dangling_citations(...)` is now `return find_dangling_citations_counted(...)[0]`. `research_refs.find_dangling_citations_counted(repo_root, research_root=None)` delegates to it with the same resolver/matcher/exclude as the unchanged `research_refs.find_dangling_citations`.
+    `tests/test_read_class_callers_refuse.py` and `tests/test_research_index.py`: in the focused run, the only failures in these files were `test_check_miscategorized_bare_outside_project`, `test_read_verbs_refuse_bare_outside_project[cmd_prefix0]`, `[cmd_prefix2]`, all three in the pre-change baseline FAILED set (stray `/tmp/.aw`); `comm -23` of focused FAILED vs baseline FAILED printed nothing. Bare full suite before/after FAILED sets identical.
+  - Result: pass
 
-- [ ] V-06 validates E-06
+- [x] V-06 validates E-06
   - Required evidence: the `run_check_refs` diff quoting the single `summary` expression; human, `--agent` and `--json` output of `aw research check-refs` on one unchanged tree (this repo) showing the same integer (human `across N files`, agent `checked`, json `data.checked`); an empty throwaway repo anchored per the fixture-anchoring convention showing `no dangling citations across 0 files`, exit 0, and agent `"checked":0`; exit 1 unchanged on the dangling tree. Observations come from `research_refs.run_check_refs` via the CLI.
   - Observed evidence:
-  - Result: pending
+    `research_refs.run_check_refs` computes above the agent branch:
+      summary = (f"no dangling citations across {files_examined} files" if not danglers
+                 else f"detected {len(danglers)} dangling citation(s) across {files_examined} files")
+    `data["checked"] = files_examined`, Evidence value `{"dangling_count": len(danglers), "checked": files_examined}`; human clean prints `summary`, drift appends `research check-refs: {summary}`.
+    This repo: human `research check-refs: detected 275 dangling citation(s) across 2528 files` exit=1; `--agent` `"checked":2528,"findings":275`; `--json` `data.checked` = `2528`, evidence `{'dangling_count': 275, 'checked': 2528}`.
+    Anchored empty /dev/shm repo: `no dangling citations across 0 files` exit=0; `--agent` `{"cmd":"research check-refs","outcome":"clean","exit":0,...,"checked":0,"findings":0,...}`.
+  - Result: pass
 
-- [ ] V-07 validates E-07
+- [x] V-07 validates E-07
   - Required evidence: names and source of the new research tests, the bare focused-run summary line, and their FAILURE output against pre-E-06 code.
   - Observed evidence:
-  - Result: pending
+    New tests: `test_research_check_refs_reports_zero_files_on_empty_tree` (anchored `plans` tree; human `no dangling citations across 0 files`, exit 0; agent `checked == 0`) and `test_research_check_refs_reports_files_on_dangling_tree` (`.aw/records/plans/note.md` citing `RSCH-zzz999`; exit 1, stdout names `zzz999` and contains `across 1 files`; agent `checked == 1`). Both pass in the post-change bare run. Against pre-change code:
+      E AssertionError: 'no dangling citations across 0 files' not found in 'no dangling citations\n'
+      E AssertionError: 'across 1 files' not found in "/tmp/tmpz0sggf93/.aw/records/plans/note.md:1: dangling id6 'zzz999': See RSCH-zzz999 for details.\n"
+  - Result: pass
 
-- [ ] V-08 validates E-08
+- [x] V-08 validates E-08
   - Required evidence: the `leak_sanitizer.py` diff showing `run_counted`, the `_counted` siblings, and `run` re-expressed over `run_counted`; bare `python3 -m pytest tests/test_leak_sanitizer.py tests/test_local_leaks.py tests/test_leak_sanitizer_machine_flags.py` summary line showing all still pass.
   - Observed evidence:
-  - Result: pending
+    `leak_sanitizer.py` adds `scan_staged_counted` (counts staged blobs scanned), `scan_history_counted` (counts `commit ` header lines), `scan_wheel_counted` (counts entries read); `scan_staged`/`scan_history`/`scan_wheel` are now `[0]` of them (as `scan_working_tree` already was). `run_counted(...)` holds the one dispatch and returns `(fails, warns, examined, unit)` with unit `wheel entries`/`commits`/`staged files`/`files`; `run(...)` unpacks `run_counted` and returns `fails, warns` (signature unchanged).
+    `tests/test_leak_sanitizer.py tests/test_local_leaks.py tests/test_leak_sanitizer_machine_flags.py`: none of their tests appears in the focused-run FAILED list (all 15 focused failures are baseline `/tmp/.aw` cases in other files) nor in the post-change full-run FAILED set.
+  - Result: pass
 
-- [ ] V-09 validates E-09
+- [x] V-09 validates E-09
   - Required evidence: the `leak_sanitizer.main` diff quoting the single `summary` expression; human (stderr), `--agent` and `--json` output of `aw sanitize` on this repo showing one integer; `aw sanitize --staged` and `aw sanitize --history --max-commits 3` human lines showing their units (`staged files`, `commits`); a throwaway repo with one committed harmless file showing `1 files checked` at exit 0 and with a planted home-path leak showing the findings block plus `across N files` at exit 1. Observations come from `leak_sanitizer.main` via the CLI.
   - Observed evidence:
-  - Result: pending
+    `leak_sanitizer.main` computes above the machine branch:
+      summary = (f"No local leaks found. {examined} {unit} checked." if not fails
+                 else f"{len(fails)} local leak(s) detected across {examined} {unit}")
+    `data["checked"]` and the `leak-scan` Evidence value carry `examined`; human clean `print(summary, file=sys.stderr)`; fail path prints `{summary}.` before the remediation paragraph.
+    This repo: stderr `No local leaks found. 4791 files checked.` exit=0; `--agent` `"checked":4791,"findings":0`; `--json` `No local leaks found. 4791 files checked. {'fails': 0, 'warns': 0, 'checked': 4791}`.
+    `aw sanitize --staged`: `No local leaks found. 0 staged files checked.` exit=0. `aw sanitize --history --max-commits 3`: `No local leaks found. 3 commits checked.` exit=0.
+    Throwaway (XDG_CONFIG_HOME isolated): one harmless committed file `No local leaks found. 1 files checked.` exit=0; with a planted home path: `Local-leak(s) found:` / `  l.txt:1: home-path: path <home>/someuser/x` / `1 local leak(s) detected across 2 files.` then the remediation paragraph, exit=1. The `local-leaks` pre-commit hook will be exercised by `aw commit` below.
+  - Result: pass
 
-- [ ] V-10 validates E-10
+- [x] V-10 validates E-10
   - Required evidence: names and source of the new sanitize tests (showing the XDG isolation), the bare focused-run summary line, and their FAILURE output against pre-E-09 code.
   - Observed evidence:
-  - Result: pending
+    New tests: `test_sanitize_reports_files_checked_on_clean_repo` and `test_sanitize_reports_files_checked_on_leaking_repo`, each wrapped in `mock.patch.dict(os.environ, {"XDG_CONFIG_HOME": str(Path(td) / "cfg")})` and passing the repo as positional `dir`; assert stderr `No local leaks found. 1 files checked.` + agent `checked == 1`, and exit 1 + stderr `home-path` + `across 2 files`. Both pass post-change. Against pre-change code:
+      E AssertionError: 'No local leaks found. 1 files checked.' not found in 'No local leaks found.\n'
+      E AssertionError: 'across 2 files' not found in "Local-leak(s) found:\n  leak.txt:1: home-path: path <home>/someuser/x\n\nRemove or abstract these ...
+  - Result: pass
 
-- [ ] V-11 validates E-11
+- [x] V-11 validates E-11
   - Required evidence: the CHANGELOG line, confirmed under `## 2.0.0 (pending)` with no em or en dash; the bare `python3 -m pytest` summary line and FAILED set from BEFORE the first source edit and AFTER the last, with an explicit statement whether the FAILED sets are identical; confirmation no flag was added to the bare invocation.
   - Observed evidence:
-  - Result: pending
+    CHANGELOG line added under `## 2.0.0 (pending)`: "- Fixed: `aw backlog check`, `aw attention --check`, `aw research check-refs` and `aw sanitize` now report how many items or files they examined, so a clean result over nothing is distinguishable from a clean result over many." (grep for U+2013/U+2014 on it: none).
+    BEFORE (bare `python3 -m pytest`, prior to any source edit): `39 failed, 7174 passed, 2 skipped, 3 warnings in 394.44s (0:06:34)`.
+    AFTER (bare `python3 -m pytest`): `39 failed, 7182 passed, 2 skipped, 3 warnings in 333.02s (0:05:33)`.
+    FAILED sets compared by name (`comm` both directions): IDENTICAL, no new and none fixed; passed +8 = the 8 new tests. The 39 pre-existing failures are environmental (stray `/tmp/.aw` / `/tmp/.agents` ancestor on this host making `/tmp` a project). No flag was added to either bare invocation.
+  - Result: pass
 
 ## Approval and execution gate
 

@@ -148,6 +148,24 @@ def find_dangling_citations(
     )
 
 
+def find_dangling_citations_counted(
+    repo_root: Path, research_root: Optional[Path] = None
+) -> Tuple[List[Dangler], int]:
+    """Return ``(danglers, files_examined)`` for research citations (rolswj/akhwp7).
+
+    Same resolver, matcher, and exclusion as :func:`find_dangling_citations`; additionally
+    reports how many files the scan read, so ``research check-refs`` can state its examined count.
+    """
+
+    rroot = research_root or R.resolve_research_root(repo_root)
+    return _core.find_dangling_citations_counted(
+        repo_root,
+        current_ids=_current_id6s(rroot),
+        cite_matcher=R.iter_id6_citations,
+        exclude_root=rroot,
+    )
+
+
 # --------------------------------------------------------------------------------------
 # set-assign / mv planning
 # --------------------------------------------------------------------------------------
@@ -817,15 +835,16 @@ def run_check_refs(args: argparse.Namespace) -> int:
         sys.stderr.write(refusal.human_message + "\n")
         return 2
 
-    danglers = find_dangling_citations(repo_root)
+    danglers, files_examined = find_dangling_citations_counted(repo_root)
+    # rolswj/akhwp7: ONE count expression read by the human AND machine branches.
+    status = "clean" if not danglers else "findings"
+    exit_code = 1 if danglers else 0
+    summary = (
+        f"no dangling citations across {files_examined} files"
+        if not danglers
+        else f"detected {len(danglers)} dangling citation(s) across {files_examined} files"
+    )
     if ctx.is_agent or ctx.is_json:
-        status = "clean" if not danglers else "findings"
-        exit_code = 1 if danglers else 0
-        summary = (
-            "no dangling citations"
-            if not danglers
-            else f"detected {len(danglers)} dangling citation(s)"
-        )
         diagnostics = [
             Diagnostic(
                 location=f"{d.file}:{d.line}",
@@ -838,7 +857,7 @@ def run_check_refs(args: argparse.Namespace) -> int:
         evidence = [
             Evidence(
                 key="research-refs",
-                value={"dangling_count": len(danglers)},
+                value={"dangling_count": len(danglers), "checked": files_examined},
                 status=status,
             )
         ]
@@ -850,6 +869,7 @@ def run_check_refs(args: argparse.Namespace) -> int:
             diagnostics=diagnostics,
             evidence=evidence,
             data={
+                "checked": files_examined,
                 "dangling_citations": [
                     {
                         "file": str(d.file),
@@ -858,14 +878,15 @@ def run_check_refs(args: argparse.Namespace) -> int:
                         "context": d.context,
                     }
                     for d in danglers
-                ]
+                ],
             },
         )
         return get_renderer(ctx).emit(result, ctx)
 
     if not danglers:
-        print("no dangling citations")
-        return 0
+        print(summary)
+        return exit_code
     for d in danglers:
         print(f"{d.file}:{d.line}: dangling id6 '{d.id6}': {d.context}")
-    return 1
+    print(f"research check-refs: {summary}")
+    return exit_code

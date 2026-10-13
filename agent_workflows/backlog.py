@@ -1812,14 +1812,15 @@ def run_check(args) -> int:
                 seen_ids[pid] = loc
 
     ctx = select_output(args)
+    # rolswj/akhwp7: ONE count expression read by the human AND machine branches.
+    exit_code = core.drift_exit_code(drift)
+    status = "clean" if exit_code == 0 else "findings"
+    summary = (
+        f"{items_count} backlog items checked"
+        if exit_code == 0
+        else f"{len(drift)} finding(s) detected across {items_count} backlog items"
+    )
     if ctx.is_agent or ctx.is_json:
-        exit_code = core.drift_exit_code(drift)
-        status = "clean" if exit_code == 0 else "findings"
-        summary = (
-            f"{items_count} backlog items checked"
-            if exit_code == 0
-            else f"{len(drift)} finding(s) detected across {items_count} backlog items"
-        )
         diagnostics = [
             Diagnostic(
                 location=d.location,
@@ -1858,8 +1859,8 @@ def run_check(args) -> int:
         for d in drift:
             rule = t.color256(d.rule, 196, bold=True) if colored else d.rule
             sys.stdout.write(f"{d.location}: {rule}: {d.detail}\n")
-        sys.stdout.write(f"aw backlog check: {len(drift)} violation(s).\n")
+        sys.stdout.write(f"aw backlog check: {summary}.\n")
     else:
-        msg = "aw backlog check: all backlog items conform."
+        msg = f"aw backlog check: all backlog items conform. {summary}."
         sys.stdout.write((t.color256(msg, 46, bold=True) if colored else msg) + "\n")
-    return core.drift_exit_code(drift)
+    return exit_code

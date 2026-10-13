@@ -745,10 +745,16 @@ def scan_working_tree(repo_root: Path, *, include_warn: bool = False) -> list[Fi
     return scan_working_tree_counted(repo_root, include_warn=include_warn)[0]
 
 
-def scan_staged(repo_root: Path, *, include_warn: bool = False) -> list[Finding]:
-    """Scan STAGED blob content (``git show :<path>``) for the pre-commit hook (pubrun idea)."""
+def scan_staged_counted(
+    repo_root: Path, *, include_warn: bool = False
+) -> tuple[list[Finding], int]:
+    """Scan STAGED blob content (``git show :<path>``) for the pre-commit hook (pubrun idea).
+
+    Returns (findings, count): count is staged blobs actually scanned (rolswj/akhwp7).
+    """
     ruleset = build_ruleset(repo_root, include_warn=include_warn)
     findings: list[Finding] = []
+    scanned_count = 0
     for rel in _staged_files(repo_root):
         if rel in _ALLOWED_PATHS:
             continue
@@ -761,14 +767,23 @@ def scan_staged(repo_root: Path, *, include_warn: bool = False) -> list[Finding]
             text = blob.stdout.decode("utf-8", "replace")
         except Exception:
             continue
+        scanned_count += 1
         findings.extend(scan_text(text, rel, ruleset, include_warn=include_warn))
-    return findings
+    return findings, scanned_count
 
 
-def scan_history(
+def scan_staged(repo_root: Path, *, include_warn: bool = False) -> list[Finding]:
+    """Scan STAGED blob content (``git show :<path>``) for the pre-commit hook (pubrun idea)."""
+    return scan_staged_counted(repo_root, include_warn=include_warn)[0]
+
+
+def scan_history_counted(
     repo_root: Path, *, max_commits: int | None = None, include_warn: bool = False
-) -> list[Finding]:
-    """Scan added lines across git history via `git log -p -U0`. Bounded by max_commits."""
+) -> tuple[list[Finding], int]:
+    """Scan added lines across git history via `git log -p -U0`. Bounded by max_commits.
+
+    Returns (findings, count): count is ``commit `` header lines seen (rolswj/akhwp7).
+    """
     ruleset = build_ruleset(repo_root, include_warn=include_warn)
     cmd = ["git", "-C", str(repo_root), "log", "-p", "-U0", "--no-color"]
     if max_commits:
@@ -777,8 +792,10 @@ def scan_history(
     findings: list[Finding] = []
     commit = ""
     path = ""
+    commits_seen = 0
     for line in out.stdout.splitlines():
         if line.startswith("commit "):
+            commits_seen += 1
             commit = line.split()[1][:10]
         elif line.startswith("+++ b/"):
             path = line[6:]
@@ -799,26 +816,47 @@ def scan_history(
                                 f"{commit}:{path}", rule, "warn", added.strip()[:120]
                             )
                         )
-    return findings
+    return findings, commits_seen
 
 
-def scan_wheel(
-    wheel_path: Path, repo_root: Path, *, include_warn: bool = False
+def scan_history(
+    repo_root: Path, *, max_commits: int | None = None, include_warn: bool = False
 ) -> list[Finding]:
-    """Scan the entries of a built wheel/zip for leak tokens."""
+    """Scan added lines across git history via `git log -p -U0`. Bounded by max_commits."""
+    return scan_history_counted(
+        repo_root, max_commits=max_commits, include_warn=include_warn
+    )[0]
+
+
+def scan_wheel_counted(
+    wheel_path: Path, repo_root: Path, *, include_warn: bool = False
+) -> tuple[list[Finding], int]:
+    """Scan the entries of a built wheel/zip for leak tokens.
+
+    Returns (findings, count): count is wheel entries actually read (rolswj/akhwp7).
+    """
     ruleset = build_ruleset(repo_root, include_warn=include_warn)
     findings: list[Finding] = []
+    entries_read = 0
     z = zipfile.ZipFile(wheel_path)
     for name in z.namelist():
         try:
             text = z.read(name).decode("utf-8", "replace")
         except Exception:
             continue
+        entries_read += 1
         for f in scan_text(
             text, f"{wheel_path.name}!{name}", ruleset, include_warn=include_warn
         ):
             findings.append(f)
-    return findings
+    return findings, entries_read
+
+
+def scan_wheel(
+    wheel_path: Path, repo_root: Path, *, include_warn: bool = False
+) -> list[Finding]:
+    """Scan the entries of a built wheel/zip for leak tokens."""
+    return scan_wheel_counted(wheel_path, repo_root, include_warn=include_warn)[0]
 
 
 # --- Fix (opt-in, interactive by default, NEVER in the hook; E5) -----------------------------
@@ -942,6 +980,43 @@ def _prompt_stdin(rel: str) -> bool:
 
 
 # --- Runner ----------------------------------------------------------------------------------
+def run_counted(
+    repo_root: Path,
+    *,
+    history: bool = False,
+    max_commits: int | None = None,
+    wheel: Path | None = None,
+    staged: bool = False,
+    include_warn: bool = False,
+) -> tuple[list[Finding], list[Finding], int, str]:
+    """Run the requested scan; return (fail_findings, warn_findings, examined, unit).
+
+    ``examined`` is how many units the selected mode scanned and ``unit`` names them
+    (``files``, ``staged files``, ``commits`` or ``wheel entries``), rolswj/akhwp7.
+    """
+    if wheel is not None:
+        findings, examined = scan_wheel_counted(
+            wheel, repo_root, include_warn=include_warn
+        )
+        unit = "wheel entries"
+    elif history:
+        findings, examined = scan_history_counted(
+            repo_root, max_commits=max_commits, include_warn=include_warn
+        )
+        unit = "commits"
+    elif staged:
+        findings, examined = scan_staged_counted(repo_root, include_warn=include_warn)
+        unit = "staged files"
+    else:
+        findings, examined = scan_working_tree_counted(
+            repo_root, include_warn=include_warn
+        )
+        unit = "files"
+    fails = [f for f in findings if f.severity == "fail"]
+    warns = [f for f in findings if f.severity == "warn"]
+    return fails, warns, examined, unit
+
+
 def run(
     repo_root: Path,
     *,
@@ -952,18 +1027,14 @@ def run(
     include_warn: bool = False,
 ) -> tuple[list[Finding], list[Finding]]:
     """Run the requested scan; return (fail_findings, warn_findings)."""
-    if wheel is not None:
-        findings = scan_wheel(wheel, repo_root, include_warn=include_warn)
-    elif history:
-        findings = scan_history(
-            repo_root, max_commits=max_commits, include_warn=include_warn
-        )
-    elif staged:
-        findings = scan_staged(repo_root, include_warn=include_warn)
-    else:
-        findings = scan_working_tree(repo_root, include_warn=include_warn)
-    fails = [f for f in findings if f.severity == "fail"]
-    warns = [f for f in findings if f.severity == "warn"]
+    fails, warns, _examined, _unit = run_counted(
+        repo_root,
+        history=history,
+        max_commits=max_commits,
+        wheel=wheel,
+        staged=staged,
+        include_warn=include_warn,
+    )
     return fails, warns
 
 
@@ -1055,7 +1126,7 @@ def main(
     try:
         # --agent stays fail-focused by default (deterministic, low-noise); pass --warn to
         # also include advisory auto-derived candidates.
-        fails, warns = run(
+        fails, warns, examined, unit = run_counted(
             repo_root,
             history=args.history,
             max_commits=args.max_commits,
@@ -1085,15 +1156,16 @@ def main(
     # between CLI dispatch and the engine. If context was not provided (e.g. direct argv
     # invocation), resolve it from parsed args as before.
     ctx = context or select_output(args)
+    # rolswj/akhwp7: ONE count expression read by the human AND machine branches.
+    exit_code = 1 if fails else 0
+    status = "clean" if not fails else "findings"
+    summary = (
+        f"No local leaks found. {examined} {unit} checked."
+        if not fails
+        else f"{len(fails)} local leak(s) detected across {examined} {unit}"
+    )
     if ctx.is_agent or ctx.is_json:
         findings = (*fails, *warns)
-        exit_code = 1 if fails else 0
-        status = "clean" if not fails else "findings"
-        summary = (
-            "No local leaks found."
-            if not fails
-            else f"{len(fails)} local leak(s) detected"
-        )
         diagnostics = [
             Diagnostic(
                 location=f.location,
@@ -1106,7 +1178,7 @@ def main(
         evidence = [
             Evidence(
                 key="leak-scan",
-                value={"fails": len(fails), "warns": len(warns)},
+                value={"fails": len(fails), "warns": len(warns), "checked": examined},
                 status=status,
             )
         ]
@@ -1117,7 +1189,7 @@ def main(
             summary=summary,
             diagnostics=diagnostics,
             evidence=evidence,
-            data={"fails": len(fails), "warns": len(warns)},
+            data={"fails": len(fails), "warns": len(warns), "checked": examined},
         )
         return get_renderer(ctx).emit(res, ctx)
 
@@ -1132,6 +1204,7 @@ def main(
         print("Local-leak(s) found:", file=sys.stderr)
         for f in fails:
             print(f"  {f.location}: {f.rule}: {f.snippet}", file=sys.stderr)
+        print(f"{summary}.", file=sys.stderr)
         print(
             "\nRemove or abstract these (portable placeholder / repo-relative path), "
             "or add a justified entry to .aw/config/local-leaks-allowlist.toml (legacy "
@@ -1139,9 +1212,9 @@ def main(
             "'--fix' can rewrite home-style paths.",
             file=sys.stderr,
         )
-        return 1
-    print("No local leaks found.", file=sys.stderr)
-    return 0
+        return exit_code
+    print(summary, file=sys.stderr)
+    return exit_code
 
 
 if __name__ == "__main__":

@@ -654,23 +654,27 @@ class Dangler(NamedTuple):
     context: str
 
 
-def find_dangling_citations(
+def find_dangling_citations_counted(
     repo_root: Path,
     *,
     current_ids: set,
     cite_matcher: Callable[[str], List[str]],
     exclude_root: Optional[Path] = None,
     scan_roots=SCAN_ROOTS,
-) -> List[Dangler]:
-    """Return every CITATION (per ``cite_matcher``) whose id is not in ``current_ids``.
+) -> Tuple[List[Dangler], int]:
+    """Return ``(danglers, files_examined)``: every CITATION (per ``cite_matcher``) whose id is not
+    in ``current_ids``, plus how many files the scan actually read.
 
     Area-agnostic: the caller supplies ``current_ids`` (the resolvable ids for the area) and
     ``cite_matcher`` (a function ``str -> [id6, ...]`` that extracts only real citations, not bare
     words). ``exclude_root`` (optional) skips files under an area's own tree (e.g. do not scan
-    research files for their own ids as citations). Pure and deterministic.
+    research files for their own ids as citations). ``files_examined`` counts each scanned file
+    that was not skipped by ``exclude_root`` and was successfully read (rolswj/akhwp7). Pure and
+    deterministic.
     """
 
     danglers: List[Dangler] = []
+    files_examined = 0
     for f in iter_scan_files(repo_root, scan_roots):
         if exclude_root is not None:
             try:
@@ -682,11 +686,34 @@ def find_dangling_citations(
             text = f.read_text(encoding="utf-8")
         except (OSError, UnicodeDecodeError):
             continue
+        files_examined += 1
         for i, line in enumerate(text.splitlines(), start=1):
             for tok in cite_matcher(line):
                 if tok not in current_ids:
                     danglers.append(Dangler(f, i, tok, line.strip()[:120]))
-    return danglers
+    return danglers, files_examined
+
+
+def find_dangling_citations(
+    repo_root: Path,
+    *,
+    current_ids: set,
+    cite_matcher: Callable[[str], List[str]],
+    exclude_root: Optional[Path] = None,
+    scan_roots=SCAN_ROOTS,
+) -> List[Dangler]:
+    """Return every CITATION (per ``cite_matcher``) whose id is not in ``current_ids``.
+
+    The uncounted view of :func:`find_dangling_citations_counted` (one scan loop).
+    """
+
+    return find_dangling_citations_counted(
+        repo_root,
+        current_ids=current_ids,
+        cite_matcher=cite_matcher,
+        exclude_root=exclude_root,
+        scan_roots=scan_roots,
+    )[0]
 
 
 # --------------------------------------------------------------------------------------
