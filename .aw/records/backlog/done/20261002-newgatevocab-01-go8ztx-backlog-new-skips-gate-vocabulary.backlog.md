@@ -1,5 +1,5 @@
 - Id: go8ztx
-- Status: graduated
+- Status: done
 - Graduated-To: newgatevocab
 - Blocks-Release: next
 - Set: newgatevocab
@@ -8,6 +8,7 @@
 - Summary: aw backlog new --status blocked writes an out-of-vocabulary Gate-Kind that every set verb refuses
 
 ## Workflow history
+- 2026-10-13 done (aw backlog): closed by aw agy run: IPD 7vs14y executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20261012-newgatevocab-01-7vs14y-validate-the-typed-gate-pair-at-creation-so-aw-backlog-new-r.ipd.md); evidence .aw/records/plans/executed/20261012-newgatevocab-01-7vs14y-validate-the-typed-gate-pair-at-creation-so-aw-backlog-new-r.ipd.md
 - 2026-10-12 graduated (aw backlog): graduated by run run-20261012T005650Z-2322198: 7vs14y
 - 2026-10-02 created (aw backlog): aw backlog new --status blocked writes an out-of-vocabulary Gate-Kind that every set verb refuses
 
