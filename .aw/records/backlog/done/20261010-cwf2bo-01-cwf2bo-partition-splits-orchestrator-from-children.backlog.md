@@ -1,5 +1,5 @@
 - Id: cwf2bo
-- Status: graduated
+- Status: done
 - Graduated-To: partset
 - Blocks-Release: next
 - Set: cwf2bo
@@ -8,6 +8,7 @@
 - Summary: aw partition splits an orchestrator from its Set's children and admits orchestrators whose children cannot run, so every shard holding one ends fail-depend
 
 ## Workflow history
+- 2026-10-13 done (aw backlog): closed by aw agy run: IPD 8t28wj executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20261010-partset-01-8t28wj-keep-each-set-s-orchestrator-with-its-children-in-aw-partiti.ipd.md); evidence .aw/records/plans/executed/20261010-partset-01-8t28wj-keep-each-set-s-orchestrator-with-its-children-in-aw-partiti.ipd.md
 - 2026-10-11 graduated (aw set): graduated to plan 8t28wj (Set partset)
 - 2026-10-10 created (aw backlog): aw partition splits an orchestrator from its Set's children and admits orchestrators whose children cannot run, so every shard holding one ends fail-depend
 
