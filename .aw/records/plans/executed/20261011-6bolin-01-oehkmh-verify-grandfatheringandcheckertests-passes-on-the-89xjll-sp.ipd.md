@@ -6,7 +6,7 @@
 - Scope: Confirm on current main that the real-corpus spec conformance test and the descriptive-length tests pass, that `specs.validate_spec` reports no drift for `89xjll`, and that the cause (Scope over the one-line bound) is closed by the prose length class; fix forward only if the re-run fails.
 - Scope-Paths: tests/test_spec_review_attestation.py, tests/test_descriptive_length_classes.py, agent_workflows/specs.py, agent_workflows/attention_contract.py, .aw/records/specs/implemented/20260808-1945-01-attention-registry-and-cross-tree-status.spec.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -18,9 +18,9 @@
 - Highest E allocated: 03
 - Author: opencode model=its_direct/pt3-claude-opus-5.5-1m-us
 - Id: oehkmh
-- Approval: 2026-10-12, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-13 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: oehkmh verified (set 6bolin, attempt 1). [Scope reconciliation - in-scope-unmodified .aw/records/specs/implemented/20260808-1945-01-attention-registry-and-cross-tree-status.spec.md: declared-but-unmodified (auto-acknowledged by aw agy run); in-scope-unmodified agent_workflows/attention_contract.py: declared-but-unmodified (auto-acknowledged by aw agy run); in-scope-unmodified agent_workflows/specs.py: declared-but-unmodified (auto-acknowledged by aw agy run); in-scope-unmodified tests/test_descriptive_length_classes.py: declared-but-unmodified (auto-acknowledged by aw agy run); in-scope-unmodified tests/test_spec_review_attestation.py: declared-but-unmodified (auto-acknowledged by aw agy run)] [Scope delta - no declared Scope-Paths were modified since the frozen base (5 declared path(s) unmodified; work may have landed before the begin baseline or not at all): .aw/records/specs/implemented/20260808-1945-01-attention-registry-and-cross-tree-status.spec.md, agent_workflows/attention_contract.py, agent_workflows/specs.py, tests/test_descriptive_length_classes.py, tests/test_spec_review_attestation.py]
 - 2026-10-12 approved (aw set): status set to approved
 - 2026-10-12 reviewed (aw set): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-001..PR-007
 
