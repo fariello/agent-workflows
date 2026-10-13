@@ -111,6 +111,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 - Antigravity tool-name precedence (`tool_info.name` vs `tool_name`): backlog `1kebul` / plan `n8we3u`; a different gate (name, not step type). The two plans edit the same function's different arms; this plan is ordered after `n8we3u` by its `- Item-Dependencies:` edge so the schema bump and DESIGN DECISION numbering are sequential.
   - Carrier: n8we3u
+  - Carrier-Evidence: .aw/records/plans/executed/20261011-runverdict-12-n8we3u-resolve-the-antigravity-tool-name-through-one-shared-precede.ipd.md
 - What a verdict does: D160 rules it observational; untouched.
   - Carrier-Declined: settled by D160; changing what the verdict does is not desired work.
 - `agy_runipd.render_agy_event`, `agy_view`, `runner_stop`: they already render or label the shape, and this bug is about analytics only.

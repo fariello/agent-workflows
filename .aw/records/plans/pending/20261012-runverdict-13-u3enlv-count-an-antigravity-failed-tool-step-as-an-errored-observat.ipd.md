@@ -119,6 +119,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 - Tool-name key precedence (`tool_info.name` vs `tool_name`): owned by plan `n8we3u` / backlog `1kebul`; a different key with different counts.
   - Carrier: n8we3u
+  - Carrier-Evidence: .aw/records/plans/executed/20261011-runverdict-12-n8we3u-resolve-the-antigravity-tool-name-through-one-shared-precede.ipd.md
 - The `step_type == "subagent"` delegation shape in the analytics readers: owned by backlog `iuhx9d`.
   - Carrier: iuhx9d
 - How a claim matched only to an ERRORED command is judged (`uncorroborated` today for `ERROR`): existing, deliberate behavior of `corroborate_verifier_turn` ("matched an observed non-errored command"); this plan makes `FAILED` follow it rather than re-deciding it. See OQ-02.

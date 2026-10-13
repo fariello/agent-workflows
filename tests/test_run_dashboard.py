@@ -585,9 +585,52 @@ class TestUnifiedToolExtractionRouting(unittest.TestCase):
         for name in ("task", "browser_subagent", "subagent", "invoke_subagent"):
             self.assertEqual(dash.tool_category(name), "subagent")
 
-    def test_dashboard_schema_version_is_3(self) -> None:
-        """E-04 / OQ-02: DASHBOARD_SCHEMA_VERSION is 3."""
-        self.assertEqual(dash.DASHBOARD_SCHEMA_VERSION, 3)
+    def test_dashboard_schema_version_is_4(self) -> None:
+        """E-04 (n8we3u): DASHBOARD_SCHEMA_VERSION is 4."""
+        self.assertEqual(dash.DASHBOARD_SCHEMA_VERSION, 4)
+
+    def test_dashboard_conflict_and_info_only_shapes_e10(self) -> None:
+        """E-10 (n8we3u): session_stats counts tools/categories/commands correctly for CONFLICT and INFO-ONLY."""
+        conflict_ev = {
+            "event": "step_update",
+            "step_update": {
+                "step_index": 1,
+                "step_type": "tool",
+                "state": "DONE",
+                "tool_name": "run_command",
+                "tool_info": {
+                    "name": "browser_subagent",
+                    "parameters": {"CommandLine": "python3 -m pytest tests/x.py"},
+                },
+            },
+        }
+        info_only_ev = {
+            "event": "step_update",
+            "step_update": {
+                "step_index": 1,
+                "step_type": "tool",
+                "state": "DONE",
+                "tool_info": {
+                    "name": "run_command",
+                    "parameters": {"CommandLine": "python3 -m pytest tests/x.py"},
+                },
+            },
+        }
+
+        with tempfile.NamedTemporaryFile("w+", suffix=".jsonl") as f:
+            f.write(json.dumps(conflict_ev) + "\n")
+            f.flush()
+            stats_conflict = dash.session_stats(Path(f.name))
+            self.assertEqual(stats_conflict["tools"], {"browser_subagent": 1})
+            self.assertEqual(stats_conflict["categories"].get("subagent"), 1)
+            self.assertEqual(stats_conflict["commands"], {})
+
+        with tempfile.NamedTemporaryFile("w+", suffix=".jsonl") as f:
+            f.write(json.dumps(info_only_ev) + "\n")
+            f.flush()
+            stats_info = dash.session_stats(Path(f.name))
+            self.assertEqual(stats_info["tools"], {"run_command": 1})
+            self.assertEqual(stats_info["commands"], {"test": 1})
 
 
 if __name__ == "__main__":
