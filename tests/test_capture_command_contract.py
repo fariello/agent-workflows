@@ -311,6 +311,41 @@ def test_run_suite_check_consumer_contract() -> None:
         assert "1 failed in 0.10s" in res_fail.reason
 
 
+def test_run_suite_check_records_are_schema_valid() -> None:
+    """run_suite_check produces schema-valid tool_event and envelope ledger records."""
+    pass_argv = [sys.executable, "-c", "print('1 passed in 0.01s')"]
+    captured_records: list[tuple[run_evidence.CapturedToolEvent, dict]] = []
+    real_capture_command = run_evidence.capture_command
+
+    def spy_capture_command(*args, **kwargs):
+        result = real_capture_command(*args, **kwargs)
+        captured_records.append(result)
+        return result
+
+    with (
+        mock.patch.object(runner_shared, "SUITE_CHECK_ARGV", pass_argv),
+        mock.patch.object(
+            run_evidence, "capture_command", side_effect=spy_capture_command
+        ),
+    ):
+        result = runner_shared.run_suite_check(Path("."), "run-abc123ff")
+
+    assert len(captured_records) == 1
+    tool_event, envelope = captured_records[0]
+
+    val_tool_event = run_ledger_schema.validate_record(tool_event)
+    val_envelope = run_ledger_schema.validate_record(envelope)
+
+    assert (
+        val_tool_event.ok and val_envelope.ok
+    ), f"tool_event findings: {[f.code for f in val_tool_event.findings]}; envelope findings: {[f.code for f in val_envelope.findings]}"
+    assert val_tool_event.ok is True, f"tool_event findings: {val_tool_event.findings}"
+    assert val_envelope.ok is True, f"envelope findings: {val_envelope.findings}"
+
+    assert result.passing is True
+    assert result.summary == "1 passed in 0.01s"
+
+
 def test_run_worker_process_consumer_contract() -> None:
     """run_worker_process reads attributes in real spawn, and RunnerFn branch is untouched."""
     # Real subprocess execution

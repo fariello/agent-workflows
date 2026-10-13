@@ -1,5 +1,5 @@
 - Id: 1g8lbe
-- Status: graduated
+- Status: done
 - Graduated-To: runledger
 - Blocks-Release: next
 - Set: runledger
@@ -8,6 +8,7 @@
 - Summary: capture_command is called with actor='driver' and evidence_kind='tests', neither in the ledger schema's closed vocabulary, so both produced records fail validation
 
 ## Workflow history
+- 2026-10-13 done (aw backlog): closed by aw agy run: IPD 1rozt5 executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20261011-runledger-02-1rozt5-make-run-suite-check-s-captured-ledger-records-schema-valid.ipd.md); evidence .aw/records/plans/executed/20261011-runledger-02-1rozt5-make-run-suite-check-s-captured-ledger-records-schema-valid.ipd.md
 - 2026-10-12 graduated (aw backlog): graduated by run run-20261012T005617Z-2321742: 1rozt5
 - 2026-10-02 created (aw backlog): Filed while graduating backlog ye28s6 into plan rdjka2: found while measuring whether a driver run could write a ledger.
 

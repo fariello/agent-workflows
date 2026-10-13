@@ -6,7 +6,7 @@
 - Scope: Change the two literal arguments at the single defective call site to the legal `actor="runtime"` and `evidence_kind="test_report"`, and add one behavior test that drives the real `run_suite_check` and validates the records `capture_command` actually returned. No schema vocabulary change, no ledger wiring, no change to `host_runner`.
 - Scope-Paths: agent_workflows/runner_shared.py, tests/test_capture_command_contract.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -17,9 +17,9 @@
 - Highest E allocated: 03
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: 1rozt5
-- Approval: 2026-10-12, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-13 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: 1rozt5 verified (set runledger, attempt 1).
 - 2026-10-12 approved (aw set): status set to approved
 
 - 2026-10-12 reviewed (opencode/its_direct/pt3-claude-opus-5.5-1m-us): /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001 (MEDIUM, fixed: suite bar by failing node id, not total), PR-002 (LOW, fixed: finalize ownership and mutation-revert guard in gate). F-01/F-02/F-03 re-measured at HEAD 7b8dde681; E-03's spy test shape demonstrated (HEAD args: RL-E014 / RL-E014+RL-E033; fixed args: clean; SuiteCheckResult unchanged). Record: .aw/records/reviews/20261011-runledger-02-1rozt5-make-run-suite-check-s-captured-ledger-records-schema-valid.review.md.
@@ -36,24 +36,24 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: Baseline and re-measure
 
-- [ ] E-01 Re-measure F-01 and F-02 at the executing HEAD and capture the bare-suite baseline before any edit.
+- [x] E-01 Re-measure F-01 and F-02 at the executing HEAD and capture the bare-suite baseline before any edit.
   - Depends on: none
   - Expected outcome: `git rev-parse HEAD` recorded; the in-process snippet from F-01 re-run, showing `driver`/`tests` produce `RL-E014` on the `tool_event` and `RL-E014` plus `RL-E033` on the envelope, and `runtime`/`test_report` produce `ok=True` on both; `grep -n 'actor="driver"' agent_workflows/runner_shared.py` confirms the call site still exists inside `run_suite_check`; bare `python3 -m pytest` summary line AND its failing node ids (if any) captured as the baseline. If the call site has already changed or the schema vocabulary now contains `driver` or `tests`, STOP and report the premise as moved.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: Fix the call site
 
-- [ ] E-02 In `runner_shared.run_suite_check`, change the `run_evidence.capture_command(...)` keyword arguments from `evidence_kind="tests"` to `evidence_kind="test_report"` and from `actor="driver"` to `actor="runtime"`, and add a short comment beside them stating that both values must stay inside `run_ledger_schema.ROLES` / `EVIDENCE_KINDS` (backlog `1g8lbe`, decision in OQ-01 of this plan). No other line of the function changes.
+- [x] E-02 In `runner_shared.run_suite_check`, change the `run_evidence.capture_command(...)` keyword arguments from `evidence_kind="tests"` to `evidence_kind="test_report"` and from `actor="driver"` to `actor="runtime"`, and add a short comment beside them stating that both values must stay inside `run_ledger_schema.ROLES` / `EVIDENCE_KINDS` (backlog `1g8lbe`, decision in OQ-01 of this plan). No other line of the function changes.
   - Depends on: E-01
   - Expected outcome: `git diff agent_workflows/runner_shared.py` shows exactly the two argument values changed plus the added comment lines; `SuiteCheckResult` construction, timeout handling and the out-of-band `stdout`/`stderr` reads are untouched.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: Behavior test
 
-- [ ] E-03 Add `test_run_suite_check_records_are_schema_valid` to `tests/test_capture_command_contract.py`. It patches `runner_shared.SUITE_CHECK_ARGV` to a tiny `sys.executable -c "print('1 passed in 0.01s')"` argv (the existing `test_run_suite_check_consumer_contract` pattern), wraps `run_evidence.capture_command` with a spy (`mock.patch.object(run_evidence, "capture_command", side_effect=...)` delegating to the real function and storing its return value), calls the real `runner_shared.run_suite_check(Path("."), "run-abc123ff")`, and asserts: the spy was called once, `run_ledger_schema.validate_record(tool_event).ok` is True and `run_ledger_schema.validate_record(envelope).ok` is True (failure message printing the findings), and the `SuiteCheckResult` is still `passing=True` with summary `1 passed in 0.01s`.
+- [x] E-03 Add `test_run_suite_check_records_are_schema_valid` to `tests/test_capture_command_contract.py`. It patches `runner_shared.SUITE_CHECK_ARGV` to a tiny `sys.executable -c "print('1 passed in 0.01s')"` argv (the existing `test_run_suite_check_consumer_contract` pattern), wraps `run_evidence.capture_command` with a spy (`mock.patch.object(run_evidence, "capture_command", side_effect=...)` delegating to the real function and storing its return value), calls the real `runner_shared.run_suite_check(Path("."), "run-abc123ff")`, and asserts: the spy was called once, `run_ledger_schema.validate_record(tool_event).ok` is True and `run_ledger_schema.validate_record(envelope).ok` is True (failure message printing the findings), and the `SuiteCheckResult` is still `passing=True` with summary `1 passed in 0.01s`.
   - Depends on: E-02
   - Expected outcome: the new test passes after E-02 and, when E-02 is temporarily reverted in the working tree, fails naming `RL-E014`/`RL-E033` (demonstrated, then the revert is undone). The test reads no production source text.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -120,20 +120,189 @@ N/A. No spec names `run_suite_check`'s actor or evidence kind; the change makes 
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: PASTE `git rev-parse HEAD`, the exact F-01 snippet and its ACTUAL output for both argument pairs, the `grep -n` output locating the call site, and the bare `python3 -m pytest` baseline summary line. State MATCH or DIVERGE for F-01 and F-02. FAILS if any value is reported from memory.
   - Observed evidence:
-  - Result: pending
+    Measurement HEAD:
+    ```
+    $ git rev-parse HEAD
+    6eb2906d24a4273cfce488e0c7ec29fea94dda24
+    ```
 
-- [ ] V-02 validates E-02
+    F-01 in-process measurement snippet:
+    ```python
+    from agent_workflows import run_evidence, run_ledger_schema
+    print('ROLES:', sorted(run_ledger_schema.ROLES))
+    print('EVIDENCE_KINDS:', sorted(run_ledger_schema.EVIDENCE_KINDS))
+
+    for actor, kind in [('driver', 'tests'), ('runtime', 'test_report')]:
+        te, env = run_evidence.capture_command('run-abcdef1234', ['true'], actor=actor, evidence_kind=kind)
+        v_te = run_ledger_schema.validate_record(te)
+        v_env = run_ledger_schema.validate_record(env)
+        print(f'actor={actor}, evidence_kind={kind}:')
+        print('  tool_event:', v_te.ok, [f.code for f in v_te.findings])
+        print('  envelope:  ', v_env.ok, [f.code for f in v_env.findings])
+    ```
+    Actual output:
+    ```
+    ROLES: ['coordinator', 'corrector', 'executor', 'human', 'investigator', 'runtime', 'verifier']
+    EVIDENCE_KINDS: ['artifact', 'command', 'diff', 'inspection', 'test_report']
+    actor=driver, evidence_kind=tests:
+      tool_event: False ['RL-E014']
+      envelope:   False ['RL-E014', 'RL-E033']
+    actor=runtime, evidence_kind=test_report:
+      tool_event: True []
+      envelope:   True []
+    ```
+
+    Call site location:
+    ```
+    $ grep -n 'actor="driver"' agent_workflows/runner_shared.py
+    41752:            actor="driver",
+    ```
+
+    Bare pytest baseline summary:
+    ```
+    7489 passed, 2 skipped, 3 warnings in 1115.27s (0:18:35)
+    ```
+    Failing node ids: none.
+
+    Status for F-01 and F-02:
+    - F-01: MATCH
+    - F-02: MATCH
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: PASTE `git diff agent_workflows/runner_shared.py` in full and confirm by inspection that only the `evidence_kind` and `actor` values changed (to `test_report` and `runtime`) plus added `#` comment lines, all inside `run_suite_check`. PASTE the post-change bare `python3 -m pytest` summary line and failing node ids beside the E-01 baseline, and state that no node id fails now that passed then. FAILS if any other executable line changed, or if a node id that passed at baseline now fails.
   - Observed evidence:
-  - Result: pending
+    Full diff of agent_workflows/runner_shared.py:
+    ```diff
+    diff --git a/agent_workflows/runner_shared.py b/agent_workflows/runner_shared.py
+    index 272aa1e74..7d0c81d56 100644
+    --- a/agent_workflows/runner_shared.py
+    +++ b/agent_workflows/runner_shared.py
+    @@ -41748,8 +41748,10 @@ def run_suite_check(
+                 run_id,
+                 list(SUITE_CHECK_ARGV),
+                 cwd=repo_dir,
+    -            evidence_kind="tests",
+    -            actor="driver",
+    +            # Both values must stay inside run_ledger_schema.ROLES / EVIDENCE_KINDS
+    +            # (backlog 1g8lbe, decision in OQ-01 of plan 1rozt5).
+    +            evidence_kind="test_report",
+    +            actor="runtime",
+                 timeout=timeout,
+                 max_output_bytes=512_000,
+             )
+    ```
 
-- [ ] V-03 validates E-03
+    Inspection confirmation:
+    Only `evidence_kind` (from `"tests"` to `"test_report"`) and `actor` (from `"driver"` to `"runtime"`) values changed, plus two comment lines referencing `run_ledger_schema.ROLES / EVIDENCE_KINDS`, all strictly inside `run_suite_check`. No other executable line changed; SuiteCheckResult construction, timeout handling, and out-of-band stdout/stderr handling are untouched.
+
+    Post-change bare pytest summary beside E-01 baseline:
+    - Baseline: 7489 passed, 2 skipped, 3 warnings in 1115.27s (0:18:35) (failing node ids: none)
+    - Post-change: 7490 passed, 2 skipped, 3 warnings in 611.63s (0:10:11) (failing node ids: none)
+    - Node id comparison: No node id fails now that passed then (0 failures in both). The post-change run includes exactly +1 passing test (`tests/test_capture_command_contract.py::test_run_suite_check_records_are_schema_valid`).
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: PASTE the full source of the new test and confirm it contains no `inspect`, no `ast`, and no regex or substring search over production source. PASTE `python3 -m pytest -o addopts="" tests/test_capture_command_contract.py -v` output showing the new test and `test_run_suite_check_consumer_contract` both PASSED. PASTE the output of the new test run with E-02 temporarily reverted, showing it FAILED with `RL-E014` and `RL-E033` in the message, then `git diff` showing E-02 restored. Code path observed: `runner_shared.run_suite_check` -> `run_evidence.capture_command` (real, spied).
   - Observed evidence:
-  - Result: pending
+    Full source of test_run_suite_check_records_are_schema_valid:
+    ```python
+    def test_run_suite_check_records_are_schema_valid() -> None:
+        """run_suite_check produces schema-valid tool_event and envelope ledger records."""
+        pass_argv = [sys.executable, "-c", "print('1 passed in 0.01s')"]
+        captured_records: list[tuple[run_evidence.CapturedToolEvent, dict]] = []
+        real_capture_command = run_evidence.capture_command
+
+        def spy_capture_command(*args, **kwargs):
+            result = real_capture_command(*args, **kwargs)
+            captured_records.append(result)
+            return result
+
+        with (
+            mock.patch.object(runner_shared, "SUITE_CHECK_ARGV", pass_argv),
+            mock.patch.object(run_evidence, "capture_command", side_effect=spy_capture_command),
+        ):
+            result = runner_shared.run_suite_check(Path("."), "run-abc123ff")
+
+        assert len(captured_records) == 1
+        tool_event, envelope = captured_records[0]
+
+        val_tool_event = run_ledger_schema.validate_record(tool_event)
+        val_envelope = run_ledger_schema.validate_record(envelope)
+
+        assert (
+            val_tool_event.ok and val_envelope.ok
+        ), f"tool_event findings: {[f.code for f in val_tool_event.findings]}; envelope findings: {[f.code for f in val_envelope.findings]}"
+        assert val_tool_event.ok is True, f"tool_event findings: {val_tool_event.findings}"
+        assert val_envelope.ok is True, f"envelope findings: {val_envelope.findings}"
+
+        assert result.passing is True
+        assert result.summary == "1 passed in 0.01s"
+    ```
+    Confirmation: The test contains no `inspect`, no `ast`, and no regex or substring search over production source.
+
+    Targeted test run output (`python3 -m pytest -o addopts="" tests/test_capture_command_contract.py -v`):
+    ```
+    tests/test_capture_command_contract.py::test_captured_tool_event_type_contract PASSED [ 10%]
+    tests/test_capture_command_contract.py::test_run_worker_process_consumer_contract PASSED [ 20%]
+    tests/test_capture_command_contract.py::test_capture_command_producer_contract PASSED [ 30%]
+    tests/test_capture_command_contract.py::test_capture_command_persistence_clean_in_real_store PASSED [ 40%]
+    tests/test_capture_command_contract.py::test_mock_shape_hazard_per_consumer PASSED [ 50%]
+    tests/test_capture_command_contract.py::test_capture_command_key_set_per_call_shape PASSED [ 60%]
+    tests/test_capture_command_contract.py::test_capture_command_error_paths PASSED [ 70%]
+    tests/test_capture_command_contract.py::test_capture_command_decode_asymmetry PASSED [ 80%]
+    tests/test_capture_command_contract.py::test_run_suite_check_consumer_contract PASSED [ 90%]
+    tests/test_capture_command_contract.py::test_run_suite_check_records_are_schema_valid PASSED [100%]
+
+    ============================== 10 passed in 7.98s ==============================
+    ```
+
+    Output with E-02 temporarily reverted:
+    ```
+    ________________ test_run_suite_check_records_are_schema_valid _________________
+
+        def test_run_suite_check_records_are_schema_valid() -> None:
+            ...
+    >       assert (
+                val_tool_event.ok and val_envelope.ok
+            ), f"tool_event findings: {[f.code for f in val_tool_event.findings]}; envelope findings: {[f.code for f in val_envelope.findings]}"
+    E       AssertionError: tool_event findings: ['RL-E014']; envelope findings: ['RL-E014', 'RL-E033']
+    E       assert (False)
+    E        +  where False = ValidationResult(ok=False, findings=(Finding(code='RL-E014', where='actor', message="unknown actor role 'driver'"),)).ok
+
+    tests/test_capture_command_contract.py:337: AssertionError
+    NOTE: 9 tests were deselected by -m/-k and did not run (no marker filter was active; deselected by -k/--deselect)
+    =========================== short test summary info ============================
+    FAILED tests/test_capture_command_contract.py::test_run_suite_check_records_are_schema_valid
+    ======================= 1 failed, 9 deselected in 4.80s ========================
+    ```
+
+    git diff agent_workflows/runner_shared.py showing E-02 restored:
+    ```diff
+    diff --git a/agent_workflows/runner_shared.py b/agent_workflows/runner_shared.py
+    index 272aa1e74..7d0c81d56 100644
+    --- a/agent_workflows/runner_shared.py
+    +++ b/agent_workflows/runner_shared.py
+    @@ -41748,8 +41748,10 @@ def run_suite_check(
+                 run_id,
+                 list(SUITE_CHECK_ARGV),
+                 cwd=repo_dir,
+    -            evidence_kind="tests",
+    -            actor="driver",
+    +            # Both values must stay inside run_ledger_schema.ROLES / EVIDENCE_KINDS
+    +            # (backlog 1g8lbe, decision in OQ-01 of plan 1rozt5).
+    +            evidence_kind="test_report",
+    +            actor="runtime",
+                 timeout=timeout,
+                 max_output_bytes=512_000,
+             )
+    ```
+
+    Code path observed: `runner_shared.run_suite_check` -> `run_evidence.capture_command` (real, spied).
+  - Result: pass
 
 ## Approval and execution gate
 
