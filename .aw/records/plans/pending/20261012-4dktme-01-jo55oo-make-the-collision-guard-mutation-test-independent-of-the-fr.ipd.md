@@ -84,6 +84,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Carrier-Declined: deliberate non-goal or out of scope for this plan as described above
 - Backlog `qkzet8` is not modified by this plan: it is graduated separately through its own plan `a8yn86` (F-5).
   - Carrier: a8yn86
+  - Carrier-Evidence: .aw/records/plans/executed/20261012-qkzet8-01-a8yn86-pin-that-a-disabled-distinct-session-guard-makes-the-execute.ipd.md
 
 ## Scope check
 
