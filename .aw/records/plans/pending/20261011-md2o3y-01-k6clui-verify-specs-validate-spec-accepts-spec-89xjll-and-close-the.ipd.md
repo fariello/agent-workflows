@@ -37,24 +37,24 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: Re-run the validator that reported the defect
 
-- [ ] E-01 Call `specs.validate_spec(path, path.read_text())` on the `89xjll` spec (locate it by id6, e.g. `aw find specs 89xjll`, since its directory may change with its status; at review it is `.aw/records/specs/approved/20261001-89xjll-01-89xjll-spec-requirement-id-convention-and-trace-contract.spec.md`) and on every `*.spec.md` under `.aw/records/specs/` (recursive), printing each non-empty drift list as `d.rule`/`d.detail` plus the total count examined, then run `aw specs check` and record its exit code and the count of `unsafe-field` lines in its output.
+- [x] E-01 Call `specs.validate_spec(path, path.read_text())` on the `89xjll` spec (locate it by id6, e.g. `aw find specs 89xjll`, since its directory may change with its status; at review it is `.aw/records/specs/approved/20261001-89xjll-01-89xjll-spec-requirement-id-convention-and-trace-contract.spec.md`) and on every `*.spec.md` under `.aw/records/specs/` (recursive), printing each non-empty drift list as `d.rule`/`d.detail` plus the total count examined, then run `aw specs check` and record its exit code and the count of `unsafe-field` lines in its output.
   - Depends on: none
   - Expected outcome: `89xjll` returns `[]`; no spec reports an `attention.unsafe-field` drift (the corpus count is re-derived at execution; 40 at review); `aw specs check` exits 0. If some OTHER spec reports a drift whose rule is NOT `attention.unsafe-field`, it is outside this plan's defect: record it and file it with `aw backlog new` rather than fixing it here.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: Confirm the regression guards
 
-- [ ] E-02 Run `python3 -m pytest tests/test_descriptive_length_classes.py tests/test_spec_review_attestation.py -o addopts="" -k "LengthClass or Grandfathering or prose"` and, if the `-k` filter selects nothing, rerun both files without `-k`; record the summary line.
+- [x] E-02 Run `python3 -m pytest tests/test_descriptive_length_classes.py tests/test_spec_review_attestation.py -o addopts="" -k "LengthClass or Grandfathering or prose"` and, if the `-k` filter selects nothing, rerun both files without `-k`; record the summary line.
   - Depends on: none
   - Expected outcome: zero failures, including `test_spec_validation_prose_and_oneline_fields` and `test_every_real_spec_in_this_repository_still_conforms`.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: Fix forward only on failure
 
-- [ ] E-03 If E-01 or E-02 failed with an `attention.unsafe-field` on Scope/Concern/Question, repair the validator or bound within Scope-Paths (never edit the approved `89xjll` spec body to dodge the check); a change to either bound value or to which fields are prose-class is a contract change to Section 8.8 of spec `attention-registry-and-cross-tree-status`, so it MUST be made in that spec in the same commit (declared in Scope-Paths). Then re-run E-01, E-02 and the bare suite `python3 -m pytest`, comparing its failing-test names to a bare baseline taken before the edit. Otherwise record that no change was required and capture `git diff --stat -- <Scope-Paths>`.
+- [x] E-03 If E-01 or E-02 failed with an `attention.unsafe-field` on Scope/Concern/Question, repair the validator or bound within Scope-Paths (never edit the approved `89xjll` spec body to dodge the check); a change to either bound value or to which fields are prose-class is a contract change to Section 8.8 of spec `attention-registry-and-cross-tree-status`, so it MUST be made in that spec in the same commit (declared in Scope-Paths). Then re-run E-01, E-02 and the bare suite `python3 -m pytest`, comparing its failing-test names to a bare baseline taken before the edit. Otherwise record that no change was required and capture `git diff --stat -- <Scope-Paths>`.
   - Depends on: E-01, E-02
   - Expected outcome: either an empty Scope-Paths diff (expected case) or a fix confined to Scope-Paths with all re-runs passing.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -113,20 +113,79 @@ None. Root cause and current state were resolved from repository evidence (F-1 t
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: pasted output of the `specs.validate_spec` call printing `[]` for `89xjll`, the count of specs examined, and no `attention.unsafe-field` drift for any spec, and pasted `aw specs check` tail plus `exit=0` and the `unsafe-field` line count (0).
   - Observed evidence:
-  - Result: pending
+    ```
+    $ python3 -c '
+    from pathlib import Path
+    from agent_workflows import specs
 
-- [ ] V-02 validates E-02
+    p_89 = Path(".aw/records/specs/approved/20261001-89xjll-01-89xjll-spec-requirement-id-convention-and-trace-contract.spec.md")
+    res_89 = specs.validate_spec(p_89, p_89.read_text())
+    print(f"Spec 89xjll drift: {res_89}")
+
+    spec_files = sorted(Path(".aw/records/specs").rglob("*.spec.md"))
+    print(f"Total specs examined: {len(spec_files)}")
+
+    unsafe_field_count = 0
+    drift_count = 0
+    for p in spec_files:
+        drifts = specs.validate_spec(p, p.read_text())
+        if drifts:
+            drift_count += 1
+            print(f"Drifts in {p}:")
+            for d in drifts:
+                print(f"  {d.rule}: {d.detail}")
+                if "unsafe-field" in d.rule:
+                    unsafe_field_count += 1
+
+    print(f"Specs with drifts: {drift_count}")
+    print(f"attention.unsafe-field count: {unsafe_field_count}")
+    '
+    Spec 89xjll drift: []
+    Total specs examined: 40
+    Specs with drifts: 0
+    attention.unsafe-field count: 0
+
+    $ AW_NO_REEXEC=1 aw specs check; echo "exit=$?"
+    aw specs check: all specs conform. 40 specs checked.
+    exit=0
+    ```
+    Unsafe-field line count in `aw specs check`: 0.
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: pasted pytest summary line showing zero failed, with `test_spec_validation_prose_and_oneline_fields` and `test_every_real_spec_in_this_repository_still_conforms` among the passed tests.
   - Observed evidence:
-  - Result: pending
+    ```
+    $ python3 -m pytest tests/test_descriptive_length_classes.py tests/test_spec_review_attestation.py -o addopts="" -k "LengthClass or Grandfathering or prose" -v
+    tests/test_spec_review_attestation.py::GrandfatheringAndCheckerTests::test_the_checker_fires_on_exactly_the_unattested_reviewed_cell PASSED [ 10%]
+    tests/test_spec_review_attestation.py::GrandfatheringAndCheckerTests::test_every_real_spec_in_this_repository_still_conforms PASSED [ 20%]
+    tests/test_spec_review_attestation.py::GrandfatheringAndCheckerTests::test_plans_are_not_made_stricter PASSED [ 30%]
+    tests/test_spec_review_attestation.py::GrandfatheringAndCheckerTests::test_the_rule_is_registered_as_an_error_with_its_invariant PASSED [ 40%]
+    tests/test_descriptive_length_classes.py::DescriptiveLengthClassesTests::test_no_echo_untrusted_value_regression PASSED [ 50%]
+    tests/test_descriptive_length_classes.py::DescriptiveLengthClassesTests::test_bounds_are_distinct_and_constants_defined PASSED [ 60%]
+    tests/test_descriptive_length_classes.py::DescriptiveLengthClassesTests::test_hostile_shapes_unsafe_under_both_predicates PASSED [ 70%]
+    tests/test_descriptive_length_classes.py::DescriptiveLengthClassesTests::test_spec_validation_prose_and_oneline_fields PASSED [ 80%]
+    tests/test_descriptive_length_classes.py::DescriptiveLengthClassesTests::test_exact_boundary_pairs PASSED [ 90%]
+    tests/test_descriptive_length_classes.py::DescriptiveLengthClassesTests::test_write_path_round_trip_and_agreement PASSED [100%]
 
-- [ ] V-03 validates E-03
+    ====================== 10 passed, 26 deselected in 0.96s =======================
+
+    $ python3 -m pytest tests/test_descriptive_length_classes.py tests/test_spec_review_attestation.py -o addopts=""
+    ============================== 36 passed in 1.89s ==============================
+    ```
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: pasted `git diff --stat` for Scope-Paths (empty in the expected case); if non-empty, also the pre-edit and post-edit bare full-suite summary lines with failing-test names showing no new failure, and, if a bound or field class changed, the spec Section 8.8 diff.
   - Observed evidence:
-  - Result: pending
+    ```
+    $ git diff --stat -- agent_workflows/specs.py agent_workflows/attention_contract.py tests/test_descriptive_length_classes.py tests/test_spec_review_attestation.py .aw/records/specs/implemented/20260808-1945-01-attention-registry-and-cross-tree-status.spec.md
+    ```
+    (empty diff; no changes required to Scope-Paths)
+  - Result: pass
 
 ## Approval and execution gate
 
