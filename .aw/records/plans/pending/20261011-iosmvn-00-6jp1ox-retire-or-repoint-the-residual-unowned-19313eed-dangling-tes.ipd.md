@@ -88,6 +88,7 @@ Orders 01, 02 and 03 touch disjoint files and are mutually independent.
 
 - The sibling-owned `test_orchestrator_probe_cache.py`, `test_review_findings_cascade.py` and `test_runner_stop_triggers.py` citations named in Concern.
   - Carrier: 65d5zf
+  - Carrier-Evidence: .aw/records/plans/executed/20261011-3tov52-01-65d5zf-retire-dangling-citations-of-deleted-code-pin-tests-in-runne.ipd.md
 - The sibling-owned `runner_shared` module-level import-pin citation of `test_orchestrator_probe_cache.py` named in Concern.
   - Carrier: dtelfb
 - The sibling-owned `test_runner_backlog_close.py` and `test_runner_layering.py` citations named in Concern.
