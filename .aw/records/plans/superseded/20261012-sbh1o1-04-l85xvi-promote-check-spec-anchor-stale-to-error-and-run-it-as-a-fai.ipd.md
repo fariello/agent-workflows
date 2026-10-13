@@ -1,3 +1,5 @@
+RETIRED 2026-10-12: CI is not watched, so a CI gate would gate nothing; maintainer chose the runner merge check plus a periodic checkup; superseded by .aw/records/plans/pending/20261012-cihealth-04-mnwkqu-refuse-to-merge-a-lane-that-makes-a-spec-line-pointer-stale.ipd.md (Set cihealth, cntxsm)
+
 # IPD: Promote check.spec-anchor-stale to error and run it as a fail-closed CI step
 
 - Date: 2026-10-12
@@ -6,7 +8,7 @@
 - Scope: THE MAINTAINER DECISION RESERVED BY `mt54wr` OQ-01, PACKAGED SO THAT APPROVING THIS PLAN IS THE DECISION TO GATE (and retiring it `not-executed` is the decision not to). Three things. (1) Re-register `check.spec-anchor-stale` as `error` in `check_engine.RULE_REGISTRY`, rewriting its severity justification. (2) Add ONE fail-closed step to the `attention-check` job in `.github/workflows/tests.yml` running `python -m agent_workflows check --source-anchors --agent`, beside the existing `check plans`/`check releases`/`check backlog`/`check release-gates` steps. (3) Update the flag's `--help` text, the existing CLI tests that assert exit 0 on a finding, add a fail-closed regression, add a `CHANGELOG.md` line, and bring the fail-closed list in `docs/branch-protection.md` up to date. DELIBERATELY NOT a default: the detector stays OUT of bare `aw check specs` and bare `aw check`, so no interactive command gets slower. EXCLUDES all detector logic changes (Order 03 `fz3i3m`), EXCLUDES any speed optimisation, EXCLUDES a pre-commit hook, and EXCLUDES section-token validity (`mt54wr` OQ-02).
 - Scope-Paths: agent_workflows/check_engine.py, agent_workflows/cli.py, tests/test_spec_citation_anchors.py, .github/workflows/tests.yml, CHANGELOG.md, docs/branch-protection.md
 - Item-Dependencies: executed:fz3i3m
-- Status: reviewed
+- Status: superseded
 - Readiness: no-go
 - Work-Kind: chore
 - Priority: low
@@ -19,6 +21,7 @@
 - Id: l85xvi
 
 ## Workflow history
+- 2026-10-13 superseded (aw set): RETIRED 2026-10-12, maintainer decision during /plan-review of Set gradfix: CI is not watched (red since 2026-09-27, 1,623 main commits), so gating stale spec pointers in CI would gate nothing. OQ-01 answered: gate them at the runner merge check (cihealth Order 04, mnwkqu) plus the periodic checkup (cihealth Order 02, n7xlhm). Superseded by Set cihealth (cntxsm).
 - 2026-10-12 reviewed (opencode/its_direct/pt3-claude-opus-5.5-1m-us): /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): REVIEWED - OPEN QUESTIONS; PR-001 (HIGH, fixed: OQ-01 relabelled Blocking: yes, since --full-auto could otherwise execute the maintainer's reserved decision), PR-002, PR-003, PR-004, PR-005, PR-006 (fixed). OQ-01 open, owned by the maintainer. Record: .aw/records/reviews/20261012-sbh1o1-04-l85xvi-promote-check-spec-anchor-stale-to-error-and-run-it-as-a-fai.review.md
 
 - 2026-10-12 draft (opencode its_direct/pt3-claude-opus-5.5-1m-us): created.
