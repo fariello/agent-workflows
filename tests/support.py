@@ -218,11 +218,63 @@ def load_module(name: str, path: Path):
     return mod
 
 
-def git(cwd: Path, *args: str) -> subprocess.CompletedProcess:
+_LOCAL_GIT_ENV_VARS: set[str] = {
+    "GIT_ALTERNATE_OBJECT_DIRECTORIES",
+    "GIT_CONFIG",
+    "GIT_CONFIG_PARAMETERS",
+    "GIT_CONFIG_COUNT",
+    "GIT_OBJECT_DIRECTORY",
+    "GIT_DIR",
+    "GIT_WORK_TREE",
+    "GIT_IMPLICIT_WORK_TREE",
+    "GIT_GRAFT_FILE",
+    "GIT_INDEX_FILE",
+    "GIT_NO_REPLACE_OBJECTS",
+    "GIT_REPLACE_REF_BASE",
+    "GIT_PREFIX",
+    "GIT_SHALLOW_FILE",
+    "GIT_COMMON_DIR",
+}
+try:
+    _res = subprocess.run(
+        ["git", "rev-parse", "--local-env-vars"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if _res.returncode == 0:
+        _LOCAL_GIT_ENV_VARS.update(
+            line.strip() for line in _res.stdout.splitlines() if line.strip()
+        )
+except Exception:
+    pass
+
+
+def clean_git_env(env: dict[str, str] | None = None) -> dict[str, str]:
+    """Return a copy of ``env`` (or ``os.environ``) with all local git environment variables removed.
+
+    Removes every variable returned by ``git rev-parse --local-env-vars`` so child git processes
+    always target the repository they are pointed at, never an inherited override.
+    """
+
+    merged = dict(os.environ if env is None else env)
+    for var in _LOCAL_GIT_ENV_VARS:
+        merged.pop(var, None)
+    return merged
+
+
+def git(
+    cwd: Path, *args: str, env: dict[str, str] | None = None
+) -> subprocess.CompletedProcess:
     """Run a git command in cwd, returning the completed process."""
 
     return subprocess.run(
-        ["git", *args], cwd=str(cwd), capture_output=True, text=True, check=False
+        ["git", *args],
+        cwd=str(cwd),
+        capture_output=True,
+        text=True,
+        check=False,
+        env=env,
     )
 
 
@@ -230,10 +282,25 @@ def init_repo(path: Path) -> Path:
     """Initialize a minimal git repo at path with a deterministic identity."""
 
     path.mkdir(parents=True, exist_ok=True)
-    git(path, "init", "-q")
-    git(path, "config", "user.email", "test@example.com")
-    git(path, "config", "user.name", "Test")
-    git(path, "config", "commit.gpgsign", "false")
+    c_env = clean_git_env()
+    proc = git(path, "init", "-q", env=c_env)
+    if proc.returncode != 0:
+        raise RuntimeError(
+            f"git init failed at {path} (exit {proc.returncode}): {proc.stderr.strip()}"
+        )
+    p_gitdir = git(path, "rev-parse", "--absolute-git-dir", env=c_env)
+    expected_gitdir = (path / ".git").resolve()
+    actual_gitdir = (
+        Path(p_gitdir.stdout.strip()).resolve() if p_gitdir.returncode == 0 else None
+    )
+    if p_gitdir.returncode != 0 or actual_gitdir != expected_gitdir:
+        raise RuntimeError(
+            f"git rev-parse --absolute-git-dir at {path} resolved to {actual_gitdir} "
+            f"(expected {expected_gitdir})"
+        )
+    git(path, "config", "--local", "user.email", "test@example.com", env=c_env)
+    git(path, "config", "--local", "user.name", "Test", env=c_env)
+    git(path, "config", "--local", "commit.gpgsign", "false", env=c_env)
     return path
 
 
