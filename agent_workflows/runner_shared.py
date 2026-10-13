@@ -31785,7 +31785,7 @@ class StallWatchdog:
     def __init__(
         self,
         process: subprocess.Popen,
-        timeout: float | None = 900.0,
+        timeout: float | None = 1800.0,
         check_interval: float = 1.0,
         *,
         reaper: Callable[[subprocess.Popen], None] | None = None,
@@ -32706,7 +32706,7 @@ Plan Documents (IPDs) in this repository.
 """
 
 
-DEFAULT_STALL_TIMEOUT: float = 900.0
+DEFAULT_STALL_TIMEOUT: float = 1800.0
 
 # statusvocab (`cyamvi`) E-01: Canonical terminal status vocabulary (TWELVE tokens).
 # Every non-`executed` label names the refusing authority.

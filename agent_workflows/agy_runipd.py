@@ -804,7 +804,7 @@ from agent_workflows import agy_models
 # No model is hardcoded in code; default model is dynamically resolved from the
 # config file (~/.gemini/antigravity-cli/settings.json) or left to agy host default.
 DEFAULT_MODEL: str | None = agy_models.resolve_agy_config_model()
-DEFAULT_TIMEOUT = "240m"
+DEFAULT_TIMEOUT = "480m"
 # Default stall timeout read from `runner_shared` (kz4j7o / s2ewh8 E-04).
 DEFAULT_STALL_TIMEOUT = runner_shared.DEFAULT_STALL_TIMEOUT
 # kz4j7o / s2ewh8 E-05: Declined to share. Child-reaping timing is per-host policy rather than
@@ -1304,7 +1304,7 @@ class StallWatchdog(runner_shared.StallWatchdog):
     def __init__(
         self,
         process: subprocess.Popen,
-        timeout: float | None = 900.0,
+        timeout: float | None = 1800.0,
         check_interval: float = 1.0,
         *,
         progress_checker: Callable[[], bool] | None = None,

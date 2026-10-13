@@ -1138,7 +1138,7 @@ def evaluate_policy_observation(
 #: HISTORICAL NOTE: a resettable permission bound existed from `8a491d4c1` (2026-09-05), was never
 #: armed because a permission ask never reaches stdout (research `7so8uz`), and was removed on 2026-10-12
 #: on the maintainer's DELETE ruling (plan `15db4k`, backlog `e6zeta`).
-MAX_TURN_TIMEOUT: float = 4 * 60 * 60.0
+MAX_TURN_TIMEOUT: float = 8 * 60 * 60.0
 
 #: Seconds by which the driver's own ceiling is pulled in AHEAD of a host-enforced one, so the two
 #: cannot fire at the same nominal instant and a post-mortem can attribute the kill (R4.4d).

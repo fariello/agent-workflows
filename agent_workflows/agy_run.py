@@ -248,8 +248,8 @@ STREAMING LOGS AND MONITORING:
     )
     runtime_group.add_argument(
         "--timeout",
-        default="240m",
-        help="Maximum timeout for each Antigravity turn (default: 240m).",
+        default="480m",
+        help="Maximum timeout for each Antigravity turn (default: 480m).",
     )
     runtime_group.add_argument(
         "--agy",

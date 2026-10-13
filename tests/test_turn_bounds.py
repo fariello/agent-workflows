@@ -189,8 +189,8 @@ def test_bookkeeping_failure_does_not_block_reap(tmp_path: Path) -> None:
 
 def test_constants_names_defaults_and_zero_disable() -> None:
     """E-03: Names, defaults, zero-disables read from live module attributes."""
-    assert lane_containment.MAX_TURN_TIMEOUT == 14400.0
-    assert lane_containment.MAX_TURN_TIMEOUT == 4 * 60 * 60.0
+    assert lane_containment.MAX_TURN_TIMEOUT == 28800.0
+    assert lane_containment.MAX_TURN_TIMEOUT == 8 * 60 * 60.0
     assert lane_containment.HOST_CEILING_OFFSET_SECONDS == 300.0
     assert lane_containment.BOUND_MAX_TURN == "max-turn-timeout"
     assert lane_containment.BOUND_EXPIRY_DISPOSITION == "failed-safely"
@@ -279,7 +279,7 @@ def test_launcher_uniform_arming_opencode(tmp_path: Path) -> None:
         )
         assert len(spy_calls) == 1
         non_iso_timeout = spy_calls[0].get("max_turn_timeout")
-        assert non_iso_timeout == 14400.0
+        assert non_iso_timeout == 28800.0
 
         # Isolated turn
         spy_calls.clear()
@@ -288,7 +288,7 @@ def test_launcher_uniform_arming_opencode(tmp_path: Path) -> None:
         )
         assert len(spy_calls) == 1
         iso_timeout = spy_calls[0].get("max_turn_timeout")
-        assert iso_timeout == 14400.0
+        assert iso_timeout == 28800.0
 
         assert non_iso_timeout == iso_timeout
 
@@ -336,7 +336,7 @@ def test_launcher_uniform_arming_antigravity(tmp_path: Path) -> None:
         )
         assert len(spy_calls) == 1
         non_iso_timeout = spy_calls[0].get("max_turn_timeout")
-        assert non_iso_timeout == 14100.0
+        assert non_iso_timeout == 28500.0
 
         # Isolated turn
         spy_calls.clear()
@@ -352,7 +352,7 @@ def test_launcher_uniform_arming_antigravity(tmp_path: Path) -> None:
         )
         assert len(spy_calls) == 1
         iso_timeout = spy_calls[0].get("max_turn_timeout")
-        assert iso_timeout == 14100.0
+        assert iso_timeout == 28500.0
 
         assert non_iso_timeout == iso_timeout
 
@@ -424,10 +424,10 @@ def test_antigravity_overlap_and_attribution(tmp_path: Path) -> None:
     """
     host_timeout_str = agy_runipd.DEFAULT_TIMEOUT
     parsed_host_ceiling = lane_containment.parse_host_ceiling_seconds(host_timeout_str)
-    assert parsed_host_ceiling == 14400.0
+    assert parsed_host_ceiling == 28800.0
     assert (
-        parsed_host_ceiling != 240.0
-    ), "parse must interpret 240m as minutes, not bare seconds"
+        parsed_host_ceiling != 480.0
+    ), "parse must interpret 480m as minutes, not bare seconds"
 
     driver_bound = lane_containment.driver_bound_for_host(parsed_host_ceiling)
     assert (
@@ -435,15 +435,15 @@ def test_antigravity_overlap_and_attribution(tmp_path: Path) -> None:
     ), "driver bound must fire strictly before host ceiling"
     gap = parsed_host_ceiling - driver_bound
     assert gap == lane_containment.HOST_CEILING_OFFSET_SECONDS == 300.0
-    assert driver_bound == 14100.0
+    assert driver_bound == 28500.0
 
     # OpenCode has no host ceiling (None) -> unreduced default
-    assert lane_containment.driver_bound_for_host(None) == 14400.0
+    assert lane_containment.driver_bound_for_host(None) == 28800.0
 
     # Unparseable ceiling falls back to None and preserves default
     parsed_junk = lane_containment.parse_host_ceiling_seconds("banana")
     assert parsed_junk is None
-    assert lane_containment.driver_bound_for_host(parsed_junk) == 14400.0
+    assert lane_containment.driver_bound_for_host(parsed_junk) == 28800.0
 
     # Behavioral attribution: post-mortem record explicitly names max-turn-timeout
     proc = subprocess.Popen(

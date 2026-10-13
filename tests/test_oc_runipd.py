@@ -4977,7 +4977,7 @@ class TurnBudgetPromptTests(unittest.TestCase):
                 self.assertNotIn("remaining", prompt.lower())
                 self.assertNotIn(".0 seconds", prompt)
 
-            # 2. Legacy state (options: {}) defaults to 900 stall and 14400 ceiling
+            # 2. Legacy state (options: {}) defaults to 1800 stall and 28800 ceiling
             legacy_state = {
                 "run_id": "run-x",
                 "repo": str(repo),
@@ -4989,14 +4989,14 @@ class TurnBudgetPromptTests(unittest.TestCase):
             ]:
                 prompt = builder(item, legacy_state, run_dir, plan, False)
                 self.assertIn(
-                    "900",
+                    "1800",
                     prompt,
-                    f"{host_name} legacy prompt missing default stall timeout 900",
+                    f"{host_name} legacy prompt missing default stall timeout 1800",
                 )
                 self.assertIn(
-                    "14400",
+                    "28800",
                     prompt,
-                    f"{host_name} legacy prompt missing default ceiling 14400",
+                    f"{host_name} legacy prompt missing default ceiling 28800",
                 )
                 self.assertTrue(
                     all(ord(c) < 128 for c in prompt),
@@ -5006,7 +5006,7 @@ class TurnBudgetPromptTests(unittest.TestCase):
                 self.assertNotIn(".0 seconds", prompt)
 
     def test_resolved_ceiling_reaches_run_state_on_both_hosts(self):
-        """tb6wh7 E-05: --prepare-only resolves and freezes options.turn_ceiling (14400.0 oc, 14100.0 agy)."""
+        """tb6wh7 E-05: --prepare-only resolves and freezes options.turn_ceiling (28800.0 oc, 28500.0 agy)."""
         # Test OC host
         with tempfile.TemporaryDirectory() as temp:
             repo = _repo_with_statuses(Path(temp), {"appr01": "approved"})
@@ -5017,7 +5017,7 @@ class TurnBudgetPromptTests(unittest.TestCase):
             state_data = json.loads(
                 (runs[0] / "state.json").read_text(encoding="utf-8")
             )
-            self.assertEqual(state_data.get("options", {}).get("turn_ceiling"), 14400.0)
+            self.assertEqual(state_data.get("options", {}).get("turn_ceiling"), 28800.0)
 
         # Test AGY host
         with tempfile.TemporaryDirectory() as temp:
@@ -5029,7 +5029,7 @@ class TurnBudgetPromptTests(unittest.TestCase):
             state_data = json.loads(
                 (runs[0] / "state.json").read_text(encoding="utf-8")
             )
-            self.assertEqual(state_data.get("options", {}).get("turn_ceiling"), 14100.0)
+            self.assertEqual(state_data.get("options", {}).get("turn_ceiling"), 28500.0)
 
 
 class ReviewsSelectorDocumentedTests(unittest.TestCase):
