@@ -1,3 +1,5 @@
+RETIRED 2026-10-12: duplicate of Set gradfix, which fixes the same two causes of the 2026-10-12 BACKLOG-GRADUATE-COUNT fail-gates in the same functions with incompatible changes; maintainer chose gradfix during /plan-review of gradfix; superseded by .aw/records/plans/pending/20261012-gradfix-00-kht4vk-stop-backlog-graduation-runs-from-failing-on-already-finishe.ipd.md
+
 # IPD: Isolate production checks and reconcile backlog graduation gates
 
 - Date: 2026-10-12
@@ -6,7 +8,7 @@
 - Scope: IN: (1) in `runner_shared.execute_item_core`, re-derive the production baseline (`baseline_plan_ids`, `existing_before`, `continued_plan_ids`) from the ISOLATED LANE immediately after `allocate_isolation_worktree` returns and before the turn, so a plan that landed on `main` between the item-start snapshot and the lane cut is baseline, not this turn's output (fixes `fail-gate` cause 1A for BOTH `backlog_graduate_count` and `spec_plan_count`, which share that baseline); (2) handle an `open` backlog item whose every `From-Backlog` carrier is already terminal (`executed/`) according to the maintainer's answer to OQ-01, replacing the false "produced 0 linked IPDs" refusal (cause 1B); (3) behavioral regression tests in `tests/test_backlog_production.py` and `tests/test_production_resume_handoff.py`, red before and green after. OUT: changing the `production_checks.*_count` signatures (no new `new_plan_paths` parameter; see F-07); the execution verifier prompt or verdict schema; `aw backlog set` transition semantics; the historical `fail-verify`/`fail-begin`/`fail-depend`/`fail-merge` classes (analysis only, no code).
 - Scope-Paths: agent_workflows/runner_shared.py, agent_workflows/production_checks.py, tests/test_backlog_production.py, tests/test_production_resume_handoff.py, .aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md, .aw/records/plans/pending/20261012-failfix-01-d52x8b-isolate-production-checks-and-reconcile-backlog-graduation-g.ipd.md
 - Item-Dependencies: none
-- Status: reviewed
+- Status: superseded
 - Readiness: no-go
 - Work-Kind: bug
 - Priority: high
@@ -18,6 +20,7 @@
 - Id: d52x8b
 
 ## Workflow history
+- 2026-10-12 superseded (aw set): RETIRED 2026-10-12 by /plan-review of Set gradfix, maintainer decision: duplicate fix for the same 2026-10-12 BACKLOG-GRADUATE-COUNT fail-gates. Superseded by Set gradfix (kht4vk, 0owirm, s95x79, and Order 03). Its F-03..F-06 analysis of other failure types needs no code change.
 - 2026-10-12 reviewed (aw set): /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): REVIEWED - OPEN QUESTIONS; PR-001, PR-002 (open, OQ-01), PR-003, PR-004, PR-005, PR-006
 
 - 2026-10-12 draft (Antigravity): created from investigation of active runner shard failures in `aw runs --active -s`.
