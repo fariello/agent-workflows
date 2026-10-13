@@ -6,7 +6,7 @@
 - Scope: Answer the four decisions backlog `7jl2bf` owes (OQ-01..OQ-04, each resolved from repository evidence below) and build the report they describe. (1) A new pure detector module `agent_workflows/source_offsets.py` that extracts `<file>.py:<line>[-<line>]` citations from COMMENT tokens and DOCSTRING tokens only (via `tokenize`, never from ordinary string literals, which are fixture data), resolves each named file inside the repository, and returns findings with validity `past_eof`, `blank_line` or `punct_only`, REUSING `spec_citations._resolve_offset` for the first two verdicts. (2) A new opt-in flag `aw check --source-offsets` and its `_run_check` branch, reporting a new rule `check.source-offset-stale` registered `info` in `check_engine.RULE_REGISTRY`, with the exit code and outcome derived from registered severity (so an advisory finding exits 0 with outcome `conforms`). (3) Exempt a citation whose citing line names a commit hash (a HISTORICAL citation). (4) Fixture-only behavioral tests and one `CHANGELOG.md` line. EXCLUDES fixing the live sites the report finds (Order 03 `jem77o`), EXCLUDES any change to `spec_citations.py` or to the `--source-anchors` branch (owned by pending `sbh1o1` plans `fz3i3m`/`l85xvi`), EXCLUDES citation-FORM checking (that is `IPD-C801`'s job for plans), EXCLUDES any CI step, default-path wiring or severity above `info`.
 - Scope-Paths: agent_workflows/source_offsets.py, agent_workflows/cli.py, agent_workflows/check_engine.py, tests/test_source_offsets.py, CHANGELOG.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -16,9 +16,9 @@
 - Highest E allocated: 06
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: pyuw4v
-- Approval: 2026-10-12, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-13 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: pyuw4v verified (set hostcite, attempt 1).
 - 2026-10-12 approved (aw set): status set to approved
 - 2026-10-12 reviewed (aw set): /plan-review (opencode model=its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-004. Record: .aw/records/reviews/20261012-hostcite-02-pyuw4v-resolve-python-source-file-line-offsets-in-comments-and-docs.review.md Round 1
 
