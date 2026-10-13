@@ -9,7 +9,7 @@ SINGLE reusable commit path enforcing the repository contract (AGENTS.md):
 * commit with the caller's message; never ``--no-verify``; never ``push``;
 * INTERACTIVE-GATED - on a TTY prompt ``[Y/n]`` unless ``assume_yes`` (the ``--commit`` flag);
   NON-interactive without ``assume_yes`` is a NO-OP (skip), matching ``cli._confirm``'s ACTUAL
-  decline-on-non-TTY behavior (cli.py:2696) - NOT auto-yes; ``no_commit`` short-circuits to skip;
+  decline-on-non-TTY behavior - NOT auto-yes; ``no_commit`` short-circuits to skip;
 * NEVER folds in unrelated staged/unstaged changes. ``on_unrelated_staged`` selects the policy
   when the index already holds staged paths OUTSIDE ``paths``: ``"scope"`` (default; commit only
   ``paths``, leave the rest untouched) or ``"refuse"`` (return ``refused-dirty``, commit nothing);
