@@ -43873,9 +43873,12 @@ def dependency_status_detailed(
             _block(dep, reason or f"{dep}: dependency not satisfied")
             continue
         # revgate: the edge is satisfied structurally; for an execute-action dependency ALSO refuse
-        # on unresolved gating findings. Uses the parsed edge's target id6, not the raw token.
+        # on unresolved gating findings. Pass the parsed edge's target id6 (edge.id6) directly to
+        # _findings_block_reason. The raw token (such as "executed:<id6>") must never reach
+        # _findings_block_reason because review records are keyed by bare subject id6; passing the
+        # raw token causes subject_gating_blocks to miss the review record and wrongly admit the item.
         if is_exec:
-            target = dependency_target_id6(edge) or dep
+            target = edge.id6
             why = _findings_block_reason(repo, target)
             if why:
                 _block(dep, why)
