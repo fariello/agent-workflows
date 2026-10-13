@@ -1,5 +1,5 @@
 - Id: 94op6l
-- Status: graduated
+- Status: done
 - Graduated-To: runclileak
 - Blocks-Release: next
 - Set: runclileak
@@ -8,6 +8,7 @@
 - Summary: run_cli human-mode output is not redacted though its docstring claims both surfaces are, leaking a token that the --agent surface masks
 
 ## Workflow history
+- 2026-10-13 done (aw backlog): closed by aw agy run: IPD omst3h executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20261012-runclileak-01-omst3h-redact-run-cli-human-mode-output-so-it-matches-the-machine-s.ipd.md); evidence .aw/records/plans/executed/20261012-runclileak-01-omst3h-redact-run-cli-human-mode-output-so-it-matches-the-machine-s.ipd.md
 - 2026-10-12 graduated (aw backlog): graduated by run run-20261012T005606Z-2321569: omst3h
 - 2026-10-02 created (aw backlog): found while graduating h9kgjp (run_cli docstring vs module contradictions)
 
