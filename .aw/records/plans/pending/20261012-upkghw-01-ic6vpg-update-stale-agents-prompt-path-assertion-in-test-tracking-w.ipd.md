@@ -36,17 +36,17 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: Fix the stale assertion
 
-- [ ] E-01 In `tests/test_installer.py`, in `TrackingWarningScanTests.test_tracking_warning_scan`, replace `self.assertIn(".agents/prompts/untracked/", out_clean)` with `self.assertIn(".aw/records/prompts/untracked/", out_clean)` and add `self.assertIn(".aw/records/comms/untracked/", out_clean)`.
+- [x] E-01 In `tests/test_installer.py`, in `TrackingWarningScanTests.test_tracking_warning_scan`, replace `self.assertIn(".agents/prompts/untracked/", out_clean)` with `self.assertIn(".aw/records/prompts/untracked/", out_clean)` and add `self.assertIn(".aw/records/comms/untracked/", out_clean)`.
   - Depends on: none
   - Expected outcome: the test asserts the canonical lane paths printed by `engine.warn_tracking_and_scan` for a fresh repo; no other line of the file changes.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: Verify
 
-- [ ] E-02 BEFORE E-01's edit, run the bare suite `python3 -m pytest` and record its summary line and FAILED node ids as the baseline (`test_tracking_warning_scan` is expected among them). After E-01, run the targeted test and the bare suite again and capture the output.
+- [x] E-02 BEFORE E-01's edit, run the bare suite `python3 -m pytest` and record its summary line and FAILED node ids as the baseline (`test_tracking_warning_scan` is expected among them). After E-01, run the targeted test and the bare suite again and capture the output.
   - Depends on: E-01
   - Expected outcome: `test_tracking_warning_scan` passes, and the post-change FAILED node ids are a subset of the baseline's (the baseline minus `test_tracking_warning_scan`).
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -109,15 +109,75 @@ N/A: test-only change correcting a stale expectation; no spec or user-facing doc
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: pasted `git diff -- tests/test_installer.py` showing only the `.agents/prompts/untracked/` assertion replaced by `.aw/records/prompts/untracked/` plus the added `.aw/records/comms/untracked/` assertion, and no other hunks.
   - Observed evidence:
-  - Result: pending
+```diff
+diff --git a/tests/test_installer.py b/tests/test_installer.py
+index a0f0d56fd..74d4c2b28 100644
+--- a/tests/test_installer.py
++++ b/tests/test_installer.py
+@@ -2574,7 +2574,8 @@ class TrackingWarningScanTests(unittest.TestCase):
+         clean_repo = init_repo(self.base / "clean")
+         out_clean = self._install_capture(clean_repo)
+         self.assertIn("git-tracks IPDs, prompts, and research by default", out_clean)
+-        self.assertIn(".agents/prompts/untracked/", out_clean)
++        self.assertIn(".aw/records/prompts/untracked/", out_clean)
++        self.assertIn(".aw/records/comms/untracked/", out_clean)
+         self.assertIn("untracked", out_clean)
+         self.assertNotIn("ALREADY git-tracked", out_clean)
+```
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: pasted actual output of `python3 -m pytest -o addopts="" -q tests/test_installer.py -k test_tracking_warning_scan` showing `1 passed`, and the summary lines plus FAILED node-id lists of the bare `python3 -m pytest` runs before and after E-01, showing `test_tracking_warning_scan` dropped out and no new node id appeared.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified targeted test passes and bare suite passes with no regressions.
+    1. Targeted test before E-01 edit (reproduced failure):
+    ```
+    $ python3 -m pytest -o addopts="" -q tests/test_installer.py -k test_tracking_warning_scan
+    F                                                                        [100%]
+    =================================== FAILURES ===================================
+    _____________ TrackingWarningScanTests.test_tracking_warning_scan ______________
+
+    self = <tests.test_installer.TrackingWarningScanTests testMethod=test_tracking_warning_scan>
+
+        def test_tracking_warning_scan(self):
+            # 1. Clean repo prints notice with safety valves but no per-file warning
+            clean_repo = init_repo(self.base / "clean")
+            out_clean = self._install_capture(clean_repo)
+            self.assertIn("git-tracks IPDs, prompts, and research by default", out_clean)
+    >       self.assertIn(".agents/prompts/untracked/", out_clean)
+    E       AssertionError: '.agents/prompts/untracked/' not found in "\nNote: agent-workflows git-tracks IPDs, prompts, and research by default.\n  This is deliberate (durable, travels with the repo, auditable), but it means you and\n  especially your agents should be careful what goes into those files. For sensitive or\n  provisional content, use a safety valve instead of committing it:\n    - name it with the untracked marker: foo.untracked.md / scratch.untracked / a\n      directory whose name contains 'untracked' (see the .gitignore block);\n    - or use the gitignored untracked lanes: .aw/records/prompts/untracked/ and .aw/records/comms/untracked/.\n"
+
+    tests/test_installer.py:2577: AssertionError
+    NOTE: 143 tests were deselected by -m/-k and did not run (no marker filter was active; deselected by -k/--deselect)
+    =========================== short test summary info ============================
+    FAILED tests/test_installer.py::TrackingWarningScanTests::test_tracking_warning_scan
+    1 failed, 143 deselected in 5.38s
+    ```
+
+    2. Baseline bare `python3 -m pytest` before E-01:
+    (Note: tests/test_installer.py has `pytestmark = pytest.mark.slow` and is deselected under default `addopts="-q -n auto --dist=worksteal -m 'not slow and not livecorpus'"`.)
+    Summary line:
+    `8048 passed, 4 skipped, 18 xfailed, 3 warnings in 940.46s (0:15:40)`
+    FAILED node-id list:
+    None (empty list).
+
+    3. Targeted test after E-01 edit:
+    ```
+    $ python3 -m pytest -o addopts="" -q tests/test_installer.py -k test_tracking_warning_scan
+    .                                                                        [100%]
+    NOTE: 143 tests were deselected by -m/-k and did not run (no marker filter was active; deselected by -k/--deselect)
+    1 passed, 143 deselected in 9.76s
+    ```
+
+    4. Bare `python3 -m pytest` after E-01:
+    Summary line:
+    `8048 passed, 4 skipped, 18 xfailed, 3 warnings in 855.62s (0:14:15)`
+    FAILED node-id list:
+    None (empty list).
+    No new node id appeared; targeted test passed.
+  - Result: pass
 
 ## Approval and execution gate
 

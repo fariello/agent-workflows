@@ -2574,7 +2574,8 @@ class TrackingWarningScanTests(unittest.TestCase):
         clean_repo = init_repo(self.base / "clean")
         out_clean = self._install_capture(clean_repo)
         self.assertIn("git-tracks IPDs, prompts, and research by default", out_clean)
-        self.assertIn(".agents/prompts/untracked/", out_clean)
+        self.assertIn(".aw/records/prompts/untracked/", out_clean)
+        self.assertIn(".aw/records/comms/untracked/", out_clean)
         self.assertIn("untracked", out_clean)
         self.assertNotIn("ALREADY git-tracked", out_clean)
 
