@@ -6,7 +6,7 @@
 - Scope: IN: comment and docstring prose at the 19 sites in Findings, in those six files. Each site is dispositioned REPOINT, RETIRE-PIN or RETIRE-UNGUARDED (definitions in Project conventions), preserving each comment's design reason. OUT: any executable change; restoring any test; the sites in these files owned by other plans (`3tov52`/`65d5zf` for `test_review_findings_cascade.py`/`test_runner_stop_triggers.py`/`test_orchestrator_probe_cache.py`, `046nys`/`dtelfb`, `yf1p8y` for `test_runner_backlog_close.py`), excluded by the measurement regex; the `__all__`/re-export rework (`fh8x8k`/`vzk1iw`); filing backlog for unguarded properties (Order 04 `ellenm`).
 - Scope-Paths: agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, agent_workflows/ipd_lint.py, agent_workflows/runner_shutdown.py, agent_workflows/run_viewer.py, agent_workflows/artifact_audit.py, .aw/records/plans/pending/20261011-iosmvn-02-9rthek-retire-or-repoint-the-dangling-test-citations-in-the-host-dr.ipd.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -16,9 +16,9 @@
 - Highest E allocated: 04
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: 9rthek
-- Approval: 2026-10-13, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-13 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: 9rthek verified (set iosmvn, attempt 1).
 - 2026-10-13 approved (aw set): status set to approved
 - 2026-10-13 reviewed (opencode its_direct/pt3-claude-opus-5.5-1m-us): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-001..PR-005 fixed.
 
