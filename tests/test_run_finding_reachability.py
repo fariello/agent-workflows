@@ -14,6 +14,7 @@ import importlib
 from pathlib import Path
 import re
 import tempfile
+import types
 import unittest
 
 from agent_workflows import run_evidence
@@ -28,6 +29,54 @@ from agent_workflows.run_evidence import (
     prove_predicate_reachability,
     validate_finding_table,
 )
+
+_CANDIDATE_MODULES: tuple[str, ...] = ("worktree_lease",)
+
+
+def _select_predicate(verdict: str) -> str:
+    """Enumerate candidate predicates from runner-adjacent modules and return the first matching verdict.
+
+    Obeying P16: enumerates attributes with vars() at runtime, testing observable reachability
+    verdicts without inspecting source code via inspect, ast, regex, or substring search.
+    """
+    candidates: list[str] = []
+    for mod_name in _CANDIDATE_MODULES:
+        full_mod_name = (
+            mod_name
+            if mod_name.startswith("agent_workflows.")
+            else f"agent_workflows.{mod_name}"
+        )
+        mod = importlib.import_module(full_mod_name)
+        short_mod = mod_name.split(".")[-1]
+        for attr_name, attr_val in vars(mod).items():
+            if attr_name.startswith("_"):
+                continue
+            if (
+                isinstance(attr_val, types.FunctionType)
+                and getattr(attr_val, "__module__", None) == mod.__name__
+            ):
+                candidates.append(f"{short_mod}.{attr_name}")
+            elif (
+                isinstance(attr_val, type)
+                and getattr(attr_val, "__module__", None) == mod.__name__
+            ):
+                for meth_name, meth_val in vars(attr_val).items():
+                    if meth_name.startswith("_"):
+                        continue
+                    if (
+                        isinstance(meth_val, types.FunctionType)
+                        and getattr(meth_val, "__module__", None) == mod.__name__
+                    ):
+                        candidates.append(f"{short_mod}.{attr_name}.{meth_name}")
+
+    candidates.sort()
+    for pred in candidates:
+        if prove_predicate_reachability(pred) == verdict:
+            return pred
+
+    raise AssertionError(
+        f"No candidate predicate in pool {candidates} matched verdict {verdict!r}"
+    )
 
 
 class TestRunFindingReachability(unittest.TestCase):
@@ -140,17 +189,19 @@ class TestRunFindingReachability(unittest.TestCase):
 
     def test_unreachable_binding_refusal_fires_under_perturbation(self) -> None:
         """Case (d): RC-UNREACHABLE-BINDING fires when a BOUND row has no reachable predicates."""
+        unreachable_pred = _select_predicate(UNREACHABLE)
+        self.assertEqual(prove_predicate_reachability(unreachable_pred), UNREACHABLE)
+        reachable_pred = _select_predicate(REACHABLE)
+        self.assertEqual(prove_predicate_reachability(reachable_pred), REACHABLE)
+
         orig = run_evidence.RUN_FINDING_CODES
         try:
             # Perturb a row to name only unreachable predicates
-            # worktree_lease.LeaseTable.held_by is unreachable
             perturbed_rows = []
             target_code = "RUN-HOST-CAPABILITY"
             for row in orig:
                 if row.code == target_code:
-                    perturbed_rows.append(
-                        row._replace(predicates=("worktree_lease.LeaseTable.held_by",))
-                    )
+                    perturbed_rows.append(row._replace(predicates=(unreachable_pred,)))
                 else:
                     perturbed_rows.append(row)
             run_evidence.RUN_FINDING_CODES = tuple(perturbed_rows)
@@ -165,9 +216,7 @@ class TestRunFindingReachability(unittest.TestCase):
             )
             self.assertEqual(unreachable_finding.where, target_code)
             self.assertIn(target_code, unreachable_finding.message)
-            self.assertIn(
-                "worktree_lease.LeaseTable.held_by", unreachable_finding.message
-            )
+            self.assertIn(unreachable_pred, unreachable_finding.message)
 
             # Second perturbation: BOUND row with one reachable predicate beside unreachable ones passes
             mixed_rows = []
@@ -176,8 +225,8 @@ class TestRunFindingReachability(unittest.TestCase):
                     mixed_rows.append(
                         row._replace(
                             predicates=(
-                                "host_sandbox_profile.preflight_host_capabilities",  # reachable
-                                "worktree_lease.LeaseTable.held_by",  # unreachable
+                                reachable_pred,
+                                unreachable_pred,
                             )
                         )
                     )

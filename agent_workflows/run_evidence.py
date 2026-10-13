@@ -1910,8 +1910,10 @@ def prove_predicate_reachability(
 
     Two known consequences of this design:
       1. A method name shared by an unrelated class creates a false edge (over-approximation).
-      2. ``worktree_lease.LeaseTable.claim`` is reported unreachable with zero real ``.claim(`` call sites
-         anywhere in the package, which is a true negative and not a limitation.
+      2. A local variable or keyword argument matching a defined method name creates a false edge
+         (over-approximation); for example, ``worktree_lease.LeaseTable.claim`` is reported reachable
+         (measured 2026-10-12) via the ``claim`` local in ``verifier_corroboration.match_claims_to_observed``
+         despite having zero real ``.claim(`` call sites in the package.
     """
     if entrypoints is None:
         ep_tuple = DEFAULT_ENTRYPOINT_MODULES
