@@ -4808,6 +4808,37 @@ def run(args) -> int:
                 if fix.strip():
                     board += f"    Fix: {fix.strip()}\n"
 
+        # isnqja E-04: advisory graduated-closable warnings (human view only; NEVER affect the exit
+        # code). Surfaces graduated items whose carriers have all reached a terminal state.
+        run_closable_warnings = not type_filters or "backlog" in type_filters
+        closable_warnings = []
+        if run_closable_warnings:
+            try:
+                closable_warnings = _ce.graduated_closable_warnings(repo_root)
+                if selectors_arg and closable_warnings:
+                    selected_paths = {(repo_root / it.path).resolve() for it in items}
+                    closable_warnings = [
+                        w
+                        for w in closable_warnings
+                        if (repo_root / w.location).resolve() in selected_paths
+                    ]
+            except Exception:
+                closable_warnings = []
+        if closable_warnings:
+            cw_header = f"graduated-closable ({len(closable_warnings)})"
+            if colored:
+                board += term.color256(cw_header, 214, bold=True) + "\n"
+            else:
+                board += f"## {cw_header}\n"
+            for w in closable_warnings:
+                detail, _, fix = w.detail.partition("\n    Fix:")
+                ident = (
+                    _identity_stem(w.location) if colored and not long else w.location
+                )
+                board += f"- {ident}: {w.rule}: {detail}\n"
+                if fix.strip():
+                    board += f"    Fix: {fix.strip()}\n"
+
         # lanestrand-01 (`pr5b0t`) E-04: the LOUD stranded-lane section. It is deliberately DUPLICATED
         # information: the same lanes already appear in the board's `VIEW INVALID` violation block
         # (because they are `Drift` records, which is what makes `--check` fail), and this section

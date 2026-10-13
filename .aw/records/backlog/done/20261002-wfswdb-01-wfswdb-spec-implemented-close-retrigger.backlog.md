@@ -1,5 +1,5 @@
 - Id: wfswdb
-- Status: graduated
+- Status: done
 - Graduated-To: wfswdb
 - Set: wfswdb
 - Priority: low
@@ -7,6 +7,7 @@
 - Summary: After a mixed plan+spec backlog item's close is refused because its spec carrier is unimplemented, nothing re-evaluates the close when the spec later reaches implemented, so the item stays graduated until a hand close
 
 ## Workflow history
+- 2026-10-13 done (aw backlog): closed by aw agy run: IPD isnqja executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20261012-wfswdb-01-isnqja-surface-a-graduated-backlog-item-that-becomes-closable-when.ipd.md); evidence .aw/records/plans/executed/20261012-wfswdb-01-isnqja-surface-a-graduated-backlog-item-that-becomes-closable-when.ipd.md
 - 2026-10-12 graduated (aw backlog): graduated by run run-20261012T005606Z-2321569: isnqja
 - 2026-10-02 created (aw backlog): After a mixed plan+spec backlog item's close is refused because its spec carrier is unimplemented, nothing re-evaluates the close when the spec later reaches implemented, so the item stays graduated until a hand close
 
