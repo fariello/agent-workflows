@@ -11166,65 +11166,6 @@ def _run_plans(
     return 0
 
 
-def _load_normalizer():
-    """Import the plan-name normalizer script (it lives under the bundled workflow tree).
-
-    Resolves the `.agents/workflows/` root via `_compat.packaged_source_root()` (installed
-    wheel) or the repo root (source checkout / editable install), then loads the standalone
-    script by path (it is a script, not an importable package module). Returns the module or
-    None if it cannot be located/loaded.
-    """
-
-    import importlib.util
-
-    # Resolve the workflow bundle root layout-agnostically: engine.resolve_source_root prefers
-    # the packaged/nested .aw/system (descending into workflows/) and falls back to the legacy
-    # .agents/workflows source checkout. This works before AND after the physical-layout move,
-    # where the bundle relocated from .agents/workflows/ to .aw/system/workflows/.
-    try:
-        root = engine.resolve_source_root(None)
-    except SystemExit:
-        return None
-    script = root / "setup-repo" / "tools" / "normalize_plan_names.py"
-    if not script.is_file():
-        return None
-    spec = importlib.util.spec_from_file_location("aw_normalize_plan_names", script)
-    if spec is None or spec.loader is None:
-        return None
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
-
-
-def _run_plan_names(args: argparse.Namespace, term: Term) -> int:
-    normalizer = _load_normalizer()
-    if normalizer is None:
-        term.status("fail", "Could not locate the plan-name normalizer script.")
-        return 1
-
-    root = Path(args.dir).expanduser() if getattr(args, "dir", None) else Path.cwd()
-    passthrough = ["--repo", str(root), "--format", getattr(args, "fmt", "text")]
-    if getattr(args, "apply", False):
-        passthrough.append("--apply")
-    if getattr(args, "all_areas", False):
-        passthrough.append("--all")
-    for area in getattr(args, "area", None) or []:
-        passthrough += ["--area", area]
-    for glob in getattr(args, "exclude", None) or []:
-        passthrough += ["--exclude", glob]
-    if getattr(args, "no_default_excludes", False):
-        passthrough.append("--no-default-excludes")
-    if getattr(args, "include_nested", False):
-        passthrough.append("--include-nested")
-    if getattr(args, "rename_non_numeric", False):
-        passthrough.append("--rename-non-numeric")
-    if getattr(args, "assume_dates", False):
-        passthrough.append("--assume-dates")
-
-    # Delegate to the script's own main(argv); it prints its report and returns its exit code.
-    return normalizer.main(passthrough)
-
-
 def _run_leaks_configure(args: argparse.Namespace, term: Term) -> int:
     """Interactive leak-sanitizer config wizard (`--configure`, D98). Reads/writes the
     tracked allowlist + the gitignored user hints; never scans."""
