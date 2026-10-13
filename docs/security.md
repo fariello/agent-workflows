@@ -35,6 +35,12 @@ Leak and secret checks REUSE the repository's canonical tooling. There is no for
 7. Destructive tools are human-gated. `check_destructive_tool_gated` refuses a destructive tool
    without a genuine human consent, and refuses a non-human role that claims to consent (only
    the human role can record approval; a role cannot synthesize its own consent).
+8. Agent turns contain user-config writes. Runner turns export a per-turn seeded copy of
+   user configuration via `AW_CONFIG_DIR`. Writes during a turn remain inside the sandbox
+   and are discarded at turn exit rather than altering operator settings. Honest limit:
+   `AW_CONFIG_DIR` is an environment selector, not a hardened security boundary; an agent
+   running with same-user shell access can unset the variable or write to `~/.config` directly.
+   The hardened execution profile provides OS-level sandbox enforcement.
 
 ## Runbooks (how to prove each boundary)
 

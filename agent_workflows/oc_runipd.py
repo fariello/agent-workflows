@@ -333,6 +333,9 @@ from agent_workflows.runner_shared import (
     report_driver_committed_reviews as report_driver_committed_reviews,
 )
 from agent_workflows.runner_shared import (
+    report_discarded_user_config as report_discarded_user_config,
+)
+from agent_workflows.runner_shared import (
     report_run_spec_edits as report_run_spec_edits,
 )
 from agent_workflows.runner_shared import (
@@ -2936,6 +2939,17 @@ def run_opencode(
     else:
         child_env.pop(_gch.ITEM_ID6_ENV, None)
 
+    # userconfig (9y27t2) E-04: contain agent writes to user config via per-turn sandbox.
+    from agent_workflows import config as _config
+
+    user_config_handle = runner_shared.prepare_agent_user_config(
+        run_dir, item, attempt_no, suffix=log_suffix
+    )
+    if user_config_handle is not None:
+        child_env[_config.CONFIG_DIR_ENV] = str(user_config_handle.path)
+    else:
+        child_env.pop(_config.CONFIG_DIR_ENV, None)
+
     # lanectn Order 03 (`lhmrhx`) E-01/E-02/E-03, spec R4.1/R4.2/R4.3/R4.6: ask THIS host for the
     # strongest permission posture it actually supports, then OBSERVE what took effect.
     #
@@ -3033,283 +3047,306 @@ def run_opencode(
         phase=telemetry_phase,
         host="opencode",
     )
-    with (
-        runner_shared.turn_telemetry(
-            run_dir,
-            telemetry_identity,
-            repo=state.get("repo"),
-            # The launch identity this turn actually used, read from the SAME keys the argv above
-            # was built from, so telemetry records the verifier's model on a verifier turn rather
-            # than the executor's.
-            extra_context={"model": options.get(model_key)},
-        ),
-        log_path.open("w", encoding="utf-8") as log,
-    ):
-        # Track the child so a clean shutdown at ANY layer can reap it even when this frame is
-        # gone (spec `c4gd2h` R1: no descendant left alive or reparented to init).
-        process = runner_shutdown.track_child(subprocess.Popen(argv, **popen_kwargs))
-        assert process.stdout is not None
-        statusline = Statusline(
-            pal=pal,
-            stream=sys.stdout,
-            tracker=tracker,
-            interval=1.0 if is_tty and output_mode == "clean" else 0.0,
-            current_idx=current_idx,
-            total_items=total_items or 1,
-            setid=item.get("setid", ""),
-            id6=item.get("id6", ""),
-            run_start_mono=run_start_mono,
-            action=statusline_action_for_item(item),
-            artifact_kind=item.get("kind", item.get("type", "ipd")),
-            # lifeglyph (`qdd5jq`) E-03, spec Section 7.1: the live activity, derived from the
-            # field that CARRIES it (`verification_status`, `integration_signal`, the retry state)
-            # rather than from `action` alone, which only knows `review`/`execute`. `None` when the
-            # entry signals nothing, which renders no activity cell rather than a guessed one.
-            activity=activity_for_item(item),
-            runner="opencode",
-            model=options.get(model_key),
-            variant=options.get(variant_key),
-            run_dir=run_dir,
-            state=state,
-        )
-        watchdog = StallWatchdog(process, timeout=stall_timeout)
-        # The countdown the operator sees must come from the watchdog that kills, so the
-        # display reads it directly rather than keeping a second timestamp.
-        statusline.watchdog = watchdog
+    try:
+        with (
+            runner_shared.turn_telemetry(
+                run_dir,
+                telemetry_identity,
+                repo=state.get("repo"),
+                # The launch identity this turn actually used, read from the SAME keys the argv above
+                # was built from, so telemetry records the verifier's model on a verifier turn rather
+                # than the executor's.
+                extra_context={"model": options.get(model_key)},
+            ),
+            log_path.open("w", encoding="utf-8") as log,
+        ):
+            # Track the child so a clean shutdown at ANY layer can reap it even when this frame is
+            # gone (spec `c4gd2h` R1: no descendant left alive or reparented to init).
+            process = runner_shutdown.track_child(
+                subprocess.Popen(argv, **popen_kwargs)
+            )
+            assert process.stdout is not None
+            statusline = Statusline(
+                pal=pal,
+                stream=sys.stdout,
+                tracker=tracker,
+                interval=1.0 if is_tty and output_mode == "clean" else 0.0,
+                current_idx=current_idx,
+                total_items=total_items or 1,
+                setid=item.get("setid", ""),
+                id6=item.get("id6", ""),
+                run_start_mono=run_start_mono,
+                action=statusline_action_for_item(item),
+                artifact_kind=item.get("kind", item.get("type", "ipd")),
+                # lifeglyph (`qdd5jq`) E-03, spec Section 7.1: the live activity, derived from the
+                # field that CARRIES it (`verification_status`, `integration_signal`, the retry state)
+                # rather than from `action` alone, which only knows `review`/`execute`. `None` when the
+                # entry signals nothing, which renders no activity cell rather than a guessed one.
+                activity=activity_for_item(item),
+                runner="opencode",
+                model=options.get(model_key),
+                variant=options.get(variant_key),
+                run_dir=run_dir,
+                state=state,
+            )
+            watchdog = StallWatchdog(process, timeout=stall_timeout)
+            # The countdown the operator sees must come from the watchdog that kills, so the
+            # display reads it directly rather than keeping a second timestamp.
+            statusline.watchdog = watchdog
 
-        # SUBAGENT PROGRESS (stallfp kaga7s): stdout carries ONLY parent-session events, so a
-        # turn working inside a Task/subagent looks idle and used to be killed at the timeout.
-        # This observer supplies the missing signal from opencode's own log. It is BEST-EFFORT
-        # by contract: if the log is missing/unreadable/changed, it yields nothing and the
-        # watchdog behaves exactly as it did before (stdout-only). It must never raise into
-        # the turn, and it counts ONLY agent-loop lines, so a permission-deadlocked child
-        # (which keeps emitting housekeeping lines) is still correctly killed.
-        observer = stall_progress.SubagentProgressObserver()
-        watchdog.progress_checker = observer.poll
+            # SUBAGENT PROGRESS (stallfp kaga7s): stdout carries ONLY parent-session events, so a
+            # turn working inside a Task/subagent looks idle and used to be killed at the timeout.
+            # This observer supplies the missing signal from opencode's own log. It is BEST-EFFORT
+            # by contract: if the log is missing/unreadable/changed, it yields nothing and the
+            # watchdog behaves exactly as it did before (stdout-only). It must never raise into
+            # the turn, and it counts ONLY agent-loop lines, so a permission-deadlocked child
+            # (which keeps emitting housekeeping lines) is still correctly killed.
+            observer = stall_progress.SubagentProgressObserver()
+            watchdog.progress_checker = observer.poll
 
-        def _subagent_progress() -> None:
-            watchdog.touch()
-            statusline.touch("subagent")
+            def _subagent_progress() -> None:
+                watchdog.touch()
+                statusline.touch("subagent")
 
-        # Poll often enough that progress is always seen before the watchdog could fire.
-        # Mirrors StallWatchdog.check_interval's own timeout/4 clamp, so a short timeout (as
-        # used by tests) is still sampled several times per timeout window.
-        poll_interval = (
-            min(1.0, max(0.05, stall_timeout / 4.0)) if stall_timeout else 1.0
-        )
-        poller = stall_progress.ProgressPoller(
-            observer, touch_callbacks=(_subagent_progress,), interval=poll_interval
-        )
-        # runstop foi1b3 (level 3): the OBSERVED safe-checkpoint tracker. Fed every stream line
-        # regardless of `output_mode` - see the comment at the parse site below for why that matters.
-        checkpoint_observer = runner_stop.CheckpointObserver(
-            detector=runner_stop.is_oc_safe_checkpoint
-        )
-        breach_watch: runner_stop.BudgetBreachWatch | None = None
-        # runstop m0z0ti (level 4, E-01): the IMMEDIATE interrupt is observed OUT OF BAND, for the
-        # same measured reason Phase 3's budget watch is: `for line in process.stdout` BLOCKS, so a
-        # poll inside the loop only runs when the next line arrives and a silent child would make
-        # "immediately" mean "whenever the child next speaks". The watch only RECORDS the request;
-        # the cut itself is raised on the main thread below and reaped by the ONE shared
-        # `clean_shutdown` (spec R5) - never by a bare kill and never by a second reaper.
-        forced: dict[str, Any] = {}
+            # Poll often enough that progress is always seen before the watchdog could fire.
+            # Mirrors StallWatchdog.check_interval's own timeout/4 clamp, so a short timeout (as
+            # used by tests) is still sampled several times per timeout window.
+            poll_interval = (
+                min(1.0, max(0.05, stall_timeout / 4.0)) if stall_timeout else 1.0
+            )
+            poller = stall_progress.ProgressPoller(
+                observer, touch_callbacks=(_subagent_progress,), interval=poll_interval
+            )
+            # runstop foi1b3 (level 3): the OBSERVED safe-checkpoint tracker. Fed every stream line
+            # regardless of `output_mode` - see the comment at the parse site below for why that matters.
+            checkpoint_observer = runner_stop.CheckpointObserver(
+                detector=runner_stop.is_oc_safe_checkpoint
+            )
+            breach_watch: runner_stop.BudgetBreachWatch | None = None
+            # runstop m0z0ti (level 4, E-01): the IMMEDIATE interrupt is observed OUT OF BAND, for the
+            # same measured reason Phase 3's budget watch is: `for line in process.stdout` BLOCKS, so a
+            # poll inside the loop only runs when the next line arrives and a silent child would make
+            # "immediately" mean "whenever the child next speaks". The watch only RECORDS the request;
+            # the cut itself is raised on the main thread below and reaped by the ONE shared
+            # `clean_shutdown` (spec R5) - never by a bare kill and never by a second reaper.
+            forced: dict[str, Any] = {}
 
-        def _note_force(level: int, requester: str) -> None:
-            """Record the level-4 request and INTERRUPT the turn through the SHARED reaper.
+            def _note_force(level: int, requester: str) -> None:
+                """Record the level-4 request and INTERRUPT the turn through the SHARED reaper.
 
-            The reap happens HERE, not only in the teardown below, because the main thread may be
-            blocked in `for line in process.stdout` with nothing more coming - which is exactly the
-            silent-child case Phase 3's budget breach escalates FROM (spec A7). Reaping closes the
-            child's stdout, the blocked iteration ends, and the main thread raises `StopNowForce`.
-            `StallWatchdog._run` is the in-repo precedent for a supervisor thread reaping the child.
+                The reap happens HERE, not only in the teardown below, because the main thread may be
+                blocked in `for line in process.stdout` with nothing more coming - which is exactly the
+                silent-child case Phase 3's budget breach escalates FROM (spec A7). Reaping closes the
+                child's stdout, the blocked iteration ends, and the main thread raises `StopNowForce`.
+                `StallWatchdog._run` is the in-repo precedent for a supervisor thread reaping the child.
 
-            It goes through `runner_shutdown.clean_shutdown`, which is the ONE shared routine and the
-            ONE process-group escalation (spec R5): NOT a bare kill, NOT a second reaper, and not a
-            local `terminate_process` call.
-            """
+                It goes through `runner_shutdown.clean_shutdown`, which is the ONE shared routine and the
+                ONE process-group escalation (spec R5): NOT a bare kill, NOT a second reaper, and not a
+                local `terminate_process` call.
+                """
 
-            if forced:
-                return
-            forced["level"] = level
-            forced["requester"] = requester
-            report = runner_shutdown.clean_shutdown(process, run_dir=run_dir)
-            if not report.all_satisfied:
-                print(report.render(), file=sys.stderr)
+                if forced:
+                    return
+                forced["level"] = level
+                forced["requester"] = requester
+                report = runner_shutdown.clean_shutdown(process, run_dir=run_dir)
+                if not report.all_satisfied:
+                    print(report.render(), file=sys.stderr)
 
-        force_watch = runner_stop.ForceStopWatch(
-            run_dir,
-            on_force=_note_force,
-            is_alive=lambda: process.poll() is None,
-        )
-        # runstop 71vjbn (E-06, spec R11/A7): ENFORCE the wind-down budget Phase 3 only RECORDED.
-        #
-        # It is armed for the WHOLE turn, not only after a stop is observed, and out-of-band for the
-        # same measured reason every other watch here is: `for line in process.stdout` BLOCKS, so a
-        # deadline on a silent child can only be noticed from another thread. Arming it
-        # unconditionally also covers the level-1/2 case, whose wind-down deadline can expire while
-        # this turn is still running and which the in-loop level-3 branch below never reaches.
-        #
-        # It only RAISES THE DURABLE LEVEL. The escalated level is then honored by the machinery that
-        # already exists (the poll, `force_watch`, and the ONE shared `clean_shutdown`), so no second
-        # reaper and no second teardown path is introduced (spec R5).
-        escalation_watch = runner_stop.EscalationWatch(
-            run_dir,
-            on_escalate=_escalation_recorder(run_dir, item),
-            is_alive=lambda: process.poll() is None,
-        )
-
-        def _raise_if_forced() -> None:
-            """Cut the turn NOW if a level-4 request has been observed (spec R7 level 4)."""
-
-            if not forced:
-                return
-            raise runner_stop.StopNowForce(
-                level=forced.get("level", runner_stop.LEVEL_NOW_FORCE),
-                requester=forced.get("requester", ""),
-                events_seen=checkpoint_observer.events_seen,
-                # What had ALREADY been observed completing before the request. Passed so the record
-                # can carry it under its `prior_observed_*` keys; it is NEVER promoted to "the last
-                # completed operation", because the cut point itself was not observed.
-                prior_completed_index=checkpoint_observer.last_checkpoint_index,
-                prior_completed_label=checkpoint_observer.last_checkpoint_label,
+            force_watch = runner_stop.ForceStopWatch(
+                run_dir,
+                on_force=_note_force,
+                is_alive=lambda: process.poll() is None,
+            )
+            # runstop 71vjbn (E-06, spec R11/A7): ENFORCE the wind-down budget Phase 3 only RECORDED.
+            #
+            # It is armed for the WHOLE turn, not only after a stop is observed, and out-of-band for the
+            # same measured reason every other watch here is: `for line in process.stdout` BLOCKS, so a
+            # deadline on a silent child can only be noticed from another thread. Arming it
+            # unconditionally also covers the level-1/2 case, whose wind-down deadline can expire while
+            # this turn is still running and which the in-loop level-3 branch below never reaches.
+            #
+            # It only RAISES THE DURABLE LEVEL. The escalated level is then honored by the machinery that
+            # already exists (the poll, `force_watch`, and the ONE shared `clean_shutdown`), so no second
+            # reaper and no second teardown path is introduced (spec R5).
+            escalation_watch = runner_stop.EscalationWatch(
+                run_dir,
+                on_escalate=_escalation_recorder(run_dir, item),
+                is_alive=lambda: process.poll() is None,
             )
 
-        # lanectn Order 03 (`lhmrhx`) E-04, spec R4.4/R4.4a/R4.4c/R4.4d: the driver-side
-        # bound that does not trust the host. See `lane_containment.MAX_TURN_TIMEOUT` for its
-        # measured-from instant and reset semantics, which are the facts an identifier cannot carry,
-        # and for the one-turn (not one-run) scope.
-        #
-        # ARMED FOR EVERY UNATTENDED TURN, ISOLATED OR NOT (R4.4a): constructed here, outside any
-        # `work_dir` branch, on purpose. R1.3 protects the non-isolated turn's PROMPT TEXT, which
-        # stays byte-identical; this is driver-side SUPERVISION and changes no instruction an agent
-        # reads. OpenCode has NO host-enforced per-turn ceiling (contrast antigravity's 240m
-        # `--print-timeout`, R4.4d), so `None` is passed and the driver bound is genuinely new here.
-        turn_bounds = lane_containment.TurnBoundWatch(
-            reap=lane_containment.bound_expiry_reaper(process, run_dir, item),
-            is_alive=lambda: process.poll() is None,
-            max_turn_timeout=lane_containment.driver_bound_for_host(None),
-        )
+            def _raise_if_forced() -> None:
+                """Cut the turn NOW if a level-4 request has been observed (spec R7 level 4)."""
 
-        # lanectn Order 04 (`y5od1h`) E-01/E-06, spec R3.1/R3.2/R3.5: the missing-input
-        # REPORT-AND-REFUSE cycle. The observer is HOST-NEUTRAL (spec R2.6) and this is its whole
-        # adapter here; the agy twin constructs the identical object (CID-3). Scoped to the turn, so
-        # a refusal is attributed to the attempt that produced it.
-        #
-        # THE CHECKOUT IT CLASSIFIES AGAINST is the repo, NOT `agent_dir`. Classification is
-        # COORDINATOR-SIDE (R3.3) and a report names a REPO-RELATIVE path, so resolving it against
-        # the lane would make an in-lane request look absent whenever the lane legitimately lacks an
-        # ignored file - the exact case a report is for.
-        missing_input = lane_containment.MissingInputObserver(state["repo"])
+                if not forced:
+                    return
+                raise runner_stop.StopNowForce(
+                    level=forced.get("level", runner_stop.LEVEL_NOW_FORCE),
+                    requester=forced.get("requester", ""),
+                    events_seen=checkpoint_observer.events_seen,
+                    # What had ALREADY been observed completing before the request. Passed so the record
+                    # can carry it under its `prior_observed_*` keys; it is NEVER promoted to "the last
+                    # completed operation", because the cut point itself was not observed.
+                    prior_completed_index=checkpoint_observer.last_checkpoint_index,
+                    prior_completed_label=checkpoint_observer.last_checkpoint_label,
+                )
 
-        try:
-            # The poller shares the turn's scope, so its thread cannot outlive the turn or
-            # leak across attempts. `force_watch` (runstop m0z0ti) joins the same scope so a
-            # level-4 force stop is armed for exactly the turn's lifetime, no longer, and
-            # `escalation_watch` (runstop 71vjbn) joins it for the same reason. `turn_bounds`
-            # (lanectn lhmrhx) joins it too: `__enter__` is what starts `MAX_TURN_TIMEOUT`'s clock,
-            # so entering here means it measures from child start.
-            with (
-                statusline,
-                watchdog,
-                poller,
-                force_watch,
-                escalation_watch,
-                turn_bounds,
-            ):
-                for line in process.stdout:
-                    log.write(line)
-                    log.flush()
-                    statusline.touch("stdout")
-                    watchdog.touch()
-                    # Learn our PARENT session id from the stream; it is the key the observer
-                    # needs to attribute a subagent's log lines to THIS turn.
-                    if observer.parent_session_id is None:
-                        observer.set_parent_session(_event_session_id(line))
-                    # runstop gq6m2u: the IN-TURN cooperative checkpoint (spec `c4gd2h` R7). This
-                    # is the per-line point the existing StallWatchdog already proves the driver
-                    # may act on from stream observation alone. The poll is SIDE-EFFECT FREE and
-                    # only REPORTS the requested level here; acting on a level is owned by the
-                    # later phases (levels 1-2 branch between items, level 3 at this point).
-                    level = runner_stop.poll_stop(run_dir)
-                    # lanectn y5od1h E-01/E-05 (spec R3.1/R3.2/R3.5): classify a missing-input report
-                    # and RECORD the refusal. Per-line and INDEPENDENT of `output_mode`, for the same
-                    # reason the poll just above is: a report must not be missed because of an
-                    # unrelated display flag. The worker is NOT blocked - it emitted the token and
-                    # continued (R3.1) - and nothing here prompts (R3.2).
-                    #
-                    # PLACED AFTER THE POLL, not beside the stall-watchdog heartbeat above, on
-                    # purpose: `test_runner_stop.py::PollWiringTests` bounds the CHARACTER DISTANCE
-                    # from that heartbeat to this poll (to prove the poll sits at the per-line
-                    # checkpoint), and inserting this block between them pushed the gap past its
-                    # window. The ordering is behaviorally equivalent - both run for EVERY line,
-                    # before any `output_mode` branch - so honoring the sibling bound costs nothing.
-                    # Do not name that heartbeat symbol in this comment: the sibling test locates it
-                    # with `rindex`, so a mention here would become the anchor it measures from.
-                    missing_input.note_line(line, run_dir, item, attempt_no)
-                    # runstop m0z0ti (level 4, spec R7/A2): checked FIRST and BEFORE the line is
-                    # classified, because level 4 must NOT wait for a checkpoint. The out-of-band
-                    # `force_watch` above is what makes it prompt on a silent child; this is the
-                    # main-thread half, so the cut always unwinds through the driver's own teardown.
-                    if level is not None and level >= runner_stop.LEVEL_NOW_FORCE:
-                        _note_force(
-                            level,
-                            (lambda r: r.requester if r is not None else "unknown")(
-                                runner_stop.read_stop_request(run_dir)
-                            ),
-                        )
-                    _raise_if_forced()
-                    # runstop foi1b3 (level 3, spec R10/A3): a level >= 3 request means the TURN
-                    # itself must stop, at the next OBSERVED safe checkpoint.
-                    #
-                    # THE PARSE IS DELIBERATELY NOT `render_event`. Even though `render_event` updates
-                    # `tracker` across output modes below, the detector in `runner_stop` does its own
-                    # minimal decode and runs for EVERY line here, before any mode branch. Do not move
-                    # it into the branch below.
-                    #
-                    # The definition itself is spec `c4gd2h` OQ-01's resolution: after a COMPLETED
-                    # tool/step event, before the next is dispatched, observed from this very stream.
-                    # No agent cooperation is involved, and none may be added (that was rejected).
-                    if level is not None and level >= runner_stop.LEVEL_NOW:
-                        if not checkpoint_observer.pending:
-                            request = runner_stop.read_stop_request(run_dir)
-                            checkpoint_observer.request(
+            # lanectn Order 03 (`lhmrhx`) E-04, spec R4.4/R4.4a/R4.4c/R4.4d: the driver-side
+            # bound that does not trust the host. See `lane_containment.MAX_TURN_TIMEOUT` for its
+            # measured-from instant and reset semantics, which are the facts an identifier cannot carry,
+            # and for the one-turn (not one-run) scope.
+            #
+            # ARMED FOR EVERY UNATTENDED TURN, ISOLATED OR NOT (R4.4a): constructed here, outside any
+            # `work_dir` branch, on purpose. R1.3 protects the non-isolated turn's PROMPT TEXT, which
+            # stays byte-identical; this is driver-side SUPERVISION and changes no instruction an agent
+            # reads. OpenCode has NO host-enforced per-turn ceiling (contrast antigravity's 240m
+            # `--print-timeout`, R4.4d), so `None` is passed and the driver bound is genuinely new here.
+            turn_bounds = lane_containment.TurnBoundWatch(
+                reap=lane_containment.bound_expiry_reaper(process, run_dir, item),
+                is_alive=lambda: process.poll() is None,
+                max_turn_timeout=lane_containment.driver_bound_for_host(None),
+            )
+
+            # lanectn Order 04 (`y5od1h`) E-01/E-06, spec R3.1/R3.2/R3.5: the missing-input
+            # REPORT-AND-REFUSE cycle. The observer is HOST-NEUTRAL (spec R2.6) and this is its whole
+            # adapter here; the agy twin constructs the identical object (CID-3). Scoped to the turn, so
+            # a refusal is attributed to the attempt that produced it.
+            #
+            # THE CHECKOUT IT CLASSIFIES AGAINST is the repo, NOT `agent_dir`. Classification is
+            # COORDINATOR-SIDE (R3.3) and a report names a REPO-RELATIVE path, so resolving it against
+            # the lane would make an in-lane request look absent whenever the lane legitimately lacks an
+            # ignored file - the exact case a report is for.
+            missing_input = lane_containment.MissingInputObserver(state["repo"])
+
+            try:
+                # The poller shares the turn's scope, so its thread cannot outlive the turn or
+                # leak across attempts. `force_watch` (runstop m0z0ti) joins the same scope so a
+                # level-4 force stop is armed for exactly the turn's lifetime, no longer, and
+                # `escalation_watch` (runstop 71vjbn) joins it for the same reason. `turn_bounds`
+                # (lanectn lhmrhx) joins it too: `__enter__` is what starts `MAX_TURN_TIMEOUT`'s clock,
+                # so entering here means it measures from child start.
+                with (
+                    statusline,
+                    watchdog,
+                    poller,
+                    force_watch,
+                    escalation_watch,
+                    turn_bounds,
+                ):
+                    for line in process.stdout:
+                        log.write(line)
+                        log.flush()
+                        statusline.touch("stdout")
+                        watchdog.touch()
+                        # Learn our PARENT session id from the stream; it is the key the observer
+                        # needs to attribute a subagent's log lines to THIS turn.
+                        if observer.parent_session_id is None:
+                            observer.set_parent_session(_event_session_id(line))
+                        # runstop gq6m2u: the IN-TURN cooperative checkpoint (spec `c4gd2h` R7). This
+                        # is the per-line point the existing StallWatchdog already proves the driver
+                        # may act on from stream observation alone. The poll is SIDE-EFFECT FREE and
+                        # only REPORTS the requested level here; acting on a level is owned by the
+                        # later phases (levels 1-2 branch between items, level 3 at this point).
+                        level = runner_stop.poll_stop(run_dir)
+                        # lanectn y5od1h E-01/E-05 (spec R3.1/R3.2/R3.5): classify a missing-input report
+                        # and RECORD the refusal. Per-line and INDEPENDENT of `output_mode`, for the same
+                        # reason the poll just above is: a report must not be missed because of an
+                        # unrelated display flag. The worker is NOT blocked - it emitted the token and
+                        # continued (R3.1) - and nothing here prompts (R3.2).
+                        #
+                        # PLACED AFTER THE POLL, not beside the stall-watchdog heartbeat above, on
+                        # purpose: `test_runner_stop.py::PollWiringTests` bounds the CHARACTER DISTANCE
+                        # from that heartbeat to this poll (to prove the poll sits at the per-line
+                        # checkpoint), and inserting this block between them pushed the gap past its
+                        # window. The ordering is behaviorally equivalent - both run for EVERY line,
+                        # before any `output_mode` branch - so honoring the sibling bound costs nothing.
+                        # Do not name that heartbeat symbol in this comment: the sibling test locates it
+                        # with `rindex`, so a mention here would become the anchor it measures from.
+                        missing_input.note_line(line, run_dir, item, attempt_no)
+                        # runstop m0z0ti (level 4, spec R7/A2): checked FIRST and BEFORE the line is
+                        # classified, because level 4 must NOT wait for a checkpoint. The out-of-band
+                        # `force_watch` above is what makes it prompt on a silent child; this is the
+                        # main-thread half, so the cut always unwinds through the driver's own teardown.
+                        if level is not None and level >= runner_stop.LEVEL_NOW_FORCE:
+                            _note_force(
                                 level,
-                                request.requester if request is not None else "unknown",
+                                (lambda r: r.requester if r is not None else "unknown")(
+                                    runner_stop.read_stop_request(run_dir)
+                                ),
                             )
-                            print(
-                                f"stop requested: level {level} "
-                                f"({runner_stop.LEVEL_NAMES.get(level, 'unknown')}); "
-                                f"the current turn will stop at its next observed safe checkpoint",
-                                file=sys.stderr,
+                        _raise_if_forced()
+                        # runstop foi1b3 (level 3, spec R10/A3): a level >= 3 request means the TURN
+                        # itself must stop, at the next OBSERVED safe checkpoint.
+                        #
+                        # THE PARSE IS DELIBERATELY NOT `render_event`. Even though `render_event` updates
+                        # `tracker` across output modes below, the detector in `runner_stop` does its own
+                        # minimal decode and runs for EVERY line here, before any mode branch. Do not move
+                        # it into the branch below.
+                        #
+                        # The definition itself is spec `c4gd2h` OQ-01's resolution: after a COMPLETED
+                        # tool/step event, before the next is dispatched, observed from this very stream.
+                        # No agent cooperation is involved, and none may be added (that was rejected).
+                        if level is not None and level >= runner_stop.LEVEL_NOW:
+                            if not checkpoint_observer.pending:
+                                request = runner_stop.read_stop_request(run_dir)
+                                checkpoint_observer.request(
+                                    level,
+                                    request.requester
+                                    if request is not None
+                                    else "unknown",
+                                )
+                                print(
+                                    f"stop requested: level {level} "
+                                    f"({runner_stop.LEVEL_NAMES.get(level, 'unknown')}); "
+                                    f"the current turn will stop at its next observed safe checkpoint",
+                                    file=sys.stderr,
+                                )
+                                # runstop foi1b3 (E-04, spec R11): arm the BOUNDED wait. A silent child
+                                # never reaches another line, and `for line in process.stdout` BLOCKS, so
+                                # a deadline can only be noticed from another thread (the shape
+                                # StallWatchdog already uses). R10 is not violated: the checkpoint is
+                                # still defined only by an observed event; this deadline is the GIVE-UP
+                                # bound after which no checkpoint is awaited.
+                                if request is not None:
+                                    remaining = runner_stop.deadline_seconds_remaining(
+                                        request
+                                    )
+                                    breach_watch = runner_stop.BudgetBreachWatch(
+                                        deadline_monotonic=time.monotonic()
+                                        + max(0.0, remaining),
+                                        on_breach=_budget_breach_recorder(
+                                            run_dir, item, request, checkpoint_observer
+                                        ),
+                                        is_alive=lambda: process.poll() is None,
+                                    )
+                                    breach_watch.__enter__()
+                        if checkpoint_observer.observe(line):
+                            # The turn stops HERE, after an event observed to have completed. Raising
+                            # unwinds into the existing `except BaseException` below, which already
+                            # routes to the shared reaper, so no second teardown path exists (spec R5).
+                            raise runner_stop.StopAtCheckpoint(checkpoint_observer)
+                        if output_mode == "raw":
+                            sys.stdout.write(line)
+                            sys.stdout.flush()
+                            if tracker is not None:
+                                render_event(
+                                    line,
+                                    pal,
+                                    tracker=tracker,
+                                    verbosity=verbosity,
+                                    repo_root=agent_dir,
+                                )
+                        elif output_mode == "clean":
+                            rendered = render_event(
+                                line,
+                                pal,
+                                tracker=tracker,
+                                verbosity=verbosity,
+                                repo_root=agent_dir,
                             )
-                            # runstop foi1b3 (E-04, spec R11): arm the BOUNDED wait. A silent child
-                            # never reaches another line, and `for line in process.stdout` BLOCKS, so
-                            # a deadline can only be noticed from another thread (the shape
-                            # StallWatchdog already uses). R10 is not violated: the checkpoint is
-                            # still defined only by an observed event; this deadline is the GIVE-UP
-                            # bound after which no checkpoint is awaited.
-                            if request is not None:
-                                remaining = runner_stop.deadline_seconds_remaining(
-                                    request
-                                )
-                                breach_watch = runner_stop.BudgetBreachWatch(
-                                    deadline_monotonic=time.monotonic()
-                                    + max(0.0, remaining),
-                                    on_breach=_budget_breach_recorder(
-                                        run_dir, item, request, checkpoint_observer
-                                    ),
-                                    is_alive=lambda: process.poll() is None,
-                                )
-                                breach_watch.__enter__()
-                    if checkpoint_observer.observe(line):
-                        # The turn stops HERE, after an event observed to have completed. Raising
-                        # unwinds into the existing `except BaseException` below, which already
-                        # routes to the shared reaper, so no second teardown path exists (spec R5).
-                        raise runner_stop.StopAtCheckpoint(checkpoint_observer)
-                    if output_mode == "raw":
-                        sys.stdout.write(line)
-                        sys.stdout.flush()
-                        if tracker is not None:
+                            if rendered is not None:
+                                statusline.write_event(rendered)
+                        elif tracker is not None:
                             render_event(
                                 line,
                                 pal,
@@ -3317,71 +3354,71 @@ def run_opencode(
                                 verbosity=verbosity,
                                 repo_root=agent_dir,
                             )
-                    elif output_mode == "clean":
-                        rendered = render_event(
-                            line,
-                            pal,
-                            tracker=tracker,
-                            verbosity=verbosity,
-                            repo_root=agent_dir,
-                        )
-                        if rendered is not None:
-                            statusline.write_event(rendered)
-                    elif tracker is not None:
-                        render_event(
-                            line,
-                            pal,
-                            tracker=tracker,
-                            verbosity=verbosity,
-                            repo_root=agent_dir,
-                        )
-                # runstop m0z0ti (level 4): the stream also ENDS when `force_watch` reaped a silent
-                # child, which is how the blocking iteration above is unblocked at all. Re-check here
-                # so that path raises the same `StopNowForce` rather than falling through to a normal
-                # `process.wait()` and reporting an ordinary nonzero exit.
-                _raise_if_forced()
-        except BaseException:
-            if breach_watch is not None:
-                breach_watch.__exit__(None, None, None)
-            # runstop foi1b3: the stop MECHANISM. `clean_shutdown` owns the reaper (spec R5), so the
-            # level-3 stop routes there rather than calling `terminate_process` itself. Be clear about
-            # what this is: the child is a one-shot `opencode run` with NO cooperative stop channel,
-            # so stopping it IS termination - at an instant chosen by observation. Levels 3 and 4
-            # share this mechanism and differ only in WHEN it is issued. "KNOWN" certainty therefore
-            # means no PREVIOUSLY OBSERVED operation was cut mid-flight, not that the agent finished
-            # tidily.
-            #
-            # runstop m0z0ti (level 4): the SAME endpoint, deliberately. Spec c4gd2h section 3 states
-            # the only difference between levels 3 and 4 is outcome CERTAINTY, not cleanliness, so
-            # level 4 must not acquire its own teardown, its own reaper, or a bare kill.
-            report = runner_shutdown.clean_shutdown(process, run_dir=run_dir)
-            if not report.all_satisfied:
-                print(report.render(), file=sys.stderr)
-            log.flush()
-            with contextlib.suppress(OSError):
-                os.fsync(log.fileno())
+                    # runstop m0z0ti (level 4): the stream also ENDS when `force_watch` reaped a silent
+                    # child, which is how the blocking iteration above is unblocked at all. Re-check here
+                    # so that path raises the same `StopNowForce` rather than falling through to a normal
+                    # `process.wait()` and reporting an ordinary nonzero exit.
+                    _raise_if_forced()
+            except BaseException:
+                if breach_watch is not None:
+                    breach_watch.__exit__(None, None, None)
+                # runstop foi1b3: the stop MECHANISM. `clean_shutdown` owns the reaper (spec R5), so the
+                # level-3 stop routes there rather than calling `terminate_process` itself. Be clear about
+                # what this is: the child is a one-shot `opencode run` with NO cooperative stop channel,
+                # so stopping it IS termination - at an instant chosen by observation. Levels 3 and 4
+                # share this mechanism and differ only in WHEN it is issued. "KNOWN" certainty therefore
+                # means no PREVIOUSLY OBSERVED operation was cut mid-flight, not that the agent finished
+                # tidily.
+                #
+                # runstop m0z0ti (level 4): the SAME endpoint, deliberately. Spec c4gd2h section 3 states
+                # the only difference between levels 3 and 4 is outcome CERTAINTY, not cleanliness, so
+                # level 4 must not acquire its own teardown, its own reaper, or a bare kill.
+                report = runner_shutdown.clean_shutdown(process, run_dir=run_dir)
+                if not report.all_satisfied:
+                    print(report.render(), file=sys.stderr)
+                log.flush()
+                with contextlib.suppress(OSError):
+                    os.fsync(log.fileno())
+                if watchdog.stalled:
+                    timeout_val = int(watchdog.timeout) if watchdog.timeout else 0
+                    raise StallTimeout(
+                        f"OpenCode child turn stalled: no output for {timeout_val}s"
+                    ) from None
+                raise
+            finally:
+                if breach_watch is not None:
+                    breach_watch.__exit__(None, None, None)
+
             if watchdog.stalled:
+                log.flush()
+                with contextlib.suppress(OSError):
+                    os.fsync(log.fileno())
                 timeout_val = int(watchdog.timeout) if watchdog.timeout else 0
                 raise StallTimeout(
                     f"OpenCode child turn stalled: no output for {timeout_val}s"
-                ) from None
-            raise
-        finally:
-            if breach_watch is not None:
-                breach_watch.__exit__(None, None, None)
+                )
 
-        if watchdog.stalled:
+            returncode = process.wait()
             log.flush()
-            with contextlib.suppress(OSError):
-                os.fsync(log.fileno())
-            timeout_val = int(watchdog.timeout) if watchdog.timeout else 0
-            raise StallTimeout(
-                f"OpenCode child turn stalled: no output for {timeout_val}s"
+            os.fsync(log.fileno())
+    finally:
+        if user_config_handle is not None:
+            discarded_records = runner_shared.reconcile_agent_user_config(
+                user_config_handle, run_dir, item
             )
-
-        returncode = process.wait()
-        log.flush()
-        os.fsync(log.fileno())
+            err_pal = runner_shared.Palette(runner_shared.should_color(sys.stderr))
+            for rec in discarded_records:
+                rec_id6 = rec.get("id6", item.get("id6", "unknown"))
+                rec_file = rec.get("file", "unknown")
+                rec_keys = rec.get("keys")
+                rec_keys_str = (
+                    ", ".join(rec_keys) if rec_keys else rec.get("change", "modified")
+                )
+                warning_line = (
+                    f"  ! IPD {rec_id6}: agent changed user config {rec_file} "
+                    f"({rec_keys_str}); change DISCARDED, your config is unchanged"
+                )
+                print(err_pal(warning_line, "yellow"), file=sys.stderr)
     return returncode, extract_session_id(log_path), log_path, argv
 
 
@@ -4357,6 +4394,7 @@ def run_queue(
     # `partial`: this path runs after the queue drained normally.
     report_run_spec_edits(state)
     report_driver_committed_reviews(state)
+    report_discarded_user_config(run_dir)
     # runnoop Order 03 (`bsc457`) E-03: THE CLOSING DISPOSITION SUMMARY, printed UNCONDITIONALLY,
     # INCLUDING for a run that acted on nothing - which is precisely the case that printed no answer
     # at all. Measured (backlog `em0z50`): `aw oc run wtiso` matched 8 plans, acted on none, and the

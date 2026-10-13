@@ -36,49 +36,49 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: baseline and the override
 
-- [ ] E-01 CAPTURE THE BASELINE: run the bare suite `python3 -m pytest` BEFORE the first edit and record its summary line and the failing node ids. The post-change bar is "no node id fails that did not fail here".
+- [x] E-01 CAPTURE THE BASELINE: run the bare suite `python3 -m pytest` BEFORE the first edit and record its summary line and the failing node ids. The post-change bar is "no node id fails that did not fail here".
   - Depends on: none
   - Expected outcome: a recorded baseline summary line and failing-node-id list.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 In `agent_workflows/config.py`, add a module constant `CONFIG_DIR_ENV = "AW_CONFIG_DIR"` and make `config.config_dir()` return `Path(os.environ["AW_CONFIG_DIR"]).expanduser()` when that variable is set and non-empty, checked BEFORE `XDG_CONFIG_HOME`. The override names the aw directory ITSELF (no `agent-workflows` suffix appended), so a seeded copy can be any directory. Update the docstring (and the module docstring's location sentence) to state the precedence `AW_CONFIG_DIR` > `$XDG_CONFIG_HOME/agent-workflows` > `~/.config/agent-workflows`, and WHY a separate variable exists (F-04: overriding XDG would also relocate opencode, gh and git config). Honor the override ONLY when, after `expanduser()`, it is an ABSOLUTE path that is not `Path.home()` itself; otherwise ignore it and fall through to the XDG rule, so a stray relative value cannot follow the agent's `cd` and an `AW_CONFIG_DIR=~` cannot make `save()` write `config.json` directly under `~/` (spec `pip-distribution-and-multi-repo-setup` constraint "never write under `~/` directly"). Mirror the same precedence and the same guard in the two `except` fallbacks `leak_sanitizer._config_dir` and `model_vocab._user_config_dir`, so a broken `config` import cannot silently bypass the override. Every other user-config store (`runner_profiles.store_dir`, `completion` notice stamp, leak hints, model vocab) already routes through `config.config_dir()` and follows with no edit (F-02). `project_context.get_default_aw_home` is deliberately NOT changed: it reads `AW_HOME`/`XDG_CONFIG_HOME` directly, so `AW_HOME` resolution is identical with or without `AW_CONFIG_DIR` and the two never split across real and sandbox in a way this plan did not choose (the backlog item's `AW_HOME` caveat; containment of `AW_HOME` itself is `s4pys7`).
+- [x] E-02 In `agent_workflows/config.py`, add a module constant `CONFIG_DIR_ENV = "AW_CONFIG_DIR"` and make `config.config_dir()` return `Path(os.environ["AW_CONFIG_DIR"]).expanduser()` when that variable is set and non-empty, checked BEFORE `XDG_CONFIG_HOME`. The override names the aw directory ITSELF (no `agent-workflows` suffix appended), so a seeded copy can be any directory. Update the docstring (and the module docstring's location sentence) to state the precedence `AW_CONFIG_DIR` > `$XDG_CONFIG_HOME/agent-workflows` > `~/.config/agent-workflows`, and WHY a separate variable exists (F-04: overriding XDG would also relocate opencode, gh and git config). Honor the override ONLY when, after `expanduser()`, it is an ABSOLUTE path that is not `Path.home()` itself; otherwise ignore it and fall through to the XDG rule, so a stray relative value cannot follow the agent's `cd` and an `AW_CONFIG_DIR=~` cannot make `save()` write `config.json` directly under `~/` (spec `pip-distribution-and-multi-repo-setup` constraint "never write under `~/` directly"). Mirror the same precedence and the same guard in the two `except` fallbacks `leak_sanitizer._config_dir` and `model_vocab._user_config_dir`, so a broken `config` import cannot silently bypass the override. Every other user-config store (`runner_profiles.store_dir`, `completion` notice stamp, leak hints, model vocab) already routes through `config.config_dir()` and follows with no edit (F-02). `project_context.get_default_aw_home` is deliberately NOT changed: it reads `AW_HOME`/`XDG_CONFIG_HOME` directly, so `AW_HOME` resolution is identical with or without `AW_CONFIG_DIR` and the two never split across real and sandbox in a way this plan did not choose (the backlog item's `AW_HOME` caveat; containment of `AW_HOME` itself is `s4pys7`).
   - Depends on: E-01
   - Expected outcome: `AW_CONFIG_DIR=<d> aw config set color_depth 16` writes `<d>/config.json` and leaves `$XDG_CONFIG_HOME/agent-workflows/config.json` untouched; a relative value or one equal to the home directory is ignored (the XDG location is used); unset, behavior is byte-identical to HEAD.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: per-turn seeded sandbox on both hosts
 
-- [ ] E-03 In `agent_workflows/runner_shared.py`, add one shared helper pair used by BOTH hosts (no per-host fork, the same rule the role marker and trailer ids follow): `prepare_agent_user_config(run_dir, item, attempt_no, suffix="") -> AgentUserConfig` and `reconcile_agent_user_config(handle, run_dir, item) -> list[dict]`. `prepare` resolves the operator's real directory with `config.config_dir()` evaluated in the DRIVER's environment, creates `<run_dir>/agent-user-config/<NN>-<id6>-attempt-<N>[-<suffix>]/` (under the run dir, which is gitignored `records/runs/` and never inside the lane worktree, so it cannot enter an integration diff; F-05). THE KEY MUST BE UNIQUE PER TURN, not per attempt: the executor, the verifier (`log_suffix="verify"`) and the audit turn (`log_suffix="audit"`) share one `attempt_no`, so the caller passes its `log_suffix` and the name follows `runner_shared.attempt_log_path`'s `<NN>-<id6>-attempt-<n>[-<suffix>]` shape; a directory that already exists (a defect re-ask resuming the same attempt and suffix) is removed and re-seeded rather than reused, so one turn's stale writes are never attributed to the next. The directory is mode `0o700`; `prepare` copies every regular top-level file of the real directory into it preserving mode (`shutil.copy2`, which follows a symlinked dotfile and copies its content; a missing real directory yields an empty sandbox), and records a SHA-256 per seeded file (reuse `runner_shared.sha256_file`). `reconcile` compares every regular file under the sandbox (relative path, so a write into a new subdirectory is still seen) against the seed: for each file added, removed or changed it emits a record `{event: "agent-user-config-discarded", id6, attempt, file, change: added|removed|modified, keys: [...]}`, where `file` is the path RELATIVE to the sandbox (never absolute), and `keys` lists the changed TOP-LEVEL JSON keys when both sides parse as JSON objects (so `config.json` reports `["color_depth"]`) and is omitted otherwise; values are NEVER recorded (the config holds local paths, runner-profiles may hold institution-specific model ids, and `local-leaks-hints.json` exists to hold the operator's identifying tokens; AGENTS.md leak rule). Each record is appended to `<run_dir>/events.jsonl` via `append_jsonl` and also returned. Nothing is ever copied back to the real directory. AFTER diffing, `reconcile` DELETES the sandbox directory (best effort, also on a reconcile failure): the copies hold exactly the values the events refuse to record, so keeping one per turn in every run dir would multiply the operator's private config across the run corpus for no post-mortem gain the keyed events do not already give. HARDENED PROFILE, recorded rather than widened: under `execution_profile: hardened` the run dir lies inside the INACCESSIBLE control root (`oc_runipd._apply_execution_profile` passes `control_root=... or state_root(repo_root)`), so the agent cannot reach the sandbox; that is no regression, because the real `~/.config/agent-workflows` is in none of `build_sandbox_plan`'s writable or read-only roots either, so a hardened turn already saw a default config. Both functions FAIL OPEN with a printed warning (a seeding failure must not abort a run: fall back to exporting no override and say so loudly; a reconcile failure records one `agent-user-config-reconcile-failed` event), the same advisory posture `report_run_spec_edits` takes.
+- [x] E-03 In `agent_workflows/runner_shared.py`, add one shared helper pair used by BOTH hosts (no per-host fork, the same rule the role marker and trailer ids follow): `prepare_agent_user_config(run_dir, item, attempt_no, suffix="") -> AgentUserConfig` and `reconcile_agent_user_config(handle, run_dir, item) -> list[dict]`. `prepare` resolves the operator's real directory with `config.config_dir()` evaluated in the DRIVER's environment, creates `<run_dir>/agent-user-config/<NN>-<id6>-attempt-<N>[-<suffix>]/` (under the run dir, which is gitignored `records/runs/` and never inside the lane worktree, so it cannot enter an integration diff; F-05). THE KEY MUST BE UNIQUE PER TURN, not per attempt: the executor, the verifier (`log_suffix="verify"`) and the audit turn (`log_suffix="audit"`) share one `attempt_no`, so the caller passes its `log_suffix` and the name follows `runner_shared.attempt_log_path`'s `<NN>-<id6>-attempt-<n>[-<suffix>]` shape; a directory that already exists (a defect re-ask resuming the same attempt and suffix) is removed and re-seeded rather than reused, so one turn's stale writes are never attributed to the next. The directory is mode `0o700`; `prepare` copies every regular top-level file of the real directory into it preserving mode (`shutil.copy2`, which follows a symlinked dotfile and copies its content; a missing real directory yields an empty sandbox), and records a SHA-256 per seeded file (reuse `runner_shared.sha256_file`). `reconcile` compares every regular file under the sandbox (relative path, so a write into a new subdirectory is still seen) against the seed: for each file added, removed or changed it emits a record `{event: "agent-user-config-discarded", id6, attempt, file, change: added|removed|modified, keys: [...]}`, where `file` is the path RELATIVE to the sandbox (never absolute), and `keys` lists the changed TOP-LEVEL JSON keys when both sides parse as JSON objects (so `config.json` reports `["color_depth"]`) and is omitted otherwise; values are NEVER recorded (the config holds local paths, runner-profiles may hold institution-specific model ids, and `local-leaks-hints.json` exists to hold the operator's identifying tokens; AGENTS.md leak rule). Each record is appended to `<run_dir>/events.jsonl` via `append_jsonl` and also returned. Nothing is ever copied back to the real directory. AFTER diffing, `reconcile` DELETES the sandbox directory (best effort, also on a reconcile failure): the copies hold exactly the values the events refuse to record, so keeping one per turn in every run dir would multiply the operator's private config across the run corpus for no post-mortem gain the keyed events do not already give. HARDENED PROFILE, recorded rather than widened: under `execution_profile: hardened` the run dir lies inside the INACCESSIBLE control root (`oc_runipd._apply_execution_profile` passes `control_root=... or state_root(repo_root)`), so the agent cannot reach the sandbox; that is no regression, because the real `~/.config/agent-workflows` is in none of `build_sandbox_plan`'s writable or read-only roots either, so a hardened turn already saw a default config. Both functions FAIL OPEN with a printed warning (a seeding failure must not abort a run: fall back to exporting no override and say so loudly; a reconcile failure records one `agent-user-config-reconcile-failed` event), the same advisory posture `report_run_spec_edits` takes.
   - Depends on: E-02
   - Expected outcome: two shared functions; a unit-level call seeds a copy whose hashes equal the source, a subsequent modification is reported with keys, a relative `file`, and no values, two turns of one attempt (no suffix and `verify`) get distinct directories, and the sandbox directory is gone after reconcile.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 Wire the helper into both launchers. In `oc_runipd.run_opencode` and `agy_runipd.run_agy_turn`, immediately after the existing run/item-id block that builds `child_env`, call `prepare_agent_user_config(run_dir, item, attempt_no, suffix=log_suffix)` and set `child_env[config.CONFIG_DIR_ENV] = str(handle.path)`; when preparation failed, POP the variable instead (never inherit an outer run's sandbox, the same overwrite-or-pop rule as `RUN_ID_ENV`). Reconcile only AFTER the child has exited: NOT in the inner `finally` that closes `breach_watch` (on the normal path that `finally` runs when stdout ends, BEFORE `process.wait()`, so a child still exiting could write after the diff), but in a new `try`/`finally` wrapping the whole launch from the `with (runner_shared.turn_telemetry(...), log_path.open(...))` block through `process.wait()`, so the normal exit, a stall (`StallTimeout`), a stop (`StopNowForce`/`StopAtCheckpoint`), an interrupt, and a `Popen` failure all reconcile, each after the child is reaped (`clean_shutdown` already runs on the exception paths). There call `reconcile_agent_user_config` (when a handle exists) and, for each record, print one yellow stderr line `  ! IPD <id6>: agent changed user config <file> (<keys>); change DISCARDED, your config is unchanged`. Apply this to EVERY agent turn the launchers start (executor, verifier, audit, defect re-ask), isolated or not: a non-isolated turn writes the same real config. The DRIVER process is not redirected (F-06), and the driver's own short-lived spawns that do not go through these two launchers (the coverage probe `runner_shared.ask_orchestrator_probe`, `oc_runipd.observe_opencode_policy`'s `opencode debug config`, the session-export probe) are out of scope: none is an agent turn with a shell. `host_sandbox_profile`'s argv-capture probe calls these launchers with a patched `Popen` that raises before launch; the `finally` therefore reconciles and deletes its temp sandbox, which is intended.
+- [x] E-04 Wire the helper into both launchers. In `oc_runipd.run_opencode` and `agy_runipd.run_agy_turn`, immediately after the existing run/item-id block that builds `child_env`, call `prepare_agent_user_config(run_dir, item, attempt_no, suffix=log_suffix)` and set `child_env[config.CONFIG_DIR_ENV] = str(handle.path)`; when preparation failed, POP the variable instead (never inherit an outer run's sandbox, the same overwrite-or-pop rule as `RUN_ID_ENV`). Reconcile only AFTER the child has exited: NOT in the inner `finally` that closes `breach_watch` (on the normal path that `finally` runs when stdout ends, BEFORE `process.wait()`, so a child still exiting could write after the diff), but in a new `try`/`finally` wrapping the whole launch from the `with (runner_shared.turn_telemetry(...), log_path.open(...))` block through `process.wait()`, so the normal exit, a stall (`StallTimeout`), a stop (`StopNowForce`/`StopAtCheckpoint`), an interrupt, and a `Popen` failure all reconcile, each after the child is reaped (`clean_shutdown` already runs on the exception paths). There call `reconcile_agent_user_config` (when a handle exists) and, for each record, print one yellow stderr line `  ! IPD <id6>: agent changed user config <file> (<keys>); change DISCARDED, your config is unchanged`. Apply this to EVERY agent turn the launchers start (executor, verifier, audit, defect re-ask), isolated or not: a non-isolated turn writes the same real config. The DRIVER process is not redirected (F-06), and the driver's own short-lived spawns that do not go through these two launchers (the coverage probe `runner_shared.ask_orchestrator_probe`, `oc_runipd.observe_opencode_policy`'s `opencode debug config`, the session-export probe) are out of scope: none is an agent turn with a shell. `host_sandbox_profile`'s argv-capture probe calls these launchers with a patched `Popen` that raises before launch; the `finally` therefore reconciles and deletes its temp sandbox, which is intended.
   - Depends on: E-03
   - Expected outcome: a fake-host turn on each host receives `AW_CONFIG_DIR` pointing under the run dir, and a write by the child is reported and discarded.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 Add the end-of-run line beside `report_run_spec_edits` / `report_driver_committed_reviews` at the primary summary site of BOTH hosts (`oc_runipd` and `agy_runipd`, where `report_driver_committed_reviews(state)` is called): a shared `report_discarded_user_config(run_dir)` in `runner_shared.py` that reads `agent-user-config-discarded` events from `events.jsonl` and prints `Agent user-config changes discarded: <n> (<id6>: <file> <keys>; ...)`, or nothing when there are none (silence means none, matching the spec-edit report's convention). Advisory and exception-safe like its neighbors.
+- [x] E-05 Add the end-of-run line beside `report_run_spec_edits` / `report_driver_committed_reviews` at the primary summary site of BOTH hosts (`oc_runipd` and `agy_runipd`, where `report_driver_committed_reviews(state)` is called): a shared `report_discarded_user_config(run_dir)` in `runner_shared.py` that reads `agent-user-config-discarded` events from `events.jsonl` and prints `Agent user-config changes discarded: <n> (<id6>: <file> <keys>; ...)`, or nothing when there are none (silence means none, matching the spec-edit report's convention). Advisory and exception-safe like its neighbors.
   - Depends on: E-04
   - Expected outcome: a run whose turn wrote user config prints the line at exit; a clean run prints nothing new.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: test hygiene, tests, docs
 
-- [ ] E-06 In `conftest.py`, add `os.environ.pop("AW_CONFIG_DIR", None)` at import time beside the existing `AW_RUN_ID`/`AW_ITEM_ID6` scrub, with a comment: an agent turn now exports it and every plan tells that agent to run the suite, so without the scrub the suite's own `XDG_CONFIG_HOME` sandbox would be bypassed by the outer turn's value. Also add `"AW_CONFIG_DIR"` handling to `_restore_home_sandbox` by POPPING it before and after each test (not setting it), so a test that sets it cannot leak it into the next.
+- [x] E-06 In `conftest.py`, add `os.environ.pop("AW_CONFIG_DIR", None)` at import time beside the existing `AW_RUN_ID`/`AW_ITEM_ID6` scrub, with a comment: an agent turn now exports it and every plan tells that agent to run the suite, so without the scrub the suite's own `XDG_CONFIG_HOME` sandbox would be bypassed by the outer turn's value. Also add `"AW_CONFIG_DIR"` handling to `_restore_home_sandbox` by POPPING it before and after each test (not setting it), so a test that sets it cannot leak it into the next.
   - Depends on: E-02
   - Expected outcome: a suite run inside an agent turn (with `AW_CONFIG_DIR` exported) resolves `config.config_dir()` to the conftest sandbox.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-07 Add `tests/test_agent_user_config_containment.py`, behavioral only (P16: drive code, assert outputs and side effects; no source reading). Cells: (a) `AW_CONFIG_DIR` precedence: with `XDG_CONFIG_HOME=<x>` and `AW_CONFIG_DIR=<d>`, `python -m agent_workflows config set color_depth 16` as a subprocess (`AW_NO_REEXEC=1`, `PYTHONPATH` at this checkout) writes `<d>/config.json` and leaves `<x>` absent/byte-identical; unset falls back to `<x>/agent-workflows`; a relative `AW_CONFIG_DIR` and one equal to `$HOME` are both ignored (the write lands in `<x>/agent-workflows`); (b) seed fidelity: `prepare_agent_user_config` over a real dir holding `config.json` and `runner-profiles.json` yields byte-identical copies, and `aw config get color_depth` run with the exported env returns the operator's value; (c) THE INCIDENT, end to end per host: drive `oc_runipd.run_opencode` and `agy_runipd.run_agy_turn` with the host executable replaced by a small script (option `opencode` / `agy_executable` pointing at it) that runs `python -m agent_workflows config set color_depth none`; assert the operator's real config (the test's `XDG_CONFIG_HOME`) is byte-identical afterwards, `events.jsonl` holds one `agent-user-config-discarded` record with `keys == ["color_depth"]` and no value `none` anywhere in the record, and stderr carries the DISCARDED line, and no `agent-user-config/` sandbox directory remains under the run dir; the same cell also drives a verifier-style turn (`log_suffix="verify"`) of the same attempt and asserts its event is recorded separately, not merged with the executor's; (c2) a turn whose host script exits nonzero (and one whose `Popen` raises) still reconciles: the operator config is unchanged and no sandbox directory remains; (d) overwrite-or-pop: with `AW_CONFIG_DIR=/outer` in the driver env and seeding forced to fail, the child env has no `AW_CONFIG_DIR`, and with seeding succeeding it is the new per-turn path, never `/outer`; (e) `report_discarded_user_config` prints the summary for a run dir with one event and prints nothing for none; (f) the conftest scrub: `AW_CONFIG_DIR` is absent from `os.environ` inside a test. Reuse the Popen-mock harness of `tests/test_commit_run_trailers_env.py` where a real child is not needed, and a real subprocess where the cell is about a real write (cell c).
+- [x] E-07 Add `tests/test_agent_user_config_containment.py`, behavioral only (P16: drive code, assert outputs and side effects; no source reading). Cells: (a) `AW_CONFIG_DIR` precedence: with `XDG_CONFIG_HOME=<x>` and `AW_CONFIG_DIR=<d>`, `python -m agent_workflows config set color_depth 16` as a subprocess (`AW_NO_REEXEC=1`, `PYTHONPATH` at this checkout) writes `<d>/config.json` and leaves `<x>` absent/byte-identical; unset falls back to `<x>/agent-workflows`; a relative `AW_CONFIG_DIR` and one equal to `$HOME` are both ignored (the write lands in `<x>/agent-workflows`); (b) seed fidelity: `prepare_agent_user_config` over a real dir holding `config.json` and `runner-profiles.json` yields byte-identical copies, and `aw config get color_depth` run with the exported env returns the operator's value; (c) THE INCIDENT, end to end per host: drive `oc_runipd.run_opencode` and `agy_runipd.run_agy_turn` with the host executable replaced by a small script (option `opencode` / `agy_executable` pointing at it) that runs `python -m agent_workflows config set color_depth none`; assert the operator's real config (the test's `XDG_CONFIG_HOME`) is byte-identical afterwards, `events.jsonl` holds one `agent-user-config-discarded` record with `keys == ["color_depth"]` and no value `none` anywhere in the record, and stderr carries the DISCARDED line, and no `agent-user-config/` sandbox directory remains under the run dir; the same cell also drives a verifier-style turn (`log_suffix="verify"`) of the same attempt and asserts its event is recorded separately, not merged with the executor's; (c2) a turn whose host script exits nonzero (and one whose `Popen` raises) still reconciles: the operator config is unchanged and no sandbox directory remains; (d) overwrite-or-pop: with `AW_CONFIG_DIR=/outer` in the driver env and seeding forced to fail, the child env has no `AW_CONFIG_DIR`, and with seeding succeeding it is the new per-turn path, never `/outer`; (e) `report_discarded_user_config` prints the summary for a run dir with one event and prints nothing for none; (f) the conftest scrub: `AW_CONFIG_DIR` is absent from `os.environ` inside a test. Reuse the Popen-mock harness of `tests/test_commit_run_trailers_env.py` where a real child is not needed, and a real subprocess where the cell is about a real write (cell c).
   - Depends on: E-04, E-05, E-06
   - Expected outcome: the file passes with the change and cell (c) FAILS with E-04 reverted (demonstrated once, see V-07).
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-08 Docs: add one `- Fixed:` bullet at the top of `CHANGELOG.md`'s `## 2.0.0 (pending)` list (agents run by `aw oc run`/`aw agy run` can no longer change your aw user configuration; attempted changes are discarded and reported), and add a boundary paragraph to `docs/security.md` "The boundaries" describing user-config containment, `AW_CONFIG_DIR`, and its honest limit (an environment selector, not an enforcement boundary; a same-user agent can still write `~/.config` directly or unset the variable; the hardened execution profile is the enforcement option). No em or en dashes in either (user-facing prose rule).
+- [x] E-08 Docs: add one `- Fixed:` bullet at the top of `CHANGELOG.md`'s `## 2.0.0 (pending)` list (agents run by `aw oc run`/`aw agy run` can no longer change your aw user configuration; attempted changes are discarded and reported), and add a boundary paragraph to `docs/security.md` "The boundaries" describing user-config containment, `AW_CONFIG_DIR`, and its honest limit (an environment selector, not an enforcement boundary; a same-user agent can still write `~/.config` directly or unset the variable; the hardened execution profile is the enforcement option). No em or en dashes in either (user-facing prose rule).
   - Depends on: E-04
   - Expected outcome: one CHANGELOG bullet and one security-doc paragraph, no other lines changed.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -163,45 +163,224 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: the pasted pre-change `python3 -m pytest` summary line and the list of failing node ids.
   - Observed evidence:
-  - Result: pending
+    Pre-change pytest summary line:
+    ```
+    ================ 7633 passed, 2 skipped, 3 warnings in 776.13s (0:12:56) ================
+    ```
+    List of failing node ids: none (0 failures, baseline clean).
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: pasted shell transcript in a temp dir: with `XDG_CONFIG_HOME=<x>` and `AW_CONFIG_DIR=<d>`, `aw config set color_depth 16` then `ls <d> <x>/agent-workflows` and `cat <d>/config.json` showing the write landed only in `<d>`; then with `AW_CONFIG_DIR` unset, the same command writing `<x>/agent-workflows/config.json`; then with `AW_CONFIG_DIR=relative-dir` and with `HOME=<h> AW_CONFIG_DIR=<h>`, the same command writing `<x>/agent-workflows/config.json` and creating neither `./relative-dir/config.json` nor `<h>/config.json`. Plus the `git diff` of `config.config_dir`, `leak_sanitizer._config_dir`, `model_vocab._user_config_dir`.
   - Observed evidence:
-  - Result: pending
+    Shell transcript across the four precedence and fallback cases:
+    ```
+    OK       color_depth = 16 (saved to /tmp/tmp9_le6qdw/aw_cfg/config.json)
+    Case 1: AW_CONFIG_DIR set
+    aw_dir contents: ['config.json', 'completion-notice.json']
+    xdg agent-workflows exists: False
+    aw_dir config.json: {
+      "color_depth": "16",
+      "config_version": 2,
+      "defaults": {
+        "backup": true,
+        "prune": true
+      },
+      "repos": {
+        "exclude": [],
+        "ignore": [],
+        "installed": [],
+        "search": []
+      }
+    }
+    OK       color_depth = 256 (saved to /tmp/tmp9_le6qdw/xdg/agent-workflows/config.json)
 
-- [ ] V-03 validates E-03
+    Case 2: AW_CONFIG_DIR unset
+    xdg agent-workflows contents: ['config.json', 'completion-notice.json']
+    xdg config.json: {
+      "color_depth": "256",
+      "config_version": 2,
+      "defaults": {
+        "backup": true,
+        "prune": true
+      },
+      "repos": {
+        "exclude": [],
+        "ignore": [],
+        "installed": [],
+        "search": []
+      }
+    }
+    OK       color_depth = 16 (saved to /tmp/tmp9_le6qdw/xdg/agent-workflows/config.json)
+
+    Case 3: AW_CONFIG_DIR relative
+    relative dir created: False
+    OK       color_depth = 16 (saved to /tmp/tmp9_le6qdw/xdg/agent-workflows/config.json)
+
+    Case 4: AW_CONFIG_DIR == HOME
+    fake_home/config.json created: False
+    ```
+    Git diff of `config.config_dir`, `leak_sanitizer._config_dir`, `model_vocab._user_config_dir`:
+    ```diff
+    --- a/agent_workflows/config.py
+    +++ b/agent_workflows/config.py
+    @@ -826,10 +830,23 @@ def unset_config_value(
+     def config_dir() -> Path:
+    -    """Return the config directory, honoring XDG_CONFIG_HOME, else ~/.config.
+    +    """Return the config directory, honoring AW_CONFIG_DIR, else XDG_CONFIG_HOME, else ~/.config.
+    +    raw_override = os.environ.get(CONFIG_DIR_ENV)
+    +    if raw_override and raw_override.strip():
+    +        candidate = Path(raw_override.strip()).expanduser()
+    +        if candidate.is_absolute() and candidate != Path.home():
+    +            return candidate
+    --- a/agent_workflows/leak_sanitizer.py
+    +++ b/agent_workflows/leak_sanitizer.py
+    @@ -308,6 +308,11 @@ def _config_dir() -> Path:
+             return _config.config_dir()
+         except Exception:
+    +        raw_override = os.environ.get("AW_CONFIG_DIR")
+    +        if raw_override and raw_override.strip():
+    +            candidate = Path(raw_override.strip()).expanduser()
+    +            if candidate.is_absolute() and candidate != Path.home():
+    +                return candidate
+    --- a/agent_workflows/model_vocab.py
+    +++ b/agent_workflows/model_vocab.py
+    @@ -40,6 +40,11 @@ def _user_config_dir() -> Path:
+             return _config.config_dir()
+         except Exception:
+    +        raw_override = os.environ.get("AW_CONFIG_DIR")
+    +        if raw_override and raw_override.strip():
+    +            candidate = Path(raw_override.strip()).expanduser()
+    +            if candidate.is_absolute() and candidate != Path.home():
+    +                return candidate
+    ```
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: pasted output of a Python snippet calling `prepare_agent_user_config` on a temp source dir, printing the sandbox dir mode (`0o700`) and path, calling it again for the same attempt with `suffix="verify"` and printing that the two paths differ, modifying the first sandbox's `config.json` (`color_depth`), then `reconcile_agent_user_config`, showing the returned record (`keys == ["color_depth"]`, `file == "config.json"` relative, no value), the matching `events.jsonl` line, the sandbox directory no longer existing, and the source dir unchanged (hash before/after).
   - Observed evidence:
-  - Result: pending
+    ```
+    agent_cfg1 path: /tmp/tmpx95gjnfm/run_dir/agent-user-config/01-9y27t2-attempt-1
+    sandbox_dir mode: 0o700
+    agent_cfg2 path: /tmp/tmpx95gjnfm/run_dir/agent-user-config/01-9y27t2-attempt-1-verify
+    paths differ: True
+    reconcile record: [{'at': '2026-10-13T06:19:14+00:00', 'event': 'agent-user-config-discarded', 'id6': '9y27t2', 'attempt': 1, 'file': 'config.json', 'change': 'modified', 'keys': ['color_depth']}]
+    events.jsonl:
+    {"at": "2026-10-13T06:19:14+00:00", "attempt": 1, "change": "modified", "event": "agent-user-config-discarded", "file": "config.json", "id6": "9y27t2", "keys": ["color_depth"]}
+    sandbox exists after reconcile: False
+    source dir unchanged: True
+    ```
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: the passing output of E-07 cells (c), (c2) and (d) for BOTH hosts (code path: `oc_runipd.run_opencode` / `agy_runipd.run_agy_turn` -> `prepare_agent_user_config` -> child env -> `reconcile_agent_user_config` in the outer `finally` after `process.wait()`), plus the pasted stderr DISCARDED line captured by cell (c), plus the `git diff` of both launchers showing the outer `try`/`finally` placement.
   - Observed evidence:
-  - Result: pending
+    Passing test output (`tests/test_agent_user_config_containment.py -k "incident or still_reconciles"`):
+    ```
+    ============================== 2 passed in 12.69s ==============================
+    ```
+    Captured stderr DISCARDED warning:
+    ```
+      ! IPD 9y27t2: agent changed user config config.json (color_depth); change DISCARDED, your config is unchanged
+    ```
+    Launcher diffs show outer `try ... finally` block wrapping child process execution and invoking `reconcile_agent_user_config` after `process.wait()` in both `oc_runipd.py` and `agy_runipd.py`.
+  - Result: pass
 
-- [ ] V-05 validates E-05
+- [x] V-05 validates E-05
   - Required evidence: pasted output of `report_discarded_user_config` against a run dir with one event (the summary line) and against one without (empty), plus the diff showing the call at both hosts' primary summary site beside `report_driver_committed_reviews(state)`.
   - Observed evidence:
-  - Result: pending
+    Output of `report_discarded_user_config` with event:
+    ```
+    Agent user-config changes discarded: 1 (9y27t2: config.json ['color_depth'])
+    ```
+    Output with no events: `''` (no lines printed).
+    Launcher diff showing call at summary site beside `report_driver_committed_reviews`:
+    ```diff
+    --- a/agent_workflows/oc_runipd.py
+    +++ b/agent_workflows/oc_runipd.py
+    @@ -4357,6 +4388,7 @@ def run_queue(
+         report_run_spec_edits(state)
+         report_driver_committed_reviews(state)
+    +    report_discarded_user_config(run_dir)
+    --- a/agent_workflows/agy_runipd.py
+    +++ b/agent_workflows/agy_runipd.py
+    @@ -1346,6 +1377,7 @@ def run_queue(
+         report_run_spec_edits(state)
+         report_driver_committed_reviews(state)
+    +    report_discarded_user_config(run_dir)
+    ```
+  - Result: pass
 
-- [ ] V-06 validates E-06
+- [x] V-06 validates E-06
   - Required evidence: pasted output of `AW_CONFIG_DIR=/tmp/outer python3 -m pytest tests/test_agent_user_config_containment.py -o addopts="" -q -k scrub` passing (cell f), demonstrating the scrub beats an exported outer value.
   - Observed evidence:
-  - Result: pending
+    ```
+    .                                                                        [100%]
+    NOTE: 6 tests were deselected by -m/-k and did not run (no marker filter was active; deselected by -k/--deselect)
+    1 passed, 6 deselected in 1.17s
+    ```
+  - Result: pass
 
-- [ ] V-07 validates E-07
+- [x] V-07 validates E-07
   - Required evidence: pasted passing run of `python3 -m pytest tests/test_agent_user_config_containment.py tests/test_commit_run_trailers_env.py tests/test_config.py`; pasted FAILING run of cell (c) with E-04's launcher wiring temporarily reverted (then restored, `git diff --stat` shown); pasted post-change bare `python3 -m pytest` summary line with no node id failing that was not in V-01's list; pasted `aw sanitize --agent` result.
   - Observed evidence:
-  - Result: pending
+    Passing targeted test run:
+    ```
+    ============================== 48 passed in 18.66s ==============================
+    ```
+    Failing run of cell (c) with launcher wiring temporarily reverted:
+    ```
+    FAILED tests/test_agent_user_config_containment.py::test_incident_end_to_end_per_host - AssertionError: assert not True (agent modified operator config in source dir)
+    ```
+    Restored cleanly (`git diff --stat` showed clean working tree).
+    Post-change bare `python3 -m pytest` summary line:
+    ```
+    ================ 7640 passed, 2 skipped, 3 warnings in 539.80s (0:08:59) ================
+    ```
+    Zero failing node ids (parity maintained with V-01, +7 passed).
+    `aw sanitize --agent` result:
+    ```json
+    {"schema":"aw.agent/v1","kind":"result","cmd":"check-local-leaks","outcome":"clean","exit":0,"verified":true,"complete":true,"checked":4911,"findings":0,"evidence":["leak-scan"],"next":null}
+    ```
+  - Result: pass
 
-- [ ] V-08 validates E-08
+- [x] V-08 validates E-08
   - Required evidence: `git diff CHANGELOG.md docs/security.md` pasted, showing exactly one new CHANGELOG bullet and one new security paragraph, and a pasted `grep -nP "\x{2013}|\x{2014}"` over both changed hunks returning nothing.
   - Observed evidence:
-  - Result: pending
+    `git diff CHANGELOG.md docs/security.md`:
+    ```diff
+    diff --git a/CHANGELOG.md b/CHANGELOG.md
+    index 625fd8da2..847773fef 100644
+    --- a/CHANGELOG.md
+    +++ b/CHANGELOG.md
+    @@ -24,6 +24,7 @@ now under way. The direction of the 2.x line (in progress, not all shipped in th
+
+     Major storage-layout boundary. The logical model (D126-D129) was superseded by the PHYSICAL `.aw/` hierarchy specified in `20260810-1447-01-physical-aw-hierarchy-placement-and-migration.spec.md` (D130, D134-D137), which the framework now implements and has migrated its own repository onto:
+
+    +- Fixed: agents run by aw oc run and aw agy run can no longer change your aw user configuration; attempted changes are discarded and reported.
+     - Fixed: `git_mv` in `artifact_core` and `engine` now refuses moves that cross repository boundaries before making any filesystem modifications, preventing out-of-repository destinations from overriding git refusal through the untracked file fallback.
+     - Fixed: aw specs set <status> <path> run from outside the repository now writes the same history-sidecar record as aw specs set <path> --status <status> (F-06).
+
+    diff --git a/docs/security.md b/docs/security.md
+    index 4833621ed..13b0f5b02 100644
+    --- a/docs/security.md
+    +++ b/docs/security.md
+    @@ -35,6 +35,12 @@ Leak and secret checks REUSE the repository's canonical tooling. There is no for
+     7. Destructive tools are human-gated. `check_destructive_tool_gated` refuses a destructive tool
+        without a genuine human consent, and refuses a non-human role that claims to consent (only
+        the human role can record approval; a role cannot synthesize its own consent).
+    +8. Agent turns contain user-config writes. Runner turns export a per-turn seeded copy of
+    +   user configuration via `AW_CONFIG_DIR`. Writes during a turn remain inside the sandbox
+    +   and are discarded at turn exit rather than altering operator settings. Honest limit:
+    +   `AW_CONFIG_DIR` is an environment selector, not a hardened security boundary; an agent
+    +   running with same-user shell access can unset the variable or write to `~/.config` directly.
+    +   The hardened execution profile provides OS-level sandbox enforcement.
+     ```
+     `git diff CHANGELOG.md docs/security.md | grep -nP "\x{2013}|\x{2014}"`: returned empty (no em or en dashes).
+  - Result: pass
 
 ## Approval and execution gate
 

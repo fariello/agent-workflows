@@ -125,6 +125,11 @@ os.environ.pop("AW_EXECUTION_ROLE", None)
 os.environ.pop("AW_RUN_ID", None)
 os.environ.pop("AW_ITEM_ID6", None)
 
+# userconfig (9y27t2) E-06: an agent turn now exports AW_CONFIG_DIR and every plan tells
+# that agent to run the suite, so without this scrub the suite's own XDG_CONFIG_HOME
+# sandbox would be bypassed by the outer turn's value.
+os.environ.pop("AW_CONFIG_DIR", None)
+
 # Scrub CI / AW_NONINTERACTIVE at the session boundary so tests that exercise interactive
 # prompt machinery (e.g. `--interactive`, completion installation offers, confirmation prompts)
 # are not forced into unattended non-interactive mode by the ambient CI runner environment.
@@ -183,8 +188,10 @@ os.environ.update(_SANDBOX_ENV)
 def _restore_home_sandbox():
     """Re-point AW_HOME/XDG_CONFIG_HOME at the session sandbox around every test."""
     os.environ.update(_SANDBOX_ENV)
+    os.environ.pop("AW_CONFIG_DIR", None)
     yield
     os.environ.update(_SANDBOX_ENV)
+    os.environ.pop("AW_CONFIG_DIR", None)
 
 
 # --------------------------------------------------------------------------------------

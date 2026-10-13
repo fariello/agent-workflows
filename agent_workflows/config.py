@@ -1,8 +1,11 @@
 """User configuration for the agent-workflows CLI (JSON, stdlib only).
 
 The config remembers where a user keeps repos so `install all` / `setup` need no
-re-interview. It lives at ``$XDG_CONFIG_HOME/agent-workflows/config.json`` (falling back
-to ``~/.config/agent-workflows/config.json``); it is NEVER written directly under ``~/``
+re-interview. The config directory is resolved in precedence order:
+``AW_CONFIG_DIR`` > ``$XDG_CONFIG_HOME/agent-workflows`` > ``~/.config/agent-workflows``.
+A dedicated ``AW_CONFIG_DIR`` variable exists so runner containment can sandbox
+agent-workflows user config without overriding ``XDG_CONFIG_HOME``, which would also
+relocate opencode, gh, and git configuration. It is NEVER written directly under ``~/``
 (DECISIONS D46 / spec Goal 4).
 
 Schema (config_version 2) - a FIXED allowlist of NON-sensitive keys; no secret or
@@ -50,6 +53,7 @@ from pathlib import Path
 from typing import Any, Dict, FrozenSet, Iterable, List, Optional, Sequence, Tuple
 
 CONFIG_VERSION = 2
+CONFIG_DIR_ENV = "AW_CONFIG_DIR"
 _APP_DIR = "agent-workflows"
 _CONFIG_NAME = "config.json"
 
@@ -826,10 +830,23 @@ def unset_config_value(
 
 
 def config_dir() -> Path:
-    """Return the config directory, honoring XDG_CONFIG_HOME, else ~/.config.
+    """Return the config directory, honoring AW_CONFIG_DIR, else XDG_CONFIG_HOME, else ~/.config.
 
-    Never returns ``~/`` itself; always ``.../agent-workflows/``.
+    Precedence:
+      1. ``$AW_CONFIG_DIR`` (names the directory itself; honored only when set, non-empty,
+         absolute after ``expanduser()``, and not ``Path.home()``). A dedicated variable
+         exists so runner containment can sandbox agent-workflows config without overriding
+         ``XDG_CONFIG_HOME``, which would relocate opencode, gh, and git configuration.
+      2. ``$XDG_CONFIG_HOME/agent-workflows``
+      3. ``~/.config/agent-workflows``
+
+    Never returns ``~/`` itself; always an absolute directory.
     """
+    raw_override = os.environ.get(CONFIG_DIR_ENV)
+    if raw_override and raw_override.strip():
+        candidate = Path(raw_override.strip()).expanduser()
+        if candidate.is_absolute() and candidate != Path.home():
+            return candidate
 
     xdg = os.environ.get("XDG_CONFIG_HOME")
     base = Path(xdg).expanduser() if xdg else Path.home() / ".config"
