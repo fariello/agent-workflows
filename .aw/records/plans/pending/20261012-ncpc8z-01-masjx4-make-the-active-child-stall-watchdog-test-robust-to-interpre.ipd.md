@@ -36,20 +36,20 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: Harden the active-child test
 
-- [ ] E-01 In `tests/test_oc_runipd.py` `StallWatchdogTests.test_stall_watchdog_does_not_trip_on_active_child`, change the driver argument `"--stall-timeout", "0.5"` to `"--stall-timeout", "3.0"` (a margin of roughly 6x over the 0.5s startup that was observed to be insufficient), and add a short comment stating why (the watchdog window includes child interpreter startup, which is slow under parallel suite load; backlog `ncpc8z`).
+- [x] E-01 In `tests/test_oc_runipd.py` `StallWatchdogTests.test_stall_watchdog_does_not_trip_on_active_child`, change the driver argument `"--stall-timeout", "0.5"` to `"--stall-timeout", "3.0"` (a margin of roughly 6x over the 0.5s startup that was observed to be insufficient), and add a short comment stating why (the watchdog window includes child interpreter startup, which is slow under parallel suite load; backlog `ncpc8z`).
   - Depends on: none
   - Expected outcome: The test's driver invocation passes `--stall-timeout 3.0`; the comment names `ncpc8z`.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 In the same test's fake `active_opencode` child source, replace the `for i in range(3): ... time.sleep(0.05)` loop with a loop that emits a `text` event every 0.5s for 8 iterations (about 4.0s of activity, which is LONGER than the 3.0s timeout while every gap stays at one sixth of it), keeping the existing `sessionID`, outcome-file write, and final `done` event unchanged. Add a comment stating that total activity exceeding the timeout is what makes the test fail if the watchdog ignored activity.
+- [x] E-02 In the same test's fake `active_opencode` child source, replace the `for i in range(3): ... time.sleep(0.05)` loop with a loop that emits a `text` event every 0.5s for 8 iterations (about 4.0s of activity, which is LONGER than the 3.0s timeout while every gap stays at one sixth of it), keeping the existing `sessionID`, outcome-file write, and final `done` event unchanged. Add a comment stating that total activity exceeding the timeout is what makes the test fail if the watchdog ignored activity.
   - Depends on: E-01
   - Expected outcome: The child's active period (sum of sleeps) exceeds the stall timeout and each inter-event gap is well below it, so a watchdog that did not reset on stdout activity would trip and the test would fail.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 Leave `test_stall_watchdog_terminates_silent_child_and_marks_interrupted` (0.3s timeout against a silent `time.sleep(60)` child) unchanged: a slow startup can only make that child MORE silent, so it cannot false-fail under load and it remains the negative control.
+- [x] E-03 Leave `test_stall_watchdog_terminates_silent_child_and_marks_interrupted` (0.3s timeout against a silent `time.sleep(60)` child) unchanged: a slow startup can only make that child MORE silent, so it cannot false-fail under load and it remains the negative control.
   - Depends on: none
   - Expected outcome: `git diff` shows no change to the silent-child test.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -110,20 +110,132 @@ N/A: test-only change; no spec or user-facing documentation describes this test'
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: `git diff tests/test_oc_runipd.py` excerpt showing `"--stall-timeout"` followed by `"3.0"` in `test_stall_watchdog_does_not_trip_on_active_child` with the `ncpc8z` comment, plus pasted output of `python3 -m pytest -o addopts="" tests/test_oc_runipd.py -k test_stall_watchdog_does_not_trip_on_active_child` showing `1 passed`.
   - Observed evidence:
-  - Result: pending
+    `git diff tests/test_oc_runipd.py` excerpt:
+    ```diff
+    @@ -1827,8 +1830,10 @@ class StallWatchdogTests(unittest.TestCase):
+                         "--no-self-finalize",
+                         "--repo",
+                         os.fspath(repo),
+    +                    # The watchdog window includes child interpreter startup, which is slow
+    +                    # under parallel suite load (backlog ncpc8z); 3.0s provides roughly 6x margin.
+                         "--stall-timeout",
+    -                    "0.5",
+    +                    "3.0",
+                         "--opencode",
+                         os.fspath(active_child),
+                     ],
+    ```
+    Single test run:
+    ```
+    $ python3 -m pytest -o addopts="" tests/test_oc_runipd.py -k test_stall_watchdog_does_not_trip_on_active_child
+    ============================= test session starts ==============================
+    platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0
+    Using --randomly-seed=326545321
+    rootdir: <repo-root>
+    configfile: pyproject.toml
+    plugins: anyio-4.14.1, randomly-4.1.0, cov-7.1.0, xdist-3.8.0
+    collecting ... collected 182 items / 181 deselected / 1 selected
 
-- [ ] V-02 validates E-02
+    tests/test_oc_runipd.py .                                                [100%]
+
+    NOTE: 181 tests were deselected by -m/-k and did not run (no marker filter was active; deselected by -k/--deselect)
+    ====================== 1 passed, 181 deselected in 6.76s =======================
+    ```
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: FOUR pasted observations. (a) The diff of the child loop (0.5s gaps, 8 iterations). (b) A load run: start one CPU-burning process per core (`for i in $(seq $(nproc)); do python3 -c 'while True: pass' & done`), run the test 20 times concurrently (20 backgrounded `python3 -m pytest -o addopts="" tests/test_oc_runipd.py::StallWatchdogTests::test_stall_watchdog_does_not_trip_on_active_child` invocations whose exit codes are all printed), then kill the burners and paste `pgrep -fc 'while True: pass'` showing none remain; all 20 exit codes must be 0. This is SUPPORTING evidence only: it may not reproduce the flake on every host (F6). The observation is produced by the driver subprocess `agent_workflows.oc_runipd` spawning the E-02 child under `runner_shared.StallWatchdog`. (c) Falsifiability: temporarily make `runner_shared.StallWatchdog.touch` a no-op (working-tree edit only, never committed), rerun the single test and paste `1 failed`, then revert and paste empty `git diff --stat agent_workflows/runner_shared.py`. (d) Deterministic startup-delay contrast, which is the proof the fix addresses the defect: temporarily insert `time.sleep(1.0)` immediately after the child's `import` line (working-tree only, never committed) and paste the single-test result with the HARDENED values (`1 passed`) and then with `--stall-timeout` set back to `0.5` (`1 failed`); revert and paste `git diff tests/test_oc_runipd.py` showing only the E-01 and E-02 hunks remain.
   - Observed evidence:
-  - Result: pending
+    (a) Diff of the child loop:
+    ```diff
+    @@ -1809,9 +1809,12 @@ class StallWatchdogTests(unittest.TestCase):
+                         executed.parent.mkdir(parents=True, exist_ok=True)
+                         plan.rename(executed)
 
-- [ ] V-03 validates E-03
+    -                    for i in range(3):
+    +                    # Total activity (8 * 0.5s = 4.0s) exceeds the 3.0s stall timeout,
+    +                    # proving the watchdog resets on stdout activity; if the watchdog
+    +                    # ignored activity, the child would be terminated before finishing.
+    +                    for i in range(8):
+                             print(json.dumps({'type':'text','sessionID':'ses_activ1','part':{'text':f'step {i}'}}), flush=True)
+    -                        time.sleep(0.05)
+    +                        time.sleep(0.5)
+
+                         outcome.write_text(json.dumps({'schema_version':1,'id6':'activ1','disposition':'executed','pushed':False}))
+                         print(json.dumps({'type':'text','sessionID':'ses_activ1','part':{'text':'done'}}), flush=True)
+    ```
+    (b) Load run under 12 CPU burners with 20 concurrent test runs:
+    ```
+    Started 12 burners
+    Run 1 exit code: 0
+    Run 2 exit code: 0
+    Run 3 exit code: 0
+    Run 4 exit code: 0
+    Run 5 exit code: 0
+    Run 6 exit code: 0
+    Run 7 exit code: 0
+    Run 8 exit code: 0
+    Run 9 exit code: 0
+    Run 10 exit code: 0
+    Run 11 exit code: 0
+    Run 12 exit code: 0
+    Run 13 exit code: 0
+    Run 14 exit code: 0
+    Run 15 exit code: 0
+    Run 16 exit code: 0
+    Run 17 exit code: 0
+    Run 18 exit code: 0
+    Run 19 exit code: 0
+    Run 20 exit code: 0
+    $ pgrep -fc '[w]hile True: pass' || echo 0
+    0
+    ```
+    (c) Falsifiability test with sabotaged `touch`:
+    ```
+    =========================== short test summary info ============================
+    FAILED tests/test_oc_runipd.py::StallWatchdogTests::test_stall_watchdog_does_not_trip_on_active_child
+    ====================== 1 failed, 181 deselected in 8.27s =======================
+    $ git diff --stat agent_workflows/runner_shared.py
+    (empty)
+    ```
+    (d) Deterministic startup-delay contrast with `time.sleep(1.0)` injected:
+    Hardened 3.0s timeout:
+    ```
+    $ python3 -m pytest -o addopts="" tests/test_oc_runipd.py -k test_stall_watchdog_does_not_trip_on_active_child
+    ====================== 1 passed, 181 deselected in 11.97s ======================
+    ```
+    Old 0.5s timeout:
+    ```
+    $ python3 -m pytest -o addopts="" tests/test_oc_runipd.py -k test_stall_watchdog_does_not_trip_on_active_child
+    FAILED tests/test_oc_runipd.py::StallWatchdogTests::test_stall_watchdog_does_not_trip_on_active_child
+    ====================== 1 failed, 181 deselected in 5.94s =======================
+    ```
+    Reverted and verified `git diff tests/test_oc_runipd.py` contains only E-01 and E-02 hunks.
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: `git diff tests/test_oc_runipd.py` shows no hunk inside `test_stall_watchdog_terminates_silent_child_and_marks_interrupted`; pasted output of `python3 -m pytest -o addopts="" tests/test_oc_runipd.py -k StallWatchdogTests` showing `2 passed`; and the pasted final summary lines of a bare full-suite run `python3 -m pytest` at the base commit (before E-01) and after E-02, with the failure-set delta stated as an explicit set of test ids. The bar is an EMPTY delta and no failure inside `StallWatchdogTests`; a pre-existing unrelated failure present at both points does not fail this item.
   - Observed evidence:
-  - Result: pending
+    `git diff tests/test_oc_runipd.py` shows changes only to `test_stall_watchdog_does_not_trip_on_active_child`; `test_stall_watchdog_terminates_silent_child_and_marks_interrupted` is completely unchanged.
+    Output of `StallWatchdogTests`:
+    ```
+    $ python3 -m pytest -o addopts="" tests/test_oc_runipd.py -k StallWatchdogTests
+    tests/test_oc_runipd.py ..                                               [100%]
+    ====================== 2 passed, 180 deselected in 12.92s ======================
+    ```
+    Bare full suite before E-01 (at base commit 9906a0e3dd8bc26dd603fc2f541fda7ca834e203):
+    ```
+    8002 passed, 4 skipped, 18 xfailed, 3 warnings in 965.47s (0:16:05)
+    ```
+    Bare full suite after E-02:
+    ```
+    8002 passed, 4 skipped, 18 xfailed, 3 warnings in 968.29s (0:16:08)
+    ```
+    Failure-set delta: `set()` (empty delta, 0 failures at base commit and 0 failures after E-02; no failures in `StallWatchdogTests`).
+  - Result: pass
 
 ## Approval and execution gate
 
