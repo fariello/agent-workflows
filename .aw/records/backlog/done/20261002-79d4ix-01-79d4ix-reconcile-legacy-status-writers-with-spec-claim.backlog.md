@@ -1,5 +1,5 @@
 - Id: 79d4ix
-- Status: graduated
+- Status: done
 - Graduated-To: 79d4ix
 - Set: 79d4ix
 - Priority: low
@@ -7,6 +7,7 @@
 - Summary: Decide whether to migrate the eight live legacy-token write sites or soften spec 25kzda's claim that the runner no longer writes them
 
 ## Workflow history
+- 2026-10-13 done (aw backlog): closed by aw agy run: IPD o58r3r executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20261011-79d4ix-01-o58r3r-reconcile-the-runner-s-live-failed-safely-writers-with-spec.ipd.md); evidence .aw/records/plans/executed/20261011-79d4ix-01-o58r3r-reconcile-the-runner-s-live-failed-safely-writers-with-spec.ipd.md
 - 2026-10-12 graduated (aw backlog): graduated by run run-20261012T005617Z-2321742: o58r3r
 - 2026-10-02 created (aw backlog): Measured while authoring plan fr19jr (backlog ku8szz): spec 25kzda asserts legacy terminal status tokens 'are no longer written by the runner', and that is false at HEAD.
 

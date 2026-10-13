@@ -12,6 +12,7 @@
 
 ## Workflow history
 
+- 2026-10-13 note (aw specs): CORRECTION (79d4ix / o58r3r): the 2026-09-25 statusvocab note's 'no longer written by the runner' does not hold for failed-safely, which the runner still writes for contained host/driver failures by design; see spec 25kzda Section 5.5 'Live legacy-spelled token: failed-safely'.
 - 2026-10-12 note (aw specs): AMENDED 2026-10-12 (4xtpvg-02 15db4k): R4.4 and R4.4(a)/R4.4b/R4.4c, A10/A10b/A10c/A10e amended on the maintainer's DELETE ruling for backlog e6zeta; the permission bound is removed and MAX_TURN_TIMEOUT is the single R4.4 turn bound
 - 2026-10-09 note (aw specs): AMENDED 2026-10-09 by lifegate Order 02 (e25iy9): R4.5 and A11 amended to restate that driver-owned lifecycle verbs refuse for a worker-labelled caller, and that for any other caller refusal is conditioned on a live run holding the plan, anywhere, not on location.
 - 2026-10-09 note (aw specs): Narrow R2.5: an item that recorded no attempt in a lane and has no submission under its lane submission root has nothing to collect in that lane (45z93e)

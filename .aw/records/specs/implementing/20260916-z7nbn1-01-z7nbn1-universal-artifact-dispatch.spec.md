@@ -11,6 +11,7 @@
 
 ## Workflow history
 
+- 2026-10-13 note (aw specs): CORRECTION (79d4ix / o58r3r): the 2026-09-25 statusvocab note's 'no longer written by the runner' does not hold for failed-safely, which the runner still writes for contained host/driver failures by design; see spec 25kzda Section 5.5 'Live legacy-spelled token: failed-safely'.
 - 2026-09-27 note (aw specs): 5.6 wording amended by artdispatch 7icz68: AST/grep check replaced by behavioral runner-vs-table equality (maintainer ruling 2026-09-26, no structure tests)
 - 2026-09-26 implementing (aw set): Graduated 2026-09-26 into Set artdispatch (7icz68, 8l8dgb, jdn790, 2ptgds, aeq7f8, y3p3p5; every plan carries From-Spec z7nbn1 and Blocks-Release next; 5.7 owned by mxzogk).
 - 2026-09-26 approved (aw set, --by-human): Maintainer approved 2026-09-26 in chat ('Yes, approve and graduate') after /spec-review APPROVE WITH REVISIONS APPLIED

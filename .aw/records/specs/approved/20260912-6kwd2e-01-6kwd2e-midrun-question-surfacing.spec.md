@@ -9,6 +9,7 @@
 
 ## Workflow history
 
+- 2026-10-13 note (aw specs): CORRECTION (79d4ix / o58r3r): the 2026-09-25 statusvocab note's 'no longer written by the runner' does not hold for failed-safely, which the runner still writes for contained host/driver failures by design; see spec 25kzda Section 5.5 'Live legacy-spelled token: failed-safely'.
 - 2026-09-25 note (aw specs): AMENDED 2026-09-25 (statusvocab 9x7otz / cyamvi): canonical terminal status vocabulary updated (fail-depend, fail-merge, fail-gate, fail-verify, fail-begin, fail-lane, not-run, interrupted). Legacy terminal status tokens (including dependency-blocked, integration-blocked, merge-needs-human, merge-conflict, merge-refused, substantially-complete, failed-safely, not-attempted) remain readable forever for backward compatibility on historical run records (via TERMINAL_STATUS_ALIASES), but are no longer written by the runner.
 - 2026-09-21 note (aw specs): AMENDED 2026-09-21 (maintainer-directed rename): the blocked-cluster illustration now names merge-needs-human instead of integration-blocked. Prose-only, one-for-one with the renamed vocabulary; no rule, class mapping or surfacing behavior changed.
 ## 0. Concepts (kept distinct)

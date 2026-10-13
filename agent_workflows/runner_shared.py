@@ -33491,6 +33491,13 @@ TERMINAL_STATES_CANONICAL: frozenset[str] = frozenset(
 # (the 179 majority out of 209 historical records, since a historical record carries no producer
 # field to re-derive from), while WRITERS pick per producer (`clean_base_refusal` -> `fail-gate`,
 # `begin_refusal` -> `fail-begin`, `worktree_error` -> `fail-lane`, verifier verdicts -> `fail-verify`).
+#
+# NOTE ON LIVE WRITER `failed-safely` (o58r3r / 79d4ix): `failed-safely` is a LIVE runner-written
+# token (not only a historical spelling) produced by host/driver exception handlers, queue refusal,
+# and correction-budget exhaustion. Its alias to `fail-gate` here is for display presentation and
+# cross-generation grouping only. Any logic deciding retryability or ownership MUST NOT canonicalize
+# it first, as canonicalizing to `fail-gate` would misclassify it as a non-retryable gate refusal.
+# See spec 25kzda Section 5.5 ("Live legacy-spelled token: failed-safely").
 TERMINAL_STATUS_ALIASES: dict[str, str] = {
     "substantially-complete": "fail-gate",
     "partial": "fail-verify",
