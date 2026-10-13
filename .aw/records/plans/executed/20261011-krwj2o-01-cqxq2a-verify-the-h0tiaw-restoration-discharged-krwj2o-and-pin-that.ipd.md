@@ -6,7 +6,7 @@
 - Scope: IN: (1) re-measure and record, with pasted output, that F-04 and F-05 are discharged by the `h0tiaw` Set at execution HEAD; (2) add ONE default-collected test to `tests/test_cli_quality_gates.py` asserting that the set of `*.golden` files present in `GOLDEN_DIR` equals exactly the set the module's fixtures and render suffixes read, so an orphaned or extra golden fails; (3) prove that test is sensitive with a reverted throwaway orphan. OUT: re-restoring anything `h0tiaw` already restored; the live per-leaf scenario sweep and the live fact-parity gate (carrier `2wowfy`, now pending plan `34iwyp`, Set `livesweep`); any change to `agent_workflows/` production code; any edit to the twelve golden files' contents; any edit to the executed `h0tiaw` or `zosxj4` plans.
 - Scope-Paths: tests/test_cli_quality_gates.py, .aw/records/plans/pending/20261011-krwj2o-01-cqxq2a-verify-the-h0tiaw-restoration-discharged-krwj2o-and-pin-that.ipd.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: medium
@@ -16,9 +16,9 @@
 - Highest E allocated: 04
 - Author: opencode uri/its_direct/pt3-claude-opus-5.5-1m-us
 - Id: cqxq2a
-- Approval: 2026-10-12, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-13 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: cqxq2a verified (set krwj2o, attempt 1).
 - 2026-10-12 approved (aw set): status set to approved
 - 2026-10-12 /plan-review (opencode model=its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-006 fixed (review record 20261011-krwj2o-01-cqxq2a)
 - 2026-10-12 reviewed (aw set): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-001..PR-006
