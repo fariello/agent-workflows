@@ -6,7 +6,8 @@ Enforces load-bearing exit contract invariants across the command surface:
 2. --help floor gate: every declared leaf that exits 0 from --help must declare 0,
    with skip-on-non-zero documenting REMAINDER-forwarding leaves (E-05).
 3. Live observed-membership gate: every safe read/check leaf executed live in a real
-   subprocess must yield an exit code declared in its exit_contract (E-04).
+   subprocess must yield an exit code declared in its exit_contract (cheap leaves
+   default-collected, heavy leaves marked slow; IPD 1mnit8 / 34iwyp).
 4. Universal 130 floor and signal code exclusion gate: cli.main returns 130 on
    interruption and no declaration enumerates signal-derived codes (130, 143) (IPD ug85or).
 """
@@ -141,63 +142,70 @@ def test_help_floor_gate() -> None:
     )
 
 
+def test_live_heavy_leaves_partition_subset() -> None:
+    """LIVE_HEAVY_LEAVES must be a subset of LIVE_SAFE_LEAVES (IPD 34iwyp E-06)."""
+    assert conformance_matrix.LIVE_HEAVY_LEAVES <= set(
+        conformance_matrix.LIVE_SAFE_LEAVES.keys()
+    ), (
+        f"LIVE_HEAVY_LEAVES contains members not in LIVE_SAFE_LEAVES: "
+        f"{conformance_matrix.LIVE_HEAVY_LEAVES - set(conformance_matrix.LIVE_SAFE_LEAVES.keys())}"
+    )
+
+
+@pytest.mark.parametrize("leaf", conformance_matrix.live_cheap_leaves())
+def test_live_safe_leaves_exit_contract_membership_cheap(leaf: str) -> None:
+    """Every cheap safe leaf executed live must produce an exit code declared in exit_contract.
+
+    Coverage boundary (IPD 34iwyp E-06):
+    Covers live_cheap_leaves() (13 safe leaves), executing real CLI subprocesses across
+    both human and --agent surfaces default-collected without a slow marker.
+    """
+    extra = conformance_matrix.LIVE_SAFE_LEAVES[leaf]
+    decl = command_surface.get_declaration(leaf)
+    assert decl is not None, f"Declared leaf {leaf!r} missing from declaration index"
+
+    # 1. Human surface
+    argv_human = [*leaf.split(), *extra]
+    res_human = conformance_matrix.run_cli(argv_human)
+    assert (
+        res_human.returncode in decl.exit_contract
+    ), f"leaf={leaf!r}, surface='human', observed_rc={res_human.returncode}, declared={decl.exit_contract}"
+
+    # 2. Agent surface
+    argv_agent = [*leaf.split(), *extra, "--agent"]
+    res_agent = conformance_matrix.run_cli(argv_agent)
+    assert (
+        res_agent.returncode in decl.exit_contract
+    ), f"leaf={leaf!r}, surface='agent', observed_rc={res_agent.returncode}, declared={decl.exit_contract}"
+
+
 @pytest.mark.slow
 @pytest.mark.timeout(500)
-def test_live_safe_leaves_exit_contract_membership() -> None:
-    """Every live-executed safe leaf must produce an exit code declared in exit_contract.
+@pytest.mark.parametrize("leaf", sorted(conformance_matrix.LIVE_HEAVY_LEAVES))
+def test_live_safe_leaves_exit_contract_membership_heavy(leaf: str) -> None:
+    """Every heavy safe leaf executed live must produce an exit code declared in exit_contract.
 
-    Coverage boundary (IPD 1mnit8 E-04):
-    This gate covers 16 of 163 declarations (the curated LIVE_SAFE_LEAVES population in
-    tests/conformance_matrix.py). It drives the real CLI in a subprocess across both the
-    human and --agent surfaces (32 invocations total). Mutations, installers, and disk-writing
-    verbs are excluded from live execution for safety and remain covered by declaration
-    and the tree-wide usage error floor gate (test_usage_error_floor_gate_tree_wide).
-
-    Justification and regression prevention (backlog cn5np0):
-    This gate is green at introduction (0 violations across all 32 invocations). Its value
-    is durable regression prevention: the silent drift that motivated backlog item cn5np0
-    ('aw ipd board' declaring (0, 2) while reachably returning 3) was exactly this shape
-    and would have been caught by this gate.
-
-    Timing decisions recorded (IPD 1mnit8 F-14):
-    1. Hang budget: The 32 invocations take 185.650s serially at execution base (dominated
-       by 'doctor' at 53.345s human and 92.121s agent). Because conftest.py's 90s hang budget
-       ignores @pytest.mark.slow, an explicit @pytest.mark.timeout(500) is set, providing
-       >2.5x headroom over the measured serial total.
-    2. Slow marker: Marked @pytest.mark.slow because the 185.650s serial runtime far exceeds
-       one-third of 90s (~30s). In CI (.github/workflows/tests.yml), -m slow runs as an
-       advisory continue-on-error step, trading enforcement for suite execution speed.
+    Coverage boundary (IPD 34iwyp E-06):
+    Covers LIVE_HEAVY_LEAVES (doctor, attention, status), marked @pytest.mark.slow and
+    given an explicit @pytest.mark.timeout(500) due to measured heavy runtimes.
     """
-    safe_leaves = sorted(conformance_matrix.LIVE_SAFE_LEAVES.keys())
-    assert len(safe_leaves) == 16, f"Expected 16 safe leaves, got {len(safe_leaves)}"
-    violations = []
+    extra = conformance_matrix.LIVE_SAFE_LEAVES[leaf]
+    decl = command_surface.get_declaration(leaf)
+    assert decl is not None, f"Declared leaf {leaf!r} missing from declaration index"
 
-    for leaf in safe_leaves:
-        extra = conformance_matrix.LIVE_SAFE_LEAVES[leaf]
-        decl = command_surface.get_declaration(leaf)
-        assert (
-            decl is not None
-        ), f"Declared leaf {leaf!r} missing from declaration index"
+    # 1. Human surface
+    argv_human = [*leaf.split(), *extra]
+    res_human = conformance_matrix.run_cli(argv_human)
+    assert (
+        res_human.returncode in decl.exit_contract
+    ), f"leaf={leaf!r}, surface='human', observed_rc={res_human.returncode}, declared={decl.exit_contract}"
 
-        # 1. Human surface
-        argv_human = [*leaf.split(), *extra]
-        res_human = conformance_matrix.run_cli(argv_human)
-        if res_human.returncode not in decl.exit_contract:
-            violations.append((leaf, "human", res_human.returncode, decl.exit_contract))
-
-        # 2. Agent surface
-        argv_agent = [*leaf.split(), *extra, "--agent"]
-        res_agent = conformance_matrix.run_cli(argv_agent)
-        if res_agent.returncode not in decl.exit_contract:
-            violations.append((leaf, "agent", res_agent.returncode, decl.exit_contract))
-
-    assert not violations, (
-        f"Found {len(violations)} live membership violations:\n"
-        + "\n".join(
-            f"  leaf={leaf!r}, surface={surface}, observed_rc={rc}, declared={contract}"
-            for leaf, surface, rc, contract in violations
-        )
-    )
+    # 2. Agent surface
+    argv_agent = [*leaf.split(), *extra, "--agent"]
+    res_agent = conformance_matrix.run_cli(argv_agent)
+    assert (
+        res_agent.returncode in decl.exit_contract
+    ), f"leaf={leaf!r}, surface='agent', observed_rc={res_agent.returncode}, declared={decl.exit_contract}"
 
 
 def test_universal_130_floor_and_signal_code_exclusion() -> None:
