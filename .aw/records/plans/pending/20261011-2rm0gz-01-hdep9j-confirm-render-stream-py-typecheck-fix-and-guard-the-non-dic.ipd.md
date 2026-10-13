@@ -6,7 +6,8 @@
 - Scope: Confirm the error is gone at HEAD, keep the narrowing fix (`reasons_map = reasons if isinstance(reasons, dict) else {}`) in `render_stream.render_run_summary_table`, and add a behavioral regression test proving the non-dict fallback renders bare dependency tokens instead of crashing or mis-rendering.
 - Scope-Paths: agent_workflows/render_stream.py, tests/test_dependency_block_reporting.py
 - Item-Dependencies: none
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
 - From-Backlog: 2rm0gz
@@ -18,9 +19,11 @@
 - Id: hdep9j
 
 ## Workflow history
+- 2026-10-13 reviewed (aw set): plan-review done
 
-- 2026-10-12 draft (opencode): created.
+- 2026-10-12 /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-005
 - 2026-10-12 to-review (opencode): authored from backlog 2rm0gz; findings show the code fix already landed in 7f5b18f3d, plan scoped to verification plus a regression test.
+- 2026-10-12 draft (opencode): created.
 
 ## Goal
 
@@ -39,9 +42,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 2: Regression test for the fallback
 
-- [ ] E-02 Add a test to `tests/test_dependency_block_reporting.py` that builds a `dependency-blocked` queue item whose `unsatisfied_dependency_reasons` is a NON-dict value (for example a list `["executed:aaa111"]` and, separately, a string), calls `render_run_summary_table(state, pal=Palette(False))`, and asserts the diagnostic line renders the bare token (`• <id6>: dependency-blocked (executed:aaa111)` shape, matching the existing `test_frozen_record_no_duplicate_parenthetical_or_blocked` assertion style) with no exception and no doubled parenthetical.
+- [ ] E-02 Add a test to `tests/test_dependency_block_reporting.py` that builds a `dependency-blocked` queue item whose `unsatisfied_dependency_reasons` is a NON-dict value (for example a list `["executed:aaa111"]` and, separately, a string), sets `unsatisfied_dependencies` to `["executed:aaa111"]` (without a dependency list the branch renders `unmet dependencies` and never consults the reasons), calls `render_run_summary_table(state, pal=Palette(False))`, and asserts the diagnostic line renders the bare token (`• <id6>: dependency-blocked (executed:aaa111)` shape, matching the existing `test_frozen_record_no_duplicate_parenthetical_or_blocked` assertion style) with no exception and no doubled parenthetical. The non-dict value MUST CONTAIN the dependency token (the list `["executed:aaa111"]`, the string `"executed:aaa111"`): only then does the pre-fix code path discriminate, because `d in reasons` is true for such a list or string and the following `reasons[d]` raises `TypeError`; a non-dict value that lacks the token would pass with or without the narrowing and guard nothing. Prove the test is a guard: temporarily replace the narrowing with `reasons_map = reasons`, run the new test and see it fail, then restore with `git checkout -- agent_workflows/render_stream.py` and confirm `git diff --quiet -- agent_workflows/render_stream.py` exits 0. Never commit the mutation.
   - Depends on: E-01
-  - Expected outcome: new test passes at HEAD; it exercises the `else {}` arm of the narrowing via real rendering output.
+  - Expected outcome: new test passes at HEAD and fails under the mutation; it exercises the `else {}` arm of the narrowing via real rendering output.
   - Execution state: pending
 
 - [ ] E-03 Run `python3 -m pytest tests/test_dependency_block_reporting.py` and the full bare suite `python3 -m pytest`, and confirm no regression.
@@ -56,6 +59,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 - Tests must assert observable outcomes, never source text (AGENTS.md "TEST OUTCOMES, NOT CODE STRUCTURE"); hence the regression test drives `render_run_summary_table` rather than grepping for `isinstance`.
 - Existing rendering tests live in `tests/test_dependency_block_reporting.py` and use `render_run_summary_table(state, pal=Palette(False))` with a `_diag_lines` helper.
 - Commits go through `aw commit <plan> -- <paths>`.
+- The local mypy gate's whole-package error set is outside this plan; the CI type gate (`.github/workflows/tests.yml` `static type gate`) is being repaired by plan `ezyb4a`.
 
 ## Findings
 
@@ -74,8 +78,10 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ## Deferred / out of scope (with reason)
 
-- The other 15 mypy errors in other modules (F-03): not part of backlog `2rm0gz`, which names render_stream.py only. They deserve their own backlog items; not filed here because this turn is authoring a plan for one item.
+- The other 15 mypy errors in other modules (F-03): not part of backlog `2rm0gz`, which names render_stream.py only. Plan `ezyb4a` (Set `cihealth`) E-05 owns them.
+  - Carrier: ezyb4a
 - No test that shells out to mypy: it would be slow and pin the whole-package baseline; the gate itself is the check, captured as V-01 evidence.
+  - Carrier-Declined: a design choice, not deferred work; the CI type gate runs mypy on every push.
 
 ## Scope check
 
@@ -98,7 +104,7 @@ N/A: internal type narrowing and a test; no spec describes this rendering branch
 
 - Blocking: no
 - Status: resolved
-- Owner: none
+- Owner: plan author
 - Resolution or deferral rationale: Resolved from repository evidence (F-02, F-03): the fix already landed in `7f5b18f3d`; E-01 re-applies it only if it has regressed by execution time.
 
 ## Validation and cross-check (verify before reporting done)
@@ -111,7 +117,7 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Result: pending
 
 - [ ] V-02 validates E-02
-  - Required evidence: the diff of the new test and pasted output of `python3 -m pytest -o addopts="" -q tests/test_dependency_block_reporting.py -k <new test name>` showing it passed.
+  - Required evidence: the diff of the new test; pasted output of `python3 -m pytest -o addopts="" tests/test_dependency_block_reporting.py -k <new test name>` showing it passed; the pasted FAILING output of the same command under the `reasons_map = reasons` mutation; and the pasted `git diff --quiet -- agent_workflows/render_stream.py; echo $?` printing `0` after restoring.
   - Observed evidence:
   - Result: pending
 
@@ -125,4 +131,4 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 - Size assessment: standard
 - Cohesion rationale: not required
 
-Execute only after human approval. Commit through `aw commit hdep9j -- agent_workflows/render_stream.py tests/test_dependency_block_reporting.py` (only paths actually changed), never push. Move to `executed/` via the tooled lifecycle only after `aw ipd lint --phase pre-transition` conforms and V-01..V-03 show `pass` with pasted evidence.
+Execute only after human approval. Open questions: all resolved. Scope fence: Scope-Paths is a declaration; an out-of-scope edit is made and then justified at finalize (`--scope-reason`), and a declared path left untouched (for example `agent_workflows/render_stream.py` when E-01 finds no regression) is acknowledged (`--scope-ack`). Paste the actual runner output for every test and gate claim; a claim without pasted output is not evidence. Commit through `aw commit hdep9j -- <paths>` naming only paths actually changed (never the E-02 mutation), never push. Lifecycle: when run by `aw oc run` / `aw agy run`, the runner finalizes; when executed by hand, finish with `aw ipd finalize hdep9j` only after `aw ipd lint --phase pre-transition` conforms and V-01..V-03 show `pass` with pasted evidence. Do not `git mv` the plan by hand.
