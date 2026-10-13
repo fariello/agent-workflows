@@ -1,5 +1,5 @@
 - Id: 7afjyu
-- Status: graduated
+- Status: done
 - Graduated-To: brgate
 - Blocks-Release: next
 - Set: brgate
@@ -8,6 +8,7 @@
 - Summary: Six sibling metadata line writers in releases strip their field over the WHOLE text, so setting Priority/Work-Kind/From-Backlog/From-Spec/Item-Dependencies/Graduated-To can delete a matching body line; measured exposure 2026-10-02
 
 ## Workflow history
+- 2026-10-13 done (aw backlog): closed by aw agy run: IPD nrdrv6 executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20261012-brgate-02-nrdrv6-bound-the-six-sibling-releases-line-writers-strip-to-the-met.ipd.md); evidence .aw/records/plans/executed/20261012-brgate-02-nrdrv6-bound-the-six-sibling-releases-line-writers-strip-to-the-met.ipd.md
 - 2026-10-12 graduated (aw backlog): graduated by run run-20261012T005606Z-2321569: nrdrv6
 - 2026-10-02 created (aw backlog): Six sibling metadata line writers in releases strip their field over the WHOLE text, so setting Priority/Work-Kind/From-Backlog/From-Spec/Item-Dependencies/Graduated-To can delete a matching body line; measured exposure 2026-10-02
 
