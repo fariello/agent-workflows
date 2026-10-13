@@ -6,7 +6,8 @@
 - Scope: IN: comment and docstring prose at the 27 sites in Findings, each dispositioned REPOINT, RETIRE-PIN or RETIRE-UNGUARDED (definitions in sibling `9rthek` Project conventions), preserving each comment's design reason. Three sites (S-02, S-03, S-07) already describe their test in the past tense without naming the commit; they are brought to the same form by naming `19313eed`. OUT: any executable change; restoring any test; `tools/lost_guard_census.py` (its two hits are classifier fixtures that read deleted blobs via `git show 19313eed^:...`/`80db6750c^:...`, which is correct usage and not a citation, see F-01); the `ipd_lifecycle._run_record_committed_paths` incident narrative naming `tests/test_orchestrator_probe_cache.py` as a path a past plan declared (F-02: accurate history, not a guard claim); filing backlog (Order 04 `ellenm`).
 - Scope-Paths: agent_workflows/artifact_core.py, agent_workflows/artifact_naming.py, agent_workflows/artifact_types.py, agent_workflows/attention.py, agent_workflows/check_engine.py, agent_workflows/cli.py, agent_workflows/ipd_lifecycle.py, agent_workflows/lane_containment.py, agent_workflows/plan_readiness.py, agent_workflows/plans.py, agent_workflows/prompts.py, agent_workflows/pwatch.py, agent_workflows/render_stream.py, agent_workflows/run_cli.py, agent_workflows/runner_profile_wizard.py, agent_workflows/selectors.py, agent_workflows/work_cmd.py, .aw/records/plans/pending/20261011-iosmvn-03-ev7t1w-retire-or-repoint-the-dangling-test-citations-in-the-non-run.ipd.md
 - Item-Dependencies: none
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
 - From-Backlog: iosmvn
@@ -17,6 +18,7 @@
 - Id: ev7t1w
 
 ## Workflow history
+- 2026-10-13 reviewed (opencode its_direct/pt3-claude-opus-5.5-1m-us): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-001..PR-005 fixed.
 
 - 2026-10-12 draft (opencode its_direct/pt3-claude-opus-5.5-1m-us): created.
 - 2026-10-12 to-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): authored review-ready from backlog `iosmvn`; 27 sites measured at HEAD `8538be828`.
@@ -36,21 +38,21 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Expected outcome: recorded list equals Findings S-01..S-27, or each delta carries a disposition.
   - Execution state: pending
 
-- [ ] E-02 For each site, decide REPOINT / RETIRE-PIN / RETIRE-UNGUARDED and record a `Site | Disposition | Evidence` table appended to Findings, with evidence of the kinds the Set conventions require. For S-08 (`test_no_hardcoded_reviews_path_in_check_engine`) and S-10 (occurrence-counting test), RETIRE-PIN is expected because the deleted tests read `check_engine` source; confirm from `git show 19313eed^:<path>`.
+- [ ] E-02 For each site, decide REPOINT / RETIRE-PIN / RETIRE-UNGUARDED and record a `Site | Disposition | Evidence` table appended to Findings, with evidence of the kinds the Set conventions require. For EVERY site also record the REMOVING COMMIT of the specific guard the comment describes, found with `git log --oneline -S'<test or class name>' -- tests/<file>` (or, when the comment names only a file, by reading the guard in `git show 80db6750c^:tests/<file>` and checking whether it survives in `git show 19313eed^:tests/<file>`). The removing commit is `80db6750c` ("delete 366 tests that pinned code structure") for several sites, not `19313eed`; see Findings note F-03. For S-08 (`test_no_hardcoded_reviews_path_in_check_engine`) and S-10 (`test_wired_into_the_plans_type_content_path_exactly_once`, which counted `check_review_decision_unescalated` in source), RETIRE-PIN is expected; confirm from `git show 80db6750c -- tests/<file>`, since neither test exists at `19313eed^`.
   - Depends on: E-01
-  - Expected outcome: 27 (plus deltas) dispositioned rows, each with evidence.
+  - Expected outcome: exactly one dispositioned row per E-01 hit (re-derived at execution; 27 at authoring and at review HEAD `fd2b21d66` is context, not the bar), each with evidence and a `Removed-by` commit.
   - Execution state: pending
 
 ### Task group 2: Edit
 
-- [ ] E-03 Apply the dispositions as comment/docstring edits, keeping each design reason and, for both RETIRE forms, naming `19313eed` within three lines of the citation in the established wording ("deleted in `19313eed`; no live guard currently asserts this"). Where a docstring sentence would otherwise read as live enforcement ("there is an explicit anti-fork guard test at ..."), rewrite the tense, not just append a note.
+- [ ] E-03 Apply the dispositions as comment/docstring edits (no statement, constant, signature, or identifier changes), keeping each design reason and, for both RETIRE forms, naming `19313eed` within three lines of the citation in the established wording ("deleted in `19313eed`; no live guard currently asserts this"). Where E-02 recorded `Removed-by: 80db6750c`, the wording must name that commit as the guard's removal and `19313eed` only as the later deletion of the file (for example "a code pin removed in `80db6750c` under P16; the file was deleted in `19313eed`"), following sibling `dtelfb`, so no comment misdates a removal. Where a comment's design reason depended on the removed test (S-10/S-11 explain citing by rule id "so a prose mention would not fail" the occurrence counter), keep the reason as history and state that the constraint no longer binds. Where a docstring sentence would otherwise read as live enforcement ("there is an explicit anti-fork guard test at ..."), rewrite the tense, not just append a note.
   - Depends on: E-02
-  - Expected outcome: measurement over the 17 files prints `UNRETIRED 0`.
+  - Expected outcome: measurement over the 17 files prints `UNRETIRED 0`, and every edited passage is a true statement about HEAD and names the correct removing commit (the measurement only proves `19313eed` is nearby, not that the claim is true).
   - Execution state: pending
 
 - [ ] E-04 Prove prose-only and regression-free: run the AST-equivalence command against the E-01 HEAD over the 17 source files, and the bare suite `python3 -m pytest`.
   - Depends on: E-03
-  - Expected outcome: `AST-DIFFER []`; suite summary with no failures.
+  - Expected outcome: `AST-DIFFER []`; suite summary with no failures, or any failure shown to pre-exist by re-running the failing test ids at the E-01 HEAD in a scratch `git worktree` (a prose-only change cannot cause one).
   - Execution state: pending
 
 ## Project conventions discovered (Step 0)
@@ -62,7 +64,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ## Findings
 
-Measured at HEAD `8538be828`.
+Measured at HEAD `8538be828`; re-measured at review HEAD `fd2b21d66` with the identical 27 hits. F-01 and F-02 also re-confirmed (`tools/lost_guard_census.py` `print_classifier`; `ipd_lifecycle._run_record_committed_paths`).
 
 | Site | File | Enclosing symbol | Cited path |
 |---|---|---|---|
@@ -97,6 +99,7 @@ Measured at HEAD `8538be828`.
 | ID | Excluded hit | Reason |
 |---|---|---|
 | F-01 | `tools/lost_guard_census.py` `print_classifier`: `git_show(repo_root, "80db6750c^:tests/test_orchestrator_probe_cache.py")` and `mixed_example = "tests/test_dependency_verb.py"` | The census reads deleted blobs by design; these are inputs, not claims. Rewriting them would break the tool. |
+| F-03 | Review at `fd2b21d66`: `git show 80db6750c -- tests/<file>` removes the guard the comment names for S-08 (`test_no_hardcoded_reviews_path_in_check_engine`), S-10 (`test_wired_into_the_plans_type_content_path_exactly_once`), S-17/S-18 (`SourceInvariantTests.test_every_structural_invariant_holds`, the anti-fork source-slice check), S-22 (`test_render_stream_imports_no_first_party_module_that_could_cycle`), and probably S-03/S-05/S-20 (`test_facet_enum_tuple_literal_defined_in_exactly_one_module`); each was gone before `19313eed` deleted the file. S-15's `MISSING_INPUT_VERDICT_*` enumeration, by contrast, survived to `19313eed^`. | The uniform "deleted in `19313eed`" wording would misdate these removals; E-02 records `Removed-by` per site and E-03 words accordingly. |
 | F-02 | `agent_workflows/ipd_lifecycle.py` `_run_record_committed_paths` docstring: "declaring its plan file, ``agent_workflows/runner_shared.py`` and ``tests/test_orchestrator_probe_cache.py``" | A dated incident narrative naming a path a past plan declared; true as history, asserts no guard. |
 
 ## Proposed changes (ordered, validatable)
@@ -133,7 +136,7 @@ N/A: comment and docstring prose only; no `.spec.md` is touched.
 
 - Blocking: no
 - Status: resolved
-- Owner: none
+- Owner: plan author
 - Resolution or deferral rationale: They read in the past tense, but S-02 still says "see `tests/test_artifact_core.py::ScanRootClassificationInvariantTests`" as an instruction, and none names the commit. Bringing them to the uniform form costs three one-line edits and lets the Set's measurement reach zero without a special-case list.
 
 ## Validation and cross-check (verify before reporting done)
@@ -146,17 +149,17 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Result: pending
 
 - [ ] V-02 validates E-02
-  - Required evidence: the appended disposition table, one row per site, with pasted evidence for every REPOINT and RETIRE-UNGUARDED row and the `git show` excerpt for S-08 and S-10.
+  - Required evidence: the appended disposition table, one row per site with a `Removed-by` commit, with pasted evidence for every REPOINT and RETIRE-UNGUARDED row, the pasted `git log -S` (or `git show`) output establishing each `Removed-by`, and the `git show 80db6750c -- <file>` excerpt for S-08 and S-10.
   - Observed evidence:
   - Result: pending
 
 - [ ] V-03 validates E-03
-  - Required evidence: pasted post-edit measurement ending `UNRETIRED 0` and `git diff --stat` over the 17 files.
+  - Required evidence: pasted post-edit measurement ending `UNRETIRED 0`, `git diff --stat` over the 17 files, and each edited passage quoted after the edit, with every `Removed-by: 80db6750c` site shown naming that commit.
   - Observed evidence:
   - Result: pending
 
 - [ ] V-04 validates E-04
-  - Required evidence: pasted `AST-DIFFER []` and the bare `python3 -m pytest` summary line.
+  - Required evidence: pasted `AST-DIFFER []` with the `<rev>` used, and the bare `python3 -m pytest` summary line (stated run with no added flags); for any failure, the pasted pre-existence re-run at E-01 HEAD.
   - Observed evidence:
   - Result: pending
 
@@ -165,4 +168,8 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 - Size assessment: standard
 - Cohesion rationale: not required
 
-Execute only after human approval. Commit through `aw commit ev7t1w -- <paths>` limited to the declared Scope-Paths; never push. Move to `executed/` only via `aw ipd finalize` after `aw ipd lint --phase pre-transition` conforms and every `V-*` is `pass` with pasted evidence.
+Execute only after explicit human approval recorded through `aw ipd set approved`. OQ-01 is resolved; no open question remains.
+
+EXECUTION CONTRACT. Scope fence: the declared Scope-Paths; an out-of-scope edit is made and then justified at finalize (`--scope-reason`), not a stop. Commit only those paths through `aw commit ev7t1w -- <paths>`; never `git add -A`, bare, or `-a`, never `--no-verify`, never push; verify `git diff --cached --name-only` before committing. You MUST paste the actual command output for every measurement, AST check, history lookup, and suite claim; never claim a result you did not run. If a site here was concurrently changed by another plan in a way that cannot be safely combined, stop and report.
+
+POST-GATE LIFECYCLE MOVE. After every `V-*` is `pass` with pasted evidence and `aw ipd lint --phase pre-transition` conforms: under `aw oc run`/`aw agy run` the runner performs `aw ipd begin`/`aw ipd finalize`; in a manual run use `aw ipd finalize <plan> --actor <agent/model> --message <summary> --apply`. Never `git mv` the plan or hand-edit `- Status:`. Backlog `iosmvn` carries no `- Blocks-Release:` to inherit.
