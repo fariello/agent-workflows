@@ -6,7 +6,7 @@
 - Scope: Orchestrate four children: (01) stop launching a baseline nothing will collect; (02) one full-suite entry point, `aw suite`, with a tree-keyed result cache and a bounded xdist worker count, adopted by the runner's own suite seams and named in agent prompts; (03) a machine-wide full-suite lock whose wait emits progress the stall watchdog counts; (04) a measurement of coverage-based test selection on real `main` steps, adopted for agent iteration only if it pays. ORCHESTRATION ONLY: every deliverable belongs to a child. The full suite remains the integration authority in every child.
 - Scope-Paths: .aw/records/plans/pending/20261012-suiteeff-00-z3cqvz-stop-wasting-full-test-suites-one-cached-bounded-serialized.ipd.md
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Coverage: pass
 - Coverage-Fingerprint: 6867099fef6df2b3c6bf0c924a6ece40be7d6e76256927af2e05c34924b5f3ab
@@ -20,8 +20,10 @@
 - Highest E allocated: 04
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: z3cqvz
+- Approval: 2026-10-13, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-13 approved (aw set): status set to approved
 
 - 2026-10-13 /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005, PR-006 (record `.aw/records/reviews/20261012-suiteeff-00-z3cqvz-stop-wasting-full-test-suites-one-cached-bounded-serialized.review.md`)
 - 2026-10-13 reviewed (aw set): plan-review: APPROVE WITH REVISIONS APPLIED; PR-001..PR-006
