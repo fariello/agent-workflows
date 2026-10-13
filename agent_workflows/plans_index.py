@@ -446,17 +446,35 @@ def run_index(args: argparse.Namespace) -> int:
     new_json = build_index_json(entries)
     new_md = build_index_md(entries, limit=limit)
 
-    json_changed = (not json_path.exists()) or (
+    json_existed = json_path.exists()
+    md_existed = md_path.exists()
+    json_changed = (not json_existed) or (
         json_path.read_text(encoding="utf-8") != new_json
     )
-    md_changed = (not md_path.exists()) or (
-        md_path.read_text(encoding="utf-8") != new_md
-    )
+    md_changed = (not md_existed) or (md_path.read_text(encoding="utf-8") != new_md)
 
     if json_changed:
         json_path.write_text(new_json, encoding="utf-8")
     if md_changed:
         md_path.write_text(new_md, encoding="utf-8")
+
+    from agent_workflows.result_types import select_output
+
+    ctx = select_output(args)
+    if (ctx.is_agent or ctx.is_json) and not getattr(args, "quiet", False):
+        return _core.emit_index_write_result(
+            args,
+            repo_root,
+            plans_dir,
+            target="plans",
+            noun="plans",
+            count=len(entries),
+            json_changed=json_changed,
+            md_changed=md_changed,
+            json_existed=json_existed,
+            md_existed=md_existed,
+            drift=drift,
+        )
 
     # Regeneration always writes the CURRENT state (a snapshot); metadata drift (e.g. a plan still
     # lacking an Id) is reported but does NOT block the write. Use `--check` as the gate.

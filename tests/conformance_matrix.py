@@ -155,6 +155,7 @@ RUNNABLE_ARGV: Dict[str, List[str]] = {
     "record-history": ["f36de0"],
     "config get": ["interactive"],
     "config is": ["interactive"],
+    "index": ["plans", "--check"],
 }
 
 # --------------------------------------------------------------------------------------------------
@@ -175,7 +176,7 @@ class Exemption:
 
 
 EXEMPTION_REGISTRY: Dict[str, Exemption] = {
-    # sanctioned_raw (6):
+    # sanctioned_raw (5):
     "find": Exemption(
         reason_kind="sanctioned_raw",
         citation="docs/cli-output-contract.md Section 12",
@@ -208,14 +209,6 @@ EXEMPTION_REGISTRY: Dict[str, Exemption] = {
         reason_kind="sanctioned_raw",
         citation="tools/completion.py",
         reason="Emits raw shell completion script for shell eval rather than an agent envelope.",
-    ),
-    "index": Exemption(
-        reason_kind="sanctioned_raw",
-        citation="docs/cli-output-contract.md",
-        reason=(
-            "Rebuilds or checks indexes, outputting raw tab-separated lines or index notices "
-            "rather than an envelope."
-        ),
     ),
     # not_runnable (16):
     "ipd begin": Exemption(
