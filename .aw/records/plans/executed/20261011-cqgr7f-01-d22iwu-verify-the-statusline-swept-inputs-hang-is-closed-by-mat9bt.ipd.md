@@ -6,7 +6,7 @@
 - Scope: Verification-only. Re-measure the named test in isolation and in the full default suite, confirm the two existing fixes are present and behaving, and record the evidence in this plan so `cqgr7f` can be closed as satisfied by this plan's execution. No production or test code change.
 - Scope-Paths: .aw/records/plans/**
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -17,9 +17,9 @@
 - Highest E allocated: 04
 - Author: opencode
 - Id: d22iwu
-- Approval: 2026-10-12, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-13 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: d22iwu verified (set cqgr7f, attempt 1).
 - 2026-10-12 approved (aw set): status set to approved
 - 2026-10-12 reviewed (aw set): plan-review complete: APPROVE WITH REVISIONS APPLIED
 
@@ -37,27 +37,27 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: Confirm the fixes are present
 
-- [ ] E-01 Confirm the `mat9bt` pairwise fix is present: in `tests/test_statusline_behavior.py`, `TestStatuslineBoxInvariants.test_box_renderer_invariants_across_swept_inputs` iterates `generate_pairwise_covering_array(_STATUSLINE_SWEPT_DOMAINS)` rows, and the 7,776-row cartesian sweep lives only in `test_box_renderer_invariants_exhaustive_sweep` marked `@pytest.mark.slow`.
+- [x] E-01 Confirm the `mat9bt` pairwise fix is present: in `tests/test_statusline_behavior.py`, `TestStatuslineBoxInvariants.test_box_renderer_invariants_across_swept_inputs` iterates `generate_pairwise_covering_array(_STATUSLINE_SWEPT_DOMAINS)` rows, and the 7,776-row cartesian sweep lives only in `test_box_renderer_invariants_exhaustive_sweep` marked `@pytest.mark.slow`.
   - Depends on: none
   - Expected outcome: Both facts confirmed by `grep -n "generate_pairwise_covering_array\|pytest.mark.slow\|def test_box_renderer" tests/test_statusline_behavior.py` output.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 Confirm the `6ye76g` CPU-time hang guard is present in root `conftest.py` (`_DEFAULT_TEST_CPU_TIMEOUT`, `_DEFAULT_TEST_WALL_TIMEOUT = 240.0`, `ITIMER_PROF`) and that its behavioral tests pass: `python3 -m pytest tests/test_hang_guard_budget.py`.
+- [x] E-02 Confirm the `6ye76g` CPU-time hang guard is present in root `conftest.py` (`_DEFAULT_TEST_CPU_TIMEOUT`, `_DEFAULT_TEST_WALL_TIMEOUT = 240.0`, `ITIMER_PROF`) and that its behavioral tests pass: `python3 -m pytest tests/test_hang_guard_budget.py`.
   - Depends on: none
   - Expected outcome: grep shows the constants; the pytest run reports all tests passed.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: Re-measure the named test
 
-- [ ] E-03 Run the named test in isolation with durations: `python3 -m pytest -o addopts="" -q --durations=5 tests/test_statusline_behavior.py -k swept_inputs`.
+- [x] E-03 Run the named test in isolation with durations: `python3 -m pytest -o addopts="" -q --durations=5 tests/test_statusline_behavior.py -k swept_inputs`.
   - Depends on: E-01
   - Expected outcome: 1 passed; call duration well under 1s (authoring measurement: 0.03s).
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 Run the full default suite BARE with durations (`python3 -m pytest --durations=50`), the configuration the backlog item reported failing under, and record whether the named nodeid appears in any failure or in the slowest-50 list.
+- [x] E-04 Run the full default suite BARE with durations (`python3 -m pytest --durations=50`), the configuration the backlog item reported failing under, and record whether the named nodeid appears in any failure or in the slowest-50 list.
   - Depends on: E-03
   - Expected outcome: The named nodeid is absent from the FAILED list and from the slowest-50 list (or present with a duration far below the CPU and wall budgets). Unrelated failures, if any, are recorded by file name and count and not acted on here. The FAILED set's size is a live artifact (38 at authoring, 39 at review), so it is NOT a bar: re-derive it at execution, and the only bar is the named nodeid's absence plus its duration.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -118,25 +118,90 @@ N/A: no behavior changes; no spec describes this test's runtime.
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: Pasted grep output from `tests/test_statusline_behavior.py` showing `generate_pairwise_covering_array(_STATUSLINE_SWEPT_DOMAINS)` used in `test_box_renderer_invariants_across_swept_inputs` and `@pytest.mark.slow` on `test_box_renderer_invariants_exhaustive_sweep`.
   - Observed evidence:
-  - Result: pending
+    ```
+    $ grep -n "generate_pairwise_covering_array\|pytest.mark.slow\|def test_box_renderer" tests/test_statusline_behavior.py
+    21:def generate_pairwise_covering_array(domains: list[list[Any]]) -> list[list[Any]]:
+    318:        rows1 = generate_pairwise_covering_array(_STATUSLINE_SWEPT_DOMAINS)
+    319:        rows2 = generate_pairwise_covering_array(_STATUSLINE_SWEPT_DOMAINS)
+    345:    def test_box_renderer_invariants_across_swept_inputs(self) -> None:
+    360:        rows = generate_pairwise_covering_array(_STATUSLINE_SWEPT_DOMAINS)
+    377:    @pytest.mark.slow
+    379:    def test_box_renderer_invariants_exhaustive_sweep(self) -> None:
+    ```
+    Line 360 confirms `rows = generate_pairwise_covering_array(_STATUSLINE_SWEPT_DOMAINS)` inside `test_box_renderer_invariants_across_swept_inputs`, and line 377 confirms `@pytest.mark.slow` decorating `test_box_renderer_invariants_exhaustive_sweep`.
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: Pasted grep of `conftest.py` showing `ITIMER_PROF` and `_DEFAULT_TEST_WALL_TIMEOUT`, plus the pasted `N passed` summary line of `python3 -m pytest tests/test_hang_guard_budget.py` with zero failures.
   - Observed evidence:
-  - Result: pending
+    1. Grep of `conftest.py`:
+    ```
+    $ grep -n "_DEFAULT_TEST_CPU_TIMEOUT\|_DEFAULT_TEST_WALL_TIMEOUT\|ITIMER_PROF" conftest.py
+    214:# 1. CPU BUDGET (ITIMER_PROF, counting user + sys CPU): measures actual work done by the test.
+    215:#    ITIMER_PROF is used rather than ITIMER_VIRTUAL because ITIMER_VIRTUAL measures only user time
+    218:#    (29.16s re-measured at execution head). _DEFAULT_TEST_CPU_TIMEOUT = 60.0s provides >2x headroom
+    222:#    _DEFAULT_TEST_WALL_TIMEOUT = 240.0s is well above worst unmarked in-suite wall time (66.53s
+    251:_DEFAULT_TEST_CPU_TIMEOUT = 60.0
+    252:_DEFAULT_TEST_WALL_TIMEOUT = 240.0
+    253:_DEFAULT_TEST_TIMEOUT = _DEFAULT_TEST_CPU_TIMEOUT  # backward-compatibility alias
+    275:            default_cpu = _DEFAULT_TEST_CPU_TIMEOUT
+    277:        default_cpu = _DEFAULT_TEST_CPU_TIMEOUT
+    284:            default_wall = _DEFAULT_TEST_WALL_TIMEOUT
+    286:        default_wall = _DEFAULT_TEST_WALL_TIMEOUT
+    419:        # Arm CPU budget on ITIMER_PROF / SIGPROF (user + sys CPU)
+    423:            and hasattr(_signal, "ITIMER_PROF")
+    426:            _signal.setitimer(_signal.ITIMER_PROF, cpu_budget, 1.0)
+    433:                _signal.setitimer(_signal.ITIMER_PROF, 0)
+    ```
+    2. Runner output for `python3 -m pytest tests/test_hang_guard_budget.py`:
+    ```
+    bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...
+    .........                                                                [100%]
+    9 passed in 15.60s
+    ```
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: Pasted pytest output showing `1 passed` and the `--durations` line for the named nodeid with a call time under 1s.
   - Observed evidence:
-  - Result: pending
+    ```
+    $ python3 -m pytest -o addopts="" -q --durations=5 tests/test_statusline_behavior.py -k swept_inputs
+    .                                                                        [100%]
+    NOTE: 46 tests were deselected by -m/-k and did not run (no marker filter was active; deselected by -k/--deselect)
+    ============================= slowest 5 durations ==============================
+    0.24s call     tests/test_statusline_behavior.py::TestStatuslineBoxInvariants::test_box_renderer_invariants_across_swept_inputs
 
-- [ ] V-04 validates E-04
+    (2 durations < 0.005s hidden.  Use -vv to show these durations.)
+    1 passed, 46 deselected in 2.46s
+    ```
+    Call duration is 0.24s, well below the 1s ceiling and well under the hang guard budget.
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: Pasted final summary line of the bare full-suite run, plus pasted output of `grep -n "swept_inputs"` over the saved full output (FAILED lines AND the slowest-50 block), showing it absent from FAILED and either absent from the slowest-50 or listed at a duration below 10s. Also paste the per-file count of the FAILED list (`grep "^FAILED" | cut -d: -f1 | sort | uniq -c`) so a reader can see that no failing file is `tests/test_statusline_behavior.py`, `tests/test_hang_guard_budget.py` or `conftest.py`-level.
   - Observed evidence:
-  - Result: pending
+    1. Bare full-suite summary line:
+    ```
+    7705 passed, 4 skipped, 3 warnings in 714.29s (0:11:54)
+    ```
+
+    2. Grep for `swept_inputs` in the full suite output (FAILED and slowest-50):
+    ```
+    $ grep -n "swept_inputs" .aw/state/lane-submissions/run-20261013T014119Z-1382357/08-d22iwu/attempt-1/pytest_full.log
+    (exit code 1; absent from both FAILED and slowest-50)
+    ```
+    The test passed cleanly and was absent from the slowest-50 durations list (the 50th slowest duration was 9.30s; `swept_inputs` finished well under 9.30s).
+
+    3. Per-file count of FAILED lines:
+    ```
+    $ grep "^FAILED" .aw/state/lane-submissions/run-20261013T014119Z-1382357/08-d22iwu/attempt-1/pytest_full.log | cut -d: -f1 | sort | uniq -c
+    (empty; 0 failures across the entire suite)
+    ```
+    Zero failures across all test files.
+  - Result: pass
 
 ## Approval and execution gate
 
