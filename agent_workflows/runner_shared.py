@@ -26457,6 +26457,19 @@ class SuiteBaselineRun:
             self.process.kill()
 
 
+def attempt_validates(options: Mapping) -> bool:
+    """Return whether an attempt runs independent verification.
+
+    When the "validate" key is present, its value controls; otherwise, verification
+    is enabled unless "no_verify" or "no_audit" is requested.
+    """
+    if not isinstance(options, Mapping):
+        return False
+    if "validate" in options:
+        return bool(options["validate"])
+    return not (options.get("no_verify") or options.get("no_audit"))
+
+
 def start_suite_baseline(
     repo: Path,
     *,
@@ -36981,13 +36994,22 @@ def execute_item_core(
     suite_baseline_run: SuiteBaselineRun | None = None
     suite_baseline: SuiteBaseline | None = None
     baseline_extractor = getattr(driver_module, "extract_suite_failures", None)
-    if (
+    # suiteeff-01 (`9ec94f`) E-02: DO NOT LAUNCH WHEN NOTHING WILL COLLECT IT.
+    # Measured over October: 322 suite-baseline-started vs 0 suite-baseline-collected (of 320
+    # baseline-bearing attempts, 318 had validation ON). Each was a full 12-worker suite thrown
+    # away. In validation-ON mode, the verifier's verdict is this attempt's trust signal and
+    # nothing collects a baseline (collection is gated on `not validate`). The only other reader
+    # of the pre-turn suite_baseline value is the gate_answer_is_warranted follow-up, which asks
+    # only on the suite-failure signal (INTEGRATION_REFUSED_SUITE_FAILED)—a signal that cannot
+    # arise when run_suite_check did not run.
+    baseline_eligible = (
         not is_review
         and not is_production
         and self_finalize
         and callable(baseline_extractor)
         and getattr(driver_module, "SUITE_CHECK_ARGV", None)
-    ):
+    )
+    if baseline_eligible and not attempt_validates(state.get("options", {})):
         suite_baseline_run, suite_baseline = start_suite_baseline(
             repo,
             id6=item["id6"],
@@ -37026,6 +37048,20 @@ def execute_item_core(
                     ),
                 },
             )
+    elif baseline_eligible:
+        append_jsonl(
+            run_dir / "events.jsonl",
+            {
+                "at": utc_now(),
+                "event": "suite-baseline-skipped",
+                "id6": item["id6"],
+                "attempt": attempt_no,
+                "reason": (
+                    "validation is ON; the verifier's verdict is this attempt's "
+                    "trust signal and nothing collects a baseline"
+                ),
+            },
+        )
 
     # integearn-05 (`9lyg5h`) E-02/E-03: THE CLEANUP CONSTRUCT, and it had to be ADDED rather than
     # appended to. MEASURED at authoring: `execute_item_core` contained ZERO `finally:` blocks, and
@@ -37660,9 +37696,7 @@ def execute_item_core(
                     },
                 )
         opts = state.get("options", {})
-        validate = opts.get("validate", False)
-        if "validate" not in opts:
-            validate = not (opts.get("no_verify") or opts.get("no_audit"))
+        validate = attempt_validates(opts)
 
         def _run_verifier_turn(disposition: str) -> tuple[str, Any]:
             """The independent verifier turn, run ONCE per scored disposition (factored for E-rescore).
