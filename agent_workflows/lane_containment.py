@@ -762,8 +762,10 @@ def _collect_decisions(
 #
 # WHAT IS NOT UNIFORM, stated so no reader infers parity that does not exist (R4.1a):
 #
-#   OPENCODE     a real denial. `permission.external_directory` and `permission.question` are set to
-#                `deny` through the runner-supplied runtime config, so the host itself refuses.
+#   OPENCODE     a real denial. For isolated turns, `permission.external_directory` and
+#                `permission.question` are set to `deny` through the runner-supplied runtime
+#                config, so the host itself refuses. A non-isolated turn gets the question-only
+#                denial, leaving external-directory access open for ordinary main-checkout work.
 #   ANTIGRAVITY  NO denial posture exists, permanently and by design (R4.1, R4.1c). Auto-approve is
 #                the REQUIRED setting there, because the only alternative needs interactive
 #                permissions an unattended turn cannot answer and was measured to deadlock. On that
@@ -786,6 +788,20 @@ OPENCODE_RUNTIME_CONFIG_ENV = "OPENCODE_CONFIG_CONTENT"
 #: a sibling lane.
 LANE_PERMISSION_POLICY: dict[str, str] = {
     "external_directory": "deny",
+    "question": "deny",
+}
+
+#: The permission policy requested for non-isolated unattended opencode turns (spec R4.1d).
+#:
+#: `question` is denied: every driver child is `opencode run` with stdout piped and no TTY, so an
+#: interactive question has no answerer in ANY mode, and the driver prompt already tells the agent
+#: "do not invoke an interactive question tool or wait for human input" (`runner_shared.build_prompt`).
+#:
+#: `external_directory` is NOT denied: a non-isolated turn legitimately works in the main checkout
+#: and outside it, so denying it would refuse ordinary work.
+#:
+#: Measured by research `7so8uz` Finding 5 and backlog `8ctu3u`.
+NON_ISOLATED_PERMISSION_POLICY: dict[str, str] = {
     "question": "deny",
 }
 
@@ -909,6 +925,7 @@ def build_permission_policy_env(
 #: The three capability tiers R4.1a distinguishes. `DENIED` is the only one that may be described as
 #: a denial; the other two must name the layers that DO apply instead.
 HOST_POSTURE_DENIED = "denied"
+HOST_POSTURE_PARTIAL = "partial-denial"
 HOST_POSTURE_NONE = "no-denial-posture"
 
 #: The layers carrying containment when the HOST layer contributes nothing (R4.1a). Named as data so
@@ -965,6 +982,29 @@ def opencode_posture_record(request: PermissionPolicyRequest) -> HostPostureReco
         layers=(
             "R4.1 host denial: external-directory and interactive-question asks are denied",
         )
+        + CONTAINMENT_LAYERS_WITHOUT_HOST_DENIAL,
+        requested=dict(request.policy),
+        policy_source=request.source,
+        policy_note=request.note,
+    )
+
+
+def opencode_non_isolated_posture_record(
+    request: PermissionPolicyRequest,
+) -> HostPostureRecord:
+    """The R4.1a capability statement for OPENCODE on non-isolated turns (partial denial)."""
+
+    denied = ", ".join(
+        f"`permission.{k}={v}`" for k, v in sorted(request.policy.items())
+    )
+    return HostPostureRecord(
+        host="opencode",
+        posture=HOST_POSTURE_PARTIAL,
+        reason=(
+            f"the runner supplied {denied} through the host's runtime config; "
+            "`external_directory` is not denied on a non-isolated turn and is left to `--auto`"
+        ),
+        layers=("R4.1 host denial: interactive-question asks are denied",)
         + CONTAINMENT_LAYERS_WITHOUT_HOST_DENIAL,
         requested=dict(request.policy),
         policy_source=request.source,
@@ -1130,10 +1170,10 @@ def evaluate_policy_observation(
 #: CONSEQUENCE, stated plainly: `MAX_TURN_TIMEOUT` is the ONLY driver-side bound covering a permission
 #: deadlock.
 #:
-#: RESIDUAL LIMITS: the R4.1 deny posture applies to ISOLATED opencode turns only (`oc_runipd.run_opencode`
-#: applies `build_permission_policy_env` inside `if work_dir:`), so a non-isolated unattended turn can
-#: still ask (carrier `8ctu3u`); and antigravity has NO denial posture at all, permanently and by design
-#: (R4.1, R4.1c), so there `MAX_TURN_TIMEOUT` is the whole of the bound half.
+#: RESIDUAL LIMITS: a non-isolated opencode turn can still be asked an `external_directory`
+#: permission, which `--auto` approves, but it can no longer be asked an interactive question
+#: (plan `thzrpo`, carrier `8ctu3u`); and antigravity has NO denial posture at all, permanently
+#: and by design (R4.1, R4.1c), so there `MAX_TURN_TIMEOUT` is the whole of the bound half.
 #:
 #: HISTORICAL NOTE: a resettable permission bound existed from `8a491d4c1` (2026-09-05), was never
 #: armed because a permission ask never reaches stdout (research `7so8uz`), and was removed on 2026-10-12

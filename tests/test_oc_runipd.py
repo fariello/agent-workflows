@@ -1711,7 +1711,10 @@ class StallWatchdogTests(unittest.TestCase):
                 textwrap.dedent(
                     """\
                     #!/usr/bin/env python3
+                    import sys
                     import time
+                    if sys.argv[1:2] != ["run"]:
+                        sys.exit(1)
                     time.sleep(60)
                     """
                 ),

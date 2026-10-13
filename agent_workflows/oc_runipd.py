@@ -2967,37 +2967,41 @@ def run_opencode(
     # run `run-20260901T042331Z-118022` recorded zero permission events and both workers wrote all
     # five out-of-lane paths). Denying paths the prompt still NAMED would have converted a working
     # runner into a hard failure. `cqx5v7` is in `executed/`, so the prompt no longer names them.
-    #
-    # ISOLATED TURNS ONLY, deliberately narrower than the bounds below. R4.1 scopes the posture to an
-    # unattended ISOLATED turn, and a non-isolated turn legitimately works in the main checkout, where
-    # an external-directory denial would refuse its ordinary work.
+    # ISOLATED VS NON-ISOLATED SPLIT (spec R4.1, R4.1d). An unattended isolated turn requests both
+    # `external_directory` and `question` denied (R4.1). An unattended non-isolated turn requests
+    # only `question` denied (R4.1d, plan `thzrpo`, carrier `8ctu3u`), because it legitimately works
+    # in the main checkout where an external-directory denial would refuse its ordinary work.
+    # Neither turn class can answer an interactive question, so `question` is denied on both.
     #
     # R4.3: an operator value is MERGED or LOUDLY OVERRIDDEN, never silently dropped. The risk is real
     # rather than hypothetical: `pinned_child_env` copies the process environment, so a blind
     # assignment here would discard whatever an operator had exported, with no warning.
     if work_dir:
-        policy_request = lane_containment.build_permission_policy_env(
-            child_env.get(lane_containment.OPENCODE_RUNTIME_CONFIG_ENV)
-        )
-        child_env[lane_containment.OPENCODE_RUNTIME_CONFIG_ENV] = (
-            policy_request.env_value
-        )
-        posture = lane_containment.opencode_posture_record(policy_request)
-        # R4.2: OBSERVE, do not assume the request won. Host configuration precedence can place a
-        # managed source ABOVE the runner's, so a run that only SET the policy can believe it is
-        # protected when it is not. OQ-01 resolved that an unobservable policy is recorded
-        # `unverified` and the turn CONTINUES: the probe is a DIAGNOSTIC, and the R4.4 bounds below
-        # hold regardless of what the host decided, so letting a probe failure propagate would abort
-        # turns that were otherwise fine.
-        observation = observe_opencode_policy(
-            opencode, child_env, policy_request.policy
-        )
-        # The RECORDING is host-neutral (`lane_containment.record_host_posture`), so the record shape
-        # is identical on both hosts and only the posture VALUE differs. See the agy twin for the
-        # sanctioned asymmetry: that host passes no observation because it has no policy to observe.
-        lane_containment.record_host_posture(
-            run_dir, item, attempt_no, posture, observation
-        )
+        requested_policy = lane_containment.LANE_PERMISSION_POLICY
+        posture_factory = lane_containment.opencode_posture_record
+    else:
+        requested_policy = lane_containment.NON_ISOLATED_PERMISSION_POLICY
+        posture_factory = lane_containment.opencode_non_isolated_posture_record
+
+    policy_request = lane_containment.build_permission_policy_env(
+        child_env.get(lane_containment.OPENCODE_RUNTIME_CONFIG_ENV),
+        policy=requested_policy,
+    )
+    child_env[lane_containment.OPENCODE_RUNTIME_CONFIG_ENV] = policy_request.env_value
+    posture = posture_factory(policy_request)
+    # R4.2: OBSERVE, do not assume the request won. Host configuration precedence can place a
+    # managed source ABOVE the runner's, so a run that only SET the policy can believe it is
+    # protected when it is not. OQ-01 resolved that an unobservable policy is recorded
+    # `unverified` and the turn CONTINUES: the probe is a DIAGNOSTIC, and the R4.4 bounds below
+    # hold regardless of what the host decided, so letting a probe failure propagate would abort
+    # turns that were otherwise fine.
+    observation = observe_opencode_policy(opencode, child_env, policy_request.policy)
+    # The RECORDING is host-neutral (`lane_containment.record_host_posture`), so the record shape
+    # is identical on both hosts and only the posture VALUE differs. See the agy twin for the
+    # sanctioned asymmetry: that host passes no observation because it has no policy to observe.
+    lane_containment.record_host_posture(
+        run_dir, item, attempt_no, posture, observation
+    )
 
     popen_kwargs["env"] = child_env
 
