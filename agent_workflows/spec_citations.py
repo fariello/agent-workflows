@@ -9,13 +9,40 @@ PURE AND CWD-INDEPENDENT: takes repo_root and paths explicitly, never imports ch
 
 from __future__ import annotations
 
+import contextlib
 import os
 import re
+import shutil
+import subprocess
+import tempfile
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, Iterable, List, Optional, Tuple, Union
+from typing import Dict, Iterable, Iterator, List, Optional, Tuple, Union
 
 from agent_workflows import specs
+
+
+DEFAULT_SCAN_SUBDIRS: Tuple[str, ...] = ("agent_workflows", "tools", "tests")
+
+
+def default_scan_roots(repo_root: Union[str, Path]) -> List[Path]:
+    """Return the candidate scan roots for spec anchor citations under repo_root.
+
+    Returns existing paths among agent_workflows, tools, tests; falls back to [repo_root]
+    if none exist.
+    """
+    root = Path(repo_root)
+    roots = [root / d for d in DEFAULT_SCAN_SUBDIRS if (root / d).exists()]
+    return roots if roots else [root]
+
+
+@dataclass(frozen=True)
+class NewStaleAnchorsResult:
+    """Result of comparing stale spec anchor citations between two commits."""
+
+    status: str  # "new", "none", or "unknown"
+    findings: List[StaleSpecAnchor]
+    reason: str
 
 
 @dataclass(frozen=True)
@@ -390,3 +417,204 @@ def _evaluate_citation(
         return
 
     findings.append(StaleSpecAnchor(fpath, lno, id6, off, enc_h, validity))
+
+
+def _cleanup_worktree(repo: Path, wt_path: Path) -> None:
+    """Safely remove a detached temporary worktree and prune."""
+    try:
+        subprocess.run(
+            ["git", "-C", str(repo), "worktree", "remove", "--force", str(wt_path)],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+    except Exception:
+        pass
+    try:
+        if wt_path.exists():
+            shutil.rmtree(wt_path, ignore_errors=True)
+    except Exception:
+        pass
+    try:
+        subprocess.run(
+            ["git", "-C", str(repo), "worktree", "prune"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+    except Exception:
+        pass
+
+
+@contextlib.contextmanager
+def _materialize_commit(repo: Path, commit: str) -> Iterator[Path]:
+    """Materialize a commit in an ephemeral detached worktree outside tracked paths."""
+    wt_path = Path(tempfile.mkdtemp(prefix="aw-spec-anchor-"))
+    try:
+        res = subprocess.run(
+            [
+                "git",
+                "-C",
+                str(repo),
+                "worktree",
+                "add",
+                "--detach",
+                str(wt_path),
+                str(commit),
+            ],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if res.returncode != 0:
+            raise RuntimeError(
+                f"git worktree add failed for {commit}: {res.stderr.strip()}"
+            )
+        yield wt_path
+    finally:
+        _cleanup_worktree(repo, wt_path)
+
+
+def new_stale_anchors(
+    repo: Union[str, Path], lane_commit: str, base_commit: str
+) -> NewStaleAnchorsResult:
+    """Compare stale spec line-anchor citations between lane_commit and base_commit.
+
+    Returns NewStaleAnchorsResult with status 'new', 'none', or 'unknown'.
+    Never raises: any exception returns 'unknown' with the exception type and message.
+    """
+    try:
+        repo_path = Path(repo)
+        lane_sha = str(lane_commit).strip()
+        base_sha = str(base_commit).strip()
+
+        # (1) SHORT-CIRCUIT: if git diff --name-only base_commit lane_commit names
+        # no .spec.md file and no .py file under the scan roots, return 'none' without scanning.
+        diff_res = subprocess.run(
+            [
+                "git",
+                "-C",
+                str(repo_path),
+                "diff",
+                "--name-only",
+                base_sha,
+                lane_sha,
+            ],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if diff_res.returncode != 0:
+            raise RuntimeError(
+                f"git diff failed between {base_sha} and {lane_sha}: {diff_res.stderr.strip()}"
+            )
+
+        changed_paths = [
+            line.strip() for line in diff_res.stdout.splitlines() if line.strip()
+        ]
+
+        scan_roots = default_scan_roots(repo_path)
+        rel_roots: List[str] = []
+        for r in scan_roots:
+            try:
+                rel_roots.append(r.relative_to(repo_path).as_posix())
+            except ValueError:
+                rel_roots.append(r.as_posix())
+
+        has_relevant_change = False
+        for p in changed_paths:
+            if p.endswith(".spec.md"):
+                has_relevant_change = True
+                break
+            if p.endswith(".py"):
+                if "." in rel_roots or any(
+                    p == r or p.startswith(r + "/") for r in rel_roots
+                ):
+                    has_relevant_change = True
+                    break
+
+        if not has_relevant_change:
+            return NewStaleAnchorsResult(
+                status="none",
+                findings=[],
+                reason="no spec or scanned python files changed",
+            )
+
+        # (2) Evaluate BOTH sides at COMMITS via temporary worktrees.
+        base_keys: set[Tuple[str, str, int, str]] = set()
+        with _materialize_commit(repo_path, base_sha) as base_wt:
+            base_wt_roots = default_scan_roots(base_wt)
+            base_raw_findings = stale_spec_anchors(base_wt, base_wt_roots)
+            for f in base_raw_findings:
+                try:
+                    rel_p = f.file.relative_to(base_wt).as_posix()
+                except ValueError:
+                    rel_p = f.file.as_posix()
+                try:
+                    flines = f.file.read_text(
+                        encoding="utf-8", errors="ignore"
+                    ).splitlines()
+                    citing_line = (
+                        flines[f.line - 1].strip() if 1 <= f.line <= len(flines) else ""
+                    )
+                except OSError:
+                    citing_line = ""
+                base_keys.add((rel_p, f.id6, f.offset, citing_line))
+
+        new_findings: List[StaleSpecAnchor] = []
+        new_finding_details: List[str] = []
+        with _materialize_commit(repo_path, lane_sha) as lane_wt:
+            lane_wt_roots = default_scan_roots(lane_wt)
+            lane_raw_findings = stale_spec_anchors(lane_wt, lane_wt_roots)
+            for f in lane_raw_findings:
+                try:
+                    rel_p = f.file.relative_to(lane_wt).as_posix()
+                except ValueError:
+                    rel_p = f.file.as_posix()
+                try:
+                    flines = f.file.read_text(
+                        encoding="utf-8", errors="ignore"
+                    ).splitlines()
+                    citing_line = (
+                        flines[f.line - 1].strip() if 1 <= f.line <= len(flines) else ""
+                    )
+                except OSError:
+                    citing_line = ""
+                key = (rel_p, f.id6, f.offset, citing_line)
+                if key not in base_keys:
+                    rel_finding = StaleSpecAnchor(
+                        file=Path(rel_p),
+                        line=f.line,
+                        id6=f.id6,
+                        offset=f.offset,
+                        enclosing_heading=f.enclosing_heading,
+                        validity=f.validity,
+                    )
+                    new_findings.append(rel_finding)
+                    new_finding_details.append(
+                        f"- {rel_p}:{f.line}: spec '{f.id6}', offset {f.offset} (citing: {citing_line})"
+                    )
+
+        if new_findings:
+            reason = (
+                f"lane introduced {len(new_findings)} new stale spec line-anchor citation(s):\n"
+                + "\n".join(new_finding_details)
+            )
+            return NewStaleAnchorsResult(
+                status="new",
+                findings=new_findings,
+                reason=reason,
+            )
+
+        return NewStaleAnchorsResult(
+            status="none",
+            findings=[],
+            reason="0 new stale spec line-anchor citations introduced",
+        )
+
+    except Exception as exc:
+        return NewStaleAnchorsResult(
+            status="unknown",
+            findings=[],
+            reason=f"{type(exc).__name__}: {exc}",
+        )
